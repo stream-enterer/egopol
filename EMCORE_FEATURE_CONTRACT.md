@@ -15,7 +15,7 @@ emCore is Eagle Mode's **core UI framework library**. It is both a library and a
 
 emCore is **not** a complete application. The file manager (`emFileMan`), fractal viewer (`emFractal`), chess game (`SilChess`), and other modules in the Eagle Mode repository are consumers of emCore. Our reimplementation targets emCore itself, scoped down from these sample applications.
 
-**Our deliverable:** A Rust crate (`em_core`) that provides equivalent functionality to the C++ emCore, with rendering via wgpu instead of CPU-based scanline rasterization. Starts as a single crate with well-separated modules; may split into a workspace (`em_core` / `em_widgets` / `em_compositor`) later if compile times warrant it.
+**Our deliverable:** A Rust crate (`zuicchini`) that provides equivalent functionality to the C++ emCore, with rendering via wgpu instead of CPU-based scanline rasterization. Starts as a single crate with well-separated modules; may split into a workspace later if compile times warrant it.
 
 ---
 
@@ -1065,7 +1065,7 @@ Phase 8: Layout System
 ## 6. Rust Crate Structure (Suggested)
 
 ```
-em_core/
+zuicchini/
   src/
     lib.rs
     foundation/       # Types, utilities, error handling
