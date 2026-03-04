@@ -256,47 +256,82 @@ impl Signal {
 
 ### 3.3 Model / Context System
 
-The model system provides **shared, named, reference-counted objects** accessible through a hierarchical context tree. This is emCore's dependency injection / service locator pattern.
+The C++ emCore used a **runtime service locator**: `Acquire(context, typeid, name)` looked up or created shared models in an AVL tree keyed by `(TypeId, name)`, with `LookupInherited()` walking up a context tree. This was idiomatic pre-2010 C++ (same pattern as COM's `QueryInterface` or Android's `getSystemService`), but in Rust it means `dyn Any` downcasting everywhere with no compile-time type safety.
 
-#### 3.3.1 Context (`emContext`)
+#### 3.3.1 Decision: Hybrid — Typed Singletons + Resource Cache
 
-**Behavioral contract:**
-- Contexts form a **tree** (root context at top, child contexts below)
-- Each context contains an **AVL-tree registry** of models keyed by `(TypeId, name)`
-- `Lookup(type, name)` finds a model in this context
-- `LookupInherited(type, name)` searches this context, then parent, recursively to root
-- Garbage collection: periodically removes unreferenced common models past their minimum lifetime
+Analysis of real C++ usage shows the service locator served two distinct roles:
 
-**Rust design:**
+1. **Known singleton services** (finite, fixed set): `emClipboard`, `emScreen`, `emCoreConfig`, `emSigModel("emFileModel::UpdateSignal")`, `emVarModel<TkResources>`. These are always the same types, always common, often with empty names. There are roughly 5-10 of these.
+
+2. **Dynamic named resources** (open-ended): `emTextFileModel::Acquire(ctx, "/path/to/file")`, `emImageFileModel::Acquire(ctx, "/some/image.png")`. The key is a runtime string (file path), and the value is cached for sharing across panels.
+
+**We split these into two mechanisms:**
+
+**Typed singleton services** get concrete accessors on the context — no string keys, no `dyn Any`, full compile-time type safety:
+
 ```
 pub struct Context {
-    parent: Option<Weak<Context>>,
-    children: Vec<Arc<Context>>,
-    models: BTreeMap<(TypeId, String), Arc<dyn Model>>,
-    // GC state
+    parent: Option<...>,  // ownership TBD (Decision #4)
+    children: Vec<...>,
+
+    // Typed singletons — known at compile time
+    clipboard: Option<Rc<Clipboard>>,
+    screen: Option<Rc<Screen>>,
+    core_config: Option<Rc<CoreConfig>>,
+    // ... (small, finite set)
+}
+
+impl Context {
+    /// Walk up parent chain until found, like C++ LookupInherited
+    pub fn clipboard(&self) -> Option<&Rc<Clipboard>> {
+        self.clipboard.as_ref().or_else(|| self.parent()?.clipboard())
+    }
 }
 ```
 
-#### 3.3.2 Model (`emModel`)
+**Dynamic named resources** use a typed `ResourceCache<K, V>`, itself stored as a typed singleton in the context:
 
-**Behavioral contract:**
-- Created via `Acquire(context, name, common)` factory pattern
-- **Common models** stay alive in context registry even after user references drop (cached, GC'd after timeout)
-- **Private models** deleted immediately when last user reference drops
-- Identity: `(concrete_type, context, name)` triple
-- Models can optionally participate in scheduling (they extend Engine)
-- `SetMinCommonLifetime(seconds)` controls GC delay
+```
+pub struct ResourceCache<V> {
+    entries: HashMap<String, Rc<V>>,
+}
 
-**Concrete model types to reimplement:**
+impl<V> ResourceCache<V> {
+    /// Find-or-create, equivalent to Acquire(ctx, name, common=true)
+    pub fn get_or_insert_with(&mut self, name: &str, f: impl FnOnce() -> V) -> Rc<V>;
+}
+```
 
-| Model Type | Purpose | Contract |
+File models become: `ctx.file_cache().get_or_insert_with("/path", || TextFileModel::new("/path"))`.
+
+**Why this preserves the C++ system's strengths:**
+- **Hierarchical scoping:** Typed accessors walk the parent chain, same as `LookupInherited()`. A view-level clipboard override shadows the root one.
+- **Find-or-create caching:** `ResourceCache` replicates the `Acquire` pattern for dynamic resources. Two panels requesting the same file path get the same `Rc<T>`.
+- **Lazy creation:** Resources created on first access, same as C++.
+- **Decoupling:** Panels access services through context, not constructor injection. No threading dependencies through 20 layers of panel nesting.
+- **Automatic cleanup:** `Rc`/`Weak` replaces the GC timer. When all user refs drop, the `Rc` strong count reaches 1 (only the cache). The cache can optionally apply LRU eviction, but the default is immediate cleanup — simpler than the C++ `MinCommonLifetime` timer, and equivalent for the common case (`MinCommonLifetime=0`). If profiling reveals cache thrashing, LRU/TTL policies can be added to `ResourceCache` without changing the API.
+
+**What we intentionally drop:**
+- **Runtime `typeid` + string lookup for known services.** Compile-time typed accessors are strictly better — a typo is a compile error, not a silent new model creation.
+- **Dynamic plugin registration of new service types.** In C++, any code could register arbitrary model types at any context level. This requires `dyn Any` and stringly-typed lookup. Since we control all service types (game UI, not a plugin framework), this flexibility is unnecessary.
+- **Separate "common" vs "private" model distinction.** Private models were just `Rc<T>` without registration — in Rust, that's simply owning an `Rc<T>` locally. No framework support needed.
+
+#### 3.3.2 Concrete Model Types
+
+The C++ model types map as follows under the hybrid approach:
+
+| C++ Model Type | Rust Equivalent | Mechanism |
 |---|---|---|
-| `emSigModel` | Named signal accessible by name | Public `Signal` field |
-| `emVarModel<T>` | Named typed variable | Public `T` field, static Get/Set helpers |
-| `emVarSigModel<T>` | Variable + change signal | Auto-fires signal on `Set()` |
-| `emConfigModel` | File-backed configuration | Load/save to disk, auto-save timer, change signal |
-| `emFileModel` | Async file loading | State machine: WAITING->LOADING->LOADED, priority-scheduled, progress reporting |
-| `emCoreConfig` | Core framework settings | Mouse/keyboard zoom speeds, render threads, memory limits |
+| `emCoreConfig` | `CoreConfig` struct | Typed singleton on root context |
+| `emClipboard` | `Clipboard` wrapper | Typed singleton, inherited lookup |
+| `emScreen` | Removed (winit handles this) | N/A |
+| `emSigModel` | Named signal field on relevant struct | Typed singleton or direct field |
+| `emVarModel<T>` | `Rc<RefCell<T>>` or typed singleton | Depends on usage — most become typed fields |
+| `emVarSigModel<T>` | `Rc<WatchedVar<T>>` (value + change signal) | Typed singleton or direct field |
+| `emConfigModel` | `ConfigModel<T: Serialize + Deserialize>` | Typed singleton, file-backed |
+| `emFileModel` | `FileModel<T>` | `ResourceCache<FileModel<T>>` keyed by path |
+| `emCoreConfig` | `CoreConfig` | Typed singleton on root context |
 
 #### 3.3.3 Record System (`emRec`)
 
