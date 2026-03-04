@@ -144,34 +144,59 @@ These provide the building blocks all other subsystems depend on. Most map direc
 
 This is the **heart of emCore's execution model**. Everything flows through the scheduler.
 
-#### 3.2.1 Scheduler (`emScheduler`)
+#### 3.2.1 Architecture: winit Event Loop + Engine Scheduler
 
-**Behavioral contract:**
-- Runs a main loop divided into **time slices** (~10ms each)
+The C++ emCore scheduler was two separable layers:
+1. **Outer loop** (`emStandardScheduler::Run`) -- sleeps to ~10ms cadence, calls `DoTimeSlice()`, checks termination. This is a trivial sleep loop with zero OS event awareness. Platform event handling (X11, Windows) ran *inside* `DoTimeSlice()` as an engine.
+2. **Inner task executor** (`emScheduler::DoTimeSlice`) -- processes pending signals, wakes engines, executes engines by priority. Self-contained ~70 lines of pointer manipulation with no OS dependencies.
+
+**Decision: We do not reimplement the outer loop.** winit owns the event loop. The inner task executor becomes an `EngineScheduler` struct called from winit's `AboutToWait` callback.
+
+This is a pure simplification because:
+- The C++ platform backend was already an engine *inside* `DoTimeSlice()`. With winit, the direction reverses (winit delivers events, we run engines in response), but the engine/signal system is unaffected.
+- `IsTimeSliceAtEnd()` is just a wall-clock deadline check -- works identically regardless of who calls `do_time_slice()`.
+- Signal instant-chaining is entirely internal to `do_time_slice()`.
+- On macOS, iOS, and web, winit *must* own the event loop. A custom outer loop would fight the platform.
+- The C++ `emScheduler` was already designed for this separation (`DoTimeSlice` is protected, `Run` is virtual).
+
+**Behavioral contract for `EngineScheduler`:**
+- Executes one **time slice** per call to `do_time_slice()`
 - Each time slice has two phases:
   1. **Signal phase:** Process pending signals, wake connected engines
   2. **Engine phase:** Execute awake engines by priority (5 levels: VERY_LOW to VERY_HIGH)
 - Engines within the same priority use **FIFO ordering with alternating time-slice fairness** (prevents starvation)
-- Provides `IsTimeSliceAtEnd()` for engines to yield cooperatively
-- Supports graceful termination via `InitiateTermination(returnCode)`
+- Provides `is_time_slice_at_end()` for engines to yield cooperatively (wall-clock deadline, ~50ms max)
+- Termination handled by winit's `event_loop.exit()` rather than a custom `InitiateTermination()`
 
 **Rust design:**
 ```
-pub struct Scheduler {
+pub struct EngineScheduler {
     // Pending signals list
     // 10 engine wake queues (5 priorities x 2 time-slice parities)
     // Time slice counter, clock
+    // Deadline time for current slice
 }
 
-impl Scheduler {
-    pub fn run(&mut self) -> i32;          // Main loop, returns exit code
-    pub fn is_time_slice_at_end(&self) -> bool;
-    pub fn initiate_termination(&mut self, code: i32);
-    pub fn do_time_slice(&mut self);       // Single iteration
+impl EngineScheduler {
+    pub fn do_time_slice(&mut self);           // Called from winit AboutToWait
+    pub fn is_time_slice_at_end(&self) -> bool; // Wall-clock deadline check
 }
 ```
 
-**Critical invariant:** The scheduler is single-threaded. All engines run cooperatively on one thread. This eliminates the need for locks on shared state within the scheduler's domain.
+**Integration with winit:**
+```
+impl ApplicationHandler for App {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        self.scheduler.do_time_slice();
+        // Request redraw if needed
+    }
+    fn window_event(&mut self, ...) {
+        // Translate winit events to emCore input events
+    }
+}
+```
+
+**Critical invariant:** The engine scheduler is single-threaded. All engine `Cycle()` calls happen on the main thread. This eliminates the need for locks on shared state within the scheduler's domain.
 
 #### 3.2.2 Engine (`emEngine`)
 
@@ -495,17 +520,51 @@ Cursor types: `Normal`, `Invisible`, `Wait`, `Crosshair`, `Text`, `Hand`, `LeftR
 
 ### 3.5 Rendering System
 
-**This is the subsystem with the largest architectural change: from CPU scanline rasterization to GPU-accelerated wgpu rendering.**
+**Architecture: CPU rasterization + GPU compositing (tile-based).**
+
+The Painter is reimplemented as a CPU software rasterizer in Rust, closely following the C++ original. Panels paint into bitmap tile buffers. wgpu composites the tiles to screen. This hybrid approach preserves the original's rendering advantages (canvas color blending, f64 precision, sub-pixel anti-aliasing) while using the GPU for efficient display and scaling.
+
+```
+Panel::Paint() calls
+    |
+    v
+Painter (CPU software rasterizer)
+    |-- Immediate-mode: paint calls write pixels directly to tile buffer
+    |-- f64 coordinates throughout, 4096x sub-pixel AA grid
+    |-- Canvas color blending applied per-pixel natively
+    |
+    v
+Tile Cache (NEW)
+    |-- Each visible panel region maps to one or more bitmap tiles
+    |-- Dirty tracking: only re-rasterize tiles whose panels changed
+    |-- Tiles are CPU bitmaps (RGBA, fixed size e.g. 256x256)
+    |
+    v
+wgpu Compositor
+    |-- Upload dirty tiles as GPU textures
+    |-- Render textured quads with affine transforms
+    |-- Simple shader: sample tile texture, output to surface
+    |-- Handles window resize, DPI scaling, vsync
+```
+
+**Why this approach:**
+- Canvas color blending (`target += (source - canvas) * alpha`) works natively -- no custom shaders needed
+- f64 precision throughout the coordinate chain -- no f32 jitter at deep zoom
+- Sub-pixel anti-aliasing at 4096x resolution -- matches the original exactly
+- No tessellation complexity (no lyon, no bezier-to-triangles conversion)
+- No custom GPU shaders for gradients, strokes, or blending
+- Tile caching means static panels don't re-rasterize -- potentially faster than the C++ version which repaints everything every frame
+- wgpu's role is minimal and well-understood (textured quads)
 
 #### 3.5.1 Painter API (`emPainter`)
 
-The Painter is the rendering interface that all panels use. **The public API must be preserved 1:1** even though the backend changes completely.
+The Painter is the rendering interface that all panels use. It is an **immediate-mode CPU rasterizer** that writes pixels directly to bitmap tile buffers. The API is a direct port of the C++ original.
 
 **Coordinate system:**
-- User space: arbitrary floating-point coordinates set by origin + scale
+- User space: f64 floating-point coordinates set by origin + scale
 - Transform: `x_pixels = x_user * scale_x + origin_x`
-- Clipping: axis-aligned rectangle in pixel coordinates
-- Nested painters inherit and intersect parent's clip rect
+- Clipping: axis-aligned rectangle in pixel coordinates (fractional for sub-pixel clipping)
+- The View creates painters with narrowed clip rects for each panel; panels receive a pre-clipped painter
 
 **Drawing primitives -- all must be supported:**
 
@@ -536,6 +595,12 @@ The Painter is the rendering interface that all panels use. **The public API mus
 - `paint_text_boxed(x, y, w, h, text, max_char_height, color, canvas_color, alignment, ...)` -- fitted text
 - `get_text_size(text, char_height, ...) -> (width, height)`
 
+**What changes from the C++ Painter:**
+- No `UserSpaceMutex` / `LeaveUserSpace` / `EnterUserSpace` -- single-threaded, no mutex coordination needed
+- No raw bitmap constructor with arbitrary pixel format masks -- tiles are always RGBA8
+- No `emRenderThreadPool` -- tile rasterization is single-threaded initially (can add parallelism later by rasterizing independent tiles on separate threads)
+- Sub-painter copying (used by the View to set clip+transform per panel) becomes push/pop state on the painter, avoiding the C++ shallow-copy-with-shared-buffer pattern
+
 #### 3.5.2 Texture System
 
 Textures define how filled areas and strokes are colored:
@@ -554,6 +619,8 @@ Textures define how filled areas and strokes are colored:
 - Downscale: Nearest, 2x2 through 6x6 area sampling
 - Upscale: Nearest, AreaSampling, Bilinear, Bicubic, Lanczos, Adaptive
 
+All implemented in the CPU rasterizer, matching the C++ original's quality.
+
 #### 3.5.3 Stroke System
 
 Line styling:
@@ -568,8 +635,6 @@ Each end has configurable inner color, width factor, and length factor.
 
 #### 3.5.4 Canvas Color Blending
 
-**Critical behavioral contract:**
-
 emCore uses a non-standard blending formula for overlapping objects that share edges:
 
 ```
@@ -581,7 +646,7 @@ This prevents color bleeding at shared edges. Standard alpha blending:
 target_new = target_old * (1 - alpha) + source * alpha
 ```
 
-The canvas color formula is **essential for correct rendering** of the bordered panel system. In wgpu, this requires a **custom blend mode in the fragment shader**.
+The canvas color formula is **essential for correct rendering** of the bordered panel system. Because the Painter is a CPU rasterizer, this formula is applied per-pixel natively -- no custom GPU shaders required.
 
 #### 3.5.5 Color System
 
@@ -609,68 +674,55 @@ Must support: creation, resizing, pixel access, copy, fill, channel conversion.
 - LRU glyph cache with configurable memory limit
 - Per-character metrics (dimensions, positioning)
 - Lazy loading (glyphs loaded on demand)
-- Text painted as colored images
+- Text painted as colored images into tile buffers by the CPU rasterizer
 
-**wgpu approach:** Use a glyph atlas with SDF (Signed Distance Field) or MSDF rendering for resolution-independent text. Consider `glyphon` or `cosmic-text` crates.
+Font rendering stays CPU-based, matching the C++ original. Glyphs are rasterized to the glyph cache and painted as images via `paint_image_colored()`. No GPU text rendering crates needed.
 
-#### 3.5.8 Render Thread Pool
+#### 3.5.8 Tile Cache (NEW)
 
-**C++ behavior:** Work-stealing pool that parallelizes scanline rendering across CPU cores.
+The tile cache is new infrastructure that does not exist in the C++ version. The C++ version repaints the entire visible area every frame. The tile cache enables caching of rasterized panel content.
 
-**wgpu replacement:** GPU handles parallelism natively. The render thread pool is **not needed** for the GPU path. However, a single render thread for wgpu command buffer submission may be useful.
+**Behavioral contract:**
+- The visible viewport is divided into fixed-size tiles (e.g., 256x256 RGBA8 bitmaps)
+- Each tile tracks which panels contribute to it
+- When a panel signals a repaint (via the existing Notice/Signal system), tiles overlapping that panel are marked dirty
+- Only dirty tiles are re-rasterized each frame
+- Clean tiles are re-uploaded to GPU only if not already resident
+- Zoom/pan navigation invalidates tiles (new viewport region needs rasterization)
+- Tile memory is bounded -- off-screen tiles are evicted LRU
 
-#### 3.5.9 wgpu Rendering Architecture
+**Dirty tracking: tile-level, full repaint.**
 
-**Mapping from CPU pipeline to GPU pipeline:**
+When any panel overlapping a tile signals a change, the entire tile is re-rasterized from scratch -- all panels touching that tile are repainted in order. Panel-level partial updates are not supported because canvas color blending depends on paint order; selectively repainting one panel would require replaying subsequent panels in sequence, effectively building a retained scene graph for marginal gain.
 
-```
-Panel::Paint() calls
-    |
-    v
-Painter API (unchanged public interface)
-    |
-    v
-Command Recording Layer (NEW)
-    |-- Batches draw calls by texture/shader
-    |-- Tessellates polygons, beziers, arcs to triangle meshes
-    |-- Generates vertex + index buffers
-    |
-    v
-wgpu Render Pass
-    |
-    +-- Vertex Shader: apply origin/scale transform (uniform matrix)
-    +-- Rasterizer: hardware rasterization with MSAA
-    +-- Fragment Shader:
-    |     - Texture sampling (nearest, bilinear, etc.)
-    |     - Canvas color blending: output = canvas + (sampled - canvas) * alpha
-    |     - Gradient computation
-    +-- Output to surface texture
-```
+Tile-level dirty tracking is simple, correct by construction, and strictly better than the C++ version (which repaints the entire visible area every frame).
 
-**Key GPU pipeline components:**
+**Design considerations:**
+- Tile size: 256x256 RGBA8 is a reasonable starting point (256KB per tile). Tune via benchmarks.
+- During fast zoom/pan animation, all tiles are dirty -- falls back to full rasterization (same as C++ original). Caching helps when the view is stable or slowly navigating.
+- Off-screen tile eviction: LRU with a configurable memory cap.
+- Future optimization: rasterize independent dirty tiles on separate threads (embarrassingly parallel since tiles don't share buffers).
+- Tile size, eviction policy, and parallelism are benchmark-driven decisions that do not need to be resolved upfront.
 
-1. **Geometry tessellation (CPU side):**
-   - Polygons -> triangle fans/strips
-   - Bezier curves -> adaptive line segments -> triangles
-   - Rounded rects -> arc segments -> triangles
-   - Line strokes -> quad strips with end caps
-   - Use `lyon` crate for tessellation
+#### 3.5.9 wgpu Compositor
 
-2. **Shader programs:**
-   - Solid color shader (most common)
-   - Texture shader (image painting)
-   - Gradient shader (linear + radial)
-   - Canvas-color blend shader (custom blend mode)
-   - SDF text shader
+wgpu's role is minimal: display pre-rasterized tile bitmaps on screen.
 
-3. **Draw call batching:**
-   - Sort by shader/texture to minimize state changes
-   - Use instancing for repeated shapes (e.g., grid of panels)
-   - Atlas textures for small images
+**Responsibilities:**
+- Maintain a pool of GPU textures for tile bitmaps
+- Upload dirty tiles from CPU to GPU (`queue.write_texture()`)
+- Each frame: render textured quads (one per visible tile) to the surface
+- Handle window resize, DPI scaling, vsync
+- Single render pipeline: vertex shader (quad positioning) + fragment shader (texture sample, no blending logic)
 
-4. **Anti-aliasing:**
-   - MSAA (4x or 8x) via wgpu multisampling
-   - Or shader-based AA for specific primitives
+**What wgpu does NOT do:**
+- No geometry tessellation
+- No custom blend modes or canvas color shaders
+- No gradient computation
+- No text rendering
+- No anti-aliasing (handled by CPU rasterizer)
+
+**Shader complexity:** One pipeline, one vertex shader, one fragment shader. Textured quads only.
 
 ---
 
@@ -780,7 +832,8 @@ Each layout has a `Group` variant that adds:
 
 The following emCore-adjacent modules are **NOT** part of this reimplementation:
 
-- **Platform backends**: `emX11`, `emWnds` (replaced by winit + wgpu)
+- **Platform backends**: `emX11`, `emWnds` (replaced by winit + wgpu compositor)
+- **emRenderThreadPool**: CPU thread pool for parallel scanline rendering (not needed; tile rasterization is single-threaded initially, parallelizable later without the mutex dance)
 - **Sample applications**: `emFileMan`, `emFractal`, `emMines`, `emNetwalk`, `emClock`, `SilChess`, etc.
 - **File format codecs**: `emBmp`, `emGif`, `emJpeg`, `emPng`, `emTiff`, `emSvg`, etc. (use Rust `image` crate)
 - **emFpPlugin**: Dynamic plugin loading for file panels (not needed for game UI)
@@ -800,9 +853,9 @@ Phase 1: Foundation
     String (just use std String)
     Containers (just use std collections)
 
-Phase 2: Scheduler Core
+Phase 2: Engine Scheduler
     Signal
-    Scheduler (event loop)
+    EngineScheduler (task executor, called from winit)
     Engine (cooperative tasks)
     Timer
 
@@ -816,9 +869,10 @@ Phase 3: Model System
 Phase 4: Rendering
     Color, Image
     Texture, Stroke, StrokeEnd types
-    Painter API (trait definition)
-    wgpu backend (shaders, tessellation, batching)
+    Painter (CPU software rasterizer, port of emPainter)
     Font cache / text rendering
+    Tile cache (dirty tracking, tile management)
+    wgpu compositor (tile upload, textured quad display)
 
 Phase 5: Panel System
     Panel (core abstraction)
@@ -856,11 +910,18 @@ em_core/
   src/
     lib.rs
     foundation/       # Types, utilities, error handling
-    scheduler/        # Scheduler, Engine, Signal, Timer
+    scheduler/        # EngineScheduler, Engine, Signal, Timer
     model/            # Context, Model, VarModel, Record, FileModel
-    render/           # Painter trait, Color, Image, Texture, Stroke
-      wgpu_backend/   # wgpu implementation of Painter
-      shaders/        # WGSL shader sources
+    render/
+      painter/        # CPU software rasterizer (port of emPainter)
+      color.rs        # Color type, HSV conversion
+      image.rs        # Image type (CPU bitmap)
+      texture.rs      # Texture fill types
+      stroke.rs       # Stroke and StrokeEnd types
+      font_cache.rs   # Glyph cache, text metrics
+      tile_cache.rs   # Tile management, dirty tracking
+    compositor/       # wgpu tile compositor
+      shaders/        # WGSL shader sources (minimal: textured quads)
     panel/            # Panel, View, ViewAnimator, InputFilter
     input/            # InputEvent, InputState, InputKey, Cursor, Clipboard
     window/           # Window, Screen, WindowStateSaver
@@ -869,14 +930,11 @@ em_core/
 ```
 
 **Key Rust crate dependencies:**
-- `wgpu` -- GPU rendering
+- `wgpu` -- GPU compositing (tile display, not rasterization)
 - `winit` -- window creation and event loop
-- `lyon` -- 2D tessellation (polygons, beziers, arcs)
-- `glyphon` or `cosmic-text` -- text rendering
 - `serde` -- serialization for Record system
 - `log` + `tracing` -- logging
 - `rand` -- random numbers
-- `parking_lot` -- fast mutexes (if needed)
 - `arboard` -- clipboard access
 
 ---
@@ -885,13 +943,13 @@ em_core/
 
 These invariants must hold across the entire reimplementation:
 
-1. **Single-threaded scheduler:** All engine Cycle() calls happen on one thread. No locks needed for model/signal/panel state.
+1. **Single-threaded engine scheduler:** All engine `Cycle()` calls happen on the main thread, driven by winit's `AboutToWait` callback. No locks needed for model/signal/panel state.
 
-2. **Cooperative yielding:** Long operations must check `is_time_slice_at_end()` and yield. No blocking calls in engine code.
+2. **Cooperative yielding:** Long operations must check `is_time_slice_at_end()` and yield. No blocking calls in engine code. The deadline is a wall-clock check (~50ms max per slice), independent of the winit event loop.
 
 3. **Panel coordinate invariant:** A panel's width is always `1.0`. Height equals tallness. Children are positioned in parent coordinates via `Layout()`.
 
-4. **Canvas color blending:** The formula `target += (source - canvas) * alpha` must be used wherever canvas color is specified. This is not standard alpha blending.
+4. **Canvas color blending:** The formula `target += (source - canvas) * alpha` must be used wherever canvas color is specified. This is not standard alpha blending. Because the Painter is a CPU rasterizer, this is applied per-pixel natively.
 
 5. **Signal instant chaining:** A signal fired during `Cycle()` wakes the connected engine within the same time slice (not deferred to next slice).
 
