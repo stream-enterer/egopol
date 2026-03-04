@@ -15,7 +15,7 @@ emCore is Eagle Mode's **core UI framework library**. It is both a library and a
 
 emCore is **not** a complete application. The file manager (`emFileMan`), fractal viewer (`emFractal`), chess game (`SilChess`), and other modules in the Eagle Mode repository are consumers of emCore. Our reimplementation targets emCore itself, scoped down from these sample applications.
 
-**Our deliverable:** A Rust crate (e.g., `em_core`) that provides equivalent functionality to the C++ emCore, with rendering via wgpu instead of CPU-based scanline rasterization.
+**Our deliverable:** A Rust crate (`em_core`) that provides equivalent functionality to the C++ emCore, with rendering via wgpu instead of CPU-based scanline rasterization. Starts as a single crate with well-separated modules; may split into a workspace (`em_core` / `em_widgets` / `em_compositor`) later if compile times warrant it.
 
 ---
 
@@ -613,13 +613,13 @@ Animators provide smooth, physically-modeled camera movement.
 
 | Animator | Behavior |
 |---|---|
-| `KineticViewAnimator` | Velocity-based with friction (deceleration). Base for others. |
-| `SpeedingViewAnimator` | Accelerates toward a target velocity (for keyboard navigation). |
-| `SwipingViewAnimator` | Touch-drag with spring physics and momentum. |
-| `MagneticViewAnimator` | Snaps view to "best" panel alignment automatically. |
-| `VisitingViewAnimator` | Smooth animation for `Visit()` calls. Curved pathfinding through panel tree. Handles seeking non-existent panels. |
+| `KineticViewAnimator` | Velocity-based with friction (deceleration). Base for others. | **Essential** |
+| `SpeedingViewAnimator` | Accelerates toward a target velocity (for keyboard navigation). | **Essential** |
+| `VisitingViewAnimator` | Smooth animation for `Visit()` calls. Curved pathfinding through panel tree. Handles seeking non-existent panels. | **Essential** |
+| `SwipingViewAnimator` | Touch-drag with spring physics and momentum. | Deferred (touch support) |
+| `MagneticViewAnimator` | Snaps view to "best" panel alignment automatically. | Deferred (polish) |
 
-Animators have master/slave relationships and can overlay each other. Each produces velocity deltas that the view integrates per frame.
+Animators have master/slave relationships and can overlay each other. Each produces velocity deltas that the view integrates per frame. Implement the three essential animators first; Swiping and Magnetic are deferred until touch support and UI polish phases respectively.
 
 #### 3.4.4 Window (`emWindow`)
 
@@ -786,10 +786,13 @@ Line styling:
 - Configurable dash/gap length factors
 - Rounded or angular joins/caps
 
-Line end decorations (16 types):
-`Butt`, `Cap`, `Arrow`, `ContourArrow`, `LineArrow`, `Triangle`, `ContourTriangle`, `Square`, `ContourSquare`, `HalfSquare`, `Circle`, `ContourCircle`, `HalfCircle`, `Diamond`, `ContourDiamond`, `HalfDiamond`, `Stroke`
+Line end decorations (16 types, API designed for all, implementation prioritized):
 
-Each end has configurable inner color, width factor, and length factor.
+**Essential (implement first):** `Butt`, `Cap`, `Round` (HalfCircle), `Arrow`
+
+**Deferred (stub until needed):** `ContourArrow`, `LineArrow`, `Triangle`, `ContourTriangle`, `Square`, `ContourSquare`, `HalfSquare`, `Circle`, `ContourCircle`, `Diamond`, `ContourDiamond`, `HalfDiamond`, `Stroke`
+
+Each end has configurable inner color, width factor, and length factor. The `StrokeEnd` enum includes all 16 variants from the start so the API is stable; deferred variants return a fallback (e.g., `Butt`) until implemented.
 
 #### 3.5.4 Canvas Color Blending
 
@@ -1035,7 +1038,7 @@ Phase 4: Rendering
 Phase 5: Panel System
     Panel (core abstraction)
     View (viewport + navigation)
-    View Animators (kinetic, visiting, magnetic, swiping)
+    View Animators (kinetic, speeding, visiting; swiping+magnetic deferred)
     View Input Filters (mouse zoom, keyboard nav, touch)
     Input system (events, state, hotkeys)
     Cursor, Clipboard
