@@ -79,12 +79,12 @@ impl RasterLayout {
         }
 
         let gap_w = if cols > 1 {
-            sp.inner * (cols - 1) as f64
+            sp.inner_h * (cols - 1) as f64
         } else {
             0.0
         };
         let gap_h = if rows > 1 {
-            sp.inner * (rows - 1) as f64
+            sp.inner_v * (rows - 1) as f64
         } else {
             0.0
         };
@@ -106,8 +106,8 @@ impl RasterLayout {
                 (i / rows, i % rows)
             };
 
-            let x = sp.margin_left + col as f64 * (cell_w + sp.inner);
-            let y = sp.margin_top + row as f64 * (cell_h + sp.inner);
+            let x = sp.margin_left + col as f64 * (cell_w + sp.inner_h);
+            let y = sp.margin_top + row as f64 * (cell_h + sp.inner_v);
             ctx.layout_child(*child, x, y, cell_w, cell_h);
         }
     }
@@ -138,12 +138,12 @@ impl RasterLayout {
         for c in 1..=n {
             let r = n.div_ceil(c);
             let gap_w = if c > 1 {
-                self.spacing.inner * (c - 1) as f64
+                self.spacing.inner_h * (c - 1) as f64
             } else {
                 0.0
             };
             let gap_h = if r > 1 {
-                self.spacing.inner * (r - 1) as f64
+                self.spacing.inner_v * (r - 1) as f64
             } else {
                 0.0
             };

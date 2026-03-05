@@ -60,7 +60,9 @@ impl PackLayout {
             .collect();
 
         let mut assignments = Vec::with_capacity(items.len());
-        self.partition(&items, rect, self.spacing.inner, &mut assignments);
+        // Pack uses a single gap since it splits in both orientations.
+        let gap = self.spacing.inner_h.max(self.spacing.inner_v);
+        self.partition(&items, rect, gap, &mut assignments);
 
         for (id, r) in assignments {
             ctx.layout_child(id, r.x, r.y, r.w, r.h);

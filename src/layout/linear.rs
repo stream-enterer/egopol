@@ -94,10 +94,11 @@ impl LinearLayout {
             ),
         };
 
+        let inner = sp.inner_for(resolved);
         let cell_count = children.len().max(self.min_cell_count);
         let gap_count = cell_count.saturating_sub(1);
         let available_main =
-            (main_total - margin_main_start - margin_main_end - sp.inner * gap_count as f64)
+            (main_total - margin_main_start - margin_main_end - inner * gap_count as f64)
                 .max(0.0);
         let cross_available = (cross_total - margin_cross_start - margin_cross_end).max(0.0);
 
@@ -167,7 +168,7 @@ impl LinearLayout {
                 ResolvedOrientation::Vertical => (cross_pos, main_pos, cross_size, main_size),
             };
             ctx.layout_child(*child, x, y, cw, ch);
-            main_pos += main_size + sp.inner;
+            main_pos += main_size + inner;
         }
     }
 
@@ -321,7 +322,8 @@ mod tests {
         let (mut tree, root, children) = setup_tree(2);
         tree.set_layout_rect(root, 0.0, 0.0, 200.0, 100.0);
         let mut layout = LinearLayout::horizontal().with_spacing(Spacing {
-            inner: 10.0,
+            inner_h: 10.0,
+            inner_v: 10.0,
             margin_left: 5.0,
             margin_right: 5.0,
             margin_top: 0.0,

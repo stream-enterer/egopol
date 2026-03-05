@@ -10,8 +10,10 @@ pub enum Orientation {
     Horizontal,
     Vertical,
     /// Switches between horizontal and vertical based on the container's
-    /// tallness (height / width). If tallness > threshold, use horizontal;
-    /// otherwise use vertical.
+    /// tallness (height / width). If tallness <= threshold, use horizontal
+    /// (wide panel → children side by side); if tallness > threshold, use
+    /// vertical (tall panel → children stacked). Matches C++
+    /// `horizontal = (h/w <= OrientationThreshold)`.
     Adaptive {
         tallness_threshold: f64,
     },
@@ -25,7 +27,7 @@ impl Orientation {
             Self::Vertical => ResolvedOrientation::Vertical,
             Self::Adaptive { tallness_threshold } => {
                 let tallness = if w > 0.0 { h / w } else { 1.0 };
-                if tallness > tallness_threshold {
+                if tallness <= tallness_threshold {
                     ResolvedOrientation::Horizontal
                 } else {
                     ResolvedOrientation::Vertical
@@ -53,10 +55,17 @@ pub enum Alignment {
 }
 
 /// Spacing configuration for layouts.
+///
+/// Matches C++ spacing model with separate horizontal/vertical inner spacing.
+/// In horizontal layout, `inner_h` goes between children and `margin_top`/
+/// `margin_bottom` above/below. In vertical layout, `inner_v` goes between
+/// children and `margin_left`/`margin_right` beside.
 #[derive(Clone, Debug)]
 pub struct Spacing {
-    /// Space between children on the main axis.
-    pub inner: f64,
+    /// Space between children when laid out horizontally.
+    pub inner_h: f64,
+    /// Space between children when laid out vertically.
+    pub inner_v: f64,
     pub margin_left: f64,
     pub margin_right: f64,
     pub margin_top: f64,
@@ -66,7 +75,8 @@ pub struct Spacing {
 impl Default for Spacing {
     fn default() -> Self {
         Self {
-            inner: 0.0,
+            inner_h: 0.0,
+            inner_v: 0.0,
             margin_left: 0.0,
             margin_right: 0.0,
             margin_top: 0.0,
@@ -78,11 +88,20 @@ impl Default for Spacing {
 impl Spacing {
     pub fn uniform(margin: f64, inner: f64) -> Self {
         Self {
-            inner,
+            inner_h: inner,
+            inner_v: inner,
             margin_left: margin,
             margin_right: margin,
             margin_top: margin,
             margin_bottom: margin,
+        }
+    }
+
+    /// Get inner spacing for a resolved orientation.
+    pub fn inner_for(&self, orientation: ResolvedOrientation) -> f64 {
+        match orientation {
+            ResolvedOrientation::Horizontal => self.inner_h,
+            ResolvedOrientation::Vertical => self.inner_v,
         }
     }
 }
@@ -96,8 +115,12 @@ pub struct ChildConstraint {
     pub min_main: f64,
     /// Maximum size on the main axis (f64::INFINITY = unconstrained).
     pub max_main: f64,
-    /// Preferred tallness (height / width) for PackLayout scoring.
+    /// Preferred tallness (height / width) for layout scoring.
     pub preferred_tallness: f64,
+    /// Minimum tallness (height / width) constraint.
+    pub min_tallness: f64,
+    /// Maximum tallness (height / width) constraint (f64::INFINITY = unconstrained).
+    pub max_tallness: f64,
 }
 
 impl Default for ChildConstraint {
@@ -107,6 +130,8 @@ impl Default for ChildConstraint {
             min_main: 0.0,
             max_main: f64::INFINITY,
             preferred_tallness: 1.0,
+            min_tallness: 1e-4,
+            max_tallness: 1e4,
         }
     }
 }
