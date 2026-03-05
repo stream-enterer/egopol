@@ -1,0 +1,3 @@
+[workspace]
+members = ["zuicchini", "demapped"]
+resolver = "2"
