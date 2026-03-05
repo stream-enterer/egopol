@@ -1,6 +1,13 @@
 use super::font_cache::FontCache;
-use super::stroke::Stroke;
+use super::stroke::{Stroke, StrokeEnd, StrokeEndType};
 use crate::foundation::{Color, Image};
+
+/// Base multiplier for decoration size.
+const ARROW_BASE_SIZE: f64 = 10.0;
+/// Notch depth ratio for Arrow type.
+const ARROW_NOTCH: f64 = 0.3;
+/// Number of segments for circle approximation.
+const CIRCLE_SEGMENTS: usize = 32;
 
 /// Coordinate transform state.
 #[derive(Clone, Debug)]
@@ -205,8 +212,81 @@ impl<'a> Painter<'a> {
         }
     }
 
+    /// Draw a polygon outline by stroking each edge as a thick line.
+    pub fn paint_polygon_outlined(
+        &mut self,
+        vertices: &[(f64, f64)],
+        stroke_color: Color,
+        thickness: f64,
+    ) {
+        let n = vertices.len();
+        if n < 2 {
+            return;
+        }
+        for i in 0..n {
+            let (x0, y0) = vertices[i];
+            let (x1, y1) = vertices[(i + 1) % n];
+            self.paint_thick_line(x0, y0, x1, y1, thickness, stroke_color);
+        }
+    }
+
+    /// Draw a polyline (open path) outline by stroking each segment.
+    pub fn paint_polyline(
+        &mut self,
+        vertices: &[(f64, f64)],
+        stroke_color: Color,
+        thickness: f64,
+    ) {
+        if vertices.len() < 2 {
+            return;
+        }
+        for i in 0..vertices.len() - 1 {
+            let (x0, y0) = vertices[i];
+            let (x1, y1) = vertices[i + 1];
+            self.paint_thick_line(x0, y0, x1, y1, thickness, stroke_color);
+        }
+    }
+
+    /// Draw a thick line as a filled polygon.
+    fn paint_thick_line(
+        &mut self,
+        x0: f64,
+        y0: f64,
+        x1: f64,
+        y1: f64,
+        thickness: f64,
+        color: Color,
+    ) {
+        let dx = x1 - x0;
+        let dy = y1 - y0;
+        let len = (dx * dx + dy * dy).sqrt();
+        if len < 0.001 {
+            return;
+        }
+        let half_w = thickness / 2.0;
+        let nx = -dy / len * half_w;
+        let ny = dx / len * half_w;
+        self.paint_polygon(
+            &[
+                (x0 + nx, y0 + ny),
+                (x1 + nx, y1 + ny),
+                (x1 - nx, y1 - ny),
+                (x0 - nx, y0 - ny),
+            ],
+            color,
+        );
+    }
+
     /// Fill a rounded rectangle.
-    pub fn paint_round_rect(&mut self, x: f64, y: f64, w: f64, h: f64, radius: f64, color: Color) {
+    pub fn paint_round_rect(
+        &mut self,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        radius: f64,
+        color: Color,
+    ) {
         let px = self.to_pixel_x(x);
         let py = self.to_pixel_y(y);
         let pw = (w * self.state.scale_x) as i32;
@@ -318,15 +398,18 @@ impl<'a> Painter<'a> {
         self.paint_rect(x + w - sw, y + sw, sw, h - 2.0 * sw, stroke.color);
     }
 
-    /// Draw a stroked line.
+    /// Draw a stroked line with optional end decorations.
     pub fn paint_line_stroked(&mut self, x0: f64, y0: f64, x1: f64, y1: f64, stroke: &Stroke) {
-        // For width=1, just draw a simple line
-        if stroke.width <= 1.0 {
+        // For width=1, just draw a simple line (no decorations)
+        if stroke.width <= 1.0
+            && !stroke.start_end.is_decorated()
+            && !stroke.finish_end.is_decorated()
+        {
             self.paint_line(x0, y0, x1, y1, stroke.color);
             return;
         }
 
-        // For wider strokes, draw as a filled polygon
+        // Compute direction and normal vectors
         let dx = x1 - x0;
         let dy = y1 - y0;
         let len = (dx * dx + dy * dy).sqrt();
@@ -334,19 +417,404 @@ impl<'a> Painter<'a> {
             return;
         }
 
+        // Unit direction along line
+        let udx = dx / len;
+        let udy = dy / len;
+        // Unit normal (perpendicular)
+        let unx = -udy;
+        let uny = udx;
+
+        // Cut line at ends for decorations
+        let (ax0, ay0) =
+            Self::cut_line_at_end(x0, y0, -udx, -udy, stroke.width, &stroke.start_end);
+        let (ax1, ay1) =
+            Self::cut_line_at_end(x1, y1, udx, udy, stroke.width, &stroke.finish_end);
+
+        // Draw the line body as a filled polygon
         let half_w = stroke.width / 2.0;
-        let nx = -dy / len * half_w;
-        let ny = dx / len * half_w;
+        let nx = unx * half_w;
+        let ny = uny * half_w;
 
         self.paint_polygon(
             &[
-                (x0 + nx, y0 + ny),
-                (x1 + nx, y1 + ny),
-                (x1 - nx, y1 - ny),
-                (x0 - nx, y0 - ny),
+                (ax0 + nx, ay0 + ny),
+                (ax1 + nx, ay1 + ny),
+                (ax1 - nx, ay1 - ny),
+                (ax0 - nx, ay0 - ny),
             ],
             stroke.color,
         );
+
+        let rounded = stroke.join == super::stroke::LineJoin::Round;
+
+        // Draw start end (direction reversed — points away from the line)
+        if stroke.start_end.is_decorated() {
+            self.paint_stroke_end(
+                x0,
+                y0,
+                unx,
+                uny,
+                -udx,
+                -udy,
+                stroke.width,
+                stroke.color,
+                &stroke.start_end,
+                rounded,
+            );
+        }
+
+        // Draw finish end
+        if stroke.finish_end.is_decorated() {
+            self.paint_stroke_end(
+                x1, y1, unx, uny, udx, udy, stroke.width, stroke.color, &stroke.finish_end,
+                rounded,
+            );
+        }
+    }
+
+    /// Calculate how far to shorten a line end so decorations don't overlap the stroke body.
+    /// Returns the adjusted endpoint.
+    fn cut_line_at_end(
+        x: f64,
+        y: f64,
+        dx: f64,
+        dy: f64,
+        thickness: f64,
+        end: &StrokeEnd,
+    ) -> (f64, f64) {
+        let cut = match end.end_type {
+            StrokeEndType::Butt => 0.0,
+            StrokeEndType::Cap => thickness * 0.5,
+            StrokeEndType::Arrow => {
+                let l = thickness * ARROW_BASE_SIZE * end.length_factor;
+                l * (1.0 - ARROW_NOTCH)
+            }
+            StrokeEndType::ContourArrow => {
+                let l = thickness * ARROW_BASE_SIZE * end.length_factor;
+                l * (1.0 - ARROW_NOTCH)
+            }
+            StrokeEndType::LineArrow => 0.0, // open arrow, no cut needed
+            StrokeEndType::Triangle | StrokeEndType::ContourTriangle => 0.0,
+            StrokeEndType::Square | StrokeEndType::ContourSquare => {
+                thickness * ARROW_BASE_SIZE * end.length_factor
+            }
+            StrokeEndType::HalfSquare => 0.0,
+            StrokeEndType::Circle | StrokeEndType::ContourCircle => {
+                let l = thickness * ARROW_BASE_SIZE * end.length_factor;
+                l * 0.5
+            }
+            StrokeEndType::HalfCircle => 0.0,
+            StrokeEndType::Diamond | StrokeEndType::ContourDiamond => {
+                let l = thickness * ARROW_BASE_SIZE * end.length_factor;
+                l * 0.5
+            }
+            StrokeEndType::HalfDiamond => 0.0,
+            StrokeEndType::Stroke => 0.0,
+        };
+
+        // Move the endpoint inward (opposite to dx,dy which points outward)
+        (x + dx * cut, y + dy * cut)
+    }
+
+    /// Generate vertices for an approximate ellipse/circle using line segments.
+    ///
+    /// `center` is the ellipse center, `radii` are (normal_radius, direction_radius),
+    /// `normal` and `direction` are the oriented basis vectors.
+    fn ellipse_vertices(
+        center: (f64, f64),
+        radii: (f64, f64),
+        normal: (f64, f64),
+        direction: (f64, f64),
+        segments: usize,
+    ) -> Vec<(f64, f64)> {
+        let (cx, cy) = center;
+        let (rx, ry) = radii;
+        let (nx, ny) = normal;
+        let (dx, dy) = direction;
+        let mut verts = Vec::with_capacity(segments);
+        for i in 0..segments {
+            let angle = 2.0 * std::f64::consts::PI * i as f64 / segments as f64;
+            let cos_a = angle.cos();
+            let sin_a = angle.sin();
+            let px = cx + rx * cos_a * nx + ry * sin_a * dx;
+            let py = cy + rx * cos_a * ny + ry * sin_a * dy;
+            verts.push((px, py));
+        }
+        verts
+    }
+
+    /// Generate vertices for a half-ellipse (semicircle) as an open polyline.
+    ///
+    /// `center` is the arc center, `radii` are (normal_radius, direction_radius),
+    /// `normal` and `direction` are the oriented basis vectors.
+    fn half_ellipse_vertices(
+        center: (f64, f64),
+        radii: (f64, f64),
+        normal: (f64, f64),
+        direction: (f64, f64),
+        segments: usize,
+    ) -> Vec<(f64, f64)> {
+        let (cx, cy) = center;
+        let (rx, ry) = radii;
+        let (nx, ny) = normal;
+        let (dx, dy) = direction;
+        let mut verts = Vec::with_capacity(segments + 1);
+        for i in 0..=segments {
+            // Half circle: from -PI/2 to PI/2 (the half facing away from the line)
+            let angle =
+                -std::f64::consts::FRAC_PI_2 + std::f64::consts::PI * i as f64 / segments as f64;
+            let cos_a = angle.cos();
+            let sin_a = angle.sin();
+            let px = cx + rx * cos_a * nx + ry * sin_a * dx;
+            let py = cy + rx * cos_a * ny + ry * sin_a * dy;
+            verts.push((px, py));
+        }
+        verts
+    }
+
+    /// Paint a stroke end decoration at an endpoint.
+    #[allow(clippy::too_many_arguments)]
+    fn paint_stroke_end(
+        &mut self,
+        x: f64,
+        y: f64,
+        nx: f64,
+        ny: f64,
+        dx: f64,
+        dy: f64,
+        thickness: f64,
+        stroke_color: Color,
+        stroke_end: &StrokeEnd,
+        rounded: bool,
+    ) {
+        let r = thickness * ARROW_BASE_SIZE * 0.5 * stroke_end.width_factor;
+        let l = thickness * ARROW_BASE_SIZE * stroke_end.length_factor;
+
+        match stroke_end.end_type {
+            StrokeEndType::Butt => {} // Nothing
+
+            StrokeEndType::Cap => {
+                if rounded {
+                    // Semicircle cap
+                    let half_t = thickness * 0.5;
+                    let verts = Self::half_ellipse_vertices(
+                        (x, y), (half_t, half_t), (nx, ny), (dx, dy), CIRCLE_SEGMENTS,
+                    );
+                    self.paint_polygon(&verts, stroke_color);
+                } else {
+                    // Rectangular cap extension
+                    let half_t = thickness * 0.5;
+                    self.paint_polygon(
+                        &[
+                            (x + half_t * nx, y + half_t * ny),
+                            (x + half_t * nx + half_t * dx, y + half_t * ny + half_t * dy),
+                            (x - half_t * nx + half_t * dx, y - half_t * ny + half_t * dy),
+                            (x - half_t * nx, y - half_t * ny),
+                        ],
+                        stroke_color,
+                    );
+                }
+            }
+
+            StrokeEndType::Arrow => {
+                // 4-vertex: tip, wing+, notch, wing-
+                let tip_x = x;
+                let tip_y = y;
+                let wing_px = x + l * dx + r * nx;
+                let wing_py = y + l * dy + r * ny;
+                let wing_mx = x + l * dx - r * nx;
+                let wing_my = y + l * dy - r * ny;
+                let notch_x = x + (1.0 - ARROW_NOTCH) * l * dx;
+                let notch_y = y + (1.0 - ARROW_NOTCH) * l * dy;
+                self.paint_polygon(
+                    &[
+                        (tip_x, tip_y),
+                        (wing_px, wing_py),
+                        (notch_x, notch_y),
+                        (wing_mx, wing_my),
+                    ],
+                    stroke_color,
+                );
+            }
+
+            StrokeEndType::ContourArrow => {
+                let tip_x = x;
+                let tip_y = y;
+                let wing_px = x + l * dx + r * nx;
+                let wing_py = y + l * dy + r * ny;
+                let wing_mx = x + l * dx - r * nx;
+                let wing_my = y + l * dy - r * ny;
+                let notch_x = x + (1.0 - ARROW_NOTCH) * l * dx;
+                let notch_y = y + (1.0 - ARROW_NOTCH) * l * dy;
+                let verts = [
+                    (tip_x, tip_y),
+                    (wing_px, wing_py),
+                    (notch_x, notch_y),
+                    (wing_mx, wing_my),
+                ];
+                // Fill inner
+                self.paint_polygon(&verts, stroke_end.inner_color);
+                // Stroke outline
+                self.paint_polygon_outlined(&verts, stroke_color, thickness);
+            }
+
+            StrokeEndType::LineArrow => {
+                // Open arrow: two lines from wings to tip
+                let tip_x = x;
+                let tip_y = y;
+                let wing_px = x + l * dx + r * nx;
+                let wing_py = y + l * dy + r * ny;
+                let wing_mx = x + l * dx - r * nx;
+                let wing_my = y + l * dy - r * ny;
+                self.paint_thick_line(wing_px, wing_py, tip_x, tip_y, thickness, stroke_color);
+                self.paint_thick_line(tip_x, tip_y, wing_mx, wing_my, thickness, stroke_color);
+            }
+
+            StrokeEndType::Triangle => {
+                let tip_x = x;
+                let tip_y = y;
+                let base_px = x + l * dx + r * nx;
+                let base_py = y + l * dy + r * ny;
+                let base_mx = x + l * dx - r * nx;
+                let base_my = y + l * dy - r * ny;
+                self.paint_polygon(
+                    &[(tip_x, tip_y), (base_px, base_py), (base_mx, base_my)],
+                    stroke_color,
+                );
+            }
+
+            StrokeEndType::ContourTriangle => {
+                let tip_x = x;
+                let tip_y = y;
+                let base_px = x + l * dx + r * nx;
+                let base_py = y + l * dy + r * ny;
+                let base_mx = x + l * dx - r * nx;
+                let base_my = y + l * dy - r * ny;
+                let verts = [(tip_x, tip_y), (base_px, base_py), (base_mx, base_my)];
+                self.paint_polygon(&verts, stroke_end.inner_color);
+                self.paint_polygon_outlined(&verts, stroke_color, thickness);
+            }
+
+            StrokeEndType::Square => {
+                self.paint_polygon(
+                    &[
+                        (x + r * nx, y + r * ny),
+                        (x + l * dx + r * nx, y + l * dy + r * ny),
+                        (x + l * dx - r * nx, y + l * dy - r * ny),
+                        (x - r * nx, y - r * ny),
+                    ],
+                    stroke_color,
+                );
+            }
+
+            StrokeEndType::ContourSquare => {
+                let verts = [
+                    (x + r * nx, y + r * ny),
+                    (x + l * dx + r * nx, y + l * dy + r * ny),
+                    (x + l * dx - r * nx, y + l * dy - r * ny),
+                    (x - r * nx, y - r * ny),
+                ];
+                self.paint_polygon(&verts, stroke_end.inner_color);
+                self.paint_polygon_outlined(&verts, stroke_color, thickness);
+            }
+
+            StrokeEndType::HalfSquare => {
+                // 3 sides of rectangle (open toward line)
+                let p0 = (x + r * nx, y + r * ny);
+                let p1 = (x + l * dx + r * nx, y + l * dy + r * ny);
+                let p2 = (x + l * dx - r * nx, y + l * dy - r * ny);
+                let p3 = (x - r * nx, y - r * ny);
+                self.paint_polyline(&[p0, p1, p2, p3], stroke_color, thickness);
+            }
+
+            StrokeEndType::Circle => {
+                let center = (x + l * 0.5 * dx, y + l * 0.5 * dy);
+                let verts = Self::ellipse_vertices(
+                    center, (r, l * 0.5), (nx, ny), (dx, dy), CIRCLE_SEGMENTS,
+                );
+                self.paint_polygon(&verts, stroke_color);
+            }
+
+            StrokeEndType::ContourCircle => {
+                let center = (x + l * 0.5 * dx, y + l * 0.5 * dy);
+                let verts = Self::ellipse_vertices(
+                    center, (r, l * 0.5), (nx, ny), (dx, dy), CIRCLE_SEGMENTS,
+                );
+                self.paint_polygon(&verts, stroke_end.inner_color);
+                self.paint_polygon_outlined(&verts, stroke_color, thickness);
+            }
+
+            StrokeEndType::HalfCircle => {
+                let verts = Self::half_ellipse_vertices(
+                    (x, y), (r, l * 0.5), (nx, ny), (dx, dy), CIRCLE_SEGMENTS,
+                );
+                self.paint_polyline(&verts, stroke_color, thickness);
+            }
+
+            StrokeEndType::Diamond => {
+                let tip_x = x;
+                let tip_y = y;
+                let mid_px = x + l * 0.5 * dx + r * nx;
+                let mid_py = y + l * 0.5 * dy + r * ny;
+                let back_x = x + l * dx;
+                let back_y = y + l * dy;
+                let mid_mx = x + l * 0.5 * dx - r * nx;
+                let mid_my = y + l * 0.5 * dy - r * ny;
+                self.paint_polygon(
+                    &[
+                        (tip_x, tip_y),
+                        (mid_px, mid_py),
+                        (back_x, back_y),
+                        (mid_mx, mid_my),
+                    ],
+                    stroke_color,
+                );
+            }
+
+            StrokeEndType::ContourDiamond => {
+                let tip_x = x;
+                let tip_y = y;
+                let mid_px = x + l * 0.5 * dx + r * nx;
+                let mid_py = y + l * 0.5 * dy + r * ny;
+                let back_x = x + l * dx;
+                let back_y = y + l * dy;
+                let mid_mx = x + l * 0.5 * dx - r * nx;
+                let mid_my = y + l * 0.5 * dy - r * ny;
+                let verts = [
+                    (tip_x, tip_y),
+                    (mid_px, mid_py),
+                    (back_x, back_y),
+                    (mid_mx, mid_my),
+                ];
+                self.paint_polygon(&verts, stroke_end.inner_color);
+                self.paint_polygon_outlined(&verts, stroke_color, thickness);
+            }
+
+            StrokeEndType::HalfDiamond => {
+                // Half diamond as open polyline
+                let tip_x = x;
+                let tip_y = y;
+                let mid_px = x + l * 0.5 * dx + r * nx;
+                let mid_py = y + l * 0.5 * dy + r * ny;
+                let back_x = x + l * dx;
+                let back_y = y + l * dy;
+                self.paint_polyline(
+                    &[(tip_x, tip_y), (mid_px, mid_py), (back_x, back_y)],
+                    stroke_color,
+                    thickness,
+                );
+            }
+
+            StrokeEndType::Stroke => {
+                // Perpendicular line at endpoint
+                let stroke_thickness = thickness * stroke_end.length_factor;
+                let p0x = x + r * nx;
+                let p0y = y + r * ny;
+                let p1x = x - r * nx;
+                let p1y = y - r * ny;
+                self.paint_thick_line(p0x, p0y, p1x, p1y, stroke_thickness, stroke_color);
+            }
+        }
     }
 
     // --- Coordinate transform helpers ---
