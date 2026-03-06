@@ -109,6 +109,13 @@ impl Button {
         }
     }
 
+    /// Programmatically fire the click callback.
+    pub fn click(&mut self) {
+        if let Some(cb) = &mut self.on_click {
+            cb();
+        }
+    }
+
     pub fn get_cursor(&self) -> Cursor {
         Cursor::Hand
     }
@@ -168,5 +175,28 @@ mod tests {
         let look = Look::new();
         let btn = Button::new("X", look);
         assert_eq!(btn.get_cursor(), Cursor::Hand);
+    }
+
+    #[test]
+    fn click_fires_callback() {
+        let look = Look::new();
+        let count = Rc::new(RefCell::new(0u32));
+        let count_clone = count.clone();
+
+        let mut btn = Button::new("Go", look);
+        btn.on_click = Some(Box::new(move || {
+            *count_clone.borrow_mut() += 1;
+        }));
+
+        btn.click();
+        btn.click();
+        assert_eq!(*count.borrow(), 2);
+    }
+
+    #[test]
+    fn click_without_callback_is_noop() {
+        let look = Look::new();
+        let mut btn = Button::new("Go", look);
+        btn.click(); // should not panic
     }
 }

@@ -11,6 +11,7 @@ use super::look::Look;
 /// Shared state for a group of radio buttons enforcing mutual exclusion.
 pub struct RadioGroup {
     selected: Option<usize>,
+    count: usize,
     pub on_select: Option<Box<dyn FnMut(usize)>>,
 }
 
@@ -18,12 +19,18 @@ impl RadioGroup {
     pub fn new() -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self {
             selected: None,
+            count: 0,
             on_select: None,
         }))
     }
 
     pub fn selected(&self) -> Option<usize> {
         self.selected
+    }
+
+    /// Number of radio buttons currently in this group.
+    pub fn count(&self) -> usize {
+        self.count
     }
 
     pub fn select(&mut self, index: usize) {
@@ -49,12 +56,18 @@ impl RadioButton {
         group: Rc<RefCell<RadioGroup>>,
         index: usize,
     ) -> Self {
+        group.borrow_mut().count += 1;
         Self {
             border: Border::new(OuterBorderType::RoundRect).with_caption(caption),
             look,
             group,
             index,
         }
+    }
+
+    /// The index of this button within its group.
+    pub fn index(&self) -> usize {
+        self.index
     }
 
     pub fn is_selected(&self) -> bool {
@@ -95,6 +108,12 @@ impl RadioButton {
         let tw = font_cache.measure_text(&self.border.caption, 0, size_px).0;
         let th = FontCache::DEFAULT_SIZE_PX;
         self.border.preferred_size_for_content(tw + 8.0, th + 4.0)
+    }
+}
+
+impl Drop for RadioButton {
+    fn drop(&mut self) {
+        self.group.borrow_mut().count -= 1;
     }
 }
 
@@ -145,5 +164,34 @@ mod tests {
         r0.input(&InputEvent::release(InputKey::MouseLeft));
         r1.input(&InputEvent::release(InputKey::MouseLeft));
         assert_eq!(*selections.borrow(), vec![0, 1]);
+    }
+
+    #[test]
+    fn count_tracks_construction_and_drop() {
+        let look = Look::new();
+        let group = RadioGroup::new();
+        assert_eq!(group.borrow().count(), 0);
+
+        let r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
+        assert_eq!(group.borrow().count(), 1);
+
+        let r1 = RadioButton::new("B", look.clone(), group.clone(), 1);
+        assert_eq!(group.borrow().count(), 2);
+
+        drop(r0);
+        assert_eq!(group.borrow().count(), 1);
+
+        drop(r1);
+        assert_eq!(group.borrow().count(), 0);
+    }
+
+    #[test]
+    fn index_returns_correct_value() {
+        let look = Look::new();
+        let group = RadioGroup::new();
+        let r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
+        let r1 = RadioButton::new("B", look, group.clone(), 5);
+        assert_eq!(r0.index(), 0);
+        assert_eq!(r1.index(), 5);
     }
 }
