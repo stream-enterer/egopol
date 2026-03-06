@@ -1136,7 +1136,7 @@ mod tests {
 
     #[test]
     fn test_fix_point_zoom() {
-        let (mut tree, root, _c1, _c2) = setup_tree();
+        let (_tree, root, _c1, _c2) = setup_tree();
         let mut view = View::new(root, 800.0, 600.0);
 
         // Zoom around center — should keep center stable
