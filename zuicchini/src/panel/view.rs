@@ -62,6 +62,16 @@ pub struct View {
     seek_pos_panel: Option<PanelId>,
     /// Child name being sought within `seek_pos_panel`.
     seek_pos_child_name: String,
+    /// Pixel tallness (height/width ratio of a single pixel).
+    pixel_tallness: f64,
+    /// Dirty rectangles accumulated by invalidate_painting calls.
+    dirty_rects: Vec<Rect>,
+    /// Whether the view title needs to be refreshed.
+    title_invalid: bool,
+    /// Whether the cursor display needs to be refreshed.
+    cursor_invalid: bool,
+    /// Whether the control panel needs to be refreshed.
+    control_panel_invalid: bool,
 }
 
 impl View {
@@ -86,6 +96,15 @@ impl View {
             window_focused: true,
             seek_pos_panel: None,
             seek_pos_child_name: String::new(),
+            pixel_tallness: if viewport_width > 0.0 {
+                viewport_height / viewport_width
+            } else {
+                1.0
+            },
+            dirty_rects: Vec::new(),
+            title_invalid: false,
+            cursor_invalid: false,
+            control_panel_invalid: false,
         }
     }
 
@@ -244,6 +263,7 @@ impl View {
     pub fn set_viewport(&mut self, width: f64, height: f64) {
         self.viewport_width = width;
         self.viewport_height = height;
+        self.pixel_tallness = if width > 0.0 { height / width } else { 1.0 };
     }
 
     pub fn viewport_size(&self) -> (f64, f64) {
@@ -1098,6 +1118,147 @@ impl View {
         self.window_focused
     }
 
+    // --- Pixel tallness ---
+
+    /// Return the pixel tallness (height/width ratio of a pixel).
+    ///
+    /// Corresponds to `emPanel::GetViewedPixelTallness` (delegates to
+    /// `View.CurrentPixelTallness`).
+    pub fn pixel_tallness(&self) -> f64 {
+        self.pixel_tallness
+    }
+
+    // --- Invalidation ---
+
+    /// Mark the view's title as needing a refresh. Only takes effect when
+    /// the panel is in the active path.
+    ///
+    /// Corresponds to `emPanel::InvalidateTitle`.
+    pub fn invalidate_title(&mut self, tree: &PanelTree, panel: PanelId) {
+        let in_active_path = tree.get(panel).map(|p| p.in_active_path).unwrap_or(false);
+        if in_active_path {
+            self.title_invalid = true;
+        }
+    }
+
+    /// Mark the view's cursor as needing a refresh. Only takes effect when
+    /// the panel is in the viewed path.
+    ///
+    /// Corresponds to `emPanel::InvalidateCursor`.
+    pub fn invalidate_cursor(&mut self, tree: &PanelTree, panel: PanelId) {
+        let in_viewed_path = tree.get(panel).map(|p| p.in_viewed_path).unwrap_or(false);
+        if in_viewed_path {
+            self.cursor_invalid = true;
+        }
+    }
+
+    /// Mark the entire panel clip rect as needing repaint.
+    ///
+    /// Corresponds to `emPanel::InvalidatePainting()` (no-arg overload).
+    pub fn invalidate_painting(&mut self, tree: &PanelTree, panel: PanelId) {
+        let p = match tree.get(panel) {
+            Some(p) if p.viewed => p,
+            _ => return,
+        };
+        self.dirty_rects
+            .push(Rect::new(p.clip_x, p.clip_y, p.clip_w, p.clip_h));
+    }
+
+    /// Mark a sub-rectangle of the panel as needing repaint. The rectangle
+    /// is specified in panel coordinates and is transformed to view
+    /// coordinates, then clipped against the panel's clip rect.
+    ///
+    /// Corresponds to `emPanel::InvalidatePainting(x, y, w, h)`.
+    pub fn invalidate_painting_rect(
+        &mut self,
+        tree: &PanelTree,
+        panel: PanelId,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+    ) {
+        let p = match tree.get(panel) {
+            Some(p) if p.viewed => p,
+            _ => return,
+        };
+
+        // Transform from panel space to view space
+        let mut vx = p.viewed_x + x * p.viewed_width;
+        let mut vy = p.viewed_y + y * p.viewed_height;
+        let mut vw = w * p.viewed_width;
+        let mut vh = h * p.viewed_height;
+
+        // Clip against the panel's clip rect
+        let clip_x2 = p.clip_x + p.clip_w;
+        let clip_y2 = p.clip_y + p.clip_h;
+
+        if vx < p.clip_x {
+            vw -= p.clip_x - vx;
+            vx = p.clip_x;
+        }
+        if vy < p.clip_y {
+            vh -= p.clip_y - vy;
+            vy = p.clip_y;
+        }
+        if vw > clip_x2 - vx {
+            vw = clip_x2 - vx;
+        }
+        if vh > clip_y2 - vy {
+            vh = clip_y2 - vy;
+        }
+
+        if vw > 0.0 && vh > 0.0 {
+            self.dirty_rects.push(Rect::new(vx, vy, vw, vh));
+        }
+    }
+
+    /// Signal that the control panel needs refreshing. Only takes effect
+    /// when the panel is in the active path.
+    ///
+    /// Corresponds to `emPanel::InvalidateControlPanel`.
+    pub fn invalidate_control_panel(&mut self, tree: &PanelTree, panel: PanelId) {
+        let in_active_path = tree.get(panel).map(|p| p.in_active_path).unwrap_or(false);
+        if in_active_path {
+            self.control_panel_invalid = true;
+        }
+    }
+
+    /// Whether the title has been invalidated since the last clear.
+    pub fn is_title_invalid(&self) -> bool {
+        self.title_invalid
+    }
+
+    /// Clear the title-invalid flag.
+    pub fn clear_title_invalid(&mut self) {
+        self.title_invalid = false;
+    }
+
+    /// Whether the cursor has been invalidated since the last clear.
+    pub fn is_cursor_invalid(&self) -> bool {
+        self.cursor_invalid
+    }
+
+    /// Clear the cursor-invalid flag.
+    pub fn clear_cursor_invalid(&mut self) {
+        self.cursor_invalid = false;
+    }
+
+    /// Whether the control panel has been invalidated since the last clear.
+    pub fn is_control_panel_invalid(&self) -> bool {
+        self.control_panel_invalid
+    }
+
+    /// Clear the control-panel-invalid flag.
+    pub fn clear_control_panel_invalid(&mut self) {
+        self.control_panel_invalid = false;
+    }
+
+    /// Drain accumulated dirty rectangles.
+    pub fn take_dirty_rects(&mut self) -> Vec<Rect> {
+        std::mem::take(&mut self.dirty_rects)
+    }
+
     // --- Update loop ---
 
     pub fn update(&mut self, tree: &mut PanelTree) {
@@ -1373,5 +1534,99 @@ mod tests {
         assert!(view.is_view_focused());
         view.set_window_focused(false);
         assert!(!view.is_view_focused());
+    }
+
+    // ── Invalidation tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_invalidate_painting_whole() {
+        let (mut tree, root, child1, _child2) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+
+        // child1 should be viewed after update_viewing
+        view.invalidate_painting(&tree, child1);
+        let rects = view.take_dirty_rects();
+        assert_eq!(rects.len(), 1);
+        // The dirty rect should be the child's clip rect
+        let p = tree.get(child1).unwrap();
+        assert!((rects[0].x - p.clip_x).abs() < 1e-6);
+        assert!((rects[0].y - p.clip_y).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_invalidate_painting_rect() {
+        let (mut tree, root, child1, _child2) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+
+        // Invalidate a sub-rect of child1 in panel coordinates
+        view.invalidate_painting_rect(&tree, child1, 0.0, 0.0, 0.5, 0.5);
+        let rects = view.take_dirty_rects();
+        assert_eq!(rects.len(), 1);
+        assert!(rects[0].w > 0.0);
+        assert!(rects[0].h > 0.0);
+
+        // Not viewed => no dirty rect
+        tree.get_mut(child1).unwrap().viewed = false;
+        view.invalidate_painting_rect(&tree, child1, 0.0, 0.0, 1.0, 1.0);
+        let rects = view.take_dirty_rects();
+        assert!(rects.is_empty());
+    }
+
+    #[test]
+    fn test_invalidate_title_and_cursor() {
+        let (mut tree, root, child1, _child2) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+        view.set_active_panel(&mut tree, child1);
+
+        // child1 is active, thus in_active_path
+        assert!(!view.is_title_invalid());
+        view.invalidate_title(&tree, child1);
+        assert!(view.is_title_invalid());
+        view.clear_title_invalid();
+        assert!(!view.is_title_invalid());
+
+        // root is in_viewed_path (it's an ancestor of the SVP)
+        assert!(!view.is_cursor_invalid());
+        view.invalidate_cursor(&tree, root);
+        assert!(view.is_cursor_invalid());
+        view.clear_cursor_invalid();
+
+        // child1 is viewed but NOT in_viewed_path => no-op
+        view.invalidate_cursor(&tree, child1);
+        assert!(!view.is_cursor_invalid());
+    }
+
+    #[test]
+    fn test_invalidate_control_panel() {
+        let (mut tree, root, child1, child2) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+        view.set_active_panel(&mut tree, child1);
+
+        // child1 is in active path
+        assert!(!view.is_control_panel_invalid());
+        view.invalidate_control_panel(&tree, child1);
+        assert!(view.is_control_panel_invalid());
+        view.clear_control_panel_invalid();
+
+        // child2 is NOT in active path
+        view.invalidate_control_panel(&tree, child2);
+        assert!(!view.is_control_panel_invalid());
+    }
+
+    #[test]
+    fn test_pixel_tallness() {
+        let (_tree, root, _c1, _c2) = setup_tree();
+        let view = View::new(root, 800.0, 600.0);
+        assert!((view.pixel_tallness() - 0.75).abs() < 1e-6);
+
+        let mut view2 = View::new(root, 1920.0, 1080.0);
+        assert!((view2.pixel_tallness() - 1080.0 / 1920.0).abs() < 1e-6);
+
+        view2.set_viewport(100.0, 200.0);
+        assert!((view2.pixel_tallness() - 2.0).abs() < 1e-6);
     }
 }

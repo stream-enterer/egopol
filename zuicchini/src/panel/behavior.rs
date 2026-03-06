@@ -5,6 +5,7 @@ use crate::input::{Cursor, InputEvent};
 use crate::render::Painter;
 
 use super::ctx::PanelCtx;
+use super::tree::{PanelId, PlaybackState};
 
 bitflags! {
     /// Flags indicating what kinds of changes a panel needs to be notified about.
@@ -100,6 +101,35 @@ pub trait PanelBehavior {
     /// The tree walks up the parent chain; the root returns `""` if no
     /// behavior along the chain provides an icon filename.
     fn get_icon_file_name(&self) -> Option<String> {
+        None
+    }
+
+    /// Return the current playback state.
+    ///
+    /// The default returns `PlaybackState { playing: false, pos: 0.0,
+    /// supported: false }`.
+    fn get_playback_state(&self) -> PlaybackState {
+        PlaybackState::default()
+    }
+
+    /// Attempt to set the playback state. Returns `true` if the panel
+    /// supports playback and accepted the new state.
+    fn set_playback_state(&mut self, _playing: bool, _pos: f64) -> bool {
+        false
+    }
+
+    /// Whether this panel has hope that a seeking operation can succeed.
+    ///
+    /// The default returns `false`.
+    fn is_hope_for_seeking(&self) -> bool {
+        false
+    }
+
+    /// Create a control panel as a child of `parent_ctx` with `name`.
+    ///
+    /// Return the new panel's id, or `None` to delegate to the parent
+    /// (the tree walks up the parent chain; the root returns `None`).
+    fn create_control_panel(&mut self, _parent_ctx: &mut PanelCtx, _name: &str) -> Option<PanelId> {
         None
     }
 }

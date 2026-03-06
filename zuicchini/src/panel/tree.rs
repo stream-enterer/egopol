@@ -1,10 +1,58 @@
 use std::collections::HashMap;
 
+use bitflags::bitflags;
 use slotmap::{new_key_type, SlotMap};
 
 use super::behavior::{NoticeFlags, PanelBehavior};
 use super::ctx::PanelCtx;
 use crate::foundation::{Color, Rect};
+
+// ── Autoplay handling flags ─────────────────────────────────────────
+
+bitflags! {
+    /// Flags controlling autoplay handling for a panel.
+    ///
+    /// Corresponds to the C++ `AutoplayHandlingFlags` enum.
+    #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+    pub struct AutoplayHandlingFlags: u32 {
+        const ITEM               = 1 << 0;
+        const DIRECTORY          = 1 << 1;
+        const CUTOFF             = 1 << 2;
+        const CUTOFF_AT_SUBITEMS = 1 << 3;
+    }
+}
+
+// ── Playback state ──────────────────────────────────────────────────
+
+/// Playback state returned by [`PanelTree::get_playback_state`].
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PlaybackState {
+    /// Whether playback is currently active.
+    pub playing: bool,
+    /// Current playback position (0.0 when not playing).
+    pub pos: f64,
+    /// Whether the panel supports playback at all.
+    pub supported: bool,
+}
+
+// ── View condition type ───────────────────────────────────────────────
+
+/// Type of size metric used for auto-expansion threshold comparisons.
+///
+/// Corresponds to `emPanel::ViewConditionType`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ViewConditionType {
+    /// Panel area (ViewedWidth * ViewedHeight).
+    Area,
+    /// Panel width in view coordinates.
+    Width,
+    /// Panel height in view coordinates.
+    Height,
+    /// Minimum of width and height.
+    MinExt,
+    /// Maximum of width and height.
+    MaxExt,
+}
 
 // ── Identity encode/decode free functions ─────────────────────────────
 
@@ -121,6 +169,16 @@ pub(crate) struct PanelData {
     pub(crate) pending_notices: NoticeFlags,
     pub(crate) behavior: Option<Box<dyn PanelBehavior>>,
 
+    // Autoplay / playback
+    pub(crate) autoplay_handling: AutoplayHandlingFlags,
+
+    // Auto-expansion state
+    pub(crate) ae_threshold_type: ViewConditionType,
+    pub(crate) ae_threshold_value: f64,
+    pub(crate) ae_expanded: bool,
+    pub(crate) ae_invalid: bool,
+    pub(crate) ae_decision_invalid: bool,
+
     // Viewing state (set by View::update_viewing each frame)
     pub(crate) viewed: bool,
     pub(crate) in_viewed_path: bool,
@@ -153,6 +211,12 @@ impl PanelData {
             enabled: true,
             pending_notices: NoticeFlags::empty(),
             behavior: None,
+            autoplay_handling: AutoplayHandlingFlags::empty(),
+            ae_threshold_type: ViewConditionType::Area,
+            ae_threshold_value: 0.0,
+            ae_expanded: false,
+            ae_invalid: false,
+            ae_decision_invalid: false,
             viewed: false,
             in_viewed_path: false,
             in_active_path: false,
@@ -953,6 +1017,379 @@ impl PanelTree {
         (sx, sy, sw, sh)
     }
 
+    // ── Auto-expansion ────────────────────────────────────────────────
+
+    /// Set the auto-expansion threshold type and value. If either differs from
+    /// the current values the AE decision is marked invalid so the next notice
+    /// pass will re-evaluate.
+    ///
+    /// Corresponds to `emPanel::SetAutoExpansionThreshold`.
+    pub fn set_auto_expansion_threshold(
+        &mut self,
+        id: PanelId,
+        threshold_value: f64,
+        threshold_type: ViewConditionType,
+    ) {
+        if let Some(panel) = self.panels.get_mut(id) {
+            if panel.ae_threshold_value == threshold_value
+                && panel.ae_threshold_type == threshold_type
+            {
+                return;
+            }
+            panel.ae_threshold_value = threshold_value;
+            panel.ae_threshold_type = threshold_type;
+            panel.ae_decision_invalid = true;
+        }
+    }
+
+    /// Return the auto-expansion threshold value.
+    ///
+    /// Corresponds to `emPanel::GetAutoExpansionThresholdValue`.
+    pub fn get_auto_expansion_threshold_value(&self, id: PanelId) -> f64 {
+        self.panels
+            .get(id)
+            .map(|p| p.ae_threshold_value)
+            .unwrap_or(0.0)
+    }
+
+    /// Return the auto-expansion threshold type.
+    ///
+    /// Corresponds to `emPanel::GetAutoExpansionThresholdType`.
+    pub fn get_auto_expansion_threshold_type(&self, id: PanelId) -> ViewConditionType {
+        self.panels
+            .get(id)
+            .map(|p| p.ae_threshold_type)
+            .unwrap_or(ViewConditionType::Area)
+    }
+
+    /// Whether the panel is currently auto-expanded.
+    ///
+    /// Corresponds to `emPanel::IsAutoExpanded`.
+    pub fn is_auto_expanded(&self, id: PanelId) -> bool {
+        self.panels.get(id).map(|p| p.ae_expanded).unwrap_or(false)
+    }
+
+    /// Mark auto-expansion as needing recomputation. Only has an effect when
+    /// the panel is currently expanded and not already invalidated.
+    ///
+    /// Corresponds to `emPanel::InvalidateAutoExpansion`.
+    pub fn invalidate_auto_expansion(&mut self, id: PanelId) {
+        if let Some(panel) = self.panels.get_mut(id) {
+            if !panel.ae_invalid && panel.ae_expanded {
+                panel.ae_invalid = true;
+            }
+        }
+    }
+
+    /// Return whether this panel's content is ready. The base implementation
+    /// simply returns the `ae_expanded` state.
+    ///
+    /// Corresponds to `emPanel::IsContentReady`.
+    pub fn is_content_ready(&self, id: PanelId) -> bool {
+        self.panels.get(id).map(|p| p.ae_expanded).unwrap_or(false)
+    }
+
+    // ── Autoplay / playback / seeking ────────────────────────────────
+
+    /// Set the autoplay handling flags for a panel.
+    ///
+    /// Corresponds to `emPanel::SetAutoplayHandling`.
+    pub fn set_autoplay_handling(&mut self, id: PanelId, flags: AutoplayHandlingFlags) {
+        if let Some(panel) = self.panels.get_mut(id) {
+            panel.autoplay_handling = flags;
+        }
+    }
+
+    /// Return the autoplay handling flags for a panel.
+    ///
+    /// Corresponds to `emPanel::GetAutoplayHandling`.
+    pub fn get_autoplay_handling(&self, id: PanelId) -> AutoplayHandlingFlags {
+        self.panels
+            .get(id)
+            .map(|p| p.autoplay_handling)
+            .unwrap_or_default()
+    }
+
+    /// Return the playback state for a panel.
+    ///
+    /// The default panel has no playback support -- returns
+    /// `PlaybackState { playing: false, pos: 0.0, supported: false }`.
+    /// Panels with a behavior that overrides `get_playback_state` may
+    /// return different values.
+    ///
+    /// Corresponds to `emPanel::GetPlaybackState`.
+    pub fn get_playback_state(&self, id: PanelId) -> PlaybackState {
+        if let Some(panel) = self.panels.get(id) {
+            if let Some(ref behavior) = panel.behavior {
+                return behavior.get_playback_state();
+            }
+        }
+        PlaybackState::default()
+    }
+
+    /// Attempt to set the playback state for a panel. Returns `true` if
+    /// the panel supports playback and accepted the state, `false` otherwise.
+    ///
+    /// Corresponds to `emPanel::SetPlaybackState`.
+    pub fn set_playback_state(&mut self, id: PanelId, playing: bool, pos: f64) -> bool {
+        if let Some(mut behavior) = self.take_behavior(id) {
+            let accepted = behavior.set_playback_state(playing, pos);
+            self.put_behavior(id, behavior);
+            return accepted;
+        }
+        false
+    }
+
+    /// Return the sought child name if `id` is the panel currently being
+    /// sought by the visiting animator, or `None` otherwise.
+    ///
+    /// `seek_pos_panel` and `seek_pos_child_name` come from
+    /// [`View::seek_pos_panel`] and [`View::seek_pos_child_name`].
+    ///
+    /// Corresponds to `emPanel::GetSoughtName`.
+    pub fn get_sought_name<'a>(
+        &self,
+        id: PanelId,
+        seek_pos_panel: Option<PanelId>,
+        seek_pos_child_name: &'a str,
+    ) -> Option<&'a str> {
+        if seek_pos_panel == Some(id) {
+            Some(seek_pos_child_name)
+        } else {
+            None
+        }
+    }
+
+    /// Whether this panel has hope that seeking can succeed.
+    ///
+    /// The default implementation returns `false`. Panels with a behavior
+    /// that overrides `is_hope_for_seeking` may return `true`.
+    ///
+    /// Corresponds to `emPanel::IsHopeForSeeking`.
+    pub fn is_hope_for_seeking(&self, id: PanelId) -> bool {
+        if let Some(panel) = self.panels.get(id) {
+            if let Some(ref behavior) = panel.behavior {
+                return behavior.is_hope_for_seeking();
+            }
+        }
+        false
+    }
+
+    /// Return the touch event priority for a panel: 1.0 if focusable,
+    /// 0.0 otherwise. The `_touch_x`/`_touch_y` arguments are accepted
+    /// for API compatibility but unused in the base implementation.
+    ///
+    /// Corresponds to `emPanel::GetTouchEventPriority`.
+    pub fn get_touch_event_priority(&self, id: PanelId, _touch_x: f64, _touch_y: f64) -> f64 {
+        if self.focusable(id) {
+            1.0
+        } else {
+            0.0
+        }
+    }
+
+    /// Walk up the parent chain calling each panel's behavior for
+    /// `create_control_panel`. Returns the first non-`None` result, or
+    /// `None` if the root is reached without any behavior creating a panel.
+    ///
+    /// Corresponds to `emPanel::CreateControlPanel`.
+    pub fn create_control_panel(
+        &mut self,
+        id: PanelId,
+        parent_arg: PanelId,
+        name: &str,
+    ) -> Option<PanelId> {
+        let mut cur = id;
+        loop {
+            if let Some(mut behavior) = self.take_behavior(cur) {
+                let mut ctx = PanelCtx::new(self, parent_arg);
+                let result = behavior.create_control_panel(&mut ctx, name);
+                self.put_behavior(cur, behavior);
+                if result.is_some() {
+                    return result;
+                }
+            }
+            match self.panels.get(cur).and_then(|p| p.parent) {
+                Some(parent) => cur = parent,
+                None => return None,
+            }
+        }
+    }
+
+    // ── View condition ──────────────────────────────────────────────
+
+    /// Return a size metric for how large the panel appears in the view.
+    ///
+    /// Returns 0.0 if the panel is not in the viewed path, 1e100 if in the
+    /// viewed path but not actually viewed, or a metric based on
+    /// `ViewConditionType` when viewed.
+    ///
+    /// Corresponds to `emPanel::GetViewCondition`.
+    pub fn get_view_condition(&self, id: PanelId, vc_type: ViewConditionType) -> f64 {
+        let panel = match self.panels.get(id) {
+            Some(p) => p,
+            None => return 0.0,
+        };
+
+        if panel.viewed {
+            match vc_type {
+                ViewConditionType::Area => panel.viewed_width * panel.viewed_height,
+                ViewConditionType::Width => panel.viewed_width,
+                ViewConditionType::Height => panel.viewed_height,
+                ViewConditionType::MinExt => panel.viewed_width.min(panel.viewed_height),
+                ViewConditionType::MaxExt => panel.viewed_width.max(panel.viewed_height),
+            }
+        } else if panel.in_viewed_path {
+            1e100
+        } else {
+            0.0
+        }
+    }
+
+    // ── Update priority ─────────────────────────────────────────────
+
+    /// Calculate an update priority between 0.0 and 1.0 based on how centrally
+    /// the panel's clip rect is located within the view. Adds 0.5 if the view
+    /// is focused.
+    ///
+    /// Corresponds to `emPanel::GetUpdatePriority`.
+    pub fn get_update_priority(
+        &self,
+        id: PanelId,
+        viewport_width: f64,
+        viewport_height: f64,
+        view_focused: bool,
+    ) -> f64 {
+        let panel = match self.panels.get(id) {
+            Some(p) => p,
+            None => return 0.0,
+        };
+
+        if panel.viewed {
+            let x1 = panel.clip_x;
+            let y1 = panel.clip_y;
+            let x2 = panel.clip_x + panel.clip_w;
+            let y2 = panel.clip_y + panel.clip_h;
+
+            if x1 >= x2 || y1 >= y2 {
+                return 0.0;
+            }
+
+            let vw = viewport_width.max(1.0);
+            let vh = viewport_height.max(1.0);
+            let cx = vw * 0.5;
+            let cy = vh * 0.5;
+
+            // Cubic priority: how centrally located the clip rect is
+            let k: f64 = 0.5;
+            let fx = {
+                let left = ((cx - x1) / cx).clamp(0.0, 1.0);
+                let right = ((x2 - cx) / (vw - cx)).clamp(0.0, 1.0);
+                let fl = 1.0 - (1.0 - left).powi(3);
+                let fr = 1.0 - (1.0 - right).powi(3);
+                k + (1.0 - k) * fl * fr
+            };
+            let fy = {
+                let top = ((cy - y1) / cy).clamp(0.0, 1.0);
+                let bottom = ((y2 - cy) / (vh - cy)).clamp(0.0, 1.0);
+                let ft = 1.0 - (1.0 - top).powi(3);
+                let fb = 1.0 - (1.0 - bottom).powi(3);
+                k + (1.0 - k) * ft * fb
+            };
+
+            let priority = fx * fy * 0.49;
+            if view_focused {
+                priority + 0.5
+            } else {
+                priority
+            }
+        } else if panel.in_viewed_path {
+            if view_focused {
+                1.0
+            } else {
+                0.5
+            }
+        } else {
+            0.0
+        }
+    }
+
+    /// Compute a memory limit for this panel's subtree based on its visible
+    /// area relative to the view.
+    ///
+    /// `max_per_view_by_user` is the user-configured per-view memory ceiling.
+    /// `seek_panel` is the panel currently being sought (gets max allocation).
+    ///
+    /// Returns 0 for panels not in the viewed path, `max_per_panel` for panels
+    /// in the viewed path but not actually viewed (or being sought), or a
+    /// blended fraction of `max_per_view` otherwise.
+    ///
+    /// Corresponds to `emPanel::GetMemoryLimit`.
+    pub fn get_memory_limit(
+        &self,
+        id: PanelId,
+        viewport_width: f64,
+        viewport_height: f64,
+        max_per_view_by_user: u64,
+        seek_panel: Option<PanelId>,
+    ) -> u64 {
+        let panel = match self.panels.get(id) {
+            Some(p) => p,
+            None => return 0,
+        };
+
+        let max_per_view = (max_per_view_by_user as f64) * 2.0;
+        let max_per_panel = (max_per_view_by_user as f64) * 0.33;
+
+        if !panel.in_viewed_path {
+            return 0;
+        }
+
+        if !panel.viewed || seek_panel == Some(id) {
+            return max_per_panel as u64;
+        }
+
+        let vw = viewport_width.max(1.0);
+        let vh = viewport_height.max(1.0);
+
+        let view_extension = 0.5_f64;
+        let view_extension_valence = 0.5_f64;
+
+        // Extended view rectangle
+        let evx1 = -view_extension * vw;
+        let evy1 = -view_extension * vh;
+        let evx2 = (1.0 + view_extension) * vw;
+        let evy2 = (1.0 + view_extension) * vh;
+
+        // Panel clip rect
+        let ecx1 = panel.clip_x.max(evx1);
+        let ecy1 = panel.clip_y.max(evy1);
+        let ecx2 = (panel.clip_x + panel.clip_w).min(evx2);
+        let ecy2 = (panel.clip_y + panel.clip_h).min(evy2);
+
+        let ev_area = (evx2 - evx1) * (evy2 - evy1);
+        let ec_area = ((ecx2 - ecx1) * (ecy2 - ecy1)).max(0.0);
+
+        // Blend between extended-view fraction and clip fraction
+        let clip_area = panel.clip_w * panel.clip_h;
+        let view_area = vw * vh;
+        let frac_extended = if ev_area > 0.0 {
+            ec_area / ev_area
+        } else {
+            0.0
+        };
+        let frac_clip = if view_area > 0.0 {
+            clip_area / view_area
+        } else {
+            0.0
+        };
+        let frac =
+            frac_extended * view_extension_valence + frac_clip * (1.0 - view_extension_valence);
+
+        let f = (frac * max_per_view).clamp(0.0, max_per_panel);
+        f as u64
+    }
+
     // ── Focusable navigation ─────────────────────────────────────────
 
     /// DFS for the first focusable descendant of `id`.
@@ -1517,5 +1954,196 @@ mod tests {
             .map(|id| t.name(id).unwrap().to_string())
             .collect();
         assert_eq!(rev_names, vec!["a", "b", "c"]);
+    }
+
+    // ── Autoplay / playback / seeking / control panel tests ─────────
+
+    #[test]
+    fn test_create_control_panel_delegates_to_parent() {
+        /// A behavior that creates a control panel child.
+        struct ControlCreator;
+        impl PanelBehavior for ControlCreator {
+            fn create_control_panel(&mut self, ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
+                Some(ctx.create_child(name))
+            }
+        }
+
+        let mut t = PanelTree::new();
+        let root = t.create_root("root");
+        t.set_behavior(root, Box::new(ControlCreator));
+
+        let child = t.create_child(root, "child");
+        // child has no behavior, so create_control_panel should
+        // walk up to root, which has ControlCreator.
+        let ctrl = t.create_control_panel(child, root, "ctrl");
+        assert!(ctrl.is_some());
+        let ctrl_id = ctrl.unwrap();
+        assert_eq!(t.name(ctrl_id), Some("ctrl"));
+        // The control panel is created as a child of root (parent_arg).
+        assert_eq!(t.parent(ctrl_id), Some(root));
+    }
+
+    #[test]
+    fn test_create_control_panel_returns_none_at_root_without_behavior() {
+        let mut t = PanelTree::new();
+        let root = t.create_root("root");
+        let child = t.create_child(root, "child");
+        // No behaviors at all -- should walk to root and return None
+        let result = t.create_control_panel(child, root, "ctrl");
+        assert!(result.is_none());
+    }
+
+    // ── Auto-expansion tests ─────────────────────────────────────────
+
+    #[test]
+    fn test_set_auto_expansion_threshold() {
+        let mut t = PanelTree::new();
+        let root = t.create_root("r");
+
+        // Initial state
+        assert_eq!(
+            t.get_auto_expansion_threshold_type(root),
+            ViewConditionType::Area
+        );
+        assert_eq!(t.get_auto_expansion_threshold_value(root), 0.0);
+
+        // Change threshold
+        t.set_auto_expansion_threshold(root, 100.0, ViewConditionType::Width);
+        assert_eq!(
+            t.get_auto_expansion_threshold_type(root),
+            ViewConditionType::Width
+        );
+        assert_eq!(t.get_auto_expansion_threshold_value(root), 100.0);
+
+        // Mark AE decision invalid on change
+        assert!(t.get(root).unwrap().ae_decision_invalid);
+
+        // No-op when values unchanged
+        t.get_mut(root).unwrap().ae_decision_invalid = false;
+        t.set_auto_expansion_threshold(root, 100.0, ViewConditionType::Width);
+        assert!(!t.get(root).unwrap().ae_decision_invalid);
+    }
+
+    #[test]
+    fn test_invalidate_auto_expansion() {
+        let mut t = PanelTree::new();
+        let root = t.create_root("r");
+
+        // Not expanded => no effect
+        t.invalidate_auto_expansion(root);
+        assert!(!t.get(root).unwrap().ae_invalid);
+
+        // Expanded => marks invalid
+        t.get_mut(root).unwrap().ae_expanded = true;
+        t.invalidate_auto_expansion(root);
+        assert!(t.get(root).unwrap().ae_invalid);
+
+        // Already invalid => still invalid (idempotent)
+        t.invalidate_auto_expansion(root);
+        assert!(t.get(root).unwrap().ae_invalid);
+    }
+
+    // ── View condition tests ─────────────────────────────────────────
+
+    #[test]
+    fn test_get_view_condition() {
+        let mut t = PanelTree::new();
+        let root = t.create_root("r");
+        t.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+
+        // Not viewed, not in viewed path => 0.0
+        assert_eq!(t.get_view_condition(root, ViewConditionType::Area), 0.0);
+
+        // In viewed path but not viewed => 1e100
+        t.get_mut(root).unwrap().in_viewed_path = true;
+        assert_eq!(t.get_view_condition(root, ViewConditionType::Area), 1e100);
+
+        // Viewed => actual metric
+        t.get_mut(root).unwrap().viewed = true;
+        t.get_mut(root).unwrap().viewed_width = 800.0;
+        t.get_mut(root).unwrap().viewed_height = 600.0;
+
+        assert!((t.get_view_condition(root, ViewConditionType::Area) - 480000.0).abs() < 1e-6);
+        assert!((t.get_view_condition(root, ViewConditionType::Width) - 800.0).abs() < 1e-6);
+        assert!((t.get_view_condition(root, ViewConditionType::Height) - 600.0).abs() < 1e-6);
+        assert!((t.get_view_condition(root, ViewConditionType::MinExt) - 600.0).abs() < 1e-6);
+        assert!((t.get_view_condition(root, ViewConditionType::MaxExt) - 800.0).abs() < 1e-6);
+    }
+
+    // ── Update priority tests ────────────────────────────────────────
+
+    #[test]
+    fn test_get_update_priority() {
+        let mut t = PanelTree::new();
+        let root = t.create_root("r");
+        t.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+
+        let vw = 800.0;
+        let vh = 600.0;
+
+        // Not viewed, not in path => 0.0
+        assert_eq!(t.get_update_priority(root, vw, vh, false), 0.0);
+
+        // In viewed path, not viewed, focused => 1.0
+        t.get_mut(root).unwrap().in_viewed_path = true;
+        assert_eq!(t.get_update_priority(root, vw, vh, true), 1.0);
+
+        // In viewed path, not viewed, not focused => 0.5
+        assert_eq!(t.get_update_priority(root, vw, vh, false), 0.5);
+
+        // Viewed, centered clip => high priority
+        t.get_mut(root).unwrap().viewed = true;
+        t.get_mut(root).unwrap().clip_x = 0.0;
+        t.get_mut(root).unwrap().clip_y = 0.0;
+        t.get_mut(root).unwrap().clip_w = vw;
+        t.get_mut(root).unwrap().clip_h = vh;
+
+        let p_focused = t.get_update_priority(root, vw, vh, true);
+        let p_unfocused = t.get_update_priority(root, vw, vh, false);
+
+        // Focused should be ~0.5 higher
+        assert!((p_focused - p_unfocused - 0.5).abs() < 0.01);
+        // Full clip should give max area priority (~0.49)
+        assert!(p_unfocused > 0.4);
+        assert!(p_unfocused <= 0.49);
+
+        // Degenerate clip => 0.0
+        t.get_mut(root).unwrap().clip_w = 0.0;
+        assert_eq!(t.get_update_priority(root, vw, vh, false), 0.0);
+    }
+
+    // ── Memory limit tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_get_memory_limit() {
+        let mut t = PanelTree::new();
+        let root = t.create_root("r");
+        t.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+
+        let vw = 800.0;
+        let vh = 600.0;
+        let max_user: u64 = 1_000_000;
+
+        // Not in viewed path => 0
+        assert_eq!(t.get_memory_limit(root, vw, vh, max_user, None), 0);
+
+        // In viewed path but not viewed => max_per_panel
+        t.get_mut(root).unwrap().in_viewed_path = true;
+        let limit = t.get_memory_limit(root, vw, vh, max_user, None);
+        assert_eq!(limit, (1_000_000.0 * 0.33) as u64);
+
+        // Seeking panel => max_per_panel
+        t.get_mut(root).unwrap().viewed = true;
+        t.get_mut(root).unwrap().clip_x = 0.0;
+        t.get_mut(root).unwrap().clip_y = 0.0;
+        t.get_mut(root).unwrap().clip_w = vw;
+        t.get_mut(root).unwrap().clip_h = vh;
+        let limit_seeking = t.get_memory_limit(root, vw, vh, max_user, Some(root));
+        assert_eq!(limit_seeking, (1_000_000.0 * 0.33) as u64);
+
+        // Full-viewport panel, not seeking => positive limit
+        let limit_viewed = t.get_memory_limit(root, vw, vh, max_user, None);
+        assert!(limit_viewed > 0);
+        assert!(limit_viewed <= (1_000_000.0 * 0.33) as u64);
     }
 }

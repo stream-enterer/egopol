@@ -9,5 +9,8 @@ pub use animator::{KineticViewAnimator, SpeedingViewAnimator, ViewAnimator, Visi
 pub use behavior::{NoticeFlags, PanelBehavior};
 pub use ctx::PanelCtx;
 pub use input_filter::{KeyboardZoomScrollVIF, MouseZoomScrollVIF, ViewInputFilter};
-pub use tree::{decode_identity, encode_identity, ChildIter, ChildRevIter, PanelId, PanelTree};
+pub use tree::{
+    decode_identity, encode_identity, AutoplayHandlingFlags, ChildIter, ChildRevIter, PanelId,
+    PanelTree, PlaybackState, ViewConditionType,
+};
 pub use view::{View, ViewFlags, VisitState};
