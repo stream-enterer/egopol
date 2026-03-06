@@ -118,11 +118,15 @@ impl TextField {
     }
 
     pub fn set_text(&mut self, text: &str) {
+        if self.text == text {
+            return;
+        }
         self.text = text.to_string();
         self.cursor = self.text.len();
         self.selection_anchor = None;
         self.undo_stack.clear();
         self.redo_stack.clear();
+        self.fire_change();
     }
 
     pub fn cursor_pos(&self) -> usize {
@@ -131,7 +135,6 @@ impl TextField {
 
     pub fn set_cursor_index(&mut self, idx: usize) {
         self.cursor = self.clamp_to_boundary(idx);
-        self.selection_anchor = None;
     }
 
     pub fn text_len(&self) -> usize {
@@ -139,6 +142,9 @@ impl TextField {
     }
 
     pub fn set_password_mode(&mut self, enabled: bool) {
+        if self.password_mode == enabled {
+            return;
+        }
         self.password_mode = enabled;
     }
 
@@ -151,6 +157,9 @@ impl TextField {
     }
 
     pub fn set_editable(&mut self, editable: bool) {
+        if self.editable == editable {
+            return;
+        }
         self.editable = editable;
         self.border.inner = if editable {
             InnerBorderType::InputField
@@ -164,6 +173,9 @@ impl TextField {
     }
 
     pub fn set_multi_line(&mut self, multi_line: bool) {
+        if self.multi_line == multi_line {
+            return;
+        }
         self.multi_line = multi_line;
         self.scroll_y = 0.0;
     }
@@ -173,6 +185,9 @@ impl TextField {
     }
 
     pub fn set_overwrite_mode(&mut self, mode: bool) {
+        if self.overwrite_mode == mode {
+            return;
+        }
         self.overwrite_mode = mode;
     }
 
@@ -185,7 +200,7 @@ impl TextField {
     pub fn select(&mut self, start: usize, end: usize) {
         let start = self.clamp_to_boundary(start);
         let end = self.clamp_to_boundary(end);
-        if start == end {
+        if start >= end {
             self.selection_anchor = None;
             self.cursor = start;
         } else {
@@ -321,11 +336,13 @@ impl TextField {
     // ── Word/Line Navigation (Phase 2) ──────────────────────────────────
 
     fn is_word_char(ch: char) -> bool {
-        ch.is_alphanumeric() || ch == '_'
+        ch.is_ascii_alphanumeric() || ch == '_' || !ch.is_ascii()
     }
 
     fn next_word_boundary(&self, pos: usize) -> usize {
-        let bytes = self.text.as_bytes();
+        if self.password_mode {
+            return self.text.len();
+        }
         let len = self.text.len();
         let mut p = pos;
         // Skip word chars
@@ -344,11 +361,13 @@ impl TextField {
             }
             p += ch.len_utf8();
         }
-        let _ = bytes;
         p
     }
 
     fn prev_word_boundary(&self, pos: usize) -> usize {
+        if self.password_mode {
+            return 0;
+        }
         let mut p = pos;
         // Skip non-word chars backward
         while p > 0 {
@@ -415,10 +434,11 @@ impl TextField {
     fn index_to_col_row(&self, pos: usize) -> (usize, usize) {
         let before = &self.text[..pos.min(self.text.len())];
         let row = before.matches('\n').count();
-        let col = match before.rfind('\n') {
-            Some(nl) => before.len() - nl - 1,
-            None => before.len(),
+        let after_last_nl = match before.rfind('\n') {
+            Some(nl) => &before[nl + 1..],
+            None => before,
         };
+        let col = after_last_nl.chars().count();
         (col, row)
     }
 
@@ -620,7 +640,9 @@ impl TextField {
         }
         self.copy_to_clipboard();
         self.delete_selection();
-        self.fire_change();
+        if self.validate_text() {
+            self.fire_change();
+        }
     }
 
     fn paste_from_clipboard(&mut self) {
@@ -636,7 +658,7 @@ impl TextField {
     }
 
     pub fn paste_text(&mut self, text: &str) {
-        if !self.editable {
+        if !self.editable || text.is_empty() {
             return;
         }
         if !self.delete_selection() {
@@ -1018,24 +1040,24 @@ impl TextField {
                 true
             }
             InputKey::ArrowUp if self.multi_line => {
-                let (col, _row) = self.index_to_col_row(self.cursor);
-                let target_col = self.magic_col.unwrap_or(col);
-                self.magic_col = Some(target_col);
                 let new_pos = if ctrl {
                     self.prev_paragraph_index(self.cursor)
                 } else {
+                    let (col, _row) = self.index_to_col_row(self.cursor);
+                    let target_col = self.magic_col.unwrap_or(col);
+                    self.magic_col = Some(target_col);
                     self.prev_row_index(self.cursor, target_col)
                 };
                 self.modify_selection(new_pos, shift);
                 true
             }
             InputKey::ArrowDown if self.multi_line => {
-                let (col, _row) = self.index_to_col_row(self.cursor);
-                let target_col = self.magic_col.unwrap_or(col);
-                self.magic_col = Some(target_col);
                 let new_pos = if ctrl {
                     self.next_paragraph_index(self.cursor)
                 } else {
+                    let (col, _row) = self.index_to_col_row(self.cursor);
+                    let target_col = self.magic_col.unwrap_or(col);
+                    self.magic_col = Some(target_col);
                     self.next_row_index(self.cursor, target_col)
                 };
                 self.modify_selection(new_pos, shift);
@@ -1049,7 +1071,7 @@ impl TextField {
                 }
                 true
             }
-            InputKey::Key('y') if ctrl => {
+            InputKey::Key('y') if ctrl && !shift => {
                 if self.editable {
                     self.redo();
                 }
@@ -1072,23 +1094,23 @@ impl TextField {
             }
 
             // Clipboard
-            InputKey::Key('c') if ctrl => {
+            InputKey::Key('c') if ctrl && !shift => {
                 self.copy_to_clipboard();
                 true
             }
-            InputKey::Key('x') if ctrl => {
+            InputKey::Key('x') if ctrl && !shift => {
                 self.cut_to_clipboard();
                 true
             }
-            InputKey::Key('v') if ctrl => {
+            InputKey::Key('v') if ctrl && !shift => {
                 self.paste_from_clipboard();
                 true
             }
-            InputKey::Insert if ctrl => {
+            InputKey::Insert if ctrl && !shift => {
                 self.copy_to_clipboard();
                 true
             }
-            InputKey::Insert if shift => {
+            InputKey::Insert if shift && !ctrl => {
                 self.paste_from_clipboard();
                 true
             }
@@ -1098,9 +1120,7 @@ impl TextField {
             }
 
             InputKey::Insert if !ctrl && !shift => {
-                if self.editable {
-                    self.overwrite_mode = !self.overwrite_mode;
-                }
+                self.overwrite_mode = !self.overwrite_mode;
                 true
             }
 
@@ -1109,7 +1129,9 @@ impl TextField {
                     return true;
                 }
                 if self.delete_selection() {
-                    self.fire_change();
+                    if self.validate_text() {
+                        self.fire_change();
+                    }
                     return true;
                 }
                 if self.cursor > 0 {
@@ -1135,7 +1157,9 @@ impl TextField {
                     return true;
                 }
                 if self.delete_selection() {
-                    self.fire_change();
+                    if self.validate_text() {
+                        self.fire_change();
+                    }
                     return true;
                 }
                 if self.cursor < self.text.len() {
@@ -1248,7 +1272,7 @@ impl TextField {
             // Ctrl+click: insert or move mode
             if !self.is_selection_empty()
                 && pos >= self.selection_start()
-                && pos <= self.selection_end()
+                && pos < self.selection_end()
             {
                 self.drag_mode = DragMode::Move;
             } else {

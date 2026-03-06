@@ -86,6 +86,7 @@ pub(crate) struct ScaleContext {
 }
 
 /// Area sampling (box filter) for downscaling.
+/// `x` and `y` are in source image coordinates.
 pub(crate) fn sample_area(
     image: &Image,
     x: f64,
@@ -96,8 +97,8 @@ pub(crate) fn sample_area(
     let scale_x = ctx.src_w / ctx.dest_w;
     let scale_y = ctx.src_h / ctx.dest_h;
 
-    let x0 = x * scale_x;
-    let y0 = y * scale_y;
+    let x0 = x;
+    let y0 = y;
     let x1 = x0 + scale_x;
     let y1 = y0 + scale_y;
 
@@ -217,7 +218,7 @@ fn lanczos_factors() -> &'static [[i16; 4]; 257] {
             let mut weights = [0.0f64; 4];
             for (j, w) in weights.iter_mut().enumerate() {
                 let x = t + 1.0 - j as f64;
-                *w = lanczos_sinc(x, 2.0);
+                *w = lanczos_sinc(x, 2.5);
             }
             let sum: f64 = weights.iter().sum();
             if sum.abs() > 1e-10 {

@@ -413,15 +413,24 @@ impl View {
 
     pub fn set_view_flags(&mut self, flags: ViewFlags, tree: &mut PanelTree) {
         let old = self.flags;
-        self.flags = flags;
+        let mut new_flags = flags;
 
-        if flags.contains(ViewFlags::NO_ZOOM) {
-            self.flags.remove(ViewFlags::POPUP_ZOOM);
-            self.flags.insert(ViewFlags::NO_USER_NAVIGATION);
+        if new_flags.contains(ViewFlags::NO_ZOOM) {
+            new_flags.remove(ViewFlags::POPUP_ZOOM);
+            new_flags.insert(ViewFlags::NO_USER_NAVIGATION);
+        }
+
+        if new_flags == old {
+            return;
+        }
+
+        self.flags = new_flags;
+
+        if new_flags.contains(ViewFlags::POPUP_ZOOM) && !old.contains(ViewFlags::POPUP_ZOOM) {
             self.raw_zoom_out(tree);
         }
 
-        if flags.contains(ViewFlags::POPUP_ZOOM) && !old.contains(ViewFlags::POPUP_ZOOM) {
+        if new_flags.contains(ViewFlags::NO_ZOOM) && !old.contains(ViewFlags::NO_ZOOM) {
             self.raw_zoom_out(tree);
         }
     }

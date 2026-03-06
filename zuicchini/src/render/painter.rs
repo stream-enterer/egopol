@@ -201,6 +201,26 @@ impl<'a> Painter<'a> {
         self.state.clip
     }
 
+    /// Get the left edge of the clip rectangle in user coordinates.
+    pub fn get_user_clip_x1(&self) -> f64 {
+        (self.state.clip.x as f64 - self.state.offset_x) / self.state.scale_x
+    }
+
+    /// Get the top edge of the clip rectangle in user coordinates.
+    pub fn get_user_clip_y1(&self) -> f64 {
+        (self.state.clip.y as f64 - self.state.offset_y) / self.state.scale_y
+    }
+
+    /// Get the right edge of the clip rectangle in user coordinates.
+    pub fn get_user_clip_x2(&self) -> f64 {
+        ((self.state.clip.x + self.state.clip.w) as f64 - self.state.offset_x) / self.state.scale_x
+    }
+
+    /// Get the bottom edge of the clip rectangle in user coordinates.
+    pub fn get_user_clip_y2(&self) -> f64 {
+        ((self.state.clip.y + self.state.clip.h) as f64 - self.state.offset_y) / self.state.scale_y
+    }
+
     /// Immutable access to the font cache (for measurement).
     pub fn font_cache(&self) -> &FontCache {
         self.font_cache
@@ -243,6 +263,9 @@ impl<'a> Painter<'a> {
             return;
         }
         let sweep = end_angle - start_angle;
+        if sweep == 0.0 {
+            return;
+        }
         // Normalize negative sweep.
         if sweep < 0.0 {
             return self.paint_ellipse_sector(cx, cy, rx, ry, end_angle, start_angle, color);
@@ -543,7 +566,7 @@ impl<'a> Painter<'a> {
                     color.r(),
                     color.g(),
                     color.b(),
-                    (color.a() as u16 * g as u16 / 255) as u8,
+                    ((color.a() as u16 * g as u16 + 127) / 255) as u8,
                 );
                 self.blend_pixel(col, row, blended);
             }
@@ -1152,6 +1175,41 @@ impl<'a> Painter<'a> {
 
     // --- Ellipse/sector outline utilities ---
 
+    /// Stroke an arc of an ellipse (no radii, just the curved portion).
+    #[allow(clippy::too_many_arguments)]
+    pub fn paint_ellipse_arc(
+        &mut self,
+        cx: f64,
+        cy: f64,
+        rx: f64,
+        ry: f64,
+        start_angle: f64,
+        range_angle: f64,
+        stroke: &Stroke,
+    ) {
+        if rx <= 0.0 || ry <= 0.0 || stroke.width <= 0.0 {
+            return;
+        }
+        if range_angle == 0.0 {
+            return;
+        }
+        let abs_range = range_angle.abs();
+        if abs_range >= 2.0 * std::f64::consts::PI {
+            self.paint_ellipse_outlined(cx, cy, rx, ry, stroke);
+            return;
+        }
+        let segments = adaptive_circle_segments(rx.max(ry));
+        let arc_segs =
+            ((segments as f64 * abs_range / (2.0 * std::f64::consts::PI)).ceil() as usize).max(3);
+        let mut verts = Vec::with_capacity(arc_segs + 1);
+        for i in 0..=arc_segs {
+            let t = i as f64 / arc_segs as f64;
+            let angle = start_angle + t * range_angle;
+            verts.push((cx + rx * angle.cos(), cy + ry * angle.sin()));
+        }
+        self.paint_solid_polyline(&verts, stroke, false);
+    }
+
     /// Draw an ellipse sector outline.
     #[allow(clippy::too_many_arguments)]
     pub fn paint_ellipse_sector_outlined(
@@ -1258,7 +1316,7 @@ impl<'a> Painter<'a> {
                                 color.r(),
                                 color.g(),
                                 color.b(),
-                                (color.a() as u16 * a as u16 / 255) as u8,
+                                ((color.a() as u16 * a as u16 + 127) / 255) as u8,
                             );
                             let existing = self.target.pixel(px as u32, py as u32);
                             let bg =
@@ -1360,6 +1418,104 @@ impl<'a> Painter<'a> {
     pub fn clear(&mut self, color: Color) {
         let clip = self.state.clip;
         self.fill_rect_pixels(clip.x, clip.y, clip.w, clip.h, color);
+    }
+
+    /// Draw a dashed polyline by splitting the path into dash/gap segments
+    /// and painting each dash as a solid sub-polyline.
+    pub fn paint_dashed_polyline(
+        &mut self,
+        vertices: &[(f64, f64)],
+        stroke: &Stroke,
+        closed: bool,
+    ) {
+        if vertices.len() < 2 || stroke.width <= 0.0 || stroke.dash_pattern.is_empty() {
+            self.paint_solid_polyline(vertices, stroke, closed);
+            return;
+        }
+
+        let pattern = &stroke.dash_pattern;
+        let total_pattern_len: f64 = pattern.iter().sum();
+        if total_pattern_len <= 0.0 {
+            self.paint_solid_polyline(vertices, stroke, closed);
+            return;
+        }
+
+        // Walk edges, splitting at dash boundaries.
+        let n = vertices.len();
+        let seg_count = if closed { n } else { n - 1 };
+        let mut pat_idx = 0usize;
+        let mut remaining_in_pat = pattern[0];
+        let mut is_dash = true;
+        let mut offset = stroke.dash_offset % total_pattern_len;
+
+        // Advance through pattern by offset.
+        while offset > 0.0 {
+            if offset >= remaining_in_pat {
+                offset -= remaining_in_pat;
+                pat_idx = (pat_idx + 1) % pattern.len();
+                remaining_in_pat = pattern[pat_idx];
+                is_dash = pat_idx.is_multiple_of(2);
+            } else {
+                remaining_in_pat -= offset;
+                offset = 0.0;
+            }
+        }
+
+        let mut current_segment: Vec<(f64, f64)> = Vec::new();
+        let dash_stroke = Stroke {
+            dash_pattern: Vec::new(),
+            dash_offset: 0.0,
+            ..stroke.clone()
+        };
+
+        for seg_i in 0..seg_count {
+            let (x0, y0) = vertices[seg_i];
+            let (x1, y1) = vertices[(seg_i + 1) % n];
+            let dx = x1 - x0;
+            let dy = y1 - y0;
+            let edge_len = (dx * dx + dy * dy).sqrt();
+            if edge_len < 1e-10 {
+                continue;
+            }
+            let ux = dx / edge_len;
+            let uy = dy / edge_len;
+
+            let mut consumed = 0.0;
+            while consumed < edge_len {
+                let available = edge_len - consumed;
+                let step = remaining_in_pat.min(available);
+                let px = x0 + ux * (consumed + step);
+                let py = y0 + uy * (consumed + step);
+
+                if is_dash {
+                    if current_segment.is_empty() {
+                        current_segment.push((x0 + ux * consumed, y0 + uy * consumed));
+                    }
+                    current_segment.push((px, py));
+                }
+
+                consumed += step;
+                remaining_in_pat -= step;
+
+                if remaining_in_pat <= 1e-10 {
+                    // End of this pattern element.
+                    if is_dash && current_segment.len() >= 2 {
+                        self.paint_solid_polyline(&current_segment, &dash_stroke, false);
+                        current_segment.clear();
+                    } else {
+                        current_segment.clear();
+                    }
+                    pat_idx = (pat_idx + 1) % pattern.len();
+                    remaining_in_pat = pattern[pat_idx];
+                    is_dash = pat_idx.is_multiple_of(2);
+                }
+            }
+        }
+
+        // Flush any remaining dash segment.
+        if is_dash && current_segment.len() >= 2 {
+            self.paint_solid_polyline(&current_segment, &dash_stroke, false);
+        }
     }
 
     /// Draw a stroked polyline with proper joins and caps.
@@ -2147,7 +2303,7 @@ impl<'a> Painter<'a> {
             color.r(),
             color.g(),
             color.b(),
-            (color.a() as u16 * coverage as u16 / 255) as u8,
+            ((color.a() as u16 * coverage as u16 + 127) / 255) as u8,
         );
         self.blend_pixel(x, y, modulated);
     }

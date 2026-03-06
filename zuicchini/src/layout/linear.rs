@@ -95,12 +95,14 @@ impl LinearLayout {
         let cell_count = children.len().max(self.min_cell_count);
         let gap_count = cell_count.saturating_sub(1);
 
-        // Total weight for proportional spacing denominator
-        let total_weight: f64 = children
+        // Total weight including padding for min_cell_count
+        let children_weight: f64 = children
             .iter()
             .map(|c| get_constraint(&self.child_constraints, *c, &self.default_constraint).weight)
-            .sum::<f64>()
-            .max(1e-100);
+            .sum::<f64>();
+        let pad_count = cell_count.saturating_sub(children.len());
+        let total_weight: f64 =
+            (children_weight + pad_count as f64 * self.default_constraint.weight).max(1e-100);
 
         // Proportional spacing: compute scale factors.
         // Content occupies total_weight proportion-units on main, 1.0 on cross.
@@ -276,21 +278,26 @@ impl LinearLayout {
                     })
                     .sum();
 
-                if committed > total_length {
-                    // Over-committed → release expanded children back to free
-                    for i in 0..n {
-                        if let State::Expanded(_) = states[i] {
-                            states[i] = State::Free;
-                            free_weight += constraints[i].weight;
-                        }
-                    }
+                // C++ CalculateForce names its constrained lists by
+                // tallness direction, which flips between orientations.
+                // In horizontal mode Expanded (tallness>max, larger main)
+                // maps to C++ "compressed", while in vertical it maps to
+                // C++ "expanded". C++ always keeps "compressed" on over-
+                // commit, so the Rust release target differs by axis.
+                let release_expanded = if horizontal {
+                    committed <= total_length
                 } else {
-                    // Under-committed → release compressed children back to free
-                    for i in 0..n {
-                        if let State::Compressed(_) = states[i] {
-                            states[i] = State::Free;
-                            free_weight += constraints[i].weight;
-                        }
+                    committed > total_length
+                };
+                for i in 0..n {
+                    let release = match states[i] {
+                        State::Expanded(_) => release_expanded,
+                        State::Compressed(_) => !release_expanded,
+                        State::Free => false,
+                    };
+                    if release {
+                        states[i] = State::Free;
+                        free_weight += constraints[i].weight;
                     }
                 }
 
