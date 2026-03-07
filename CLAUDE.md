@@ -3,7 +3,6 @@
 Cargo workspace with two crates:
 - `zuicchini/` — UI framework library (reimplementation of Eagle Mode's emCore in Rust)
 - `egopol/` — game binary, depends on zuicchini via path
-- `~/.local/git/eaglemode-0.96.4` — Eagle Mode C++ source code
 
 ## Commands
 
@@ -32,29 +31,6 @@ Do not skip with `--no-verify`. If a commit fails, fix the cause and retry.
 - **Visibility**: `pub(crate)` default. `pub` only for library API consumed by `egopol`.
 - **Unwrap**: `expect("reason")` unless invariant is obvious from context. Bare `unwrap()` fine in tests and same-line proofs.
 - **Warnings**: Fix the cause (remove dead code, prefix `_`, apply clippy fix). Suppress only genuine false positives with a comment.
-
-## Compile-first for type questions
-
-When exploring unfamiliar external library APIs (not project code), prefer writing
-a best-guess usage and running `cargo check` over researching documentation or
-reading source files to answer type-level questions (method names, return types,
-import paths, trait bounds, struct fields).
-
-This applies because:
-- `cargo check` is sub-second, reversible, and version-correct for this project
-- Training data and web docs may describe wrong versions of skrifa, wgpu, etc.
-- The pre-commit hook makes compilation unavoidable; front-load it
-
-This does NOT replace reading when you need to understand:
-- Semantic behavior, preconditions, or side effects of an API
-- Performance characteristics (allocation, complexity, caching)
-- Architectural patterns in zuicchini's own codebase (panel trees, VIFs, behaviors)
-- Correct values for parameters where the type is right but the semantics matter
-  (e.g., rustybuzz Direction/Script, wgpu buffer formats, RefCell borrow lifetimes)
-
-The only qualifying check is `cargo check`. Do not extend this to `cargo test`,
-`cargo run`, or any operation that is slow, may have side effects, or allocates
-GPU resources.
 
 ## Do NOT
 

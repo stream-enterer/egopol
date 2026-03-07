@@ -107,8 +107,8 @@ pub(crate) fn sample_area(
     let ix1 = x1.ceil() as i32;
     let iy1 = y1.ceil() as i32;
 
-    let mut accum = [0u64; 4];
-    let mut weight_total = 0u64;
+    let mut accum = [0u32; 4];
+    let mut weight_total = 0u32;
 
     for sy in iy0..iy1 {
         let wy = if sy == iy0 {
@@ -128,10 +128,10 @@ pub(crate) fn sample_area(
                 1.0
             };
 
-            let w = (wx * wy * 256.0) as u64;
+            let w = (wx * wy * 256.0) as u32;
             let p = sample_pixel(image, sx, sy, ext);
             for c in 0..4 {
-                accum[c] += p[c] as u64 * w;
+                accum[c] += p[c] as u32 * w;
             }
             weight_total += w;
         }
@@ -331,6 +331,40 @@ pub(crate) fn sample(
     }
 }
 
+/// Sample a radial gradient.
+pub(crate) fn sample_radial_gradient(
+    cx: f64,
+    cy: f64,
+    rx: f64,
+    ry: f64,
+    inner: Color,
+    outer: Color,
+    point: (f64, f64),
+) -> Color {
+    let dx = (point.0 - cx) / rx;
+    let dy = (point.1 - cy) / ry;
+    let t = (dx * dx + dy * dy).sqrt().min(1.0);
+    inner.lerp(outer, t)
+}
+
+/// Sample a linear gradient.
+pub(crate) fn sample_linear_gradient(
+    start: (f64, f64),
+    end: (f64, f64),
+    c0: Color,
+    c1: Color,
+    point: (f64, f64),
+) -> Color {
+    let dx = end.0 - start.0;
+    let dy = end.1 - start.1;
+    let len_sq = dx * dx + dy * dy;
+    if len_sq < 1e-10 {
+        return c0;
+    }
+    let t = ((point.0 - start.0) * dx + (point.1 - start.1) * dy) / len_sq;
+    c0.lerp(c1, t.clamp(0.0, 1.0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -383,6 +417,54 @@ mod tests {
         let img = make_test_image();
         let c = sample_lanczos(&img, 1.0, 1.0, ImageExtension::Clamp);
         assert!((c.r() as i32 - 80).abs() <= 5);
+    }
+
+    #[test]
+    fn radial_gradient_center() {
+        let c = sample_radial_gradient(
+            50.0,
+            50.0,
+            50.0,
+            50.0,
+            Color::WHITE,
+            Color::BLACK,
+            (50.0, 50.0),
+        );
+        assert_eq!(c.r(), 255);
+    }
+
+    #[test]
+    fn radial_gradient_edge() {
+        let c = sample_radial_gradient(
+            50.0,
+            50.0,
+            50.0,
+            50.0,
+            Color::WHITE,
+            Color::BLACK,
+            (100.0, 50.0),
+        );
+        assert_eq!(c.r(), 0);
+    }
+
+    #[test]
+    fn linear_gradient_endpoints() {
+        let c0 = sample_linear_gradient(
+            (0.0, 0.0),
+            (100.0, 0.0),
+            Color::WHITE,
+            Color::BLACK,
+            (0.0, 0.0),
+        );
+        assert_eq!(c0.r(), 255);
+        let c1 = sample_linear_gradient(
+            (0.0, 0.0),
+            (100.0, 0.0),
+            Color::WHITE,
+            Color::BLACK,
+            (100.0, 0.0),
+        );
+        assert_eq!(c1.r(), 0);
     }
 
     #[test]

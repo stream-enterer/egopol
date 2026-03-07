@@ -173,10 +173,10 @@ impl<'a> Painter<'a> {
 
     /// Set the clip rectangle (intersection with current clip).
     pub fn clip_rect(&mut self, x: f64, y: f64, w: f64, h: f64) {
-        let px = (x * self.state.scale_x + self.state.offset_x).floor() as i32;
-        let py = (y * self.state.scale_y + self.state.offset_y).floor() as i32;
-        let px2 = ((x + w) * self.state.scale_x + self.state.offset_x).ceil() as i32;
-        let py2 = ((y + h) * self.state.scale_y + self.state.offset_y).ceil() as i32;
+        let px = self.to_pixel_x(x);
+        let py = self.to_pixel_y(y);
+        let pw = (w * self.state.scale_x) as i32;
+        let ph = (h * self.state.scale_y) as i32;
 
         let PixelRect {
             x: cx,
@@ -187,8 +187,8 @@ impl<'a> Painter<'a> {
         // Intersect
         let nx = px.max(cx);
         let ny = py.max(cy);
-        let nx2 = px2.min(cx + cw);
-        let ny2 = py2.min(cy + ch);
+        let nx2 = (px + pw).min(cx + cw);
+        let ny2 = (py + ph).min(cy + ch);
         self.state.clip = PixelRect {
             x: nx,
             y: ny,
@@ -292,13 +292,13 @@ impl<'a> Painter<'a> {
 
     // --- Drawing API ---
 
-    /// Fill a rectangle with a solid color (sub-pixel AA edges).
+    /// Fill a rectangle with a solid color.
     pub fn paint_rect(&mut self, x: f64, y: f64, w: f64, h: f64, color: Color) {
-        let px1 = self.to_pixel_f64_x(x);
-        let py1 = self.to_pixel_f64_y(y);
-        let px2 = self.to_pixel_f64_x(x + w);
-        let py2 = self.to_pixel_f64_y(y + h);
-        self.fill_rect_aa(px1, py1, px2, py2, color);
+        let px = self.to_pixel_x(x);
+        let py = self.to_pixel_y(y);
+        let pw = self.to_pixel_x(x + w) - px;
+        let ph = self.to_pixel_y(y + h) - py;
+        self.fill_rect_pixels(px, py, pw, ph, color);
     }
 
     /// Fill an ellipse with a solid color using AA polygon approximation.
@@ -364,24 +364,44 @@ impl<'a> Painter<'a> {
         color_b: Color,
         horizontal: bool,
     ) {
-        let px1 = self.to_pixel_f64_x(x);
-        let py1 = self.to_pixel_f64_y(y);
-        let px2 = self.to_pixel_f64_x(x + w);
-        let py2 = self.to_pixel_f64_y(y + h);
+        let px = self.to_pixel_x(x);
+        let py = self.to_pixel_y(y);
+        let pw = (w * self.state.scale_x) as i32;
+        let ph = (h * self.state.scale_y) as i32;
+
+        let PixelRect {
+            x: clip_x,
+            y: clip_y,
+            w: clip_w,
+            h: clip_h,
+        } = self.state.clip;
+        let start_x = px.max(clip_x).max(0);
+        let start_y = py.max(clip_y).max(0);
+        let end_x = (px + pw)
+            .min(clip_x + clip_w)
+            .min(self.target.width() as i32);
+        let end_y = (py + ph)
+            .min(clip_y + clip_h)
+            .min(self.target.height() as i32);
 
         let (start, end) = if horizontal {
-            ((px1, py1), (px2, py1))
+            ((px as f64, py as f64), ((px + pw) as f64, py as f64))
         } else {
-            ((px1, py1), (px1, py2))
+            ((px as f64, py as f64), (px as f64, (py + ph) as f64))
         };
 
-        let texture = PixelTexture::LinearGradient {
-            color_a,
-            color_b,
-            start,
-            end,
-        };
-        self.fill_rect_aa_textured(px1, py1, px2, py2, &texture);
+        for row in start_y..end_y {
+            for col in start_x..end_x {
+                let color = interpolation::sample_linear_gradient(
+                    start,
+                    end,
+                    color_a,
+                    color_b,
+                    (col as f64, row as f64),
+                );
+                self.blend_pixel(col, row, color);
+            }
+        }
     }
 
     /// Fill an elliptical region with a radial gradient.
@@ -399,34 +419,49 @@ impl<'a> Painter<'a> {
             return;
         }
 
-        let pcx = self.to_pixel_f64_x(cx);
-        let pcy = self.to_pixel_f64_y(cy);
-        let prx = rx * self.state.scale_x;
-        let pry = ry * self.state.scale_y;
+        let pcx = self.to_pixel_x(cx);
+        let pcy = self.to_pixel_y(cy);
+        let prx = (rx * self.state.scale_x) as i32;
+        let pry = (ry * self.state.scale_y) as i32;
 
-        let px1 = pcx - prx;
-        let py1 = pcy - pry;
-        let px2 = pcx + prx;
-        let py2 = pcy + pry;
+        let PixelRect {
+            x: clip_x,
+            y: clip_y,
+            w: clip_w,
+            h: clip_h,
+        } = self.state.clip;
+        let start_x = (pcx - prx).max(clip_x).max(0);
+        let start_y = (pcy - pry).max(clip_y).max(0);
+        let end_x = (pcx + prx)
+            .min(clip_x + clip_w)
+            .min(self.target.width() as i32);
+        let end_y = (pcy + pry)
+            .min(clip_y + clip_h)
+            .min(self.target.height() as i32);
 
-        let texture = PixelTexture::RadialGradient {
-            color_inner,
-            color_outer,
-            center: (pcx, pcy),
-            radius: (prx, pry),
-        };
-        self.fill_rect_aa_textured(px1, py1, px2, py2, &texture);
+        for row in start_y..end_y {
+            for col in start_x..end_x {
+                let color = interpolation::sample_radial_gradient(
+                    pcx as f64,
+                    pcy as f64,
+                    prx as f64,
+                    pry as f64,
+                    color_inner,
+                    color_outer,
+                    (col as f64, row as f64),
+                );
+                self.blend_pixel(col, row, color);
+            }
+        }
     }
 
-    /// Draw a line between two points (AA, 1-pixel minimum thickness).
+    /// Draw a line between two points.
     pub fn paint_line(&mut self, x0: f64, y0: f64, x1: f64, y1: f64, color: Color) {
-        let max_scale = self.state.scale_x.abs().max(self.state.scale_y.abs());
-        let min_thickness = if max_scale > 0.0 {
-            1.0 / max_scale
-        } else {
-            1.0
-        };
-        self.paint_thick_line(x0, y0, x1, y1, min_thickness, color);
+        let px0 = self.to_pixel_x(x0);
+        let py0 = self.to_pixel_y(y0);
+        let px1 = self.to_pixel_x(x1);
+        let py1 = self.to_pixel_y(y1);
+        self.draw_line_pixels(px0, py0, px1, py1, color);
     }
 
     /// Fill a polygon defined by a list of (x, y) vertices.
@@ -528,30 +563,40 @@ impl<'a> Painter<'a> {
         self.fill_polygon_aa(&verts, color, WindingRule::NonZero);
     }
 
-    /// Draw a source image at the given position (sub-pixel AA).
+    /// Draw a source image at the given position.
     pub fn paint_image(&mut self, x: f64, y: f64, image: &Image) {
         if image.channel_count() != 4 {
             return;
         }
 
-        let px1 = self.to_pixel_f64_x(x);
-        let py1 = self.to_pixel_f64_y(y);
-        let px2 = px1 + image.width() as f64;
-        let py2 = py1 + image.height() as f64;
+        let px = self.to_pixel_x(x);
+        let py = self.to_pixel_y(y);
+        let iw = image.width() as i32;
+        let ih = image.height() as i32;
 
-        let texture = PixelTexture::Image {
-            image,
-            extension: ImageExtension::Clamp,
-            quality: ImageQuality::Nearest,
-            inv_scale_x: 1.0,
-            inv_scale_y: 1.0,
-            offset_x: px1,
-            offset_y: py1,
-        };
-        self.fill_rect_aa_textured(px1, py1, px2, py2, &texture);
+        let PixelRect {
+            x: clip_x,
+            y: clip_y,
+            w: clip_w,
+            h: clip_h,
+        } = self.state.clip;
+        let start_x = px.max(clip_x);
+        let start_y = py.max(clip_y);
+        let end_x = (px + iw).min(clip_x + clip_w);
+        let end_y = (py + ih).min(clip_y + clip_h);
+
+        for row in start_y..end_y {
+            for col in start_x..end_x {
+                let ix = (col - px) as u32;
+                let iy = (row - py) as u32;
+                let src = image.pixel(ix, iy);
+                let src_color = Color::rgba(src[0], src[1], src[2], src[3]);
+                self.blend_pixel(col, row, src_color);
+            }
+        }
     }
 
-    /// Blit a 1-channel greyscale alpha mask using the given color (sub-pixel AA).
+    /// Blit a 1-channel greyscale alpha mask using the given color.
     /// Source region is (src_x, src_y, src_w, src_h) within the image.
     #[allow(clippy::too_many_arguments)]
     pub fn paint_image_colored(
@@ -567,33 +612,51 @@ impl<'a> Painter<'a> {
         src_h: u32,
         color: Color,
     ) {
-        if src_w == 0 || src_h == 0 {
+        let px = self.to_pixel_x(x);
+        let py = self.to_pixel_y(y);
+        let pw = (w * self.state.scale_x) as i32;
+        let ph = (h * self.state.scale_y) as i32;
+
+        let PixelRect {
+            x: clip_x,
+            y: clip_y,
+            w: clip_w,
+            h: clip_h,
+        } = self.state.clip;
+        let start_x = px.max(clip_x).max(0);
+        let start_y = py.max(clip_y).max(0);
+        let end_x = (px + pw)
+            .min(clip_x + clip_w)
+            .min(self.target.width() as i32);
+        let end_y = (py + ph)
+            .min(clip_y + clip_h)
+            .min(self.target.height() as i32);
+
+        if pw <= 0 || ph <= 0 || src_w == 0 || src_h == 0 {
             return;
         }
 
-        let px1 = self.to_pixel_f64_x(x);
-        let py1 = self.to_pixel_f64_y(y);
-        let px2 = self.to_pixel_f64_x(x + w);
-        let py2 = self.to_pixel_f64_y(y + h);
-
-        if px2 <= px1 || py2 <= py1 {
-            return;
+        for row in start_y..end_y {
+            for col in start_x..end_x {
+                // Map dest pixel to source coords (nearest neighbor)
+                let sx = src_x + ((col - px) as u32 * src_w / pw as u32).min(src_w - 1);
+                let sy = src_y + ((row - py) as u32 * src_h / ph as u32).min(src_h - 1);
+                let g = image.pixel(sx, sy)[0];
+                if g == 0 {
+                    continue;
+                }
+                let blended = Color::rgba(
+                    color.r(),
+                    color.g(),
+                    color.b(),
+                    ((color.a() as u16 * g as u16 + 127) / 255) as u8,
+                );
+                self.blend_pixel(col, row, blended);
+            }
         }
-
-        let texture = PixelTexture::ImageColored {
-            image,
-            color,
-            extension: ImageExtension::Clamp,
-            quality: ImageQuality::Nearest,
-            inv_scale_x: src_w as f64 / (px2 - px1),
-            inv_scale_y: src_h as f64 / (py2 - py1),
-            offset_x: px1 - src_x as f64 * (px2 - px1) / src_w as f64,
-            offset_y: py1 - src_y as f64 * (py2 - py1) / src_h as f64,
-        };
-        self.fill_rect_aa_textured(px1, py1, px2, py2, &texture);
     }
 
-    /// Draw an image scaled to fill a destination rectangle (sub-pixel AA).
+    /// Draw an image scaled to fill a destination rectangle.
     /// Auto-selects AreaSampled for downscaling.
     #[allow(clippy::too_many_arguments)]
     pub fn paint_image_scaled(
@@ -610,28 +673,69 @@ impl<'a> Painter<'a> {
             return;
         }
 
-        let px1 = self.to_pixel_f64_x(x);
-        let py1 = self.to_pixel_f64_y(y);
-        let px2 = self.to_pixel_f64_x(x + w);
-        let py2 = self.to_pixel_f64_y(y + h);
-
-        if px2 <= px1 || py2 <= py1 {
+        let px = self.to_pixel_x(x);
+        let py = self.to_pixel_y(y);
+        let pw = (w * self.state.scale_x) as i32;
+        let ph = (h * self.state.scale_y) as i32;
+        if pw <= 0 || ph <= 0 {
             return;
         }
 
-        let texture = PixelTexture::Image {
-            image,
-            extension,
-            quality,
-            inv_scale_x: image.width() as f64 / (px2 - px1),
-            inv_scale_y: image.height() as f64 / (py2 - py1),
-            offset_x: px1,
-            offset_y: py1,
+        let src_w = image.width() as f64;
+        let src_h = image.height() as f64;
+
+        // Auto-select area sampling for downscaling.
+        let interp_quality = match quality {
+            super::texture::ImageQuality::Nearest => interpolation::InterpolationQuality::Nearest,
+            super::texture::ImageQuality::Bilinear => {
+                if src_w > pw as f64 || src_h > ph as f64 {
+                    interpolation::InterpolationQuality::AreaSampled
+                } else {
+                    interpolation::InterpolationQuality::Bilinear
+                }
+            }
+            super::texture::ImageQuality::AreaSampled => {
+                interpolation::InterpolationQuality::AreaSampled
+            }
+            super::texture::ImageQuality::Bicubic => interpolation::InterpolationQuality::Bicubic,
+            super::texture::ImageQuality::Lanczos => interpolation::InterpolationQuality::Lanczos,
+            super::texture::ImageQuality::Adaptive => interpolation::InterpolationQuality::Adaptive,
         };
-        self.fill_rect_aa_textured(px1, py1, px2, py2, &texture);
+
+        let PixelRect {
+            x: clip_x,
+            y: clip_y,
+            w: clip_w,
+            h: clip_h,
+        } = self.state.clip;
+        let start_x = px.max(clip_x).max(0);
+        let start_y = py.max(clip_y).max(0);
+        let end_x = (px + pw)
+            .min(clip_x + clip_w)
+            .min(self.target.width() as i32);
+        let end_y = (py + ph)
+            .min(clip_y + clip_h)
+            .min(self.target.height() as i32);
+
+        let ctx = interpolation::ScaleContext {
+            src_w,
+            src_h,
+            dest_w: pw as f64,
+            dest_h: ph as f64,
+        };
+
+        for row in start_y..end_y {
+            for col in start_x..end_x {
+                let src_x = (col - px) as f64 * src_w / pw as f64;
+                let src_y = (row - py) as f64 * src_h / ph as f64;
+                let color =
+                    interpolation::sample(image, src_x, src_y, interp_quality, extension, &ctx);
+                self.blend_pixel(col, row, color);
+            }
+        }
     }
 
-    /// Draw an image with two-color mapping based on luminance (sub-pixel AA).
+    /// Draw an image with two-color mapping based on luminance.
     /// Pixel luminance maps linearly between `color1` (dark) and `color2` (bright).
     #[allow(clippy::too_many_arguments)]
     pub fn paint_image_colored_2(
@@ -648,108 +752,46 @@ impl<'a> Painter<'a> {
         color1: Color,
         color2: Color,
     ) {
-        if src_w == 0 || src_h == 0 {
+        let px = self.to_pixel_x(x);
+        let py = self.to_pixel_y(y);
+        let pw = (w * self.state.scale_x) as i32;
+        let ph = (h * self.state.scale_y) as i32;
+
+        let PixelRect {
+            x: clip_x,
+            y: clip_y,
+            w: clip_w,
+            h: clip_h,
+        } = self.state.clip;
+        let start_x = px.max(clip_x).max(0);
+        let start_y = py.max(clip_y).max(0);
+        let end_x = (px + pw)
+            .min(clip_x + clip_w)
+            .min(self.target.width() as i32);
+        let end_y = (py + ph)
+            .min(clip_y + clip_h)
+            .min(self.target.height() as i32);
+
+        if pw <= 0 || ph <= 0 || src_w == 0 || src_h == 0 {
             return;
         }
 
-        let px1 = self.to_pixel_f64_x(x);
-        let py1 = self.to_pixel_f64_y(y);
-        let px2 = self.to_pixel_f64_x(x + w);
-        let py2 = self.to_pixel_f64_y(y + h);
-
-        if px2 <= px1 || py2 <= py1 {
-            return;
-        }
-
-        // Clip.
-        let clip = self.state.clip;
-        let cx1 = clip.x as f64;
-        let cy1 = clip.y as f64;
-        let cx2 = (clip.x + clip.w) as f64;
-        let cy2 = (clip.y + clip.h) as f64;
-
-        let qx1 = px1.max(cx1).max(0.0);
-        let qy1 = py1.max(cy1).max(0.0);
-        let qx2 = px2.min(cx2).min(self.target.width() as f64);
-        let qy2 = py2.min(cy2).min(self.target.height() as f64);
-
-        if qx1 >= qx2 || qy1 >= qy2 {
-            return;
-        }
-
-        // Fixed12 edge coverage.
-        let fx1 = (qx1 * 4096.0) as i32;
-        let fy1 = (qy1 * 4096.0) as i32;
-        let fxe = (qx2 * 4096.0) as i32 + 0xfff;
-        let fye = (qy2 * 4096.0) as i32;
-
-        let aax1 = 0x1000 - (fx1 & 0xfff);
-        let aax2 = (fxe & 0xfff) + 1;
-        let aay1 = 0x1000 - (fy1 & 0xfff);
-        let aay2 = fye & 0xfff;
-
-        let ix = fx1 >> 12;
-        let ixe = fxe >> 12;
-        let iy = fy1 >> 12;
-        let iye = fye >> 12;
-
-        if ixe <= ix || iye < iy {
-            return;
-        }
-
-        let dest_w = px2 - px1;
-        let dest_h = py2 - py1;
         let ch = image.channel_count();
 
-        let row_range = if iy == iye { iy..=iy } else { iy..=iye };
-        for row in row_range {
-            let ay = if row == iy {
-                aay1
-            } else if row == iye {
-                if aay2 == 0 {
-                    continue;
-                }
-                aay2
-            } else {
-                0x1000
-            };
-            for col in ix..ixe {
-                let ax = if col == ix {
-                    aax1
-                } else if col == ixe - 1 {
-                    aax2
-                } else {
-                    0x1000
-                };
-
-                // Sample source image.
-                let sx = src_x as f64 + (col as f64 - px1) / dest_w * src_w as f64;
-                let sy = src_y as f64 + (row as f64 - py1) / dest_h * src_h as f64;
-                let sxi = (sx as u32).min(src_x + src_w - 1);
-                let syi = (sy as u32).min(src_y + src_h - 1);
-                let p = image.pixel(sxi, syi);
+        for row in start_y..end_y {
+            for col in start_x..end_x {
+                let sx = src_x + ((col - px) as u32 * src_w / pw as u32).min(src_w - 1);
+                let sy = src_y + ((row - py) as u32 * src_h / ph as u32).min(src_h - 1);
+                let p = image.pixel(sx, sy);
                 let lum = if ch == 1 {
                     p[0]
                 } else {
+                    // ITU-R BT.601 luminance.
                     ((p[0] as u32 * 77 + p[1] as u32 * 150 + p[2] as u32 * 29) >> 8) as u8
                 };
                 let t = lum as f64 / 255.0;
-                let sampled = color1.lerp(color2, t);
-
-                let cov = if ax == 0x1000 && ay == 0x1000 {
-                    0x1000
-                } else {
-                    (ax * ay + 0x800) >> 12
-                };
-
-                if cov >= 0x1000 {
-                    self.blend_pixel(col, row, sampled);
-                } else if cov > 0 {
-                    let a = ((sampled.a() as i32 * cov + 0x800) >> 12) as u8;
-                    if a > 0 {
-                        self.blend_pixel_alpha(col, row, sampled, a);
-                    }
-                }
+                let blended = color1.lerp(color2, t);
+                self.blend_pixel(col, row, blended);
             }
         }
     }
@@ -853,48 +895,31 @@ impl<'a> Painter<'a> {
 
         let line_height = self.font_cache.line_height(0, quantized) / self.state.scale_y.abs();
 
+        // Count lines and compute vertical start based on v_align.
         let lines: Vec<&str> = text.split('\n').collect();
         let num_lines = lines.len();
         let total_height = num_lines as f64 * line_height;
-
-        // Compute vertical alignment offset in pixel space, rounded to integer.
-        let v_align_px = match v_align {
-            VAlign::Top => 0.0,
-            VAlign::Center => {
-                let total_h_px = total_height * self.state.scale_y.abs();
-                let box_h_px = h * self.state.scale_y.abs();
-                ((box_h_px - total_h_px) * 0.5).round()
-            }
-            VAlign::Bottom => {
-                let total_h_px = total_height * self.state.scale_y.abs();
-                let box_h_px = h * self.state.scale_y.abs();
-                (box_h_px - total_h_px).round()
-            }
+        let start_y = match v_align {
+            VAlign::Top => y,
+            VAlign::Center => y + (h - total_height) / 2.0,
+            VAlign::Bottom => y + h - total_height,
         };
 
-        let mut cursor_y = y;
+        let mut cursor_y = start_y;
         for line in &lines {
             if cursor_y >= y + h {
                 break;
             }
             if cursor_y + line_height > y {
                 let expanded = expand_tabs(line);
-                let align_px = match alignment {
-                    TextAlignment::Left => 0.0,
-                    TextAlignment::Center => {
-                        let (tw_px, _) = self.font_cache.measure_text(&expanded, 0, quantized);
-                        let box_w_px = w * self.state.scale_x.abs();
-                        ((box_w_px - tw_px) * 0.5).round()
-                    }
-                    TextAlignment::Right => {
-                        let (tw_px, _) = self.font_cache.measure_text(&expanded, 0, quantized);
-                        let box_w_px = w * self.state.scale_x.abs();
-                        (box_w_px - tw_px).round()
-                    }
+                let (tw_px, _th) = self.font_cache.measure_text(&expanded, 0, quantized);
+                let tw = tw_px / self.state.scale_x.abs();
+                let line_x = match alignment {
+                    TextAlignment::Left => x,
+                    TextAlignment::Center => x + (w - tw) / 2.0,
+                    TextAlignment::Right => x + w - tw,
                 };
-                self.paint_text_internal(
-                    x, cursor_y, &expanded, size_px, color, align_px, v_align_px,
-                );
+                self.paint_text(line_x, cursor_y, &expanded, size_px, color);
             }
             cursor_y += line_height;
         }
@@ -1218,34 +1243,55 @@ impl<'a> Painter<'a> {
         sw: f64,
         sh: f64,
         quality: super::texture::ImageQuality,
-        _extension: super::texture::ImageExtension,
+        extension: super::texture::ImageExtension,
     ) {
         if dw <= 0.0 || dh <= 0.0 || sw <= 0.0 || sh <= 0.0 {
             return;
         }
 
-        let px1 = self.to_pixel_f64_x(dx);
-        let py1 = self.to_pixel_f64_y(dy);
-        let px2 = self.to_pixel_f64_x(dx + dw);
-        let py2 = self.to_pixel_f64_y(dy + dh);
-
-        if px2 <= px1 || py2 <= py1 {
+        let px = self.to_pixel_x(dx);
+        let py = self.to_pixel_y(dy);
+        let pw = (dw * self.state.scale_x) as i32;
+        let ph = (dh * self.state.scale_y) as i32;
+        if pw <= 0 || ph <= 0 {
             return;
         }
 
-        let dest_w = px2 - px1;
-        let dest_h = py2 - py1;
+        let PixelRect {
+            x: clip_x,
+            y: clip_y,
+            w: clip_w,
+            h: clip_h,
+        } = self.state.clip;
+        let start_x = px.max(clip_x).max(0);
+        let start_y = py.max(clip_y).max(0);
+        let end_x = (px + pw)
+            .min(clip_x + clip_w)
+            .min(self.target.width() as i32);
+        let end_y = (py + ph)
+            .min(clip_y + clip_h)
+            .min(self.target.height() as i32);
 
-        let texture = PixelTexture::Image {
-            image,
-            extension: ImageExtension::Clamp,
-            quality,
-            inv_scale_x: sw / dest_w,
-            inv_scale_y: sh / dest_h,
-            offset_x: px1 - sx * dest_w / sw,
-            offset_y: py1 - sy * dest_h / sh,
+        let interp_quality = match quality {
+            super::texture::ImageQuality::Nearest => interpolation::InterpolationQuality::Nearest,
+            _ => interpolation::InterpolationQuality::Bilinear,
         };
-        self.fill_rect_aa_textured(px1, py1, px2, py2, &texture);
+        let ctx = interpolation::ScaleContext {
+            src_w: sw,
+            src_h: sh,
+            dest_w: pw as f64,
+            dest_h: ph as f64,
+        };
+
+        for row in start_y..end_y {
+            for col in start_x..end_x {
+                let src_x = sx + (col - px) as f64 * sw / pw as f64;
+                let src_y = sy + (row - py) as f64 * sh / ph as f64;
+                let color =
+                    interpolation::sample(image, src_x, src_y, interp_quality, extension, &ctx);
+                self.blend_pixel(col, row, color);
+            }
+        }
     }
 
     // --- Ellipse/sector outline utilities ---
@@ -1317,56 +1363,42 @@ impl<'a> Painter<'a> {
         self.paint_polygon_outlined(&verts, stroke.color, stroke.width);
     }
 
-    /// Draw text at the given position using the font system (sub-pixel AA).
+    /// Draw text at the given position using the font system.
     /// `size_px` is the text size in user coordinates.
     pub fn paint_text(&mut self, x: f64, y: f64, text: &str, size_px: f64, color: Color) {
-        self.paint_text_internal(x, y, text, size_px, color, 0.0, 0.0);
-    }
-
-    /// Internal text rendering with pixel-space offset for alignment.
-    #[allow(clippy::too_many_arguments)]
-    fn paint_text_internal(
-        &mut self,
-        x: f64,
-        y: f64,
-        text: &str,
-        size_px: f64,
-        color: Color,
-        px_offset_x: f64,
-        px_offset_y: f64,
-    ) {
         let quantized = FontCache::quantize_size(size_px * self.state.scale_y.abs());
         if quantized < 2 {
+            // Too small — draw a solid rectangle as placeholder.
             let (tw, th) = self.font_cache.measure_text(text, 0, 2);
             let scale = size_px / 2.0;
             self.paint_rect(x, y, tw * scale, th * scale, color);
             return;
         }
 
-        // Phase 1: shape and ensure all glyphs are cached.
+        // Phase 1: shape and ensure all glyphs are cached (mutates font_cache).
         let shaped = self.font_cache.shape_text(text, 0, quantized);
         for sg in &shaped {
             self.font_cache.ensure_glyph(0, quantized, sg.glyph_id);
         }
         let ascent = self.font_cache.ascent(0, quantized);
 
-        // Phase 2: render glyphs with f64 sub-pixel positioning.
-        let base_px = x * self.state.scale_x + self.state.offset_x + px_offset_x;
-        let base_py = y * self.state.scale_y + self.state.offset_y + px_offset_y;
-        let baseline_py = base_py + ascent as f64;
+        // Phase 2: render glyphs using disjoint field borrows.
+        // We borrow self.font_cache immutably and self.target/self.state mutably.
+        let px_x = (x * self.state.scale_x + self.state.offset_x) as i32;
+        let baseline_y = (y * self.state.scale_y + self.state.offset_y) as i32 + ascent;
 
-        // Collect glyph render info to avoid borrow conflict with font_cache.
-        // We store raw pointers to bitmap data to avoid copying.
-        struct GlyphRender {
-            gx: f64,
-            gy: f64,
-            gw: u32,
-            gh: u32,
-            bitmap_ptr: *const u8,
-        }
-        let mut glyph_renders: Vec<GlyphRender> = Vec::with_capacity(shaped.len());
+        let PixelRect {
+            x: cx,
+            y: cy,
+            w: cw,
+            h: ch,
+        } = self.state.clip;
+        let global_alpha = self.state.alpha as u16;
+        let tw = self.target.width() as i32;
+        let th = self.target.height() as i32;
+        let color_a = color.a() as u16;
 
-        let mut pen_x_f64 = 0.0_f64;
+        let mut pen_x = 0i32;
         for sg in &shaped {
             let key = GlyphCacheKey {
                 font_id: 0,
@@ -1375,125 +1407,66 @@ impl<'a> Painter<'a> {
             };
             if let Some(glyph) = self.font_cache.get_cached_glyph(&key) {
                 if glyph.width > 0 && glyph.height > 0 {
-                    let gx = base_px + pen_x_f64 + sg.x_offset + glyph.bearing_x as f64;
-                    let gy = baseline_py - sg.y_offset - glyph.bearing_y as f64;
-                    glyph_renders.push(GlyphRender {
-                        gx,
-                        gy,
-                        gw: glyph.width,
-                        gh: glyph.height,
-                        bitmap_ptr: glyph.bitmap.as_ptr(),
-                    });
-                }
-            }
-            pen_x_f64 += sg.x_advance;
-        }
+                    let gx = px_x + pen_x + sg.x_offset.round() as i32 + glyph.bearing_x;
+                    let gy = baseline_y - sg.y_offset.round() as i32 - glyph.bearing_y;
 
-        // Render glyphs with bilinear interpolation for sub-pixel positioning.
-        // SAFETY: font_cache glyph bitmaps are stable in memory — we only
-        // read them here and never modify font_cache between collect and render.
-        let clip = self.state.clip;
-        let global_alpha = self.state.alpha as u16;
-        let tw = self.target.width() as i32;
-        let th = self.target.height() as i32;
-        let color_a = color.a() as u16;
+                    let gw = glyph.width as i32;
+                    let gh = glyph.height as i32;
 
-        for gr in &glyph_renders {
-            let gw = gr.gw as i32;
-            let gh = gr.gh as i32;
-            let data =
-                unsafe { std::slice::from_raw_parts(gr.bitmap_ptr, (gr.gw * gr.gh) as usize) };
+                    // Compute visible bounds (clip early).
+                    let row_start = (cy - gy).max(0);
+                    let row_end = ((cy + ch) - gy).min(gh);
+                    let col_start = (cx - gx).max(0);
+                    let col_end = ((cx + cw) - gx).min(gw);
 
-            let pix_x0 = gr.gx.floor() as i32;
-            let pix_y0 = gr.gy.floor() as i32;
-            let pix_x1 = (gr.gx + gr.gw as f64).ceil() as i32 + 1;
-            let pix_y1 = (gr.gy + gr.gh as f64).ceil() as i32 + 1;
-
-            let start_x = pix_x0.max(clip.x).max(0);
-            let start_y = pix_y0.max(clip.y).max(0);
-            let end_x = pix_x1.min(clip.x + clip.w).min(tw);
-            let end_y = pix_y1.min(clip.y + clip.h).min(th);
-
-            let frac_x = gr.gx - gr.gx.floor();
-            let frac_y = gr.gy - gr.gy.floor();
-            let is_integer = frac_x.abs() < 0.001 && frac_y.abs() < 0.001;
-
-            // Precompute fixed-point bilinear weights (0..256 range).
-            let tx_fixed = (frac_x * 256.0) as u32;
-            let ty_fixed = (frac_y * 256.0) as u32;
-            let itx = 256 - tx_fixed;
-            let ity = 256 - ty_fixed;
-
-            for row in start_y..end_y {
-                let ly = row as f64 - gr.gy;
-                for col in start_x..end_x {
-                    let lx = col as f64 - gr.gx;
-
-                    let a = if is_integer {
-                        let ix = lx as i32;
-                        let iy = ly as i32;
-                        if ix < 0 || iy < 0 || ix >= gw || iy >= gh {
+                    for row in row_start..row_end {
+                        let py = gy + row;
+                        if py < 0 || py >= th {
                             continue;
                         }
-                        data[(iy as u32 * gr.gw + ix as u32) as usize]
-                    } else {
-                        // Fixed-point bilinear interpolation of alpha mask.
-                        let fx = lx.floor();
-                        let fy = ly.floor();
-                        let ix = fx as i32;
-                        let iy = fy as i32;
-
-                        let sample = |sx: i32, sy: i32| -> u32 {
-                            if sx < 0 || sy < 0 || sx >= gw || sy >= gh {
-                                0
-                            } else {
-                                data[(sy as u32 * gr.gw + sx as u32) as usize] as u32
+                        for col in col_start..col_end {
+                            let px = gx + col;
+                            if px < 0 || px >= tw {
+                                continue;
                             }
-                        };
-
-                        let s00 = sample(ix, iy);
-                        let s10 = sample(ix + 1, iy);
-                        let s01 = sample(ix, iy + 1);
-                        let s11 = sample(ix + 1, iy + 1);
-                        let top = s00 * itx + s10 * tx_fixed;
-                        let bot = s01 * itx + s11 * tx_fixed;
-                        ((top * ity + bot * ty_fixed + 0x8000) >> 16) as u8
-                    };
-                    if a == 0 {
-                        continue;
-                    }
-
-                    let ca = (color_a * a as u16 + 127) / 255;
-                    let ea = if global_alpha == 255 {
-                        ca
-                    } else {
-                        (ca * global_alpha + 127) / 255
-                    };
-                    if ea == 0 {
-                        continue;
-                    }
-
-                    if ea >= 255 {
-                        let out = self.target.pixel_mut(col as u32, row as u32);
-                        out[0] = color.r();
-                        out[1] = color.g();
-                        out[2] = color.b();
-                        out[3] = 255;
-                    } else {
-                        let inv = 255 - ea;
-                        let bg = self.target.pixel(col as u32, row as u32);
-                        let r = (bg[0] as u16 * inv + color.r() as u16 * ea + 127) / 255;
-                        let g = (bg[1] as u16 * inv + color.g() as u16 * ea + 127) / 255;
-                        let b = (bg[2] as u16 * inv + color.b() as u16 * ea + 127) / 255;
-                        let a = (bg[3] as u16 * inv + 255 * ea + 127) / 255;
-                        let out = self.target.pixel_mut(col as u32, row as u32);
-                        out[0] = r as u8;
-                        out[1] = g as u8;
-                        out[2] = b as u8;
-                        out[3] = a as u8;
+                            let a = glyph.bitmap[(row as u32 * glyph.width + col as u32) as usize];
+                            if a == 0 {
+                                continue;
+                            }
+                            // Standard alpha blend: coverage * color_alpha * global_alpha
+                            let ca = (color_a * a as u16 + 127) / 255;
+                            let ea = if global_alpha == 255 {
+                                ca
+                            } else {
+                                (ca * global_alpha + 127) / 255
+                            };
+                            if ea == 0 {
+                                continue;
+                            }
+                            if ea >= 255 {
+                                let out = self.target.pixel_mut(px as u32, py as u32);
+                                out[0] = color.r();
+                                out[1] = color.g();
+                                out[2] = color.b();
+                                out[3] = 255;
+                            } else {
+                                let inv = 255 - ea;
+                                let bg = self.target.pixel(px as u32, py as u32);
+                                let r = (bg[0] as u16 * inv + color.r() as u16 * ea + 127) / 255;
+                                let g = (bg[1] as u16 * inv + color.g() as u16 * ea + 127) / 255;
+                                let b = (bg[2] as u16 * inv + color.b() as u16 * ea + 127) / 255;
+                                let a = (bg[3] as u16 * inv + 255 * ea + 127) / 255;
+                                let out = self.target.pixel_mut(px as u32, py as u32);
+                                out[0] = r as u8;
+                                out[1] = g as u8;
+                                out[2] = b as u8;
+                                out[3] = a as u8;
+                            }
+                        }
                     }
                 }
             }
+            pen_x += sg.x_advance.round() as i32;
         }
     }
 
@@ -2842,31 +2815,7 @@ impl<'a> Painter<'a> {
             } => {
                 let lx = (px - offset_x) * inv_scale_x;
                 let ly = (py - offset_y) * inv_scale_y;
-                let src_w = image.width() as f64;
-                let src_h = image.height() as f64;
-                let dest_w = src_w / inv_scale_x;
-                let dest_h = src_h / inv_scale_y;
-                let ctx = interpolation::ScaleContext {
-                    src_w,
-                    src_h,
-                    dest_w,
-                    dest_h,
-                };
-                let iq = match quality {
-                    ImageQuality::Nearest => interpolation::InterpolationQuality::Nearest,
-                    ImageQuality::Bilinear => {
-                        if src_w > dest_w || src_h > dest_h {
-                            interpolation::InterpolationQuality::AreaSampled
-                        } else {
-                            interpolation::InterpolationQuality::Bilinear
-                        }
-                    }
-                    ImageQuality::AreaSampled => interpolation::InterpolationQuality::AreaSampled,
-                    ImageQuality::Bicubic => interpolation::InterpolationQuality::Bicubic,
-                    ImageQuality::Lanczos => interpolation::InterpolationQuality::Lanczos,
-                    ImageQuality::Adaptive => interpolation::InterpolationQuality::Adaptive,
-                };
-                interpolation::sample(image, lx, ly, iq, *extension, &ctx)
+                Self::sample_image_at(image, lx, ly, *extension, *quality)
             }
             PixelTexture::ImageColored {
                 image,
@@ -2880,31 +2829,7 @@ impl<'a> Painter<'a> {
             } => {
                 let lx = (px - offset_x) * inv_scale_x;
                 let ly = (py - offset_y) * inv_scale_y;
-                let src_w = image.width() as f64;
-                let src_h = image.height() as f64;
-                let dest_w = src_w / inv_scale_x;
-                let dest_h = src_h / inv_scale_y;
-                let ctx = interpolation::ScaleContext {
-                    src_w,
-                    src_h,
-                    dest_w,
-                    dest_h,
-                };
-                let iq = match quality {
-                    ImageQuality::Nearest => interpolation::InterpolationQuality::Nearest,
-                    ImageQuality::Bilinear => {
-                        if src_w > dest_w || src_h > dest_h {
-                            interpolation::InterpolationQuality::AreaSampled
-                        } else {
-                            interpolation::InterpolationQuality::Bilinear
-                        }
-                    }
-                    ImageQuality::AreaSampled => interpolation::InterpolationQuality::AreaSampled,
-                    ImageQuality::Bicubic => interpolation::InterpolationQuality::Bicubic,
-                    ImageQuality::Lanczos => interpolation::InterpolationQuality::Lanczos,
-                    ImageQuality::Adaptive => interpolation::InterpolationQuality::Adaptive,
-                };
-                let sampled = interpolation::sample(image, lx, ly, iq, *extension, &ctx);
+                let sampled = Self::sample_image_at(image, lx, ly, *extension, *quality);
                 Color::rgba(
                     ((sampled.r() as u32 * color.r() as u32 + 127) / 255) as u8,
                     ((sampled.g() as u32 * color.g() as u32 + 127) / 255) as u8,
@@ -2912,6 +2837,22 @@ impl<'a> Painter<'a> {
                     ((sampled.a() as u32 * color.a() as u32 + 127) / 255) as u8,
                 )
             }
+        }
+    }
+
+    /// Sample an image at local coordinates using the given extension and quality.
+    fn sample_image_at(
+        image: &Image,
+        x: f64,
+        y: f64,
+        extension: super::texture::ImageExtension,
+        quality: super::texture::ImageQuality,
+    ) -> Color {
+        match quality {
+            super::texture::ImageQuality::Nearest => {
+                interpolation::sample_nearest(image, x, y, extension)
+            }
+            _ => interpolation::sample_bilinear(image, x, y, extension),
         }
     }
 
@@ -3003,346 +2944,12 @@ impl<'a> Painter<'a> {
 
     // --- Coordinate transform helpers ---
 
-    fn to_pixel_f64_x(&self, x: f64) -> f64 {
-        x * self.state.scale_x + self.state.offset_x
+    fn to_pixel_x(&self, x: f64) -> i32 {
+        (x * self.state.scale_x + self.state.offset_x) as i32
     }
 
-    fn to_pixel_f64_y(&self, y: f64) -> f64 {
-        y * self.state.scale_y + self.state.offset_y
-    }
-
-    // --- Sub-pixel AA rectangle fill ---
-
-    /// Fill a rectangle with sub-pixel AA edges (solid color).
-    /// Inputs are pixel-space f64 bounds (pre-transformed from user space).
-    /// Port of C++ emPainter::PaintRect Fixed12 edge coverage algorithm.
-    fn fill_rect_aa(&mut self, px1: f64, py1: f64, px2: f64, py2: f64, color: Color) {
-        if color.a() == 0 {
-            return;
-        }
-
-        // Clip against clip rect (as f64).
-        let clip = self.state.clip;
-        let cx1 = clip.x as f64;
-        let cy1 = clip.y as f64;
-        let cx2 = (clip.x + clip.w) as f64;
-        let cy2 = (clip.y + clip.h) as f64;
-
-        let px1 = px1.max(cx1);
-        let py1 = py1.max(cy1);
-        let px2 = px2.min(cx2);
-        let py2 = py2.min(cy2);
-
-        if px1 >= px2 || py1 >= py2 {
-            return;
-        }
-
-        // Also clip to target bounds.
-        let tw = self.target.width() as f64;
-        let th = self.target.height() as f64;
-        let px1 = px1.max(0.0);
-        let py1 = py1.max(0.0);
-        let px2 = px2.min(tw);
-        let py2 = py2.min(th);
-
-        if px1 >= px2 || py1 >= py2 {
-            return;
-        }
-
-        // Fast path: integer-aligned edges — use bulk fill_rect_pixels.
-        let rpx1 = px1.round();
-        let rpy1 = py1.round();
-        let rpx2 = px2.round();
-        let rpy2 = py2.round();
-        if (px1 - rpx1).abs() < 0.002
-            && (py1 - rpy1).abs() < 0.002
-            && (px2 - rpx2).abs() < 0.002
-            && (py2 - rpy2).abs() < 0.002
-        {
-            self.fill_rect_pixels(
-                rpx1 as i32,
-                rpy1 as i32,
-                (rpx2 - rpx1) as i32,
-                (rpy2 - rpy1) as i32,
-                color,
-            );
-            return;
-        }
-
-        // Convert to Fixed12.
-        let fx1 = (px1 * 4096.0) as i32;
-        let fy1 = (py1 * 4096.0) as i32;
-        let fxe = (px2 * 4096.0) as i32 + 0xfff;
-        let fye = (py2 * 4096.0) as i32;
-
-        // Edge coverage (0–4096).
-        let ax1 = 0x1000 - (fx1 & 0xfff); // left
-        let ax2 = (fxe & 0xfff) + 1; // right
-        let ay1 = 0x1000 - (fy1 & 0xfff); // top
-        let ay2 = fye & 0xfff; // bottom
-
-        // Integer pixel bounds.
-        let ix = fx1 >> 12;
-        let ixe = fxe >> 12;
-        let iy = fy1 >> 12;
-        let iye = fye >> 12;
-
-        if ixe <= ix || iye < iy {
-            return;
-        }
-
-        let color_a = color.a() as i32;
-
-        // Single-pixel height case.
-        if iy == iye {
-            let ay = ay1.min(ay2.max(0) + ay1 - 0x1000).max(0);
-            if ay == 0 {
-                return;
-            }
-            if ixe - ix == 1 {
-                let cov = ((ax1.min(ax2) * ay + 0x800) >> 12).min(0x1000);
-                let a = ((color_a * cov + 0x800) >> 12) as u8;
-                if a > 0 {
-                    self.blend_pixel_alpha(ix, iy, color, a);
-                }
-            } else {
-                // Left edge.
-                let cov = ((ax1 * ay + 0x800) >> 12).min(0x1000);
-                let a = ((color_a * cov + 0x800) >> 12) as u8;
-                if a > 0 {
-                    self.blend_pixel_alpha(ix, iy, color, a);
-                }
-                // Middle.
-                let mid_a = ((color_a * ay + 0x800) >> 12) as u8;
-                if mid_a > 0 {
-                    for col in (ix + 1)..(ixe - 1) {
-                        self.blend_pixel_alpha(col, iy, color, mid_a);
-                    }
-                }
-                // Right edge.
-                let cov = ((ax2 * ay + 0x800) >> 12).min(0x1000);
-                let a = ((color_a * cov + 0x800) >> 12) as u8;
-                if a > 0 {
-                    self.blend_pixel_alpha(ixe - 1, iy, color, a);
-                }
-            }
-            return;
-        }
-
-        // Single-pixel width case.
-        if ixe - ix == 1 {
-            let ax = ax1.min(ax2);
-            // Top row.
-            let cov = ((ax * ay1 + 0x800) >> 12).min(0x1000);
-            let a = ((color_a * cov + 0x800) >> 12) as u8;
-            if a > 0 {
-                self.blend_pixel_alpha(ix, iy, color, a);
-            }
-            // Interior rows.
-            let mid_a = ((color_a * ax + 0x800) >> 12) as u8;
-            for row in (iy + 1)..iye {
-                if mid_a > 0 {
-                    self.blend_pixel_alpha(ix, row, color, mid_a);
-                }
-            }
-            // Bottom row.
-            if ay2 > 0 {
-                let cov = ((ax * ay2 + 0x800) >> 12).min(0x1000);
-                let a = ((color_a * cov + 0x800) >> 12) as u8;
-                if a > 0 {
-                    self.blend_pixel_alpha(ix, iye, color, a);
-                }
-            }
-            return;
-        }
-
-        // General case: multi-pixel rect with AA edges.
-
-        // Top row.
-        {
-            let a_left = ((color_a * ((ax1 * ay1 + 0x800) >> 12) + 0x800) >> 12) as u8;
-            if a_left > 0 {
-                self.blend_pixel_alpha(ix, iy, color, a_left);
-            }
-            let a_mid = ((color_a * ay1 + 0x800) >> 12) as u8;
-            if a_mid > 0 {
-                for col in (ix + 1)..(ixe - 1) {
-                    self.blend_pixel_alpha(col, iy, color, a_mid);
-                }
-            }
-            let a_right = ((color_a * ((ax2 * ay1 + 0x800) >> 12) + 0x800) >> 12) as u8;
-            if a_right > 0 {
-                self.blend_pixel_alpha(ixe - 1, iy, color, a_right);
-            }
-        }
-
-        // Interior rows: left edge, full-coverage middle, right edge.
-        {
-            let a_left = ((color_a * ax1 + 0x800) >> 12) as u8;
-            let a_right = ((color_a * ax2 + 0x800) >> 12) as u8;
-            let full_opaque =
-                color.is_opaque() && self.state.alpha == 255 && ax1 >= 0x1000 && ax2 >= 0x1000;
-
-            for row in (iy + 1)..iye {
-                if a_left > 0 {
-                    self.blend_pixel_alpha(ix, row, color, a_left);
-                }
-                if full_opaque {
-                    // Bulk write for fully opaque interior.
-                    let pixel = [color.r(), color.g(), color.b(), 255u8];
-                    let targ_w = self.target.width() as usize;
-                    let data = self.target.data_mut();
-                    let row_base = row as usize * targ_w * 4;
-                    for col in (ix + 1)..(ixe - 1) {
-                        let off = row_base + col as usize * 4;
-                        data[off..off + 4].copy_from_slice(&pixel);
-                    }
-                } else {
-                    for col in (ix + 1)..(ixe - 1) {
-                        self.blend_pixel(col, row, color);
-                    }
-                }
-                if a_right > 0 {
-                    self.blend_pixel_alpha(ixe - 1, row, color, a_right);
-                }
-            }
-        }
-
-        // Bottom row.
-        if ay2 > 0 {
-            let a_left = ((color_a * ((ax1 * ay2 + 0x800) >> 12) + 0x800) >> 12) as u8;
-            if a_left > 0 {
-                self.blend_pixel_alpha(ix, iye, color, a_left);
-            }
-            let a_mid = ((color_a * ay2 + 0x800) >> 12) as u8;
-            if a_mid > 0 {
-                for col in (ix + 1)..(ixe - 1) {
-                    self.blend_pixel_alpha(col, iye, color, a_mid);
-                }
-            }
-            let a_right = ((color_a * ((ax2 * ay2 + 0x800) >> 12) + 0x800) >> 12) as u8;
-            if a_right > 0 {
-                self.blend_pixel_alpha(ixe - 1, iye, color, a_right);
-            }
-        }
-    }
-
-    /// Fill a rectangle with sub-pixel AA edges, sampling a texture per pixel.
-    fn fill_rect_aa_textured(
-        &mut self,
-        px1: f64,
-        py1: f64,
-        px2: f64,
-        py2: f64,
-        texture: &PixelTexture,
-    ) {
-        // Clip against clip rect.
-        let clip = self.state.clip;
-        let cx1 = clip.x as f64;
-        let cy1 = clip.y as f64;
-        let cx2 = (clip.x + clip.w) as f64;
-        let cy2 = (clip.y + clip.h) as f64;
-
-        let px1 = px1.max(cx1).max(0.0);
-        let py1 = py1.max(cy1).max(0.0);
-        let px2 = px2.min(cx2).min(self.target.width() as f64);
-        let py2 = py2.min(cy2).min(self.target.height() as f64);
-
-        if px1 >= px2 || py1 >= py2 {
-            return;
-        }
-
-        // Fast path: integer-aligned edges — skip AA edge processing.
-        let rpx1 = px1.round();
-        let rpy1 = py1.round();
-        let rpx2 = px2.round();
-        let rpy2 = py2.round();
-        if (px1 - rpx1).abs() < 0.002
-            && (py1 - rpy1).abs() < 0.002
-            && (px2 - rpx2).abs() < 0.002
-            && (py2 - rpy2).abs() < 0.002
-        {
-            let sx = rpx1 as i32;
-            let sy = rpy1 as i32;
-            let ex = rpx2 as i32;
-            let ey = rpy2 as i32;
-            for row in sy..ey {
-                for col in sx..ex {
-                    let color = Self::sample_pixel_texture(texture, col as f64, row as f64);
-                    self.blend_pixel(col, row, color);
-                }
-            }
-            return;
-        }
-
-        // Convert to Fixed12.
-        let fx1 = (px1 * 4096.0) as i32;
-        let fy1 = (py1 * 4096.0) as i32;
-        let fxe = (px2 * 4096.0) as i32 + 0xfff;
-        let fye = (py2 * 4096.0) as i32;
-
-        let ax1 = 0x1000 - (fx1 & 0xfff);
-        let ax2 = (fxe & 0xfff) + 1;
-        let ay1 = 0x1000 - (fy1 & 0xfff);
-        let ay2 = fye & 0xfff;
-
-        let ix = fx1 >> 12;
-        let ixe = fxe >> 12;
-        let iy = fy1 >> 12;
-        let iye = fye >> 12;
-
-        if ixe <= ix || iye < iy {
-            return;
-        }
-
-        // Helper: blend one textured pixel with given coverage (0-4096).
-        let blend_textured = |s: &mut Self, col: i32, row: i32, cov: i32| {
-            if cov <= 0 {
-                return;
-            }
-            let sampled = Self::sample_pixel_texture(texture, col as f64, row as f64);
-            if sampled.a() == 0 {
-                return;
-            }
-            if cov >= 0x1000 {
-                s.blend_pixel(col, row, sampled);
-            } else {
-                let a = ((sampled.a() as i32 * cov + 0x800) >> 12) as u8;
-                if a > 0 {
-                    let modulated = Color::rgba(sampled.r(), sampled.g(), sampled.b(), a);
-                    s.blend_pixel(col, row, modulated);
-                }
-            }
-        };
-
-        let row_range = if iy == iye { iy..=iy } else { iy..=iye };
-        for row in row_range {
-            let ay = if row == iy {
-                ay1
-            } else if row == iye {
-                if ay2 == 0 {
-                    continue;
-                }
-                ay2
-            } else {
-                0x1000
-            };
-            for col in ix..ixe {
-                let ax = if col == ix {
-                    ax1
-                } else if col == ixe - 1 {
-                    ax2
-                } else {
-                    0x1000
-                };
-                let cov = if ax == 0x1000 && ay == 0x1000 {
-                    0x1000
-                } else {
-                    (ax * ay + 0x800) >> 12
-                };
-                blend_textured(self, col, row, cov);
-            }
-        }
+    fn to_pixel_y(&self, y: f64) -> i32 {
+        (y * self.state.scale_y + self.state.offset_y) as i32
     }
 
     // --- Pixel-level operations ---
@@ -3459,6 +3066,31 @@ impl<'a> Painter<'a> {
         for row in start_y..end_y {
             for col in start_x..end_x {
                 self.blend_pixel(col, row, color);
+            }
+        }
+    }
+
+    fn draw_line_pixels(&mut self, mut x0: i32, mut y0: i32, x1: i32, y1: i32, color: Color) {
+        // Bresenham's line algorithm
+        let dx = (x1 - x0).abs();
+        let dy = -(y1 - y0).abs();
+        let sx = if x0 < x1 { 1 } else { -1 };
+        let sy = if y0 < y1 { 1 } else { -1 };
+        let mut err = dx + dy;
+
+        loop {
+            self.blend_pixel(x0, y0, color);
+            if x0 == x1 && y0 == y1 {
+                break;
+            }
+            let e2 = 2 * err;
+            if e2 >= dy {
+                err += dy;
+                x0 += sx;
+            }
+            if e2 <= dx {
+                err += dx;
+                y0 += sy;
             }
         }
     }
@@ -3838,96 +3470,5 @@ mod tests {
         );
         let px = img.pixel(2, 2);
         assert!(px[0] > 0, "area-sampled: center pixel should be non-zero");
-    }
-
-    #[test]
-    fn fill_rect_aa_fractional_produces_edge_pixels() {
-        let mut img = Image::new(16, 16, 4);
-        let mut fc = FontCache::new();
-        let mut p = make_painter(&mut img, &mut fc);
-        // Fractional rect: 2.5..12.5 x 2.5..12.5
-        p.fill_rect_aa(2.5, 2.5, 12.5, 12.5, Color::WHITE);
-        // Interior pixel should be fully opaque.
-        let interior = img.pixel(7, 7);
-        assert_eq!(interior[0], 255, "interior should be fully white");
-        // Edge pixel at x=2, y=7 should have partial coverage (not 0, not 255).
-        let edge = img.pixel(2, 7);
-        assert!(
-            edge[0] > 0 && edge[0] < 255,
-            "edge pixel should be partially covered: got {}",
-            edge[0]
-        );
-        // Corner pixel at (2,2) should have even less coverage.
-        let corner = img.pixel(2, 2);
-        assert!(corner[0] > 0, "corner should be non-zero");
-        assert!(corner[0] <= edge[0], "corner coverage <= edge coverage");
-    }
-
-    #[test]
-    fn fill_rect_aa_integer_matches_fill_rect_pixels() {
-        // At integer positions, fill_rect_aa should produce identical output to old fill_rect_pixels.
-        let mut img_aa = Image::new(16, 16, 4);
-        let mut img_old = Image::new(16, 16, 4);
-        let mut fc1 = FontCache::new();
-        let mut fc2 = FontCache::new();
-        let color = Color::rgba(200, 100, 50, 255);
-
-        let mut p1 = make_painter(&mut img_aa, &mut fc1);
-        p1.fill_rect_aa(3.0, 4.0, 11.0, 13.0, color);
-
-        let mut p2 = make_painter(&mut img_old, &mut fc2);
-        p2.fill_rect_pixels(3, 4, 8, 9, color);
-
-        for y in 0..16u32 {
-            for x in 0..16u32 {
-                let a = img_aa.pixel(x, y);
-                let b = img_old.pixel(x, y);
-                assert_eq!(a, b, "mismatch at ({x},{y}): AA={a:?} vs old={b:?}");
-            }
-        }
-    }
-
-    #[test]
-    fn adjacent_rects_seamless_coverage() {
-        // Two adjacent rects sharing edge at x=100.5 should produce seamless coverage.
-        let mut img = Image::new(200, 10, 4);
-        let mut fc = FontCache::new();
-        let mut p = make_painter(&mut img, &mut fc);
-        p.fill_rect_aa(0.0, 0.0, 100.5, 10.0, Color::WHITE);
-        p.fill_rect_aa(100.5, 0.0, 200.0, 10.0, Color::WHITE);
-        // Pixel 100 should be fully covered (left rect right edge + right rect left edge).
-        let px = img.pixel(100, 5);
-        assert_eq!(
-            px[0], 255,
-            "shared-edge pixel should be fully white, got {}",
-            px[0]
-        );
-    }
-
-    #[test]
-    fn paint_text_fractional_produces_blended_edges() {
-        let mut img = Image::new(200, 40, 4);
-        let mut fc = FontCache::new();
-        let mut p = make_painter(&mut img, &mut fc);
-        // Render text at a fractional position.
-        p.paint_text(0.3, 0.7, "Ag", 20.0, Color::WHITE);
-        // Check that some pixels are partially covered (not just 0 or 255).
-        let mut has_partial = false;
-        for y in 0..40u32 {
-            for x in 0..200u32 {
-                let v = img.pixel(x, y)[0];
-                if v > 0 && v < 255 {
-                    has_partial = true;
-                    break;
-                }
-            }
-            if has_partial {
-                break;
-            }
-        }
-        assert!(
-            has_partial,
-            "text at fractional position should have partially-covered edge pixels"
-        );
     }
 }
