@@ -820,6 +820,9 @@ impl View {
 
         // SVP jitter prevention
         self.svp_update_count += 1;
+
+        // Auto-expansion dispatch
+        self.update_auto_expansion(tree);
     }
 
     fn compute_viewed_recursive(
@@ -866,6 +869,65 @@ impl View {
                 lr.h * abs.h,
             );
             self.compute_viewed_recursive(tree, child, child_abs, viewport);
+        }
+    }
+
+    /// Check auto-expansion thresholds for all panels and trigger
+    /// expansion or shrinking as needed. Called at the end of
+    /// `update_viewing()` after all viewed coordinates are computed.
+    fn update_auto_expansion(&self, tree: &mut PanelTree) {
+        let panel_ids = tree.all_ids();
+
+        for id in panel_ids {
+            let (threshold_value, threshold_type, currently_expanded, decision_invalid) = {
+                let Some(panel) = tree.get(id) else {
+                    continue;
+                };
+                (
+                    panel.ae_threshold_value,
+                    panel.ae_threshold_type,
+                    panel.ae_expanded,
+                    panel.ae_decision_invalid,
+                )
+            };
+
+            // Skip panels with no threshold set (default 0.0 with default auto_expand() = false)
+            // A panel must have explicitly set a threshold > 0.0 to participate
+            if threshold_value <= 0.0 && !currently_expanded {
+                continue;
+            }
+
+            let vc = tree.get_view_condition(id, threshold_type);
+            let should_expand = vc >= threshold_value;
+
+            if should_expand && !currently_expanded {
+                // Expand: set flag and trigger layout_children via notice
+                if let Some(panel) = tree.get_mut(id) {
+                    panel.ae_expanded = true;
+                    panel.ae_decision_invalid = false;
+                    panel.ae_invalid = false;
+                    panel
+                        .pending_notices
+                        .insert(super::behavior::NoticeFlags::LAYOUT_CHANGED);
+                }
+            } else if !should_expand && currently_expanded {
+                // Shrink: delete children and clear flag
+                tree.delete_all_children(id);
+                if let Some(panel) = tree.get_mut(id) {
+                    panel.ae_expanded = false;
+                    panel.ae_decision_invalid = false;
+                    panel.ae_invalid = false;
+                }
+            } else if currently_expanded && decision_invalid {
+                // Re-evaluate: panel requested re-check
+                if let Some(panel) = tree.get_mut(id) {
+                    panel.ae_decision_invalid = false;
+                    panel.ae_invalid = false;
+                    panel
+                        .pending_notices
+                        .insert(super::behavior::NoticeFlags::LAYOUT_CHANGED);
+                }
+            }
         }
     }
 

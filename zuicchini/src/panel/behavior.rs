@@ -69,9 +69,6 @@ pub trait PanelBehavior {
         false
     }
 
-    /// Called each scheduler cycle while the panel is awake.
-    fn cycle(&mut self) {}
-
     /// Get the minimum size this panel needs.
     fn min_size(&self) -> (f64, f64) {
         (0.0, 0.0)

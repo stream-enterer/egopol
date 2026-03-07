@@ -767,6 +767,19 @@ impl PanelTree {
         }
     }
 
+    /// Force re-layout of all children of a panel by inserting
+    /// `NoticeFlags::LAYOUT_CHANGED` into each child's pending notices.
+    ///
+    /// Corresponds to `emPanel::InvalidateChildrenLayout`.
+    pub fn invalidate_children_layout(&mut self, id: PanelId) {
+        let children: Vec<PanelId> = self.children(id).collect();
+        for child in children {
+            if let Some(panel) = self.panels.get_mut(child) {
+                panel.pending_notices.insert(NoticeFlags::LAYOUT_CHANGED);
+            }
+        }
+    }
+
     /// Set the layout rectangle for a panel.
     ///
     /// Width and height are clamped to a minimum of `1e-100` to prevent

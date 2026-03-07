@@ -378,9 +378,25 @@ impl ZuiWindow {
 
         // Dispatch to active panel's behavior
         if let Some(active) = self.view.active() {
+            let mut consumed = false;
             if let Some(mut behavior) = tree.take_behavior(active) {
-                behavior.input(&ev);
+                consumed = behavior.input(&ev);
                 tree.put_behavior(active, behavior);
+            }
+
+            // Bubble up parent chain if not consumed
+            if !consumed {
+                let mut cur = tree.parent(active);
+                while let Some(parent_id) = cur {
+                    if let Some(mut behavior) = tree.take_behavior(parent_id) {
+                        consumed = behavior.input(&ev);
+                        tree.put_behavior(parent_id, behavior);
+                        if consumed {
+                            break;
+                        }
+                    }
+                    cur = tree.parent(parent_id);
+                }
             }
         }
     }
