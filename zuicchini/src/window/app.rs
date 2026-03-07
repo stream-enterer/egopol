@@ -161,7 +161,9 @@ impl ApplicationHandler for App {
                 if let Some(win) = self.windows.get_mut(&window_id) {
                     let gpu = self.gpu.as_ref().unwrap();
                     win.resize(gpu, size.width, size.height);
-                    win.request_redraw();
+                    // Don't request_redraw here — about_to_wait will detect the
+                    // layout change from the new tallness and issue a single
+                    // repaint after layout is settled.
                 }
             }
             WindowEvent::RedrawRequested => {

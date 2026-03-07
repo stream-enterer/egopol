@@ -39,7 +39,14 @@ pub(crate) struct CachedGlyph {
 }
 
 struct LoadedFont {
-    data: Vec<u8>,
+    /// Font data kept alive for the lifetime of the cached face/font_ref.
+    /// For the embedded default font this points to static data; for user
+    /// fonts the Vec is leaked to obtain a `&'static [u8]`.
+    _data: &'static [u8],
+    /// Pre-parsed rustybuzz face — avoids re-parsing on every shape call.
+    face: rustybuzz::Face<'static>,
+    /// Pre-parsed skrifa font ref — avoids re-parsing on every metrics call.
+    font_ref: skrifa::FontRef<'static>,
     /// Cached hinting instances keyed by quantized size_px.
     hinting_instances: HashMap<u16, Option<HintingInstance>>,
 }
@@ -66,18 +73,35 @@ impl FontCache {
             cache_bytes_used: 0,
             frame_counter: 0,
         };
-        cache.fonts.push(LoadedFont {
-            data: DEFAULT_FONT_DATA.to_vec(),
+        cache.load_font_static(DEFAULT_FONT_DATA);
+        cache
+    }
+
+    /// Load a font from a `&'static [u8]` slice (e.g. `include_bytes!`).
+    fn load_font_static(&mut self, data: &'static [u8]) {
+        let face = rustybuzz::Face::from_slice(data, 0)
+            .expect("failed to parse default font for rustybuzz");
+        let font_ref = skrifa::FontRef::new(data).expect("failed to parse default font for skrifa");
+        self.fonts.push(LoadedFont {
+            _data: data,
+            face,
+            font_ref,
             hinting_instances: HashMap::new(),
         });
-        cache
     }
 
     /// Register a user-supplied font. Returns the font_id for later use.
     pub fn add_font(&mut self, data: Vec<u8>) -> u16 {
         let id = self.fonts.len() as u16;
+        // Leak the Vec to get a &'static [u8] — fonts are never unloaded.
+        let leaked: &'static [u8] = Box::leak(data.into_boxed_slice());
+        let face = rustybuzz::Face::from_slice(leaked, 0)
+            .expect("failed to parse user font for rustybuzz");
+        let font_ref = skrifa::FontRef::new(leaked).expect("failed to parse user font for skrifa");
         self.fonts.push(LoadedFont {
-            data,
+            _data: leaked,
+            face,
+            font_ref,
             hinting_instances: HashMap::new(),
         });
         id
@@ -112,17 +136,12 @@ impl FontCache {
             None => return Vec::new(),
         };
 
-        let face = match rustybuzz::Face::from_slice(&font.data, 0) {
-            Some(f) => f,
-            None => return Vec::new(),
-        };
-
         let mut buffer = rustybuzz::UnicodeBuffer::new();
         buffer.push_str(text);
 
-        let output = rustybuzz::shape(&face, &[], buffer);
+        let output = rustybuzz::shape(&font.face, &[], buffer);
 
-        let upem = face.units_per_em() as f64;
+        let upem = font.face.units_per_em() as f64;
         let scale = size_px as f64 / upem;
 
         let infos = output.glyph_infos();
@@ -166,12 +185,10 @@ impl FontCache {
             Some(f) => f,
             None => return size_px as i32,
         };
-        let font_ref = match skrifa::FontRef::new(&font.data) {
-            Ok(f) => f,
-            Err(_) => return size_px as i32,
-        };
         let size = Size::new(size_px as f32);
-        let metrics = font_ref.metrics(size, skrifa::instance::LocationRef::default());
+        let metrics = font
+            .font_ref
+            .metrics(size, skrifa::instance::LocationRef::default());
         metrics.ascent.round() as i32
     }
 
@@ -181,12 +198,10 @@ impl FontCache {
             Some(f) => f,
             None => return size_px as f64,
         };
-        let font_ref = match skrifa::FontRef::new(&font.data) {
-            Ok(f) => f,
-            Err(_) => return size_px as f64,
-        };
         let size = Size::new(size_px as f32);
-        let metrics = font_ref.metrics(size, skrifa::instance::LocationRef::default());
+        let metrics = font
+            .font_ref
+            .metrics(size, skrifa::instance::LocationRef::default());
         (metrics.ascent + metrics.descent.abs() + metrics.leading) as f64
     }
 
@@ -200,19 +215,15 @@ impl FontCache {
             Some(f) => f,
             None => return,
         };
-        let font_ref = match skrifa::FontRef::new(&font.data) {
-            Ok(f) => f,
-            Err(_) => return,
-        };
 
         let size = Size::new(key.size_px as f32);
         let location = skrifa::instance::LocationRef::default();
         let glyph_id = skrifa::GlyphId::new(key.glyph_id as u32);
 
-        let glyph_metrics = font_ref.glyph_metrics(size, location);
+        let glyph_metrics = font.font_ref.glyph_metrics(size, location);
         let advance = glyph_metrics.advance_width(glyph_id).unwrap_or(0.0) as f64;
 
-        let outlines = font_ref.outline_glyphs();
+        let outlines = font.font_ref.outline_glyphs();
         let outline = match outlines.get(glyph_id) {
             Some(o) => o,
             None => {
@@ -223,10 +234,12 @@ impl FontCache {
         };
 
         // Get or create a hinting instance for this size.
+        let font = self.fonts.get_mut(key.font_id as usize).unwrap();
         let hinting = font
             .hinting_instances
             .entry(key.size_px)
             .or_insert_with(|| {
+                let outlines = font.font_ref.outline_glyphs();
                 HintingInstance::new(&outlines, size, location, HintingOptions::default()).ok()
             });
 

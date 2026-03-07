@@ -855,28 +855,39 @@ impl PanelTree {
     /// notices were delivered (meaning visual state may have changed).
     pub fn deliver_notices(&mut self) -> bool {
         let mut delivered = false;
-        let ids: Vec<PanelId> = self.panels.keys().collect();
-        for id in ids {
-            // Panel may have been removed by a prior callback in this loop.
-            let Some(panel) = self.panels.get(id) else {
-                continue;
-            };
-            let flags = panel.pending_notices;
-            if flags.is_empty() {
-                continue;
+        // Loop until no new notices are generated. layout_children may call
+        // set_layout_rect on children, queuing LAYOUT_CHANGED notices that
+        // must be drained in the same frame to avoid redundant repaints.
+        loop {
+            let mut round_delivered = false;
+            let ids: Vec<PanelId> = self.panels.keys().collect();
+            for id in ids {
+                // Panel may have been removed by a prior callback in this loop.
+                let Some(panel) = self.panels.get(id) else {
+                    continue;
+                };
+                let flags = panel.pending_notices;
+                if flags.is_empty() {
+                    continue;
+                }
+                round_delivered = true;
+                self.panels[id].pending_notices = NoticeFlags::empty();
+                if let Some(mut behavior) = self.take_behavior(id) {
+                    behavior.notice(flags);
+                    if flags.contains(NoticeFlags::LAYOUT_CHANGED) {
+                        let mut ctx = PanelCtx::new(self, id);
+                        behavior.layout_children(&mut ctx);
+                    }
+                    // Panel may have been removed by its own callback (e.g. delete_self).
+                    if self.panels.contains_key(id) {
+                        self.put_behavior(id, behavior);
+                    }
+                }
             }
-            delivered = true;
-            self.panels[id].pending_notices = NoticeFlags::empty();
-            if let Some(mut behavior) = self.take_behavior(id) {
-                behavior.notice(flags);
-                if flags.contains(NoticeFlags::LAYOUT_CHANGED) {
-                    let mut ctx = PanelCtx::new(self, id);
-                    behavior.layout_children(&mut ctx);
-                }
-                // Panel may have been removed by its own callback (e.g. delete_self).
-                if self.panels.contains_key(id) {
-                    self.put_behavior(id, behavior);
-                }
+            if round_delivered {
+                delivered = true;
+            } else {
+                break;
             }
         }
         delivered

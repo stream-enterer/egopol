@@ -1418,6 +1418,14 @@ impl View {
         painter.push_state();
         painter.translate(vx, vy);
         painter.clip_rect(clip_x - vx, clip_y - vy, clip_w, clip_h);
+
+        // Skip this panel and its entire subtree if it doesn't intersect
+        // the current tile's clip region.
+        if painter.clip_is_empty() {
+            painter.pop_state();
+            return;
+        }
+
         painter.set_canvas_color(canvas_color);
 
         if let Some(mut behavior) = tree.take_behavior(id) {

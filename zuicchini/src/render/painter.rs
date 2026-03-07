@@ -140,6 +140,11 @@ impl<'a> Painter<'a> {
         };
     }
 
+    /// Returns true if the current clip region has zero area.
+    pub fn clip_is_empty(&self) -> bool {
+        self.state.clip.w <= 0 || self.state.clip.h <= 0
+    }
+
     /// Set origin (absolute offset, replaces current offset).
     pub fn set_origin(&mut self, x: f64, y: f64) {
         self.state.offset_x = x;
@@ -2715,6 +2720,25 @@ impl<'a> Painter<'a> {
         let start_y = y.max(cy).max(0);
         let end_x = (x + w).min(cx + cw).min(self.target.width() as i32);
         let end_y = (y + h).min(cy + ch).min(self.target.height() as i32);
+
+        if start_x >= end_x || start_y >= end_y {
+            return;
+        }
+
+        // Fast path: fully opaque fill — bulk write rows directly.
+        if color.is_opaque() && self.state.alpha == 255 {
+            let pixel = [color.r(), color.g(), color.b(), 255u8];
+            let tw = self.target.width() as usize;
+            let data = self.target.data_mut();
+            for row in start_y..end_y {
+                let row_base = row as usize * tw * 4;
+                for col in start_x..end_x {
+                    let off = row_base + col as usize * 4;
+                    data[off..off + 4].copy_from_slice(&pixel);
+                }
+            }
+            return;
+        }
 
         for row in start_y..end_y {
             for col in start_x..end_x {

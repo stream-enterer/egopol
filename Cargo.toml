@@ -1,3 +1,10 @@
 [workspace]
 members = ["zuicchini", "egopol"]
 resolver = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[profile.dev.package."*"]
+opt-level = 2
