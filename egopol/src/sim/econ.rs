@@ -132,14 +132,7 @@ impl EconBridge {
         rates: &TaxRates,
     ) -> Result<usize, EconError> {
         let mut params = serde_json::json!({ "country": code });
-        let has_overrides = rates.income != 0.0
-            || rates.corporate != 0.0
-            || rates.vat != 0.0
-            || rates.social_employer != 0.0
-            || rates.social_employee != 0.0
-            || rates.export != 0.0
-            || rates.capital_formation != 0.0;
-        if has_overrides {
+        if rates.has_overrides() {
             params["tax_rates"] = serde_json::json!({
                 "income": rates.income,
                 "corporate": rates.corporate,
