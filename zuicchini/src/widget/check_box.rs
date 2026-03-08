@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use crate::foundation::Color;
 use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
 use crate::render::Painter;
 
@@ -57,7 +58,18 @@ impl CheckBox {
 
         // Draw label text to the right
         if !self.label.is_empty() {
-            // TODO(font): paint text here
+            let label_x = BOX_SIZE + BOX_LABEL_GAP;
+            let label_h = BOX_SIZE;
+            let label_y = y_off + (BOX_SIZE - label_h) * 0.5;
+            painter.paint_text(
+                label_x,
+                label_y,
+                &self.label,
+                label_h,
+                1.0,
+                self.look.fg_color,
+                Color::TRANSPARENT,
+            );
         }
     }
 
@@ -83,7 +95,7 @@ impl CheckBox {
         let w = if self.label.is_empty() {
             BOX_SIZE
         } else {
-            BOX_SIZE + BOX_LABEL_GAP + self.label.len() as f64 * 7.0 // TODO(font): measure_text stub
+            BOX_SIZE + BOX_LABEL_GAP + Painter::measure_text_width(&self.label, BOX_SIZE)
         };
         (w, BOX_SIZE)
     }

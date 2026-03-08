@@ -33,8 +33,9 @@ impl Label {
     }
 
     pub fn preferred_size(&self) -> (f64, f64) {
-        let tw = self.border.caption.len() as f64 * 7.0; // TODO(font): measure_text stub
-        let lh = 15.0; // TODO(font): line_height stub
+        let ch = 13.0;
+        let tw = Painter::measure_text_width(&self.border.caption, ch);
+        let lh = ch + 2.0;
         (tw + 4.0, lh)
     }
 }

@@ -1,5 +1,5 @@
-use crate::foundation::{Image, Rect};
-use crate::render::{Painter, Stroke, TextAlignment};
+use crate::foundation::{Color, Image, Rect};
+use crate::render::{Painter, Stroke, TextAlignment, VAlign};
 
 use super::look::Look;
 
@@ -1024,8 +1024,8 @@ impl Border {
         let lch = self.label_content_height(label_area_w, rnd_h);
         let label = self.label_layout(ox, oy, label_area_w, lch);
 
-        let _cap_align = self.caption_alignment.unwrap_or(self.label_alignment);
-        let _desc_align = self.description_alignment.unwrap_or(self.label_alignment);
+        let cap_align = self.caption_alignment.unwrap_or(self.label_alignment);
+        let desc_align = self.description_alignment.unwrap_or(self.label_alignment);
 
         // Icon
         if let Some(ref icon_rect) = label.icon_rect {
@@ -1042,7 +1042,9 @@ impl Border {
                             0,
                             img.width(),
                             img.height(),
+                            Color::TRANSPARENT,
                             dim_color(look.fg_color),
+                            Color::TRANSPARENT,
                         );
                     } else {
                         painter.paint_image_scaled(
@@ -1060,13 +1062,43 @@ impl Border {
         }
 
         // Caption
-        if label.caption_rect.is_some() {
-            // TODO(font): paint text here (caption)
+        if let Some(ref cr) = label.caption_rect {
+            painter.paint_text_boxed(
+                cr.x,
+                cr.y,
+                cr.w,
+                cr.h,
+                &self.caption,
+                label._caption_font_size,
+                dim_color(look.fg_color),
+                Color::TRANSPARENT,
+                cap_align,
+                VAlign::Center,
+                cap_align,
+                0.5,
+                false,
+                0.0,
+            );
         }
 
         // Description
-        if label.description_rect.is_some() {
-            // TODO(font): paint text here (description)
+        if let Some(ref dr) = label.description_rect {
+            painter.paint_text_boxed(
+                dr.x,
+                dr.y,
+                dr.w,
+                dr.h,
+                &self.description,
+                label._description_font_size,
+                dim_color(look.fg_color.darken(0.3)),
+                Color::TRANSPARENT,
+                desc_align,
+                VAlign::Center,
+                desc_align,
+                0.5,
+                false,
+                0.0,
+            );
         }
 
         // Inner border — content starts after the full label space (including padding)

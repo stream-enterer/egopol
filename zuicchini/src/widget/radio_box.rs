@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::foundation::Color;
 use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
 use crate::render::Painter;
 
@@ -51,7 +52,18 @@ impl RadioBox {
 
         // Label
         if !self.label.is_empty() {
-            // TODO(font): paint text here
+            let label_x = CIRCLE_SIZE + CIRCLE_LABEL_GAP;
+            let label_h = CIRCLE_SIZE;
+            let label_y = (CIRCLE_SIZE - label_h) * 0.5;
+            painter.paint_text(
+                label_x,
+                label_y,
+                &self.label,
+                label_h,
+                1.0,
+                self.look.fg_color,
+                Color::TRANSPARENT,
+            );
         }
     }
 
@@ -77,7 +89,7 @@ impl RadioBox {
         let w = if self.label.is_empty() {
             CIRCLE_SIZE
         } else {
-            CIRCLE_SIZE + CIRCLE_LABEL_GAP + self.label.len() as f64 * 7.0 // TODO(font): measure_text stub
+            CIRCLE_SIZE + CIRCLE_LABEL_GAP + Painter::measure_text_width(&self.label, CIRCLE_SIZE)
         };
         (w, CIRCLE_SIZE)
     }

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::foundation::Rect;
+use crate::foundation::{Color, Rect};
 use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
 use crate::render::Painter;
 
@@ -82,10 +82,19 @@ impl ScalarField {
 
         // Value text
         let text = format!("{:.prec$}", self.value, prec = self.precision);
-        let tw = text.len() as f64 * 7.0; // TODO(font): measure_text stub
-        let _tx = cx + (cw - tw) / 2.0;
-        let _ty = cy + (ch - 13.0) / 2.0;
-        // TODO(font): paint text here
+        let text_h = 13.0_f64.min(ch);
+        let tw = Painter::measure_text_width(&text, text_h);
+        let tx = cx + (cw - tw) / 2.0;
+        let ty = cy + (ch - text_h) / 2.0;
+        painter.paint_text(
+            tx,
+            ty,
+            &text,
+            text_h,
+            1.0,
+            self.look.input_fg_color,
+            Color::TRANSPARENT,
+        );
     }
 
     pub fn input(&mut self, event: &InputEvent) -> bool {

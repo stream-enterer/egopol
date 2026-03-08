@@ -162,7 +162,20 @@ fn paint_image_colored_basic() {
     {
         let mut p = Painter::new(&mut target);
         p.set_canvas_color(Color::BLACK);
-        p.paint_image_colored(0.0, 0.0, 2.0, 2.0, &alpha_img, 0, 0, 2, 2, Color::RED);
+        p.paint_image_colored(
+            0.0,
+            0.0,
+            2.0,
+            2.0,
+            &alpha_img,
+            0,
+            0,
+            2,
+            2,
+            Color::TRANSPARENT,
+            Color::RED,
+            Color::TRANSPARENT,
+        );
     }
     // Top-left pixel: full red (alpha=255 from mask)
     let px = target.pixel(0, 0);

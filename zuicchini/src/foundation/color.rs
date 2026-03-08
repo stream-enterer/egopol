@@ -125,13 +125,15 @@ impl Color {
     }
 
     /// Standard alpha blend: `self` over `other` using `alpha` (0–255).
+    ///
+    /// Uses `/256` integer math matching C++ emPainter precision.
     pub fn blend(self, other: Color, alpha: u8) -> Color {
         let a = alpha as u16;
-        let inv_a = 255 - a;
-        let r = (self.r() as u16 * a + other.r() as u16 * inv_a) / 255;
-        let g = (self.g() as u16 * a + other.g() as u16 * inv_a) / 255;
-        let b = (self.b() as u16 * a + other.b() as u16 * inv_a) / 255;
-        let out_a = (self.a() as u16 * a + other.a() as u16 * inv_a) / 255;
+        let inv_a = 256 - a;
+        let r = (self.r() as u16 * a + other.r() as u16 * inv_a) >> 8;
+        let g = (self.g() as u16 * a + other.g() as u16 * inv_a) >> 8;
+        let b = (self.b() as u16 * a + other.b() as u16 * inv_a) >> 8;
+        let out_a = (self.a() as u16 * a + other.a() as u16 * inv_a) >> 8;
         Color::rgba(r as u8, g as u8, b as u8, out_a as u8)
     }
 
@@ -142,24 +144,28 @@ impl Color {
     }
 
     /// Linearly interpolate between `self` and `other` by factor `t` (0.0–1.0).
+    ///
+    /// Uses integer math with 8-bit fractional weight to match C++ emPainter
+    /// gradient precision: `result = a + (b - a) * t256 / 256`.
     pub fn lerp(self, other: Color, t: f64) -> Color {
         let t = t.clamp(0.0, 1.0);
-        let inv_t = 1.0 - t;
-        let r = (self.r() as f64 * inv_t + other.r() as f64 * t) as u8;
-        let g = (self.g() as f64 * inv_t + other.g() as f64 * t) as u8;
-        let b = (self.b() as f64 * inv_t + other.b() as f64 * t) as u8;
-        let a = (self.a() as f64 * inv_t + other.a() as f64 * t) as u8;
+        let t256 = (t * 256.0) as i32;
+        let r = (self.r() as i32 + (other.r() as i32 - self.r() as i32) * t256 / 256) as u8;
+        let g = (self.g() as i32 + (other.g() as i32 - self.g() as i32) * t256 / 256) as u8;
+        let b = (self.b() as i32 + (other.b() as i32 - self.b() as i32) * t256 / 256) as u8;
+        let a = (self.a() as i32 + (other.a() as i32 - self.a() as i32) * t256 / 256) as u8;
         Color::rgba(r, g, b, a)
     }
 
-    /// emCore canvas blend: `target += (source - canvas) * alpha`.
+    /// emCore canvas blend: `target += (source - canvas) * alpha / 256`.
     ///
     /// `self` is the current target pixel, `source` is the color being painted,
     /// `canvas` is the background canvas color, `alpha` is blend strength (0–255).
+    /// Uses `/256` (right-shift by 8) matching C++ emPainter integer precision.
     pub fn canvas_blend(self, source: Color, canvas: Color, alpha: u8) -> Color {
         let a = alpha as i32;
         let blend_ch = |target: u8, src: u8, cvs: u8| -> u8 {
-            let result = target as i32 + ((src as i32 - cvs as i32) * a) / 255;
+            let result = target as i32 + ((src as i32 - cvs as i32) * a) / 256;
             result.clamp(0, 255) as u8
         };
         Color::rgba(
@@ -324,8 +330,10 @@ mod tests {
     fn blend_extremes() {
         let a = Color::rgb(255, 0, 0);
         let b = Color::rgb(0, 0, 255);
-        // Full alpha -> source
-        assert_eq!(a.blend(b, 255), a);
+        // Full alpha -> nearly source (C++ /256 precision: 255*255/256 = 254)
+        let full = a.blend(b, 255);
+        assert!((full.r() as i16 - a.r() as i16).abs() <= 1);
+        assert!((full.b() as i16 - a.b() as i16).abs() <= 1);
         // Zero alpha -> dest
         assert_eq!(a.blend(b, 0), b);
     }

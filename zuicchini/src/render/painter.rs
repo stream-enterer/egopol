@@ -1,3 +1,4 @@
+use super::bitmap_font;
 use super::interpolation;
 use super::scanline::{self, WindingRule};
 use super::stroke::{Stroke, StrokeEnd, StrokeEndType};
@@ -8,7 +9,9 @@ use crate::foundation::{Color, Fixed12, Image, PixelRect};
 const ARROW_BASE_SIZE: f64 = 10.0;
 /// Notch depth ratio for Arrow type.
 const ARROW_NOTCH: f64 = 0.3;
-/// Number of segments for circle approximation.
+/// Circle quality factor matching C++ emPainter::CircleQuality.
+const CIRCLE_QUALITY: f64 = 4.5;
+/// Default segment count for circle approximation (used by decorations).
 const CIRCLE_SEGMENTS: usize = 32;
 /// Maximum miter extension factor.
 const MAX_MITER: f64 = 5.0;
@@ -16,6 +19,14 @@ const MAX_MITER: f64 = 5.0;
 const BEZIER_FLATNESS: f64 = 0.5;
 /// Maximum Bezier subdivision depth.
 const BEZIER_MAX_DEPTH: u8 = 10;
+/// Default bitmask for `paint_border_image`: all sub-rects except center.
+/// Octal 0757 = binary 0b111_101_111.
+///
+/// Bit layout:
+///   8=UL  5=U   2=UR
+///   7=L   4=C   1=R
+///   6=LL  3=B   0=LR
+pub const BORDER_EDGES_ONLY: u16 = 0o757;
 
 /// Pre-transformed texture with coordinates in pixel space.
 /// Used internally by the textured polygon rasterizer.
@@ -284,13 +295,79 @@ impl<'a> Painter<'a> {
 
     // --- Drawing API ---
 
-    /// Fill a rectangle with a solid color.
+    /// Fill a rectangle with a solid color using sub-pixel anti-aliasing.
+    /// Uses 12-bit fixed-point for fractional edge coverage matching C++ emPainter.
     pub fn paint_rect(&mut self, x: f64, y: f64, w: f64, h: f64, color: Color) {
-        let px = self.to_pixel_x(x);
-        let py = self.to_pixel_y(y);
-        let pw = self.to_pixel_x(x + w) - px;
-        let ph = self.to_pixel_y(y + h) - py;
-        self.fill_rect_pixels(px, py, pw, ph, color);
+        if w <= 0.0 || h <= 0.0 || color.a() == 0 {
+            return;
+        }
+        let fx1 = Fixed12::from_f64(x * self.state.scale_x + self.state.offset_x);
+        let fy1 = Fixed12::from_f64(y * self.state.scale_y + self.state.offset_y);
+        let fx2 = Fixed12::from_f64((x + w) * self.state.scale_x + self.state.offset_x);
+        let fy2 = Fixed12::from_f64((y + h) * self.state.scale_y + self.state.offset_y);
+
+        let ix1 = fx1.to_i32();
+        let iy1 = fy1.to_i32();
+        let ix2 = fx2.ceil().to_i32();
+        let iy2 = fy2.ceil().to_i32();
+
+        let frac_left = 0x1000 - fx1.frac();
+        let frac_right = fx2.frac();
+        let frac_top = 0x1000 - fy1.frac();
+        let frac_bottom = fy2.frac();
+
+        let clip = self.state.clip;
+        let tw = self.target.width() as i32;
+        let th = self.target.height() as i32;
+        let cx1 = clip.x.max(0);
+        let cy1 = clip.y.max(0);
+        let cx2 = (clip.x + clip.w).min(tw);
+        let cy2 = (clip.y + clip.h).min(th);
+
+        let start_x = ix1.max(cx1);
+        let start_y = iy1.max(cy1);
+        let end_x = ix2.min(cx2);
+        let end_y = iy2.min(cy2);
+
+        if start_x >= end_x || start_y >= end_y {
+            return;
+        }
+
+        for py in start_y..end_y {
+            let alpha_y = if py == iy1 && py == iy2 - 1 {
+                (frac_top + frac_bottom).min(0x1000) - 0x1000 + (fy2 - fy1).raw().min(0x1000)
+            } else if py == iy1 {
+                frac_top
+            } else if py == iy2 - 1 && frac_bottom != 0 {
+                frac_bottom
+            } else {
+                0x1000
+            };
+            if alpha_y <= 0 {
+                continue;
+            }
+            for px in start_x..end_x {
+                let alpha_x = if px == ix1 && px == ix2 - 1 {
+                    (frac_left + frac_right).min(0x1000) - 0x1000 + (fx2 - fx1).raw().min(0x1000)
+                } else if px == ix1 {
+                    frac_left
+                } else if px == ix2 - 1 && frac_right != 0 {
+                    frac_right
+                } else {
+                    0x1000
+                };
+                if alpha_x <= 0 {
+                    continue;
+                }
+                let alpha = ((alpha_x as i64 * alpha_y as i64) >> 12) as i32;
+                if alpha >= 0x1000 {
+                    self.blend_pixel(px, py, color);
+                } else {
+                    let a = ((alpha * 255 + 0x800) >> 12).clamp(0, 255) as u8;
+                    self.blend_pixel_alpha(px, py, color, a);
+                }
+            }
+        }
     }
 
     /// Fill an ellipse with a solid color using AA polygon approximation.
@@ -298,7 +375,7 @@ impl<'a> Painter<'a> {
         if rx <= 0.0 || ry <= 0.0 {
             return;
         }
-        let verts = Self::ellipse_polygon(cx, cy, rx, ry);
+        let verts = self.ellipse_polygon(cx, cy, rx, ry);
         self.fill_polygon_aa(&verts, color, WindingRule::NonZero);
     }
 
@@ -330,7 +407,7 @@ impl<'a> Painter<'a> {
         if sweep >= 2.0 * std::f64::consts::PI {
             return self.paint_ellipse(cx, cy, rx, ry, color);
         }
-        let segments = adaptive_circle_segments(rx.max(ry));
+        let segments = adaptive_circle_segments(rx, ry, self.state.scale_x, self.state.scale_y);
         // Scale segments proportional to sweep.
         let arc_segments =
             ((segments as f64 * sweep / (2.0 * std::f64::consts::PI)).ceil() as usize).max(2);
@@ -486,22 +563,18 @@ impl<'a> Painter<'a> {
         }
     }
 
-    /// Draw a polygon outline by stroking each edge as a thick line.
+    /// Draw a polygon outline by stroking as a closed polyline with proper joins.
     pub fn paint_polygon_outlined(
         &mut self,
         vertices: &[(f64, f64)],
         stroke_color: Color,
         thickness: f64,
     ) {
-        let n = vertices.len();
-        if n < 2 {
+        if vertices.len() < 2 {
             return;
         }
-        for i in 0..n {
-            let (x0, y0) = vertices[i];
-            let (x1, y1) = vertices[(i + 1) % n];
-            self.paint_thick_line(x0, y0, x1, y1, thickness, stroke_color);
-        }
+        let stroke = Stroke::new(stroke_color, thickness);
+        self.paint_polyline_without_arrows(vertices, &stroke, true);
     }
 
     /// Draw a polyline (open path) outline by stroking each segment.
@@ -551,20 +624,45 @@ impl<'a> Painter<'a> {
         if w <= 0.0 || h <= 0.0 {
             return;
         }
-        let verts = Self::round_rect_polygon(x, y, w, h, radius);
+        let verts = self.round_rect_polygon(x, y, w, h, radius);
         self.fill_polygon_aa(&verts, color, WindingRule::NonZero);
     }
 
-    /// Draw a source image at the given position.
+    /// Draw a source image at the given position (convenience wrapper).
+    /// Draws at 1:1 scale with full opacity and no canvas color.
     pub fn paint_image(&mut self, x: f64, y: f64, image: &Image) {
-        if image.channel_count() != 4 {
+        let iw = image.width() as f64 / self.state.scale_x;
+        let ih = image.height() as f64 / self.state.scale_y;
+        self.paint_image_full(x, y, iw, ih, image, 255, Color::TRANSPARENT);
+    }
+
+    /// Draw a source image scaled to fill a destination rectangle with alpha
+    /// modulation and canvas color support. Matches C++ `PaintImage`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn paint_image_full(
+        &mut self,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        image: &Image,
+        alpha: u8,
+        canvas_color: Color,
+    ) {
+        if image.channel_count() != 4 || w <= 0.0 || h <= 0.0 || alpha == 0 {
             return;
         }
 
         let px = self.to_pixel_x(x);
         let py = self.to_pixel_y(y);
-        let iw = image.width() as i32;
-        let ih = image.height() as i32;
+        let pw = (w * self.state.scale_x) as i32;
+        let ph = (h * self.state.scale_y) as i32;
+        if pw <= 0 || ph <= 0 {
+            return;
+        }
+
+        let src_w = image.width() as f64;
+        let src_h = image.height() as f64;
 
         let PixelRect {
             x: clip_x,
@@ -572,24 +670,46 @@ impl<'a> Painter<'a> {
             w: clip_w,
             h: clip_h,
         } = self.state.clip;
-        let start_x = px.max(clip_x);
-        let start_y = py.max(clip_y);
-        let end_x = (px + iw).min(clip_x + clip_w);
-        let end_y = (py + ih).min(clip_y + clip_h);
+        let start_x = px.max(clip_x).max(0);
+        let start_y = py.max(clip_y).max(0);
+        let end_x = (px + pw)
+            .min(clip_x + clip_w)
+            .min(self.target.width() as i32);
+        let end_y = (py + ph)
+            .min(clip_y + clip_h)
+            .min(self.target.height() as i32);
+
+        // Save and temporarily override canvas color and alpha if specified.
+        let saved_canvas = self.state.canvas_color;
+        let saved_alpha = self.state.alpha;
+        if canvas_color.is_opaque() {
+            self.state.canvas_color = canvas_color;
+        }
+        if alpha < 255 {
+            self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
+        }
 
         for row in start_y..end_y {
             for col in start_x..end_x {
-                let ix = (col - px) as u32;
-                let iy = (row - py) as u32;
+                let sx = ((col - px) as f64 * src_w / pw as f64).min(src_w - 1.0);
+                let sy = ((row - py) as f64 * src_h / ph as f64).min(src_h - 1.0);
+                let ix = sx as u32;
+                let iy = sy as u32;
                 let src = image.pixel(ix, iy);
                 let src_color = Color::rgba(src[0], src[1], src[2], src[3]);
                 self.blend_pixel(col, row, src_color);
             }
         }
+
+        self.state.canvas_color = saved_canvas;
+        self.state.alpha = saved_alpha;
     }
 
-    /// Blit a 1-channel greyscale alpha mask using the given color.
+    /// Draw an image with two-color mapping and canvas color support.
+    /// Pixel luminance maps linearly from `color1` (at 0) to `color2` (at 255).
+    /// For single-color alpha mask behavior, pass `Color::TRANSPARENT` as color1.
     /// Source region is (src_x, src_y, src_w, src_h) within the image.
+    /// Matches C++ `PaintImageColored(x, y, w, h, img, color1, color2, canvasColor)`.
     #[allow(clippy::too_many_arguments)]
     pub fn paint_image_colored(
         &mut self,
@@ -602,7 +722,9 @@ impl<'a> Painter<'a> {
         src_y: u32,
         src_w: u32,
         src_h: u32,
-        color: Color,
+        color1: Color,
+        color2: Color,
+        canvas_color: Color,
     ) {
         let px = self.to_pixel_x(x);
         let py = self.to_pixel_y(y);
@@ -628,24 +750,340 @@ impl<'a> Painter<'a> {
             return;
         }
 
+        let saved_canvas = self.state.canvas_color;
+        if canvas_color.is_opaque() {
+            self.state.canvas_color = canvas_color;
+        }
+
+        let ch = image.channel_count();
+
         for row in start_y..end_y {
             for col in start_x..end_x {
                 // Map dest pixel to source coords (nearest neighbor)
                 let sx = src_x + ((col - px) as u32 * src_w / pw as u32).min(src_w - 1);
                 let sy = src_y + ((row - py) as u32 * src_h / ph as u32).min(src_h - 1);
-                let g = image.pixel(sx, sy)[0];
-                if g == 0 {
-                    continue;
-                }
-                let blended = Color::rgba(
-                    color.r(),
-                    color.g(),
-                    color.b(),
-                    ((color.a() as u16 * g as u16 + 127) / 255) as u8,
-                );
+                let p = image.pixel(sx, sy);
+                let lum = if ch == 1 {
+                    p[0]
+                } else {
+                    // ITU-R BT.601 luminance.
+                    ((p[0] as u32 * 77 + p[1] as u32 * 150 + p[2] as u32 * 29) >> 8) as u8
+                };
+                let t = lum as f64 / 255.0;
+                let blended = color1.lerp(color2, t);
                 self.blend_pixel(col, row, blended);
             }
         }
+
+        self.state.canvas_color = saved_canvas;
+    }
+
+    // ── Text rendering ────────────────────────────────────────────────
+
+    /// Calculate the width and height of a text string.
+    ///
+    /// Matches C++ `emPainter::GetTextSize`:
+    ///   - If `formatted`: interprets `\n`, `\r\n`, `\t` (tabs align to 8).
+    ///     Counts columns per line, tracks max columns and row count.
+    ///   - If not formatted: character count = columns, 1 row.
+    ///   - Width  = `char_height * columns / CHAR_BOX_TALLNESS`
+    ///   - Height = `char_height * (1.0 + rel_line_space) * rows`
+    pub fn get_text_size(
+        text: &str,
+        char_height: f64,
+        formatted: bool,
+        rel_line_space: f64,
+    ) -> (f64, f64) {
+        let (columns, rows) = if formatted {
+            bitmap_font::measure_formatted(text)
+        } else {
+            (text.chars().count(), 1)
+        };
+        let w = char_height * columns as f64 / bitmap_font::CHAR_BOX_TALLNESS;
+        let h = char_height * (1.0 + rel_line_space) * rows as f64;
+        (w, h)
+    }
+
+    /// Paint a single line of text using the built-in bitmap font.
+    ///
+    /// Matches C++ `emPainter::PaintText`:
+    ///   - `x`, `y`: upper-left corner of first character.
+    ///   - `char_height`: character height in user coords.
+    ///   - `width_scale`: factor for character width (1.0 = normal).
+    ///   - `color`: text color.
+    ///   - `canvas_color`: for canvas-color compositing (TRANSPARENT = standard).
+    #[allow(clippy::too_many_arguments)]
+    pub fn paint_text(
+        &mut self,
+        x: f64,
+        y: f64,
+        text: &str,
+        char_height: f64,
+        width_scale: f64,
+        color: Color,
+        canvas_color: Color,
+    ) {
+        if text.is_empty() || char_height <= 0.0 || color.a() == 0 {
+            return;
+        }
+
+        // Real char width (without width_scale).
+        let rcw = char_height / bitmap_font::CHAR_BOX_TALLNESS;
+        let char_width = rcw * width_scale;
+
+        // If the character is tiny on screen, draw colored rectangles instead
+        // of individual glyphs. Threshold: charHeight * scaleY < 1.7.
+        let pixel_height = char_height * self.state.scale_y;
+        if pixel_height < 1.7 {
+            self.paint_text_tiny(x, y, text, char_width, char_height, color, canvas_color);
+            return;
+        }
+
+        // Clip bounds in user coordinates.
+        let clip_x1 = self.get_user_clip_x1();
+        let clip_x2 = self.get_user_clip_x2();
+        let clip_y1 = self.get_user_clip_y1();
+        let clip_y2 = self.get_user_clip_y2();
+
+        // Skip if the entire text strip is outside the clip vertically.
+        if y >= clip_y2 || y + char_height <= clip_y1 {
+            return;
+        }
+
+        // Compute show_height: height scaled proportionally to the glyph aspect,
+        // capped at char_height.
+        let gw = bitmap_font::CHAR_WIDTH as f64;
+        let gh = bitmap_font::CHAR_HEIGHT as f64;
+        let show_height = (rcw * gh / gw).min(char_height);
+        let y_offset = (char_height - show_height) * 0.5;
+
+        let saved_canvas = self.state.canvas_color;
+        if canvas_color.is_opaque() {
+            self.state.canvas_color = canvas_color;
+        }
+
+        let mut cx = x;
+        for ch in text.chars() {
+            // Skip characters entirely to the right of the clip.
+            if cx >= clip_x2 {
+                break;
+            }
+            // Skip characters entirely to the left of the clip.
+            if cx + char_width <= clip_x1 {
+                cx += char_width;
+                continue;
+            }
+
+            if ch != ' ' {
+                let (glyph, gw, gh) = bitmap_font::get_glyph(ch);
+                // Create a temporary single-channel image from the glyph bits.
+                let mut glyph_img = Image::new(gw, gh, 1);
+                for row in 0..gh {
+                    let byte = glyph[row as usize];
+                    for col in 0..gw {
+                        if byte & (0x80 >> col) != 0 {
+                            glyph_img.pixel_mut(col, row)[0] = 255;
+                        }
+                    }
+                }
+                // Draw using paint_image_colored which handles scaling.
+                self.paint_image_colored(
+                    cx,
+                    y + y_offset,
+                    char_width,
+                    show_height,
+                    &glyph_img,
+                    0,
+                    0,
+                    gw,
+                    gh,
+                    Color::TRANSPARENT,
+                    color,
+                    canvas_color,
+                );
+            }
+            cx += char_width;
+        }
+
+        self.state.canvas_color = saved_canvas;
+    }
+
+    /// Tiny-text fallback: at very small sizes, render non-space runs as
+    /// colored rectangles with reduced alpha (1/3 per C++).
+    #[allow(clippy::too_many_arguments)]
+    fn paint_text_tiny(
+        &mut self,
+        x: f64,
+        y: f64,
+        text: &str,
+        char_width: f64,
+        char_height: f64,
+        color: Color,
+        _canvas_color: Color,
+    ) {
+        let reduced_alpha = (color.a() as u16 * 85 / 255) as u8; // ~1/3
+        let rc = color.with_alpha(reduced_alpha);
+        let mut cx = x;
+        let mut run_start: Option<f64> = None;
+
+        for ch in text.chars() {
+            if ch == ' ' {
+                // Flush non-space run.
+                if let Some(start) = run_start.take() {
+                    self.paint_rect(start, y, cx - start, char_height, rc);
+                }
+            } else if run_start.is_none() {
+                run_start = Some(cx);
+            }
+            cx += char_width;
+        }
+        // Flush final run.
+        if let Some(start) = run_start {
+            self.paint_rect(start, y, cx - start, char_height, rc);
+        }
+    }
+
+    /// Paint text fitted into a rectangle, with optional formatting.
+    ///
+    /// Matches C++ `emPainter::PaintTextBoxed`:
+    ///   - Measures text at `max_char_height`, scales down if it exceeds the box.
+    ///   - `box_h_align` / `box_v_align`: how to position the text block.
+    ///   - `text_alignment`: how to align individual lines horizontally.
+    ///   - `min_width_scale`: minimum width squeeze factor (default 0.5).
+    ///   - `formatted`: interpret `\n`, `\r\n`, `\t` (default true).
+    ///   - `rel_line_space`: vertical space between lines in units of char_height.
+    #[allow(clippy::too_many_arguments)]
+    pub fn paint_text_boxed(
+        &mut self,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        text: &str,
+        max_char_height: f64,
+        color: Color,
+        canvas_color: Color,
+        box_h_align: TextAlignment,
+        box_v_align: VAlign,
+        text_alignment: TextAlignment,
+        min_width_scale: f64,
+        formatted: bool,
+        rel_line_space: f64,
+    ) {
+        if text.is_empty() || w <= 0.0 || h <= 0.0 || max_char_height <= 0.0 {
+            return;
+        }
+
+        let (tw, th) = Self::get_text_size(text, max_char_height, formatted, rel_line_space);
+        if tw <= 0.0 || th <= 0.0 {
+            return;
+        }
+
+        // Scale down char height if text is taller than the box.
+        let char_height = if th > h {
+            max_char_height * h / th
+        } else {
+            max_char_height
+        };
+
+        // Recompute text size at actual char_height.
+        let (tw, th) = Self::get_text_size(text, char_height, formatted, rel_line_space);
+
+        // Width scale: squeeze to fit, clamped.
+        let max_ws = min_width_scale.max(1.0);
+        let ws = if tw > 0.0 {
+            (w / tw).clamp(min_width_scale, max_ws)
+        } else {
+            1.0
+        };
+
+        let actual_tw = tw * ws;
+        let actual_th = th;
+
+        // Box alignment — position of text block within the box.
+        let bx = match box_h_align {
+            TextAlignment::Left => x,
+            TextAlignment::Center => x + (w - actual_tw) * 0.5,
+            TextAlignment::Right => x + w - actual_tw,
+        };
+        let by = match box_v_align {
+            VAlign::Top => y,
+            VAlign::Center => y + (h - actual_th) * 0.5,
+            VAlign::Bottom => y + h - actual_th,
+        };
+
+        if formatted {
+            self.paint_text_formatted(
+                bx,
+                by,
+                actual_tw,
+                text,
+                char_height,
+                ws,
+                color,
+                canvas_color,
+                text_alignment,
+                rel_line_space,
+            );
+        } else {
+            // Single line — apply text alignment within actual_tw.
+            let line_w = Self::get_text_size(text, char_height, false, 0.0).0 * ws;
+            let lx = match text_alignment {
+                TextAlignment::Left => bx,
+                TextAlignment::Center => bx + (actual_tw - line_w) * 0.5,
+                TextAlignment::Right => bx + actual_tw - line_w,
+            };
+            self.paint_text(lx, by, text, char_height, ws, color, canvas_color);
+        }
+    }
+
+    /// Render formatted text (handles `\n`, `\r\n`, `\t`) line by line.
+    #[allow(clippy::too_many_arguments)]
+    fn paint_text_formatted(
+        &mut self,
+        bx: f64,
+        by: f64,
+        block_w: f64,
+        text: &str,
+        char_height: f64,
+        width_scale: f64,
+        color: Color,
+        canvas_color: Color,
+        text_alignment: TextAlignment,
+        rel_line_space: f64,
+    ) {
+        let line_step = char_height * (1.0 + rel_line_space);
+        let rcw = char_height / bitmap_font::CHAR_BOX_TALLNESS * width_scale;
+        let mut line_y = by;
+
+        // Split on newlines, handling \r\n
+        let normalized = text.replace("\r\n", "\n");
+        for line in normalized.split('\n') {
+            // Expand tabs to spaces (align to 8).
+            let expanded = expand_tabs(line);
+            let line_w = expanded.chars().count() as f64 * rcw;
+            let lx = match text_alignment {
+                TextAlignment::Left => bx,
+                TextAlignment::Center => bx + (block_w - line_w) * 0.5,
+                TextAlignment::Right => bx + block_w - line_w,
+            };
+            self.paint_text(
+                lx,
+                line_y,
+                &expanded,
+                char_height,
+                width_scale,
+                color,
+                canvas_color,
+            );
+            line_y += line_step;
+        }
+    }
+
+    /// Convenience: measure text width for a single un-formatted line.
+    /// Returns the width in the same coordinate space as the painter.
+    pub fn measure_text_width(text: &str, char_height: f64) -> f64 {
+        char_height * text.chars().count() as f64 / bitmap_font::CHAR_BOX_TALLNESS
     }
 
     /// Draw an image scaled to fill a destination rectangle.
@@ -727,88 +1165,25 @@ impl<'a> Painter<'a> {
         }
     }
 
-    /// Draw an image with two-color mapping based on luminance.
-    /// Pixel luminance maps linearly between `color1` (dark) and `color2` (bright).
-    #[allow(clippy::too_many_arguments)]
-    pub fn paint_image_colored_2(
-        &mut self,
-        x: f64,
-        y: f64,
-        w: f64,
-        h: f64,
-        image: &Image,
-        src_x: u32,
-        src_y: u32,
-        src_w: u32,
-        src_h: u32,
-        color1: Color,
-        color2: Color,
-    ) {
-        let px = self.to_pixel_x(x);
-        let py = self.to_pixel_y(y);
-        let pw = (w * self.state.scale_x) as i32;
-        let ph = (h * self.state.scale_y) as i32;
-
-        let PixelRect {
-            x: clip_x,
-            y: clip_y,
-            w: clip_w,
-            h: clip_h,
-        } = self.state.clip;
-        let start_x = px.max(clip_x).max(0);
-        let start_y = py.max(clip_y).max(0);
-        let end_x = (px + pw)
-            .min(clip_x + clip_w)
-            .min(self.target.width() as i32);
-        let end_y = (py + ph)
-            .min(clip_y + clip_h)
-            .min(self.target.height() as i32);
-
-        if pw <= 0 || ph <= 0 || src_w == 0 || src_h == 0 {
-            return;
-        }
-
-        let ch = image.channel_count();
-
-        for row in start_y..end_y {
-            for col in start_x..end_x {
-                let sx = src_x + ((col - px) as u32 * src_w / pw as u32).min(src_w - 1);
-                let sy = src_y + ((row - py) as u32 * src_h / ph as u32).min(src_h - 1);
-                let p = image.pixel(sx, sy);
-                let lum = if ch == 1 {
-                    p[0]
-                } else {
-                    // ITU-R BT.601 luminance.
-                    ((p[0] as u32 * 77 + p[1] as u32 * 150 + p[2] as u32 * 29) >> 8) as u8
-                };
-                let t = lum as f64 / 255.0;
-                let blended = color1.lerp(color2, t);
-                self.blend_pixel(col, row, blended);
-            }
-        }
-    }
-
     // --- Bezier curves ---
 
     /// Fill a cubic Bezier curve region (tessellated to polygon).
-    /// `points` should contain 4*N control points (groups of [P0, P1, P2, P3]).
+    /// `points` length must be a multiple of 3. Uses stride-3 convention:
+    /// segment i uses points[i*3], points[i*3+1], points[i*3+2], points[((i+1)*3) % n].
+    /// The path is implicitly closed.
     pub fn paint_bezier(&mut self, points: &[(f64, f64)], color: Color) {
-        if points.len() < 4 {
+        let n = points.len();
+        if n < 3 || !n.is_multiple_of(3) {
             return;
         }
+        let seg_count = n / 3;
         let mut verts = Vec::new();
-        for chunk in points.chunks(4) {
-            if chunk.len() == 4 {
-                tessellate_cubic(
-                    &mut verts,
-                    chunk[0],
-                    chunk[1],
-                    chunk[2],
-                    chunk[3],
-                    BEZIER_FLATNESS,
-                    0,
-                );
-            }
+        for i in 0..seg_count {
+            let p0 = points[i * 3];
+            let p1 = points[i * 3 + 1];
+            let p2 = points[i * 3 + 2];
+            let p3 = points[((i + 1) * 3) % n];
+            tessellate_cubic(&mut verts, p0, p1, p2, p3, BEZIER_FLATNESS, 0);
         }
         if verts.len() >= 3 {
             self.fill_polygon_aa(&verts, color, WindingRule::NonZero);
@@ -817,23 +1192,20 @@ impl<'a> Painter<'a> {
 
     /// Stroke a closed Bezier path outline (tessellated to polyline, then stroked).
     /// Corresponds to C++ `PaintBezierOutline`: tessellates + strokes as closed path.
+    /// `points` length must be a multiple of 3. Uses stride-3 convention.
     pub fn paint_bezier_outline(&mut self, points: &[(f64, f64)], stroke: &Stroke) {
-        if points.len() < 4 {
+        let n = points.len();
+        if n < 3 || !n.is_multiple_of(3) {
             return;
         }
+        let seg_count = n / 3;
         let mut verts = Vec::new();
-        for chunk in points.chunks(4) {
-            if chunk.len() == 4 {
-                tessellate_cubic(
-                    &mut verts,
-                    chunk[0],
-                    chunk[1],
-                    chunk[2],
-                    chunk[3],
-                    BEZIER_FLATNESS,
-                    0,
-                );
-            }
+        for i in 0..seg_count {
+            let p0 = points[i * 3];
+            let p1 = points[i * 3 + 1];
+            let p2 = points[i * 3 + 2];
+            let p3 = points[((i + 1) * 3) % n];
+            tessellate_cubic(&mut verts, p0, p1, p2, p3, BEZIER_FLATNESS, 0);
         }
         if verts.len() >= 2 {
             self.paint_polyline_without_arrows(&verts, stroke, true);
@@ -841,26 +1213,32 @@ impl<'a> Painter<'a> {
     }
 
     /// Stroke a cubic Bezier curve (tessellated to polyline).
+    /// For open paths, `points` length must be 3k+1. For closed paths, 3k.
+    /// Uses stride-3 convention.
     pub fn paint_bezier_line(&mut self, points: &[(f64, f64)], stroke: &Stroke) {
-        if points.len() < 4 {
+        let n = points.len();
+        if n < 4 {
+            return;
+        }
+        let closed = n.is_multiple_of(3);
+        let seg_count = if closed { n / 3 } else { (n - 1) / 3 };
+        if seg_count == 0 {
             return;
         }
         let mut verts = Vec::new();
-        for chunk in points.chunks(4) {
-            if chunk.len() == 4 {
-                tessellate_cubic(
-                    &mut verts,
-                    chunk[0],
-                    chunk[1],
-                    chunk[2],
-                    chunk[3],
-                    BEZIER_FLATNESS,
-                    0,
-                );
-            }
+        for i in 0..seg_count {
+            let p0 = points[i * 3];
+            let p1 = points[i * 3 + 1];
+            let p2 = points[i * 3 + 2];
+            let p3 = if closed {
+                points[((i + 1) * 3) % n]
+            } else {
+                points[i * 3 + 3]
+            };
+            tessellate_cubic(&mut verts, p0, p1, p2, p3, BEZIER_FLATNESS, 0);
         }
         if verts.len() >= 2 {
-            self.paint_solid_polyline(&verts, stroke, false);
+            self.paint_polyline_with_arrows(&verts, stroke, closed);
         }
     }
 
@@ -868,6 +1246,9 @@ impl<'a> Painter<'a> {
 
     /// Draw a 9-slice border image stretched to fill a rectangle.
     /// `border_insets` are (left, top, right, bottom) in source pixel units.
+    /// `which_sub_rects` is a bitmask controlling which of the 9 sub-rects to draw.
+    /// Default `BORDER_EDGES_ONLY` (0o757) draws all except center.
+    /// `alpha` modulates the global alpha for the draw.
     #[allow(clippy::too_many_arguments)]
     pub fn paint_border_image(
         &mut self,
@@ -877,7 +1258,12 @@ impl<'a> Painter<'a> {
         h: f64,
         image: &Image,
         border_insets: (f64, f64, f64, f64),
+        which_sub_rects: u16,
+        alpha: u8,
     ) {
+        if alpha == 0 {
+            return;
+        }
         let (bl, bt, br, bb) = border_insets;
         let iw = image.width() as f64;
         let ih = image.height() as f64;
@@ -898,111 +1284,134 @@ impl<'a> Painter<'a> {
         let dst_cx = w - bl - br;
         let dst_cy = h - bt - bb;
 
-        // Helper to draw a sub-region. We create sub-images from the source.
-        // For simplicity, we draw each slice using paint_image_scaled.
+        let saved_alpha = self.state.alpha;
+        if alpha < 255 {
+            self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
+        }
 
-        // Corners (no scaling needed if borders match).
-        self.paint_9slice_section(x, y, bl, bt, image, 0.0, 0.0, bl, bt, quality, ext);
-        self.paint_9slice_section(
-            x + w - br,
-            y,
-            br,
-            bt,
-            image,
-            iw - br,
-            0.0,
-            br,
-            bt,
-            quality,
-            ext,
-        );
-        self.paint_9slice_section(
-            x,
-            y + h - bb,
-            bl,
-            bb,
-            image,
-            0.0,
-            ih - bb,
-            bl,
-            bb,
-            quality,
-            ext,
-        );
-        self.paint_9slice_section(
-            x + w - br,
-            y + h - bb,
-            br,
-            bb,
-            image,
-            iw - br,
-            ih - bb,
-            br,
-            bb,
-            quality,
-            ext,
-        );
+        // Bit layout (octal digit positions):
+        //  8=UL  5=U   2=UR
+        //  7=L   4=C   1=R
+        //  6=LL  3=B   0=LR
+
+        // Corners.
+        if which_sub_rects & (1 << 8) != 0 {
+            self.paint_9slice_section(x, y, bl, bt, image, 0.0, 0.0, bl, bt, quality, ext);
+        }
+        if which_sub_rects & (1 << 2) != 0 {
+            self.paint_9slice_section(
+                x + w - br,
+                y,
+                br,
+                bt,
+                image,
+                iw - br,
+                0.0,
+                br,
+                bt,
+                quality,
+                ext,
+            );
+        }
+        if which_sub_rects & (1 << 6) != 0 {
+            self.paint_9slice_section(
+                x,
+                y + h - bb,
+                bl,
+                bb,
+                image,
+                0.0,
+                ih - bb,
+                bl,
+                bb,
+                quality,
+                ext,
+            );
+        }
+        if which_sub_rects & (1 << 0) != 0 {
+            self.paint_9slice_section(
+                x + w - br,
+                y + h - bb,
+                br,
+                bb,
+                image,
+                iw - br,
+                ih - bb,
+                br,
+                bb,
+                quality,
+                ext,
+            );
+        }
 
         // Edges.
         if dst_cx > 0.0 {
-            self.paint_9slice_section(
-                x + bl,
-                y,
-                dst_cx,
-                bt,
-                image,
-                bl,
-                0.0,
-                src_cx,
-                bt,
-                quality,
-                ext,
-            );
-            self.paint_9slice_section(
-                x + bl,
-                y + h - bb,
-                dst_cx,
-                bb,
-                image,
-                bl,
-                ih - bb,
-                src_cx,
-                bb,
-                quality,
-                ext,
-            );
+            if which_sub_rects & (1 << 5) != 0 {
+                self.paint_9slice_section(
+                    x + bl,
+                    y,
+                    dst_cx,
+                    bt,
+                    image,
+                    bl,
+                    0.0,
+                    src_cx,
+                    bt,
+                    quality,
+                    ext,
+                );
+            }
+            if which_sub_rects & (1 << 3) != 0 {
+                self.paint_9slice_section(
+                    x + bl,
+                    y + h - bb,
+                    dst_cx,
+                    bb,
+                    image,
+                    bl,
+                    ih - bb,
+                    src_cx,
+                    bb,
+                    quality,
+                    ext,
+                );
+            }
         }
         if dst_cy > 0.0 {
-            self.paint_9slice_section(
-                x,
-                y + bt,
-                bl,
-                dst_cy,
-                image,
-                0.0,
-                bt,
-                bl,
-                src_cy,
-                quality,
-                ext,
-            );
-            self.paint_9slice_section(
-                x + w - br,
-                y + bt,
-                br,
-                dst_cy,
-                image,
-                iw - br,
-                bt,
-                br,
-                src_cy,
-                quality,
-                ext,
-            );
+            if which_sub_rects & (1 << 7) != 0 {
+                self.paint_9slice_section(
+                    x,
+                    y + bt,
+                    bl,
+                    dst_cy,
+                    image,
+                    0.0,
+                    bt,
+                    bl,
+                    src_cy,
+                    quality,
+                    ext,
+                );
+            }
+            if which_sub_rects & (1 << 1) != 0 {
+                self.paint_9slice_section(
+                    x + w - br,
+                    y + bt,
+                    br,
+                    dst_cy,
+                    image,
+                    iw - br,
+                    bt,
+                    br,
+                    src_cy,
+                    quality,
+                    ext,
+                );
+            }
         }
 
         // Center.
-        if dst_cx > 0.0 && dst_cy > 0.0 {
+        if which_sub_rects & (1 << 4) != 0 && dst_cx > 0.0 && dst_cy > 0.0 {
             self.paint_9slice_section(
                 x + bl,
                 y + bt,
@@ -1017,9 +1426,14 @@ impl<'a> Painter<'a> {
                 ext,
             );
         }
+
+        self.state.alpha = saved_alpha;
     }
 
     /// Draw a 9-slice border image with two-color tinting.
+    /// `which_sub_rects` is a bitmask controlling which of the 9 sub-rects to draw.
+    /// Default `BORDER_EDGES_ONLY` (0o757) draws all except center.
+    /// `alpha` modulates the global alpha for the draw.
     #[allow(clippy::too_many_arguments)]
     pub fn paint_border_image_colored(
         &mut self,
@@ -1031,7 +1445,13 @@ impl<'a> Painter<'a> {
         border_insets: (f64, f64, f64, f64),
         color1: Color,
         color2: Color,
+        canvas_color: Color,
+        which_sub_rects: u16,
+        alpha: u8,
     ) {
+        if alpha == 0 {
+            return;
+        }
         // Draw the 9-slice first, then apply two-color mapping.
         // For simplicity, draw directly with the two-color method per section.
         let (bl, bt, br, bb) = border_insets;
@@ -1048,111 +1468,155 @@ impl<'a> Painter<'a> {
         let dst_cx = w - bl - br;
         let dst_cy = h - bt - bb;
 
-        // Corners.
-        self.paint_image_colored_2(
-            x, y, bl, bt, image, 0, 0, bl as u32, bt as u32, color1, color2,
-        );
-        self.paint_image_colored_2(
-            x + w - br,
-            y,
-            br,
-            bt,
-            image,
-            (iw - br) as u32,
-            0,
-            br as u32,
-            bt as u32,
-            color1,
-            color2,
-        );
-        self.paint_image_colored_2(
-            x,
-            y + h - bb,
-            bl,
-            bb,
-            image,
-            0,
-            (ih - bb) as u32,
-            bl as u32,
-            bb as u32,
-            color1,
-            color2,
-        );
-        self.paint_image_colored_2(
-            x + w - br,
-            y + h - bb,
-            br,
-            bb,
-            image,
-            (iw - br) as u32,
-            (ih - bb) as u32,
-            br as u32,
-            bb as u32,
-            color1,
-            color2,
-        );
+        let saved_alpha = self.state.alpha;
+        if alpha < 255 {
+            self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
+        }
 
-        // Edges.
-        if dst_cx > 0.0 {
-            self.paint_image_colored_2(
-                x + bl,
+        // Bit layout (octal digit positions):
+        //  8=UL  5=U   2=UR
+        //  7=L   4=C   1=R
+        //  6=LL  3=B   0=LR
+
+        // Corners.
+        if which_sub_rects & (1 << 8) != 0 {
+            self.paint_image_colored(
+                x,
                 y,
-                dst_cx,
+                bl,
                 bt,
                 image,
-                bl as u32,
                 0,
-                src_cx as u32,
+                0,
+                bl as u32,
                 bt as u32,
                 color1,
                 color2,
+                canvas_color,
             );
-            self.paint_image_colored_2(
-                x + bl,
+        }
+        if which_sub_rects & (1 << 2) != 0 {
+            self.paint_image_colored(
+                x + w - br,
+                y,
+                br,
+                bt,
+                image,
+                (iw - br) as u32,
+                0,
+                br as u32,
+                bt as u32,
+                color1,
+                color2,
+                canvas_color,
+            );
+        }
+        if which_sub_rects & (1 << 6) != 0 {
+            self.paint_image_colored(
+                x,
                 y + h - bb,
-                dst_cx,
+                bl,
                 bb,
                 image,
-                bl as u32,
+                0,
                 (ih - bb) as u32,
-                src_cx as u32,
+                bl as u32,
                 bb as u32,
                 color1,
                 color2,
+                canvas_color,
             );
         }
-        if dst_cy > 0.0 {
-            self.paint_image_colored_2(
-                x,
-                y + bt,
-                bl,
-                dst_cy,
-                image,
-                0,
-                bt as u32,
-                bl as u32,
-                src_cy as u32,
-                color1,
-                color2,
-            );
-            self.paint_image_colored_2(
+        if which_sub_rects & (1 << 0) != 0 {
+            self.paint_image_colored(
                 x + w - br,
-                y + bt,
+                y + h - bb,
                 br,
-                dst_cy,
+                bb,
                 image,
                 (iw - br) as u32,
-                bt as u32,
+                (ih - bb) as u32,
                 br as u32,
-                src_cy as u32,
+                bb as u32,
                 color1,
                 color2,
+                canvas_color,
             );
         }
 
+        // Edges.
+        if dst_cx > 0.0 {
+            if which_sub_rects & (1 << 5) != 0 {
+                self.paint_image_colored(
+                    x + bl,
+                    y,
+                    dst_cx,
+                    bt,
+                    image,
+                    bl as u32,
+                    0,
+                    src_cx as u32,
+                    bt as u32,
+                    color1,
+                    color2,
+                    canvas_color,
+                );
+            }
+            if which_sub_rects & (1 << 3) != 0 {
+                self.paint_image_colored(
+                    x + bl,
+                    y + h - bb,
+                    dst_cx,
+                    bb,
+                    image,
+                    bl as u32,
+                    (ih - bb) as u32,
+                    src_cx as u32,
+                    bb as u32,
+                    color1,
+                    color2,
+                    canvas_color,
+                );
+            }
+        }
+        if dst_cy > 0.0 {
+            if which_sub_rects & (1 << 7) != 0 {
+                self.paint_image_colored(
+                    x,
+                    y + bt,
+                    bl,
+                    dst_cy,
+                    image,
+                    0,
+                    bt as u32,
+                    bl as u32,
+                    src_cy as u32,
+                    color1,
+                    color2,
+                    canvas_color,
+                );
+            }
+            if which_sub_rects & (1 << 1) != 0 {
+                self.paint_image_colored(
+                    x + w - br,
+                    y + bt,
+                    br,
+                    dst_cy,
+                    image,
+                    (iw - br) as u32,
+                    bt as u32,
+                    br as u32,
+                    src_cy as u32,
+                    color1,
+                    color2,
+                    canvas_color,
+                );
+            }
+        }
+
         // Center.
-        if dst_cx > 0.0 && dst_cy > 0.0 {
-            self.paint_image_colored_2(
+        if which_sub_rects & (1 << 4) != 0 && dst_cx > 0.0 && dst_cy > 0.0 {
+            self.paint_image_colored(
                 x + bl,
                 y + bt,
                 dst_cx,
@@ -1164,8 +1628,11 @@ impl<'a> Painter<'a> {
                 src_cy as u32,
                 color1,
                 color2,
+                canvas_color,
             );
         }
+
+        self.state.alpha = saved_alpha;
     }
 
     /// Helper for 9-slice: draw a sub-region of an image scaled to a destination rect.
@@ -1258,7 +1725,7 @@ impl<'a> Painter<'a> {
             self.paint_ellipse_outlined(cx, cy, rx, ry, stroke);
             return;
         }
-        let segments = adaptive_circle_segments(rx.max(ry));
+        let segments = adaptive_circle_segments(rx, ry, self.state.scale_x, self.state.scale_y);
         let arc_segs =
             ((segments as f64 * abs_range / (2.0 * std::f64::consts::PI)).ceil() as usize).max(3);
         let mut verts = Vec::with_capacity(arc_segs + 1);
@@ -1270,7 +1737,7 @@ impl<'a> Painter<'a> {
         self.paint_solid_polyline(&verts, stroke, false);
     }
 
-    /// Draw an ellipse sector outline.
+    /// Draw an ellipse sector outline. Routes through polyline if dashed.
     #[allow(clippy::too_many_arguments)]
     pub fn paint_ellipse_sector_outlined(
         &mut self,
@@ -1289,7 +1756,7 @@ impl<'a> Painter<'a> {
         if sweep.abs() < 1e-10 {
             return;
         }
-        let segments = adaptive_circle_segments(rx.max(ry));
+        let segments = adaptive_circle_segments(rx, ry, self.state.scale_x, self.state.scale_y);
         let arc_segs =
             ((segments as f64 * sweep.abs() / (2.0 * std::f64::consts::PI)).ceil() as usize).max(2);
         let mut verts = Vec::with_capacity(arc_segs + 2);
@@ -1299,13 +1766,22 @@ impl<'a> Painter<'a> {
             let angle = start_angle + t * sweep;
             verts.push((cx + rx * angle.cos(), cy + ry * angle.sin()));
         }
-        self.paint_polygon_outlined(&verts, stroke.color, stroke.width);
+        if !stroke.dash_pattern.is_empty() {
+            self.paint_polyline_without_arrows(&verts, stroke, true);
+        } else {
+            self.paint_polygon_outlined(&verts, stroke.color, stroke.width);
+        }
     }
 
-    /// Draw a rectangle outline. Uses four rects for axis-aligned precision.
+    /// Draw a rectangle outline. Routes through polyline if dashed.
     pub fn paint_rect_outlined(&mut self, x: f64, y: f64, w: f64, h: f64, stroke: &Stroke) {
         let sw = stroke.width;
         if w <= 0.0 || h <= 0.0 || sw <= 0.0 {
+            return;
+        }
+        if !stroke.dash_pattern.is_empty() {
+            let verts = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
+            self.paint_polyline_without_arrows(&verts, stroke, true);
             return;
         }
         if sw * 2.0 >= w || sw * 2.0 >= h {
@@ -1322,7 +1798,7 @@ impl<'a> Painter<'a> {
         self.paint_rect(x + w - sw, y + sw, sw, h - 2.0 * sw, stroke.color);
     }
 
-    /// Draw a rounded rectangle outline.
+    /// Draw a rounded rectangle outline. Routes through polyline if dashed.
     pub fn paint_round_rect_outlined(
         &mut self,
         x: f64,
@@ -1335,14 +1811,19 @@ impl<'a> Painter<'a> {
         if w <= 0.0 || h <= 0.0 || stroke.width <= 0.0 {
             return;
         }
+        if !stroke.dash_pattern.is_empty() {
+            let verts = self.round_rect_polygon(x, y, w, h, radius);
+            self.paint_polyline_without_arrows(&verts, stroke, true);
+            return;
+        }
         let sw = stroke.width;
         if sw * 2.0 >= w || sw * 2.0 >= h {
             self.paint_round_rect(x, y, w, h, radius, stroke.color);
             return;
         }
-        let mut outer = Self::round_rect_polygon(x, y, w, h, radius);
+        let mut outer = self.round_rect_polygon(x, y, w, h, radius);
         let inner_r = (radius - sw).max(0.0);
-        let inner = Self::round_rect_polygon(x + sw, y + sw, w - 2.0 * sw, h - 2.0 * sw, inner_r);
+        let inner = self.round_rect_polygon(x + sw, y + sw, w - 2.0 * sw, h - 2.0 * sw, inner_r);
         // Bridge + reversed inner for NonZero winding hole.
         outer.push(outer[0]);
         let first_inner = inner[0];
@@ -1352,9 +1833,14 @@ impl<'a> Painter<'a> {
         self.fill_polygon_aa(&outer, stroke.color, WindingRule::NonZero);
     }
 
-    /// Draw an ellipse outline using polygon ring.
+    /// Draw an ellipse outline. Routes through polyline if dashed.
     pub fn paint_ellipse_outlined(&mut self, cx: f64, cy: f64, rx: f64, ry: f64, stroke: &Stroke) {
         if rx <= 0.0 || ry <= 0.0 || stroke.width <= 0.0 {
+            return;
+        }
+        if !stroke.dash_pattern.is_empty() {
+            let verts = self.ellipse_polygon(cx, cy, rx, ry);
+            self.paint_polyline_without_arrows(&verts, stroke, true);
             return;
         }
         let sw = stroke.width;
@@ -1364,8 +1850,8 @@ impl<'a> Painter<'a> {
             self.paint_ellipse(cx, cy, rx, ry, stroke.color);
             return;
         }
-        let mut outer = Self::ellipse_polygon(cx, cy, rx, ry);
-        let inner = Self::ellipse_polygon(cx, cy, irx, iry);
+        let mut outer = self.ellipse_polygon(cx, cy, rx, ry);
+        let inner = self.ellipse_polygon(cx, cy, irx, iry);
         outer.push(outer[0]);
         let first_inner = inner[0];
         outer.push(first_inner);
@@ -1666,6 +2152,137 @@ impl<'a> Painter<'a> {
             self.paint_dashed_polyline(vertices, stroke, closed);
         } else {
             self.paint_solid_polyline(vertices, stroke, closed);
+        }
+    }
+
+    /// Dispatch polyline rendering with arrow support.
+    /// Corresponds to C++ `PaintPolyline`: checks for arrow decorations,
+    /// computes direction vectors, shortens endpoints, then paints arrows.
+    pub fn paint_polyline_with_arrows(
+        &mut self,
+        vertices: &[(f64, f64)],
+        stroke: &Stroke,
+        closed: bool,
+    ) {
+        if vertices.len() < 2 {
+            return;
+        }
+        let has_start_arrow = !closed && stroke.start_end.is_decorated();
+        let has_end_arrow = !closed && stroke.finish_end.is_decorated();
+
+        if !has_start_arrow && !has_end_arrow {
+            self.paint_polyline_without_arrows(vertices, stroke, closed);
+            return;
+        }
+
+        let n = vertices.len();
+
+        // Find the first non-degenerate segment direction from the start.
+        let (start_dx, start_dy) = {
+            let mut dx = 0.0;
+            let mut dy = 0.0;
+            for i in 0..n - 1 {
+                dx = vertices[i + 1].0 - vertices[i].0;
+                dy = vertices[i + 1].1 - vertices[i].1;
+                if dx * dx + dy * dy > 1e-20 {
+                    break;
+                }
+            }
+            let len = (dx * dx + dy * dy).sqrt();
+            if len < 1e-10 {
+                (1.0, 0.0)
+            } else {
+                (dx / len, dy / len)
+            }
+        };
+
+        // Find the last non-degenerate segment direction from the end.
+        let (end_dx, end_dy) = {
+            let mut dx = 0.0;
+            let mut dy = 0.0;
+            for i in (0..n - 1).rev() {
+                dx = vertices[i + 1].0 - vertices[i].0;
+                dy = vertices[i + 1].1 - vertices[i].1;
+                if dx * dx + dy * dy > 1e-20 {
+                    break;
+                }
+            }
+            let len = (dx * dx + dy * dy).sqrt();
+            if len < 1e-10 {
+                (1.0, 0.0)
+            } else {
+                (dx / len, dy / len)
+            }
+        };
+
+        // Shorten the polyline at start/end to account for arrow length.
+        let mut work_verts = vertices.to_vec();
+
+        if has_start_arrow {
+            let (new_x, new_y) = Self::cut_line_at_end(
+                work_verts[0].0,
+                work_verts[0].1,
+                -start_dx,
+                -start_dy,
+                stroke.width,
+                &stroke.start_end,
+            );
+            work_verts[0] = (new_x, new_y);
+        }
+
+        if has_end_arrow {
+            let last = n - 1;
+            let (new_x, new_y) = Self::cut_line_at_end(
+                work_verts[last].0,
+                work_verts[last].1,
+                end_dx,
+                end_dy,
+                stroke.width,
+                &stroke.finish_end,
+            );
+            work_verts[last] = (new_x, new_y);
+        }
+
+        // Paint the polyline body.
+        self.paint_polyline_without_arrows(&work_verts, stroke, closed);
+
+        let rounded = stroke.join == super::stroke::LineJoin::Round;
+
+        // Normal vectors (perpendicular to direction).
+        if has_start_arrow {
+            let (x, y) = vertices[0];
+            let nx = -start_dy;
+            let ny = start_dx;
+            self.paint_stroke_end(
+                x,
+                y,
+                nx,
+                ny,
+                -start_dx,
+                -start_dy,
+                stroke.width,
+                stroke.color,
+                &stroke.start_end,
+                rounded,
+            );
+        }
+
+        if has_end_arrow {
+            let (x, y) = vertices[n - 1];
+            let nx = -end_dy;
+            let ny = end_dx;
+            self.paint_stroke_end(
+                x,
+                y,
+                nx,
+                ny,
+                end_dx,
+                end_dy,
+                stroke.width,
+                stroke.color,
+                &stroke.finish_end,
+                rounded,
+            );
         }
     }
 
@@ -2476,12 +3093,14 @@ impl<'a> Painter<'a> {
     }
 
     /// Blend a pixel with an additional alpha coverage factor (0-255).
+    ///
+    /// Combines color alpha with coverage using `/256` to match C++ emPainter.
     fn blend_pixel_alpha(&mut self, x: i32, y: i32, color: Color, coverage: u8) {
         let modulated = Color::rgba(
             color.r(),
             color.g(),
             color.b(),
-            ((color.a() as u16 * coverage as u16 + 127) / 255) as u8,
+            ((color.a() as u16 * coverage as u16 + 128) >> 8) as u8,
         );
         self.blend_pixel(x, y, modulated);
     }
@@ -2656,10 +3275,10 @@ impl<'a> Painter<'a> {
                 let ly = (py - offset_y) * inv_scale_y;
                 let sampled = Self::sample_image_at(image, lx, ly, *extension, *quality);
                 Color::rgba(
-                    ((sampled.r() as u32 * color.r() as u32 + 127) / 255) as u8,
-                    ((sampled.g() as u32 * color.g() as u32 + 127) / 255) as u8,
-                    ((sampled.b() as u32 * color.b() as u32 + 127) / 255) as u8,
-                    ((sampled.a() as u32 * color.a() as u32 + 127) / 255) as u8,
+                    ((sampled.r() as u32 * color.r() as u32 + 128) >> 8) as u8,
+                    ((sampled.g() as u32 * color.g() as u32 + 128) >> 8) as u8,
+                    ((sampled.b() as u32 * color.b() as u32 + 128) >> 8) as u8,
+                    ((sampled.a() as u32 * color.a() as u32 + 128) >> 8) as u8,
                 )
             }
         }
@@ -2721,8 +3340,8 @@ impl<'a> Painter<'a> {
     }
 
     /// Generate polygon vertices approximating an ellipse.
-    fn ellipse_polygon(cx: f64, cy: f64, rx: f64, ry: f64) -> Vec<(f64, f64)> {
-        let segments = adaptive_circle_segments(rx.max(ry));
+    fn ellipse_polygon(&self, cx: f64, cy: f64, rx: f64, ry: f64) -> Vec<(f64, f64)> {
+        let segments = adaptive_circle_segments(rx, ry, self.state.scale_x, self.state.scale_y);
         let mut verts = Vec::with_capacity(segments);
         for i in 0..segments {
             let angle = 2.0 * std::f64::consts::PI * i as f64 / segments as f64;
@@ -2732,12 +3351,13 @@ impl<'a> Painter<'a> {
     }
 
     /// Generate polygon vertices for a rounded rectangle.
-    fn round_rect_polygon(x: f64, y: f64, w: f64, h: f64, r: f64) -> Vec<(f64, f64)> {
+    fn round_rect_polygon(&self, x: f64, y: f64, w: f64, h: f64, r: f64) -> Vec<(f64, f64)> {
         let r = r.min(w / 2.0).min(h / 2.0).max(0.0);
         if r < 0.5 {
             return vec![(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
         }
-        let corner_segments = (adaptive_circle_segments(r) / 4).max(2);
+        let corner_segments =
+            (adaptive_circle_segments(r, r, self.state.scale_x, self.state.scale_y) / 4).max(2);
         let mut verts = Vec::with_capacity(corner_segments * 4 + 4);
 
         // Top-right corner
@@ -2801,7 +3421,7 @@ impl<'a> Painter<'a> {
             out[2] = color.b();
             out[3] = 255;
         } else if self.state.canvas_color.is_opaque() {
-            // Canvas blend: target += (source - canvas) * alpha / 255
+            // Canvas blend: target += (source - canvas) * alpha / 256
             // Used when the background color is known (opaque canvas), giving
             // better anti-aliasing at shape edges. Matches Eagle Mode's emPainter.
             // Alpha must combine both the source color's alpha and the painter's
@@ -2809,7 +3429,7 @@ impl<'a> Painter<'a> {
             let combined_alpha = if self.state.alpha == 255 {
                 color.a()
             } else {
-                ((color.a() as u16 * self.state.alpha as u16 + 127) / 255) as u8
+                ((color.a() as u16 * self.state.alpha as u16 + 128) >> 8) as u8
             };
             if combined_alpha == 0 {
                 return;
@@ -2830,7 +3450,7 @@ impl<'a> Painter<'a> {
             let ea = if self.state.alpha == 255 {
                 ca
             } else {
-                (ca * self.state.alpha as u16 + 127) / 255
+                (ca * self.state.alpha as u16 + 128) >> 8
             };
             if ea == 0 {
                 return;
@@ -2843,11 +3463,12 @@ impl<'a> Painter<'a> {
                 out[2] = color.b();
                 out[3] = 255;
             } else {
-                let inv = 255 - ea;
-                let r = (bg[0] as u16 * inv + color.r() as u16 * ea + 127) / 255;
-                let g = (bg[1] as u16 * inv + color.g() as u16 * ea + 127) / 255;
-                let b = (bg[2] as u16 * inv + color.b() as u16 * ea + 127) / 255;
-                let a = (bg[3] as u16 * inv + 255 * ea + 127) / 255;
+                // C++ emPainter precision: target * (256 - alpha) / 256 + source * alpha / 256
+                let inv = 256 - ea;
+                let r = (bg[0] as u16 * inv + color.r() as u16 * ea) >> 8;
+                let g = (bg[1] as u16 * inv + color.g() as u16 * ea) >> 8;
+                let b = (bg[2] as u16 * inv + color.b() as u16 * ea) >> 8;
+                let a = (bg[3] as u16 * inv + 255 * ea) >> 8;
                 let out = self.target.pixel_mut(x as u32, y as u32);
                 out[0] = r as u8;
                 out[1] = g as u8;
@@ -2921,18 +3542,36 @@ impl<'a> Painter<'a> {
     }
 }
 
-/// Choose number of polygon segments for circle approximation based on radius.
-fn adaptive_circle_segments(radius: f64) -> usize {
-    if radius < 4.0 {
-        8
-    } else if radius < 16.0 {
-        16
-    } else if radius < 64.0 {
-        32
-    } else if radius < 256.0 {
-        64
+/// Expand tab characters to spaces, aligning to 8-column tab stops.
+fn expand_tabs(line: &str) -> String {
+    let mut result = String::with_capacity(line.len());
+    let mut col = 0usize;
+    for ch in line.chars() {
+        if ch == '\t' {
+            let next_tab = (col / 8 + 1) * 8;
+            for _ in col..next_tab {
+                result.push(' ');
+            }
+            col = next_tab;
+        } else {
+            result.push(ch);
+            col += 1;
+        }
+    }
+    result
+}
+
+/// Choose number of polygon segments for circle approximation.
+/// Matches C++ emPainter: `f = CircleQuality * sqrt(rx*ScaleX + ry*ScaleY)`,
+/// clamped to [3, 256] and rounded.
+fn adaptive_circle_segments(rx: f64, ry: f64, scale_x: f64, scale_y: f64) -> usize {
+    let f = CIRCLE_QUALITY * (rx * scale_x + ry * scale_y).sqrt();
+    if f <= 3.0 {
+        3
+    } else if f >= 256.0 {
+        256
     } else {
-        128
+        (f + 0.5) as usize
     }
 }
 
@@ -3073,22 +3712,19 @@ mod tests {
         let mut img = Image::new(64, 64, 4);
         let mut p = make_painter(&mut img);
         let stroke = Stroke::new(Color::WHITE, 2.0);
+        // Stride-3 convention: 12 points = 4 cubic segments (closed path).
         let points = [
             (32.0, 10.0),
             (50.0, 10.0),
             (50.0, 32.0),
             (50.0, 32.0),
-            (50.0, 32.0),
             (50.0, 54.0),
-            (32.0, 54.0),
             (32.0, 54.0),
             (32.0, 54.0),
             (14.0, 54.0),
             (14.0, 32.0),
             (14.0, 32.0),
-            (14.0, 32.0),
             (14.0, 10.0),
-            (32.0, 10.0),
             (32.0, 10.0),
         ];
         p.paint_bezier_outline(&points, &stroke);

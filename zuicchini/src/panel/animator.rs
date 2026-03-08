@@ -544,20 +544,50 @@ impl VisitingViewAnimator {
             crate::foundation::Color::rgba(34, 102, 153, 208),
         );
 
-        let _ch = h * 0.22;
+        let ch_size = h * 0.22;
 
         if self.state == VisitingState::GivingUp {
-            // TODO(font): paint text here ("Not found")
+            painter.paint_text_boxed(
+                x,
+                y,
+                w,
+                h * 0.4,
+                "Not found",
+                ch_size,
+                crate::foundation::Color::WHITE,
+                crate::foundation::Color::TRANSPARENT,
+                crate::render::TextAlignment::Center,
+                crate::render::VAlign::Center,
+                crate::render::TextAlignment::Center,
+                0.5,
+                false,
+                0.0,
+            );
             return;
         }
 
         // "Seeking..." text
-        let mut _seeking_text = String::from("Seeking...");
+        let mut seeking_text = String::from("Seeking...");
         if !self.subject.is_empty() {
-            _seeking_text.push_str(" for ");
-            _seeking_text.push_str(&self.subject);
+            seeking_text.push_str(" for ");
+            seeking_text.push_str(&self.subject);
         }
-        // TODO(font): paint text here (seeking status)
+        painter.paint_text_boxed(
+            x,
+            y,
+            w,
+            h * 0.4,
+            &seeking_text,
+            ch_size,
+            crate::foundation::Color::WHITE,
+            crate::foundation::Color::TRANSPARENT,
+            crate::render::TextAlignment::Center,
+            crate::render::VAlign::Center,
+            crate::render::TextAlignment::Center,
+            0.5,
+            false,
+            0.0,
+        );
 
         // Progress bar background
         let bar_x = x + w * 0.05;
@@ -603,9 +633,46 @@ impl VisitingViewAnimator {
             );
         }
 
-        // TODO(font): paint text here (identity label)
+        // Identity label below the progress bar
+        let id_y = bar_y + bar_h + h * 0.02;
+        let id_h = h * 0.15;
+        let id_ch = ch_size * 0.6;
+        painter.paint_text_boxed(
+            x,
+            id_y,
+            w,
+            id_h,
+            &self.identity,
+            id_ch,
+            crate::foundation::Color::rgba(200, 200, 200, 180),
+            crate::foundation::Color::TRANSPARENT,
+            crate::render::TextAlignment::Center,
+            crate::render::VAlign::Top,
+            crate::render::TextAlignment::Center,
+            0.3,
+            false,
+            0.0,
+        );
 
-        // TODO(font): paint text here ("Press any key to abort")
+        // "Press any key to abort" hint at the bottom
+        let abort_y = y + h * 0.8;
+        let abort_h = h * 0.15;
+        painter.paint_text_boxed(
+            x,
+            abort_y,
+            w,
+            abort_h,
+            "Press any key to abort",
+            id_ch,
+            crate::foundation::Color::rgba(200, 200, 200, 128),
+            crate::foundation::Color::TRANSPARENT,
+            crate::render::TextAlignment::Center,
+            crate::render::VAlign::Center,
+            crate::render::TextAlignment::Center,
+            0.5,
+            false,
+            0.0,
+        );
     }
 }
 

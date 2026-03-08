@@ -120,8 +120,8 @@ impl Button {
     }
 
     pub fn preferred_size(&self) -> (f64, f64) {
-        let tw = self.border.caption.len() as f64 * 7.0; // TODO(font): measure_text stub
         let th = 13.0;
+        let tw = Painter::measure_text_width(&self.border.caption, th);
         self.border.preferred_size_for_content(tw + 8.0, th + 4.0)
     }
 }

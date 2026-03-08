@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::foundation::Rect;
+use crate::foundation::{Color, Rect};
 use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
 use crate::render::Painter;
 
@@ -852,6 +852,8 @@ impl TextField {
             self.text.clone()
         };
 
+        let char_w = Painter::measure_text_width("X", TEXT_SIZE);
+
         // Build char_positions
         self.char_positions.clear();
         self.char_positions.push(0.0);
@@ -862,7 +864,7 @@ impl TextField {
                 .map(|c| c.len_utf8())
                 .unwrap_or(1);
             let end = i + next;
-            let w_px = display_text[..end].len() as f64 * 7.0; // TODO(font): measure_text stub
+            let w_px = Painter::measure_text_width(&display_text[..end], TEXT_SIZE);
             self.char_positions.push(w_px);
         }
 
@@ -870,8 +872,14 @@ impl TextField {
         let sel_rect = if let Some(anchor) = self.selection_anchor {
             let sel_start = anchor.min(self.cursor);
             let sel_end = anchor.max(self.cursor);
-            let sx_px = display_text[..sel_start.min(display_text.len())].len() as f64 * 7.0; // TODO(font): measure_text stub
-            let ex_px = display_text[..sel_end.min(display_text.len())].len() as f64 * 7.0; // TODO(font): measure_text stub
+            let sx_px = Painter::measure_text_width(
+                &display_text[..sel_start.min(display_text.len())],
+                TEXT_SIZE,
+            );
+            let ex_px = Painter::measure_text_width(
+                &display_text[..sel_end.min(display_text.len())],
+                TEXT_SIZE,
+            );
             Some((cx + TEXT_PADDING + sx_px - self.scroll_x, ex_px - sx_px))
         } else {
             None
@@ -882,7 +890,7 @@ impl TextField {
         } else {
             self.text[..self.cursor].to_string()
         };
-        let cursor_x_px = cursor_text.len() as f64 * 7.0; // TODO(font): measure_text stub
+        let cursor_x_px = Painter::measure_text_width(&cursor_text, TEXT_SIZE);
 
         // Update scroll_x so the cursor stays visible
         let visible_w = cw - 2.0 * TEXT_PADDING;
@@ -902,8 +910,8 @@ impl TextField {
         }
 
         // Text
-        let _text_x = cx + TEXT_PADDING - self.scroll_x;
-        let _text_y = cy + (ch - TEXT_SIZE) / 2.0;
+        let text_x = cx + TEXT_PADDING - self.scroll_x;
+        let text_y = cy + (ch - TEXT_SIZE) / 2.0;
 
         let fg = if self.editable {
             self.look.input_fg_color
@@ -913,16 +921,24 @@ impl TextField {
                 .lerp(self.look.input_bg_color, 0.80)
         };
 
-        // TODO(font): paint text here (selection-aware rendering)
+        painter.paint_text(
+            text_x,
+            text_y,
+            &display_text,
+            TEXT_SIZE,
+            1.0,
+            fg,
+            Color::TRANSPARENT,
+        );
 
         // Cursor
         let cursor_x = cx + TEXT_PADDING + cursor_x_px - self.scroll_x;
         if self.overwrite_mode && self.cursor < self.text.len() {
             // Box cursor
             let ch_w = if self.cursor < display_text.len() {
-                7.0 // TODO(font): measure_text stub
+                char_w
             } else {
-                8.0
+                char_w + 1.0
             };
             painter.paint_rect(cursor_x, cy + 1.0, ch_w, ch - 2.0, fg.with_alpha(80));
         } else {
@@ -982,8 +998,8 @@ impl TextField {
             if has_selection && sel_start < row_byte_end && sel_end > row_byte_start {
                 let hl_start = sel_start.max(row_byte_start) - row_byte_start;
                 let hl_end = sel_end.min(row_byte_end) - row_byte_start;
-                let sx = row_text[..hl_start].len() as f64 * 7.0; // TODO(font): measure_text stub
-                let ex = row_text[..hl_end].len() as f64 * 7.0; // TODO(font): measure_text stub
+                let sx = Painter::measure_text_width(&row_text[..hl_start], TEXT_SIZE);
+                let ex = Painter::measure_text_width(&row_text[..hl_end], TEXT_SIZE);
                 painter.paint_rect(
                     cx + TEXT_PADDING + sx,
                     row_y,
@@ -993,7 +1009,15 @@ impl TextField {
                 );
             }
 
-            // TODO(font): paint text here
+            painter.paint_text(
+                cx + TEXT_PADDING,
+                row_y + (LINE_HEIGHT - TEXT_SIZE) / 2.0,
+                row_text,
+                TEXT_SIZE,
+                1.0,
+                fg,
+                Color::TRANSPARENT,
+            );
 
             byte_offset = row_byte_end + 1; // +1 for \n
         }
@@ -1001,14 +1025,14 @@ impl TextField {
         // Cursor
         let cursor_row_start = self.row_start(self.cursor);
         let cursor_in_row = &self.text[cursor_row_start..self.cursor];
-        let cursor_x_px = cursor_in_row.len() as f64 * 7.0; // TODO(font): measure_text stub
+        let cursor_x_px = Painter::measure_text_width(cursor_in_row, TEXT_SIZE);
         let cursor_x = cx + TEXT_PADDING + cursor_x_px;
         let cursor_screen_y = cy + cursor_row as f64 * LINE_HEIGHT - self.scroll_y;
         let _ = cursor_col;
 
         if self.overwrite_mode && self.cursor < self.text.len() && self.char_at(self.cursor) != '\n'
         {
-            let ch_w = 7.0; // TODO(font): measure_text stub
+            let ch_w = Painter::measure_text_width("X", TEXT_SIZE);
             painter.paint_rect(
                 cursor_x,
                 cursor_screen_y,

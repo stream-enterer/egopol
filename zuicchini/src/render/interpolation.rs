@@ -46,8 +46,8 @@ fn sample_pixel(image: &Image, ix: i32, iy: i32, ext: ImageExtension) -> [u8; 4]
 
 /// Nearest-neighbor sampling.
 pub(crate) fn sample_nearest(image: &Image, x: f64, y: f64, ext: ImageExtension) -> Color {
-    let ix = x as i32;
-    let iy = y as i32;
+    let ix = x.floor() as i32;
+    let iy = y.floor() as i32;
     let p = sample_pixel(image, ix, iy, ext);
     Color::rgba(p[0], p[1], p[2], p[3])
 }

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::foundation::Rect;
+use crate::foundation::{Color, Rect};
 use crate::input::{InputEvent, InputKey, InputVariant};
 use crate::render::Painter;
 
@@ -84,7 +84,7 @@ impl ListBox {
         painter.push_state();
         painter.clip_rect(cx, cy, cw, ch);
 
-        for (i, _item) in self.items.iter().enumerate() {
+        for (i, item) in self.items.iter().enumerate() {
             let y = cy + i as f64 * ROW_HEIGHT - self.scroll_y;
             if y + ROW_HEIGHT < cy || y > cy + ch {
                 continue;
@@ -94,7 +94,16 @@ impl ListBox {
                 painter.paint_rect(cx, y, cw, ROW_HEIGHT, self.look.input_hl_color);
             }
 
-            // TODO(font): paint text here
+            let text_h = ROW_HEIGHT - 2.0;
+            painter.paint_text(
+                cx + 2.0,
+                y + 1.0,
+                item,
+                text_h,
+                1.0,
+                self.look.input_fg_color,
+                Color::TRANSPARENT,
+            );
         }
 
         painter.pop_state();
@@ -177,7 +186,7 @@ impl ListBox {
         let max_w = self
             .items
             .iter()
-            .map(|s| s.len() as f64 * 7.0) // TODO(font): measure_text stub
+            .map(|s| Painter::measure_text_width(s, ROW_HEIGHT - 2.0))
             .fold(0.0f64, f64::max);
         let h = self.items.len() as f64 * ROW_HEIGHT;
         self.border.preferred_size_for_content(max_w + 4.0, h)
