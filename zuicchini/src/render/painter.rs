@@ -1,4 +1,5 @@
 use super::bitmap_font;
+use super::em_font;
 use super::interpolation;
 use super::scanline::{self, WindingRule};
 use super::stroke::{Stroke, StrokeEnd, StrokeEndType};
@@ -763,10 +764,16 @@ impl<'a> Painter<'a> {
         color2: Color,
         canvas_color: Color,
     ) {
-        let px = self.to_pixel_x(x);
-        let py = self.to_pixel_y(y);
-        let pw = (w * self.state.scale_x) as i32;
-        let ph = (h * self.state.scale_y) as i32;
+        // Floating-point dest rect in pixel space (sub-pixel precision).
+        let dx = x * self.state.scale_x + self.state.offset_x;
+        let dy = y * self.state.scale_y + self.state.offset_y;
+        let dw = w * self.state.scale_x;
+        let dh = h * self.state.scale_y;
+
+        let px = dx as i32;
+        let py = dy as i32;
+        let pw = dw as i32;
+        let ph = dh as i32;
 
         let PixelRect {
             x: clip_x,
@@ -794,20 +801,121 @@ impl<'a> Painter<'a> {
 
         let ch = image.channel_count();
 
+        // C++ emPainter uses area sampling for downscaling (DQ_3X3 default):
+        // pre-reduces source by stride n = ceil(ratio/3), then area-samples
+        // with fractional-weight boundaries on the reduced grid. For upscaling
+        // or 1:1, uses nearest-neighbor with pixel-center offset.
+        let src_w_f = src_w as f64;
+        let src_h_f = src_h as f64;
+        let ratio_x = src_w_f / dw;
+        let ratio_y = src_h_f / dh;
+        let downscaling = ratio_x > 1.0 || ratio_y > 1.0;
+
+        // C++ pre-reduction stride: n = ceil(ratio / 3) for DQ_3X3
+        let stride_x = if downscaling {
+            ((ratio_x / 3.0).ceil() as u32).max(1)
+        } else {
+            1
+        };
+        let stride_y = if downscaling {
+            ((ratio_y / 3.0).ceil() as u32).max(1)
+        } else {
+            1
+        };
+
+        // Reduced source dimensions (matching C++ pre-reduction)
+        let red_w = src_w.div_ceil(stride_x);
+        let red_h = src_h.div_ceil(stride_y);
+        // C++ centers the reduced grid: offset = (total - (reduced-1)*stride - 1) / 2
+        let off_x = (src_w as i32 - (red_w as i32 - 1) * stride_x as i32 - 1) / 2;
+        let off_y = (src_h as i32 - (red_h as i32 - 1) * stride_y as i32 - 1) / 2;
+        // Reduced-to-dest scale
+        let red_ratio_x = red_w as f64 / dw;
+        let red_ratio_y = red_h as f64 / dh;
+
         for row in start_y..end_y {
             for col in start_x..end_x {
-                // Map dest pixel to source coords (nearest neighbor)
-                let sx = src_x + ((col - px) as u32 * src_w / pw as u32).min(src_w - 1);
-                let sy = src_y + ((row - py) as u32 * src_h / ph as u32).min(src_h - 1);
-                let p = image.pixel(sx, sy);
-                let lum = if ch == 1 {
-                    p[0]
+                let lum = if downscaling {
+                    // Weighted area sampling on the pre-reduced grid.
+                    // Source interval in reduced coordinates for this dest pixel:
+                    let rx0 = (col as f64 - dx) * red_ratio_x;
+                    let rx1 = rx0 + red_ratio_x;
+                    let ry0 = (row as f64 - dy) * red_ratio_y;
+                    let ry1 = ry0 + red_ratio_y;
+
+                    let ix0 = (rx0.floor() as i32).max(0) as u32;
+                    let ix1 = (rx1.ceil() as u32).min(red_w);
+                    let iy0 = (ry0.floor() as i32).max(0) as u32;
+                    let iy1 = (ry1.ceil() as u32).min(red_h);
+
+                    let mut wsum = 0.0f64;
+                    let mut vsum = 0.0f64;
+                    for iy in iy0..iy1 {
+                        // Y weight: fraction of this reduced pixel covered
+                        let y_lo = (iy as f64).max(ry0);
+                        let y_hi = ((iy + 1) as f64).min(ry1);
+                        let wy = y_hi - y_lo;
+
+                        let real_y = (off_y + iy as i32 * stride_y as i32) as u32;
+                        if real_y >= src_h {
+                            continue;
+                        }
+
+                        for ix in ix0..ix1 {
+                            let x_lo = (ix as f64).max(rx0);
+                            let x_hi = ((ix + 1) as f64).min(rx1);
+                            let wx = x_hi - x_lo;
+
+                            let real_x = (off_x + ix as i32 * stride_x as i32) as u32;
+                            if real_x >= src_w {
+                                continue;
+                            }
+
+                            let p = image.pixel(src_x + real_x, src_y + real_y);
+                            let v = if ch == 1 {
+                                p[0] as f64
+                            } else {
+                                ((p[0] as u32 * 77 + p[1] as u32 * 150 + p[2] as u32 * 29) >> 8)
+                                    as f64
+                            };
+                            let w = wx * wy;
+                            vsum += v * w;
+                            wsum += w;
+                        }
+                    }
+                    if wsum > 0.0 {
+                        (vsum / wsum + 0.5) as u8
+                    } else {
+                        0
+                    }
                 } else {
-                    // ITU-R BT.601 luminance.
-                    ((p[0] as u32 * 77 + p[1] as u32 * 150 + p[2] as u32 * 29) >> 8) as u8
+                    // Upscaling/1:1: nearest-neighbor with pixel-center offset.
+                    let fx = (col as f64 - dx + 0.5) * ratio_x;
+                    let fy = (row as f64 - dy + 0.5) * ratio_y;
+                    let ix = (fx as u32).min(src_w - 1);
+                    let iy = (fy as u32).min(src_h - 1);
+                    let p = image.pixel(src_x + ix, src_y + iy);
+                    if ch == 1 {
+                        p[0]
+                    } else {
+                        ((p[0] as u32 * 77 + p[1] as u32 * 150 + p[2] as u32 * 29) >> 8) as u8
+                    }
                 };
-                let t = lum as f64 / 255.0;
-                let blended = color1.lerp(color2, t);
+                // C++ emPainter IMAGE_COLORED blending:
+                // When color1 is transparent (PSF_INT_G2): grayscale is the
+                // opacity of color2 — always paint color2's hue.
+                // When both have alpha (PSF_INT_G1G2): full interpolation.
+                let blended = if color1.is_transparent() {
+                    let a = (lum as u32 * color2.a() as u32 + 127) / 255;
+                    Color::rgba(color2.r(), color2.g(), color2.b(), a as u8)
+                } else if color2.is_transparent() {
+                    let inv = 255 - lum;
+                    let a = (inv as u32 * color1.a() as u32 + 127) / 255;
+                    Color::rgba(color1.r(), color1.g(), color1.b(), a as u8)
+                } else {
+                    let t = lum as f64 / 255.0;
+                    color1.lerp(color2, t)
+                };
                 self.blend_pixel(col, row, blended);
             }
         }
@@ -836,12 +944,12 @@ impl<'a> Painter<'a> {
         } else {
             (text.chars().count(), 1)
         };
-        let w = char_height * columns as f64 / bitmap_font::CHAR_BOX_TALLNESS;
+        let w = char_height * columns as f64 / em_font::CHAR_BOX_TALLNESS;
         let h = char_height * (1.0 + rel_line_space) * rows as f64;
         (w, h)
     }
 
-    /// Paint a single line of text using the built-in bitmap font.
+    /// Paint a single line of text using the Eagle Mode grayscale font atlas.
     ///
     /// Matches C++ `emPainter::PaintText`:
     ///   - `x`, `y`: upper-left corner of first character.
@@ -864,33 +972,27 @@ impl<'a> Painter<'a> {
             return;
         }
 
-        // Real char width (without width_scale).
-        let rcw = char_height / bitmap_font::CHAR_BOX_TALLNESS;
+        let rcw = char_height / em_font::CHAR_BOX_TALLNESS;
         let char_width = rcw * width_scale;
 
-        // If the character is tiny on screen, draw colored rectangles instead
-        // of individual glyphs. Threshold: charHeight * scaleY < 1.7.
+        // Tiny text fallback: colored rectangles instead of glyphs.
         let pixel_height = char_height * self.state.scale_y;
         if pixel_height < 1.7 {
             self.paint_text_tiny(x, y, text, char_width, char_height, color, canvas_color);
             return;
         }
 
-        // Clip bounds in user coordinates.
         let clip_x1 = self.get_user_clip_x1();
         let clip_x2 = self.get_user_clip_x2();
         let clip_y1 = self.get_user_clip_y1();
         let clip_y2 = self.get_user_clip_y2();
 
-        // Skip if the entire text strip is outside the clip vertically.
         if y >= clip_y2 || y + char_height <= clip_y1 {
             return;
         }
 
-        // Compute show_height: height scaled proportionally to the glyph aspect,
-        // capped at char_height.
-        let gw = bitmap_font::CHAR_WIDTH as f64;
-        let gh = bitmap_font::CHAR_HEIGHT as f64;
+        let gw = em_font::CHAR_WIDTH as f64;
+        let gh = em_font::CHAR_HEIGHT as f64;
         let show_height = (rcw * gh / gw).min(char_height);
         let y_offset = (char_height - show_height) * 0.5;
 
@@ -899,41 +1001,30 @@ impl<'a> Painter<'a> {
             self.state.canvas_color = canvas_color;
         }
 
+        let font_atlas = em_font::atlas();
+
         let mut cx = x;
         for ch in text.chars() {
-            // Skip characters entirely to the right of the clip.
             if cx >= clip_x2 {
                 break;
             }
-            // Skip characters entirely to the left of the clip.
             if cx + char_width <= clip_x1 {
                 cx += char_width;
                 continue;
             }
 
             if ch != ' ' {
-                let (glyph, gw, gh) = bitmap_font::get_glyph(ch);
-                // Create a temporary single-channel image from the glyph bits.
-                let mut glyph_img = Image::new(gw, gh, 1);
-                for row in 0..gh {
-                    let byte = glyph[row as usize];
-                    for col in 0..gw {
-                        if byte & (0x80 >> col) != 0 {
-                            glyph_img.pixel_mut(col, row)[0] = 255;
-                        }
-                    }
-                }
-                // Draw using paint_image_colored which handles scaling.
+                let (src_x, src_y, src_w, src_h) = em_font::get_glyph(ch);
                 self.paint_image_colored(
                     cx,
                     y + y_offset,
                     char_width,
                     show_height,
-                    &glyph_img,
-                    0,
-                    0,
-                    gw,
-                    gh,
+                    font_atlas,
+                    src_x,
+                    src_y,
+                    src_w,
+                    src_h,
                     Color::TRANSPARENT,
                     color,
                     canvas_color,
@@ -1090,7 +1181,7 @@ impl<'a> Painter<'a> {
         rel_line_space: f64,
     ) {
         let line_step = char_height * (1.0 + rel_line_space);
-        let rcw = char_height / bitmap_font::CHAR_BOX_TALLNESS * width_scale;
+        let rcw = char_height / em_font::CHAR_BOX_TALLNESS * width_scale;
         let mut line_y = by;
 
         // Split on newlines, handling \r\n
@@ -1120,7 +1211,7 @@ impl<'a> Painter<'a> {
     /// Convenience: measure text width for a single un-formatted line.
     /// Returns the width in the same coordinate space as the painter.
     pub fn measure_text_width(text: &str, char_height: f64) -> f64 {
-        char_height * text.chars().count() as f64 / bitmap_font::CHAR_BOX_TALLNESS
+        char_height * text.chars().count() as f64 / em_font::CHAR_BOX_TALLNESS
     }
 
     /// Draw an image scaled to fill a destination rectangle.

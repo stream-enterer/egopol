@@ -458,6 +458,65 @@ static void gen_transform_scale() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// Text golden generators
+// ═══════════════════════════════════════════════════════════════════
+
+static void gen_text_basic() {
+    emImage img = white_image();
+    emPainter p = make_painter(img);
+    p.PaintText(10, 80, "Hello", 40.0, 1.0, emColor::BLACK);
+    dump_painter("text_basic", img);
+}
+
+static void gen_text_scaled() {
+    emImage img = white_image();
+    emPainter p = make_painter(img);
+    p.PaintText(10, 80, "Test", 40.0, 1.5, emColor(255, 0, 0, 255));
+    dump_painter("text_scaled", img);
+}
+
+static void gen_text_fitted() {
+    emImage img = white_image();
+    emPainter p = make_painter(img);
+    p.PaintTextBoxed(20, 20, 216, 80, "Fitted", 100.0,
+                     emColor::BLACK, 0, EM_ALIGN_CENTER,
+                     EM_ALIGN_LEFT, 0.5, false);
+    dump_painter("text_fitted", img);
+}
+
+static void gen_text_alignment() {
+    emImage img = white_image(256, 512);
+    emPainter p = make_painter(img);
+    // Top-left box, left text
+    p.PaintTextBoxed(10, 10, 236, 80, "Left", 50.0,
+                     emColor::BLACK, 0, EM_ALIGN_TOP_LEFT, EM_ALIGN_LEFT);
+    // Center box, center text
+    p.PaintTextBoxed(10, 120, 236, 80, "Center", 50.0,
+                     emColor::BLACK, 0, EM_ALIGN_CENTER, EM_ALIGN_CENTER);
+    // Bottom-right box, right text
+    p.PaintTextBoxed(10, 230, 236, 80, "Right", 50.0,
+                     emColor::BLACK, 0, EM_ALIGN_BOTTOM_RIGHT, EM_ALIGN_RIGHT);
+    dump_painter("text_alignment", img);
+}
+
+static void gen_text_clipped() {
+    emImage img = white_image();
+    emPainter p = make_painter(img);
+    // Clip to center 150x150 region, then paint text extending beyond
+    emPainter p2(p, 50, 50, 200, 200, 0.0, 0.0, 1.0, 1.0);
+    p2.PaintText(30, 80, "Clipped!", 40.0, 1.0, emColor::BLACK);
+    dump_painter("text_clipped", img);
+}
+
+static void gen_text_below_threshold() {
+    emImage img = white_image();
+    emPainter p = make_painter(img);
+    // charHeight=1.0, scaleY=1.0 → pixel_height=1.0 < 1.7 → tiny text fallback
+    p.PaintText(10, 100, "tiny text here", 1.0, 1.0, emColor::BLACK);
+    dump_painter("text_below_threshold", img);
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Layout golden generators
 // ═══════════════════════════════════════════════════════════════════
 
@@ -825,6 +884,14 @@ int main() {
     gen_transform_ellipse_scaled();
     gen_transform_fractional();
     gen_transform_identity_roundtrip();
+
+    printf("Generating text golden files...\n");
+    gen_text_basic();
+    gen_text_scaled();
+    gen_text_fitted();
+    gen_text_alignment();
+    gen_text_clipped();
+    gen_text_below_threshold();
 
     printf("Generating layout golden files...\n");
     gen_linear_h_equal();

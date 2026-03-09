@@ -1,5 +1,7 @@
 use zuicchini::foundation::{Color, Image};
-use zuicchini::render::{DashType, LineCap, LineJoin, Painter, Stroke, StrokeEnd, StrokeEndType};
+use zuicchini::render::{
+    DashType, LineCap, LineJoin, Painter, Stroke, StrokeEnd, StrokeEndType, TextAlignment, VAlign,
+};
 
 use super::common::*;
 
@@ -621,6 +623,184 @@ fn painter_transform_ellipse_scaled() {
         // C++ PaintEllipse(10,50,60,60) → bbox center (40,80), radius (30,30) in user space
         p.paint_ellipse(40.0, 80.0, 30.0, 30.0, Color::GREEN);
         p.pop_state();
+    }
+    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+}
+
+// ─── Test 37: text_basic ────────────────────────────────────────
+#[test]
+fn painter_text_basic() {
+    require_golden!();
+    let (ew, eh, expected) = load_painter_golden("text_basic");
+    let mut img = white_canvas(ew, eh);
+    {
+        let mut p = white_painter(&mut img);
+        p.paint_text(
+            10.0,
+            80.0,
+            "Hello",
+            40.0,
+            1.0,
+            Color::BLACK,
+            Color::TRANSPARENT,
+        );
+    }
+    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+}
+
+// ─── Test 38: text_scaled ───────────────────────────────────────
+#[test]
+fn painter_text_scaled() {
+    require_golden!();
+    let (ew, eh, expected) = load_painter_golden("text_scaled");
+    let mut img = white_canvas(ew, eh);
+    {
+        let mut p = white_painter(&mut img);
+        p.paint_text(
+            10.0,
+            80.0,
+            "Test",
+            40.0,
+            1.5,
+            Color::RED,
+            Color::TRANSPARENT,
+        );
+    }
+    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+}
+
+// ─── Test 39: text_fitted ───────────────────────────────────────
+#[test]
+fn painter_text_fitted() {
+    require_golden!();
+    let (ew, eh, expected) = load_painter_golden("text_fitted");
+    let mut img = white_canvas(ew, eh);
+    {
+        let mut p = white_painter(&mut img);
+        p.paint_text_boxed(
+            20.0,
+            20.0,
+            216.0,
+            80.0,
+            "Fitted",
+            100.0,
+            Color::BLACK,
+            Color::TRANSPARENT,
+            TextAlignment::Center,
+            VAlign::Center,
+            TextAlignment::Left,
+            0.5,
+            false,
+            0.0,
+        );
+    }
+    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+}
+
+// ─── Test 40: text_alignment ────────────────────────────────────
+#[test]
+fn painter_text_alignment() {
+    require_golden!();
+    let (ew, eh, expected) = load_painter_golden("text_alignment");
+    let mut img = white_canvas(ew, eh);
+    {
+        let mut p = white_painter(&mut img);
+        // Top-left box, left text
+        p.paint_text_boxed(
+            10.0,
+            10.0,
+            236.0,
+            80.0,
+            "Left",
+            50.0,
+            Color::BLACK,
+            Color::TRANSPARENT,
+            TextAlignment::Left,
+            VAlign::Top,
+            TextAlignment::Left,
+            0.5,
+            true,
+            0.0,
+        );
+        // Center box, center text
+        p.paint_text_boxed(
+            10.0,
+            120.0,
+            236.0,
+            80.0,
+            "Center",
+            50.0,
+            Color::BLACK,
+            Color::TRANSPARENT,
+            TextAlignment::Center,
+            VAlign::Center,
+            TextAlignment::Center,
+            0.5,
+            true,
+            0.0,
+        );
+        // Bottom-right box, right text
+        p.paint_text_boxed(
+            10.0,
+            230.0,
+            236.0,
+            80.0,
+            "Right",
+            50.0,
+            Color::BLACK,
+            Color::TRANSPARENT,
+            TextAlignment::Right,
+            VAlign::Bottom,
+            TextAlignment::Right,
+            0.5,
+            true,
+            0.0,
+        );
+    }
+    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+}
+
+// ─── Test 41: text_clipped ──────────────────────────────────────
+#[test]
+fn painter_text_clipped() {
+    require_golden!();
+    let (ew, eh, expected) = load_painter_golden("text_clipped");
+    let mut img = white_canvas(ew, eh);
+    {
+        let mut p = white_painter(&mut img);
+        p.push_state();
+        p.clip_rect(50.0, 50.0, 150.0, 150.0);
+        p.paint_text(
+            30.0,
+            80.0,
+            "Clipped!",
+            40.0,
+            1.0,
+            Color::BLACK,
+            Color::TRANSPARENT,
+        );
+        p.pop_state();
+    }
+    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+}
+
+// ─── Test 42: text_below_threshold ──────────────────────────────
+#[test]
+fn painter_text_below_threshold() {
+    require_golden!();
+    let (ew, eh, expected) = load_painter_golden("text_below_threshold");
+    let mut img = white_canvas(ew, eh);
+    {
+        let mut p = white_painter(&mut img);
+        p.paint_text(
+            10.0,
+            100.0,
+            "tiny text here",
+            1.0,
+            1.0,
+            Color::BLACK,
+            Color::TRANSPARENT,
+        );
     }
     compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }

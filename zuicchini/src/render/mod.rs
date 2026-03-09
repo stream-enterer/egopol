@@ -1,5 +1,6 @@
 pub(crate) mod bitmap_font;
 pub mod compositor;
+pub(crate) mod em_font;
 pub(crate) mod interpolation;
 mod painter;
 mod scanline;
