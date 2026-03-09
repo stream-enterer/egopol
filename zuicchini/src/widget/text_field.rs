@@ -105,7 +105,8 @@ const MAX_UNDO: usize = 100;
 impl TextField {
     pub fn new(look: Rc<Look>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::Rect).with_inner(InnerBorderType::InputField),
+            border: Border::new(OuterBorderType::Instrument)
+                .with_inner(InnerBorderType::InputField),
             look,
             text: String::new(),
             cursor: 0,

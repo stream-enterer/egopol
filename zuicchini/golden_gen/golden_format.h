@@ -42,3 +42,23 @@ inline FILE* open_golden(const std::string& subdir, const std::string& name,
     }
     return f;
 }
+
+/// Write a length-prefixed string: [u32 len][len bytes].
+inline void write_string(FILE* f, const char* s) {
+    uint32_t len = (uint32_t)strlen(s);
+    write_u32(f, len);
+    if (len > 0) fwrite(s, 1, len, f);
+}
+
+/// Dump a trajectory: [u32 step_count][step_count * (f64 rel_x, f64 rel_y, f64 rel_a)]
+inline void dump_trajectory(const char* name, const double* data, uint32_t steps) {
+    FILE* f = open_golden("trajectory", name, "trajectory.golden");
+    write_u32(f, steps);
+    for (uint32_t i = 0; i < steps; i++) {
+        write_f64(f, data[i * 3 + 0]); // rel_x
+        write_f64(f, data[i * 3 + 1]); // rel_y
+        write_f64(f, data[i * 3 + 2]); // rel_a
+    }
+    fclose(f);
+    printf("  trajectory/%s\n", name);
+}

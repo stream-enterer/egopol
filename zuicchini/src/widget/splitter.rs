@@ -6,7 +6,8 @@ use crate::render::Painter;
 use super::look::Look;
 use std::rc::Rc;
 
-const DIVIDER_SIZE: f64 = 5.0;
+/// C++ emSplitter grip fraction: 0.015 * borderScaling (=1.0 for default look).
+const GRIP_FRACTION: f64 = 0.015;
 
 /// Resizable two-panel divider widget.
 pub struct Splitter {
@@ -77,16 +78,36 @@ impl Splitter {
         self.last_h = h;
 
         let resolved = self.orientation.resolve(w, h);
-        let color = self.look.border_tint();
+        // C++ emSplitter::PaintContent paints the grip rect in button_bg_color.
+        let color = self.look.button_bg_color;
 
+        let (gx, gy, gw, gh) = self.calc_grip_rect(w, h, resolved);
+        painter.paint_rect(gx, gy, gw, gh, color);
+    }
+
+    /// Compute grip rectangle matching C++ emSplitter::CalcGripRect.
+    fn calc_grip_rect(
+        &self,
+        w: f64,
+        h: f64,
+        resolved: ResolvedOrientation,
+    ) -> (f64, f64, f64, f64) {
         match resolved {
             ResolvedOrientation::Horizontal => {
-                let x = (w * self.position - DIVIDER_SIZE / 2.0).max(0.0);
-                painter.paint_rect(x, 0.0, DIVIDER_SIZE, h, color);
+                let mut gs = GRIP_FRACTION * w;
+                if gs > w * 0.5 {
+                    gs = w * 0.5;
+                }
+                let gx = self.position * (w - gs);
+                (gx, 0.0, gs, h)
             }
             ResolvedOrientation::Vertical => {
-                let y = (h * self.position - DIVIDER_SIZE / 2.0).max(0.0);
-                painter.paint_rect(0.0, y, w, DIVIDER_SIZE, color);
+                let mut gs = GRIP_FRACTION * h;
+                if gs > h * 0.5 {
+                    gs = h * 0.5;
+                }
+                let gy = self.position * (h - gs);
+                (0.0, gy, w, gs)
             }
         }
     }
@@ -95,18 +116,30 @@ impl Splitter {
         let w = self.last_w;
         let h = self.last_h;
         let resolved = self.orientation.resolve(w, h);
+        let (gx, gy, gw, gh) = self.calc_grip_rect(w, h, resolved);
 
         match event.key {
             InputKey::MouseLeft => match event.variant {
                 InputVariant::Press => {
-                    let (pos, size) = match resolved {
-                        ResolvedOrientation::Horizontal => (event.mouse_x, w),
-                        ResolvedOrientation::Vertical => (event.mouse_y, h),
+                    let hit = match resolved {
+                        ResolvedOrientation::Horizontal => {
+                            event.mouse_x >= gx && event.mouse_x <= gx + gw
+                        }
+                        ResolvedOrientation::Vertical => {
+                            event.mouse_y >= gy && event.mouse_y <= gy + gh
+                        }
                     };
-                    let divider_center = size * self.position;
-                    if (pos - divider_center).abs() <= DIVIDER_SIZE {
+                    if hit {
                         self.dragging = true;
-                        self.drag_offset = pos - divider_center;
+                        let center = match resolved {
+                            ResolvedOrientation::Horizontal => gx + gw * 0.5,
+                            ResolvedOrientation::Vertical => gy + gh * 0.5,
+                        };
+                        let pos = match resolved {
+                            ResolvedOrientation::Horizontal => event.mouse_x,
+                            ResolvedOrientation::Vertical => event.mouse_y,
+                        };
+                        self.drag_offset = pos - center;
                         return true;
                     }
                     false
@@ -124,8 +157,10 @@ impl Splitter {
                             ResolvedOrientation::Horizontal => (event.mouse_x, w),
                             ResolvedOrientation::Vertical => (event.mouse_y, h),
                         };
-                        if size > 0.0 {
-                            let new_pos = (pos - self.drag_offset) / size;
+                        let gs = GRIP_FRACTION * size;
+                        let travel = size - gs;
+                        if travel > 0.0 {
+                            let new_pos = (pos - self.drag_offset - gs * 0.5) / travel;
                             self.set_position(new_pos);
                         }
                         return true;
@@ -152,30 +187,16 @@ impl Splitter {
         }
 
         let resolved = self.orientation.resolve(w, h);
-        let half_div = DIVIDER_SIZE / 2.0;
+        let (gx, gy, gw, gh) = self.calc_grip_rect(w, h, resolved);
 
         match resolved {
             ResolvedOrientation::Horizontal => {
-                let split = w * self.position;
-                ctx.layout_child(children[0], 0.0, 0.0, (split - half_div).max(0.0), h);
-                ctx.layout_child(
-                    children[1],
-                    split + half_div,
-                    0.0,
-                    (w - split - half_div).max(0.0),
-                    h,
-                );
+                ctx.layout_child(children[0], 0.0, 0.0, gx.max(0.0), h);
+                ctx.layout_child(children[1], gx + gw, 0.0, (w - gx - gw).max(0.0), h);
             }
             ResolvedOrientation::Vertical => {
-                let split = h * self.position;
-                ctx.layout_child(children[0], 0.0, 0.0, w, (split - half_div).max(0.0));
-                ctx.layout_child(
-                    children[1],
-                    0.0,
-                    split + half_div,
-                    w,
-                    (h - split - half_div).max(0.0),
-                );
+                ctx.layout_child(children[0], 0.0, 0.0, w, gy.max(0.0));
+                ctx.layout_child(children[1], 0.0, gy + gh, w, (h - gy - gh).max(0.0));
             }
         }
     }

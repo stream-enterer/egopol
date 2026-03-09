@@ -425,6 +425,7 @@ impl Border {
             | OuterBorderType::Filled
             | OuterBorderType::Margin
             | OuterBorderType::MarginFilled => 0.0,
+            OuterBorderType::Rect | OuterBorderType::RoundRect => s * 0.02,
             _ => (s * 0.006).max(0.5),
         }
     }
@@ -1087,7 +1088,7 @@ impl Border {
         w: f64,
         h: f64,
         look: &Look,
-        focused: bool,
+        _focused: bool,
         enabled: bool,
     ) {
         // Dimming for disabled state: C++ "GetTransparented(75.0)" ~ alpha * 0.25.
@@ -1099,7 +1100,6 @@ impl Border {
             }
         };
 
-        let outer_r = self.outer_radius(w, h);
         let stroke_w = self.outer_stroke_width(w, h);
 
         // Outer border
@@ -1114,73 +1114,97 @@ impl Border {
                 painter.paint_rect(ox, oy, w - 2.0 * ox, h - 2.0 * oy, look.bg_color);
             }
             OuterBorderType::Rect => {
-                let color = dim_color(if focused {
-                    look.focus_tint()
-                } else {
-                    look.border_tint()
-                });
-                painter.paint_rect(0.0, 0.0, w, h, look.bg_color);
-                painter.paint_rect_outlined(0.0, 0.0, w, h, &Stroke::new(color, stroke_w));
+                // C++ DoBorder: margin d, stroke e, fill at (d,d), outline centered on fill edge.
+                let s = self.base_unit(w, h);
+                let d = s * 0.023;
+                let e = s * 0.02;
+                painter.paint_rect(d, d, w - 2.0 * d, h - 2.0 * d, look.bg_color);
+                // C++ updates canvasColor to bg_color after fill.
+                painter.set_canvas_color(look.bg_color);
+                let color = dim_color(look.fg_color);
+                let sd = d + e * 0.5;
+                painter.paint_rect_outlined(
+                    sd,
+                    sd,
+                    w - 2.0 * sd,
+                    h - 2.0 * sd,
+                    &Stroke::new(color, e),
+                );
             }
             OuterBorderType::RoundRect => {
-                let color = dim_color(if focused {
-                    look.focus_tint()
-                } else {
-                    look.border_tint()
-                });
-                painter.paint_round_rect(0.0, 0.0, w, h, outer_r, look.bg_color);
+                // C++ DoBorder: margin d, stroke e, radius f, fill at (d,d), outline centered.
+                let s = self.base_unit(w, h);
+                let d = s * 0.023;
+                let e = s * 0.02;
+                let r = s * 0.22;
+                painter.paint_round_rect(d, d, w - 2.0 * d, h - 2.0 * d, r, look.bg_color);
+                painter.set_canvas_color(look.bg_color);
+                let color = dim_color(look.fg_color);
+                let sd = d + e * 0.5;
+                let sr = r - e * 0.5;
                 painter.paint_round_rect_outlined(
-                    0.0,
-                    0.0,
-                    w,
-                    h,
-                    outer_r,
-                    &Stroke::new(color, stroke_w),
+                    sd,
+                    sd,
+                    w - 2.0 * sd,
+                    h - 2.0 * sd,
+                    sr,
+                    &Stroke::new(color, e),
                 );
             }
             OuterBorderType::Group => {
-                let color = dim_color(look.border_tint());
-                painter.paint_round_rect(0.0, 0.0, w, h, outer_r, look.bg_color);
-                painter.paint_round_rect_outlined(
-                    0.0,
-                    0.0,
-                    w,
-                    h,
-                    outer_r,
-                    &Stroke::new(color, stroke_w),
+                // C++ uses PaintBorderImage(ImgGroup) — a 9-patch textured border
+                // that fills the entire interior with a gradient/texture. Approximate
+                // with a flat bg_color fill matching the C++ canvasColor update.
+                let s = self.base_unit(w, h);
+                let d = s * 0.0104;
+                let rnd_r = s * 0.0188;
+                let r = rnd_r * (280.0 / 209.0);
+                let e = r - rnd_r;
+                painter.paint_round_rect(
+                    d - e,
+                    d - e,
+                    w - 2.0 * (d - e),
+                    h - 2.0 * (d - e),
+                    r,
+                    look.bg_color,
                 );
+                painter.set_canvas_color(look.bg_color);
             }
             OuterBorderType::Instrument => {
-                painter.paint_round_rect(0.0, 0.0, w, h, outer_r, look.bg_color);
-                let color = dim_color(if focused {
-                    look.focus_tint()
-                } else {
-                    look.border_tint()
-                });
-                painter.paint_round_rect_outlined(
-                    0.0,
-                    0.0,
-                    w,
-                    h,
-                    outer_r,
-                    &Stroke::new(color, stroke_w),
+                // C++ uses PaintBorderImage(ImgInstrument) — a 9-patch textured border.
+                // Approximate with a flat bg_color fill.
+                let s = self.base_unit(w, h);
+                let d = s * 0.052;
+                let rnd_r = s * 0.094;
+                let r = rnd_r * (280.0 / 209.0);
+                let e = r - rnd_r;
+                painter.paint_round_rect(
+                    d - e,
+                    d - e,
+                    w - 2.0 * (d - e),
+                    h - 2.0 * (d - e),
+                    r,
+                    look.bg_color,
                 );
+                painter.set_canvas_color(look.bg_color);
             }
             OuterBorderType::InstrumentMoreRound => {
-                painter.paint_round_rect(0.0, 0.0, w, h, outer_r, look.bg_color);
-                let color = dim_color(if focused {
-                    look.focus_tint()
-                } else {
-                    look.border_tint()
-                });
-                painter.paint_round_rect_outlined(
-                    0.0,
-                    0.0,
-                    w,
-                    h,
-                    outer_r,
-                    &Stroke::new(color, stroke_w),
+                // C++ uses PaintBorderImage(ImgButtonBorder) — a 9-patch textured border.
+                // Approximate with a flat bg_color fill.
+                let s = self.base_unit(w, h);
+                let d = s * 0.052;
+                let rnd_r = s * 0.223;
+                let r = rnd_r * (336.0 / 293.4);
+                let e = r - rnd_r;
+                painter.paint_round_rect(
+                    d - e,
+                    d - e,
+                    w - 2.0 * (d - e),
+                    h - 2.0 * (d - e),
+                    r,
+                    look.bg_color,
                 );
+                painter.set_canvas_color(look.bg_color);
             }
             OuterBorderType::PopupRoot => {
                 painter.paint_rect(0.0, 0.0, w, h, look.bg_color);

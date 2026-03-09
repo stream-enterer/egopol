@@ -22,7 +22,7 @@ pub struct Button {
 impl Button {
     pub fn new(caption: &str, look: Rc<Look>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::RoundRect).with_caption(caption),
+            border: Border::new(OuterBorderType::InstrumentMoreRound).with_caption(caption),
             look,
             pressed: false,
             hovered: false,
@@ -56,9 +56,25 @@ impl Button {
             self.look.button_bg_color
         };
 
-        painter.paint_round_rect(1.0, 1.0, w - 2.0, h - 2.0, 3.0, face_color);
+        // C++ DoBorder paints the border first, then DoButton paints the face
+        // inside the content round rect.
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
+
+        // C++ emButton::DoButton gets content round rect, then insets the face
+        // by d = (1 - 250/264) * r ≈ 0.053 * r.
+        let (cr, r) = self.border.content_round_rect(w, h, &self.look);
+        let d = 0.053 * r;
+        let fr = (r - d).max(0.0);
+        painter.paint_round_rect(
+            cr.x + d,
+            cr.y + d,
+            cr.w - 2.0 * d,
+            cr.h - 2.0 * d,
+            fr,
+            face_color,
+        );
+        painter.set_canvas_color(face_color);
     }
 
     /// Update hover state based on mouse position within button bounds.

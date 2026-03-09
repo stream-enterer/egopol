@@ -1704,7 +1704,7 @@ impl View {
         // Paint from SVP using absolute viewed coords
         let start = self.svp.unwrap_or(self.root);
         let base_offset = painter.offset();
-        self.paint_panel_recursive(tree, painter, start, base_offset);
+        self.paint_panel_recursive(tree, painter, start, base_offset, self.background_color);
 
         // D-PANEL-06: Paint focus/active highlight (C++ PaintHighlight parity)
         self.paint_highlight(tree, painter);
@@ -1779,8 +1779,9 @@ impl View {
         painter: &mut Painter,
         id: PanelId,
         base_offset: (f64, f64),
+        parent_canvas: Color,
     ) {
-        let (vx, vy, vw, vh, clip_x, clip_y, clip_w, clip_h, canvas_color) = {
+        let (vx, vy, vw, vh, clip_x, clip_y, clip_w, clip_h, canvas_color, layout_rect) = {
             match tree.get(id) {
                 Some(p) if p.viewed && p.visible => (
                     p.viewed_x,
@@ -1792,6 +1793,7 @@ impl View {
                     p.clip_w,
                     p.clip_h,
                     p.canvas_color,
+                    p.layout_rect,
                 ),
                 _ => return,
             }
@@ -1811,7 +1813,15 @@ impl View {
             return;
         }
 
-        painter.set_canvas_color(canvas_color);
+        // C++ canvasColor inheritance: if a panel has no explicit canvas
+        // color (TRANSPARENT), inherit from the parent. The root's parent
+        // is the view background.
+        let effective_canvas = if canvas_color.a() > 0 {
+            canvas_color
+        } else {
+            parent_canvas
+        };
+        painter.set_canvas_color(effective_canvas);
 
         if let Some(mut behavior) = tree.take_behavior(id) {
             let mut state = tree.build_panel_state(id, self.window_focused);
@@ -1829,13 +1839,22 @@ impl View {
                 DEFAULT_MEMORY_LIMIT,
                 self.seek_pos_panel,
             );
-            behavior.paint(painter, vw, vh, &state);
+            // In Eagle Mode, viewed_height is a scaling factor (parent-width
+            // units), not the panel's actual pixel height. The real pixel
+            // height = viewed_width * tallness, where tallness = layout_h / layout_w.
+            // For children this equals viewed_height, but for the root it differs.
+            let paint_h = if layout_rect.w > 0.0 {
+                vw * (layout_rect.h / layout_rect.w)
+            } else {
+                vh
+            };
+            behavior.paint(painter, vw, paint_h, &state);
             tree.put_behavior(id, behavior);
         }
 
         let children: Vec<PanelId> = tree.children(id).collect();
         for child in children {
-            self.paint_panel_recursive(tree, painter, child, base_offset);
+            self.paint_panel_recursive(tree, painter, child, base_offset, effective_canvas);
         }
 
         painter.pop_state();
