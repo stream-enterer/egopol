@@ -49,15 +49,17 @@ fn parent_resize_triggers_child_relayout() {
     h.tree.set_layout_rect(parent, 0.0, 0.0, 0.8, 0.8);
     h.tick();
 
-    let parent_entries = log_parent.borrow();
-    assert!(
-        parent_entries.iter().any(|e| e.contains("LAYOUT_CHANGED")),
-        "Parent should get LAYOUT_CHANGED, got: {parent_entries:?}"
-    );
-    assert!(
-        parent_entries.iter().any(|e| e == "layout_children"),
-        "Parent's layout_children should be called, got: {parent_entries:?}"
-    );
+    {
+        let parent_entries = log_parent.borrow();
+        assert!(
+            parent_entries.iter().any(|e| e.contains("LAYOUT_CHANGED")),
+            "Parent should get LAYOUT_CHANGED, got: {parent_entries:?}"
+        );
+        assert!(
+            parent_entries.iter().any(|e| e == "layout_children"),
+            "Parent's layout_children should be called, got: {parent_entries:?}"
+        );
+    }
 
     // Child's LAYOUT_CHANGED comes on the next tick since parent's layout_children
     // sets the child rect during this deliver_notices pass, and the child notice

@@ -98,13 +98,14 @@ fn focus_change_routes_keyboard() {
     let key_x = InputEvent::press(InputKey::Key('x'));
     h.inject_input(&key_x);
 
+    // C++ broadcasts Input() to all viewed panels — both A and B receive the event.
     assert!(
         log_a.borrow().iter().any(|e| e.contains("input:")),
         "A should receive key input"
     );
     assert!(
-        !log_b.borrow().iter().any(|e| e.contains("input:")),
-        "B should NOT receive key input when A is active"
+        log_b.borrow().iter().any(|e| e.contains("input:")),
+        "B should also receive key input (C++ broadcast semantics)"
     );
 
     // Click B to activate it, then type

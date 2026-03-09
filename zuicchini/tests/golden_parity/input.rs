@@ -69,9 +69,8 @@ fn input_mouse_hit() {
         (*recv_child1.borrow(), a_c1, p_c1),
         (*recv_child2.borrow(), a_c2, p_c2),
     ];
-    // C++ dispatches Input() to all viewed panels; Rust only to active.
-    // Compare activation state only (check_received=false).
-    compare_input(&actual, &expected, &["root", "child1", "child2"], false).unwrap();
+    // C++ and Rust both broadcast Input() to all viewed panels.
+    compare_input(&actual, &expected, &["root", "child1", "child2"], true).unwrap();
 }
 
 // ─── Test 2: input_key_to_focused ───────────────────────────────
@@ -115,9 +114,8 @@ fn input_key_to_focused() {
         (*recv_child1.borrow(), a_c1, p_c1),
         (*recv_child2.borrow(), a_c2, p_c2),
     ];
-    // C++ dispatches Input() to all viewed panels; Rust only to active.
-    // Compare activation state only (check_received=false).
-    compare_input(&actual, &expected, &["root", "child1", "child2"], false).unwrap();
+    // C++ and Rust both broadcast Input() to all viewed panels.
+    compare_input(&actual, &expected, &["root", "child1", "child2"], true).unwrap();
 }
 
 // ─── Test 3: input_scroll_delta ─────────────────────────────────
@@ -144,6 +142,10 @@ fn input_scroll_delta() {
     *recv_root.borrow_mut() = false;
     *recv_child1.borrow_mut() = false;
 
+    // Clear VIF chain: C++ golden generator uses DoInputToView which bypasses VIF.
+    // MouseZoomScrollVIF would consume the wheel event before it reaches panels.
+    h.vif_chain.clear();
+
     // Wheel event
     h.input_state.set_mouse(200.0, 300.0);
     let event = InputEvent::press(InputKey::WheelUp).with_mouse(200.0, 300.0);
@@ -156,7 +158,7 @@ fn input_scroll_delta() {
         (*recv_root.borrow(), a_root, p_root),
         (*recv_child1.borrow(), a_c1, p_c1),
     ];
-    compare_input(&actual, &expected, &["root", "child1"], false).unwrap();
+    compare_input(&actual, &expected, &["root", "child1"], true).unwrap();
 }
 
 // ─── Test 4: input_drag_sequence ────────────────────────────────
@@ -222,7 +224,6 @@ fn input_drag_sequence() {
         (*recv_child1.borrow(), a_c1, p_c1),
         (*recv_child2.borrow(), a_c2, p_c2),
     ];
-    // C++ dispatches Input() to all viewed panels; Rust only to active.
-    // Compare activation state only (check_received=false).
-    compare_input(&actual, &expected, &["root", "child1", "child2"], false).unwrap();
+    // C++ and Rust both broadcast Input() to all viewed panels.
+    compare_input(&actual, &expected, &["root", "child1", "child2"], true).unwrap();
 }

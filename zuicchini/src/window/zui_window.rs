@@ -421,47 +421,26 @@ impl ZuiWindow {
         // Stamp modifier keys from InputState onto the event
         let ev = event.clone().with_modifiers(state);
 
-        // Dispatch to active panel's behavior with panel-local mouse coords
+        // Dispatch to ALL viewed panels in DFS order (root → leaves), matching
+        // C++ emPanel::Input recursive broadcast. Each panel receives the event
+        // with mouse coords transformed to its local space.
         let wf = self.view.window_focused();
-        if let Some(active) = self.view.active() {
-            let mut consumed = false;
-            // Transform mouse coords from viewport pixels to panel-local space
+        let viewed = tree.viewed_panels_dfs();
+        for panel_id in viewed {
             let mut panel_ev = ev.clone();
-            panel_ev.mouse_x = tree.view_to_panel_x(active, ev.mouse_x);
-            panel_ev.mouse_y = tree.view_to_panel_y(active, ev.mouse_y);
+            panel_ev.mouse_x = tree.view_to_panel_x(panel_id, ev.mouse_x);
+            panel_ev.mouse_y = tree.view_to_panel_y(panel_id, ev.mouse_y);
 
-            if let Some(mut behavior) = tree.take_behavior(active) {
-                let panel_state = tree.build_panel_state(active, wf);
-                consumed = behavior.input(&panel_ev, &panel_state, state);
+            if let Some(mut behavior) = tree.take_behavior(panel_id) {
+                let panel_state = tree.build_panel_state(panel_id, wf);
+                let consumed = behavior.input(&panel_ev, &panel_state, state);
                 // TF-003: Process scroll-to-visible requests from behaviors
                 if let Some(rect) = behavior.take_scroll_to_visible() {
-                    self.view.scroll_to_panel_rect(tree, active, rect);
+                    self.view.scroll_to_panel_rect(tree, panel_id, rect);
                 }
-                tree.put_behavior(active, behavior);
-            }
-
-            // Bubble up parent chain if not consumed
-            if !consumed {
-                let mut cur = tree.parent(active);
-                while let Some(parent_id) = cur {
-                    // Re-transform for each parent's coordinate space
-                    let mut parent_ev = ev.clone();
-                    parent_ev.mouse_x = tree.view_to_panel_x(parent_id, ev.mouse_x);
-                    parent_ev.mouse_y = tree.view_to_panel_y(parent_id, ev.mouse_y);
-
-                    if let Some(mut behavior) = tree.take_behavior(parent_id) {
-                        let panel_state = tree.build_panel_state(parent_id, wf);
-                        consumed = behavior.input(&parent_ev, &panel_state, state);
-                        // TF-003: Process scroll-to-visible from parent behaviors
-                        if let Some(rect) = behavior.take_scroll_to_visible() {
-                            self.view.scroll_to_panel_rect(tree, parent_id, rect);
-                        }
-                        tree.put_behavior(parent_id, behavior);
-                        if consumed {
-                            break;
-                        }
-                    }
-                    cur = tree.parent(parent_id);
+                tree.put_behavior(panel_id, behavior);
+                if consumed {
+                    break;
                 }
             }
         }

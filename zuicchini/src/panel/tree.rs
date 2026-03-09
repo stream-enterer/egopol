@@ -254,6 +254,20 @@ impl PanelTree {
         }
     }
 
+    /// All notice flags that C++ fires on a newly created panel so its behavior
+    /// sees every state dimension on first notice delivery. Matches C++ emPanel
+    /// constructor which sets all NF_* bits.
+    const INIT_NOTICE_FLAGS: NoticeFlags = NoticeFlags::LAYOUT_CHANGED
+        .union(NoticeFlags::FOCUS_CHANGED)
+        .union(NoticeFlags::VISIBILITY)
+        .union(NoticeFlags::CHILDREN_CHANGED)
+        .union(NoticeFlags::ENABLE_CHANGED)
+        .union(NoticeFlags::SOUGHT_NAME_CHANGED)
+        .union(NoticeFlags::ACTIVE_CHANGED)
+        .union(NoticeFlags::VIEW_FOCUS_CHANGED)
+        .union(NoticeFlags::UPDATE_PRIORITY_CHANGED)
+        .union(NoticeFlags::MEMORY_LIMIT_CHANGED);
+
     /// Create the root panel.
     ///
     /// # Panics
@@ -267,6 +281,8 @@ impl PanelTree {
         // Root uses its own id as the parent key
         self.name_index.insert((id, name.to_string()), id);
         self.root = Some(id);
+        // C++ fires all NF_* flags on new panels as initialization notices
+        self.panels[id].pending_notices = Self::INIT_NOTICE_FLAGS;
         id
     }
 
@@ -294,6 +310,9 @@ impl PanelTree {
         self.panels[parent]
             .pending_notices
             .insert(NoticeFlags::CHILDREN_CHANGED);
+
+        // C++ fires all NF_* flags on new panels as initialization notices
+        self.panels[id].pending_notices = Self::INIT_NOTICE_FLAGS;
 
         id
     }
@@ -1599,6 +1618,38 @@ impl PanelTree {
     /// Get all panel IDs.
     pub fn all_ids(&self) -> Vec<PanelId> {
         self.panels.keys().collect()
+    }
+
+    /// Return viewed panels in depth-first order (root → leaves), matching the
+    /// order C++ `emPanel::Input` recursively dispatches input events.
+    pub fn viewed_panels_dfs(&self) -> Vec<PanelId> {
+        let root = match self.root {
+            Some(r) => r,
+            None => return Vec::new(),
+        };
+        let mut result = Vec::new();
+        let mut stack = vec![root];
+        while let Some(id) = stack.pop() {
+            let panel = match self.panels.get(id) {
+                Some(p) => p,
+                None => continue,
+            };
+            if !panel.viewed {
+                continue;
+            }
+            result.push(id);
+            // Push children in reverse order so first child is processed first
+            let mut children = Vec::new();
+            let mut cur = panel.first_child;
+            while let Some(cid) = cur {
+                children.push(cid);
+                cur = self.panels.get(cid).and_then(|c| c.next_sibling);
+            }
+            for &cid in children.iter().rev() {
+                stack.push(cid);
+            }
+        }
+        result
     }
 
     fn collect_descendants(&self, id: PanelId) -> Vec<PanelId> {

@@ -81,7 +81,7 @@ fn notice_active_changed() {
         &actual,
         &expected,
         &["root", "child1", "child2"],
-        NOTICE_ACTION_MASK,
+        NOTICE_FULL_MASK,
     )
     .unwrap();
 }
@@ -132,7 +132,7 @@ fn notice_focus_changed() {
         &actual,
         &expected,
         &["root", "child1", "child2"],
-        NOTICE_ACTION_MASK,
+        NOTICE_FULL_MASK,
     )
     .unwrap();
 }
@@ -181,7 +181,7 @@ fn notice_layout_changed() {
         &actual,
         &expected,
         &["root", "child1", "child2"],
-        NOTICE_ACTION_MASK,
+        NOTICE_FULL_MASK,
     )
     .unwrap();
 }
@@ -212,21 +212,25 @@ fn notice_children_changed() {
     reset(&acc_child1);
 
     // Action: add new child
-    let _child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(_child2, 0.5, 0.0, 0.5, 1.0);
+    let child2 = tree.create_child(root, "child2");
+    tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
+
+    // Attach notice behavior to child2 to capture init notices
+    let acc_child2 = attach_notice(&mut tree, child2);
 
     // Deliver new notices
     settle(&mut tree, &mut view);
 
-    // Only compare existing panels (root, child1). The newly-created child2
-    // receives ALL notice flags in C++ as initialization notices, which is a
-    // C++ emPanel feature that Rust doesn't replicate (design difference).
-    let actual = vec![acc_root.borrow().bits(), acc_child1.borrow().bits()];
+    let actual = vec![
+        acc_root.borrow().bits(),
+        acc_child1.borrow().bits(),
+        acc_child2.borrow().bits(),
+    ];
     compare_notices(
         &actual,
-        &expected[..2],
-        &["root", "child1"],
-        NOTICE_ACTION_MASK,
+        &expected,
+        &["root", "child1", "child2"],
+        NOTICE_FULL_MASK,
     )
     .unwrap();
 }

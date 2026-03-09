@@ -86,7 +86,8 @@ impl TestHarness {
     }
 
     /// Dispatch input through VIF chain → hit-test → behavior delivery.
-    /// Replicates ZuiWindow::dispatch_input without needing a ZuiWindow.
+    /// Matches C++ emPanel::Input which broadcasts to ALL viewed panels in
+    /// depth-first order (root → leaves).
     pub fn inject_input(&mut self, event: &InputEvent) {
         // Run VIF chain
         for vif in &mut self.vif_chain {
@@ -113,13 +114,19 @@ impl TestHarness {
         // Stamp modifier keys from InputState onto the event
         let ev = event.clone().with_modifiers(&self.input_state);
 
-        // Dispatch to active panel's behavior
+        // Dispatch to ALL viewed panels in DFS order (matching C++ emPanel::Input
+        // recursive broadcast). Each panel's behavior receives the event;
+        // if any returns true (consumed), propagation stops.
         let wf = self.view.window_focused();
-        if let Some(active) = self.view.active() {
-            if let Some(mut behavior) = self.tree.take_behavior(active) {
-                let state = self.tree.build_panel_state(active, wf);
-                behavior.input(&ev, &state, &self.input_state);
-                self.tree.put_behavior(active, behavior);
+        let viewed = self.tree.viewed_panels_dfs();
+        for panel_id in viewed {
+            if let Some(mut behavior) = self.tree.take_behavior(panel_id) {
+                let state = self.tree.build_panel_state(panel_id, wf);
+                let consumed = behavior.input(&ev, &state, &self.input_state);
+                self.tree.put_behavior(panel_id, behavior);
+                if consumed {
+                    break;
+                }
             }
         }
     }

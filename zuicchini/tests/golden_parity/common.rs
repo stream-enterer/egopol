@@ -313,16 +313,7 @@ pub fn translate_cpp_notice_flags(cpp: u32) -> u32 {
     rust
 }
 
-/// Mask of flags that are directly set by panel-tree actions (activate, focus,
-/// layout, child add/remove, window focus change). Excludes flags that come
-/// from the C++ view/scheduler update engine (viewing, priority, memory limit)
-/// which Rust doesn't replicate identically.
-pub const NOTICE_ACTION_MASK: u32 = 0x0349;
-// LAYOUT_CHANGED(0x01) | FOCUS_CHANGED(0x02) | CHILDREN_CHANGED(0x08)
-// | ENABLE_CHANGED(0x40) | ACTIVE_CHANGED(0x100) | VIEW_FOCUS_CHANGED(0x200)
-
-/// Full mask including scheduler-driven flags. Use with set_window_focused
-/// tests where Rust explicitly queues UPDATE_PRIORITY_CHANGED.
+/// Full mask covering all 12 notice flag bits.
 pub const NOTICE_FULL_MASK: u32 = 0x0FFF;
 
 /// Compare actual Rust NoticeFlags against C++ golden notice data.
@@ -402,8 +393,7 @@ pub fn load_input_golden(name: &str) -> Vec<GoldenInputState> {
 }
 
 /// Compare input/activation state against golden.
-/// C++ dispatches Input() to all viewed panels; Rust only to the active panel.
-/// `check_received`: if false, only compare is_active and in_active_path.
+/// `check_received`: if true, also compare whether the panel received input.
 pub fn compare_input(
     actual: &[(bool, bool, bool)],
     expected: &[GoldenInputState],
