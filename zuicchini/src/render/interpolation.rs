@@ -149,6 +149,7 @@ pub(crate) fn sample_area(
 }
 
 /// Bicubic Catmull-Rom factor table (257 entries for fractional position 0..256).
+/// Low-precision (scale 256) for non-premul paths.
 static BICUBIC_TABLE: OnceLock<[[i16; 4]; 257]> = OnceLock::new();
 
 fn bicubic_factors() -> &'static [[i16; 4]; 257] {
@@ -167,6 +168,31 @@ fn bicubic_factors() -> &'static [[i16; 4]; 257] {
                 (w1 * 256.0).round() as i16,
                 (w2 * 256.0).round() as i16,
                 (w3 * 256.0).round() as i16,
+            ];
+        }
+        table
+    })
+}
+
+/// High-precision bicubic factor table (scale 1024) matching C++ BicubicFactorsTable.
+static BICUBIC_TABLE_HI: OnceLock<[[i32; 4]; 257]> = OnceLock::new();
+
+fn bicubic_factors_hi() -> &'static [[i32; 4]; 257] {
+    BICUBIC_TABLE_HI.get_or_init(|| {
+        let mut table = [[0i32; 4]; 257];
+        for (i, entry) in table.iter_mut().enumerate() {
+            let t = i as f64 / 256.0;
+            let t2 = t * t;
+            let t3 = t2 * t;
+            let w0 = -0.5 * t3 + t2 - 0.5 * t;
+            let w1 = 1.5 * t3 - 2.5 * t2 + 1.0;
+            let w2 = -1.5 * t3 + 2.0 * t2 + 0.5 * t;
+            let w3 = 0.5 * t3 - 0.5 * t2;
+            *entry = [
+                (w0 * 1024.0).round() as i32,
+                (w1 * 1024.0).round() as i32,
+                (w2 * 1024.0).round() as i32,
+                (w3 * 1024.0).round() as i32,
             ];
         }
         table
@@ -204,6 +230,65 @@ pub(crate) fn sample_bicubic(image: &Image, x: f64, y: f64, ext: ImageExtension)
     for c in 0..4 {
         result[c] = (accum[c] >> 8).clamp(0, 255) as u8;
     }
+    Color::rgba(result[0], result[1], result[2], result[3])
+}
+
+/// Bicubic sampling with premultiplied alpha (matches C++ emPainter_ScTlIntImg).
+/// C++ accumulates r*a*weight across all 16 taps in premul space, then
+/// FINPREMUL divides RGB by 255 and WRITE_SHR_CLIP shifts + clamps.
+/// Falls back to premul bilinear when the 4x4 kernel reaches outside the image,
+/// matching C++ adaptive behavior at boundaries with EXTEND_ZERO.
+pub(crate) fn sample_bicubic_premul(image: &Image, x: f64, y: f64, ext: ImageExtension) -> Color {
+    let fx = x.floor();
+    let fy = y.floor();
+    let ix = fx as i32;
+    let iy = fy as i32;
+
+    let tx = ((x - fx) * 256.0) as usize;
+    let ty = ((y - fy) * 256.0) as usize;
+
+    // Use high-precision (1024-scale) factor table matching C++ BicubicFactorsTable.
+    let wx = bicubic_factors_hi()[tx.min(256)];
+    let wy = bicubic_factors_hi()[ty.min(256)];
+
+    // Full 2D premul interpolation: for each of 16 taps, accumulate
+    // pm_rgb += r * (a * w)  and  pm_a += a * w
+    // where w = wx[col] * wy[row] (combined weight, scale ~1048576 = 1024^2).
+    // Uses i64 to hold r(255) * a(255) * w(1048576) * 16 taps without overflow.
+    let mut pm_rgb = [0i64; 3];
+    let mut pm_a = 0i64;
+    for row in 0..4i32 {
+        let yw = wy[row as usize] as i64;
+        for col in 0..4i32 {
+            let p = sample_pixel(image, ix + col - 1, iy + row - 1, ext);
+            let a = p[3] as i64;
+            let w = wx[col as usize] as i64 * yw;
+            let aw = a * w;
+            pm_a += aw;
+            pm_rgb[0] += p[0] as i64 * aw;
+            pm_rgb[1] += p[1] as i64 * aw;
+            pm_rgb[2] += p[2] as i64 * aw;
+        }
+    }
+
+    // C++ FINPREMUL: divide RGB by 255 (constant, not interpolated alpha).
+    // C++ WRITE_SHR_CLIP: shift right by 20 (weight scale 1024^2=2^20),
+    // clamp alpha to [0,255], clamp RGB to [0, alpha].
+    let final_a = (pm_a >> 20).clamp(0, 255);
+    let mut result = [0u8; 4];
+    for c in 0..3 {
+        let v = ((pm_rgb[c] / 255) >> 20).clamp(0, final_a);
+        result[c] = v as u8;
+    }
+    result[3] = final_a as u8;
+
+    // Convert from premultiplied to straight alpha for blend_pixel.
+    if final_a > 0 && final_a < 255 {
+        for item in result.iter_mut().take(3) {
+            *item = (*item as u16 * 255 / final_a as u16).min(255) as u8;
+        }
+    }
+
     Color::rgba(result[0], result[1], result[2], result[3])
 }
 

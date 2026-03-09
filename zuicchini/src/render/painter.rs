@@ -697,14 +697,43 @@ impl<'a> Painter<'a> {
             self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
         }
 
+        // Match C++ emPainter_ScTl coordinate and interpolation conventions:
+        // - EXTEND_EDGE_OR_ZERO: images with even channel count (incl. 4-ch RGBA)
+        //   use EXTEND_ZERO; odd channel count uses EXTEND_EDGE.
+        // - Upscaling uses adaptive (bicubic-like) with pixel-center offset (-0.5).
+        // - Area sampling for downscaling (no pixel-center offset).
+        // - 1:1 scale uses nearest-neighbor.
+        let upscaling = (pw as f64) > src_w || (ph as f64) > src_h;
+        let downscaling = (pw as f64) < src_w || (ph as f64) < src_h;
+
+        let ext = if image.channel_count().is_multiple_of(2) {
+            super::texture::ImageExtension::Zero
+        } else {
+            super::texture::ImageExtension::Clamp
+        };
+        let ctx = interpolation::ScaleContext {
+            src_w,
+            src_h,
+            dest_w: pw as f64,
+            dest_h: ph as f64,
+        };
+
         for row in start_y..end_y {
             for col in start_x..end_x {
-                let sx = ((col - px) as f64 * src_w / pw as f64).min(src_w - 1.0);
-                let sy = ((row - py) as f64 * src_h / ph as f64).min(src_h - 1.0);
-                let ix = sx as u32;
-                let iy = sy as u32;
-                let src = image.pixel(ix, iy);
-                let src_color = Color::rgba(src[0], src[1], src[2], src[3]);
+                let src_color = if upscaling {
+                    // C++ pixel-center offset: maps dest pixel center to source.
+                    let sx = ((col - px) as f64 + 0.5) * src_w / pw as f64 - 0.5;
+                    let sy = ((row - py) as f64 + 0.5) * src_h / ph as f64 - 0.5;
+                    interpolation::sample_bicubic_premul(image, sx, sy, ext)
+                } else if downscaling {
+                    let sx = (col - px) as f64 * src_w / pw as f64;
+                    let sy = (row - py) as f64 * src_h / ph as f64;
+                    interpolation::sample_area(image, sx, sy, &ctx, ext)
+                } else {
+                    let sx = (col - px) as f64 * src_w / pw as f64;
+                    let sy = (row - py) as f64 * src_h / ph as f64;
+                    interpolation::sample_nearest(image, sx, sy, ext)
+                };
                 self.blend_pixel(col, row, src_color);
             }
         }

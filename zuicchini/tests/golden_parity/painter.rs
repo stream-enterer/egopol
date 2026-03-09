@@ -505,9 +505,9 @@ fn painter_image_scaled() {
         let mut p = white_painter(&mut img);
         p.paint_image_full(28.0, 28.0, 200.0, 200.0, &src, 255, Color::TRANSPARENT);
     }
-    // ARCH GAP [C3:interpolation]: image scaling filter differs between C++ and Rust.
-    // Raw max_diff=118, 30.68% of pixels differ at ch_tol=1.
-    compare_images(img.data(), &expected, ew, eh, 70, 0.5).unwrap();
+    // ARCH GAP [C3:interpolation]: C++ uses adaptive filter with different fixed-point
+    // precision and premul pipeline. Remaining diffs at image boundary with EXTEND_ZERO.
+    compare_images(img.data(), &expected, ew, eh, 19, 0.5).unwrap();
 }
 
 // ─── Test 27: multi_compose ─────────────────────────────────────
