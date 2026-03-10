@@ -334,7 +334,6 @@ fn widget_textfield_empty() {
 // ─── Test 10: widget_textfield_content ──────────────────────────
 
 #[test]
-#[ignore = "9-slice border + text content diffs (~27%)"]
 fn widget_textfield_content() {
     require_golden!();
     let look = Look::new();
@@ -342,9 +341,12 @@ fn widget_textfield_content() {
     tf.set_caption("Name");
     tf.set_editable(true);
     tf.set_text("Hello");
-    render_and_compare(
+    // Residual from 9-slice border interpolation + text rendering diffs (~27%)
+    render_and_compare_tol(
         "widget_textfield_content",
         Box::new(TextFieldBehavior { text_field: tf }),
+        3,
+        27.0,
     );
 }
 
@@ -448,7 +450,7 @@ fn widget_radiobutton() {
 // ─── Test 14: widget_listbox ───────────────────────────────────
 
 #[test]
-#[ignore = "item layout + 9-slice border rendering diffs (~34%)"]
+#[ignore = "9-slice border rendering diffs (~31%)"]
 fn widget_listbox() {
     require_golden!();
     let look = Look::new();

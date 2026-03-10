@@ -2,7 +2,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::foundation::{Color, Rect};
+use crate::foundation::Rect;
 use crate::input::{InputEvent, InputKey, InputVariant};
 use crate::render::Painter;
 
@@ -531,7 +531,7 @@ impl ListBox {
             y: cy,
             w: cw,
             h: ch,
-        } = self.border.content_rect(w, h, &self.look);
+        } = self.border.content_rect_unobscured(w, h, &self.look);
 
         painter.push_state();
         painter.clip_rect(cx, cy, cw, ch);
@@ -554,6 +554,11 @@ impl ListBox {
             let item_h = row_h;
             let s = item_w.min(item_h);
 
+            // C++ DefaultItemPanel::Paint: canvasColor starts as parent canvas
+            // (InputField bg). After painting selection highlight, canvasColor
+            // changes to hlColor for selected items.
+            let mut item_canvas = self.look.input_bg_color;
+
             if item.selected {
                 let rdx = s * 0.015;
                 let rdy = s * 0.015;
@@ -566,6 +571,7 @@ impl ListBox {
                     r,
                     self.look.input_hl_color,
                 );
+                item_canvas = self.look.input_hl_color;
             }
 
             let dx = s * 0.15;
@@ -583,7 +589,7 @@ impl ListBox {
                 &item.text,
                 item_h,
                 text_color,
-                Color::TRANSPARENT,
+                item_canvas,
                 crate::render::TextAlignment::Left,
                 crate::render::VAlign::Top,
                 crate::render::TextAlignment::Left,

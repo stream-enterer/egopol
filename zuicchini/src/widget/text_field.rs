@@ -98,6 +98,9 @@ pub struct TextField {
     undo_merge: UndoMergeType,
     /// D-WIDGET-04: Drag offset for DM_MOVE (char offset from selection start).
     drag_offset: Option<usize>,
+    /// Whether this text field is in the focused panel path.
+    /// C++ only renders the cursor when focused. Default false.
+    pub focused: bool,
 }
 
 const MAX_UNDO: usize = 100;
@@ -144,6 +147,7 @@ impl TextField {
             pending_scroll_to_visible: None,
             undo_merge: UndoMergeType::NoMerge,
             drag_offset: None,
+            focused: false,
         }
     }
 
@@ -1069,8 +1073,11 @@ impl TextField {
             Color::TRANSPARENT,
         );
 
-        // Cursor
+        // Cursor — C++ only renders when panel is in focused path
         let cursor_x = tx + cursor_x_px - self.scroll_x;
+        if !self.focused {
+            return;
+        }
         if self.overwrite_mode && self.cursor < self.text.len() {
             let ch_w = effective_cw;
             painter.paint_rect(
@@ -1168,7 +1175,10 @@ impl TextField {
             byte_offset = row_byte_end + 1; // +1 for \n
         }
 
-        // Cursor
+        // Cursor — C++ only renders when panel is in focused path
+        if !self.focused {
+            return;
+        }
         let cursor_row_start = self.row_start(self.cursor);
         let cursor_in_row = &self.text[cursor_row_start..self.cursor];
         let cursor_x_px = Painter::measure_text_width(cursor_in_row, TEXT_SIZE);
