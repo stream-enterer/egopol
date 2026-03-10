@@ -1,8 +1,8 @@
 use zuicchini::input::{InputEvent, InputKey};
 use zuicchini::layout::Orientation;
 use zuicchini::widget::{
-    Button, CheckBox, ListBox, Look, RadioButton, RadioGroup, ScalarField, SelectionMode, Splitter,
-    TextField,
+    Button, CheckBox, CheckButton, ListBox, Look, RadioButton, RadioGroup, ScalarField,
+    SelectionMode, Splitter, TextField,
 };
 
 use super::common::*;
@@ -36,6 +36,35 @@ fn widget_checkbox_toggle() {
 
     let look = Look::new();
     let mut cb = CheckBox::new("Check Option", look);
+
+    // Initial state
+    assert_eq!(
+        cb.is_checked() as u8,
+        golden[0],
+        "initial checked state mismatch"
+    );
+
+    // After first click (mouse press + release = toggle)
+    cb.input(&InputEvent::press(InputKey::MouseLeft));
+    cb.input(&InputEvent::release(InputKey::MouseLeft));
+    assert_eq!(cb.is_checked() as u8, golden[1], "after 1st click mismatch");
+
+    // After second click
+    cb.input(&InputEvent::press(InputKey::MouseLeft));
+    cb.input(&InputEvent::release(InputKey::MouseLeft));
+    assert_eq!(cb.is_checked() as u8, golden[2], "after 2nd click mismatch");
+}
+
+// ─── Test 1b: widget_checkbutton_toggle ──────────────────────────
+
+#[test]
+fn widget_checkbutton_toggle() {
+    require_golden!();
+    let golden = load_widget_state_golden("widget_checkbutton_toggle");
+    assert_eq!(golden.len(), 3, "unexpected golden file size");
+
+    let look = Look::new();
+    let mut cb = CheckButton::new("Toggle Option", look);
 
     // Initial state
     assert_eq!(

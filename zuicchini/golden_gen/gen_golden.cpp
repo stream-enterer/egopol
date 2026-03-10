@@ -1685,6 +1685,35 @@ static void gen_widget_checkbox_checked() {
     render_and_dump("widget_checkbox_checked", vp, ctx);
 }
 
+// Test 9a: emCheckButton — unchecked
+static void gen_widget_checkbutton_unchecked() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+
+    auto* w = new Testable<emCheckButton>(view, "test", "Toggle Option");
+    w->DoLayout(0, 0, 1.0, 0.75);
+
+    { TerminateEngine ctrl(sched, 30); sched.Run(); }
+    render_and_dump("widget_checkbutton_unchecked", vp, ctx);
+}
+
+// Test 9b: emCheckButton — checked
+static void gen_widget_checkbutton_checked() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+
+    auto* w = new Testable<emCheckButton>(view, "test", "Toggle Option");
+    w->SetChecked(true);
+    w->DoLayout(0, 0, 1.0, 0.75);
+
+    { TerminateEngine ctrl(sched, 30); sched.Run(); }
+    render_and_dump("widget_checkbutton_checked", vp, ctx);
+}
+
 // Test 9: emTextField — empty editable field
 static void gen_widget_textfield_empty() {
     emStandardScheduler sched;
@@ -1841,6 +1870,28 @@ static void gen_widget_checkbox_toggle() {
     write_u8(f, cb->IsChecked() ? 1 : 0);
     fclose(f);
     printf("  widget_state/widget_checkbox_toggle\n");
+}
+
+// Test 1b: emCheckButton — Click() twice toggles checked state.
+// Golden format: [u8 initial][u8 after_click1][u8 after_click2]
+static void gen_widget_checkbutton_toggle() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, 0);
+    GoldenViewPort vp(view);
+
+    auto* cb = new Testable<emCheckButton>(view, "test", "Toggle Option");
+    cb->DoLayout(0, 0, 1.0, 0.75);
+    { TerminateEngine ctrl(sched, 30); sched.Run(); }
+
+    FILE* f = open_golden("widget_state", "widget_checkbutton_toggle", "widget_state.golden");
+    write_u8(f, cb->IsChecked() ? 1 : 0);
+    cb->Click();
+    write_u8(f, cb->IsChecked() ? 1 : 0);
+    cb->Click();
+    write_u8(f, cb->IsChecked() ? 1 : 0);
+    fclose(f);
+    printf("  widget_state/widget_checkbutton_toggle\n");
 }
 
 // Test 2: emRadioButton — switch selection in a group of 3 via Click().
@@ -3061,6 +3112,8 @@ int main() {
     gen_widget_button_normal();
     gen_widget_checkbox_unchecked();
     gen_widget_checkbox_checked();
+    gen_widget_checkbutton_unchecked();
+    gen_widget_checkbutton_checked();
     gen_widget_textfield_empty();
     gen_widget_textfield_content();
     gen_widget_scalarfield();
@@ -3072,6 +3125,7 @@ int main() {
 
     printf("Generating widget interaction golden files...\n");
     gen_widget_checkbox_toggle();
+    gen_widget_checkbutton_toggle();
     gen_widget_radiobutton_switch();
     gen_widget_listbox_select();
     gen_widget_splitter_setpos();
