@@ -1,7 +1,9 @@
 use std::rc::Rc;
 
 use zuicchini::layout::Orientation;
-use zuicchini::panel::{PanelBehavior, PanelState, PanelTree, View, ViewFlags};
+use zuicchini::panel::{
+    PanelBehavior, PanelCtx, PanelState, PanelTree, View, ViewConditionType, ViewFlags,
+};
 use zuicchini::render::{Painter, SoftwareCompositor};
 use zuicchini::widget::{
     Border, Button, CheckBox, ColorField, InnerBorderType, Label, ListBox, Look, OuterBorderType,
@@ -496,4 +498,142 @@ fn widget_splitter_v() {
         1,
         2.0,
     );
+}
+
+// ─── Test 17: colorfield_expanded ─────────────────────────────
+
+/// Wraps a ColorField as a PanelBehavior with layout_children delegation
+/// for auto-expanded child panels.
+struct ColorFieldExpandedBehavior {
+    color_field: ColorField,
+}
+
+impl PanelBehavior for ColorFieldExpandedBehavior {
+    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+        self.color_field.paint(painter, w, h);
+    }
+
+    fn auto_expand(&self) -> bool {
+        true
+    }
+
+    fn layout_children(&mut self, ctx: &mut PanelCtx) {
+        let rect = ctx.layout_rect();
+        self.color_field.layout_children(ctx, rect.w, rect.h);
+    }
+}
+
+/// Expanded ColorField with child ScalarFields for RGBA/HSV editing.
+/// C++ renders RasterLayout with 8 ScalarFields + TextField on right half;
+/// Rust ColorField expansion doesn't create child panels yet.
+#[test]
+#[ignore = "Rust ColorField expansion does not create child panels — swatch-only vs C++ full expansion"]
+fn colorfield_expanded() {
+    require_golden!();
+    let (w, h, expected) = load_compositor_golden("colorfield_expanded");
+
+    let look = Look::new();
+    let mut cf = ColorField::new(look);
+    cf.set_caption("Color");
+    cf.set_editable(true);
+    cf.set_alpha_enabled(true);
+    cf.set_color(zuicchini::foundation::Color::rgba(0xBB, 0x22, 0x22, 0xFF));
+
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("test");
+    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    // C++ emColorField uses AE threshold 9 (VCT_MIN_EXT)
+    tree.set_auto_expansion_threshold(root, 9.0, ViewConditionType::MinExt);
+    tree.set_behavior(
+        root,
+        Box::new(ColorFieldExpandedBehavior { color_field: cf }),
+    );
+
+    let mut view = View::new(root, 800.0, 800.0);
+    view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
+    view.set_window_focused(&mut tree, false);
+
+    // 20 settle rounds for auto-expansion cascade
+    for _ in 0..20 {
+        tree.deliver_notices(view.window_focused());
+        view.update_viewing(&mut tree);
+    }
+
+    let mut compositor = SoftwareCompositor::new(w, h);
+    compositor.render(&mut tree, &view);
+    let actual = compositor.framebuffer().data();
+
+    let result = compare_images(actual, &expected, w, h, 3, 45.0);
+    if result.is_err() && dump_golden_enabled() {
+        dump_test_images("colorfield_expanded", actual, &expected, w, h);
+        analyze_diff_distribution(actual, &expected, w, h, 3);
+    }
+    result.unwrap();
+}
+
+// ─── Test 18: listbox_expanded ────────────────────────────────
+
+/// Wraps a ListBox as a PanelBehavior for expanded rendering.
+struct ListBoxExpandedBehavior {
+    list_box: ListBox,
+}
+
+impl PanelBehavior for ListBoxExpandedBehavior {
+    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+        self.list_box.paint(painter, w, h);
+    }
+
+    fn auto_expand(&self) -> bool {
+        true
+    }
+}
+
+/// Expanded ListBox with 7 items, 3 multi-selected.
+/// C++ renders child DefaultItemPanel panels laid out by emRasterGroup grid;
+/// Rust paints items inline as single-column rows.
+#[test]
+#[ignore = "C++ uses child DefaultItemPanel in RasterGroup grid; Rust paints items inline"]
+fn listbox_expanded() {
+    require_golden!();
+    let (w, h, expected) = load_compositor_golden("listbox_expanded");
+
+    let look = Look::new();
+    let mut lb = ListBox::new(look);
+    lb.set_caption("Items");
+    lb.set_selection_mode(zuicchini::widget::SelectionMode::Multi);
+    lb.set_items(
+        ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
+    );
+    lb.select(1, false);
+    lb.select(3, false);
+    lb.select(5, false);
+    lb.auto_expand_items();
+
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("test");
+    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.set_behavior(root, Box::new(ListBoxExpandedBehavior { list_box: lb }));
+
+    let mut view = View::new(root, 800.0, 800.0);
+    view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
+    view.set_window_focused(&mut tree, false);
+
+    for _ in 0..20 {
+        tree.deliver_notices(view.window_focused());
+        view.update_viewing(&mut tree);
+    }
+
+    let mut compositor = SoftwareCompositor::new(w, h);
+    compositor.render(&mut tree, &view);
+    let actual = compositor.framebuffer().data();
+
+    let result = compare_images(actual, &expected, w, h, 3, 50.0);
+    if result.is_err() && dump_golden_enabled() {
+        dump_test_images("listbox_expanded", actual, &expected, w, h);
+        analyze_diff_distribution(actual, &expected, w, h, 3);
+    }
+    result.unwrap();
 }

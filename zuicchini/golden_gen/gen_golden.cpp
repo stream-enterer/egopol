@@ -3782,6 +3782,174 @@ static void gen_testpanel_expanded() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// Splitter drag + layout — numeric test of child rects after position changes
+// ═══════════════════════════════════════════════════════════════════
+
+// Golden format: [u32 step_count] then per step:
+//   [f64 position][f64 c0_x][f64 c0_y][f64 c0_w][f64 c0_h]
+//                 [f64 c1_x][f64 c1_y][f64 c1_w][f64 c1_h]
+// = 9 f64 per step
+
+static void dump_splitter_step(FILE* f, emSplitter* sp, emPanel* c0, emPanel* c1) {
+    write_f64(f, sp->GetPos());
+    write_f64(f, c0->GetLayoutX());
+    write_f64(f, c0->GetLayoutY());
+    write_f64(f, c0->GetLayoutWidth());
+    write_f64(f, c0->GetLayoutHeight());
+    write_f64(f, c1->GetLayoutX());
+    write_f64(f, c1->GetLayoutY());
+    write_f64(f, c1->GetLayoutWidth());
+    write_f64(f, c1->GetLayoutHeight());
+}
+
+static void gen_splitter_layout_h() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+
+    // Horizontal splitter, range [0,1], initial pos=0.5, no border decoration
+    auto* sp = new Testable<emSplitter>(view, "test", "", "", emImage(),
+                                        false, 0.0, 1.0, 0.5);
+    sp->SetBorderType(emBorder::OBT_NONE, emBorder::IBT_NONE);
+    sp->DoLayout(0, 0, 1.0, 0.75);
+
+    // Two simple child panels
+    auto* c0 = new PaintingPanel(sp, "left", emColor(0xFF000080));
+    auto* c1 = new PaintingPanel(sp, "right", emColor(0x0000FF80));
+
+    { TerminateEngine ctrl(sched, 30); sched.Run(); }
+
+    FILE* f = open_golden("widget_state", "splitter_layout_h", "widget_state.golden");
+    uint32_t steps = 4;
+    write_u32(f, steps);
+
+    // Step 0: initial position 0.5
+    dump_splitter_step(f, sp, c0, c1);
+
+    // Step 1: drag to 0.3
+    sp->SetPos(0.3);
+    { TerminateEngine ctrl(sched, 5); sched.Run(); }
+    dump_splitter_step(f, sp, c0, c1);
+
+    // Step 2: drag to 0.8
+    sp->SetPos(0.8);
+    { TerminateEngine ctrl(sched, 5); sched.Run(); }
+    dump_splitter_step(f, sp, c0, c1);
+
+    // Step 3: drag past max — should clamp to 1.0
+    sp->SetPos(1.5);
+    { TerminateEngine ctrl(sched, 5); sched.Run(); }
+    dump_splitter_step(f, sp, c0, c1);
+
+    fclose(f);
+    printf("  widget_state/splitter_layout_h\n");
+}
+
+static void gen_splitter_layout_v() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+
+    // Vertical splitter, range [0,1], initial pos=0.5, no border decoration
+    auto* sp = new Testable<emSplitter>(view, "test", "", "", emImage(),
+                                        true, 0.0, 1.0, 0.5);
+    sp->SetBorderType(emBorder::OBT_NONE, emBorder::IBT_NONE);
+    sp->DoLayout(0, 0, 1.0, 1.0);
+
+    auto* c0 = new PaintingPanel(sp, "top", emColor(0xFF000080));
+    auto* c1 = new PaintingPanel(sp, "bottom", emColor(0x0000FF80));
+
+    { TerminateEngine ctrl(sched, 30); sched.Run(); }
+
+    FILE* f = open_golden("widget_state", "splitter_layout_v", "widget_state.golden");
+    uint32_t steps = 4;
+    write_u32(f, steps);
+
+    // Step 0: initial position 0.5
+    dump_splitter_step(f, sp, c0, c1);
+
+    // Step 1: drag to 0.2
+    sp->SetPos(0.2);
+    { TerminateEngine ctrl(sched, 5); sched.Run(); }
+    dump_splitter_step(f, sp, c0, c1);
+
+    // Step 2: drag to 0.7
+    sp->SetPos(0.7);
+    { TerminateEngine ctrl(sched, 5); sched.Run(); }
+    dump_splitter_step(f, sp, c0, c1);
+
+    // Step 3: drag to 0.0 — minimum
+    sp->SetPos(0.0);
+    { TerminateEngine ctrl(sched, 5); sched.Run(); }
+    dump_splitter_step(f, sp, c0, c1);
+
+    fclose(f);
+    printf("  widget_state/splitter_layout_v\n");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ListBox expanded — renders expanded ListBox with multi-selected items
+// ═══════════════════════════════════════════════════════════════════
+
+static void gen_listbox_expanded() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    StubClipboard::Setup(ctx);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+    vp.DoSetViewGeometry(0, 0, 800, 800, 1.0);
+
+    // Multi-selection ListBox with 7 items, 3 selected.
+    // Default AE threshold 150 (VCT_AREA). At 800x800 with layout 1.0x1.0,
+    // area = 640000 >> 150, so auto-expansion triggers and creates item panels.
+    auto* w = new Testable<emListBox>(view, "test", "Items");
+    w->SetSelectionType(emListBox::MULTI_SELECTION);
+    w->AddItem("item0", "Alpha");
+    w->AddItem("item1", "Beta");
+    w->AddItem("item2", "Gamma");
+    w->AddItem("item3", "Delta");
+    w->AddItem("item4", "Epsilon");
+    w->AddItem("item5", "Zeta");
+    w->AddItem("item6", "Eta");
+    w->Select(1, false);
+    w->Select(3, false);
+    w->Select(5, false);
+    w->DoLayout(0, 0, 1.0, 1.0);
+
+    // 200 cycles for auto-expansion + item panel creation
+    { TerminateEngine ctrl(sched, 200); sched.Run(); }
+    render_and_dump_sized("listbox_expanded", vp, ctx, 800, 800);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ColorField expanded — renders expanded ColorField with child ScalarFields
+// ═══════════════════════════════════════════════════════════════════
+
+static void gen_colorfield_expanded() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    StubClipboard::Setup(ctx);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+    vp.DoSetViewGeometry(0, 0, 800, 800, 1.0);
+
+    // Editable ColorField with alpha, red color.
+    // C++ AE threshold is 9 (VCT_MIN_EXT). At 800x800 with layout 1.0x1.0,
+    // min_ext = 800 >> 9, so auto-expansion triggers.
+    auto* w = new Testable<emColorField>(view, "test", "Color",
+        "Test color field", emImage(), emColor(0xBB, 0x22, 0x22, 0xFF));
+    w->SetEditable(true);
+    w->SetAlphaEnabled(true);
+    w->DoLayout(0, 0, 1.0, 1.0);
+
+    // 200 cycles: auto-expansion creates RasterLayout + 8 child panels
+    { TerminateEngine ctrl(sched, 200); sched.Run(); }
+    render_and_dump_sized("colorfield_expanded", vp, ctx, 800, 800);
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Main
 // ═══════════════════════════════════════════════════════════════════
 
@@ -3985,6 +4153,14 @@ int main() {
     gen_filter_keyboard_scroll();
     gen_filter_keyboard_zoom();
     gen_filter_keyboard_release();
+
+    printf("Generating splitter layout golden files...\n");
+    gen_splitter_layout_h();
+    gen_splitter_layout_v();
+
+    printf("Generating expanded widget golden files...\n");
+    gen_listbox_expanded();
+    gen_colorfield_expanded();
 
     printf("Generating TestPanel integration golden files...\n");
     gen_testpanel_root();
