@@ -175,7 +175,7 @@ fn render_and_compare_tol(
 fn widget_border_rect() {
     require_golden!();
     let look = Look::new();
-    // Residual from text rendering + 9-slice interpolation rounding (~1.5%)
+    // Residual from 9-slice section boundary rounding (~1.5%)
     render_and_compare_tol(
         "widget_border_rect",
         Box::new(BorderBehavior::new(
@@ -195,7 +195,7 @@ fn widget_border_rect() {
 fn widget_border_round_rect() {
     require_golden!();
     let look = Look::new();
-    // Residual from text rendering + 9-slice interpolation rounding (~2.1%)
+    // Residual from 9-slice section boundary rounding (~2.1%)
     render_and_compare_tol(
         "widget_border_round_rect",
         Box::new(
@@ -218,7 +218,7 @@ fn widget_border_round_rect() {
 fn widget_border_group() {
     require_golden!();
     let look = Look::new();
-    // Residual from text rendering + 9-slice interpolation rounding (~3.6%)
+    // Residual from 9-slice section boundary rounding (~3.6%)
     render_and_compare_tol(
         "widget_border_group",
         Box::new(BorderBehavior::new(
@@ -238,7 +238,7 @@ fn widget_border_group() {
 fn widget_border_instrument() {
     require_golden!();
     let look = Look::new();
-    // Residual from text rendering + 9-slice interpolation rounding (~7.7%)
+    // Residual from 9-slice section boundary rounding (~7.7%)
     render_and_compare_tol(
         "widget_border_instrument",
         Box::new(BorderBehavior::new(
@@ -287,7 +287,7 @@ fn widget_button_normal() {
 fn widget_checkbox_unchecked() {
     require_golden!();
     let look = Look::new();
-    // Residual from checkbox image + text rendering diffs (~5.2%)
+    // Residual from checkbox image 9-slice section boundary rounding (~5.2%)
     render_and_compare_tol(
         "widget_checkbox_unchecked",
         Box::new(CheckBoxBehavior {

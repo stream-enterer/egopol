@@ -98,22 +98,33 @@
 
 - id: DIV-005
   area: painter/image-scaling
+  kind: bug-fixed
+  tests: [image_scaled]
+  status: passing
+  analysis: tests/golden_parity/PARITY_STATUS.md section C5
+  notes: >
+    Was: f64 coordinate mapping and weight extraction vs C++ 24-bit fixed-point
+    integer arithmetic. Fixed by porting to ScaleTransform24 + _fp sampling
+    functions (sample_bilinear_premul_fp, sample_bicubic_premul_fp) that match
+    C++ TDX/TDY/TX/TY computation and ((frac + 0x7FFF) >> 16) weight bias+shift.
+    Residual image_scaled divergence reclassified as DIV-024 (boundary premul).
+
+- id: DIV-024
+  area: painter/image-boundary-premul
   kind: expected-divergence
   tests: [image_scaled]
   status: passing
   evidence:
     image_scaled: { ch_tol: 19, max_pct: 0.5, max_diff: 19, pct_differ_at_1: 4.79 }
-  source: [src/render/painter.rs (paint_image_full, paint_9slice_section, scale_transform_24), src/render/interpolation.rs (ScaleTransform24, sample_bilinear_premul_fp, sample_bicubic_premul_fp)]
+  source: [src/render/interpolation.rs (sample_bicubic_premul_fp)]
   analysis: tests/golden_parity/PARITY_STATUS.md section C5
   notes: >
-    Coordinate mapping and weight extraction now use C++ 24-bit fixed-point
-    arithmetic (ScaleTransform24 + _fp sampling functions). The remaining
-    max_diff=19 comes from EXTEND_ZERO boundary premul amplification:
-    bicubic kernel taps outside the image return alpha=0, and the premul
-    unpremultiply amplifies small alpha-weighted color differences at edges.
-    Interior pixels match at tolerance 1. This still drives widget rendering
-    diffs via PaintBorderImage 9-slice, but the coordinate mapping formula
-    is now identical to C++ (TDX/TDY/TX/TY computation, weight bias+shift).
+    Bicubic kernel taps outside the image return alpha=0 with EXTEND_ZERO
+    (used for RGBA images in paint_image_full). The premul accumulation then
+    unpremultiply step amplifies small alpha-weighted color differences at
+    image edges, producing max_diff=19. Interior pixels match at tolerance 1.
+    Only affects paint_image_full; 9-slice (paint_border_image) uses
+    ImageExtension::Clamp, which is not affected.
 
 - id: DIV-006
   area: painter/stroke-ends
@@ -216,13 +227,13 @@
     widget_border_group: { ch_tol: 1, max_pct: 4.0, approx_diff: "~3.6%" }
     widget_border_instrument: { ch_tol: 1, max_pct: 8.0, approx_diff: "~7.7%" }
   source: [src/widget/border.rs]
-  related: [DIV-005]
   notes: >
-    Border widgets use PaintBorderImage to render 9-slice regions, which internally
-    calls image scaling (DIV-005). The escalation across border types (1.5% → 7.7%)
-    reflects different 9-slice image proportions: OBT_INSTRUMENT has larger scaled
-    regions relative to widget area than OBT_RECT. Text label rendering contributes
-    a small additional diff from font rasterization differences.
+    Border widgets use PaintBorderImage to render 9-slice regions. Per-pixel
+    interpolation now matches C++ (DIV-005 fixed), but 9-slice section boundary
+    computation and pixel rect rounding still produce bilinear input differences.
+    The escalation across border types (1.5% → 7.7%) reflects different 9-slice
+    image proportions: OBT_INSTRUMENT has larger scaled regions relative to
+    widget area than OBT_RECT.
 
 - id: DIV-014
   area: widget/checkbox
@@ -233,12 +244,11 @@
     widget_checkbox_unchecked: { ch_tol: 1, max_pct: 6.0, approx_diff: "~5.2%" }
     widget_checkbox_checked: { ch_tol: 1, max_pct: 6.0, approx_diff: "~5.5%" }
   source: [src/widget/check_box.rs]
-  related: [DIV-005]
   notes: >
     The check/uncheck indicator is a small image painted via PaintBorderImage
-    (9-slice scaling, DIV-005). Text label adds minor font rasterization diff.
-    Higher than border-only widgets because the indicator image is scaled at a
-    different ratio than border regions.
+    (9-slice scaling). Higher than border-only widgets because the indicator
+    image is scaled at a different ratio than border regions, amplifying
+    section boundary rounding differences.
 
 - id: DIV-015
   area: widget/textfield
@@ -249,12 +259,11 @@
     widget_textfield_empty: { ch_tol: 3, max_pct: 24.5, approx_diff: "~24%" }
     widget_textfield_content: { ch_tol: 3, max_pct: 27.0, approx_diff: "~27%" }
   source: [src/widget/text_field.rs]
-  related: [DIV-005]
   notes: >
     24-27% diff vs ~1.5-7.7% for border-only widgets (DIV-013) because textfield
     uses IBT_INPUT border type, which has thicker 9-slice frame regions that cover
-    a larger fraction of the widget area. More scaled-image pixels means more pixels
-    hit by the interpolation filter difference (DIV-005).
+    a larger fraction of the widget area. More scaled-image pixels means more
+    pixels affected by section boundary rounding differences.
 
 - id: DIV-016
   area: widget/scalarfield
@@ -264,11 +273,10 @@
   evidence:
     widget_scalarfield: { ch_tol: 3, max_pct: 26.5, approx_diff: "~26%" }
   source: [src/widget/scalar_field.rs]
-  related: [DIV-005]
   notes: >
     Same mechanism as DIV-015 (textfield): IBT_INPUT border type with thick 9-slice
     frame regions. ScalarField adds arrow button images which are also scaled via
-    PaintBorderImage, contributing additional interpolation diff.
+    PaintBorderImage, contributing additional section boundary rounding diff.
 
 - id: DIV-017
   area: widget/splitter-rendering
@@ -279,12 +287,10 @@
     widget_splitter_h: { ch_tol: 1, max_pct: 1.0, approx_diff: "~0.9%" }
     widget_splitter_v: { ch_tol: 1, max_pct: 2.0, approx_diff: "~1.7%" }
   source: [src/widget/splitter.rs]
-  related: [DIV-005]
   notes: >
     Low diff (~1-2%) because splitter has minimal 9-slice area (just the grip bar).
-    The grip bar overlay image is painted via PaintBorderImage (DIV-005). Small
-    additional diff from grip rect position rounding (grip size = GRIP_FRACTION *
-    dimension).
+    The grip bar overlay image is painted via PaintBorderImage. Small additional
+    diff from grip rect position rounding (grip size = GRIP_FRACTION * dimension).
 
 - id: DIV-018
   area: widget/button
@@ -294,12 +300,12 @@
   evidence:
     widget_button_normal: { approx_diff: "~60%" }
   source: [src/widget/button.rs]
-  related: [DIV-005]
   notes: >
     Button renders an overlay face texture via PaintBorderImage that covers nearly
     the entire widget area. Unlike border-only widgets where 9-slice covers just the
-    frame, the button face is a full-coverage scaled image. This amplifies DIV-005's
-    per-pixel interpolation diff from ~1-7% (frame-only) to ~60% (full area).
+    frame, the button face is a full-coverage scaled image. This amplifies
+    9-slice section boundary rounding diffs from ~1-7% (frame-only) to ~60%
+    (full area). Evidence numbers predate DIV-005 fix; not yet re-measured.
 
 - id: DIV-019
   area: widget/radiobutton
@@ -309,11 +315,11 @@
   evidence:
     widget_radiobutton: { approx_diff: "~57%" }
   source: [src/widget/radio_button.rs]
-  related: [DIV-005]
   notes: >
     Same mechanism as DIV-018 (button): radiobutton renders an overlay face texture
-    via PaintBorderImage covering nearly the entire widget area, amplifying DIV-005's
-    interpolation filter diff to ~57%.
+    via PaintBorderImage covering nearly the entire widget area, amplifying
+    9-slice section boundary rounding diffs to ~57%. Evidence numbers predate
+    DIV-005 fix; not yet re-measured.
 
 - id: DIV-020
   area: widget/colorfield-rendering
@@ -323,13 +329,14 @@
   evidence:
     widget_colorfield: { approx_diff: "~33%" }
   source: [src/widget/color_field.rs]
-  related: [DIV-005, GAP-001]
+  related: [GAP-001]
   notes: >
-    Two independent sources: (1) 9-slice border frame diffs from DIV-005, contributing
-    roughly the same ~24% as other IBT_INPUT widgets (DIV-015/016), and (2) GAP-001
-    missing child panels, which means the right half of the expanded view is blank in
-    Rust but populated with ScalarFields in C++. The GAP-001 contribution accounts for
-    the additional ~9% above the border-only baseline.
+    Two independent sources: (1) 9-slice border frame section boundary rounding
+    diffs, contributing roughly the same ~24% as other IBT_INPUT widgets
+    (DIV-015/016), and (2) GAP-001 missing child panels, which means the right
+    half of the expanded view is blank in Rust but populated with ScalarFields
+    in C++. The GAP-001 contribution accounts for the additional ~9% above the
+    border-only baseline.
 
 - id: DIV-021
   area: widget/listbox-rendering
@@ -339,13 +346,13 @@
   evidence:
     widget_listbox: { approx_diff: "~31%" }
   source: [src/widget/list_box.rs]
-  related: [DIV-005, GAP-002]
+  related: [GAP-002]
   notes: >
-    Two independent sources: (1) 9-slice border frame diffs from DIV-005, and (2)
-    GAP-002's architectural difference where C++ renders items as child panels in a
-    multi-column RasterGroup grid while Rust paints items inline as single-column
-    rows. The layout difference means item positions, sizes, and clipping all differ,
-    contributing most of the ~31% diff.
+    Two independent sources: (1) 9-slice border frame section boundary rounding
+    diffs, and (2) GAP-002's architectural difference where C++ renders items as
+    child panels in a multi-column RasterGroup grid while Rust paints items inline
+    as single-column rows. The layout difference means item positions, sizes, and
+    clipping all differ, contributing most of the ~31% diff.
 
 # ═══════════════════════════════════════════════════════════════════
 # INTEGRATION — Compound divergences
@@ -359,13 +366,13 @@
   evidence:
     testpanel_root: { ch_tol: 3, max_pct: 15.0, approx_diff: "13.78%" }
   source: [src/widget/test_panel.rs]
-  related: [DIV-005, DIV-001, DIV-002, DIV-003, DIV-008]
+  related: [DIV-001, DIV-002, DIV-003, DIV-008]
   notes: >
     Compound integration test rendering the full TestPanel root view. The 13.78%
-    diff accumulates from multiple painter-level divergences: 9-slice border
-    interpolation (DIV-005) on widget borders, ellipse polygon approximation
-    (DIV-001) on test shapes, scanline AA (DIV-002) on polygon edges, stroke
-    expansion (DIV-003) on outlined shapes, and gradient rounding (DIV-008).
+    diff accumulates from multiple painter-level divergences: ellipse polygon
+    approximation (DIV-001) on test shapes, scanline AA (DIV-002) on polygon
+    edges, stroke expansion (DIV-003) on outlined shapes, gradient rounding
+    (DIV-008), and 9-slice section boundary rounding on widget borders.
     No single source dominates — the test exercises most painter code paths.
 
 # ═══════════════════════════════════════════════════════════════════
@@ -491,9 +498,9 @@
 # SUMMARY STATISTICS
 # ═══════════════════════════════════════════════════════════════════
 #
-# Total entries:       33
-#   expected-divergence: 20 (DIV-001..009, DIV-013..023)
-#   bug-fixed:           3  (DIV-010, DIV-011, DIV-012)
+# Total entries:       34
+#   expected-divergence: 20 (DIV-001..004, DIV-006..009, DIV-013..024)
+#   bug-fixed:           4  (DIV-005, DIV-010, DIV-011, DIV-012)
 #   missing-impl:        6  (GAP-001, GAP-002, GAP-003a, GAP-003b, GAP-004, GAP-005)
 #   out-of-scope:        4  (OOS-001, OOS-002, OOS-003, GAP-003c)
 #
