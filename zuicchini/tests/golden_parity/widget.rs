@@ -527,16 +527,18 @@ impl PanelBehavior for ColorFieldExpandedBehavior {
     }
 
     fn layout_children(&mut self, ctx: &mut PanelCtx) {
+        // Create expansion children on first layout call (triggered by auto-expand).
+        if ctx.children().is_empty() {
+            self.color_field.create_expansion_children(ctx);
+        }
         let rect = ctx.layout_rect();
         self.color_field.layout_children(ctx, rect.w, rect.h);
     }
 }
 
 /// Expanded ColorField with child ScalarFields for RGBA/HSV editing.
-/// C++ renders RasterLayout with 8 ScalarFields + TextField on right half;
-/// Rust ColorField expansion doesn't create child panels yet.
+/// C++ renders RasterLayout with 8 ScalarFields + TextField on right half.
 #[test]
-#[ignore = "Rust ColorField expansion does not create child panels — swatch-only vs C++ full expansion"]
 fn colorfield_expanded() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("colorfield_expanded");
@@ -595,13 +597,20 @@ impl PanelBehavior for ListBoxExpandedBehavior {
     fn auto_expand(&self) -> bool {
         true
     }
+
+    fn layout_children(&mut self, ctx: &mut PanelCtx) {
+        // Create item child panels on first layout call.
+        if ctx.children().is_empty() {
+            self.list_box.create_item_children(ctx);
+        }
+        let rect = ctx.layout_rect();
+        self.list_box.layout_item_children(ctx, rect.w, rect.h);
+    }
 }
 
 /// Expanded ListBox with 7 items, 3 multi-selected.
-/// C++ renders child DefaultItemPanel panels laid out by emRasterGroup grid;
-/// Rust paints items inline as single-column rows.
+/// C++ renders child DefaultItemPanel panels laid out by emRasterGroup grid.
 #[test]
-#[ignore = "C++ uses child DefaultItemPanel in RasterGroup grid; Rust paints items inline"]
 fn listbox_expanded() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("listbox_expanded");

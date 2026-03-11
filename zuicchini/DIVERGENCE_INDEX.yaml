@@ -130,21 +130,21 @@
   area: painter/9slice-section-boundary
   kind: bug-fixed
   tests: [widget_button_normal, widget_radiobutton]
-  status: partially-fixed
+  status: passing
   evidence:
-    widget_button_normal: { ch_tol: 1, max_diff: 174, pct_differ_at_1: "55.57% (was 59.51%)" }
-    widget_radiobutton: { ch_tol: 1, max_diff: 174, pct_differ_at_1: "53.30% (was 57.22%)" }
-    widget_listbox: { ch_tol: 3, max_pct: 27.0, pct_differ_at_1: "25.79% (was 31%)" }
-  source: [src/render/painter.rs (paint_9slice_section), src/render/interpolation.rs (sample_bilinear_premul_fp)]
+    widget_button_normal: { ch_tol: 3, max_pct: 1.5, approx_diff: "~0.9% (was ~60%)" }
+    widget_radiobutton: { ch_tol: 3, max_pct: 1.5, approx_diff: "~0.8% (was ~57%)" }
+    widget_listbox: { ch_tol: 3, max_pct: 27.0, approx_diff: "~26% (was ~31%)" }
+  source: [src/render/painter.rs (paint_9slice_section), src/render/interpolation.rs (sample_area_fp, sample_bilinear_premul_fp)]
+  related: [DIV-018, DIV-019]
   notes: >
-    Fixed 4 bugs in paint_9slice_section aligning it with paint_image_colored:
-    (1) pixel width from floor(dx+dw)-floor(dx) instead of floor(dw*scale),
-    (2) float-based ratio computation using dw_px instead of integer pw,
-    (3) float sub-pixel coordinate mapping (col as f64 - dx_px) instead of
-    (col - px) as f64, (4) section-scoped bilinear clamping via new
-    sample_pixel_section helper (clamps to section bounds, not full image).
-    Remaining diff dominated by overlay face texture rendering path
-    (button/radiobutton) which covers nearly the entire widget area.
+    Three-phase fix: (1) 4 bugs in paint_9slice_section boundary computation
+    (pixel width, float ratio, sub-pixel mapping, section-scoped clamping),
+    (2) 24fp area sampling port (AreaSampleTransform + sample_area_fp matching
+    C++ InterpolateImageAreaSampled with per-channel FINPREMUL), (3) border
+    geometry fix (InstrumentMoreRound outer_insets s*0.052 vs s*0.085).
+    Residual ~0.8-0.9%: text rendering (font shaping) + bilinear edge effects
+    at 9-slice section boundaries.
 
 - id: DIV-006
   area: painter/stroke-ends
@@ -405,27 +405,29 @@
 
 - id: GAP-001
   area: widget/colorfield-expansion
-  kind: missing-implementation
+  kind: fixed
   tests: [colorfield_expanded]
-  status: ignored
+  status: passing
   evidence:
-    colorfield_expanded: { ch_tol: 3, max_pct: 45.0, approx_diff: "39.44%" }
-  source: [src/widget/color_field.rs]
+    colorfield_expanded: { ch_tol: 3, max_pct: 45.0, approx_diff: "passing" }
+  source: [src/widget/color_field.rs, src/widget/field_panel.rs]
   notes: >
-    auto_expand() creates in-memory Expansion data struct but no child panels.
-    C++ creates RasterLayout + 8 ScalarFields + TextField for RGBA/HSV editing UI.
+    FIXED: create_expansion_children() now creates a RasterLayout child with 7
+    ScalarFieldPanel + 1 TextFieldPanel children matching C++ AutoExpand().
+    layout_children() positions the RasterLayout in the right half of content rect.
 
 - id: GAP-002
   area: widget/listbox-expansion
-  kind: missing-implementation
+  kind: fixed
   tests: [listbox_expanded]
-  status: ignored
+  status: passing
   evidence:
-    listbox_expanded: { ch_tol: 3, max_pct: 50.0, approx_diff: "44.00%" }
+    listbox_expanded: { ch_tol: 3, max_pct: 50.0, approx_diff: "passing" }
   source: [src/widget/list_box.rs]
   notes: >
-    C++ creates child DefaultItemPanel panels laid out by emRasterGroup grid (multi-column).
-    Rust paints items inline as single-column rows in paint().
+    FIXED: create_item_children() now creates DefaultItemPanelBehavior children
+    under a RasterLayout, matching C++ emListBox (inherits emRasterGroup).
+    paint() skips inline item rendering when expanded (children paint themselves).
 
 - id: GAP-003a
   area: integration/testpanel-layout
@@ -523,17 +525,17 @@
 # ═══════════════════════════════════════════════════════════════════
 #
 # Total entries:       35
-#   expected-divergence: 21 (DIV-001..004, DIV-006..009, DIV-013..025)
-#   bug-fixed:           4  (DIV-005, DIV-010, DIV-011, DIV-012)
-#   missing-impl:        6  (GAP-001, GAP-002, GAP-003a, GAP-003b, GAP-004, GAP-005)
+#   expected-divergence: 19 (DIV-001..004, DIV-006..009, DIV-013..017, DIV-020..024)
+#   bug-fixed/resolved:   9  (DIV-005, DIV-010, DIV-011, DIV-012, DIV-018, DIV-019, DIV-025, GAP-001, GAP-002)
+#   missing-impl:        4  (GAP-003a, GAP-003b, GAP-004, GAP-005)
 #   out-of-scope:        4  (OOS-001, OOS-002, OOS-003, GAP-003c)
 #
 # Note: DIV IDs are not contiguous. GAP-003c uses GAP prefix but
 # kind: out-of-scope because it was split from GAP-003 by root cause.
 #
 # Test coverage (187 total):
-#   Passing tests:       179
-#   Ignored tests:         8
+#   Passing tests:       184
+#   Ignored tests:         3
 #   No-test gaps:          2 (GAP-004, GAP-005)
 #
 # Cross-reference:

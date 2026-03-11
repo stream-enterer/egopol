@@ -2,8 +2,10 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::foundation::Rect;
+use crate::foundation::{Color, Rect};
 use crate::input::{InputEvent, InputKey, InputVariant};
+use crate::layout::raster::RasterLayout;
+use crate::panel::{PanelBehavior, PanelCtx, PanelState};
 use crate::render::Painter;
 
 use super::border::{Border, InnerBorderType, OuterBorderType};
@@ -115,6 +117,76 @@ impl ItemPanelInterface for DefaultItemPanel {
 
     fn is_selected(&self) -> bool {
         self.selected
+    }
+}
+
+/// PanelBehavior implementation for DefaultItemPanel.
+///
+/// Each item becomes a real child panel in the tree, painting its own
+/// selection highlight and text. Matches C++ `emListBox::DefaultItemPanel`.
+pub(crate) struct DefaultItemPanelBehavior {
+    text: String,
+    selected: bool,
+    look: Rc<Look>,
+}
+
+impl DefaultItemPanelBehavior {
+    pub fn new(text: String, selected: bool, look: Rc<Look>) -> Self {
+        Self {
+            text,
+            selected,
+            look,
+        }
+    }
+}
+
+impl PanelBehavior for DefaultItemPanelBehavior {
+    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+        let s = w.min(h);
+        let mut item_canvas = self.look.input_bg_color;
+
+        if self.selected {
+            let rdx = s * 0.015;
+            let rdy = s * 0.015;
+            let r = s * 0.15;
+            painter.paint_round_rect(
+                rdx,
+                rdy,
+                w - 2.0 * rdx,
+                h - 2.0 * rdy,
+                r,
+                self.look.input_hl_color,
+            );
+            item_canvas = self.look.input_hl_color;
+        }
+
+        let dx = s * 0.15;
+        let dy = s * 0.03;
+        let text_color = if self.selected {
+            self.look.input_bg_color
+        } else {
+            self.look.input_fg_color
+        };
+        painter.paint_text_boxed(
+            dx,
+            dy,
+            (w - 2.0 * dx).max(0.0),
+            (h - 2.0 * dy).max(0.0),
+            &self.text,
+            h,
+            text_color,
+            item_canvas,
+            crate::render::TextAlignment::Left,
+            crate::render::VAlign::Top,
+            crate::render::TextAlignment::Left,
+            0.5,
+            true,
+            0.0,
+        );
+    }
+
+    fn canvas_color(&self) -> Color {
+        self.look.input_bg_color
     }
 }
 
@@ -744,11 +816,62 @@ impl ListBox {
         }
     }
 
+    /// Create child panels for all items and a RasterLayout to position them.
+    ///
+    /// Called when the ListBox expands. Each item becomes a
+    /// `DefaultItemPanelBehavior` child under a RasterLayout, matching C++
+    /// `emListBox` (which inherits from `emRasterGroup`).
+    pub fn create_item_children(&mut self, ctx: &mut PanelCtx) {
+        if !self.expanded {
+            self.auto_expand_items();
+        }
+
+        // Create a RasterLayout child to handle grid positioning.
+        // C++ emListBox inherits from emRasterGroup with default settings.
+        let layout = RasterLayout::new();
+        let layout_id = ctx.create_child_with("emListBox::Grid", Box::new(layout));
+
+        // Create a child panel for each item under the layout.
+        let look = self.look.clone();
+        for item in &self.items {
+            let child = ctx.tree.create_child(layout_id, &item.name);
+            ctx.tree.set_behavior(
+                child,
+                Box::new(DefaultItemPanelBehavior::new(
+                    item.text.clone(),
+                    item.selected,
+                    look.clone(),
+                )),
+            );
+        }
+    }
+
+    /// Layout the RasterLayout child that contains item panels.
+    ///
+    /// The RasterLayout fills the content rect (C++ emRasterGroup base handles
+    /// this automatically since emListBox IS a RasterGroup).
+    pub fn layout_item_children(&self, ctx: &mut PanelCtx, w: f64, h: f64) {
+        let children = ctx.children();
+        if children.is_empty() {
+            return;
+        }
+
+        // The single child is the RasterLayout grid.
+        let cr = self.border.content_rect_unobscured(w, h, &self.look);
+        ctx.layout_child(children[0], cr.x, cr.y, cr.w, cr.h);
+    }
+
     // ── Paint ───────────────────────────────────────────────────────
 
     pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
+
+        // When expanded with child panels, items are painted by their own
+        // panel behaviors — skip inline painting (border only).
+        if self.expanded {
+            return;
+        }
 
         let Rect {
             x: cx,

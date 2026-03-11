@@ -4,6 +4,7 @@ mod check_box;
 mod check_button;
 mod color_field;
 mod dialog;
+pub(crate) mod field_panel;
 mod label;
 mod list_box;
 mod look;

@@ -71,6 +71,10 @@ impl ScalarField {
         self.border.caption = caption.to_string();
     }
 
+    pub(crate) fn border_mut(&mut self) -> &mut Border {
+        &mut self.border
+    }
+
     // --- Editable ---
 
     pub fn is_editable(&self) -> bool {

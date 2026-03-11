@@ -1,11 +1,14 @@
 use std::rc::Rc;
 
-use crate::foundation::{Color, Rect};
+use crate::foundation::Color;
 use crate::input::{InputEvent, InputKey, InputVariant};
+use crate::layout::raster::RasterLayout;
+use crate::layout::{Alignment, Spacing};
 use crate::panel::PanelCtx;
 use crate::render::Painter;
 
 use super::border::{Border, InnerBorderType, OuterBorderType};
+use super::field_panel::{ScalarFieldPanel, TextFieldPanel};
 use super::look::Look;
 
 /// Expansion child panels for color editing.
@@ -372,30 +375,122 @@ impl ColorField {
         }
     }
 
-    /// Layout child scalar fields for R, G, B, A editing when expanded.
+    /// Create expansion child panels matching C++ `emColorField::AutoExpand()`.
+    ///
+    /// Creates a `RasterLayout` child ("emColorField::InnerStuff") with
+    /// `fixed_columns=2`, `preferred_child_tallness=0.2`, `alignment=End`,
+    /// and `spacing=(0.08, 0.2, 0.04, 0.1)`. Under it, 7 ScalarField panels
+    /// (r, g, b, a, h, s, v) and 1 TextField panel (n).
+    pub fn create_expansion_children(&mut self, ctx: &mut PanelCtx) {
+        if !self.expanded {
+            self.auto_expand();
+            self.expanded = true;
+        }
+        let exp = self.expansion.as_ref().expect("expansion must exist");
+
+        // Create the RasterLayout child panel.
+        let mut layout = RasterLayout::new();
+        layout.fixed_columns = Some(2);
+        layout.preferred_child_tallness = 0.2;
+        layout.alignment = Alignment::End;
+        layout.spacing = Spacing {
+            margin_left: 0.08,
+            margin_top: 0.2,
+            margin_right: 0.04,
+            margin_bottom: 0.1,
+            inner_h: 0.0,
+            inner_v: 0.0,
+        };
+        let layout_id = ctx.create_child_with("emColorField::InnerStuff", Box::new(layout));
+
+        let look = self.look.clone();
+
+        // Helper: create a ScalarField child of the layout panel.
+        let create_sf = |tree: &mut crate::panel::PanelTree,
+                         parent: crate::panel::PanelId,
+                         name: &str,
+                         caption: &str,
+                         min: f64,
+                         max: f64,
+                         value: i64| {
+            let child = tree.create_child(parent, name);
+            tree.set_behavior(
+                child,
+                Box::new(ScalarFieldPanel::new(
+                    caption,
+                    min,
+                    max,
+                    value as f64,
+                    look.clone(),
+                )),
+            );
+            child
+        };
+
+        create_sf(ctx.tree, layout_id, "r", "Red", 0.0, 10000.0, exp.sf_red);
+        create_sf(
+            ctx.tree,
+            layout_id,
+            "g",
+            "Green",
+            0.0,
+            10000.0,
+            exp.sf_green,
+        );
+        create_sf(ctx.tree, layout_id, "b", "Blue", 0.0, 10000.0, exp.sf_blue);
+        create_sf(
+            ctx.tree,
+            layout_id,
+            "a",
+            "Alpha",
+            0.0,
+            10000.0,
+            exp.sf_alpha,
+        );
+        create_sf(ctx.tree, layout_id, "h", "Hue", 0.0, 36000.0, exp.sf_hue);
+        create_sf(
+            ctx.tree,
+            layout_id,
+            "s",
+            "Saturation",
+            0.0,
+            10000.0,
+            exp.sf_sat,
+        );
+        create_sf(ctx.tree, layout_id, "v", "Value", 0.0, 10000.0, exp.sf_val);
+
+        // TextField child for color name/hex.
+        let tf_child = ctx.tree.create_child(layout_id, "n");
+        ctx.tree.set_behavior(
+            tf_child,
+            Box::new(TextFieldPanel::new("Name", &exp.tf_name, look)),
+        );
+    }
+
+    /// Layout children matching C++ `emColorField::LayoutChildren()`.
+    ///
+    /// Positions the RasterLayout child in the right half of the content rect,
+    /// inset by `d = min(w,h) * 0.05`.
     pub fn layout_children(&self, ctx: &mut PanelCtx, w: f64, h: f64) {
         let children = ctx.children();
-        if !self.expanded {
-            // Hide all children
+        if children.is_empty() || !self.expanded {
             for &child in &children {
                 ctx.layout_child(child, 0.0, 0.0, 0.0, 0.0);
             }
             return;
         }
 
-        let Rect {
-            x: cx,
-            y: cy,
-            w: cw,
-            ..
-        } = self.border.content_rect(w, h, &self.look);
-        let field_h = 16.0;
-        let start_y = cy + SWATCH_SIZE + 2.0;
+        // C++ GetContentRectUnobscured then inset by d
+        let cr = self.border.content_rect_unobscured(w, h, &self.look);
+        let d = cr.w.min(cr.h) * 0.05;
+        let x = cr.x + d;
+        let y = cr.y + d;
+        let cw = (cr.w - 2.0 * d).max(0.0);
+        let ch = (cr.h - 2.0 * d).max(0.0);
 
-        // Expect 4 children (R, G, B, A scalar fields)
-        for (i, &child) in children.iter().take(4).enumerate() {
-            ctx.layout_child(child, cx, start_y + i as f64 * (field_h + 2.0), cw, field_h);
-        }
+        // Position the RasterLayout child in the right half.
+        let layout_id = children[0];
+        ctx.layout_child(layout_id, x + cw * 0.5, y, cw * 0.5, ch);
     }
 
     /// Whether this color field provides how-to help text.
