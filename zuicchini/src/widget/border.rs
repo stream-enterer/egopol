@@ -1473,12 +1473,22 @@ How to move or set the focus:\n\
             );
         }
 
-        // Inner border — content starts after the full label space (including padding)
-        let inner_x = ox;
+        // Inner border — apply minSpace (C++ DoBorder lines 983-987).
+        // C++: rndX += minSpace, rndW -= 2*minSpace, rndY += labelSpace,
+        //      rndH -= labelSpace + minSpace, rndR -= minSpace.
+        // minSpace is left+right padding; labelSpace already accounts for top;
+        // minSpace is bottom-only on the Y axis.
+        let ms = label_area_w.min(rnd_h) * self.border_scaling * self.min_space_factor();
+        let inner_x = ox + ms;
         let inner_y = oy + ls;
-        let inner_w = (w - ox * 2.0).max(0.0);
-        let inner_h = (h - oy * 2.0 - ls).max(0.0);
-        let inner_r = self.inner_radius(inner_w, inner_h);
+        let inner_w = (w - ox * 2.0 - 2.0 * ms).max(0.0);
+        let inner_h = (h - oy * 2.0 - ls - ms).max(0.0);
+        // C++ rndR = outer_radius - minSpace, then clamped up per inner type.
+        let mut inner_r = (self.outer_radius(w, h) - ms).max(0.0);
+        let type_r = self.inner_radius(inner_w, inner_h);
+        if inner_r < type_r {
+            inner_r = type_r;
+        }
 
         match self.inner {
             InnerBorderType::None => {}
@@ -1512,7 +1522,18 @@ How to move or set the focus:\n\
                     look.input_bg_color.lerp(look.bg_color, 0.80)
                 };
                 let canvas = painter.canvas_color();
-                painter.paint_round_rect(inner_x, inner_y, inner_w, inner_h, inner_r, bg);
+                // C++ insets the round rect by d = (16/216)*rndR, but paints the
+                // border image at the full substance rect (rndX,rndY,rndW,rndH).
+                let d = (16.0 / 216.0) * inner_r;
+                let tr = inner_r - d;
+                painter.paint_round_rect(
+                    inner_x + d,
+                    inner_y + d,
+                    inner_w - 2.0 * d,
+                    inner_h - 2.0 * d,
+                    tr,
+                    bg,
+                );
                 painter.set_canvas_color(bg);
                 super::toolkit_images::with_toolkit_images(|img| {
                     painter.paint_border_image(
@@ -1522,8 +1543,8 @@ How to move or set the focus:\n\
                         inner_h,
                         300.0 / 216.0 * inner_r,
                         346.0 / 216.0 * inner_r,
-                        inner_r, // C++ 216.0/216.0 = 1.0
-                        inner_r, // C++ 216.0/216.0 = 1.0
+                        inner_r,
+                        inner_r,
                         &img.io_field,
                         300,
                         346,
@@ -1543,7 +1564,16 @@ How to move or set the focus:\n\
                     look.output_bg_color.lerp(look.bg_color, 0.80)
                 };
                 let canvas = painter.canvas_color();
-                painter.paint_round_rect(inner_x, inner_y, inner_w, inner_h, inner_r, bg);
+                let d = (16.0 / 216.0) * inner_r;
+                let tr = inner_r - d;
+                painter.paint_round_rect(
+                    inner_x + d,
+                    inner_y + d,
+                    inner_w - 2.0 * d,
+                    inner_h - 2.0 * d,
+                    tr,
+                    bg,
+                );
                 painter.set_canvas_color(bg);
                 super::toolkit_images::with_toolkit_images(|img| {
                     painter.paint_border_image(
@@ -1553,8 +1583,8 @@ How to move or set the focus:\n\
                         inner_h,
                         300.0 / 216.0 * inner_r,
                         346.0 / 216.0 * inner_r,
-                        inner_r, // C++ 216.0/216.0 = 1.0
-                        inner_r, // C++ 216.0/216.0 = 1.0
+                        inner_r,
+                        inner_r,
                         &img.io_field,
                         300,
                         346,

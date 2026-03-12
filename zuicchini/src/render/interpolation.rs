@@ -525,88 +525,6 @@ fn y_accumulate_1ch(
     (fg, fg, fg, 0)
 }
 
-/// Bilinear interpolation with premultiplied alpha, 24-bit fixed-point coordinates.
-/// Matches C++ emPainter_ScTlIntImg bilinear inner loop exactly.
-///
-/// `tx`, `ty`: source position in 24fp, with method offset (-0x80_0000) already applied.
-/// `sec`: section bounds for sub-region clamping.
-pub(crate) fn sample_bilinear_premul_fp(
-    image: &Image,
-    tx: i64,
-    ty: i64,
-    sec: &SectionBounds,
-    ext: ImageExtension,
-) -> Color {
-    // Integer source position (arithmetic right shift preserves sign).
-    let iy = (ty >> 24) as i32;
-    let ix = (tx >> 24) as i32;
-
-    // Fractional part → 0–256 weight.
-    // Mask extracts low 24 bits (always non-negative after mask).
-    // +0x7FFF is C++'s half-LSB rounding bias before the >>16 reduction.
-    let oy1 = (((ty & 0xFF_FFFF) as u32) + 0x7FFF) >> 16;
-    let oy0 = 256 - oy1;
-    let ox1 = (((tx & 0xFF_FFFF) as u32) + 0x7FFF) >> 16;
-    let ox0 = 256 - ox1;
-
-    let p00 = sample_pixel_section(image, ix, iy, sec, ext);
-    let p10 = sample_pixel_section(image, ix + 1, iy, sec, ext);
-    let p01 = sample_pixel_section(image, ix, iy + 1, sec, ext);
-    let p11 = sample_pixel_section(image, ix + 1, iy + 1, sec, ext);
-
-    // Fast path: all opaque — premultiplication is identity.
-    if p00[3] == 255 && p10[3] == 255 && p01[3] == 255 && p11[3] == 255 {
-        let (ox0, ox1, oy0, oy1) = (ox0 as u64, ox1 as u64, oy0 as u64, oy1 as u64);
-        let mut result = [0u8; 4];
-        for c in 0..4 {
-            let top = p00[c] as u64 * ox0 + p10[c] as u64 * ox1;
-            let bot = p01[c] as u64 * ox0 + p11[c] as u64 * ox1;
-            result[c] = ((top * oy0 + bot * oy1 + 0x8000) >> 16) as u8;
-        }
-        return Color::rgba(result[0], result[1], result[2], result[3]);
-    }
-
-    // Premultiplied alpha path: accumulate r*a*w and a*w.
-    let (ox0, ox1, oy0, oy1) = (ox0 as u64, ox1 as u64, oy0 as u64, oy1 as u64);
-    let pixels = [p00, p10, p01, p11];
-    let weights = [ox0 * oy0, ox1 * oy0, ox0 * oy1, ox1 * oy1];
-
-    let mut pm_r = 0u64;
-    let mut pm_g = 0u64;
-    let mut pm_b = 0u64;
-    let mut pm_a = 0u64;
-
-    for (p, &w) in pixels.iter().zip(weights.iter()) {
-        let a = p[3] as u64;
-        let aw = a * w;
-        pm_r += p[0] as u64 * aw;
-        pm_g += p[1] as u64 * aw;
-        pm_b += p[2] as u64 * aw;
-        pm_a += aw;
-    }
-
-    // C++ FINPREMUL_SHR_COLOR(c, 16)
-    let final_a = ((pm_a + 0x7FFF) >> 16).min(255);
-    if final_a == 0 {
-        return Color::TRANSPARENT;
-    }
-
-    let div = 0xFF_u64 << 16;
-    let round = (div >> 1) - 1;
-    let final_r = ((pm_r + round) / div).min(final_a);
-    let final_g = ((pm_g + round) / div).min(final_a);
-    let final_b = ((pm_b + round) / div).min(final_a);
-
-    if final_a == 255 {
-        return Color::rgba(final_r as u8, final_g as u8, final_b as u8, 255);
-    }
-    let sr = (final_r * 255 / final_a).min(255) as u8;
-    let sg = (final_g * 255 / final_a).min(255) as u8;
-    let sb = (final_b * 255 / final_a).min(255) as u8;
-
-    Color::rgba(sr, sg, sb, final_a as u8)
-}
-
 /// Scaling context for area sampling.
 pub(crate) struct ScaleContext {
     pub src_w: f64,
@@ -905,6 +823,74 @@ pub(crate) fn sample_adaptive_premul_fp(
     );
 
     // WRITE_SHR_CLIP: >>20 with rounding, clamp(rgb, 0, alpha).
+    let rnd = (1i64 << 19) - 1;
+    let a = ((final_a + rnd) >> 20).clamp(0, 255);
+    let mut result = [0u8; 4];
+    for c in 0..3 {
+        let v = ((final_rgb[c] + rnd) >> 20).clamp(0, a);
+        result[c] = v as u8;
+    }
+    result[3] = a as u8;
+    result
+}
+
+/// Section-aware adaptive sampling (for 9-slice upscaling).
+/// Same as `sample_adaptive_premul_fp` but respects section bounds via
+/// `sample_pixel_section` instead of `sample_pixel`.
+pub(crate) fn sample_adaptive_premul_fp_section(
+    image: &Image,
+    tx: i64,
+    ty: i64,
+    sec: &SectionBounds,
+    ext: ImageExtension,
+) -> [u8; 4] {
+    let iy = (ty >> 24) as i32;
+    let ix = (tx >> 24) as i32;
+
+    let oy = (((ty & 0xFF_FFFF) as u32) + 0x7FFF) >> 16;
+    let ox = (((tx & 0xFF_FFFF) as u32) + 0x7FFF) >> 16;
+
+    let mut col_rgb = [[0i64; 3]; 4];
+    let mut col_a = [0i64; 4];
+
+    for col in 0..4 {
+        let mut pm = [[0i32; 4]; 4];
+        for (row, pm_row) in pm.iter_mut().enumerate() {
+            let p = sample_pixel_section(image, ix + col as i32, iy + row as i32, sec, ext);
+            let a = p[3] as i32;
+            *pm_row = [p[0] as i32 * a, p[1] as i32 * a, p[2] as i32 * a, a];
+        }
+
+        for ch in 0..3 {
+            col_rgb[col][ch] =
+                interpolate_four_values_adaptive(pm[0][ch], pm[1][ch], pm[2][ch], pm[3][ch], oy);
+        }
+        let a_interp = interpolate_four_values_adaptive(pm[0][3], pm[1][3], pm[2][3], pm[3][3], oy);
+
+        col_rgb[col][0] = (col_rgb[col][0] + 0x7f) / 0xff;
+        col_rgb[col][1] = (col_rgb[col][1] + 0x7f) / 0xff;
+        col_rgb[col][2] = (col_rgb[col][2] + 0x7f) / 0xff;
+        col_a[col] = a_interp;
+    }
+
+    let mut final_rgb = [0i64; 3];
+    for ch in 0..3 {
+        final_rgb[ch] = interpolate_four_values_adaptive(
+            col_rgb[0][ch] as i32,
+            col_rgb[1][ch] as i32,
+            col_rgb[2][ch] as i32,
+            col_rgb[3][ch] as i32,
+            ox,
+        );
+    }
+    let final_a = interpolate_four_values_adaptive(
+        col_a[0] as i32,
+        col_a[1] as i32,
+        col_a[2] as i32,
+        col_a[3] as i32,
+        ox,
+    );
+
     let rnd = (1i64 << 19) - 1;
     let a = ((final_a + rnd) >> 20).clamp(0, 255);
     let mut result = [0u8; 4];

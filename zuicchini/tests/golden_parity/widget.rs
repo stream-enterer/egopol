@@ -238,7 +238,7 @@ fn widget_border_group() {
 fn widget_border_instrument() {
     require_golden!();
     let look = Look::new();
-    // Residual from 9-slice section boundary rounding (~7.7%)
+    // Residual from 9-slice section boundary rounding (~2.6%)
     render_and_compare_tol(
         "widget_border_instrument",
         Box::new(BorderBehavior::new(
@@ -248,7 +248,7 @@ fn widget_border_instrument() {
             look,
         )),
         1,
-        8.0,
+        3.0,
     );
 }
 
@@ -326,12 +326,11 @@ fn widget_textfield_empty() {
     let mut tf = TextField::new(look);
     tf.set_caption("Name");
     tf.set_editable(true);
-    // Residual from 9-slice border interpolation + text rendering diffs (~15.7%)
     render_and_compare_tol(
         "widget_textfield_empty",
         Box::new(TextFieldBehavior { text_field: tf }),
         3,
-        16.0,
+        1.5,
     );
 }
 
@@ -345,12 +344,12 @@ fn widget_textfield_content() {
     tf.set_caption("Name");
     tf.set_editable(true);
     tf.set_text("Hello");
-    // Residual from 9-slice border interpolation + text rendering diffs (~18.9%)
+    // Residual from 9-slice border interpolation + text rendering diffs
     render_and_compare_tol(
         "widget_textfield_content",
         Box::new(TextFieldBehavior { text_field: tf }),
         3,
-        19.5,
+        5.0,
     );
 }
 
@@ -364,12 +363,12 @@ fn widget_scalarfield() {
     sf.set_caption("Value");
     sf.set_editable(true);
     sf.set_value(50.0);
-    // Residual from 9-slice border interpolation diffs (~17.7%)
+    // Residual from 9-slice border interpolation + text rendering diffs (~4.7%)
     render_and_compare_tol(
         "widget_scalarfield",
         Box::new(ScalarFieldBehavior { scalar_field: sf }),
         3,
-        18.5,
+        5.0,
     );
 }
 
@@ -428,12 +427,12 @@ fn widget_colorfield() {
     let mut cf = ColorField::new(look);
     cf.set_caption("Color");
     cf.set_color(zuicchini::foundation::Color::rgba(255, 0, 0, 255));
-    // Residual from IBT_INPUT 9-slice border + color content diffs (~25%)
+    // Residual from IBT_INPUT 9-slice border + color content diffs (~10.4%)
     render_and_compare_tol(
         "widget_colorfield",
         Box::new(ColorFieldBehavior { color_field: cf }),
         3,
-        25.5,
+        11.0,
     );
 }
 
@@ -469,12 +468,12 @@ fn widget_listbox() {
     lb.add_item("item3".to_string(), "Delta".to_string());
     lb.add_item("item4".to_string(), "Epsilon".to_string());
     lb.set_selected_index(2);
-    // Residual from 9-slice boundary + EXTEND_ZERO premul amplification (~23.2%)
+    // Residual from 9-slice boundary + text rendering + arch diff (~8.8%)
     render_and_compare_tol(
         "widget_listbox",
         Box::new(ListBoxBehavior { list_box: lb }),
         3,
-        24.0,
+        9.5,
     );
 }
 

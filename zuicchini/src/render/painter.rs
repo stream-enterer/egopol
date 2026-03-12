@@ -1148,7 +1148,7 @@ impl<'a> Painter<'a> {
         color: Color,
         _canvas_color: Color,
     ) {
-        let reduced_alpha = (color.a() as u16 * 85 / 255) as u8; // ~1/3
+        let reduced_alpha = (color.a() as u32).div_ceil(3) as u8;
         let rc = color.with_alpha(reduced_alpha);
         let mut cx = x;
         let mut run_start: Option<f64> = None;
@@ -1979,7 +1979,7 @@ impl<'a> Painter<'a> {
         let end_y = py2.min(clip_y + clip_h).min(self.target.height() as i32);
 
         // Match C++ emPainter scaling: pre-reduced area sampling for downscaling,
-        // bilinear for upscaling, nearest for 1:1.
+        // adaptive for upscaling (UQ_ADAPTIVE default).
         let ratio_x = sw / dw_px;
         let ratio_y = sh / dh_px;
         let downscaling = ratio_x > 1.0 || ratio_y > 1.0;
@@ -2045,7 +2045,8 @@ impl<'a> Painter<'a> {
                 }
             }
         } else {
-            // Upscaling or 1:1: 24-bit fixed-point bilinear matching C++ emPainter_ScTl.
+            // Upscaling or 1:1: adaptive interpolation matching C++ UQ_ADAPTIVE (default).
+            // C++ uses UQ_BY_CONFIG which defaults to UQ_ADAPTIVE on AVX2 systems.
             let sxfm = self.scale_transform_24(sw as u32, sh as u32, dx, dy, dw, dh);
             let sec = interpolation::SectionBounds {
                 ox: sx as i32,
@@ -2056,11 +2057,14 @@ impl<'a> Painter<'a> {
 
             for row in start_y..end_y {
                 for col in start_x..end_x {
-                    let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x - 0x80_0000;
-                    let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y - 0x80_0000;
-                    let color =
-                        interpolation::sample_bilinear_premul_fp(image, tx, ty, &sec, extension);
-                    self.blend_with_coverage(col, row, color, sp.coverage(col, row));
+                    // -0x180_0000 = -1.5 in 24fp: adaptive uses 4-tap kernel centered
+                    // at pixel center (same offset as paint_image_full adaptive path).
+                    let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x - 0x180_0000;
+                    let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y - 0x180_0000;
+                    let pm = interpolation::sample_adaptive_premul_fp_section(
+                        image, tx, ty, &sec, extension,
+                    );
+                    self.blend_premul_with_coverage(col, row, pm, sp.coverage(col, row));
                 }
             }
         }
