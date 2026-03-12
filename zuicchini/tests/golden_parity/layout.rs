@@ -561,7 +561,6 @@ fn layout_linear_min_cell_count() {
 // ─── Test 22: linear_min_max_tallness ──────────────────────────────
 
 #[test]
-#[ignore] // Tallness constraint redistribution differs from C++ — parity gap under investigation
 fn layout_linear_min_max_tallness() {
     require_golden!();
     let mut expected = load_layout_golden("linear_min_max_tallness");

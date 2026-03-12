@@ -144,23 +144,19 @@ impl LinearLayout {
             if horizontal {
                 let mut cw = cc.weight * force;
                 let ch = 1.0;
-                if cw > 0.0 {
-                    if ch < cw * min_ct {
-                        cw = ch / min_ct;
-                    } else if ch > cw * max_ct {
-                        cw = ch / max_ct;
-                    }
+                if ch < cw * min_ct {
+                    cw = ch / min_ct;
+                } else if ch > cw * max_ct {
+                    cw = ch / max_ct;
                 }
                 length += cw;
             } else {
                 let cw = 1.0;
                 let mut ch = cc.weight * force;
-                if ch > 0.0 {
-                    if ch < cw * min_ct {
-                        ch = cw * min_ct;
-                    } else if ch > cw * max_ct {
-                        ch = cw * max_ct;
-                    }
+                if ch < cw * min_ct {
+                    ch = cw * min_ct;
+                } else if ch > cw * max_ct {
+                    ch = cw * max_ct;
                 }
                 length += ch;
             }

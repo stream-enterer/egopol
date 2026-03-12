@@ -470,12 +470,15 @@
 
 - id: DIV-022
   area: layout/linear-min-max-tallness
-  kind: expected-divergence
+  kind: bug-fixed
   tests: [layout_linear_min_max_tallness]
-  status: ignored
+  status: passing
   evidence: {}
   source: [src/layout/linear.rs]
-  notes: Tallness constraint redistribution algorithm differs from C++.
+  notes: >
+    Pass-1 bounding box had spurious `cw > 0.0` / `ch > 0.0` guards that skipped
+    tallness clamping for negative force (over-committed expanded children). Removing
+    the guards lets the natural clamp arithmetic handle negative force correctly.
 
 # ═══════════════════════════════════════════════════════════════════
 # UNPORTED SUBSYSTEMS

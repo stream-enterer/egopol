@@ -9,13 +9,13 @@ Cargo workspace with two crates:
 ```bash
 cargo check --workspace
 cargo clippy --workspace -- -D warnings
-cargo test --workspace
+cargo-nextest ntr --workspace
 cargo run -p egopol
 ```
 
 ## Pre-commit hook
 
-Runs `cargo fmt` (auto-applied) then `clippy -D warnings` then `cargo test`.
+Runs `cargo fmt` (auto-applied) then `clippy -D warnings` then `cargo-nextest ntr`.
 Do not skip with `--no-verify`. If a commit fails, fix the cause and retry.
 
 ## Code Rules
