@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use crate::model::{ConfigError, ConfigModel, Record};
+use crate::foundation::RecStruct;
+use crate::model::{ConfigModel, RecError, Record};
 use crate::scheduler::SignalId;
 
 /// Persisted window geometry.
@@ -28,55 +29,34 @@ impl Default for WindowGeometry {
 }
 
 impl Record for WindowGeometry {
-    fn from_kdl(node: &kdl::KdlNode) -> Result<Self, ConfigError> {
-        let x = node
-            .get("x")
-            .and_then(|e| e.as_integer())
-            .map(|v| v as i32)
-            .ok_or_else(|| ConfigError::MissingField("x".into()))?;
-        let y = node
-            .get("y")
-            .and_then(|e| e.as_integer())
-            .map(|v| v as i32)
-            .ok_or_else(|| ConfigError::MissingField("y".into()))?;
-        let width = node
-            .get("width")
-            .and_then(|e| e.as_integer())
-            .map(|v| v as u32)
-            .ok_or_else(|| ConfigError::MissingField("width".into()))?;
-        let height = node
-            .get("height")
-            .and_then(|e| e.as_integer())
-            .map(|v| v as u32)
-            .ok_or_else(|| ConfigError::MissingField("height".into()))?;
-        let maximized = node
-            .get("maximized")
-            .and_then(|e| e.as_bool())
-            .unwrap_or(false);
-        let fullscreen = node
-            .get("fullscreen")
-            .and_then(|e| e.as_bool())
-            .unwrap_or(false);
-
+    fn from_rec(rec: &RecStruct) -> Result<Self, RecError> {
         Ok(Self {
-            x,
-            y,
-            width,
-            height,
-            maximized,
-            fullscreen,
+            x: rec
+                .get_int("x")
+                .ok_or_else(|| RecError::MissingField("x".into()))?,
+            y: rec
+                .get_int("y")
+                .ok_or_else(|| RecError::MissingField("y".into()))?,
+            width: rec
+                .get_int("width")
+                .ok_or_else(|| RecError::MissingField("width".into()))? as u32,
+            height: rec
+                .get_int("height")
+                .ok_or_else(|| RecError::MissingField("height".into()))? as u32,
+            maximized: rec.get_bool("maximized").unwrap_or(false),
+            fullscreen: rec.get_bool("fullscreen").unwrap_or(false),
         })
     }
 
-    fn to_kdl(&self) -> kdl::KdlNode {
-        let mut node = kdl::KdlNode::new("window-geometry");
-        node.push(kdl::KdlEntry::new_prop("x", self.x as i128));
-        node.push(kdl::KdlEntry::new_prop("y", self.y as i128));
-        node.push(kdl::KdlEntry::new_prop("width", self.width as i128));
-        node.push(kdl::KdlEntry::new_prop("height", self.height as i128));
-        node.push(kdl::KdlEntry::new_prop("maximized", self.maximized));
-        node.push(kdl::KdlEntry::new_prop("fullscreen", self.fullscreen));
-        node
+    fn to_rec(&self) -> RecStruct {
+        let mut s = RecStruct::new();
+        s.set_int("x", self.x);
+        s.set_int("y", self.y);
+        s.set_int("width", self.width as i32);
+        s.set_int("height", self.height as i32);
+        s.set_bool("maximized", self.maximized);
+        s.set_bool("fullscreen", self.fullscreen);
+        s
     }
 
     fn set_to_default(&mut self) {

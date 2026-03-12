@@ -121,10 +121,16 @@ fn file_model_too_costly() {
 }
 
 #[test]
-fn record_kdl_round_trip() {
-    use zuicchini::model::ConfigError;
+fn rec_round_trip() {
+    use zuicchini::model::RecError;
 
-    let err = ConfigError::MissingField("test".into());
-    let msg = format!("{err}");
-    assert!(msg.contains("test"));
+    let missing = RecError::MissingField("test".into());
+    assert!(format!("{missing}").contains("test"));
+
+    let invalid = RecError::InvalidValue {
+        field: "count".into(),
+        message: "must be positive".into(),
+    };
+    assert!(format!("{invalid}").contains("count"));
+    assert!(format!("{invalid}").contains("must be positive"));
 }

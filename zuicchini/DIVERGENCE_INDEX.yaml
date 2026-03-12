@@ -483,11 +483,35 @@
 
 - id: GAP-004
   area: foundation/emrec
-  kind: missing-implementation
-  tests: []
-  status: no-test
-  source: []
-  notes: emRec serialization format not ported. Blocks emRec golden test and FileModel lifecycle test.
+  kind: fixed
+  tests:
+    - foundation::em_rec::tests::scalar_round_trips
+    - foundation::em_rec::tests::nested_struct_round_trip
+    - foundation::em_rec::tests::array_round_trip
+    - foundation::em_rec::tests::union_round_trip
+    - foundation::em_rec::tests::bool_aliases
+    - foundation::em_rec::tests::case_insensitive_lookup
+    - foundation::em_rec::tests::format_header_ignored_by_parse_rec
+    - foundation::em_rec::tests::parse_rec_with_format_checks_name
+    - foundation::em_rec::tests::write_rec_with_format_round_trip
+    - foundation::em_rec::tests::double_format_no_decimal_appends_point_zero
+    - model::record::tests::rec_round_trip
+  status: passing
+  source:
+    - src/foundation/em_rec.rs
+    - src/model/record.rs
+    - src/model/config_model.rs
+    - src/window/state_saver.rs
+  notes: >
+    FIXED: Full emRec parser/writer implemented in src/foundation/em_rec.rs.
+    RecError/RecStruct/RecValue types with parse_rec/write_rec/parse_rec_with_format/
+    write_rec_with_format public API. Lexer handles all scalar types (bool yes/no,
+    int, double, quoted string, identifier), nested structs, arrays, and union variants
+    (name: value). Writer formats doubles with %.9G-equivalent (9 sig figs, .0 suffix
+    for integer-valued doubles). Optional #%rec:FormatName%# header treated as comment
+    on read; written by write_rec_with_format. KDL crate removed; ConfigModel,
+    Record trait, WindowGeometry all migrated to emRec. ConfigError replaced by
+    RecError throughout.
 
 - id: GAP-005
   area: model/filemodel-lifecycle
@@ -496,7 +520,7 @@
   status: no-test
   source: [src/model/file_model.rs]
   related: [GAP-004]
-  notes: FileModel exists but full load/ready/save/flush lifecycle untested against C++ golden. Blocked on GAP-004.
+  notes: FileModel exists but full load/ready/save/flush lifecycle untested against C++ golden. GAP-004 now resolved; GAP-005 is the remaining blocker.
 
 # ═══════════════════════════════════════════════════════════════════
 # OUT OF SCOPE
@@ -529,8 +553,8 @@
 #
 # Total entries:       35
 #   expected-divergence: 19 (DIV-001..004, DIV-006..009, DIV-013..017, DIV-020..024)
-#   bug-fixed/resolved:  11  (DIV-005, DIV-010, DIV-011, DIV-012, DIV-018, DIV-019, DIV-025, GAP-001, GAP-002, GAP-003a, GAP-003b)
-#   missing-impl:         2  (GAP-004, GAP-005)
+#   bug-fixed/resolved:  12  (DIV-005, DIV-010, DIV-011, DIV-012, DIV-018, DIV-019, DIV-025, GAP-001, GAP-002, GAP-003a, GAP-003b, GAP-004)
+#   missing-impl:         1  (GAP-005)
 #   out-of-scope:         4  (OOS-001, OOS-002, OOS-003, GAP-003c)
 #
 # Note: DIV IDs are not contiguous. GAP-003c uses GAP prefix but
@@ -539,7 +563,7 @@
 # Test coverage (187 total):
 #   Passing tests:       186
 #   Ignored tests:         1
-#   No-test gaps:          2 (GAP-004, GAP-005)
+#   No-test gaps:          1 (GAP-005)
 #
 # Cross-reference:
 #   Painter analysis:  tests/golden_parity/PARITY_STATUS.md

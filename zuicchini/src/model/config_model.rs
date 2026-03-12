@@ -1,10 +1,11 @@
 use std::path::{Path, PathBuf};
 
+use crate::foundation::{parse_rec, write_rec, RecError};
 use crate::scheduler::SignalId;
 
-use super::record::{ConfigError, Record};
+use super::record::Record;
 
-/// A configuration record backed by a file path with KDL serialization.
+/// A configuration record backed by a file path with emRec serialization.
 ///
 /// Tracks a dirty flag for unsaved changes. `load()` reads from disk,
 /// `save()` writes to disk. `load_or_install()` handles first-run by
@@ -64,53 +65,34 @@ impl<T: Record> ConfigModel<T> {
         true
     }
 
-    /// Load the configuration from disk. Parses KDL and deserializes.
-    pub fn load(&mut self) -> Result<(), ConfigError> {
-        let contents = std::fs::read_to_string(&self.path).map_err(|e| {
-            ConfigError::ParseError(format!("failed to read {}: {e}", self.path.display()))
-        })?;
-        let doc: kdl::KdlDocument = contents
-            .parse()
-            .map_err(|e| ConfigError::ParseError(format!("KDL parse error: {e}")))?;
-
-        // Look for the first node in the document
-        let node = doc
-            .nodes()
-            .first()
-            .ok_or_else(|| ConfigError::ParseError("empty KDL document".into()))?;
-
-        self.value = T::from_kdl(node)?;
+    /// Load the configuration from disk. Parses emRec and deserializes.
+    pub fn load(&mut self) -> Result<(), RecError> {
+        let contents = std::fs::read_to_string(&self.path).map_err(RecError::Io)?;
+        let rec = parse_rec(&contents)?;
+        self.value = T::from_rec(&rec)?;
         self.dirty = false;
         Ok(())
     }
 
-    /// Save the configuration to disk as KDL.
-    pub fn save(&mut self) -> Result<(), ConfigError> {
-        let node = self.value.to_kdl();
-        let mut doc = kdl::KdlDocument::new();
-        doc.nodes_mut().push(node);
-        let contents = doc.to_string();
+    /// Save the configuration to disk as emRec.
+    pub fn save(&mut self) -> Result<(), RecError> {
+        let rec = self.value.to_rec();
+        let contents = write_rec(&rec);
 
-        // Ensure parent directory exists
         if let Some(parent) = self.path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| ConfigError::ParseError(format!("failed to create dir: {e}")))?;
+            std::fs::create_dir_all(parent).map_err(RecError::Io)?;
         }
 
-        std::fs::write(&self.path, contents).map_err(|e| {
-            ConfigError::ParseError(format!("failed to write {}: {e}", self.path.display()))
-        })?;
-
+        std::fs::write(&self.path, contents).map_err(RecError::Io)?;
         self.dirty = false;
         Ok(())
     }
 
     /// Load from disk, or create a default config file if none exists.
-    pub fn load_or_install(&mut self) -> Result<(), ConfigError> {
+    pub fn load_or_install(&mut self) -> Result<(), RecError> {
         if self.path.exists() {
             self.load()
         } else {
-            // Create default config and save it
             self.value.set_to_default();
             self.dirty = true;
             self.save()

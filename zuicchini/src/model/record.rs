@@ -1,31 +1,10 @@
-use std::fmt;
+pub use crate::foundation::RecError;
+use crate::foundation::RecStruct;
 
-/// Errors that can occur when loading configuration records from KDL.
-#[derive(Debug)]
-pub enum ConfigError {
-    MissingField(String),
-    InvalidValue { field: String, message: String },
-    ParseError(String),
-}
-
-impl fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MissingField(name) => write!(f, "missing field: {name}"),
-            Self::InvalidValue { field, message } => {
-                write!(f, "invalid value for '{field}': {message}")
-            }
-            Self::ParseError(msg) => write!(f, "parse error: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for ConfigError {}
-
-/// A configuration record that can be serialized to/from a KDL node.
+/// A configuration record that can be serialized to/from an emRec struct.
 pub trait Record: Sized {
-    fn from_kdl(node: &kdl::KdlNode) -> Result<Self, ConfigError>;
-    fn to_kdl(&self) -> kdl::KdlNode;
+    fn from_rec(rec: &RecStruct) -> Result<Self, RecError>;
+    fn to_rec(&self) -> RecStruct;
     fn set_to_default(&mut self);
     fn is_default(&self) -> bool;
 }
@@ -41,27 +20,22 @@ pub(crate) mod tests {
     }
 
     impl Record for TestConfig {
-        fn from_kdl(node: &kdl::KdlNode) -> Result<Self, ConfigError> {
-            let name = node
-                .get("name")
-                .and_then(|e| e.as_string())
-                .ok_or_else(|| ConfigError::MissingField("name".into()))?
-                .to_owned();
-
-            let value = node
-                .get("value")
-                .and_then(|e| e.as_integer())
-                .map(|v| v as i64)
-                .ok_or_else(|| ConfigError::MissingField("value".into()))?;
-
+        fn from_rec(rec: &RecStruct) -> Result<Self, RecError> {
+            let name = rec
+                .get_str("name")
+                .ok_or_else(|| RecError::MissingField("name".into()))?
+                .to_string();
+            let value =
+                rec.get_int("value")
+                    .ok_or_else(|| RecError::MissingField("value".into()))? as i64;
             Ok(Self { name, value })
         }
 
-        fn to_kdl(&self) -> kdl::KdlNode {
-            let mut node = kdl::KdlNode::new("test-config");
-            node.push(kdl::KdlEntry::new_prop("name", self.name.as_str()));
-            node.push(kdl::KdlEntry::new_prop("value", self.value as i128));
-            node
+        fn to_rec(&self) -> RecStruct {
+            let mut s = RecStruct::new();
+            s.set_str("name", &self.name);
+            s.set_int("value", self.value as i32);
+            s
         }
 
         fn set_to_default(&mut self) {
@@ -74,13 +48,13 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn kdl_round_trip() {
+    fn rec_round_trip() {
         let original = TestConfig {
             name: "hello".into(),
             value: 42,
         };
-        let node = original.to_kdl();
-        let restored = TestConfig::from_kdl(&node).unwrap();
+        let rec = original.to_rec();
+        let restored = TestConfig::from_rec(&rec).unwrap();
         assert_eq!(original, restored);
     }
 }
