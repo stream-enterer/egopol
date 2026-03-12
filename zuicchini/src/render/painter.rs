@@ -799,23 +799,25 @@ impl<'a> Painter<'a> {
         } else {
             for row in start_y..end_y {
                 for col in start_x..end_x {
-                    let src_color = if upscaling {
-                        // Bicubic with -0x180_0000 (-1.5) offset for 4-tap kernel centering.
+                    if upscaling {
+                        // Bicubic: returns premultiplied RGBA, use premul blend path
+                        // to avoid unpremultiply/repremultiply round-trip error.
                         let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x - 0x180_0000;
                         let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y - 0x180_0000;
-                        interpolation::sample_bicubic_premul_fp(image, tx, ty, ext)
+                        let pm = interpolation::sample_bicubic_premul_fp(image, tx, ty, ext);
+                        self.blend_premul_with_coverage(col, row, pm, sp.coverage(col, row));
                     } else {
-                        // Nearest: no method offset.
+                        // Nearest: returns straight Color, use normal blend.
                         let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x;
                         let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y;
-                        interpolation::sample_nearest(
+                        let src_color = interpolation::sample_nearest(
                             image,
                             (tx >> 24) as f64,
                             (ty >> 24) as f64,
                             ext,
-                        )
-                    };
-                    self.blend_with_coverage(col, row, src_color, sp.coverage(col, row));
+                        );
+                        self.blend_with_coverage(col, row, src_color, sp.coverage(col, row));
+                    }
                 }
             }
         }
@@ -3997,57 +3999,37 @@ impl<'a> Painter<'a> {
             return;
         }
 
-        // Fast path: fully opaque, no global alpha modulation needed beyond what blend_pixel does.
+        // Span opacities are 12-bit (0–0x1000). Combine with color alpha in one
+        // step matching C++: alpha = (color_alpha * opacity_12bit + 0x800) >> 12.
         if span_width == 1 {
             let opacity = span.opacity_beg;
             if opacity > 0 {
-                self.blend_pixel_alpha(x_start, y, color, opacity);
+                self.blend_with_coverage(x_start, y, color, opacity);
             }
             return;
         }
 
         // First pixel (partial coverage).
         if span.opacity_beg > 0 {
-            if span.opacity_beg == 255 {
-                self.blend_pixel(x_start, y, color);
-            } else {
-                self.blend_pixel_alpha(x_start, y, color, span.opacity_beg);
-            }
+            self.blend_with_coverage(x_start, y, color, span.opacity_beg);
         }
 
         // Interior pixels (full coverage) — fast path.
-        if span.opacity_mid == 255 {
+        if span.opacity_mid >= 0x1000 {
             for x in (x_start + 1)..(x_end - 1) {
                 self.blend_pixel(x, y, color);
             }
         } else if span.opacity_mid > 0 {
             for x in (x_start + 1)..(x_end - 1) {
-                self.blend_pixel_alpha(x, y, color, span.opacity_mid);
+                self.blend_with_coverage(x, y, color, span.opacity_mid);
             }
         }
 
         // Last pixel (partial coverage).
         if span_width > 1 && span.opacity_end > 0 {
             let x_last = x_end - 1;
-            if span.opacity_end == 255 {
-                self.blend_pixel(x_last, y, color);
-            } else {
-                self.blend_pixel_alpha(x_last, y, color, span.opacity_end);
-            }
+            self.blend_with_coverage(x_last, y, color, span.opacity_end);
         }
-    }
-
-    /// Blend a pixel with an additional alpha coverage factor (0-255).
-    ///
-    /// Combines color alpha with coverage using `/256` to match C++ emPainter.
-    fn blend_pixel_alpha(&mut self, x: i32, y: i32, color: Color, coverage: u8) {
-        let modulated = Color::rgba(
-            color.r(),
-            color.g(),
-            color.b(),
-            ((color.a() as u16 * coverage as u16 + 128) >> 8) as u8,
-        );
-        self.blend_pixel(x, y, modulated);
     }
 
     /// Blend a sampled color with sub-pixel edge coverage (0..=0x1000).
@@ -4056,8 +4038,77 @@ impl<'a> Painter<'a> {
         if cov >= 0x1000 {
             self.blend_pixel(x, y, color);
         } else if cov > 0 {
-            let a = ((cov * 255 + 0x800) >> 12).clamp(0, 255) as u8;
-            self.blend_pixel_alpha(x, y, color, a);
+            // C++ single-step: alpha = (color_alpha * opacity_12bit + 0x800) >> 12
+            let alpha = ((color.a() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8;
+            let blended = Color::rgba(color.r(), color.g(), color.b(), alpha);
+            self.blend_pixel(x, y, blended);
+        }
+    }
+
+    /// Blend a premultiplied-alpha pixel onto the canvas.
+    /// C++ PaintScanlineInt for images: `dst = bg * (1-a/255) + pm_rgba`.
+    /// The pm array is [r_premul, g_premul, b_premul, alpha].
+    fn blend_pixel_premul(&mut self, x: i32, y: i32, pm: [u8; 4]) {
+        let PixelRect {
+            x: cx,
+            y: cy,
+            w: cw,
+            h: ch,
+        } = self.state.clip;
+        if x < cx || x >= cx + cw || y < cy || y >= cy + ch {
+            return;
+        }
+        if x < 0 || y < 0 || x >= self.target.width() as i32 || y >= self.target.height() as i32 {
+            return;
+        }
+        let a = pm[3] as u32;
+        if a == 0 {
+            return;
+        }
+        if a >= 255 {
+            let out = self.target.pixel_mut(x as u32, y as u32);
+            out[0] = pm[0];
+            out[1] = pm[1];
+            out[2] = pm[2];
+            out[3] = 255;
+            return;
+        }
+        let bg = self.target.pixel(x as u32, y as u32);
+        let t = (255 - a) * 257;
+        let r = (((bg[0] as u32 * t + 0x8073) >> 16) + pm[0] as u32) as u8;
+        let g = (((bg[1] as u32 * t + 0x8073) >> 16) + pm[1] as u32) as u8;
+        let b = (((bg[2] as u32 * t + 0x8073) >> 16) + pm[2] as u32) as u8;
+        let a_out = (((bg[3] as u32 * t + 0x8073) >> 16) + a) as u8;
+        let out = self.target.pixel_mut(x as u32, y as u32);
+        out[0] = r;
+        out[1] = g;
+        out[2] = b;
+        out[3] = a_out;
+    }
+
+    /// Blend a premultiplied-alpha pixel with 12-bit coverage modulation.
+    /// C++ PaintScanlineInt: each premul channel and alpha are independently
+    /// modulated by `(channel * o_eff + 0x800) >> 12` before premul blend.
+    fn blend_premul_with_coverage(&mut self, x: i32, y: i32, pm: [u8; 4], cov: i32) {
+        if cov <= 0 {
+            return;
+        }
+        // Combine coverage with painter alpha (C++ HAVE_ALPHA path).
+        let o_eff = if self.state.alpha == 255 {
+            cov
+        } else {
+            (cov * self.state.alpha as i32 + 127) / 255
+        };
+        if o_eff >= 0x1000 {
+            self.blend_pixel_premul(x, y, pm);
+        } else if o_eff > 0 {
+            let pm_mod = [
+                ((pm[0] as i32 * o_eff + 0x800) >> 12) as u8,
+                ((pm[1] as i32 * o_eff + 0x800) >> 12) as u8,
+                ((pm[2] as i32 * o_eff + 0x800) >> 12) as u8,
+                ((pm[3] as i32 * o_eff + 0x800) >> 12) as u8,
+            ];
+            self.blend_pixel_premul(x, y, pm_mod);
         }
     }
 
@@ -4287,10 +4338,10 @@ impl<'a> Painter<'a> {
 
             let color = Self::sample_pixel_texture(texture, x as f64 + 0.5, py);
 
-            if opacity == 255 {
+            if opacity >= 0x1000 {
                 self.blend_pixel(x, y, color);
             } else {
-                self.blend_pixel_alpha(x, y, color, opacity);
+                self.blend_with_coverage(x, y, color, opacity);
             }
         }
     }
@@ -4499,12 +4550,20 @@ impl<'a> Painter<'a> {
                 out[2] = color.b();
                 out[3] = 255;
             } else {
-                // C++ emPainter precision: target * (256 - alpha) / 256 + source * alpha / 256
-                let inv = 256 - ea;
-                let r = (bg[0] as u16 * inv + color.r() as u16 * ea) >> 8;
-                let g = (bg[1] as u16 * inv + color.g() as u16 * ea) >> 8;
-                let b = (bg[2] as u16 * inv + color.b() as u16 * ea) >> 8;
-                let a = (bg[3] as u16 * inv + 255 * ea) >> 8;
+                // C++ emPainter non-CVC blend: per-channel round(x/255) via
+                // (x * 257 + 0x8073) >> 16.  Background uses t = (255-alpha)*257,
+                // source uses hash[color][alpha] ≈ round(color*alpha/255).
+                let alpha = ea as u32;
+                let inv = 255 - alpha;
+                let t = inv * 257; // background attenuation factor
+                let r = ((bg[0] as u32 * t + 0x8073) >> 16)
+                    + ((color.r() as u32 * alpha * 257 + 0x8073) >> 16);
+                let g = ((bg[1] as u32 * t + 0x8073) >> 16)
+                    + ((color.g() as u32 * alpha * 257 + 0x8073) >> 16);
+                let b = ((bg[2] as u32 * t + 0x8073) >> 16)
+                    + ((color.b() as u32 * alpha * 257 + 0x8073) >> 16);
+                let a =
+                    ((bg[3] as u32 * t + 0x8073) >> 16) + ((255u32 * alpha * 257 + 0x8073) >> 16);
                 let out = self.target.pixel_mut(x as u32, y as u32);
                 out[0] = r as u8;
                 out[1] = g as u8;

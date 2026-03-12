@@ -504,8 +504,8 @@ fn painter_image_scaled() {
         let mut p = white_painter(&mut img);
         p.paint_image_full(28.0, 28.0, 200.0, 200.0, &src, 255, Color::TRANSPARENT);
     }
-    // Fixed-point coordinate mapping matches C++, but EXTEND_ZERO boundary premul
-    // amplification still produces max_diff=19 at image edges (~4.8% of pixels > tol 1).
+    // Separable bicubic + premul blend match C++ pipeline structurally, but
+    // remaining coordinate/weight divergence produces max_diff=19 (~11.5% pixels).
     compare_images(img.data(), &expected, ew, eh, 19, 0.5).unwrap();
 }
 

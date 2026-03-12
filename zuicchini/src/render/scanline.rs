@@ -8,16 +8,21 @@ pub(crate) enum WindingRule {
 }
 
 /// A horizontal span with per-pixel opacity for AA.
+///
+/// Opacities are stored in 12-bit scale (0–4096) matching C++ emPainter internals.
+/// The final conversion to 8-bit alpha incorporates the color alpha:
+///   `alpha = (color_alpha * opacity_12bit + 0x800) >> 12`
+/// This avoids the precision loss of a two-step 12→8→8 conversion.
 #[derive(Clone, Debug)]
 pub(crate) struct Span {
     pub x_start: i32,
     pub x_end: i32,
-    /// Opacity of leftmost pixel (0-255).
-    pub opacity_beg: u8,
-    /// Opacity of interior pixels (0-255).
-    pub opacity_mid: u8,
-    /// Opacity of rightmost pixel (0-255).
-    pub opacity_end: u8,
+    /// Opacity of leftmost pixel (0-4096 scale).
+    pub opacity_beg: i32,
+    /// Opacity of interior pixels (0-4096 scale).
+    pub opacity_mid: i32,
+    /// Opacity of rightmost pixel (0-4096 scale).
+    pub opacity_end: i32,
 }
 
 /// Rasterize polygon into per-scanline spans with AA coverage.
@@ -64,11 +69,6 @@ fn add_scan_entry(scanlines: &mut [Vec<ScanEntry>], row: i32, x: i32, a0: f64, a
     }
 }
 
-/// Convert 0-4096 opacity to 0-255, matching C++ `(255*o+2048)>>12`.
-fn cvt(o: i32) -> u8 {
-    ((255 * o + 2048) >> 12).clamp(0, 255) as u8
-}
-
 /// Round absolute value: `(int)(a0 >= 0 ? 0.5 + a0 : 0.5 - a0)`.
 fn round_abs(a: f64) -> i32 {
     if a >= 0.0 {
@@ -81,29 +81,28 @@ fn round_abs(a: f64) -> i32 {
 /// Build a Span from polynomial coverage values (in 0-4096 scale).
 fn make_poly_span(x: i32, w: i32, alpha: i32, alpha2: i32, alpha3: i32) -> Span {
     if w == 1 {
-        let o = cvt(alpha);
         Span {
             x_start: x,
             x_end: x + 1,
-            opacity_beg: o,
-            opacity_mid: o,
-            opacity_end: o,
+            opacity_beg: alpha,
+            opacity_mid: alpha,
+            opacity_end: alpha,
         }
     } else if w == 2 {
         Span {
             x_start: x,
             x_end: x + 2,
-            opacity_beg: cvt(alpha),
-            opacity_mid: cvt(alpha),
-            opacity_end: cvt(alpha2),
+            opacity_beg: alpha,
+            opacity_mid: alpha,
+            opacity_end: alpha2,
         }
     } else {
         Span {
             x_start: x,
             x_end: x + w,
-            opacity_beg: cvt(alpha),
-            opacity_mid: cvt(alpha2),
-            opacity_end: cvt(alpha3),
+            opacity_beg: alpha,
+            opacity_mid: alpha2,
+            opacity_end: alpha3,
         }
     }
 }
@@ -646,28 +645,27 @@ fn make_edge_span(
     let frac_exit = x_exit.frac();
 
     let opacity_beg = if x0 >= clip_x_start {
-        ((4096 - frac_enter) * 255 / 4096) as u8
+        4096 - frac_enter
     } else {
-        255
+        0x1000
     };
 
     let opacity_end = if frac_exit == 0 {
-        255
+        0x1000
     } else if x1 < clip_x_end {
-        (frac_exit * 255 / 4096) as u8
+        frac_exit
     } else {
-        255
+        0x1000
     };
 
     if px_end - px_start == 1 {
-        let coverage = x_exit.raw() - x_enter.raw();
-        let opacity = (coverage.max(0) * 255 / 4096) as u8;
+        let coverage = (x_exit.raw() - x_enter.raw()).max(0);
         return Some(Span {
             x_start: px_start,
             x_end: px_end,
-            opacity_beg: opacity,
-            opacity_mid: opacity,
-            opacity_end: opacity,
+            opacity_beg: coverage,
+            opacity_mid: coverage,
+            opacity_end: coverage,
         });
     }
 
@@ -675,7 +673,7 @@ fn make_edge_span(
         x_start: px_start,
         x_end: px_end,
         opacity_beg,
-        opacity_mid: 255,
+        opacity_mid: 0x1000,
         opacity_end,
     })
 }
@@ -705,7 +703,7 @@ mod tests {
             assert_eq!(spans.len(), 1);
             assert_eq!(spans[0].x_start, 10);
             assert_eq!(spans[0].x_end, 15);
-            assert_eq!(spans[0].opacity_mid, 255);
+            assert_eq!(spans[0].opacity_mid, 0x1000);
         }
     }
 
@@ -723,7 +721,7 @@ mod tests {
         assert_eq!(rows.len(), 2);
         for (_, spans) in &rows {
             assert_eq!(spans.len(), 1);
-            assert!(spans[0].opacity_beg < 255);
+            assert!(spans[0].opacity_beg < 0x1000);
         }
     }
 
@@ -884,7 +882,7 @@ mod tests {
             assert_eq!(max_x, 15);
             // Interior should be fully opaque.
             for span in spans {
-                assert_eq!(span.opacity_mid, 255);
+                assert_eq!(span.opacity_mid, 0x1000);
             }
         }
     }

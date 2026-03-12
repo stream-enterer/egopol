@@ -617,7 +617,7 @@ pub(crate) fn sample_bicubic_premul_fp(
     tx: i64,
     ty: i64,
     ext: ImageExtension,
-) -> Color {
+) -> [u8; 4] {
     let iy = (ty >> 24) as i32;
     let ix = (tx >> 24) as i32;
 
@@ -626,41 +626,62 @@ pub(crate) fn sample_bicubic_premul_fp(
     let wy = bicubic_factors_hi()[oy as usize];
     let wx = bicubic_factors_hi()[ox as usize];
 
-    // Full 2D premul interpolation: 4x4 kernel.
-    // C++ kernel rows are [iy, iy+1, iy+2, iy+3] (offset already in iy).
-    let mut pm_rgb = [0i64; 3];
-    let mut pm_a = 0i64;
-    for row in 0..4i32 {
-        let yw = wy[row as usize] as i64;
-        for col in 0..4i32 {
-            let p = sample_pixel(image, ix + col, iy + row, ext);
+    // Separable bicubic matching C++ InterpolateImageBicubic exactly:
+    // Step 1: Y-interpolate each of 4 columns, with intermediate unpremultiply.
+    // Step 2: X-interpolate the 4 column results.
+    //
+    // C++ does per-column: accumulate (R * alpha * fy) across 4 rows, then
+    // FINPREMUL_SIGNED_COLOR divides RGB by 255 (with rounding). This quantizes
+    // each column result before X-interpolation. Matching this is required for
+    // bit-exact parity at EXTEND_ZERO boundaries.
+    let mut col_rgb = [[0i64; 3]; 4];
+    let mut col_a = [0i64; 4];
+    for col in 0..4 {
+        let mut pm_r = 0i64;
+        let mut pm_g = 0i64;
+        let mut pm_b = 0i64;
+        let mut pm_a = 0i64;
+        for (row, &yw_val) in wy.iter().enumerate() {
+            let p = sample_pixel(image, ix + col as i32, iy + row as i32, ext);
             let a = p[3] as i64;
-            let w = wx[col as usize] as i64 * yw;
-            let aw = a * w;
+            let yw = yw_val as i64;
+            let aw = a * yw;
             pm_a += aw;
-            pm_rgb[0] += p[0] as i64 * aw;
-            pm_rgb[1] += p[1] as i64 * aw;
-            pm_rgb[2] += p[2] as i64 * aw;
+            pm_r += p[0] as i64 * aw;
+            pm_g += p[1] as i64 * aw;
+            pm_b += p[2] as i64 * aw;
         }
+        // C++ FINPREMUL_SIGNED_COLOR: round(rgb / 255) to undo premul.
+        col_rgb[col][0] = (pm_r + 0x7f) / 0xff;
+        col_rgb[col][1] = (pm_g + 0x7f) / 0xff;
+        col_rgb[col][2] = (pm_b + 0x7f) / 0xff;
+        col_a[col] = pm_a;
     }
 
-    // C++ WRITE_SHR_CLIP: shift right by 20 (1024^2 = 2^20).
-    let final_a = (pm_a >> 20).clamp(0, 255);
+    // Step 2: X-interpolation of column results.
+    let mut final_rgb = [0i64; 3];
+    let mut final_a = 0i64;
+    for col in 0..4 {
+        let xw = wx[col] as i64;
+        final_rgb[0] += col_rgb[col][0] * xw;
+        final_rgb[1] += col_rgb[col][1] * xw;
+        final_rgb[2] += col_rgb[col][2] * xw;
+        final_a += col_a[col] * xw;
+    }
+
+    // C++ WRITE_SHR_CLIP_SIGNED_COLOR: >>20 with rounding, clamp(rgb, 0, alpha).
+    let rnd = (1i64 << 19) - 1; // (1<<20)/2 - 1 = 524287
+    let a = ((final_a + rnd) >> 20).clamp(0, 255);
     let mut result = [0u8; 4];
     for c in 0..3 {
-        let v = ((pm_rgb[c] / 255) >> 20).clamp(0, final_a);
+        let v = ((final_rgb[c] + rnd) >> 20).clamp(0, a);
         result[c] = v as u8;
     }
-    result[3] = final_a as u8;
+    result[3] = a as u8;
 
-    // Convert from premultiplied to straight alpha.
-    if final_a > 0 && final_a < 255 {
-        for item in result.iter_mut().take(3) {
-            *item = (*item as u16 * 255 / final_a as u16).min(255) as u8;
-        }
-    }
-
-    Color::rgba(result[0], result[1], result[2], result[3])
+    // Return premultiplied RGBA — caller uses premultiplied blending to avoid
+    // the quantization error from an unpremultiply/repremultiply round-trip.
+    result
 }
 
 /// Scaling context for area sampling.
