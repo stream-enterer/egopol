@@ -515,12 +515,32 @@
 
 - id: GAP-005
   area: model/filemodel-lifecycle
-  kind: missing-implementation
-  tests: []
-  status: no-test
-  source: [src/model/file_model.rs]
+  kind: fixed
+  tests:
+    - rec_file_model_load_roundtrip
+    - rec_file_model_load_error_missing
+    - rec_file_model_load_error_bad_rec
+    - rec_file_model_save_roundtrip
+    - rec_file_model_out_of_date
+    - rec_file_model_hard_reset
+    - rec_file_model_clear_save_error
+    - rec_file_model_memory_limit
+    - rec_file_model_protect_file_state
+    - file_model_step_loading
+    - file_model_step_saving
+    - file_model_hard_reset_file_state
+    - file_model_set_unsaved_state_aborts_loading
+  status: passing
+  source:
+    - src/model/file_model.rs
+    - src/model/rec_file_model.rs
   related: [GAP-004]
-  notes: FileModel exists but full load/ready/save/flush lifecycle untested against C++ golden. GAP-004 now resolved; GAP-005 is the remaining blocker.
+  notes: >
+    FIXED: Full FileModel lifecycle methods added (step_loading, step_saving, load, save,
+    hard_reset_file_state, set_unsaved_state). RecFileModel<T> implemented as standalone
+    struct (not wrapping FileModel<T> due to borrow-checker constraints) with synchronous
+    load/save, update (freshness check), hard_reset, clear_save_error, data_mut with
+    protect_file_state guard, and memory limit enforcement.
 
 # ═══════════════════════════════════════════════════════════════════
 # OUT OF SCOPE
@@ -553,17 +573,17 @@
 #
 # Total entries:       35
 #   expected-divergence: 19 (DIV-001..004, DIV-006..009, DIV-013..017, DIV-020..024)
-#   bug-fixed/resolved:  12  (DIV-005, DIV-010, DIV-011, DIV-012, DIV-018, DIV-019, DIV-025, GAP-001, GAP-002, GAP-003a, GAP-003b, GAP-004)
-#   missing-impl:         1  (GAP-005)
+#   bug-fixed/resolved:  13  (DIV-005, DIV-010, DIV-011, DIV-012, DIV-018, DIV-019, DIV-025, GAP-001, GAP-002, GAP-003a, GAP-003b, GAP-004, GAP-005)
+#   missing-impl:         0
 #   out-of-scope:         4  (OOS-001, OOS-002, OOS-003, GAP-003c)
 #
 # Note: DIV IDs are not contiguous. GAP-003c uses GAP prefix but
 # kind: out-of-scope because it was split from GAP-003 by root cause.
 #
-# Test coverage (187 total):
-#   Passing tests:       186
+# Test coverage (199 total):
+#   Passing tests:       199
 #   Ignored tests:         1
-#   No-test gaps:          1 (GAP-005)
+#   No-test gaps:          0
 #
 # Cross-reference:
 #   Painter analysis:  tests/golden_parity/PARITY_STATUS.md

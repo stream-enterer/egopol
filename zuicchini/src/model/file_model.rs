@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use crate::scheduler::SignalId;
 
@@ -73,6 +74,7 @@ pub struct FileModel<T> {
     data: Option<T>,
     path: PathBuf,
     state: FileState,
+    error_text: String,
     change_signal: SignalId,
     memory_limit: usize,
     memory_need: u64,
@@ -90,6 +92,7 @@ impl<T> FileModel<T> {
             data: None,
             path,
             state: FileState::Waiting,
+            error_text: String::new(),
             change_signal: signal_id,
             memory_limit: usize::MAX,
             memory_need: 0,
@@ -296,5 +299,181 @@ impl<T> FileModel<T> {
     /// Returns the update signal ID.
     pub fn update_signal(&self) -> SignalId {
         self.update_signal
+    }
+
+    pub fn error_text(&self) -> &str {
+        &self.error_text
+    }
+
+    fn try_fetch_date(&self) -> Result<(u64, u64), String> {
+        let meta = std::fs::metadata(&self.path)
+            .map_err(|e| format!("Failed to get file info for {:?}: {}", self.path, e))?;
+        let mtime_secs = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let size = meta.len();
+        Ok((mtime_secs, size))
+    }
+
+    /// Port of C++ `StepLoading()`. Returns true if state changed.
+    pub fn step_loading<O: FileModelOps>(&mut self, ops: &mut O) -> bool {
+        let mut ready = false;
+        let mut state_changed = false;
+
+        if matches!(self.state, FileState::Loading { .. }) {
+            match ops.try_continue_loading() {
+                Err(e) => {
+                    ops.quit_loading();
+                    ops.reset_data();
+                    self.state = FileState::LoadError(e);
+                    return true;
+                }
+                Ok(done) => ready = done,
+            }
+        } else if matches!(self.state, FileState::Waiting) {
+            match self.try_fetch_date() {
+                Err(e) => {
+                    self.state = FileState::LoadError(e);
+                    return true;
+                }
+                Ok((m, s)) => {
+                    self.last_mtime = m;
+                    self.last_size = s;
+                }
+            }
+            ops.reset_data();
+            self.state = FileState::Loading { progress: 0.0 };
+            if let Err(e) = ops.try_start_loading() {
+                ops.quit_loading();
+                ops.reset_data();
+                self.state = FileState::LoadError(e);
+                return true;
+            }
+            state_changed = true;
+        } else {
+            return false;
+        }
+
+        let memory_need = ops.calc_memory_need().max(1);
+        self.memory_need = memory_need;
+        if memory_need > self.memory_limit as u64 {
+            ops.quit_loading();
+            ops.reset_data();
+            self.state = FileState::TooCostly;
+            return true;
+        }
+        if !ready {
+            return state_changed;
+        }
+        ops.quit_loading();
+        self.state = FileState::Loaded;
+        true
+    }
+
+    /// Port of C++ `StepSaving()`. Returns true if state changed.
+    pub fn step_saving<O: FileModelOps>(&mut self, ops: &mut O) -> bool {
+        if matches!(self.state, FileState::Saving) {
+            match ops.try_continue_saving() {
+                Err(e) => {
+                    ops.quit_saving();
+                    self.state = FileState::SaveError(e);
+                    return true;
+                }
+                Ok(false) => return false,
+                Ok(true) => {}
+            }
+            ops.quit_saving();
+            match self.try_fetch_date() {
+                Err(e) => {
+                    self.state = FileState::SaveError(e);
+                    return true;
+                }
+                Ok((m, s)) => {
+                    self.last_mtime = m;
+                    self.last_size = s;
+                }
+            }
+            self.state = FileState::Loaded;
+            let memory_need = ops.calc_memory_need().max(1);
+            self.memory_need = memory_need;
+            if memory_need > self.memory_limit as u64 {
+                ops.reset_data();
+                self.state = FileState::TooCostly;
+            }
+            return true;
+        }
+        if matches!(self.state, FileState::Unsaved) {
+            self.state = FileState::Saving;
+            self.error_text.clear();
+            if let Err(e) = ops.try_start_saving() {
+                ops.quit_saving();
+                self.state = FileState::SaveError(e);
+                return true;
+            }
+            return true;
+        }
+        false
+    }
+
+    /// Port of C++ `Load(bool immediately)`.
+    pub fn load<O: FileModelOps>(&mut self, ops: &mut O, immediately: bool) {
+        if matches!(self.state, FileState::Waiting | FileState::Loading { .. }) {
+            self.step_loading(ops);
+            if immediately {
+                while matches!(self.state, FileState::Loading { .. }) {
+                    self.step_loading(ops);
+                }
+            }
+        }
+    }
+
+    /// Port of C++ `Save(bool immediately)`.
+    pub fn save<O: FileModelOps>(&mut self, ops: &mut O, immediately: bool) {
+        if matches!(self.state, FileState::Unsaved | FileState::Saving) {
+            self.step_saving(ops);
+            if immediately {
+                while matches!(self.state, FileState::Saving) {
+                    self.step_saving(ops);
+                }
+            }
+        }
+    }
+
+    /// Port of C++ `HardResetFileState()`.
+    pub fn hard_reset_file_state<O: FileModelOps>(&mut self, ops: &mut O) {
+        if matches!(self.state, FileState::Loading { .. }) {
+            ops.quit_loading();
+            ops.reset_data();
+        } else if matches!(self.state, FileState::Saving) {
+            ops.quit_saving();
+            ops.reset_data();
+        } else if matches!(
+            self.state,
+            FileState::Loaded | FileState::Unsaved | FileState::SaveError(_)
+        ) {
+            ops.reset_data();
+        }
+        self.state = FileState::TooCostly;
+        self.memory_need = 1;
+        self.error_text.clear();
+        if self.memory_limit as u64 >= 1 {
+            self.state = FileState::Waiting;
+        }
+    }
+
+    /// Port of C++ `SetUnsavedState()`.
+    pub fn set_unsaved_state<O: FileModelOps>(&mut self, ops: &mut O) {
+        if self.state != FileState::Unsaved {
+            if matches!(self.state, FileState::Loading { .. }) {
+                ops.quit_loading();
+            } else if matches!(self.state, FileState::Saving) {
+                ops.quit_saving();
+            }
+            self.state = FileState::Unsaved;
+            self.error_text.clear();
+        }
     }
 }
