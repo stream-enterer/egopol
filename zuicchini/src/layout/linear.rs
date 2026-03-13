@@ -525,7 +525,7 @@ mod tests {
     fn setup_tree(n: usize) -> (PanelTree, PanelId, Vec<PanelId>) {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.set_layout_rect(root, 0.0, 0.0, 400.0, 200.0);
+        tree.set_layout_rect(root, 0.0, 0.0, 600.0, 200.0);
         let mut children = Vec::new();
         for i in 0..n {
             let c = tree.create_child(root, &format!("child_{i}"));
@@ -536,29 +536,29 @@ mod tests {
 
     #[test]
     fn horizontal_equal_weight() {
-        // 4 children in 400x200, no spacing. force=100.
-        // No alignment adjustment (aspect ratios match). Each child 100x200.
+        // 4 children in 600x200, no spacing. Normalized: w=1.0, h=1/3.
+        // Each child 0.25 x 1/3 in normalized coords.
         let (mut tree, root, children) = setup_tree(4);
         let mut layout = LinearLayout::horizontal();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for (i, child) in children.iter().enumerate() {
             let r = tree.get(*child).unwrap().layout_rect;
-            assert!((r.w - 100.0).abs() < 0.01, "child {i} width: {}", r.w);
-            assert!((r.h - 200.0).abs() < 0.01, "child {i} height: {}", r.h);
+            assert!((r.w - 0.25).abs() < 1e-6, "child {i} width: {}", r.w);
+            assert!((r.h - 1.0 / 3.0).abs() < 1e-6, "child {i} height: {}", r.h);
             assert!(
-                (r.x - (i as f64 * 100.0)).abs() < 0.01,
+                (r.x - (i as f64 * 0.25)).abs() < 1e-6,
                 "child {i} x: {}",
                 r.x
             );
-            assert!((r.y - 0.0).abs() < 0.01, "child {i} y: {}", r.y);
+            assert!((r.y - 0.0).abs() < 1e-6, "child {i} y: {}", r.y);
         }
     }
 
     #[test]
     fn vertical_equal_weight() {
-        // 2 children in 300x400, vertical, no spacing. force=200.
-        // No alignment adjustment. Each child 300x200.
+        // 2 children in 300x400, vertical, no spacing. Normalized: w=1.0, h=4/3.
+        // Each child 1.0 x 2/3 in normalized coords.
         let (mut tree, root, children) = setup_tree(2);
         tree.set_layout_rect(root, 0.0, 0.0, 300.0, 400.0);
         let mut layout = LinearLayout::vertical();
@@ -566,10 +566,10 @@ mod tests {
 
         for (i, child) in children.iter().enumerate() {
             let r = tree.get(*child).unwrap().layout_rect;
-            assert!((r.w - 300.0).abs() < 0.01, "child {i} width: {}", r.w);
-            assert!((r.h - 200.0).abs() < 0.01, "child {i} height: {}", r.h);
+            assert!((r.w - 1.0).abs() < 1e-6, "child {i} width: {}", r.w);
+            assert!((r.h - 2.0 / 3.0).abs() < 1e-6, "child {i} height: {}", r.h);
             assert!(
-                (r.y - (i as f64 * 200.0)).abs() < 0.01,
+                (r.y - (i as f64 * 2.0 / 3.0)).abs() < 1e-6,
                 "child {i} y: {}",
                 r.y
             );
@@ -578,8 +578,8 @@ mod tests {
 
     #[test]
     fn weighted_distribution() {
-        // 3 children in 300x100, weights [1,2,1], no spacing.
-        // total_weight=4, force=75. Widths: 75, 150, 75.
+        // 3 children in 300x100, weights [1,2,1], no spacing. Normalized: w=1.0, h=1/3.
+        // total_weight=4. Widths: 0.25, 0.5, 0.25 in normalized coords.
         let (mut tree, root, children) = setup_tree(3);
         tree.set_layout_rect(root, 0.0, 0.0, 300.0, 100.0);
         let mut layout = LinearLayout::horizontal();
@@ -609,16 +609,15 @@ mod tests {
         let w0 = tree.get(children[0]).unwrap().layout_rect.w;
         let w1 = tree.get(children[1]).unwrap().layout_rect.w;
         let w2 = tree.get(children[2]).unwrap().layout_rect.w;
-        assert!((w0 - 75.0).abs() < 0.01, "w0={w0}");
-        assert!((w1 - 150.0).abs() < 0.01, "w1={w1}");
-        assert!((w2 - 75.0).abs() < 0.01, "w2={w2}");
+        assert!((w0 - 0.25).abs() < 1e-6, "w0={w0}");
+        assert!((w1 - 0.5).abs() < 1e-6, "w1={w1}");
+        assert!((w2 - 0.25).abs() < 1e-6, "w2={w2}");
     }
 
     #[test]
     fn spacing() {
         // C++ spacing model: margin_left=0.5, margin_right=0.5, inner_h=1.0
-        // sx=2.0, ux=2.0. Force=0.5 (normalized). No alignment surplus.
-        // space_x=25, gap_x=50, child cw = weight*force*ch = 0.5*100 = 50.
+        // Normalized: w=1.0, h=0.5. All positions in normalized coords.
         let (mut tree, root, children) = setup_tree(2);
         tree.set_layout_rect(root, 0.0, 0.0, 200.0, 100.0);
         let mut layout = LinearLayout::horizontal().with_spacing(Spacing {
@@ -633,17 +632,17 @@ mod tests {
 
         let r0 = tree.get(children[0]).unwrap().layout_rect;
         let r1 = tree.get(children[1]).unwrap().layout_rect;
-        assert!((r0.x - 25.0).abs() < 0.01, "r0.x: {}", r0.x);
-        assert!((r0.w - 50.0).abs() < 0.01, "r0.w: {}", r0.w);
-        assert!((r1.x - 125.0).abs() < 0.01, "r1.x: {}", r1.x);
-        assert!((r1.w - 50.0).abs() < 0.01, "r1.w: {}", r1.w);
-        assert!((r0.h - 100.0).abs() < 0.01, "r0.h: {}", r0.h);
+        assert!((r0.x - 0.125).abs() < 1e-6, "r0.x: {}", r0.x);
+        assert!((r0.w - 0.25).abs() < 1e-6, "r0.w: {}", r0.w);
+        assert!((r1.x - 0.625).abs() < 1e-6, "r1.x: {}", r1.x);
+        assert!((r1.w - 0.25).abs() < 1e-6, "r1.w: {}", r1.w);
+        assert!((r0.h - 0.5).abs() < 1e-6, "r0.h: {}", r0.h);
     }
 
     #[test]
     fn tallness_constraints() {
-        // 2 children in 600x100. Child 0 min_tallness=0.5 compresses to w=200.
-        // Child 1 gets remaining 400. No alignment adjustment.
+        // 2 children in 600x100. Normalized: w=1.0, h=1/6.
+        // Child 0 min_tallness=0.5 compresses to w=1/3. Child 1 gets remaining 2/3.
         let (mut tree, root, children) = setup_tree(2);
         tree.set_layout_rect(root, 0.0, 0.0, 600.0, 100.0);
         let mut layout = LinearLayout::horizontal();
@@ -659,17 +658,16 @@ mod tests {
 
         let r0 = tree.get(children[0]).unwrap().layout_rect;
         let r1 = tree.get(children[1]).unwrap().layout_rect;
-        assert!((r0.w - 200.0).abs() < 0.01, "r0.w: {}", r0.w);
-        assert!((r0.h - 100.0).abs() < 0.01, "r0.h: {}", r0.h);
-        assert!((r1.w - 400.0).abs() < 0.01, "r1.w: {}", r1.w);
+        assert!((r0.w - 1.0 / 3.0).abs() < 1e-6, "r0.w: {}", r0.w);
+        assert!((r0.h - 1.0 / 6.0).abs() < 1e-6, "r0.h: {}", r0.h);
+        assert!((r1.w - 2.0 / 3.0).abs() < 1e-6, "r1.w: {}", r1.w);
     }
 
     #[test]
     fn force_convergence() {
-        // 3 children in 900x100. Child 0 min_tallness=0.5, child 1 max_tallness=0.2.
-        // Both compressed+expanded triggers D-LAYOUT-04 conflict resolution.
-        // compressed+expanded+free = 900 = total (not < total), so over-committed:
-        // release expanded, keep compressed. Result: 200, 500, 200.
+        // 3 children in 900x100. Normalized: w=1.0, h=1/9.
+        // Child 0 min_tallness=0.5, child 1 max_tallness=0.2.
+        // D-LAYOUT-04 conflict resolution. Result: 2/9, 5/9, 2/9 in normalized coords.
         let (mut tree, root, children) = setup_tree(3);
         tree.set_layout_rect(root, 0.0, 0.0, 900.0, 100.0);
         let mut layout = LinearLayout::horizontal();
@@ -694,8 +692,8 @@ mod tests {
         let r0 = tree.get(children[0]).unwrap().layout_rect;
         let r1 = tree.get(children[1]).unwrap().layout_rect;
         let r2 = tree.get(children[2]).unwrap().layout_rect;
-        assert!((r0.w - 200.0).abs() < 0.01, "r0.w: {}", r0.w);
-        assert!((r1.w - 500.0).abs() < 0.01, "r1.w: {}", r1.w);
-        assert!((r2.w - 200.0).abs() < 0.01, "r2.w: {}", r2.w);
+        assert!((r0.w - 2.0 / 9.0).abs() < 1e-6, "r0.w: {}", r0.w);
+        assert!((r1.w - 5.0 / 9.0).abs() < 1e-6, "r1.w: {}", r1.w);
+        assert!((r2.w - 2.0 / 9.0).abs() < 1e-6, "r2.w: {}", r2.w);
     }
 }

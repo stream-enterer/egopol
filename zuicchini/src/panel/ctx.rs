@@ -65,11 +65,23 @@ impl<'a> PanelCtx<'a> {
             .unwrap_or("")
     }
 
-    /// Get the layout rect of the current panel.
+    /// Get the layout rect of the current panel in its own coordinate space.
+    ///
+    /// C++ emPanel behaviors operate in a normalized space where the panel's
+    /// own width is always 1.0 and height = LayoutHeight / LayoutWidth
+    /// (tallness). All child positions set via `layout_child` must be in
+    /// this normalized space.
     pub fn layout_rect(&self) -> Rect {
         self.tree
             .get(self.id)
-            .map(|p| p.layout_rect)
+            .map(|p| {
+                let tallness = if p.layout_rect.w > 1e-100 {
+                    p.layout_rect.h / p.layout_rect.w
+                } else {
+                    1.0
+                };
+                Rect::new(0.0, 0.0, 1.0, tallness)
+            })
             .unwrap_or_default()
     }
 

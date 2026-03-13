@@ -2,7 +2,7 @@ use zuicchini::foundation::Rect;
 use zuicchini::layout::linear::LinearLayout;
 use zuicchini::layout::pack::PackLayout;
 use zuicchini::layout::raster::RasterLayout;
-use zuicchini::layout::{Alignment, AlignmentH, AlignmentV, ChildConstraint, Spacing};
+use zuicchini::layout::{AlignmentH, AlignmentV, ChildConstraint, Spacing};
 use zuicchini::panel::{PanelBehavior, PanelCtx, PanelId, PanelTree};
 
 use super::common::*;
@@ -125,7 +125,10 @@ fn run_linear_layout(
 }
 
 const PARENT: (f64, f64, f64, f64) = (0.0, 0.0, 1000.0, 500.0);
-const PARENT_WIDTH: f64 = 1000.0;
+// After normalization, ctx.layout_rect() returns (0,0,1.0,0.5) regardless
+// of PARENT dimensions. Golden rects from C++ are already in normalized
+// space (parent width = 1.0), so scale factor is 1.0.
+const PARENT_WIDTH: f64 = 1.0;
 
 // ─── Test 1: linear_h_equal ─────────────────────────────────────
 
@@ -653,7 +656,9 @@ fn layout_raster_alignment_br() {
     require_golden!();
     let mut expected = load_layout_golden("raster_alignment_br");
     let mut layout = RasterLayout::new().with_columns(2);
-    layout.alignment = Alignment::End;
+    // C++ EM_ALIGN_BOTTOM_RIGHT
+    layout.alignment_h = AlignmentH::Right;
+    layout.alignment_v = AlignmentV::Bottom;
     layout.min_child_tallness = 2.0;
     layout.max_child_tallness = 2.0;
     layout.preferred_child_tallness = 2.0;
@@ -669,7 +674,8 @@ fn layout_raster_alignment_center() {
     require_golden!();
     let mut expected = load_layout_golden("raster_alignment_center");
     let mut layout = RasterLayout::new().with_columns(2);
-    layout.alignment = Alignment::Center;
+    layout.alignment_h = AlignmentH::Center;
+    layout.alignment_v = AlignmentV::Center;
     layout.min_child_tallness = 2.0;
     layout.max_child_tallness = 2.0;
     layout.preferred_child_tallness = 2.0;

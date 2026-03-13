@@ -428,22 +428,48 @@ impl PanelBehavior for SplitterBehavior {
 
 // ─── Test 12: widget_colorfield ────────────────────────────────
 
+/// C++ emColorField constructor calls SetAutoExpansionThreshold(9, VCT_MIN_EXT).
+/// At 800×600 with layout 1.0×0.75, min_ext=600 >> 9 > 1, triggering expansion.
+/// The golden includes child ScalarFields (RGB/HSV) on the right half.
 #[test]
 fn widget_colorfield() {
     require_golden!();
+    let (w, h, expected) = load_compositor_golden("widget_colorfield");
+
     let look = Look::new();
     let mut cf = ColorField::new(look);
     cf.set_caption("Color");
     cf.set_color(zuicchini::foundation::Color::rgba(255, 0, 0, 255));
-    // C++ golden auto-expands, showing child scalar fields. The Rust test
-    // renders non-expanded because child panels don't yet render at this
-    // viewport size. Bulk of divergence (~28k) is from missing children.
-    render_and_compare_tol(
-        "widget_colorfield",
-        Box::new(ColorFieldBehavior { color_field: cf }),
-        3,
-        11.0,
+
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("test");
+    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    // C++ emColorField.cpp:36 — SetAutoExpansionThreshold(9, VCT_MIN_EXT)
+    tree.set_auto_expansion_threshold(root, 9.0, ViewConditionType::MinExt);
+    tree.set_behavior(
+        root,
+        Box::new(ColorFieldExpandedBehavior { color_field: cf }),
     );
+
+    let mut view = View::new(root, 800.0, 600.0);
+    view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
+
+    // 20 settle rounds for auto-expansion cascade
+    for _ in 0..20 {
+        tree.deliver_notices(view.window_focused());
+        view.update_viewing(&mut tree);
+    }
+
+    let mut compositor = SoftwareCompositor::new(w, h);
+    compositor.render(&mut tree, &view);
+    let actual = compositor.framebuffer().data();
+
+    let result = compare_images("widget_colorfield", actual, &expected, w, h, 3, 15.0);
+    if result.is_err() && dump_golden_enabled() {
+        dump_test_images("widget_colorfield", actual, &expected, w, h);
+        analyze_diff_distribution(actual, &expected, w, h, 3);
+    }
+    result.unwrap();
 }
 
 // ─── Test 13: widget_radiobutton ───────────────────────────────

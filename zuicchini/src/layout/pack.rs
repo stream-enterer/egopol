@@ -630,10 +630,10 @@ mod tests {
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         let r = tree.get(children[0]).unwrap().layout_rect;
-        assert!((r.x - 0.0).abs() < 0.01);
-        assert!((r.y - 0.0).abs() < 0.01);
-        assert!((r.w - 400.0).abs() < 0.01);
-        assert!((r.h - 300.0).abs() < 0.01);
+        assert!((r.x - 0.0).abs() < 0.001);
+        assert!((r.y - 0.0).abs() < 0.001);
+        assert!((r.w - 1.0).abs() < 0.001);
+        assert!((r.h - 0.75).abs() < 0.001);
     }
 
     #[test]
@@ -646,23 +646,23 @@ mod tests {
         let r0 = tree.get(children[0]).unwrap().layout_rect;
         let r1 = tree.get(children[1]).unwrap().layout_rect;
         let total_area = r0.w * r0.h + r1.w * r1.h;
-        assert!((total_area - 400.0 * 200.0).abs() < 1.0);
+        assert!((total_area - 1.0 * 0.5).abs() < 0.001);
     }
 
     #[test]
     fn respects_margins() {
         // Proportional: margin=0.5 means denom=0.5+0.5+1.0=2.0
-        // sx=400/2=200, sy=300/2=150
-        // actual_ml=100, actual_mt=75, content_w=200, content_h=150
+        // Normalized rect is (0,0,1.0,0.75). sx=1.0/2=0.5, sy=0.75/2=0.375
+        // actual_ml=0.25, actual_mt=0.1875, content_w=0.5, content_h=0.375
         let (mut tree, root, children) = setup(1, 400.0, 300.0);
         let mut layout = PackLayout::new().with_spacing(super::super::Spacing::uniform(0.5, 0.0));
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         let r = tree.get(children[0]).unwrap().layout_rect;
-        assert!((r.x - 100.0).abs() < 0.01, "x: {}", r.x);
-        assert!((r.y - 75.0).abs() < 0.01, "y: {}", r.y);
-        assert!((r.w - 200.0).abs() < 0.01, "w: {}", r.w);
-        assert!((r.h - 150.0).abs() < 0.01, "h: {}", r.h);
+        assert!((r.x - 0.25).abs() < 0.001, "x: {}", r.x);
+        assert!((r.y - 0.1875).abs() < 0.001, "y: {}", r.y);
+        assert!((r.w - 0.5).abs() < 0.001, "w: {}", r.w);
+        assert!((r.h - 0.375).abs() < 0.001, "h: {}", r.h);
     }
 
     #[test]
@@ -825,9 +825,9 @@ mod tests {
                 r.w * r.h
             })
             .sum();
-        let expected = 600.0 * 400.0;
+        let expected = 1.0 * (400.0 / 600.0);
         assert!(
-            (total_area - expected).abs() < 1.0,
+            (total_area - expected).abs() < 0.001,
             "total area {total_area} should be ~{expected}"
         );
     }

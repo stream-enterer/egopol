@@ -547,11 +547,12 @@ impl View {
         for i in 1..chain_rev.len() {
             let id = chain_rev[i];
             let lr = tree.get(id).map(|p| p.layout_rect).unwrap_or_default();
-            let (px, py, pw, ph) = rects[i - 1];
+            let (px, py, pw, _ph) = rects[i - 1];
+            // C++ scales ALL layout coordinates by ParentViewedWidth (pw)
             let x = px + lr.x * pw;
-            let y = py + lr.y * ph;
+            let y = py + lr.y * pw;
             let w = lr.w * pw;
-            let h = lr.h * ph;
+            let h = lr.h * pw;
             rects.push((x, y, w, h));
         }
 
@@ -613,8 +614,9 @@ impl View {
         for i in 1..chain_rev.len() {
             let id = chain_rev[i];
             let lr = tree.get(id).map(|p| p.layout_rect).unwrap_or_default();
-            let (px, py, pw, ph) = rects[i - 1];
-            rects.push((px + lr.x * pw, py + lr.y * ph, lr.w * pw, lr.h * ph));
+            let (px, py, pw, _ph) = rects[i - 1];
+            // C++ scales ALL layout coordinates by ParentViewedWidth (pw)
+            rects.push((px + lr.x * pw, py + lr.y * pw, lr.w * pw, lr.h * pw));
         }
 
         let (px, py, pw, ph) = *rects.last().unwrap_or(&(0.0, 0.0, 1.0, 1.0));
@@ -854,8 +856,9 @@ impl View {
         for i in 1..chain_rev.len() {
             let id = chain_rev[i];
             let lr = tree.get(id).map(|p| p.layout_rect).unwrap_or_default();
-            let (px, py, pw, ph) = norm_rects[i - 1];
-            norm_rects.push((px + lr.x * pw, py + lr.y * ph, lr.w * pw, lr.h * ph));
+            let (px, py, pw, _ph) = norm_rects[i - 1];
+            // C++ scales ALL layout coordinates by ParentViewedWidth (pw)
+            norm_rects.push((px + lr.x * pw, py + lr.y * pw, lr.w * pw, lr.h * pw));
         }
 
         let (vnx, vny, vnw, vnh) = *norm_rects.last().unwrap_or(&(0.0, 0.0, 1.0, 1.0));

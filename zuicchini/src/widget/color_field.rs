@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::foundation::Color;
 use crate::input::{InputEvent, InputKey, InputVariant};
 use crate::layout::raster::RasterLayout;
-use crate::layout::{Alignment, Spacing};
+use crate::layout::{AlignmentH, AlignmentV, Spacing};
 use crate::panel::PanelCtx;
 use crate::render::Painter;
 
@@ -390,14 +390,18 @@ impl ColorField {
         let mut layout = RasterLayout::new();
         layout.fixed_columns = Some(2);
         layout.preferred_child_tallness = 0.2;
-        layout.alignment = Alignment::End;
+        // C++ EM_ALIGN_RIGHT = right horizontally, center vertically
+        layout.alignment_h = AlignmentH::Right;
+        layout.alignment_v = AlignmentV::Center;
+        // C++ SetSpace(0.08, 0.2, 0.04, 0.1) = SetSpace(lr, tb, h, v)
+        // = (l=0.08, t=0.2, h=0.04, v=0.1, r=0.08, b=0.2)
         layout.spacing = Spacing {
             margin_left: 0.08,
             margin_top: 0.2,
-            margin_right: 0.04,
-            margin_bottom: 0.1,
-            inner_h: 0.0,
-            inner_v: 0.0,
+            margin_right: 0.08,
+            margin_bottom: 0.2,
+            inner_h: 0.04,
+            inner_v: 0.1,
         };
         let layout_id = ctx.create_child_with("emColorField::InnerStuff", Box::new(layout));
 
