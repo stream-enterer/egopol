@@ -27,7 +27,8 @@ impl CheckBox {
             border: Border::new(OuterBorderType::Margin)
                 .with_caption(label)
                 .with_label_in_border(false)
-                .with_label_alignment(crate::render::TextAlignment::Left),
+                .with_label_alignment(crate::render::TextAlignment::Left)
+                .with_how_to(true),
             look,
             checked: false,
             on_check: None,

@@ -478,17 +478,27 @@ impl<'a> Painter<'a> {
         if sweep_rad >= 2.0 * std::f64::consts::PI {
             return self.paint_ellipse(cx, cy, rx, ry, color);
         }
-        let segments = adaptive_circle_segments(rx, ry, self.state.scale_x, self.state.scale_y);
-        // Scale segments proportional to sweep.
-        let arc_segments =
-            ((segments as f64 * sweep_rad / (2.0 * std::f64::consts::PI)).ceil() as usize).max(2);
+        // Match C++ PaintEllipseSector: keep f as float through arc scaling,
+        // use round-to-nearest, minimum 3 arc segments, center vertex last.
+        let mut f = CIRCLE_QUALITY * (rx * self.state.scale_x + ry * self.state.scale_y).sqrt();
+        if f > 256.0 {
+            f = 256.0;
+        }
+        f = f * sweep_rad / (2.0 * std::f64::consts::PI);
+        let arc_segments = if f <= 3.0 {
+            3
+        } else if f >= 256.0 {
+            256
+        } else {
+            (f + 0.5) as usize
+        };
+        let step = sweep_rad / arc_segments as f64;
         let mut verts = Vec::with_capacity(arc_segments + 2);
-        verts.push((cx, cy));
         for i in 0..=arc_segments {
-            let t = i as f64 / arc_segments as f64;
-            let angle = start_rad + t * sweep_rad;
+            let angle = start_rad + step * i as f64;
             verts.push((cx + rx * angle.cos(), cy + ry * angle.sin()));
         }
+        verts.push((cx, cy));
         self.paint_polygon(&verts, color);
     }
 
@@ -1201,51 +1211,74 @@ impl<'a> Painter<'a> {
             return;
         }
 
-        let (tw, th) = Self::get_text_size(text, max_char_height, formatted, rel_line_space);
+        let (mut tw, mut th) =
+            Self::get_text_size(text, max_char_height, formatted, rel_line_space);
         if tw <= 0.0 || th <= 0.0 {
             return;
         }
 
-        // Scale down char height if text is taller than the box.
-        let char_height = if th > h {
-            max_char_height * h / th
+        // C++ PaintTextBoxed mutation-based fitting (emPainter.cpp lines 2175-2208).
+        // All of ch, tw, th, ws are mutated together to maintain consistency.
+        let mut ch = max_char_height;
+
+        // Step 1: if text is taller than box, scale everything down proportionally.
+        if th > h {
+            ch *= h / th;
+            tw *= h / th;
+            th = h;
+        }
+
+        // Step 2: compute width scale and handle squeeze/expand.
+        let mut ws = w / tw;
+        if ws < 1.0 {
+            // Text is wider than box — squeeze horizontally.
+            tw = w;
+            if ws < min_width_scale {
+                // Can't squeeze enough — shrink char height to compensate.
+                th *= ws / min_width_scale;
+                ch *= ws / min_width_scale;
+                ws = min_width_scale;
+            }
         } else {
-            max_char_height
-        };
-
-        // Recompute text size at actual char_height.
-        let (tw, th) = Self::get_text_size(text, char_height, formatted, rel_line_space);
-
-        // Width scale: squeeze to fit, clamped.
-        let max_ws = min_width_scale.max(1.0);
-        let ws = if tw > 0.0 {
-            (w / tw).clamp(min_width_scale, max_ws)
-        } else {
-            1.0
-        };
-
-        let actual_tw = tw * ws;
-        let actual_th = th;
+            // Text fits — don't stretch beyond 1.0 unless minWidthScale demands it.
+            ws = 1.0;
+            if ws < min_width_scale {
+                ws = min_width_scale;
+                tw *= ws;
+                if tw > w {
+                    th *= w / tw;
+                    ch *= w / tw;
+                    tw = w;
+                }
+            }
+        }
 
         // Box alignment — position of text block within the box.
-        let bx = match box_h_align {
-            TextAlignment::Left => x,
-            TextAlignment::Center => x + (w - actual_tw) * 0.5,
-            TextAlignment::Right => x + w - actual_tw,
-        };
-        let by = match box_v_align {
-            VAlign::Top => y,
-            VAlign::Center => y + (h - actual_th) * 0.5,
-            VAlign::Bottom => y + h - actual_th,
-        };
+        // C++ compensates for trailing relLineSpace in vertical alignment.
+        let mut bx = x;
+        if box_h_align != TextAlignment::Left {
+            if box_h_align == TextAlignment::Right {
+                bx += w - tw;
+            } else {
+                bx += (w - tw) * 0.5;
+            }
+        }
+        let mut by = y;
+        if box_v_align != VAlign::Top {
+            if box_v_align == VAlign::Bottom {
+                by += h - th + ch * rel_line_space;
+            } else {
+                by += (h - th + ch * rel_line_space) * 0.5;
+            }
+        }
 
         if formatted {
             self.paint_text_formatted(
                 bx,
                 by,
-                actual_tw,
+                tw,
                 text,
-                char_height,
+                ch,
                 ws,
                 color,
                 canvas_color,
@@ -1253,14 +1286,9 @@ impl<'a> Painter<'a> {
                 rel_line_space,
             );
         } else {
-            // Single line — apply text alignment within actual_tw.
-            let line_w = Self::get_text_size(text, char_height, false, 0.0).0 * ws;
-            let lx = match text_alignment {
-                TextAlignment::Left => bx,
-                TextAlignment::Center => bx + (actual_tw - line_w) * 0.5,
-                TextAlignment::Right => bx + actual_tw - line_w,
-            };
-            self.paint_text(lx, by, text, char_height, ws, color, canvas_color);
+            // C++ non-formatted: PaintText(x, y, text, ch, ws, color, canvasColor)
+            // No per-line text alignment in non-formatted mode.
+            self.paint_text(bx, by, text, ch, ws, color, canvas_color);
         }
     }
 
@@ -2160,7 +2188,8 @@ impl<'a> Painter<'a> {
             return;
         }
         let t2 = sw * 0.5;
-        let rounded = stroke.join == super::stroke::LineJoin::Round;
+        let rounded = stroke.join == super::stroke::LineJoin::Round
+            || stroke.cap == super::stroke::LineCap::Round;
 
         if rounded || stroke.is_dashed() {
             if (w <= sw || h <= sw) && !stroke.is_dashed() {
@@ -2257,11 +2286,10 @@ impl<'a> Painter<'a> {
         let inner = self.round_rect_polygon(ix, iy, iw, ih, ir);
 
         // Bridge + reversed inner for NonZero winding hole.
+        // C++ vertex order: outer[0..n-1], outer[0], inner[0], inner[m-1..1], inner[0]
         outer.push(outer[0]);
-        let first_inner = inner[0];
-        outer.push(first_inner);
+        outer.push(inner[0]);
         outer.extend(inner.iter().rev());
-        outer.push(first_inner);
         self.fill_polygon_aa(&outer, stroke.color, WindingRule::NonZero);
     }
 
@@ -2302,11 +2330,10 @@ impl<'a> Painter<'a> {
         let inner = self.ellipse_polygon(cx, cy, irx, iry);
 
         // Bridge + reversed inner for NonZero winding hole.
+        // C++ vertex order: outer[0..n-1], outer[0], inner[0], inner[m-1..1], inner[0]
         outer.push(outer[0]);
-        let first_inner = inner[0];
-        outer.push(first_inner);
+        outer.push(inner[0]);
         outer.extend(inner.iter().rev());
-        outer.push(first_inner);
         self.fill_polygon_aa(&outer, stroke.color, WindingRule::NonZero);
     }
 
@@ -2618,7 +2645,8 @@ impl<'a> Painter<'a> {
         }
 
         let thickness = stroke.width;
-        let rounded = stroke.join == super::stroke::LineJoin::Round;
+        let rounded = stroke.join == super::stroke::LineJoin::Round
+            || stroke.cap == super::stroke::LineCap::Round;
         let have_dashes = stroke.dash_type != DashType::Dotted;
         let have_dots = stroke.dash_type != DashType::Dashed;
         let have_dashes_and_dots = have_dashes && have_dots;
@@ -2982,7 +3010,8 @@ impl<'a> Painter<'a> {
             }
         };
 
-        let rounded = stroke.join == super::stroke::LineJoin::Round;
+        let rounded = stroke.join == super::stroke::LineJoin::Round
+            || stroke.cap == super::stroke::LineCap::Round;
 
         // Shorten the polyline at start/end to account for arrow length.
         let mut work_verts = vertices.to_vec();
@@ -3089,7 +3118,8 @@ impl<'a> Painter<'a> {
         let n = vertices.len();
         let thickness = stroke.width;
         let d = thickness * 0.5;
-        let rounded = stroke.join == super::stroke::LineJoin::Round;
+        let rounded = stroke.join == super::stroke::LineJoin::Round
+            || stroke.cap == super::stroke::LineCap::Round;
 
         // ── Phase 1: Build vertex array with short-segment filtering ──
 
@@ -4090,8 +4120,13 @@ impl<'a> Painter<'a> {
     }
 
     /// Blend a premultiplied-alpha pixel onto the canvas.
-    /// C++ PaintScanlineInt for images: `dst = bg * (1-a/255) + pm_rgba`.
-    /// The pm array is [r_premul, g_premul, b_premul, alpha].
+    ///
+    /// When canvas_color is opaque, uses C++ PaintScanlineIntCv (canvas-color variant):
+    ///   `dst_ch += pm_ch - round(canvas_ch * a / 255)`
+    /// Alpha channel is unchanged (canvas_A=255, so net alpha delta=0).
+    ///
+    /// When canvas_color is transparent, uses standard source-over:
+    ///   `dst = bg * (1-a/255) + pm_rgba`
     fn blend_pixel_premul(&mut self, x: i32, y: i32, pm: [u8; 4]) {
         let PixelRect {
             x: cx,
@@ -4109,25 +4144,44 @@ impl<'a> Painter<'a> {
         if a == 0 {
             return;
         }
-        if a >= 255 {
+        if self.state.canvas_color.is_opaque() {
+            // C++ PaintScanlineIntCv: pix -= hcR[a]+hcG[a]+hcB[a]; *p += pix;
+            // where hcX[a] = round(canvas_X * a / 255) = (canvas_X * a + 127) / 255.
+            // Alpha: canvas_A=255, so hcA[a]=a, net alpha delta = a-a = 0 (unchanged).
+            let cv = self.state.canvas_color;
+            let cr = (cv.r() as u32 * a + 127) / 255;
+            let cg = (cv.g() as u32 * a + 127) / 255;
+            let cb = (cv.b() as u32 * a + 127) / 255;
+            let bg = self.target.pixel(x as u32, y as u32);
+            let nr = (bg[0] as i32 + pm[0] as i32 - cr as i32).clamp(0, 255) as u8;
+            let ng = (bg[1] as i32 + pm[1] as i32 - cg as i32).clamp(0, 255) as u8;
+            let nb = (bg[2] as i32 + pm[2] as i32 - cb as i32).clamp(0, 255) as u8;
             let out = self.target.pixel_mut(x as u32, y as u32);
-            out[0] = pm[0];
-            out[1] = pm[1];
-            out[2] = pm[2];
-            out[3] = 255;
-            return;
+            out[0] = nr;
+            out[1] = ng;
+            out[2] = nb;
+            // out[3] unchanged
+        } else {
+            if a >= 255 {
+                let out = self.target.pixel_mut(x as u32, y as u32);
+                out[0] = pm[0];
+                out[1] = pm[1];
+                out[2] = pm[2];
+                out[3] = 255;
+                return;
+            }
+            let bg = self.target.pixel(x as u32, y as u32);
+            let t = (255 - a) * 257;
+            let r = (((bg[0] as u32 * t + 0x8073) >> 16) + pm[0] as u32) as u8;
+            let g = (((bg[1] as u32 * t + 0x8073) >> 16) + pm[1] as u32) as u8;
+            let b = (((bg[2] as u32 * t + 0x8073) >> 16) + pm[2] as u32) as u8;
+            let a_out = (((bg[3] as u32 * t + 0x8073) >> 16) + a) as u8;
+            let out = self.target.pixel_mut(x as u32, y as u32);
+            out[0] = r;
+            out[1] = g;
+            out[2] = b;
+            out[3] = a_out;
         }
-        let bg = self.target.pixel(x as u32, y as u32);
-        let t = (255 - a) * 257;
-        let r = (((bg[0] as u32 * t + 0x8073) >> 16) + pm[0] as u32) as u8;
-        let g = (((bg[1] as u32 * t + 0x8073) >> 16) + pm[1] as u32) as u8;
-        let b = (((bg[2] as u32 * t + 0x8073) >> 16) + pm[2] as u32) as u8;
-        let a_out = (((bg[3] as u32 * t + 0x8073) >> 16) + a) as u8;
-        let out = self.target.pixel_mut(x as u32, y as u32);
-        out[0] = r;
-        out[1] = g;
-        out[2] = b;
-        out[3] = a_out;
     }
 
     /// Blend a premultiplied-alpha pixel with 12-bit coverage modulation.

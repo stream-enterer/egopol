@@ -245,7 +245,8 @@ impl ListBox {
     pub fn new(look: Rc<Look>) -> Self {
         Self {
             border: Border::new(OuterBorderType::Instrument)
-                .with_inner(InnerBorderType::InputField),
+                .with_inner(InnerBorderType::InputField)
+                .with_how_to(true),
             look,
             items: Vec::new(),
             name_index: HashMap::new(),
@@ -884,6 +885,7 @@ impl ListBox {
         // When expanded with child panels, items are painted by their own
         // panel behaviors — skip inline painting (border only).
         if self.expanded {
+            self.border.paint_inner_overlay(painter, w, h, &self.look);
             return;
         }
 
@@ -952,7 +954,7 @@ impl ListBox {
                 text_color,
                 item_canvas,
                 crate::render::TextAlignment::Left,
-                crate::render::VAlign::Top,
+                crate::render::VAlign::Center,
                 crate::render::TextAlignment::Left,
                 0.5,
                 true,
@@ -961,6 +963,9 @@ impl ListBox {
         }
 
         painter.pop_state();
+
+        // C++ paints content, THEN overlays the IO field border image.
+        self.border.paint_inner_overlay(painter, w, h, &self.look);
     }
 
     // ── Input ───────────────────────────────────────────────────────

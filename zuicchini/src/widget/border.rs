@@ -65,6 +65,12 @@ pub struct Border {
     pub(crate) aux_panel_name: Option<String>,
     /// Height/width ratio of the auxiliary area (default 1.0 when absent).
     pub(crate) aux_tallness: f64,
+    /// Whether this widget provides HowTo text.
+    ///
+    /// When `true`, the border reserves space on the left for the HowTo
+    /// indicator and shifts the content area rightward.  C++ equivalent:
+    /// `emBorder::HasHowTo()` (overridden per widget).
+    pub has_how_to: bool,
 }
 
 impl Border {
@@ -84,6 +90,7 @@ impl Border {
             label_in_border: true,
             aux_panel_name: None,
             aux_tallness: 1.0,
+            has_how_to: false,
         }
     }
 
@@ -176,6 +183,12 @@ impl Border {
     /// C++ equivalent: `emBorder::SetLabelInBorder`.
     pub fn with_label_in_border(mut self, in_border: bool) -> Self {
         self.label_in_border = in_border;
+        self
+    }
+
+    /// Builder: set `has_how_to`.
+    pub fn with_how_to(mut self, has: bool) -> Self {
+        self.has_how_to = has;
         self
     }
 
@@ -462,6 +475,19 @@ impl Border {
         match self.outer {
             OuterBorderType::Group => 0.05,
             _ => 0.17,
+        }
+    }
+
+    /// HowTo space factor per outer border type.
+    ///
+    /// C++ `DoBorder` sets `howToSpace` per outer border type alongside `minSpace`.
+    /// After the outer-border switch, `howToSpace *= s` where
+    /// `s = min(rndW, rndH) * BorderScaling`. When `has_how_to` and
+    /// `howToSpace > minSpace`, the content area shifts rightward.
+    fn how_to_space_factor(&self) -> f64 {
+        match self.outer {
+            OuterBorderType::Group => 0.0046,
+            _ => 0.023,
         }
     }
 
@@ -1030,23 +1056,36 @@ How to move or set the focus:\n\
     /// Compute the content area after border and label insets.
     pub fn content_rect(&self, w: f64, h: f64, _look: &Look) -> Rect {
         let (ox, oy, ow, oh) = self.outer_insets(w, h);
-        let label_area_w = (w - ow).max(0.0);
+        let mut rnd_x = ox;
+        let mut rnd_w = (w - ow).max(0.0);
         let rnd_h = (h - oh).max(0.0);
+
+        // C++ DoBorder: s = min(rndW, rndH) * BorderScaling (pre-label, pre-howto).
+        let s = rnd_w.min(rnd_h) * self.border_scaling;
+        let ms = s * self.min_space_factor();
+
+        // HowTo space: when has_how_to and howToSpace > minSpace, shift content
+        // rightward. C++ emBorder.cpp lines 904-933.
+        if self.has_how_to {
+            let hts = s * self.how_to_space_factor();
+            if hts > ms {
+                rnd_x += hts - ms;
+                rnd_w -= hts - ms;
+            }
+        }
+
         let label_h = if self.label_in_border && self.has_label() {
-            self.label_space(label_area_w, rnd_h)
+            self.label_space(rnd_w, rnd_h)
         } else {
             0.0
         };
-        let rnd_w = (w - ow).max(0.0);
-        let rnd_h_after_label = (h - oh - label_h).max(0.0);
-        // minSpace: padding between outer decoration and content area.
-        let ms = rnd_w.min(rnd_h_after_label) * self.border_scaling * self.min_space_factor();
+        let rnd_h_after_label = (rnd_h - label_h).max(0.0);
         let iw = (rnd_w - 2.0 * ms).max(0.0);
         let ih = (rnd_h_after_label - 2.0 * ms).max(0.0);
         let (ix, iy, inner_w, inner_h) = self.inner_insets(iw, ih);
 
         Rect {
-            x: ox + ms + ix,
+            x: rnd_x + ms + ix,
             y: oy + label_h + ms + iy,
             w: (iw - inner_w).max(0.0),
             h: (ih - inner_h).max(0.0),
@@ -1469,16 +1508,44 @@ How to move or set the focus:\n\
 
         // Label area — only painted when label_in_border is true.
         let (ox, oy, ow, oh) = self.outer_insets(w, h);
-        let label_area_w = (w - ow).max(0.0);
+        let mut rnd_x = ox;
+        let mut rnd_w = (w - ow).max(0.0);
         let rnd_h = (h - oh).max(0.0);
+
+        // minSpace/howToSpace: C++ emBorder.cpp lines 901-933.
+        let s = rnd_w.min(rnd_h) * self.border_scaling;
+        let ms = s * self.min_space_factor();
+
+        // HowTo space: shift content rightward if howToSpace > minSpace.
+        if self.has_how_to {
+            let hts = s * self.how_to_space_factor();
+
+            // Paint HowTo indicator (C++ emBorder.cpp lines 906-928).
+            let tw = hts * 0.9;
+            let th = tw * 2.0;
+            let tx = rnd_x + (hts - tw) * 0.5;
+            let ty = oy + (rnd_h - th) * 0.5;
+            painter.paint_round_rect(
+                tx,
+                ty,
+                tw,
+                th,
+                tw * 0.01,
+                look.fg_color.with_alpha((255.0 * 0.10) as u8),
+            );
+
+            if hts > ms {
+                rnd_x += hts - ms;
+                rnd_w -= hts - ms;
+            }
+        }
+
+        let label_area_w = rnd_w;
         let ls = if self.label_in_border {
             self.label_space(label_area_w, rnd_h)
         } else {
             0.0
         };
-
-        // minSpace: C++ emBorder.cpp line 901-902: s=emMin(rndW,rndH)*BorderScaling; minSpace*=s.
-        let ms = label_area_w.min(rnd_h) * self.border_scaling * self.min_space_factor();
 
         if self.label_in_border && self.has_label() {
             let lch = self.label_content_height(label_area_w, rnd_h);
@@ -1502,7 +1569,7 @@ How to move or set the focus:\n\
             self.paint_label_impl(
                 painter,
                 Rect::new(
-                    ox + e_label,
+                    rnd_x + e_label,
                     oy + d_label,
                     (label_area_w - 2.0 * e_label).max(0.0),
                     lch,
@@ -1515,9 +1582,9 @@ How to move or set the focus:\n\
         // Inner border — apply minSpace (C++ DoBorder lines 983-987).
         // C++: rndX += minSpace, rndW -= 2*minSpace, rndY += labelSpace,
         //      rndH -= labelSpace + minSpace, rndR -= minSpace.
-        let inner_x = ox + ms;
+        let inner_x = rnd_x + ms;
         let inner_y = oy + ls;
-        let inner_w = (w - ox * 2.0 - 2.0 * ms).max(0.0);
+        let inner_w = (rnd_w - 2.0 * ms).max(0.0);
         let inner_h = (h - oy * 2.0 - ls - ms).max(0.0);
         // C++ rndR = outer_radius - minSpace, then clamped up per inner type.
         let mut inner_r = (self.outer_radius(w, h) - ms).max(0.0);
@@ -1557,7 +1624,6 @@ How to move or set the focus:\n\
                 } else {
                     look.input_bg_color.lerp(look.bg_color, 0.80)
                 };
-                let canvas = painter.canvas_color();
                 // C++ insets the round rect by d = (16/216)*rndR, but paints the
                 // border image at the full substance rect (rndX,rndY,rndW,rndH).
                 let d = (16.0 / 216.0) * inner_r;
@@ -1571,27 +1637,9 @@ How to move or set the focus:\n\
                     bg,
                 );
                 painter.set_canvas_color(bg);
-                super::toolkit_images::with_toolkit_images(|img| {
-                    painter.paint_border_image(
-                        inner_x,
-                        inner_y,
-                        inner_w,
-                        inner_h,
-                        300.0 / 216.0 * inner_r,
-                        346.0 / 216.0 * inner_r,
-                        inner_r,
-                        inner_r,
-                        &img.io_field,
-                        300,
-                        346,
-                        216,
-                        216,
-                        255,
-                        Color::TRANSPARENT,
-                        BORDER_EDGES_ONLY,
-                    );
-                });
-                let _ = canvas;
+                // C++ paints content HERE (PaintContent), then the IO field
+                // overlay on top. Widgets must call paint_inner_overlay() after
+                // painting their content to match this ordering.
             }
             InnerBorderType::OutputField => {
                 let bg = if enabled {
@@ -1599,7 +1647,6 @@ How to move or set the focus:\n\
                 } else {
                     look.output_bg_color.lerp(look.bg_color, 0.80)
                 };
-                let canvas = painter.canvas_color();
                 let d = (16.0 / 216.0) * inner_r;
                 let tr = inner_r - d;
                 painter.paint_round_rect(
@@ -1611,27 +1658,7 @@ How to move or set the focus:\n\
                     bg,
                 );
                 painter.set_canvas_color(bg);
-                super::toolkit_images::with_toolkit_images(|img| {
-                    painter.paint_border_image(
-                        inner_x,
-                        inner_y,
-                        inner_w,
-                        inner_h,
-                        300.0 / 216.0 * inner_r,
-                        346.0 / 216.0 * inner_r,
-                        inner_r,
-                        inner_r,
-                        &img.io_field,
-                        300,
-                        346,
-                        216,
-                        216,
-                        255,
-                        Color::TRANSPARENT,
-                        BORDER_EDGES_ONLY,
-                    );
-                });
-                let _ = canvas;
+                // Overlay painted by paint_inner_overlay() after content.
             }
             InnerBorderType::CustomRect => {
                 let canvas = painter.canvas_color();
@@ -1657,6 +1684,74 @@ How to move or set the focus:\n\
                 });
             }
         }
+    }
+    /// Paint the IO field border image overlay on top of content.
+    ///
+    /// C++ `emBorder::DoBorder` paints `PaintContent` (widget content) first,
+    /// then overlays the IO field border image. Widgets using `InputField` or
+    /// `OutputField` inner border types must call this AFTER painting their
+    /// content to match this paint order.
+    ///
+    /// For other inner border types this is a no-op.
+    pub fn paint_inner_overlay(&self, painter: &mut Painter, w: f64, h: f64, _look: &Look) {
+        if self.inner != InnerBorderType::InputField && self.inner != InnerBorderType::OutputField {
+            return;
+        }
+
+        // Recompute inner rect geometry (same as in paint_border).
+        let (ox, oy, ow, oh) = self.outer_insets(w, h);
+        let rnd_x = ox;
+        let rnd_w = (w - ow).max(0.0);
+        let rnd_h = (h - oh).max(0.0);
+
+        let s = rnd_w.min(rnd_h) * self.border_scaling;
+        let ms = s * self.min_space_factor();
+        let mut rnd_x2 = rnd_x;
+        let mut rnd_w2 = rnd_w;
+        if self.has_how_to {
+            let hts = s * self.how_to_space_factor();
+            if hts > ms {
+                rnd_x2 += hts - ms;
+                rnd_w2 -= hts - ms;
+            }
+        }
+
+        let ls = if self.label_in_border && self.has_label() {
+            self.label_space(rnd_w2, rnd_h)
+        } else {
+            0.0
+        };
+
+        let inner_x = rnd_x2 + ms;
+        let inner_y = oy + ls;
+        let inner_w = (rnd_w2 - 2.0 * ms).max(0.0);
+        let inner_h = (h - oy * 2.0 - ls - ms).max(0.0);
+        let mut inner_r = (self.outer_radius(w, h) - ms).max(0.0);
+        let type_r = self.inner_radius(inner_w, inner_h);
+        if inner_r < type_r {
+            inner_r = type_r;
+        }
+
+        super::toolkit_images::with_toolkit_images(|img| {
+            painter.paint_border_image(
+                inner_x,
+                inner_y,
+                inner_w,
+                inner_h,
+                300.0 / 216.0 * inner_r,
+                346.0 / 216.0 * inner_r,
+                inner_r,
+                inner_r,
+                &img.io_field,
+                300,
+                346,
+                216,
+                216,
+                255,
+                Color::TRANSPARENT,
+                BORDER_EDGES_ONLY,
+            );
+        });
     }
 }
 
@@ -1705,7 +1800,8 @@ mod tests {
         let rnd_h = 50.0 - 2.0 * d;
         let label_h = border.label_space(rnd_w, rnd_h);
         let rnd_h_after_label = rnd_h - label_h;
-        let ms = rnd_w.min(rnd_h_after_label) * 0.023;
+        // C++ uses pre-label rndH: s = min(rndW, rndH) * BorderScaling
+        let ms = rnd_w.min(rnd_h) * 0.023;
         assert!((x - (d + ms)).abs() < 0.01);
         assert!((y - (d + label_h + ms)).abs() < 0.01);
         assert!((cw - (rnd_w - 2.0 * ms)).abs() < 0.5);
@@ -1738,8 +1834,8 @@ mod tests {
         let rnd_h = 80.0 - 2.0 * od;
         let label_h = border.label_space(rnd_w, rnd_h);
         let rnd_h_after_label = rnd_h - label_h;
-        // minSpace for Instrument = 0.023
-        let ms = rnd_w.min(rnd_h_after_label) * 0.023;
+        // C++ uses pre-label rndH: s = min(rndW, rndH) * BorderScaling
+        let ms = rnd_w.min(rnd_h) * 0.023;
         let iw = rnd_w - 2.0 * ms;
         let ih = rnd_h_after_label - 2.0 * ms;
         // inner inset = rndR * (16/216)

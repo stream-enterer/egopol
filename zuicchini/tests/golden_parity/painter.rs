@@ -40,7 +40,7 @@ fn painter_rect_solid() {
         let mut p = white_painter(&mut img);
         p.paint_rect(20.0, 20.0, 100.0, 80.0, Color::RED);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("rect_solid", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
 
 // ─── Test 2: rect_alpha ─────────────────────────────────────────
@@ -53,7 +53,7 @@ fn painter_rect_alpha() {
         let mut p = white_painter(&mut img);
         p.paint_rect(20.0, 20.0, 100.0, 80.0, Color::rgba(255, 0, 0, 128));
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("rect_alpha", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
 
 // ─── Test 3: rect_overlap ───────────────────────────────────────
@@ -67,7 +67,7 @@ fn painter_rect_overlap() {
         p.paint_rect(20.0, 20.0, 100.0, 80.0, Color::RED);
         p.paint_rect(60.0, 40.0, 100.0, 80.0, Color::rgba(0, 0, 255, 128));
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("rect_overlap", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
 
 // ─── Test 4: ellipse_basic ──────────────────────────────────────
@@ -81,7 +81,7 @@ fn painter_ellipse_basic() {
         // C++ PaintEllipse(28,28,200,150) → cx=128 cy=103 rx=100 ry=75
         p.paint_ellipse(128.0, 103.0, 100.0, 75.0, Color::GREEN);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("ellipse_basic", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 5: ellipse_small ──────────────────────────────────────
@@ -95,7 +95,7 @@ fn painter_ellipse_small() {
         // C++ PaintEllipse(118,118,20,20) → cx=128 cy=128 rx=10 ry=10
         p.paint_ellipse(128.0, 128.0, 10.0, 10.0, Color::BLUE);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("ellipse_small", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 6: polygon_tri ────────────────────────────────────────
@@ -108,7 +108,7 @@ fn painter_polygon_tri() {
         let mut p = white_painter(&mut img);
         p.paint_polygon(&[(128.0, 20.0), (20.0, 230.0), (236.0, 230.0)], Color::RED);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("polygon_tri", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 7: polygon_star ───────────────────────────────────────
@@ -135,7 +135,7 @@ fn painter_polygon_star() {
         let mut p = white_painter(&mut img);
         p.paint_polygon(&star_vertices(), Color::MAGENTA);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("polygon_star", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 8: polygon_complex ────────────────────────────────────
@@ -165,7 +165,7 @@ fn painter_polygon_complex() {
         let mut p = white_painter(&mut img);
         p.paint_polygon(&convex_polygon_20(), Color::CYAN);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("polygon_complex", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 9: round_rect ─────────────────────────────────────────
@@ -178,7 +178,7 @@ fn painter_round_rect() {
         let mut p = white_painter(&mut img);
         p.paint_round_rect(20.0, 20.0, 200.0, 150.0, 20.0, Color::BLUE);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("round_rect", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 10: gradient_h ────────────────────────────────────────
@@ -191,7 +191,7 @@ fn painter_gradient_h() {
         let mut p = white_painter(&mut img);
         p.paint_linear_gradient(0.0, 0.0, 256.0, 256.0, Color::RED, Color::BLUE, true);
     }
-    compare_images(img.data(), &expected, ew, eh, 0, 1.0).unwrap();
+    compare_images("gradient_h", img.data(), &expected, ew, eh, 0, 1.0).unwrap();
 }
 
 // ─── Test 11: gradient_v ────────────────────────────────────────
@@ -204,7 +204,7 @@ fn painter_gradient_v() {
         let mut p = white_painter(&mut img);
         p.paint_linear_gradient(0.0, 0.0, 256.0, 256.0, Color::GREEN, Color::YELLOW, false);
     }
-    compare_images(img.data(), &expected, ew, eh, 0, 1.0).unwrap();
+    compare_images("gradient_v", img.data(), &expected, ew, eh, 0, 1.0).unwrap();
 }
 
 // ─── Test 12: gradient_radial ───────────────────────────────────
@@ -221,7 +221,7 @@ fn painter_gradient_radial() {
     // max_diff=50 at polygon boundary AA, 25.08% of pixels differ at ch_tol=1.
     // Gradient interior: pixel-perfect (integer sqrt table matching C++).
     // Residual: ellipse polygon boundary AA (~0.05% pixels, structural).
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("gradient_radial", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 13: line_basic ────────────────────────────────────────
@@ -234,7 +234,7 @@ fn painter_line_basic() {
         let mut p = white_painter(&mut img);
         p.paint_line_stroked(10.0, 10.0, 240.0, 200.0, &Stroke::new(Color::BLACK, 3.0));
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("line_basic", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 14: line_thick ────────────────────────────────────────
@@ -254,7 +254,7 @@ fn painter_line_thick() {
         };
         p.paint_line_stroked(10.0, 128.0, 240.0, 128.0, &stroke);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("line_thick", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 15: line_ends_all ─────────────────────────────────────
@@ -298,7 +298,7 @@ fn painter_line_ends_all() {
             p.paint_line_stroked(30.0, y, 226.0, y, &stroke);
         }
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 1.0).unwrap();
+    compare_images("line_ends_all", img.data(), &expected, ew, eh, 1, 1.0).unwrap();
 }
 
 // ─── Test 16: line_dashed ───────────────────────────────────────
@@ -321,7 +321,7 @@ fn painter_line_dashed() {
         stroke_dot.gap_length_factor = 3.0;
         p.paint_line_stroked(10.0, 128.0, 240.0, 128.0, &stroke_dot);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("line_dashed", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
 
 // ─── Test 17: outline_rect ──────────────────────────────────────
@@ -334,7 +334,7 @@ fn painter_outline_rect() {
         let mut p = white_painter(&mut img);
         p.paint_rect_outlined(20.0, 20.0, 200.0, 150.0, &Stroke::new(Color::BLACK, 3.0));
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("outline_rect", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
 
 // ─── Test 18: outline_ellipse ───────────────────────────────────
@@ -348,7 +348,7 @@ fn painter_outline_ellipse() {
         // C++ PaintEllipseOutline(28,28,200,150, 2.0, stroke) → cx=128 cy=103 rx=100 ry=75
         p.paint_ellipse_outlined(128.0, 103.0, 100.0, 75.0, &Stroke::new(Color::BLACK, 2.0));
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("outline_ellipse", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
 
 // ─── Test 19: outline_polygon ───────────────────────────────────
@@ -373,7 +373,7 @@ fn painter_outline_polygon() {
         let mut p = white_painter(&mut img);
         p.paint_polygon_outlined(&pentagon_vertices(), Color::BLACK, 3.0);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("outline_polygon", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
 
 // ─── Test 20: outline_round_rect ────────────────────────────────
@@ -395,7 +395,7 @@ fn painter_outline_round_rect() {
     }
     // Residual: arc approximation segment count differs slightly from C++.
     // max_diff=162, 0.21% of pixels differ at ch_tol=1.
-    compare_images(img.data(), &expected, ew, eh, 2, 0.5).unwrap();
+    compare_images("outline_round_rect", img.data(), &expected, ew, eh, 2, 0.5).unwrap();
 }
 
 // ─── Test 21: bezier_filled ─────────────────────────────────────
@@ -413,7 +413,7 @@ fn painter_bezier_filled() {
         let mut p = white_painter(&mut img);
         p.paint_bezier(&bezier_points(), Color::RED);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("bezier_filled", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
 
 // ─── Test 22: bezier_stroked ────────────────────────────────────
@@ -431,7 +431,7 @@ fn painter_bezier_stroked() {
         stroke.finish_end = StrokeEnd::new(StrokeEndType::Arrow).with_inner_color(Color::WHITE);
         p.paint_bezier_line(&bezier_points(), &stroke);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 1.0).unwrap();
+    compare_images("bezier_stroked", img.data(), &expected, ew, eh, 1, 1.0).unwrap();
 }
 
 // ─── Test 23: clip_basic ────────────────────────────────────────
@@ -446,7 +446,7 @@ fn painter_clip_basic() {
         // Paint full-canvas polygon — only center rect should appear
         p.paint_polygon(&[(128.0, 10.0), (10.0, 246.0), (246.0, 246.0)], Color::RED);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("clip_basic", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 24: canvas_color ──────────────────────────────────────
@@ -461,7 +461,7 @@ fn painter_canvas_color() {
         p.set_canvas_color(Color::grey(200));
         p.paint_rect(20.0, 20.0, 100.0, 80.0, Color::rgba(255, 0, 0, 128));
     }
-    compare_images(img.data(), &expected, ew, eh, 0, 0.5).unwrap();
+    compare_images("canvas_color", img.data(), &expected, ew, eh, 0, 0.5).unwrap();
 }
 
 // ─── Test 25: image_paint ───────────────────────────────────────
@@ -492,7 +492,7 @@ fn painter_image_paint() {
         let mut p = white_painter(&mut img);
         p.paint_image_full(50.0, 50.0, 64.0, 64.0, &src, 255, Color::TRANSPARENT);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("image_paint", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 26: image_scaled ──────────────────────────────────────
@@ -508,7 +508,7 @@ fn painter_image_scaled() {
     }
     // Adaptive interpolation matches C++ UQ_ADAPTIVE; remaining ±1 diffs from
     // FP rounding in Hermite factor table computation.
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("image_scaled", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 27: multi_compose ─────────────────────────────────────
@@ -536,7 +536,7 @@ fn painter_multi_compose() {
         );
         p.paint_rect(30.0, 150.0, 200.0, 80.0, Color::rgba(128, 0, 128, 90));
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("multi_compose", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 28: polyline ──────────────────────────────────────────
@@ -557,7 +557,7 @@ fn painter_polyline() {
         let verts = [(20.0, 200.0), (80.0, 40.0), (160.0, 200.0), (240.0, 40.0)];
         p.paint_solid_polyline(&verts, &stroke, false);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("polyline", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 30: transform_translate ───────────────────────────────
@@ -573,7 +573,7 @@ fn painter_transform_translate() {
         p.paint_rect(0.0, 0.0, 80.0, 60.0, Color::RED);
         p.pop_state();
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("transform_translate", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 35: transform_fractional ──────────────────────────────
@@ -589,7 +589,16 @@ fn painter_transform_fractional() {
         p.paint_rect(20.0, 20.0, 100.0, 80.0, Color::RED);
         p.pop_state();
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images(
+        "transform_fractional",
+        img.data(),
+        &expected,
+        ew,
+        eh,
+        1,
+        0.5,
+    )
+    .unwrap();
 }
 
 // ─── Test 36: transform_identity_roundtrip ─────────────────────
@@ -606,7 +615,16 @@ fn painter_transform_identity_roundtrip() {
         p.paint_rect(20.0, 20.0, 100.0, 80.0, Color::RED);
         p.pop_state();
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images(
+        "transform_identity_roundtrip",
+        img.data(),
+        &expected,
+        ew,
+        eh,
+        1,
+        0.5,
+    )
+    .unwrap();
 }
 
 // ─── Test 34: transform_ellipse_scaled ──────────────────────────
@@ -623,7 +641,16 @@ fn painter_transform_ellipse_scaled() {
         p.paint_ellipse(40.0, 80.0, 30.0, 30.0, Color::GREEN);
         p.pop_state();
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images(
+        "transform_ellipse_scaled",
+        img.data(),
+        &expected,
+        ew,
+        eh,
+        1,
+        0.5,
+    )
+    .unwrap();
 }
 
 // ─── Test 37: text_basic ────────────────────────────────────────
@@ -644,7 +671,7 @@ fn painter_text_basic() {
             Color::TRANSPARENT,
         );
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("text_basic", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 38: text_scaled ───────────────────────────────────────
@@ -665,7 +692,7 @@ fn painter_text_scaled() {
             Color::TRANSPARENT,
         );
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("text_scaled", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 39: text_fitted ───────────────────────────────────────
@@ -693,7 +720,7 @@ fn painter_text_fitted() {
             0.0,
         );
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("text_fitted", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 40: text_alignment ────────────────────────────────────
@@ -756,7 +783,7 @@ fn painter_text_alignment() {
             0.0,
         );
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("text_alignment", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 41: text_clipped ──────────────────────────────────────
@@ -780,7 +807,7 @@ fn painter_text_clipped() {
         );
         p.pop_state();
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("text_clipped", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 42: text_below_threshold ──────────────────────────────
@@ -801,7 +828,16 @@ fn painter_text_below_threshold() {
             Color::TRANSPARENT,
         );
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images(
+        "text_below_threshold",
+        img.data(),
+        &expected,
+        ew,
+        eh,
+        1,
+        0.5,
+    )
+    .unwrap();
 }
 
 // ─── Test 33: transform_clip_interaction ────────────────────────
@@ -818,7 +854,16 @@ fn painter_transform_clip_interaction() {
         p.paint_rect(0.0, 0.0, 80.0, 60.0, Color::RED);
         p.pop_state();
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images(
+        "transform_clip_interaction",
+        img.data(),
+        &expected,
+        ew,
+        eh,
+        1,
+        0.5,
+    )
+    .unwrap();
 }
 
 // ─── Test 32: transform_nested ──────────────────────────────────
@@ -840,7 +885,7 @@ fn painter_transform_nested() {
         p.paint_rect(0.0, 0.0, 50.0, 50.0, Color::rgba(0, 0, 255, 128));
         p.pop_state();
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("transform_nested", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 31: transform_scale ───────────────────────────────────
@@ -856,7 +901,7 @@ fn painter_transform_scale() {
         p.paint_rect(10.0, 10.0, 50.0, 40.0, Color::RED);
         p.pop_state();
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("transform_scale", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
 
 // ─── Test 29: ellipse_sector ────────────────────────────────────
@@ -871,5 +916,5 @@ fn painter_ellipse_sector() {
         // Start=0° (right), sweep=90° (down to bottom-right quadrant)
         p.paint_ellipse_sector(128.0, 128.0, 100.0, 100.0, 0.0, 90.0, Color::RED);
     }
-    compare_images(img.data(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("ellipse_sector", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }

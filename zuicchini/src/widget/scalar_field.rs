@@ -47,7 +47,8 @@ impl ScalarField {
         let value = min;
         Self {
             border: Border::new(OuterBorderType::Instrument)
-                .with_inner(InnerBorderType::InputField),
+                .with_inner(InnerBorderType::InputField)
+                .with_how_to(true),
             look,
             value,
             min,
@@ -256,9 +257,18 @@ impl ScalarField {
 
         let mut e = s * 0.3 * 0.5;
 
-        // Scale mark layout calculations
+        // Scale mark layout calculations.
+        // C++ interval culling: skip leading intervals > vRange when !marks_never_hidden.
         let ivals = &self.scale_mark_intervals;
-        let ival_cnt = ivals.len();
+        let mut ival_start = 0;
+        let mut ival_cnt = ivals.len();
+        if !self.marks_never_hidden {
+            while ival_cnt > 1 && ivals[ival_start] as f64 > v_range {
+                ival_start += 1;
+                ival_cnt -= 1;
+            }
+        }
+        let ivals = &self.scale_mark_intervals[ival_start..ival_start + ival_cnt];
         let ival_sum: u64 = ivals.iter().sum();
 
         let mtw0 = 1.0_f64;
@@ -326,21 +336,38 @@ impl ScalarField {
         ];
         painter.paint_polygon(&arrow, fg_col);
 
-        // Scale marks with text labels and small arrows
+        // Scale marks with text labels and small arrows.
+        // C++ emScalarField.cpp lines 438-473.
         if ival_cnt > 0 && v_range > 0.0 {
             let f = aw / v_range;
             let mark_col = bg_col.lerp(fg_col, 0.66);
+            let (scale_x, _) = painter.scaling();
             let mut mark_ty = ay;
-            for &ival in ivals.iter().take(ival_cnt) {
+            for &ival in ivals.iter() {
                 let th = ah / ival_sum as f64 * ival as f64;
                 let tw = mtw * th;
+
+                // C++ visibility gate: skip tier if mark text < 1px wide on screen.
+                if tw * scale_x <= 1.0 {
+                    mark_ty += th;
+                    continue;
+                }
+
                 let h4 = mth * th;
                 let h5 = mah * th;
 
-                // Iterate visible marks
+                // C++ clip-region culling: only iterate marks within visible area.
                 let interval = ival as f64;
-                let k1 = (self.min - 0.01) / interval;
-                let k2 = (aw / f + self.min + 0.01) / interval;
+                let mut x3 = painter.get_user_clip_x1() - tw * 0.5;
+                let mut w3 = painter.get_user_clip_x2() + tw * 0.5 - x3;
+                if x3 < ax {
+                    x3 = ax;
+                }
+                if w3 > ax + aw - x3 {
+                    w3 = ax + aw - x3;
+                }
+                let k1 = ((x3 - ax) / f + self.min - 0.01) / interval;
+                let k2 = ((x3 + w3 - ax) / f + self.min + 0.01) / interval;
                 let mut k = k1.ceil() as i64;
                 let k_end = k2.floor() as i64;
                 while k <= k_end {
@@ -348,8 +375,7 @@ impl ScalarField {
                     let mark_tx = (v - self.min) * f + ax;
 
                     // Text label
-                    let mark_iv = ival;
-                    let label = (self.text_of_value_fn)(v as i64, mark_iv);
+                    let label = (self.text_of_value_fn)(v as i64, ival);
                     painter.paint_text_boxed(
                         mark_tx - tw * 0.5,
                         mark_ty,
@@ -380,6 +406,9 @@ impl ScalarField {
                 mark_ty += th;
             }
         }
+
+        // C++ paints content, THEN overlays the IO field border image.
+        self.border.paint_inner_overlay(painter, w, h, &self.look);
     }
 
     // --- Input ---

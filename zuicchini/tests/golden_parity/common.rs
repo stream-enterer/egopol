@@ -51,9 +51,26 @@ pub fn load_painter_golden(name: &str) -> (u32, u32, Vec<u8>) {
 /// the Rust painter stores standard alpha.  The visual output (RGB) is what
 /// matters for parity.
 ///
+/// `name`: stable test identifier emitted in JSONL output (see `MEASURE_DIVERGENCE`).
 /// `channel_tolerance`: max per-channel absolute diff allowed per pixel.
 /// `max_failure_pct`: max percentage of pixels that may exceed tolerance.
+///
+/// # Measurement mode
+///
+/// Two independent env vars control output, usable separately or together:
+///
+/// - `MEASURE_DIVERGENCE=1` — emit one JSONL record per call to **stderr**.
+/// - `DIVERGENCE_LOG=<path>` — **append** one JSONL record per call to `<path>`.
+///   Safe to use with parallel test threads: each write is a single `write(2)`
+///   syscall in append mode, which is atomic on Linux for records this small.
+///
+/// Each record:
+/// ```text
+/// {"test":"<name>","tol":<u8>,"fail":<n>,"total":<n>,"pct":<f>,"max_diff":<u8>,"pass":<bool>}
+/// ```
+/// Run with `--test-threads=1` for deterministic ordering.
 pub fn compare_images(
+    name: &str,
     actual: &[u8],
     expected: &[u8],
     width: u32,
@@ -89,6 +106,27 @@ pub fn compare_images(
     }
 
     let fail_pct = fail_count as f64 / total as f64 * 100.0;
+    let measure = std::env::var("MEASURE_DIVERGENCE").map_or(false, |v| v == "1");
+    let log_path = std::env::var("DIVERGENCE_LOG").ok();
+    if measure || log_path.is_some() {
+        let pass = fail_pct <= max_failure_pct;
+        let line = format!(
+            r#"{{"test":{name:?},"tol":{channel_tolerance},"fail":{fail_count},"total":{total},"pct":{fail_pct:.4},"max_diff":{max_diff},"pass":{pass}}}"#
+        );
+        if measure {
+            eprintln!("{line}");
+        }
+        if let Some(ref path) = log_path {
+            use std::io::Write;
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
+                let _ = writeln!(f, "{line}");
+            }
+        }
+    }
     if fail_pct > max_failure_pct {
         let mut msg = format!(
             "Image mismatch: {fail_count}/{total} pixels ({fail_pct:.2}%) exceed tolerance \

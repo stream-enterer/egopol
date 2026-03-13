@@ -161,7 +161,15 @@ fn render_and_compare_tol(
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().data();
 
-    let result = compare_images(actual, &expected, w, h, channel_tolerance, max_failure_pct);
+    let result = compare_images(
+        name,
+        actual,
+        &expected,
+        w,
+        h,
+        channel_tolerance,
+        max_failure_pct,
+    );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images(name, actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, channel_tolerance);
@@ -427,7 +435,9 @@ fn widget_colorfield() {
     let mut cf = ColorField::new(look);
     cf.set_caption("Color");
     cf.set_color(zuicchini::foundation::Color::rgba(255, 0, 0, 255));
-    // Residual from IBT_INPUT 9-slice border + color content diffs (~10.4%)
+    // C++ golden auto-expands, showing child scalar fields. The Rust test
+    // renders non-expanded because child panels don't yet render at this
+    // viewport size. Bulk of divergence (~28k) is from missing children.
     render_and_compare_tol(
         "widget_colorfield",
         Box::new(ColorFieldBehavior { color_field: cf }),
@@ -575,7 +585,7 @@ fn colorfield_expanded() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().data();
 
-    let result = compare_images(actual, &expected, w, h, 3, 45.0);
+    let result = compare_images("colorfield_expanded", actual, &expected, w, h, 3, 45.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("colorfield_expanded", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 3);
@@ -649,7 +659,7 @@ fn listbox_expanded() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().data();
 
-    let result = compare_images(actual, &expected, w, h, 3, 50.0);
+    let result = compare_images("listbox_expanded", actual, &expected, w, h, 3, 50.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("listbox_expanded", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 3);

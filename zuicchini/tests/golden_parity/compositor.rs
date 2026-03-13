@@ -85,7 +85,7 @@ fn compositor_single_panel() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().data();
 
-    compare_images(actual, &expected, w, h, 1, 0.5).unwrap();
+    compare_images("composite_single_panel", actual, &expected, w, h, 1, 0.5).unwrap();
 }
 
 // ─── Test 3: composite_overlap ─────────────────────────────────────
@@ -122,7 +122,7 @@ fn compositor_overlap() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().data();
 
-    compare_images(actual, &expected, w, h, 1, 0.5).unwrap();
+    compare_images("composite_overlap", actual, &expected, w, h, 1, 0.5).unwrap();
 }
 
 // ─── Test 4: composite_nested ──────────────────────────────────────
@@ -155,7 +155,7 @@ fn compositor_nested() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().data();
 
-    compare_images(actual, &expected, w, h, 1, 0.5).unwrap();
+    compare_images("composite_nested", actual, &expected, w, h, 1, 0.5).unwrap();
 }
 
 // ─── Test 5: composite_canvas_color ────────────────────────────────
@@ -190,7 +190,7 @@ fn compositor_canvas_color() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().data();
 
-    compare_images(actual, &expected, w, h, 1, 0.5).unwrap();
+    compare_images("composite_canvas_color", actual, &expected, w, h, 1, 0.5).unwrap();
 }
 
 // ─── Test 2: composite_two_children ────────────────────────────────
@@ -228,5 +228,5 @@ fn compositor_two_children() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().data();
 
-    compare_images(actual, &expected, w, h, 1, 0.5).unwrap();
+    compare_images("composite_two_children", actual, &expected, w, h, 1, 0.5).unwrap();
 }

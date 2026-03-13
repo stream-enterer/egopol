@@ -1971,6 +1971,7 @@ fn render_testpanel(
     let actual = compositor.framebuffer().data();
 
     let result = compare_images(
+        name,
         actual,
         expected_data,
         w,

@@ -32,17 +32,18 @@
   tests: [ellipse_basic, gradient_radial, ellipse_sector]
   status: passing
   evidence:
-    ellipse_basic: { ch_tol: 1, max_pct: 0.5, note: "passes ch_tol=0 after blend/coverage fix" }
-    gradient_radial: { ch_tol: 1, max_pct: 0.5, max_diff: 50, pct_differ_at_1: "0.05%" }
-    ellipse_sector: { ch_tol: 1, max_pct: 0.5, note: "pending ch_tol=0 verification" }
+    ellipse_basic: { ch_tol: 1, fail: 20, max_diff: 57, pct: "0.03%" }
+    gradient_radial: { ch_tol: 1, fail: 20, max_diff: 50, pct: "0.03%" }
+    ellipse_sector: { ch_tol: 1, fail: 7, max_diff: 17, pct: "0.01%" }
   source: [src/render/painter.rs (ellipse_polygon, adaptive_circle_segments, paint_radial_gradient, grad_sqrt_table)]
   analysis: tests/golden_parity/PARITY_STATUS.md section C1
   notes: >
     gradient_radial FIXED: ported C++ integer sqrt lookup table (64771 entries,
     emPainter_ScTlIntGra.cpp) with fixed-point TX/TY/TDX/TDY matching C++ exactly.
-    Old: max_diff=248, 26.10% of pixels. New: 0.05% of pixels differ at ch_tol=1,
+    Old: max_diff=248, 26.10% of pixels. New: 0.03% of pixels differ at ch_tol=1,
     all at ellipse polygon boundary AA (structural, same as ellipse_basic).
-    ellipse_basic passes at ch_tol=0. ellipse_sector at ch_tol=1.
+    Residual in all three tests: polygon approximation N-segment boundary AA differs
+    from C++ due to angle accumulation differences. Phase 4 fix pending.
 
 - id: DIV-002
   area: painter/scanline-aa
@@ -59,30 +60,44 @@
 
 - id: DIV-003
   area: painter/stroke-expansion
-  kind: bug-fixed
+  kind: expected-divergence
   tests: [line_basic, line_dashed, outline_rect, outline_ellipse, outline_polygon, outline_round_rect, bezier_stroked, polyline]
   status: passing
+  evidence:
+    line_basic: { ch_tol: 1, fail: 3, max_diff: 105 }
+    line_dashed: { ch_tol: 1, fail: 4, max_diff: 128 }
+    outline_rect: { ch_tol: 0, fail: 0 }
+    outline_ellipse: { ch_tol: 1, fail: 36, max_diff: 113 }
+    outline_polygon: { ch_tol: 1, fail: 53, max_diff: 141 }
+    outline_round_rect: { ch_tol: 2, fail: 120, max_diff: 162 }
+    bezier_stroked: { ch_tol: 1, fail: 308, max_diff: 229 }
+    polyline: { ch_tol: 0, fail: 0 }
   source: [src/render/painter.rs (blit_span, blend_pixel, blend_with_coverage), src/render/scanline.rs]
   notes: >
-    Fixed: The original max_diff=255 diffs were NOT structural boundary differences
-    as previously analyzed. They were caused by the blend formula (div-256 truncation
-    vs C++ round-div-255) and the two-step coverage conversion (12→8→8 re-modulation).
-    Fixing the blend formula to (x * 257 + 0x8073) >> 16 and switching to 12-bit
-    Span opacities with single-step alpha resolved all 8 tests. Now pass at ch_tol=1
-    (verified ch_tol=0 for line_basic, polyline, outline_ellipse, outline_polygon,
-    bezier_stroked).
+    Partially fixed: The original max_diff=255 diffs were NOT structural boundary
+    differences. They were caused by the blend formula (div-256 truncation vs C++
+    round-div-255) and the two-step coverage conversion (12→8→8 re-modulation).
+    Fixing the blend formula and switching to 12-bit Span opacities resolved
+    outline_rect and polyline to ch_tol=0. Remaining tests still diverge at ch_tol=1:
+    line_basic (3px/max_diff=105), line_dashed (4px/max_diff=128), outline_ellipse
+    (36px/max_diff=113), outline_polygon (53px/max_diff=141), outline_round_rect
+    (120px/max_diff=162), bezier_stroked (308px/max_diff=229).
+    Root cause of residual: stroke polygon tessellation differences (Phase 3 fix).
 
 - id: DIV-004
   area: painter/curve-polygon
-  kind: bug-fixed
+  kind: expected-divergence
   tests: [bezier_filled]
   status: passing
+  evidence:
+    bezier_filled: { ch_tol: 1, fail: 2, max_diff: 82 }
   source: [src/render/painter.rs (blend_pixel, blend_with_coverage), src/render/scanline.rs]
   notes: >
-    Fixed: Like DIV-003, the original max_diff=255 was NOT from tessellation
-    differences. It was caused by the blend formula and coverage conversion
-    errors that made every AA boundary pixel wrong. With the round-div-255
-    blend and 12-bit coverage, bezier_filled passes at ch_tol=0.
+    Partially fixed: Like DIV-003, the original max_diff=255 was NOT from tessellation
+    differences. It was caused by the blend formula and coverage conversion errors.
+    With the round-div-255 blend and 12-bit coverage, bezier_filled improved
+    significantly. Residual: 2 pixels at max_diff=82 at ch_tol=1.
+    Root cause of residual: curve polygon tessellation difference (Phase 3 fix).
 
 - id: DIV-005
   area: painter/image-scaling
@@ -169,16 +184,19 @@
 
 - id: DIV-006
   area: painter/stroke-ends
-  kind: bug-fixed
+  kind: expected-divergence
   tests: [line_ends_all]
   status: passing
+  evidence:
+    line_ends_all: { ch_tol: 1, fail: 340, max_diff: 255 }
   source: [src/render/painter.rs (blend_pixel, blend_with_coverage), src/render/scanline.rs]
   related: [DIV-003]
   notes: >
-    Fixed: Same root cause as DIV-003. The 19.91% diff at ch_tol=80 was entirely
-    from the blend formula and coverage conversion errors, not stroke end geometry
-    differences. All 17 stroke end decoration types now produce pixel-identical
-    output. Passes at ch_tol=0.
+    Partially fixed: Same root cause as DIV-003. The original 19.91% diff at ch_tol=80
+    was primarily from the blend formula and coverage conversion errors. After fixes,
+    most stroke end types improved. Residual: 340 pixels at max_diff=255 at ch_tol=1,
+    across the 17 stroke end decoration types.
+    Root cause of residual: stroke end geometry differences (Phase 3 fix).
 
 - id: DIV-007
   area: painter/compound

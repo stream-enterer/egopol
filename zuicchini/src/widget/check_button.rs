@@ -17,7 +17,9 @@ pub struct CheckButton {
 impl CheckButton {
     pub fn new(caption: &str, look: Rc<Look>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::RoundRect).with_caption(caption),
+            border: Border::new(OuterBorderType::RoundRect)
+                .with_caption(caption)
+                .with_how_to(true),
             look,
             checked: false,
             on_check: None,

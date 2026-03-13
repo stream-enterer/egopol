@@ -109,7 +109,8 @@ impl TextField {
     pub fn new(look: Rc<Look>) -> Self {
         Self {
             border: Border::new(OuterBorderType::Instrument)
-                .with_inner(InnerBorderType::InputField),
+                .with_inner(InnerBorderType::InputField)
+                .with_how_to(true),
             look,
             text: String::new(),
             cursor: 0,
@@ -955,6 +956,9 @@ impl TextField {
         }
 
         painter.pop_state();
+
+        // C++ paints content, THEN overlays the IO field border image.
+        self.border.paint_inner_overlay(painter, w, h, &self.look);
     }
 
     fn paint_single_line(

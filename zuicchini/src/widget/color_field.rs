@@ -90,7 +90,8 @@ impl ColorField {
     pub fn new(look: Rc<Look>) -> Self {
         Self {
             border: Border::new(OuterBorderType::Instrument)
-                .with_inner(InnerBorderType::OutputField),
+                .with_inner(InnerBorderType::OutputField)
+                .with_how_to(true),
             look,
             color: Color::BLACK,
             editable: false,
@@ -351,18 +352,15 @@ impl ColorField {
         painter.paint_rect(rx, ry, rw, rh, self.color);
 
         // Paint rect outline (C++ PaintRectOutline with d*0.08 thickness).
+        // C++ uses a 10-vertex polygon (outer + inner rect) centered on the rect edges.
         let thickness = d * 0.08;
-        let outline_color = self.look.input_fg_color;
         if thickness > 0.0 {
-            // Top edge.
-            painter.paint_rect(rx, ry, rw, thickness, outline_color);
-            // Bottom edge.
-            painter.paint_rect(rx, ry + rh - thickness, rw, thickness, outline_color);
-            // Left edge.
-            painter.paint_rect(rx, ry, thickness, rh, outline_color);
-            // Right edge.
-            painter.paint_rect(rx + rw - thickness, ry, thickness, rh, outline_color);
+            let outline_stroke = crate::render::Stroke::new(self.look.input_fg_color, thickness);
+            painter.paint_rect_outlined(rx, ry, rw, rh, &outline_stroke);
         }
+
+        // C++ paints content, THEN overlays the IO field border image.
+        self.border.paint_inner_overlay(painter, w, h, &self.look);
     }
 
     pub fn input(&mut self, event: &InputEvent) -> bool {

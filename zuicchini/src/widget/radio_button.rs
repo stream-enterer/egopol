@@ -170,7 +170,8 @@ impl RadioButton {
         Self {
             border: Border::new(OuterBorderType::InstrumentMoreRound)
                 .with_caption(caption)
-                .with_label_in_border(false),
+                .with_label_in_border(false)
+                .with_how_to(true),
             look,
             group,
             index,
