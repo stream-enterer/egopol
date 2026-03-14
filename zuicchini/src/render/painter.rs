@@ -1008,17 +1008,43 @@ impl<'a> Painter<'a> {
                 }
             }
         } else {
+            // C++ uses bilinear interpolation for upscaling (UQ_BILINEAR default).
+            // Rust was using nearest-neighbor. Bilinear with sub-rect bounds.
+            let sec = interpolation::SectionBounds {
+                ox: src_x as i32,
+                oy: src_y as i32,
+                w: src_w as i32,
+                h: src_h as i32,
+            };
             for row in start_y..end_y {
                 for col in start_x..end_x {
-                    let fx = (col as f64 - dx + 0.5) * ratio_x;
-                    let fy = (row as f64 - dy + 0.5) * ratio_y;
-                    let ix = (fx as u32).min(src_w - 1);
-                    let iy = (fy as u32).min(src_h - 1);
-                    let p = image.pixel(src_x + ix, src_y + iy);
+                    let fx = (col as f64 - dx + 0.5) * ratio_x - 0.5;
+                    let fy = (row as f64 - dy + 0.5) * ratio_y - 0.5;
+                    let ix = fx.floor() as i32;
+                    let iy = fy.floor() as i32;
+                    let tx = ((fx - fx.floor()) * 256.0) as u32;
+                    let ty = ((fy - fy.floor()) * 256.0) as u32;
+                    let itx = 256 - tx;
+                    let ity = 256 - ty;
+
+                    let p00 = interpolation::sample_section_pixel(image, ix, iy, &sec, ext);
+                    let p10 = interpolation::sample_section_pixel(image, ix + 1, iy, &sec, ext);
+                    let p01 = interpolation::sample_section_pixel(image, ix, iy + 1, &sec, ext);
+                    let p11 = interpolation::sample_section_pixel(image, ix + 1, iy + 1, &sec, ext);
+
+                    let bilinear_ch = |c: usize| -> u8 {
+                        let top = p00[c] as u32 * itx + p10[c] as u32 * tx;
+                        let bot = p01[c] as u32 * itx + p11[c] as u32 * tx;
+                        ((top * ity + bot * ty + 0x8000) >> 16) as u8
+                    };
+
                     let lum = if ch == 1 {
-                        p[0]
+                        bilinear_ch(0)
                     } else {
-                        ((p[0] as u32 * 77 + p[1] as u32 * 150 + p[2] as u32 * 29) >> 8) as u8
+                        let r = bilinear_ch(0) as u32;
+                        let g = bilinear_ch(1) as u32;
+                        let b = bilinear_ch(2) as u32;
+                        ((r * 77 + g * 150 + b * 29) >> 8) as u8
                     };
                     self.blend_with_coverage(col, row, lum_to_color(lum), sp.coverage(col, row));
                 }
