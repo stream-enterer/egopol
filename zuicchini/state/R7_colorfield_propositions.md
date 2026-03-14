@@ -2,9 +2,11 @@
 
 ## How to Use This Document
 
-You are investigating ~28k pixels of rendering divergence between the Rust
-`zuicchini` UI framework and the C++ Eagle Mode reference (`emCore`). This
-document transfers all knowledge from the prior investigation context.
+You are investigating rendering divergence between the Rust `zuicchini` UI
+framework and the C++ Eagle Mode reference (`emCore`). Prior rounds fixed
+geometry bugs (see "R11 Completed Work" below). **20,593 divergent pixels
+remain across the colorfield tests.** This document tells you exactly what
+was done, what was skipped, and what to do next.
 
 **Your goal:** Achieve 1:1 pixel parity with C++ for the colorfield golden tests.
 This means 0 divergent pixels, not "close enough." Every remaining pixel is
@@ -15,7 +17,7 @@ selection (not from any source-level code difference).
 
 **Your approach:**
 1. Read this document fully before acting.
-2. Execute the Investigation Protocol at the bottom. Do not skip steps.
+2. Execute the "Next Steps" protocol at the bottom. Do not skip steps.
 3. For every hypothesis, read both the Rust and C++ code line-by-line before
    concluding. Do not assume — verify.
 4. When you find a fix, measure its pixel impact before and after. Record the
@@ -31,21 +33,19 @@ selection (not from any source-level code difference).
   `emColorField.cpp`, `emBorder.cpp`, `emPainter.cpp`
 - Tests: `tests/golden_parity/widget.rs` (search for `widget_colorfield`,
   `colorfield_expanded`, `widget_scalarfield`)
-- Debug images: `golden_debug/*.png` (regenerate with `DUMP_GOLDEN=1`)
+- Debug images: `golden_debug/*.png` (only regenerated on test FAILURE with
+  `DUMP_GOLDEN=1`; to get fresh images, temporarily lower tolerance in test)
 
 **Commands:**
 ```bash
-# Run specific test
-cargo-nextest ntr -E 'test(widget_colorfield)' --workspace
+# Run specific test (CARGO_TARGET_DIR=rust_target if default target is read-only)
+CARGO_TARGET_DIR=rust_target cargo-nextest ntr -E 'test(widget_colorfield)' --workspace
 
 # Run with divergence log
-DIVERGENCE_LOG=/path/to/output.jsonl cargo-nextest ntr --workspace --test-threads=1
-
-# Regenerate debug images for a test
-DUMP_GOLDEN=1 cargo-nextest ntr -E 'test(widget_colorfield)' --workspace
+CARGO_TARGET_DIR=rust_target DIVERGENCE_LOG=$(pwd)/state/post_rXX.jsonl cargo-nextest ntr --workspace --test-threads=1
 
 # Clippy + full test suite
-cargo clippy --workspace -- -D warnings && cargo-nextest ntr --workspace
+CARGO_TARGET_DIR=rust_target cargo clippy --workspace -- -D warnings && CARGO_TARGET_DIR=rust_target cargo-nextest ntr --workspace
 ```
 
 **Anti-pattern warnings for the investigator:**
@@ -91,65 +91,143 @@ viewport size). Whether they diverge for the same root cause is NOT verified.
 
 ---
 
-## FIXED: P18 — content_round_rect vs paint path geometry mismatch
+## Current Pixel Counts (after R12, 2026-03-14)
 
-**Status: FIXED (2026-03-14). See "R11 Fixes" section below for details.**
+| Test | Pixels | Total | Pct | Delta vs R11 |
+|------|--------|-------|-----|--------------|
+| widget_colorfield | 5,509 | 480,000 | 1.15% | -860 |
+| colorfield_expanded | 14,210 | 640,000 | 2.22% | -14 |
+| widget_scalarfield | 106 | 480,000 | 0.022% | -114 |
 
-### The mismatch
+Divergence log: `state/post_r12_final.jsonl`
 
-Two independent code paths compute the CustomRect content area, and they disagree:
+### R11 counts (baseline for R12)
 
-1. **Paint path** (`src/widget/border.rs`, fn `paint_border_content`, ~line 1272):
-   Correctly implements the C++ two-step inset:
-   - Step 1: `d = rndR * 0.25` (inset by 25% of outer corner radius)
-   - Step 2: clamp `rndR` upward, then `d = rndR` (inset by full bumped radius)
-   - Total inset from original: `rndR*0.25 + max(rndR*0.75, bump)`
-   This paints the border chrome in the correct position.
+| Test | Pixels | Total | Pct |
+|------|--------|-------|-----|
+| widget_colorfield | 6,369 | 480,000 | 1.33% |
+| colorfield_expanded | 14,224 | 640,000 | 2.22% |
+| widget_scalarfield | 220 | 480,000 | 0.046% |
 
-2. **Geometry query** (`src/widget/border.rs`, fn `content_round_rect`, ~line 1036):
-   Uses a simplified `inner_insets()` formula:
-   - `inner_s = rnd_w.min(rnd_h_inner) * self.border_scaling`
-   - Inset: `d = inner_s * 0.0125`
-   This uses **post-reduction** dimensions (`rnd_w`, `rnd_h_inner` — after outer
-   border insets and label subtraction), not the original `(w, h)`.
+Baseline divergence log: `state/post_howto.jsonl`
 
-`ScalarField::paint` calls `content_round_rect` at line 229 to get its content
-area, then draws ALL internal elements (side bars, value arrow, scale marks,
-text labels) relative to that returned rect. But the border frame was painted by
-the paint path using the correct inset. **Every internal element is offset from
-its own border frame.**
+---
 
-### Why this matters
+## R12 Completed Work (2026-03-14)
 
-This is not a sub-pixel rounding issue. The content_round_rect returns a rect
-that is wider and taller than the C++ equivalent. Every mark position, every
-arrow vertex, every side bar edge, every text label position is shifted. With
-8 ScalarField cells, each containing dozens of rendered elements, the cascading
-pixel impact is unknown until measured.
+### Bugs Fixed
 
-### Numerical example
+1. **ScalarField IsEnabled() color dimming not implemented (OI-1).**
+   C++ `emScalarField.cpp:412-414` blends bgCol/fgCol with `look.bg_color` at 80%
+   when `!IsEnabled()`. Rust `ScalarField::paint` never dimmed colors and always
+   passed `enabled=true` to `paint_border`. Fixed by adding `enabled: bool` parameter
+   to `ScalarField::paint`, implementing the 80% lerp dimming, and passing the actual
+   enabled state to `paint_border`. All callers updated (field_panel.rs, test_panel.rs,
+   toolkit_demo.rs, widget.rs tests).
+   C++ ref: `emScalarField.cpp:412-416`.
+   Impact: **widget_colorfield -858 px** (Alpha field disabled when alpha_enabled=false).
 
-For a ScalarField cell at vw≈134px, tallness=0.2, OBT_RECT, IBT_CUSTOM_RECT,
-border_scaling=2.0:
+2. **HowTo pill text not rendered inside indicator (OI-2/OI-5).**
+   C++ `emBorder.cpp:916-927` paints text inside the HowTo pill when the pill area
+   exceeds 100 square pixels. Rust only painted the pill rounded-rect shape without
+   any text. Fixed by adding `how_to_text: String` field to `Border` and rendering
+   text with `paint_text_boxed` inside the pill at appropriate size. Also fixed pill
+   alpha rounding: Rust used `(255.0 * 0.10) as u8 = 25`, C++ `GetTransparented(90)`
+   rounds to 26. Fixed with `(255.0 * 0.10 + 0.5) as u8`.
+   C++ ref: `emBorder.cpp:906-928`, `emScalarField.cpp:285-293`.
+   Impact: **widget_scalarfield -114 px**, **colorfield -16 px total**.
 
-| | C++ | Rust | Difference |
-|---|-----|------|-----------|
-| Base for radius bump | `min(1.0, 0.2) = 0.2` (original h) | `min(0.95, 0.10) = 0.10` (reduced dims) | 2× |
-| Radius bump value | `0.2 * 2.0 * 0.0125 = 0.005` | `0.10 * 2.0 * 0.0125 = 0.0025` | 0.0025 |
-| Inset per side (px) | 0.67 | 0.34 | 0.33 |
-| Content area shift | — | 0.66px wider/taller | — |
+### Runtime-Value Audit (OI-2 partial)
 
-C++ ref: `emBorder.cpp:1144` — `r = emMin(1.0, h) * BorderScaling * 0.0125`
-Rust ref: `src/widget/border.rs:1010` — `inner_s = rnd_w.min(rnd_h_inner) * self.border_scaling`
+Added `eprintln!` instrumentation to `ScalarField::paint` to dump content_round_rect
+values, layout parameters, and scale mark coordinates. Verified all layout formulas
+produce identical values to C++ (manually computed from `emScalarField.cpp:DoScalarField`).
 
-### Fix approach
+The 106 remaining widget_scalarfield pixels were localized:
+- **99 px** at y=516-517: sub-pixel scale mark mini-arrows (<1px triangles, h5=0.916px).
+  Polygon rasterization coverage differs for these sub-pixel polygons.
+- **7 px** scattered at border corners: 9-slice interpolation edge artifacts.
 
-Option A (minimal): In `content_round_rect`, pass original `w` and `h` to the
-CustomRect case instead of using post-reduction `rnd_w`/`rnd_h_inner`.
+### Divergence Localization (OI-4/OI-5)
 
-Option B (structural): Implement the CustomRect inset inline in `content_round_rect`
-matching the two-step logic already in `paint_border_content` at line 1272. This
-eliminates the divergence between the geometry query and paint paths entirely.
+Generated fresh diff images for widget_scalarfield and widget_colorfield.
+
+**widget_scalarfield** (106 px remaining):
+- Sub-pixel scale mark arrows: 99 px at y=516-517 (arrow height 0.916 px)
+- Border corner artifacts: 7 px scattered at rounded corners
+- All paint formulas verified at runtime-value level to match C++
+
+**widget_colorfield** (5,509 px remaining, multiple codepaths):
+- Color swatch border outline (Instrument+OutputField border)
+- CustomRect 9-slice border at small child scale (~134x27 px)
+- Alpha field dimming + disabled border rendering
+- Sub-pixel text/polygon rendering in ScalarField children
+
+**colorfield_expanded** (14,210 px remaining):
+- Similar patterns to widget_colorfield at larger scale (800x800)
+- More children visible = more border edge divergence
+
+### OI Resolution Summary
+
+| OI | Status | Detail |
+|----|--------|--------|
+| OI-1 | **Resolved** | IsEnabled dimming implemented, -858 px widget_colorfield |
+| OI-2 | **Partially resolved** | Runtime audit done for widget_scalarfield; all layout values match C++. Remaining 106px from sub-pixel polygon rasterization. |
+| OI-3 | **Open** | Area-sampling pixel comparison not yet performed |
+| OI-4 | **Resolved** | Fresh diff images generated, patterns categorized |
+| OI-5 | **Resolved** | 220→106 px: 114 from HowTo text, 99 sub-pixel arrows, 7 border edges |
+
+---
+
+## R11 Completed Work (2026-03-14, commit `b3e96c9`)
+
+### Bugs Fixed
+
+1. **content_round_rect CustomRect — wrong inset formula.**
+   Used simplified `inner_insets()` with post-reduction dimensions instead of
+   C++ two-step inset. Fixed with inline logic using `w.min(h)` as pixel-space
+   equivalent of C++ `emMin(1.0, h)`. Returns `radius = 0.0` matching C++ `rndR = 0`.
+   C++ ref: `emBorder.cpp:1137-1164`. Impact: **-1,267 / -1,670**.
+
+2. **paint_border CustomRect — missing first inset before border image.**
+   Painted border image at raw inner rect without C++ first inset (`d = rndR * 0.25`)
+   and used wrong radius bump base. Fixed with inline two-step geometry.
+   C++ ref: `emBorder.cpp:1137-1153`. Impact: **-2,869 / -1,667**.
+
+3. **content_rect CustomRect — wrong radius bump base.** Used `(1.0).min(h)`
+   instead of `w.min(h)`. C++ ref: `emBorder.cpp:1144`. No current test impact.
+
+4. **paint_border/paint_inner_overlay no-label inner_y/inner_h.** Missing
+   symmetric minSpace. C++ ref: `emBorder.cpp:1046-1050`. Impact: **-71 testpanel**.
+
+5. **paint_border ls — didn't check has_label().** Reserved label space for
+   panels with no label content. Fixed to match C++.
+
+6. **content_round_rect — missing HowTo handling.** Added HowTo rightward
+   shift. No current impact (`howToSpace == minSpace` for tested border types).
+
+### What R11 Verified (formula-level code reading)
+
+The Step 5 paint-call audit compared Rust and C++ source formulas for all 7
+ScalarField paint operations. Formulas match for: side bar rects, value arrow
+vertices, scale mark text parameters, scale mark arrow vertices, inner overlay.
+
+**Caveat:** This was formula-level code reading only. The protocol requires
+comparing actual runtime parameter values with `eprintln!` debug output. That
+was NOT done. "Source formulas match" does not rule out bugs — prior rounds
+proved this repeatedly.
+
+### NK Resolution Summary
+
+| NK | Status | Detail |
+|----|--------|--------|
+| NK1 | Resolved | P18 impact measured: -7,473 total |
+| NK2 | **Open** | Both tests improved, but per-cell diff patterns NOT visually compared (stale debug images) |
+| NK3 | **Open — not investigated** | Area-sampling pixel comparison never performed |
+| NK4 | Resolved | CustomRect border chrome fixed (Bug 2) |
+| NK5 | Partially resolved | Data shows 220 px is shared-code; visual pattern comparison not performed |
+| NK6 | Resolved | paint_inner_overlay is no-op for CustomRect |
+| NK7 | Resolved (R12) | IsEnabled dimming implemented |
 
 ---
 
@@ -174,6 +252,9 @@ These eliminate specific causes. Each was confirmed by the method listed.
 | P5 | content_rect_unobscured for Instrument+OutputField | COMMIT `9ca9c5e` | `src/widget/border.rs` fn `content_rect_unobscured` | `emBorder.cpp:1091-1128` |
 | P6 | viewed_width correct through 3-level nesting | CODE | `src/panel/view.rs` fn `compute_viewed_recursive` | `emPanel.cpp:1478-1481` |
 | P17 | paint_h = vw × tallness correct | CODE | `src/panel/view.rs:1947-1951` | `emView.cpp:1092-1096` |
+| P18 | CustomRect two-step inset in content_round_rect | COMMIT `b3e96c9` | `src/widget/border.rs` fn `content_round_rect` | `emBorder.cpp:1137-1164` |
+| P19 | CustomRect paint_border first inset + radius bump | COMMIT `b3e96c9` | `src/widget/border.rs` fn `paint_border` | `emBorder.cpp:1137-1153` |
+| P20 | content_rect CustomRect uses w.min(h) not 1.0.min(h) | COMMIT `b3e96c9` | `src/widget/border.rs` fn `content_rect` | `emBorder.cpp:1144` |
 
 ### Widget Configuration
 
@@ -194,6 +275,11 @@ These eliminate specific causes. Each was confirmed by the method listed.
 | P14 | Painter scale_x = 1.0 for all panels | CODE+grep | `src/render/painter.rs:219` | N/A (different coord system) |
 | P15 | Scale marks visible in both | COMPUTED | `src/widget/scalar_field.rs:349` | tier 0 tw=12.46 > 1.0 |
 | P16 | canvas_color equivalent | CODE | canvasColor=0 == TRANSPARENT | `emScalarField.cpp:421` |
+| P21 | ScalarField IsEnabled dimming matches C++ | COMMIT R12 | `src/widget/scalar_field.rs:249-252` | `emScalarField.cpp:413-416` |
+| P22 | HowTo pill text rendered inside indicator | COMMIT R12 | `src/widget/border.rs:1792-1812` | `emBorder.cpp:916-927` |
+| P23 | HowTo pill alpha rounds correctly (26 not 25) | COMMIT R12 | `src/widget/border.rs:1790` | `emBorder.cpp:913` |
+| P24 | ScalarField layout values match C++ at runtime | DEBUG | `eprintln!` in paint, manual C++ computation | `emScalarField.cpp:333-383` |
+| P25 | widget_scalarfield 106 px are sub-pixel polygons + border edges | DIFF IMAGE | `golden_debug/diff_widget_scalarfield.ppm` | N/A |
 
 ### Caveats
 
@@ -208,97 +294,115 @@ factor difference is accounted for: Rust `tw * 1.0` = C++ `tw_normalized * Scale
 
 ---
 
-## What Is NOT Known
+## Open Items
 
-These are specific unknowns. Each has a defined action and success criterion.
+These are concrete bugs or unfinished investigations. Each has a defined action.
 
-### NK1. Pixel impact of P18
+### OI-1. NK7 — IsEnabled() color dimming not implemented
 
-The P18 geometry mismatch shifts every internal ScalarField element. Until fixed,
-the contribution of all other sources is contaminated.
+**Status: Resolved in R12.**
 
-**Action:** Fix P18, re-run both colorfield tests and widget_scalarfield. Record
-exact pixel deltas for all three tests.
-**Success:** Delta measured. If > 1000 px, P18 was significant — continue
-investigating the content_round_rect path for other mismatches. If < 500 px,
-P18 was minor — the dominant cause is elsewhere, proceed to NK3.
+C++ `emScalarField.cpp:412-414`:
+```cpp
+if (!IsEnabled()) {
+    bgCol=bgCol.GetBlended(GetLook().GetBgColor(),80.0F);
+    fgCol=fgCol.GetBlended(GetLook().GetBgColor(),80.0F);
+}
+```
 
-### NK2. Whether both tests share the same root cause
+Rust `ScalarField::paint` (line ~237) selects bgCol/fgCol but never dims them
+for disabled state. `ScalarField::paint` also hardcodes `enabled=true` when
+calling `paint_border` (line ~227).
 
-widget_colorfield uses `editable=false` (OutputField inner border, output colors).
-colorfield_expanded uses `editable=true` (InputField inner border, input colors).
-Their per-cell divergence patterns have not been compared.
+**Affected tests:** `widget_colorfield` (alpha_enabled=false → Alpha ScalarField
+disabled, should be dimmed). Possibly also `colorfield_expanded` if any child
+can be disabled.
 
-**Action:** After fixing P18, regenerate debug images for both tests. Visually
-compare the diff patterns. If per-cell patterns match, the cause is in shared
-rendering code. If they differ, the cause involves editable/color configuration.
-**Success:** Patterns compared. Shared-vs-separate cause determined.
+**Action:** Add an `enabled` field to ScalarField (or accept it as a paint param).
+When disabled, blend bgCol and fgCol with `look.bg_color` at 80%. Pass the real
+enabled state to `paint_border`.
 
-### NK3. Area-sampling output comparison
+**Expected impact:** Small (one cell in widget_colorfield). But measure, don't
+estimate.
 
-P12 verified source-level formula parity. But loop accumulation order could
-differ (e.g., Rust recomputes Y weights per pixel; C++ caches across pixels as
-an optimization — the math is identical but FP accumulation order differs).
+### OI-2. Step 5 paint-call audit not done at runtime-value level
 
-**Action:** Create a minimal test: render a single "25%" label at the exact
-scale used in the colorfield ScalarField (char_height ≈ 3px, glyph source
-128×224). Extract the output pixels from both Rust and C++ golden. Compare
-per-pixel. If diffs are ≤ ±1 per channel, area-sampling is not the issue. If
-diffs are > 1, investigate the accumulation order in `sample_area_fp`.
-**Success:** Per-pixel comparison completed. Area-sampling eliminated or confirmed.
+**Status: Partially resolved in R12.** Runtime values verified for widget_scalarfield.
 
-### NK4. 9-slice border rendering at small cell sizes
+The R11 audit compared Rust and C++ source code for all 7 ScalarField paint
+operations and concluded formulas match. But the protocol requires:
 
-Each ScalarField has a CustomRect border painted via `paint_border_image_colored`.
-The P18 mismatch means the border paint and content_round_rect use different
-inset values. After fixing P18, check if border chrome divergence remains.
+> "For each operation, do NOT just verify the formula — verify the actual
+> parameter values at the specific cell dimensions used in the test. Add
+> `eprintln!` debug output."
 
-**Action:** After P18 fix, inspect the diff images. If divergent pixels are
-concentrated at border edges (not content area), compare `paint_border_content`
-for CustomRect at the specific cell dimensions.
-**Success:** Border chrome divergence isolated or eliminated.
+This was NOT done. Prior rounds repeatedly showed that formula-level matches
+can hide bugs (P18 was "formula-level correct" for years).
 
-### NK5. Standalone widget_scalarfield (220 px)
+**Action:** Add `eprintln!` to `ScalarField::paint` dumping: the content_round_rect
+return values (x, y, w, h, r), the derived layout values (rx, ry, rw, rh, s, e,
+ax, ay, aw, ah, d), side bar rects, value arrow vertices, and at least the first
+scale mark's text box params (x, y, w, h, char_height). Run the widget_scalarfield
+test (single panel, cleaner output). Manually compute the corresponding C++ values
+using the C++ formulas with the same input (w, h, tallness, min, max, value).
+Compare every value. Any that differs is a bug.
 
-This test uses `OBT_INSTRUMENT + IBT_INPUT_FIELD` (not CustomRect). If its
-divergence pattern resembles the colorfield children's pattern, the cause is in
-ScalarField paint internals (shared code). If not, the cause is CustomRect-specific.
+**Why widget_scalarfield first:** It's a single large panel (800×600) with
+IBT_INPUT_FIELD. Its 220 px divergence is the cleanest signal — no CustomRect
+complexity, no nesting. Fixing its 220 px will also fix the shared-code component
+of the colorfield divergence.
 
-**Action:** Regenerate golden_debug for widget_scalarfield. Compare diff pattern
-with colorfield children.
-**Success:** Shared-vs-specific cause determined.
+### OI-3. NK3 — Area-sampling pixel output never compared
 
-### NK6. paint_inner_overlay has never been compared
+**Status: Not investigated.**
 
-`ScalarField::paint` calls `self.border.paint_inner_overlay(painter, w, h, &self.look)`
-at the end (line ~411). This paints the IO field border frame ON TOP of the
-ScalarField content. It uses the paint path's geometry (correct insets), not
-content_round_rect (wrong insets pre-P18-fix). If the overlay's edges land at
-different pixel positions than the content's edges, it will overdraw content at
-the boundary, creating a visible seam.
+P12 verified source formulas match. But the actual pixel output of the
+area-sampling path has never been compared between Rust and C++. The golden
+images contain both the Rust output and the C++ reference. Specific pixel
+regions (e.g., a scale mark label) can be extracted and compared per-channel.
 
-**Action:** Read `paint_inner_overlay` in `src/widget/border.rs` and compare with
-the C++ equivalent in `emBorder.cpp` `DoBorder` (the post-content paint phase for
-IBT_CUSTOM_RECT). Verify the overlay uses the same geometry as the content.
-**Success:** Overlay geometry confirmed matching, or mismatch found and fixed.
+**Action:** Pick a specific rendered element visible in both widget_scalarfield
+golden images (e.g., the "50.00" label or a scale mark arrow). Extract the
+pixel values from the actual (Rust) and expected (C++) PPM files for that
+region. Compare per-channel. If diffs > ±1, investigate accumulation order in
+`sample_area_fp` vs C++ `emPainter_ScTlIntImg.cpp`.
 
-### NK7. border paint_border enabled state not passed
+**Note:** The golden_debug images are currently stale (March 13, pre-R11). To
+get fresh images either: (a) temporarily lower tolerance in the test to force
+failure + DUMP_GOLDEN=1, or (b) add unconditional image dump code to the test.
 
-`ScalarField::paint` calls `self.border.paint_border(painter, w, h, &self.look, false, true)`
-at line ~226. The `false` is `focused` and `true` is `enabled`. But the actual
-enabled state depends on the panel tree's `enable_switch` — the Alpha ScalarField
-has `enable_switch=false` when `!alpha_enabled`. If the border paint uses
-`enabled=true` unconditionally while C++ checks the real panel enabled state, the
-Alpha field's border chrome would differ (C++ dims it, Rust doesn't).
+### OI-4. NK2 — Per-cell divergence pattern comparison not done
 
-**Action:** Check if C++ `emBorder::DoBorder` reads `IsEnabled()` for the border
-fill color. If so, the Rust `paint_border` needs to receive the actual enabled
-state from the panel tree, not hardcoded `true`.
-**Success:** Alpha field border color matches C++, or discrepancy found and fixed.
+**Status: Resolved in R12.** Fresh diff images generated and analyzed.
+
+Both colorfield tests improved from the CustomRect fixes, suggesting shared
+causes. But their per-cell diff patterns have not been visually compared. The
+tests have different configurations (editable, alpha_enabled, colors), so
+per-cell patterns could differ.
+
+**Action:** Generate fresh debug diff images for both colorfield tests and
+widget_scalarfield. Visually compare. Determine whether the remaining
+divergence is concentrated in border edges, text regions, polygon fills, or
+something else. This tells you which paint operation to investigate.
+
+### OI-5. widget_scalarfield 220 px — paint operation not isolated
+
+**Status: Resolved in R12.** 220→106 px. HowTo text fixed (-114 px). Remaining 106 px localized: 99 sub-pixel scale mark arrows + 7 border edge artifacts.
+
+The 220 divergent pixels in widget_scalarfield have not been attributed to
+specific paint operations. Are they at border edges? Text regions? The value
+arrow? Side bar boundaries? Knowing WHERE the 220 pixels are tells you WHAT
+code to investigate.
+
+**Action:** Generate a fresh diff image for widget_scalarfield. Identify the
+spatial pattern. Cross-reference with paint operations: if diffs are at text
+positions → investigate paint_text_boxed / area-sampling. If at polygon edges
+→ investigate polygon rasterization. If at border chrome → investigate
+paint_border_image.
 
 ---
 
-## Investigation Protocol
+## Next Steps — Investigation Protocol
 
 Execute in order. Do not skip steps. Record all measurements.
 
@@ -308,97 +412,82 @@ compiler FP instruction selection. "I looked and didn't find anything" is not
 a valid conclusion. If divergence remains, there is a code difference you have
 not found yet.
 
-### Step 1: Fix P18
+### Step 1: Fix OI-1 (IsEnabled dimming)
 
-Read `src/widget/border.rs` fn `content_round_rect`, the `CustomRect` case.
-Compare with C++ `emBorder.cpp:1137-1165` (the `IBT_CUSTOM_RECT` case in `DoBorder`).
-Fix the inset formula to match. See "Fix approach" in P18 section above.
+This is a known code difference. Fix it first to remove the noise.
 
-Run clippy: `cargo clippy --workspace -- -D warnings`
+Read C++ `emScalarField.cpp:400-414`. Implement the `!IsEnabled()` color
+dimming in Rust `ScalarField::paint`. The ScalarField needs to know its
+enabled state — either accept it as a parameter or read it from a field set
+during layout.
 
-### Step 2: Measure
+Also fix `ScalarField::paint` line ~227 to pass the actual enabled state to
+`paint_border` instead of hardcoded `true`.
 
-```bash
-rm -f state/post_p18.jsonl
-DIVERGENCE_LOG=$(pwd)/state/post_p18.jsonl cargo-nextest ntr --workspace --test-threads=1
-```
+Measure: run divergence log before and after. Record delta.
 
-Compare against previous baseline (`state/post_r9b.jsonl` or latest):
-- widget_colorfield: was 10,505 px
-- colorfield_expanded: was 17,561 px
-- widget_scalarfield: was 220 px
+### Step 2: Localize the 220 px in widget_scalarfield (OI-5)
 
-Record exact deltas.
+Generate a fresh diff image. To do this, temporarily lower the tolerance for
+widget_scalarfield in `tests/golden_parity/widget.rs` (change `3` to `0` in
+the `compare_images` call), run with `DUMP_GOLDEN=1`, then restore tolerance.
 
-### Step 3: Branch based on delta
+Inspect `golden_debug/diff_widget_scalarfield.png`. Categorize the divergent
+pixels:
+- **Border edges** → investigate `paint_border` / `paint_border_image`
+- **Text regions** → investigate `paint_text_boxed` / area-sampling (OI-3)
+- **Polygon fills** → investigate polygon rasterizer
+- **Side bar boundaries** → investigate rect paint coords
+- **Value arrow** → investigate polygon vertex positions
 
-**If total colorfield delta > 1000 px:**
-P18 was significant. The content_round_rect path may have other mismatches.
-Read the ENTIRE `content_round_rect` function against C++ `DoBorder` for
-`BORDER_FUNC_CONTENT_ROUND_RECT`. Check all inner border types, not just
-CustomRect.
+Record which category holds the most pixels.
 
-**If total colorfield delta 500-1000 px:**
-P18 contributed but is not dominant. Proceed to Step 4.
+### Step 3: Runtime-value audit for widget_scalarfield (OI-2)
 
-**If total colorfield delta < 500 px:**
-P18 was minor. The dominant cause is elsewhere. Proceed to Step 4.
+Add `eprintln!` to `ScalarField::paint` for the widget_scalarfield test.
+Dump the actual parameter values for every paint operation. Manually compute
+the C++ equivalent values from `emScalarField.cpp:DoScalarField` using the
+same input dimensions. Compare.
 
-### Step 4: Investigate NK5 (standalone scalarfield)
-
-```bash
-DUMP_GOLDEN=1 cargo-nextest ntr -E 'test(widget_scalarfield)' --workspace
-```
-
-Inspect `golden_debug/diff_widget_scalarfield.png`. Compare the divergence
-pattern with the colorfield children's pattern. This determines whether the
-remaining divergence is in shared ScalarField code or CustomRect-specific code.
-
-### Step 5: Full paint-call audit
-
-This is the step that produced every successful fix in the prior session.
-Do not skip it.
-
-Open `src/widget/scalar_field.rs` fn `paint` and C++ `emScalarField.cpp`
-fn `DoScalarField` side by side. Walk through EVERY paint operation in
-execution order:
-
-| # | Operation | Rust call | C++ call | Verified? |
-|---|-----------|-----------|----------|-----------|
-| 1 | Border paint | `border.paint_border(...)` | `DoBorder(BORDER_FUNC_PAINT)` | Check NK7 (enabled param) |
-| 2 | content_round_rect | `border.content_round_rect(w, h, &look)` | `GetContentRoundRect(...)` | P18 (fix first) |
-| 3 | Side bars | `painter.paint_rect(rx, ry, ...)` | `painter->PaintRect(rx, ry, ..., canvasColor)` | P16 says equivalent — verify actual rect coordinates |
-| 4 | Value arrow | `painter.paint_polygon(&arrow, fg_col)` | `painter->PaintPolygon(xy, 5, fgCol, canvasColor)` | Verify vertex coords match |
-| 5 | Scale mark text | `painter.paint_text_boxed(...)` | `painter->PaintTextBoxed(...)` | Verify ALL params: x, y, w, h, text, char_height, color, canvas, alignment, min_width_scale |
-| 6 | Scale mark arrows | `painter.paint_polygon(&mini_arrow, mark_col)` | `painter->PaintPolygon(xy, 3, col, canvasColor)` | Verify vertex coords match |
-| 7 | Inner overlay | `border.paint_inner_overlay(...)` | Post-content DoBorder paint phase | Check NK6 |
-
-For each operation, do NOT just verify the formula — verify the **actual
-parameter values** at the specific cell dimensions used in the test. Add
-`eprintln!` debug output to both the Rust paint function and trace the C++
-values manually. Compare:
-- Coordinates (x, y, w, h) for every rect and text box
-- Vertex positions for every polygon
-- Colors (exact RGBA values)
-- All paint_text_boxed parameters (char_height, alignment, min_width_scale, formatted)
+Focus on the paint operations identified in Step 2 as producing the most
+divergent pixels.
 
 Any parameter that differs is a bug. Fix it, measure, continue.
 
-### Step 6: Investigate NK3 (area-sampling output)
+### Step 4: NK3 — Area-sampling pixel comparison (OI-3)
 
-If Steps 1-5 did not resolve the majority of divergence, compare actual
-area-sampling output. Pick a specific mark label pixel region from the
-golden_debug images and compare Rust vs C++ pixel values channel-by-channel.
+If Steps 1-3 did not resolve the majority of divergence, compare actual
+area-sampling output. Extract pixel values from the golden PPM files for a
+specific rendered element. Compare per-channel between Rust actual and C++
+expected.
+
 If diffs are > ±1 per channel, investigate the accumulation order in
-`sample_area_fp` vs C++ `emPainter_ScTlIntImg.cpp`.
+`sample_area_fp` (`src/render/interpolation.rs`) vs C++
+`emPainter_ScTlIntImg.cpp`. Key difference to check: Rust may recompute
+Y weights per pixel while C++ caches across pixels. The math is identical
+but FP accumulation order can differ.
 
-### Step 7: Record findings
+### Step 5: Apply widget_scalarfield findings to colorfield
+
+Fixes found in Steps 1-4 for widget_scalarfield should reduce the colorfield
+divergence too (shared ScalarField paint code). Measure the colorfield tests.
+If significant divergence remains:
+
+- Generate fresh diff images for both colorfield tests (OI-4)
+- Determine if remaining divergence is CustomRect-specific or shared
+- If CustomRect-specific: audit `paint_border` CustomRect at the small cell
+  dimensions (~134×27 px). The border image rendering at small scales may
+  behave differently.
+- If shared: repeat Step 3 for a colorfield ScalarField child to see if the
+  smaller scale produces different parameter values
+
+### Step 6: Record findings
 
 Update this document with:
-- P18 fix commit hash and measured delta
-- Which NKs were resolved and what was found
+- Fix commit hashes and measured deltas
+- Which OIs were resolved and what was found
 - Any new bugs discovered
-- Updated remaining pixel count
+- Updated remaining pixel counts
 
 Do not write "structural" or "irreducible" without having read the
 corresponding C++ code and confirmed the Rust implementation matches at both
@@ -407,106 +496,5 @@ source level and output level.
 If divergence remains after all steps, do NOT conclude "accept remaining."
 Instead, list the exact pixel regions still divergent, what paint operation
 produced them, and what specific C++ code you compared against. Then repeat
-Step 5 for those specific operations with finer-grained parameter comparison.
+Step 3 for those specific operations with finer-grained parameter comparison.
 The goal is 0 px, not "close enough."
-
----
-
-## R11 Investigation Findings (2026-03-14)
-
-### Bugs Fixed
-
-**Bug 1: content_round_rect CustomRect — wrong inset formula (P18)**
-- `content_round_rect` used `inner_insets()` with post-reduction dimensions
-  instead of the C++ two-step inset.
-- Fixed: inline two-step inset using `w.min(h) * border_scaling * 0.0125`
-  (pixel-space equivalent of C++ `emMin(1.0, h)`). Returns `radius = 0.0`
-  matching C++ `rndR = 0` after second inset.
-- C++ ref: `emBorder.cpp:1137-1164`
-- Rust ref: `src/widget/border.rs` fn `content_round_rect`, CustomRect case
-- **Impact: -1,267 widget_colorfield, -1,670 colorfield_expanded**
-
-**Bug 2: paint_border CustomRect — missing first inset before border image**
-- `paint_border` painted the CustomRect border image at the raw inner rect
-  coordinates without the C++ first inset (`d = rndR * 0.25`). Also used wrong
-  generic radius bump (`inner_radius(inner_w, inner_h)` with post-reduction dims)
-  instead of `w.min(h) * BS * 0.0125` with original panel dims.
-- Fixed: inline two-step geometry recomputed from `outer_radius(w, h) - ms`.
-- C++ ref: `emBorder.cpp:1137-1153`
-- Rust ref: `src/widget/border.rs` fn `paint_border`, CustomRect case
-- **Impact: -2,869 widget_colorfield, -1,667 colorfield_expanded**
-
-**Bug 3: content_rect CustomRect — wrong radius bump base**
-- Used `(1.0_f64).min(h)` — C++'s normalized panel width is NOT a constant 1.0
-  in Rust pixel space. Correct: `w.min(h)`.
-- C++ ref: `emBorder.cpp:1144`
-- Rust ref: `src/widget/border.rs` fn `content_rect`, CustomRect case
-- **Impact: None on current tests (content_rect not called from colorfield paint path)**
-
-**Bug 4: paint_border/paint_inner_overlay no-label inner_y/inner_h**
-- For panels without labels: `inner_y` was missing `+ ms`, `inner_h` was missing
-  `- ms` (symmetric minSpace not applied).
-- C++ ref: `emBorder.cpp:1046-1050` (no-label path)
-- Rust ref: `src/widget/border.rs` fn `paint_border` and `paint_inner_overlay`
-- **Impact: -71 testpanel_expanded**
-
-**Bug 5: paint_border ls computation didn't check has_label()**
-- `ls` was computed from `self.label_in_border` without `self.has_label()`,
-  reserving label space for panels with no label content.
-- C++ condition: `if (Label)` checks for label content.
-- Fixed to match `content_round_rect` and C++.
-
-**Bug 6: content_round_rect missing HowTo handling**
-- `content_round_rect` didn't account for HowTo rightward shift, while
-  `content_rect`, `content_rect_unobscured`, and `paint_border` all did.
-- No impact on current tests: `howToSpace == minSpace` for all tested border types.
-
-### NK Resolution Status
-
-| NK | Status | Finding |
-|----|--------|---------|
-| NK1 | Resolved | P18 impact: -4,136 widget_colorfield, -3,337 colorfield_expanded |
-| NK2 | Partially resolved | Both tests improved from CustomRect fixes. Remaining divergence in shared paint code. |
-| NK3 | Not investigated | Area-sampling comparison not performed (requires pixel extraction). |
-| NK4 | Resolved | CustomRect border chrome fixed (Bug 2). |
-| NK5 | Resolved | widget_scalarfield (220 px) is shared-code divergence (IBT_INPUT_FIELD, unaffected by CustomRect fixes). |
-| NK6 | Resolved | paint_inner_overlay is no-op for CustomRect. No overlay mismatch. |
-| NK7 | Identified | Missing `IsEnabled()` color dimming in ScalarField::paint. Not fixed. Only affects disabled Alpha field when alpha_enabled=false. |
-
-### Paint-call audit results (Step 5)
-
-| # | Operation | Status | Notes |
-|---|-----------|--------|-------|
-| 1 | border.paint_border | Fixed (Bug 2) | CustomRect first inset was missing |
-| 2 | content_round_rect | Fixed (Bug 1) | Two-step inset now correct |
-| 3 | Side bars | Verified ✓ | Coords match after content_round_rect fix |
-| 4 | Value arrow | Verified ✓ | Vertex positions match C++ |
-| 5 | Scale mark text | Verified ✓ | All paint_text_boxed params match C++ defaults |
-| 6 | Scale mark arrows | Verified ✓ | Vertex positions match C++ |
-| 7 | Inner overlay | Verified ✓ | No-op for CustomRect |
-
-### Updated pixel counts
-
-| Test | Baseline (R9b) | After R11 | Delta |
-|------|---------------|-----------|-------|
-| widget_colorfield | 10,505 | 6,369 | **-4,136 (-39%)** |
-| colorfield_expanded | 17,561 | 14,224 | **-3,337 (-19%)** |
-| widget_scalarfield | 220 | 220 | 0 |
-| testpanel_expanded | 91,539 | 91,468 | -71 |
-
-### Remaining divergence analysis
-
-The remaining 6,369 + 14,224 px divergence is NOT from geometry bugs. All
-CustomRect geometry paths (`content_round_rect`, `content_rect`, `paint_border`)
-now implement the correct C++ two-step inset. The ScalarField paint operations
-(side bars, value arrow, scale marks, inner overlay) match C++ at the formula level.
-
-The remaining divergence sources are:
-1. **Rendering pipeline differences at small scales**: The colorfield children
-   (~134×27 px each) render text and borders at very small sizes where area-sampling
-   and anti-aliasing produce per-pixel differences.
-2. **widget_scalarfield (220 px)**: This standalone InputField test was never affected
-   by CustomRect fixes. Its 220 px divergence is in shared rendering code (polygon
-   anti-aliasing, text area-sampling).
-3. **Missing IsEnabled() dimming (NK7)**: Would only affect the disabled Alpha field
-   in widget_colorfield (alpha_enabled=false). Estimated impact: small (one cell only).

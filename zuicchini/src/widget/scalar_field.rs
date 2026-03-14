@@ -13,6 +13,72 @@ fn default_text_of_value(value: i64, _mark_interval: u64) -> String {
     value.to_string()
 }
 
+// C++ HowTo text constants (emBorder.cpp:1416-1460, emScalarField.cpp:507-527).
+const HOWTO_PREFACE: &str = concat!(
+    "How to use this panel\n",
+    "#####################\n",
+    "\n",
+    "Here is some text describing the usage of this panel. The text consists of\n",
+    "multiple sections which may come from different parts of the program based on\n",
+    "each other. If something is contradictory, the later section should count.\n",
+);
+
+const HOWTO_DISABLED: &str = concat!(
+    "\n",
+    "\n",
+    "DISABLED\n",
+    "\n",
+    "This panel is currently disabled, because the panel is probably irrelevant for\n",
+    "the current state of the program or data. Any try to modify data or to trigger a\n",
+    "function may silently be ignored.\n",
+);
+
+const HOWTO_FOCUS: &str = concat!(
+    "\n",
+    "\n",
+    "FOCUS\n",
+    "\n",
+    "This panel is focusable. Only one panel can be focused at a time. The focus is\n",
+    "indicated by small arrows pointing to the focused panel. If a panel is focused,\n",
+    "it gets the keyboard input. If the focused panel does not know what to do with a\n",
+    "certain input key, it may even forward the input to its ancestor panels.\n",
+    "\n",
+    "How to move or set the focus:\n",
+    "\n",
+    "* Just zoom and scroll around - the focus is moved automatically by that.\n",
+    "\n",
+    "* Click with the left or right mouse button on a panel to give it the focus.\n",
+    "\n",
+    "* Press Tab or Shift+Tab to move the focus to the next or previous sister\n",
+    "  panel.\n",
+    "\n",
+    "* Press the cursor keys to move the focus to a sister panel in the desired\n",
+    "  direction.\n",
+    "\n",
+    "* Press Page-Up or -Down to move the focus to a child or parent panel.\n",
+);
+
+const HOWTO_SCALAR_FIELD: &str = concat!(
+    "\n",
+    "\n",
+    "SCALAR FIELD\n",
+    "\n",
+    "This is a scalar field. In such a field, a scalar value can be viewed and\n",
+    "edited. Usually it is a number, but it can even be a choice of a series of\n",
+    "possibilities.\n",
+    "\n",
+    "To move the needle to a desired value, click or drag with the left mouse button.\n",
+    "Alternatively, you can move the needle by pressing the + and - keys.\n",
+);
+
+const HOWTO_READ_ONLY: &str = concat!(
+    "\n",
+    "\n",
+    "READ-ONLY\n",
+    "\n",
+    "This scalar field is read-only. You cannot move the needle.\n",
+);
+
 /// Numeric input with scale bar.
 ///
 /// Values are stored as `f64` but keyboard stepping logic uses integer
@@ -221,10 +287,23 @@ impl ScalarField {
 
     // --- Paint ---
 
-    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
+        // C++ emScalarField::GetHowTo() builds the text dynamically.
+        {
+            let mut text = String::from(HOWTO_PREFACE);
+            if !enabled {
+                text.push_str(HOWTO_DISABLED);
+            }
+            text.push_str(HOWTO_FOCUS);
+            text.push_str(HOWTO_SCALAR_FIELD);
+            if !self.editable {
+                text.push_str(HOWTO_READ_ONLY);
+            }
+            self.border.how_to_text = text;
+        }
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, enabled);
 
         let (content, radius) = self.border.content_round_rect(w, h, &self.look);
         let Rect { x, y, w: cw, h: ch } = content;
@@ -234,11 +313,17 @@ impl ScalarField {
         // C++ DoScalarField selects colors by InnerBorderType, not editable flag.
         // IBT_INPUT_FIELD → input colors, IBT_OUTPUT_FIELD → output colors,
         // else (IBT_CUSTOM_RECT etc.) → look bg/fg colors.
-        let (bg_col, fg_col) = match self.border.inner {
+        let (mut bg_col, mut fg_col) = match self.border.inner {
             InnerBorderType::InputField => (self.look.input_bg_color, self.look.input_fg_color),
             InnerBorderType::OutputField => (self.look.output_bg_color, self.look.output_fg_color),
             _ => (self.look.bg_color, self.look.fg_color),
         };
+
+        // C++ emScalarField.cpp:413-416: dim colors when disabled.
+        if !enabled {
+            bg_col = bg_col.lerp(self.look.bg_color, 0.80);
+            fg_col = fg_col.lerp(self.look.bg_color, 0.80);
+        }
 
         // C++ DoScalarField layout matching emScalarField.cpp
         let rx = x + r * 0.5;
@@ -629,20 +714,6 @@ impl ScalarField {
         }
     }
 }
-
-/// C++ `emScalarField::HowToScalarField`.
-const HOWTO_SCALAR_FIELD: &str = "\n\n\
-    SCALAR FIELD\n\n\
-    This is a scalar field. In such a field, a scalar value can be viewed and\n\
-    edited. Usually it is a number, but it can even be a choice of a series of\n\
-    possibilities.\n\n\
-    To move the needle to a desired value, click or drag with the left mouse button.\n\
-    Alternatively, you can move the needle by pressing the + and - keys.\n";
-
-/// C++ `emScalarField::HowToReadOnly`.
-const HOWTO_READ_ONLY: &str = "\n\n\
-    READ-ONLY\n\n\
-    This scalar field is read-only. You cannot move the needle.\n";
 
 #[cfg(test)]
 mod tests {

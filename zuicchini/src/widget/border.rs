@@ -71,6 +71,9 @@ pub struct Border {
     /// indicator and shifts the content area rightward.  C++ equivalent:
     /// `emBorder::HasHowTo()` (overridden per widget).
     pub has_how_to: bool,
+    /// The HowTo text rendered inside the indicator pill.
+    /// C++ equivalent: `emBorder::GetHowTo()` / `emScalarField::GetHowTo()`.
+    pub how_to_text: String,
 }
 
 impl Border {
@@ -91,6 +94,7 @@ impl Border {
             aux_panel_name: None,
             aux_tallness: 1.0,
             has_how_to: false,
+            how_to_text: String::new(),
         }
     }
 
@@ -190,6 +194,11 @@ impl Border {
     pub fn with_how_to(mut self, has: bool) -> Self {
         self.has_how_to = has;
         self
+    }
+
+    /// Set the HowTo text rendered inside the indicator pill.
+    pub fn set_how_to_text(&mut self, text: String) {
+        self.how_to_text = text;
     }
 
     /// Set whether the label is rendered inside the border.
@@ -1777,14 +1786,38 @@ How to move or set the focus:\n\
             let th = tw * 2.0;
             let tx = rnd_x + (hts - tw) * 0.5;
             let ty = oy + (rnd_h - th) * 0.5;
+            // C++ GetTransparented(90) = alpha * 0.10 + 0.5
             painter.paint_round_rect(
                 tx,
                 ty,
                 tw,
                 th,
                 tw * 0.01,
-                look.fg_color.with_alpha((255.0 * 0.10) as u8),
+                look.fg_color.with_alpha((255.0 * 0.10 + 0.5) as u8),
             );
+
+            // C++ emBorder.cpp:916-927: paint text inside the pill when large enough.
+            if tw * th > 100.0 && !self.how_to_text.is_empty() {
+                let d = tw * 0.01;
+                // C++ GetTransparented(35) = alpha * 0.65 + 0.5
+                let text_alpha = (look.fg_color.a() as f64 * 0.65 + 0.5) as u8;
+                painter.paint_text_boxed(
+                    tx + d,
+                    ty + d,
+                    tw - d * 2.0,
+                    th - d * 2.0,
+                    &self.how_to_text,
+                    th,
+                    look.fg_color.with_alpha(text_alpha),
+                    Color::TRANSPARENT,
+                    TextAlignment::Left,
+                    VAlign::Top,
+                    TextAlignment::Left,
+                    0.9,
+                    true,
+                    0.0,
+                );
+            }
 
             if hts > ms {
                 rnd_x += hts - ms;

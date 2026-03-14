@@ -108,8 +108,8 @@ struct ScalarFieldBehavior {
 }
 
 impl PanelBehavior for ScalarFieldBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
-        self.scalar_field.paint(painter, w, h);
+    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+        self.scalar_field.paint(painter, w, h, state.enabled);
     }
 }
 

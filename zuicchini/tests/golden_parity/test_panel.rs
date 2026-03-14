@@ -187,8 +187,8 @@ struct ScalarFieldPanel {
     widget: ScalarField,
 }
 impl PanelBehavior for ScalarFieldPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
-        self.widget.paint(p, w, h);
+    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
+        self.widget.paint(p, w, h, s.enabled);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
         self.widget.input(e)
