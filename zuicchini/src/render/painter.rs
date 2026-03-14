@@ -4482,8 +4482,21 @@ impl<'a> Painter<'a> {
         if r < 0.5 {
             return vec![(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
         }
-        let corner_segments =
-            (adaptive_circle_segments(r, r, self.state.scale_x, self.state.scale_y) / 4).max(2);
+        // C++ PaintRoundRect: f = CQ * sqrt(rx*SX + ry*SY), clamp 256,
+        // f *= 0.25, then n = round(f) clamped to [1, 64].
+        // Must multiply by 0.25 BEFORE rounding (not round then divide by 4).
+        let mut f = CIRCLE_QUALITY * (r * self.state.scale_x + r * self.state.scale_y).sqrt();
+        if f > 256.0 {
+            f = 256.0;
+        }
+        f *= 0.25;
+        let corner_segments = if f <= 1.0 {
+            1
+        } else if f >= 64.0 {
+            64
+        } else {
+            (f + 0.5) as usize
+        };
         let mut verts = Vec::with_capacity(corner_segments * 4 + 4);
 
         // Top-right corner
