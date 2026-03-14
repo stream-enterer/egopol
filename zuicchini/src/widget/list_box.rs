@@ -177,7 +177,7 @@ impl PanelBehavior for DefaultItemPanelBehavior {
             text_color,
             item_canvas,
             crate::render::TextAlignment::Left,
-            crate::render::VAlign::Top,
+            crate::render::VAlign::Center,
             crate::render::TextAlignment::Left,
             0.5,
             true,

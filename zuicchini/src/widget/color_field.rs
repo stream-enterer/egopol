@@ -410,7 +410,21 @@ impl ColorField {
         };
         let layout_id = ctx.create_child_with("emColorField::InnerStuff", Box::new(layout));
 
-        let look = self.look.clone();
+        // C++ UpdateExpAppearance: create a modified look where bg_color and
+        // fg_color are swapped to input/output variants based on editability,
+        // then propagate to all children via SetLook(look, true).
+        let child_look = {
+            let mut l = (*self.look).clone();
+            if self.editable {
+                l.bg_color = l.input_bg_color;
+                l.fg_color = l.input_fg_color;
+            } else {
+                l.bg_color = l.output_bg_color;
+                l.fg_color = l.output_fg_color;
+            }
+            Rc::new(l)
+        };
+        let editable = self.editable;
 
         // C++ emColorField sets scale mark intervals and percent-value
         // formatters on each ScalarField child (emColorField.cpp:234-309).
@@ -424,8 +438,14 @@ impl ColorField {
                              caption: &str,
                              value: i64| {
             let child = tree.create_child(parent, name);
-            let mut panel =
-                ScalarFieldPanel::new(caption, 0.0, 10000.0, value as f64, look.clone());
+            let mut panel = ScalarFieldPanel::new(
+                caption,
+                0.0,
+                10000.0,
+                value as f64,
+                child_look.clone(),
+                editable,
+            );
             panel.scalar_field.set_scale_mark_intervals(pct_intervals);
             panel
                 .scalar_field
@@ -437,13 +457,24 @@ impl ColorField {
         create_pct_sf(ctx.tree, layout_id, "r", "Red", exp.sf_red);
         create_pct_sf(ctx.tree, layout_id, "g", "Green", exp.sf_green);
         create_pct_sf(ctx.tree, layout_id, "b", "Blue", exp.sf_blue);
-        create_pct_sf(ctx.tree, layout_id, "a", "Alpha", exp.sf_alpha);
+        let alpha_id = create_pct_sf(ctx.tree, layout_id, "a", "Alpha", exp.sf_alpha);
+
+        // C++ UpdateExpAppearance: SfAlpha->SetEnableSwitch(AlphaEnabled)
+        if !self.alpha_enabled {
+            ctx.tree.set_enable_switch(alpha_id, false);
+        }
 
         // Hue field: different intervals, text formatter, and tallness.
         {
             let child = ctx.tree.create_child(layout_id, "h");
-            let mut panel =
-                ScalarFieldPanel::new("Hue", 0.0, 36000.0, exp.sf_hue as f64, look.clone());
+            let mut panel = ScalarFieldPanel::new(
+                "Hue",
+                0.0,
+                36000.0,
+                exp.sf_hue as f64,
+                child_look.clone(),
+                editable,
+            );
             panel.scalar_field.set_scale_mark_intervals(hue_intervals);
             panel.scalar_field.set_text_box_tallness(0.35);
             panel.scalar_field.set_text_of_value_fn(Box::new(|val, iv| {
@@ -472,7 +503,12 @@ impl ColorField {
         let tf_child = ctx.tree.create_child(layout_id, "n");
         ctx.tree.set_behavior(
             tf_child,
-            Box::new(TextFieldPanel::new("Name", &exp.tf_name, look)),
+            Box::new(TextFieldPanel::new(
+                "Name",
+                &exp.tf_name,
+                child_look,
+                editable,
+            )),
         );
     }
 

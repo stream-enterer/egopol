@@ -14,11 +14,18 @@ pub(crate) struct ScalarFieldPanel {
 }
 
 impl ScalarFieldPanel {
-    pub fn new(caption: &str, min: f64, max: f64, value: f64, look: Rc<Look>) -> Self {
+    pub fn new(
+        caption: &str,
+        min: f64,
+        max: f64,
+        value: f64,
+        look: Rc<Look>,
+        editable: bool,
+    ) -> Self {
         let mut sf = ScalarField::new(min, max, look);
         sf.set_caption(caption);
         sf.set_value(value);
-        sf.set_editable(true);
+        sf.set_editable(editable);
         sf.border_mut().outer = OuterBorderType::Rect;
         sf.border_mut().inner = InnerBorderType::CustomRect;
         sf.border_mut().set_border_scaling(2.0);
@@ -38,11 +45,11 @@ pub(crate) struct TextFieldPanel {
 }
 
 impl TextFieldPanel {
-    pub fn new(caption: &str, text: &str, look: Rc<Look>) -> Self {
+    pub fn new(caption: &str, text: &str, look: Rc<Look>, editable: bool) -> Self {
         let mut tf = TextField::new(look);
         tf.set_caption(caption);
         tf.set_text(text);
-        tf.set_editable(true);
+        tf.set_editable(editable);
         tf.border_mut().outer = OuterBorderType::Rect;
         tf.border_mut().inner = InnerBorderType::CustomRect;
         tf.border_mut().set_border_scaling(2.0);
