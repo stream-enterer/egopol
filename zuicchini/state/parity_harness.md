@@ -110,16 +110,32 @@ the rounding direction.
 
 ---
 
-## Baseline (R17, 2026-03-14, post canvas_blend alpha + outline canvas fix)
+## Baseline (R18, 2026-03-14, post per-call canvas_color refactor)
 
 | Test | Pixels | Total | Pct | max_diff |
 |------|--------|-------|-----|----------|
-| widget_colorfield | 3,254 | 480,000 | 0.68% | 185 |
-| colorfield_expanded | 12,195 | 640,000 | 1.91% | 158 |
-| widget_scalarfield | 106 | 480,000 | 0.022% | 56 |
+| widget_colorfield | 2,867 | 480,000 | 0.60% | 185 |
+| colorfield_expanded | 12,089 | 640,000 | 1.89% | 158 |
+| widget_scalarfield | 98 | 480,000 | 0.020% | 56 |
 | listbox_expanded | 314 | 640,000 | 0.049% | 33 |
+| testpanel_expanded | 60,137 | 1,000,000 | 6.01% | 255 |
+| testpanel_root | 81,905 | 1,000,000 | 8.19% | 255 |
 
-Rolling divergence log: `state/post_r17_canvas_outline.jsonl`
+Rolling divergence log: `state/post_r18_per_call_canvas.jsonl`
+
+### R18 Three-Number Dashboard (per-call canvas_color refactor)
+
+| # | Metric | Value |
+|---|--------|-------|
+| 1 | Fix description | Added explicit canvas_color: Color parameter to 26 paint functions, matching C++ emPainter per-call canvasColor API (default=0). Leaf functions save/set/restore; delegators pass through. |
+| 2 | Total divergent pixels | 216,896 → 159,346 (-57,550 net) |
+| 3 | Net regression | 0 (no test regressed) |
+
+**Acceptance:** Fix accepted. Architectural alignment: C++ emPainter uses per-call
+canvasColor with default=0 (TRANSPARENT). Rust was using persistent painter state,
+causing every outline and fill operation to use the border's opaque canvas instead
+of source-over blending. Key improvements: testpanel_expanded -29,760 px (-33%),
+testpanel_root -27,289 px (-25%). Compiler-driven refactor ensured zero missed call sites.
 
 ### R17 Three-Number Dashboard (canvas_blend alpha + outline canvas fix)
 
@@ -580,9 +596,8 @@ the pixel landscape is re-measured.
 | Priority | Item | Stage | Type | Status | Pixels |
 |----------|------|-------|------|--------|--------|
 | 1 | S4-interp | 4 | FORMULA | PARTIALLY_RESOLVED (R17) | ~3,254 (IO overlay border image) |
-| 2 | S5-per-call-canvas | 5 | FORMULA | DIAGNOSED | unknown (systemic) |
-| 3 | S4-subpixel | 4 | FORMULA | UNDIAGNOSED | 106 |
-| 4 | U-expanded | ? | UNKNOWN | PARTIALLY_RESOLVED | ~12,195 |
+| 2 | S4-subpixel | 4 | FORMULA | UNDIAGNOSED | 98 |
+| 3 | U-expanded | ? | UNKNOWN | PARTIALLY_RESOLVED | ~12,089 |
 
 ### Resolved
 
@@ -592,6 +607,7 @@ the pixel landscape is re-measured.
 | S2-canvas | 2 | RESOLVED R16: canvas_color propagation to children, -5,564 px total |
 | S5-canvas-alpha | 5 | RESOLVED R17: canvas_blend no longer modifies dest alpha |
 | S5-outline-canvas | 5 | RESOLVED R17: ColorField outline uses TRANSPARENT canvas |
+| S5-per-call-canvas | 5 | RESOLVED R18: per-call canvas_color on 26 paint functions, -57,550 px |
 
 ### Low Priority (independent, defer until active items resolved)
 
@@ -599,19 +615,17 @@ the pixel landscape is re-measured.
 |------|-------|--------|
 | S34-border-corner | 3/4 | 7 |
 
-### Next Steps (post R17):
+### Next Steps (post R18):
 
-1. **S5-per-call-canvas (systemic)**: C++ paint API uses per-call canvasColor
-   with default=0 (TRANSPARENT). Rust uses persistent painter state. Every
-   widget that calls outline/paint functions without setting canvas_color may
-   have the same mismatch. Audit all `paint_rect_outlined`, `paint_polygon`,
-   etc. calls that rely on C++ defaults. This likely accounts for some of the
-   testpanel and expanded divergence.
-2. **S4-interp remaining**: widget_colorfield still has 3,254 px divergence.
-   The IO overlay border image area sampling may have formula differences in
-   the pre-reduction or compositing path. Continue structural comparison.
-3. **S4-subpixel**: Independent (widget_scalarfield, different test). Can
-   proceed in parallel.
+1. **S4-interp remaining**: widget_colorfield still has 2,867 px divergence.
+   The IO overlay border image area sampling may have remaining formula
+   differences. Re-diagnose with fresh pixel data after R17+R18 fixes.
+2. **S4-subpixel**: Independent (widget_scalarfield, 98 px). Can proceed
+   in parallel.
+3. **Non-default canvas audit**: C++ passes explicit canvasColor in ~7 call
+   sites (border.rs PaintContent, scalar_field.rs, text_field.rs, button.rs).
+   These currently pass TRANSPARENT but should pass the widget's canvas.
+   Low priority — affects anti-aliasing quality, not correctness.
 
 ### Historical Next Steps (post R16):
 
