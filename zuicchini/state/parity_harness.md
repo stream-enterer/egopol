@@ -272,34 +272,63 @@ evidence: P34, P36 confirmed. Fix verified: -2 px colorfield, -1 px expanded,
 
 ```
 id:       S4-interp
-type:     FORMULA (probable) or EVAL_ORDER
+type:     EVAL_ORDER (confirmed)
 stage:    4 (rasterization)
-status:   DIAGNOSED (R16)
+status:   DIAGNOSED (R19 deep investigation)
 rust:     painter.rs:paint_border_image, interpolation.rs (area-sampling path)
 cpp:      emPainter.cpp:PaintBorderImage, emPainter_ScTlIntImg.cpp
-evidence: Post-R16: 5,164 px in widget_colorfield from IO overlay border image.
-          ScalarField children are NOT viewed at this zoom — all divergence is
-          from ColorField's own border painting. Key divergent scanlines:
-          y=170 (618px, Rust=(207,0,0) vs C++=(181,4,9), consistent diff=26),
-          y=508 (618px, similar), y=283-395 (267px each, border image 9-slice
-          regions). The diff pattern (Rust G=B=0, C++ non-zero G,B) indicates
-          canvas_color compositing during border image area-sampling differs.
-note:     The canvas_color values match (both use output_bg_color). The
-          difference is in how paint_border_image area-samples and composites
-          the 9-slice image pixels. Compare Rust area-sampling with C++
-          FINPREMUL/WRITE formulas in emPainter_ScTlIntImg.cpp.
+evidence: Post-R18: 2,867 px at tol=3 in widget_colorfield. Key patterns:
+          1. Formula diff (5,079 px at tol>0): y=170 (618px), y=508 (618px),
+             y=283-395 (267px each, right half). Rust G=B=0 at ~4,009 pixels.
+          2. Missing paint (85 px): (556-592, 383-389) diff=185, Rust shows
+             border gray (192,195,201), C++ shows dark content (7,11,24).
+root:     The IO overlay border image (IOField.tga 572x572 RGBA) has a
+          sharp alpha=0 boundary at source row ~220. Area sampling at dest
+          y=170 maps to reduced source rows 116-119 (actual 232-238), which
+          are fully transparent (alpha=0). Rust correctly returns TRANSPARENT.
+          BUT C++ produces non-transparent at the same dest pixel. The bg
+          before the IO overlay is (207,0,0) in Rust (modified by swatch
+          outline at ~3.4px thickness). C++ result (181,4,9) implies C++
+          maps to slightly different source rows that cross the alpha=0
+          boundary, sampling non-transparent pixels (alpha > 0 at y < 220).
+          Root cause: floating-point differences in the section destination
+          Y coordinate (the 9-slice top inset height) between C++ panel-space
+          coordinates (multiplied by ScaleY=ViewedWidth/PixelTallness) and
+          Rust pixel-space coordinates (scale=1.0). A sub-pixel shift in
+          the section start Y shifts the source row mapping by ~5 rows
+          (5.3:1 downscaling ratio), crossing the alpha=0 cliff at row 220.
+fix:      Requires either (a) exact coordinate match for 9-slice section
+          boundaries by reproducing C++ panel→pixel transform chain, or
+          (b) restructuring to use C++-style coordinate space internally.
+          Neither is simple — the coordinate spaces are architecturally
+          different (Rust pixel-space vs C++ panel-space). This is the
+          same root cause as U-expanded and testpanel divergence.
 ```
 
 ```
 id:       S4-subpixel
-type:     FORMULA (probable)
+type:     EVAL_ORDER (probable)
 stage:    4 (rasterization)
-status:   UNDIAGNOSED
+status:   DIAGNOSED (R19)
 rust:     scanline.rs -- polynomial coverage rasterizer
-cpp:      emPainter.cpp:637-716
-evidence: D5 pixels (y=516-517), h=0.916px. Vertices match (P24). max_diff=56.
-note:     Independent of S1-clip (different test, different widget).
-          Can proceed in parallel.
+cpp:      emPainter.cpp:500-625 (edge setup), 637-716 (evaluation)
+evidence: 98 px at tol=3 in widget_scalarfield. 91 px at y=516-517 (bottom
+          edge of border element, h=0.916px). 7 px at corners (y=18,21,128,
+          132,546,550,581). Periodic pattern at y=516: high-diff pixels
+          (~40 diff) every ~11px (tick mark positions), alternating with
+          low-diff (~1-4). Rust consistently brighter (lower coverage).
+root:     Pixel analysis shows the polygon edge crosses pixel boundaries
+          at sub-pixel positions that differ by <1px between Rust and C++.
+          At (125,516): Rust=(221,223,227) shows partial polygon coverage,
+          C++=(181,185,191) shows background — Rust rasterizes the polygon
+          1 pixel further right than C++ at this scanline. Edge iteration
+          order (reverse, matching C++) and polynomial formulas (a0, a1, a2,
+          va=4096) are structurally identical. The difference is in
+          floating-point accumulation of x_cur during scanline stepping,
+          causing floor() to produce different sx values at polygon edges
+          very close to pixel boundaries.
+note:     Low priority (98 px, max_diff=56). Same EVAL_ORDER class as
+          S4-interp — both stem from FP differences in coordinate mapping.
 ```
 
 ### Stage 3/4: Geometry / Edge AA
@@ -595,9 +624,9 @@ the pixel landscape is re-measured.
 
 | Priority | Item | Stage | Type | Status | Pixels |
 |----------|------|-------|------|--------|--------|
-| 1 | S4-interp | 4 | FORMULA | PARTIALLY_RESOLVED (R17) | ~3,254 (IO overlay border image) |
-| 2 | S4-subpixel | 4 | FORMULA | UNDIAGNOSED | 98 |
-| 3 | U-expanded | ? | UNKNOWN | PARTIALLY_RESOLVED | ~12,089 |
+| 1 | S4-interp | 4 | EVAL_ORDER | DIAGNOSED (R19) | 2,867 (widget_colorfield) |
+| 2 | S4-subpixel | 4 | EVAL_ORDER | DIAGNOSED (R19) | 98 |
+| 3 | U-expanded | ? | EVAL_ORDER (probable) | PARTIALLY_RESOLVED | ~12,089 |
 
 ### Resolved
 
@@ -615,17 +644,31 @@ the pixel landscape is re-measured.
 |------|-------|--------|
 | S34-border-corner | 3/4 | 7 |
 
-### Next Steps (post R18):
+### Next Steps (post R19 investigation):
 
-1. **S4-interp remaining**: widget_colorfield still has 2,867 px divergence.
-   The IO overlay border image area sampling may have remaining formula
-   differences. Re-diagnose with fresh pixel data after R17+R18 fixes.
-2. **S4-subpixel**: Independent (widget_scalarfield, 98 px). Can proceed
-   in parallel.
-3. **Non-default canvas audit**: C++ passes explicit canvasColor in ~7 call
-   sites (border.rs PaintContent, scalar_field.rs, text_field.rs, button.rs).
-   These currently pass TRANSPARENT but should pass the widget's canvas.
-   Low priority — affects anti-aliasing quality, not correctness.
+**Diagnosis complete: remaining divergence is EVAL_ORDER (coordinate-space FP).**
+
+Both S4-interp and S4-subpixel are now diagnosed as EVAL_ORDER issues stemming
+from the architectural difference between C++ panel-space coordinates (multiplied
+by ScaleX/ScaleY at paint time) and Rust pixel-space coordinates (pre-transformed).
+The area-sampling and polygon rasterization formulas are structurally identical.
+
+Remaining options for further parity improvement:
+
+1. **Coordinate-space alignment** (high effort, high impact): Restructure Rust
+   to use C++-style normalized panel coordinates internally, applying ScaleX/Y
+   at the same point in the computation as C++. This would eliminate the FP
+   differences that cause all remaining S4 divergence. Estimated impact:
+   ~15,000 pixels (widget_colorfield 2,867 + colorfield_expanded 12,089).
+
+2. **Non-default canvas audit** (low effort, low impact): C++ passes explicit
+   canvasColor in ~7 call sites. Currently TRANSPARENT in Rust. Affects AA
+   quality at borders, not correctness. ~200-500 pixels potential.
+
+3. **testpanel investigation** (medium effort, high impact): testpanel_expanded
+   (60,137 px) and testpanel_root (81,905 px) are 90% of total divergence.
+   These likely share the same EVAL_ORDER root cause but may also have
+   additional formula differences. Not yet investigated post-R18.
 
 ### Historical Next Steps (post R16):
 
