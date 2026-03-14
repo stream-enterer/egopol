@@ -4736,9 +4736,12 @@ impl<'a> Painter<'a> {
     /// Generate polygon vertices approximating an ellipse.
     fn ellipse_polygon(&self, cx: f64, cy: f64, rx: f64, ry: f64) -> Vec<(f64, f64)> {
         let segments = adaptive_circle_segments(rx, ry, self.state.scale_x, self.state.scale_y);
+        // C++ pre-computes step = 2*PI/n, then uses step*i. Must match this
+        // order of operations — `(2*PI/n)*i` is not f64-identical to `2*PI*i/n`.
+        let step = 2.0 * std::f64::consts::PI / segments as f64;
         let mut verts = Vec::with_capacity(segments);
         for i in 0..segments {
-            let angle = 2.0 * std::f64::consts::PI * i as f64 / segments as f64;
+            let angle = step * i as f64;
             verts.push((cx + rx * angle.cos(), cy + ry * angle.sin()));
         }
         verts
@@ -4765,30 +4768,25 @@ impl<'a> Painter<'a> {
         } else {
             (f + 0.5) as usize
         };
-        let mut verts = Vec::with_capacity(corner_segments * 4 + 4);
-
-        // Top-right corner
-        for i in 0..=corner_segments {
-            let angle = -std::f64::consts::FRAC_PI_2
-                + std::f64::consts::FRAC_PI_2 * i as f64 / corner_segments as f64;
-            verts.push((x + w - r + r * angle.cos(), y + r + r * angle.sin()));
-        }
-        // Bottom-right corner
-        for i in 0..=corner_segments {
-            let angle = std::f64::consts::FRAC_PI_2 * i as f64 / corner_segments as f64;
-            verts.push((x + w - r + r * angle.cos(), y + h - r + r * angle.sin()));
-        }
-        // Bottom-left corner
-        for i in 0..=corner_segments {
-            let angle = std::f64::consts::FRAC_PI_2
-                + std::f64::consts::FRAC_PI_2 * i as f64 / corner_segments as f64;
-            verts.push((x + r + r * angle.cos(), y + h - r + r * angle.sin()));
-        }
-        // Top-left corner
-        for i in 0..=corner_segments {
-            let angle = std::f64::consts::PI
-                + std::f64::consts::FRAC_PI_2 * i as f64 / corner_segments as f64;
-            verts.push((x + r + r * angle.cos(), y + r + r * angle.sin()));
+        // C++ PaintRoundRect: single loop, 4 vertices per i.
+        // step = PI/2 / n. Corners stored sequentially:
+        //   [0..n] = top-left, [n+1..2n+1] = top-right,
+        //   [2n+2..3n+2] = bottom-right, [3n+3..4n+3] = bottom-left.
+        let n = corner_segments;
+        let step = std::f64::consts::FRAC_PI_2 / n as f64;
+        let cx1 = x + r; // left corner centers
+        let cy1 = y + r; // top corner centers
+        let cx2 = x + w - r; // right corner centers
+        let cy2 = y + h - r; // bottom corner centers
+        let total = 4 * (n + 1);
+        let mut verts = vec![(0.0, 0.0); total];
+        for i in 0..=n {
+            let dx = (step * i as f64).cos();
+            let dy = (step * i as f64).sin();
+            verts[i] = (cx1 - dx * r, cy1 - dy * r); // top-left
+            verts[n + 1 + i] = (cx2 + dy * r, cy1 - dx * r); // top-right
+            verts[2 * n + 2 + i] = (cx2 + dx * r, cy2 + dy * r); // bottom-right
+            verts[3 * n + 3 + i] = (cx1 - dy * r, cy2 + dx * r); // bottom-left
         }
 
         verts
