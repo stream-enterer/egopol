@@ -352,11 +352,15 @@ impl ColorField {
         painter.paint_rect(rx, ry, rw, rh, self.color);
 
         // Paint rect outline (C++ PaintRectOutline with d*0.08 thickness).
-        // C++ uses a 10-vertex polygon (outer + inner rect) centered on the rect edges.
+        // C++ PaintRectOutline defaults to canvasColor=0 (TRANSPARENT), using
+        // standard source-over blending instead of canvas_blend.
         let thickness = d * 0.08;
         if thickness > 0.0 {
+            let saved_canvas = painter.canvas_color();
+            painter.set_canvas_color(Color::TRANSPARENT);
             let outline_stroke = crate::render::Stroke::new(self.look.input_fg_color, thickness);
             painter.paint_rect_outlined(rx, ry, rw, rh, &outline_stroke);
+            painter.set_canvas_color(saved_canvas);
         }
 
         // C++ paints content, THEN overlays the IO field border image.

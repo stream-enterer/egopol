@@ -110,16 +110,36 @@ the rounding direction.
 
 ---
 
-## Baseline (R16, 2026-03-14, post canvas_color propagation fix)
+## Baseline (R17, 2026-03-14, post canvas_blend alpha + outline canvas fix)
 
 | Test | Pixels | Total | Pct | max_diff |
 |------|--------|-------|-----|----------|
-| widget_colorfield | 5,164 | 480,000 | 1.08% | 185 |
-| colorfield_expanded | 14,211 | 640,000 | 2.22% | 158 |
+| widget_colorfield | 3,254 | 480,000 | 0.68% | 185 |
+| colorfield_expanded | 12,195 | 640,000 | 1.91% | 158 |
 | widget_scalarfield | 106 | 480,000 | 0.022% | 56 |
 | listbox_expanded | 314 | 640,000 | 0.049% | 33 |
 
-Rolling divergence log: `state/post_r16_canvas.jsonl`
+Rolling divergence log: `state/post_r17_canvas_outline.jsonl`
+
+### R17 Three-Number Dashboard (canvas_blend alpha + outline canvas fix)
+
+| # | Metric | Value |
+|---|--------|-------|
+| 1 | Fix description | Two fixes: (1) canvas_blend no longer modifies destination alpha (C++ HAVE_CVC only changes RGB); (2) ColorField outline uses TRANSPARENT canvas matching C++ PaintRectOutline default canvasColor=0 |
+| 2 | Total divergent pixels | 220,822 → 216,896 (-3,926 net) |
+| 3 | Net regression | 0 (no test regressed) |
+
+**Acceptance:** Fix accepted. Two root causes fixed:
+1. `blend_pixel` canvas-color path was modifying destination alpha via `canvas_blend`
+   on the alpha channel. C++ HAVE_CVC path only modifies RGB (hash tables hcR/hcG/hcB
+   don't include alpha). Now alpha is unchanged in canvas-color compositing.
+2. ColorField's swatch outline (`paint_rect_outlined`) was using the border's opaque
+   canvas_color for compositing, but C++ PaintRectOutline defaults to canvasColor=0
+   (TRANSPARENT), using source-over. The mismatch caused canvas_blend to clamp negative
+   G,B terms to 0 instead of correctly blending. Fixed by setting canvas to TRANSPARENT
+   before the outline paint.
+
+Key improvements: widget_colorfield -1,910 px (-37%), colorfield_expanded -2,016 px (-14%).
 
 ### R16 Three-Number Dashboard (canvas_color propagation fix)
 
@@ -305,6 +325,45 @@ fix:      Added content_canvas_color() to Border, layout_child_canvas() to
           PanelCtx, set_all_children_canvas_color() after layout in all
           border-based layout_children implementations. Also fixed missing
           set_canvas_color calls for Filled/MarginFilled outer border paint.
+```
+
+### Stage 5: Blending / Compositing
+
+```
+id:       S5-canvas-alpha
+type:     FORMULA
+stage:    5 (blending)
+status:   RESOLVED (R17)
+rust:     painter.rs:blend_pixel -- canvas_blend applied to alpha channel:
+          out[3] = result.a() where canvas_blend computes
+          target_a + (src_a - canvas_a) * alpha / 255. For opaque canvas and
+          semi-transparent source, this reduces alpha below 255.
+cpp:      emPainter_ScTlPSInt.cpp:369-371 -- HAVE_CVC path uses only
+          hcR/hcG/hcB hash tables (RGB only). Alpha is never modified.
+evidence: bg alpha 202 instead of 255 at ColorField swatch boundary.
+          Cascading alpha corruption in subsequent compositing.
+fix:      Changed blend_pixel to not modify out[3] in canvas-color path,
+          matching C++ behavior.
+```
+
+```
+id:       S5-outline-canvas
+type:     FORMULA
+stage:    5 (blending)
+status:   RESOLVED (R17)
+rust:     color_field.rs:359 -- paint_rect_outlined uses persistent
+          painter.state.canvas_color (167,169,176 from border paint).
+cpp:      emColorField.cpp:400 -- PaintRectOutline defaults to
+          canvasColor=0 (TRANSPARENT). C++ uses per-call canvas_color
+          parameters; Rust uses persistent painter state.
+evidence: At swatch outline (y=170,508): Rust canvas_blend with border
+          canvas clamps negative G,B to 0 → (207,0,0). C++ source-over
+          with transparent canvas → (181,4,9). 618 px per row, 1,236 total.
+fix:      Set canvas_color to TRANSPARENT before outline paint in ColorField,
+          matching C++ PaintRectOutline default.
+note:     Systemic issue: C++ paint API uses per-call canvasColor with
+          default=0, Rust uses persistent state. Other widgets may have
+          similar mismatches where C++ uses the default.
 ```
 
 ### Unclassified
@@ -520,9 +579,10 @@ the pixel landscape is re-measured.
 
 | Priority | Item | Stage | Type | Status | Pixels |
 |----------|------|-------|------|--------|--------|
-| 1 | S4-interp | 4 | FORMULA | DIAGNOSED | ~5,164 (IO overlay border image) |
-| 2 | S4-subpixel | 4 | FORMULA | UNDIAGNOSED | 106 |
-| 3 | U-expanded | ? | UNKNOWN | PARTIALLY_RESOLVED | ~14,211 |
+| 1 | S4-interp | 4 | FORMULA | PARTIALLY_RESOLVED (R17) | ~3,254 (IO overlay border image) |
+| 2 | S5-per-call-canvas | 5 | FORMULA | DIAGNOSED | unknown (systemic) |
+| 3 | S4-subpixel | 4 | FORMULA | UNDIAGNOSED | 106 |
+| 4 | U-expanded | ? | UNKNOWN | PARTIALLY_RESOLVED | ~12,195 |
 
 ### Resolved
 
@@ -530,6 +590,8 @@ the pixel landscape is re-measured.
 |------|-------|------------|
 | S1-clip | 1 | RESOLVED R14: f64 clip storage, -2 px colorfield |
 | S2-canvas | 2 | RESOLVED R16: canvas_color propagation to children, -5,564 px total |
+| S5-canvas-alpha | 5 | RESOLVED R17: canvas_blend no longer modifies dest alpha |
+| S5-outline-canvas | 5 | RESOLVED R17: ColorField outline uses TRANSPARENT canvas |
 
 ### Low Priority (independent, defer until active items resolved)
 
@@ -537,7 +599,21 @@ the pixel landscape is re-measured.
 |------|-------|--------|
 | S34-border-corner | 3/4 | 7 |
 
-### Next Steps (post R16):
+### Next Steps (post R17):
+
+1. **S5-per-call-canvas (systemic)**: C++ paint API uses per-call canvasColor
+   with default=0 (TRANSPARENT). Rust uses persistent painter state. Every
+   widget that calls outline/paint functions without setting canvas_color may
+   have the same mismatch. Audit all `paint_rect_outlined`, `paint_polygon`,
+   etc. calls that rely on C++ defaults. This likely accounts for some of the
+   testpanel and expanded divergence.
+2. **S4-interp remaining**: widget_colorfield still has 3,254 px divergence.
+   The IO overlay border image area sampling may have formula differences in
+   the pre-reduction or compositing path. Continue structural comparison.
+3. **S4-subpixel**: Independent (widget_scalarfield, different test). Can
+   proceed in parallel.
+
+### Historical Next Steps (post R16):
 
 1. **S4-interp diagnosis**: The widget_colorfield divergence (5,164 px) is
    from the IO overlay border image compositing. The ScalarField children

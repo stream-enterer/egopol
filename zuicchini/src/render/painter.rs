@@ -4951,6 +4951,10 @@ impl<'a> Painter<'a> {
             // better anti-aliasing at shape edges. Matches Eagle Mode's emPainter.
             // Alpha must combine both the source color's alpha and the painter's
             // global alpha, matching Eagle Mode where opacity = color_alpha * coverage.
+            //
+            // C++ HAVE_CVC path only modifies RGB — alpha is unchanged.
+            // The hash tables hcR/hcG/hcB only cover RGB, and `*p += pix`
+            // leaves the alpha channel untouched.
             let combined_alpha = if self.state.alpha == 255 {
                 color.a()
             } else {
@@ -4966,7 +4970,7 @@ impl<'a> Painter<'a> {
             out[0] = result.r();
             out[1] = result.g();
             out[2] = result.b();
-            out[3] = result.a();
+            // out[3] unchanged — C++ HAVE_CVC never modifies destination alpha.
         } else {
             // Standard source-over alpha compositing when canvas color is
             // unknown (non-opaque). Avoids the additive artifacts that
