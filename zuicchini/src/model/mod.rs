@@ -2,6 +2,7 @@ mod clipboard;
 mod config_model;
 mod context;
 mod file_model;
+mod image_file_model;
 mod rec_file_model;
 mod rec_types;
 mod record;
@@ -12,6 +13,7 @@ pub use clipboard::{lookup_clipboard, Clipboard, PrivateClipboard};
 pub use config_model::ConfigModel;
 pub use context::Context;
 pub use file_model::{FileModel, FileModelOps, FileState};
+pub use image_file_model::{ImageFileData, ImageFileModel};
 pub use rec_file_model::RecFileModel;
 pub use rec_types::{
     AlignmentRec, ColorRec, RecFileReader, RecFileWriter, RecListenerId, RecListenerList,
