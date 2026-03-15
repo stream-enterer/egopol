@@ -34,6 +34,11 @@ pub struct PanelState {
     pub priority: f64,
     /// Memory limit in bytes for this panel's subtree.
     pub memory_limit: u64,
+    /// Pixel tallness of the view (height/width ratio of a single pixel).
+    ///
+    /// Corresponds to `emPanel::GetViewedPixelTallness` /
+    /// `emView::CurrentPixelTallness`.
+    pub pixel_tallness: f64,
 }
 
 impl PanelState {
@@ -191,5 +196,14 @@ pub trait PanelBehavior {
     /// (the tree walks up the parent chain; the root returns `None`).
     fn create_control_panel(&mut self, _parent_ctx: &mut PanelCtx, _name: &str) -> Option<PanelId> {
         None
+    }
+
+    /// Called each scheduler cycle.
+    ///
+    /// Corresponds to the C++ `emPanel::Cycle` protected virtual (inherited
+    /// from `emEngine`). The default implementation does nothing and returns
+    /// `false`.
+    fn cycle(&mut self) -> bool {
+        false
     }
 }

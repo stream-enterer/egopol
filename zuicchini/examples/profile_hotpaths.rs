@@ -98,7 +98,7 @@ fn main() {
     let t0 = Instant::now();
     let tallness = vh as f64 / vw as f64;
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
-    tree.deliver_notices(true);
+    tree.deliver_notices(true, 1.0);
     let t_layout = t0.elapsed();
 
     // ── Phase 5: View update (update_viewing) ──
@@ -134,7 +134,7 @@ fn main() {
         let new_h = vh + (i as u32 % 100);
         let new_tallness = new_h as f64 / vw as f64;
         tree.set_layout_rect(root, 0.0, 0.0, 1.0, new_tallness);
-        tree.deliver_notices(true);
+        tree.deliver_notices(true, 1.0);
         view.set_viewport(&mut tree, vw as f64, new_h as f64);
         view.update(&mut tree);
 

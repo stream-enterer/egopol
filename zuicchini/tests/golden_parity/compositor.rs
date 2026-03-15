@@ -34,7 +34,7 @@ impl PanelBehavior for ColorFillBehavior {
 /// Settle: deliver notices and update viewing until stable.
 fn settle(tree: &mut PanelTree, view: &mut View) {
     for _ in 0..5 {
-        tree.deliver_notices(view.window_focused());
+        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
         view.update_viewing(tree);
     }
 }

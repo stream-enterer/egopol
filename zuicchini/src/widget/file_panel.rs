@@ -1,0 +1,479 @@
+use crate::foundation::Color;
+use crate::model::FileState;
+use crate::panel::{PanelBehavior, PanelState};
+use crate::render::{Painter, TextAlignment, VAlign};
+
+/// Extended file state for a file panel, adding custom error and no-model states.
+///
+/// Port of C++ `emFilePanel::VirtualFileState`. This augments `FileState` with
+/// two additional states: `NoFileModel` (no model is attached) and
+/// `CustomError` (a custom error message overrides the model state).
+#[derive(Clone, Debug, PartialEq)]
+pub enum VirtualFileState {
+    Waiting,
+    Loading { progress: f64 },
+    Loaded,
+    Unsaved,
+    Saving,
+    TooCostly,
+    LoadError(String),
+    SaveError(String),
+    NoFileModel,
+    CustomError(String),
+}
+
+impl VirtualFileState {
+    /// Whether the state represents usable content (loaded or unsaved).
+    pub fn is_good(&self) -> bool {
+        matches!(self, Self::Loaded | Self::Unsaved)
+    }
+
+    /// Whether the panel should show a progress/waiting animation.
+    pub fn is_hope_for_seeking(&self) -> bool {
+        matches!(self, Self::Waiting | Self::Loading { .. } | Self::Saving)
+    }
+}
+
+/// A panel that displays a file model's content (loading state, error display).
+///
+/// Port of C++ `emFilePanel`. Observes a `FileState` and paints status
+/// information. Derived types should override `paint` to render the actual
+/// content when the virtual file state is good.
+pub struct FilePanel {
+    file_state: FileState,
+    error_text: String,
+    memory_need: u64,
+    memory_limit: u64,
+    custom_error: Option<String>,
+    has_model: bool,
+}
+
+impl Default for FilePanel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FilePanel {
+    pub fn new() -> Self {
+        Self {
+            file_state: FileState::Waiting,
+            error_text: String::new(),
+            memory_need: 0,
+            memory_limit: u64::MAX,
+            custom_error: None,
+            has_model: false,
+        }
+    }
+
+    /// Create a file panel with a model attached.
+    pub fn with_model() -> Self {
+        Self {
+            file_state: FileState::Waiting,
+            error_text: String::new(),
+            memory_need: 0,
+            memory_limit: u64::MAX,
+            custom_error: None,
+            has_model: true,
+        }
+    }
+
+    pub fn has_model(&self) -> bool {
+        self.has_model
+    }
+
+    pub fn set_has_model(&mut self, has: bool) {
+        self.has_model = has;
+    }
+
+    pub fn file_state(&self) -> &FileState {
+        &self.file_state
+    }
+
+    pub fn set_file_state(&mut self, state: FileState) {
+        self.file_state = state;
+    }
+
+    pub fn error_text(&self) -> &str {
+        &self.error_text
+    }
+
+    pub fn set_error_text(&mut self, text: &str) {
+        self.error_text = text.to_string();
+    }
+
+    pub fn memory_need(&self) -> u64 {
+        self.memory_need
+    }
+
+    pub fn set_memory_need(&mut self, need: u64) {
+        self.memory_need = need;
+    }
+
+    pub fn memory_limit(&self) -> u64 {
+        self.memory_limit
+    }
+
+    pub fn set_memory_limit(&mut self, limit: u64) {
+        self.memory_limit = limit;
+    }
+
+    pub fn set_custom_error(&mut self, message: &str) {
+        self.custom_error = Some(message.to_string());
+    }
+
+    pub fn clear_custom_error(&mut self) {
+        self.custom_error = None;
+    }
+
+    pub fn custom_error(&self) -> Option<&str> {
+        self.custom_error.as_deref()
+    }
+
+    /// Compute the virtual file state from current model state and custom error.
+    pub fn vir_file_state(&self) -> VirtualFileState {
+        if let Some(ref msg) = self.custom_error {
+            return VirtualFileState::CustomError(msg.clone());
+        }
+        if !self.has_model {
+            return VirtualFileState::NoFileModel;
+        }
+        // If memory need exceeds limit and model is loaded, force TooCostly.
+        if self.memory_need > self.memory_limit {
+            return VirtualFileState::TooCostly;
+        }
+        match &self.file_state {
+            FileState::Waiting => VirtualFileState::Waiting,
+            FileState::Loading { progress } => VirtualFileState::Loading {
+                progress: *progress,
+            },
+            FileState::Loaded => VirtualFileState::Loaded,
+            FileState::Unsaved => VirtualFileState::Unsaved,
+            FileState::Saving => VirtualFileState::Saving,
+            FileState::TooCostly => VirtualFileState::TooCostly,
+            FileState::LoadError(e) => VirtualFileState::LoadError(e.clone()),
+            FileState::SaveError(e) => VirtualFileState::SaveError(e.clone()),
+        }
+    }
+
+    /// Paint the file panel status information.
+    ///
+    /// This renders informational text about the current virtual file state.
+    /// Derived panels should check `vir_file_state().is_good()` and render
+    /// their content instead of calling this method when the state is good.
+    pub fn paint_status(&self, painter: &mut Painter, w: f64, h: f64) {
+        let canvas_color = painter.canvas_color();
+        let vfs = self.vir_file_state();
+
+        match &vfs {
+            VirtualFileState::Waiting => {
+                paint_status_text(
+                    painter,
+                    w,
+                    h,
+                    "Wait...",
+                    Color::rgba(92, 92, 0, 192),
+                    canvas_color,
+                );
+            }
+            VirtualFileState::Loading { progress } => {
+                let text = format!("Loading: {:.1}%", progress);
+                paint_status_text(
+                    painter,
+                    w,
+                    h,
+                    &text,
+                    Color::rgba(0, 112, 0, 192),
+                    canvas_color,
+                );
+            }
+            VirtualFileState::Loaded => {
+                paint_status_text(
+                    painter,
+                    w,
+                    h,
+                    "Loaded",
+                    Color::rgba(0, 116, 112, 192),
+                    canvas_color,
+                );
+            }
+            VirtualFileState::Unsaved => {
+                paint_status_text(
+                    painter,
+                    w,
+                    h,
+                    "Unsaved",
+                    Color::rgba(144, 0, 144, 192),
+                    canvas_color,
+                );
+            }
+            VirtualFileState::Saving => {
+                let text = format!("Saving: {:.1}%", self.file_state_progress());
+                paint_status_text(
+                    painter,
+                    w,
+                    h,
+                    &text,
+                    Color::rgba(0, 112, 0, 192),
+                    canvas_color,
+                );
+            }
+            VirtualFileState::TooCostly => {
+                paint_status_text(
+                    painter,
+                    w,
+                    h,
+                    "Costly",
+                    Color::rgba(112, 64, 64, 192),
+                    canvas_color,
+                );
+            }
+            VirtualFileState::LoadError(ref _e) => {
+                let bg = Color::rgb(128, 0, 0);
+                painter.paint_rect(0.0, 0.0, w, h, bg, canvas_color);
+                painter.paint_text_boxed(
+                    0.05 * w,
+                    h * 0.15,
+                    0.9 * w,
+                    h * 0.1,
+                    "Loading Failed",
+                    h * 0.1,
+                    Color::rgb(204, 136, 0),
+                    bg,
+                    TextAlignment::Center,
+                    VAlign::Center,
+                    TextAlignment::Left,
+                    1.0,
+                    false,
+                    0.0,
+                );
+                painter.paint_text_boxed(
+                    0.05 * w,
+                    h * 0.3,
+                    0.9 * w,
+                    h * 0.4,
+                    &self.error_text,
+                    h * 0.4,
+                    Color::rgb(255, 255, 0),
+                    bg,
+                    TextAlignment::Center,
+                    VAlign::Center,
+                    TextAlignment::Left,
+                    1.0,
+                    false,
+                    0.0,
+                );
+            }
+            VirtualFileState::SaveError(ref _e) => {
+                let bg = Color::rgb(128, 0, 0);
+                painter.paint_rect(0.0, 0.0, w, h, bg, canvas_color);
+                painter.paint_text_boxed(
+                    0.05 * w,
+                    h * 0.15,
+                    0.9 * w,
+                    h * 0.3,
+                    "Saving Failed",
+                    h * 0.3,
+                    Color::rgb(255, 0, 0),
+                    bg,
+                    TextAlignment::Center,
+                    VAlign::Center,
+                    TextAlignment::Left,
+                    1.0,
+                    false,
+                    0.0,
+                );
+                painter.paint_text_boxed(
+                    0.05 * w,
+                    h * 0.5,
+                    0.9 * w,
+                    h * 0.3,
+                    &self.error_text,
+                    h * 0.3,
+                    Color::rgb(255, 255, 0),
+                    bg,
+                    TextAlignment::Center,
+                    VAlign::Center,
+                    TextAlignment::Left,
+                    1.0,
+                    false,
+                    0.0,
+                );
+            }
+            VirtualFileState::CustomError(ref msg) => {
+                let bg = Color::rgb(128, 0, 0);
+                painter.paint_rect(0.0, 0.0, w, h, bg, canvas_color);
+                painter.paint_text_boxed(
+                    0.05 * w,
+                    h * 0.15,
+                    0.9 * w,
+                    h * 0.2,
+                    "Error",
+                    h * 0.2,
+                    Color::rgb(221, 0, 0),
+                    bg,
+                    TextAlignment::Center,
+                    VAlign::Center,
+                    TextAlignment::Left,
+                    1.0,
+                    false,
+                    0.0,
+                );
+                painter.paint_text_boxed(
+                    0.05 * w,
+                    h * 0.45,
+                    0.9 * w,
+                    h * 0.3,
+                    msg,
+                    h * 0.4,
+                    Color::rgb(255, 255, 0),
+                    bg,
+                    TextAlignment::Center,
+                    VAlign::Center,
+                    TextAlignment::Left,
+                    1.0,
+                    false,
+                    0.0,
+                );
+            }
+            VirtualFileState::NoFileModel => {
+                paint_status_text(
+                    painter,
+                    w,
+                    h,
+                    "No file model",
+                    Color::rgba(128, 0, 0, 192),
+                    canvas_color,
+                );
+            }
+        }
+    }
+
+    fn file_state_progress(&self) -> f64 {
+        match &self.file_state {
+            FileState::Loading { progress } => *progress,
+            _ => 0.0,
+        }
+    }
+}
+
+/// Paint a centered status text over the full panel area.
+fn paint_status_text(
+    painter: &mut Painter,
+    w: f64,
+    h: f64,
+    text: &str,
+    color: Color,
+    canvas_color: Color,
+) {
+    painter.paint_text_boxed(
+        0.0,
+        0.0,
+        w,
+        h,
+        text,
+        h / 6.0,
+        color,
+        canvas_color,
+        TextAlignment::Center,
+        VAlign::Center,
+        TextAlignment::Left,
+        1.0,
+        false,
+        0.0,
+    );
+}
+
+impl PanelBehavior for FilePanel {
+    fn is_opaque(&self) -> bool {
+        matches!(
+            self.vir_file_state(),
+            VirtualFileState::LoadError(_)
+                | VirtualFileState::SaveError(_)
+                | VirtualFileState::CustomError(_)
+        )
+    }
+
+    fn canvas_color(&self) -> Color {
+        match self.vir_file_state() {
+            VirtualFileState::LoadError(_)
+            | VirtualFileState::SaveError(_)
+            | VirtualFileState::CustomError(_) => Color::rgb(128, 0, 0),
+            _ => Color::TRANSPARENT,
+        }
+    }
+
+    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+        self.paint_status(painter, w, h);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn vfs_no_model() {
+        let panel = FilePanel::new();
+        assert_eq!(panel.vir_file_state(), VirtualFileState::NoFileModel);
+    }
+
+    #[test]
+    fn vfs_with_model_waiting() {
+        let panel = FilePanel::with_model();
+        assert_eq!(panel.vir_file_state(), VirtualFileState::Waiting);
+    }
+
+    #[test]
+    fn vfs_custom_error_overrides() {
+        let mut panel = FilePanel::with_model();
+        panel.set_file_state(FileState::Loaded);
+        panel.set_custom_error("custom problem");
+        assert_eq!(
+            panel.vir_file_state(),
+            VirtualFileState::CustomError("custom problem".to_string())
+        );
+        panel.clear_custom_error();
+        assert_eq!(panel.vir_file_state(), VirtualFileState::Loaded);
+    }
+
+    #[test]
+    fn vfs_too_costly_when_over_limit() {
+        let mut panel = FilePanel::with_model();
+        panel.set_file_state(FileState::Loaded);
+        panel.set_memory_need(1000);
+        panel.set_memory_limit(500);
+        assert_eq!(panel.vir_file_state(), VirtualFileState::TooCostly);
+    }
+
+    #[test]
+    fn vfs_good_states() {
+        let mut panel = FilePanel::with_model();
+        panel.set_file_state(FileState::Loaded);
+        assert!(panel.vir_file_state().is_good());
+
+        panel.set_file_state(FileState::Unsaved);
+        assert!(panel.vir_file_state().is_good());
+
+        panel.set_file_state(FileState::Waiting);
+        assert!(!panel.vir_file_state().is_good());
+    }
+
+    #[test]
+    fn is_opaque_for_errors() {
+        let mut panel = FilePanel::with_model();
+        panel.set_file_state(FileState::LoadError("err".to_string()));
+        assert!(panel.is_opaque());
+
+        panel.set_file_state(FileState::Loaded);
+        assert!(!panel.is_opaque());
+    }
+
+    #[test]
+    fn hope_for_seeking() {
+        assert!(VirtualFileState::Waiting.is_hope_for_seeking());
+        assert!(VirtualFileState::Loading { progress: 50.0 }.is_hope_for_seeking());
+        assert!(VirtualFileState::Saving.is_hope_for_seeking());
+        assert!(!VirtualFileState::Loaded.is_hope_for_seeking());
+    }
+}

@@ -134,6 +134,20 @@ impl RadioGroup {
         }
     }
 
+    /// Find the index of a radio button by its identifier.
+    ///
+    /// In C++ this searches by pointer; in Rust buttons are identified by
+    /// their index, so this validates the index is within bounds.
+    ///
+    /// Port of C++ `emRadioButton::Mechanism::GetIndexOf`.
+    pub fn get_index_of(&self, id: usize) -> Option<usize> {
+        if id < self.count {
+            Some(id)
+        } else {
+            None
+        }
+    }
+
     /// Remove all buttons from the group.
     ///
     /// If a button was checked, clears the selection and fires the signal.

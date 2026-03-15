@@ -1,3 +1,9 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use crate::model::Context;
+use crate::scheduler::SignalId;
+
 /// Information about a physical monitor.
 #[derive(Clone, Debug)]
 pub struct MonitorInfo {
@@ -9,15 +15,30 @@ pub struct MonitorInfo {
 }
 
 /// Tracks available monitors and virtual desktop bounds.
+///
+/// Matches C++ emScreen: a model that provides monitor geometry, DPI, and
+/// the list of open windows. Installed into a `Context` so panels can
+/// find it via `lookup_inherited`.
 pub struct Screen {
     monitors: Vec<MonitorInfo>,
     /// Virtual desktop bounding box (x, y, w, h).
     pub virtual_bounds: (i32, i32, u32, u32),
+    /// Signal fired when monitor geometry changes.
+    geometry_signal: SignalId,
+    /// Signal fired when the window list changes.
+    windows_signal: SignalId,
 }
 
 impl Screen {
     /// Populate from winit's available monitors.
-    pub fn from_event_loop(event_loop: &winit::event_loop::ActiveEventLoop) -> Self {
+    ///
+    /// `geometry_signal` and `windows_signal` should be freshly allocated
+    /// signal IDs from the scheduler.
+    pub fn from_event_loop(
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        geometry_signal: SignalId,
+        windows_signal: SignalId,
+    ) -> Self {
         let mut monitors = Vec::new();
         let mut min_x = i32::MAX;
         let mut min_y = i32::MAX;
@@ -57,6 +78,8 @@ impl Screen {
         Self {
             monitors,
             virtual_bounds,
+            geometry_signal,
+            windows_signal,
         }
     }
 
@@ -130,6 +153,55 @@ impl Screen {
         best_idx
     }
 
+    /// Look up the screen installed in the given context or an ancestor.
+    ///
+    /// Matches C++ emScreen::LookupInherited. The screen is registered
+    /// under the type `Screen` with name `""`.
+    pub fn lookup_inherited(context: &Context) -> Option<Rc<RefCell<Screen>>> {
+        context.lookup_inherited::<Screen>("")
+    }
+
+    /// Signal fired when monitor geometry (bounds, DPI, count) changes.
+    ///
+    /// Matches C++ emScreen::GetGeometrySignal.
+    pub fn geometry_signal(&self) -> SignalId {
+        self.geometry_signal
+    }
+
+    /// Signal fired when the set of open windows changes.
+    ///
+    /// Matches C++ emScreen::GetWindowsSignal.
+    pub fn windows_signal(&self) -> SignalId {
+        self.windows_signal
+    }
+
+    /// Register this screen in a `Context` so it can be found via
+    /// `lookup_inherited`.
+    ///
+    /// Matches C++ emScreen::Install (protected). Should be called once
+    /// on the root context at startup.
+    pub fn install(screen: Rc<RefCell<Screen>>, context: &Context) {
+        context.register_model::<Screen>("", screen);
+    }
+
+    /// Fire the geometry-changed signal.
+    ///
+    /// Matches C++ emScreen::SignalGeometrySignal (protected).
+    /// The caller must pass this signal ID to the scheduler to actually
+    /// fire it.
+    pub fn signal_geometry_signal(&self) -> SignalId {
+        self.geometry_signal
+    }
+
+    /// Stub: create a window port for a new window.
+    ///
+    /// Matches C++ emScreen::CreateWindowPort (pure virtual, protected).
+    /// In zuicchini the window port is created directly by `ZuiWindow::create`,
+    /// so this is a no-op placeholder for API parity.
+    pub fn create_window_port(&self) {
+        // No-op: window ports are created inline by ZuiWindow::create.
+    }
+
     pub fn leave_fullscreen_modes(
         &self,
         windows: &mut std::collections::HashMap<
@@ -153,9 +225,16 @@ mod tests {
     use super::*;
 
     fn make_screen(monitors: Vec<MonitorInfo>) -> Screen {
+        use slotmap::SlotMap;
+        // Create dummy signal IDs for tests.
+        let mut signals: SlotMap<SignalId, ()> = SlotMap::with_key();
+        let gs = signals.insert(());
+        let ws = signals.insert(());
         Screen {
             monitors,
             virtual_bounds: (0, 0, 3840, 1080),
+            geometry_signal: gs,
+            windows_signal: ws,
         }
     }
 

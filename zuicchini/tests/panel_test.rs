@@ -109,7 +109,7 @@ fn notice_flag_propagation() {
         .contains(NoticeFlags::CHILDREN_CHANGED));
 
     // Deliver notices
-    tree.deliver_notices(true);
+    tree.deliver_notices(true, 1.0);
 
     // Verify notices were cleared after delivery
     assert!(tree.pending_notices(root).is_empty());

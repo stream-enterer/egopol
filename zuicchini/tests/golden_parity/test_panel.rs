@@ -48,7 +48,7 @@ macro_rules! require_golden {
 /// `rounds` matches C++ TerminateEngine cycle count from gen_golden.cpp.
 fn settle(tree: &mut PanelTree, view: &mut View, rounds: usize) {
     for _ in 0..rounds {
-        tree.deliver_notices(view.window_focused());
+        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
         view.update_viewing(tree);
     }
 }

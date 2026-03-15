@@ -126,8 +126,10 @@ impl ApplicationHandler for App {
         // Init GPU
         self.gpu = Some(GpuContext::new());
 
-        // Scan monitors
-        self.screen = Some(Screen::from_event_loop(event_loop));
+        // Scan monitors — allocate signal IDs for geometry/window-list changes.
+        let geom_sig = self.scheduler.create_signal();
+        let win_sig = self.scheduler.create_signal();
+        self.screen = Some(Screen::from_event_loop(event_loop, geom_sig, win_sig));
 
         // Call user setup
         if let Some(setup) = self.setup_fn.take() {
@@ -222,7 +224,13 @@ impl ApplicationHandler for App {
 
         // Deliver notices (includes layout dispatch)
         let window_focused = self.windows.values().any(|w| w.view().window_focused());
-        let had_notices = self.tree.deliver_notices(window_focused);
+        let pixel_tallness = self
+            .windows
+            .values()
+            .next()
+            .map(|w| w.view().pixel_tallness())
+            .unwrap_or(1.0);
+        let had_notices = self.tree.deliver_notices(window_focused, pixel_tallness);
 
         // Update views and tick animators
         let dt = 1.0 / 60.0; // Fixed timestep for now

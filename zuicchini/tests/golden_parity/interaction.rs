@@ -14,7 +14,7 @@ macro_rules! require_golden {
 
 /// Query (is_active, in_active_path) for a panel via the public API.
 fn panel_state(tree: &PanelTree, id: PanelId) -> (bool, bool) {
-    let state = tree.build_panel_state(id, false);
+    let state = tree.build_panel_state(id, false, 1.0);
     (state.is_active, state.in_active_path)
 }
 

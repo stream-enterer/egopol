@@ -24,6 +24,7 @@ pub struct Dialog {
     buttons: Vec<(String, DialogResult)>,
     result: Option<DialogResult>,
     pub on_finish: Option<DialogFinishCb>,
+    auto_delete: bool,
 }
 
 const BUTTON_HEIGHT: f64 = 22.0;
@@ -38,6 +39,7 @@ impl Dialog {
             buttons: Vec::new(),
             result: None,
             on_finish: None,
+            auto_delete: false,
         }
     }
 
@@ -108,6 +110,56 @@ impl Dialog {
     pub fn preferred_size(&self) -> (f64, f64) {
         self.border
             .preferred_size_for_content(200.0, 120.0 + BUTTON_HEIGHT + BOTTOM_MARGIN)
+    }
+
+    /// Access a button label and result by index.
+    ///
+    /// Port of C++ `emDialog::GetButton`.
+    pub fn get_button(&self, index: usize) -> Option<&(String, DialogResult)> {
+        self.buttons.get(index)
+    }
+
+    /// Find the first button whose result matches `result`.
+    ///
+    /// Port of C++ `emDialog::GetButtonForResult`.
+    pub fn get_button_for_result(&self, result: &DialogResult) -> Option<&(String, DialogResult)> {
+        self.buttons.iter().find(|(_, r)| r == result)
+    }
+
+    /// Convenience accessor for the first `Ok` button.
+    pub fn ok_button(&self) -> Option<&(String, DialogResult)> {
+        self.get_button_for_result(&DialogResult::Ok)
+    }
+
+    /// Convenience accessor for the first `Cancel` button.
+    pub fn cancel_button(&self) -> Option<&(String, DialogResult)> {
+        self.get_button_for_result(&DialogResult::Cancel)
+    }
+
+    /// Enable automatic deletion when the dialog closes.
+    pub fn enable_auto_deletion(&mut self) {
+        self.auto_delete = true;
+    }
+
+    /// Check if auto-deletion is enabled.
+    pub fn is_auto_deletion_enabled(&self) -> bool {
+        self.auto_delete
+    }
+
+    /// Static convenience to create a message dialog (returns a configured `Dialog`).
+    ///
+    /// Port of C++ `emDialog::ShowMessage`.
+    pub fn show_message(text: &str, look: Rc<Look>) -> Self {
+        let mut dlg = Self::new(text, look);
+        dlg.add_button("OK", DialogResult::Ok);
+        dlg
+    }
+
+    /// Check if the dialog should close (i.e. a result has been set).
+    ///
+    /// Port of C++ `emDialog::CheckFinish`.
+    pub fn check_finish(&self) -> bool {
+        self.result.is_some()
     }
 }
 

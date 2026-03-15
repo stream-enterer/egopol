@@ -661,7 +661,7 @@ fn main() {
 
     let mut view = zuicchini::panel::View::new(root, vw as f64, vh as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
-    tree.deliver_notices(true);
+    tree.deliver_notices(true, 1.0);
     view.update(&mut tree);
 
     let mut tile_cache = TileCache::new(vw, vh, 256);

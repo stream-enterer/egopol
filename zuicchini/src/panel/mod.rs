@@ -2,6 +2,7 @@ mod animator;
 mod behavior;
 mod ctx;
 mod input_filter;
+mod sub_view_panel;
 mod tree;
 mod view;
 
@@ -14,6 +15,7 @@ pub use ctx::PanelCtx;
 pub use input_filter::{
     DefaultTouchVIF, KeyboardZoomScrollVIF, MouseZoomScrollVIF, TouchState, ViewInputFilter,
 };
+pub use sub_view_panel::SubViewPanel;
 pub use tree::{
     decode_identity, encode_identity, AutoplayHandlingFlags, ChildIter, ChildRevIter, PanelId,
     PanelTree, PlaybackState, ViewConditionType,

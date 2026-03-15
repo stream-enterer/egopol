@@ -268,6 +268,25 @@ impl ClipRects {
         self.set(x1, y1, x2, y2);
     }
 
+    /// Set this set to the bounding box of another set.
+    ///
+    /// Port of C++ `emClipRects::SetToMinMaxOf`.
+    pub fn set_to_min_max_of(&mut self, other: &ClipRects) {
+        if other.rects.len() <= 1 {
+            self.rects.clone_from(&other.rects);
+        } else {
+            let (x1, y1, x2, y2) = other.get_min_max();
+            self.set(x1, y1, x2, y2);
+        }
+    }
+
+    /// Check whether this set contains all of another set.
+    ///
+    /// Port of C++ `emClipRects::IsSupersetOf(const emClipRects&)`.
+    pub fn is_superset_of(&self, other: &ClipRects) -> bool {
+        other.is_subset_of(self)
+    }
+
     /// Add all rectangles from another set (union).
     pub fn unite(&mut self, other: &ClipRects) {
         for r in &other.rects {

@@ -171,6 +171,15 @@ impl Border {
         self.icon = icon;
     }
 
+    /// Set caption, description, and icon in a single call.
+    ///
+    /// Port of C++ `emBorder::SetLabel(caption, description, icon)`.
+    pub fn set_label(&mut self, caption: &str, description: &str, icon: Option<Image>) {
+        self.caption = caption.to_string();
+        self.description = description.to_string();
+        self.icon = icon;
+    }
+
     pub fn set_icon_above_caption(&mut self, above: bool) {
         self.icon_above_caption = above;
     }
@@ -975,6 +984,23 @@ How to move or set the focus:\n\
                 },
                 0.0,
             ),
+        }
+    }
+
+    /// Compute the inner substance rectangle (no corner radius) from a panel rect.
+    ///
+    /// This is a convenience wrapper around
+    /// [`substance_round_rect`](Self::substance_round_rect) that discards the
+    /// corner radius and returns only the axis-aligned rectangle.
+    ///
+    /// Port of C++ `emBorder::GetSubstanceRect` (scalar rect variant).
+    pub fn substance_rect(&self, panel_rect: Rect) -> Rect {
+        let (r, _radius) = self.substance_round_rect(panel_rect.w, panel_rect.h);
+        Rect {
+            x: panel_rect.x + r.x,
+            y: panel_rect.y + r.y,
+            w: r.w,
+            h: r.h,
         }
     }
 

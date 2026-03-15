@@ -46,6 +46,8 @@ pub struct ZuiWindow {
     pub active_animator: Option<Box<dyn ViewAnimator>>,
     window_icon: Option<Image>,
     screensaver_inhibit_count: u32,
+    flags_changed: bool,
+    wm_res_name: String,
 }
 
 impl ZuiWindow {
@@ -130,6 +132,8 @@ impl ZuiWindow {
             active_animator: None,
             window_icon: None,
             screensaver_inhibit_count: 0,
+            flags_changed: false,
+            wm_res_name: String::from("zuicchini"),
         }
     }
 
@@ -451,7 +455,7 @@ impl ZuiWindow {
             panel_ev.mouse_y = tree.view_to_panel_y(panel_id, ev.mouse_y);
 
             if let Some(mut behavior) = tree.take_behavior(panel_id) {
-                let panel_state = tree.build_panel_state(panel_id, wf);
+                let panel_state = tree.build_panel_state(panel_id, wf, self.view.pixel_tallness());
                 let consumed = behavior.input(&panel_ev, &panel_state, state);
                 // TF-003: Process scroll-to-visible requests from behaviors
                 if let Some(rect) = behavior.take_scroll_to_visible() {
@@ -462,6 +466,74 @@ impl ZuiWindow {
                     break;
                 }
             }
+        }
+    }
+
+    /// Signal ID for window flags changes.
+    ///
+    /// Matches C++ emWindow::GetWindowFlagsSignal. Since we don't yet have
+    /// per-window signals wired into the scheduler, this returns the
+    /// close_signal as a placeholder — callers that need to detect flag
+    /// changes should check `flags_changed` instead.
+    pub fn window_flags_signal(&self) -> SignalId {
+        // TODO: allocate a dedicated signal when the scheduler supports it.
+        self.close_signal
+    }
+
+    /// Whether window flags changed since the last call to
+    /// `clear_flags_changed`.
+    pub fn flags_changed(&self) -> bool {
+        self.flags_changed
+    }
+
+    /// Reset the flags-changed latch.
+    pub fn clear_flags_changed(&mut self) {
+        self.flags_changed = false;
+    }
+
+    /// Window manager resource name (WM_CLASS instance on X11).
+    ///
+    /// Matches C++ emWindow::GetWMResName. Returns a static default;
+    /// set with `set_wm_res_name`.
+    pub fn wm_res_name(&self) -> &str {
+        &self.wm_res_name
+    }
+
+    /// Set the window manager resource name.
+    pub fn set_wm_res_name(&mut self, name: &str) {
+        self.wm_res_name = name.to_string();
+    }
+
+    /// Parse an X11-style geometry string and apply position/size.
+    ///
+    /// Format: `WxH+X+Y` or `WxH-X-Y` (partial forms accepted).
+    /// Matches C++ emWindow::SetWinPosViewSize(geometry) overload.
+    pub fn set_win_pos_view_size_from_geometry(&self, geometry: &str) {
+        let (w, h, x, y) = parse_x11_geometry(geometry);
+        if let (Some(x), Some(y)) = (x, y) {
+            self.winit_window
+                .set_outer_position(winit::dpi::LogicalPosition::new(x as f64, y as f64));
+        }
+        if let (Some(w), Some(h)) = (w, h) {
+            let _ = self
+                .winit_window
+                .request_inner_size(winit::dpi::LogicalSize::new(w as f64, h as f64));
+        }
+    }
+
+    /// Return the window border sizes (left, top, right, bottom) in pixels.
+    ///
+    /// Matches C++ emWindowPort::GetBorderSizes. Winit does not expose
+    /// decoration sizes directly, so this returns a reasonable default
+    /// for decorated windows and zero for undecorated ones.
+    pub fn border_sizes(&self) -> (i32, i32, i32, i32) {
+        if self.flags.contains(WindowFlags::UNDECORATED)
+            || self.flags.contains(WindowFlags::FULLSCREEN)
+        {
+            (0, 0, 0, 0)
+        } else {
+            // Reasonable default for a typical X11/Wayland decorated window.
+            (4, 30, 4, 4)
         }
     }
 
@@ -511,6 +583,7 @@ impl ZuiWindow {
         }
         let old = self.flags;
         self.flags = new_flags;
+        self.flags_changed = true;
 
         // Apply decoration changes.
         if old.contains(WindowFlags::UNDECORATED) != new_flags.contains(WindowFlags::UNDECORATED) {
@@ -724,4 +797,75 @@ impl ZuiWindow {
         // Could use platform-specific APIs (e.g. XBell on X11, NSBeep on macOS, MessageBeep on Windows).
         log::debug!("beep not supported by winit");
     }
+}
+
+/// Parse an X11-style geometry string: `WxH+X+Y`, `WxH-X-Y`, `+X+Y`, `WxH`.
+///
+/// Returns `(width, height, x, y)` where each component is `None` if absent.
+fn parse_x11_geometry(s: &str) -> (Option<i32>, Option<i32>, Option<i32>, Option<i32>) {
+    let s = s.trim();
+    if s.is_empty() {
+        return (None, None, None, None);
+    }
+
+    let mut width = None;
+    let mut height = None;
+    let mut x = None;
+    let mut y = None;
+
+    // Split at the first '+' or '-' that follows a digit (size/position boundary).
+    let pos_start = s
+        .find(|c: char| (c == '+' || c == '-') && !s.starts_with(c))
+        .unwrap_or(s.len());
+
+    let size_part = &s[..pos_start];
+    let pos_part = &s[pos_start..];
+
+    // Parse WxH
+    if !size_part.is_empty() {
+        if let Some(xi) = size_part.find('x').or_else(|| size_part.find('X')) {
+            width = size_part[..xi].parse::<i32>().ok();
+            height = size_part[xi + 1..].parse::<i32>().ok();
+        }
+    }
+
+    // Parse position: +X+Y or -X-Y or +X-Y etc.
+    if !pos_part.is_empty() {
+        // Collect sign+digits tokens
+        let mut tokens: Vec<i32> = Vec::new();
+        let mut chars = pos_part.chars().peekable();
+        while chars.peek().is_some() {
+            let sign = match chars.peek() {
+                Some('+') => {
+                    chars.next();
+                    1
+                }
+                Some('-') => {
+                    chars.next();
+                    -1
+                }
+                _ => 1,
+            };
+            let mut num_str = String::new();
+            while let Some(&c) = chars.peek() {
+                if c.is_ascii_digit() {
+                    num_str.push(c);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            if let Ok(n) = num_str.parse::<i32>() {
+                tokens.push(sign * n);
+            }
+        }
+        if tokens.len() >= 2 {
+            x = Some(tokens[0]);
+            y = Some(tokens[1]);
+        } else if tokens.len() == 1 {
+            x = Some(tokens[0]);
+        }
+    }
+
+    (width, height, x, y)
 }

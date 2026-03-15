@@ -1,3 +1,5 @@
+use std::fmt;
+
 use super::event::InputKey;
 use super::state::InputState;
 
@@ -71,6 +73,50 @@ impl Hotkey {
             && self.alt == state.alt()
             && self.shift == state.shift()
             && self.meta == state.meta()
+    }
+
+    /// Clear all modifier keys.
+    pub fn clear_modifiers(&mut self) {
+        self.ctrl = false;
+        self.alt = false;
+        self.shift = false;
+        self.meta = false;
+    }
+
+    /// Add a modifier key. Non-modifier keys are ignored.
+    pub fn add_modifier(&mut self, key: InputKey) {
+        match key {
+            InputKey::Ctrl => self.ctrl = true,
+            InputKey::Alt => self.alt = true,
+            InputKey::Shift => self.shift = true,
+            InputKey::Meta => self.meta = true,
+            _ => {}
+        }
+    }
+
+    /// Set the main (non-modifier) key.
+    pub fn set_key(&mut self, key: InputKey) {
+        self.key = key;
+    }
+}
+
+impl fmt::Display for Hotkey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut parts = Vec::new();
+        if self.ctrl {
+            parts.push("Ctrl");
+        }
+        if self.alt {
+            parts.push("Alt");
+        }
+        if self.shift {
+            parts.push("Shift");
+        }
+        if self.meta {
+            parts.push("Meta");
+        }
+        parts.push(self.key.as_str());
+        write!(f, "{}", parts.join("+"))
     }
 }
 

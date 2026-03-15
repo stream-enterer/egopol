@@ -54,7 +54,8 @@ impl TestHarness {
     /// Run one frame: scheduler time slice → deliver notices → update viewing.
     pub fn tick(&mut self) {
         self.scheduler.do_time_slice();
-        self.tree.deliver_notices(self.view.window_focused());
+        self.tree
+            .deliver_notices(self.view.window_focused(), self.view.pixel_tallness());
         self.view.update_viewing(&mut self.tree);
     }
 
@@ -120,7 +121,9 @@ impl TestHarness {
         let viewed = self.tree.viewed_panels_dfs();
         for panel_id in viewed {
             if let Some(mut behavior) = self.tree.take_behavior(panel_id) {
-                let state = self.tree.build_panel_state(panel_id, wf);
+                let state = self
+                    .tree
+                    .build_panel_state(panel_id, wf, self.view.pixel_tallness());
                 let consumed = behavior.input(&ev, &state, &self.input_state);
                 self.tree.put_behavior(panel_id, behavior);
                 if consumed {

@@ -18,11 +18,13 @@ const TIME_SLICE_DURATION: Duration = Duration::from_millis(50);
 /// - FIFO ordering with alternating time-slice parity for fairness
 pub struct EngineScheduler {
     inner: EngineCtxInner,
+    terminated: bool,
 }
 
 impl EngineScheduler {
     pub fn new() -> Self {
         Self {
+            terminated: false,
             inner: EngineCtxInner {
                 signals: SlotMap::with_key(),
                 engines: SlotMap::with_key(),
@@ -357,6 +359,29 @@ impl EngineScheduler {
     /// Current time slice counter (incremented once per `do_time_slice` call).
     pub fn time_slice_counter(&self) -> u64 {
         self.inner.time_slice_counter
+    }
+
+    /// Blocking run loop: calls `do_time_slice` repeatedly until
+    /// `initiate_termination` is called.
+    ///
+    /// Port of C++ `emStandardScheduler::Run`.
+    pub fn run(&mut self) {
+        self.terminated = false;
+        while !self.terminated {
+            self.do_time_slice();
+        }
+    }
+
+    /// Signal the scheduler to stop after the current time slice.
+    ///
+    /// Port of C++ `emScheduler::InitiateTermination`.
+    pub fn initiate_termination(&mut self) {
+        self.terminated = true;
+    }
+
+    /// Whether termination has been initiated.
+    pub fn is_terminated(&self) -> bool {
+        self.terminated
     }
 
     // ── Internal helpers ────────────────────────────────────────────

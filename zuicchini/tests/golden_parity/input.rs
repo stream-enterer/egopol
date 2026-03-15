@@ -26,7 +26,7 @@ fn attach_input(tree: &mut PanelTree, id: PanelId) -> Rc<RefCell<bool>> {
 
 /// Query (is_active, in_active_path) for a panel.
 fn panel_state(tree: &PanelTree, id: PanelId) -> (bool, bool) {
-    let state = tree.build_panel_state(id, false);
+    let state = tree.build_panel_state(id, false, 1.0);
     (state.is_active, state.in_active_path)
 }
 

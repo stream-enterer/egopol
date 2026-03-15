@@ -687,7 +687,7 @@ fn setup_tree_and_view(vw: u32, vh: u32) -> (PanelTree, View, zuicchini::panel::
 
     let mut view = View::new(root, vw as f64, vh as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
-    tree.deliver_notices(true);
+    tree.deliver_notices(true, 1.0);
     view.update(&mut tree);
 
     (tree, view, root)
@@ -739,7 +739,7 @@ fn run_scenario(scenario: &Scenario, vw: u32, vh: u32) -> (Vec<FrameTiming>, usi
 
         // 2. Notices
         let t = Instant::now();
-        tree.deliver_notices(true);
+        tree.deliver_notices(true, 1.0);
         let notices_us = t.elapsed().as_micros() as u64;
 
         // 3. View update

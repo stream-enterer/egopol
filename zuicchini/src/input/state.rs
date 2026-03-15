@@ -198,6 +198,11 @@ impl InputState {
     pub fn pressed_keys(&self) -> &HashSet<InputKey> {
         &self.pressed
     }
+
+    /// Clear all active touch points.
+    pub fn clear_touches(&mut self) {
+        self.touches.clear();
+    }
 }
 
 impl Default for InputState {

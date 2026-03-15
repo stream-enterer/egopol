@@ -703,6 +703,64 @@ impl Image {
         }
     }
 
+    /// Store a user-provided memory-mapped buffer, replacing owned data.
+    ///
+    /// Port of C++ `emImage::SetUserMap`. The buffer must have exactly
+    /// `w * h * channels` bytes.
+    ///
+    /// # Panics
+    /// Panics if `channels` is not 1..=4 or the slice length is wrong.
+    pub fn set_user_map(&mut self, ptr: &[u8], w: u32, h: u32, channels: u8) {
+        assert!(
+            (1..=4).contains(&channels),
+            "channel_count must be 1, 2, 3, or 4"
+        );
+        let expected = w as usize * h as usize * channels as usize;
+        assert_eq!(
+            ptr.len(),
+            expected,
+            "user map length {} does not match {}x{}x{}={}",
+            ptr.len(),
+            w,
+            h,
+            channels,
+            expected,
+        );
+        self.width = w;
+        self.height = h;
+        self.channel_count = channels;
+        self.data.clear();
+        self.data.extend_from_slice(ptr);
+    }
+
+    /// Returns `true` if the image was set up via [`set_user_map`](Self::set_user_map).
+    ///
+    /// In this Rust port the data is always owned (we copy the user map), so
+    /// this always returns `false`. Provided for API parity with C++
+    /// `emImage::HasUserMap`.
+    pub fn has_user_map(&self) -> bool {
+        false
+    }
+
+    /// Attempt to parse an XPM image from raw bytes.
+    ///
+    /// Port of C++ `emImage::TryParseXpm`. Currently unimplemented and
+    /// always returns `None`.
+    pub fn try_parse_xpm(_data: &[u8]) -> Option<Image> {
+        // XPM parsing is not yet implemented.
+        None
+    }
+
+    /// Prepare the image for use with a `Painter`.
+    ///
+    /// Returns `true` if the image's channel count is paintable (currently
+    /// only 4-channel RGBA). This is the Rust equivalent of C++
+    /// `emImage::PreparePainter` -- actual painter setup is handled by the
+    /// `Painter` constructor in this port.
+    pub fn prepare_painter(&self) -> bool {
+        Self::is_channel_count_paintable(self.channel_count)
+    }
+
     /// Whether a `Painter` can paint into an image with this channel count.
     ///
     /// Currently only 4-channel (RGBA) images are paintable.

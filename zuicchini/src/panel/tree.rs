@@ -493,6 +493,34 @@ impl PanelTree {
         self.panels.get(id).and_then(|p| p.parent)
     }
 
+    /// Get the first child of a panel.
+    ///
+    /// Corresponds to `emPanel::GetFirstChild`.
+    pub fn first_child(&self, id: PanelId) -> Option<PanelId> {
+        self.panels.get(id).and_then(|p| p.first_child)
+    }
+
+    /// Get the last child of a panel.
+    ///
+    /// Corresponds to `emPanel::GetLastChild`.
+    pub fn last_child(&self, id: PanelId) -> Option<PanelId> {
+        self.panels.get(id).and_then(|p| p.last_child)
+    }
+
+    /// Get the previous sibling of a panel.
+    ///
+    /// Corresponds to `emPanel::GetPrev`.
+    pub fn prev_sibling(&self, id: PanelId) -> Option<PanelId> {
+        self.panels.get(id).and_then(|p| p.prev_sibling)
+    }
+
+    /// Get the next sibling of a panel.
+    ///
+    /// Corresponds to `emPanel::GetNext`.
+    pub fn next_sibling(&self, id: PanelId) -> Option<PanelId> {
+        self.panels.get(id).and_then(|p| p.next_sibling)
+    }
+
     /// Build a colon-delimited identity string by walking from `id` up to the
     /// root, collecting names, and encoding them.
     ///
@@ -897,7 +925,12 @@ impl PanelTree {
     }
 
     /// Build a `PanelState` snapshot for the given panel.
-    pub fn build_panel_state(&self, id: PanelId, window_focused: bool) -> PanelState {
+    pub fn build_panel_state(
+        &self,
+        id: PanelId,
+        window_focused: bool,
+        pixel_tallness: f64,
+    ) -> PanelState {
         let p = &self.panels[id];
         PanelState {
             id,
@@ -910,6 +943,7 @@ impl PanelTree {
             viewed_rect: Rect::new(p.viewed_x, p.viewed_y, p.viewed_width, p.viewed_height),
             priority: 0.0,
             memory_limit: 0,
+            pixel_tallness,
         }
     }
 
@@ -928,7 +962,7 @@ impl PanelTree {
     /// Deliver pending notices to all panels with behaviors.
     /// Dispatch pending notices to panel behaviors. Returns `true` if any
     /// notices were delivered (meaning visual state may have changed).
-    pub fn deliver_notices(&mut self, window_focused: bool) -> bool {
+    pub fn deliver_notices(&mut self, window_focused: bool, pixel_tallness: f64) -> bool {
         let mut delivered = false;
         // Loop until no new notices are generated. layout_children may call
         // set_layout_rect on children, queuing LAYOUT_CHANGED notices that
@@ -948,7 +982,7 @@ impl PanelTree {
                 round_delivered = true;
                 self.panels[id].pending_notices = NoticeFlags::empty();
                 if let Some(mut behavior) = self.take_behavior(id) {
-                    let state = self.build_panel_state(id, window_focused);
+                    let state = self.build_panel_state(id, window_focused, pixel_tallness);
                     behavior.notice(flags, &state);
                     if flags.contains(NoticeFlags::LAYOUT_CHANGED) {
                         let mut ctx = PanelCtx::new(self, id);
@@ -2042,7 +2076,7 @@ mod tests {
         let _b = t.create_child(root, "b");
 
         // Clear pending notices before sort
-        t.deliver_notices(true);
+        t.deliver_notices(true, 1.0);
 
         // Build name map
         let names: HashMap<PanelId, String> = t

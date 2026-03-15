@@ -2,6 +2,7 @@ use bitflags::bitflags;
 
 use super::tree::{PanelId, PanelTree};
 use crate::foundation::{ClipRects, Color, Rect};
+use crate::input::Cursor;
 use crate::render::{Painter, Stroke};
 
 bitflags! {
@@ -87,6 +88,14 @@ pub struct View {
     /// PORT-0129: Countdown for delayed End-Of-Interaction signal.
     /// When `Some(n)`, tick_eoi() decrements each frame and fires when 0.
     eoi_countdown: Option<i32>,
+    /// The view title. Updated from the active panel's title.
+    pub title: String,
+    /// Current mouse cursor for this view.
+    pub cursor: Cursor,
+    /// Maximum popup view rectangle (pixel coords of bounding monitor rect).
+    pub max_popup_rect: Option<Rect>,
+    /// Whether the view is currently in popped-up state (popup window active).
+    pub popped_up: bool,
 }
 
 impl View {
@@ -125,6 +134,10 @@ impl View {
             needs_animator_abort: false,
             pending_animated_visit: None,
             eoi_countdown: None,
+            title: String::new(),
+            cursor: Cursor::Normal,
+            max_popup_rect: None,
+            popped_up: false,
         }
     }
 
@@ -1765,6 +1778,102 @@ impl View {
         }
     }
 
+    // --- Title (C++ GetTitle / InvalidateTitle) ---
+
+    /// Get the view title. In C++, GetTitle() is virtual and defaults to the
+    /// active panel's title. Here we store a cached title string that is
+    /// refreshed when `title_invalid` is set.
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    /// Set the view title directly. Marks the title as valid.
+    pub fn set_title(&mut self, title: &str) {
+        self.title = title.to_string();
+        self.title_invalid = false;
+    }
+
+    /// Mark the title as needing a refresh (view-level, not panel-level).
+    /// Corresponds to C++ `emView::InvalidateTitle` which signals the title signal.
+    pub fn invalidate_view_title(&mut self) {
+        self.title_invalid = true;
+    }
+
+    // --- Popup state (C++ IsPoppedUp) ---
+
+    /// Whether the view is in popped-up state. In C++ this checks
+    /// `PopupWindow != NULL`. The Rust equivalent tracks a bool flag that
+    /// is set when a popup window is created for this view.
+    pub fn is_popped_up(&self) -> bool {
+        self.popped_up
+    }
+
+    /// Set the popped-up state. Called by the window/viewport layer when
+    /// a popup window is created or destroyed for this view.
+    pub fn set_popped_up(&mut self, popped_up: bool) {
+        self.popped_up = popped_up;
+    }
+
+    // --- Popup rect (C++ GetMaxPopupViewRect) ---
+
+    /// Get the maximum popup view rectangle: the bounding rectangle of all
+    /// display monitors intersecting the home rectangle of the view, in
+    /// pixel coordinates. Returns `None` if not set.
+    pub fn max_popup_rect(&self) -> Option<Rect> {
+        self.max_popup_rect
+    }
+
+    /// Set the maximum popup view rectangle. Called by the viewport/window
+    /// layer when monitor geometry is known.
+    pub fn set_max_popup_rect(&mut self, rect: Option<Rect>) {
+        self.max_popup_rect = rect;
+    }
+
+    // --- Cursor (C++ GetCursor) ---
+
+    /// Get the current mouse cursor for this view. In C++, GetCursor() is
+    /// virtual and defaults to the cursor of the panel under the mouse.
+    pub fn cursor(&self) -> Cursor {
+        self.cursor
+    }
+
+    /// Set the current mouse cursor. Called after resolving cursor from panels.
+    pub fn set_cursor(&mut self, cursor: Cursor) {
+        self.cursor = cursor;
+        self.cursor_invalid = false;
+    }
+
+    // --- Control panel (C++ CreateControlPanel / GetControlPanelSignal) ---
+
+    /// Create a control panel. In C++ this forwards to the active panel's
+    /// `CreateControlPanel`. This is a complex feature involving panel
+    /// creation in a separate control view.
+    ///
+    /// TODO: Implement when control views are needed. Currently returns None.
+    pub fn create_control_panel(&self, _tree: &PanelTree) -> Option<PanelId> {
+        // C++ forwards to ActivePanel->CreateControlPanel(parent, name).
+        // Requires the control view / panel creation infrastructure.
+        None
+    }
+
+    /// Whether the control panel signal has been raised (needs recreation).
+    /// Equivalent to checking C++ `GetControlPanelSignal`.
+    pub fn needs_control_panel_update(&self) -> bool {
+        self.control_panel_invalid
+    }
+
+    // --- Window/Screen access (C++ GetWindow / GetScreen) ---
+    //
+    // In C++, emView inherits from emContext which provides a parent-context
+    // chain. GetWindow() walks up the context chain to find the nearest
+    // emWindow, and GetScreen() finds the nearest emScreen.
+    //
+    // In Rust, View is a plain struct owned by the window. The window/screen
+    // relationship is managed externally. These methods are not needed on View
+    // itself — callers that have a View reference already know which window
+    // owns it. If cross-view queries are needed in the future, the window
+    // layer can provide the mapping.
+
     // --- Update loop ---
 
     pub fn update(&mut self, tree: &mut PanelTree) {
@@ -1881,6 +1990,20 @@ impl View {
         painter.pop_state();
     }
 
+    /// Paint a sub-tree starting at `root` with the given base offset and
+    /// background color. Used by [`SubViewPanel`] to delegate painting to a
+    /// sub-view's panel tree.
+    pub(crate) fn paint_sub_tree(
+        &self,
+        tree: &mut PanelTree,
+        painter: &mut Painter,
+        root: PanelId,
+        base_offset: (f64, f64),
+        background: Color,
+    ) {
+        self.paint_panel_recursive(tree, painter, root, base_offset, background);
+    }
+
     fn paint_panel_recursive(
         &self,
         tree: &mut PanelTree,
@@ -1932,7 +2055,7 @@ impl View {
         painter.set_canvas_color(effective_canvas);
 
         if let Some(mut behavior) = tree.take_behavior(id) {
-            let mut state = tree.build_panel_state(id, self.window_focused);
+            let mut state = tree.build_panel_state(id, self.window_focused, self.pixel_tallness);
             state.priority = tree.get_update_priority(
                 id,
                 self.viewport_width,

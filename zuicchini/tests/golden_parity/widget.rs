@@ -25,7 +25,7 @@ macro_rules! require_golden {
 /// Settle: deliver notices and update viewing until stable.
 fn settle(tree: &mut PanelTree, view: &mut View) {
     for _ in 0..5 {
-        tree.deliver_notices(view.window_focused());
+        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
         view.update_viewing(tree);
     }
 }
@@ -435,7 +435,7 @@ fn widget_colorfield() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 30)
     for _ in 0..30 {
-        tree.deliver_notices(view.window_focused());
+        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
         view.update_viewing(&mut tree);
     }
 
@@ -582,7 +582,7 @@ fn colorfield_expanded() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.deliver_notices(view.window_focused());
+        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
         view.update_viewing(&mut tree);
     }
 
@@ -657,7 +657,7 @@ fn listbox_expanded() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.deliver_notices(view.window_focused());
+        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
         view.update_viewing(&mut tree);
     }
 
