@@ -718,9 +718,7 @@ fn widget_tunnel() {
         dump_test_images("widget_tunnel", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 3);
     }
-    if let Err(e) = result {
-        eprintln!("widget_tunnel: KNOWN DIVERGENCE — {e}");
-    }
+    result.unwrap();
 }
 
 // ─── CAP-0026: widget_file_panel ───────────────────────────────
@@ -757,20 +755,10 @@ fn widget_file_selection_box() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().data();
 
-    let result = compare_images(
-        "widget_file_selection_box",
-        actual,
-        &expected,
-        w,
-        h,
-        3,
-        90.0,
-    );
+    let result = compare_images("widget_file_selection_box", actual, &expected, w, h, 3, 5.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_file_selection_box", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 3);
     }
-    if let Err(e) = result {
-        eprintln!("widget_file_selection_box: KNOWN DIVERGENCE — {e}");
-    }
+    result.unwrap();
 }
