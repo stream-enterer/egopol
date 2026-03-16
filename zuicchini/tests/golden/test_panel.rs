@@ -917,10 +917,12 @@ impl PanelBehavior for TestPanel {
         if self.depth < MAX_DEPTH {
             for i in 1..=4 {
                 let child_bg = Rc::new(Cell::new(DEFAULT_BG));
-                ctx.create_child_with(
+                let tp_id = ctx.create_child_with(
                     &format!("tp{i}"),
                     Box::new(TestPanel::new(self.depth + 1, child_bg)),
                 );
+                ctx.tree
+                    .set_auto_expansion_threshold(tp_id, 900.0, ViewConditionType::Area);
             }
         }
 

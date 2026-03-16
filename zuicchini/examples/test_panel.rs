@@ -10,7 +10,6 @@ use std::rc::Rc;
 
 use zuicchini::foundation::{Color, Image};
 use zuicchini::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
-use zuicchini::layout::Orientation;
 use zuicchini::panel::{
     NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelState, ViewConditionType, ViewFlags,
 };
@@ -20,13 +19,13 @@ use zuicchini::render::{
 };
 use zuicchini::widget::{
     Button, CheckBox, CheckButton, ColorField, Label, ListBox, Look, RadioBox, RadioButton,
-    RadioGroup, ScalarField, SelectionMode, Splitter, TextField,
+    RadioGroup, ScalarField, SelectionMode, TextField,
 };
 use zuicchini::window::{App, WindowFlags};
 
 // ── Constants ──
 
-const MAX_DEPTH: u32 = 2;
+const MAX_DEPTH: u32 = 10;
 const MAX_LOG_ENTRIES: usize = 20;
 
 const CHILD_LAYOUT: [(&str, f64, f64, f64, f64); 7] = [
@@ -208,29 +207,6 @@ impl PanelBehavior for LabelPanel {
     }
     fn is_opaque(&self) -> bool {
         true
-    }
-}
-
-struct SplitterPanel {
-    widget: Splitter,
-}
-impl PanelBehavior for SplitterPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
-        self.widget.paint(p, w, h);
-    }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-        self.widget.input(e)
-    }
-    fn get_cursor(&self) -> Cursor {
-        self.widget.get_cursor()
-    }
-    fn is_opaque(&self) -> bool {
-        true
-    }
-
-    fn layout_children(&mut self, ctx: &mut PanelCtx) {
-        let rect = ctx.layout_rect();
-        self.widget.layout_children(ctx, rect.w, rect.h);
     }
 }
 
@@ -820,10 +796,13 @@ impl PanelBehavior for TestPanel {
         if self.depth < MAX_DEPTH {
             for i in 1..=4 {
                 let child_bg = Rc::new(Cell::new(Color::rgba(0x00, 0x1C, 0x38, 0xFF)));
-                ctx.create_child_with(
+                let tp_id = ctx.create_child_with(
                     &format!("tp{i}"),
                     Box::new(TestPanel::new(self.depth + 1, child_bg)),
                 );
+                // C++: every emTestPanel constructor calls SetAutoExpansionThreshold(900.0)
+                ctx.tree
+                    .set_auto_expansion_threshold(tp_id, 900.0, ViewConditionType::Area);
             }
         }
 
@@ -913,33 +892,32 @@ impl PanelBehavior for TkTestGrpPanel {
         let children = ctx.children();
         let rect = ctx.layout_rect();
         let h = rect.h / rect.w;
+        let body_y = 0.05 * h;
+        let body_h = 0.95 * h;
+        let half_w = 0.5;
+        let half_h = body_h * 0.5;
 
         if !children.is_empty() {
-            // Reposition the main splitter
-            if let Some(sp) = ctx.find_child_by_name("sp") {
-                ctx.layout_child(sp, 0.0, 0.05 * h, 1.0, 0.95 * h);
+            // Reposition existing children in 2x2 grid
+            if let Some(id) = ctx.find_child_by_name("t1a") {
+                ctx.layout_child(id, 0.0, body_y, half_w, half_h);
+            }
+            if let Some(id) = ctx.find_child_by_name("t1b") {
+                ctx.layout_child(id, 0.0, body_y + half_h, half_w, half_h);
+            }
+            if let Some(id) = ctx.find_child_by_name("t2a") {
+                ctx.layout_child(id, half_w, body_y, half_w, half_h);
+            }
+            if let Some(id) = ctx.find_child_by_name("t2b") {
+                ctx.layout_child(id, half_w, body_y + half_h, half_w, half_h);
             }
             return;
         }
 
         let look = Look::new();
 
-        // Main horizontal splitter
-        let mut sp = Splitter::new(Orientation::Horizontal, look.clone());
-        sp.set_position(0.5);
-        let sp_id = ctx.create_child_with("sp", Box::new(SplitterPanel { widget: sp }));
-
-        // Left vertical splitter
-        let mut sp1 = Splitter::new(Orientation::Vertical, look.clone());
-        sp1.set_position(0.5);
-        let _sp1_id = ctx.create_child_with("sp1", Box::new(SplitterPanel { widget: sp1 }));
-
-        // Right vertical splitter
-        let mut sp2 = Splitter::new(Orientation::Vertical, look.clone());
-        sp2.set_position(0.5);
-        let _sp2_id = ctx.create_child_with("sp2", Box::new(SplitterPanel { widget: sp2 }));
-
-        // Four TkTest panels
+        // Four TkTest panels in a 2x2 grid (C++ uses splitters but flat
+        // layout is equivalent for display purposes)
         ctx.create_child_with("t1a", Box::new(TkTestPanel::new(look.clone())));
         ctx.create_child_with("t1b", Box::new(TkTestPanel::new(look.clone())));
         ctx.create_child_with("t2a", Box::new(TkTestPanel::new(look.clone())));
@@ -947,13 +925,19 @@ impl PanelBehavior for TkTestGrpPanel {
         let t2b_id = ctx.create_child_with("t2b", Box::new(TkTestPanel::new(look.clone())));
         ctx.tree.set_enable_switch(t2b_id, false); // disabled per C++ spec
 
-        // Layout: sp fills below title; children of sp are sp1 and sp2
-        // But since splitters manage their own children's layout via
-        // layout_children, we need to reparent. In zuicchini, splitter
-        // children are just the first two children of the splitter panel.
-        // The architecture is flat — all children are under TkTestGrpPanel.
-        // We lay them out manually in a 2x2 grid instead.
-        ctx.layout_child(sp_id, 0.0, 0.05 * h, 1.0, 0.95 * h);
+        // Layout all in 2x2 grid
+        if let Some(id) = ctx.find_child_by_name("t1a") {
+            ctx.layout_child(id, 0.0, body_y, half_w, half_h);
+        }
+        if let Some(id) = ctx.find_child_by_name("t1b") {
+            ctx.layout_child(id, 0.0, body_y + half_h, half_w, half_h);
+        }
+        if let Some(id) = ctx.find_child_by_name("t2a") {
+            ctx.layout_child(id, half_w, body_y, half_w, half_h);
+        }
+        if let Some(id) = ctx.find_child_by_name("t2b") {
+            ctx.layout_child(id, half_w, body_y + half_h, half_w, half_h);
+        }
     }
 }
 
