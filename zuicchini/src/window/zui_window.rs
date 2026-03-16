@@ -41,6 +41,7 @@ pub struct ZuiWindow {
     viewport_buffer: crate::foundation::Image,
     pub flags: WindowFlags,
     pub close_signal: SignalId,
+    pub flags_signal: SignalId,
     root_panel: PanelId,
     vif_chain: Vec<Box<dyn ViewInputFilter>>,
     pub active_animator: Option<Box<dyn ViewAnimator>>,
@@ -60,6 +61,7 @@ impl ZuiWindow {
         root_panel: PanelId,
         flags: WindowFlags,
         close_signal: SignalId,
+        flags_signal: SignalId,
     ) -> Self {
         let mut attrs = winit::window::WindowAttributes::default().with_title("zuicchini");
 
@@ -129,6 +131,7 @@ impl ZuiWindow {
             view,
             flags,
             close_signal,
+            flags_signal,
             root_panel,
             vif_chain,
             active_animator: None,
@@ -483,13 +486,10 @@ impl ZuiWindow {
 
     /// Signal ID for window flags changes.
     ///
-    /// Matches C++ emWindow::GetWindowFlagsSignal. Since we don't yet have
-    /// per-window signals wired into the scheduler, this returns the
-    /// close_signal as a placeholder — callers that need to detect flag
-    /// changes should check `flags_changed` instead.
+    /// Matches C++ emWindow::GetWindowFlagsSignal. Fired from
+    /// `about_to_wait` when `flags_changed` is set.
     pub fn window_flags_signal(&self) -> SignalId {
-        // TODO: allocate a dedicated signal when the scheduler supports it.
-        self.close_signal
+        self.flags_signal
     }
 
     /// Whether window flags changed since the last call to

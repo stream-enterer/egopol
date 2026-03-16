@@ -343,12 +343,14 @@ fn main() {
         app.tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
 
         let close_sig = app.scheduler.create_signal();
+        let flags_sig = app.scheduler.create_signal();
         let win = zuicchini::window::ZuiWindow::create(
             event_loop,
             app.gpu(),
             root,
             WindowFlags::AUTO_DELETE,
             close_sig,
+            flags_sig,
         );
         let wid = win.winit_window.id();
         app.windows.insert(wid, win);

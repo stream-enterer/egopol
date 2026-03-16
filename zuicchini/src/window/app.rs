@@ -219,6 +219,23 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        // Fire flags_signal for any windows whose flags changed this frame.
+        let flags_signals: Vec<_> = self
+            .windows
+            .values_mut()
+            .filter_map(|win| {
+                if win.flags_changed() {
+                    win.clear_flags_changed();
+                    Some(win.flags_signal)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        for sig in flags_signals {
+            self.scheduler.fire(sig);
+        }
+
         // Run one scheduler time slice
         self.scheduler.do_time_slice();
 
