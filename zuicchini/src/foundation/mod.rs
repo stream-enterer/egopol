@@ -11,6 +11,7 @@ mod mini_ipc;
 mod process;
 mod rect;
 mod tga;
+pub(crate) mod x11_colors;
 
 pub use alignment::ContentAlignment;
 pub use at_matrix::AffineMatrix;

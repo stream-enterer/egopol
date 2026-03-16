@@ -222,8 +222,9 @@ impl Color {
     }
 
     /// Average of RGB channels as a grey value.
+    /// Uses C++ `GetGrey` rounding: `(r + g + b + 1) / 3`.
     pub fn to_grey(self) -> u8 {
-        ((self.r() as u16 + self.g() as u16 + self.b() as u16) / 3) as u8
+        ((self.r() as u16 + self.g() as u16 + self.b() as u16 + 1) / 3) as u8
     }
 
     /// Construct a grey color with `a=255`.
@@ -248,6 +249,101 @@ impl Color {
     pub fn with_value(self, v: f32) -> Color {
         let (h, s, _old_v) = self.to_hsv();
         Color::from_hsv(h, s, v).with_alpha(self.a())
+    }
+
+    /// Parse a color string supporting hex formats and X11 named colors.
+    ///
+    /// Port of C++ `emGetColorFromString`. Supports:
+    /// - `#RGB` (3-char hex, 1 digit/channel)
+    /// - `#RGBA` (4-char hex)
+    /// - `#RRGGBB` (6-char hex)
+    /// - `#RRGGBBAA` (8-char hex)
+    /// - `#RRRGGGBBB` (9-char hex, 3 digits/channel)
+    /// - `#RRRRGGGGBBBB` (12-char hex)
+    /// - `#RRRRGGGGBBBBAAAA` (16-char hex)
+    /// - `"none"` → transparent grey `rgba(128, 128, 128, 0)`
+    /// - X11 named colors (case-insensitive, no spaces)
+    pub fn try_parse(s: &str) -> Option<Color> {
+        let s = s.trim();
+        if s.eq_ignore_ascii_case("none") {
+            return Some(Color::rgba(128, 128, 128, 0));
+        }
+        if let Some(hex) = s.strip_prefix('#') {
+            return Self::parse_hex(hex);
+        }
+        // X11 named color lookup (strip spaces, lowercase)
+        let cleaned: String = s.chars().filter(|c| !c.is_whitespace()).collect();
+        let rgb = super::x11_colors::lookup_x11_color(&cleaned)?;
+        Some(Color::rgb(rgb[0], rgb[1], rgb[2]))
+    }
+
+    /// Parse a hex string (without the '#' prefix) into a Color.
+    fn parse_hex(hex: &str) -> Option<Color> {
+        let len = hex.len();
+        // Validate all hex digits
+        if !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+            return None;
+        }
+        match len {
+            3 => {
+                // #RGB: 1 hex digit per channel, replicate (0xF -> 0xFF)
+                let r = u8::from_str_radix(&hex[0..1], 16).ok()?;
+                let g = u8::from_str_radix(&hex[1..2], 16).ok()?;
+                let b = u8::from_str_radix(&hex[2..3], 16).ok()?;
+                Some(Color::rgb(r << 4 | r, g << 4 | g, b << 4 | b))
+            }
+            4 => {
+                // #RGBA
+                let r = u8::from_str_radix(&hex[0..1], 16).ok()?;
+                let g = u8::from_str_radix(&hex[1..2], 16).ok()?;
+                let b = u8::from_str_radix(&hex[2..3], 16).ok()?;
+                let a = u8::from_str_radix(&hex[3..4], 16).ok()?;
+                Some(Color::rgba(r << 4 | r, g << 4 | g, b << 4 | b, a << 4 | a))
+            }
+            6 => {
+                // #RRGGBB
+                let val = u32::from_str_radix(hex, 16).ok()?;
+                Some(Color::rgb((val >> 16) as u8, (val >> 8) as u8, val as u8))
+            }
+            8 => {
+                // #RRGGBBAA
+                let val = u32::from_str_radix(hex, 16).ok()?;
+                Some(Color::rgba(
+                    (val >> 24) as u8,
+                    (val >> 16) as u8,
+                    (val >> 8) as u8,
+                    val as u8,
+                ))
+            }
+            9 => {
+                // #RRRGGGBBB: 3 hex digits per channel, use high byte
+                let r = u16::from_str_radix(&hex[0..3], 16).ok()?;
+                let g = u16::from_str_radix(&hex[3..6], 16).ok()?;
+                let b = u16::from_str_radix(&hex[6..9], 16).ok()?;
+                Some(Color::rgb((r >> 4) as u8, (g >> 4) as u8, (b >> 4) as u8))
+            }
+            12 => {
+                // #RRRRGGGGBBBB: 4 hex digits per channel, use high byte
+                let r = u16::from_str_radix(&hex[0..4], 16).ok()?;
+                let g = u16::from_str_radix(&hex[4..8], 16).ok()?;
+                let b = u16::from_str_radix(&hex[8..12], 16).ok()?;
+                Some(Color::rgb((r >> 8) as u8, (g >> 8) as u8, (b >> 8) as u8))
+            }
+            16 => {
+                // #RRRRGGGGBBBBAAAA
+                let r = u16::from_str_radix(&hex[0..4], 16).ok()?;
+                let g = u16::from_str_radix(&hex[4..8], 16).ok()?;
+                let b = u16::from_str_radix(&hex[8..12], 16).ok()?;
+                let a = u16::from_str_radix(&hex[12..16], 16).ok()?;
+                Some(Color::rgba(
+                    (r >> 8) as u8,
+                    (g >> 8) as u8,
+                    (b >> 8) as u8,
+                    (a >> 8) as u8,
+                ))
+            }
+            _ => None,
+        }
     }
 
     /// Scale alpha by `amount` in \[-100, 100\].

@@ -4,6 +4,108 @@ use super::color::Color;
 use crate::render::interpolation::sample_bilinear;
 use crate::render::ImageExtension;
 
+/// Pack XPM symbol bytes into a u32 key for binary search.
+fn pack_symbol(bytes: &[u8], sym_size: usize) -> u32 {
+    let mut key: u32 = 0;
+    for &b in &bytes[..sym_size] {
+        key = (key << 8) | b as u32;
+    }
+    key
+}
+
+/// Parse an XPM color value from the portion after the symbol.
+/// Scans for key types in priority order: c, g, g4, m, s.
+fn parse_xpm_color(s: &str) -> Option<Color> {
+    // Split into whitespace-separated tokens
+    let tokens: Vec<&str> = s.split_whitespace().collect();
+    // Look for color keys in priority order
+    for key in &["c", "g", "g4", "m", "s"] {
+        for i in 0..tokens.len() {
+            if tokens[i].eq_ignore_ascii_case(key) && i + 1 < tokens.len() {
+                return Color::try_parse(tokens[i + 1]);
+            }
+        }
+    }
+    None
+}
+
+/// Convert a single pixel between channel counts.
+///
+/// Port of C++ emImage.cpp:717-822 conversion table.
+fn convert_pixel(s: &[u8], scc: usize, d: &mut [u8], dcc: usize) {
+    match (scc, dcc) {
+        (1, 1) => d[0] = s[0],
+        (1, 2) => {
+            d[0] = s[0];
+            d[1] = 255;
+        }
+        (1, 3) => {
+            d[0] = s[0];
+            d[1] = s[0];
+            d[2] = s[0];
+        }
+        (1, 4) => {
+            d[0] = s[0];
+            d[1] = s[0];
+            d[2] = s[0];
+            d[3] = 255;
+        }
+        (2, 1) => d[0] = s[0],
+        (2, 2) => {
+            d[0] = s[0];
+            d[1] = s[1];
+        }
+        (2, 3) => {
+            d[0] = s[0];
+            d[1] = s[0];
+            d[2] = s[0];
+        }
+        (2, 4) => {
+            d[0] = s[0];
+            d[1] = s[0];
+            d[2] = s[0];
+            d[3] = s[1];
+        }
+        (3, 1) => {
+            d[0] = ((s[0] as u16 + s[1] as u16 + s[2] as u16 + 1) / 3) as u8;
+        }
+        (3, 2) => {
+            d[0] = ((s[0] as u16 + s[1] as u16 + s[2] as u16 + 1) / 3) as u8;
+            d[1] = 255;
+        }
+        (3, 3) => {
+            d[0] = s[0];
+            d[1] = s[1];
+            d[2] = s[2];
+        }
+        (3, 4) => {
+            d[0] = s[0];
+            d[1] = s[1];
+            d[2] = s[2];
+            d[3] = 255;
+        }
+        (4, 1) => {
+            d[0] = ((s[0] as u16 + s[1] as u16 + s[2] as u16 + 1) / 3) as u8;
+        }
+        (4, 2) => {
+            d[0] = ((s[0] as u16 + s[1] as u16 + s[2] as u16 + 1) / 3) as u8;
+            d[1] = s[3];
+        }
+        (4, 3) => {
+            d[0] = s[0];
+            d[1] = s[1];
+            d[2] = s[2];
+        }
+        (4, 4) => {
+            d[0] = s[0];
+            d[1] = s[1];
+            d[2] = s[2];
+            d[3] = s[3];
+        }
+        _ => unreachable!(),
+    }
+}
+
 /// CPU bitmap image with 1–4 channels per pixel.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Image {
@@ -110,15 +212,35 @@ impl Image {
         &mut self.data[offset..offset + cc]
     }
 
-    /// Fill all pixels with the given color. Only valid for RGBA (4-channel) images.
+    /// Fill all pixels with the given color.
     ///
-    /// # Panics
-    /// Panics if `channel_count` is not 4.
+    /// Port of C++ `emImage::Fill`. Converts the color to the image's channel
+    /// count: 1-ch uses grey, 2-ch uses grey+alpha, 3-ch uses RGB, 4-ch uses RGBA.
     pub fn fill(&mut self, color: Color) {
-        assert_eq!(self.channel_count, 4, "fill() requires a 4-channel image");
-        let bytes = [color.r(), color.g(), color.b(), color.a()];
-        for chunk in self.data.chunks_exact_mut(4) {
-            chunk.copy_from_slice(&bytes);
+        match self.channel_count {
+            1 => {
+                let g = color.to_grey();
+                self.data.fill(g);
+            }
+            2 => {
+                let bytes = [color.to_grey(), color.a()];
+                for chunk in self.data.chunks_exact_mut(2) {
+                    chunk.copy_from_slice(&bytes);
+                }
+            }
+            3 => {
+                let bytes = [color.r(), color.g(), color.b()];
+                for chunk in self.data.chunks_exact_mut(3) {
+                    chunk.copy_from_slice(&bytes);
+                }
+            }
+            4 => {
+                let bytes = [color.r(), color.g(), color.b(), color.a()];
+                for chunk in self.data.chunks_exact_mut(4) {
+                    chunk.copy_from_slice(&bytes);
+                }
+            }
+            _ => unreachable!(),
         }
     }
 
@@ -152,24 +274,58 @@ impl Image {
         self.data[offset + ch as usize] = val;
     }
 
-    /// Fill a rectangle with a color. 4-channel images only. Clips to image bounds.
+    /// Fill a rectangle with a color. Clips to image bounds.
+    ///
+    /// Port of C++ `emImage::Fill` with rect clipping. Converts color per
+    /// channel count (same as `fill`).
     pub fn fill_rect(&mut self, x: u32, y: u32, w: u32, h: u32, color: Color) {
-        assert_eq!(
-            self.channel_count, 4,
-            "fill_rect() requires a 4-channel image"
-        );
         let x1 = x.min(self.width);
         let y1 = y.min(self.height);
         let x2 = (x.saturating_add(w)).min(self.width);
         let y2 = (y.saturating_add(h)).min(self.height);
-        let bytes = [color.r(), color.g(), color.b(), color.a()];
-        let stride = self.width as usize * 4;
-        for row in y1..y2 {
-            let row_start = row as usize * stride + x1 as usize * 4;
-            for col in 0..(x2 - x1) as usize {
-                let off = row_start + col * 4;
-                self.data[off..off + 4].copy_from_slice(&bytes);
+        let cc = self.channel_count as usize;
+        let stride = self.width as usize * cc;
+        match self.channel_count {
+            1 => {
+                let g = color.to_grey();
+                for row in y1..y2 {
+                    let row_start = row as usize * stride + x1 as usize;
+                    for col in 0..(x2 - x1) as usize {
+                        self.data[row_start + col] = g;
+                    }
+                }
             }
+            2 => {
+                let bytes = [color.to_grey(), color.a()];
+                for row in y1..y2 {
+                    let row_start = row as usize * stride + x1 as usize * 2;
+                    for col in 0..(x2 - x1) as usize {
+                        let off = row_start + col * 2;
+                        self.data[off..off + 2].copy_from_slice(&bytes);
+                    }
+                }
+            }
+            3 => {
+                let bytes = [color.r(), color.g(), color.b()];
+                for row in y1..y2 {
+                    let row_start = row as usize * stride + x1 as usize * 3;
+                    for col in 0..(x2 - x1) as usize {
+                        let off = row_start + col * 3;
+                        self.data[off..off + 3].copy_from_slice(&bytes);
+                    }
+                }
+            }
+            4 => {
+                let bytes = [color.r(), color.g(), color.b(), color.a()];
+                for row in y1..y2 {
+                    let row_start = row as usize * stride + x1 as usize * 4;
+                    for col in 0..(x2 - x1) as usize {
+                        let off = row_start + col * 4;
+                        self.data[off..off + 4].copy_from_slice(&bytes);
+                    }
+                }
+            }
+            _ => unreachable!(),
         }
     }
 
@@ -205,6 +361,9 @@ impl Image {
 
     /// Copy a rectangle from source image into self. Clips both sides.
     /// `src_rect` is `(x, y, w, h)` within `src`.
+    ///
+    /// Port of C++ `emImage::CopyRect`. Supports cross-channel conversion
+    /// using the same formulas as `get_converted`.
     pub fn copy_from_rect(
         &mut self,
         dx: u32,
@@ -213,12 +372,8 @@ impl Image {
         src_rect: (u32, u32, u32, u32),
     ) {
         let (sx, sy, sw, sh) = src_rect;
-        assert_eq!(
-            self.channel_count, src.channel_count,
-            "channel count mismatch: dst={} src={}",
-            self.channel_count, src.channel_count
-        );
-        let cc = self.channel_count as usize;
+        let scc = src.channel_count as usize;
+        let dcc = self.channel_count as usize;
 
         // Clip source rect to source bounds
         let sx1 = sx.min(src.width);
@@ -233,14 +388,30 @@ impl Image {
         let copy_w = copy_w.min(self.width.saturating_sub(dx));
         let copy_h = copy_h.min(self.height.saturating_sub(dy));
 
-        let src_stride = src.width as usize * cc;
-        let dst_stride = self.width as usize * cc;
-
-        for row in 0..copy_h {
-            let src_off = (sy1 + row) as usize * src_stride + sx1 as usize * cc;
-            let dst_off = (dy + row) as usize * dst_stride + dx as usize * cc;
-            let len = copy_w as usize * cc;
-            self.data[dst_off..dst_off + len].copy_from_slice(&src.data[src_off..src_off + len]);
+        if scc == dcc {
+            // Fast path: same channel count
+            let src_stride = src.width as usize * scc;
+            let dst_stride = self.width as usize * dcc;
+            for row in 0..copy_h {
+                let src_off = (sy1 + row) as usize * src_stride + sx1 as usize * scc;
+                let dst_off = (dy + row) as usize * dst_stride + dx as usize * dcc;
+                let len = copy_w as usize * scc;
+                self.data[dst_off..dst_off + len]
+                    .copy_from_slice(&src.data[src_off..src_off + len]);
+            }
+        } else {
+            // Cross-channel conversion (C++ emImage.cpp:717-822)
+            let src_stride = src.width as usize * scc;
+            let dst_stride = self.width as usize * dcc;
+            for row in 0..copy_h {
+                for col in 0..copy_w {
+                    let si = (sy1 + row) as usize * src_stride + (sx1 + col) as usize * scc;
+                    let di = (dy + row) as usize * dst_stride + (dx + col) as usize * dcc;
+                    let s = &src.data[si..si + scc];
+                    let d = &mut self.data[di..di + dcc];
+                    convert_pixel(s, scc, d, dcc);
+                }
+            }
         }
     }
 
@@ -261,26 +432,39 @@ impl Image {
         }
     }
 
-    /// Extract a sub-image.
-    pub fn get_cropped(&self, x: u32, y: u32, w: u32, h: u32) -> Image {
+    /// Extract a sub-image, optionally converting to a different channel count.
+    ///
+    /// Port of C++ `emImage::GetCropped(x,y,w,h,channelCount)`.
+    /// Pass `None` for `out_cc` to preserve the source channel count.
+    pub fn get_cropped(&self, x: u32, y: u32, w: u32, h: u32, out_cc: Option<u8>) -> Image {
         let x1 = x.min(self.width);
         let y1 = y.min(self.height);
         let x2 = (x.saturating_add(w)).min(self.width);
         let y2 = (y.saturating_add(h)).min(self.height);
         let cw = x2 - x1;
         let ch = y2 - y1;
-        let cc = self.channel_count as usize;
-        let mut data = Vec::with_capacity(cw as usize * ch as usize * cc);
-        let stride = self.width as usize * cc;
-        for row in y1..y2 {
-            let start = row as usize * stride + x1 as usize * cc;
-            data.extend_from_slice(&self.data[start..start + cw as usize * cc]);
-        }
-        Image {
-            width: cw,
-            height: ch,
-            channel_count: self.channel_count,
-            data,
+        let src_cc = self.channel_count;
+        let dst_cc = out_cc.unwrap_or(src_cc);
+
+        if dst_cc == src_cc {
+            // Fast path: same channel count, direct copy
+            let cc = src_cc as usize;
+            let mut data = Vec::with_capacity(cw as usize * ch as usize * cc);
+            let stride = self.width as usize * cc;
+            for row in y1..y2 {
+                let start = row as usize * stride + x1 as usize * cc;
+                data.extend_from_slice(&self.data[start..start + cw as usize * cc]);
+            }
+            Image {
+                width: cw,
+                height: ch,
+                channel_count: src_cc,
+                data,
+            }
+        } else {
+            // Different channel count: crop then convert
+            let cropped = self.get_cropped(x, y, w, h, None);
+            cropped.get_converted(dst_cc)
         }
     }
 
@@ -330,10 +514,10 @@ impl Image {
                         dst[3] = src[1];
                     }
                     (3, 1) => {
-                        dst[0] = ((src[0] as u16 + src[1] as u16 + src[2] as u16) / 3) as u8;
+                        dst[0] = ((src[0] as u16 + src[1] as u16 + src[2] as u16 + 1) / 3) as u8;
                     }
                     (3, 2) => {
-                        dst[0] = ((src[0] as u16 + src[1] as u16 + src[2] as u16) / 3) as u8;
+                        dst[0] = ((src[0] as u16 + src[1] as u16 + src[2] as u16 + 1) / 3) as u8;
                         dst[1] = 255;
                     }
                     (3, 4) => {
@@ -343,10 +527,10 @@ impl Image {
                         dst[3] = 255;
                     }
                     (4, 1) => {
-                        dst[0] = ((src[0] as u16 + src[1] as u16 + src[2] as u16) / 3) as u8;
+                        dst[0] = ((src[0] as u16 + src[1] as u16 + src[2] as u16 + 1) / 3) as u8;
                     }
                     (4, 2) => {
-                        dst[0] = ((src[0] as u16 + src[1] as u16 + src[2] as u16) / 3) as u8;
+                        dst[0] = ((src[0] as u16 + src[1] as u16 + src[2] as u16 + 1) / 3) as u8;
                         dst[1] = src[3];
                     }
                     (4, 3) => {
@@ -362,11 +546,14 @@ impl Image {
     }
 
     /// Crop to the bounding box of non-zero alpha pixels. Requires 4 or 2 channels.
-    pub fn get_cropped_by_alpha(&self) -> Image {
+    ///
+    /// Port of C++ `emImage::GetCroppedByAlpha`. Pass `out_cc` to convert
+    /// channel count, or `None` to preserve.
+    pub fn get_cropped_by_alpha(&self, out_cc: Option<u8>) -> Image {
         if let Some((x, y, w, h)) = self.calc_alpha_min_max_rect() {
-            self.get_cropped(x, y, w, h)
+            self.get_cropped(x, y, w, h, out_cc)
         } else {
-            Image::new(0, 0, self.channel_count)
+            Image::new(0, 0, out_cc.unwrap_or(self.channel_count))
         }
     }
 
@@ -401,11 +588,16 @@ impl Image {
     }
 
     /// Find the bounding rect of pixels differing from `bg`. Returns `(x, y, w, h)`.
+    ///
+    /// Port of C++ `emImage::CalcMinMaxRect`. Handles all channel counts.
     pub fn calc_min_max_rect(&self, bg: Color) -> Option<(u32, u32, u32, u32)> {
-        if self.channel_count != 4 {
-            return None;
-        }
-        let bg_bytes = [bg.r(), bg.g(), bg.b(), bg.a()];
+        let bg_bytes: &[u8] = match self.channel_count {
+            1 => &[bg.to_grey()],
+            2 => &[bg.to_grey(), bg.a()],
+            3 => &[bg.r(), bg.g(), bg.b()],
+            4 => &[bg.r(), bg.g(), bg.b(), bg.a()],
+            _ => unreachable!(),
+        };
         let mut min_x = self.width;
         let mut min_y = self.height;
         let mut max_x = 0u32;
@@ -464,19 +656,153 @@ impl Image {
         self.calc_channel_min_max_rect(alpha_ch, 0)
     }
 
-    /// Sample a pixel using bilinear interpolation, returning `bg` for
-    /// out-of-bounds coordinates. `x` and `y` are in source pixel coordinates.
-    /// `w` and `h` describe the sampling footprint (unused for bilinear; reserved
-    /// for future area-sampling support). Requires a 4-channel image.
-    pub fn get_pixel_interpolated(&self, x: f64, y: f64, _w: f64, _h: f64, bg: Color) -> Color {
+    /// Sample a pixel using bilinear or area-sampling interpolation.
+    ///
+    /// `x`, `y` are the top-left of the sampling footprint in source pixel
+    /// coordinates. `w`, `h` describe the footprint size. When both are < 1.0,
+    /// bilinear sampling is used. When either >= 1.0, area-sampling averages
+    /// over the footprint.
+    ///
+    /// Port of C++ `emImage::GetPixelInterpolated` (emImage.cpp:389-491).
+    /// All intermediate math uses i32 with 0x8000 rounding bias and >>16 final
+    /// shift.
+    pub fn get_pixel_interpolated(
+        &self,
+        mut x: f64,
+        mut y: f64,
+        mut w: f64,
+        mut h: f64,
+        bg: Color,
+    ) -> Color {
         if self.is_empty() {
             return bg;
         }
-        // If the sample center is entirely outside source bounds, return bg.
-        if x < -0.5 || y < -0.5 || x >= self.width as f64 - 0.5 || y >= self.height as f64 - 0.5 {
-            return bg;
+
+        // Clamp footprint to >= 1.0, adjusting center (C++ lines 393-398)
+        if h < 1.0 {
+            y = (y * 2.0 + h - 1.0) * 0.5;
+            h = 1.0;
         }
-        sample_bilinear(self, x, y, ImageExtension::Clamp)
+        if w < 1.0 {
+            x = (x * 2.0 + w - 1.0) * 0.5;
+            w = 1.0;
+        }
+
+        // If footprint is exactly 1x1, use bilinear for speed
+        if w == 1.0 && h == 1.0 {
+            if x < -0.5 || y < -0.5 || x >= self.width as f64 - 0.5 || y >= self.height as f64 - 0.5
+            {
+                return bg;
+            }
+            return sample_bilinear(self, x, y, ImageExtension::Clamp);
+        }
+
+        let x2 = x + w;
+        let y2 = y + h;
+        let mut r: i32 = 0x8000;
+        let mut g: i32 = 0x8000;
+        let mut b: i32 = 0x8000;
+        let mut a: i32 = 0x8000;
+        let rh = 65536.0 / h;
+        let cc = self.channel_count as usize;
+        let img_w = self.width as i32;
+        let img_h = self.height as i32;
+        let bg_r = bg.r() as i32;
+        let bg_g = bg.g() as i32;
+        let bg_b = bg.b() as i32;
+        let bg_a = bg.a() as i32;
+
+        let mut ym = y.floor() as i32;
+        let mut yn = ym + 1;
+        let mut fy = ((yn as f64 - y) * rh) as i32;
+
+        loop {
+            if ym < 0 || ym >= img_h {
+                // Out-of-bounds row: use bg
+                let ifx = fy;
+                r += bg_r * ifx;
+                g += bg_g * ifx;
+                b += bg_b * ifx;
+                a += bg_a * ifx;
+            } else {
+                let row_offset = ym as usize * self.width as usize * cc;
+                let rw = fy as f64 / w;
+                let mut xm = x.floor() as i32;
+                let mut xn = xm + 1;
+                let mut ifx = ((xn as f64 - x) * rw) as i32;
+                let irw = rw as i32;
+
+                loop {
+                    if xm < 0 || xm >= img_w {
+                        // Out-of-bounds column: use bg
+                        r += bg_r * ifx;
+                        g += bg_g * ifx;
+                        b += bg_b * ifx;
+                        a += bg_a * ifx;
+                    } else {
+                        let pi = row_offset + xm as usize * cc;
+                        match cc {
+                            1 => {
+                                let v = self.data[pi] as i32;
+                                r += v * ifx;
+                                g += v * ifx;
+                                b += v * ifx;
+                                a += 255 * ifx;
+                            }
+                            2 => {
+                                let v = self.data[pi] as i32;
+                                r += v * ifx;
+                                g += v * ifx;
+                                b += v * ifx;
+                                a += self.data[pi + 1] as i32 * ifx;
+                            }
+                            3 => {
+                                r += self.data[pi] as i32 * ifx;
+                                g += self.data[pi + 1] as i32 * ifx;
+                                b += self.data[pi + 2] as i32 * ifx;
+                                a += 255 * ifx;
+                            }
+                            4 => {
+                                r += self.data[pi] as i32 * ifx;
+                                g += self.data[pi + 1] as i32 * ifx;
+                                b += self.data[pi + 2] as i32 * ifx;
+                                a += self.data[pi + 3] as i32 * ifx;
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+
+                    xm = xn;
+                    xn += 1;
+                    ifx = irw;
+                    if (xn as f64) <= x2 {
+                        continue;
+                    }
+                    if xm as f64 >= x2 {
+                        break;
+                    }
+                    ifx = ((x2 - xm as f64) * rw) as i32;
+                }
+            }
+
+            ym = yn;
+            yn += 1;
+            fy = rh as i32;
+            if (yn as f64) <= y2 {
+                continue;
+            }
+            if ym as f64 >= y2 {
+                break;
+            }
+            fy = ((y2 - ym as f64) * rh) as i32;
+        }
+
+        Color::rgba(
+            (r >> 16).clamp(0, 255) as u8,
+            (g >> 16).clamp(0, 255) as u8,
+            (b >> 16).clamp(0, 255) as u8,
+            (a >> 16).clamp(0, 255) as u8,
+        )
     }
 
     /// Apply an affine transformation from `src` into a region of `self`.
@@ -506,14 +832,6 @@ impl Image {
         bg_color: Color,
     ) {
         let (x, y, w, h) = clip;
-        assert_eq!(
-            self.channel_count, 4,
-            "copy_transformed() requires a 4-channel target image"
-        );
-        assert_eq!(
-            src.channel_count, 4,
-            "copy_transformed() requires a 4-channel source image"
-        );
 
         if w <= 0 || h <= 0 || self.is_empty() {
             return;
@@ -557,8 +875,27 @@ impl Image {
         let ic = -(ia * c + ib * f);
         let ifc = -(id * c + ie * f);
 
-        let src_w = src.width as f64;
-        let src_h = src.height as f64;
+        let scc = src.channel_count as usize;
+        let dcc = self.channel_count as usize;
+
+        // Compute sampling footprint (C++ lines 910-913).
+        // sw/sh estimate how many source pixels one target pixel covers.
+        let sw = if interpolate {
+            let d = ia * 0.0 + ib * 0.0 + ic;
+            (ia * 1.0 + ib * 0.0 + ic - d)
+                .abs()
+                .max((ia * 0.0 + ib * 1.0 + ic - d).abs())
+        } else {
+            1.0
+        };
+        let sh = if interpolate {
+            let d = id * 0.0 + ie * 0.0 + ifc;
+            (id * 1.0 + ie * 0.0 + ifc - d)
+                .abs()
+                .max((id * 0.0 + ie * 1.0 + ifc - d).abs())
+        } else {
+            1.0
+        };
 
         for py in y..y + h {
             if py < 0 || (py as u32) >= self.height {
@@ -577,12 +914,7 @@ impl Image {
                 let sy = id * tx + ie * ty + ifc;
 
                 let color = if interpolate {
-                    // Bilinear sampling with bounds check.
-                    if sx < -0.5 || sy < -0.5 || sx >= src_w - 0.5 || sy >= src_h - 0.5 {
-                        bg_color
-                    } else {
-                        sample_bilinear(src, sx, sy, ImageExtension::Clamp)
-                    }
+                    src.get_pixel_interpolated(sx, sy, sw, sh, bg_color)
                 } else {
                     // Nearest-neighbor with bounds check.
                     let ix = sx.round() as i32;
@@ -591,15 +923,38 @@ impl Image {
                         bg_color
                     } else {
                         let p = src.pixel(ix as u32, iy as u32);
-                        Color::rgba(p[0], p[1], p[2], p[3])
+                        // Convert from source cc to RGBA Color
+                        match scc {
+                            1 => Color::rgba(p[0], p[0], p[0], 255),
+                            2 => Color::rgba(p[0], p[0], p[0], p[1]),
+                            3 => Color::rgba(p[0], p[1], p[2], 255),
+                            4 => Color::rgba(p[0], p[1], p[2], p[3]),
+                            _ => unreachable!(),
+                        }
                     }
                 };
 
+                // Write per destination channel count
                 let dst = self.pixel_mut(px as u32, py as u32);
-                dst[0] = color.r();
-                dst[1] = color.g();
-                dst[2] = color.b();
-                dst[3] = color.a();
+                match dcc {
+                    1 => dst[0] = color.to_grey(),
+                    2 => {
+                        dst[0] = color.to_grey();
+                        dst[1] = color.a();
+                    }
+                    3 => {
+                        dst[0] = color.r();
+                        dst[1] = color.g();
+                        dst[2] = color.b();
+                    }
+                    4 => {
+                        dst[0] = color.r();
+                        dst[1] = color.g();
+                        dst[2] = color.b();
+                        dst[3] = color.a();
+                    }
+                    _ => unreachable!(),
+                }
             }
         }
     }
@@ -678,29 +1033,15 @@ impl Image {
         // Build the matrix with translation set so output starts at (0,0)
         let adjusted = [a, b, -min_x, d, e, -min_y];
 
-        // Work in 4-channel space for copy_transformed
-        let src4 = if self.channel_count == 4 {
-            // Avoid clone by using a reference path below
-            None
-        } else {
-            Some(self.get_converted(4))
-        };
-        let src_ref = src4.as_ref().unwrap_or(self);
-
-        let mut result = Image::new(out_w, out_h, 4);
+        let mut result = Image::new(out_w, out_h, out_cc);
         result.copy_transformed(
             (0, 0, out_w as i32, out_h as i32),
             &adjusted,
-            src_ref,
+            self,
             interpolate,
             bg_color,
         );
-
-        if out_cc != 4 {
-            result.get_converted(out_cc)
-        } else {
-            result
-        }
+        result
     }
 
     /// Store a user-provided memory-mapped buffer, replacing owned data.
@@ -742,13 +1083,110 @@ impl Image {
         false
     }
 
-    /// Attempt to parse an XPM image from raw bytes.
+    /// Parse an XPM image from string slices.
     ///
-    /// Port of C++ `emImage::TryParseXpm`. Currently unimplemented and
-    /// always returns `None`.
-    pub fn try_parse_xpm(_data: &[u8]) -> Option<Image> {
-        // XPM parsing is not yet implemented.
-        None
+    /// Port of C++ `emImage::TryParseXpm` (emImage.cpp:111-282).
+    /// `xpm` is the array of strings from the XPM data (header, colors, pixels).
+    /// `out_cc` specifies output channel count, or `None` to auto-detect.
+    pub fn try_parse_xpm(xpm: &[&str], out_cc: Option<u8>) -> Option<Image> {
+        if xpm.is_empty() {
+            return None;
+        }
+
+        // Parse header: "width height num_colors sym_size"
+        let header = xpm[0];
+        let parts: Vec<&str> = header.split_whitespace().collect();
+        if parts.len() < 4 {
+            return None;
+        }
+        let width: u32 = parts[0].parse().ok()?;
+        let height: u32 = parts[1].parse().ok()?;
+        let num_colors: usize = parts[2].parse().ok()?;
+        let sym_size: usize = parts[3].parse().ok()?;
+
+        if sym_size == 0 || sym_size > 4 {
+            return None;
+        }
+        if xpm.len() < 1 + num_colors + height as usize {
+            return None;
+        }
+
+        // Parse color entries
+        // Each entry: first `sym_size` chars are the symbol, then space-separated
+        // key/value pairs like "c #FF0000" or "c red"
+        let mut color_table: Vec<(u32, Color)> = Vec::with_capacity(num_colors);
+        for i in 0..num_colors {
+            let line = xpm[1 + i];
+            if line.len() < sym_size {
+                return None;
+            }
+            // Extract symbol and pack into u32
+            let sym_str = &line[..sym_size];
+            let sym_key = pack_symbol(sym_str.as_bytes(), sym_size);
+
+            // Parse color value: scan for key types c, g, g4, m, s
+            let rest = &line[sym_size..];
+            let color = parse_xpm_color(rest)?;
+            color_table.push((sym_key, color));
+        }
+
+        // Sort by symbol for binary search
+        color_table.sort_by_key(|&(k, _)| k);
+
+        // Auto-detect channel count
+        let cc = out_cc.unwrap_or_else(|| {
+            let mut cc: u8 = 1;
+            for &(_, color) in &color_table {
+                if !color.is_grey() {
+                    cc = cc.max(3);
+                }
+                if color.a() != 255 {
+                    cc = if cc >= 3 { 4 } else { 2 };
+                }
+            }
+            cc
+        });
+
+        let mut img = Image::new(width, height, cc);
+
+        // Map pixel rows
+        for y in 0..height {
+            let row_line = xpm[1 + num_colors + y as usize];
+            let row_bytes = row_line.as_bytes();
+            for x in 0..width {
+                let start = x as usize * sym_size;
+                if start + sym_size > row_bytes.len() {
+                    return None;
+                }
+                let sym_key = pack_symbol(&row_bytes[start..start + sym_size], sym_size);
+                let color = match color_table.binary_search_by_key(&sym_key, |&(k, _)| k) {
+                    Ok(idx) => color_table[idx].1,
+                    Err(_) => return None,
+                };
+                let dst = img.pixel_mut(x, y);
+                match cc {
+                    1 => dst[0] = color.to_grey(),
+                    2 => {
+                        dst[0] = color.to_grey();
+                        dst[1] = color.a();
+                    }
+                    3 => {
+                        dst[0] = color.r();
+                        dst[1] = color.g();
+                        dst[2] = color.b();
+                    }
+                    4 => {
+                        dst[0] = color.r();
+                        dst[1] = color.g();
+                        dst[2] = color.b();
+                        dst[3] = color.a();
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+
+        Some(img)
     }
 
     /// Prepare the image for use with a `Painter`.
@@ -770,19 +1208,31 @@ impl Image {
         channel_count == 4
     }
 
-    /// Collect all unique colors, sorted by packed u32 value. 4-channel only.
-    pub fn determine_all_colors_sorted(&self) -> Vec<Color> {
-        assert_eq!(
-            self.channel_count, 4,
-            "determine_all_colors_sorted() requires a 4-channel image"
-        );
+    /// Collect all unique colors, sorted by packed u32 value.
+    ///
+    /// Port of C++ `emImage::DetermineAllColorsSorted`. If unique colors exceed
+    /// `limit`, returns an empty vec. Handles all channel counts by packing
+    /// per-cc bytes into a u32 key.
+    pub fn determine_all_colors_sorted(&self, limit: usize) -> Vec<Color> {
+        let cc = self.channel_count as usize;
         let mut set = BTreeSet::new();
-        for chunk in self.data.chunks_exact(4) {
-            let packed = (chunk[0] as u32) << 24
-                | (chunk[1] as u32) << 16
-                | (chunk[2] as u32) << 8
-                | chunk[3] as u32;
+        for chunk in self.data.chunks_exact(cc) {
+            let packed = match cc {
+                1 => (chunk[0] as u32) << 24,
+                2 => (chunk[0] as u32) << 24 | (chunk[1] as u32) << 16,
+                3 => (chunk[0] as u32) << 24 | (chunk[1] as u32) << 16 | (chunk[2] as u32) << 8,
+                4 => {
+                    (chunk[0] as u32) << 24
+                        | (chunk[1] as u32) << 16
+                        | (chunk[2] as u32) << 8
+                        | chunk[3] as u32
+                }
+                _ => unreachable!(),
+            };
             set.insert(packed);
+            if set.len() > limit {
+                return Vec::new();
+            }
         }
         set.into_iter()
             .map(|v| Color::rgba((v >> 24) as u8, (v >> 16) as u8, (v >> 8) as u8, v as u8))
@@ -829,10 +1279,20 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "fill() requires a 4-channel image")]
     fn fill_non_rgba() {
-        let mut img = Image::new(1, 1, 3);
-        img.fill(Color::BLACK);
+        let mut img = Image::new(2, 1, 3);
+        img.fill(Color::rgb(10, 20, 30));
+        assert_eq!(img.pixel(0, 0), &[10, 20, 30]);
+        assert_eq!(img.pixel(1, 0), &[10, 20, 30]);
+
+        let mut img1 = Image::new(2, 1, 1);
+        img1.fill(Color::rgb(10, 20, 30));
+        // (10+20+30+1)/3 = 20
+        assert_eq!(img1.pixel(0, 0), &[20]);
+
+        let mut img2 = Image::new(2, 1, 2);
+        img2.fill(Color::rgba(10, 20, 30, 128));
+        assert_eq!(img2.pixel(0, 0), &[20, 128]);
     }
 
     #[test]
@@ -938,7 +1398,7 @@ mod tests {
     fn get_cropped_extraction() {
         let mut img = Image::new(4, 4, 1);
         img.set_pixel_channel(2, 1, 0, 99);
-        let sub = img.get_cropped(1, 1, 2, 2);
+        let sub = img.get_cropped(1, 1, 2, 2, None);
         assert_eq!(sub.width(), 2);
         assert_eq!(sub.height(), 2);
         assert_eq!(sub.get_pixel_channel(1, 0, 0), 99);
@@ -1027,7 +1487,7 @@ mod tests {
         let mut img = Image::new(4, 4, 4);
         img.set_pixel_channel(1, 1, 3, 255);
         img.pixel_mut(1, 1).copy_from_slice(&[10, 20, 30, 255]);
-        let cropped = img.get_cropped_by_alpha();
+        let cropped = img.get_cropped_by_alpha(None);
         assert_eq!(cropped.width(), 1);
         assert_eq!(cropped.height(), 1);
         assert_eq!(cropped.pixel(0, 0), &[10, 20, 30, 255]);
@@ -1039,7 +1499,7 @@ mod tests {
         img.pixel_mut(0, 0).copy_from_slice(&[0, 0, 255, 255]); // blue
         img.pixel_mut(1, 0).copy_from_slice(&[255, 0, 0, 255]); // red
         img.pixel_mut(2, 0).copy_from_slice(&[0, 0, 255, 255]); // blue dup
-        let colors = img.determine_all_colors_sorted();
+        let colors = img.determine_all_colors_sorted(1000);
         assert_eq!(colors.len(), 2);
         // Red (0xFF0000FF) > Blue (0x0000FFFF) in packed u32
         assert_eq!(colors[0], Color::rgb(0, 0, 255));
