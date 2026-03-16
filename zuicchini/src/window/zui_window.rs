@@ -717,6 +717,28 @@ impl ZuiWindow {
         self.tile_cache.mark_all_dirty();
     }
 
+    /// Mark only the tiles overlapping the given pixel-coordinate rectangle as
+    /// dirty. `x1`/`y1` are inclusive, `x2`/`y2` are exclusive — matching the
+    /// `ClipRect` convention.
+    pub fn mark_dirty_rect(&mut self, x1: f64, y1: f64, x2: f64, y2: f64) {
+        use crate::render::TILE_SIZE;
+
+        let ts = TILE_SIZE as f64;
+        let (cols, rows) = self.tile_cache.grid_size();
+
+        // Clamp to viewport and convert to tile grid coordinates.
+        let col_start = (x1 / ts).floor().max(0.0) as u32;
+        let row_start = (y1 / ts).floor().max(0.0) as u32;
+        let col_end = (x2 / ts).ceil().min(cols as f64) as u32;
+        let row_end = (y2 / ts).ceil().min(rows as f64) as u32;
+
+        for row in row_start..row_end {
+            for col in col_start..col_end {
+                self.tile_cache.mark_dirty(col, row);
+            }
+        }
+    }
+
     // ---------------------------------------------------------------
     // D-WINDOW-01a: Window state methods
     // ---------------------------------------------------------------
@@ -799,25 +821,29 @@ impl ZuiWindow {
     ///
     /// Matches C++ emWindow::SetWinSize (PSAS_IGNORE pos, PSAS_WINDOW size).
     /// Winit's `request_inner_size` sets the content area size, not the outer
-    /// window size. There is no direct winit API for setting outer size, so
-    /// this sets the inner size as an approximation.
+    /// window size. We subtract border decoration sizes to convert outer
+    /// dimensions to inner dimensions.
     pub fn set_win_size(&self, w: f64, h: f64) {
-        // Winit does not expose set_outer_size; use request_inner_size as the
-        // best available approximation.
+        let (left, top, right, bottom) = self.border_sizes();
+        let inner_w = (w - (left + right) as f64).max(1.0);
+        let inner_h = (h - (top + bottom) as f64).max(1.0);
         let _ = self
             .winit_window
-            .request_inner_size(winit::dpi::LogicalSize::new(w, h));
+            .request_inner_size(winit::dpi::LogicalSize::new(inner_w, inner_h));
     }
 
     /// Set window position and size (including decorations).
     ///
     /// Matches C++ emWindow::SetWinPosSize (PSAS_WINDOW pos, PSAS_WINDOW size).
     pub fn set_win_pos_size(&self, x: f64, y: f64, w: f64, h: f64) {
+        let (left, top, right, bottom) = self.border_sizes();
         self.winit_window
             .set_outer_position(winit::dpi::LogicalPosition::new(x, y));
+        let inner_w = (w - (left + right) as f64).max(1.0);
+        let inner_h = (h - (top + bottom) as f64).max(1.0);
         let _ = self
             .winit_window
-            .request_inner_size(winit::dpi::LogicalSize::new(w, h));
+            .request_inner_size(winit::dpi::LogicalSize::new(inner_w, inner_h));
     }
 
     /// Set window position (outer, including decorations) and view (content) size.
