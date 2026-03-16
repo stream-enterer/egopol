@@ -27,6 +27,8 @@ pub struct Screen {
     geometry_signal: SignalId,
     /// Signal fired when the window list changes.
     windows_signal: SignalId,
+    /// Whether programmatic cursor warping is supported (X11 only).
+    can_warp: bool,
 }
 
 impl Screen {
@@ -75,11 +77,14 @@ impl Screen {
             (min_x, min_y, (max_x - min_x) as u32, (max_y - min_y) as u32)
         };
 
+        let can_warp = std::env::var("WAYLAND_DISPLAY").is_err();
+
         Self {
             monitors,
             virtual_bounds,
             geometry_signal,
             windows_signal,
+            can_warp,
         }
     }
 
@@ -104,10 +109,10 @@ impl Screen {
 
     /// Whether the mouse pointer can be moved programmatically.
     ///
-    /// Matches C++ emScreen::CanMoveMousePointer. Winit does not support
-    /// programmatic relative mouse movement on all platforms.
+    /// Matches C++ emScreen::CanMoveMousePointer. Returns true on X11
+    /// where winit's set_cursor_position is supported.
     pub fn can_move_mouse_pointer(&self) -> bool {
-        false
+        self.can_warp
     }
 
     /// Move the mouse pointer by (dx, dy) pixels.
@@ -117,11 +122,11 @@ impl Screen {
         // Not supported by winit core. See ZuiWindow::move_mouse_pointer.
     }
 
-    /// Emit an acoustic warning beep.
+    /// Emit an acoustic warning beep via libcanberra (Linux) or no-op (other).
     ///
-    /// Matches C++ emScreen::Beep. No-op; winit limitation.
+    /// Matches C++ emScreen::Beep.
     pub fn beep(&self) {
-        // Not supported by winit. See ZuiWindow::beep.
+        super::platform::system_beep();
     }
 
     /// Find the monitor with maximum overlap area with the given rect.
@@ -235,6 +240,7 @@ mod tests {
             virtual_bounds: (0, 0, 3840, 1080),
             geometry_signal: gs,
             windows_signal: ws,
+            can_warp: true,
         }
     }
 

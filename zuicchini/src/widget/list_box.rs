@@ -1317,6 +1317,7 @@ impl ListBox {
             self.scroll_to_index(idx);
         } else {
             self.keywalk_chars.clear();
+            crate::window::system_beep();
         }
 
         true

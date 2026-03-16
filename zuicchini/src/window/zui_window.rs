@@ -45,7 +45,9 @@ pub struct ZuiWindow {
     vif_chain: Vec<Box<dyn ViewInputFilter>>,
     pub active_animator: Option<Box<dyn ViewAnimator>>,
     window_icon: Option<Image>,
+    last_mouse_pos: (f64, f64),
     screensaver_inhibit_count: u32,
+    screensaver_cookie: Option<u32>,
     flags_changed: bool,
     wm_res_name: String,
 }
@@ -131,7 +133,9 @@ impl ZuiWindow {
             vif_chain,
             active_animator: None,
             window_icon: None,
+            last_mouse_pos: (0.0, 0.0),
             screensaver_inhibit_count: 0,
+            screensaver_cookie: None,
             flags_changed: false,
             wm_res_name: String::from("zuicchini"),
         }
@@ -420,6 +424,14 @@ impl ZuiWindow {
 
     /// Dispatch an input event through VIF chain, then to panel behavior.
     pub fn dispatch_input(&mut self, tree: &mut PanelTree, event: &InputEvent, state: &InputState) {
+        // Track mouse position for cursor warping (skip wheel events).
+        if !matches!(
+            event.key,
+            InputKey::WheelUp | InputKey::WheelDown | InputKey::WheelLeft | InputKey::WheelRight
+        ) {
+            self.last_mouse_pos = (event.mouse_x, event.mouse_y);
+        }
+
         // Run VIF chain
         for vif in &mut self.vif_chain {
             if vif.filter(event, state, &mut self.view) {
@@ -530,10 +542,37 @@ impl ZuiWindow {
         if self.flags.contains(WindowFlags::UNDECORATED)
             || self.flags.contains(WindowFlags::FULLSCREEN)
         {
-            (0, 0, 0, 0)
-        } else {
-            // Reasonable default for a typical X11/Wayland decorated window.
-            (4, 30, 4, 4)
+            return (0, 0, 0, 0);
+        }
+
+        match self.winit_window.inner_position() {
+            Ok(inner_pos) => {
+                // X11: exact per-side sizes from position/size differences.
+                let outer_pos = self.winit_window.outer_position().unwrap_or_default();
+                let outer = self.winit_window.outer_size();
+                let inner = self.winit_window.inner_size();
+                let left = (inner_pos.x - outer_pos.x).max(0);
+                let top = (inner_pos.y - outer_pos.y).max(0);
+                let right = (outer.width as i32 - inner.width as i32 - left).max(0);
+                let bottom = (outer.height as i32 - inner.height as i32 - top).max(0);
+                (left, top, right, bottom)
+            }
+            Err(_) => {
+                // Wayland: inner_position not supported.
+                let outer = self.winit_window.outer_size();
+                let inner = self.winit_window.inner_size();
+                if outer == inner {
+                    // SSD: compositor draws decorations outside the surface.
+                    (0, 0, 0, 0)
+                } else {
+                    // CSD (e.g. sctk-adwaita): infer from size differences.
+                    let dw = outer.width as i32 - inner.width as i32;
+                    let dh = outer.height as i32 - inner.height as i32;
+                    let border = (dw / 2).max(0);
+                    let top = (dh - border).max(0);
+                    (border, top, border, border)
+                }
+            }
         }
     }
 
@@ -748,24 +787,32 @@ impl ZuiWindow {
         self.window_icon.as_ref()
     }
 
-    /// Inhibit the screensaver. Increments an internal counter.
+    /// Inhibit the screensaver. Increments an internal counter; issues the
+    /// D-Bus Inhibit call on the 0→1 transition.
     ///
-    /// Matches C++ emWindowPort::InhibitScreensaver. Winit does not have a
-    /// built-in screensaver inhibition API, so this only tracks the counter.
-    /// TODO: Use platform-specific APIs (e.g. D-Bus on Linux, SetThreadExecutionState on Windows).
+    /// Matches C++ emWindowPort::InhibitScreensaver.
     pub fn inhibit_screensaver(&mut self) {
         self.screensaver_inhibit_count += 1;
+        if self.screensaver_inhibit_count == 1 {
+            self.screensaver_cookie = super::platform::inhibit_screensaver();
+        }
         log::debug!(
             "screensaver inhibited (count={})",
             self.screensaver_inhibit_count
         );
     }
 
-    /// Allow the screensaver. Decrements the internal counter.
+    /// Allow the screensaver. Decrements the internal counter; issues the
+    /// D-Bus UnInhibit call on the 1→0 transition.
     ///
     /// Matches C++ emWindowPort::AllowScreensaver.
     pub fn allow_screensaver(&mut self) {
         self.screensaver_inhibit_count = self.screensaver_inhibit_count.saturating_sub(1);
+        if self.screensaver_inhibit_count == 0 {
+            if let Some(cookie) = self.screensaver_cookie.take() {
+                super::platform::uninhibit_screensaver(cookie);
+            }
+        }
         log::debug!(
             "screensaver allowed (count={})",
             self.screensaver_inhibit_count
@@ -777,25 +824,28 @@ impl ZuiWindow {
         self.screensaver_inhibit_count > 0
     }
 
-    /// Move the mouse pointer by (dx, dy) pixels.
+    /// Move the mouse pointer by (dx, dy) pixels relative to last known position.
     ///
-    /// Matches C++ emScreen::MoveMousePointer. Winit does not support
-    /// programmatic relative mouse pointer movement on all platforms.
-    /// This is a no-op stub.
-    pub fn move_mouse_pointer(&self, _dx: f64, _dy: f64) {
-        // TODO: Not supported by winit core on all platforms. Would need
-        // platform-specific extensions (e.g. xdotool on X11, CGWarpMouseCursorPosition on macOS).
-        log::debug!("move_mouse_pointer not supported by winit");
+    /// Matches C++ emScreen::MoveMousePointer. Uses winit's set_cursor_position
+    /// which works on X11. On Wayland, set_cursor_position returns NotSupported
+    /// and the error is logged at debug level. Callers should check
+    /// Screen::can_move_mouse_pointer() before calling.
+    pub fn move_mouse_pointer(&self, dx: f64, dy: f64) {
+        let target_x = self.last_mouse_pos.0 + dx;
+        let target_y = self.last_mouse_pos.1 + dy;
+        if let Err(e) = self
+            .winit_window
+            .set_cursor_position(winit::dpi::PhysicalPosition::new(target_x, target_y))
+        {
+            log::debug!("move_mouse_pointer failed: {e}");
+        }
     }
 
-    /// Emit an acoustic warning beep.
+    /// Emit an acoustic warning beep via libcanberra (Linux) or no-op (other).
     ///
-    /// Matches C++ emScreen::Beep. Winit does not provide a beep API.
-    /// This is a no-op.
+    /// Matches C++ emScreen::Beep.
     pub fn beep(&self) {
-        // TODO: Platform limitation — winit does not expose a beep/bell API.
-        // Could use platform-specific APIs (e.g. XBell on X11, NSBeep on macOS, MessageBeep on Windows).
-        log::debug!("beep not supported by winit");
+        super::platform::system_beep();
     }
 }
 
