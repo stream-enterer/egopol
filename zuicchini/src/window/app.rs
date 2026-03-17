@@ -326,6 +326,15 @@ impl ApplicationHandler for App {
                 win.control_view.update(&mut win.control_tree);
             }
 
+            // Invalidate the active (focused) panel every frame so that
+            // cursor blink and other clock-driven updates repaint. This
+            // matches C++ emCore where Input() is called for all viewed
+            // panels on every frame, and emTextField invalidates itself
+            // when the blink timer fires.
+            if let Some(active_id) = win.view().active() {
+                win.view_mut().invalidate_painting(tree, active_id);
+            }
+
             // Check for pending dirty rects from invalidate_painting calls.
             // Convert each dirty rect to tile grid coordinates and mark only
             // the overlapping tiles as dirty (partial repaint).

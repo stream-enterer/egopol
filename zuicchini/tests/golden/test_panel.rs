@@ -170,6 +170,7 @@ struct TextFieldPanel {
 }
 impl PanelBehavior for TextFieldPanel {
     fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+        self.widget.cycle_blink(_s.in_focused_path());
         self.widget.paint(p, w, h, _s.enabled);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
