@@ -1645,26 +1645,19 @@ impl VisitingViewAnimator {
         target_y: f64,
         target_a: f64,
     ) -> (f64, f64, f64, f64) {
-        let (vw, vh) = view.viewport_size();
+        let (visited_vw, visited_vh) = view.visited_size();
         let zflpp = view.get_zoom_factor_log_per_pixel();
 
         // Current view state
         let current = view.current_visit();
 
-        // Compute where the panel IS in current viewport (via viewed coords)
-        // and where it SHOULD BE (target), then compute the distance.
-
-        // Target: compute the viewport rect that the visited panel would occupy
-        // at (target_x, target_y, target_a)
-        let current_scale = current.rel_a.max(1e-100).sqrt();
-
         // Distance in rel_x, rel_y space — convert to pixel-based distance
+        // using cached ViewedWidth/ViewedHeight (matches scroll denominator).
         let dx_rel = target_x - current.rel_x;
         let dy_rel = target_y - current.rel_y;
 
-        // Convert to pixel distance, normalized by zflpp
-        let dx = dx_rel * vw * current_scale * zflpp;
-        let dy = dy_rel * vh * current_scale * zflpp;
+        let dx = dx_rel * visited_vw * zflpp;
+        let dy = dy_rel * visited_vh * zflpp;
 
         // Zoom distance in curve space: 0.5 * ln(target/current).
         // The factor of 0.5 maps the area ratio to linear scale (C++ uses sqrt

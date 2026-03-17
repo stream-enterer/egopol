@@ -404,7 +404,9 @@
     {
       "id": "BUG-8",
       "title": "Scroll uses wrong scale factor when panel aspect differs from viewport aspect",
-      "status": "needs_investigation",
+      "status": "fixed",
+      "fix_commit": "pending",
+      "fix_description": "Cached visited_vw/visited_vh (actual ViewedWidth/ViewedHeight from update_viewing) on the View struct. Updated 4 sites atomically: (1) scroll() divides by visited_vw/vh instead of vw*sqrt(rel_a)/vh*sqrt(rel_a), (2) raw_scroll_and_zoom done-distance uses pre-operation cached values for round-trip consistency, (3) scroll_to_panel_rect removes sqrt(rel_a) pre-multiplication compensation, (4) VisitingViewAnimator::get_distance_to uses visited_vw/vh. Graph of Thoughts dialectic (65 propositions, 30 tensions, 3 rounds) resolved the central question: the correct denominator is sqrt(rel_a * vw * vh * panel_aspect), not bare vw.",
       "symptoms": [
         "Middle-button panning speed is incorrect when the visited panel's aspect ratio differs from the viewport's aspect ratio",
         "Horizontal and vertical scroll rates are distorted relative to each other — one axis scrolls too fast or too slow",

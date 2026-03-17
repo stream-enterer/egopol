@@ -99,6 +99,11 @@ pub struct View {
     pub max_popup_rect: Option<Rect>,
     /// Whether the view is currently in popped-up state (popup window active).
     pub popped_up: bool,
+    /// Cached visited panel ViewedWidth (screen pixels). Set by update_viewing().
+    /// Used by scroll() and done-distance for correct aspect-aware conversion.
+    visited_vw: f64,
+    /// Cached visited panel ViewedHeight (screen pixels). Set by update_viewing().
+    visited_vh: f64,
 }
 
 impl View {
@@ -142,6 +147,8 @@ impl View {
             cursor: Cursor::Normal,
             max_popup_rect: None,
             popped_up: false,
+            visited_vw: viewport_width.max(1.0),
+            visited_vh: viewport_height.max(1.0),
         }
     }
 
@@ -384,6 +391,11 @@ impl View {
         (self.viewport_width, self.viewport_height)
     }
 
+    /// Cached visited panel dimensions (screen pixels), set by update_viewing().
+    pub fn visited_size(&self) -> (f64, f64) {
+        (self.visited_vw, self.visited_vh)
+    }
+
     // --- Zoom & Scroll ---
 
     /// Fix-point zoom: keeps the viewport point (center_x, center_y) mapped to the
@@ -433,14 +445,11 @@ impl View {
         // VIEW-003: Signal abort for any active animator (C++ AbortActiveAnimator)
         self.needs_animator_abort = true;
         if let Some(state) = self.visit_stack.last_mut() {
-            // Convert pixel deltas to viewport-fraction units by dividing by
-            // the panel's viewed size (viewport * sqrt(rel_a)), matching C++
-            // Scroll which divides by ViewedWidth/ViewedHeight.
-            // NOTE: This is only exact when the panel aspect matches the
-            // viewport aspect.  A general fix requires ViewedWidth/Height.
-            let scale = state.rel_a.sqrt().max(1e-10);
-            state.rel_x += dx / (self.viewport_width.max(1.0) * scale);
-            state.rel_y += dy / (self.viewport_height.max(1.0) * scale);
+            // Convert screen-pixel deltas to viewport-fraction units by
+            // dividing by the cached visited panel dimensions (ViewedWidth /
+            // ViewedHeight).  Matches C++ Scroll which divides by pvw/pvh.
+            state.rel_x += dx / self.visited_vw;
+            state.rel_y += dy / self.visited_vh;
             self.viewport_changed = true;
         }
     }
@@ -456,6 +465,11 @@ impl View {
         dz: f64,
     ) -> [f64; 3] {
         let before = self.visit_stack.last().cloned();
+        // Save pre-operation visited dimensions for done-distance.
+        // scroll() uses these same values as its denominator, so the
+        // round-trip (scroll → delta_rel_x → done_x) is self-consistent.
+        let pre_vw = self.visited_vw;
+        let pre_vh = self.visited_vh;
         if dx != 0.0 || dy != 0.0 {
             self.scroll(dx, dy);
         }
@@ -471,13 +485,10 @@ impl View {
         let after = self.visit_stack.last().cloned();
         match (before, after) {
             (Some(b), Some(a)) => {
-                // Convert rel_x/rel_y deltas back to pixel units.
-                // scroll() divides by (viewport * sqrt(rel_a)), so multiply
-                // back by the same scale. Uses before rel_a since scroll()
-                // runs before zoom() in this function.
-                let scale = b.rel_a.sqrt().max(1e-10);
-                let done_x = (a.rel_x - b.rel_x) * self.viewport_width.max(1.0) * scale;
-                let done_y = (a.rel_y - b.rel_y) * self.viewport_height.max(1.0) * scale;
+                // Convert rel_x/rel_y deltas back to pixel units using the
+                // PRE-operation visited dimensions (same denominator scroll used).
+                let done_x = (a.rel_x - b.rel_x) * pre_vw;
+                let done_y = (a.rel_y - b.rel_y) * pre_vh;
                 // C++: done_z = -ln(reFac)/zflpp = 0.5 * ln(rel_a_new/rel_a_old) / zflpp
                 let zflpp = self.get_zoom_factor_log_per_pixel();
                 let done_z = if b.rel_a > 0.0 && zflpp > 1e-15 {
@@ -930,6 +941,10 @@ impl View {
 
         let visited_vw = (visit.rel_a * vw * vh * panel_aspect).sqrt();
         let visited_vh = (visit.rel_a * vw * vh / panel_aspect).sqrt();
+
+        // Cache for scroll/done-distance (BUG-8 fix infrastructure).
+        self.visited_vw = visited_vw.max(1.0);
+        self.visited_vh = visited_vh.max(1.0);
 
         let root_vw = visited_vw / vnw_safe;
         let root_vh = visited_vh / vnh_safe;
@@ -1795,14 +1810,10 @@ impl View {
         }
 
         if need {
-            // scroll() divides by scale internally. To achieve a viewport
-            // shift of exactly (dx, dy) pixels, pre-multiply by scale.
-            let scale = self
-                .visit_stack
-                .last()
-                .map(|s| s.rel_a.sqrt().max(1e-10))
-                .unwrap_or(1.0);
-            self.scroll(dx * scale, dy * scale);
+            // scroll() divides by visited_vw/visited_vh (screen-pixel
+            // ViewedWidth/Height). dx/dy are already in screen pixels,
+            // so pass them directly.
+            self.scroll(dx, dy);
         }
     }
 
