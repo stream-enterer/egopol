@@ -917,11 +917,16 @@ impl TextField {
     }
 
     /// Dispatch to x-only or xy mapping depending on single/multi-line mode.
+    /// Mouse events arrive in normalized (0..1, 0..tallness) panel coordinates
+    /// but paint dimensions and char_positions are in pixel-scale coordinates,
+    /// so we scale by last_w / last_h before mapping.
     fn pos_from_event(&self, mouse_x: f64, mouse_y: f64) -> usize {
+        let x = mouse_x * self.last_w;
+        let y = mouse_y * self.last_w; // both axes scale by width (tallness = h/w)
         if self.multi_line {
-            self.xy_to_index_multi_line(mouse_x, mouse_y)
+            self.xy_to_index_multi_line(x, y)
         } else {
-            self.x_to_index_single_line(mouse_x)
+            self.x_to_index_single_line(x)
         }
     }
 
