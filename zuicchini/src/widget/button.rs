@@ -304,6 +304,12 @@ impl Button {
                     true
                 }
                 InputVariant::Release => {
+                    // C++ clears Pressed unconditionally on release, then
+                    // gates Click() on hit test. This prevents stuck pressed
+                    // state when mouse moves away between press and release.
+                    if !self.pressed {
+                        return false;
+                    }
                     let hit = self.hit_test(event.mouse_x, event.mouse_y);
                     if trace {
                         let cap = &self.border.caption;
@@ -312,14 +318,11 @@ impl Button {
                             cap, event.mouse_x, event.mouse_y, hit, self.pressed
                         );
                     }
-                    if !hit {
-                        return false;
+                    self.pressed = false;
+                    if let Some(cb) = &mut self.on_press_state {
+                        cb(false);
                     }
-                    if self.pressed {
-                        self.pressed = false;
-                        if let Some(cb) = &mut self.on_press_state {
-                            cb(false);
-                        }
+                    if hit {
                         if let Some(cb) = &mut self.on_click {
                             cb();
                         }

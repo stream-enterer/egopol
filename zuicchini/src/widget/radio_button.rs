@@ -384,6 +384,9 @@ impl RadioButton {
                     true
                 }
                 InputVariant::Release => {
+                    if !self.pressed {
+                        return false;
+                    }
                     let hit = self.hit_test(event.mouse_x, event.mouse_y);
                     if trace {
                         eprintln!(
@@ -391,11 +394,8 @@ impl RadioButton {
                             self.border.caption, event.mouse_x, event.mouse_y, self.last_w, self.last_h, hit, self.pressed, self.is_selected()
                         );
                     }
-                    if !hit {
-                        return false;
-                    }
-                    if self.pressed {
-                        self.pressed = false;
+                    self.pressed = false;
+                    if hit {
                         self.group.borrow_mut().select(self.index);
                     }
                     true
