@@ -11,6 +11,8 @@ pub struct CheckButton {
     border: Border,
     look: Rc<Look>,
     checked: bool,
+    last_w: f64,
+    last_h: f64,
     pub on_check: Option<Box<dyn FnMut(bool)>>,
 }
 
@@ -22,6 +24,8 @@ impl CheckButton {
                 .with_how_to(true),
             look,
             checked: false,
+            last_w: 0.0,
+            last_h: 0.0,
             on_check: None,
         }
     }
@@ -34,7 +38,9 @@ impl CheckButton {
         self.checked = checked;
     }
 
-    pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
+        self.last_w = w;
+        self.last_h = h;
         let face_color = if self.checked {
             self.look.button_pressed()
         } else {
@@ -45,9 +51,23 @@ impl CheckButton {
             .paint_border(painter, w, h, &self.look, false, true);
     }
 
+    /// Rounded-rect hit test matching C++ `emButton::CheckMouse`.
+    fn hit_test(&self, mx: f64, my: f64) -> bool {
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
+            return false;
+        }
+        let (rect, r) = self
+            .border
+            .content_round_rect(self.last_w, self.last_h, &self.look);
+        super::check_mouse_round_rect(mx, my, &rect, r)
+    }
+
     pub fn input(&mut self, event: &InputEvent) -> bool {
         match event.key {
             InputKey::MouseLeft if event.variant == InputVariant::Release => {
+                if !self.hit_test(event.mouse_x, event.mouse_y) {
+                    return false;
+                }
                 self.toggle();
                 true
             }
@@ -125,8 +145,12 @@ mod tests {
         let mut btn = CheckButton::new("Toggle", look);
         assert!(!btn.is_checked());
         btn.input(&InputEvent::release(InputKey::MouseLeft));
+        // No paint call → last_w/last_h are 0 → check_mouse returns false
+        // so mouse click is ignored. Use Space (keyboard, no hit test).
+        assert!(!btn.is_checked());
+        btn.input(&InputEvent::release(InputKey::Space));
         assert!(btn.is_checked());
-        btn.input(&InputEvent::release(InputKey::MouseLeft));
+        btn.input(&InputEvent::release(InputKey::Space));
         assert!(!btn.is_checked());
     }
 

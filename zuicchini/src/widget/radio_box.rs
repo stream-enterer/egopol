@@ -5,6 +5,7 @@ use crate::foundation::Color;
 use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
 use crate::render::Painter;
 
+use super::border::{Border, OuterBorderType};
 use super::look::Look;
 use super::radio_button::RadioGroup;
 
@@ -12,20 +13,35 @@ const CIRCLE_SIZE: f64 = 9.0;
 const CIRCLE_LABEL_GAP: f64 = 4.0;
 
 /// Small radio button variant — circle indicator with label text.
+///
+/// C++ `emRadioBox` inherits `emRadioButton : emCheckButton : emButton : emBorder`.
+/// Constructor sets: `OBT_MARGIN`, `LabelAlignment=LEFT`, `ShownBoxed=true`.
+/// The border is used for hit-test geometry (CheckMouse) even though the visual
+/// is a custom circle + label paint.
 pub struct RadioBox {
+    border: Border,
     label: String,
     look: Rc<Look>,
     group: Rc<RefCell<RadioGroup>>,
     index: usize,
+    last_w: f64,
+    last_h: f64,
 }
 
 impl RadioBox {
     pub fn new(label: &str, look: Rc<Look>, group: Rc<RefCell<RadioGroup>>, index: usize) -> Self {
         Self {
+            border: Border::new(OuterBorderType::Margin)
+                .with_caption(label)
+                .with_label_in_border(false)
+                .with_label_alignment(crate::render::TextAlignment::Left)
+                .with_how_to(true),
             label: label.to_string(),
             look,
             group,
             index,
+            last_w: 0.0,
+            last_h: 0.0,
         }
     }
 
@@ -49,7 +65,10 @@ impl RadioBox {
         }
     }
 
-    pub fn paint(&self, painter: &mut Painter, _w: f64, _h: f64) {
+    pub fn paint(&mut self, painter: &mut Painter, _w: f64, _h: f64) {
+        self.last_w = _w;
+        self.last_h = _h;
+
         let cx = CIRCLE_SIZE / 2.0;
         let cy = CIRCLE_SIZE / 2.0;
         let r = CIRCLE_SIZE / 2.0;
@@ -97,9 +116,23 @@ impl RadioBox {
         }
     }
 
+    /// Rounded-rect hit test matching C++ `emButton::CheckMouse`.
+    fn hit_test(&self, mx: f64, my: f64) -> bool {
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
+            return false;
+        }
+        let (rect, r) = self
+            .border
+            .content_round_rect(self.last_w, self.last_h, &self.look);
+        super::check_mouse_round_rect(mx, my, &rect, r)
+    }
+
     pub fn input(&mut self, event: &InputEvent) -> bool {
         match event.key {
             InputKey::MouseLeft if event.variant == InputVariant::Release => {
+                if !self.hit_test(event.mouse_x, event.mouse_y) {
+                    return false;
+                }
                 self.group.borrow_mut().select(self.index);
                 true
             }
@@ -140,11 +173,12 @@ mod tests {
         assert!(!rb0.is_selected());
         assert!(!rb1.is_selected());
 
-        rb0.input(&InputEvent::release(InputKey::MouseLeft));
+        // Mouse clicks require paint; use Space for unit test.
+        rb0.input(&InputEvent::release(InputKey::Space));
         assert!(rb0.is_selected());
         assert!(!rb1.is_selected());
 
-        rb1.input(&InputEvent::release(InputKey::MouseLeft));
+        rb1.input(&InputEvent::release(InputKey::Space));
         assert!(!rb0.is_selected());
         assert!(rb1.is_selected());
     }

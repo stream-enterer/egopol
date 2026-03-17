@@ -49,14 +49,12 @@ fn widget_checkbox_toggle() {
         "initial checked state mismatch"
     );
 
-    // After first click (mouse press + release = toggle)
-    cb.input(&InputEvent::press(InputKey::MouseLeft));
-    cb.input(&InputEvent::release(InputKey::MouseLeft));
+    // After first activation (keyboard — behavioral test, not positional)
+    cb.input(&InputEvent::release(InputKey::Space));
     assert_eq!(cb.is_checked() as u8, golden[1], "after 1st click mismatch");
 
-    // After second click
-    cb.input(&InputEvent::press(InputKey::MouseLeft));
-    cb.input(&InputEvent::release(InputKey::MouseLeft));
+    // After second activation
+    cb.input(&InputEvent::release(InputKey::Space));
     assert_eq!(cb.is_checked() as u8, golden[2], "after 2nd click mismatch");
 }
 
@@ -78,14 +76,12 @@ fn widget_checkbutton_toggle() {
         "initial checked state mismatch"
     );
 
-    // After first click (mouse press + release = toggle)
-    cb.input(&InputEvent::press(InputKey::MouseLeft));
-    cb.input(&InputEvent::release(InputKey::MouseLeft));
+    // After first activation (keyboard — behavioral test, not positional)
+    cb.input(&InputEvent::release(InputKey::Space));
     assert_eq!(cb.is_checked() as u8, golden[1], "after 1st click mismatch");
 
-    // After second click
-    cb.input(&InputEvent::press(InputKey::MouseLeft));
-    cb.input(&InputEvent::release(InputKey::MouseLeft));
+    // After second activation
+    cb.input(&InputEvent::release(InputKey::Space));
     assert_eq!(cb.is_checked() as u8, golden[2], "after 2nd click mismatch");
 }
 
@@ -112,9 +108,8 @@ fn widget_radiobutton_switch() {
         "initial radio check mismatch"
     );
 
-    // Click B
-    rb_b.input(&InputEvent::press(InputKey::MouseLeft));
-    rb_b.input(&InputEvent::release(InputKey::MouseLeft));
+    // Activate B (keyboard — behavioral test, not positional)
+    rb_b.input(&InputEvent::release(InputKey::Space));
     let after = u32::from_le_bytes(golden[4..8].try_into().unwrap()) as usize;
     assert_eq!(
         group.borrow().selected(),

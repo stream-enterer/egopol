@@ -18,6 +18,8 @@ pub struct CheckBox {
     border: Border,
     look: Rc<Look>,
     checked: bool,
+    last_w: f64,
+    last_h: f64,
     pub on_check: Option<Box<dyn FnMut(bool)>>,
 }
 
@@ -31,6 +33,8 @@ impl CheckBox {
                 .with_how_to(true),
             look,
             checked: false,
+            last_w: 0.0,
+            last_h: 0.0,
             on_check: None,
         }
     }
@@ -47,7 +51,9 @@ impl CheckBox {
     ///
     /// Layout: small checkbox box on the left, label text on the right.
     /// The box contains: InputBgColor face → checkmark symbol → CheckBox image overlay.
-    pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
+        self.last_w = w;
+        self.last_h = h;
         // Paint outer border (Margin = transparent spacing only).
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
@@ -128,9 +134,23 @@ impl CheckBox {
         });
     }
 
+    /// Rounded-rect hit test matching C++ `emButton::CheckMouse`.
+    fn hit_test(&self, mx: f64, my: f64) -> bool {
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
+            return false;
+        }
+        let (rect, r) = self
+            .border
+            .content_round_rect(self.last_w, self.last_h, &self.look);
+        super::check_mouse_round_rect(mx, my, &rect, r)
+    }
+
     pub fn input(&mut self, event: &InputEvent) -> bool {
         match event.key {
             InputKey::MouseLeft if event.variant == InputVariant::Release => {
+                if !self.hit_test(event.mouse_x, event.mouse_y) {
+                    return false;
+                }
                 self.toggle();
                 true
             }
@@ -169,7 +189,8 @@ mod tests {
         let look = Look::new();
         let mut cb = CheckBox::new("Enable", look);
         assert!(!cb.is_checked());
-        cb.input(&InputEvent::release(InputKey::MouseLeft));
+        // Mouse clicks require paint to set last_w/last_h; use Space for unit test.
+        cb.input(&InputEvent::release(InputKey::Space));
         assert!(cb.is_checked());
         cb.input(&InputEvent::release(InputKey::Space));
         assert!(!cb.is_checked());

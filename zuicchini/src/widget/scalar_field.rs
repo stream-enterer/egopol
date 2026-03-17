@@ -94,8 +94,9 @@ pub struct ScalarField {
     dragging: bool,
     drag_start_x: f64,
     drag_start_value: f64,
-    /// Cached width from the last paint call.
+    /// Cached dimensions from the last paint call.
     last_w: f64,
+    last_h: f64,
 
     // --- Scale mark configuration ---
     scale_mark_intervals: Vec<u64>,
@@ -125,6 +126,7 @@ impl ScalarField {
             drag_start_x: 0.0,
             drag_start_value: 0.0,
             last_w: 0.0,
+            last_h: 0.0,
             scale_mark_intervals: vec![1],
             marks_never_hidden: false,
             text_of_value_fn: Box::new(default_text_of_value),
@@ -289,6 +291,7 @@ impl ScalarField {
 
     pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
+        self.last_h = h;
         // C++ emScalarField::GetHowTo() builds the text dynamically.
         {
             let mut text = String::from(HOWTO_PREFACE);
@@ -498,6 +501,17 @@ impl ScalarField {
 
     // --- Input ---
 
+    /// Rounded-rect hit test matching C++ `emScalarField::CheckMouse`.
+    fn hit_test(&self, mx: f64, my: f64) -> bool {
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
+            return false;
+        }
+        let (rect, r) = self
+            .border
+            .content_round_rect(self.last_w, self.last_h, &self.look);
+        super::check_mouse_round_rect(mx, my, &rect, r)
+    }
+
     pub fn input(&mut self, event: &InputEvent) -> bool {
         if !self.editable {
             return false;
@@ -509,6 +523,9 @@ impl ScalarField {
         match event.key {
             InputKey::MouseLeft => match event.variant {
                 InputVariant::Press => {
+                    if !self.hit_test(event.mouse_x, event.mouse_y) {
+                        return false;
+                    }
                     self.dragging = true;
                     self.drag_start_x = event.mouse_x;
                     self.drag_start_value = self.value;
@@ -744,6 +761,7 @@ mod tests {
 
         // Cache dimensions (paint would do this in real usage)
         sf.last_w = 200.0;
+        sf.last_h = 40.0;
 
         sf.input(&InputEvent::press(InputKey::ArrowRight));
         assert!(sf.value() > 50.0);
@@ -762,6 +780,7 @@ mod tests {
         let mut sf = ScalarField::new(0.0, 10.0, look);
         sf.set_value(5.0);
         sf.last_w = 200.0;
+        sf.last_h = 40.0;
         sf.on_value = Some(Box::new(move |v| {
             val_clone.borrow_mut().push(v);
         }));
@@ -786,6 +805,7 @@ mod tests {
         // Input should be disabled when not editable
         sf.set_value(50.0);
         sf.last_w = 200.0;
+        sf.last_h = 40.0;
         let handled = sf.input(&InputEvent::press(InputKey::ArrowRight));
         assert!(!handled);
         assert!((sf.value() - 50.0).abs() < 0.001);
@@ -899,6 +919,7 @@ mod tests {
         sf.set_keyboard_interval(10);
         sf.set_value(50.0);
         sf.last_w = 200.0;
+        sf.last_h = 40.0;
 
         sf.input(&InputEvent::press(InputKey::Key('+')));
         assert!((sf.value() - 60.0).abs() < 1.0);
@@ -923,6 +944,7 @@ mod tests {
         let mut sf = ScalarField::new(0.0, 100.0, look);
         sf.set_value(50.0);
         sf.last_w = 200.0;
+        sf.last_h = 40.0;
 
         let handled = sf.input(&InputEvent::press(InputKey::Key('+')));
         assert!(handled);

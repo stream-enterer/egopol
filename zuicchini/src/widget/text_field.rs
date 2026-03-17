@@ -1660,10 +1660,28 @@ impl TextField {
         consumed
     }
 
+    /// Rounded-rect hit test matching C++ `emTextField::CheckMouse`.
+    fn hit_test(&self, mx: f64, my: f64) -> bool {
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
+            return false;
+        }
+        let (rect, r) = self
+            .border
+            .content_round_rect(self.last_w, self.last_h, &self.look);
+        super::check_mouse_round_rect(mx, my, &rect, r)
+    }
+
     fn handle_mouse(&mut self, event: &InputEvent) -> bool {
         match event.key {
             InputKey::MouseLeft => {}
             _ => return false,
+        }
+
+        // C++ emTextField::Input checks CheckMouse before consuming mouse events.
+        if matches!(event.variant, InputVariant::Press)
+            && !self.hit_test(event.mouse_x, event.mouse_y)
+        {
+            return false;
         }
 
         match event.variant {
@@ -2796,6 +2814,8 @@ mod tests {
         let look = Look::new();
         let mut tf = TextField::new(look);
         tf.set_text("hello world");
+        tf.last_w = 200.0;
+        tf.last_h = 40.0;
         // Populate char_positions manually for testing
         tf.char_positions = vec![
             0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0, 72.0, 80.0, 88.0,
@@ -2825,6 +2845,8 @@ mod tests {
         let look = Look::new();
         let mut tf = TextField::new(look);
         tf.set_text("ABCDEF");
+        tf.last_w = 200.0;
+        tf.last_h = 40.0;
         tf.char_positions = vec![0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0];
 
         // Select "CD" (indices 2..4)

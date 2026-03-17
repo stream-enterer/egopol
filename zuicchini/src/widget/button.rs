@@ -263,6 +263,17 @@ impl Button {
         self.hovered = mx >= 0.0 && mx <= self.last_w && my >= 0.0 && my <= self.last_h;
     }
 
+    /// Rounded-rect hit test matching C++ `emButton::CheckMouse`.
+    fn hit_test(&self, mx: f64, my: f64) -> bool {
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
+            return false;
+        }
+        let (rect, r) = self
+            .border
+            .content_round_rect(self.last_w, self.last_h, &self.look);
+        super::check_mouse_round_rect(mx, my, &rect, r)
+    }
+
     pub fn input(&mut self, event: &InputEvent) -> bool {
         // Update hover on any event with mouse coordinates
         if event.variant == InputVariant::Move {
@@ -273,6 +284,9 @@ impl Button {
         match event.key {
             InputKey::MouseLeft => match event.variant {
                 InputVariant::Press => {
+                    if !self.hit_test(event.mouse_x, event.mouse_y) {
+                        return false;
+                    }
                     self.pressed = true;
                     if let Some(cb) = &mut self.on_press_state {
                         cb(true);
@@ -280,6 +294,9 @@ impl Button {
                     true
                 }
                 InputVariant::Release => {
+                    if !self.hit_test(event.mouse_x, event.mouse_y) {
+                        return false;
+                    }
                     if self.pressed {
                         self.pressed = false;
                         if let Some(cb) = &mut self.on_press_state {
@@ -372,10 +389,11 @@ mod tests {
             *fired_clone.borrow_mut() = true;
         }));
 
+        // Mouse clicks require paint to set last_w/last_h; use keyboard.
         assert!(!btn.is_pressed());
-        btn.input(&InputEvent::press(InputKey::MouseLeft));
+        btn.input(&InputEvent::press(InputKey::Space));
         assert!(btn.is_pressed());
-        btn.input(&InputEvent::release(InputKey::MouseLeft));
+        btn.input(&InputEvent::release(InputKey::Space));
         assert!(!btn.is_pressed());
         assert!(*fired.borrow());
     }

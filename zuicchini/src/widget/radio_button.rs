@@ -171,6 +171,8 @@ pub struct RadioButton {
     look: Rc<Look>,
     group: Rc<RefCell<RadioGroup>>,
     index: usize,
+    last_w: f64,
+    last_h: f64,
 }
 
 impl RadioButton {
@@ -189,6 +191,8 @@ impl RadioButton {
             look,
             group,
             index,
+            last_w: 0.0,
+            last_h: 0.0,
         }
     }
 
@@ -227,7 +231,9 @@ impl RadioButton {
     /// RadioButton renders as a normal button (face + centered label).
     /// When checked (ShownChecked=true), the label is slightly shrunk and
     /// a ButtonChecked overlay is painted instead of the normal Button overlay.
-    pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
+        self.last_w = w;
+        self.last_h = h;
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
 
@@ -320,9 +326,23 @@ impl RadioButton {
         });
     }
 
+    /// Rounded-rect hit test matching C++ `emButton::CheckMouse`.
+    fn hit_test(&self, mx: f64, my: f64) -> bool {
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
+            return false;
+        }
+        let (rect, r) = self
+            .border
+            .content_round_rect(self.last_w, self.last_h, &self.look);
+        super::check_mouse_round_rect(mx, my, &rect, r)
+    }
+
     pub fn input(&mut self, event: &InputEvent) -> bool {
         match event.key {
             InputKey::MouseLeft if event.variant == InputVariant::Release => {
+                if !self.hit_test(event.mouse_x, event.mouse_y) {
+                    return false;
+                }
                 self.group.borrow_mut().select(self.index);
                 true
             }
@@ -458,11 +478,11 @@ mod tests {
         assert!(!r1.is_selected());
         assert!(!r2.is_selected());
 
-        r0.input(&InputEvent::release(InputKey::MouseLeft));
+        r0.input(&InputEvent::release(InputKey::Space));
         assert!(r0.is_selected());
         assert!(!r1.is_selected());
 
-        r2.input(&InputEvent::release(InputKey::MouseLeft));
+        r2.input(&InputEvent::release(InputKey::Space));
         assert!(!r0.is_selected());
         assert!(r2.is_selected());
 
@@ -485,8 +505,8 @@ mod tests {
         let mut r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
         let mut r1 = RadioButton::new("B", look, group.clone(), 1);
 
-        r0.input(&InputEvent::release(InputKey::MouseLeft));
-        r1.input(&InputEvent::release(InputKey::MouseLeft));
+        r0.input(&InputEvent::release(InputKey::Space));
+        r1.input(&InputEvent::release(InputKey::Space));
         assert_eq!(*selections.borrow(), vec![Some(0), Some(1)]);
     }
 
