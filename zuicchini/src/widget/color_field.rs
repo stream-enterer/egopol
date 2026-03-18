@@ -260,7 +260,10 @@ impl ColorField {
             let v = (exp.sf_val as f32 / 10000.0).clamp(0.0, 1.0); // [0, 10000] → [0, 1]
             self.color = Color::from_hsv(h, s, v).with_alpha(self.color.a());
         } else if text_changed {
-            if let Ok(parsed) = exp.tf_name.parse::<Color>() {
+            // C++ emColor::TryParse supports #RGB, #RGBA, #RRGGBB, #RRGGBBAA,
+            // #RRRGGGBBB, #RRRRGGGGBBBB, #RRRRGGGGBBBBAAAA, and X11 named colors.
+            // Use try_parse (not FromStr which only handles #RRGGBB/#RRGGBBAA).
+            if let Some(parsed) = Color::try_parse(&exp.tf_name) {
                 self.color = parsed;
             }
         }
