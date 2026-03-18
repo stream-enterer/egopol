@@ -1706,7 +1706,9 @@ impl TextField {
                 true
             }
 
-            InputKey::Backspace => {
+            // C++ handles Backspace with: IsNoMod, IsCtrlMod, IsShiftCtrlMod only.
+            // Reject alt, meta, and shift-without-ctrl.
+            InputKey::Backspace if !alt && !meta && (!shift || ctrl) => {
                 if !self.editable || !self.enabled {
                     return true;
                 }
@@ -1741,7 +1743,10 @@ impl TextField {
                 self.magic_col = None;
                 true
             }
-            InputKey::Delete => {
+            // C++ handles Delete with: IsNoMod, IsCtrlMod, IsShiftCtrlMod.
+            // IsShiftMod (Shift+Delete) is Cut, handled separately.
+            // Reject alt, meta, and shift-without-ctrl.
+            InputKey::Delete if !alt && !meta && (!shift || ctrl) => {
                 if !self.editable || !self.enabled {
                     return true;
                 }
