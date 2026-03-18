@@ -1,0 +1,113 @@
+use zuicchini::foundation::{Color, Image};
+use zuicchini::panel::{PanelBehavior, PanelId, PanelState, PanelTree, View, ViewFlags};
+use zuicchini::render::Painter;
+
+use super::{DEFAULT_VH, DEFAULT_VW};
+
+// ---------------------------------------------------------------------------
+// Trivial panel for scaling benchmarks
+// ---------------------------------------------------------------------------
+
+pub struct ColorPanel {
+    color: Color,
+}
+
+impl PanelBehavior for ColorPanel {
+    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+        painter.paint_rect(0.0, 0.0, w, h, self.color, Color::TRANSPARENT);
+    }
+
+    fn is_opaque(&self) -> bool {
+        true
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tree builder
+// ---------------------------------------------------------------------------
+
+/// Build a balanced tree with `panel_count` panels (branching factor 4).
+/// Returns the tree with a primed View at DEFAULT_VW x DEFAULT_VH.
+pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, View, PanelId) {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("scaled_root");
+    let tallness = DEFAULT_VH as f64 / DEFAULT_VW as f64;
+    tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
+    tree.set_behavior(
+        root,
+        Box::new(ColorPanel {
+            color: color_for_index(0),
+        }),
+    );
+    tree.set_focusable(root, true);
+
+    if panel_count > 1 {
+        let mut parents = vec![root];
+        let mut created = 1usize;
+        let branching = 4usize;
+
+        'outer: while created < panel_count {
+            let mut next_parents = Vec::new();
+            for &parent in &parents {
+                for child_idx in 0..branching {
+                    if created >= panel_count {
+                        break 'outer;
+                    }
+                    let child = tree.create_child(parent, &format!("p{created}"));
+                    let siblings = branching.min(panel_count - created + child_idx);
+                    let x = child_idx as f64 / siblings as f64;
+                    let w = 1.0 / siblings as f64;
+                    tree.set_layout_rect(child, x, 0.0, w, 1.0);
+                    tree.set_behavior(
+                        child,
+                        Box::new(ColorPanel {
+                            color: color_for_index(created),
+                        }),
+                    );
+                    next_parents.push(child);
+                    created += 1;
+                }
+            }
+            parents = next_parents;
+        }
+    }
+
+    let mut view = View::new(root, DEFAULT_VW as f64, DEFAULT_VH as f64);
+    view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
+    tree.deliver_notices(true, 1.0);
+    view.update(&mut tree);
+
+    (tree, view, root)
+}
+
+/// Execute one frame with pan+zoom on a scaled tree (no tile copy).
+pub fn run_one_scaled_frame(
+    tree: &mut PanelTree,
+    view: &mut View,
+    viewport_buf: &mut Image,
+    dx: f64,
+    dy: f64,
+    dz: f64,
+) {
+    let fix_x = DEFAULT_VW as f64 / 2.0;
+    let fix_y = DEFAULT_VH as f64 / 2.0;
+
+    view.raw_scroll_and_zoom(tree, fix_x, fix_y, dx, dy, dz);
+    tree.deliver_notices(true, 1.0);
+    view.update(tree);
+
+    viewport_buf.fill(Color::BLACK);
+    {
+        let mut painter = Painter::new(viewport_buf);
+        view.paint(tree, &mut painter);
+    }
+
+    view.clear_viewport_changed();
+}
+
+fn color_for_index(idx: usize) -> Color {
+    let r = ((idx * 73 + 29) % 256) as u8;
+    let g = ((idx * 137 + 43) % 256) as u8;
+    let b = ((idx * 53 + 97) % 256) as u8;
+    Color::rgba(r, g, b, 255)
+}

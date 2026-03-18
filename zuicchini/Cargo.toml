@@ -7,6 +7,24 @@ license = "MIT"
 
 [dev-dependencies]
 rand = "0.9"
+criterion = { version = "0.8", features = ["html_reports"] }
+gungraun = "0.17"
+
+[[bench]]
+name = "interaction"
+harness = false
+
+[[bench]]
+name = "interaction_iai"
+harness = false
+
+[[bench]]
+name = "scaled_tree"
+harness = false
+
+[[bench]]
+name = "scaled_tree_iai"
+harness = false
 
 [dependencies]
 bitflags = "2"

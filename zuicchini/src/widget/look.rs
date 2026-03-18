@@ -109,8 +109,10 @@ mod tests {
     #[test]
     fn partial_eq_different_color() {
         let a = Look::default();
-        let mut b = Look::default();
-        b.bg_color = Color::rgba(0xFF, 0x00, 0x00, 0xFF);
+        let b = Look {
+            bg_color: Color::rgba(0xFF, 0x00, 0x00, 0xFF),
+            ..Look::default()
+        };
         assert_ne!(a, b);
     }
 
