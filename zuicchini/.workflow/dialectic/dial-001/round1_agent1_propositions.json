@@ -1,0 +1,452 @@
+[
+  {
+    "id": "a1-01",
+    "proposition": "The current full-dirty repaint architecture guarantees pixel-perfect correctness by eliminating all stale-cache risk, since every frame is a fresh complete rasterization of the current view state.",
+    "scores": {
+      "defensibility": 0.95,
+      "specificity": 0.80,
+      "robustness": 0.95,
+      "compatibility": 0.90,
+      "performance": 0.20
+    },
+    "reasoning": {
+      "defensibility": "This is a factual description of the current system's correctness invariant. No stale data can ever be displayed because nothing is cached across frames during viewport changes.",
+      "specificity": "Concretely describes the mechanism (mark_all_dirty on viewport_changed) and its correctness guarantee.",
+      "robustness": "The simplicity of always-repaint is maximally robust — no edge cases around partial invalidation, no cache coherency bugs.",
+      "compatibility": "Compatible with all other propositions; this describes the baseline that optimizations must preserve.",
+      "performance": "Terrible on all performance axes: every pixel is redundantly repainted, work is proportional to tree size not change size, no constant-time path exists, and large trees will blow the 16.6ms budget."
+    }
+  },
+  {
+    "id": "a1-02",
+    "proposition": "Full-dirty repaint makes the cost of a 1px pan identical to a 1000px pan — frame time is O(visible_pixels × primitives_per_panel) regardless of viewport change magnitude.",
+    "scores": {
+      "defensibility": 0.95,
+      "specificity": 0.90,
+      "robustness": 0.90,
+      "compatibility": 0.85,
+      "performance": 0.10
+    },
+    "reasoning": {
+      "defensibility": "Directly follows from the mark_all_dirty design. The magnitude of the change is not consulted.",
+      "specificity": "Gives the exact complexity class and explains why change magnitude is irrelevant.",
+      "robustness": "True in all cases — the system has no fast path for small changes during viewport motion.",
+      "compatibility": "Motivates all optimization approaches; compatible as a problem statement.",
+      "performance": "This is the core performance problem. Work is not proportional to visible change, violating the key optimization principle."
+    }
+  },
+  {
+    "id": "a1-03",
+    "proposition": "The three-strategy render system (full-viewport buffer, DrawList parallel replay, direct single-tile paint) optimizes throughput of full repaints but does not reduce total pixel work.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.90,
+      "performance": 0.35
+    },
+    "reasoning": {
+      "defensibility": "The three strategies choose the most efficient execution path for a given dirty tile count, but all three still rasterize every dirty tile. The total work is unchanged.",
+      "specificity": "Names all three strategies and their selection criterion (>50% dirty, multiple dirty with threads, single dirty).",
+      "robustness": "Correctly identifies that throughput optimization is orthogonal to work reduction.",
+      "compatibility": "These strategies remain useful even with tile-shift or oversize buffer approaches for the tiles that do need repainting.",
+      "performance": "Improves wall-clock time via parallelism but does not address zero-redundant-pixel-work or proportional-to-change goals."
+    }
+  },
+  {
+    "id": "a1-04",
+    "proposition": "Dirty rect tracking already works correctly for content-only changes (cursor blink, button press) but is completely bypassed when viewport_changed is set.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.95,
+      "performance": 0.30
+    },
+    "reasoning": {
+      "defensibility": "The existing dirty rect infrastructure proves the concept works for non-viewport changes; the bypass is a deliberate design choice, not a missing capability.",
+      "specificity": "Identifies the exact flag (viewport_changed) that triggers the bypass and gives concrete examples of content-only changes.",
+      "robustness": "The bypass is conservative and safe, but it means the existing dirty rect system provides no value during the most expensive operation (pan/zoom).",
+      "compatibility": "Suggests that extending dirty rect tracking to viewport changes is architecturally feasible since the infrastructure exists.",
+      "performance": "The bypass is the root cause of the performance problem during pan/zoom. Removing it is necessary for any optimization."
+    }
+  },
+  {
+    "id": "a1-05",
+    "proposition": "Tile grid shift on pan achieves O(edge_tiles) rasterization cost instead of O(all_tiles) by recognizing that a tile's content depends only on which viewport-coordinate rectangle it covers, and translation preserves that content.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.85,
+      "robustness": 0.70,
+      "compatibility": 0.80,
+      "performance": 0.70
+    },
+    "reasoning": {
+      "defensibility": "The invariant is mathematically sound for pure translation: pixel content at viewport coordinate (x,y) is unchanged by a pan that doesn't move (x,y) off screen.",
+      "specificity": "Gives concrete cost: ~5 tiles at 1080p for a 5px pan vs ~40 tiles for full repaint. Clear data structure changes (origin_x, origin_y per tile).",
+      "robustness": "Fails for zoom, rotation, non-uniform scale. Only handles the pure translation case.",
+      "compatibility": "Compatible with existing tile cache and DrawList systems. Falls back to full repaint for zoom, so it's additive.",
+      "performance": "Strong on pan: work proportional to change, near-zero redundant pixels. But zoom (a major use case) gets no benefit at all."
+    }
+  },
+  {
+    "id": "a1-06",
+    "proposition": "For a 5px pan at 1080p, tile grid shift reduces rasterization from ~40 tiles to ~5 tiles (the newly-exposed edge column), an 8× reduction in pixel work.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.95,
+      "robustness": 0.65,
+      "compatibility": 0.85,
+      "performance": 0.75
+    },
+    "reasoning": {
+      "defensibility": "The arithmetic is correct: 1920/256 ≈ 8 columns, 1080/256 ≈ 5 rows, so ~40 tiles total, and a 5px shift exposes one column of ~5 tiles.",
+      "specificity": "Exact numbers for a concrete scenario. Highly specific and verifiable.",
+      "robustness": "Only holds for small horizontal pans. Diagonal pans double the dirty count. Very fast pans (>256px/frame) reduce or eliminate the benefit.",
+      "compatibility": "The numbers are useful for cost-benefit analysis. Compatible with other propositions.",
+      "performance": "Excellent for the specific small-pan case. The 8× reduction could bring a 30ms frame down to ~4ms for rasterization."
+    }
+  },
+  {
+    "id": "a1-07",
+    "proposition": "Tile grid shift provides zero benefit for zoom operations because tile content is scale-dependent — all tiles are invalidated when the zoom level changes.",
+    "scores": {
+      "defensibility": 0.95,
+      "specificity": 0.85,
+      "robustness": 0.95,
+      "compatibility": 0.80,
+      "performance": 0.30
+    },
+    "reasoning": {
+      "defensibility": "Fundamentally true: a different zoom level means different content at every pixel. No tile can be reused at a different scale without resampling, which would violate pixel-perfect output.",
+      "specificity": "Clear and concrete: zoom changes invalidate all tiles, full stop.",
+      "robustness": "No workaround within the tile-shift paradigm. This is an inherent limitation.",
+      "compatibility": "Compatible — motivates combining tile shift with other approaches, or seeking zoom-specific optimizations.",
+      "performance": "Zoom is a primary interaction in Eagle Mode's recursive-zoom UI. Zero improvement on zoom means a large fraction of interaction time gets no optimization."
+    }
+  },
+  {
+    "id": "a1-08",
+    "proposition": "Tile grid shift degrades to full repaint when pan velocity exceeds one tile width (256px) per frame, as all tiles shift entirely off-screen.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.90,
+      "robustness": 0.75,
+      "compatibility": 0.85,
+      "performance": 0.45
+    },
+    "reasoning": {
+      "defensibility": "At 60fps, 256px/frame = 15360px/s pan velocity. This is fast but achievable with aggressive mouse gestures or animated transitions.",
+      "specificity": "Gives the exact threshold (256px/frame) and the consequence (full repaint fallback).",
+      "robustness": "Graceful degradation — it falls back to baseline rather than producing artifacts. But the optimization vanishes exactly when it might be most needed (fast scrolling).",
+      "compatibility": "Compatible with oversize buffer approach which could handle moderate velocities better with larger margins.",
+      "performance": "At high velocity, the optimization provides no benefit. However, most interactive panning is well below 256px/frame."
+    }
+  },
+  {
+    "id": "a1-09",
+    "proposition": "The oversize viewport buffer makes small pans essentially free (O(1) origin shift, no rasterization) by pre-rendering a 1.5× margin around the visible viewport.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.85,
+      "robustness": 0.65,
+      "compatibility": 0.75,
+      "performance": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Within the margin, pan is genuinely zero-rasterization — only the read offset changes. The GPU blit cost is unavoidable regardless of approach.",
+      "specificity": "Concrete: 1.5× buffer, origin shift, margin check. Clear cost model.",
+      "robustness": "Fails when margin is exhausted (requires memmove + strip render). Fails entirely for zoom. Fast diagonal pan exhausts margin quickly.",
+      "compatibility": "Potentially conflicts with the tile cache architecture — replaces tiles with a monolithic buffer, which loses the benefits of per-tile dirty tracking and parallel replay.",
+      "performance": "Excellent for small pans within margin. Zero redundant pixel work. But the 1.5× initial render is 2.25× the work of a single-viewport render, paid up front."
+    }
+  },
+  {
+    "id": "a1-10",
+    "proposition": "The oversize buffer approach costs 2.25× memory (1.5² × viewport size) — approximately 13MB instead of 8MB at 1080p RGBA — and the buffer shift (memmove) costs ~2.6ms at 5GB/s bandwidth.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.95,
+      "robustness": 0.80,
+      "compatibility": 0.80,
+      "performance": 0.50
+    },
+    "reasoning": {
+      "defensibility": "The math is straightforward: 1920×1.5 × 1080×1.5 × 4 bytes ≈ 13MB. The memmove cost depends on hardware but 5GB/s is a conservative modern estimate.",
+      "specificity": "Exact numbers for memory and copy cost. Highly concrete.",
+      "robustness": "Memory cost is fixed and predictable. The memmove cost is per-shift, not per-frame, but a shift during a pan frame consumes 15% of the 16.6ms budget.",
+      "compatibility": "The 2.6ms memmove cost must be budgeted alongside rasterization of the exposed strip, potentially exceeding the frame budget for the shift frame.",
+      "performance": "Memory is bounded but 2.25× higher. The memmove latency spike on margin exhaustion could cause p99 frame time issues."
+    }
+  },
+  {
+    "id": "a1-11",
+    "proposition": "Neither tile grid shift nor oversize buffer provides any benefit for zoom operations — zoom fundamentally invalidates all cached pixel data because content is scale-dependent.",
+    "scores": {
+      "defensibility": 0.95,
+      "specificity": 0.80,
+      "robustness": 0.95,
+      "compatibility": 0.85,
+      "performance": 0.25
+    },
+    "reasoning": {
+      "defensibility": "This is a mathematical truth about rasterization: pixels rendered at zoom level Z are incorrect at zoom level Z'. No spatial remapping can fix this without resampling, which violates pixel-perfect output requirements.",
+      "specificity": "Applies to both approaches and identifies the root cause (scale-dependent content).",
+      "robustness": "No workaround without accepting approximate output (e.g., GPU scaling of stale tiles as placeholder).",
+      "compatibility": "Compatible — establishes a hard boundary for what these approaches can optimize.",
+      "performance": "Zoom is Eagle Mode's signature interaction. Both approaches leave the most important performance problem unsolved."
+    }
+  },
+  {
+    "id": "a1-12",
+    "proposition": "Tile grid shift can be implemented as a ring buffer in each axis, avoiding physical memory copies — surviving tiles are logically remapped rather than moved.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.80,
+      "robustness": 0.80,
+      "compatibility": 0.90,
+      "performance": 0.65
+    },
+    "reasoning": {
+      "defensibility": "A ring buffer is a standard technique for this pattern. The tile grid has fixed dimensions, and modular indexing maps logical to physical positions cheaply.",
+      "specificity": "Describes the data structure (ring buffer per axis) and the mechanism (logical remapping vs physical copy).",
+      "robustness": "Ring buffer indexing adds modest complexity but is well-understood. Wrapping bugs are possible but testable.",
+      "compatibility": "Fits naturally into the existing tile cache. No conflict with DrawList replay or GPU upload paths.",
+      "performance": "Eliminates the need for memmove of tile data. The remapping is O(1) pointer arithmetic. This makes the per-frame overhead of tile shift negligible."
+    }
+  },
+  {
+    "id": "a1-13",
+    "proposition": "Diagonal pans dirty two edges (one column and one row) instead of one, roughly doubling the rasterization cost of tile grid shift compared to axis-aligned pans.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.85,
+      "robustness": 0.80,
+      "compatibility": 0.85,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Geometrically correct: a diagonal shift exposes both a horizontal and vertical strip of new content.",
+      "specificity": "Identifies the exact failure case (diagonal pan) and quantifies the cost increase (~2×).",
+      "robustness": "Diagonal panning is common in real usage. The 2× degradation is not catastrophic but is the typical case, not the exceptional one.",
+      "compatibility": "Compatible with other propositions. The doubled cost is still much less than full repaint.",
+      "performance": "Even with 2× cost, diagonal pan rasterizes ~10 tiles instead of ~40 at 1080p — still a 4× improvement over full repaint."
+    }
+  },
+  {
+    "id": "a1-14",
+    "proposition": "The oversize buffer approach is architecturally incompatible with the existing tile cache system — it replaces per-tile dirty tracking with a monolithic buffer, losing parallel replay benefits.",
+    "scores": {
+      "defensibility": 0.75,
+      "specificity": 0.80,
+      "robustness": 0.70,
+      "compatibility": 0.50,
+      "performance": 0.45
+    },
+    "reasoning": {
+      "defensibility": "Partially defensible: the oversize buffer could coexist with tiles (tiles could be the unit within the oversize buffer), but the natural implementation is a single large buffer, which conflicts with tile-based parallelism.",
+      "specificity": "Identifies the specific architectural conflict: monolithic buffer vs per-tile granularity.",
+      "robustness": "A hybrid is possible (oversize buffer composed of tiles) but adds complexity. The pure oversize-buffer approach does lose tile parallelism.",
+      "compatibility": "This proposition identifies a real conflict between approaches. Combining them requires careful design.",
+      "performance": "Losing parallel replay into tiles means the exposed-strip rasterization on margin exhaustion is single-threaded, potentially slower than the tile-parallel baseline."
+    }
+  },
+  {
+    "id": "a1-15",
+    "proposition": "The oversize buffer's margin size is an inherent tuning parameter with no universally correct value: larger margins reduce repaint frequency but increase memory cost and initial render time.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.75,
+      "robustness": 0.75,
+      "compatibility": 0.85,
+      "performance": 0.45
+    },
+    "reasoning": {
+      "defensibility": "This is a genuine engineering tradeoff with no closed-form optimum. Usage patterns (slow browsing vs fast scrolling) determine the best margin.",
+      "specificity": "Identifies the parameter and the tradeoff dimensions, but does not give concrete guidance on values.",
+      "robustness": "Any fixed margin will be wrong for some usage pattern. Adaptive margins add complexity.",
+      "compatibility": "Compatible — this is an inherent property of the approach, not a conflict with other approaches.",
+      "performance": "The tuning parameter means the approach cannot guarantee consistent performance across usage patterns."
+    }
+  },
+  {
+    "id": "a1-16",
+    "proposition": "Tile grid shift is strictly additive to the current architecture — it adds a remapping step before mark_all_dirty and falls back to the existing full-repaint path for zoom and extreme-velocity pans.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.80,
+      "robustness": 0.90,
+      "compatibility": 0.95,
+      "performance": 0.60
+    },
+    "reasoning": {
+      "defensibility": "The fallback to full repaint means correctness is always preserved. The optimization is opportunistic, not structural.",
+      "specificity": "Describes exactly where the new logic inserts (before mark_all_dirty) and what triggers fallback.",
+      "robustness": "Maximum robustness: the worst case is identical to current behavior. No new failure modes are introduced.",
+      "compatibility": "Fully compatible with existing three-strategy render system, DrawList recording, and GPU upload paths.",
+      "performance": "Improves pan performance while maintaining baseline for all other cases. No regression risk."
+    }
+  },
+  {
+    "id": "a1-17",
+    "proposition": "At 60fps, the frame budget is 16.6ms, and any optimization that introduces latency spikes above this threshold on specific frames (e.g., margin-exhaustion memmove + strip render) creates perceptible jank.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.90,
+      "performance": 0.70
+    },
+    "reasoning": {
+      "defensibility": "The 16.6ms budget is a hard perceptual threshold. A single frame exceeding it is visible as jank, even if average frame time is excellent.",
+      "specificity": "Names the exact budget (16.6ms) and a concrete cause of spikes (memmove + strip render on margin exhaustion).",
+      "robustness": "Applies to any approach that trades average-case improvement for occasional worst-case spikes.",
+      "compatibility": "Compatible — this is a constraint that all approaches must satisfy, not a conflict between them.",
+      "performance": "Directly addresses the p99 < 16.6ms requirement. The oversize buffer's memmove spike (~2.6ms + strip render) is a concrete risk."
+    }
+  },
+  {
+    "id": "a1-18",
+    "proposition": "The full-repaint baseline has perfectly predictable frame timing — every frame costs the same, so there are no latency spikes (p99 equals p50), even though the absolute cost may be high.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.80,
+      "robustness": 0.85,
+      "compatibility": 0.85,
+      "performance": 0.35
+    },
+    "reasoning": {
+      "defensibility": "With constant work per frame, variance is low. The cost is high but predictable, which has UX value (consistent jank is less jarring than intermittent jank).",
+      "specificity": "Identifies the specific property (p99 = p50) and why it holds (constant work).",
+      "robustness": "True as long as tree complexity is stable frame-to-frame. Content changes could vary cost, but viewport changes are constant.",
+      "compatibility": "Compatible — this is an advantage of the baseline that optimizations should preserve or improve upon.",
+      "performance": "Good on p99 consistency but bad on absolute latency. A 30ms constant frame time has no spikes but is always janky."
+    }
+  },
+  {
+    "id": "a1-19",
+    "proposition": "For Eagle Mode's recursive-zoom UI paradigm, zoom is the primary and most frequent viewport interaction, making zoom-only optimizations more impactful than pan-only optimizations.",
+    "scores": {
+      "defensibility": 0.75,
+      "specificity": 0.70,
+      "robustness": 0.65,
+      "compatibility": 0.80,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Eagle Mode's signature UX is zooming into nested content. However, combined pan-zoom (zooming toward a point involves translation) is the actual common case, and pure zooms are less common than mixed transforms.",
+      "specificity": "Identifies the interaction pattern but lacks usage frequency data to substantiate the priority claim.",
+      "robustness": "If zoom is actually 70% of viewport changes, then tile shift's pan-only benefit covers only 30% of frames. But the ratio is speculative.",
+      "compatibility": "Compatible — motivates searching for zoom-aware optimizations beyond tile shift and oversize buffer.",
+      "performance": "If true, both Approach 2 and 3 leave the majority of viewport changes unoptimized."
+    }
+  },
+  {
+    "id": "a1-20",
+    "proposition": "Tile grid shift requires extending the Tile struct with origin tracking (origin_x, origin_y: i32) to record the viewport pixel coordinate at which each tile was last rendered.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.90,
+      "robustness": 0.85,
+      "compatibility": 0.90,
+      "performance": 0.60
+    },
+    "reasoning": {
+      "defensibility": "This is a necessary data structure change for the approach. Without per-tile origin, there's no way to determine which tiles can be reused after a shift.",
+      "specificity": "Names the exact fields (origin_x, origin_y: i32) and their semantics (viewport pixel coordinate of top-left at last render).",
+      "robustness": "Simple to implement and maintain. The origin fields are set at render time and read at shift time. No complex synchronization.",
+      "compatibility": "Minimal intrusion into existing Tile struct. Does not conflict with any other tile metadata.",
+      "performance": "Negligible memory overhead (8 bytes per tile). Enables O(1) reuse decisions per tile."
+    }
+  },
+  {
+    "id": "a1-21",
+    "proposition": "The GPU blit cost of O(viewport_pixels) is unavoidable regardless of optimization approach — every frame must transfer the visible viewport to the display.",
+    "scores": {
+      "defensibility": 0.95,
+      "specificity": 0.75,
+      "robustness": 0.95,
+      "compatibility": 0.95,
+      "performance": 0.50
+    },
+    "reasoning": {
+      "defensibility": "This is a fundamental truth of display rendering. The GPU must composite and present viewport_pixels per frame. No optimization can avoid this.",
+      "specificity": "Identifies the irreducible cost floor but doesn't quantify it for specific hardware.",
+      "robustness": "True for all rendering architectures, all display technologies, all frame rates.",
+      "compatibility": "Compatible with all approaches — this is a shared lower bound on frame cost.",
+      "performance": "Sets a realistic expectation: optimizations can only reduce the rasterization work above this floor. At 1080p RGBA, the blit alone is ~8MB per frame."
+    }
+  },
+  {
+    "id": "a1-22",
+    "proposition": "An oversize buffer variant could display GPU-scaled stale content as a placeholder while re-rendering at the new zoom level asynchronously, trading pixel-perfect output for responsiveness.",
+    "scores": {
+      "defensibility": 0.70,
+      "specificity": 0.75,
+      "robustness": 0.55,
+      "compatibility": 0.50,
+      "performance": 0.60
+    },
+    "reasoning": {
+      "defensibility": "This is a common technique (used by web browsers, map renderers) but violates Zuicchini's pixel-perfect golden test requirements. It may be acceptable as a transient state if the final frame is exact.",
+      "specificity": "Describes the mechanism (GPU scale of stale buffer + async re-render) but leaves many design questions open.",
+      "robustness": "Introduces visual artifacts (blurry scaled content) and temporal inconsistency. The async re-render must complete before the user stops interacting, or stale content persists.",
+      "compatibility": "Conflicts with golden test fidelity requirements. Would require a 'interactive mode' vs 'settled mode' distinction.",
+      "performance": "Achieves constant-time viewport transform for perceived latency, but the deferred re-render still does full work. Total work is unchanged; it's just spread across frames."
+    }
+  },
+  {
+    "id": "a1-23",
+    "proposition": "Tile grid shift and oversize buffer are complementary rather than competing: tile shift handles per-tile remapping for pan, while oversize margin absorbs small sub-tile movements without any rasterization.",
+    "scores": {
+      "defensibility": 0.75,
+      "specificity": 0.75,
+      "robustness": 0.60,
+      "compatibility": 0.70,
+      "performance": 0.65
+    },
+    "reasoning": {
+      "defensibility": "A hybrid could use tile-granularity shift for large pans and sub-tile margin absorption for small pans. However, the implementation complexity of combining both approaches may not justify the incremental benefit.",
+      "specificity": "Identifies how the two approaches address different pan magnitudes, but the hybrid design is underspecified.",
+      "robustness": "The hybrid introduces more edge cases: when to shift tiles vs when to shift the margin, how to handle the transition between modes.",
+      "compatibility": "The two approaches can coexist if the oversize buffer is built from tiles, but this requires careful architectural integration.",
+      "performance": "Could achieve near-zero rasterization for small pans (margin absorbs) and good performance for larger pans (tile shift), but zoom remains unoptimized."
+    }
+  },
+  {
+    "id": "a1-24",
+    "proposition": "The existing DrawList recording system is critical for any tile-level optimization because it allows a single tree walk to be replayed into multiple tiles — the recorded DrawList is the key to decoupling tree traversal cost from tile rasterization cost.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.95,
+      "performance": 0.65
+    },
+    "reasoning": {
+      "defensibility": "The DrawList replay mechanism means the expensive tree walk happens once per frame, and only the cheap replay step is repeated per dirty tile. This is essential for tile shift where only edge tiles need replay.",
+      "specificity": "Names the specific mechanism (DrawList recording and replay) and its role in decoupling tree walk from tile fill.",
+      "robustness": "The DrawList is already proven in the current three-strategy system. Using it for fewer tiles is a natural extension.",
+      "compatibility": "Fully compatible with tile shift (replay only into dirty edge tiles) and oversize buffer (replay into exposed strip).",
+      "performance": "Tree walk is O(panels), replay is O(primitives_in_tile). With tile shift, total replay cost drops from O(all_tiles × primitives) to O(edge_tiles × primitives)."
+    }
+  },
+  {
+    "id": "a1-25",
+    "proposition": "Any approach that introduces variable per-frame cost (cheap frames during margin use, expensive frames on margin exhaustion or zoom) must ensure that the worst-case frame never exceeds the full-repaint baseline, or it risks being perceptually worse than the baseline despite lower average cost.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.80,
+      "robustness": 0.90,
+      "compatibility": 0.90,
+      "performance": 0.70
+    },
+    "reasoning": {
+      "defensibility": "The baseline has constant cost. An optimization that occasionally exceeds this cost (e.g., memmove overhead + strip render > full repaint) is a net negative for those frames.",
+      "specificity": "Clear principle: worst-case optimized frame must not exceed baseline frame cost. Applies directly to oversize buffer memmove frames.",
+      "robustness": "A robust design constraint. Tile grid shift satisfies this naturally (fallback is exactly the baseline). Oversize buffer must be verified.",
+      "compatibility": "Compatible — this is a design constraint, not an approach. All approaches should be evaluated against it.",
+      "performance": "Directly enforces the p99 < 16.6ms constraint by ensuring optimizations don't introduce new worst cases."
+    }
+  }
+]

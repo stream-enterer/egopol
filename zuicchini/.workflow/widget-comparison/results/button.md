@@ -12,16 +12,14 @@
 - **Fix**: Applied face inset d=(14/264)*r and r clamp in hit_test() for Button, RadioButton, CheckButton (non-boxed path). CheckBox, RadioBox use content_rect with r=h*0.2 (boxed path).
 - **Confidence**: high | **Coverage**: widget_button_click may not catch corners
 
-### [BUG] Label shrink missing for ShownChecked state
+### [BUG] Label shrink missing for ShownChecked state — **FIXED**
 - **C++**: emButton.cpp:377-383 — shrinks by 0.98 (pressed) or 0.983 (checked)
-- **Rust**: button.rs:200-206 — only shrinks for pressed, not shown_checked
-- Mitigated: CheckButton/RadioButton implement their own. Only affects base Button used with checked.
+- **Fix**: Added checked branch with s=0.983, pressed takes priority with s=0.98
 - **Confidence**: medium | **Coverage**: uncovered
 
-### [BUG] Missing checked-state border image overlay
+### [BUG] Missing checked-state border image overlay — **FIXED**
 - **C++**: emButton.cpp:402-410 — three overlay states (pressed, checked, normal)
-- **Rust**: button.rs:216-258 — only pressed and normal branches
-- Same mitigation as above.
+- **Fix**: Added ButtonChecked overlay branch between pressed and normal
 - **Confidence**: medium | **Coverage**: uncovered
 
 ### [SUSPECT] Keyboard: Rust handles Space (C++ doesn't); different press/release cycle
@@ -35,9 +33,9 @@
 - Rust keyboard: sets pressed=true → visual shrink/overlay → sets pressed=false on release
 - **Confidence**: high | **Coverage**: uncovered
 
-### [GAP] No modifier key checks on mouse press
+### [GAP] No modifier key checks on mouse press — **FIXED**
 - **C++**: `state.IsNoMod() || state.IsShiftMod()` gate (emButton.cpp:81-83)
-- **Rust**: no modifier check — Ctrl+click, Alt+click all accepted
+- **Fix**: Added ctrl/alt/meta check before hit test in all 5 button-family widgets
 - **Confidence**: high | **Coverage**: uncovered
 
 ### [GAP] No VCT_MIN_EXT minimum extent check

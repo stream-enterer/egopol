@@ -119,6 +119,50 @@ TkTest composition divergence documented in results/tktest-divergence.md. Missin
 
 **Tests**: cargo clippy clean, 1137/1137 tests pass.
 
+### Fix 4: Enter key support for CheckBox, CheckButton, RadioButton, RadioBox
+
+**Finding addressed**: CC-01 — Missing Enter key in check/radio widgets
+**Change**: Added `InputKey::Enter |` alongside `InputKey::Space` in all four widgets.
+
+### Fix 5: Modifier key checks on mouse press (all 5 button-family widgets)
+
+**Finding addressed**: Button [GAP] "No modifier key checks", RadioButton [LOW] same
+**Change**: Added `if event.ctrl || event.alt || event.meta { return false; }` gate before hit test in Button, CheckButton, CheckBox, RadioButton, RadioBox.
+
+### Fix 6: Label alignment defaults (CC-05 for Label widget)
+
+**Finding addressed**: Label [BUG] horizontal centering, [BUG] text line alignment
+**Change**: Removed `cx += (cw - w2) * 0.5` centering. Changed text_alignment from Center to Left.
+
+### Fix 7: Splitter grip size, defaults, and validation
+
+**Finding addressed**: Splitter [MEDIUM] drag math, [LOW] defaults, [LOW] set_limits validation
+**Changes**: Drag uses capped grip size from calc_grip_rect. Defaults changed to 0.0/1.0 matching C++. set_limits clamps to [0,1] and averages if min > max.
+
+### Fix 8: Button ShownChecked label shrink and overlay
+
+**Finding addressed**: Button [BUG] label shrink missing for checked, [BUG] missing checked overlay
+**Change**: Added checked branch (0.983 shrink + ButtonChecked overlay) matching C++ emButton.cpp:377-409.
+
+### Fix 9: RadioGroup::select() no-change guard
+
+**Finding addressed**: RadioButton [LOW] select() bypasses guards
+**Change**: Added early return when re-selecting already-selected button.
+
+### Fix 10: ColorField "transparent" text underlay
+
+**Finding addressed**: ColorField [MEDIUM] missing text underlay for non-opaque colors
+**Change**: Added "transparent" text paint before color rect when alpha < 255.
+
+### Fix 11: CheckBox/CheckButton set_checked fires callback (CC-02)
+
+**Finding addressed**: CheckBox [BUG] SetChecked silent, CC-02
+**Change**: set_checked now fires on_check when state changes.
+
+### All Fixes Summary
+
+All 1137 tests pass after every fix. Total: 11 fixes across 10 files.
+
 ### Notes
 
 - Calibration batch validated methodology. Subagents are thorough and find real bugs.

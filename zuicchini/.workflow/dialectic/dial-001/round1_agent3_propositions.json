@@ -1,0 +1,416 @@
+[
+  {
+    "id": "a3-01",
+    "proposition": "Damage-clipped DrawList replay reduces pan cost to O(ops_intersecting_strip * strip_pixels) by replaying only DrawOps whose bounding boxes intersect the newly-exposed edge strip.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.88,
+      "robustness": 0.55,
+      "compatibility": 0.80,
+      "performance": 0.65
+    },
+    "reasoning": {
+      "defensibility": "The math is sound: a 5px pan strip is ~0.3% of viewport area at 1080p, so only a small fraction of ops need replay. The approach is well-established in 2D compositors.",
+      "specificity": "Gives exact data structures (bbox per DrawOp, ops_by_bbox index), exact damage rect formula, and concrete cost model.",
+      "robustness": "Fails for zoom (damage = full viewport). Also fails if many ops span the full viewport (e.g., background rects), making the intersection filter ineffective.",
+      "compatibility": "Compatible with tile cache, DrawList, and pipelining. Does not conflict with tree-level or tile-level approaches.",
+      "performance": "Excellent for pure pan (work proportional to visible change). Zero benefit for zoom. Memory bounded by the spatial index overhead. No latency spike for small pans."
+    }
+  },
+  {
+    "id": "a3-02",
+    "proposition": "For zoom operations, damage-clipped replay degrades to full DrawList replay because every pixel changes scale, making the damage region equal to the entire viewport.",
+    "scores": {
+      "defensibility": 0.95,
+      "specificity": 0.85,
+      "robustness": 0.90,
+      "compatibility": 0.85,
+      "performance": 0.20
+    },
+    "reasoning": {
+      "defensibility": "Mathematically unavoidable: a scale change affects every pixel's source coordinate, so no pixel can be proven unchanged without per-pixel comparison.",
+      "specificity": "States the exact failure condition (zoom changes all pixel scales) and the exact consequence (damage = full viewport).",
+      "robustness": "This is itself a robustness observation — it identifies a hard failure mode. Even small zoom factors (1.01x) affect all pixels.",
+      "compatibility": "Compatible with the overall analysis — correctly identifies that damage-clipped replay needs to be paired with other approaches for zoom.",
+      "performance": "Directly states that one of the five performance sub-properties (work proportional to visible change) is violated for zoom."
+    }
+  },
+  {
+    "id": "a3-03",
+    "proposition": "Pan requires a memmove of the viewport buffer to shift existing pixels, which costs O(viewport_pixels) — approximately 8MB at 1080p — before the damage strip can be painted.",
+    "scores": {
+      "defensibility": 0.80,
+      "specificity": 0.90,
+      "robustness": 0.70,
+      "compatibility": 0.75,
+      "performance": 0.50
+    },
+    "reasoning": {
+      "defensibility": "The 8MB figure is correct (1920*1080*4 bytes). However, memmove of contiguous memory is highly optimized on modern CPUs and typically takes <1ms at memory bandwidth speeds.",
+      "specificity": "Provides exact byte count and operation. Very concrete.",
+      "robustness": "The memmove is a fixed cost per pan frame regardless of content complexity, which is predictable. But it assumes a single contiguous viewport buffer rather than tile-based storage.",
+      "compatibility": "Conflicts with the existing tile-cache architecture — tiles are independent 256x256 blocks, so a single viewport memmove doesn't map directly. Would need tile-level shift logic instead.",
+      "performance": "The 8MB memmove is bounded and fast but not zero-cost. It's a constant overhead per pan frame, not proportional to visible change."
+    }
+  },
+  {
+    "id": "a3-04",
+    "proposition": "DrawOps that span the full viewport (e.g., background rectangles) intersect every damage region and must always be replayed, undermining the spatial filtering benefit of damage-clipped replay.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.82,
+      "robustness": 0.85,
+      "compatibility": 0.80,
+      "performance": 0.35
+    },
+    "reasoning": {
+      "defensibility": "Background rects are extremely common in UI trees — nearly every panel has one. This is a real and frequent problem, not a corner case.",
+      "specificity": "Identifies the specific DrawOp pattern (full-viewport background rect) and the exact consequence (always replayed).",
+      "robustness": "This failure mode is inherent to bounding-box filtering. A 1000-panel tree with nested backgrounds could have dozens of full-viewport ops.",
+      "compatibility": "Compatible with the analysis framework. Suggests that pure bbox filtering is insufficient without op-level clipping to the damage rect.",
+      "performance": "Reduces the effective filtering ratio, meaning work is not truly proportional to visible change even for pan."
+    }
+  },
+  {
+    "id": "a3-05",
+    "proposition": "Per-operation bounding box computation during DrawList recording adds overhead to every frame, even frames where no damage optimization is needed.",
+    "scores": {
+      "defensibility": 0.70,
+      "specificity": 0.72,
+      "robustness": 0.65,
+      "compatibility": 0.80,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "The overhead is real but likely small — computing a bbox from a rect's coordinates is trivial. The spatial index construction is the more expensive part.",
+      "specificity": "States the cost location (recording phase) but doesn't quantify the overhead.",
+      "robustness": "The overhead is bounded and predictable. It's a constant factor increase in recording cost, not a degenerate case.",
+      "compatibility": "Compatible with existing DrawList infrastructure — bbox is an additive field, not a structural change.",
+      "performance": "Adds a small constant to every frame's recording cost. Acceptable if the replay savings exceed this overhead on average."
+    }
+  },
+  {
+    "id": "a3-06",
+    "proposition": "Reusing the previous frame's DrawList for damage-clipped replay requires that all referenced panel state (image pointers, text content) remains valid, constraining when panels can be modified or deallocated.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.80,
+      "robustness": 0.60,
+      "compatibility": 0.55,
+      "performance": 0.50
+    },
+    "reasoning": {
+      "defensibility": "This is a genuine ownership/lifetime problem. DrawOps referencing Rc<Image> data must keep those references alive, which is natural in Rust's Rc model but constrains deallocation timing.",
+      "specificity": "Identifies the specific constraint (image pointers in DrawList must remain valid) and the consequence (panels cannot freely deallocate between frames).",
+      "robustness": "In Rust with Rc, this is actually safer than in C++ — the Rc will keep data alive. But it means memory for replaced images isn't freed until the DrawList is dropped.",
+      "compatibility": "Partially conflicts with Zuicchini's Rc/RefCell ownership model where panels own their state. DrawList holding Rc clones is fine but delays deallocation.",
+      "performance": "Memory is not strictly bounded — old images stay alive one extra frame. For a 1000-panel tree with large images, this could matter."
+    }
+  },
+  {
+    "id": "a3-07",
+    "proposition": "Pipelined main-thread/render-thread split hides rasterization latency by overlapping frame N's rasterization with frame N+1's tree walk, allowing the main thread to maintain 60fps responsiveness even when rasterization exceeds 16.6ms.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.82,
+      "robustness": 0.65,
+      "compatibility": 0.70,
+      "performance": 0.60
+    },
+    "reasoning": {
+      "defensibility": "Standard pipelining technique used in game engines and GPU drivers. The throughput benefit is real if the main thread's work fits within 16.6ms.",
+      "specificity": "Describes the exact pipeline structure (main thread produces DrawList, render thread consumes it, double-buffered FramePackets).",
+      "robustness": "If rasterization consistently exceeds 16.6ms, frames drop regardless. Pipelining helps throughput but cannot fix a render thread that's too slow.",
+      "compatibility": "Compatible with all other approaches as an execution model. However, Zuicchini's Rc/RefCell tree cannot be shared across threads — only the DrawList crosses the boundary.",
+      "performance": "Doesn't reduce total pixel work (zero redundant pixel elimination). Helps with latency hiding. Memory doubles for DrawList storage."
+    }
+  },
+  {
+    "id": "a3-08",
+    "proposition": "The pipelined split introduces exactly one frame of visual latency — the display shows frame N-1 while the main thread computes frame N — which may be perceptible during fast interactions.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.88,
+      "robustness": 0.80,
+      "compatibility": 0.75,
+      "performance": 0.45
+    },
+    "reasoning": {
+      "defensibility": "One frame of latency at 60fps is 16.6ms additional input-to-photon delay. Research shows users can perceive latency differences as small as 10ms in direct manipulation tasks.",
+      "specificity": "States the exact latency cost (one frame) and the mechanism (display shows N-1 while computing N).",
+      "robustness": "The latency is inherent to the pipeline architecture and cannot be eliminated without removing the pipeline. It's a fundamental tradeoff.",
+      "compatibility": "This latency compounds with any other latency sources (GPU upload, vsync). In a framework targeting responsive zoom/pan, extra latency is a significant concern.",
+      "performance": "Violates the 'no perceptible latency spike' property. 16.6ms additional latency is noticeable in pan/zoom interactions."
+    }
+  },
+  {
+    "id": "a3-09",
+    "proposition": "The pipelined split does not reduce total rasterization work — it only hides latency — so it must be combined with other approaches (damage tracking, tile caching, partial replay) to achieve actual per-pixel efficiency gains.",
+    "scores": {
+      "defensibility": 0.92,
+      "specificity": 0.78,
+      "robustness": 0.85,
+      "compatibility": 0.90,
+      "performance": 0.40
+    },
+    "reasoning": {
+      "defensibility": "Throughput optimization and work reduction are orthogonal concerns. Pipelining is necessary but not sufficient.",
+      "specificity": "Clearly separates latency hiding from work reduction and names the complementary approaches.",
+      "robustness": "This is a fundamental architectural observation — no amount of pipelining can fix O(all_pixels) rasterization cost.",
+      "compatibility": "Explicitly designed to be combined with other approaches. High compatibility by definition.",
+      "performance": "Scores low alone because it doesn't address zero-redundant-pixel-work or work-proportional-to-change properties."
+    }
+  },
+  {
+    "id": "a3-10",
+    "proposition": "Double-buffered FramePackets (DrawList + damage rects + viewport transform + dirty tile list) double the memory required for draw operation storage.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.85,
+      "robustness": 0.75,
+      "compatibility": 0.70,
+      "performance": 0.50
+    },
+    "reasoning": {
+      "defensibility": "Correct by construction — two FramePackets exist simultaneously. The actual memory cost depends on DrawList size, which scales with op count.",
+      "specificity": "Names the exact data structure (FramePacket) and its contents. Quantifiable given op counts.",
+      "robustness": "Memory is bounded (2x DrawList size) and predictable. For a 1000-panel tree, DrawList might be ~100KB, so doubling to ~200KB is acceptable.",
+      "compatibility": "Memory doubling may conflict with the 'memory bounded' performance property, but the absolute cost is likely small relative to tile cache memory.",
+      "performance": "The 2x memory overhead is a fixed cost. At typical DrawList sizes, this is negligible compared to tile pixel data."
+    }
+  },
+  {
+    "id": "a3-11",
+    "proposition": "The render thread must own the tile cache and compositor exclusively, while the main thread owns the panel tree and view, enforcing a clean ownership boundary via FramePacket transfer.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.80,
+      "robustness": 0.75,
+      "compatibility": 0.65,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Clean ownership boundaries are the idiomatic Rust approach to thread safety. This avoids Arc/Mutex on the panel tree, which the codebase rules forbid.",
+      "specificity": "States exactly what each thread owns and the communication mechanism (FramePacket channel or atomic swap).",
+      "robustness": "The boundary is enforceable by Rust's type system. However, image data referenced by DrawOps must cross the boundary, requiring Rc-to-Arc conversion or a shared image store.",
+      "compatibility": "Conflicts with the 'no Arc/Mutex' codebase rule. The render thread receiving data from the main thread requires some form of cross-thread ownership transfer that Rc cannot provide.",
+      "performance": "Clean boundaries minimize synchronization overhead but require data copying or ownership transfer at the boundary."
+    }
+  },
+  {
+    "id": "a3-12",
+    "proposition": "Image data referenced by DrawOps in a cross-thread pipeline requires either reference counting (Arc) or a fence mechanism to ensure the render thread can safely access images while the main thread continues.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.82,
+      "robustness": 0.60,
+      "compatibility": 0.45,
+      "performance": 0.50
+    },
+    "reasoning": {
+      "defensibility": "This is a fundamental thread-safety requirement. Rc is not Send, so cross-thread image sharing requires Arc or copying.",
+      "specificity": "Names the two concrete solutions (reference counting, fence) and the exact problem (image lifetime across threads).",
+      "robustness": "Arc contradicts the codebase rule against Arc/Mutex. Image copying is wasteful. A fence (render thread signals completion before main thread modifies) adds synchronization complexity.",
+      "compatibility": "Directly conflicts with the 'no Arc/Mutex' codebase constraint. This is a fundamental tension in the pipelined approach.",
+      "performance": "Arc adds atomic reference counting overhead on every image access. Fences add synchronization points. Image copying wastes memory and bandwidth."
+    }
+  },
+  {
+    "id": "a3-13",
+    "proposition": "For small zoom factors (e.g., 1.01x), the previous viewport buffer could theoretically be scaled as an approximation, with only the approximation-error pixels repainted, but computing the pixel-level difference is itself expensive.",
+    "scores": {
+      "defensibility": 0.55,
+      "specificity": 0.70,
+      "robustness": 0.30,
+      "compatibility": 0.60,
+      "performance": 0.35
+    },
+    "reasoning": {
+      "defensibility": "The idea is theoretically sound but practically weak — computing where the scaled approximation differs from exact rendering requires either per-pixel comparison or conservative bounds that are too loose to help.",
+      "specificity": "Describes the approach concretely but acknowledges it's impractical without quantifying the comparison cost.",
+      "robustness": "Extremely fragile. The cost of computing the difference likely exceeds the savings from partial repaint. Also introduces visual artifacts if the approximation threshold is too loose.",
+      "compatibility": "Could work with tile-based approaches (scale cached tiles, repaint tiles where error exceeds threshold), but adds significant complexity.",
+      "performance": "The meta-computation (finding which pixels differ) defeats the purpose of avoiding per-pixel work."
+    }
+  },
+  {
+    "id": "a3-14",
+    "proposition": "A spatially-indexed DrawList (ops_by_bbox sorted by spatial extent) enables O(log N) intersection queries against damage regions, compared to O(N) linear scan of all ops.",
+    "scores": {
+      "defensibility": 0.75,
+      "specificity": 0.85,
+      "robustness": 0.65,
+      "compatibility": 0.80,
+      "performance": 0.60
+    },
+    "reasoning": {
+      "defensibility": "Spatial indexing (R-tree, interval tree) for 2D rect intersection is well-established. However, for typical DrawList sizes (hundreds to low thousands of ops), linear scan may be faster due to cache locality.",
+      "specificity": "Names the exact data structure and the asymptotic improvement. Concrete and measurable.",
+      "robustness": "For small op counts, the overhead of maintaining a spatial index may exceed the benefit. The crossover point needs benchmarking.",
+      "compatibility": "Additive to the DrawList — doesn't conflict with other approaches. The index can be built once per frame and reused.",
+      "performance": "Reduces filtering cost from O(N) to O(log N + K) where K is the result set. For narrow damage strips, K is small, making this beneficial."
+    }
+  },
+  {
+    "id": "a3-15",
+    "proposition": "The main thread's tree walk plus DrawList recording costs approximately 1-2ms based on benchmarks, meaning pipelining can hide up to 14-15ms of render thread rasterization within the 16.6ms frame budget.",
+    "scores": {
+      "defensibility": 0.72,
+      "specificity": 0.90,
+      "robustness": 0.55,
+      "compatibility": 0.80,
+      "performance": 0.65
+    },
+    "reasoning": {
+      "defensibility": "The 1-2ms figure is cited from benchmarks but may vary with tree size. A 1000-panel tree could take longer. The hiding calculation (16.6 - 2 = 14.6ms) is correct given the benchmark.",
+      "specificity": "Provides concrete timing numbers and derives the available rasterization budget.",
+      "robustness": "If tree walk grows beyond 2ms (complex layouts, many panels), the pipeline's hiding capacity decreases. Also doesn't account for main-thread event handling time.",
+      "compatibility": "Compatible with tile-parallel rendering — the render thread's 14.6ms budget can be split across tile workers.",
+      "performance": "Good latency hiding. But if rasterization exceeds 14.6ms, the pipeline stalls and frames drop."
+    }
+  },
+  {
+    "id": "a3-16",
+    "proposition": "Damage-clipped replay preserves the DrawList's operation ordering invariant — replaying a spatial subset of ops in their original order produces correct pixels within the damage region due to the painter's algorithm.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.80,
+      "robustness": 0.70,
+      "compatibility": 0.85,
+      "performance": 0.60
+    },
+    "reasoning": {
+      "defensibility": "The painter's algorithm guarantee holds: if ops are replayed in order with a clip rect, occluded pixels within the clip are correctly overwritten. This is a well-understood property of ordered 2D rendering.",
+      "specificity": "States the invariant precisely and the mechanism (ordered replay with clip rect).",
+      "robustness": "Depends on all ops being independent of viewport state. If any op's parameters depend on viewport position (e.g., parallax effects), the cached DrawList is invalid.",
+      "compatibility": "Compatible with the existing DrawList replay() architecture. The clip rect is already supported by the Painter.",
+      "performance": "Enables correct partial repaint without re-walking the tree, which is the key enabler for pan optimization."
+    }
+  },
+  {
+    "id": "a3-17",
+    "proposition": "The FramePacket abstraction (DrawList + damage rects + viewport transform + dirty tiles) creates a complete, self-contained description of a frame's rendering work that can be consumed asynchronously.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.85,
+      "robustness": 0.70,
+      "compatibility": 0.75,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Self-contained frame descriptions are a proven pattern in render engines. The FramePacket bundles all information needed for rendering without back-references to the tree.",
+      "specificity": "Lists the exact contents of the FramePacket struct with field types.",
+      "robustness": "Self-containment depends on resolving the image reference problem — if DrawOps reference external data, the packet isn't truly self-contained.",
+      "compatibility": "Good fit for the existing architecture where DrawList is already a recording of all ops. The FramePacket is a natural extension.",
+      "performance": "Enables async rendering but doesn't reduce work. The packet construction itself is low-cost."
+    }
+  },
+  {
+    "id": "a3-18",
+    "proposition": "For pan operations, damage-clipped replay avoids re-walking the panel tree entirely — the previous frame's DrawList is reused with transformed bounding boxes — making pan cost independent of tree size.",
+    "scores": {
+      "defensibility": 0.78,
+      "specificity": 0.82,
+      "robustness": 0.55,
+      "compatibility": 0.75,
+      "performance": 0.75
+    },
+    "reasoning": {
+      "defensibility": "Tree walk avoidance is a major win — the O(panels) walk is eliminated for pure pans. However, this assumes no panel state changes between frames (no animations, no hover state changes).",
+      "specificity": "States the exact optimization (skip tree walk, transform bboxes) and the cost model (independent of tree size).",
+      "robustness": "Breaks if any panel state changed since last frame (input events, animations, timers). In interactive UIs, state changes during pan are common.",
+      "compatibility": "Compatible with tile cache and compositor. May conflict with approaches that depend on per-frame tree walk for state updates.",
+      "performance": "Achieves 'work proportional to visible change' for pure pans. Tree-size independence is the ideal for the 1000-panel target."
+    }
+  },
+  {
+    "id": "a3-19",
+    "proposition": "The pipelined approach requires that the render thread never access the panel tree, which is naturally enforced by Rust's type system since the panel tree uses Rc/RefCell (non-Send types).",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.80,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Rust's Send/Sync trait system will reject at compile time any attempt to share Rc<RefCell<T>> across threads. This is a strong, zero-cost safety guarantee.",
+      "specificity": "Names the exact Rust mechanism (Send trait, Rc is !Send) that enforces the invariant.",
+      "robustness": "Compile-time enforcement means this invariant cannot be violated at runtime. Very robust.",
+      "compatibility": "Aligns perfectly with Zuicchini's existing Rc/RefCell ownership model. The type system does the right thing by default.",
+      "performance": "No runtime cost for the enforcement. The constraint is checked at compile time."
+    }
+  },
+  {
+    "id": "a3-20",
+    "proposition": "Damage-clipped replay and pipelined rendering are complementary — pipelining provides the execution model while damage tracking reduces the actual pixel work, and combining them addresses both latency and throughput.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.72,
+      "robustness": 0.75,
+      "compatibility": 0.92,
+      "performance": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Orthogonality of latency hiding and work reduction is well-established in systems design. Each addresses a different performance dimension.",
+      "specificity": "States the complementarity relationship clearly but doesn't detail the combined architecture.",
+      "robustness": "The combination inherits failure modes of both: zoom still causes full repaint, and pipelining still adds one frame of latency.",
+      "compatibility": "Explicitly designed for composition. The source material states pipelining 'pairs well with any of Approaches 2-6.'",
+      "performance": "Addresses multiple performance sub-properties: damage tracking handles work-proportional-to-change, pipelining handles latency hiding."
+    }
+  },
+  {
+    "id": "a3-21",
+    "proposition": "If the render thread consistently cannot complete rasterization within 16.6ms, the pipeline stalls and frames are dropped regardless of pipelining, meaning pipelining cannot rescue a fundamentally too-slow rasterizer.",
+    "scores": {
+      "defensibility": 0.92,
+      "specificity": 0.78,
+      "robustness": 0.90,
+      "compatibility": 0.85,
+      "performance": 0.30
+    },
+    "reasoning": {
+      "defensibility": "Pipelining increases throughput by overlapping stages but cannot exceed the throughput of the slowest stage. This is a fundamental pipeline property.",
+      "specificity": "States the exact failure condition (rasterization > 16.6ms consistently) and the consequence (frame drops).",
+      "robustness": "This is a hard ceiling. No pipeline depth can fix a stage that exceeds the frame budget.",
+      "compatibility": "Reinforces the need for work-reduction approaches (damage tracking, tile caching) alongside pipelining.",
+      "performance": "Directly identifies the limit of pipelining's performance contribution."
+    }
+  },
+  {
+    "id": "a3-22",
+    "proposition": "The damage region for a pure pan of dx pixels horizontally is exactly Rect(viewport_width - dx, 0, dx, viewport_height) — a thin strip whose area is proportional to pan speed, not viewport size.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.92,
+      "robustness": 0.75,
+      "compatibility": 0.85,
+      "performance": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Geometrically exact for a horizontal pan with no other changes. The strip area = dx * viewport_height, which at typical pan speeds (5-10px/frame) is <1% of viewport.",
+      "specificity": "Provides the exact rectangle formula with pixel coordinates.",
+      "robustness": "Only valid for pure translation with no concurrent state changes. Diagonal pan requires two strips (L-shaped damage). Combined pan+zoom requires full viewport.",
+      "compatibility": "Compatible with tile-based rendering — the strip intersects at most ceil(dx/256) + 1 tile columns.",
+      "performance": "Achieves work proportional to visible change for the common case of smooth panning. At 5px/frame, only 0.26% of 1080p viewport needs repaint."
+    }
+  },
+  {
+    "id": "a3-23",
+    "proposition": "The channel or atomic-swap mechanism between main thread and render thread in the pipeline must transfer ownership of the FramePacket without copying, requiring the DrawList and its contents to be Send-safe.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.80,
+      "robustness": 0.60,
+      "compatibility": 0.50,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Ownership transfer via channel is idiomatic Rust. However, making DrawList Send-safe requires replacing any Rc references with Arc or owned data.",
+      "specificity": "Names the exact mechanism (channel/atomic swap) and the constraint (Send-safe DrawList).",
+      "robustness": "The Send constraint propagates: every type inside FramePacket must be Send. If DrawOps contain Rc<Image>, the DrawList is not Send, requiring architectural changes.",
+      "compatibility": "Conflicts with the Rc-based image ownership model and the 'no Arc/Mutex' codebase rule. This is a significant friction point.",
+      "performance": "Zero-copy ownership transfer is optimal for throughput. The cost is in making the data Send-safe, not in the transfer itself."
+    }
+  }
+]

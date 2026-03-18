@@ -1,0 +1,226 @@
+[
+  {
+    "tension_id": "t-01",
+    "propositions": ["a1-05", "a2-02"],
+    "type": "mutual_exclusion",
+    "severity": 0.75,
+    "description": "Tile grid shift (a1-05) and per-panel retained surfaces (a2-02) represent fundamentally different caching granularities for pan optimization. Tile shift reuses spatial tiles at fixed viewport coordinates via ring-buffer remapping, while per-panel surfaces reuse panel-level rendered images composited at new positions. Both achieve O(edge) pan cost but through incompatible cache structures: one caches screen-space tiles, the other caches object-space panel images. Implementing both simultaneously yields redundant cache layers with conflicting invalidation logic."
+  },
+  {
+    "tension_id": "t-02",
+    "propositions": ["a1-07", "a2-08"],
+    "type": "latent_tension",
+    "severity": 0.70,
+    "description": "Tile grid shift explicitly provides zero zoom benefit (a1-07), while the multi-resolution tile pyramid (a2-08) claims to address zoom via pre-rendered levels. However, a2-12 shows the pyramid also fails under continuous zoom. The tension is that both approaches claim to complement each other for zoom, but neither actually solves the continuous-zoom problem that is Eagle Mode's primary interaction (per a1-19). The combined architecture adds substantial complexity for zoom optimization that neither delivers."
+  },
+  {
+    "tension_id": "t-03",
+    "propositions": ["a1-09", "a3-03"],
+    "type": "contradiction",
+    "severity": 0.80,
+    "description": "The oversize buffer (a1-09) claims small pans are 'essentially free' via O(1) origin shift, while damage-clipped replay (a3-03) states that pan requires an O(viewport_pixels) memmove of ~8MB before the damage strip can be painted. These make contradictory assumptions about the buffer architecture: the oversize buffer avoids memmove by having pre-rendered margin, while damage-clipped replay assumes a tight viewport buffer that must be physically shifted. They cannot both be right about the cost model of a pan frame."
+  },
+  {
+    "tension_id": "t-04",
+    "propositions": ["a1-14", "a3-01"],
+    "type": "undermining",
+    "severity": 0.72,
+    "description": "a1-14 identifies the oversize buffer as architecturally incompatible with the tile cache (replaces per-tile tracking with monolithic buffer, losing parallel replay). Damage-clipped replay (a3-01) depends on the DrawList + tile cache infrastructure for its spatial filtering. If the oversize buffer replaces the tile cache, damage-clipped replay loses the tile-level replay granularity that makes its spatial filtering effective."
+  },
+  {
+    "tension_id": "t-05",
+    "propositions": ["a1-01", "a2-22"],
+    "type": "contradiction",
+    "severity": 0.85,
+    "description": "The baseline's core guarantee (a1-01) is pixel-perfect correctness by eliminating all stale-cache risk. Per-panel surfaces with 10% zoom tolerance (a2-22) explicitly accepts scaled approximations to avoid re-rasterization. These are mutually exclusive correctness models: one demands fresh rasterization every frame, the other explicitly reuses stale data with visible scaling artifacts. Any approach preserving a1-01's guarantee cannot use a2-22's optimization."
+  },
+  {
+    "tension_id": "t-06",
+    "propositions": ["a1-18", "a3-08"],
+    "type": "undermining",
+    "severity": 0.68,
+    "description": "The baseline's predictable frame timing (a1-18, p99 = p50) is undermined by the pipeline's one-frame visual latency (a3-08). The baseline may have consistently high frame times but never shows stale content. The pipeline trades this consistency for throughput, introducing 16.6ms of input-to-photon latency that may feel worse than the baseline's honest-but-slow rendering during fast interactions."
+  },
+  {
+    "tension_id": "t-07",
+    "propositions": ["a1-24", "a2-01"],
+    "type": "latent_tension",
+    "severity": 0.65,
+    "description": "The DrawList recording system (a1-24) decouples tree walk from tile rasterization via a single linear recording, which is 'critical for any tile-level optimization.' Per-panel retained surfaces (a2-01) bypass the DrawList entirely by caching at the panel level and compositing cached surfaces. Adopting per-panel surfaces would render the DrawList recording system unnecessary for cached panels, orphaning a key architectural component and losing the single-recording-multiple-replay efficiency."
+  },
+  {
+    "tension_id": "t-08",
+    "propositions": ["a2-20", "a3-07"],
+    "type": "contradiction",
+    "severity": 0.90,
+    "description": "a2-20 states that Zuicchini's Rc/RefCell architecture prevents asynchronous tile rendering, meaning the pyramid's 'async' must be deferred same-thread work. a3-07 proposes a pipelined main-thread/render-thread split. These directly contradict: either the architecture is single-threaded (Rc/RefCell, no cross-thread sharing) or it has a render thread. a3-11 and a3-12 further confirm the pipeline needs Arc or fences for image data, which a2-20 says is architecturally forbidden."
+  },
+  {
+    "tension_id": "t-09",
+    "propositions": ["a3-12", "a3-19"],
+    "type": "contradiction",
+    "severity": 0.82,
+    "description": "Within a3, proposition a3-19 claims the type system 'naturally enforces' that the render thread cannot access the panel tree (Rc is !Send), while a3-12 states that image data referenced by DrawOps requires Arc for cross-thread safety. The codebase rule bans Arc/Mutex. So the pipeline's type-system safety (a3-19) is correct but incomplete: it prevents tree access but also prevents sending the DrawList's image references without violating codebase rules."
+  },
+  {
+    "tension_id": "t-10",
+    "propositions": ["a1-16", "a2-01"],
+    "type": "latent_tension",
+    "severity": 0.60,
+    "description": "Tile grid shift is described as 'strictly additive' to the current architecture (a1-16), inserting logic before mark_all_dirty. Per-panel retained surfaces (a2-01) fundamentally restructure the rendering model from 'walk tree, paint into tiles' to 'composite cached panel surfaces.' The additive nature of tile shift becomes irrelevant if the architecture shifts to per-panel compositing, since mark_all_dirty no longer governs the rendering path."
+  },
+  {
+    "tension_id": "t-11",
+    "propositions": ["a2-04", "a1-10"],
+    "type": "undermining",
+    "severity": 0.70,
+    "description": "Per-panel surfaces can consume 40-80MB for 20 visible panels (a2-04), while the oversize buffer costs 13MB (a1-10). Both claim bounded memory but at different scales. Combining them would push memory usage to 53-93MB, undermining the 'memory bounded' performance goal. Even individually, a2-04's 80MB worst case is an order of magnitude above the baseline's 8MB viewport buffer."
+  },
+  {
+    "tension_id": "t-12",
+    "propositions": ["a1-05", "a3-01"],
+    "type": "latent_tension",
+    "severity": 0.55,
+    "description": "Tile grid shift (a1-05) and damage-clipped replay (a3-01) both optimize pan by identifying and rendering only newly-exposed content. Tile shift operates at tile granularity (256x256 blocks), while damage-clipped replay operates at DrawOp granularity within a pixel-precise damage strip. They target the same optimization at different abstraction levels, creating redundancy: tile shift already limits replay to edge tiles, and damage clipping within those tiles provides only marginal additional savings."
+  },
+  {
+    "tension_id": "t-13",
+    "propositions": ["a2-05", "a2-21"],
+    "type": "undermining",
+    "severity": 0.62,
+    "description": "a2-21 claims the compositor clear-and-blit model is a 'natural fit for wgpu's textured-quad pipeline,' suggesting GPU-parallel compositing. But a2-05 states that non-opaque panels with alpha blending require back-to-front compositing, preventing independent parallel composition. The GPU compositing benefit is undermined because Zuicchini panels commonly overlap with alpha, forcing sequential ordered draw calls rather than parallel compositing."
+  },
+  {
+    "tension_id": "t-14",
+    "propositions": ["a1-25", "a3-08"],
+    "type": "undermining",
+    "severity": 0.72,
+    "description": "a1-25 states that any optimization introducing variable per-frame cost must ensure worst-case never exceeds the baseline. The pipeline (a3-08) introduces a fundamentally new cost dimension: one frame of visual latency. Even when the pipeline's worst-case frame time equals the baseline, the additional 16.6ms latency means the perceived worst case is always worse than baseline. The pipeline violates a1-25's principle in the latency domain."
+  },
+  {
+    "tension_id": "t-15",
+    "propositions": ["a2-08", "a1-01"],
+    "type": "contradiction",
+    "severity": 0.85,
+    "description": "The tile pyramid (a2-08) guarantees a 'close enough' pre-rendered tile for any zoom level, explicitly using scaled approximations. The baseline guarantee (a1-01) demands pixel-perfect correctness with zero stale-cache risk. The pyramid's approximations are inherently stale (wrong zoom level, scaled via bilinear), directly violating the correctness invariant that the baseline provides."
+  },
+  {
+    "tension_id": "t-16",
+    "propositions": ["a3-06", "a3-18"],
+    "type": "undermining",
+    "severity": 0.65,
+    "description": "Within a3, damage-clipped replay claims to avoid tree re-walk by reusing the previous DrawList (a3-18), but a3-06 warns that this requires all referenced panel state to remain valid, constraining when panels can be modified. In an interactive UI with hover states, focus changes, and animations during pan, the DrawList is frequently invalidated, undermining the tree-walk avoidance that is damage-clipped replay's main benefit over tile shift."
+  },
+  {
+    "tension_id": "t-17",
+    "propositions": ["a2-13", "a3-18"],
+    "type": "mutual_exclusion",
+    "severity": 0.70,
+    "description": "Per-panel retained surfaces optimize pan by compositing 20 cached panel images (a2-13). Damage-clipped replay optimizes pan by replaying DrawOps into a thin strip (a3-18). Both achieve the same goal (cheap pan frames) but through incompatible architectures: one bypasses DrawList replay entirely via cached surfaces, the other depends on the DrawList for its replay mechanism. Choosing one approach makes the other's infrastructure redundant."
+  },
+  {
+    "tension_id": "t-18",
+    "propositions": ["a1-19", "a1-05", "a3-01"],
+    "type": "undermining",
+    "severity": 0.78,
+    "description": "a1-19 argues that zoom is the primary interaction in Eagle Mode's recursive-zoom UI, making zoom-only optimizations more impactful than pan-only ones. Both tile grid shift (a1-05) and damage-clipped replay (a3-01) are pan-only optimizations with zero zoom benefit (confirmed by a1-07, a3-02). If a1-19's premise is correct, both approaches optimize the less important interaction pattern, undermining their overall value proposition."
+  },
+  {
+    "tension_id": "t-19",
+    "propositions": ["a2-03", "a1-17"],
+    "type": "undermining",
+    "severity": 0.73,
+    "description": "Per-panel surface re-rendering on resolution threshold crossing (a2-03) creates unpredictable latency spikes when multiple panels cross thresholds simultaneously during zoom. a1-17 states that any spike above 16.6ms creates perceptible jank. During a zoom gesture over a densely nested tree, many panels cross thresholds in the same frame, creating exactly the kind of spike a1-17 warns against."
+  },
+  {
+    "tension_id": "t-20",
+    "propositions": ["a3-04", "a3-22"],
+    "type": "undermining",
+    "severity": 0.70,
+    "description": "Within a3, the damage region for a horizontal pan is a thin strip of dx * viewport_height (a3-22), suggesting work proportional to change. But a3-04 shows that full-viewport background rectangles always intersect any damage region and must always be replayed. This means the actual replay cost is dominated by these viewport-spanning ops, not the strip area, undermining the O(strip_pixels) cost model that a3-22 advertises."
+  },
+  {
+    "tension_id": "t-21",
+    "propositions": ["a2-18", "a2-17"],
+    "type": "latent_tension",
+    "severity": 0.60,
+    "description": "a2-17 suggests the tile pyramid combines naturally with tile-shift panning at a given zoom level. But a2-18 argues per-panel surfaces and tile pyramids are architecturally incompatible due to combinatorial cache explosion. If the pyramid needs tile-shift for pan (a2-17) but can't coexist with panel-level caching (a2-18), the pyramid approach is forced into a tile-only architecture, losing the panel-level invalidation benefits that are its supposed advantage over plain tile caching."
+  },
+  {
+    "tension_id": "t-22",
+    "propositions": ["a1-12", "a3-03"],
+    "type": "contradiction",
+    "severity": 0.65,
+    "description": "Tile grid shift via ring buffer (a1-12) eliminates physical memory copies entirely through logical remapping (O(1) pointer arithmetic). Damage-clipped replay (a3-03) asserts that pan requires an O(viewport_pixels) memmove before the damage strip can be painted. These present contradictory cost models: one says zero-copy is achievable, the other says an 8MB copy is unavoidable. The truth depends on whether the buffer is tiled (ring buffer works) or monolithic (memmove required)."
+  },
+  {
+    "tension_id": "t-23",
+    "propositions": ["a2-06", "a3-06"],
+    "type": "latent_tension",
+    "severity": 0.55,
+    "description": "Generation counters (a2-06) provide O(1) staleness checks per panel for cached surfaces. But damage-clipped replay requires the previous DrawList's references to remain valid (a3-06), which is a different kind of invalidation concern. If both are combined, the system needs two invalidation mechanisms: generation counters for panel surfaces and reference-validity tracking for DrawList reuse. These interact poorly: a generation increment invalidates the surface but not necessarily the DrawList, creating split-brain invalidation."
+  },
+  {
+    "tension_id": "t-24",
+    "propositions": ["a1-09", "a1-14"],
+    "type": "undermining",
+    "severity": 0.68,
+    "description": "Within a1, the oversize buffer (a1-09) is identified as architecturally incompatible with the tile cache (a1-14), losing parallel replay benefits. Since the three-strategy render system (a1-03) and DrawList replay (a1-24) depend on per-tile granularity, adopting the oversize buffer undermines the existing optimized rendering pipeline that handles the current architecture's throughput."
+  },
+  {
+    "tension_id": "t-25",
+    "propositions": ["a2-16", "a1-21"],
+    "type": "undermining",
+    "severity": 0.62,
+    "description": "a1-21 notes the GPU blit cost of O(viewport_pixels) is unavoidable. a2-16 shows per-panel compositing requires 20 * viewport_area pixel reads in worst case (40M pixel ops). The per-panel approach multiplies the irreducible blit cost by the panel count via overdraw, making the compositing step itself 20x the baseline's single blit. For software rendering, this 160MB/frame bandwidth may exceed the irreducible floor by enough to become the new bottleneck."
+  },
+  {
+    "tension_id": "t-26",
+    "propositions": ["a3-09", "a2-12"],
+    "type": "latent_tension",
+    "severity": 0.60,
+    "description": "The pipeline must be combined with work-reduction approaches to be useful (a3-09). But the tile pyramid fails under continuous zoom (a2-12) and damage-clipped replay fails for zoom (a3-02). The pipeline has no effective work-reduction partner for zoom operations. It can hide latency during zoom but the rasterization stage still does full work, meaning the pipeline stalls whenever full rasterization exceeds 16.6ms during zoom."
+  },
+  {
+    "tension_id": "t-27",
+    "propositions": ["a2-10", "a2-22"],
+    "type": "contradiction",
+    "severity": 0.72,
+    "description": "Within a2, a2-10 states pixel-identical correctness means scaled intermediates can only be temporary approximations. But a2-22 proposes that panels with <10% size change reuse cached surfaces with compositor-side scaling, framing this as a persistent optimization, not a temporary state. These contradict on whether scaled reuse is a transient fallback or a normal operating mode."
+  },
+  {
+    "tension_id": "t-28",
+    "propositions": ["a1-22", "a2-10"],
+    "type": "latent_tension",
+    "severity": 0.58,
+    "description": "Both propose displaying scaled stale content as a placeholder (a1-22 for oversize buffer zoom, a2-10 for pyramid zoom). Both acknowledge this violates pixel-perfect requirements. The tension is that both approaches independently arrive at the same compromise (accept approximate output during transitions), suggesting the pixel-perfect constraint may be fundamentally incompatible with real-time zoom optimization. Neither resolves when 'settled' state occurs during continuous interaction."
+  },
+  {
+    "tension_id": "t-29",
+    "propositions": ["a1-06", "a2-13"],
+    "type": "latent_tension",
+    "severity": 0.50,
+    "description": "Tile grid shift claims 8x reduction for a 5px pan at 1080p (a1-06), rasterizing ~5 tiles instead of ~40. Per-panel surfaces claim to eliminate rasterization entirely for pan (a2-13), doing only 20 scaled blits. The per-panel approach is strictly better for pan (zero rasterization vs reduced rasterization), making tile shift's pan benefit redundant if per-panel surfaces are adopted. Tile shift only retains value if per-panel surfaces are not used."
+  },
+  {
+    "tension_id": "t-30",
+    "propositions": ["a3-11", "a2-20"],
+    "type": "contradiction",
+    "severity": 0.85,
+    "description": "The pipeline requires the render thread to own the tile cache and compositor exclusively (a3-11), creating a two-thread architecture. But a2-20 establishes that Zuicchini's Rc/RefCell architecture prevents multi-threaded rendering, and 'async' must mean deferred same-thread work. These are incompatible execution models: either the system has a dedicated render thread (a3-11) or it is fundamentally single-threaded (a2-20). The codebase's 'no Arc/Mutex' rule sides with a2-20."
+  },
+  {
+    "tension_id": "t-31",
+    "propositions": ["a1-15", "a2-03"],
+    "type": "latent_tension",
+    "severity": 0.55,
+    "description": "Both the oversize buffer margin size (a1-15) and the panel surface resolution hysteresis band (a2-03) are tuning parameters with no universally correct value. Both require adaptive logic or produce suboptimal behavior for some usage patterns. Combining the approaches compounds the tuning problem: margin size, resolution threshold, and their interaction must all be tuned, with no closed-form optimum for the combined parameter space."
+  },
+  {
+    "tension_id": "t-32",
+    "propositions": ["a1-23", "a2-18"],
+    "type": "undermining",
+    "severity": 0.63,
+    "description": "a1-23 proposes tile shift and oversize buffer as complementary (tile shift for large pans, margin for small pans). a2-18 warns that combining per-panel surfaces with tile pyramids creates combinatorial cache explosion. Both describe hybrid strategies, but combining multiple caching approaches across all three documents yields a complexity explosion: tile shift + oversize margin + panel surfaces + zoom pyramids creates four interacting cache systems with multiplicative invalidation complexity."
+  }
+]

@@ -1,0 +1,416 @@
+[
+  {
+    "id": "a2-01",
+    "proposition": "Per-panel retained surfaces make rasterization cost proportional to the number of panels whose pixel content actually changed, not the number of visible panels or the viewport delta.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.75,
+      "robustness": 0.60,
+      "compatibility": 0.70,
+      "performance": 0.80
+    },
+    "reasoning": {
+      "defensibility": "This is the stated core invariant and holds for the common case of pure pan/zoom without content changes. Defensible as a design goal.",
+      "specificity": "Clearly defines the cost model in terms of content-changed panels, which is a concrete and measurable property.",
+      "robustness": "Breaks down when many panels animate or change content every frame, reverting to full-repaint cost. Also breaks under continuous zoom requiring resolution updates.",
+      "compatibility": "Compatible with tile-based compositing via wgpu. May conflict with the existing DrawList recording model which assumes a single linear paint pass.",
+      "performance": "Directly targets 'work proportional to visible change' and 'zero redundant pixel work'. Does not address memory bounds or latency spikes from large surface re-renders."
+    }
+  },
+  {
+    "id": "a2-02",
+    "proposition": "During a pure pan frame, per-panel retained surfaces require only O(visible_panels × blit_cost) work — compositing cached surfaces at new positions — with zero rasterization.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.85,
+      "robustness": 0.75,
+      "compatibility": 0.75,
+      "performance": 0.88
+    },
+    "reasoning": {
+      "defensibility": "Pan does not change panel content or resolution, so cached surfaces are perfectly valid. Strong argument.",
+      "specificity": "Concrete cost model: 20 scaled blits vs 20 full rasterizations for a 20-visible-panel scenario.",
+      "robustness": "Holds unless panels have position-dependent rendering (unlikely in this architecture) or animations. Blit cost with scaling is non-trivial for large surfaces.",
+      "compatibility": "Fits well with wgpu compositor which already does textured quads. The blit-with-transform is a natural GPU operation.",
+      "performance": "Excellent on 'zero redundant pixel work' and 'constant-time viewport transform'. Pan becomes independent of panel complexity."
+    }
+  },
+  {
+    "id": "a2-03",
+    "proposition": "Per-panel surfaces must be re-rendered when the panel's viewed size changes enough that the cached resolution would visibly alias, creating a resolution hysteresis band.",
+    "scores": {
+      "defensibility": 0.72,
+      "specificity": 0.65,
+      "robustness": 0.55,
+      "compatibility": 0.70,
+      "performance": 0.60
+    },
+    "reasoning": {
+      "defensibility": "The need for re-rendering at resolution thresholds is real, but the threshold definition ('>10% different') is somewhat arbitrary and may not match perceptual quality needs.",
+      "specificity": "The concept is clear but the exact threshold parameters are not well-defined. What constitutes 'visibly alias' depends on content type.",
+      "robustness": "Continuous zoom will repeatedly cross thresholds, causing bursts of re-rendering. The hysteresis band width is a tuning problem with no universal answer.",
+      "compatibility": "Compatible with the generation-counter invalidation model. Adds complexity to the surface management logic.",
+      "performance": "Helps amortize zoom cost but creates unpredictable latency spikes when multiple panels cross thresholds simultaneously during a zoom gesture."
+    }
+  },
+  {
+    "id": "a2-04",
+    "proposition": "Memory usage of per-panel retained surfaces is proportional to the number of visible panels multiplied by their viewed pixel area, and a deeply-zoomed-in panel's surface can be as large as the entire viewport.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.80,
+      "robustness": 0.85,
+      "compatibility": 0.60,
+      "performance": 0.40
+    },
+    "reasoning": {
+      "defensibility": "This is a straightforward consequence of the design. A panel filling the viewport at 1920x1080 requires ~8MB RGBA8. Hard to argue against.",
+      "specificity": "Concrete: visible_panels × viewed_pixel_area. For 20 panels at various sizes, memory is calculable.",
+      "robustness": "This failure mode is inherent to the approach and cannot be eliminated without introducing resolution caps, which reintroduce aliasing.",
+      "compatibility": "Conflicts with the 'memory bounded' performance goal. Would need a memory budget and eviction policy, adding complexity.",
+      "performance": "Directly undermines the 'memory bounded' sub-property. With 20 visible panels of various sizes, total surface memory could reach 40-80MB."
+    }
+  },
+  {
+    "id": "a2-05",
+    "proposition": "Non-opaque panels with alpha blending require back-to-front compositing in paint order, preventing independent parallel composition of panel surfaces.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.80,
+      "robustness": 0.90,
+      "compatibility": 0.55,
+      "performance": 0.50
+    },
+    "reasoning": {
+      "defensibility": "Alpha blending is order-dependent; this is a fundamental constraint of the compositing model, not an implementation detail.",
+      "specificity": "Clearly identifies that overlapping alpha panels enforce sequential back-to-front compositing.",
+      "robustness": "This constraint holds universally for standard alpha blending. No workaround short of order-independent transparency techniques.",
+      "compatibility": "Zuicchini panels can overlap and have alpha. This constraint is architecturally real and conflicts with GPU-parallel compositing ambitions.",
+      "performance": "Limits compositing parallelism. However, wgpu already handles ordered draw calls efficiently; the real cost is the overdraw, not the ordering."
+    }
+  },
+  {
+    "id": "a2-06",
+    "proposition": "A generation counter on each panel, incremented on invalidate_painting, provides an O(1) staleness check for cached surfaces without content comparison.",
+    "scores": {
+      "defensibility": 0.92,
+      "specificity": 0.90,
+      "robustness": 0.88,
+      "compatibility": 0.90,
+      "performance": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Generation counters are a well-established pattern for cache invalidation. Simple, correct, and efficient.",
+      "specificity": "Concrete data structure: u64 counter, single comparison per panel per frame.",
+      "robustness": "Only fails if invalidation is missed (a bug, not a design flaw). Counter overflow at u64 is practically impossible.",
+      "compatibility": "Fits naturally alongside existing PanelId and invalidate_painting infrastructure. No conflicts with other approaches.",
+      "performance": "O(1) per panel check contributes to constant-time operations. Does not add latency or redundant work."
+    }
+  },
+  {
+    "id": "a2-07",
+    "proposition": "Panels that animate or update content every frame (clocks, progress bars) negate the caching benefit of retained surfaces for those specific panels.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.78,
+      "robustness": 0.85,
+      "compatibility": 0.80,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "If a panel invalidates every frame, its surface is re-rendered every frame, making caching overhead pure waste for that panel.",
+      "specificity": "Identifies specific failure cases (clocks, animations). The impact depends on how many such panels exist in practice.",
+      "robustness": "This is inherent: no caching strategy helps content that changes every frame. The approach degrades gracefully — only those panels pay full cost.",
+      "compatibility": "Does not invalidate the approach for non-animating panels. The system can still benefit from caching the majority of static panels.",
+      "performance": "Reduces but does not eliminate benefits. If 2 of 20 visible panels animate, 18 still benefit from caching. Worst case is all panels animating."
+    }
+  },
+  {
+    "id": "a2-08",
+    "proposition": "A multi-resolution tile pyramid guarantees that a 'close enough' pre-rendered tile exists for any zoom level, eliminating synchronous full rasterization during zoom transitions.",
+    "scores": {
+      "defensibility": 0.70,
+      "specificity": 0.72,
+      "robustness": 0.45,
+      "compatibility": 0.60,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "The guarantee only holds if the pyramid has been populated. Cold start or rapid zoom to an uncached level still requires synchronous raster or visible approximation.",
+      "specificity": "Defines geometric spacing (2x per level), 8 levels covering 256x range. Concrete but the 'close enough' quality is subjective.",
+      "robustness": "Continuous zoom defeats the pyramid because no level is reused before eviction. A 1.5x zoom hits no level exactly, requiring scaling on every frame.",
+      "compatibility": "Conflicts with pixel-identical output requirement — scaled intermediates are approximations. Requires accepting visual approximation during transitions.",
+      "performance": "Helps with latency spikes during zoom but adds memory overhead for multiple tile levels. Continuous zoom gets no benefit."
+    }
+  },
+  {
+    "id": "a2-09",
+    "proposition": "Geometric spacing of pyramid zoom levels (each level 2x the previous) means a 1.5x zoom factor hits no level exactly, requiring bilinear scaling on every frame until the exact level is asynchronously rendered.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.90,
+      "robustness": 0.85,
+      "compatibility": 0.70,
+      "performance": 0.45
+    },
+    "reasoning": {
+      "defensibility": "Mathematically true: with 2x geometric spacing, most zoom factors fall between levels. The worst case (sqrt(2)x) is maximally far from both neighbors.",
+      "specificity": "Identifies the exact gap in coverage and its consequence: per-frame bilinear scaling of 256x256 tiles.",
+      "robustness": "Denser spacing (e.g., sqrt(2)x) reduces the problem but increases memory usage proportionally. The tradeoff is fundamental.",
+      "compatibility": "The bilinear-scaled output is not pixel-identical to correct rendering, creating a tension with golden-test fidelity requirements.",
+      "performance": "Bilinear scaling of tiles is cheap per-tile but happens for every visible tile every frame during zoom. Adds GPU work without reducing rasterization."
+    }
+  },
+  {
+    "id": "a2-10",
+    "proposition": "The tile pyramid's pixel-identical correctness requirement means scaled intermediates cannot be the final output — they serve only as visual approximations during transitions until exact tiles are rendered.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.82,
+      "robustness": 0.80,
+      "compatibility": 0.50,
+      "performance": 0.50
+    },
+    "reasoning": {
+      "defensibility": "Zuicchini's golden test infrastructure demands pixel-exact output. Bilinear-scaled tiles will not match reference data. The two-phase model (approximate then exact) is the only valid approach.",
+      "specificity": "Clear correctness gate: final output must be pixel-identical, intermediates are explicitly temporary.",
+      "robustness": "If the user pauses zooming, exact tiles eventually replace approximations. But if zoom never stops, the output is perpetually approximate.",
+      "compatibility": "Conflicts with deterministic rendering expectations. A screenshot taken during zoom would show approximate output, complicating testing.",
+      "performance": "The async render-then-swap model adds latency to achieving exact output. Double the memory for tiles (old approximate + new exact) during transitions."
+    }
+  },
+  {
+    "id": "a2-11",
+    "proposition": "Eviction policy for multi-level tile pyramids is inherently more complex than single-level tile caches because eviction must decide which zoom level's tiles to discard under memory pressure.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.75,
+      "robustness": 0.80,
+      "compatibility": 0.65,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Adding a zoom-level dimension to eviction decisions is a genuine complexity increase. LRU per-level is simple but globally suboptimal; cross-level LRU requires unified tracking.",
+      "specificity": "Identifies the specific new dimension (which level to evict from) that single-level caches avoid.",
+      "robustness": "Poor eviction choices cause cache thrashing: evicting a level the user zooms back to forces re-rasterization. Optimal eviction requires predicting zoom direction.",
+      "compatibility": "Adds implementation complexity to what is already a non-trivial tile cache system. More code, more bugs, more tuning parameters.",
+      "performance": "Suboptimal eviction directly causes redundant pixel work (re-rasterizing evicted tiles). Memory bounded property requires a cap but the cap's enforcement is harder."
+    }
+  },
+  {
+    "id": "a2-12",
+    "proposition": "Under continuous zoom, every frame requires new tile rasterization at the current zoom level regardless of pyramid caching, because no previously cached level matches the current zoom factor.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.85,
+      "robustness": 0.90,
+      "compatibility": 0.75,
+      "performance": 0.35
+    },
+    "reasoning": {
+      "defensibility": "Continuous zoom produces a unique zoom factor each frame. With geometric spacing, each frame's factor differs from cached levels. The pyramid degenerates to show-scaled-then-replace.",
+      "specificity": "Identifies the exact failure scenario: continuous zoom gesture, which is the primary use case the optimization should handle.",
+      "robustness": "This is the fundamental weakness of the pyramid approach. No amount of tuning eliminates it — only reducing rasterization cost per frame helps.",
+      "compatibility": "This failure mode is shared with any level-of-detail caching scheme. It does not conflict with other approaches but limits the pyramid's value.",
+      "performance": "Directly violates 'zero redundant pixel work' since scaled intermediates are discarded. Violates 'no latency spike' if exact rasterization can't complete in one frame."
+    }
+  },
+  {
+    "id": "a2-13",
+    "proposition": "For a 1000-panel tree with 20 visible panels, per-panel retained surfaces reduce a pan frame from 20 full rasterizations to 20 scaled blits, which is a significant cost reduction when panel paint() is expensive.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.88,
+      "robustness": 0.70,
+      "compatibility": 0.75,
+      "performance": 0.82
+    },
+    "reasoning": {
+      "defensibility": "The 20-blit vs 20-rasterization comparison is valid when paint() involves complex drawing operations. The benefit scales with paint() complexity.",
+      "specificity": "Uses concrete numbers (1000 panels, 20 visible) that match the stated performance target. Directly comparable to baseline cost.",
+      "robustness": "Assumes paint() is significantly more expensive than a scaled blit. For trivially simple panels (solid color fill), the overhead of surface management may exceed the savings.",
+      "compatibility": "Works within the existing panel tree structure. Requires adding surface storage alongside panels but does not restructure the tree.",
+      "performance": "Strong on 'work proportional to visible change' — pan changes no content, so zero rasterization. The blit cost is bounded by visible panel count, not tree size."
+    }
+  },
+  {
+    "id": "a2-14",
+    "proposition": "Panel surfaces stored in a parallel SlotMap keyed by PanelId decouple cache lifetime from panel tree structure, allowing surface eviction without tree mutation.",
+    "scores": {
+      "defensibility": 0.80,
+      "specificity": 0.82,
+      "robustness": 0.78,
+      "compatibility": 0.85,
+      "performance": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Separating cache storage from the panel tree is good architectural practice. Avoids polluting the Panel struct with cache-specific fields.",
+      "specificity": "Concrete data structure choice: SlotMap<PanelId, PanelSurface>. Clear key type and value type.",
+      "robustness": "SlotMap handles panel creation/deletion naturally. Orphaned surfaces (panel removed but surface remains) need cleanup but SlotMap makes this straightforward.",
+      "compatibility": "Compatible with Zuicchini's existing PanelId system and Rc/RefCell ownership model. No Arc/Mutex needed.",
+      "performance": "O(1) lookup by PanelId. Memory can be bounded by evicting least-recently-used surfaces. Does not add per-frame overhead beyond the lookup."
+    }
+  },
+  {
+    "id": "a2-15",
+    "proposition": "The 25px minimum viewed size threshold for panel visibility prevents wasted rasterization on panels too small to contribute meaningful pixels to the output.",
+    "scores": {
+      "defensibility": 0.78,
+      "specificity": 0.85,
+      "robustness": 0.72,
+      "compatibility": 0.80,
+      "performance": 0.75
+    },
+    "reasoning": {
+      "defensibility": "Panels smaller than ~25px contribute very few distinguishable pixels. Skipping them is a reasonable optimization with minimal visual impact.",
+      "specificity": "Concrete threshold value (25px) that can be implemented as a simple comparison in the tree walk.",
+      "robustness": "Edge cases: a panel at exactly 25px toggles between rendered and not rendered during zoom, causing flicker. Hysteresis (render at 25px, skip below 20px) would help.",
+      "compatibility": "Consistent with Eagle Mode's own visibility culling approach. Does not conflict with other optimizations.",
+      "performance": "Reduces work proportional to the number of sub-threshold panels. In a 1000-panel tree, most panels are tiny at any given zoom level, so this eliminates the majority."
+    }
+  },
+  {
+    "id": "a2-16",
+    "proposition": "Compositing 20 panel surfaces with alpha blending and bilinear scaling requires approximately 20 × viewport_area pixel reads in the worst case (full overlap), which for 1920x1080 is ~40M pixel operations per frame.",
+    "scores": {
+      "defensibility": 0.75,
+      "specificity": 0.88,
+      "robustness": 0.80,
+      "compatibility": 0.70,
+      "performance": 0.50
+    },
+    "reasoning": {
+      "defensibility": "The calculation assumes worst-case full overlap. In practice, most panels occupy a fraction of the viewport, reducing actual pixel operations significantly.",
+      "specificity": "Concrete numbers: 20 surfaces × ~2M pixels per surface = ~40M pixel reads. Provides a clear upper bound for planning.",
+      "robustness": "Worst-case analysis is reliable for capacity planning. Actual cost will be lower due to partial coverage, but the bound is honest.",
+      "compatibility": "This compositing cost exists regardless of how panel surfaces are generated. It is an inherent cost of the retained-surface approach.",
+      "performance": "40M pixel ops at ~4 bytes each is ~160MB bandwidth per frame. At 60fps, that is ~10GB/s, within modern GPU bandwidth but significant for software rendering."
+    }
+  },
+  {
+    "id": "a2-17",
+    "proposition": "The tile pyramid approach combines naturally with tile-shift panning (at a given zoom level) but adds no benefit to zoom operations under continuous user interaction.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.78,
+      "robustness": 0.80,
+      "compatibility": 0.72,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Within a zoom level, tile shifting is well-proven and the pyramid adds nothing. Across zoom levels during continuous zoom, every frame needs new tiles. The claim is accurate.",
+      "specificity": "Identifies the dichotomy: pan benefits from per-level tile cache, zoom does not benefit from multi-level cache during continuous interaction.",
+      "robustness": "The failure during continuous zoom is fundamental, not a tuning issue. Only discrete zoom steps (e.g., pinch-and-release) benefit from cached levels.",
+      "compatibility": "The tile-shift component is compatible with existing tile cache infrastructure. The pyramid layer adds complexity on top.",
+      "performance": "Pan performance is good (tile shift). Zoom performance during interaction is no better than full rasterization, defeating the purpose of the pyramid."
+    }
+  },
+  {
+    "id": "a2-18",
+    "proposition": "Per-panel retained surfaces and multi-resolution tile pyramids are architecturally incompatible: the former caches at panel granularity while the latter caches at spatial-tile granularity, and combining them yields a combinatorial explosion of cache entries.",
+    "scores": {
+      "defensibility": 0.70,
+      "specificity": 0.75,
+      "robustness": 0.72,
+      "compatibility": 0.80,
+      "performance": 0.45
+    },
+    "reasoning": {
+      "defensibility": "Combining panel-level and tile-level caching creates panels × zoom_levels × tiles_per_panel cache entries. This is a real complexity concern but not strictly 'incompatible' — just expensive.",
+      "specificity": "Identifies the combinatorial growth pattern. For 20 panels × 8 levels × variable tiles, the cache size explodes.",
+      "robustness": "The complexity is manageable with aggressive eviction, but the engineering cost of two interacting cache systems is high and bugs are likely.",
+      "compatibility": "This proposition argues the two approaches should not be combined, which is itself a compatibility concern between Approaches 4 and 5.",
+      "performance": "Memory usage would be very high. Management overhead (tracking, eviction, invalidation across two dimensions) could itself consume frame budget."
+    }
+  },
+  {
+    "id": "a2-19",
+    "proposition": "The per-panel surface approach requires storing rendered_at_width and rendered_at_height alongside each cached image to detect when resolution mismatch exceeds acceptable aliasing thresholds.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.90,
+      "robustness": 0.82,
+      "compatibility": 0.90,
+      "performance": 0.78
+    },
+    "reasoning": {
+      "defensibility": "Without tracking the rendered resolution, there is no way to know when a cached surface is too stale to reuse. This metadata is essential.",
+      "specificity": "Concrete fields: rendered_at_width: f64, rendered_at_height: f64. Clear comparison against current viewed_width/height.",
+      "robustness": "The comparison logic is simple and deterministic. The threshold for 'too stale' needs tuning but the tracking itself is robust.",
+      "compatibility": "Fits naturally into the PanelSurface struct. No conflict with other panel metadata or the existing coordinate system.",
+      "performance": "Two f64 comparisons per panel per frame is negligible. Enables the decision to skip re-rendering, which is the source of all performance benefit."
+    }
+  },
+  {
+    "id": "a2-20",
+    "proposition": "Zuicchini's single-threaded Rc/RefCell architecture prevents asynchronous tile rendering for the pyramid approach, meaning 'async render at exact zoom level' must actually be deferred to a future frame's main-thread time slice.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.85,
+      "robustness": 0.88,
+      "compatibility": 0.85,
+      "performance": 0.40
+    },
+    "reasoning": {
+      "defensibility": "Rc/RefCell is !Send, so panel tree data cannot be shared with a render thread. The source material's 'asynchronously' is misleading in a single-threaded context.",
+      "specificity": "Directly references Zuicchini's architectural constraint (single-threaded, Rc/RefCell, no Arc/Mutex) and its implication for the pyramid approach.",
+      "robustness": "This is a hard architectural constraint, not a tuning parameter. True async rendering would require fundamental architecture changes.",
+      "compatibility": "Compatible with the codebase rules (no Arc/Mutex). Forces the pyramid to be a same-thread, multi-frame progressive refinement scheme.",
+      "performance": "Deferred rendering on the main thread means exact tiles compete with other frame work for the 16.6ms budget. Risk of perpetually showing approximate tiles under load."
+    }
+  },
+  {
+    "id": "a2-21",
+    "proposition": "The compositor clear-and-blit model for per-panel surfaces (clear viewport buffer, blit each panel at its viewed position) is a natural fit for wgpu's textured-quad rendering pipeline.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.80,
+      "robustness": 0.82,
+      "compatibility": 0.90,
+      "performance": 0.75
+    },
+    "reasoning": {
+      "defensibility": "wgpu excels at textured quad rendering with affine transforms. Panel surfaces as textures composited via draw calls is a standard GPU pattern.",
+      "specificity": "Maps the abstract compositing model to a concrete GPU operation: each panel surface becomes a texture, each blit becomes a draw call with a transform uniform.",
+      "robustness": "GPU compositing handles scaling and alpha blending efficiently. The main risk is texture upload latency when surfaces are re-rendered on CPU.",
+      "compatibility": "Zuicchini already uses wgpu for compositing. This approach extends the existing compositor rather than replacing it.",
+      "performance": "GPU compositing of 20 textured quads is well within wgpu's capacity. The bottleneck shifts to CPU-side rasterization and texture upload, not compositing."
+    }
+  },
+  {
+    "id": "a2-22",
+    "proposition": "Panels whose viewed size changes by less than 10% during a zoom frame can reuse their cached surface with minor compositor-side scaling, avoiding re-rasterization for the majority of visible panels during moderate zoom.",
+    "scores": {
+      "defensibility": 0.72,
+      "specificity": 0.80,
+      "robustness": 0.58,
+      "compatibility": 0.70,
+      "performance": 0.70
+    },
+    "reasoning": {
+      "defensibility": "A 10% scale mismatch produces noticeable blur on high-frequency content (text, fine lines) but is acceptable for smooth gradients or filled areas. Defensibility depends on content type.",
+      "specificity": "Concrete threshold (10%) and concrete mechanism (compositor-side scaling). Implementable as a simple ratio check.",
+      "robustness": "Repeated 10% zoom steps accumulate error if the surface is never re-rendered. Needs a hard outer threshold (e.g., 50% cumulative) to force re-render.",
+      "compatibility": "Compatible with the generation-counter invalidation: zoom-triggered re-render is a separate invalidation path from content changes.",
+      "performance": "Reduces zoom-frame rasterization to only panels crossing the threshold. For a 2x zoom, nearly all panels change by >10%, so benefit is limited to gentle zoom."
+    }
+  },
+  {
+    "id": "a2-23",
+    "proposition": "The total memory budget for a multi-resolution tile pyramid must be shared across all zoom levels, meaning adding more levels for finer zoom granularity directly reduces the tile count available at each level.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.80,
+      "robustness": 0.82,
+      "compatibility": 0.70,
+      "performance": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Fixed memory budget is a hard constraint. More levels means fewer tiles per level, reducing spatial coverage at each zoom level and increasing cache misses during pan.",
+      "specificity": "Identifies the concrete tradeoff: zoom-level count vs tiles-per-level under a fixed memory cap.",
+      "robustness": "This tradeoff is fundamental and cannot be eliminated. It forces a design choice between zoom granularity and pan coverage.",
+      "compatibility": "Compatible with memory-bounded requirement but creates tension with the 'close enough level for any zoom' guarantee.",
+      "performance": "More levels improve zoom transitions but degrade pan performance (fewer cached tiles per level). Fewer levels improve pan but degrade zoom. No free lunch."
+    }
+  }
+]

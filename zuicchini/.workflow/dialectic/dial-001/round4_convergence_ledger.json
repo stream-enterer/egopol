@@ -1,0 +1,2196 @@
+[
+  {
+    "id": "a2-06",
+    "proposition": "A generation counter on each panel, incremented on invalidate_painting, provides an O(1) staleness check for cached surfaces without content comparison.",
+    "initial_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.9,
+      "robustness": 0.88,
+      "compatibility": 0.9,
+      "performance": 0.85
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.9,
+      "robustness": 0.88,
+      "compatibility": 0.9,
+      "performance": 0.85
+    },
+    "composite": 0.89,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-19",
+    "proposition": "The per-panel surface approach requires storing rendered_at_width and rendered_at_height alongside each cached image to detect when resolution mismatch exceeds acceptable aliasing thresholds.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.9,
+      "robustness": 0.82,
+      "compatibility": 0.9,
+      "performance": 0.78
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.9,
+      "robustness": 0.82,
+      "compatibility": 0.9,
+      "performance": 0.78
+    },
+    "composite": 0.86,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-16",
+    "proposition": "Tile grid shift is strictly additive to the current architecture \u2014 it adds a remapping step before mark_all_dirty and falls back to the existing full-repaint path for zoom and extreme-velocity pans.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.8,
+      "robustness": 0.9,
+      "compatibility": 0.95,
+      "performance": 0.6
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-29",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.05,
+        "reasoning": "The defense's pragmatism argument is strong. Tile shift's value isn't absolute pan performance \u2014 it's the ratio of benefit to implementation cost and risk. a1-06's specific numbers become less impressive when compared to per-panel surfaces, but the approach's low-risk additivity (a1-16) is its real strength. a1-06 takes small deltas for overstating its relative benefit. a1-16 is upgraded for correctly identifying the 'strictly additive' property as tile shift's key advantage."
+      },
+      {
+        "round": 3,
+        "tension": "t-29",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": 0.03,
+        "reasoning": "The defense's pragmatism argument is strong. Tile shift's value isn't absolute pan performance \u2014 it's the ratio of benefit to implementation cost and risk. a1-06's specific numbers become less impressive when compared to per-panel surfaces, but the approach's low-risk additivity (a1-16) is its real strength. a1-06 takes small deltas for overstating its relative benefit. a1-16 is upgraded for correctly identifying the 'strictly additive' property as tile shift's key advantage."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.8,
+      "robustness": 0.9,
+      "compatibility": 0.98,
+      "performance": 0.6
+    },
+    "composite": 0.85,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-24",
+    "proposition": "The existing DrawList recording system is critical for any tile-level optimization because it allows a single tree walk to be replayed into multiple tiles \u2014 the recorded DrawList is the key to decoupling tree traversal cost from tile rasterization cost.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.95,
+      "performance": 0.65
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-07, t-10, t-17",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": 0.03,
+        "reasoning": "The defense's layering argument has merit: DrawList recording per panel is a natural extension. However, the compositing step replaces the tile-level replay with GPU-level surface composition, which is a significant change to the rendering pipeline even if individual panel rendering reuses DrawList. The existing tile cache, tile dirty tracking, and tile-parallel replay would be superseded. Small deltas reflect that per-panel surfaces are less architecturally disruptive than prosecution claimed but more disruptive than defense admitted. a1-24 gets a small boost as it remains relevant even in the per-panel model."
+      },
+      {
+        "round": 3,
+        "tension": "t-07, t-10, t-17",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.03,
+        "reasoning": "The defense's layering argument has merit: DrawList recording per panel is a natural extension. However, the compositing step replaces the tile-level replay with GPU-level surface composition, which is a significant change to the rendering pipeline even if individual panel rendering reuses DrawList. The existing tile cache, tile dirty tracking, and tile-parallel replay would be superseded. Small deltas reflect that per-panel surfaces are less architecturally disruptive than prosecution claimed but more disruptive than defense admitted. a1-24 gets a small boost as it remains relevant even in the per-panel model."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.93,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.98,
+      "performance": 0.65
+    },
+    "composite": 0.85,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-17",
+    "proposition": "At 60fps, the frame budget is 16.6ms, and any optimization that introduces latency spikes above this threshold on specific frames (e.g., margin-exhaustion memmove + strip render) creates perceptible jank.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.9,
+      "performance": 0.7
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.9,
+      "performance": 0.7
+    },
+    "composite": 0.84,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-25",
+    "proposition": "Any approach that introduces variable per-frame cost (cheap frames during margin use, expensive frames on margin exhaustion or zoom) must ensure that the worst-case frame never exceeds the full-repaint baseline, or it risks being perceptually worse than the baseline despite lower average cost.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.8,
+      "robustness": 0.9,
+      "compatibility": 0.9,
+      "performance": 0.7
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.8,
+      "robustness": 0.9,
+      "compatibility": 0.9,
+      "performance": 0.7
+    },
+    "composite": 0.84,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-12",
+    "proposition": "Tile grid shift can be implemented as a ring buffer in each axis, avoiding physical memory copies \u2014 surviving tiles are logically remapped rather than moved.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.8,
+      "compatibility": 0.9,
+      "performance": 0.65
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-03, t-22",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.05,
+        "reasoning": "a3-03's cost model conflicts with Zuicchini's actual tile-based architecture. While the proposition is internally consistent, it describes a cost that doesn't apply to the system being optimized. It should have acknowledged the tile-based alternative. a1-12's ring-buffer approach is strengthened as the correct way to avoid copies in a tile-based system. a3-03 takes meaningful hits for architectural misfit."
+      },
+      {
+        "round": 3,
+        "tension": "t-03, t-22",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": 0.05,
+        "reasoning": "a3-03's cost model conflicts with Zuicchini's actual tile-based architecture. While the proposition is internally consistent, it describes a cost that doesn't apply to the system being optimized. It should have acknowledged the tile-based alternative. a1-12's ring-buffer approach is strengthened as the correct way to avoid copies in a tile-based system. a3-03 takes meaningful hits for architectural misfit."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.8,
+      "robustness": 0.8,
+      "compatibility": 0.9,
+      "performance": 0.7
+    },
+    "composite": 0.82,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-20",
+    "proposition": "Tile grid shift requires extending the Tile struct with origin tracking (origin_x, origin_y: i32) to record the viewport pixel coordinate at which each tile was last rendered.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.9,
+      "robustness": 0.85,
+      "compatibility": 0.9,
+      "performance": 0.6
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.9,
+      "robustness": 0.85,
+      "compatibility": 0.9,
+      "performance": 0.6
+    },
+    "composite": 0.82,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-21",
+    "proposition": "The GPU blit cost of O(viewport_pixels) is unavoidable regardless of optimization approach \u2014 every frame must transfer the visible viewport to the display.",
+    "initial_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.75,
+      "robustness": 0.95,
+      "compatibility": 0.95,
+      "performance": 0.5
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.75,
+      "robustness": 0.95,
+      "compatibility": 0.95,
+      "performance": 0.5
+    },
+    "composite": 0.82,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-21",
+    "proposition": "The compositor clear-and-blit model for per-panel surfaces (clear viewport buffer, blit each panel at its viewed position) is a natural fit for wgpu's textured-quad rendering pipeline.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.82,
+      "compatibility": 0.9,
+      "performance": 0.75
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-13",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.02,
+        "reasoning": "The defense is correct: ordered GPU draw calls are the standard compositing model and are very fast. The prosecution overstated the performance concern. However, a2-21's 'natural fit' framing slightly oversells the simplicity \u2014 the ordering constraint means the compositor must maintain a sorted panel list and handle Z-order changes correctly. Minimal deltas: this tension is mostly resolved in the defense's favor."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.8,
+      "compatibility": 0.9,
+      "performance": 0.75
+    },
+    "composite": 0.82,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-22",
+    "proposition": "The damage region for a pure pan of dx pixels horizontally is exactly Rect(viewport_width - dx, 0, dx, viewport_height) \u2014 a thin strip whose area is proportional to pan speed, not viewport size.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.92,
+      "robustness": 0.75,
+      "compatibility": 0.85,
+      "performance": 0.8
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-18",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.05,
+        "reasoning": "The defense correctly notes that zoom-toward-point involves translation and that interaction patterns include pan phases. However, the prosecution's core point stands: the primary innovation of Eagle Mode is recursive zoom, and any optimization strategy that offers zero zoom benefit has a structural gap. The deltas are moderate: pan optimizations are not worthless (they help a meaningful fraction of frames), but they are less impactful than their proponents claim because they don't address the hardest case. a1-19 gets a small upgrade for correctly flagging the priority, though its lack of usage data prevents a larger boost."
+      },
+      {
+        "round": 3,
+        "tension": "t-20",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense makes an excellent point: clipped replay means pixel work is proportional to strip area regardless of op bounding box. The prosecution overstated the cost. However, the filtering overhead (scanning all ops to find intersections) is still O(N) per frame, and many ops will pass the filter only to paint a tiny number of pixels each. There's a real overhead in per-op setup cost (shader state, blend mode changes) that doesn't scale with pixel count. Small deltas: a3-22's cost model is mostly right but slightly optimistic about setup costs. a3-04 is upgraded for identifying the filtering concern."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.92,
+      "robustness": 0.7,
+      "compatibility": 0.85,
+      "performance": 0.75
+    },
+    "composite": 0.82,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-02",
+    "proposition": "During a pure pan frame, per-panel retained surfaces require only O(visible_panels \u00d7 blit_cost) work \u2014 compositing cached surfaces at new positions \u2014 with zero rasterization.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.75,
+      "compatibility": 0.75,
+      "performance": 0.88
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-25",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.03,
+        "reasoning": "The defense is largely correct: GPU compositing of 20 textured quads is cheap relative to CPU rasterization, even with overdraw. Modern GPUs handle this trivially. However, the propositions present compositing as nearly free, which understates the real cost on low-end hardware and doesn't account for the texture upload latency when surfaces are re-rendered. Small deltas are warranted: the approach works but its cost model is slightly optimistic. The worst-case 20x overdraw claim in a2-16 is overly pessimistic for typical layouts, so it gets a smaller delta than prosecution requested."
+      },
+      {
+        "round": 3,
+        "tension": "t-01",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.05,
+        "reasoning": "The defense is correct that these are alternatives, not co-requirements. However, the mutual exclusion means choosing one forecloses the other, which is a form of compatibility cost \u2014 it constrains future design space. Small deltas applied to both to reflect this design-choice-locks-out-alternative dynamic."
+      },
+      {
+        "round": 3,
+        "tension": "t-07, t-10, t-17",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.05,
+        "reasoning": "The defense's layering argument has merit: DrawList recording per panel is a natural extension. However, the compositing step replaces the tile-level replay with GPU-level surface composition, which is a significant change to the rendering pipeline even if individual panel rendering reuses DrawList. The existing tile cache, tile dirty tracking, and tile-parallel replay would be superseded. Small deltas reflect that per-panel surfaces are less architecturally disruptive than prosecution claimed but more disruptive than defense admitted. a1-24 gets a small boost as it remains relevant even in the per-panel model."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.75,
+      "compatibility": 0.65,
+      "performance": 0.85
+    },
+    "composite": 0.8,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-20",
+    "proposition": "Zuicchini's single-threaded Rc/RefCell architecture prevents asynchronous tile rendering for the pyramid approach, meaning 'async render at exact zoom level' must actually be deferred to a future frame's main-thread time slice.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.88,
+      "compatibility": 0.85,
+      "performance": 0.4
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.05,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      },
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "specificity",
+        "delta": 0.05,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.9,
+      "robustness": 0.88,
+      "compatibility": 0.85,
+      "performance": 0.4
+    },
+    "composite": 0.8,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-06",
+    "proposition": "For a 5px pan at 1080p, tile grid shift reduces rasterization from ~40 tiles to ~5 tiles (the newly-exposed edge column), an 8\u00d7 reduction in pixel work.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.95,
+      "robustness": 0.65,
+      "compatibility": 0.85,
+      "performance": 0.75
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-18",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.05,
+        "reasoning": "The defense correctly notes that zoom-toward-point involves translation and that interaction patterns include pan phases. However, the prosecution's core point stands: the primary innovation of Eagle Mode is recursive zoom, and any optimization strategy that offers zero zoom benefit has a structural gap. The deltas are moderate: pan optimizations are not worthless (they help a meaningful fraction of frames), but they are less impactful than their proponents claim because they don't address the hardest case. a1-19 gets a small upgrade for correctly flagging the priority, though its lack of usage data prevents a larger boost."
+      },
+      {
+        "round": 3,
+        "tension": "t-29",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.03,
+        "reasoning": "The defense's pragmatism argument is strong. Tile shift's value isn't absolute pan performance \u2014 it's the ratio of benefit to implementation cost and risk. a1-06's specific numbers become less impressive when compared to per-panel surfaces, but the approach's low-risk additivity (a1-16) is its real strength. a1-06 takes small deltas for overstating its relative benefit. a1-16 is upgraded for correctly identifying the 'strictly additive' property as tile shift's key advantage."
+      },
+      {
+        "round": 3,
+        "tension": "t-29",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.03,
+        "reasoning": "The defense's pragmatism argument is strong. Tile shift's value isn't absolute pan performance \u2014 it's the ratio of benefit to implementation cost and risk. a1-06's specific numbers become less impressive when compared to per-panel surfaces, but the approach's low-risk additivity (a1-16) is its real strength. a1-06 takes small deltas for overstating its relative benefit. a1-16 is upgraded for correctly identifying the 'strictly additive' property as tile shift's key advantage."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.95,
+      "robustness": 0.62,
+      "compatibility": 0.85,
+      "performance": 0.67
+    },
+    "composite": 0.79,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-10",
+    "proposition": "The oversize buffer approach costs 2.25\u00d7 memory (1.5\u00b2 \u00d7 viewport size) \u2014 approximately 13MB instead of 8MB at 1080p RGBA \u2014 and the buffer shift (memmove) costs ~2.6ms at 5GB/s bandwidth.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.95,
+      "robustness": 0.8,
+      "compatibility": 0.8,
+      "performance": 0.5
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.95,
+      "robustness": 0.8,
+      "compatibility": 0.8,
+      "performance": 0.5
+    },
+    "composite": 0.79,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-14",
+    "proposition": "Panel surfaces stored in a parallel SlotMap keyed by PanelId decouple cache lifetime from panel tree structure, allowing surface eviction without tree mutation.",
+    "initial_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.82,
+      "robustness": 0.78,
+      "compatibility": 0.85,
+      "performance": 0.7
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.82,
+      "robustness": 0.78,
+      "compatibility": 0.85,
+      "performance": 0.7
+    },
+    "composite": 0.79,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-19",
+    "proposition": "The pipelined approach requires that the render thread never access the panel tree, which is naturally enforced by Rust's type system since the panel tree uses Rc/RefCell (non-Send types).",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.8,
+      "performance": 0.55
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.8,
+      "performance": 0.55
+    },
+    "composite": 0.79,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-20",
+    "proposition": "Damage-clipped replay and pipelined rendering are complementary \u2014 pipelining provides the execution model while damage tracking reduces the actual pixel work, and combining them addresses both latency and throughput.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.72,
+      "robustness": 0.75,
+      "compatibility": 0.92,
+      "performance": 0.7
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.72,
+      "robustness": 0.75,
+      "compatibility": 0.92,
+      "performance": 0.7
+    },
+    "composite": 0.79,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-13",
+    "proposition": "Diagonal pans dirty two edges (one column and one row) instead of one, roughly doubling the rasterization cost of tile grid shift compared to axis-aligned pans.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.85,
+      "robustness": 0.8,
+      "compatibility": 0.85,
+      "performance": 0.55
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.85,
+      "robustness": 0.8,
+      "compatibility": 0.85,
+      "performance": 0.55
+    },
+    "composite": 0.78,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-07",
+    "proposition": "Panels that animate or update content every frame (clocks, progress bars) negate the caching benefit of retained surfaces for those specific panels.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.78,
+      "robustness": 0.85,
+      "compatibility": 0.8,
+      "performance": 0.55
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.78,
+      "robustness": 0.85,
+      "compatibility": 0.8,
+      "performance": 0.55
+    },
+    "composite": 0.78,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-13",
+    "proposition": "For a 1000-panel tree with 20 visible panels, per-panel retained surfaces reduce a pan frame from 20 full rasterizations to 20 scaled blits, which is a significant cost reduction when panel paint() is expensive.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.88,
+      "robustness": 0.7,
+      "compatibility": 0.75,
+      "performance": 0.82
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-25",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.05,
+        "reasoning": "The defense is largely correct: GPU compositing of 20 textured quads is cheap relative to CPU rasterization, even with overdraw. Modern GPUs handle this trivially. However, the propositions present compositing as nearly free, which understates the real cost on low-end hardware and doesn't account for the texture upload latency when surfaces are re-rendered. Small deltas are warranted: the approach works but its cost model is slightly optimistic. The worst-case 20x overdraw claim in a2-16 is overly pessimistic for typical layouts, so it gets a smaller delta than prosecution requested."
+      },
+      {
+        "round": 3,
+        "tension": "t-07, t-10, t-17",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.05,
+        "reasoning": "The defense's layering argument has merit: DrawList recording per panel is a natural extension. However, the compositing step replaces the tile-level replay with GPU-level surface composition, which is a significant change to the rendering pipeline even if individual panel rendering reuses DrawList. The existing tile cache, tile dirty tracking, and tile-parallel replay would be superseded. Small deltas reflect that per-panel surfaces are less architecturally disruptive than prosecution claimed but more disruptive than defense admitted. a1-24 gets a small boost as it remains relevant even in the per-panel model."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.88,
+      "robustness": 0.7,
+      "compatibility": 0.7,
+      "performance": 0.77
+    },
+    "composite": 0.78,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-15",
+    "proposition": "The 25px minimum viewed size threshold for panel visibility prevents wasted rasterization on panels too small to contribute meaningful pixels to the output.",
+    "initial_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.85,
+      "robustness": 0.72,
+      "compatibility": 0.8,
+      "performance": 0.75
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.85,
+      "robustness": 0.72,
+      "compatibility": 0.8,
+      "performance": 0.75
+    },
+    "composite": 0.78,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-01",
+    "proposition": "The current full-dirty repaint architecture guarantees pixel-perfect correctness by eliminating all stale-cache risk, since every frame is a fresh complete rasterization of the current view state.",
+    "initial_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.8,
+      "robustness": 0.95,
+      "compatibility": 0.9,
+      "performance": 0.2
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "specificity",
+        "delta": 0.05,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.85,
+      "robustness": 0.95,
+      "compatibility": 0.9,
+      "performance": 0.2
+    },
+    "composite": 0.77,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-03",
+    "proposition": "The three-strategy render system (full-viewport buffer, DrawList parallel replay, direct single-tile paint) optimizes throughput of full repaints but does not reduce total pixel work.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.9,
+      "performance": 0.35
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.9,
+      "performance": 0.35
+    },
+    "composite": 0.77,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-04",
+    "proposition": "Dirty rect tracking already works correctly for content-only changes (cursor blink, button press) but is completely bypassed when viewport_changed is set.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.95,
+      "performance": 0.3
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.95,
+      "performance": 0.3
+    },
+    "composite": 0.77,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-07",
+    "proposition": "Tile grid shift provides zero benefit for zoom operations because tile content is scale-dependent \u2014 all tiles are invalidated when the zoom level changes.",
+    "initial_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.85,
+      "robustness": 0.95,
+      "compatibility": 0.8,
+      "performance": 0.3
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.85,
+      "robustness": 0.95,
+      "compatibility": 0.8,
+      "performance": 0.3
+    },
+    "composite": 0.77,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-08",
+    "proposition": "Tile grid shift degrades to full repaint when pan velocity exceeds one tile width (256px) per frame, as all tiles shift entirely off-screen.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.9,
+      "robustness": 0.75,
+      "compatibility": 0.85,
+      "performance": 0.45
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.9,
+      "robustness": 0.75,
+      "compatibility": 0.85,
+      "performance": 0.45
+    },
+    "composite": 0.77,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-11",
+    "proposition": "Neither tile grid shift nor oversize buffer provides any benefit for zoom operations \u2014 zoom fundamentally invalidates all cached pixel data because content is scale-dependent.",
+    "initial_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.8,
+      "robustness": 0.95,
+      "compatibility": 0.85,
+      "performance": 0.25
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.8,
+      "robustness": 0.95,
+      "compatibility": 0.85,
+      "performance": 0.25
+    },
+    "composite": 0.76,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-09",
+    "proposition": "Geometric spacing of pyramid zoom levels (each level 2x the previous) means a 1.5x zoom factor hits no level exactly, requiring bilinear scaling on every frame until the exact level is asynchronously rendered.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.9,
+      "robustness": 0.85,
+      "compatibility": 0.7,
+      "performance": 0.45
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.9,
+      "robustness": 0.85,
+      "compatibility": 0.7,
+      "performance": 0.45
+    },
+    "composite": 0.76,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-12",
+    "proposition": "Under continuous zoom, every frame requires new tile rasterization at the current zoom level regardless of pyramid caching, because no previously cached level matches the current zoom factor.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.85,
+      "robustness": 0.9,
+      "compatibility": 0.75,
+      "performance": 0.35
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-02, t-26",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.05,
+        "reasoning": "The defense's point about discrete zoom gestures has merit, but Eagle Mode's primary zoom model is continuous scroll-wheel or drag zoom, not discrete pinch steps. The pyramid's benefit is limited to the settle phase, which is a fraction of zoom interaction time. The prosecution's core insight stands: no proposed approach actually solves the continuous-zoom work-reduction problem. a2-08 takes meaningful hits. a2-12 is strengthened for correctly identifying this fundamental limitation."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.93,
+      "specificity": 0.85,
+      "robustness": 0.9,
+      "compatibility": 0.75,
+      "performance": 0.35
+    },
+    "composite": 0.76,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-04",
+    "proposition": "DrawOps that span the full viewport (e.g., background rectangles) intersect every damage region and must always be replayed, undermining the spatial filtering benefit of damage-clipped replay.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.82,
+      "robustness": 0.85,
+      "compatibility": 0.8,
+      "performance": 0.35
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-20",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.03,
+        "reasoning": "The defense makes an excellent point: clipped replay means pixel work is proportional to strip area regardless of op bounding box. The prosecution overstated the cost. However, the filtering overhead (scanning all ops to find intersections) is still O(N) per frame, and many ops will pass the filter only to paint a tiny number of pixels each. There's a real overhead in per-op setup cost (shader state, blend mode changes) that doesn't scale with pixel count. Small deltas: a3-22's cost model is mostly right but slightly optimistic about setup costs. a3-04 is upgraded for identifying the filtering concern."
+      },
+      {
+        "round": 3,
+        "tension": "t-20",
+        "pass": "adjudication",
+        "axis": "specificity",
+        "delta": 0.03,
+        "reasoning": "The defense makes an excellent point: clipped replay means pixel work is proportional to strip area regardless of op bounding box. The prosecution overstated the cost. However, the filtering overhead (scanning all ops to find intersections) is still O(N) per frame, and many ops will pass the filter only to paint a tiny number of pixels each. There's a real overhead in per-op setup cost (shader state, blend mode changes) that doesn't scale with pixel count. Small deltas: a3-22's cost model is mostly right but slightly optimistic about setup costs. a3-04 is upgraded for identifying the filtering concern."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.93,
+      "specificity": 0.85,
+      "robustness": 0.85,
+      "compatibility": 0.8,
+      "performance": 0.35
+    },
+    "composite": 0.76,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-09",
+    "proposition": "The pipelined split does not reduce total rasterization work \u2014 it only hides latency \u2014 so it must be combined with other approaches (damage tracking, tile caching, partial replay) to achieve actual per-pixel efficiency gains.",
+    "initial_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.78,
+      "robustness": 0.85,
+      "compatibility": 0.9,
+      "performance": 0.4
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-02, t-26",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.03,
+        "reasoning": "The defense's point about discrete zoom gestures has merit, but Eagle Mode's primary zoom model is continuous scroll-wheel or drag zoom, not discrete pinch steps. The pyramid's benefit is limited to the settle phase, which is a fraction of zoom interaction time. The prosecution's core insight stands: no proposed approach actually solves the continuous-zoom work-reduction problem. a2-08 takes meaningful hits. a2-12 is strengthened for correctly identifying this fundamental limitation."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.78,
+      "robustness": 0.82,
+      "compatibility": 0.9,
+      "performance": 0.4
+    },
+    "composite": 0.76,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-16",
+    "proposition": "Damage-clipped replay preserves the DrawList's operation ordering invariant \u2014 replaying a spatial subset of ops in their original order produces correct pixels within the damage region due to the painter's algorithm.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.7,
+      "compatibility": 0.85,
+      "performance": 0.6
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.7,
+      "compatibility": 0.85,
+      "performance": 0.6
+    },
+    "composite": 0.76,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-05",
+    "proposition": "Tile grid shift on pan achieves O(edge_tiles) rasterization cost instead of O(all_tiles) by recognizing that a tile's content depends only on which viewport-coordinate rectangle it covers, and translation preserves that content.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.7,
+      "compatibility": 0.8,
+      "performance": 0.7
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-18",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.08,
+        "reasoning": "The defense correctly notes that zoom-toward-point involves translation and that interaction patterns include pan phases. However, the prosecution's core point stands: the primary innovation of Eagle Mode is recursive zoom, and any optimization strategy that offers zero zoom benefit has a structural gap. The deltas are moderate: pan optimizations are not worthless (they help a meaningful fraction of frames), but they are less impactful than their proponents claim because they don't address the hardest case. a1-19 gets a small upgrade for correctly flagging the priority, though its lack of usage data prevents a larger boost."
+      },
+      {
+        "round": 3,
+        "tension": "t-18",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense correctly notes that zoom-toward-point involves translation and that interaction patterns include pan phases. However, the prosecution's core point stands: the primary innovation of Eagle Mode is recursive zoom, and any optimization strategy that offers zero zoom benefit has a structural gap. The deltas are moderate: pan optimizations are not worthless (they help a meaningful fraction of frames), but they are less impactful than their proponents claim because they don't address the hardest case. a1-19 gets a small upgrade for correctly flagging the priority, though its lack of usage data prevents a larger boost."
+      },
+      {
+        "round": 3,
+        "tension": "t-01",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.05,
+        "reasoning": "The defense is correct that these are alternatives, not co-requirements. However, the mutual exclusion means choosing one forecloses the other, which is a form of compatibility cost \u2014 it constrains future design space. Small deltas applied to both to reflect this design-choice-locks-out-alternative dynamic."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.85,
+      "robustness": 0.65,
+      "compatibility": 0.75,
+      "performance": 0.62
+    },
+    "composite": 0.75,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-18",
+    "proposition": "The full-repaint baseline has perfectly predictable frame timing \u2014 every frame costs the same, so there are no latency spikes (p99 equals p50), even though the absolute cost may be high.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.85,
+      "compatibility": 0.85,
+      "performance": 0.35
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-06, t-14",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.03,
+        "reasoning": "The defense makes a compelling throughput-vs-latency argument: consistent 60fps with one frame of latency is likely better than variable 30-60fps with zero extra latency. However, the pipeline propositions don't acknowledge this tradeoff explicitly \u2014 they present pipelining as pure benefit. Small deltas applied to reflect the unacknowledged cost. a1-18 gets a minor boost for identifying the baseline's latency-predictability advantage."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.8,
+      "robustness": 0.85,
+      "compatibility": 0.85,
+      "performance": 0.35
+    },
+    "composite": 0.75,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-02",
+    "proposition": "For zoom operations, damage-clipped replay degrades to full DrawList replay because every pixel changes scale, making the damage region equal to the entire viewport.",
+    "initial_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.85,
+      "robustness": 0.9,
+      "compatibility": 0.85,
+      "performance": 0.2
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.85,
+      "robustness": 0.9,
+      "compatibility": 0.85,
+      "performance": 0.2
+    },
+    "composite": 0.75,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-21",
+    "proposition": "If the render thread consistently cannot complete rasterization within 16.6ms, the pipeline stalls and frames are dropped regardless of pipelining, meaning pipelining cannot rescue a fundamentally too-slow rasterizer.",
+    "initial_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.78,
+      "robustness": 0.9,
+      "compatibility": 0.85,
+      "performance": 0.3
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.78,
+      "robustness": 0.9,
+      "compatibility": 0.85,
+      "performance": 0.3
+    },
+    "composite": 0.75,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-02",
+    "proposition": "Full-dirty repaint makes the cost of a 1px pan identical to a 1000px pan \u2014 frame time is O(visible_pixels \u00d7 primitives_per_panel) regardless of viewport change magnitude.",
+    "initial_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.9,
+      "robustness": 0.9,
+      "compatibility": 0.85,
+      "performance": 0.1
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.9,
+      "robustness": 0.9,
+      "compatibility": 0.85,
+      "performance": 0.1
+    },
+    "composite": 0.74,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-09",
+    "proposition": "The oversize viewport buffer makes small pans essentially free (O(1) origin shift, no rasterization) by pre-rendering a 1.5\u00d7 margin around the visible viewport.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.85,
+      "robustness": 0.65,
+      "compatibility": 0.75,
+      "performance": 0.7
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-04, t-24",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.05,
+        "reasoning": "The defense's tiled-oversize-buffer idea is valid but not described in the original proposition. As written, a1-09 describes an oversize viewport buffer with memmove and margin, which implies a monolithic buffer. The compatible tiled variant would be a different proposition. Small deltas to reflect the proposition-as-written's architectural friction."
+      },
+      {
+        "round": 3,
+        "tension": "t-04, t-24",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.03,
+        "reasoning": "The defense's tiled-oversize-buffer idea is valid but not described in the original proposition. As written, a1-09 describes an oversize viewport buffer with memmove and margin, which implies a monolithic buffer. The compatible tiled variant would be a different proposition. Small deltas to reflect the proposition-as-written's architectural friction."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.85,
+      "robustness": 0.62,
+      "compatibility": 0.7,
+      "performance": 0.7
+    },
+    "composite": 0.74,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-15",
+    "proposition": "The oversize buffer's margin size is an inherent tuning parameter with no universally correct value: larger margins reduce repaint frequency but increase memory cost and initial render time.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.75,
+      "robustness": 0.75,
+      "compatibility": 0.85,
+      "performance": 0.45
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.75,
+      "robustness": 0.75,
+      "compatibility": 0.85,
+      "performance": 0.45
+    },
+    "composite": 0.74,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-23",
+    "proposition": "The total memory budget for a multi-resolution tile pyramid must be shared across all zoom levels, meaning adding more levels for finer zoom granularity directly reduces the tile count available at each level.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.82,
+      "compatibility": 0.7,
+      "performance": 0.55
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.82,
+      "compatibility": 0.7,
+      "performance": 0.55
+    },
+    "composite": 0.74,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-05",
+    "proposition": "Non-opaque panels with alpha blending require back-to-front compositing in paint order, preventing independent parallel composition of panel surfaces.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.9,
+      "compatibility": 0.55,
+      "performance": 0.5
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-13",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.03,
+        "reasoning": "The defense is correct: ordered GPU draw calls are the standard compositing model and are very fast. The prosecution overstated the performance concern. However, a2-21's 'natural fit' framing slightly oversells the simplicity \u2014 the ordering constraint means the compositor must maintain a sorted panel list and handle Z-order changes correctly. Minimal deltas: this tension is mostly resolved in the defense's favor."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.8,
+      "robustness": 0.9,
+      "compatibility": 0.55,
+      "performance": 0.5
+    },
+    "composite": 0.73,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-08",
+    "proposition": "The pipelined split introduces exactly one frame of visual latency \u2014 the display shows frame N-1 while the main thread computes frame N \u2014 which may be perceptible during fast interactions.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.88,
+      "robustness": 0.8,
+      "compatibility": 0.75,
+      "performance": 0.45
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.05,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      },
+      {
+        "round": 3,
+        "tension": "t-06, t-14",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.05,
+        "reasoning": "The defense makes a compelling throughput-vs-latency argument: consistent 60fps with one frame of latency is likely better than variable 30-60fps with zero extra latency. However, the pipeline propositions don't acknowledge this tradeoff explicitly \u2014 they present pipelining as pure benefit. Small deltas applied to reflect the unacknowledged cost. a1-18 gets a minor boost for identifying the baseline's latency-predictability advantage."
+      },
+      {
+        "round": 3,
+        "tension": "t-06, t-14",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.05,
+        "reasoning": "The defense makes a compelling throughput-vs-latency argument: consistent 60fps with one frame of latency is likely better than variable 30-60fps with zero extra latency. However, the pipeline propositions don't acknowledge this tradeoff explicitly \u2014 they present pipelining as pure benefit. Small deltas applied to reflect the unacknowledged cost. a1-18 gets a minor boost for identifying the baseline's latency-predictability advantage."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.88,
+      "robustness": 0.8,
+      "compatibility": 0.7,
+      "performance": 0.4
+    },
+    "composite": 0.73,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-14",
+    "proposition": "A spatially-indexed DrawList (ops_by_bbox sorted by spatial extent) enables O(log N) intersection queries against damage regions, compared to O(N) linear scan of all ops.",
+    "initial_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.85,
+      "robustness": 0.65,
+      "compatibility": 0.8,
+      "performance": 0.6
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.85,
+      "robustness": 0.65,
+      "compatibility": 0.8,
+      "performance": 0.6
+    },
+    "composite": 0.73,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-17",
+    "proposition": "The FramePacket abstraction (DrawList + damage rects + viewport transform + dirty tiles) creates a complete, self-contained description of a frame's rendering work that can be consumed asynchronously.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.85,
+      "robustness": 0.7,
+      "compatibility": 0.75,
+      "performance": 0.55
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.85,
+      "robustness": 0.7,
+      "compatibility": 0.75,
+      "performance": 0.55
+    },
+    "composite": 0.73,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-10",
+    "proposition": "Double-buffered FramePackets (DrawList + damage rects + viewport transform + dirty tile list) double the memory required for draw operation storage.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.85,
+      "robustness": 0.75,
+      "compatibility": 0.7,
+      "performance": 0.5
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.85,
+      "robustness": 0.75,
+      "compatibility": 0.7,
+      "performance": 0.5
+    },
+    "composite": 0.72,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-15",
+    "proposition": "The main thread's tree walk plus DrawList recording costs approximately 1-2ms based on benchmarks, meaning pipelining can hide up to 14-15ms of render thread rasterization within the 16.6ms frame budget.",
+    "initial_scores": {
+      "defensibility": 0.72,
+      "specificity": 0.9,
+      "robustness": 0.55,
+      "compatibility": 0.8,
+      "performance": 0.65
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.72,
+      "specificity": 0.9,
+      "robustness": 0.55,
+      "compatibility": 0.8,
+      "performance": 0.65
+    },
+    "composite": 0.72,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-19",
+    "proposition": "For Eagle Mode's recursive-zoom UI paradigm, zoom is the primary and most frequent viewport interaction, making zoom-only optimizations more impactful than pan-only optimizations.",
+    "initial_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.7,
+      "robustness": 0.65,
+      "compatibility": 0.8,
+      "performance": 0.55
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-18",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.05,
+        "reasoning": "The defense correctly notes that zoom-toward-point involves translation and that interaction patterns include pan phases. However, the prosecution's core point stands: the primary innovation of Eagle Mode is recursive zoom, and any optimization strategy that offers zero zoom benefit has a structural gap. The deltas are moderate: pan optimizations are not worthless (they help a meaningful fraction of frames), but they are less impactful than their proponents claim because they don't address the hardest case. a1-19 gets a small upgrade for correctly flagging the priority, though its lack of usage data prevents a larger boost."
+      },
+      {
+        "round": 3,
+        "tension": "t-18",
+        "pass": "adjudication",
+        "axis": "specificity",
+        "delta": 0.05,
+        "reasoning": "The defense correctly notes that zoom-toward-point involves translation and that interaction patterns include pan phases. However, the prosecution's core point stands: the primary innovation of Eagle Mode is recursive zoom, and any optimization strategy that offers zero zoom benefit has a structural gap. The deltas are moderate: pan optimizations are not worthless (they help a meaningful fraction of frames), but they are less impactful than their proponents claim because they don't address the hardest case. a1-19 gets a small upgrade for correctly flagging the priority, though its lack of usage data prevents a larger boost."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.75,
+      "robustness": 0.65,
+      "compatibility": 0.8,
+      "performance": 0.55
+    },
+    "composite": 0.71,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-01",
+    "proposition": "Per-panel retained surfaces make rasterization cost proportional to the number of panels whose pixel content actually changed, not the number of visible panels or the viewport delta.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.75,
+      "robustness": 0.6,
+      "compatibility": 0.7,
+      "performance": 0.8
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-19",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense's amortization strategy is valid but was not described in the original propositions, and it reintroduces approximate output (GPU-scaled surfaces for non-priority panels). The natural staggering argument has some merit for Eagle Mode's hierarchical layout. Moderate deltas: the spike problem is real but manageable with additional design work not captured in the propositions."
+      },
+      {
+        "round": 3,
+        "tension": "t-11",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.03,
+        "reasoning": "The defense's practical-case argument holds \u2014 40MB is reasonable for a desktop application. But the proposition doesn't describe a memory budget or eviction policy, and without one, memory is unbounded. The 80MB worst case is realistic for deeply-zoomed-in panels. Moderate deltas: the memory cost is manageable but the propositions don't adequately address bounding it."
+      },
+      {
+        "round": 3,
+        "tension": "t-07, t-10, t-17",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.05,
+        "reasoning": "The defense's layering argument has merit: DrawList recording per panel is a natural extension. However, the compositing step replaces the tile-level replay with GPU-level surface composition, which is a significant change to the rendering pipeline even if individual panel rendering reuses DrawList. The existing tile cache, tile dirty tracking, and tile-parallel replay would be superseded. Small deltas reflect that per-panel surfaces are less architecturally disruptive than prosecution claimed but more disruptive than defense admitted. a1-24 gets a small boost as it remains relevant even in the per-panel model."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.75,
+      "robustness": 0.55,
+      "compatibility": 0.65,
+      "performance": 0.77
+    },
+    "composite": 0.71,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-11",
+    "proposition": "Eviction policy for multi-level tile pyramids is inherently more complex than single-level tile caches because eviction must decide which zoom level's tiles to discard under memory pressure.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.75,
+      "robustness": 0.8,
+      "compatibility": 0.65,
+      "performance": 0.55
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.75,
+      "robustness": 0.8,
+      "compatibility": 0.65,
+      "performance": 0.55
+    },
+    "composite": 0.71,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-16",
+    "proposition": "Compositing 20 panel surfaces with alpha blending and bilinear scaling requires approximately 20 \u00d7 viewport_area pixel reads in the worst case (full overlap), which for 1920x1080 is ~40M pixel operations per frame.",
+    "initial_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.88,
+      "robustness": 0.8,
+      "compatibility": 0.7,
+      "performance": 0.5
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-25",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.05,
+        "reasoning": "The defense is largely correct: GPU compositing of 20 textured quads is cheap relative to CPU rasterization, even with overdraw. Modern GPUs handle this trivially. However, the propositions present compositing as nearly free, which understates the real cost on low-end hardware and doesn't account for the texture upload latency when surfaces are re-rendered. Small deltas are warranted: the approach works but its cost model is slightly optimistic. The worst-case 20x overdraw claim in a2-16 is overly pessimistic for typical layouts, so it gets a smaller delta than prosecution requested."
+      },
+      {
+        "round": 3,
+        "tension": "t-25",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense is largely correct: GPU compositing of 20 textured quads is cheap relative to CPU rasterization, even with overdraw. Modern GPUs handle this trivially. However, the propositions present compositing as nearly free, which understates the real cost on low-end hardware and doesn't account for the texture upload latency when surfaces are re-rendered. Small deltas are warranted: the approach works but its cost model is slightly optimistic. The worst-case 20x overdraw claim in a2-16 is overly pessimistic for typical layouts, so it gets a smaller delta than prosecution requested."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.88,
+      "robustness": 0.75,
+      "compatibility": 0.7,
+      "performance": 0.45
+    },
+    "composite": 0.71,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-17",
+    "proposition": "The tile pyramid approach combines naturally with tile-shift panning (at a given zoom level) but adds no benefit to zoom operations under continuous user interaction.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.78,
+      "robustness": 0.8,
+      "compatibility": 0.72,
+      "performance": 0.55
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-02, t-26",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.05,
+        "reasoning": "The defense's point about discrete zoom gestures has merit, but Eagle Mode's primary zoom model is continuous scroll-wheel or drag zoom, not discrete pinch steps. The pyramid's benefit is limited to the settle phase, which is a fraction of zoom interaction time. The prosecution's core insight stands: no proposed approach actually solves the continuous-zoom work-reduction problem. a2-08 takes meaningful hits. a2-12 is strengthened for correctly identifying this fundamental limitation."
+      },
+      {
+        "round": 3,
+        "tension": "t-21",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.03,
+        "reasoning": "The defense correctly separates the two pairings. The pyramid + tile-shift combination is architecturally coherent. However, the pyramid still fails under continuous zoom (a2-12), and combining it with tile-shift adds complexity for an approach that only helps settle phases. Small deltas for complexity overhead. a2-08 takes a slightly larger hit for its ongoing compatibility problems with the pixel-perfect requirement."
+      },
+      {
+        "round": 3,
+        "tension": "t-21",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.03,
+        "reasoning": "The defense correctly separates the two pairings. The pyramid + tile-shift combination is architecturally coherent. However, the pyramid still fails under continuous zoom (a2-12), and combining it with tile-shift adds complexity for an approach that only helps settle phases. Small deltas for complexity overhead. a2-08 takes a slightly larger hit for its ongoing compatibility problems with the pixel-perfect requirement."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.78,
+      "robustness": 0.77,
+      "compatibility": 0.69,
+      "performance": 0.5
+    },
+    "composite": 0.71,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-01",
+    "proposition": "Damage-clipped DrawList replay reduces pan cost to O(ops_intersecting_strip * strip_pixels) by replaying only DrawOps whose bounding boxes intersect the newly-exposed edge strip.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.88,
+      "robustness": 0.55,
+      "compatibility": 0.8,
+      "performance": 0.65
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-18",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.08,
+        "reasoning": "The defense correctly notes that zoom-toward-point involves translation and that interaction patterns include pan phases. However, the prosecution's core point stands: the primary innovation of Eagle Mode is recursive zoom, and any optimization strategy that offers zero zoom benefit has a structural gap. The deltas are moderate: pan optimizations are not worthless (they help a meaningful fraction of frames), but they are less impactful than their proponents claim because they don't address the hardest case. a1-19 gets a small upgrade for correctly flagging the priority, though its lack of usage data prevents a larger boost."
+      },
+      {
+        "round": 3,
+        "tension": "t-18",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense correctly notes that zoom-toward-point involves translation and that interaction patterns include pan phases. However, the prosecution's core point stands: the primary innovation of Eagle Mode is recursive zoom, and any optimization strategy that offers zero zoom benefit has a structural gap. The deltas are moderate: pan optimizations are not worthless (they help a meaningful fraction of frames), but they are less impactful than their proponents claim because they don't address the hardest case. a1-19 gets a small upgrade for correctly flagging the priority, though its lack of usage data prevents a larger boost."
+      },
+      {
+        "round": 3,
+        "tension": "t-20",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.03,
+        "reasoning": "The defense makes an excellent point: clipped replay means pixel work is proportional to strip area regardless of op bounding box. The prosecution overstated the cost. However, the filtering overhead (scanning all ops to find intersections) is still O(N) per frame, and many ops will pass the filter only to paint a tiny number of pixels each. There's a real overhead in per-op setup cost (shader state, blend mode changes) that doesn't scale with pixel count. Small deltas: a3-22's cost model is mostly right but slightly optimistic about setup costs. a3-04 is upgraded for identifying the filtering concern."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.88,
+      "robustness": 0.47,
+      "compatibility": 0.8,
+      "performance": 0.57
+    },
+    "composite": 0.71,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-18",
+    "proposition": "For pan operations, damage-clipped replay avoids re-walking the panel tree entirely \u2014 the previous frame's DrawList is reused with transformed bounding boxes \u2014 making pan cost independent of tree size.",
+    "initial_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.82,
+      "robustness": 0.55,
+      "compatibility": 0.75,
+      "performance": 0.75
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-16",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.07,
+        "reasoning": "The defense's point about partial DrawList reuse is valid in theory but adds significant complexity: you need per-panel DrawList segments, not a single linear DrawList. The proposition as written assumes full DrawList reuse, which is fragile. Deferred hover recalculation is a design option but not described in the propositions. Moderate deltas: the tree-walk avoidance is less robust than claimed but not completely defeated."
+      },
+      {
+        "round": 3,
+        "tension": "t-16",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.05,
+        "reasoning": "The defense's point about partial DrawList reuse is valid in theory but adds significant complexity: you need per-panel DrawList segments, not a single linear DrawList. The proposition as written assumes full DrawList reuse, which is fragile. Deferred hover recalculation is a design option but not described in the propositions. Moderate deltas: the tree-walk avoidance is less robust than claimed but not completely defeated."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.73,
+      "specificity": 0.82,
+      "robustness": 0.48,
+      "compatibility": 0.75,
+      "performance": 0.75
+    },
+    "composite": 0.71,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-04",
+    "proposition": "Memory usage of per-panel retained surfaces is proportional to the number of visible panels multiplied by their viewed pixel area, and a deeply-zoomed-in panel's surface can be as large as the entire viewport.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.8,
+      "robustness": 0.85,
+      "compatibility": 0.6,
+      "performance": 0.4
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-11",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.05,
+        "reasoning": "The defense's practical-case argument holds \u2014 40MB is reasonable for a desktop application. But the proposition doesn't describe a memory budget or eviction policy, and without one, memory is unbounded. The 80MB worst case is realistic for deeply-zoomed-in panels. Moderate deltas: the memory cost is manageable but the propositions don't adequately address bounding it."
+      },
+      {
+        "round": 3,
+        "tension": "t-11",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.05,
+        "reasoning": "The defense's practical-case argument holds \u2014 40MB is reasonable for a desktop application. But the proposition doesn't describe a memory budget or eviction policy, and without one, memory is unbounded. The 80MB worst case is realistic for deeply-zoomed-in panels. Moderate deltas: the memory cost is manageable but the propositions don't adequately address bounding it."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.8,
+      "robustness": 0.85,
+      "compatibility": 0.55,
+      "performance": 0.35
+    },
+    "composite": 0.69,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-18",
+    "proposition": "Per-panel retained surfaces and multi-resolution tile pyramids are architecturally incompatible: the former caches at panel granularity while the latter caches at spatial-tile granularity, and combining them yields a combinatorial explosion of cache entries.",
+    "initial_scores": {
+      "defensibility": 0.7,
+      "specificity": 0.75,
+      "robustness": 0.72,
+      "compatibility": 0.8,
+      "performance": 0.45
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-32",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.03,
+        "reasoning": "The defense is right that a1-23 proposes a specific two-approach combination, not a six-way hybrid. However, the proposition is underspecified about how the two approaches interact (when to shift tiles vs. shift margin), and the hybrid adds edge cases neither approach has alone. Small delta for underspecification. a2-18 gets a minor boost for the general warning about combining cache systems."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.73,
+      "specificity": 0.75,
+      "robustness": 0.72,
+      "compatibility": 0.8,
+      "performance": 0.45
+    },
+    "composite": 0.69,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-03",
+    "proposition": "Pan requires a memmove of the viewport buffer to shift existing pixels, which costs O(viewport_pixels) \u2014 approximately 8MB at 1080p \u2014 before the damage strip can be painted.",
+    "initial_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.9,
+      "robustness": 0.7,
+      "compatibility": 0.75,
+      "performance": 0.5
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-03, t-22",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.1,
+        "reasoning": "a3-03's cost model conflicts with Zuicchini's actual tile-based architecture. While the proposition is internally consistent, it describes a cost that doesn't apply to the system being optimized. It should have acknowledged the tile-based alternative. a1-12's ring-buffer approach is strengthened as the correct way to avoid copies in a tile-based system. a3-03 takes meaningful hits for architectural misfit."
+      },
+      {
+        "round": 3,
+        "tension": "t-03, t-22",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.1,
+        "reasoning": "a3-03's cost model conflicts with Zuicchini's actual tile-based architecture. While the proposition is internally consistent, it describes a cost that doesn't apply to the system being optimized. It should have acknowledged the tile-based alternative. a1-12's ring-buffer approach is strengthened as the correct way to avoid copies in a tile-based system. a3-03 takes meaningful hits for architectural misfit."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.7,
+      "specificity": 0.9,
+      "robustness": 0.7,
+      "compatibility": 0.65,
+      "performance": 0.5
+    },
+    "composite": 0.69,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-23",
+    "proposition": "Tile grid shift and oversize buffer are complementary rather than competing: tile shift handles per-tile remapping for pan, while oversize margin absorbs small sub-tile movements without any rasterization.",
+    "initial_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.75,
+      "robustness": 0.6,
+      "compatibility": 0.7,
+      "performance": 0.65
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-32",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense is right that a1-23 proposes a specific two-approach combination, not a six-way hybrid. However, the proposition is underspecified about how the two approaches interact (when to shift tiles vs. shift margin), and the hybrid adds edge cases neither approach has alone. Small delta for underspecification. a2-18 gets a minor boost for the general warning about combining cache systems."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.75,
+      "robustness": 0.55,
+      "compatibility": 0.7,
+      "performance": 0.65
+    },
+    "composite": 0.68,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-05",
+    "proposition": "Per-operation bounding box computation during DrawList recording adds overhead to every frame, even frames where no damage optimization is needed.",
+    "initial_scores": {
+      "defensibility": 0.7,
+      "specificity": 0.72,
+      "robustness": 0.65,
+      "compatibility": 0.8,
+      "performance": 0.55
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.7,
+      "specificity": 0.72,
+      "robustness": 0.65,
+      "compatibility": 0.8,
+      "performance": 0.55
+    },
+    "composite": 0.68,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-10",
+    "proposition": "The tile pyramid's pixel-identical correctness requirement means scaled intermediates cannot be the final output \u2014 they serve only as visual approximations during transitions until exact tiles are rendered.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.82,
+      "robustness": 0.8,
+      "compatibility": 0.5,
+      "performance": 0.5
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.1,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.82,
+      "robustness": 0.8,
+      "compatibility": 0.4,
+      "performance": 0.5
+    },
+    "composite": 0.67,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-06",
+    "proposition": "Reusing the previous frame's DrawList for damage-clipped replay requires that all referenced panel state (image pointers, text content) remains valid, constraining when panels can be modified or deallocated.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.8,
+      "robustness": 0.6,
+      "compatibility": 0.55,
+      "performance": 0.5
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-16",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.03,
+        "reasoning": "The defense's point about partial DrawList reuse is valid in theory but adds significant complexity: you need per-panel DrawList segments, not a single linear DrawList. The proposition as written assumes full DrawList reuse, which is fragile. Deferred hover recalculation is a design option but not described in the propositions. Moderate deltas: the tree-walk avoidance is less robust than claimed but not completely defeated."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.91,
+      "specificity": 0.8,
+      "robustness": 0.6,
+      "compatibility": 0.55,
+      "performance": 0.5
+    },
+    "composite": 0.67,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-14",
+    "proposition": "The oversize buffer approach is architecturally incompatible with the existing tile cache system \u2014 it replaces per-tile dirty tracking with a monolithic buffer, losing parallel replay benefits.",
+    "initial_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.8,
+      "robustness": 0.7,
+      "compatibility": 0.5,
+      "performance": 0.45
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-04, t-24",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.03,
+        "reasoning": "The defense's tiled-oversize-buffer idea is valid but not described in the original proposition. As written, a1-09 describes an oversize viewport buffer with memmove and margin, which implies a monolithic buffer. The compatible tiled variant would be a different proposition. Small deltas to reflect the proposition-as-written's architectural friction."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.8,
+      "robustness": 0.7,
+      "compatibility": 0.5,
+      "performance": 0.45
+    },
+    "composite": 0.65,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-22",
+    "proposition": "Panels whose viewed size changes by less than 10% during a zoom frame can reuse their cached surface with minor compositor-side scaling, avoiding re-rasterization for the majority of visible panels during moderate zoom.",
+    "initial_scores": {
+      "defensibility": 0.72,
+      "specificity": 0.8,
+      "robustness": 0.58,
+      "compatibility": 0.7,
+      "performance": 0.7
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.12,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      },
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.18,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      },
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.1,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.6,
+      "specificity": 0.8,
+      "robustness": 0.48,
+      "compatibility": 0.52,
+      "performance": 0.7
+    },
+    "composite": 0.62,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-07",
+    "proposition": "Pipelined main-thread/render-thread split hides rasterization latency by overlapping frame N's rasterization with frame N+1's tree walk, allowing the main thread to maintain 60fps responsiveness even when rasterization exceeds 16.6ms.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.82,
+      "robustness": 0.65,
+      "compatibility": 0.7,
+      "performance": 0.6
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.15,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      },
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.2,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      },
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.15,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.7,
+      "specificity": 0.82,
+      "robustness": 0.5,
+      "compatibility": 0.5,
+      "performance": 0.6
+    },
+    "composite": 0.62,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-11",
+    "proposition": "The render thread must own the tile cache and compositor exclusively, while the main thread owns the panel tree and view, enforcing a clean ownership boundary via FramePacket transfer.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.75,
+      "compatibility": 0.65,
+      "performance": 0.55
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.1,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      },
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.25,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      },
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.15,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.8,
+      "robustness": 0.6,
+      "compatibility": 0.4,
+      "performance": 0.55
+    },
+    "composite": 0.62,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-03",
+    "proposition": "Per-panel surfaces must be re-rendered when the panel's viewed size changes enough that the cached resolution would visibly alias, creating a resolution hysteresis band.",
+    "initial_scores": {
+      "defensibility": 0.72,
+      "specificity": 0.65,
+      "robustness": 0.55,
+      "compatibility": 0.7,
+      "performance": 0.6
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      },
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.05,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      },
+      {
+        "round": 3,
+        "tension": "t-19",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense's amortization strategy is valid but was not described in the original propositions, and it reintroduces approximate output (GPU-scaled surfaces for non-priority panels). The natural staggering argument has some merit for Eagle Mode's hierarchical layout. Moderate deltas: the spike problem is real but manageable with additional design work not captured in the propositions."
+      },
+      {
+        "round": 3,
+        "tension": "t-19",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.05,
+        "reasoning": "The defense's amortization strategy is valid but was not described in the original propositions, and it reintroduces approximate output (GPU-scaled surfaces for non-priority panels). The natural staggering argument has some merit for Eagle Mode's hierarchical layout. Moderate deltas: the spike problem is real but manageable with additional design work not captured in the propositions."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.67,
+      "specificity": 0.65,
+      "robustness": 0.45,
+      "compatibility": 0.7,
+      "performance": 0.55
+    },
+    "composite": 0.6,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-12",
+    "proposition": "Image data referenced by DrawOps in a cross-thread pipeline requires either reference counting (Arc) or a fence mechanism to ensure the render thread can safely access images while the main thread continues.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.82,
+      "robustness": 0.6,
+      "compatibility": 0.45,
+      "performance": 0.5
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.08,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      },
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.2,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.82,
+      "robustness": 0.6,
+      "compatibility": 0.25,
+      "performance": 0.5
+    },
+    "composite": 0.59,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-23",
+    "proposition": "The channel or atomic-swap mechanism between main thread and render thread in the pipeline must transfer ownership of the FramePacket without copying, requiring the DrawList and its contents to be Send-safe.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.8,
+      "robustness": 0.6,
+      "compatibility": 0.5,
+      "performance": 0.55
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.2,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      },
+      {
+        "round": 3,
+        "tension": "t-08, t-09, t-30",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.1,
+        "reasoning": "The defense's ImageId approach is theoretically valid but requires significant architectural work not described in any proposition. The propositions as stated assume Rc-bearing DrawOps cross a thread boundary, which is a compile error under current constraints. The defense earns partial credit: the deltas are moderated from prosecution but still substantial. a3-07 and a3-11 take the largest hits because they directly describe the two-thread architecture. a3-12 and a3-23 take moderate hits as they describe the mechanism that fails. a2-20's identification of this constraint is strengthened slightly for being prescient. The pipeline remains a theoretically interesting approach but has an unresolved architectural prerequisite that none of the propositions adequately address."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.8,
+      "robustness": 0.5,
+      "compatibility": 0.3,
+      "performance": 0.55
+    },
+    "composite": 0.59,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-22",
+    "proposition": "An oversize buffer variant could display GPU-scaled stale content as a placeholder while re-rendering at the new zoom level asynchronously, trading pixel-perfect output for responsiveness.",
+    "initial_scores": {
+      "defensibility": 0.7,
+      "specificity": 0.75,
+      "robustness": 0.55,
+      "compatibility": 0.5,
+      "performance": 0.6
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.1,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      },
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.15,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.6,
+      "specificity": 0.75,
+      "robustness": 0.55,
+      "compatibility": 0.35,
+      "performance": 0.6
+    },
+    "composite": 0.57,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-08",
+    "proposition": "A multi-resolution tile pyramid guarantees that a 'close enough' pre-rendered tile exists for any zoom level, eliminating synchronous full rasterization during zoom transitions.",
+    "initial_scores": {
+      "defensibility": 0.7,
+      "specificity": 0.72,
+      "robustness": 0.45,
+      "compatibility": 0.6,
+      "performance": 0.55
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.1,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      },
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.15,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      },
+      {
+        "round": 3,
+        "tension": "t-05, t-15, t-27, t-28",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.08,
+        "reasoning": "The defense makes a valid point about interactive vs settled modes, but none of these propositions actually define that distinction. a2-22 describes the 10% tolerance as a general optimization, not as part of a two-phase settle protocol. a2-08 says 'close enough,' not 'approximate until settled.' Without an explicit settle guarantee, these propositions leave the system in a state where approximate output could persist indefinitely during continuous interaction. The deltas are moderated because the two-phase approach is viable in principle, but the propositions as written don't describe it. a1-01 gets a small specificity bump for precisely defining the correctness invariant these approaches would need to preserve."
+      },
+      {
+        "round": 3,
+        "tension": "t-02, t-26",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.08,
+        "reasoning": "The defense's point about discrete zoom gestures has merit, but Eagle Mode's primary zoom model is continuous scroll-wheel or drag zoom, not discrete pinch steps. The pyramid's benefit is limited to the settle phase, which is a fraction of zoom interaction time. The prosecution's core insight stands: no proposed approach actually solves the continuous-zoom work-reduction problem. a2-08 takes meaningful hits. a2-12 is strengthened for correctly identifying this fundamental limitation."
+      },
+      {
+        "round": 3,
+        "tension": "t-02, t-26",
+        "pass": "adjudication",
+        "axis": "performance",
+        "delta": -0.08,
+        "reasoning": "The defense's point about discrete zoom gestures has merit, but Eagle Mode's primary zoom model is continuous scroll-wheel or drag zoom, not discrete pinch steps. The pyramid's benefit is limited to the settle phase, which is a fraction of zoom interaction time. The prosecution's core insight stands: no proposed approach actually solves the continuous-zoom work-reduction problem. a2-08 takes meaningful hits. a2-12 is strengthened for correctly identifying this fundamental limitation."
+      },
+      {
+        "round": 3,
+        "tension": "t-21",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.05,
+        "reasoning": "The defense correctly separates the two pairings. The pyramid + tile-shift combination is architecturally coherent. However, the pyramid still fails under continuous zoom (a2-12), and combining it with tile-shift adds complexity for an approach that only helps settle phases. Small deltas for complexity overhead. a2-08 takes a slightly larger hit for its ongoing compatibility problems with the pixel-perfect requirement."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.6,
+      "specificity": 0.72,
+      "robustness": 0.29,
+      "compatibility": 0.4,
+      "performance": 0.47
+    },
+    "composite": 0.5,
+    "category": "contested"
+  },
+  {
+    "id": "a3-13",
+    "proposition": "For small zoom factors (e.g., 1.01x), the previous viewport buffer could theoretically be scaled as an approximation, with only the approximation-error pixels repainted, but computing the pixel-level difference is itself expensive.",
+    "initial_scores": {
+      "defensibility": 0.55,
+      "specificity": 0.7,
+      "robustness": 0.3,
+      "compatibility": 0.6,
+      "performance": 0.35
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.55,
+      "specificity": 0.7,
+      "robustness": 0.3,
+      "compatibility": 0.6,
+      "performance": 0.35
+    },
+    "composite": 0.5,
+    "category": "wounded"
+  }
+]

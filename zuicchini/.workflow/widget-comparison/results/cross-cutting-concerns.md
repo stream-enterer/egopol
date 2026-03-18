@@ -19,13 +19,13 @@ When one is fixed, the others may not be. Check that fixes applied to one are re
 - CheckBox/CheckButton only handle Space
 - RadioButton/RadioBox — TBD (not yet audited)
 
-## CC-02: Missing `set_*` Signal Firing
+## CC-02: Missing `set_*` Signal Firing — **PARTIALLY FIXED**
 
 **Found in**: CheckBox audit (2026-03-18)
 **Affected widgets**: All widgets with setter methods
 **Issue**: C++ `SetChecked()` fires `CheckSignal` and calls `CheckChanged()`. Rust `set_checked()` just sets the bool silently. This means programmatic state changes don't fire callbacks.
-
-**Check for**: `set_text()`, `set_value()`, `set_color()`, `set_checked()`, `set_selected()` — do they fire the same signals as the C++ equivalents?
+**Fixed for**: CheckBox, CheckButton — set_checked now fires on_check callback when state changes.
+**Remaining**: `set_text()`, `set_value()`, `set_color()`, `set_selected()` — not yet checked.
 
 ## CC-03: Missing Disabled State Rendering
 
@@ -33,11 +33,13 @@ When one is fixed, the others may not be. Check that fixes applied to one are re
 **Affected widgets**: Potentially all
 **Issue**: C++ paints disabled overlays (gray translucent rect) and makes label colors transparent. Rust may not have this across the board.
 
-## CC-05: DoLabel Alignment Defaults Wrong (Center vs Left)
+## CC-05: DoLabel Alignment Defaults Wrong (Center vs Left) — **PARTIALLY FIXED**
 
 **Found in**: Label audit (2026-03-18)
 **Affected widgets**: ALL border-based widgets (every widget that has a caption/label)
 **Issue**: C++ `LabelAlignment` defaults to `EM_ALIGN_LEFT`. Rust always centers the label block. C++ `CaptionAlignment` defaults to `EM_ALIGN_LEFT` for text line alignment. Rust hardcodes `TextAlignment::Center`.
+**Fixed for**: Label widget (removed centering, changed text_alignment to Left). Border's paint_label was already correct (uses label_alignment which defaults to Left).
+**Remaining**: Verify no other widgets bypass border's paint_label with hardcoded Center.
 
 **Masked by**: golden tests use width-constrained or single-line text, so the bug is invisible in tests but visible with short captions on wide panels or multi-line text.
 
