@@ -95,8 +95,6 @@ pub struct ScalarField {
     /// Cached enabled state from last paint (for input gating).
     enabled: bool,
     dragging: bool,
-    drag_start_x: f64,
-    drag_start_value: f64,
     /// Cached dimensions from the last paint call.
     last_w: f64,
     last_h: f64,
@@ -127,8 +125,6 @@ impl ScalarField {
             editable: true,
             enabled: true,
             dragging: false,
-            drag_start_x: 0.0,
-            drag_start_value: 0.0,
             last_w: 0.0,
             last_h: 0.0,
             scale_mark_intervals: vec![1],
@@ -506,16 +502,6 @@ impl ScalarField {
 
     // --- Input ---
 
-    /// Rounded-rect hit test matching C++ `emScalarField::CheckMouse`.
-    fn hit_test(&self, mx: f64, my: f64) -> bool {
-        if self.last_w <= 0.0 || self.last_h <= 0.0 {
-            return false;
-        }
-        let tallness = self.last_h / self.last_w;
-        let (rect, r) = self.border.content_round_rect(1.0, tallness, &self.look);
-        super::check_mouse_round_rect(mx, my, &rect, r)
-    }
-
     pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
         // C++ emScalarField.cpp:246-268: gates on IsEditable() && IsEnabled().
         if !self.editable || !self.enabled {
@@ -527,21 +513,39 @@ impl ScalarField {
             return false;
         }
 
-        let Rect { w: cw, .. } = self.border.content_rect(self.last_w, 0.0, &self.look);
-        let range = self.max - self.min;
+        // C++ emScalarField.cpp:239: compute mouse value on every event.
+        // CheckMouse converts mouse position to value via absolute positioning.
+        let mouse_value = self.check_mouse(event.mouse_x, event.mouse_y);
+
+        // C++ absolute drag model: pressed state continuously sets value
+        // to wherever the mouse points on the scale.
+        if self.dragging {
+            if let Some(mv) = mouse_value {
+                if (mv - self.value).abs() > f64::EPSILON {
+                    self.set_value(mv);
+                }
+            }
+        }
 
         match event.key {
             InputKey::MouseLeft => match event.variant {
                 InputVariant::Press => {
-                    if !self.hit_test(event.mouse_x, event.mouse_y) {
+                    // C++ emScalarField.cpp:250-258: inArea && LeftButton → Pressed.
+                    let in_area = mouse_value.is_some();
+                    if !in_area {
                         return false;
                     }
                     self.dragging = true;
-                    self.drag_start_x = event.mouse_x;
-                    self.drag_start_value = self.value;
+                    // Immediately position needle at click location.
+                    if let Some(mv) = mouse_value {
+                        if (mv - self.value).abs() > f64::EPSILON {
+                            self.set_value(mv);
+                        }
+                    }
                     true
                 }
                 InputVariant::Release => {
+                    // C++ emScalarField.cpp:241-245: clear Pressed on release.
                     if !self.dragging {
                         return false;
                     }
@@ -549,16 +553,8 @@ impl ScalarField {
                     true
                 }
                 InputVariant::Repeat | InputVariant::Move => {
-                    if self.dragging && cw > 0.0 {
-                        let dx = event.mouse_x - self.drag_start_x;
-                        let dv = dx / cw * range;
-                        let new_val = (self.drag_start_value + dv).clamp(self.min, self.max);
-                        if (new_val - self.value).abs() > f64::EPSILON {
-                            self.value = new_val;
-                            self.fire_change();
-                        }
-                    }
-                    true
+                    // Drag is handled above (continuous absolute positioning).
+                    self.dragging
                 }
             },
             // C++ emScalarField.cpp:261-272: only '+' and '-' character keys.
