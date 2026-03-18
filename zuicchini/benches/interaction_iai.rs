@@ -77,6 +77,4 @@ library_benchmark_group!(
     benchmarks = [bench_static, bench_pan, bench_zoom_in, bench_zoom_out, bench_pan_zoom]
 );
 
-fn main() {
-    main!(library_benchmark_groups = interaction);
-}
+main!(library_benchmark_groups = interaction);

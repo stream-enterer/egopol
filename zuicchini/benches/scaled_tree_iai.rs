@@ -137,6 +137,4 @@ library_benchmark_group!(
     benchmarks = [update_10, update_50, update_200]
 );
 
-fn main() {
-    main!(library_benchmark_groups = [scaled_pan_zoom, scaled_paint, scaled_update]);
-}
+main!(library_benchmark_groups = [scaled_pan_zoom, scaled_paint, scaled_update]);
