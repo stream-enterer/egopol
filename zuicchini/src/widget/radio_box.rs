@@ -281,7 +281,7 @@ impl RadioBox {
                 }
                 _ => false,
             },
-            InputKey::Space => match event.variant {
+            InputKey::Enter | InputKey::Space => match event.variant {
                 InputVariant::Press => {
                     self.pressed = true;
                     true
