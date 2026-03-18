@@ -374,7 +374,13 @@ impl Button {
     }
 
     /// Programmatically fire the click callback.
+    ///
+    /// Matches C++ `emButton::Click(shift)`: gates on IsEnabled(),
+    /// fires ClickSignal, calls Clicked(). EOI signal not implemented.
     pub fn click(&mut self) {
+        if !self.enabled {
+            return;
+        }
         if let Some(cb) = &mut self.on_click {
             cb();
         }
