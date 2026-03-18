@@ -280,12 +280,16 @@ impl CheckBox {
                 _ => false,
             },
             // C++ emButton.cpp:113-119: Enter only, instant Click().
-            // Click() → Clicked() → toggle. No press visual, no Space.
-            InputKey::Enter if event.variant == InputVariant::Press => {
+            // Gated on (IsNoMod || IsShiftMod). No press visual, no Space.
+            InputKey::Enter
+                if event.variant == InputVariant::Press
+                    && !event.alt
+                    && !event.meta
+                    && !event.ctrl =>
+            {
                 self.toggle();
                 true
             }
-            InputKey::Enter => true,
             _ => false,
         }
     }

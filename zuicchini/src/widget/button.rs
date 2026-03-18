@@ -344,14 +344,18 @@ impl Button {
             // C++ emButton.cpp:113-119: Enter only, instant Click(), no press
             // visual state. C++ does NOT handle Space for buttons.
             // C++ emButton.cpp:113-119: Enter only, instant Click(), no press
-            // visual state. C++ does NOT handle Space for buttons.
-            InputKey::Enter if event.variant == InputVariant::Press => {
+            // visual state. Gated on (IsNoMod || IsShiftMod).
+            InputKey::Enter
+                if event.variant == InputVariant::Press
+                    && !event.alt
+                    && !event.meta
+                    && !event.ctrl =>
+            {
                 if let Some(cb) = &mut self.on_click {
                     cb();
                 }
                 true
             }
-            InputKey::Enter => true,
             _ => false,
         }
     }

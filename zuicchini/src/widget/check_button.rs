@@ -228,11 +228,16 @@ impl CheckButton {
                 _ => false,
             },
             // C++ emButton.cpp:113-119: Enter only, instant Click().
-            InputKey::Enter if event.variant == InputVariant::Press => {
+            // Gated on (IsNoMod || IsShiftMod).
+            InputKey::Enter
+                if event.variant == InputVariant::Press
+                    && !event.alt
+                    && !event.meta
+                    && !event.ctrl =>
+            {
                 self.toggle();
                 true
             }
-            InputKey::Enter => true,
             _ => false,
         }
     }
