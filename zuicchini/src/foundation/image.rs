@@ -205,6 +205,15 @@ impl Image {
         &self.data[offset..offset + self.channel_count as usize]
     }
 
+    /// Row slice starting at pixel (0, y). Length = width * channel_count.
+    /// Caller must guarantee y < height.
+    #[inline(always)]
+    pub fn row_slice(&self, y: u32) -> &[u8] {
+        let stride = self.width as usize * self.channel_count as usize;
+        let offset = y as usize * stride;
+        &self.data[offset..offset + stride]
+    }
+
     /// Mutably access the raw channel bytes for a pixel.
     pub fn pixel_mut(&mut self, x: u32, y: u32) -> &mut [u8] {
         let offset = self.pixel_offset(x, y);

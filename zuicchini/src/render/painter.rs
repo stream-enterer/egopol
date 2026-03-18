@@ -5,6 +5,7 @@ use super::draw_list::DrawOp;
 use super::em_font;
 use super::interpolation;
 use super::scanline::{self, WindingRule};
+use super::scanline_tool::{blend_scanline, blend_scanline_premul, BlendMode, InterpolationBuffer};
 use super::stroke::{Stroke, StrokeEnd, StrokeEndType};
 use super::texture::{ImageExtension, ImageQuality, Texture};
 use crate::foundation::{Color, Fixed12, Image};
@@ -183,6 +184,19 @@ impl SubPixelEdges {
             raw_w: (fx2 - fx1).raw(),
             raw_h: (fy2 - fy1).raw(),
         }
+    }
+
+    /// Compute coverages for a batch of consecutive columns at `row`.
+    /// Returns `true` if all coverages are full (0x1000).
+    fn batch_coverages(&self, row: i32, col_start: i32, out: &mut [i32]) -> bool {
+        let mut all_full = true;
+        for (i, cov) in out.iter_mut().enumerate() {
+            *cov = self.coverage(col_start + i as i32, row);
+            if *cov < 0x1000 {
+                all_full = false;
+            }
+        }
+        all_full
     }
 
     /// Per-pixel combined coverage (0..=0x1000).
@@ -1081,6 +1095,13 @@ impl<'a> Painter<'a> {
         // 24-bit fixed-point scaling transform matching C++ emPainter_ScTl.
         let sxfm = self.scale_transform_24(image.width(), image.height(), x, y, w, h);
 
+        // Scanline batch pipeline: interpolate into buffer, then blend.
+        // Borrow-split: extract state into locals before taking &mut data.
+        let tw = self.target_width as usize;
+        let mode = BlendMode::from_state(self.state.canvas_color, self.state.alpha);
+        let mut ibuf = InterpolationBuffer::new(4);
+        let max_batch = ibuf.max_pixels();
+
         if downscaling {
             // 24fp area sampling matching C++ ScanlineTool InterpolateImageAreaSampled.
             let iw = image.width();
@@ -1116,45 +1137,108 @@ impl<'a> Painter<'a> {
                 w: iw as i32,
                 h: ih as i32,
             };
+            let mut coverages = vec![0i32; max_batch];
             for row in start_y..end_y {
-                for col in start_x..end_x {
-                    let src_color = interpolation::sample_area_fp(image, col, row, &xfm, &sec, ext);
-                    self.blend_with_coverage_unchecked(col, row, src_color, sp.coverage(col, row));
+                let mut col = start_x;
+                while col < end_x {
+                    let batch = ((end_x - col) as usize).min(max_batch);
+                    // Interpolate batch into buffer
+                    for i in 0..batch {
+                        let c = interpolation::sample_area_fp(
+                            image,
+                            col + i as i32,
+                            row,
+                            &xfm,
+                            &sec,
+                            ext,
+                        );
+                        ibuf.set_pixel(i, [c.r(), c.g(), c.b(), c.a()]);
+                    }
+                    ibuf.set_len(batch);
+                    // Compute coverages
+                    let all_full =
+                        sp.batch_coverages(row, col, &mut coverages[..batch]);
+                    // Blend batch onto destination
+                    let dest_offset = (row as usize * tw + col as usize) * 4;
+                    let data = self.image().data_mut();
+                    let dest = &mut data[dest_offset..];
+                    if all_full {
+                        blend_scanline(dest, &ibuf, batch, None, &mode);
+                    } else {
+                        blend_scanline(dest, &ibuf, batch, Some(&coverages[..batch]), &mode);
+                    }
+                    col += batch as i32;
                 }
             }
         } else {
+            let mut coverages = vec![0i32; max_batch];
             for row in start_y..end_y {
-                for col in start_x..end_x {
+                let mut col = start_x;
+                while col < end_x {
+                    let batch = ((end_x - col) as usize).min(max_batch);
                     if upscaling {
-                        // Adaptive: anti-ringing Hermite spline matching C++ UQ_ADAPTIVE.
-                        // Returns premultiplied RGBA, use premul blend path
-                        // to avoid unpremultiply/repremultiply round-trip error.
-                        let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x - 0x180_0000;
-                        let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y - 0x180_0000;
-                        let pm = interpolation::sample_adaptive_premul_fp(image, tx, ty, ext);
-                        self.blend_premul_with_coverage_unchecked(
-                            col,
-                            row,
-                            pm,
-                            sp.coverage(col, row),
-                        );
+                        // Adaptive premul: fill buffer, then premul blend
+                        for i in 0..batch {
+                            let c = col + i as i32;
+                            let tx = (c - px) as i64 * sxfm.tdx + sxfm.base_x - 0x180_0000;
+                            let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y - 0x180_0000;
+                            let pm =
+                                interpolation::sample_adaptive_premul_fp(image, tx, ty, ext);
+                            ibuf.set_pixel(i, pm);
+                        }
+                        ibuf.set_len(batch);
+                        let all_full =
+                            sp.batch_coverages(row, col, &mut coverages[..batch]);
+                        let dest_offset = (row as usize * tw + col as usize) * 4;
+                        let data = self.image().data_mut();
+                        let dest = &mut data[dest_offset..];
+                        if all_full {
+                            blend_scanline_premul(dest, &ibuf, batch, None, &mode);
+                        } else {
+                            blend_scanline_premul(
+                                dest,
+                                &ibuf,
+                                batch,
+                                Some(&coverages[..batch]),
+                                &mode,
+                            );
+                        }
                     } else {
-                        // Nearest: returns straight Color, use normal blend.
-                        let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x;
-                        let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y;
-                        let src_color = interpolation::sample_nearest(
-                            image,
-                            (tx >> 24) as f64,
-                            (ty >> 24) as f64,
-                            ext,
-                        );
-                        self.blend_with_coverage_unchecked(
-                            col,
-                            row,
-                            src_color,
-                            sp.coverage(col, row),
-                        );
+                        // Nearest: fill buffer, then straight blend
+                        for i in 0..batch {
+                            let c = col + i as i32;
+                            let tx = (c - px) as i64 * sxfm.tdx + sxfm.base_x;
+                            let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y;
+                            let src_color = interpolation::sample_nearest(
+                                image,
+                                (tx >> 24) as f64,
+                                (ty >> 24) as f64,
+                                ext,
+                            );
+                            ibuf.set_pixel(
+                                i,
+                                [src_color.r(), src_color.g(), src_color.b(), src_color.a()],
+                            );
+                        }
+                        ibuf.set_len(batch);
+                        let all_full =
+                            sp.batch_coverages(row, col, &mut coverages[..batch]);
+                        let dest_offset = (row as usize * tw + col as usize) * 4;
+                        let data = self.image().data_mut();
+                        let dest = &mut data[dest_offset..];
+                        if all_full {
+                            blend_scanline(dest, &ibuf, batch, None, &mode);
+                        } else {
+                            blend_scanline(
+                                dest,
+                                &ibuf,
+                                batch,
+                                Some(&coverages[..batch]),
+                                &mode,
+                            );
+                        }
                     }
+                    col += batch as i32;
                 }
             }
         }
@@ -1259,9 +1343,15 @@ impl<'a> Painter<'a> {
             }
         };
 
+        // Scanline batch pipeline for colored images.
+        let tw = self.target_width as usize;
+        let mode = BlendMode::from_state(self.state.canvas_color, self.state.alpha);
+        let mut ibuf = InterpolationBuffer::new(4); // output is always RGBA after lum mapping
+        let max_batch = ibuf.max_pixels();
+        let mut coverages = vec![0i32; max_batch];
+
         if downscaling {
             // 24fp area sampling matching C++ ScanlineTool InterpolateImageAreaSampled.
-            // Area-sample raw channels first, then compute luminance (matching C++ pipeline order).
             let tdx_init = ((src_w as i64) << 24) as f64 / dw;
             let tdy_init = ((src_h as i64) << 24) as f64 / dh;
             let tdx_i = tdx_init as i64;
@@ -1295,28 +1385,46 @@ impl<'a> Painter<'a> {
             };
 
             for row in start_y..end_y {
-                for col in start_x..end_x {
-                    let color = interpolation::sample_area_fp(image, col, row, &xfm, &sec, ext);
-                    // C++ area-samples channels, then maps to lum in PaintScanlineInt.
-                    // For 1-ch: color = (g,g,g,255), lum = g = color.r()
-                    // For 3-ch: color = (r,g,b,255), lum = (77*r + 150*g + 29*b) >> 8
-                    let lum = if ch == 1 {
-                        color.r()
+                let mut col = start_x;
+                while col < end_x {
+                    let batch = ((end_x - col) as usize).min(max_batch);
+                    // Interpolate, compute lum, map to color
+                    for i in 0..batch {
+                        let color = interpolation::sample_area_fp(
+                            image,
+                            col + i as i32,
+                            row,
+                            &xfm,
+                            &sec,
+                            ext,
+                        );
+                        let lum = if ch == 1 {
+                            color.r()
+                        } else {
+                            ((color.r() as u32 * 77
+                                + color.g() as u32 * 150
+                                + color.b() as u32 * 29)
+                                >> 8) as u8
+                        };
+                        let c = lum_to_color(lum);
+                        ibuf.set_pixel(i, [c.r(), c.g(), c.b(), c.a()]);
+                    }
+                    ibuf.set_len(batch);
+                    let all_full =
+                        sp.batch_coverages(row, col, &mut coverages[..batch]);
+                    let dest_offset = (row as usize * tw + col as usize) * 4;
+                    let data = self.image().data_mut();
+                    let dest = &mut data[dest_offset..];
+                    if all_full {
+                        blend_scanline(dest, &ibuf, batch, None, &mode);
                     } else {
-                        ((color.r() as u32 * 77 + color.g() as u32 * 150 + color.b() as u32 * 29)
-                            >> 8) as u8
-                    };
-                    self.blend_with_coverage_unchecked(
-                        col,
-                        row,
-                        lum_to_color(lum),
-                        sp.coverage(col, row),
-                    );
+                        blend_scanline(dest, &ibuf, batch, Some(&coverages[..batch]), &mode);
+                    }
+                    col += batch as i32;
                 }
             }
         } else {
-            // C++ uses bilinear interpolation for upscaling (UQ_BILINEAR default).
-            // Rust was using nearest-neighbor. Bilinear with sub-rect bounds.
+            // Bilinear upscaling with lum mapping
             let sec = interpolation::SectionBounds {
                 ox: src_x as i32,
                 oy: src_y as i32,
@@ -1324,41 +1432,63 @@ impl<'a> Painter<'a> {
                 h: src_h as i32,
             };
             for row in start_y..end_y {
-                for col in start_x..end_x {
-                    let fx = (col as f64 - dx + 0.5) * ratio_x - 0.5;
-                    let fy = (row as f64 - dy + 0.5) * ratio_y - 0.5;
-                    let ix = fx.floor() as i32;
-                    let iy = fy.floor() as i32;
-                    let tx = ((fx - fx.floor()) * 256.0) as u32;
-                    let ty = ((fy - fy.floor()) * 256.0) as u32;
-                    let itx = 256 - tx;
-                    let ity = 256 - ty;
+                let mut col = start_x;
+                while col < end_x {
+                    let batch = ((end_x - col) as usize).min(max_batch);
+                    for i in 0..batch {
+                        let c = col + i as i32;
+                        let fx = (c as f64 - dx + 0.5) * ratio_x - 0.5;
+                        let fy = (row as f64 - dy + 0.5) * ratio_y - 0.5;
+                        let ix = fx.floor() as i32;
+                        let iy = fy.floor() as i32;
+                        let tx = ((fx - fx.floor()) * 256.0) as u32;
+                        let ty = ((fy - fy.floor()) * 256.0) as u32;
+                        let itx = 256 - tx;
+                        let ity = 256 - ty;
 
-                    let p00 = interpolation::sample_section_pixel(image, ix, iy, &sec, ext);
-                    let p10 = interpolation::sample_section_pixel(image, ix + 1, iy, &sec, ext);
-                    let p01 = interpolation::sample_section_pixel(image, ix, iy + 1, &sec, ext);
-                    let p11 = interpolation::sample_section_pixel(image, ix + 1, iy + 1, &sec, ext);
+                        let p00 =
+                            interpolation::sample_section_pixel(image, ix, iy, &sec, ext);
+                        let p10 =
+                            interpolation::sample_section_pixel(image, ix + 1, iy, &sec, ext);
+                        let p01 =
+                            interpolation::sample_section_pixel(image, ix, iy + 1, &sec, ext);
+                        let p11 = interpolation::sample_section_pixel(
+                            image,
+                            ix + 1,
+                            iy + 1,
+                            &sec,
+                            ext,
+                        );
 
-                    let bilinear_ch = |c: usize| -> u8 {
-                        let top = p00[c] as u32 * itx + p10[c] as u32 * tx;
-                        let bot = p01[c] as u32 * itx + p11[c] as u32 * tx;
-                        ((top * ity + bot * ty + 0x8000) >> 16) as u8
-                    };
+                        let bilinear_ch = |ch_idx: usize| -> u8 {
+                            let top = p00[ch_idx] as u32 * itx + p10[ch_idx] as u32 * tx;
+                            let bot = p01[ch_idx] as u32 * itx + p11[ch_idx] as u32 * tx;
+                            ((top * ity + bot * ty + 0x8000) >> 16) as u8
+                        };
 
-                    let lum = if ch == 1 {
-                        bilinear_ch(0)
+                        let lum = if ch == 1 {
+                            bilinear_ch(0)
+                        } else {
+                            let r = bilinear_ch(0) as u32;
+                            let g = bilinear_ch(1) as u32;
+                            let b = bilinear_ch(2) as u32;
+                            ((r * 77 + g * 150 + b * 29) >> 8) as u8
+                        };
+                        let mapped = lum_to_color(lum);
+                        ibuf.set_pixel(i, [mapped.r(), mapped.g(), mapped.b(), mapped.a()]);
+                    }
+                    ibuf.set_len(batch);
+                    let all_full =
+                        sp.batch_coverages(row, col, &mut coverages[..batch]);
+                    let dest_offset = (row as usize * tw + col as usize) * 4;
+                    let data = self.image().data_mut();
+                    let dest = &mut data[dest_offset..];
+                    if all_full {
+                        blend_scanline(dest, &ibuf, batch, None, &mode);
                     } else {
-                        let r = bilinear_ch(0) as u32;
-                        let g = bilinear_ch(1) as u32;
-                        let b = bilinear_ch(2) as u32;
-                        ((r * 77 + g * 150 + b * 29) >> 8) as u8
-                    };
-                    self.blend_with_coverage_unchecked(
-                        col,
-                        row,
-                        lum_to_color(lum),
-                        sp.coverage(col, row),
-                    );
+                        blend_scanline(dest, &ibuf, batch, Some(&coverages[..batch]), &mode);
+                    }
+                    col += batch as i32;
                 }
             }
         }
@@ -2429,19 +2559,23 @@ impl<'a> Painter<'a> {
         let ratio_y = sh / dh_px;
         let downscaling = ratio_x > 1.0 || ratio_y > 1.0;
 
+        // Scanline batch pipeline for 9-slice sections.
+        let tw = self.target_width as usize;
+        let mode = BlendMode::from_state(self.state.canvas_color, self.state.alpha);
+        let mut ibuf = InterpolationBuffer::new(4);
+        let max_batch = ibuf.max_pixels();
+        let mut coverages = vec![0i32; max_batch];
+
         if downscaling {
             // 24-bit fixed-point area sampling matching C++ emPainter_ScTl + InterpolateImageAreaSampled.
             let sw_u = sw as u32;
             let sh_u = sh as u32;
 
-            // Compute initial TDX/TDY in 24fp (C++ emPainter_ScTl.cpp line 296).
             let tdx_init = ((sw_u as i64) << 24) as f64 / dw_px;
             let tdy_init = ((sh_u as i64) << 24) as f64 / dh_px;
             let tdx_i = tdx_init as i64;
             let tdy_i = tdy_init as i64;
 
-            // Pre-reduction stride from TDX (C++ line 314): (TDX/3 + 0xFFFFFF) >> 24.
-            // NOT float ceil(ratio/3.0) — must use 24fp integer division.
             let stride_x = if tdx_i > 0xFFFF00 {
                 ((tdx_i / 3 + 0xFFFFFF) >> 24) as u32
             } else {
@@ -2455,15 +2589,12 @@ impl<'a> Painter<'a> {
             }
             .max(1);
 
-            // Reduced dimensions (C++ lines 316-322).
             let red_w = sw_u.div_ceil(stride_x);
             let red_h = sh_u.div_ceil(stride_y);
 
-            // Centering offset (C++ lines 319-320).
             let off_x = (sw_u as i32 - (red_w as i32 - 1) * stride_x as i32 - 1) / 2;
             let off_y = (sh_u as i32 - (red_h as i32 - 1) * stride_y as i32 - 1) / 2;
 
-            // Transform from REDUCED dimensions (C++ lines 323,335,338-341).
             let mut xfm = self.area_sample_transform_24(red_w, red_h, dx, dy, dw, dh);
             xfm.stride_x = stride_x;
             xfm.stride_y = stride_y;
@@ -2477,21 +2608,36 @@ impl<'a> Painter<'a> {
             };
 
             for row in start_y..end_y {
-                for col in start_x..end_x {
-                    let color = interpolation::sample_area_fp(
-                        image,
-                        col,
-                        row,
-                        &xfm,
-                        &sec,
-                        super::texture::ImageExtension::Clamp, // 9-slice uses EXTEND_EDGE
-                    );
-                    self.blend_with_coverage_unchecked(col, row, color, sp.coverage(col, row));
+                let mut col = start_x;
+                while col < end_x {
+                    let batch = ((end_x - col) as usize).min(max_batch);
+                    for i in 0..batch {
+                        let color = interpolation::sample_area_fp(
+                            image,
+                            col + i as i32,
+                            row,
+                            &xfm,
+                            &sec,
+                            super::texture::ImageExtension::Clamp,
+                        );
+                        ibuf.set_pixel(i, [color.r(), color.g(), color.b(), color.a()]);
+                    }
+                    ibuf.set_len(batch);
+                    let all_full =
+                        sp.batch_coverages(row, col, &mut coverages[..batch]);
+                    let dest_offset = (row as usize * tw + col as usize) * 4;
+                    let data = self.image().data_mut();
+                    let dest = &mut data[dest_offset..];
+                    if all_full {
+                        blend_scanline(dest, &ibuf, batch, None, &mode);
+                    } else {
+                        blend_scanline(dest, &ibuf, batch, Some(&coverages[..batch]), &mode);
+                    }
+                    col += batch as i32;
                 }
             }
         } else {
             // Upscaling or 1:1: adaptive interpolation matching C++ UQ_ADAPTIVE (default).
-            // C++ uses UQ_BY_CONFIG which defaults to UQ_ADAPTIVE on AVX2 systems.
             let sxfm = self.scale_transform_24(sw as u32, sh as u32, dx, dy, dw, dh);
             let sec = interpolation::SectionBounds {
                 ox: sx as i32,
@@ -2501,15 +2647,36 @@ impl<'a> Painter<'a> {
             };
 
             for row in start_y..end_y {
-                for col in start_x..end_x {
-                    // -0x180_0000 = -1.5 in 24fp: adaptive uses 4-tap kernel centered
-                    // at pixel center (same offset as paint_image_full adaptive path).
-                    let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x - 0x180_0000;
-                    let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y - 0x180_0000;
-                    let pm = interpolation::sample_adaptive_premul_fp_section(
-                        image, tx, ty, &sec, extension,
-                    );
-                    self.blend_premul_with_coverage_unchecked(col, row, pm, sp.coverage(col, row));
+                let mut col = start_x;
+                while col < end_x {
+                    let batch = ((end_x - col) as usize).min(max_batch);
+                    for i in 0..batch {
+                        let c = col + i as i32;
+                        let tx = (c - px) as i64 * sxfm.tdx + sxfm.base_x - 0x180_0000;
+                        let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y - 0x180_0000;
+                        let pm = interpolation::sample_adaptive_premul_fp_section(
+                            image, tx, ty, &sec, extension,
+                        );
+                        ibuf.set_pixel(i, pm);
+                    }
+                    ibuf.set_len(batch);
+                    let all_full =
+                        sp.batch_coverages(row, col, &mut coverages[..batch]);
+                    let dest_offset = (row as usize * tw + col as usize) * 4;
+                    let data = self.image().data_mut();
+                    let dest = &mut data[dest_offset..];
+                    if all_full {
+                        blend_scanline_premul(dest, &ibuf, batch, None, &mode);
+                    } else {
+                        blend_scanline_premul(
+                            dest,
+                            &ibuf,
+                            batch,
+                            Some(&coverages[..batch]),
+                            &mode,
+                        );
+                    }
+                    col += batch as i32;
                 }
             }
         }
@@ -5001,75 +5168,6 @@ impl<'a> Painter<'a> {
             let alpha = ((color.a() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8;
             let blended = Color::rgba(color.r(), color.g(), color.b(), alpha);
             self.blend_pixel_unchecked(x, y, blended);
-        }
-    }
-
-    /// Same as `blend_pixel_premul` but without clip/bounds checks.
-    #[inline(always)]
-    fn blend_pixel_premul_unchecked(&mut self, x: i32, y: i32, pm: [u8; 4]) {
-        let xu = x as u32;
-        let yu = y as u32;
-        let a = pm[3] as u32;
-        if a == 0 {
-            return;
-        }
-        if self.state.canvas_color.is_opaque() {
-            let cv = self.state.canvas_color;
-            let cr = (cv.r() as u32 * a + 127) / 255;
-            let cg = (cv.g() as u32 * a + 127) / 255;
-            let cb = (cv.b() as u32 * a + 127) / 255;
-            let bg = self.read_pixel(xu, yu);
-            let nr = (bg[0] as i32 + pm[0] as i32 - cr as i32).clamp(0, 255) as u8;
-            let ng = (bg[1] as i32 + pm[1] as i32 - cg as i32).clamp(0, 255) as u8;
-            let nb = (bg[2] as i32 + pm[2] as i32 - cb as i32).clamp(0, 255) as u8;
-            let out = self.image().pixel_mut(xu, yu);
-            out[0] = nr;
-            out[1] = ng;
-            out[2] = nb;
-        } else {
-            if a >= 255 {
-                let out = self.image().pixel_mut(xu, yu);
-                out[0] = pm[0];
-                out[1] = pm[1];
-                out[2] = pm[2];
-                out[3] = 255;
-                return;
-            }
-            let bg = self.read_pixel(xu, yu);
-            let t = (255 - a) * 257;
-            let r = (((bg[0] as u32 * t + 0x8073) >> 16) + pm[0] as u32) as u8;
-            let g = (((bg[1] as u32 * t + 0x8073) >> 16) + pm[1] as u32) as u8;
-            let b = (((bg[2] as u32 * t + 0x8073) >> 16) + pm[2] as u32) as u8;
-            let a_out = (((bg[3] as u32 * t + 0x8073) >> 16) + a) as u8;
-            let out = self.image().pixel_mut(xu, yu);
-            out[0] = r;
-            out[1] = g;
-            out[2] = b;
-            out[3] = a_out;
-        }
-    }
-
-    /// Same as `blend_premul_with_coverage` but without clip/bounds checks.
-    #[inline(always)]
-    fn blend_premul_with_coverage_unchecked(&mut self, x: i32, y: i32, pm: [u8; 4], cov: i32) {
-        if cov <= 0 {
-            return;
-        }
-        let o_eff = if self.state.alpha == 255 {
-            cov
-        } else {
-            (cov * self.state.alpha as i32 + 127) / 255
-        };
-        if o_eff >= 0x1000 {
-            self.blend_pixel_premul_unchecked(x, y, pm);
-        } else if o_eff > 0 {
-            let pm_mod = [
-                ((pm[0] as i32 * o_eff + 0x800) >> 12) as u8,
-                ((pm[1] as i32 * o_eff + 0x800) >> 12) as u8,
-                ((pm[2] as i32 * o_eff + 0x800) >> 12) as u8,
-                ((pm[3] as i32 * o_eff + 0x800) >> 12) as u8,
-            ];
-            self.blend_pixel_premul_unchecked(x, y, pm_mod);
         }
     }
 

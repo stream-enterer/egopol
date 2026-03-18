@@ -5,6 +5,7 @@ pub(crate) mod em_font;
 pub(crate) mod interpolation;
 mod painter;
 mod scanline;
+pub(crate) mod scanline_tool;
 mod software_compositor;
 mod stroke;
 mod texture;
