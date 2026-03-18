@@ -408,6 +408,7 @@ pub(crate) fn sample_area_fp(
 
 /// Y-accumulate a single column for area sampling, then apply FINPREMUL.
 /// Returns (cy_r, cy_g, cy_b, cy_a) after FINPREMUL_SHR_COLOR(cy, 8).
+#[cfg(test)]
 fn y_accumulate(
     image: &Image,
     sec: &SectionBounds,
@@ -1132,6 +1133,8 @@ pub(crate) fn sample_linear_gradient(
 /// 1. Y setup (ty1, ty2, ody, oy1, yw) computed once per row
 /// 2. pCy column-reuse: when consecutive dest pixels map to the same source
 ///    column, the Y-accumulated result is reused (critical for downscaling)
+/// 3. Compile-time monomorphization on channel count (1/3/4) eliminates
+///    per-pixel branching on y_accumulate variant and output conversion
 ///
 /// Output format matches `sample_area_fp`: straight-alpha RGBA in `buf`.
 #[allow(clippy::too_many_arguments)]
@@ -1145,15 +1148,34 @@ pub(crate) fn interpolate_scanline_area_sampled(
     ext: ImageExtension,
     buf: &mut crate::render::scanline_tool::InterpolationBuffer,
 ) {
-    let ch = image.channel_count();
+    match image.channel_count() {
+        4 => interpolate_scanline_area_inner::<4>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf),
+        3 => interpolate_scanline_area_inner::<3>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf),
+        1 => interpolate_scanline_area_inner::<1>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf),
+        _ => interpolate_scanline_area_inner::<1>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf),
+    }
+}
 
+/// Channel-count-specialized inner loop for scanline area sampling.
+/// `CH` is 1, 3, or 4 — known at compile time so the compiler eliminates
+/// dead branches in y_accumulate dispatch and output conversion.
+#[allow(clippy::too_many_arguments)]
+fn interpolate_scanline_area_inner<const CH: usize>(
+    image: &Image,
+    dest_x_start: i32,
+    dest_y: i32,
+    count: usize,
+    xfm: &AreaSampleTransform,
+    sec: &SectionBounds,
+    ext: ImageExtension,
+    buf: &mut crate::render::scanline_tool::InterpolationBuffer,
+) {
     // --- Y setup (hoisted out of per-pixel loop) ---
     let mut ty1 = dest_y as i64 * xfm.tdy - xfm.ty;
     let mut ty2 = ty1 + xfm.tdy;
     let ty_end = (xfm.img_h as i64) << 24;
     let mut ody = xfm.ody;
 
-    // Track whether entire row is out-of-bounds for EXTEND_ZERO early exit.
     let mut y_oob = false;
 
     if ty1 < 0 {
@@ -1184,7 +1206,6 @@ pub(crate) fn interpolate_scanline_area_sampled(
     }
 
     if y_oob {
-        // All pixels in this row are transparent for EXTEND_ZERO.
         for i in 0..count {
             buf.set_pixel(i, [0, 0, 0, 0]);
         }
@@ -1207,8 +1228,7 @@ pub(crate) fn interpolate_scanline_area_sampled(
         row0: (ty1 >> 24) as i32,
     };
 
-    // pCy column-reuse state: cache the Y-accumulated result for the last
-    // source column to avoid redundant computation.
+    // pCy column-reuse state.
     let mut prev_cy_col: i32 = i32::MIN;
     let mut cached_cy: (u64, u64, u64, u64) = (0, 0, 0, 0);
 
@@ -1217,7 +1237,7 @@ pub(crate) fn interpolate_scanline_area_sampled(
     for pixel_idx in 0..count {
         let dest_x = dest_x_start + pixel_idx as i32;
 
-        // --- X setup (per dest pixel, same as sample_area_fp) ---
+        // --- X setup ---
         let mut tx1 = dest_x as i64 * xfm.tdx - xfm.tx;
         let mut tx2 = tx1 + xfm.tdx;
         let mut odx = xfm.odx;
@@ -1255,7 +1275,6 @@ pub(crate) fn interpolate_scanline_area_sampled(
             continue;
         }
 
-        // First column weight
         let ox = {
             let w =
                 ((0x100_0000i64 - (tx1 & 0xFF_FFFF)) as u64 * odx as u64 + 0xFF_FFFF) >> 24;
@@ -1286,10 +1305,16 @@ pub(crate) fn interpolate_scanline_area_sampled(
             };
 
             // pCy column-reuse: check if this column was already Y-accumulated.
+            // Compile-time CH dispatch eliminates the match in y_accumulate.
             let (cy_r, cy_g, cy_b, cy_a) = if col == prev_cy_col {
                 cached_cy
             } else {
-                let cy = y_accumulate(image, sec, ch, col, &yw, xfm);
+                let p = read_area_pixel(image, sec, col, yw.row0, xfm);
+                let cy = match CH {
+                    4 => y_accumulate_4ch(image, sec, col, &yw, xfm, p),
+                    3 => y_accumulate_3ch(image, sec, col, &yw, xfm, p),
+                    _ => y_accumulate_1ch(image, sec, col, &yw, xfm, p),
+                };
                 prev_cy_col = col;
                 cached_cy = cy;
                 cy
@@ -1306,11 +1331,12 @@ pub(crate) fn interpolate_scanline_area_sampled(
         }
 
         // Output: WRITE_NO_ROUND_SHR_COLOR(cyx, 24)
+        // Compile-time CH dispatch eliminates dead conversion branches.
         let out_r = (cyx_r >> 24) as u8;
         let out_g = (cyx_g >> 24) as u8;
         let out_b = (cyx_b >> 24) as u8;
 
-        let rgba = match ch {
+        let rgba = match CH {
             4 => {
                 let out_a = (cyx_a >> 24) as u8;
                 if out_a == 0 {
