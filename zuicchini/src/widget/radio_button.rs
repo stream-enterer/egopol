@@ -194,6 +194,8 @@ pub struct RadioButton {
     group: Rc<RefCell<RadioGroup>>,
     index: usize,
     pressed: bool,
+    /// Cached enabled state from the last paint call. Gates input handling.
+    enabled: bool,
     last_w: f64,
     last_h: f64,
 }
@@ -215,6 +217,7 @@ impl RadioButton {
             group,
             index,
             pressed: false,
+            enabled: true,
             last_w: 0.0,
             last_h: 0.0,
         }
@@ -258,6 +261,7 @@ impl RadioButton {
     pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
+        self.enabled = enabled;
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
 
@@ -396,6 +400,9 @@ impl RadioButton {
     }
 
     pub fn input(&mut self, event: &InputEvent) -> bool {
+        if !self.enabled {
+            return false;
+        }
         let trace = super::trace_input_enabled();
         match event.key {
             InputKey::MouseLeft => match event.variant {

@@ -21,6 +21,8 @@ pub struct Button {
     shown_checked: bool,
     shown_boxed: bool,
     shown_radioed: bool,
+    /// Cached enabled state from the last paint call. Gates input handling.
+    enabled: bool,
     /// Cached dimensions from the last paint call.
     last_w: f64,
     last_h: f64,
@@ -41,6 +43,7 @@ impl Button {
             shown_checked: false,
             shown_boxed: false,
             shown_radioed: false,
+            enabled: true,
             last_w: 0.0,
             last_h: 0.0,
             on_click: None,
@@ -157,6 +160,7 @@ impl Button {
     pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
+        self.enabled = enabled;
         // C++ emButton.cpp:361: always ButtonBgColor. Pressed/checked visual
         // comes from overlay image, not face color change.
         let face_color = self.look.button_bg_color;
@@ -294,6 +298,9 @@ impl Button {
     }
 
     pub fn input(&mut self, event: &InputEvent) -> bool {
+        if !self.enabled {
+            return false;
+        }
         let trace = super::trace_input_enabled();
         match event.key {
             InputKey::MouseLeft => match event.variant {
