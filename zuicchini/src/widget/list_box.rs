@@ -369,13 +369,36 @@ impl ListBox {
 
     /// Add an item at the end. Panics if `name` is not unique.
     pub fn add_item(&mut self, name: String, text: String) {
+        self.add_item_with_data(name, text, None);
+    }
+
+    /// Add an item at the end with associated user data.
+    /// Matches C++ `emListBox::AddItem(name, text, data)`.
+    pub fn add_item_with_data(
+        &mut self,
+        name: String,
+        text: String,
+        data: Option<Box<dyn Any>>,
+    ) {
         let idx = self.items.len();
-        self.insert_item(idx, name, text);
+        self.insert_item_with_data(idx, name, text, data);
     }
 
     /// Insert an item at `index`. Index is clamped to `[0, item_count()]`.
     /// Panics if `name` is not unique.
     pub fn insert_item(&mut self, index: usize, name: String, text: String) {
+        self.insert_item_with_data(index, name, text, None);
+    }
+
+    /// Insert an item at `index` with associated user data.
+    /// Matches C++ `emListBox::InsertItem(index, name, text, data)`.
+    pub fn insert_item_with_data(
+        &mut self,
+        index: usize,
+        name: String,
+        text: String,
+        data: Option<Box<dyn Any>>,
+    ) {
         let index = index.min(self.items.len());
 
         assert!(
@@ -387,7 +410,7 @@ impl ListBox {
         let item = Item {
             name: name.clone(),
             text,
-            data: None,
+            data,
             selected: false,
             interface: None,
         };
@@ -522,22 +545,33 @@ impl ListBox {
 
     /// Sort items using a custom comparison function. Returns `true` if the
     /// order changed.
-    pub fn sort_items<F>(&mut self, compare: F) -> bool
+    pub fn sort_items<F>(&mut self, mut compare: F) -> bool
     where
         F: FnMut(&str, &str, &str, &str) -> std::cmp::Ordering,
     {
-        self.sort_items_impl(compare)
+        self.sort_items_with_data(|n1, t1, _d1, n2, t2, _d2| compare(n1, t1, n2, t2))
     }
 
-    fn sort_items_impl<F>(&mut self, mut compare: F) -> bool
+    /// Sort items with access to user data.
+    /// Matches C++ `emListBox::SortItems(compare, context)` where the
+    /// comparator receives (name1, text1, data1, name2, text2, data2).
+    pub fn sort_items_with_data<F>(&mut self, mut compare: F) -> bool
     where
-        F: FnMut(&str, &str, &str, &str) -> std::cmp::Ordering,
+        F: FnMut(&str, &str, Option<&dyn Any>, &str, &str, Option<&dyn Any>) -> std::cmp::Ordering,
     {
         // Check if already sorted.
         let old_order: Vec<String> = self.items.iter().map(|it| it.name.clone()).collect();
 
-        self.items
-            .sort_by(|a, b| compare(&a.name, &a.text, &b.name, &b.text));
+        self.items.sort_by(|a, b| {
+            compare(
+                &a.name,
+                &a.text,
+                a.data.as_deref(),
+                &b.name,
+                &b.text,
+                b.data.as_deref(),
+            )
+        });
 
         let new_order: Vec<String> = self.items.iter().map(|it| it.name.clone()).collect();
         if old_order == new_order {
