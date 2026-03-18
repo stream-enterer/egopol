@@ -526,6 +526,7 @@ impl TextField {
         ch.is_ascii_alphanumeric() || ch == '_' || !ch.is_ascii()
     }
 
+    #[cfg(test)]
     fn next_word_boundary(&self, pos: usize) -> usize {
         if self.password_mode {
             return self.text.len();
@@ -551,6 +552,7 @@ impl TextField {
         p
     }
 
+    #[cfg(test)]
     fn prev_word_boundary(&self, pos: usize) -> usize {
         if self.password_mode {
             return 0;
@@ -1570,7 +1572,7 @@ impl TextField {
             InputKey::ArrowLeft if !alt && !meta => {
                 self.magic_col = None;
                 let new_pos = if ctrl {
-                    self.prev_word_boundary(self.cursor)
+                    self.prev_word_index(self.cursor)
                 } else if self.cursor > 0 {
                     self.prev_char_boundary(self.cursor)
                 } else {
@@ -1582,7 +1584,7 @@ impl TextField {
             InputKey::ArrowRight if !alt && !meta => {
                 self.magic_col = None;
                 let new_pos = if ctrl {
-                    self.next_word_boundary(self.cursor)
+                    self.next_word_index(self.cursor)
                 } else if self.cursor < self.text.len() {
                     self.next_char_boundary(self.cursor)
                 } else {
@@ -1721,7 +1723,7 @@ impl TextField {
                     let target = if ctrl && shift {
                         self.row_start(self.cursor)
                     } else if ctrl {
-                        self.prev_word_boundary(self.cursor)
+                        self.prev_word_index(self.cursor)
                     } else {
                         self.prev_char_boundary(self.cursor)
                     };
@@ -1756,7 +1758,7 @@ impl TextField {
                     let target = if ctrl && shift {
                         self.row_end(self.cursor)
                     } else if ctrl {
-                        self.next_word_boundary(self.cursor)
+                        self.next_word_index(self.cursor)
                     } else {
                         self.next_char_boundary(self.cursor)
                     };
