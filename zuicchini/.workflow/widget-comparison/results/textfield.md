@@ -60,10 +60,8 @@
 ### [MEDIUM] Selection polygon uses measured text width vs column grid — **FIXED**
 - **Fix**: Selection highlight now uses column-grid positioning (`tx + col * cw`), matching C++ exactly.
 
-### [MEDIUM] Ctrl+Shift+A doesn't clear clipboard selection
-- C++ `EmptySelection()` clears clipboard via `Clipboard->Clear(true,SelectionId)`
-- Rust `deselect()` only sets `selection_published = false`
-- **Confidence**: medium | **Coverage**: uncovered
+### [MEDIUM] Ctrl+Shift+A doesn't clear clipboard selection — **FIXED**
+- **Fix**: Added on_clipboard_clear callback, called from deselect() matching C++ EmptySelection → Clipboard->Clear.
 
 ### [MEDIUM] Disabled state color blending absent — **FIXED**
 - **Fix**: Lerp blend toward BgColor added when disabled, matching CC-03 pattern.
@@ -76,9 +74,6 @@
 - **C++**: Pre-edit hook `Validate(pos, removeLen, insertText)` can modify the edit operation. Subclasses can do auto-formatting (e.g., capitalize, normalize whitespace).
 - **Rust**: Post-edit boolean `validate(&str) -> bool` that accepts or rejects the entire text.
 - **Justification**: The Rust validation model is simpler and covers the primary use case (input filtering). No Rust code currently needs pre-edit modification. If auto-formatting is needed later, the callback signature can be changed to `Fn(&str, usize, &str) -> Option<String>` where the return modifies the edit.
-
-### [MEDIUM] Ctrl+Shift+A doesn't clear clipboard selection — **FIXED**
-- **Fix**: Added on_clipboard_clear callback, called from deselect() matching C++ EmptySelection → Clipboard->Clear.
 
 ### [LOW] max_length is Rust-only addition — **NOTE**
 - Not a divergence from C++; this is a Rust-side extension.
