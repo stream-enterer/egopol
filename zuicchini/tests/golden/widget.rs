@@ -391,7 +391,7 @@ struct SplitterBehavior {
 
 impl PanelBehavior for SplitterBehavior {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
-        self.splitter.paint(painter, w, h);
+        self.splitter.paint(painter, w, h, _state.enabled);
     }
 }
 

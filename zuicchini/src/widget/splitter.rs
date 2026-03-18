@@ -22,6 +22,8 @@ pub struct Splitter {
     drag_offset: f64,
     /// C++ `MouseInGrip` — true when mouse is over the grip area.
     mouse_in_grip: bool,
+    /// Cached enabled state from last paint (for input gating).
+    enabled: bool,
     /// Cached dimensions from the last paint call (like Eagle Mode's
     /// GetContentRect pattern — widgets query their own dimensions during input).
     last_w: f64,
@@ -40,6 +42,7 @@ impl Splitter {
             dragging: false,
             drag_offset: 0.0,
             mouse_in_grip: false,
+            enabled: true,
             last_w: 0.0,
             last_h: 0.0,
             on_position: None,
@@ -89,9 +92,10 @@ impl Splitter {
         self.set_position(self.position);
     }
 
-    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
+        self.enabled = enabled;
 
         let resolved = self.orientation.resolve(w, h);
         let color = self.look.button_bg_color;
@@ -122,7 +126,7 @@ impl Splitter {
                 150,
                 149,
                 149,
-                255,
+                if self.enabled { 255 } else { 64 },
                 color,
                 BORDER_EDGES_ONLY,
             );
@@ -174,6 +178,10 @@ impl Splitter {
         match event.key {
             InputKey::MouseLeft => match event.variant {
                 InputVariant::Press => {
+                    // C++ emSplitter.cpp:144: gates press on IsEnabled().
+                    if !self.enabled {
+                        return false;
+                    }
                     let hit = event.mouse_x >= gx
                         && event.mouse_x < gx + gw
                         && event.mouse_y >= gy
@@ -221,8 +229,8 @@ impl Splitter {
     }
 
     pub fn get_cursor(&self) -> Cursor {
-        // C++ only shows resize cursor when mouse is over the grip or dragging.
-        if !self.mouse_in_grip && !self.dragging {
+        // C++ emSplitter.cpp:158: only resize cursor when mouse over grip AND enabled.
+        if (!self.mouse_in_grip && !self.dragging) || !self.enabled {
             return Cursor::Normal;
         }
         match self.orientation.resolve(self.last_w, self.last_h) {

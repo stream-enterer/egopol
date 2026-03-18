@@ -527,7 +527,7 @@ struct SplitterLayoutBehavior {
 
 impl PanelBehavior for SplitterLayoutBehavior {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
-        self.splitter.paint(painter, w, h);
+        self.splitter.paint(painter, w, h, _state.enabled);
     }
 
     fn layout_children(&mut self, ctx: &mut PanelCtx) {

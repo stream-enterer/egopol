@@ -242,7 +242,7 @@ struct SplitterPanel {
 }
 impl PanelBehavior for SplitterPanel {
     fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
-        self.widget.paint(p, w, h);
+        self.widget.paint(p, w, h, _s.enabled);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
         self.widget.input(e)
