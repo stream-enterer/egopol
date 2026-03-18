@@ -30,6 +30,18 @@ impl Label {
         &self.border.caption
     }
 
+    /// Set horizontal alignment of the label block within content area.
+    /// Matches C++ `emBorder::SetLabelAlignment`.
+    pub fn set_label_alignment(&mut self, a: TextAlignment) {
+        self.border.label_alignment = a;
+    }
+
+    /// Set text line alignment for the caption.
+    /// Matches C++ `emBorder::SetCaptionAlignment`.
+    pub fn set_caption_alignment(&mut self, a: TextAlignment) {
+        self.border.set_caption_alignment(Some(a));
+    }
+
     pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
@@ -42,7 +54,7 @@ impl Label {
         // DoLabel measures text at unit height, then scales proportionally
         // to fit the content area.
         let cr = self.border.content_rect(w, h, &self.look);
-        let cx = cr.x;
+        let mut cx = cr.x;
         let mut cy = cr.y;
         let mut cw = cr.w;
         let mut ch = cr.h;
@@ -64,7 +76,13 @@ impl Label {
         let w2 = f * cap_w;
 
         if w2 <= cw {
-            // Fits horizontally — left-align (C++ LabelAlignment default is EM_ALIGN_LEFT).
+            // Fits horizontally — apply LabelAlignment (C++ emBorder.cpp:1292-1301).
+            let slack = cw - w2;
+            match self.border.label_alignment {
+                TextAlignment::Left => {}
+                TextAlignment::Center => cx += slack * 0.5,
+                TextAlignment::Right => cx += slack,
+            }
             cw = w2;
         } else {
             // Width constrained — check if min squeeze fits.
@@ -81,6 +99,11 @@ impl Label {
         }
 
         let char_h = cap_h * f;
+        // C++ DoLabel: boxAlignment=EM_ALIGN_CENTER, textAlignment=CaptionAlignment.
+        let cap_align = self
+            .border
+            .caption_alignment
+            .unwrap_or(self.border.label_alignment);
 
         painter.paint_text_boxed(
             cx,
@@ -93,7 +116,7 @@ impl Label {
             Color::TRANSPARENT,
             TextAlignment::Center,
             VAlign::Center,
-            TextAlignment::Left,
+            cap_align,
             min_ws,
             true,
             0.0,
