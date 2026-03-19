@@ -85,26 +85,9 @@ fn setup_splitter(
 
 /// Horizontal Splitter drag through the full pipeline at 1x and 2x zoom.
 ///
-/// ## Known bug: coordinate space mismatch
-///
-/// The Splitter's `input()` method compares mouse coordinates against the grip
-/// rectangle computed by `calc_grip_rect(last_w, last_h)`, which returns
-/// pixel-space geometry (e.g. gx=394 for an 800px-wide panel at position 0.5).
-///
-/// However, the pipeline transforms view-space mouse coordinates to
-/// **normalized panel-local** space via `view_to_panel_x/y` (0..1 for X,
-/// 0..tallness for Y). This means the mouse coordinate (e.g. 0.5) is compared
-/// against a pixel-space grip boundary (e.g. 394..406), causing the hit test
-/// to always fail.
-///
-/// Other widgets (Button, CheckButton, etc.) avoid this by normalizing their
-/// hit-test geometry to `(1.0, tallness)` space. The Splitter does not.
-///
-/// As a result, dragging the splitter through the pipeline has no effect --
-/// position remains at its initial value.
-///
-/// This test documents the current (buggy) behavior. When the coordinate space
-/// mismatch is fixed, update the assertions to verify the drag succeeds.
+/// The Splitter's `input()` method computes grip geometry in normalized
+/// `(1.0, tallness)` panel-local space, matching the coordinate system
+/// used by the pipeline for mouse coordinates.
 #[test]
 fn splitter_drag_horizontal_1x_and_2x() {
     let (mut h, sp_ref, mut compositor) = setup_splitter(Orientation::Horizontal, 0.5);
@@ -116,32 +99,14 @@ fn splitter_drag_horizontal_1x_and_2x() {
     );
 
     // ── At 1x zoom ─────────────────────────────────────────────────
-    //
-    // Horizontal splitter grip geometry (position=0.5, panel w=800, h=600):
-    //   gs = GRIP_BASE * border_scaling * w = 0.015 * 1.0 * 800 = 12
-    //   gx = position * (w - gs) = 0.5 * (800 - 12) = 394
-    //   grip rect: (394, 0, 12, 600)  [pixel space]
-    //
-    // Pipeline delivers normalized coords: view_x=400 -> panel_x = 0.5.
-    // The grip hit test checks `0.5 >= 394` which is false.
-    //
     // Drag from grip center (view 400,300) to ~30% (view 240,300).
     h.drag(400.0, 300.0, 240.0, 300.0);
 
     let pos_after_1x = sp_ref.borrow().position();
 
-    // BUG: The drag does not register because calc_grip_rect returns
-    // pixel-space geometry while mouse coords arrive in normalized space.
-    // Position remains at 0.5.
-    //
-    // When the bug is fixed, change this to:
-    //   assert!((pos_after_1x - 0.3).abs() < 0.1,
-    //       "After dragging to ~30%, position should be near 0.3");
     assert!(
-        (pos_after_1x - 0.5).abs() < 0.001,
-        "Known bug: Splitter position should remain at 0.5 because the grip \
-         hit test fails due to coordinate space mismatch (pixel-space grip rect \
-         vs normalized panel-local mouse coords). Got {pos_after_1x}"
+        (pos_after_1x - 0.3).abs() < 0.1,
+        "After dragging to ~30%, position should be near 0.3. Got {pos_after_1x}"
     );
 
     // ── Reset position to 0.5 ──────────────────────────────────────
@@ -158,23 +123,14 @@ fn splitter_drag_horizontal_1x_and_2x() {
         "Splitter position should remain 0.5 after zoom change"
     );
 
-    // Attempt drag at 2x zoom.
-    // At 2x, the viewed width doubles to 1600, so the grip is wider and at
-    // a different pixel position. Normalized coordinates still arrive in
-    // 0..1 range, so the same mismatch applies.
+    // Drag at 2x zoom from grip center to ~30%.
     h.drag(400.0, 300.0, 240.0, 300.0);
 
     let pos_after_2x = sp_ref.borrow().position();
 
-    // Same bug at 2x: drag does not register.
-    //
-    // When the bug is fixed, change this to:
-    //   assert!((pos_after_2x - 0.3).abs() < 0.1,
-    //       "After dragging to ~30% at 2x, position should be near 0.3");
     assert!(
-        (pos_after_2x - 0.5).abs() < 0.001,
-        "Known bug: Splitter position should remain at 0.5 at 2x zoom due to \
-         the same coordinate space mismatch. Got {pos_after_2x}"
+        (pos_after_2x - 0.3).abs() < 0.1,
+        "After dragging to ~30% at 2x, position should be near 0.3. Got {pos_after_2x}"
     );
 }
 
@@ -184,9 +140,9 @@ fn splitter_drag_horizontal_1x_and_2x() {
 
 /// Vertical Splitter drag through the full pipeline at 1x and 2x zoom.
 ///
-/// Same coordinate-space bug as horizontal, but on the Y axis. The grip rect
-/// is computed in pixel space on the vertical axis (gy = position * (h - gs)),
-/// while the pipeline delivers normalized Y coords (0..tallness).
+/// The Splitter's `input()` method computes grip geometry in normalized
+/// `(1.0, tallness)` panel-local space, matching the coordinate system
+/// used by the pipeline for mouse coordinates.
 #[test]
 fn splitter_drag_vertical_1x_and_2x() {
     let (mut h, sp_ref, mut compositor) = setup_splitter(Orientation::Vertical, 0.5);
@@ -198,25 +154,15 @@ fn splitter_drag_vertical_1x_and_2x() {
     );
 
     // ── At 1x zoom ─────────────────────────────────────────────────
-    //
-    // Vertical splitter grip geometry (position=0.5, panel w=800, h=600):
-    //   gs = GRIP_BASE * border_scaling * h = 0.015 * 1.0 * 600 = 9
-    //   gy = position * (h - gs) = 0.5 * (600 - 9) = 295.5
-    //   grip rect: (0, 295.5, 800, 9)  [pixel space]
-    //
-    // Pipeline delivers normalized Y: view_y=300 -> panel_y ~ 0.375.
-    // Grip hit test checks `0.375 >= 295.5` which is false.
-    //
-    // Drag from grip center (view 400,300) to ~30% (view 400,180).
-    h.drag(400.0, 300.0, 400.0, 180.0);
+    // Grip center at panel_y=0.5 maps to view_y=400 at 1x.
+    // Drag target ~30%: panel_y=0.3 maps to view_y=240.
+    h.drag(400.0, 400.0, 400.0, 240.0);
 
     let pos_after_1x = sp_ref.borrow().position();
 
-    // Same bug as horizontal: drag does not register.
     assert!(
-        (pos_after_1x - 0.5).abs() < 0.001,
-        "Known bug: Vertical splitter position should remain at 0.5 due to \
-         coordinate space mismatch. Got {pos_after_1x}"
+        (pos_after_1x - 0.3).abs() < 0.1,
+        "After dragging to ~30%, vertical position should be near 0.3. Got {pos_after_1x}"
     );
 
     // ── Reset position to 0.5 ──────────────────────────────────────
@@ -232,15 +178,16 @@ fn splitter_drag_vertical_1x_and_2x() {
         "Vertical splitter position should remain 0.5 after zoom change"
     );
 
-    h.drag(400.0, 300.0, 400.0, 180.0);
+    // At 2x: viewed_width=1600, viewed_y=-300.
+    // Grip center at panel_y=0.5: view_y = -300 + 0.5*1600 = 500.
+    // Target ~30%: view_y = -300 + 0.3*1600 = 180.
+    h.drag(400.0, 500.0, 400.0, 180.0);
 
     let pos_after_2x = sp_ref.borrow().position();
 
-    // Same bug at 2x.
     assert!(
-        (pos_after_2x - 0.5).abs() < 0.001,
-        "Known bug: Vertical splitter position should remain at 0.5 at 2x zoom \
-         due to the same coordinate space mismatch. Got {pos_after_2x}"
+        (pos_after_2x - 0.3).abs() < 0.1,
+        "After dragging to ~30% at 2x, vertical position should be near 0.3. Got {pos_after_2x}"
     );
 }
 

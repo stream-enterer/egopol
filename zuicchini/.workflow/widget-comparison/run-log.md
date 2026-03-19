@@ -55,7 +55,14 @@ Full suite: 1202/1202 pass. Zero regressions.
 - **Pass rate**: 1230/1230 (100%)
 - **Clippy**: 0 warnings
 - **Bugs fixed**: 4 (ListBox, ScalarField, Button, ColorField)
-- **New bugs found**: 1 (Splitter calc_grip_rect pixel-space mismatch — same class as the fixed bugs)
+- **New bugs found + fixed**: 1 (Splitter calc_grip_rect pixel-space mismatch — same class as the fixed bugs)
+
+### Post-checklist: Broader audit + Splitter fix
+
+Audited all 8 widgets with input handlers for pixel-space coordinate mismatches.
+7 of 8 already correct (4 from Phase 3 fixes, 3 were already normalized).
+Splitter was the sole remaining instance — fixed by normalizing `calc_grip_rect()` to `(1.0, tallness)` space.
+Updated Splitter systematic tests to assert drag actually changes position.
 
 ### Files created/modified
 

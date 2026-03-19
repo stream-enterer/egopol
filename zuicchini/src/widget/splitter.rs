@@ -170,10 +170,12 @@ impl Splitter {
     }
 
     pub fn input(&mut self, event: &InputEvent, _state: &PanelState, _input_state: &InputState) -> bool {
-        let w = self.last_w;
-        let h = self.last_h;
-        let resolved = self.orientation.resolve(w, h);
-        let (gx, gy, gw, gh) = self.calc_grip_rect(w, h, resolved);
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
+            return false;
+        }
+        let tallness = self.last_h / self.last_w;
+        let resolved = self.orientation.resolve(self.last_w, self.last_h);
+        let (gx, gy, gw, gh) = self.calc_grip_rect(1.0, tallness, resolved);
 
         // Track mouse-in-grip for cursor display (C++ MouseInGrip).
         if event.variant == InputVariant::Move {
@@ -219,8 +221,8 @@ impl Splitter {
                 InputVariant::Repeat | InputVariant::Move => {
                     if self.dragging {
                         let (pos, size, gs) = match resolved {
-                            ResolvedOrientation::Horizontal => (event.mouse_x, w, gw),
-                            ResolvedOrientation::Vertical => (event.mouse_y, h, gh),
+                            ResolvedOrientation::Horizontal => (event.mouse_x, 1.0, gw),
+                            ResolvedOrientation::Vertical => (event.mouse_y, tallness, gh),
                         };
                         let travel = size - gs;
                         if travel > 0.0 {
@@ -324,20 +326,21 @@ mod tests {
         sp.last_w = 100.0;
         sp.last_h = 50.0;
 
-        // Press at the divider center (x = 50.0 in 100px wide panel)
-        let press = InputEvent::press(InputKey::MouseLeft).with_mouse(50.0, 10.0);
+        // Press at the divider center in normalized space (tallness = 0.5).
+        // Grip center: gx = 0.5 * (1.0 - 0.015) + 0.015/2 ≈ 0.5.
+        let press = InputEvent::press(InputKey::MouseLeft).with_mouse(0.5, 0.1);
         assert!(sp.input(&press, &ps, &is));
         assert!(sp.dragging);
 
-        // Drag to x = 70.0
+        // Drag to x = 0.7 in normalized space.
         let drag = InputEvent {
             key: InputKey::MouseLeft,
             variant: InputVariant::Repeat,
             chars: String::new(),
             repeat: 0,
             source_variant: 0,
-            mouse_x: 70.0,
-            mouse_y: 10.0,
+            mouse_x: 0.7,
+            mouse_y: 0.1,
             shift: false,
             ctrl: false,
             alt: false,
