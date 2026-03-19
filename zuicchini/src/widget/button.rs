@@ -204,7 +204,7 @@ impl Button {
             self.look.button_fg_color
         } else {
             let c = self.look.button_fg_color;
-            c.with_alpha((c.a() as u16 * 64 / 255) as u8)
+            c.with_alpha((c.a() as f64 * 0.25 + 0.5) as u8)
         };
         self.border.paint_label_colored(
             painter,

@@ -112,7 +112,7 @@ pub(crate) fn sample_bilinear(image: &Image, x: f64, y: f64, ext: ImageExtension
     for c in 0..4 {
         let top = p00[c] as u32 * itx + p10[c] as u32 * tx;
         let bot = p01[c] as u32 * itx + p11[c] as u32 * tx;
-        result[c] = ((top * ity + bot * ty + 0x8000) >> 16) as u8;
+        result[c] = ((top * ity + bot * ty + 0x7FFF) >> 16) as u8;
     }
     Color::rgba(result[0], result[1], result[2], result[3])
 }

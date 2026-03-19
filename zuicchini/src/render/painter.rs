@@ -229,7 +229,7 @@ impl SubPixelEdges {
             return 0;
         }
 
-        ((alpha_x as i64 * alpha_y as i64) >> 12) as i32
+        ((alpha_x as i64 * alpha_y as i64 + 0x7ff) >> 12) as i32
     }
 }
 

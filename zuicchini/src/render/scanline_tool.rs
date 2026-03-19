@@ -118,7 +118,7 @@ impl BlendMode {
 /// - cov > 0: adjusted_alpha = (src_alpha * cov + 0x800) >> 12
 /// - cov <= 0: skip pixel
 ///
-/// Then combined_alpha = (adjusted_alpha * painter_alpha + 128) >> 8.
+/// Then combined_alpha = (adjusted_alpha * painter_alpha + 127) / 255.
 pub(crate) fn blend_scanline(
     dest: &mut [u8],
     buf: &InterpolationBuffer,
@@ -166,7 +166,7 @@ fn blend_scanline_canvas(
         let combined_alpha = if painter_alpha == 255 {
             adjusted_a
         } else {
-            ((adjusted_a as u16 * painter_alpha as u16 + 128) >> 8) as u8
+            ((adjusted_a as u32 * painter_alpha as u32 + 127) / 255) as u8
         };
 
         if combined_alpha == 0 {
@@ -224,7 +224,7 @@ fn blend_scanline_source_over(
         let ea = if painter_alpha == 255 {
             adjusted_a as u16
         } else {
-            (adjusted_a as u16 * painter_alpha as u16 + 128) >> 8
+            ((adjusted_a as u32 * painter_alpha as u32 + 127) / 255) as u16
         };
 
         if ea == 0 {
@@ -429,7 +429,7 @@ mod tests {
         let ea = if painter_alpha == 255 {
             ca
         } else {
-            (ca * painter_alpha as u16 + 128) >> 8
+            ((ca as u32 * painter_alpha as u32 + 127) / 255) as u16
         };
         if ea == 0 {
             return;
@@ -458,7 +458,7 @@ mod tests {
         let combined_alpha = if painter_alpha == 255 {
             color.a()
         } else {
-            ((color.a() as u16 * painter_alpha as u16 + 128) >> 8) as u8
+            ((color.a() as u32 * painter_alpha as u32 + 127) / 255) as u8
         };
         if combined_alpha == 0 {
             return;

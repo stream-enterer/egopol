@@ -455,3 +455,74 @@ Combined with sessions 1-3: **31 code fixes + 14 deferred + 10 closed** across a
 ### Quality Pass Complete
 
 **All 11 items DONE.** 15 new regression tests added. 1 new cross-widget fix applied. 1161 tests pass, clippy clean.
+
+---
+
+## 2026-03-19 — Integer Promotion Audit
+
+### Strategy
+
+Systematic comparison of integer arithmetic operations between C++ emCore and Rust zuicchini across 15 file pairs. Each file pair audited by a subagent checking 8 specific patterns (u8*u8 promotion, mixed signed/unsigned, signed right-shift, float-to-int, division rounding, Blinn formula, coverage math, channel extraction).
+
+### Audit Results
+
+| # | C++ File | Rust File | Layer | MATCH | MISMATCH | SUSPECT |
+|---|----------|-----------|-------|-------|----------|---------|
+| IP-1 | emPainter.cpp (1-500) | painter.rs (coverage) | pixel | 13 | 0 | 1 |
+| IP-2 | emPainter.cpp (500-1000) | painter.rs (gradient) | pixel | 13 | 2* | 5 |
+| IP-3 | emPainter.cpp (1000-1500) | painter.rs (text/bezier) | pixel | 15 | **1** | 3 |
+| IP-4 | emPainter.cpp (1500+) | painter.rs (outline/stroke) | pixel | 27 | 0 | 0 |
+| IP-5 | emPainter_ScTl.cpp | scanline_tool.rs | pixel | 20 | 0 | 1 |
+| IP-6 | emPainter_ScTlPSInt.cpp | scanline_tool.rs (blend) | pixel | 28 | **2** | 2 |
+| IP-7 | emPainter_ScTlPSCol.cpp | scanline_tool.rs (color) | pixel | 6 | 0 | 1 |
+| IP-8 | emPainter_ScTlIntImg.cpp | interpolation.rs | pixel | 19 | **4** | 0 |
+| IP-9 | emPainter_ScTlIntGra.cpp | painter.rs (gradient) | pixel | 9 | 4* | 2 |
+| IP-10 | emColor.cpp + .h | color.rs | pixel | 16 | 7* | 5 |
+| IP-11 | emImage.cpp + .h | image.rs | pixel | 25 | 1† | 1 |
+| IP-12 | emBorder.cpp (580-800) | border.rs (paint) | geometry | 7 | 0 | 1 |
+| IP-13 | emBorder.cpp (1200-1400) | border.rs (label) | geometry | 8 | 0 | 0 |
+| IP-14 | emBorder.cpp (800-1100) | border.rs (geometry) | geometry | 24 | 0 | 3 |
+| IP-15 | emButton.cpp | button.rs | geometry | 10 | **1** | 0 |
+
+`*` = structural/intentional divergence (not integer promotion bugs)
+`†` = minor precision difference (irw from truncated fy)
+
+**Grand total**: 240 operations checked. 4 actionable MISMATCHes fixed.
+
+### Actionable MISMATCHes Found & Fixed
+
+#### Fix 39: PaintRect sub-pixel coverage rounding bias (IP-3)
+
+**Finding**: `SubPixelEdges::coverage()` used `(alpha_x * alpha_y) >> 12` — missing `+0x7ff` rounding bias from C++ `(ax1*ay1+0x7ff)>>12`.
+**Change**: `painter.rs:232` — added `+ 0x7ff` before `>> 12`.
+**Tests**: clippy clean, 1161 tests pass.
+
+#### Fix 40: Painter-alpha formula: `/255` instead of `>>8` (IP-6)
+
+**Finding**: Straight-alpha painter_alpha combination used `(a * pa + 128) >> 8` (divides by 256). C++ uses `(a * pa + 127) / 255`.
+**Change**: `scanline_tool.rs` lines 169, 227 — changed to `(a as u32 * pa as u32 + 127) / 255`. Updated test reference functions at lines 432, 461 and doc comment at line 121.
+**Tests**: clippy clean, 1161 tests pass.
+
+#### Fix 41: Bilinear interpolation rounding constant (IP-8)
+
+**Finding**: `sample_bilinear` used `+ 0x8000` rounding bias. C++ uses `+ 0x7FFF` (`(1<<16)>>1 - 1`).
+**Change**: `interpolation.rs:115` — changed `0x8000` to `0x7FFF`.
+**Tests**: clippy clean, 1161 tests pass.
+
+#### Fix 42: Button-family disabled alpha dimming (IP-15)
+
+**Finding**: `button.rs`, `check_button.rs`, `radio_button.rs` used `(c.a() as u16 * 64 / 255) as u8` (integer truncation, factor ~0.251). C++ uses `(emByte)(alpha * 0.25F + 0.5F)` (exact 0.25, float rounding). Same bug class as Fix 25 (border.rs), but not previously applied to button family.
+**Change**: All three files — changed to `(c.a() as f64 * 0.25 + 0.5) as u8`.
+**Tests**: clippy clean, 1161 tests pass.
+
+### Structural Divergences (Not Bugs — Intentional Design)
+
+- **IP-2/IP-9**: Linear gradient uses f64 `lerp` instead of C++ 64-bit fixed-point DDA. Intentional — covered by golden tests.
+- **IP-2**: Gradient color blending uses f64 `lerp` instead of C++ integer hash tables. Intentional.
+- **IP-8**: Area sampling ch4 accumulator uses u64 where C++ uses u32 (which wraps on overflow). Rust is *more correct* than C++.
+- **IP-10**: HSV API uses [0,1] scale instead of C++ [0,100] percent, and f32 throughout instead of integer intermediates. Intentional API design choice.
+- **IP-11**: `get_pixel_interpolated` computes `irw` from truncated `fy` (i32) instead of full-precision f64. Minor precision difference.
+
+### Integer Promotion Audit Complete
+
+**All 15 items DONE.** 4 actionable fixes applied. 1161 tests pass, clippy clean.
