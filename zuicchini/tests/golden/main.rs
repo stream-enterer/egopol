@@ -1,5 +1,6 @@
 mod animator;
 mod common;
+mod composition;
 mod compositor;
 mod input;
 mod input_filter;

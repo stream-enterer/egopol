@@ -50,6 +50,9 @@
 // TestPanel integration tests
 #include <emTest/emTestPanel.h>
 
+// TkTest factory — defined in tktest_factory.cpp (compiled against scaffold header)
+extern emPanel* create_tktest(emPanel::ParentArg parent, const emString& name);
+
 #include "golden_format.h"
 
 // ═══════════════════════════════════════════════════════════════════
@@ -4210,6 +4213,45 @@ static void gen_testpanel_expanded() {
     render_and_dump_sized("testpanel_expanded", vp, ctx, 1000, 1000);
 }
 
+// TkTest widget grid at 1x zoom — the emTestPanel::TkTest panel rendered
+// standalone in an 800x600 viewport, filling the full view.
+static void gen_tktest_1x() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    StubClipboard::Setup(ctx);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+    vp.DoSetViewGeometry(0, 0, 800, 600, 1.0);
+
+    auto* tk = create_tktest(view, "tktest");
+    tk->Layout(0, 0, 800.0 / 600.0, 1.0);
+
+    { TerminateEngine ctrl(sched, 200); sched.Run(); }
+    render_and_dump_sized("tktest_1x", vp, ctx, 800, 600);
+}
+
+// TkTest widget grid at 2x zoom — 800x600 viewport scrolled to center,
+// showing the middle 50% of the panel.
+static void gen_tktest_2x() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    StubClipboard::Setup(ctx);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+    vp.DoSetViewGeometry(0, 0, 800, 600, 1.0);
+
+    auto* tk = create_tktest(view, "tktest");
+    tk->Layout(0, 0, 800.0 / 600.0, 1.0);
+
+    { TerminateEngine ctrl(sched, 200); sched.Run(); }
+
+    // Zoom 2x centered on viewport center (400, 300)
+    view.Zoom(400, 300, 2.0);
+    { TerminateEngine ctrl(sched, 10); sched.Run(); }
+
+    render_and_dump_sized("tktest_2x", vp, ctx, 800, 600);
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Splitter drag + layout — numeric test of child rects after position changes
 // ═══════════════════════════════════════════════════════════════════
@@ -4376,6 +4418,176 @@ static void gen_colorfield_expanded() {
     // 200 cycles: auto-expansion creates RasterLayout + 8 child panels
     { TerminateEngine ctrl(sched, 200); sched.Run(); }
     render_and_dump_sized("colorfield_expanded", vp, ctx, 800, 800);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Composed widget golden — Splitter with Border/ColorField/ListBox children
+// ═══════════════════════════════════════════════════════════════════
+
+static void gen_composed_splitter_content() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    StubClipboard::Setup(ctx);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+    vp.DoSetViewGeometry(0, 0, 800, 600, 1.0);
+
+    // Horizontal splitter, range [0,1], initial pos=0.5
+    auto* sp = new Testable<emSplitter>(view, "test", "", "", emImage(),
+                                        false, 0.0, 1.0, 0.5);
+    sp->SetBorderType(emBorder::OBT_NONE, emBorder::IBT_NONE);
+    sp->DoLayout(0, 0, 800.0 / 600.0, 1.0);
+
+    // Left child: Border containing ColorField + ListBox
+    auto* left = new Testable<emBorder>(sp, "left", "Left");
+    left->SetBorderType(emBorder::OBT_RECT, emBorder::IBT_NONE);
+
+    auto* lcf = new Testable<emColorField>(left, "color", "Color", "", emImage(),
+                                           emColor(255, 0, 0, 255));
+    (void)lcf;
+
+    auto* llb = new Testable<emListBox>(left, "list", "Items");
+    llb->AddItem("item0", "Item 1");
+    llb->AddItem("item1", "Item 2");
+    llb->AddItem("item2", "Item 3");
+    llb->AddItem("item3", "Item 4");
+    llb->AddItem("item4", "Item 5");
+
+    // Right child: Border containing ColorField + ListBox
+    auto* right = new Testable<emBorder>(sp, "right", "Right");
+    right->SetBorderType(emBorder::OBT_RECT, emBorder::IBT_NONE);
+
+    auto* rcf = new Testable<emColorField>(right, "color", "Color", "", emImage(),
+                                            emColor(0, 0, 255, 255));
+    (void)rcf;
+
+    auto* rlb = new Testable<emListBox>(right, "list", "Items");
+    rlb->AddItem("item0", "Alpha");
+    rlb->AddItem("item1", "Beta");
+    rlb->AddItem("item2", "Gamma");
+
+    // 200 cycles for auto-expansion cascade through the widget tree
+    { TerminateEngine ctrl(sched, 200); sched.Run(); }
+    render_and_dump_sized("composed_splitter_content", vp, ctx, 800, 600);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Composed widget golden — nested Border-in-Border with Label/Button/TextField
+// ═══════════════════════════════════════════════════════════════════
+
+static void gen_composed_border_nest() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    StubClipboard::Setup(ctx);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+    vp.DoSetViewGeometry(0, 0, 800, 600, 1.0);
+
+    // Outer border: OBT_ROUND_RECT, filled look
+    auto* outer = new Testable<emLinearLayout>(view, "outer", "Outer");
+    outer->SetBorderType(emBorder::OBT_ROUND_RECT, emBorder::IBT_NONE);
+    outer->SetVertical();
+    outer->DoLayout(0, 0, 800.0 / 600.0, 1.0);
+
+    // Inner border: OBT_RECT with IBT_GROUP, child of outer
+    auto* inner = new Testable<emLinearLayout>(*outer, "inner", "Inner");
+    inner->SetBorderType(emBorder::OBT_RECT, emBorder::IBT_GROUP);
+    inner->SetVertical();
+
+    // Children of inner border
+    auto* lbl = new Testable<emLabel>(*inner, "label", "Test Label");
+    (void)lbl;
+
+    auto* btn = new Testable<emButton>(*inner, "button", "Test Button");
+    (void)btn;
+
+    auto* tf = new Testable<emTextField>(*inner, "textfield", "Field", "", emImage(),
+                                         "Hello", true);
+    (void)tf;
+
+    // 200 cycles for auto-expansion cascade through the nested widget tree
+    { TerminateEngine ctrl(sched, 200); sched.Run(); }
+    render_and_dump_sized("composed_border_nest", vp, ctx, 800, 600);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Composed widget golden — scrolled ListBox inside Border
+// ═══════════════════════════════════════════════════════════════════
+
+static void gen_composed_scrolled_listbox() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    StubClipboard::Setup(ctx);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+    vp.DoSetViewGeometry(0, 0, 800, 600, 1.0);
+
+    // Outer border: OBT_ROUND_RECT, filled look, caption "Scrolled List"
+    auto* border = new Testable<emBorder>(view, "border", "Scrolled List");
+    border->SetBorderType(emBorder::OBT_ROUND_RECT, emBorder::IBT_NONE);
+    border->DoLayout(0, 0, 800.0 / 600.0, 1.0);
+
+    // ListBox with 50 items, scrolled to item 25
+    auto* lb = new Testable<emListBox>(*border, "list", "Items");
+    for (int i = 1; i <= 50; i++) {
+        char key[16], val[16];
+        snprintf(key, sizeof(key), "item%d", i - 1);
+        snprintf(val, sizeof(val), "Item %d", i);
+        lb->AddItem(key, val);
+    }
+    lb->SetSelectedIndex(24); // Item 25 (0-based index 24)
+
+    // 200 cycles for auto-expansion cascade
+    { TerminateEngine ctrl(sched, 200); sched.Run(); }
+    render_and_dump_sized("composed_scrolled_listbox", vp, ctx, 800, 600);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Composed widget golden — Border(RoundRect,Group) + ColorField at different aspect ratios
+// ═══════════════════════════════════════════════════════════════════
+
+static void gen_composed_colorfield_wide() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    StubClipboard::Setup(ctx);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+    vp.DoSetViewGeometry(0, 0, 800, 400, 1.0);
+
+    // Border with OBT_ROUND_RECT / IBT_GROUP, containing a ColorField
+    auto* border = new Testable<emBorder>(view, "test", "Wide");
+    border->SetBorderType(emBorder::OBT_ROUND_RECT, emBorder::IBT_GROUP);
+    border->DoLayout(0, 0, 800.0 / 400.0, 1.0);
+
+    auto* cf = new Testable<emColorField>(*border, "color", "Color", "", emImage(),
+                                           emColor(255, 0, 0, 255));
+    (void)cf;
+
+    // 200 cycles for layout cascade
+    { TerminateEngine ctrl(sched, 200); sched.Run(); }
+    render_and_dump_sized("composed_colorfield_wide", vp, ctx, 800, 400);
+}
+
+static void gen_composed_colorfield_tall() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    StubClipboard::Setup(ctx);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+    vp.DoSetViewGeometry(0, 0, 400, 800, 1.0);
+
+    // Border with OBT_ROUND_RECT / IBT_GROUP, containing a ColorField
+    auto* border = new Testable<emBorder>(view, "test", "Tall");
+    border->SetBorderType(emBorder::OBT_ROUND_RECT, emBorder::IBT_GROUP);
+    border->DoLayout(0, 0, 400.0 / 800.0, 1.0);
+
+    auto* cf = new Testable<emColorField>(*border, "color", "Color", "", emImage(),
+                                           emColor(255, 0, 0, 255));
+    (void)cf;
+
+    // 200 cycles for layout cascade
+    { TerminateEngine ctrl(sched, 200); sched.Run(); }
+    render_and_dump_sized("composed_colorfield_tall", vp, ctx, 400, 800);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -4620,9 +4832,26 @@ int main() {
     gen_listbox_expanded();
     gen_colorfield_expanded();
 
+    printf("Generating composed widget golden files...\n");
+    gen_composed_splitter_content();
+
     printf("Generating TestPanel integration golden files...\n");
     gen_testpanel_root();
     gen_testpanel_expanded();
+
+    printf("Generating TkTest integration golden files...\n");
+    gen_tktest_1x();
+    gen_tktest_2x();
+
+    printf("Generating composed border nest golden files...\n");
+    gen_composed_border_nest();
+
+    printf("Generating composed scrolled listbox golden files...\n");
+    gen_composed_scrolled_listbox();
+
+    printf("Generating composed colorfield aspect ratio golden files...\n");
+    gen_composed_colorfield_wide();
+    gen_composed_colorfield_tall();
 
     printf("Done!\n");
 

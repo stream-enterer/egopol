@@ -1,11 +1,15 @@
+use std::cell::Cell;
+use std::rc::Rc;
+
 use zuicchini::foundation::Rect;
-use zuicchini::input::{InputEvent, InputKey, InputState};
+use zuicchini::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
+use zuicchini::layout::linear::LinearGroup;
 use zuicchini::layout::Orientation;
-use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState, PanelTree};
-use zuicchini::render::Painter;
+use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState, PanelTree, View, ViewFlags};
+use zuicchini::render::{Painter, SoftwareCompositor};
 use zuicchini::widget::{
-    Button, CheckBox, CheckButton, ListBox, Look, RadioButton, RadioGroup, ScalarField,
-    SelectionMode, Splitter, TextField,
+    Border, Button, CheckBox, CheckButton, InnerBorderType, ListBox, Look, OuterBorderType,
+    RadioButton, RadioGroup, ScalarField, SelectionMode, Splitter, TextField,
 };
 
 use super::common::*;
@@ -668,4 +672,153 @@ fn splitter_layout_v() {
             );
         }
     }
+}
+
+// ─── Test: composition_click_through_tree ────────────────────────
+
+/// Button wrapper that delegates input handling (needed for mouse click dispatch).
+struct ClickableButtonPanel {
+    widget: Button,
+}
+
+impl PanelBehavior for ClickableButtonPanel {
+    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
+        self.widget.paint(p, w, h, s.enabled);
+    }
+    fn input(&mut self, e: &InputEvent, s: &PanelState, is: &InputState) -> bool {
+        self.widget.input(e, s, is)
+    }
+    fn get_cursor(&self) -> Cursor {
+        self.widget.get_cursor()
+    }
+    fn is_opaque(&self) -> bool {
+        true
+    }
+}
+
+/// Dispatch a single input event through the panel tree, replicating the
+/// input delivery logic from ZuiWindow::dispatch_input without needing a
+/// window. Iterates viewed panels in post-order (children before parents),
+/// transforms mouse coordinates to panel-local space, and stops on first
+/// consumption.
+fn dispatch_event(
+    tree: &mut PanelTree,
+    view: &mut View,
+    event: &InputEvent,
+    input_state: &InputState,
+) {
+    // For mouse press: set active panel via hit test
+    if event.variant == InputVariant::Press
+        && matches!(
+            event.key,
+            InputKey::MouseLeft | InputKey::MouseRight | InputKey::MouseMiddle
+        )
+    {
+        let panel = view
+            .get_focusable_panel_at(tree, event.mouse_x, event.mouse_y)
+            .unwrap_or_else(|| view.root());
+        view.set_active_panel(tree, panel, false);
+    }
+
+    let wf = view.window_focused();
+    let viewed = tree.viewed_panels_dfs();
+    for panel_id in viewed {
+        let mut panel_ev = event.clone();
+        panel_ev.mouse_x = tree.view_to_panel_x(panel_id, event.mouse_x);
+        panel_ev.mouse_y = tree.view_to_panel_y(panel_id, event.mouse_y, view.pixel_tallness());
+
+        if let Some(mut behavior) = tree.take_behavior(panel_id) {
+            let panel_state = tree.build_panel_state(panel_id, wf, view.pixel_tallness());
+            // Suppress keyboard events for panels not in the active path
+            if panel_ev.is_keyboard_event() && !panel_state.in_active_path {
+                tree.put_behavior(panel_id, behavior);
+                continue;
+            }
+            let consumed = behavior.input(&panel_ev, &panel_state, input_state);
+            tree.put_behavior(panel_id, behavior);
+            if consumed {
+                view.invalidate_painting(tree, panel_id);
+                break;
+            }
+        }
+    }
+}
+
+/// Build a panel tree with nested borders and a button, simulate a mouse
+/// click on the button, and verify the click reaches the button (the
+/// on_click callback fires).
+///
+/// Hierarchy:
+///   Root: LinearGroup vertical (OBT_Rect, caption "Root")
+///     Child: LinearGroup vertical (OBT_Rect, caption "Container")
+///       Grandchild: Button ("Click Me")
+#[test]
+fn composition_click_through_tree() {
+    let clicked = Rc::new(Cell::new(false));
+    let clicked_clone = clicked.clone();
+
+    let look = Look::new();
+
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+
+    // Root: vertical LinearGroup with OBT_Rect border
+    let mut root_group = LinearGroup::vertical();
+    root_group.border = Border::new(OuterBorderType::Rect)
+        .with_inner(InnerBorderType::None)
+        .with_caption("Root");
+    root_group.border.label_in_border = true;
+    tree.set_layout_rect(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
+
+    // Container: vertical LinearGroup with OBT_Rect border
+    let container_id = tree.create_child(root, "container");
+    let mut container_group = LinearGroup::vertical();
+    container_group.border = Border::new(OuterBorderType::Rect)
+        .with_inner(InnerBorderType::None)
+        .with_caption("Container");
+    container_group.border.label_in_border = true;
+    tree.set_behavior(container_id, Box::new(container_group));
+
+    // Button with on_click callback
+    let button_id = tree.create_child(container_id, "button");
+    let mut btn = Button::new("Click Me", look);
+    btn.on_click = Some(Box::new(move || {
+        clicked_clone.set(true);
+    }));
+    tree.set_behavior(button_id, Box::new(ClickableButtonPanel { widget: btn }));
+
+    // Set root behavior last (after children are created)
+    tree.set_behavior(root, Box::new(root_group));
+
+    // Set up view and settle layout
+    let mut view = View::new(root, 800.0, 600.0);
+    view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
+    for _ in 0..200 {
+        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
+        view.update_viewing(&mut tree);
+    }
+
+    // Render once so the button caches its paint dimensions (last_w, last_h)
+    // which are needed for mouse hit-testing.
+    let mut compositor = SoftwareCompositor::new(800, 600);
+    compositor.render(&mut tree, &view);
+
+    // Click at the center of the viewport. The button should be laid out
+    // within the nested borders and the center should fall inside it.
+    let click_x = 400.0;
+    let click_y = 300.0;
+    let input_state = InputState::new();
+
+    // Mouse press
+    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(click_x, click_y);
+    dispatch_event(&mut tree, &mut view, &press, &input_state);
+
+    // Mouse release at the same position
+    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(click_x, click_y);
+    dispatch_event(&mut tree, &mut view, &release, &input_state);
+
+    assert!(
+        clicked.get(),
+        "Button on_click callback was not fired — click did not reach the button through the nested border tree"
+    );
 }
