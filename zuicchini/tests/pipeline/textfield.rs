@@ -4,8 +4,6 @@
 //! pipeline (VIF chain, hit test, coordinate transform, keyboard suppression)
 //! and assert on widget STATE (text content, cursor position), not pixels.
 
-#[path = "support/mod.rs"]
-mod support;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -15,7 +13,7 @@ use zuicchini::panel::{NoticeFlags, PanelBehavior, PanelState};
 use zuicchini::render::{Painter, SoftwareCompositor};
 use zuicchini::widget::{Look, TextField};
 
-use crate::support::pipeline::PipelineTestHarness;
+use super::support::pipeline::PipelineTestHarness;
 
 // ---------------------------------------------------------------------------
 // SharedTextFieldPanel -- PanelBehavior wrapper with shared TextField access

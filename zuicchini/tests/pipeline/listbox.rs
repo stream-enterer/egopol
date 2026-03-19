@@ -5,8 +5,6 @@
 //! zoom levels, using view-space coordinates derived from the panel's viewed
 //! geometry and the border's content rect.
 
-#[path = "support/mod.rs"]
-mod support;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -18,7 +16,7 @@ use zuicchini::widget::{
     Border, InnerBorderType, ListBox, Look, OuterBorderType, SelectionMode,
 };
 
-use crate::support::pipeline::PipelineTestHarness;
+use super::support::pipeline::PipelineTestHarness;
 
 /// PanelBehavior wrapper for ListBox, allowing shared access via Rc<RefCell>.
 ///

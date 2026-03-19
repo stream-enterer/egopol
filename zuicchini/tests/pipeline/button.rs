@@ -1,8 +1,6 @@
 //! Systematic interaction test for Button at 1x and 2x zoom, driven through
 //! the full input dispatch pipeline (PipelineTestHarness).
 
-#[path = "support/mod.rs"]
-mod support;
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -12,7 +10,7 @@ use zuicchini::panel::{PanelBehavior, PanelState};
 use zuicchini::render::{Painter, SoftwareCompositor};
 use zuicchini::widget::{Button, Look};
 
-use crate::support::pipeline::PipelineTestHarness;
+use super::support::pipeline::PipelineTestHarness;
 
 /// Minimal PanelBehavior wrapper for Button so it can be installed into the
 /// panel tree. Delegates paint/input to the underlying widget.

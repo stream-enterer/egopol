@@ -4,8 +4,6 @@
 //! Verifies Splitter drag behavior when dispatched through the coordinate-
 //! transform pipeline at different zoom levels.
 
-#[path = "support/mod.rs"]
-mod support;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -16,7 +14,7 @@ use zuicchini::panel::{PanelBehavior, PanelState};
 use zuicchini::render::{Painter, SoftwareCompositor};
 use zuicchini::widget::{Look, Splitter};
 
-use crate::support::pipeline::PipelineTestHarness;
+use super::support::pipeline::PipelineTestHarness;
 
 // ---------------------------------------------------------------------------
 // PanelBehavior wrapper for Splitter (shared via Rc<RefCell>)

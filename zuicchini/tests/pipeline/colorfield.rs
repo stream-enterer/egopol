@@ -6,8 +6,6 @@
 //! and a TextField for color name/hex), and that the expansion data is
 //! correctly initialized from the widget's color.
 
-#[path = "support/mod.rs"]
-mod support;
 
 use std::rc::Rc;
 
@@ -17,7 +15,7 @@ use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState};
 use zuicchini::render::Painter;
 use zuicchini::widget::{ColorField, Look};
 
-use crate::support::pipeline::PipelineTestHarness;
+use super::support::pipeline::PipelineTestHarness;
 
 /// PanelBehavior wrapper for ColorField so it can be installed into the
 /// panel tree. Delegates paint/input/layout_children to the underlying widget.

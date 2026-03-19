@@ -5,8 +5,6 @@
 //! stacked vertically. Clicking each panel's center selects the corresponding
 //! radio button. The test verifies correct selection at both 1x and 2x zoom.
 
-#[path = "support/mod.rs"]
-mod support;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -16,7 +14,7 @@ use zuicchini::panel::{PanelBehavior, PanelState};
 use zuicchini::render::{Painter, SoftwareCompositor};
 use zuicchini::widget::{Look, RadioButton, RadioGroup};
 
-use crate::support::pipeline::PipelineTestHarness;
+use super::support::pipeline::PipelineTestHarness;
 
 // ---------------------------------------------------------------------------
 // RadioButtonBehavior -- minimal PanelBehavior wrapper for RadioButton

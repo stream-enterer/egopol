@@ -3,8 +3,6 @@
 //! click interactions produce expected state changes when dispatched through
 //! the coordinate-transform pipeline.
 
-#[path = "support/mod.rs"]
-mod support;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -14,7 +12,7 @@ use zuicchini::panel::{NoticeFlags, PanelBehavior, PanelCtx, PanelState};
 use zuicchini::render::{Painter, SoftwareCompositor};
 use zuicchini::widget::{Button, ColorField, ListBox, Look, ScalarField, SelectionMode};
 
-use crate::support::pipeline::PipelineTestHarness;
+use super::support::pipeline::PipelineTestHarness;
 
 /// PanelBehavior wrapper for ScalarField so it can be installed into the
 /// panel tree. Delegates paint/input to the underlying widget.
@@ -458,7 +456,7 @@ impl PanelBehavior for SharedListBoxPanel {
 #[test]
 fn listbox_click_selects_correct_item() {
     // ── 1. Build pipeline harness (800x600 viewport) ─────────────
-    let mut harness = crate::support::pipeline::PipelineTestHarness::new();
+    let mut harness = super::support::pipeline::PipelineTestHarness::new();
 
     // ── 2. Create a ListBox with 5 items ─────────────────────────
     let look = Look::new();
