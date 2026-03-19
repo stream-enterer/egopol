@@ -63,6 +63,16 @@ impl Splitter {
         self.max_position
     }
 
+    /// Whether the splitter is currently being dragged. C++ `Pressed`.
+    pub fn is_dragging(&self) -> bool {
+        self.dragging
+    }
+
+    /// Whether the mouse is currently over the grip area. C++ `MouseInGrip`.
+    pub fn is_mouse_in_grip(&self) -> bool {
+        self.mouse_in_grip
+    }
+
     /// Set the border scaling factor. C++ `emSplitter` inherits
     /// `GetBorderScaling()` from `emBorder`; default is 1.0.
     pub fn set_border_scaling(&mut self, s: f64) {
