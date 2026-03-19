@@ -965,3 +965,452 @@ fn textfield_ctrl_up_prev_paragraph() {
         );
     }
 }
+
+// ===========================================================================
+// BP-5: TextField editing operations
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Ctrl+Backspace (delete word before cursor)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_ctrl_backspace_deletes_word_before_cursor() {
+    // "foo bar baz" cursor at 7 (end of "bar") → Ctrl+Backspace
+    // prev_word_index(7) = 4 (start of "bar"), deletes chars 4..7 ("bar") → "foo  baz"
+    let (mut h, tf_ref) = setup_nav_harness("foo bar baz", 7);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Backspace);
+    h.input_state.release(InputKey::Ctrl);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "foo  baz",
+            "Ctrl+Backspace from pos 7 in 'foo bar baz' should delete 'bar', got '{}'",
+            tf.text()
+        );
+        assert_eq!(
+            tf.cursor_pos(),
+            4,
+            "Cursor should be at 4 after Ctrl+Backspace"
+        );
+    }
+}
+
+#[test]
+fn textfield_ctrl_backspace_at_start_does_nothing() {
+    let (mut h, tf_ref) = setup_nav_harness("hello", 0);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Backspace);
+    h.input_state.release(InputKey::Ctrl);
+    assert_eq!(tf_ref.borrow().text(), "hello");
+    assert_eq!(tf_ref.borrow().cursor_pos(), 0);
+}
+
+// ---------------------------------------------------------------------------
+// Ctrl+Delete (delete word after cursor)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_ctrl_delete_deletes_word_after_cursor() {
+    // "foo bar baz" cursor at 4 (start of "bar") → Ctrl+Delete → "foo baz"
+    // next_word_index(4) should find end of "bar" + skip space (8), deleting "bar " → "foo baz"
+    let (mut h, tf_ref) = setup_nav_harness("foo bar baz", 4);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Delete);
+    h.input_state.release(InputKey::Ctrl);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "foo baz",
+            "Ctrl+Delete from pos 4 in 'foo bar baz' should delete 'bar ', got '{}'",
+            tf.text()
+        );
+        assert_eq!(
+            tf.cursor_pos(),
+            4,
+            "Cursor should remain at 4 after Ctrl+Delete"
+        );
+    }
+}
+
+#[test]
+fn textfield_ctrl_delete_at_end_does_nothing() {
+    let (mut h, tf_ref) = setup_nav_harness("hello", 5);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Delete);
+    h.input_state.release(InputKey::Ctrl);
+    assert_eq!(tf_ref.borrow().text(), "hello");
+    assert_eq!(tf_ref.borrow().cursor_pos(), 5);
+}
+
+// ---------------------------------------------------------------------------
+// Shift+Ctrl+Backspace (delete to start of line)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_shift_ctrl_backspace_deletes_to_line_start() {
+    // "hello world" cursor at 7 → Shift+Ctrl+Backspace → "orld"
+    // row_start(7) = 0 (single line), so deletes chars 0..7 → "orld"
+    let (mut h, tf_ref) = setup_nav_harness("hello world", 7);
+    h.input_state.press(InputKey::Shift);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Backspace);
+    h.input_state.release(InputKey::Ctrl);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "orld",
+            "Shift+Ctrl+Backspace from pos 7 in 'hello world' should delete to line start, got '{}'",
+            tf.text()
+        );
+        assert_eq!(tf.cursor_pos(), 0);
+    }
+}
+
+#[test]
+fn textfield_shift_ctrl_backspace_multiline_deletes_to_row_start() {
+    // "abc\ndef\nghi" cursor at 6 (row 1, col 2 = 'f') → Shift+Ctrl+Backspace
+    // row_start(6) = 4, deletes chars 4..6 → "abc\nf\nghi"
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 6);
+    h.input_state.press(InputKey::Shift);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Backspace);
+    h.input_state.release(InputKey::Ctrl);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "abc\nf\nghi",
+            "Shift+Ctrl+Backspace from col 2 in row 1 should delete 'de', got '{}'",
+            tf.text()
+        );
+        assert_eq!(tf.cursor_pos(), 4);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Shift+Ctrl+Delete (delete to end of line)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_shift_ctrl_delete_deletes_to_line_end() {
+    // "hello world" cursor at 5 → Shift+Ctrl+Delete → "hello"
+    // row_end(5) = 11 (single line, end of text), deletes 5..11 → "hello"
+    let (mut h, tf_ref) = setup_nav_harness("hello world", 5);
+    h.input_state.press(InputKey::Shift);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Delete);
+    h.input_state.release(InputKey::Ctrl);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "hello",
+            "Shift+Ctrl+Delete from pos 5 in 'hello world' should delete to line end, got '{}'",
+            tf.text()
+        );
+        assert_eq!(tf.cursor_pos(), 5);
+    }
+}
+
+#[test]
+fn textfield_shift_ctrl_delete_multiline_deletes_to_row_end() {
+    // "abc\ndef\nghi" cursor at 4 (row 1, col 0 = 'd') → Shift+Ctrl+Delete
+    // row_end(4) = 7 (before \n), deletes 4..7 → "abc\n\nghi"
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 4);
+    h.input_state.press(InputKey::Shift);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Delete);
+    h.input_state.release(InputKey::Ctrl);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "abc\n\nghi",
+            "Shift+Ctrl+Delete from col 0 in row 1 should delete 'def', got '{}'",
+            tf.text()
+        );
+        assert_eq!(tf.cursor_pos(), 4);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Backspace with selection (deletes selection, C++ DeleteSelectedText path)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_backspace_with_selection_deletes_selection() {
+    // "abcdef" with selection [2,4) → Backspace → "abef", cursor at 2
+    let (mut h, tf_ref) = setup_nav_harness("abcdef", 4);
+    tf_ref.borrow_mut().select(2, 4);
+    tf_ref.borrow_mut().set_cursor_index(4);
+
+    h.press_key(InputKey::Backspace);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "abef",
+            "Backspace with selection [2,4) in 'abcdef' should delete 'cd', got '{}'",
+            tf.text()
+        );
+        assert_eq!(tf.cursor_pos(), 2);
+        assert!(tf.is_selection_empty());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Delete with selection (deletes selection, C++ DeleteSelectedText path)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_delete_with_selection_deletes_selection() {
+    // "abcdef" with selection [1,3) → Delete → "adef", cursor at 1
+    let (mut h, tf_ref) = setup_nav_harness("abcdef", 3);
+    tf_ref.borrow_mut().select(1, 3);
+    tf_ref.borrow_mut().set_cursor_index(3);
+
+    h.press_key(InputKey::Delete);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "adef",
+            "Delete with selection [1,3) in 'abcdef' should delete 'bc', got '{}'",
+            tf.text()
+        );
+        assert_eq!(tf.cursor_pos(), 1);
+        assert!(tf.is_selection_empty());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Typing with selection replaces selection (C++ ModifySelectedText path)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_typing_with_selection_replaces_selection() {
+    // "abcdef" with selection [2,5) → type 'X' → "abXf", cursor at 3
+    let (mut h, tf_ref) = setup_nav_harness("abcdef", 5);
+    tf_ref.borrow_mut().select(2, 5);
+    tf_ref.borrow_mut().set_cursor_index(5);
+
+    h.press_char('X');
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "abXf",
+            "Typing 'X' with selection [2,5) in 'abcdef' should produce 'abXf', got '{}'",
+            tf.text()
+        );
+        assert_eq!(tf.cursor_pos(), 3);
+        assert!(tf.is_selection_empty());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Insert key toggles overwrite mode (C++ EM_KEY_INSERT + IsNoMod)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_insert_toggles_overwrite_mode() {
+    let (mut h, tf_ref) = setup_nav_harness("hello", 0);
+    assert!(!tf_ref.borrow().is_overwrite_mode());
+
+    h.press_key(InputKey::Insert);
+    assert!(
+        tf_ref.borrow().is_overwrite_mode(),
+        "Insert should toggle overwrite mode ON"
+    );
+
+    h.press_key(InputKey::Insert);
+    assert!(
+        !tf_ref.borrow().is_overwrite_mode(),
+        "Insert again should toggle overwrite mode OFF"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Typing in overwrite mode replaces char at cursor
+// (C++ OverwriteMode && CursorIndex < GetRowEndIndex path)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_overwrite_mode_replaces_char() {
+    // "abcde" with overwrite mode, cursor at 1 → type 'X' → "aXcde", cursor at 2
+    let (mut h, tf_ref) = setup_nav_harness("abcde", 1);
+    tf_ref.borrow_mut().set_overwrite_mode(true);
+
+    h.press_char('X');
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "aXcde",
+            "Overwrite mode: typing 'X' at pos 1 in 'abcde' should replace 'b', got '{}'",
+            tf.text()
+        );
+        assert_eq!(tf.cursor_pos(), 2);
+    }
+}
+
+#[test]
+fn textfield_overwrite_mode_at_end_inserts() {
+    // "abc" with overwrite mode, cursor at 3 (end) → type 'X' → "abcX"
+    // C++: OverwriteMode && CursorIndex < GetRowEndIndex → false at end, so insert
+    let (mut h, tf_ref) = setup_nav_harness("abc", 3);
+    tf_ref.borrow_mut().set_overwrite_mode(true);
+
+    h.press_char('X');
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "abcX",
+            "Overwrite mode at end should insert, got '{}'",
+            tf.text()
+        );
+        assert_eq!(tf.cursor_pos(), 4);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Non-editable TextField rejects all editing operations
+// (C++ IsEditable() guard on editing block)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_non_editable_rejects_backspace() {
+    let (mut h, tf_ref) = setup_nav_harness("hello", 5);
+    tf_ref.borrow_mut().set_editable(false);
+
+    h.press_key(InputKey::Backspace);
+    assert_eq!(
+        tf_ref.borrow().text(),
+        "hello",
+        "Non-editable TextField should reject Backspace"
+    );
+}
+
+#[test]
+fn textfield_non_editable_rejects_delete() {
+    let (mut h, tf_ref) = setup_nav_harness("hello", 2);
+    tf_ref.borrow_mut().set_editable(false);
+
+    h.press_key(InputKey::Delete);
+    assert_eq!(
+        tf_ref.borrow().text(),
+        "hello",
+        "Non-editable TextField should reject Delete"
+    );
+}
+
+#[test]
+fn textfield_non_editable_rejects_ctrl_backspace() {
+    let (mut h, tf_ref) = setup_nav_harness("hello world", 5);
+    tf_ref.borrow_mut().set_editable(false);
+
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Backspace);
+    h.input_state.release(InputKey::Ctrl);
+    assert_eq!(
+        tf_ref.borrow().text(),
+        "hello world",
+        "Non-editable TextField should reject Ctrl+Backspace"
+    );
+}
+
+#[test]
+fn textfield_non_editable_rejects_ctrl_delete() {
+    let (mut h, tf_ref) = setup_nav_harness("hello world", 5);
+    tf_ref.borrow_mut().set_editable(false);
+
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Delete);
+    h.input_state.release(InputKey::Ctrl);
+    assert_eq!(
+        tf_ref.borrow().text(),
+        "hello world",
+        "Non-editable TextField should reject Ctrl+Delete"
+    );
+}
+
+#[test]
+fn textfield_non_editable_allows_insert_toggle() {
+    // C++ Insert key toggle is NOT guarded by IsEditable — it's in the
+    // non-editable block. So overwrite mode toggles even when not editable.
+    let (mut h, tf_ref) = setup_nav_harness("hello", 0);
+    tf_ref.borrow_mut().set_editable(false);
+
+    assert!(!tf_ref.borrow().is_overwrite_mode());
+    h.press_key(InputKey::Insert);
+    assert!(
+        tf_ref.borrow().is_overwrite_mode(),
+        "Insert toggle should work even when non-editable (C++ ref: emTextField.cpp:661)"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Ctrl+Backspace with selection deletes selection (not word)
+// C++ ref: emTextField.cpp:741-752 — selection check before word delete
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_ctrl_backspace_with_selection_deletes_selection() {
+    // "foo bar baz" with selection [4,7) → Ctrl+Backspace → "foo baz"
+    let (mut h, tf_ref) = setup_nav_harness("foo bar baz", 7);
+    tf_ref.borrow_mut().select(4, 7);
+    tf_ref.borrow_mut().set_cursor_index(7);
+
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Backspace);
+    h.input_state.release(InputKey::Ctrl);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            "foo  baz",
+            "Ctrl+Backspace with selection should delete selection, got '{}'",
+            tf.text()
+        );
+        assert_eq!(tf.cursor_pos(), 4);
+        assert!(tf.is_selection_empty());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Ctrl+Delete with selection deletes selection (not word)
+// C++ ref: emTextField.cpp:757-770 — selection check before word delete
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_ctrl_delete_with_selection_deletes_selection() {
+    // "foo bar baz" with selection [0,3) → Ctrl+Delete → " bar baz"
+    let (mut h, tf_ref) = setup_nav_harness("foo bar baz", 3);
+    tf_ref.borrow_mut().select(0, 3);
+    tf_ref.borrow_mut().set_cursor_index(3);
+
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Delete);
+    h.input_state.release(InputKey::Ctrl);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.text(),
+            " bar baz",
+            "Ctrl+Delete with selection should delete selection, got '{}'",
+            tf.text()
+        );
+        assert_eq!(tf.cursor_pos(), 0);
+        assert!(tf.is_selection_empty());
+    }
+}
