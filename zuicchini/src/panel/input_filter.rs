@@ -116,6 +116,10 @@ pub struct MouseZoomScrollVIF {
     mag_av_mouse_move_y: f64,
     /// Timestamp (ms) when cumulative mouse movement was last reset (C++ `MagAvTime`).
     mag_av_time: u64,
+    /// C++ `CoreConfig->StickMouseWhenNavigating` — when true, warp cursor back during drag.
+    stick_mouse: bool,
+    /// Accumulated mouse warp delta (pixels) to be drained by the window.
+    pending_warp: (f64, f64),
 }
 
 impl MouseZoomScrollVIF {
@@ -166,6 +170,8 @@ impl MouseZoomScrollVIF {
             mag_av_mouse_move_x: 0.0,
             mag_av_mouse_move_y: 0.0,
             mag_av_time: 0,
+            stick_mouse: false,
+            pending_warp: (0.0, 0.0),
         }
     }
 
@@ -217,6 +223,23 @@ impl MouseZoomScrollVIF {
     /// Returns whether PanFunction is enabled.
     pub(crate) fn pan_function(&self) -> bool {
         self.pan_function
+    }
+
+    /// Enable or disable stick-mouse-when-navigating.
+    pub(crate) fn set_stick_mouse(&mut self, enabled: bool) {
+        self.stick_mouse = enabled;
+    }
+
+    /// Returns whether stick-mouse is enabled.
+    pub(crate) fn stick_mouse(&self) -> bool {
+        self.stick_mouse
+    }
+
+    /// Drain the pending warp delta and return it, resetting to zero.
+    pub fn drain_pending_warp(&mut self) -> (f64, f64) {
+        let warp = self.pending_warp;
+        self.pending_warp = (0.0, 0.0);
+        warp
     }
 
     /// Translate Alt key presses into emulated middle mouse button events,
@@ -822,6 +845,11 @@ impl ViewInputFilter for MouseZoomScrollVIF {
                     let f = self.get_mouse_zoom_speed(state.shift());
                     self.grip_spring_z += -dmy * f;
                     self.grip_fix_x = state.mouse_x;
+                    // C++ line ~142: stick mouse during zoom drag
+                    if self.stick_mouse {
+                        self.pending_warp.0 += -dmx;
+                        self.pending_warp.1 += -dmy;
+                    }
                 } else {
                     // D-PANEL-10: Accumulate spring extension (C++ MoveGrip).
                     // The spring physics in animate_grip() convert this into
@@ -829,6 +857,12 @@ impl ViewInputFilter for MouseZoomScrollVIF {
                     let f = self.get_mouse_scroll_speed(state.shift());
                     self.grip_spring_x += dmx * f;
                     self.grip_spring_y += dmy * f;
+                    // C++ line ~156: stick mouse during scroll drag
+                    // (only when PanFunction is NOT active, matching C++ guard)
+                    if self.stick_mouse && !self.pan_function {
+                        self.pending_warp.0 += -dmx;
+                        self.pending_warp.1 += -dmy;
+                    }
                 }
                 self.last_x = state.mouse_x;
                 self.last_y = state.mouse_y;
@@ -2657,6 +2691,76 @@ mod tests {
         // Toggle dlog off (need full prefix since easy cheats not enabled)
         type_cheat(&mut vif, &mut view, "chEat:dlog!");
         assert!(!crate::foundation::is_dlog_enabled());
+    }
+
+    #[test]
+    fn cheat_vif_smwn_toggle() {
+        let (_tree, mut view) = setup();
+        let mut vif = CheatVIF::new();
+
+        type_cheat(&mut vif, &mut view, "chEat:smwn!");
+        let actions = vif.drain_actions();
+        assert_eq!(actions, vec![CheatAction::StickMouseWhenNavigating]);
+    }
+
+    fn input_state_at(x: f64, y: f64) -> InputState {
+        let mut s = InputState::new();
+        s.mouse_x = x;
+        s.mouse_y = y;
+        s
+    }
+
+    #[test]
+    fn stick_mouse_accumulates_warp_during_drag() {
+        let (_tree, mut view) = setup();
+        let mut vif = MouseZoomScrollVIF::new();
+        vif.set_stick_mouse(true);
+
+        let state_press = input_state_at(100.0, 100.0);
+
+        // Start middle-button press to initiate panning
+        let press = InputEvent::press(InputKey::MouseMiddle).with_mouse(100.0, 100.0);
+        vif.filter(&press, &state_press, &mut view);
+        assert!(vif.panning);
+
+        // Move mouse (simulating drag)
+        let state_move = input_state_at(120.0, 110.0);
+        let move_ev = InputEvent::mouse_move(InputKey::MouseMiddle, 120.0, 110.0);
+        vif.filter(&move_ev, &state_move, &mut view);
+
+        // Pending warp should have accumulated (-dmx, -dmy) = (-20, -10)
+        let (wx, wy) = vif.drain_pending_warp();
+        assert!(
+            (wx - (-20.0)).abs() < 0.01 && (wy - (-10.0)).abs() < 0.01,
+            "pending_warp should be (-20, -10), got ({}, {})",
+            wx,
+            wy
+        );
+
+        // After drain, should be zero
+        let (wx2, wy2) = vif.drain_pending_warp();
+        assert!(wx2.abs() < 0.01 && wy2.abs() < 0.01);
+    }
+
+    #[test]
+    fn stick_mouse_no_warp_when_disabled() {
+        let (_tree, mut view) = setup();
+        let mut vif = MouseZoomScrollVIF::new();
+        // stick_mouse defaults to false
+
+        let state_press = input_state_at(100.0, 100.0);
+        let press = InputEvent::press(InputKey::MouseMiddle).with_mouse(100.0, 100.0);
+        vif.filter(&press, &state_press, &mut view);
+
+        let state_move = input_state_at(120.0, 110.0);
+        let move_ev = InputEvent::mouse_move(InputKey::MouseMiddle, 120.0, 110.0);
+        vif.filter(&move_ev, &state_move, &mut view);
+
+        let (wx, wy) = vif.drain_pending_warp();
+        assert!(
+            wx.abs() < 0.01 && wy.abs() < 0.01,
+            "no warp when stick_mouse disabled"
+        );
     }
 
     #[test]

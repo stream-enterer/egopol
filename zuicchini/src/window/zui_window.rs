@@ -705,6 +705,18 @@ impl ZuiWindow {
             }
         }
 
+        // Drain pending mouse warp from stick-mouse-when-navigating
+        if let Some(mouse_vif) = self
+            .vif_chain
+            .first_mut()
+            .and_then(|v| v.as_any_mut().downcast_mut::<MouseZoomScrollVIF>())
+        {
+            let (wx, wy) = mouse_vif.drain_pending_warp();
+            if wx.abs() > 0.1 || wy.abs() > 0.1 {
+                self.move_mouse_pointer(wx, wy);
+            }
+        }
+
         // Run cheat VIF (never consumes events, but may produce actions)
         self.cheat_vif.filter(event, state, &mut self.view);
         for action in self.cheat_vif.drain_actions() {
@@ -724,10 +736,8 @@ impl ZuiWindow {
                         mouse_vif.set_emulate_middle_button(!current);
                     }
                     CheatAction::StickMouseWhenNavigating => {
-                        // TODO: needs StickMouseWhenNavigating wiring to screen/cursor
-                        eprintln!(
-                            "[CheatVIF] StickMouseWhenNavigating toggled (not fully wired)"
-                        );
+                        let current = mouse_vif.stick_mouse();
+                        mouse_vif.set_stick_mouse(!current);
                     }
                 }
             }
