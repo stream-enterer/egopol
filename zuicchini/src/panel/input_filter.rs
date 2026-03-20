@@ -1614,14 +1614,58 @@ impl TouchTracker {
                 }
             }
 
-            // States implemented in later features
-            GestureState::SecondDown
-            | GestureState::EmuMouse1
+            GestureState::SecondDown => {
+                if self.touch_count > 2 {
+                    self.gesture_state = GestureState::ThirdDown;
+                } else if self.touch_count >= 2
+                    && (self.touches[0].ms_total > 250 || !self.is_any_touch_down())
+                {
+                    // Compute direction between two touch points
+                    let dx = self.touches[1].down_x - self.touches[0].down_x;
+                    let dy = self.touches[1].down_y - self.touches[0].down_y;
+                    if dx.abs() >= dy.abs() {
+                        if dx > 0.0 {
+                            self.gesture_state = GestureState::EmuMouse1; // left-click
+                        } else {
+                            self.gesture_state = GestureState::EmuMouse2; // right-click
+                        }
+                    } else if dy > 0.0 {
+                        self.gesture_state = GestureState::EmuMouse3; // shift+left-click
+                    } else {
+                        self.gesture_state = GestureState::EmuMouse4; // ctrl+left-click
+                    }
+                }
+            }
+
+            GestureState::EmuMouse1
             | GestureState::EmuMouse2
             | GestureState::EmuMouse3
-            | GestureState::EmuMouse4
-            | GestureState::ThirdDown
-            | GestureState::FourthDown => {}
+            | GestureState::EmuMouse4 => {
+                // While touch held: maintain emulated mouse state.
+                // On release: transition to Finish.
+                // ForwardInput of synthetic events is handled by the caller.
+                if !self.is_any_touch_down() {
+                    self.gesture_state = GestureState::Finish;
+                }
+            }
+
+            GestureState::ThirdDown => {
+                if self.touch_count > 3 {
+                    self.gesture_state = GestureState::FourthDown;
+                } else if !self.is_any_touch_down() {
+                    // Three-finger release → inject Menu key (handled by caller)
+                    self.gesture_state = GestureState::Finish;
+                }
+            }
+
+            GestureState::FourthDown => {
+                if self.touch_count > 4 {
+                    self.gesture_state = GestureState::Finish;
+                } else if !self.is_any_touch_down() {
+                    // Four-finger release → toggle soft keyboard (handled by caller)
+                    self.gesture_state = GestureState::Finish;
+                }
+            }
         }
 
         self.gesture_state != old_state
@@ -3081,6 +3125,59 @@ mod tests {
         assert!((tracker.get_touch_move_y(0) - 30.0).abs() < 1e-12);
         assert!((tracker.get_total_touch_move_x(0) - 20.0).abs() < 1e-12);
         assert!((tracker.get_total_touch_move_y(0) - 30.0).abs() < 1e-12);
+    }
+
+    fn setup_two_finger_tracker(
+        x0: f64, y0: f64, x1: f64, y1: f64,
+    ) -> TouchTracker {
+        let mut tracker = TouchTracker::new();
+        tracker.touches[0] = Touch {
+            id: 1, down: true, x: x0, y: y0,
+            down_x: x0, down_y: y0, ms_total: 260, ..Touch::default()
+        };
+        tracker.touches[1] = Touch {
+            id: 2, down: true, x: x1, y: y1,
+            down_x: x1, down_y: y1, ms_total: 260, ..Touch::default()
+        };
+        tracker.touch_count = 2;
+        tracker.gesture_state = GestureState::SecondDown;
+        tracker
+    }
+
+    #[test]
+    fn two_finger_horizontal_right_emu_mouse_1() {
+        let (mut tree, mut view) = setup();
+        view.update_viewing(&mut tree);
+        let mut tracker = setup_two_finger_tracker(100.0, 200.0, 200.0, 200.0);
+        while tracker.do_gesture(&mut view, &mut tree) {}
+        assert_eq!(tracker.gesture_state, GestureState::EmuMouse1);
+    }
+
+    #[test]
+    fn two_finger_horizontal_left_emu_mouse_2() {
+        let (mut tree, mut view) = setup();
+        view.update_viewing(&mut tree);
+        let mut tracker = setup_two_finger_tracker(200.0, 200.0, 100.0, 200.0);
+        while tracker.do_gesture(&mut view, &mut tree) {}
+        assert_eq!(tracker.gesture_state, GestureState::EmuMouse2);
+    }
+
+    #[test]
+    fn two_finger_vertical_down_emu_mouse_3() {
+        let (mut tree, mut view) = setup();
+        view.update_viewing(&mut tree);
+        let mut tracker = setup_two_finger_tracker(200.0, 100.0, 200.0, 200.0);
+        while tracker.do_gesture(&mut view, &mut tree) {}
+        assert_eq!(tracker.gesture_state, GestureState::EmuMouse3);
+    }
+
+    #[test]
+    fn two_finger_vertical_up_emu_mouse_4() {
+        let (mut tree, mut view) = setup();
+        view.update_viewing(&mut tree);
+        let mut tracker = setup_two_finger_tracker(200.0, 200.0, 200.0, 100.0);
+        while tracker.do_gesture(&mut view, &mut tree) {}
+        assert_eq!(tracker.gesture_state, GestureState::EmuMouse4);
     }
 
     #[test]
