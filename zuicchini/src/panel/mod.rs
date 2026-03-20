@@ -21,4 +21,4 @@ pub use tree::{
     decode_identity, encode_identity, AutoplayHandlingFlags, ChildIter, ChildRevIter, PanelId,
     PanelTree, PlaybackState, ViewConditionType,
 };
-pub use view::{View, ViewFlags, VisitState};
+pub use view::{StressTest, View, ViewFlags, VisitState};

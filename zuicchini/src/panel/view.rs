@@ -1,10 +1,12 @@
+use std::time::Instant;
+
 use bitflags::bitflags;
 
 use super::ctx::PanelCtx;
 use super::tree::{PanelId, PanelTree};
 use crate::foundation::{ClipRects, Color, Rect};
 use crate::input::Cursor;
-use crate::render::Painter;
+use crate::render::{Painter, TextAlignment, VAlign};
 
 bitflags! {
     /// Flags controlling view behavior.
@@ -46,6 +48,127 @@ pub enum Direction {
     Down,
     Left,
     Up,
+}
+
+/// Frame rate measurement for the stress test overlay.
+///
+/// Port of C++ `StressTestClass` (emEngine subclass). Maintains a 128-entry
+/// ring buffer of timestamps, computes frame rate over a 1-second window,
+/// updates the displayed rate every 100ms.
+#[derive(Clone, Debug)]
+pub struct StressTest {
+    /// Ring buffer of frame timestamps.
+    timestamps: Vec<Instant>,
+    /// Position of the next write in the ring buffer.
+    pos: usize,
+    /// Number of valid entries (0..=128).
+    valid: usize,
+    /// Last computed frame rate (Hz).
+    frame_rate: f64,
+    /// When the displayed rate was last updated.
+    last_update: Instant,
+}
+
+impl Default for StressTest {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StressTest {
+    const RING_SIZE: usize = 128;
+
+    pub fn new() -> Self {
+        let now = Instant::now();
+        Self {
+            timestamps: vec![now; Self::RING_SIZE],
+            pos: 0,
+            valid: 0,
+            frame_rate: 0.0,
+            last_update: now,
+        }
+    }
+
+    /// Record a frame timestamp and update the frame rate if 100ms have elapsed.
+    pub fn record_frame(&mut self) {
+        let now = Instant::now();
+        self.timestamps[self.pos] = now;
+        self.pos = (self.pos + 1) % Self::RING_SIZE;
+        if self.valid < Self::RING_SIZE {
+            self.valid += 1;
+        }
+
+        // Update displayed rate every 100ms
+        if now.duration_since(self.last_update).as_millis() >= 100 {
+            self.last_update = now;
+            self.frame_rate = self.compute_rate(now);
+        }
+    }
+
+    fn compute_rate(&self, now: Instant) -> f64 {
+        if self.valid < 2 {
+            return 0.0;
+        }
+        // Count entries within the last 1 second
+        let mut count = 0usize;
+        let mut oldest = now;
+        for i in 0..self.valid {
+            let idx = (self.pos + Self::RING_SIZE - 1 - i) % Self::RING_SIZE;
+            let elapsed = now.duration_since(self.timestamps[idx]);
+            if elapsed.as_millis() > 1000 {
+                break;
+            }
+            oldest = self.timestamps[idx];
+            count += 1;
+        }
+        if count < 2 {
+            return 0.0;
+        }
+        let elapsed_ms = now.duration_since(oldest).as_secs_f64() * 1000.0;
+        if elapsed_ms < 1.0 {
+            return 0.0;
+        }
+        count as f64 * 1000.0 / elapsed_ms
+    }
+
+    /// Paint the "Stress Test XX.X Hz" overlay in the top-left corner.
+    pub fn paint_info(&self, painter: &mut Painter, _view_w: f64, view_h: f64) {
+        let text_h = (view_h / 45.0).max(10.0);
+        let box_w = text_h * 8.0;
+        let box_h = text_h * 2.5;
+
+        // Purple background (matches C++: 255,0,255,128)
+        let bg = Color::rgba(255, 0, 255, 128);
+        painter.paint_rect(0.0, 0.0, box_w, box_h, bg, Color::TRANSPARENT);
+
+        // Yellow text (matches C++: 255,255,0,192)
+        let fg = Color::rgba(255, 255, 0, 192);
+        let label = format!("Stress Test\n{:.1} Hz", self.frame_rate);
+        painter.paint_text_boxed(
+            0.0,
+            0.0,
+            box_w,
+            box_h,
+            &label,
+            text_h,
+            fg,
+            bg,
+            TextAlignment::Center,
+            VAlign::Center,
+            TextAlignment::Center,
+            0.5,
+            false,
+            0.15,
+        );
+    }
+
+    pub fn frame_rate(&self) -> f64 {
+        self.frame_rate
+    }
+
+    pub fn valid_count(&self) -> usize {
+        self.valid
+    }
 }
 
 /// The View manages the viewport — which panels are visible and how they're
@@ -113,6 +236,8 @@ pub struct View {
     /// compute the zoom-out relA so the root panel fits in the viewport.
     /// Initially true; cleared after the first viewing update.
     zoomed_out_before_sg: bool,
+    /// Stress test state. Created when STRESS_TEST flag is set, dropped when cleared.
+    stress_test: Option<StressTest>,
 }
 
 impl View {
@@ -160,6 +285,7 @@ impl View {
             visited_vh: viewport_height.max(1.0),
             viewing_dirty: true,
             zoomed_out_before_sg: true,
+            stress_test: None,
         }
     }
 
@@ -2041,6 +2167,32 @@ impl View {
         self.svp.unwrap_or(self.current_visit().panel)
     }
 
+    // --- Stress test ---
+
+    /// Sync stress test state with the STRESS_TEST flag. Call this each frame.
+    pub fn sync_stress_test(&mut self) {
+        if self.flags.contains(ViewFlags::STRESS_TEST) {
+            if self.stress_test.is_none() {
+                self.stress_test = Some(StressTest::new());
+            }
+            if let Some(st) = &mut self.stress_test {
+                st.record_frame();
+            }
+        } else if self.stress_test.is_some() {
+            self.stress_test = None;
+        }
+    }
+
+    /// Whether the stress test is currently active.
+    pub fn is_stress_test_active(&self) -> bool {
+        self.stress_test.is_some()
+    }
+
+    /// Access the stress test state (for testing).
+    pub fn stress_test(&self) -> Option<&StressTest> {
+        self.stress_test.as_ref()
+    }
+
     // --- Paint ---
 
     pub fn paint(&self, tree: &mut PanelTree, painter: &mut Painter) {
@@ -2063,6 +2215,11 @@ impl View {
 
         // D-PANEL-06: Paint focus/active highlight (C++ PaintHighlight parity)
         self.paint_highlight(tree, painter);
+
+        // Stress test overlay (C++ StressTestClass::PaintInfo, after all panel painting)
+        if let Some(st) = &self.stress_test {
+            st.paint_info(painter, self.viewport_width, self.viewport_height);
+        }
     }
 
     /// D-PANEL-06: Paint highlight around the active panel.
@@ -3057,5 +3214,68 @@ mod tests {
         view.flags ^= ViewFlags::EGO_MODE;
         view.mark_cursor_invalid();
         assert!(view.is_cursor_invalid());
+    }
+
+    #[test]
+    fn stress_test_sync_creates_and_destroys() {
+        let (mut tree, root, _, _) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+
+        // Initially no stress test
+        assert!(!view.is_stress_test_active());
+        assert!(view.stress_test().is_none());
+
+        // Enable STRESS_TEST and sync
+        view.flags |= ViewFlags::STRESS_TEST;
+        view.sync_stress_test();
+        assert!(view.is_stress_test_active());
+        assert!(view.stress_test().is_some());
+
+        // Disable and sync — struct dropped
+        view.flags -= ViewFlags::STRESS_TEST;
+        view.sync_stress_test();
+        assert!(!view.is_stress_test_active());
+        assert!(view.stress_test().is_none());
+    }
+
+    #[test]
+    fn stress_test_ring_buffer_accumulates() {
+        let (mut tree, root, _, _) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+
+        view.flags |= ViewFlags::STRESS_TEST;
+        // Sync multiple times to accumulate entries
+        for _ in 0..10 {
+            view.sync_stress_test();
+        }
+        let st = view.stress_test().unwrap();
+        assert_eq!(st.valid_count(), 10);
+    }
+
+    #[test]
+    fn stress_test_paint_overlay() {
+        use crate::foundation::Image;
+
+        let (mut tree, root, _, _) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+
+        view.flags |= ViewFlags::STRESS_TEST;
+        view.sync_stress_test();
+
+        // Paint into a real image and verify the overlay renders without panic
+        let mut img = Image::new(800, 600, 4);
+        let mut painter = Painter::new(&mut img);
+        view.paint(&mut tree, &mut painter);
+
+        // Check that the top-left corner has non-zero (overlay painted) pixels.
+        // The purple background (255,0,255,128) should have been blended there.
+        let px = img.data();
+        // pixel at (5, 5): offset = (5 * 800 + 5) * 4
+        let off = (5 * 800 + 5) * 4;
+        let has_overlay = px[off] > 0 || px[off + 1] > 0 || px[off + 2] > 0;
+        assert!(has_overlay, "stress test overlay should paint in top-left corner");
     }
 }

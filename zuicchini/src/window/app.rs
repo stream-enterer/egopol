@@ -366,6 +366,12 @@ impl ApplicationHandler for App {
                 needs_full_repaint = true;
             }
 
+            // Stress test: sync state and force full repaint every frame
+            win.view_mut().sync_stress_test();
+            if win.view().is_stress_test_active() {
+                needs_full_repaint = true;
+            }
+
             if needs_full_repaint {
                 win.invalidate();
                 win.request_redraw();

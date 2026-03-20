@@ -1678,10 +1678,7 @@ impl CheatVIF {
 
             // Stress test on/off: chEat:st!
             "st" => {
-                let flags = view.flags ^ ViewFlags::STRESS_TEST;
-                // TODO: needs stress test rendering infrastructure
-                view.flags = flags;
-                eprintln!("[CheatVIF] stress test toggled");
+                view.flags ^= ViewFlags::STRESS_TEST;
             }
 
             // Popup-zoom on/off: chEat:pz!
