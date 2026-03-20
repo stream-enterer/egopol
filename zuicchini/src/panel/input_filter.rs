@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::time::Instant;
 
+use crate::dlog;
 use crate::input::{InputEvent, InputKey, InputState, InputVariant};
 
 use super::view::{View, ViewFlags};
@@ -1374,6 +1375,7 @@ impl DefaultTouchVIF {
 
     /// Add a touch point. Returns false if no slots available.
     fn add_touch(&mut self, id: u64, x: f64, y: f64) -> bool {
+        dlog!("touch add: id={} x={:.1} y={:.1}", id, x, y);
         if let Some(slot) = self.find_empty_slot() {
             self.touches[slot] = Some(TouchPoint {
                 id,
@@ -1720,8 +1722,9 @@ impl CheatVIF {
 
             // Debug log on/off: chEat:dlog!
             "dlog" => {
-                // TODO: needs debug logging infrastructure (C++ emEnableDLog)
-                eprintln!("[CheatVIF] debug log toggled (not implemented)");
+                let enabled = !crate::foundation::is_dlog_enabled();
+                crate::foundation::set_dlog_enabled(enabled);
+                eprintln!("[CheatVIF] debug log {}", if enabled { "enabled" } else { "disabled" });
             }
 
             // Screenshot: chEat:ss!
@@ -2636,6 +2639,24 @@ mod tests {
         type_cheat(&mut vif, &mut view, "chEat:emb!");
         let actions = vif.drain_actions();
         assert_eq!(actions, vec![CheatAction::EmulateMiddleButton]);
+    }
+
+    #[test]
+    fn cheat_vif_dlog_toggle() {
+        let (_tree, mut view) = setup();
+        let mut vif = CheatVIF::new();
+
+        // Ensure dlog starts disabled
+        crate::foundation::set_dlog_enabled(false);
+        assert!(!crate::foundation::is_dlog_enabled());
+
+        // Toggle dlog on via cheat
+        type_cheat(&mut vif, &mut view, "chEat:dlog!");
+        assert!(crate::foundation::is_dlog_enabled());
+
+        // Toggle dlog off (need full prefix since easy cheats not enabled)
+        type_cheat(&mut vif, &mut view, "chEat:dlog!");
+        assert!(!crate::foundation::is_dlog_enabled());
     }
 
     #[test]

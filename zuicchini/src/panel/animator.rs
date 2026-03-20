@@ -1,3 +1,5 @@
+use crate::dlog;
+
 use super::tree::PanelTree;
 use super::view::View;
 use crate::foundation::Color;
@@ -594,6 +596,7 @@ impl VisitingViewAnimator {
 
     fn activate_goal(&mut self, identity: &str) {
         if self.state == VisitingState::NoGoal || self.identity != identity {
+            dlog!("VisitingViewAnimator activate: identity={}", identity);
             self.state = VisitingState::Curve;
             self.identity = identity.to_string();
             self.names = super::tree::decode_identity(&self.identity);
@@ -606,6 +609,7 @@ impl VisitingViewAnimator {
     /// Clear the goal and stop animation.
     pub fn clear_goal(&mut self) {
         if self.state != VisitingState::NoGoal {
+            dlog!("VisitingViewAnimator deactivate");
             self.state = VisitingState::NoGoal;
             self.visit_type = VisitType::Visit;
             self.identity.clear();

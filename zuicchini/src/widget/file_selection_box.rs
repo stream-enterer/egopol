@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use crate::dlog;
 use crate::foundation::Color;
 use crate::panel::{PanelBehavior, PanelCtx, PanelId, PanelState};
 use crate::render::{Painter, Stroke};
@@ -478,11 +479,13 @@ impl FileSelectionBox {
     }
 
     pub fn trigger_file(&mut self, name: &str) {
+        dlog!("FileSelectionBox trigger_file: {}", name);
         self.triggered_file_name = name.to_string();
     }
 
     /// Enter a sub-directory by name.
     pub fn enter_sub_dir(&mut self, name: &str) {
+        dlog!("FileSelectionBox enter_sub_dir: {}", name);
         let path = self.parent_dir.join(name);
         if name == ".." {
             self.set_parent_directory(&path);

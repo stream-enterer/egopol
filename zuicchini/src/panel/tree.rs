@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use bitflags::bitflags;
 use slotmap::{new_key_type, SlotMap};
 
+use crate::dlog;
+
 use super::behavior::{NoticeFlags, PanelBehavior, PanelState};
 use super::ctx::PanelCtx;
 use crate::foundation::{Color, Rect};
@@ -469,6 +471,10 @@ impl PanelTree {
 
     /// Set whether the panel can receive input focus.
     pub fn set_focusable(&mut self, id: PanelId, focusable: bool) {
+        if !focusable && Some(id) == self.root {
+            dlog!("root panel cannot be set unfocusable");
+            return;
+        }
         if let Some(panel) = self.panels.get_mut(id) {
             panel.focusable = focusable;
         }

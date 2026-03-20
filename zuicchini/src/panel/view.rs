@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use bitflags::bitflags;
+use crate::dlog;
 
 use super::ctx::PanelCtx;
 use super::tree::{PanelId, PanelTree};
@@ -909,6 +910,7 @@ impl View {
 
         // Set new active path
         self.active = Some(target);
+        dlog!("active panel changed to {:?}", target);
         if let Some(p) = tree.get_mut(target) {
             p.is_active = true;
         }
@@ -1165,6 +1167,7 @@ impl View {
         if self.svp.is_none() {
             self.svp = Some(root);
         }
+        dlog!("SVP = {:?}", self.svp);
 
         // C++ sets InViewedPath=1 for ALL viewed panels, not just SVP
         // ancestors (emPanel.cpp:1497). This affects get_memory_limit and

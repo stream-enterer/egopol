@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::dlog;
+
 /// Thread pool for parallel tile rendering.
 ///
 /// Port of C++ `emRenderThreadPool`. Manages a configurable number of
@@ -22,8 +24,10 @@ impl RenderThreadPool {
             Ok(val) => val.parse::<i32>().unwrap_or(max_render_threads),
             Err(_) => max_render_threads,
         };
+        let count = Self::compute_count(config_max);
+        dlog!("RenderThreadPool: thread_count={}", count);
         Self {
-            thread_count: Self::compute_count(config_max),
+            thread_count: count,
         }
     }
 

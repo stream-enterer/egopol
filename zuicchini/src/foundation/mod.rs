@@ -3,6 +3,7 @@ mod at_matrix;
 mod checksum;
 mod clip_rects;
 mod color;
+pub mod dlog;
 mod em_rec;
 mod fixed;
 mod image;
@@ -14,6 +15,7 @@ mod tga;
 pub(crate) mod x11_colors;
 
 pub use alignment::ContentAlignment;
+pub use dlog::{is_dlog_enabled, set_dlog_enabled};
 pub use at_matrix::AffineMatrix;
 pub use checksum::{calc_adler32, calc_crc32, calc_hash_code};
 pub use clip_rects::{ClipRect, ClipRects};
