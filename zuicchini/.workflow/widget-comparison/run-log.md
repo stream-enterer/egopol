@@ -1108,6 +1108,16 @@ Key finding: CT-6/CT-7/CT-8 required relaxed tolerances (28-75%) due to remainin
 **Fixes applied**: none (all 18 config field defaults and clamp ranges verified exact match)
 **Tests added**: 0
 
+### ext-model-fp_plugin: Audit model/fp_plugin.rs (16 methods from emFpPlugin.h)
+**MATCHes**: 9 | **MISMATCHes**: 3 | **SUSPECTs**: 0 | **MISSINGs**: 4
+**Fixes applied**: none (MISSINGs are C++ dynamic library plugin infra not needed in Rust; MISMATCHes are acceptable STATE adaptations)
+**Tests added**: 0
+
+### ext-model-image_file_model: Audit model/image_file_model.rs (12 methods from emImageFile.h)
+**MATCHes**: 9 | **MISMATCHes**: 0 | **SUSPECTs**: 3 | **MISSINGs**: 0
+**Fixes applied**: none (SUSPECTs: saving quality uses simple member vs C++ persistent context — acceptable STATE adaptation; signal accessor functionally equivalent)
+**Tests added**: 0
+
 ### ext-foundation-dlog: Audit foundation/dlog.rs (RUST-ONLY)
 **MATCHes**: 0 | **MISMATCHes**: 0 | **SUSPECTs**: 0 | **MISSINGs**: 0
 **Fixes applied**: none
