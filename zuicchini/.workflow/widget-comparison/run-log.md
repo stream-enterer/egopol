@@ -1,5 +1,69 @@
 # Widget Comparison Run Log
 
+## 2026-03-19 — Session 7b: Behavioral Parity Focus/Notice Tests
+
+### Summary
+
+All 10 items DONE or PARTIAL. 52 new tests added (1447 → 1488 passing, 1505 total). 17 `#[ignore]` tests total (6 from 7a + 11 new).
+
+### Results
+
+| # | Behavior | Tests | Pass | Ignore | Status |
+|---|----------|-------|------|--------|--------|
+| BP-15 | Tab forward cycling | 1 | 0 | 1 | PARTIAL |
+| BP-16 | Tab backward cycling | 1 | 0 | 1 | PARTIAL |
+| BP-17 | Activation on click | 7 | 7 | 0 | DONE |
+| BP-18 | Tab skips unfocusable | 1 | 0 | 1 | PARTIAL |
+| BP-19 | Arrow key navigation | 8 | 0 | 8 | PARTIAL |
+| BP-20 | Layout change propagation | 4 | 4 | 0 | DONE |
+| BP-21 | Focus change notices | 6 | 6 | 0 | DONE |
+| BP-22 | Enable change propagation | 8 | 8 | 0 | DONE |
+| BP-23 | Children change notice | 7 | 7 | 0 | DONE |
+| BP-24 | Active change notice | 9 | 9 | 0 | DONE |
+
+### `#[ignore]` tests (11 new, 17 total)
+
+| Test | Reason |
+|------|--------|
+| `tab_forward_cycles_through_focusable_panels` | Needs Tab key handler calling visit_next(). C++ ref: emPanel.cpp:FocusNext |
+| `shift_tab_cycles_backward_through_focusable_panels` | Needs Shift+Tab key handler calling visit_prev(). C++ ref: emPanel.cpp:FocusPrev |
+| `tab_skips_disabled_and_unfocusable_panels` | Needs Tab key handler skipping unfocusable. C++ ref: emPanel.cpp:FocusNext |
+| `arrow_right_moves_focus_to_right_sibling` | Needs arrow key navigation handler. C++ ref: emPanel.cpp:Input |
+| `arrow_left_moves_focus_to_left_sibling` | Same |
+| `arrow_down_moves_focus_to_lower_sibling` | Same |
+| `arrow_up_moves_focus_to_upper_sibling` | Same |
+| `arrow_up_down_no_effect_on_horizontal_layout` | Same |
+| `arrow_left_right_no_effect_on_vertical_layout` | Same |
+| `arrow_at_boundary_stays_on_current_panel` | Same |
+| `arrow_with_modifier_does_not_navigate` | Same (also checks C++ IsNoMod() guard) |
+
+### Divergences found
+
+None. All passing tests matched C++ behavior on first run.
+
+### Infrastructure needed to un-ignore (for prompt 8)
+
+1. **Tab key handler** (BP-15/16/18): Code that intercepts `InputKey::Tab` in the panel input dispatch path and calls `view.visit_next()` / `view.visit_prev()` (which already exist). Shift modifier for backward. 3 tests blocked.
+2. **Arrow key handler** (BP-19): Code that intercepts bare arrow keys (no modifiers, matching C++ `state.IsNoMod()` guard) and calls `view.visit_left/right/up/down()` (which already exist). 8 tests blocked.
+
+Both handlers exist in C++ at `emPanel.cpp:Input` (lines ~1141-1164). The Rust `visit_*` methods exist in `view.rs` and pass unit tests — only the input→navigation wiring is missing.
+
+### Handoff note for prompt 8
+
+- **Total tests**: 1488 passing + 17 skipped = 1505 total (was 1447+6 before this session)
+- **Pass rate**: 1488/1488 (100%), 17 skipped (`#[ignore]`)
+- **Clippy**: 0 warnings
+- **New infrastructure gaps**:
+  1. Tab key handler wiring visit_next/visit_prev (3 tests)
+  2. Arrow key handler wiring visit_left/right/up/down (8 tests)
+- **Cumulative infrastructure gaps from Session 7a**:
+  1. Injectable clock for keywalk timeout testing (ListBox)
+  2. Home/End key handling for ListBox
+  3. ColorField expansion wiring (on_value/on_text callbacks + cycle())
+- **Test files created**: `tests/pipeline/focus.rs` (18 tests), `tests/pipeline/notices.rs` (34 tests)
+
+---
+
 ## 2026-03-19 — Session 7a: Behavioral Parity Widget Tests
 
 ### Summary
