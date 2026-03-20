@@ -65,6 +65,14 @@ pub struct MouseZoomScrollVIF {
     /// output velocity that drives scrolling.
     grip_inst_vel_x: f64,
     grip_inst_vel_y: f64,
+    /// Z-axis spring extension (zoom). Mouse Ctrl+drag adds to this; the
+    /// spring physics in `animate_grip` decays it and converts it to velocity.
+    /// Mirrors C++ `MoveGrip(2, ...)` on the swiping animator.
+    grip_spring_z: f64,
+    /// Output zoom velocity from grip z-axis spring.
+    grip_velocity_z: f64,
+    /// Internal spring velocity for grip z-axis.
+    grip_inst_vel_z: f64,
     /// Whether the grip animation is active (grip or coast phase).
     grip_active: bool,
     /// Zoom fix point for grip-drag operations.
@@ -87,13 +95,22 @@ pub struct MouseZoomScrollVIF {
     /// with the transferred velocity. In Rust, we replicate the coast
     /// directly.
     wheel_coasting: bool,
-    /// Scroll speed factor applied to mouse deltas (C++ GetMouseScrollSpeed = 6.0).
-    scroll_speed_factor: f64,
+    /// C++ `CoreConfig->PanFunction` — when true, scroll direction is reversed
+    /// and the 6x speed multiplier is removed. Toggled via CheatVIF `:pan!`.
+    pan_function: bool,
     /// Monotonic clock reference for wheel zoom timestamps.
     clock_start: Instant,
     /// Override clock for deterministic testing (ms). When set, `filter()` uses
     /// this value instead of `clock_start.elapsed()`.
     test_clock_ms: Option<u64>,
+    /// Whether the mouse was held still long enough to trigger magnetism on release.
+    /// C++ `MagnetismAvoidance`: when true, the magnetic animator is NOT activated.
+    magnetism_avoidance: bool,
+    /// Accumulated mouse movement since last reset (C++ `MagAvMouseMoveX/Y`).
+    mag_av_mouse_move_x: f64,
+    mag_av_mouse_move_y: f64,
+    /// Timestamp (ms) when cumulative mouse movement was last reset (C++ `MagAvTime`).
+    mag_av_time: u64,
 }
 
 impl MouseZoomScrollVIF {
@@ -124,6 +141,9 @@ impl MouseZoomScrollVIF {
             grip_spring_y: 0.0,
             grip_inst_vel_x: 0.0,
             grip_inst_vel_y: 0.0,
+            grip_spring_z: 0.0,
+            grip_velocity_z: 0.0,
+            grip_inst_vel_z: 0.0,
             grip_active: false,
             grip_fix_x: 0.0,
             grip_fix_y: 0.0,
@@ -134,9 +154,13 @@ impl MouseZoomScrollVIF {
             wheel_fix_x: 0.0,
             wheel_fix_y: 0.0,
             wheel_coasting: false,
-            scroll_speed_factor: 6.0,
+            pan_function: false,
             clock_start: Instant::now(),
             test_clock_ms: None,
+            magnetism_avoidance: false,
+            mag_av_mouse_move_x: 0.0,
+            mag_av_mouse_move_y: 0.0,
+            mag_av_time: 0,
         }
     }
 
@@ -148,6 +172,42 @@ impl MouseZoomScrollVIF {
     /// Returns whether middle-button emulation is enabled.
     pub fn emulate_middle_button(&self) -> bool {
         self.emulate_middle_button
+    }
+
+    /// C++ `GetMouseScrollSpeed`. Returns the speed factor for mouse-drag
+    /// scrolling. When `pan_function` is true the direction is reversed and the
+    /// 6x multiplier is removed; when false, the base speed is multiplied by 6.
+    /// `fine` (Shift held) scales by 0.1.
+    fn get_mouse_scroll_speed(&self, fine: bool) -> f64 {
+        // C++: f = CoreConfig->MouseScrollSpeed (default 1.0)
+        let mut f: f64 = 1.0;
+        if fine {
+            f *= 0.1;
+        }
+        if self.pan_function {
+            -f
+        } else {
+            6.0 * f
+        }
+    }
+
+    /// C++ `GetMouseZoomSpeed`. Returns the speed factor for Ctrl+middle-drag
+    /// zooming. Base is `MouseZoomSpeed` (default 1.0) * 6.0.
+    /// `fine` (Shift held) scales by 0.1.
+    fn get_mouse_zoom_speed(&self, fine: bool) -> f64 {
+        // C++: f = CoreConfig->MouseZoomSpeed (default 1.0)
+        let mut f: f64 = 1.0;
+        if fine {
+            f *= 0.1;
+        }
+        f * 6.0
+    }
+
+    /// Set the PanFunction flag. When true, mouse-drag scrolling reverses
+    /// direction and uses 1x speed instead of 6x.
+    #[cfg(test)]
+    pub(crate) fn set_pan_function(&mut self, enabled: bool) {
+        self.pan_function = enabled;
     }
 
     /// Translate Alt key presses into emulated middle mouse button events,
@@ -337,6 +397,47 @@ impl MouseZoomScrollVIF {
         )
     }
 
+    /// Reset magnetism avoidance state at the start of a grip drag.
+    ///
+    /// Mirrors C++ `emMouseZoomScrollVIF::InitMagnetismAvoidance`.
+    /// Called when the middle button is first pressed.
+    fn init_magnetism_avoidance(&mut self, clock_ms: u64) {
+        self.mag_av_mouse_move_x = 0.0;
+        self.mag_av_mouse_move_y = 0.0;
+        self.mag_av_time = clock_ms;
+        self.magnetism_avoidance = false;
+    }
+
+    /// Accumulate mouse movement and determine whether magnetism should be avoided.
+    ///
+    /// Mirrors C++ `emMouseZoomScrollVIF::UpdateMagnetismAvoidance`.
+    /// If the cumulative mouse movement exceeds `MOUSE_HOLD_MAX_MOVE` (2.0 pixels),
+    /// the accumulator and timer are reset. If the mouse has been held still for
+    /// `MOUSE_HOLD_TIME` (750 ms), `magnetism_avoidance` becomes true — meaning
+    /// the user intentionally paused, so the magnetic animator should NOT activate
+    /// on release.
+    fn update_magnetism_avoidance(&mut self, dmx: f64, dmy: f64, clock_ms: u64) {
+        const MOUSE_HOLD_MAX_MOVE: f64 = 2.0;
+        const MOUSE_HOLD_TIME: u64 = 750;
+
+        self.mag_av_mouse_move_x += dmx;
+        self.mag_av_mouse_move_y += dmy;
+        let r = (self.mag_av_mouse_move_x * self.mag_av_mouse_move_x
+            + self.mag_av_mouse_move_y * self.mag_av_mouse_move_y)
+            .sqrt();
+        if r > MOUSE_HOLD_MAX_MOVE {
+            self.mag_av_mouse_move_x = 0.0;
+            self.mag_av_mouse_move_y = 0.0;
+            self.mag_av_time = clock_ms;
+        }
+        self.magnetism_avoidance = clock_ms.saturating_sub(self.mag_av_time) >= MOUSE_HOLD_TIME;
+    }
+
+    /// Returns whether magnetism avoidance is active (mouse was held still before release).
+    pub fn magnetism_avoidance(&self) -> bool {
+        self.magnetism_avoidance
+    }
+
     /// Whether kinetic grip coasting is active (post-release animation).
     pub fn is_grip_animating(&self) -> bool {
         self.grip_active
@@ -404,16 +505,33 @@ impl MouseZoomScrollVIF {
                 self.grip_velocity_y = e0y / dt;
             }
 
-            // Apply velocity as scroll (without friction during grip, per C++)
+            // Process Z spring (zoom) — same snap condition per-axis
+            let e0z = self.grip_spring_z;
+            let v0z = self.grip_inst_vel_z;
+            if self.mouse_spring_const < 1e5 && (e0z / dt).abs() > 20.0 {
+                let e1z = (e0z + (e0z * w + v0z) * dt) * decay;
+                let v1z = (v0z - (e0z * w + v0z) * w * dt) * decay;
+                self.grip_spring_z = e1z;
+                self.grip_inst_vel_z = v1z;
+                self.grip_velocity_z = (e0z - e1z) / dt;
+            } else {
+                self.grip_spring_z = 0.0;
+                self.grip_inst_vel_z = 0.0;
+                self.grip_velocity_z = e0z / dt;
+            }
+
+            // Apply velocity as scroll+zoom (without friction during grip, per C++)
             let dx = self.grip_velocity_x * dt;
             let dy = self.grip_velocity_y * dt;
-            if dx.abs() > 0.01 || dy.abs() > 0.01 {
-                view.raw_scroll_and_zoom(tree, self.grip_fix_x, self.grip_fix_y, dx, dy, 0.0);
+            let dz = self.grip_velocity_z * dt;
+            if dx.abs() > 0.01 || dy.abs() > 0.01 || dz.abs() > 0.001 {
+                view.raw_scroll_and_zoom(tree, self.grip_fix_x, self.grip_fix_y, dx, dy, dz);
             }
         } else {
             // ── Coasting phase: linear friction (C++ KineticViewAnimator) ──
             let v = (self.grip_velocity_x * self.grip_velocity_x
-                + self.grip_velocity_y * self.grip_velocity_y)
+                + self.grip_velocity_y * self.grip_velocity_y
+                + self.grip_velocity_z * self.grip_velocity_z)
                 .sqrt();
             let f = if self.mouse_friction_enabled && v > 1e-10 {
                 let new_v = (v - self.mouse_friction * dt).max(0.0);
@@ -424,16 +542,19 @@ impl MouseZoomScrollVIF {
 
             let v0x = self.grip_velocity_x;
             let v0y = self.grip_velocity_y;
+            let v0z = self.grip_velocity_z;
             self.grip_velocity_x *= f;
             self.grip_velocity_y *= f;
+            self.grip_velocity_z *= f;
 
             // Average velocity over the tick for smooth integration
             let dx = (v0x + self.grip_velocity_x) * 0.5 * dt;
             let dy = (v0y + self.grip_velocity_y) * 0.5 * dt;
+            let dz = (v0z + self.grip_velocity_z) * 0.5 * dt;
 
-            if dx.abs() >= 0.01 || dy.abs() >= 0.01 {
+            if dx.abs() >= 0.01 || dy.abs() >= 0.01 || dz.abs() >= 0.001 {
                 let done =
-                    view.raw_scroll_and_zoom(tree, self.grip_fix_x, self.grip_fix_y, dx, dy, 0.0);
+                    view.raw_scroll_and_zoom(tree, self.grip_fix_x, self.grip_fix_y, dx, dy, dz);
                 // C++: stop axis if view bounced (done < 99% of requested)
                 if done[0].abs() < 0.99 * dx.abs() {
                     self.grip_velocity_x = 0.0;
@@ -445,10 +566,12 @@ impl MouseZoomScrollVIF {
 
             // Stop when velocity is negligible
             let speed_sq = self.grip_velocity_x * self.grip_velocity_x
-                + self.grip_velocity_y * self.grip_velocity_y;
+                + self.grip_velocity_y * self.grip_velocity_y
+                + self.grip_velocity_z * self.grip_velocity_z;
             if speed_sq < 1.0 {
                 self.grip_velocity_x = 0.0;
                 self.grip_velocity_y = 0.0;
+                self.grip_velocity_z = 0.0;
                 self.grip_active = false;
                 return false;
             }
@@ -594,16 +717,24 @@ impl ViewInputFilter for MouseZoomScrollVIF {
                     self.last_y = state.mouse_y;
                     self.grip_fix_x = state.mouse_x;
                     self.grip_fix_y = state.mouse_y;
+                    // C++ calls InitMagnetismAvoidance on first middle-button press.
+                    let clock_ms = self
+                        .test_clock_ms
+                        .unwrap_or_else(|| self.clock_start.elapsed().as_millis() as u64);
+                    self.init_magnetism_avoidance(clock_ms);
                     // C++ calls SetMouseAnimParams on every grip to track current zflpp.
                     let zflpp = view.get_zoom_factor_log_per_pixel();
                     self.refresh_mouse_anim_params(zflpp);
                     // Reset spring and velocity on new grip
                     self.grip_spring_x = 0.0;
                     self.grip_spring_y = 0.0;
+                    self.grip_spring_z = 0.0;
                     self.grip_inst_vel_x = 0.0;
                     self.grip_inst_vel_y = 0.0;
+                    self.grip_inst_vel_z = 0.0;
                     self.grip_velocity_x = 0.0;
                     self.grip_velocity_y = 0.0;
+                    self.grip_velocity_z = 0.0;
                     self.grip_active = true; // Activate animation (gripped phase)
                     return true;
                 }
@@ -613,13 +744,21 @@ impl ViewInputFilter for MouseZoomScrollVIF {
                     // to coasting phase. If velocity is negligible, stop.
                     self.grip_spring_x = 0.0;
                     self.grip_spring_y = 0.0;
+                    self.grip_spring_z = 0.0;
                     self.grip_inst_vel_x = self.grip_velocity_x;
                     self.grip_inst_vel_y = self.grip_velocity_y;
+                    self.grip_inst_vel_z = self.grip_velocity_z;
+                    // C++: if !MagnetismAvoidance, activate MagneticViewAnimator.
+                    // TODO(PF-2): When MagneticViewAnimator is ported, call
+                    // view.activate_magnetic_view_animator() here when
+                    // !self.magnetism_avoidance.
                     let speed_sq = self.grip_velocity_x * self.grip_velocity_x
-                        + self.grip_velocity_y * self.grip_velocity_y;
+                        + self.grip_velocity_y * self.grip_velocity_y
+                        + self.grip_velocity_z * self.grip_velocity_z;
                     if !self.mouse_friction_enabled || speed_sq < 1.0 {
                         self.grip_velocity_x = 0.0;
                         self.grip_velocity_y = 0.0;
+                        self.grip_velocity_z = 0.0;
                         self.grip_active = false;
                     }
                     // grip_active remains true for coasting if velocity is significant
@@ -661,17 +800,26 @@ impl ViewInputFilter for MouseZoomScrollVIF {
         if self.panning {
             let dmx = state.mouse_x - self.last_x;
             let dmy = state.mouse_y - self.last_y;
+            // C++ calls UpdateMagnetismAvoidance on every frame while gripped.
+            let clock_ms = self
+                .test_clock_ms
+                .unwrap_or_else(|| self.clock_start.elapsed().as_millis() as u64);
+            self.update_magnetism_avoidance(dmx, dmy, clock_ms);
             if dmx.abs() > 0.1 || dmy.abs() > 0.1 {
                 // D-PANEL-12: Ctrl+middle vertical drag = zoom (C++ parity)
+                // C++: MoveGrip(2, -dmy * GetMouseZoomSpeed(shift))
+                // Routes through the grip spring z-axis, same as scroll uses x/y.
                 if state.ctrl() {
-                    let zoom_factor = (1.0 + dmy * 0.005).clamp(0.1, 10.0);
-                    view.zoom(zoom_factor, self.grip_fix_x, self.grip_fix_y);
+                    let f = self.get_mouse_zoom_speed(state.shift());
+                    self.grip_spring_z += -dmy * f;
+                    self.grip_fix_x = state.mouse_x;
                 } else {
                     // D-PANEL-10: Accumulate spring extension (C++ MoveGrip).
                     // The spring physics in animate_grip() convert this into
                     // smoothed velocity and scroll. No direct scroll here.
-                    self.grip_spring_x += dmx * self.scroll_speed_factor;
-                    self.grip_spring_y += dmy * self.scroll_speed_factor;
+                    let f = self.get_mouse_scroll_speed(state.shift());
+                    self.grip_spring_x += dmx * f;
+                    self.grip_spring_y += dmy * f;
                 }
                 self.last_x = state.mouse_x;
                 self.last_y = state.mouse_y;
@@ -2124,5 +2272,105 @@ mod tests {
         //   - Touch event priority negotiation
         //   - Soft keyboard toggle API on View
         panic!("C++ emDefaultTouchVIF 17-state gesture machine not yet ported");
+    }
+
+    #[test]
+    #[ignore]
+    fn cheat_vif_not_ported() {
+        // C++ emCheatVIF (emViewInputFilter.cpp lines 661-816, ~156 LOC)
+        //
+        // A hidden "cheat code" input filter that buffers typed characters and
+        // triggers debug/developer commands when a ":command!" sequence is detected.
+        // Requires typing "chEat:" prefix unless EM_EASY_CHEATS env var is set.
+        //
+        // 13 cheat commands:
+        //   1. easy     — set EM_EASY_CHEATS env var (skip "chEat:" prefix)
+        //   2. st       — toggle VF_STRESS_TEST view flag
+        //   3. pz       — toggle VF_POPUP_ZOOM view flag
+        //   4. egomode  — toggle VF_EGO_MODE view flag
+        //   5. smwn     — toggle StickMouseWhenNavigating config + save
+        //   6. emb      — toggle EmulateMiddleButton config + save
+        //   7. pan      — toggle PanFunction config + save
+        //   8. td       — tree dump via dynamically loaded emTreeDump library
+        //   9. dlog     — toggle debug logging
+        //  10. ss       — screenshot via xwd (non-Windows only)
+        //  11. segfault — deliberate null-pointer crash
+        //  12. divzero  — deliberate division-by-zero crash
+        //  13. fatal    — deliberate emFatalError crash
+        //  Plus fallthrough to View::DoCustomCheat for app-defined codes.
+        //
+        // This is a developer/debug-only feature with no user-facing behavior
+        // and no golden test coverage. Low priority for porting.
+        //
+        // Estimated port: ~120 LOC Rust (no dynamic library loading or xwd).
+        panic!("C++ emCheatVIF not ported — developer debug cheat codes");
+    }
+
+    #[test]
+    fn test_magnetism_avoidance_basic() {
+        let mut vif = MouseZoomScrollVIF::new();
+
+        // After init, magnetism avoidance is false
+        vif.init_magnetism_avoidance(1000);
+        assert!(!vif.magnetism_avoidance());
+
+        // Small mouse movement, under 750ms — no avoidance
+        vif.update_magnetism_avoidance(0.5, 0.5, 1100);
+        assert!(!vif.magnetism_avoidance());
+
+        // Still under 750ms hold time
+        vif.update_magnetism_avoidance(0.0, 0.0, 1600);
+        assert!(!vif.magnetism_avoidance());
+
+        // After 750ms of holding still, avoidance activates
+        vif.update_magnetism_avoidance(0.0, 0.0, 1851);
+        assert!(vif.magnetism_avoidance());
+    }
+
+    #[test]
+    fn test_magnetism_avoidance_reset_on_large_move() {
+        let mut vif = MouseZoomScrollVIF::new();
+        vif.init_magnetism_avoidance(1000);
+
+        // Large movement (> 2.0 px) resets the timer
+        vif.update_magnetism_avoidance(3.0, 0.0, 1600);
+        assert!(!vif.magnetism_avoidance());
+
+        // 750ms from original init would be 1750, but timer was reset at 1600
+        vif.update_magnetism_avoidance(0.0, 0.0, 1750);
+        assert!(!vif.magnetism_avoidance());
+
+        // 750ms from reset point (1600) = 2350
+        vif.update_magnetism_avoidance(0.0, 0.0, 2350);
+        assert!(vif.magnetism_avoidance());
+    }
+
+    #[test]
+    fn test_magnetism_avoidance_wired_into_filter() {
+        let (mut _tree, mut view) = setup();
+        let mut vif = MouseZoomScrollVIF::new();
+        vif.set_test_clock(1000);
+
+        // Start grip — inits magnetism avoidance
+        let press = InputEvent::press(InputKey::MouseMiddle);
+        let state = InputState::new();
+        vif.filter(&press, &state, &mut view);
+        assert!(vif.panning);
+        assert!(!vif.magnetism_avoidance());
+
+        // Move mouse a tiny bit at 1100ms
+        let mut move_state = InputState::new();
+        move_state.mouse_x = 1.0;
+        move_state.mouse_y = 0.0;
+        move_state.press(InputKey::MouseMiddle);
+        let move_event = InputEvent::mouse_move(InputKey::MouseLeft, 1.0, 0.0);
+        vif.set_test_clock(1100);
+        vif.filter(&move_event, &move_state, &mut view);
+        assert!(!vif.magnetism_avoidance());
+
+        // Hold still for 750ms
+        vif.set_test_clock(1851);
+        vif.filter(&move_event, &move_state, &mut view);
+        assert!(vif.magnetism_avoidance());
     }
 }
