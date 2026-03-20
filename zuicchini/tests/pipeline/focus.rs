@@ -1,8 +1,7 @@
 //! Focus and activation parity tests (BP-15 through BP-19).
 //!
-//! BP-15/16/18: Tab focus cycling — `#[ignore]` because no Tab key handler
-//! exists yet (`visit_next`/`visit_prev` exist in view.rs but nothing
-//! intercepts Tab key events to call them).
+//! BP-15/16/18: Tab focus cycling — Tab and Shift+Tab key handlers call
+//! `visit_next`/`visit_prev` in the input dispatch pipeline.
 //!
 //! BP-17: Activation on click — tests that clicking a panel sets `is_active`
 //! and `in_active_path` correctly, matching C++ `SetActivePanel`.
@@ -69,8 +68,6 @@ fn two_branch_tree() -> (PipelineTestHarness, PanelId, PanelId, PanelId, PanelId
 // ═══════════════════════════════════════════════════════════════════════
 
 #[test]
-#[ignore]
-// BLOCKED: needs Tab key handler that calls visit_next(). C++ ref: emPanel.cpp:FocusNext
 fn tab_forward_cycles_through_focusable_panels() {
     // Build a tree with 5 focusable panels, press Tab 6 times,
     // assert focus sequence wraps around matching C++ order.
@@ -83,8 +80,9 @@ fn tab_forward_cycles_through_focusable_panels() {
     let p5 = h.add_panel(root, "p5");
     h.tick();
 
-    // Activate first panel via click
-    h.click(100.0, 100.0);
+    // Activate first panel directly (overlapping siblings mean hit-test
+    // order is unreliable, so set explicitly like the Shift+Tab test).
+    h.view.set_active_panel(&mut h.tree, p1, false);
     h.tick();
 
     let expected_order = [p2, p3, p4, p5, p1, p2];
@@ -105,8 +103,6 @@ fn tab_forward_cycles_through_focusable_panels() {
 // ═══════════════════════════════════════════════════════════════════════
 
 #[test]
-#[ignore]
-// BLOCKED: needs Shift+Tab key handler that calls visit_prev(). C++ ref: emPanel.cpp:FocusPrev
 fn shift_tab_cycles_backward_through_focusable_panels() {
     // Same tree, press Shift+Tab 6 times, assert reverse sequence.
     let mut h = PipelineTestHarness::new();
@@ -221,7 +217,7 @@ fn new_active_ancestors_get_in_active_path() {
 // BP-17d: Non-shared ancestors of old active lose in_active_path.
 #[test]
 fn old_active_non_shared_ancestors_lose_in_active_path() {
-    let (mut h, root, branch_a, leaf_a, branch_b, leaf_b) = two_branch_tree();
+    let (mut h, root, branch_a, leaf_a, branch_b, _leaf_b) = two_branch_tree();
 
     // Start with leaf_a active.
     h.view.set_active_panel(&mut h.tree, leaf_a, false);
@@ -409,8 +405,6 @@ fn deep_tree_activation_propagates_in_active_path() {
 // ═══════════════════════════════════════════════════════════════════════
 
 #[test]
-#[ignore]
-// BLOCKED: needs Tab key handler that calls visit_next() and skips unfocusable. C++ ref: emPanel.cpp:FocusNext
 fn tab_skips_disabled_and_unfocusable_panels() {
     // Build tree with mix of focusable and unfocusable panels,
     // tab through, assert unfocusable panels are skipped.

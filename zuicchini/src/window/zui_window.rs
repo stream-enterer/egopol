@@ -703,6 +703,16 @@ impl ZuiWindow {
             }
         }
 
+        // Tab / Shift+Tab focus cycling (C++ emPanel.cpp FocusNext/FocusPrev)
+        if event.key == InputKey::Tab && event.variant == InputVariant::Press {
+            if state.shift() {
+                self.view.visit_prev(tree);
+            } else {
+                self.view.visit_next(tree);
+            }
+            return;
+        }
+
         // For mouse press: hit test and set active panel
         if event.variant == InputVariant::Press
             && matches!(

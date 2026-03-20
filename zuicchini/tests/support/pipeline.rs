@@ -161,6 +161,16 @@ impl PipelineTestHarness {
             }
         }
 
+        // Tab / Shift+Tab focus cycling (C++ emPanel.cpp FocusNext/FocusPrev)
+        if event.key == InputKey::Tab && event.variant == InputVariant::Press {
+            if self.input_state.shift() {
+                self.view.visit_prev(&mut self.tree);
+            } else {
+                self.view.visit_next(&mut self.tree);
+            }
+            return;
+        }
+
         // For mouse press: hit test and set active panel
         if event.variant == InputVariant::Press
             && matches!(

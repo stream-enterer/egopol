@@ -1654,7 +1654,7 @@ impl PanelTree {
     pub fn focusable_first_child(&self, id: PanelId) -> Option<PanelId> {
         let mut p = self.panels.get(id)?.first_child?;
         loop {
-            if self.panels[p].focusable {
+            if self.panels[p].focusable && self.panels[p].enabled {
                 return Some(p);
             }
             if let Some(child) = self.panels[p].first_child {
@@ -1680,7 +1680,7 @@ impl PanelTree {
     pub fn focusable_last_child(&self, id: PanelId) -> Option<PanelId> {
         let mut p = self.panels.get(id)?.last_child?;
         loop {
-            if self.panels[p].focusable {
+            if self.panels[p].focusable && self.panels[p].enabled {
                 return Some(p);
             }
             if let Some(child) = self.panels[p].last_child {
@@ -1711,7 +1711,7 @@ impl PanelTree {
                 Some(prev) => {
                     p = prev;
                     loop {
-                        if self.panels[p].focusable {
+                        if self.panels[p].focusable && self.panels[p].enabled {
                             return Some(p);
                         }
                         match self.panels[p].last_child {
@@ -1739,7 +1739,7 @@ impl PanelTree {
                 Some(next) => {
                     p = next;
                     loop {
-                        if self.panels[p].focusable {
+                        if self.panels[p].focusable && self.panels[p].enabled {
                             return Some(p);
                         }
                         match self.panels[p].first_child {
