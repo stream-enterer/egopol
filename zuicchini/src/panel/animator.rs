@@ -16,6 +16,17 @@ pub trait ViewAnimator {
     fn stop(&mut self);
 }
 
+/// Snapshot of kinetic animation state for velocity handoff between animators.
+#[derive(Clone, Debug)]
+pub struct KineticState {
+    pub vx: f64,
+    pub vy: f64,
+    pub vz: f64,
+    pub zoom_fix_centered: bool,
+    pub zoom_fix_x: f64,
+    pub zoom_fix_y: f64,
+}
+
 /// Kinetic view animator — applies velocity with linear friction for smooth deceleration.
 /// Used for fling/swipe gestures. Supports 3D (scroll x, scroll y, zoom z).
 pub struct KineticViewAnimator {
@@ -80,6 +91,30 @@ impl KineticViewAnimator {
 
     pub fn friction(&self) -> f64 {
         self.friction
+    }
+
+    /// Extract the current kinetic state for velocity handoff.
+    pub fn extract_kinetic_state(&self) -> KineticState {
+        KineticState {
+            vx: self.velocity_x,
+            vy: self.velocity_y,
+            vz: self.velocity_z,
+            zoom_fix_centered: self.zoom_fix_point_centered,
+            zoom_fix_x: self.zoom_fix_x,
+            zoom_fix_y: self.zoom_fix_y,
+        }
+    }
+
+    /// Inject kinetic state from another animator (velocity handoff).
+    pub fn inject_kinetic_state(&mut self, state: KineticState) {
+        self.velocity_x = state.vx;
+        self.velocity_y = state.vy;
+        self.velocity_z = state.vz;
+        self.zoom_fix_point_centered = state.zoom_fix_centered;
+        self.zoom_fix_x = state.zoom_fix_x;
+        self.zoom_fix_y = state.zoom_fix_y;
+        self.active = (state.vx * state.vx + state.vy * state.vy + state.vz * state.vz).sqrt()
+            > 0.01;
     }
 
     /// Switch zoom fix point to centered mode, compensating XY velocity.
@@ -2685,5 +2720,36 @@ mod tests {
             vx.abs() > 1.0 && vy.abs() > 1.0,
             "New animator should inherit velocity from previous active animator"
         );
+    }
+
+    #[test]
+    fn extract_kinetic_state_matches_fields() {
+        let kva = KineticViewAnimator::new(1.0, 2.0, 3.0, 0.5);
+        let state = kva.extract_kinetic_state();
+        assert!((state.vx - 1.0).abs() < 1e-12);
+        assert!((state.vy - 2.0).abs() < 1e-12);
+        assert!((state.vz - 3.0).abs() < 1e-12);
+        assert!(state.zoom_fix_centered);
+        assert!((state.zoom_fix_x - 0.0).abs() < 1e-12);
+        assert!((state.zoom_fix_y - 0.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn inject_kinetic_state_updates_fields() {
+        let mut kva = KineticViewAnimator::new(0.0, 0.0, 0.0, 0.5);
+        let state = KineticState {
+            vx: 4.0,
+            vy: 5.0,
+            vz: 6.0,
+            zoom_fix_centered: false,
+            zoom_fix_x: 100.0,
+            zoom_fix_y: 200.0,
+        };
+        kva.inject_kinetic_state(state);
+        let (vx, vy, vz) = kva.velocity();
+        assert!((vx - 4.0).abs() < 1e-12);
+        assert!((vy - 5.0).abs() < 1e-12);
+        assert!((vz - 6.0).abs() < 1e-12);
+        assert!(kva.is_active());
     }
 }

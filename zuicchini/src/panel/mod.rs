@@ -7,8 +7,8 @@ mod tree;
 mod view;
 
 pub use animator::{
-    KineticViewAnimator, MagneticViewAnimator, SpeedingViewAnimator, SwipingViewAnimator,
-    ViewAnimator, VisitingViewAnimator,
+    KineticState, KineticViewAnimator, MagneticViewAnimator, SpeedingViewAnimator,
+    SwipingViewAnimator, ViewAnimator, VisitingViewAnimator,
 };
 pub use behavior::{NoticeFlags, PanelBehavior, PanelState, ParentInvalidation};
 pub use ctx::PanelCtx;
