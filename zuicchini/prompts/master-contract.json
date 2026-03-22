@@ -2020,7 +2020,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0002",
@@ -2033,7 +2033,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0009",
@@ -2046,7 +2046,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0010",
@@ -2059,7 +2059,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0011",
@@ -2072,7 +2072,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0012",
@@ -2085,7 +2085,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0013",
@@ -2098,7 +2098,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0014",
@@ -2111,7 +2111,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0015",
@@ -2124,7 +2124,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0016",
@@ -2137,7 +2137,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0017",
@@ -2150,7 +2150,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0018",
@@ -2163,7 +2163,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0021",
@@ -2176,7 +2176,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0022",
@@ -2189,7 +2189,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0023",
@@ -2202,7 +2202,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0024",
@@ -2215,7 +2215,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0025",
@@ -2228,7 +2228,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0026",
@@ -2241,7 +2241,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0027",
@@ -2254,7 +2254,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0028",
@@ -2267,7 +2267,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0029",
@@ -2280,7 +2280,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0030",
@@ -2293,7 +2293,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0040",
@@ -2306,7 +2306,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0044",
@@ -2319,7 +2319,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0045",
@@ -2332,7 +2332,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0052",
@@ -2345,7 +2345,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0053",
@@ -2358,7 +2358,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0070",
@@ -2371,7 +2371,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0074",
@@ -2384,7 +2384,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0075",
@@ -2397,7 +2397,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0076",
@@ -2410,7 +2410,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0077",
@@ -2423,7 +2423,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0078",
@@ -2436,7 +2436,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0079",
@@ -2449,7 +2449,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0080",
@@ -2462,7 +2462,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0081",
@@ -2475,7 +2475,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0082",
@@ -2488,7 +2488,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0083",
@@ -2501,7 +2501,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0084",
@@ -2514,7 +2514,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0085",
@@ -2527,7 +2527,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0086",
@@ -2540,7 +2540,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0087",
@@ -2553,7 +2553,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0089",
@@ -2566,7 +2566,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0090",
@@ -2579,7 +2579,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0091",
@@ -2592,7 +2592,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0092",
@@ -2605,7 +2605,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0093",
@@ -2618,7 +2618,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0096",
@@ -2631,7 +2631,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0097",
@@ -2644,7 +2644,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "con-cap-0098",
@@ -2657,7 +2657,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },

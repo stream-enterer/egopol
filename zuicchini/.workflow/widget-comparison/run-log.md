@@ -1161,3 +1161,14 @@ Key finding: CT-6/CT-7/CT-8 required relaxed tolerances (28-75%) due to remainin
 - **gap-emimage** (33): 23 implemented, 10 NOT_NEEDED — emGetResImage/emTryGetResImage replaced by include_bytes!+load_tga (compile-time embedding), ResourceCache dead code, emResModelBase/emResModel backing infra for the replaced pattern
 - **gap-emstd2** (3): checksums implemented, emGetCPUTSC→std::time::Instant, emLibHandle→libloading crate
 - **gap-emview** (14): ~8 implemented, ~3 replaced by bool dirty flags, 3 NOT_NEEDED — GetFirstVIF/GetLastVIF (VIF dispatch internal to ZuiWindow::vif_chain, no external consumer), IsSoftKeyboardShown/ShowSoftKeyboard (C++ base impl is also no-op, behavioral contract preserved)
+
+### Phase 3: Consolidation Verification (50 features, ~417 symbols)
+**35/50 clean** (zero gaps). **15/50 had gaps** — all verified as acceptable STATE-layer adaptations where behavioral contracts are preserved:
+- Layout getters (threshold, child weight, orientation): accessible via public fields/enums, no named getter needed
+- RecFileModel loading: internal state machine, no public TryStartLoading needed
+- WatchedVar: one struct covers both C++ emVarModel/emVarSigModel
+- ViewAnimator/VIF: architectural differences (params vs stored refs, Vec vs linked list)
+- FontCache: free functions + static replace C++ struct
+- Painter sub-image overloads: not called anywhere in zuicchini, whole-image variants sufficient
+- Stroke constructors: all fields settable individually
+- Dialog: add_button(label, Ok) covers AddPositiveButton
