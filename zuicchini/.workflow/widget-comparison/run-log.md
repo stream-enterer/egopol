@@ -1213,3 +1213,11 @@ Defects found and fixed:
 2. `fp_plugin.rs:354` — AP-1: `is_some()` replaced with library name assertion
 3. `file_model.rs:72` — AP-1: `is_some()` replaced with data content assertion
 4. `color_field.rs:15-17` — AP-1: `is_some()` replaced with panel text content assertions
+
+### review-integration: Review tests/integration/ for anti-patterns
+**Tests reviewed**: 21 | **Defective**: 1 | **Strengthened**: 1
+**Bugs found via strengthening**: none
+**Production fixes**: 0
+
+Defects found and fixed:
+1. `lifecycle.rs:50` — AP-1: `is_some()` + `assert_ne` replaced with specific `assert_eq(Some(b))`
