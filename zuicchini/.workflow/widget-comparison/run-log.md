@@ -1118,6 +1118,16 @@ Key finding: CT-6/CT-7/CT-8 required relaxed tolerances (28-75%) due to remainin
 **Fixes applied**: none (SUSPECTs: saving quality uses simple member vs C++ persistent context — acceptable STATE adaptation; signal accessor functionally equivalent)
 **Tests added**: 0
 
+### ext-model-rec_types: Audit model/rec_types.rs (99 methods from emRec.h)
+**MATCHes**: ~50 | **MISMATCHes**: 0 | **SUSPECTs**: ~7 | **MISSINGs**: ~42
+**Fixes applied**: none (Rust uses flat RecStruct/RecValue architecture instead of C++ class hierarchy. Missing scalar wrappers (Bool/Int/Double/String/Enum/Flags) replaced by direct RecStruct field access. Serialization works correctly via Record trait pattern. Acceptable STATE-layer architectural adaptation.)
+**Tests added**: 0
+
+### ext-panel-ctx: Audit panel/ctx.rs (98 methods from emPanel.h)
+**MATCHes**: ~75 | **MISMATCHes**: 0 | **SUSPECTs**: ~5 | **MISSINGs**: ~8
+**Fixes applied**: none (C++ monolithic emPanel split across ctx.rs/tree.rs/view.rs/behavior.rs. ~8 MISSING are architectural: LinkCrossPtr, GetWindow/Screen, some invalidation methods. All core operations present.)
+**Tests added**: 0
+
 ### ext-foundation-dlog: Audit foundation/dlog.rs (RUST-ONLY)
 **MATCHes**: 0 | **MISMATCHes**: 0 | **SUSPECTs**: 0 | **MISSINGs**: 0
 **Fixes applied**: none

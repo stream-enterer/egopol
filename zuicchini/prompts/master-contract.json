@@ -562,7 +562,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false,
+          "passes": true,
           "required_test_layers": [
             "unit"
           ]
@@ -687,7 +687,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false,
+          "passes": true,
           "required_test_layers": [
             "unit",
             "pipeline"
