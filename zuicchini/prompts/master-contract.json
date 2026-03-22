@@ -1206,7 +1206,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emconfigmodel",
@@ -1266,7 +1266,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emcore/emtmpfile",
@@ -1297,7 +1297,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emcoreconfigpanel",
@@ -1324,7 +1324,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emcursor",
@@ -1343,7 +1343,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emerrorpanel",
@@ -1365,7 +1365,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emfiledialog",
@@ -1410,7 +1410,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emfilemodel",
@@ -1441,7 +1441,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emfilepanel",
@@ -1473,7 +1473,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emfileselectionbox",
@@ -1526,7 +1526,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emfpplugin",
@@ -1549,7 +1549,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emimage",
@@ -1623,7 +1623,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emmodel",
@@ -1648,7 +1648,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-empanel",
@@ -1695,7 +1695,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emrec",
@@ -1718,7 +1718,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emsigmodel",
@@ -1739,7 +1739,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emstd1",
@@ -1760,7 +1760,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emstd2",
@@ -1807,7 +1807,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emvarmodel",
@@ -1831,7 +1831,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emvarsigmodel",
@@ -1855,7 +1855,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emview",
@@ -1906,7 +1906,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-emwindow",
@@ -1929,7 +1929,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         },
         {
           "id": "gap-unknown",
@@ -2000,7 +2000,7 @@
             "cargo clippy --workspace -- -D warnings: zero warnings",
             "cargo nextest run --workspace: zero failures"
           ],
-          "passes": false
+          "passes": true
         }
       ]
     },

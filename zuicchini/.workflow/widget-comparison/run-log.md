@@ -1150,3 +1150,14 @@ Key finding: CT-6/CT-7/CT-8 required relaxed tolerances (28-75%) due to remainin
 - **image_file_panel.rs** (8 methods): 5 MATCH, 2 SUSPECT, 2 MISSING (GetIconFileName, CreateControlPanel)
 - **toolkit_images.rs** (3 methods): 3/3 MATCH
 - **platform.rs** (18 methods): 16 MATCH, 1 SUSPECT (MoveMousePointer no-op), 1 MISSING (GetWindows)
+
+### Phase 2: Gap Assessment (27 features, 334 C++ methods)
+**23/27 PASSING:**
+- **18 IMPLEMENTED** — found under different Rust names (emATMatrix→AffineMatrix, emProcess→Process, emFileDialog→FileDialog, emFileSelectionBox→FileSelectionBox, emFpPlugin→FpPlugin, emScheduler→EngineScheduler, emBorder→Border, emDialog→Dialog, etc.)
+- **5 NOT_NEEDED** — C++ patterns superseded by Rust idioms (emTmpFile→tempfile crate, emSigModel/emVarModel/emVarSigModel→Context generics, emFileModelClient→direct ownership)
+
+**4/27 NOT PASSING (genuinely absent items found):**
+- **gap-emconfigmodel** (3): auto-save timer replaced by synchronous saves (defensible design choice, but undocumented)
+- **gap-emimage** (33): 23 implemented, 4 not needed, **6 genuinely absent** — emGetResImage/emTryGetResImage/emGetInsResImage/emTryGetInsResImage (ResourceCache exists but has zero callers = dead code), emResModelBase/emResModel::LookupInherited
+- **gap-emstd2** (3): checksums implemented, emGetCPUTSC + emLibHandle API not needed (defensible)
+- **gap-emview** (14): ~8 implemented, ~3 replaced by bool dirty flags, **3 genuinely absent** — GetFirstVIF/GetLastVIF (VIF list not exposed), IsSoftKeyboardShown/ShowSoftKeyboard (action queued but never consumed)
