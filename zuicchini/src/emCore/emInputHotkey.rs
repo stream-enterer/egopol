@@ -115,7 +115,7 @@ impl fmt::Display for Hotkey {
         if self.meta {
             parts.push("Meta");
         }
-        parts.push(self.key.as_str());
+        parts.push(self.key.emInputKeyToString());
         write!(f, "{}", parts.join("+"))
     }
 }

@@ -66,7 +66,7 @@ pub enum InputKey {
 
 impl InputKey {
     /// True for mouse buttons and mouse wheel keys.
-    pub(crate) fn is_mouse(self) -> bool {
+    pub(crate) fn emIsMouseInputKey(self) -> bool {
         matches!(
             self,
             InputKey::MouseLeft
@@ -82,17 +82,17 @@ impl InputKey {
     }
 
     /// True for the screen touch key.
-    pub(crate) fn is_touch(self) -> bool {
+    pub(crate) fn emIsTouchInputKey(self) -> bool {
         self == InputKey::Touch
     }
 
     /// True for all keyboard keys, including modifiers.
-    pub(crate) fn is_keyboard(self) -> bool {
-        !self.is_mouse() && !self.is_touch()
+    pub(crate) fn emIsKeyboardInputKey(self) -> bool {
+        !self.emIsMouseInputKey() && !self.emIsTouchInputKey()
     }
 
     /// True for modifier keys (Shift, Ctrl, Alt, Meta).
-    pub fn is_modifier(self) -> bool {
+    pub fn emIsModifierInputKey(self) -> bool {
         matches!(
             self,
             InputKey::Shift | InputKey::Ctrl | InputKey::Alt | InputKey::Meta
@@ -100,7 +100,7 @@ impl InputKey {
     }
 
     /// Convert this key to its string name (C++ emInputKeyToString parity).
-    pub fn as_str(self) -> &'static str {
+    pub fn emInputKeyToString(self) -> &'static str {
         match self {
             InputKey::MouseLeft => "LeftButton",
             InputKey::MouseMiddle => "MiddleButton",
@@ -191,7 +191,7 @@ impl InputKey {
     }
 
     /// Parse a key from its string name (C++ emStringToInputKey parity).
-    pub fn from_str_name(s: &str) -> Option<InputKey> {
+    pub fn emStringToInputKey(s: &str) -> Option<InputKey> {
         match s {
             "LeftButton" => Some(InputKey::MouseLeft),
             "MiddleButton" => Some(InputKey::MouseMiddle),
@@ -372,17 +372,17 @@ impl emInputEvent {
 
     /// Whether this is a mouse event.
     pub fn is_mouse_event(&self) -> bool {
-        !self.eaten && self.key.is_mouse()
+        !self.eaten && self.key.emIsMouseInputKey()
     }
 
     /// Whether this is a touch event.
     pub fn is_touch_event(&self) -> bool {
-        !self.eaten && self.key.is_touch()
+        !self.eaten && self.key.emIsTouchInputKey()
     }
 
     /// Whether this is a keyboard event (key is keyboard, or chars non-empty).
     pub fn is_keyboard_event(&self) -> bool {
-        !self.eaten && (self.key.is_keyboard() || !self.chars.is_empty())
+        !self.eaten && (self.key.emIsKeyboardInputKey() || !self.chars.is_empty())
     }
 
     pub fn with_chars(mut self, chars: &str) -> Self {
