@@ -1,0 +1,445 @@
+{
+  "worker_id": "W-0003",
+  "items": [
+    {
+      "id": "ITEM-035000",
+      "cpp_file": "emView.h",
+      "symbol": "emView::ViewFlags (typedef + enum constants: VF_POPUP_ZOOM, VF_ROOT_SAME_TALLNESS, VF_NO_ZOOM, VF_NO_USER_NAVIGATION, VF_NO_FOCUS_HIGHLIGHT, VF_NO_ACTIVE_HIGHLIGHT, VF_EGO_MODE, VF_STRESS_TEST)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "Rust uses bitflags! ViewFlags with equivalent constants (VF_EGO_MODE not present; VF_STRESS_TEST not present in Rust; VF_NO_SCROLL/FULLSCREEN are additions). Core flags ported."
+    },
+    {
+      "id": "ITEM-035001",
+      "cpp_file": "emView.h",
+      "symbol": "emView::emView(emContext&, ViewFlags)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::new(root, viewport_width, viewport_height) is the Rust constructor."
+    },
+    {
+      "id": "ITEM-035002",
+      "cpp_file": "emView.h",
+      "symbol": "emView::~emView()",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust Drop trait handles cleanup automatically",
+      "notes": "No explicit destructor needed."
+    },
+    {
+      "id": "ITEM-035003",
+      "cpp_file": "emView.h",
+      "symbol": "emView::LinkCrossPtr(emCrossPtrPrivate&)",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust ownership/Rc<RefCell> replaces cross-pointer mechanism",
+      "notes": "C++ cross-pointer pattern not used in Rust."
+    },
+    {
+      "id": "ITEM-035004",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetViewFlags() / SetViewFlags(ViewFlags)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::flags (pub field) + View::set_view_flags(ViewFlags, &mut PanelTree)."
+    },
+    {
+      "id": "ITEM-035005",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetViewFlagsSignal()",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Signal system not ported; Rust uses direct state polling."
+    },
+    {
+      "id": "ITEM-035006",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetBackgroundColor() / SetBackgroundColor(emColor)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::background_color() and View::set_background_color(Color)."
+    },
+    {
+      "id": "ITEM-035007",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetTitle() / InvalidateTitle()",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Title management not ported; Rust View has title_invalid flag but no GetTitle API."
+    },
+    {
+      "id": "ITEM-035008",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetTitleSignal()",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Signal system not ported."
+    },
+    {
+      "id": "ITEM-035009",
+      "cpp_file": "emView.h",
+      "symbol": "emView::CreateControlPanel(emPanel&, const emString&) / GetControlPanelSignal()",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Control panel delegation not ported."
+    },
+    {
+      "id": "ITEM-035010",
+      "cpp_file": "emView.h",
+      "symbol": "emView::IsFocused() / Focus() / GetFocusSignal()",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::window_focused() and View::set_window_focused(). Focus() action not directly ported (platform concern). Signal not ported."
+    },
+    {
+      "id": "ITEM-035011",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetWindow() / GetScreen()",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Window/screen context hierarchy not ported to Rust."
+    },
+    {
+      "id": "ITEM-035012",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetHomeX/Y/Width/Height/PixelTallness/Tallness() / GetCurrentX/Y/Width/Height/PixelTallness/Tallness() / GetGeometrySignal()",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::viewport_size() returns (width, height). Pixel tallness stored in view.pixel_tallness. No Home vs Current distinction (no popup zoom implemented). Geometry signal not ported."
+    },
+    {
+      "id": "ITEM-035013",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetMaxPopupViewRect(double*, double*, double*, double*)",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Popup zoom feature not ported."
+    },
+    {
+      "id": "ITEM-035014",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetFirstVIF() / GetLastVIF()",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "VIF chain linked list not ported; Rust VIFs are standalone structs called directly."
+    },
+    {
+      "id": "ITEM-035015",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetRootPanel()",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::root() returns PanelId."
+    },
+    {
+      "id": "ITEM-035016",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetSupremeViewedPanel()",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::supreme_panel() / View::svp()."
+    },
+    {
+      "id": "ITEM-035017",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetActivePanel() / SetActivePanel() / SetActivePanelBestPossible() / IsActivationAdherent()",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::active(), View::set_active_panel(), View::set_active_panel_best_possible(), View::is_activation_adherent()."
+    },
+    {
+      "id": "ITEM-035018",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetPanelByIdentity(const char*)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::get_panel_by_identity(&PanelTree, &str)."
+    },
+    {
+      "id": "ITEM-035019",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetPanelAt(double, double) / GetFocusablePanelAt(double, double, bool)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::get_panel_at() / View::get_focusable_panel_at()."
+    },
+    {
+      "id": "ITEM-035020",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetVisitedPanel(double*, double*, double*)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::current_visit() returns &VisitState with panel, rel_x, rel_y, rel_a."
+    },
+    {
+      "id": "ITEM-035021",
+      "cpp_file": "emView.h",
+      "symbol": "emView::Visit(panel/identity, relX, relY, relA, adherent, subject) overloads",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::visit(), View::animated_visit(), View::animated_visit_panel()."
+    },
+    {
+      "id": "ITEM-035022",
+      "cpp_file": "emView.h",
+      "symbol": "emView::VisitFullsized(panel/identity, adherent, utilizeView, subject) overloads",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::visit_fullsized(), View::calc_visit_fullsized_coords()."
+    },
+    {
+      "id": "ITEM-035023",
+      "cpp_file": "emView.h",
+      "symbol": "emView::RawVisit(panel, relX, relY, relA) / RawVisit(panel) / RawVisitFullsized(panel, utilizeView)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::visit() (immediate, no animation). Raw variants map directly."
+    },
+    {
+      "id": "ITEM-035024",
+      "cpp_file": "emView.h",
+      "symbol": "emView::VisitNext/Prev/First/Last/Left/Right/Up/Down/Neighbour/In/Out()",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::visit_next/prev/first/last/left/right/up/down/in/out() all present."
+    },
+    {
+      "id": "ITEM-035025",
+      "cpp_file": "emView.h",
+      "symbol": "emView::Scroll(double, double)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::scroll(dx, dy)."
+    },
+    {
+      "id": "ITEM-035026",
+      "cpp_file": "emView.h",
+      "symbol": "emView::Zoom(double, double, double)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::zoom(factor, center_x, center_y)."
+    },
+    {
+      "id": "ITEM-035027",
+      "cpp_file": "emView.h",
+      "symbol": "emView::RawScrollAndZoom(fixX, fixY, deltaX, deltaY, deltaZ, panel, pDeltaXDone, pDeltaYDone, pDeltaZDone)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::raw_scroll_and_zoom() returns [f64; 3] for done deltas."
+    },
+    {
+      "id": "ITEM-035028",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetZoomFactorLogarithmPerPixel()",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::get_zoom_factor_log_per_pixel()."
+    },
+    {
+      "id": "ITEM-035029",
+      "cpp_file": "emView.h",
+      "symbol": "emView::ZoomOut() / RawZoomOut() / IsZoomedOut()",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::zoom_out(), View::raw_zoom_out(), View::is_zoomed_out()."
+    },
+    {
+      "id": "ITEM-035030",
+      "cpp_file": "emView.h",
+      "symbol": "emView::IsPoppedUp()",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Popup zoom feature not implemented in Rust."
+    },
+    {
+      "id": "ITEM-035031",
+      "cpp_file": "emView.h",
+      "symbol": "emView::SignalEOIDelayed() / GetEOISignal()",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::signal_eoi_delayed(), View::eoi_delayed(), View::tick_eoi(). Signal itself replaced by polling."
+    },
+    {
+      "id": "ITEM-035032",
+      "cpp_file": "emView.h",
+      "symbol": "emView::IsSoftKeyboardShown() / ShowSoftKeyboard(bool)",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Soft keyboard management not ported."
+    },
+    {
+      "id": "ITEM-035033",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetInputClockMS()",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Input clock not exposed in Rust View."
+    },
+    {
+      "id": "ITEM-035034",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetTouchEventPriority(double, double, bool)",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Touch priority not on View struct in Rust."
+    },
+    {
+      "id": "ITEM-035035",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetActiveAnimator() / ActivateMagneticViewAnimator() / AbortActiveAnimator()",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::needs_animator_abort flag for abort; animator state managed externally in window loop. Magnetic activation done externally."
+    },
+    {
+      "id": "ITEM-035036",
+      "cpp_file": "emView.h",
+      "symbol": "emView::Input(emInputEvent&, const emInputState&) [protected virtual]",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Virtual dispatch pattern not used; Rust uses direct filter calls."
+    },
+    {
+      "id": "ITEM-035037",
+      "cpp_file": "emView.h",
+      "symbol": "emView::GetCursor() [protected virtual]",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Cursor management not ported in this form."
+    },
+    {
+      "id": "ITEM-035038",
+      "cpp_file": "emView.h",
+      "symbol": "emView::Paint(const emPainter&, emColor) [protected virtual]",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::paint(&mut PanelTree, &mut Painter)."
+    },
+    {
+      "id": "ITEM-035039",
+      "cpp_file": "emView.h",
+      "symbol": "emView::InvalidateCursor() / InvalidatePainting() / InvalidatePainting(x,y,w,h)",
+      "classification": "ported",
+      "rust_equivalent": "panel/view.rs",
+      "notes": "View::invalidate_painting() and View::invalidate_painting_rect(). Cursor invalidation tracked via cursor_invalid field."
+    },
+    {
+      "id": "ITEM-035040",
+      "cpp_file": "emView.h",
+      "symbol": "emView::DoCustomCheat(const char*)",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Cheat code mechanism not ported."
+    },
+    {
+      "id": "ITEM-035100",
+      "cpp_file": "emView.h",
+      "symbol": "emViewPort class: emViewPort(emView&), ~emViewPort(), GetViewX/Y/Width/Height(), GetViewCursor(), PaintView()",
+      "classification": "superseded",
+      "superseding_construct": "No ViewPort abstraction in Rust; SoftwareCompositor and WgpuCompositor serve this role (src/render/software_compositor.rs, src/render/compositor.rs)",
+      "notes": "Rust renders directly without a ViewPort indirection layer."
+    },
+    {
+      "id": "ITEM-035101",
+      "cpp_file": "emView.h",
+      "symbol": "emViewPort::SetViewGeometry / SetViewFocused / RequestFocus / IsSoftKeyboardShown / ShowSoftKeyboard / GetInputClockMS / InputToView / InvalidateCursor / InvalidatePainting [protected]",
+      "classification": "superseded",
+      "superseding_construct": "View::set_viewport(), View::set_window_focused() in panel/view.rs; render pipeline in src/render/",
+      "notes": "Protected ViewPort interface superseded by direct View methods."
+    },
+    {
+      "id": "ITEM-036000",
+      "cpp_file": "emViewAnimator.h",
+      "symbol": "emViewAnimator class: constructor, ~emViewAnimator(), GetView(), SetMaster/GetMaster/GetActiveSlave(), IsActive(), Activate/Deactivate(), IsDeactivatingWhenIdle/SetDeactivateWhenIdle(), Input(), Paint(), Cycle(), CycleAnimation(), InvalidatePainting()",
+      "classification": "ported",
+      "rust_equivalent": "panel/animator.rs",
+      "notes": "ViewAnimator trait with animate()/is_active()/stop(). Master/slave hierarchy and emEngine Cycle() pattern replaced by direct trait dispatch."
+    },
+    {
+      "id": "ITEM-036100",
+      "cpp_file": "emViewAnimator.h",
+      "symbol": "emKineticViewAnimator: constructor, Activate/Deactivate(), GetVelocity/GetAbsVelocity/SetVelocity(), CenterZoomFixPoint/SetZoomFixPoint(), SetFrictionEnabled/IsFrictionEnabled/GetFriction/SetFriction(), CycleAnimation()",
+      "classification": "ported",
+      "rust_equivalent": "panel/animator.rs",
+      "notes": "KineticViewAnimator struct with set_velocity(), velocity(), abs_velocity(), set_friction_enabled(), is_friction_enabled(), set_friction(), friction(), center_zoom_fix_point(), set_zoom_fix_point()."
+    },
+    {
+      "id": "ITEM-036200",
+      "cpp_file": "emViewAnimator.h",
+      "symbol": "emSpeedingViewAnimator: constructor, Activate/Deactivate(), GetTargetVelocity/GetAbsTargetVelocity/SetTargetVelocity(), GetAcceleration/SetAcceleration(), GetReverseAcceleration/SetReverseAcceleration(), CycleAnimation()",
+      "classification": "ported",
+      "rust_equivalent": "panel/animator.rs",
+      "notes": "SpeedingViewAnimator struct with set_target(), release(), set_acceleration(), set_reverse_acceleration()."
+    },
+    {
+      "id": "ITEM-036300",
+      "cpp_file": "emViewAnimator.h",
+      "symbol": "emSwipingViewAnimator: constructor, Activate/Deactivate(), IsGripped/SetGripped(), MoveGrip(), GetSpringConstant/SetSpringConstant(), GetAbsSpringExtension(), CycleAnimation()",
+      "classification": "ported",
+      "rust_equivalent": "panel/animator.rs",
+      "notes": "SwipingViewAnimator struct with is_gripped(), set_gripped(), move_grip(), set_spring_constant(), abs_spring_extension()."
+    },
+    {
+      "id": "ITEM-036400",
+      "cpp_file": "emViewAnimator.h",
+      "symbol": "emMagneticViewAnimator: constructor, Activate/Deactivate(), CycleAnimation()",
+      "classification": "ported",
+      "rust_equivalent": "panel/animator.rs",
+      "notes": "MagneticViewAnimator struct present."
+    },
+    {
+      "id": "ITEM-036500",
+      "cpp_file": "emViewAnimator.h",
+      "symbol": "emVisitingViewAnimator: constructor, IsAnimated/SetAnimated(), GetAcceleration/SetAcceleration(), GetMaxCuspSpeed/SetMaxCuspSpeed(), GetMaxAbsoluteSpeed/SetMaxAbsoluteSpeed(), SetAnimParamsByCoreConfig(), SetGoal (3 overloads), ClearGoal(), HasGoal/HasReachedGoal/HasGivenUp(), Activate/Deactivate(), Input(), Paint(), CycleAnimation()",
+      "classification": "ported",
+      "rust_equivalent": "panel/animator.rs",
+      "notes": "VisitingViewAnimator struct with set_animated(), set_acceleration(), set_max_cusp_speed(), set_max_absolute_speed(), set_anim_params_by_speed_config(), set_goal(), set_goal_rel(), set_goal_fullsized(), clear_goal(), handle_input(), paint_seek_overlay()."
+    },
+    {
+      "id": "ITEM-037000",
+      "cpp_file": "emViewInputFilter.h",
+      "symbol": "emViewInputFilter: constructor(view, next), ~emViewInputFilter(), GetView(), GetPrev/GetNext(), GetTouchEventPriority(), Input() [protected], Cycle() [protected], ForwardInput(), GetForwardTouchEventPriority()",
+      "classification": "ported",
+      "rust_equivalent": "panel/input_filter.rs",
+      "notes": "ViewInputFilter trait with filter(event, state, view). Chain/linked-list and ForwardInput superseded by direct call order in window loop."
+    },
+    {
+      "id": "ITEM-037100",
+      "cpp_file": "emViewInputFilter.h",
+      "symbol": "emMouseZoomScrollVIF: constructor, ~emMouseZoomScrollVIF(), Input() [protected], Cycle() [protected]",
+      "classification": "ported",
+      "rust_equivalent": "panel/input_filter.rs",
+      "notes": "MouseZoomScrollVIF struct with rich mouse/wheel animation methods."
+    },
+    {
+      "id": "ITEM-037200",
+      "cpp_file": "emViewInputFilter.h",
+      "symbol": "emKeyboardZoomScrollVIF: constructor, ~emKeyboardZoomScrollVIF(), Input() [protected]",
+      "classification": "ported",
+      "rust_equivalent": "panel/input_filter.rs",
+      "notes": "KeyboardZoomScrollVIF struct with animate(), navigate_by_program()."
+    },
+    {
+      "id": "ITEM-037300",
+      "cpp_file": "emViewInputFilter.h",
+      "symbol": "emCheatVIF: constructor, ~emCheatVIF(), Input() [protected]",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Cheat code VIF not ported to Rust."
+    },
+    {
+      "id": "ITEM-037400",
+      "cpp_file": "emViewInputFilter.h",
+      "symbol": "emDefaultTouchVIF: constructor, ~emDefaultTouchVIF(), GetTouchEventPriority(), Input() [protected], Cycle() [protected]",
+      "classification": "ported",
+      "rust_equivalent": "panel/input_filter.rs",
+      "notes": "DefaultTouchVIF struct with touch_start/move/end/animate_fling methods."
+    },
+    {
+      "id": "ITEM-038000",
+      "cpp_file": "emViewRenderer.h",
+      "symbol": "emViewRenderer: constructor(emRootContext&), ~emViewRenderer(), RenderView(const emViewPort&, const emClipRects<int>&), PrepareBuffers() [protected pure virtual], GetBufferPainter() [protected pure virtual], AsyncFlushBuffer() [protected pure virtual]",
+      "classification": "superseded",
+      "superseding_construct": "SoftwareCompositor (src/render/software_compositor.rs) and WgpuCompositor (src/render/compositor.rs)",
+      "notes": "The multi-thread buffer rendering abstraction is replaced by SoftwareCompositor::render() and WgpuCompositor. Thread pool management not ported; single-threaded software path and GPU path used instead."
+    }
+  ]
+}

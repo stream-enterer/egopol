@@ -1,0 +1,206 @@
+{
+  "generated": "2026-03-16",
+  "summary": "Platform limitation research for zuicchini (winit 0.30 + wgpu on Linux). Four issues investigated with tier-ranked solutions.",
+  "issues": [
+    {
+      "issue": "cursor_warping",
+      "display_name": "Cursor Warping (move_mouse_pointer)",
+      "tier": 2,
+      "tier_label": "Correct per-platform",
+      "recommended_solution": "Use CursorGrabMode::Locked + DeviceEvent::MouseMotion as primary mechanism (Wayland), with set_cursor_position warp loop as X11 fallback. Attempt Locked first; if it returns ExternalError::NotSupported, fall back to warp-based approach.",
+      "api_calls": {
+        "shared": [
+          "Window::set_cursor_visible(false)",
+          "Window::set_cursor_grab(CursorGrabMode::Locked)",
+          "Window::set_cursor_grab(CursorGrabMode::None)"
+        ],
+        "wayland": [
+          "DeviceEvent::MouseMotion { delta: (dx, dy) } for relative deltas",
+          "Uses zwp_pointer_constraints_v1::lock_pointer + zwp_relative_pointer_v1::relative_motion"
+        ],
+        "x11_fallback": [
+          "Window::set_cursor_position(PhysicalPosition::new(start_x, start_y)) per frame",
+          "Calls XWarpPointer internally",
+          "Window::set_cursor_grab(CursorGrabMode::Confined) optional"
+        ]
+      },
+      "wayland_behavior": "CursorGrabMode::Locked works. Uses zwp_pointer_constraints_v1 to freeze cursor, zwp_relative_pointer_v1 delivers unaccelerated deltas via DeviceEvent::MouseMotion. Both protocols are in wayland-protocols/unstable but universally supported (GNOME, KDE, wlroots).",
+      "x11_behavior": "CursorGrabMode::Locked returns ExternalError::NotSupported. set_cursor_position works via XWarpPointer. Standard warp-each-frame pattern matches emCore's C++ approach.",
+      "crates_needed": [],
+      "crates_needed_note": "No new crates. winit 0.30 provides all required APIs: set_cursor_grab, set_cursor_position, set_cursor_visible, DeviceEvent::MouseMotion.",
+      "caveats": [
+        "X11 warp generates synthetic CursorMoved events that must be filtered out (detect warp target position and discard).",
+        "zwp_pointer_constraints_v1 is still in wayland-protocols unstable/ but all major compositors implement it.",
+        "set_cursor_position on Wayland without lock returns NotSupported (by design).",
+        "DeviceEvent::MouseMotion deltas may include acceleration when pointer is not locked; during lock, winit uses unaccelerated values."
+      ],
+      "alternatives_rejected": [
+        "set_cursor_position warp loop everywhere: cannot work on Wayland (returns NotSupported unless pointer already locked).",
+        "CursorGrabMode::Confined only: cursor still moves visually, defeats stick-mouse UX.",
+        "Direct Wayland protocol crates (wayland-client, smithay-client-toolkit): winit already wraps the protocols; parallel binding would conflict.",
+        "Third-party crates (mouse-rs): for synthetic input injection, not pointer lock."
+      ]
+    },
+    {
+      "issue": "system_beep",
+      "display_name": "System Beep (beep)",
+      "tier": 3,
+      "tier_label": "Single-platform only (Linux, no macOS/Windows but that's our only target)",
+      "recommended_solution": "dlopen libcanberra at runtime, call ca_context_play with event.id='bell-terminal'. Uses freedesktop Sound Naming Specification. Graceful no-op if libcanberra not installed.",
+      "api_calls": {
+        "libcanberra_ffi": [
+          "ca_context_create(ca_context **c)",
+          "ca_context_play(c, 0, \"event.id\", \"bell-terminal\", NULL)",
+          "ca_context_destroy(c)"
+        ],
+        "loading": [
+          "libloading::Library::new(\"libcanberra.so.0\")",
+          "library.get::<Symbol<extern \"C\" fn(...)>>(\"ca_context_create\")"
+        ]
+      },
+      "wayland_behavior": "No Wayland protocol for system bell. libcanberra works on Wayland because it talks directly to PulseAudio/PipeWire via its own backend modules, not through the display server. GTK4's gdk_wayland_display_beep is a no-op; libcanberra is the correct path.",
+      "x11_behavior": "XBell generates XKB bell events intercepted by PulseAudio's module-x11-bell. libcanberra is strictly better: works on both X11 and Wayland, plays user-configured sound theme, no dependency on PulseAudio's X11 interception module.",
+      "crates_needed": [
+        {
+          "name": "libloading",
+          "version": "0.8",
+          "purpose": "Safe dlopen/dlsym wrappers for runtime libcanberra loading",
+          "docs_rs": "https://docs.rs/libloading/0.8"
+        }
+      ],
+      "caveats": [
+        "libcanberra is 'considered obsolete' but has no successor for event sounds. Every major Linux desktop still ships it.",
+        "ca_context_play is varargs in C; Rust FFI requires extern \"C\" fn(...) with c_str pointers terminated by null.",
+        "ca_context_play is async (returns immediately, sound plays in background). Desirable for UI beep.",
+        "If libcanberra not installed, dlopen fails gracefully → silent no-op. Log at debug level.",
+        "On NixOS/Guix, the .so path may differ from standard libcanberra.so.0."
+      ],
+      "alternatives_rejected": [
+        "actually_beep crate (0.1.1): synthesized sine wave, not system alert sound. Pulls in full cpal audio stack.",
+        "\\x07 BEL character: only works in terminal emulators, not GUI apps.",
+        "Direct XBell via x11rb: X11-only, no Wayland support.",
+        "winit API: winit 0.30 exposes no bell/alert API.",
+        "Ghostty approach (gdk_display_beep via GTK): requires GTK linkage, Wayland implementation is a no-op.",
+        "Alacritty approach (shell out to canberra-gtk-play): fragile, requires external binary."
+      ]
+    },
+    {
+      "issue": "screensaver_inhibition",
+      "display_name": "Screensaver Inhibition (inhibit_screensaver)",
+      "tier": 2,
+      "tier_label": "Correct per-platform",
+      "recommended_solution": "D-Bus org.freedesktop.ScreenSaver.Inhibit via zbus blocking API as primary mechanism. Optional x11rb XScreenSaverSuspend fallback for standalone X screensavers (xscreensaver).",
+      "api_calls": {
+        "dbus": [
+          "org.freedesktop.ScreenSaver.Inhibit(app_name: String, reason: String) -> cookie: u32",
+          "org.freedesktop.ScreenSaver.UnInhibit(cookie: u32)",
+          "Object path: /org/freedesktop/ScreenSaver",
+          "Service: org.freedesktop.ScreenSaver"
+        ],
+        "zbus_rust": [
+          "zbus::blocking::Connection::session()",
+          "ScreenSaverProxyBlocking::new(&conn)",
+          "proxy.inhibit(\"zuicchini\", \"Active content display\") -> Result<u32>",
+          "proxy.un_inhibit(cookie) -> Result<()>"
+        ],
+        "x11_fallback": [
+          "x11rb screensaver::suspend(conn, suspend: true/false)"
+        ]
+      },
+      "wayland_behavior": "GNOME (gnome-session) and KDE (kscreenlocker) implement org.freedesktop.ScreenSaver D-Bus. wlroots compositors (Sway, Hyprland) do NOT implement it — they use zwp_idle_inhibit_manager_v1 Wayland protocol instead, bridgeable via xdg-desktop-portal-wlr/hyprland. D-Bus call silently fails if no service is listening.",
+      "x11_behavior": "GNOME and KDE on X11 implement org.freedesktop.ScreenSaver D-Bus. Standalone xscreensaver does NOT — fallback to XScreenSaverSuspend (MIT-SCREEN-SAVER extension) via x11rb (already a transitive winit dependency).",
+      "crates_needed": [
+        {
+          "name": "zbus",
+          "version": "5.14.0",
+          "purpose": "Pure Rust D-Bus client for org.freedesktop.ScreenSaver.Inhibit",
+          "docs_rs": "https://docs.rs/zbus/5.14.0/zbus/"
+        }
+      ],
+      "caveats": [
+        "wlroots compositors without xdg-desktop-portal will silently ignore D-Bus inhibit (no service listening). Acceptable — those users manage their own idle config.",
+        "XFCE uses org.xfce.ScreenSaver, MATE uses org.mate.ScreenSaver — not org.freedesktop. Could add as secondary targets if needed.",
+        "zbus 5.x is pure Rust but brings ~15-20 transitive crates including async runtime machinery.",
+        "zbus::blocking must not be called from async context. Zuicchini's synchronous winit event loop is fine.",
+        "Some KDE versions expose service at /ScreenSaver instead of /org/freedesktop/ScreenSaver. Try both or target /org/freedesktop/ScreenSaver (works on modern KDE).",
+        "Inhibition auto-releases if D-Bus connection drops (crash/exit), providing fail-safe cleanup."
+      ],
+      "alternatives_rejected": [
+        "keepawake crate (0.6.0): good library but adds unnecessary abstraction for ~10 lines of D-Bus code. Zuicchini only needs Linux.",
+        "org.freedesktop.portal.Inhibit (xdg-desktop-portal): more complex (Request handle, window identifier). ScreenSaver interface is simpler for just screensaver inhibition.",
+        "zwp_idle_inhibit_manager_v1 (Wayland protocol): requires binding to Wayland display and wl_surface. winit owns the connection and doesn't expose protocol registration. Massive complexity for marginal gain.",
+        "XScreenSaverSuspend only: X11-only, cannot be primary approach.",
+        "Timer-based XResetScreenSaver (emCore approach): brute-force hack, doesn't work on Wayland.",
+        "dbus crate (0.9.10, C bindings): requires linking to libdbus-1.so. zbus is pure Rust and better maintained."
+      ]
+    },
+    {
+      "issue": "window_decoration_sizes",
+      "display_name": "Window Decoration Sizes (border_sizes)",
+      "tier": 2,
+      "tier_label": "Correct per-platform",
+      "recommended_solution": "On X11: compute exact per-side sizes via inner_position() - outer_position(). On Wayland CSD: compute via outer_size() - inner_size() with symmetric border heuristic. On Wayland SSD: return (0,0,0,0) — correct because client surface IS the content area.",
+      "api_calls": {
+        "x11_precise": [
+          "Window::inner_position() -> Result<PhysicalPosition<i32>>",
+          "Window::outer_position() -> Result<PhysicalPosition<i32>>",
+          "Window::outer_size() -> PhysicalSize<u32>",
+          "Window::inner_size() -> PhysicalSize<u32>",
+          "left = inner_pos.x - outer_pos.x",
+          "top = inner_pos.y - outer_pos.y",
+          "right = outer_width - inner_width - left",
+          "bottom = outer_height - inner_height - top"
+        ],
+        "wayland_csd_fallback": [
+          "Window::outer_size() -> PhysicalSize<u32>",
+          "Window::inner_size() -> PhysicalSize<u32>",
+          "dw = outer.width - inner.width; dh = outer.height - inner.height",
+          "border = dw / 2; top = dh - border"
+        ],
+        "wayland_ssd": [
+          "outer_size() == inner_size() → return (0, 0, 0, 0)"
+        ]
+      },
+      "wayland_behavior": "CSD: outer_size() includes sctk-adwaita decorations, inner_size() excludes them. Subtraction works. inner/outer_position() return NotSupportedError. SSD (GNOME, KDE when zxdg_decoration_manager_v1 is available): outer_size() == inner_size(), returning (0,0,0,0) is correct — compositor draws decorations outside client surface.",
+      "x11_behavior": "Both inner_position() and outer_position() succeed. winit internally reads _NET_FRAME_EXTENTS or climbs window hierarchy. Exact asymmetric per-side values available.",
+      "crates_needed": [],
+      "crates_needed_note": "No new crates. winit 0.30 provides all required APIs: outer_size, inner_size, inner_position, outer_position.",
+      "caveats": [
+        "Wayland SSD is fundamentally unsolvable — compositor intentionally hides decoration geometry. But (0,0,0,0) is the correct answer: client surface IS content area, no offset needed.",
+        "Timing on X11: _NET_FRAME_EXTENTS may not be set immediately after window creation. winit caches and lazily updates.",
+        "CSD border sizes may be zero. sctk-adwaita draws title bar (~36px) but border width is effectively 0 (shadows are outside geometry). Result may be (0, 36, 0, 0).",
+        "Scale factor: outer_size/inner_size return physical pixels. Current border_sizes() returns logical-ish values — must decide coordinate space.",
+        "winit prefers SSD when compositor supports zxdg_decoration_manager_v1 (GNOME, KDE). Falls back to CSD on wlroots-based compositors (Sway, Hyprland)."
+      ],
+      "alternatives_rejected": [
+        "Reading _NET_FRAME_EXTENTS directly via x11rb: winit already does this internally. Duplicates functionality.",
+        "Using smithay-client-toolkit to query decoration sizes: sctk-adwaita frame dimensions not exposed via public API.",
+        "Hardcoding per-compositor values: fragile and unmaintainable."
+      ]
+    }
+  ],
+  "new_dependencies_summary": {
+    "required": [
+      {
+        "crate": "libloading",
+        "version": "0.8",
+        "for": "system_beep (dlopen libcanberra)"
+      },
+      {
+        "crate": "zbus",
+        "version": "5.14.0",
+        "for": "screensaver_inhibition (D-Bus org.freedesktop.ScreenSaver)"
+      }
+    ],
+    "already_available": [
+      "winit 0.30 (cursor_warping, window_decoration_sizes)",
+      "x11rb (transitive via winit, optional screensaver_inhibition fallback)"
+    ]
+  },
+  "tier_summary": {
+    "tier_1_unified": [],
+    "tier_2_per_platform": ["cursor_warping", "screensaver_inhibition", "window_decoration_sizes"],
+    "tier_3_single_platform": ["system_beep"],
+    "tier_4_workaround": []
+  }
+}

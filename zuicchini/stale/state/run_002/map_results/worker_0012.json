@@ -1,0 +1,1888 @@
+{
+  "worker_id": "W-0012",
+  "item_id_range": [120000, 129999],
+  "items": [
+    {
+      "item_id": "ITEM-120000",
+      "source_file": "emWindow",
+      "symbol": "emWindow::WindowFlags (typedef int)",
+      "kind": "type",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "Rust uses bitflags! macro: WindowFlags struct with MODAL, UNDECORATED, POPUP, MAXIMIZED, FULLSCREEN, AUTO_DELETE bits."
+    },
+    {
+      "item_id": "ITEM-120001",
+      "source_file": "emWindow",
+      "symbol": "emWindow::WF_MODAL",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "WindowFlags::MODAL"
+    },
+    {
+      "item_id": "ITEM-120002",
+      "source_file": "emWindow",
+      "symbol": "emWindow::WF_UNDECORATED",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "WindowFlags::UNDECORATED"
+    },
+    {
+      "item_id": "ITEM-120003",
+      "source_file": "emWindow",
+      "symbol": "emWindow::WF_POPUP",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "WindowFlags::POPUP"
+    },
+    {
+      "item_id": "ITEM-120004",
+      "source_file": "emWindow",
+      "symbol": "emWindow::WF_MAXIMIZED",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "WindowFlags::MAXIMIZED"
+    },
+    {
+      "item_id": "ITEM-120005",
+      "source_file": "emWindow",
+      "symbol": "emWindow::WF_FULLSCREEN",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "WindowFlags::FULLSCREEN"
+    },
+    {
+      "item_id": "ITEM-120006",
+      "source_file": "emWindow",
+      "symbol": "emWindow::WF_AUTO_DELETE",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "WindowFlags::AUTO_DELETE"
+    },
+    {
+      "item_id": "ITEM-120007",
+      "source_file": "emWindow",
+      "symbol": "emWindow::emWindow (constructor)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::create() serves as the constructor."
+    },
+    {
+      "item_id": "ITEM-120008",
+      "source_file": "emWindow",
+      "symbol": "emWindow::~emWindow (destructor)",
+      "kind": "destructor",
+      "classification": "superseded",
+      "superseding_construct": "Rust Drop trait handles destruction automatically",
+      "notes": "No explicit destructor needed in Rust."
+    },
+    {
+      "item_id": "ITEM-120009",
+      "source_file": "emWindow",
+      "symbol": "emWindow::LinkCrossPtr",
+      "kind": "method",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust Rc/Weak for shared ownership",
+      "notes": "C++ cross-pointer idiom not needed in Rust."
+    },
+    {
+      "item_id": "ITEM-120010",
+      "source_file": "emWindow",
+      "symbol": "emWindow::GetScreen",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow references Screen via get_monitor_index(&screen)."
+    },
+    {
+      "item_id": "ITEM-120011",
+      "source_file": "emWindow",
+      "symbol": "emWindow::GetWindowFlags",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::flags field (pub) and set_window_flags method."
+    },
+    {
+      "item_id": "ITEM-120012",
+      "source_file": "emWindow",
+      "symbol": "emWindow::SetWindowFlags",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_window_flags(new_flags)"
+    },
+    {
+      "item_id": "ITEM-120013",
+      "source_file": "emWindow",
+      "symbol": "emWindow::GetWindowFlagsSignal",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No signal infrastructure for window flags changes in Rust equivalent; winit events cover this."
+    },
+    {
+      "item_id": "ITEM-120014",
+      "source_file": "emWindow",
+      "symbol": "emWindow::GetWMResName",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "WM resource names are X11-specific; not modelled in Rust/winit."
+    },
+    {
+      "item_id": "ITEM-120015",
+      "source_file": "emWindow",
+      "symbol": "emWindow::GetWindowPort",
+      "kind": "method",
+      "classification": "not_applicable",
+      "superseding_construct": "winit::window::Window (owned by ZuiWindow)",
+      "notes": "WindowPort abstraction is collapsed into ZuiWindow itself."
+    },
+    {
+      "item_id": "ITEM-120016",
+      "source_file": "emWindow",
+      "symbol": "emWindow::GetCloseSignal",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::close_signal (SignalId field)."
+    },
+    {
+      "item_id": "ITEM-120017",
+      "source_file": "emWindow",
+      "symbol": "emWindow::SignalClosing",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::signal_closing() returns the SignalId for the caller to fire."
+    },
+    {
+      "item_id": "ITEM-120018",
+      "source_file": "emWindow",
+      "symbol": "emWindow::SetViewPos",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_view_pos(x, y)"
+    },
+    {
+      "item_id": "ITEM-120019",
+      "source_file": "emWindow",
+      "symbol": "emWindow::SetViewSize",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_view_size(w, h)"
+    },
+    {
+      "item_id": "ITEM-120020",
+      "source_file": "emWindow",
+      "symbol": "emWindow::SetViewPosSize",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_view_pos_size(x, y, w, h)"
+    },
+    {
+      "item_id": "ITEM-120021",
+      "source_file": "emWindow",
+      "symbol": "emWindow::SetWinPos",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_win_pos(x, y)"
+    },
+    {
+      "item_id": "ITEM-120022",
+      "source_file": "emWindow",
+      "symbol": "emWindow::SetWinSize",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_win_size(w, h)"
+    },
+    {
+      "item_id": "ITEM-120023",
+      "source_file": "emWindow",
+      "symbol": "emWindow::SetWinPosSize",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_win_pos_size(x, y, w, h)"
+    },
+    {
+      "item_id": "ITEM-120024",
+      "source_file": "emWindow",
+      "symbol": "emWindow::SetWinPosViewSize (double x,y,w,h)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_win_pos_view_size(x, y, w, h)"
+    },
+    {
+      "item_id": "ITEM-120025",
+      "source_file": "emWindow",
+      "symbol": "emWindow::SetWinPosViewSize (const char* geometry)",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "X11 geometry string parsing not implemented in Rust."
+    },
+    {
+      "item_id": "ITEM-120026",
+      "source_file": "emWindow",
+      "symbol": "emWindow::GetBorderSizes",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "winit does not expose border/decoration thickness; no Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-120027",
+      "source_file": "emWindow",
+      "symbol": "emWindow::GetMonitorIndex",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::get_monitor_index(&screen) -> Option<usize>"
+    },
+    {
+      "item_id": "ITEM-120028",
+      "source_file": "emWindow",
+      "symbol": "emWindow::GetWindowIcon",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::window_icon() -> Option<&Image>"
+    },
+    {
+      "item_id": "ITEM-120029",
+      "source_file": "emWindow",
+      "symbol": "emWindow::SetWindowIcon",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_window_icon(&Image)"
+    },
+    {
+      "item_id": "ITEM-120030",
+      "source_file": "emWindow",
+      "symbol": "emWindow::Raise",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::raise() calls winit_window.focus_window()."
+    },
+    {
+      "item_id": "ITEM-120031",
+      "source_file": "emWindow",
+      "symbol": "emWindow::InhibitScreensaver",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::inhibit_screensaver() (counter-based stub)."
+    },
+    {
+      "item_id": "ITEM-120032",
+      "source_file": "emWindow",
+      "symbol": "emWindow::AllowScreensaver",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::allow_screensaver()."
+    },
+    {
+      "item_id": "ITEM-120033",
+      "source_file": "emWindow",
+      "symbol": "emWindow::InvalidateTitle (protected)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_title(&str) sets title on winit window."
+    },
+    {
+      "item_id": "ITEM-120034",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort (class)",
+      "kind": "class",
+      "classification": "not_applicable",
+      "superseding_construct": "ZuiWindow owns winit::window::Window directly",
+      "notes": "The WindowPort abstraction layer is not needed; Rust ZuiWindow talks directly to winit."
+    },
+    {
+      "item_id": "ITEM-120035",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::emWindowPort (constructor)",
+      "kind": "constructor",
+      "classification": "not_applicable",
+      "superseding_construct": "ZuiWindow::create()",
+      "notes": "Port abstraction collapsed."
+    },
+    {
+      "item_id": "ITEM-120036",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::GetWindow",
+      "kind": "method",
+      "classification": "not_applicable",
+      "superseding_construct": "ZuiWindow owns both concerns",
+      "notes": "Port abstraction collapsed."
+    },
+    {
+      "item_id": "ITEM-120037",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::WindowFlagsChanged (protected virtual)",
+      "kind": "method",
+      "classification": "not_applicable",
+      "superseding_construct": "ZuiWindow::set_window_flags applies changes inline",
+      "notes": "Port abstraction collapsed."
+    },
+    {
+      "item_id": "ITEM-120038",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::SetPosSize (protected virtual)",
+      "kind": "method",
+      "classification": "not_applicable",
+      "superseding_construct": "ZuiWindow::set_view_pos/set_win_pos etc.",
+      "notes": "Port abstraction collapsed."
+    },
+    {
+      "item_id": "ITEM-120039",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::GetBorderSizes (protected virtual)",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Not available via winit."
+    },
+    {
+      "item_id": "ITEM-120040",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::Raise (protected virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::raise() via winit focus_window()."
+    },
+    {
+      "item_id": "ITEM-120041",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::InhibitScreensaver (protected virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::inhibit_screensaver()."
+    },
+    {
+      "item_id": "ITEM-120042",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::AllowScreensaver (protected virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::allow_screensaver()."
+    },
+    {
+      "item_id": "ITEM-120043",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::InvalidateTitle (protected virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_title(&str)."
+    },
+    {
+      "item_id": "ITEM-120044",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::InvalidateIcon (protected virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::set_window_icon updates the winit icon directly."
+    },
+    {
+      "item_id": "ITEM-120045",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::SignalWindowClosing (protected)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/zui_window.rs",
+      "notes": "ZuiWindow::signal_closing() returns SignalId for caller to fire."
+    },
+    {
+      "item_id": "ITEM-120046",
+      "source_file": "emWindow",
+      "symbol": "emWindowPort::PosSizeArgSpec (enum)",
+      "kind": "enum",
+      "classification": "not_applicable",
+      "superseding_construct": "Individual set_view_pos/set_win_pos methods in ZuiWindow",
+      "notes": "Port abstraction collapsed; separate methods handle each combo."
+    },
+    {
+      "item_id": "ITEM-120100",
+      "source_file": "emWindowStateSaver",
+      "symbol": "emWindowStateSaver (class)",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "window/state_saver.rs",
+      "notes": "WindowStateSaver struct with WindowGeometry data model."
+    },
+    {
+      "item_id": "ITEM-120101",
+      "source_file": "emWindowStateSaver",
+      "symbol": "emWindowStateSaver::emWindowStateSaver (constructor)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "window/state_saver.rs",
+      "notes": "WindowStateSaver::new(path, signal_id)."
+    },
+    {
+      "item_id": "ITEM-120102",
+      "source_file": "emWindowStateSaver",
+      "symbol": "emWindowStateSaver::~emWindowStateSaver (destructor)",
+      "kind": "destructor",
+      "classification": "superseded",
+      "superseding_construct": "Rust Drop",
+      "notes": "No explicit destructor needed."
+    },
+    {
+      "item_id": "ITEM-120103",
+      "source_file": "emWindowStateSaver",
+      "symbol": "emWindowStateSaver::Cycle (protected virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "window/state_saver.rs",
+      "notes": "WindowStateSaver::cycle(window, focused) - saves geometry on focus/change."
+    },
+    {
+      "item_id": "ITEM-120104",
+      "source_file": "emWindowStateSaver",
+      "symbol": "emWindowStateSaver::ModelClass (inner private class)",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "window/state_saver.rs",
+      "notes": "WindowGeometry struct + ConfigModel<WindowGeometry> covers this."
+    },
+    {
+      "item_id": "ITEM-120105",
+      "source_file": "emWindowStateSaver",
+      "symbol": "emWindowStateSaver::ModelClass::ViewX/ViewY/ViewWidth/ViewHeight/Maximized/Fullscreen (fields)",
+      "kind": "field",
+      "classification": "ported",
+      "rust_equivalent": "window/state_saver.rs",
+      "notes": "WindowGeometry: x, y, width, height, maximized, fullscreen."
+    },
+    {
+      "item_id": "ITEM-120200",
+      "source_file": "emInput",
+      "symbol": "emInputKey (enum)",
+      "kind": "enum",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey enum covers all EM_KEY_* values."
+    },
+    {
+      "item_id": "ITEM-120201",
+      "source_file": "emInput",
+      "symbol": "EM_KEY_NONE",
+      "kind": "constant",
+      "classification": "superseded",
+      "superseding_construct": "Option<InputKey> (None) or absence of key in Rust",
+      "notes": "Rust uses Option instead of a sentinel value."
+    },
+    {
+      "item_id": "ITEM-120202",
+      "source_file": "emInput",
+      "symbol": "EM_KEY_LEFT_BUTTON through EM_KEY_FORWARD_BUTTON (mouse keys)",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::MouseLeft, MouseRight, MouseMiddle, WheelUp, WheelDown, WheelLeft, WheelRight, MouseX1, MouseX2."
+    },
+    {
+      "item_id": "ITEM-120203",
+      "source_file": "emInput",
+      "symbol": "EM_KEY_TOUCH",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::Touch."
+    },
+    {
+      "item_id": "ITEM-120204",
+      "source_file": "emInput",
+      "symbol": "EM_KEY_SHIFT, EM_KEY_CTRL, EM_KEY_ALT, EM_KEY_META, EM_KEY_ALT_GR (modifier keys)",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::Shift, Ctrl, Alt, Meta, AltGr."
+    },
+    {
+      "item_id": "ITEM-120205",
+      "source_file": "emInput",
+      "symbol": "EM_KEY_CURSOR_UP/DOWN/LEFT/RIGHT, EM_KEY_PAGE_UP/DOWN, EM_KEY_HOME, EM_KEY_END (nav keys)",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::ArrowUp/Down/Left/Right, PageUp, PageDown, Home, End."
+    },
+    {
+      "item_id": "ITEM-120206",
+      "source_file": "emInput",
+      "symbol": "EM_KEY_PRINT, EM_KEY_PAUSE, EM_KEY_MENU, EM_KEY_INSERT, EM_KEY_DELETE, EM_KEY_BACKSPACE, EM_KEY_TAB, EM_KEY_ENTER, EM_KEY_ESCAPE, EM_KEY_SPACE",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::Print, Pause, Menu, Insert, Delete, Backspace, Tab, Enter, Escape, Space."
+    },
+    {
+      "item_id": "ITEM-120207",
+      "source_file": "emInput",
+      "symbol": "EM_KEY_0 through EM_KEY_9, EM_KEY_A through EM_KEY_Z",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::Key(char) covers printable characters."
+    },
+    {
+      "item_id": "ITEM-120208",
+      "source_file": "emInput",
+      "symbol": "EM_KEY_F1 through EM_KEY_F12",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::F1 through F12."
+    },
+    {
+      "item_id": "ITEM-120209",
+      "source_file": "emInput",
+      "symbol": "emIsMouseInputKey",
+      "kind": "function",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::is_mouse(self) -> bool."
+    },
+    {
+      "item_id": "ITEM-120210",
+      "source_file": "emInput",
+      "symbol": "emIsTouchInputKey",
+      "kind": "function",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::is_touch(self) -> bool."
+    },
+    {
+      "item_id": "ITEM-120211",
+      "source_file": "emInput",
+      "symbol": "emIsKeyboardInputKey",
+      "kind": "function",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::is_keyboard(self) -> bool."
+    },
+    {
+      "item_id": "ITEM-120212",
+      "source_file": "emInput",
+      "symbol": "emIsModifierInputKey",
+      "kind": "function",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::is_modifier(self) -> bool."
+    },
+    {
+      "item_id": "ITEM-120213",
+      "source_file": "emInput",
+      "symbol": "emInputKeyToString",
+      "kind": "function",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::as_str(self) -> &'static str."
+    },
+    {
+      "item_id": "ITEM-120214",
+      "source_file": "emInput",
+      "symbol": "emStringToInputKey",
+      "kind": "function",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputKey::from_str_name(s) -> Option<InputKey>."
+    },
+    {
+      "item_id": "ITEM-120215",
+      "source_file": "emInput",
+      "symbol": "emInputEvent (class)",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent struct."
+    },
+    {
+      "item_id": "ITEM-120216",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::emInputEvent (constructor)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::press(), InputEvent::release(), InputEvent::mouse_move() factory methods."
+    },
+    {
+      "item_id": "ITEM-120217",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::Setup",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "InputEvent struct initialised directly or via factory methods",
+      "notes": "No Setup method needed; Rust uses struct literal init."
+    },
+    {
+      "item_id": "ITEM-120218",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::GetKey",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::key field (pub)."
+    },
+    {
+      "item_id": "ITEM-120219",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::GetChars",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::chars field (pub)."
+    },
+    {
+      "item_id": "ITEM-120220",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::GetRepeat",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::repeat field."
+    },
+    {
+      "item_id": "ITEM-120221",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::GetVariant",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::source_variant field."
+    },
+    {
+      "item_id": "ITEM-120222",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::Eat",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::eat(&mut self)."
+    },
+    {
+      "item_id": "ITEM-120223",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::IsEmpty",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::is_empty(&self) -> bool."
+    },
+    {
+      "item_id": "ITEM-120224",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::IsMouseEvent",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::is_mouse_event()."
+    },
+    {
+      "item_id": "ITEM-120225",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::IsTouchEvent",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::is_touch_event()."
+    },
+    {
+      "item_id": "ITEM-120226",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::IsKeyboardEvent",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::is_keyboard_event()."
+    },
+    {
+      "item_id": "ITEM-120227",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::IsKey",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::is_key(key)."
+    },
+    {
+      "item_id": "ITEM-120228",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::IsLeftButton",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::is_left_button()."
+    },
+    {
+      "item_id": "ITEM-120229",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::IsMiddleButton",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::is_middle_button()."
+    },
+    {
+      "item_id": "ITEM-120230",
+      "source_file": "emInput",
+      "symbol": "emInputEvent::IsRightButton",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/event.rs",
+      "notes": "InputEvent::is_right_button()."
+    },
+    {
+      "item_id": "ITEM-120231",
+      "source_file": "emInput",
+      "symbol": "emInputState (class)",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState struct."
+    },
+    {
+      "item_id": "ITEM-120232",
+      "source_file": "emInput",
+      "symbol": "emInputState::emInputState (default constructor)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::new() / Default::default()."
+    },
+    {
+      "item_id": "ITEM-120233",
+      "source_file": "emInput",
+      "symbol": "emInputState::emInputState (copy constructor)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState derives Clone."
+    },
+    {
+      "item_id": "ITEM-120234",
+      "source_file": "emInput",
+      "symbol": "emInputState::operator=",
+      "kind": "operator",
+      "classification": "superseded",
+      "superseding_construct": "Rust Clone trait",
+      "notes": "Assignment via clone()."
+    },
+    {
+      "item_id": "ITEM-120235",
+      "source_file": "emInput",
+      "symbol": "emInputState::operator== / operator!=",
+      "kind": "operator",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState derives PartialEq."
+    },
+    {
+      "item_id": "ITEM-120236",
+      "source_file": "emInput",
+      "symbol": "emInputState::GetMouseX / GetMouseY / SetMouse",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::mouse_x/mouse_y fields (pub) and set_mouse(x, y)."
+    },
+    {
+      "item_id": "ITEM-120237",
+      "source_file": "emInput",
+      "symbol": "emInputState::GetTouchCount",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::touches().len()."
+    },
+    {
+      "item_id": "ITEM-120238",
+      "source_file": "emInput",
+      "symbol": "emInputState::SearchTouch",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::touches() iteration with find by id."
+    },
+    {
+      "item_id": "ITEM-120239",
+      "source_file": "emInput",
+      "symbol": "emInputState::GetTouchId / GetTouchX / GetTouchY",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::touches() returns &[(u64, f64, f64)] tuples."
+    },
+    {
+      "item_id": "ITEM-120240",
+      "source_file": "emInput",
+      "symbol": "emInputState::AddTouch / SetTouch",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::set_touch(id, x, y) inserts or updates."
+    },
+    {
+      "item_id": "ITEM-120241",
+      "source_file": "emInput",
+      "symbol": "emInputState::RemoveTouch",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::remove_touch(id)."
+    },
+    {
+      "item_id": "ITEM-120242",
+      "source_file": "emInput",
+      "symbol": "emInputState::ClearTouches",
+      "kind": "method",
+      "classification": "ambiguous",
+      "confidence": 0.7,
+      "ambiguity_reason": "No direct clear_touches method; InputState::remove_touch is per-id, or touches could be cleared by removing all. No explicit bulk clear in the Rust implementation.",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-120243",
+      "source_file": "emInput",
+      "symbol": "emInputState::Get (key state) / Set (key state)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::is_pressed(key), press(key), release(key)."
+    },
+    {
+      "item_id": "ITEM-120244",
+      "source_file": "emInput",
+      "symbol": "emInputState::GetLeftButton / GetMiddleButton / GetRightButton",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::left_button(), middle_button(), right_button()."
+    },
+    {
+      "item_id": "ITEM-120245",
+      "source_file": "emInput",
+      "symbol": "emInputState::GetShift / GetCtrl / GetAlt / GetMeta",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::shift(), ctrl(), alt(), meta()."
+    },
+    {
+      "item_id": "ITEM-120246",
+      "source_file": "emInput",
+      "symbol": "emInputState::IsNoMod through IsMetaMod (all 16 modifier combos)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::is_no_mod, is_shift_mod, is_ctrl_mod, is_alt_mod, is_meta_mod, is_shift_ctrl_mod, is_shift_alt_mod, is_shift_meta_mod, is_ctrl_alt_mod, is_ctrl_meta_mod, is_alt_meta_mod, is_shift_ctrl_alt_mod, is_shift_ctrl_meta_mod, is_shift_alt_meta_mod, is_ctrl_alt_meta_mod, is_shift_ctrl_alt_meta_mod."
+    },
+    {
+      "item_id": "ITEM-120247",
+      "source_file": "emInput",
+      "symbol": "emInputState::ClearKeyStates",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/state.rs",
+      "notes": "InputState::clear_key_states() -> bool."
+    },
+    {
+      "item_id": "ITEM-120248",
+      "source_file": "emInput",
+      "symbol": "emInputState::GetKeyStates (const and non-const)",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "InputState::pressed_keys() -> &HashSet<InputKey>",
+      "notes": "Rust uses a HashSet rather than a raw bitfield array."
+    },
+    {
+      "item_id": "ITEM-120249",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey (class)",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "input/hotkey.rs",
+      "notes": "Hotkey struct."
+    },
+    {
+      "item_id": "ITEM-120250",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey constructors (various overloads)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "input/hotkey.rs",
+      "notes": "Hotkey::new(key) and Hotkey::parse(str)."
+    },
+    {
+      "item_id": "ITEM-120251",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey::operator= / operator== / operator!=",
+      "kind": "operator",
+      "classification": "ported",
+      "rust_equivalent": "input/hotkey.rs",
+      "notes": "Hotkey derives Clone, PartialEq, Eq."
+    },
+    {
+      "item_id": "ITEM-120252",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey::TryParse",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/hotkey.rs",
+      "notes": "Hotkey::parse(s) -> Option<Hotkey> (returns None on failure instead of throwing)."
+    },
+    {
+      "item_id": "ITEM-120253",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey::GetString (both overloads)",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No Display or to_string for Hotkey in the Rust implementation."
+    },
+    {
+      "item_id": "ITEM-120254",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey::IsValid",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Option<Hotkey> (None means invalid)",
+      "notes": "Rust uses Option rather than an invalid sentinel state."
+    },
+    {
+      "item_id": "ITEM-120255",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey::GetShift / GetCtrl / GetAlt / GetMeta",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/hotkey.rs",
+      "notes": "Hotkey::shift, ctrl, alt, meta fields (pub)."
+    },
+    {
+      "item_id": "ITEM-120256",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey::GetKey",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/hotkey.rs",
+      "notes": "Hotkey::key field (pub)."
+    },
+    {
+      "item_id": "ITEM-120257",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey::Match",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "input/hotkey.rs",
+      "notes": "Hotkey::matches(key, state)."
+    },
+    {
+      "item_id": "ITEM-120258",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey::ClearModifiers",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No ClearModifiers helper in Rust Hotkey; caller constructs a new Hotkey."
+    },
+    {
+      "item_id": "ITEM-120259",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey::AddModifier",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No incremental modifier builder in Rust Hotkey."
+    },
+    {
+      "item_id": "ITEM-120260",
+      "source_file": "emInput",
+      "symbol": "emInputHotkey::SetKey",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No setter; Rust Hotkey fields are assigned directly."
+    },
+    {
+      "item_id": "ITEM-120300",
+      "source_file": "emCursor",
+      "symbol": "emCursor (class)",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "input/cursor.rs",
+      "notes": "Cursor enum."
+    },
+    {
+      "item_id": "ITEM-120301",
+      "source_file": "emCursor",
+      "symbol": "emCursor::NORMAL",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/cursor.rs",
+      "notes": "Cursor::Normal."
+    },
+    {
+      "item_id": "ITEM-120302",
+      "source_file": "emCursor",
+      "symbol": "emCursor::INVISIBLE",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/cursor.rs",
+      "notes": "Cursor::Invisible."
+    },
+    {
+      "item_id": "ITEM-120303",
+      "source_file": "emCursor",
+      "symbol": "emCursor::WAIT",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/cursor.rs",
+      "notes": "Cursor::Wait."
+    },
+    {
+      "item_id": "ITEM-120304",
+      "source_file": "emCursor",
+      "symbol": "emCursor::CROSSHAIR",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/cursor.rs",
+      "notes": "Cursor::Crosshair."
+    },
+    {
+      "item_id": "ITEM-120305",
+      "source_file": "emCursor",
+      "symbol": "emCursor::TEXT",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/cursor.rs",
+      "notes": "Cursor::Text."
+    },
+    {
+      "item_id": "ITEM-120306",
+      "source_file": "emCursor",
+      "symbol": "emCursor::HAND",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/cursor.rs",
+      "notes": "Cursor::Hand."
+    },
+    {
+      "item_id": "ITEM-120307",
+      "source_file": "emCursor",
+      "symbol": "emCursor::LEFT_RIGHT_ARROW",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/cursor.rs",
+      "notes": "Cursor::ResizeEW (closest match; Rust enum is more granular)."
+    },
+    {
+      "item_id": "ITEM-120308",
+      "source_file": "emCursor",
+      "symbol": "emCursor::UP_DOWN_ARROW",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/cursor.rs",
+      "notes": "Cursor::ResizeNS."
+    },
+    {
+      "item_id": "ITEM-120309",
+      "source_file": "emCursor",
+      "symbol": "emCursor::LEFT_RIGHT_UP_DOWN_ARROW",
+      "kind": "constant",
+      "classification": "ported",
+      "rust_equivalent": "input/cursor.rs",
+      "notes": "Cursor::Move."
+    },
+    {
+      "item_id": "ITEM-120310",
+      "source_file": "emCursor",
+      "symbol": "emCursor::emCursor (constructors)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "input/cursor.rs",
+      "notes": "Cursor is a Copy enum; variants are used directly."
+    },
+    {
+      "item_id": "ITEM-120311",
+      "source_file": "emCursor",
+      "symbol": "emCursor::operator= (copy operators)",
+      "kind": "operator",
+      "classification": "superseded",
+      "superseding_construct": "Rust Copy trait",
+      "notes": "Cursor is Copy in Rust."
+    },
+    {
+      "item_id": "ITEM-120312",
+      "source_file": "emCursor",
+      "symbol": "emCursor::operator int / emCursor::Get",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Rust enum variant matching",
+      "notes": "No integer conversion needed; Rust pattern-matches on Cursor variants."
+    },
+    {
+      "item_id": "ITEM-120313",
+      "source_file": "emCursor",
+      "symbol": "emCursor::ToString",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Cursor does not implement Display or a to_string method in Rust."
+    },
+    {
+      "item_id": "ITEM-120400",
+      "source_file": "emClipboard",
+      "symbol": "emClipboard (class, abstract)",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "model/clipboard.rs",
+      "notes": "Clipboard trait."
+    },
+    {
+      "item_id": "ITEM-120401",
+      "source_file": "emClipboard",
+      "symbol": "emClipboard::LookupInherited",
+      "kind": "static_method",
+      "classification": "ported",
+      "rust_equivalent": "model/clipboard.rs",
+      "notes": "lookup_clipboard(context) function."
+    },
+    {
+      "item_id": "ITEM-120402",
+      "source_file": "emClipboard",
+      "symbol": "emClipboard::PutText (pure virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/clipboard.rs",
+      "notes": "Clipboard::put_text(&mut self, text, selection) -> i64."
+    },
+    {
+      "item_id": "ITEM-120403",
+      "source_file": "emClipboard",
+      "symbol": "emClipboard::Clear (pure virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/clipboard.rs",
+      "notes": "Clipboard::clear(&mut self, selection, selection_id)."
+    },
+    {
+      "item_id": "ITEM-120404",
+      "source_file": "emClipboard",
+      "symbol": "emClipboard::GetText (pure virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/clipboard.rs",
+      "notes": "Clipboard::get_text(&self, selection) -> String."
+    },
+    {
+      "item_id": "ITEM-120405",
+      "source_file": "emClipboard",
+      "symbol": "emClipboard::Install (protected)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/clipboard.rs",
+      "notes": "PrivateClipboard::install(context) sets context clipboard."
+    },
+    {
+      "item_id": "ITEM-120406",
+      "source_file": "emClipboard",
+      "symbol": "emPrivateClipboard (class)",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "model/clipboard.rs",
+      "notes": "PrivateClipboard struct."
+    },
+    {
+      "item_id": "ITEM-120407",
+      "source_file": "emClipboard",
+      "symbol": "emPrivateClipboard::Install (static)",
+      "kind": "static_method",
+      "classification": "ported",
+      "rust_equivalent": "model/clipboard.rs",
+      "notes": "PrivateClipboard::install(context)."
+    },
+    {
+      "item_id": "ITEM-120408",
+      "source_file": "emClipboard",
+      "symbol": "emPrivateClipboard::PutText",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/clipboard.rs",
+      "notes": "PrivateClipboard impl Clipboard::put_text."
+    },
+    {
+      "item_id": "ITEM-120409",
+      "source_file": "emClipboard",
+      "symbol": "emPrivateClipboard::Clear",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/clipboard.rs",
+      "notes": "PrivateClipboard impl Clipboard::clear."
+    },
+    {
+      "item_id": "ITEM-120410",
+      "source_file": "emClipboard",
+      "symbol": "emPrivateClipboard::GetText",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/clipboard.rs",
+      "notes": "PrivateClipboard impl Clipboard::get_text."
+    },
+    {
+      "item_id": "ITEM-120500",
+      "source_file": "emStd1",
+      "symbol": "EM_MAJOR_VERSION / EM_MINOR_VERSION / EM_MICRO_VERSION / EM_VERSION_POSTFIX (macros)",
+      "kind": "macro",
+      "classification": "superseded",
+      "superseding_construct": "Cargo.toml version field + env!(\"CARGO_PKG_VERSION\")",
+      "notes": "Version is managed by Cargo in Rust."
+    },
+    {
+      "item_id": "ITEM-120501",
+      "source_file": "emStd1",
+      "symbol": "emGetVersion",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "env!(\"CARGO_PKG_VERSION\")",
+      "notes": "Rust programs access version via Cargo env macros."
+    },
+    {
+      "item_id": "ITEM-120502",
+      "source_file": "emStd1",
+      "symbol": "emCompatibilityCheckerClass",
+      "kind": "class",
+      "classification": "not_applicable",
+      "superseding_construct": "Cargo/rustc enforce ABI compatibility",
+      "notes": "C++ binary compatibility checks are not needed in Rust."
+    },
+    {
+      "item_id": "ITEM-120503",
+      "source_file": "emStd1",
+      "symbol": "emInitLocale",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "Rust std locale handling (or no explicit init needed)",
+      "notes": "Rust does not require explicit locale initialisation for UTF-8."
+    },
+    {
+      "item_id": "ITEM-120504",
+      "source_file": "emStd1",
+      "symbol": "emIsUtf8System",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "Rust strings are always UTF-8",
+      "notes": "Irrelevant in Rust; String is always UTF-8."
+    },
+    {
+      "item_id": "ITEM-120505",
+      "source_file": "emStd1",
+      "symbol": "emEncodeUtf8Char",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "char::encode_utf8 / String methods",
+      "notes": "std::char::encode_utf8 covers this."
+    },
+    {
+      "item_id": "ITEM-120506",
+      "source_file": "emStd1",
+      "symbol": "emDecodeUtf8Char",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "str::chars() iterator",
+      "notes": "str::chars() decodes UTF-8 codepoints."
+    },
+    {
+      "item_id": "ITEM-120507",
+      "source_file": "emStd1",
+      "symbol": "emMBState",
+      "kind": "struct",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust strings are always UTF-8; no multibyte state needed",
+      "notes": "C locale multibyte state is irrelevant in Rust."
+    },
+    {
+      "item_id": "ITEM-120508",
+      "source_file": "emStd1",
+      "symbol": "emEncodeChar / emDecodeChar / emDecodeCharStrictly / emGetDecodedCharCount",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "str / String / char Rust stdlib",
+      "notes": "Rust stdlib provides full UTF-8 handling."
+    },
+    {
+      "item_id": "ITEM-120509",
+      "source_file": "emStd1",
+      "symbol": "emLog",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "log::info! / log::debug! / log::warn! (log crate)",
+      "notes": "Rust uses the log crate for structured logging."
+    },
+    {
+      "item_id": "ITEM-120510",
+      "source_file": "emStd1",
+      "symbol": "emMLog",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "log::info!(target: module_path!(), ...)",
+      "notes": "Module-prefixed logging via the log crate."
+    },
+    {
+      "item_id": "ITEM-120511",
+      "source_file": "emStd1",
+      "symbol": "emEnableDLog / emIsDLogEnabled / emDLog (deprecated) / EM_DLOG (macro)",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "log::debug! + RUST_LOG env var filtering",
+      "notes": "Debug log filtering is handled by env_logger or similar at runtime."
+    },
+    {
+      "item_id": "ITEM-120512",
+      "source_file": "emStd1",
+      "symbol": "emWarning",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "log::warn!",
+      "notes": "log crate."
+    },
+    {
+      "item_id": "ITEM-120513",
+      "source_file": "emStd1",
+      "symbol": "emFatalError",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "panic! / eprintln! + process::exit",
+      "notes": "Rust panic or explicit process exit."
+    },
+    {
+      "item_id": "ITEM-120514",
+      "source_file": "emStd1",
+      "symbol": "EM_ASSERT (macro)",
+      "kind": "macro",
+      "classification": "superseded",
+      "superseding_construct": "assert! / panic!",
+      "notes": "Rust assert! macro."
+    },
+    {
+      "item_id": "ITEM-120515",
+      "source_file": "emStd1",
+      "symbol": "emSetFatalErrorGraphical",
+      "kind": "function",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No GUI-based fatal error dialog in Rust."
+    },
+    {
+      "item_id": "ITEM-120516",
+      "source_file": "emStd1",
+      "symbol": "emUncopyable (class)",
+      "kind": "class",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust ownership model / absence of Copy/Clone",
+      "notes": "Rust types are non-copy by default."
+    },
+    {
+      "item_id": "ITEM-120517",
+      "source_file": "emStd1",
+      "symbol": "emUnconstructable (class)",
+      "kind": "class",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust enums with no variants (uninhabited types) or modules without structs",
+      "notes": "Not needed in Rust; free functions can be placed in modules."
+    },
+    {
+      "item_id": "ITEM-120518",
+      "source_file": "emStd1",
+      "symbol": "emMin / emMax (templates)",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::cmp::min / std::cmp::max / f64::min / f64::max",
+      "notes": "Rust stdlib provides generic min/max."
+    },
+    {
+      "item_id": "ITEM-120519",
+      "source_file": "emStd1",
+      "symbol": "emStdComparer (template class)",
+      "kind": "class",
+      "classification": "superseded",
+      "superseding_construct": "Ord/PartialOrd traits and .sort() / .sort_by() in Rust",
+      "notes": "Rust uses trait-based comparison."
+    },
+    {
+      "item_id": "ITEM-120520",
+      "source_file": "emStd1",
+      "symbol": "EM_ALIGN_* constants / emAlignment typedef",
+      "kind": "type",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emAlignment equivalent found in Rust source."
+    },
+    {
+      "item_id": "ITEM-120521",
+      "source_file": "emStd1",
+      "symbol": "emAlignmentToString / emStringToAlignment",
+      "kind": "function",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No alignment string serialisation in Rust."
+    },
+    {
+      "item_id": "ITEM-120522",
+      "source_file": "emStd1",
+      "symbol": "emInt8/emUInt8/emByte/emInt16/emUInt16/emInt32/emUInt32/emInt64/emUInt64 typedefs",
+      "kind": "type",
+      "classification": "superseded",
+      "superseding_construct": "i8/u8/i16/u16/i32/u32/i64/u64 Rust primitive types",
+      "notes": "Rust has built-in sized integer types."
+    },
+    {
+      "item_id": "ITEM-120523",
+      "source_file": "emStd1",
+      "symbol": "EM_INT8_MIN / EM_INT8_MAX / ... / EM_UINT64_MAX constants",
+      "kind": "constant",
+      "classification": "superseded",
+      "superseding_construct": "i8::MIN, i8::MAX, u64::MAX, etc.",
+      "notes": "Rust primitive types expose min/max constants."
+    },
+    {
+      "item_id": "ITEM-120524",
+      "source_file": "emStd1",
+      "symbol": "emStrToInt64 / emStrToUInt64 / emInt64ToStr / emUInt64ToStr",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "str::parse::<i64>() / i64::to_string()",
+      "notes": "Rust stdlib provides integer parsing and formatting."
+    },
+    {
+      "item_id": "ITEM-120525",
+      "source_file": "emStd1",
+      "symbol": "EM_BYTE_ORDER / EM_FUNC_ATTR_PRINTF / EM_DEPRECATED (macros)",
+      "kind": "macro",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust cfg(target_endian) / #[deprecated] attribute",
+      "notes": "Platform adaptation macros are replaced by Rust's own mechanisms."
+    },
+    {
+      "item_id": "ITEM-120600",
+      "source_file": "emStd2",
+      "symbol": "emException (class)",
+      "kind": "class",
+      "classification": "superseded",
+      "superseding_construct": "Rust Result<T, E> and custom error enums",
+      "notes": "Rust uses Result rather than exception-based error handling."
+    },
+    {
+      "item_id": "ITEM-120601",
+      "source_file": "emStd2",
+      "symbol": "emGetHostName",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "hostname crate or std::process / platform syscalls",
+      "notes": "Not in Rust stdlib; would use an external crate. No Rust equivalent present in codebase."
+    },
+    {
+      "item_id": "ITEM-120602",
+      "source_file": "emStd2",
+      "symbol": "emGetUserName",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::env::var(\"USER\") / whoami crate",
+      "notes": "Not directly in Rust stdlib."
+    },
+    {
+      "item_id": "ITEM-120603",
+      "source_file": "emStd2",
+      "symbol": "emGetProcessId",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::process::id()",
+      "notes": "std::process::id() covers this."
+    },
+    {
+      "item_id": "ITEM-120604",
+      "source_file": "emStd2",
+      "symbol": "emCanCpuDoAvx2",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "is_x86_feature_detected!(\"avx2\") macro",
+      "notes": "Rust std provides CPU feature detection macros."
+    },
+    {
+      "item_id": "ITEM-120605",
+      "source_file": "emStd2",
+      "symbol": "emSleepMS",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::thread::sleep(Duration::from_millis(...))",
+      "notes": "Rust stdlib."
+    },
+    {
+      "item_id": "ITEM-120606",
+      "source_file": "emStd2",
+      "symbol": "emGetClockMS",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::time::Instant::now().elapsed().as_millis()",
+      "notes": "Rust stdlib."
+    },
+    {
+      "item_id": "ITEM-120607",
+      "source_file": "emStd2",
+      "symbol": "emGetCPUTSC",
+      "kind": "function",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "CPU TSC read is debug-only; no Rust equivalent present in codebase."
+    },
+    {
+      "item_id": "ITEM-120608",
+      "source_file": "emStd2",
+      "symbol": "emGetErrorText",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::io::Error::last_os_error().to_string() / io::Error from errno",
+      "notes": "Rust stdlib provides OS error text."
+    },
+    {
+      "item_id": "ITEM-120609",
+      "source_file": "emStd2",
+      "symbol": "em_stat / em_lstat (macros)",
+      "kind": "macro",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::metadata / std::fs::symlink_metadata",
+      "notes": "Rust stdlib."
+    },
+    {
+      "item_id": "ITEM-120610",
+      "source_file": "emStd2",
+      "symbol": "emGetParentPath",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::path::Path::parent()",
+      "notes": "Rust std::path."
+    },
+    {
+      "item_id": "ITEM-120611",
+      "source_file": "emStd2",
+      "symbol": "emGetChildPath",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::path::Path::join()",
+      "notes": "Rust std::path."
+    },
+    {
+      "item_id": "ITEM-120612",
+      "source_file": "emStd2",
+      "symbol": "emGetAbsolutePath",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::canonicalize() / std::path::absolute()",
+      "notes": "Rust std::fs / std::path."
+    },
+    {
+      "item_id": "ITEM-120613",
+      "source_file": "emStd2",
+      "symbol": "emGetNameInPath",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::path::Path::file_name()",
+      "notes": "Rust std::path."
+    },
+    {
+      "item_id": "ITEM-120614",
+      "source_file": "emStd2",
+      "symbol": "emGetExtensionInPath",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::path::Path::extension()",
+      "notes": "Rust std::path."
+    },
+    {
+      "item_id": "ITEM-120615",
+      "source_file": "emStd2",
+      "symbol": "emIsExistingPath",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::path::Path::exists()",
+      "notes": "Rust std::path."
+    },
+    {
+      "item_id": "ITEM-120616",
+      "source_file": "emStd2",
+      "symbol": "emIsReadablePath",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::File::open (try open to check readability)",
+      "notes": "No direct Rust stdlib equivalent; try-open approach."
+    },
+    {
+      "item_id": "ITEM-120617",
+      "source_file": "emStd2",
+      "symbol": "emIsWritablePath",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::OpenOptions::write (try to open for write)",
+      "notes": "No direct Rust stdlib equivalent."
+    },
+    {
+      "item_id": "ITEM-120618",
+      "source_file": "emStd2",
+      "symbol": "emIsDirectory",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::path::Path::is_dir()",
+      "notes": "Rust std::path."
+    },
+    {
+      "item_id": "ITEM-120619",
+      "source_file": "emStd2",
+      "symbol": "emIsRegularFile",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::path::Path::is_file()",
+      "notes": "Rust std::path."
+    },
+    {
+      "item_id": "ITEM-120620",
+      "source_file": "emStd2",
+      "symbol": "emIsSymLinkPath",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::path::Path::is_symlink()",
+      "notes": "Rust std::path."
+    },
+    {
+      "item_id": "ITEM-120621",
+      "source_file": "emStd2",
+      "symbol": "emIsHiddenPath",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "Check filename starts with '.' on Unix",
+      "notes": "No stdlib equivalent; platform convention."
+    },
+    {
+      "item_id": "ITEM-120622",
+      "source_file": "emStd2",
+      "symbol": "emTryGetFileSize",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::metadata().len()",
+      "notes": "Rust std::fs."
+    },
+    {
+      "item_id": "ITEM-120623",
+      "source_file": "emStd2",
+      "symbol": "emTryGetFileTime",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::metadata().modified()",
+      "notes": "Rust std::fs."
+    },
+    {
+      "item_id": "ITEM-120624",
+      "source_file": "emStd2",
+      "symbol": "emGetCurrentDirectory",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::env::current_dir()",
+      "notes": "Rust std::env."
+    },
+    {
+      "item_id": "ITEM-120625",
+      "source_file": "emStd2",
+      "symbol": "emDirHandle / emTryOpenDir / emTryReadDir / emCloseDir",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::read_dir() iterator",
+      "notes": "Rust std::fs provides a cleaner iterator API."
+    },
+    {
+      "item_id": "ITEM-120626",
+      "source_file": "emStd2",
+      "symbol": "emTryLoadDir",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::read_dir().collect()",
+      "notes": "Rust std::fs."
+    },
+    {
+      "item_id": "ITEM-120627",
+      "source_file": "emStd2",
+      "symbol": "emTryLoadFile / emTrySaveFile (both overloads)",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::read / std::fs::write",
+      "notes": "Rust std::fs."
+    },
+    {
+      "item_id": "ITEM-120628",
+      "source_file": "emStd2",
+      "symbol": "emTryMakeDirectories",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::create_dir_all()",
+      "notes": "Rust std::fs."
+    },
+    {
+      "item_id": "ITEM-120629",
+      "source_file": "emStd2",
+      "symbol": "emTryRemoveFile",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::remove_file()",
+      "notes": "Rust std::fs."
+    },
+    {
+      "item_id": "ITEM-120630",
+      "source_file": "emStd2",
+      "symbol": "emTryRemoveDirectory",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::remove_dir()",
+      "notes": "Rust std::fs."
+    },
+    {
+      "item_id": "ITEM-120631",
+      "source_file": "emStd2",
+      "symbol": "emTryRemoveFileOrTree",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::remove_dir_all() / std::fs::remove_file()",
+      "notes": "Rust std::fs."
+    },
+    {
+      "item_id": "ITEM-120632",
+      "source_file": "emStd2",
+      "symbol": "emTryCopyFileOrTree",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "std::fs::copy() for files; recursive copy needs manual impl or crate",
+      "notes": "Rust stdlib only has file copy; tree copy needs manual recursion."
+    },
+    {
+      "item_id": "ITEM-120633",
+      "source_file": "emStd2",
+      "symbol": "emLibHandle / emTryOpenLib / emTryResolveSymbolFromLib / emCloseLib / emTryResolveSymbol",
+      "kind": "function",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Dynamic library loading not present in Rust codebase; Rust uses static linking or the libloading crate."
+    },
+    {
+      "item_id": "ITEM-120634",
+      "source_file": "emStd2",
+      "symbol": "emGetIntRandom / emGetUIntRandom / emGetInt64Random / emGetUInt64Random / emGetDblRandom",
+      "kind": "function",
+      "classification": "superseded",
+      "superseding_construct": "rand crate (SmallRng / thread_rng)",
+      "notes": "Rust uses the rand crate for pseudo-random number generation."
+    },
+    {
+      "item_id": "ITEM-120635",
+      "source_file": "emStd2",
+      "symbol": "emCalcAdler32 / emCalcCRC32 / emCalcCRC64 / emCalcHashCode / emCalcHashName",
+      "kind": "function",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No checksum/hash utility functions found in Rust codebase."
+    },
+    {
+      "item_id": "ITEM-120700",
+      "source_file": "emTunnel",
+      "symbol": "emTunnel (class)",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No Tunnel panel found in Rust source (checked widget/ and panel/)."
+    },
+    {
+      "item_id": "ITEM-120701",
+      "source_file": "emTunnel",
+      "symbol": "emTunnel::emTunnel (constructor)",
+      "kind": "constructor",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No Tunnel panel in Rust."
+    },
+    {
+      "item_id": "ITEM-120702",
+      "source_file": "emTunnel",
+      "symbol": "emTunnel::GetChildTallness / SetChildTallness",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No Tunnel panel in Rust."
+    },
+    {
+      "item_id": "ITEM-120703",
+      "source_file": "emTunnel",
+      "symbol": "emTunnel::GetDepth / SetDepth",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No Tunnel panel in Rust."
+    },
+    {
+      "item_id": "ITEM-120704",
+      "source_file": "emTunnel",
+      "symbol": "emTunnel::GetChildRect (const)",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No Tunnel panel in Rust."
+    },
+    {
+      "item_id": "ITEM-120705",
+      "source_file": "emTunnel",
+      "symbol": "emTunnel::GetChildRect (non-const deprecated overload)",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No Tunnel panel in Rust. C++ deprecated with 'final'."
+    },
+    {
+      "item_id": "ITEM-120706",
+      "source_file": "emTunnel",
+      "symbol": "emTunnel::PaintContent (protected)",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No Tunnel panel in Rust."
+    },
+    {
+      "item_id": "ITEM-120707",
+      "source_file": "emTunnel",
+      "symbol": "emTunnel::LayoutChildren (protected)",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No Tunnel panel in Rust."
+    }
+  ]
+}

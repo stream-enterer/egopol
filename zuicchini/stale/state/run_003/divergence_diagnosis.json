@@ -1,0 +1,33 @@
+{
+  "diagnosed_at": "2026-03-15T18:45:00Z",
+  "divergences": [
+    {
+      "capability_id": "CAP-0076",
+      "test_function": "widget_tunnel",
+      "pixels_failing": 40908,
+      "max_diff": 76,
+      "setup_match": true,
+      "setup_differences": [],
+      "domain": "irreducible_rasterizer_baseline",
+      "root_cause": "Pre-existing rasterizer divergence at semi-transparent quad-strip edges. Exhaustive verification confirms: (1) scan entries from the polynomial coverage rasterizer match the C++ PaintPolygon algorithm exactly (verified by independent Python reimplementation); (2) the canvas_blend formula matches the C++ hash table for all 65536 (channel,alpha) pairs (0 differences); (3) border painting matches (widget_border_instrument: 3 failing pixels); (4) FMA/FP scheduling has zero effect (tested +fma, -fma, baseline: all produce 40908 identical). The 40908 divergent pixels are uniformly distributed across all 20 tunnel ring quads (~0.4% per quad) at quad-to-quad boundaries. 72% of divergent pixels have values not matching any nearby expected pixel, consistent with sub-pixel edge position differences in the aggregate rendering pipeline rather than any single arithmetic or logic error.",
+      "fix_strategy": "none — irreducible baseline for semi-transparent quad strips",
+      "cpp_source_lines": "~/.local/git/eaglemode-0.96.4/src/emCore/emTunnel.cpp:106-192",
+      "rust_source_lines": "src/widget/tunnel.rs:118-215",
+      "estimated_difficulty": "irreducible"
+    },
+    {
+      "capability_id": "CAP-0027",
+      "test_function": "widget_file_selection_box",
+      "pixels_failing": 403644,
+      "max_diff": 161,
+      "setup_match": true,
+      "setup_differences": [],
+      "domain": "Domain 5",
+      "root_cause": "The C++ emFileSelectionBox creates 5 child panels in AutoExpand() (lines 504-554): ParentDirField (emTextField showing directory path), HiddenCheckBox (emCheckBox for hidden files toggle), FilesLB (FilesListBox for file listing), NameField (emTextField for filename entry), and FiltersLB (emListBox for file type filters). These are laid out in LayoutChildren() (lines 569-599) in three horizontal zones (top: dir+checkbox, middle: files list, bottom: name+filter). The Rust FileSelectionBox only paints its border frame (paint() at lines 405-409). It stores state for all these components internally but does NOT create any child panels or render any interior content. The entire content area is empty, causing 84% of pixels to differ because the C++ golden image shows a fully populated widget with sub-components while the Rust renders only an empty border frame.",
+      "fix_strategy": "fix_api_semantics",
+      "cpp_source_lines": "~/.local/git/eaglemode-0.96.4/src/emCore/emFileSelectionBox.cpp:504-599",
+      "rust_source_lines": "src/widget/file_selection_box.rs:404-410",
+      "estimated_difficulty": "high"
+    }
+  ]
+}

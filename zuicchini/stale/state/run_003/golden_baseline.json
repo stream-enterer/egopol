@@ -1,0 +1,1082 @@
+{
+  "run_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "measured_at": "2026-03-15T17:08:37Z",
+  "cargo_test_exit_code": 0,
+  "total_tests": 187,
+  "passing": 187,
+  "failing": 0,
+  "results": [
+    {
+      "test_function": "composite_canvas_color",
+      "test_module": "golden",
+      "golden_file": "composite_canvas_color",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 480000,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "composite_nested",
+      "test_module": "golden",
+      "golden_file": "composite_nested",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 480000,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "composite_overlap",
+      "test_module": "golden",
+      "golden_file": "composite_overlap",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 480000,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "composite_single_panel",
+      "test_module": "golden",
+      "golden_file": "composite_single_panel",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 480000,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "composite_two_children",
+      "test_module": "golden",
+      "golden_file": "composite_two_children",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 480000,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "bezier_filled",
+      "test_module": "golden",
+      "golden_file": "bezier_filled",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 2,
+        "total_pixels": 65536,
+        "failure_pct": 0.0031,
+        "max_channel_diff": 82,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "bezier_stroked",
+      "test_module": "golden",
+      "golden_file": "bezier_stroked",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 306,
+        "total_pixels": 65536,
+        "failure_pct": 0.4669,
+        "max_channel_diff": 229,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "canvas_color",
+      "test_module": "golden",
+      "golden_file": "canvas_color",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "clip_basic",
+      "test_module": "golden",
+      "golden_file": "clip_basic",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "ellipse_basic",
+      "test_module": "golden",
+      "golden_file": "ellipse_basic",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 20,
+        "total_pixels": 65536,
+        "failure_pct": 0.0305,
+        "max_channel_diff": 57,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "ellipse_sector",
+      "test_module": "golden",
+      "golden_file": "ellipse_sector",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 7,
+        "total_pixels": 65536,
+        "failure_pct": 0.0107,
+        "max_channel_diff": 17,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "ellipse_small",
+      "test_module": "golden",
+      "golden_file": "ellipse_small",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "gradient_h",
+      "test_module": "golden",
+      "golden_file": "gradient_h",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "gradient_radial",
+      "test_module": "golden",
+      "golden_file": "gradient_radial",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 20,
+        "total_pixels": 65536,
+        "failure_pct": 0.0305,
+        "max_channel_diff": 50,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "gradient_v",
+      "test_module": "golden",
+      "golden_file": "gradient_v",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "image_paint",
+      "test_module": "golden",
+      "golden_file": "image_paint",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "image_scaled",
+      "test_module": "golden",
+      "golden_file": "image_scaled",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "line_basic",
+      "test_module": "golden",
+      "golden_file": "line_basic",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 3,
+        "total_pixels": 65536,
+        "failure_pct": 0.0046,
+        "max_channel_diff": 105,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "line_dashed",
+      "test_module": "golden",
+      "golden_file": "line_dashed",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 4,
+        "total_pixels": 65536,
+        "failure_pct": 0.0061,
+        "max_channel_diff": 128,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "line_ends_all",
+      "test_module": "golden",
+      "golden_file": "line_ends_all",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 84,
+        "total_pixels": 65536,
+        "failure_pct": 0.1282,
+        "max_channel_diff": 47,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "line_thick",
+      "test_module": "golden",
+      "golden_file": "line_thick",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "multi_compose",
+      "test_module": "golden",
+      "golden_file": "multi_compose",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 9,
+        "total_pixels": 65536,
+        "failure_pct": 0.0137,
+        "max_channel_diff": 60,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "outline_ellipse",
+      "test_module": "golden",
+      "golden_file": "outline_ellipse",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 36,
+        "total_pixels": 65536,
+        "failure_pct": 0.0549,
+        "max_channel_diff": 113,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "outline_polygon",
+      "test_module": "golden",
+      "golden_file": "outline_polygon",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 53,
+        "total_pixels": 65536,
+        "failure_pct": 0.0809,
+        "max_channel_diff": 141,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "outline_rect",
+      "test_module": "golden",
+      "golden_file": "outline_rect",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "outline_round_rect",
+      "test_module": "golden",
+      "golden_file": "outline_round_rect",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 12,
+        "total_pixels": 65536,
+        "failure_pct": 0.0183,
+        "max_channel_diff": 162,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "polygon_complex",
+      "test_module": "golden",
+      "golden_file": "polygon_complex",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 10,
+        "total_pixels": 65536,
+        "failure_pct": 0.0153,
+        "max_channel_diff": 22,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "polygon_star",
+      "test_module": "golden",
+      "golden_file": "polygon_star",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 13,
+        "total_pixels": 65536,
+        "failure_pct": 0.0198,
+        "max_channel_diff": 137,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "polygon_tri",
+      "test_module": "golden",
+      "golden_file": "polygon_tri",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 1,
+        "total_pixels": 65536,
+        "failure_pct": 0.0015,
+        "max_channel_diff": 66,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "polyline",
+      "test_module": "golden",
+      "golden_file": "polyline",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "rect_alpha",
+      "test_module": "golden",
+      "golden_file": "rect_alpha",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "rect_overlap",
+      "test_module": "golden",
+      "golden_file": "rect_overlap",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "rect_solid",
+      "test_module": "golden",
+      "golden_file": "rect_solid",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "round_rect",
+      "test_module": "golden",
+      "golden_file": "round_rect",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 4,
+        "total_pixels": 65536,
+        "failure_pct": 0.0061,
+        "max_channel_diff": 34,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "text_alignment",
+      "test_module": "golden",
+      "golden_file": "text_alignment",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 131072,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "text_basic",
+      "test_module": "golden",
+      "golden_file": "text_basic",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "text_below_threshold",
+      "test_module": "golden",
+      "golden_file": "text_below_threshold",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "text_clipped",
+      "test_module": "golden",
+      "golden_file": "text_clipped",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "text_fitted",
+      "test_module": "golden",
+      "golden_file": "text_fitted",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "text_scaled",
+      "test_module": "golden",
+      "golden_file": "text_scaled",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "transform_clip_interaction",
+      "test_module": "golden",
+      "golden_file": "transform_clip_interaction",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "transform_ellipse_scaled",
+      "test_module": "golden",
+      "golden_file": "transform_ellipse_scaled",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 10,
+        "total_pixels": 65536,
+        "failure_pct": 0.0153,
+        "max_channel_diff": 32,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "transform_fractional",
+      "test_module": "golden",
+      "golden_file": "transform_fractional",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "transform_identity_roundtrip",
+      "test_module": "golden",
+      "golden_file": "transform_identity_roundtrip",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "transform_nested",
+      "test_module": "golden",
+      "golden_file": "transform_nested",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "transform_scale",
+      "test_module": "golden",
+      "golden_file": "transform_scale",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "transform_translate",
+      "test_module": "golden",
+      "golden_file": "transform_translate",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 65536,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "testpanel_expanded",
+      "test_module": "golden",
+      "golden_file": "testpanel_expanded",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 59341,
+        "total_pixels": 1000000,
+        "failure_pct": 5.9341,
+        "max_channel_diff": 255,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "testpanel_root",
+      "test_module": "golden",
+      "golden_file": "testpanel_root",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 81295,
+        "total_pixels": 1000000,
+        "failure_pct": 8.1295,
+        "max_channel_diff": 255,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "colorfield_expanded",
+      "test_module": "golden",
+      "golden_file": "colorfield_expanded",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 11986,
+        "total_pixels": 640000,
+        "failure_pct": 1.8728,
+        "max_channel_diff": 158,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "listbox_expanded",
+      "test_module": "golden",
+      "golden_file": "listbox_expanded",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 314,
+        "total_pixels": 640000,
+        "failure_pct": 0.0491,
+        "max_channel_diff": 33,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_border_group",
+      "test_module": "golden",
+      "golden_file": "widget_border_group",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 4,
+        "total_pixels": 480000,
+        "failure_pct": 0.0008,
+        "max_channel_diff": 10,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_border_instrument",
+      "test_module": "golden",
+      "golden_file": "widget_border_instrument",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 9,
+        "total_pixels": 480000,
+        "failure_pct": 0.0019,
+        "max_channel_diff": 8,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_border_rect",
+      "test_module": "golden",
+      "golden_file": "widget_border_rect",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 480000,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_border_round_rect",
+      "test_module": "golden",
+      "golden_file": "widget_border_round_rect",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 22,
+        "total_pixels": 480000,
+        "failure_pct": 0.0046,
+        "max_channel_diff": 14,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_button_normal",
+      "test_module": "golden",
+      "golden_file": "widget_button_normal",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 139,
+        "total_pixels": 480000,
+        "failure_pct": 0.029,
+        "max_channel_diff": 31,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_checkbox_checked",
+      "test_module": "golden",
+      "golden_file": "widget_checkbox_checked",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 326,
+        "total_pixels": 480000,
+        "failure_pct": 0.0679,
+        "max_channel_diff": 236,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_checkbox_unchecked",
+      "test_module": "golden",
+      "golden_file": "widget_checkbox_unchecked",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 174,
+        "total_pixels": 480000,
+        "failure_pct": 0.0362,
+        "max_channel_diff": 22,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_colorfield",
+      "test_module": "golden",
+      "golden_file": "widget_colorfield",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 2664,
+        "total_pixels": 480000,
+        "failure_pct": 0.555,
+        "max_channel_diff": 185,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_label",
+      "test_module": "golden",
+      "golden_file": "widget_label",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 480000,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_listbox",
+      "test_module": "golden",
+      "golden_file": "widget_listbox",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 142,
+        "total_pixels": 480000,
+        "failure_pct": 0.0296,
+        "max_channel_diff": 25,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_radiobutton",
+      "test_module": "golden",
+      "golden_file": "widget_radiobutton",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 176,
+        "total_pixels": 480000,
+        "failure_pct": 0.0367,
+        "max_channel_diff": 31,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_scalarfield",
+      "test_module": "golden",
+      "golden_file": "widget_scalarfield",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 98,
+        "total_pixels": 480000,
+        "failure_pct": 0.0204,
+        "max_channel_diff": 56,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_splitter_h",
+      "test_module": "golden",
+      "golden_file": "widget_splitter_h",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 0,
+        "total_pixels": 480000,
+        "failure_pct": 0.0,
+        "max_channel_diff": 0,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_splitter_v",
+      "test_module": "golden",
+      "golden_file": "widget_splitter_v",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 2,
+        "total_pixels": 480000,
+        "failure_pct": 0.0004,
+        "max_channel_diff": 2,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_textfield_content",
+      "test_module": "golden",
+      "golden_file": "widget_textfield_content",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 174,
+        "total_pixels": 480000,
+        "failure_pct": 0.0362,
+        "max_channel_diff": 26,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    },
+    {
+      "test_function": "widget_textfield_empty",
+      "test_module": "golden",
+      "golden_file": "widget_textfield_empty",
+      "passed": true,
+      "comparison_method": "compare_images",
+      "metrics": {
+        "divergent_pixels": 174,
+        "total_pixels": 480000,
+        "failure_pct": 0.0362,
+        "max_channel_diff": 26,
+        "max_rect_error": null,
+        "trajectory_max_error": null
+      },
+      "error_message": null
+    }
+  ]
+}

@@ -1,0 +1,713 @@
+{
+  "scores": [
+    {
+      "id": "i-01",
+      "score": 1.00,
+      "reasoning": "No tension with any other instruction. Reading the contract at start is universally compatible."
+    },
+    {
+      "id": "i-02",
+      "score": 1.00,
+      "reasoning": "No tension. Reading CLAUDE.md at start is universally compatible and provides needed context for all subsequent instructions."
+    },
+    {
+      "id": "i-03",
+      "score": 0.85,
+      "reasoning": "Sequential feature processing is mostly conflict-free, but latent tension with i-22 (cross-feature modifications) since strict sequential processing implies features are independent, yet later features may require revisiting earlier ones."
+    },
+    {
+      "id": "i-04",
+      "score": 0.90,
+      "reasoning": "Executing steps per feature is straightforward. Minor tension: step execution may reveal issues that require modifying unrelated code (tension with i-29)."
+    },
+    {
+      "id": "i-05",
+      "score": 0.95,
+      "reasoning": "Running clippy as gate is well-defined. Very minor tension: clippy may flag issues in code outside the current feature scope, creating pressure to modify unrelated code (i-29)."
+    },
+    {
+      "id": "i-06",
+      "score": 0.95,
+      "reasoning": "Running tests as gate is well-defined. Very minor tension: test failures may be in unrelated tests, creating pressure to fix unrelated code (i-29)."
+    },
+    {
+      "id": "i-07",
+      "score": 1.00,
+      "reasoning": "Setting passes to true after gate is unambiguous and conflict-free."
+    },
+    {
+      "id": "i-08",
+      "score": 0.90,
+      "reasoning": "One commit per feature is clear. Minor tension with i-22: cross-feature modifications may affect multiple features in one step, making clean per-feature commits harder."
+    },
+    {
+      "id": "i-09",
+      "score": 0.95,
+      "reasoning": "No plan mode is clear. Minor latent tension: with 111 features and complex multi-phase dependencies, the agent might benefit from planning, but this instruction forbids it."
+    },
+    {
+      "id": "i-10",
+      "score": 1.00,
+      "reasoning": "Running bootstrap at start is conflict-free."
+    },
+    {
+      "id": "i-11",
+      "score": 0.85,
+      "reasoning": "Phase 1 workflow is mostly clear. Tension with context window limits when features have 40+ methods (i-23/i-24 require comparing ALL methods). Also the MATCH/MISMATCH/MISSING categories in i-11 differ from the 4-category system in i-46/i-98 (which adds SUSPECT)."
+    },
+    {
+      "id": "i-12",
+      "score": 0.90,
+      "reasoning": "Phase 2 workflow is clear. Minor tension: implementing NEEDS_IMPLEMENTATION items may require modifying files from phase 1 features (tension with i-29 and i-22)."
+    },
+    {
+      "id": "i-13",
+      "score": 0.95,
+      "reasoning": "Phase 3 verification workflow is mostly read-only, low conflict potential."
+    },
+    {
+      "id": "i-14",
+      "score": 0.50,
+      "reasoning": "Phase 4 directly conflicts with i-28 (do NOT modify existing tests). Phase 4 requires strengthening defective tests, which means modifying them. Also, fixing bugs found by strengthened tests (i-62) conflicts with i-29 (do NOT modify unrelated production code). The exception is implicit, not explicit."
+    },
+    {
+      "id": "i-15",
+      "score": 0.80,
+      "reasoning": "Required test layers constraint is clear but creates tension: for features with many layers (unit+golden+pipeline), writing all three layers for every fix significantly increases work per feature, creating latent tension with the volume of 111 features and context window limits."
+    },
+    {
+      "id": "i-16",
+      "score": 0.90,
+      "reasoning": "Following test directory patterns is clear guidance. Minor tension: existing patterns may themselves exhibit the anti-patterns that i-25 forbids (e.g., existing tests use is_some())."
+    },
+    {
+      "id": "i-17",
+      "score": 1.00,
+      "reasoning": "Reading .cpp files is conflict-free and reinforced by multiple other instructions."
+    },
+    {
+      "id": "i-18",
+      "score": 0.80,
+      "reasoning": "PIXEL exact formula requirement is clear for PIXEL-layer features. Tension at boundaries: what happens when a STATE-layer feature calls into PIXEL-layer code? The agent must determine which fidelity standard applies to each code change."
+    },
+    {
+      "id": "i-19",
+      "score": 0.80,
+      "reasoning": "STATE idiomatic Rust rule is clear. Same boundary tension as i-18: methods that straddle layers. Also, 'behavioral differences' is somewhat subjective, creating judgment calls."
+    },
+    {
+      "id": "i-20",
+      "score": 0.95,
+      "reasoning": "Default to STATE is a clean tiebreaker. Minor tension: some features without a layer field may actually contain pixel arithmetic that should use PIXEL rules."
+    },
+    {
+      "id": "i-21",
+      "score": 0.85,
+      "reasoning": "Phase ordering is clear. Tension: if a single phase-1 feature is hard to complete, it blocks all 83 features in phases 2-4. Combined with i-30 (do NOT skip), this creates a potential deadlock if one feature has an unfixable issue."
+    },
+    {
+      "id": "i-22",
+      "score": 0.75,
+      "reasoning": "Cross-feature modification permission is valuable but creates tension with i-08 (one commit per feature) and i-29 (do NOT modify unrelated production code). When modifying earlier feature's code, which feature's commit does it go in? And is earlier feature's code 'unrelated'?"
+    },
+    {
+      "id": "i-23",
+      "score": 0.75,
+      "reasoning": "Must compare ALL listed methods creates significant tension with context window limits. Features with 40+ methods require reading multiple large C++ and Rust files simultaneously. Under context pressure, this instruction directly conflicts with the agent's ability to maintain quality on each comparison."
+    },
+    {
+      "id": "i-24",
+      "score": 0.75,
+      "reasoning": "Steps as requirements reinforces i-23 with the same context window tension. Also creates tension with i-09 (no plan mode) since planning how to compare 40 methods systematically would help."
+    },
+    {
+      "id": "i-25",
+      "score": 0.85,
+      "reasoning": "Specific value assertions is clear. Minor tension with i-16 (follow existing test patterns): if existing patterns use weak assertions, following patterns conflicts with requiring strong assertions."
+    },
+    {
+      "id": "i-26",
+      "score": 0.85,
+      "reasoning": "Write NEW tests for fixes is clear. Minor tension: when the correct fix is very small, writing a whole new test may be disproportionate effort, creating pressure to skip (conflicting with this instruction)."
+    },
+    {
+      "id": "i-27",
+      "score": 1.00,
+      "reasoning": "Contract immutability (steps/description/methods) is absolute and conflict-free with everything else."
+    },
+    {
+      "id": "i-28",
+      "score": 0.25,
+      "reasoning": "Do NOT modify existing tests directly contradicts i-14/i-61 (Phase 4 requires strengthening defective tests). The exception for Phase 4 is noted in the extraction but is NOT explicit in the prompt text. The prompt says 'Do NOT modify existing tests (write new tests only)' without qualification, then Phase 4 says 'Strengthen defective tests.' This is the single most significant conflict in the prompt."
+    },
+    {
+      "id": "i-29",
+      "score": 0.65,
+      "reasoning": "Do NOT modify unrelated production code conflicts with i-62 (Phase 4: fix bugs found by strengthened tests) and i-22 (cross-feature modifications). 'Unrelated' is ambiguous: if strengthening a test reveals a bug in a file not listed in the current feature, is that 'unrelated'? Also, i-12 Phase 2 may require adding methods to files audited in Phase 1."
+    },
+    {
+      "id": "i-30",
+      "score": 0.90,
+      "reasoning": "Do NOT skip features is clear. Minor tension with i-21 (phase ordering) if a feature is genuinely un-completable, creating a blocking situation."
+    },
+    {
+      "id": "i-31",
+      "score": 0.95,
+      "reasoning": "Do NOT flag idiomatic Rust is clear and reinforced by i-19/i-77. Very minor tension: what if idiomatic Rust causes a behavioral difference? The instruction says read the layer field, which resolves most cases."
+    },
+    {
+      "id": "i-32",
+      "score": 1.00,
+      "reasoning": "Metacognitive instruction about gate limitations is conflict-free."
+    },
+    {
+      "id": "i-33",
+      "score": 1.00,
+      "reasoning": "Running completion script at end is conflict-free."
+    },
+    {
+      "id": "i-34",
+      "score": 0.90,
+      "reasoning": "Logging per feature is mostly conflict-free. Minor tension: the log format uses MATCH/MISMATCH/MISSING counts, but the contract steps use 4 categories (adding SUSPECT per i-46/i-98). Where does SUSPECT go in the log?"
+    },
+    {
+      "id": "i-35",
+      "score": 1.00,
+      "reasoning": "Starting with first false feature in phase-1 is a clear entry point with no conflicts."
+    },
+    {
+      "id": "i-36",
+      "score": 0.95,
+      "reasoning": "Contract immutability rule overlaps with i-27. No conflict, just redundancy."
+    },
+    {
+      "id": "i-37",
+      "score": 0.95,
+      "reasoning": "Gate protocol reinforces i-05/i-06. No conflict, just redundancy."
+    },
+    {
+      "id": "i-38",
+      "score": 0.95,
+      "reasoning": "Commit protocol reinforces i-08. No conflict."
+    },
+    {
+      "id": "i-39",
+      "score": 0.85,
+      "reasoning": "Fidelity layer rule adds GEOMETRY layer not mentioned in prompt .md (which only lists PIXEL and STATE). No direct conflict but potential confusion: agent may encounter GEOMETRY features and need to recall contract rules vs prompt rules."
+    },
+    {
+      "id": "i-40",
+      "score": 1.00,
+      "reasoning": "Reading C++ header is conflict-free."
+    },
+    {
+      "id": "i-41",
+      "score": 1.00,
+      "reasoning": "Reading C++ .cpp is conflict-free and reinforces i-17."
+    },
+    {
+      "id": "i-42",
+      "score": 1.00,
+      "reasoning": "Reading Rust source is conflict-free."
+    },
+    {
+      "id": "i-43",
+      "score": 0.75,
+      "reasoning": "Compare ALL methods in methods field has the same context window tension as i-23/i-24. Features with many methods create scaling pressure."
+    },
+    {
+      "id": "i-44",
+      "score": 0.95,
+      "reasoning": "Checking .cpp for hidden details reinforces i-17 and i-41. Very minor redundancy tension with i-41 (reading the same file twice in the step sequence)."
+    },
+    {
+      "id": "i-45",
+      "score": 0.90,
+      "reasoning": "Verifying defaults and side effects is clear. Minor tension: checking 'same side effects' on STATE-layer features could be over-strict if the Rust equivalent uses a different but equivalent side-effect mechanism."
+    },
+    {
+      "id": "i-46",
+      "score": 0.75,
+      "reasoning": "4-category reporting (MATCH/MISMATCH/SUSPECT/MISSING) conflicts with i-11 and i-34/i-89 which use 3 categories (MATCH/MISMATCH/MISSING). SUSPECT is not accommodated in the log format. Agent must decide: is SUSPECT a MISMATCH for logging purposes?"
+    },
+    {
+      "id": "i-47",
+      "score": 0.90,
+      "reasoning": "Fixing MISMATCH minimally is clear. Minor tension with i-29 (what if the minimal fix requires touching a different file?)."
+    },
+    {
+      "id": "i-48",
+      "score": 0.90,
+      "reasoning": "Writing test per fix reinforces i-26. Minor tension with i-15 (required test layers): a simple fix may need tests in 3 layers."
+    },
+    {
+      "id": "i-49",
+      "score": 0.95,
+      "reasoning": "RUST-ONLY verification is clear. Minor tension: 'no panicking paths' check could lead to refactoring that goes beyond the audit scope."
+    },
+    {
+      "id": "i-50",
+      "score": 0.95,
+      "reasoning": "Writing unit tests for RUST-ONLY features is clear and low-conflict."
+    },
+    {
+      "id": "i-51",
+      "score": 0.95,
+      "reasoning": "CRITICAL config default verification is clear and well-scoped to 2 features."
+    },
+    {
+      "id": "i-52",
+      "score": 0.95,
+      "reasoning": "C++ macro boilerplate guidance is helpful and low-conflict."
+    },
+    {
+      "id": "i-53",
+      "score": 0.90,
+      "reasoning": "Phase 2 analysis framework is clear. Minor tension: determining 'actually needed' requires judgment that may conflict with i-24 (steps are requirements) if the step says to analyze a method the agent thinks is clearly not needed."
+    },
+    {
+      "id": "i-54",
+      "score": 0.90,
+      "reasoning": "Phase 2 classification is clear. Minor tension with i-34/i-89 log format which expects MATCH/MISMATCH/MISSING counts but Phase 2 uses IMPLEMENTED/NOT_NEEDED/NEEDS_IMPLEMENTATION."
+    },
+    {
+      "id": "i-55",
+      "score": 0.85,
+      "reasoning": "Implementing NEEDS_IMPLEMENTATION items may require modifying files from Phase 1 (tension with i-29, mitigated by i-22). Also adds new production code that wasn't in previous scope."
+    },
+    {
+      "id": "i-56",
+      "score": 1.00,
+      "reasoning": "Reading Rust source for Phase 3 is conflict-free."
+    },
+    {
+      "id": "i-57",
+      "score": 0.90,
+      "reasoning": "Verifying C++ symbols in Rust is clear. Minor tension: 'covered' is somewhat subjective for STATE-layer features where idiomatic Rust may not have a 1:1 mapping."
+    },
+    {
+      "id": "i-58",
+      "score": 0.85,
+      "reasoning": "Checking all public methods from consolidated classes requires reading multiple C++ headers, creating context window pressure for features consolidating many classes."
+    },
+    {
+      "id": "i-59",
+      "score": 0.90,
+      "reasoning": "Listing all test functions in a directory is clear. Minor tension: for large directories (1500+ tests across 6 Phase 4 features), listing all functions creates context window pressure."
+    },
+    {
+      "id": "i-60",
+      "score": 0.75,
+      "reasoning": "5-point checklist on every test function has significant context window tension when applied to hundreds of tests per feature. Also the instruction to check ALL tests conflicts with practical limits."
+    },
+    {
+      "id": "i-61",
+      "score": 0.25,
+      "reasoning": "Fixing defective tests by strengthening assertions directly contradicts i-28 (do NOT modify existing tests). The Phase 4 description makes clear this is the intent, but i-28 has no explicit exception. This is the primary conflict in the prompt."
+    },
+    {
+      "id": "i-62",
+      "score": 0.60,
+      "reasoning": "Fixing production bugs found by strengthened tests conflicts with i-29 (do NOT modify unrelated production code). If the bug is in a file not listed in the Phase 4 feature, is it 'unrelated'? The prompt provides no guidance on this boundary."
+    },
+    {
+      "id": "i-63",
+      "score": 0.90,
+      "reasoning": "Grep for inline test modules is a clear operational step. Minor tension with context window when many inline test modules exist."
+    },
+    {
+      "id": "i-64",
+      "score": 0.95,
+      "reasoning": "Type conventions from CLAUDE.md are clear and well-established. Very minor tension: f64 for logical coordinates could conflict with i-18/i-75 (no f64 in pixel paths) at layer boundaries."
+    },
+    {
+      "id": "i-65",
+      "score": 1.00,
+      "reasoning": "Color storage convention is clear and conflict-free."
+    },
+    {
+      "id": "i-66",
+      "score": 1.00,
+      "reasoning": "Rc/RefCell ownership rule is clear and conflict-free."
+    },
+    {
+      "id": "i-67",
+      "score": 1.00,
+      "reasoning": "String handling rule is clear and conflict-free."
+    },
+    {
+      "id": "i-68",
+      "score": 1.00,
+      "reasoning": "Error handling rule is clear and conflict-free."
+    },
+    {
+      "id": "i-69",
+      "score": 1.00,
+      "reasoning": "Import order rule is clear and conflict-free."
+    },
+    {
+      "id": "i-70",
+      "score": 1.00,
+      "reasoning": "Construction convention is clear and conflict-free."
+    },
+    {
+      "id": "i-71",
+      "score": 1.00,
+      "reasoning": "Module organization convention is clear and conflict-free."
+    },
+    {
+      "id": "i-72",
+      "score": 0.95,
+      "reasoning": "Visibility rule is clear. Very minor tension: new methods added in Phase 2 may need pub for library API, requiring judgment on whether they're library API or internal."
+    },
+    {
+      "id": "i-73",
+      "score": 1.00,
+      "reasoning": "Unwrap/expect convention is clear and conflict-free."
+    },
+    {
+      "id": "i-74",
+      "score": 0.95,
+      "reasoning": "Fix warnings rule is clear. Very minor tension: fixing dead code warnings in unrelated files would conflict with i-29."
+    },
+    {
+      "id": "i-75",
+      "score": 0.90,
+      "reasoning": "Pixel fidelity rule is detailed and clear. Minor tension with i-64 (f64 for logical coordinates): at the boundary where logical coordinates feed into pixel operations, the agent must determine exactly where f64 stops and integer arithmetic begins."
+    },
+    {
+      "id": "i-76",
+      "score": 0.90,
+      "reasoning": "Geometry fidelity rule is clear. Minor tension: 'same algorithm and operation order' is stricter than STATE but looser than PIXEL, creating a judgment zone."
+    },
+    {
+      "id": "i-77",
+      "score": 0.95,
+      "reasoning": "State fidelity rule is clear. Very minor tension with i-45 (verify same side effects): what counts as a behavioral difference vs an idiomatic adaptation?"
+    },
+    {
+      "id": "i-78",
+      "score": 0.95,
+      "reasoning": "Tiebreaker rule is helpful and mostly conflict-free. Very minor tension: the agent must determine whether output feeds a golden test, which requires investigation."
+    },
+    {
+      "id": "i-79",
+      "score": 0.95,
+      "reasoning": "No allow/expect attributes is clear. The too-many-arguments exception is explicit. Very minor tension: some clippy warnings may be genuinely false positives, requiring careful judgment."
+    },
+    {
+      "id": "i-80",
+      "score": 1.00,
+      "reasoning": "No Arc/Mutex is clear and conflict-free."
+    },
+    {
+      "id": "i-81",
+      "score": 1.00,
+      "reasoning": "No Cow is clear and conflict-free."
+    },
+    {
+      "id": "i-82",
+      "score": 1.00,
+      "reasoning": "No glob imports (except test super::*) is clear and conflict-free."
+    },
+    {
+      "id": "i-83",
+      "score": 1.00,
+      "reasoning": "No u8 truncation mid-calculation is clear and conflict-free."
+    },
+    {
+      "id": "i-84",
+      "score": 0.95,
+      "reasoning": "No f64 in blend paths reinforces i-75. Very minor tension with i-64 (f64 for logical coordinates) at boundaries."
+    },
+    {
+      "id": "i-85",
+      "score": 1.00,
+      "reasoning": "No Rayon on golden paths is clear and conflict-free."
+    },
+    {
+      "id": "i-86",
+      "score": 1.00,
+      "reasoning": "No assert for recoverable errors is clear and conflict-free."
+    },
+    {
+      "id": "i-87",
+      "score": 1.00,
+      "reasoning": "No --no-verify on commits is clear and conflict-free."
+    },
+    {
+      "id": "i-88",
+      "score": 0.85,
+      "reasoning": "Pre-commit hook runs clippy and tests. This means every commit (i-08) runs the full test suite twice: once as the gate (i-05/i-06) and once in the pre-commit hook. Not a conflict but creates redundant work and slowdown pressure."
+    },
+    {
+      "id": "i-89",
+      "score": 0.80,
+      "reasoning": "Log format requires MATCH/MISMATCH/MISSING counts, but Phase 2 uses different categories (IMPLEMENTED/NOT_NEEDED/NEEDS_IMPLEMENTATION) and Phase 1 contract steps add SUSPECT. Format does not accommodate all phases equally."
+    },
+    {
+      "id": "i-90",
+      "score": 1.00,
+      "reasoning": "Append semantics for log is clear and conflict-free."
+    },
+    {
+      "id": "i-91",
+      "score": 1.00,
+      "reasoning": "Commit message format is clear and conflict-free."
+    },
+    {
+      "id": "i-92",
+      "score": 1.00,
+      "reasoning": "Including contract JSON in git add is clear and conflict-free."
+    },
+    {
+      "id": "i-93",
+      "score": 0.85,
+      "reasoning": "Minimal fix guidance is clear but creates tension: sometimes the 'minimal' fix creates a code smell that conflicts with CLAUDE.md code quality rules (e.g., i-74 fix warnings)."
+    },
+    {
+      "id": "i-94",
+      "score": 1.00,
+      "reasoning": "Scope estimates are a format requirement with no conflicts."
+    },
+    {
+      "id": "i-95",
+      "score": 0.90,
+      "reasoning": "Modifier key check in Phase 4 is clear. Minor tension with i-28 if fixing modifier setup requires modifying existing tests."
+    },
+    {
+      "id": "i-96",
+      "score": 0.90,
+      "reasoning": "Compilation-only test check is clear. Same i-28 tension as i-95."
+    },
+    {
+      "id": "i-97",
+      "score": 0.90,
+      "reasoning": "Mutation-testing criterion is clear. Same i-28 tension as i-95."
+    },
+    {
+      "id": "i-98",
+      "score": 0.75,
+      "reasoning": "4-category system (adding SUSPECT) conflicts with prompt .md's 3-category system (i-11) and log format (i-34/i-89). The SUSPECT category has no defined action path: i-47 says fix MISMATCHes, but what about SUSPECTs?"
+    }
+  ],
+  "conflict_map": [
+    {
+      "tension_id": "t-01",
+      "instructions": ["i-28", "i-14"],
+      "type": "contradiction",
+      "severity": 0.90,
+      "description": "i-28 says 'Do NOT modify existing tests (write new tests only)' with no qualification. i-14 (Phase 4) says 'Strengthen defective tests' which requires modifying existing tests. The prompt text has no explicit exception clause for Phase 4. An agent must infer that Phase 4 overrides i-28, but the contradiction is textually direct."
+    },
+    {
+      "tension_id": "t-02",
+      "instructions": ["i-28", "i-61"],
+      "type": "contradiction",
+      "severity": 0.95,
+      "description": "i-28 says 'Do NOT modify existing tests' and i-61 says 'Fix any defective test by strengthening its assertions.' These cannot both be followed simultaneously. This is the sharpest conflict in the prompt."
+    },
+    {
+      "tension_id": "t-03",
+      "instructions": ["i-29", "i-62"],
+      "type": "undermining",
+      "severity": 0.70,
+      "description": "i-29 says 'Do NOT modify unrelated production code.' i-62 says 'If a strengthened test now FAILS, that is a real bug. Fix the production code too.' A bug found by strengthening a test in Phase 4 may be in production code that is 'unrelated' to the Phase 4 feature (which is a test directory, not a production file). The definition of 'related' is ambiguous here."
+    },
+    {
+      "tension_id": "t-04",
+      "instructions": ["i-29", "i-22"],
+      "type": "undermining",
+      "severity": 0.55,
+      "description": "i-29 says 'Do NOT modify unrelated production code.' i-22 permits modifying code from previously-completed features. If Phase 2 requires adding a method to a Phase 1 file, is that 'unrelated production code'? i-22 provides an escape hatch but the boundary is unclear."
+    },
+    {
+      "tension_id": "t-05",
+      "instructions": ["i-29", "i-55"],
+      "type": "latent_tension",
+      "severity": 0.45,
+      "description": "i-29 prohibits modifying unrelated production code. i-55 requires implementing NEEDS_IMPLEMENTATION items in Phase 2, which may involve adding methods to existing production files that aren't the 'current feature's' file. The tension manifests when a gap method belongs in a file not listed in the current Phase 2 feature."
+    },
+    {
+      "tension_id": "t-06",
+      "instructions": ["i-11", "i-46"],
+      "type": "undermining",
+      "severity": 0.50,
+      "description": "i-11 (prompt .md Phase 1 summary) uses 3 categories: MATCH/MISMATCH/MISSING. i-46 (contract step) adds a 4th: SUSPECT. The prompt gives no definition of SUSPECT, no action path for it (i-47 only says fix MISMATCHes), and i-34/i-89 log format has no SUSPECT field. The agent must improvise handling for SUSPECT."
+    },
+    {
+      "tension_id": "t-07",
+      "instructions": ["i-46", "i-34"],
+      "type": "undermining",
+      "severity": 0.45,
+      "description": "i-46 uses 4 categories (MATCH/MISMATCH/SUSPECT/MISSING) but i-34's log format only has count fields for MATCHes, MISMATCHes, and MISSINGs. SUSPECT has no log slot."
+    },
+    {
+      "tension_id": "t-08",
+      "instructions": ["i-23", "i-09"],
+      "type": "latent_tension",
+      "severity": 0.40,
+      "description": "i-23 requires comparing ALL listed methods (some features have 40+). i-09 forbids plan mode. Systematically comparing 40 methods across 3 large files benefits greatly from planning, which is forbidden. Under context pressure, the agent may lose track without a plan."
+    },
+    {
+      "tension_id": "t-09",
+      "instructions": ["i-24", "i-60"],
+      "type": "latent_tension",
+      "severity": 0.55,
+      "description": "i-24 says steps are requirements (compare ALL methods). i-60 requires checking 5 anti-patterns on every test function in Phase 4. With 1500+ tests across 6 features, checking every single test against 5 criteria is an enormous task that pushes against context window limits and creates extreme pressure to shortcut."
+    },
+    {
+      "tension_id": "t-10",
+      "instructions": ["i-08", "i-22"],
+      "type": "latent_tension",
+      "severity": 0.45,
+      "description": "i-08 requires one commit per feature with specific format. i-22 allows modifying previously-completed feature's code. When a Phase 2 feature modifies a Phase 1 file, the commit includes changes to a file 'owned' by a completed feature, making the commit scope ambiguous."
+    },
+    {
+      "tension_id": "t-11",
+      "instructions": ["i-21", "i-30"],
+      "type": "latent_tension",
+      "severity": 0.50,
+      "description": "i-21 requires completing all features in a phase before starting the next. i-30 says do NOT skip any feature. If one Phase 1 feature has an unfixable issue (e.g., C++ source file is missing), the agent cannot skip it (i-30) and cannot proceed to Phase 2 (i-21), creating a deadlock."
+    },
+    {
+      "tension_id": "t-12",
+      "instructions": ["i-18", "i-19"],
+      "type": "latent_tension",
+      "severity": 0.35,
+      "description": "PIXEL (exact C++ formulas) and STATE (idiomatic Rust OK) fidelity rules are clear in isolation but create tension at boundaries. A method in a STATE-layer feature may call a PIXEL-layer helper. If the agent modifies the calling code, which fidelity standard applies? i-78 provides a tiebreaker (check golden tests) but requires investigation."
+    },
+    {
+      "tension_id": "t-13",
+      "instructions": ["i-15", "i-26"],
+      "type": "latent_tension",
+      "severity": 0.35,
+      "description": "i-15 requires tests in all required layers (potentially unit+golden+pipeline). i-26 requires NEW tests for each fix. For a feature with 3 required layers and 5 MISMATCHes, this could mean 15 new tests per feature, creating significant implementation volume."
+    },
+    {
+      "tension_id": "t-14",
+      "instructions": ["i-25", "i-16"],
+      "type": "latent_tension",
+      "severity": 0.40,
+      "description": "i-25 requires specific value assertions (not is_some/is_ok). i-16 says follow patterns in existing test directories. If existing test patterns use weak assertions (the very anti-pattern i-25 forbids), the agent faces conflicting guidance: follow the pattern or write stronger tests?"
+    },
+    {
+      "tension_id": "t-15",
+      "instructions": ["i-05", "i-88"],
+      "type": "latent_tension",
+      "severity": 0.30,
+      "description": "i-05 requires running clippy as a gate before committing. i-88 says the pre-commit hook also runs clippy. This means clippy runs twice per feature: once as the gate check and once in the pre-commit hook. Not a conflict but creates redundant work and slowdown."
+    },
+    {
+      "tension_id": "t-16",
+      "instructions": ["i-06", "i-88"],
+      "type": "latent_tension",
+      "severity": 0.30,
+      "description": "Same as t-15 but for tests: i-06 runs tests as gate, i-88's pre-commit hook runs tests again. Double test execution per feature."
+    },
+    {
+      "tension_id": "t-17",
+      "instructions": ["i-93", "i-74"],
+      "type": "latent_tension",
+      "severity": 0.35,
+      "description": "i-93 says apply minimal changes for MISMATCH fixes. i-74 says fix warnings (remove dead code, etc.). A minimal fix may introduce a warning (e.g., now-unused variable from the old code path), requiring additional non-minimal changes to satisfy clippy."
+    },
+    {
+      "tension_id": "t-18",
+      "instructions": ["i-54", "i-89"],
+      "type": "undermining",
+      "severity": 0.40,
+      "description": "Phase 2 classification uses IMPLEMENTED/NOT_NEEDED/NEEDS_IMPLEMENTATION categories (i-54). The log format (i-89) requires MATCH/MISMATCH/MISSING counts. These category systems don't map cleanly. The agent must improvise a mapping."
+    },
+    {
+      "tension_id": "t-19",
+      "instructions": ["i-28", "i-95"],
+      "type": "mutual_exclusion",
+      "severity": 0.80,
+      "description": "i-28 says do NOT modify existing tests. i-95 (Phase 4) requires verifying modifier keys are set correctly and fixing them if wrong. Fixing incorrect modifier setup in an existing test requires modifying it, which i-28 forbids."
+    },
+    {
+      "tension_id": "t-20",
+      "instructions": ["i-28", "i-96"],
+      "type": "mutual_exclusion",
+      "severity": 0.80,
+      "description": "i-28 says do NOT modify existing tests. i-96 (Phase 4) requires verifying tests exercise actual behavior. Fixing a test that only tests compilation requires modifying it."
+    },
+    {
+      "tension_id": "t-21",
+      "instructions": ["i-28", "i-97"],
+      "type": "mutual_exclusion",
+      "severity": 0.80,
+      "description": "i-28 says do NOT modify existing tests. i-97 (Phase 4) requires verifying tests would fail if implementation were subtly wrong. Strengthening a test that wouldn't fail requires modifying it."
+    },
+    {
+      "tension_id": "t-22",
+      "instructions": ["i-39", "i-18"],
+      "type": "latent_tension",
+      "severity": 0.30,
+      "description": "i-39 (contract) defines three fidelity layers: PIXEL, GEOMETRY, STATE. i-18 (prompt .md) only defines PIXEL and STATE. The GEOMETRY layer exists only in the contract and CLAUDE.md but not in the prompt's fidelity rules section. An agent reading the prompt may not realize GEOMETRY is a distinct layer."
+    },
+    {
+      "tension_id": "t-23",
+      "instructions": ["i-64", "i-75"],
+      "type": "latent_tension",
+      "severity": 0.30,
+      "description": "i-64 says use f64 for logical coordinates. i-75 says no f64 approximations in the compositing pipeline. At the boundary where logical coordinates enter pixel operations, the agent must determine exactly where f64 ends and integer arithmetic begins. Usually clear but can be tricky for coordinate-to-pixel conversion functions."
+    },
+    {
+      "tension_id": "t-24",
+      "instructions": ["i-29", "i-74"],
+      "type": "latent_tension",
+      "severity": 0.35,
+      "description": "i-29 says do NOT modify unrelated production code. i-74 says fix warnings. If clippy flags a warning in an unrelated file due to a dependency change from the current fix, fixing it would violate i-29 but not fixing it would violate i-74/i-05."
+    },
+    {
+      "tension_id": "t-25",
+      "instructions": ["i-98", "i-47"],
+      "type": "undermining",
+      "severity": 0.45,
+      "description": "i-98 introduces SUSPECT as a reporting category, but i-47 only defines an action for MISMATCH (fix the Rust code minimally). There is no defined action for SUSPECT findings. Does the agent fix them? Investigate further? Ignore? The prompt leaves this gap."
+    },
+    {
+      "tension_id": "t-26",
+      "instructions": ["i-03", "i-60"],
+      "type": "latent_tension",
+      "severity": 0.50,
+      "description": "i-03 requires processing features sequentially. i-60 requires checking 5 anti-patterns on every test function in Phase 4 features. Phase 4 has 6 features covering 1500+ tests. The sheer volume creates extreme context window pressure within the sequential processing model, since each Phase 4 feature may require reading hundreds of test functions."
+    },
+    {
+      "tension_id": "t-27",
+      "instructions": ["i-45", "i-19"],
+      "type": "latent_tension",
+      "severity": 0.35,
+      "description": "i-45 requires verifying methods produce 'the same side effects' (callback firing, flag invalidation, repaint triggers). i-19 says for STATE layer, idiomatic Rust is correct and don't flag Rc vs pointers. If a STATE-layer feature uses a different but equivalent side-effect mechanism (e.g., closures instead of signals), i-45 might flag it but i-19 says it's fine."
+    },
+    {
+      "tension_id": "t-28",
+      "instructions": ["i-49", "i-29"],
+      "type": "latent_tension",
+      "severity": 0.30,
+      "description": "i-49 (RUST-ONLY verification) checks for 'no panicking paths, edge cases handled.' Fixing a panicking path or unhandled edge case in a RUST-ONLY feature may require changes that ripple into other production code, potentially violating i-29."
+    },
+    {
+      "tension_id": "t-29",
+      "instructions": ["i-41", "i-44"],
+      "type": "latent_tension",
+      "severity": 0.15,
+      "description": "i-41 (step 2: read .cpp file) and i-44 (step 5: also read .cpp file, check for hidden details) are redundant. The agent reads the same file twice in the step sequence. Not a conflict but wasted context window space."
+    },
+    {
+      "tension_id": "t-30",
+      "instructions": ["i-27", "i-36"],
+      "type": "latent_tension",
+      "severity": 0.10,
+      "description": "i-27 and i-36 both express contract immutability rules. Pure redundancy with no conflict, but duplicate instructions consume instruction budget and could create confusion if they diverge slightly."
+    },
+    {
+      "tension_id": "t-31",
+      "instructions": ["i-22", "i-21"],
+      "type": "latent_tension",
+      "severity": 0.40,
+      "description": "i-21 requires completing all features in a phase before proceeding. i-22 allows modifying previously-completed feature code but requires re-running all tests. If many Phase 2 features require modifying Phase 1 files, the repeated re-verification of all tests creates a multiplicative slowdown that undermines the sequential phase model."
+    }
+  ]
+}

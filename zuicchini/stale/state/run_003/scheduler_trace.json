@@ -1,0 +1,189 @@
+{
+  "diagnosed_at": "2026-03-16T18:00:00Z",
+  "title": "C++ emCore scheduler vs Rust zuicchini scheduler — behavioral equivalence trace",
+  "summary": "The Rust scheduler (EngineScheduler) faithfully ports the C++ emScheduler algorithm: signals, timers, priority queues, parity fairness, downward-only scanning, and instant signal chaining are all equivalent. The divergence is NOT in the scheduler itself — it is in the panel layer, which is not integrated with the scheduler. Panels are manually polled from the winit event loop (app.rs about_to_wait), and deliver_notices uses a drain-until-quiescent loop that collapses multi-frame C++ cascades into single-frame avalanches.",
+  "items": [
+    {
+      "item_id": 1,
+      "title": "emScheduler::Cycle — top-level per-frame tick",
+      "root_cause": "Fully ported. EngineScheduler::do_time_slice() implements the C++ algorithm exactly: check timers → fire signals → process engines from highest to lowest priority via downward-only parity scan.",
+      "rust_source": "src/scheduler/core.rs:254-351 (do_time_slice)",
+      "cpp_reference": "emCore/emScheduler.cpp (emScheduler::Cycle)",
+      "confidence": 0.98,
+      "status": "equivalent",
+      "ruled_out": [
+        "Priority inversion (test at core.rs:752 proves no re-ascent)",
+        "Signal ordering differences (deferred processing matches C++)"
+      ],
+      "verification_prediction": "Scheduler unit tests pass and cover all edge cases: instant chaining, no-reascent, parity fairness."
+    },
+    {
+      "item_id": 2,
+      "title": "emEngine::Cycle — per-engine virtual callback",
+      "root_cause": "Fully ported as Engine::cycle() trait method. Same semantics: returns bool (true=stay awake, false=sleep), receives EngineCtx with signal detection, time-slice deadline check, and engine wake-up.",
+      "rust_source": "src/scheduler/engine.rs:13-20 (Engine trait), engine.rs:46-113 (EngineCtx)",
+      "cpp_reference": "emCore/emEngine.h (emEngine::Cycle virtual method)",
+      "confidence": 0.98,
+      "status": "equivalent",
+      "ruled_out": [],
+      "verification_prediction": "Engine trait objects registered with EngineScheduler receive cycle() calls in correct priority order."
+    },
+    {
+      "item_id": 3,
+      "title": "emSignal — deferred signal mechanism",
+      "root_cause": "Fully ported. fire() marks pending and appends to queue; process_pending_signals() drains queue, wakes connected engines, bumps clock. is_signaled() uses clock comparison to detect which signal woke an engine. Reference-counted connect/disconnect matches C++.",
+      "rust_source": "src/scheduler/core.rs:42-116 (signal API), src/scheduler/signal.rs",
+      "cpp_reference": "emCore/emSignal.h, emCore/emScheduler.cpp",
+      "confidence": 0.97,
+      "status": "equivalent",
+      "ruled_out": [],
+      "verification_prediction": "Signal tests at core.rs cover fire→wake→detect cycle, multi-connect, and disconnect semantics."
+    },
+    {
+      "item_id": 4,
+      "title": "emTimer — scheduled timer callbacks",
+      "root_cause": "Fully ported as TimerCentral. Wall-clock check, periodic reschedule with 1ms minimum clamp, signal firing all match C++. Implemented as dedicated struct rather than Engine trait object (optimization).",
+      "rust_source": "src/scheduler/timer.rs (TimerCentral)",
+      "cpp_reference": "emCore/emTimer.h, emCore/emScheduler.cpp",
+      "confidence": 0.97,
+      "status": "equivalent",
+      "ruled_out": [],
+      "verification_prediction": "Timer tests verify 0ms periodic fires immediately but reschedules at ≥1ms."
+    },
+    {
+      "item_id": 5,
+      "title": "emPanel::Cycle — panel-as-engine per-frame callback",
+      "root_cause": "PanelBehavior::cycle() exists as a trait method (behavior.rs:201-208) but panels are NOT registered with EngineScheduler. The method is never invoked by the scheduler. In C++, every emPanel IS an emEngine and receives Cycle() calls from the scheduler each frame. In Rust, panel work is driven by explicit calls from app.rs about_to_wait(), not by the scheduler.",
+      "rust_source": "src/panel/behavior.rs:201-208 (cycle() defined, never scheduled), src/window/app.rs:221-301 (manual panel driving)",
+      "cpp_reference": "emCore/emPanel.cpp (emPanel extends emEngine, Cycle() drives auto-expansion, autoplay, etc.)",
+      "confidence": 0.95,
+      "status": "MISSING — panels not integrated with scheduler",
+      "ruled_out": [
+        "Scheduler itself being broken (it works; panels just don't use it)",
+        "Engine trait being incompatible with panels (it's compatible, just not wired)"
+      ],
+      "verification_prediction": "grep for 'register_engine' or 'add_engine' referencing panel types will return zero results. Panels do not appear in the scheduler's engine registry."
+    },
+    {
+      "item_id": 6,
+      "title": "emView::Cycle — view per-frame work",
+      "root_cause": "C++ emView::Cycle is a unified scheduler-driven callback. Rust decomposes it into explicit sequential calls in about_to_wait: (1) deliver_notices, (2) tick animators, (3) tick VIF animations, (4) view.update() which calls update_viewing() then update_auto_expansion(). The ordering is preserved but the invocation mechanism is inverted: app pushes rather than scheduler pulls.",
+      "rust_source": "src/window/app.rs:250-272 (decomposed view cycle)",
+      "cpp_reference": "emCore/emView.cpp (emView::Cycle)",
+      "confidence": 0.90,
+      "status": "functionally equivalent ordering, inverted control flow",
+      "ruled_out": [
+        "View update not happening each frame (it does, in about_to_wait)",
+        "Auto-expansion not being checked (it is, in update_auto_expansion)"
+      ],
+      "verification_prediction": "The ordering matches C++ within a single frame. Divergence is in cross-frame behavior, not within-frame ordering."
+    },
+    {
+      "item_id": 7,
+      "title": "deliver_notices drain-until-quiescent loop — CASCADE DIVERGENCE",
+      "root_cause": "deliver_notices (tree.rs:965-1003) loops until no new notices are generated. When layout_children creates children and calls set_layout_rect, children receive LAYOUT_CHANGED pending notices. The loop re-collects panel IDs (line 972) and processes the new children's notices in the next round — same call, same frame. In C++, child panels queued for LAYOUT_CHANGED receive their notice in the next emScheduler::Cycle, not the current one. This means Rust collapses N levels of tree expansion into a single deliver_notices call, while C++ spreads them across N frames.\n\nThe comment at tree.rs:967-969 states this is intentional: 'layout_children may call set_layout_rect on children, queuing LAYOUT_CHANGED notices that must be drained in the same frame to avoid redundant repaints.' The intent was to avoid multi-frame jank from incremental layout, but it creates unbounded cascade depth.",
+      "rust_source": "src/panel/tree.rs:965-1003 (deliver_notices loop), specifically line 970 (loop {}) and line 972 (re-collect keys each round)",
+      "cpp_reference": "emCore/emScheduler.cpp (one Cycle per engine per time slice), emCore/emPanel.cpp (Layout sets flags, notice delivered next Cycle)",
+      "confidence": 0.98,
+      "status": "DIVERGENT — same-frame cascade vs. frame-boundary cascade",
+      "ruled_out": [
+        "set_layout_rect not firing notices (it does: tree.rs:867-872)",
+        "loop terminating after one round (it re-checks at line 997)",
+        "Auto-expansion being the cascade driver (it's LAYOUT_CHANGED notices from set_layout_rect, not auto-expansion)"
+      ],
+      "verification_prediction": "With MAX_DEPTH=10, a single deliver_notices call will cascade through 10 rounds of layout_children, creating 4^10 potential TestPanel instances (each constructing a 64x64 image). With MAX_DEPTH=2, only 2 rounds fire. The gdb backtrace confirms: depth=8 TestPanel::new called from within deliver_notices at frame #6."
+    },
+    {
+      "item_id": 8,
+      "title": "Auto-expansion timing — update_auto_expansion runs AFTER deliver_notices",
+      "root_cause": "In Rust, the per-frame sequence is: (1) deliver_notices, (2) view.update() → update_viewing() → update_auto_expansion(). Auto-expansion queues LAYOUT_CHANGED notices, but these are NOT processed until the NEXT frame's deliver_notices call. So auto-expansion itself is correctly rate-limited to one level per frame. The cascade problem (item 7) is NOT caused by auto-expansion — it's caused by set_layout_rect inside layout_children triggering LAYOUT_CHANGED on children within the same deliver_notices loop.",
+      "rust_source": "src/panel/view.rs:1059-1113 (update_auto_expansion), src/window/app.rs:250-272 (call order: deliver_notices then view.update)",
+      "cpp_reference": "emCore/emView.cpp (View::Cycle checks auto-expansion)",
+      "confidence": 0.95,
+      "status": "equivalent for threshold-gated expansion, but bypassed by LAYOUT_CHANGED cascade",
+      "ruled_out": [
+        "Auto-expansion running inside deliver_notices (it doesn't; it runs in view.update)",
+        "Threshold check being skipped (it's not skipped; it's simply never reached for cascade-created panels)"
+      ],
+      "verification_prediction": "Adding eprintln! at update_auto_expansion entry will show it fires once per frame, after deliver_notices. The cascade of depth-1→depth-8 creation happens entirely within deliver_notices, before update_auto_expansion ever runs."
+    },
+    {
+      "item_id": 9,
+      "title": "layout_children dual role — initial layout AND re-layout",
+      "root_cause": "In both C++ and Rust, layout_children serves two purposes: (1) initial child creation during auto-expansion, and (2) repositioning existing children on resize. The Rust TestPanel::layout_children checks `if !children.is_empty() { reposition; return; }` (test_panel.rs:800-810) then falls through to child creation. When a newly-created child TestPanel receives LAYOUT_CHANGED from set_layout_rect, it calls layout_children, which checks children (empty), falls through, and creates ITS children. This is correct behavior — BUT in C++, the child's first LayoutChildren call happens on a future frame, by which time auto-expansion threshold has been evaluated. In Rust, it happens immediately in the same deliver_notices loop, bypassing threshold evaluation.",
+      "rust_source": "examples/test_panel.rs:800-828 (layout_children creates children when empty), src/panel/tree.rs:867 (set_layout_rect queues LAYOUT_CHANGED)",
+      "cpp_reference": "emCore/emPanel.cpp (LayoutChildren called from Cycle after auto-expansion check)",
+      "confidence": 0.95,
+      "status": "correct behavior individually, but timing creates cascade when combined with item 7",
+      "ruled_out": [],
+      "verification_prediction": "If layout_children is gated on ae_expanded (only create children when auto-expansion has approved it), the cascade stops. Currently layout_children always creates children on first call regardless of expansion state."
+    },
+    {
+      "item_id": 10,
+      "title": "Missing concept: per-panel wake/sleep lifecycle",
+      "root_cause": "In C++, each panel is an emEngine with wake/sleep state. A panel only receives Cycle() when awake. Newly created panels start sleeping and are woken by signals (e.g., LAYOUT_CHANGED). The scheduler controls WHEN and HOW OFTEN each panel runs. In Rust, there is no wake/sleep state for panels. deliver_notices processes ALL panels with pending notices in a single pass, with no scheduler mediation. This removes the time-slicing and fairness guarantees that C++ provides.",
+      "rust_source": "src/panel/tree.rs:965-1003 (all panels processed in one loop), src/scheduler/core.rs (scheduler exists but panels not registered)",
+      "cpp_reference": "emCore/emEngine.h (WakeUp/Sleep lifecycle), emCore/emScheduler.cpp (only awake engines get Cycle)",
+      "confidence": 0.90,
+      "status": "MISSING — no panel wake/sleep lifecycle",
+      "ruled_out": [],
+      "verification_prediction": "Registering panels as engines and gating layout_children behind Cycle() would restore C++ rate-limiting."
+    }
+  ],
+  "architectural_gap": {
+    "summary": "The Rust scheduler is a faithful port of emScheduler. The divergence is that panels bypass it entirely. The panel layer uses a bespoke deliver_notices loop with drain-until-quiescent semantics, while C++ routes all panel work through the scheduler's one-cycle-per-engine-per-frame discipline. This architectural gap causes the specific hang observed: deliver_notices cascades through N tree levels in one call, while C++ would spread the same work across N frames.",
+    "c_plus_plus_flow": [
+      "Frame N: emScheduler::Cycle()",
+      "  → emView::Cycle() [panel is an engine]",
+      "    → checks auto-expansion for viewed panels",
+      "    → queues LAYOUT_CHANGED notice for panels that should expand",
+      "    → delivers notices: parent LayoutChildren() creates children",
+      "    → children get Layout() → marks pending notice",
+      "  ← returns to scheduler",
+      "Frame N+1: emScheduler::Cycle()",
+      "  → children's Cycle() fires",
+      "    → children receive LAYOUT_CHANGED",
+      "    → children's LayoutChildren() creates grandchildren",
+      "  ← returns to scheduler",
+      "Frame N+2: grandchildren get their Cycle(), and so on"
+    ],
+    "rust_flow": [
+      "Frame N: about_to_wait()",
+      "  → tree.deliver_notices()  [NOT via scheduler]",
+      "    → loop {",
+      "        Round 1: parent LAYOUT_CHANGED → layout_children() → creates children + set_layout_rect",
+      "        Round 2: children LAYOUT_CHANGED → layout_children() → creates grandchildren + set_layout_rect",
+      "        Round 3: grandchildren LAYOUT_CHANGED → layout_children() → creates great-grandchildren",
+      "        ...",
+      "        Round N: depth N-1 panels created, all in ONE deliver_notices call",
+      "      }",
+      "  → view.update() [auto-expansion check — but tree already fully built]"
+    ],
+    "fix_options": [
+      {
+        "option": "A",
+        "description": "Cap deliver_notices to one round per call",
+        "tradeoff": "Simple but may cause multi-frame layout jank for legitimate resize cascades (e.g., splitter repositioning children). Non-expansion LAYOUT_CHANGED notices genuinely benefit from same-frame settlement.",
+        "c_plus_plus_parity": "partial"
+      },
+      {
+        "option": "B",
+        "description": "Gate layout_children child-creation behind ae_expanded flag. Only create children when update_auto_expansion has explicitly approved expansion. Repositioning (children.is_empty() == false path) remains ungated.",
+        "tradeoff": "Precise: separates 'reposition existing children' (same-frame, correct) from 'create new children' (must be threshold-gated, one level per frame). Requires layout_children implementations to check ae_expanded before creating children.",
+        "c_plus_plus_parity": "full"
+      },
+      {
+        "option": "C",
+        "description": "Register panels as Engine trait objects with EngineScheduler. Route all panel work through Cycle(). deliver_notices becomes a per-panel operation inside Cycle(), not a tree-wide drain loop.",
+        "tradeoff": "Most architecturally correct but largest change. Requires reworking ownership model (panels must be accessible to both tree and scheduler).",
+        "c_plus_plus_parity": "full"
+      },
+      {
+        "option": "D",
+        "description": "Track 'generation' in deliver_notices. Only process panels that existed at the START of the current round. Panels created during the round are deferred to the next about_to_wait call.",
+        "tradeoff": "Moderate complexity. Preserves same-frame settlement for repositioning while deferring expansion cascades. Semantically close to C++ behavior without full scheduler integration.",
+        "c_plus_plus_parity": "high"
+      }
+    ]
+  }
+}

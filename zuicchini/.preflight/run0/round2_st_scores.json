@@ -1,0 +1,492 @@
+[
+  {
+    "id": "i-01",
+    "score": 0.95,
+    "reasoning": "Reading a file at a fixed path is deterministic. Marginal risk: if the file is very large, the agent might truncate or miss tail content, but this is a one-time action at session start."
+  },
+  {
+    "id": "i-02",
+    "score": 0.95,
+    "reasoning": "Same as i-01 — fixed path, one-time read. Highly stable across all inputs."
+  },
+  {
+    "id": "i-03",
+    "score": 0.70,
+    "reasoning": "The loop itself is well-defined, but stability degrades across 111 features. By feature #80+ context window pressure may cause the agent to skip features, lose track of which feature is next, or conflate feature states. The sequential nature means early features get fresh context while later ones compete with accumulated history."
+  },
+  {
+    "id": "i-04",
+    "score": 0.60,
+    "reasoning": "Step execution varies significantly across features. A feature with 3 methods and 5 steps behaves differently from one with 46 methods and 10 steps. RUST-ONLY features have entirely different step templates. Phase 4 features have qualitatively different steps (review 1500+ tests vs compare methods). The instruction is uniform in principle but heterogeneous in practice."
+  },
+  {
+    "id": "i-05",
+    "score": 0.90,
+    "reasoning": "Running clippy is a deterministic mechanical step. Stable across all features. Minor risk: if clippy produces warnings from previously-untouched code, the agent must fix them, but the instruction itself is unambiguous."
+  },
+  {
+    "id": "i-06",
+    "score": 0.85,
+    "reasoning": "Running tests is deterministic. Slightly lower than i-05 because test failures from cross-feature regressions introduce variable recovery work. The instruction is clear but the outcome varies."
+  },
+  {
+    "id": "i-07",
+    "score": 0.90,
+    "reasoning": "Setting a boolean in JSON is mechanically stable. Slight risk of editing the wrong feature or malforming JSON after many edits, but the instruction is unambiguous."
+  },
+  {
+    "id": "i-08",
+    "score": 0.85,
+    "reasoning": "Commit procedure is well-defined. Minor instability: which files to include varies per feature (some features touch 1 file, others touch 5+), and the agent must enumerate them correctly each time. Pre-commit hook adds a variable recovery path."
+  },
+  {
+    "id": "i-09",
+    "score": 0.95,
+    "reasoning": "A simple prohibition. Applies identically to all inputs. The only risk is that complex features might tempt the agent to plan, but the instruction is clear and unconditional."
+  },
+  {
+    "id": "i-10",
+    "score": 0.95,
+    "reasoning": "One-time bootstrap script at a fixed path. Deterministic, input-independent."
+  },
+  {
+    "id": "i-11",
+    "score": 0.55,
+    "reasoning": "Phase 1 workflow varies significantly across its 28 features. Features range from 3 to 46 methods. RUST-ONLY features (7 of 28) have a completely different workflow with no C++ comparison. Features with layer=PIXEL require exact arithmetic comparison while STATE features need behavioral comparison only. The instruction is a summary that must be interpreted differently for each sub-type."
+  },
+  {
+    "id": "i-12",
+    "score": 0.65,
+    "reasoning": "Phase 2 is more uniform than Phase 1 (all features involve gap assessment), but the gap methods vary from trivial macro boilerplate to complex algorithms. The IMPLEMENTED/NOT_NEEDED/NEEDS_IMPLEMENTATION classification requires judgment that will vary across method complexity. Only applies to 27 features."
+  },
+  {
+    "id": "i-13",
+    "score": 0.75,
+    "reasoning": "Phase 3 is the most uniform phase — each feature is a consolidation verification with similar steps. However, the number of consolidated classes varies per feature, and the complexity of verifying coverage varies. Applies to 50 features."
+  },
+  {
+    "id": "i-14",
+    "score": 0.40,
+    "reasoning": "Phase 4 is qualitatively different from all other phases. Reviewing 1500+ tests is a fundamentally different task than comparing methods. The 6 features cover different test directories (pipeline, golden, behavioral, integration, unit, inline), each with different patterns and anti-pattern prevalence. The instruction to review ALL tests in each directory creates scaling challenges — some directories may have 50 tests, others 500. By the time the agent reaches Phase 4 (after 105 features), context fatigue is severe."
+  },
+  {
+    "id": "i-15",
+    "score": 0.70,
+    "reasoning": "The required_test_layers field is well-defined and machine-readable. However, stability varies by layer combination: unit-only features are straightforward, but features requiring golden+pipeline tests demand knowledge of test harness patterns that the agent may have inconsistent familiarity with. Also only applies to Phase 1 features with fixes — features with 0 MISMATCHes trivially satisfy this."
+  },
+  {
+    "id": "i-16",
+    "score": 0.75,
+    "reasoning": "Following existing patterns is reasonably stable — the patterns exist and are concrete. But the agent must read and adapt patterns from 4 different directories, and pattern interpretation may drift across features. Golden test patterns are more complex than unit test patterns."
+  },
+  {
+    "id": "i-17",
+    "score": 0.80,
+    "reasoning": "Reading .cpp files is a clear, actionable instruction that applies uniformly to all standard Phase 1 features. Slightly less stable for features where the .cpp file is very large (500+ lines) — the agent may skim rather than read thoroughly. Does not apply to RUST-ONLY features (7 of 28)."
+  },
+  {
+    "id": "i-18",
+    "score": 0.85,
+    "reasoning": "PIXEL fidelity is a clear, binary rule: exact integer arithmetic. It applies uniformly to all PIXEL-layer features. The rule itself is stable; the challenge is correctly identifying which code paths are PIXEL-relevant within a feature, but the layer field makes this explicit."
+  },
+  {
+    "id": "i-19",
+    "score": 0.70,
+    "reasoning": "STATE fidelity requires judgment: 'only flag behavioral differences' is subjective. What counts as a behavioral difference vs an idiomatic adaptation varies across features. The examples (Rc vs pointers, enum vs int flags) help but don't cover all cases. Prior runs showed SUSPECT being used extensively, suggesting the boundary between MATCH and MISMATCH is fuzzy for STATE features."
+  },
+  {
+    "id": "i-20",
+    "score": 0.90,
+    "reasoning": "Simple default rule. Highly stable — if no layer field, treat as STATE. The only risk is the agent forgetting to check for the layer field and defaulting to PIXEL behavior, but this is a clear fallback rule."
+  },
+  {
+    "id": "i-21",
+    "score": 0.80,
+    "reasoning": "Phase ordering is a clear constraint. In practice, for a fresh run starting at Phase 1, this is trivially satisfied for most of the session. It only becomes relevant at phase transitions (3 boundary points in 111 features). Risk: the agent might not verify completeness at phase boundaries, especially if some Phase 1 features were already marked passes=true from a prior session."
+  },
+  {
+    "id": "i-22",
+    "score": 0.65,
+    "reasoning": "Cross-feature modification is inherently unstable because it triggers only in specific situations (later feature needs earlier feature's code changed). Whether the agent recognizes this situation, re-runs full tests, and fixes regressions depends on the specific feature pair. The instruction is clear but the triggering condition is variable and may be missed."
+  },
+  {
+    "id": "i-23",
+    "score": 0.55,
+    "reasoning": "This anti-speed-over-fidelity instruction is critical but inherently unstable across features with different method counts. For a 3-method feature, comparing all is trivial. For a 46-method feature, the agent is much more likely to shortcut. The instruction warns against this but cannot mechanically enforce it. Context fatigue amplifies this: the agent is more likely to skip methods on feature #80 than feature #1."
+  },
+  {
+    "id": "i-24",
+    "score": 0.55,
+    "reasoning": "Same stability concerns as i-23. Reinforcement helps but doesn't change the fundamental dynamic: compliance degrades with method count and feature number. Steps that require reading large C++ files are more likely to be shortcut than steps requiring simple file reads."
+  },
+  {
+    "id": "i-25",
+    "score": 0.65,
+    "reasoning": "The rule is clear, but its application varies. For simple getters, writing specific-value assertions is easy. For complex state machines or animation physics, determining 'specific values' requires deep understanding. The agent may write is_some() tests for complex features while writing proper value assertions for simple ones."
+  },
+  {
+    "id": "i-26",
+    "score": 0.80,
+    "reasoning": "Clear rule: MISMATCH -> new test. Applies uniformly to all MISMATCHes. The main instability is whether the agent recognizes that an existing test covers similar ground and is tempted to skip the new test."
+  },
+  {
+    "id": "i-27",
+    "score": 0.90,
+    "reasoning": "Clear prohibition on modifying specific JSON fields. Mechanically stable — the agent either modifies these fields or doesn't. Risk only from accidental JSON editing errors, not from ambiguity."
+  },
+  {
+    "id": "i-28",
+    "score": 0.35,
+    "reasoning": "This instruction directly conflicts with Phase 4, which explicitly requires strengthening (modifying) existing tests. For Phases 1-3 the rule is clear and stable. For Phase 4 it must be overridden. The extraction notes this conflict. An agent processing Phase 4 features must ignore this instruction, creating a binary instability across phases."
+  },
+  {
+    "id": "i-29",
+    "score": 0.70,
+    "reasoning": "What counts as 'unrelated' is subjective and varies across features. For Phase 1 (single-file audit), 'unrelated' is clear. For Phase 2 (gap implementation), new code may touch multiple files. For Phase 4 (test strengthening revealing real bugs), the scope of 'related' production code is ambiguous."
+  },
+  {
+    "id": "i-30",
+    "score": 0.85,
+    "reasoning": "Clear rule: every feature must be visited. Stable across all features. Minor risk: the agent might skip features that appear trivially correct, especially in Phase 3 where many consolidation verifications may find nothing wrong. But the instruction is unambiguous."
+  },
+  {
+    "id": "i-31",
+    "score": 0.70,
+    "reasoning": "Same stability concerns as i-19. The boundary between idiomatic-Rust-adaptation and behavioral-mismatch is judgment-dependent and varies across features. The instruction to 'read the layer field' is mechanically stable, but the downstream decision is not."
+  },
+  {
+    "id": "i-32",
+    "score": 0.60,
+    "reasoning": "Metacognitive instruction. Its effectiveness degrades with context fatigue. Early in the run, the agent remembers the gate is insufficient. By feature #80, this nuance is buried under 80 features of accumulated context. The instruction is also harder to apply to Phase 3 (consolidation verification) where the gate's insufficiency is less obvious."
+  },
+  {
+    "id": "i-33",
+    "score": 0.90,
+    "reasoning": "One-time script at end of run. Deterministic and input-independent. Only risk: the agent might not reach the end of 111 features, but the instruction itself is stable."
+  },
+  {
+    "id": "i-34",
+    "score": 0.60,
+    "reasoning": "Log format is specified but must be applied 111 times. Format stability degrades across phases: Phase 1 naturally produces MATCH/MISMATCH/MISSING counts, but Phase 2 uses IMPLEMENTED/NOT_NEEDED/NEEDS_IMPLEMENTATION (different categories), Phase 3 has no MISMATCH concept, and Phase 4 has no MATCH concept. The log format is Phase-1-centric and doesn't cleanly map to other phases."
+  },
+  {
+    "id": "i-35",
+    "score": 0.95,
+    "reasoning": "Simple entry point instruction. Applies once at session start. Deterministic."
+  },
+  {
+    "id": "i-36",
+    "score": 0.90,
+    "reasoning": "Clear constraint from contract. Applies uniformly to all features. Mechanically enforceable."
+  },
+  {
+    "id": "i-37",
+    "score": 0.90,
+    "reasoning": "Clear gate protocol. Same as i-05/i-06 — deterministic and uniform across all features."
+  },
+  {
+    "id": "i-38",
+    "score": 0.85,
+    "reasoning": "Same stability as i-08. Clear commit protocol, minor variation in which files to include."
+  },
+  {
+    "id": "i-39",
+    "score": 0.75,
+    "reasoning": "Adds GEOMETRY layer not mentioned in the prompt .md. This creates a potential instability: the prompt says PIXEL or STATE, the contract adds GEOMETRY. If a feature has layer=GEOMETRY, the agent must reconcile the two sources. The 3-layer system is clear in isolation but the inconsistency between prompt and contract is a stability risk."
+  },
+  {
+    "id": "i-40",
+    "score": 0.85,
+    "reasoning": "Reading a C++ header is a mechanical step. File path is specified per-feature. Stable across all standard Phase 1 features. Does not apply to RUST-ONLY features."
+  },
+  {
+    "id": "i-41",
+    "score": 0.85,
+    "reasoning": "Same as i-40 for .cpp files. Stable, mechanical, per-feature path specified."
+  },
+  {
+    "id": "i-42",
+    "score": 0.85,
+    "reasoning": "Reading a Rust source file. Same stability as i-40/i-41."
+  },
+  {
+    "id": "i-43",
+    "score": 0.55,
+    "reasoning": "Comparing N methods is the core variable-load instruction. N ranges from 3 to 46 across features. For small N, this is stable and thorough. For large N, the agent is likely to shortcut. The instruction is clear but compliance scales inversely with method count. This is the primary instability vector in Phase 1."
+  },
+  {
+    "id": "i-44",
+    "score": 0.75,
+    "reasoning": "Reading the .cpp file for implementation details is a clear instruction. However, what constitutes 'static helpers, default values, and side effects' varies per file. Some .cpp files have obvious side effects; others have subtle ones. The agent's thoroughness in finding these details will vary with file complexity."
+  },
+  {
+    "id": "i-45",
+    "score": 0.60,
+    "reasoning": "Verifying constructor defaults and side effects requires deep C++ understanding that varies per feature. Simple features (config structs) have obvious defaults. Complex features (animation state machines) have subtle side effects like signal firing order. The instruction is uniform but the difficulty of compliance varies enormously."
+  },
+  {
+    "id": "i-46",
+    "score": 0.65,
+    "reasoning": "The 4-category system (MATCH/MISMATCH/SUSPECT/MISSING) introduces SUSPECT which is not defined in the prompt .md. Prior runs used SUSPECT extensively, suggesting agents interpret it as 'uncertain mismatch.' The boundary between MISMATCH and SUSPECT is subjective and will vary across methods and features. MATCH and MISSING are more stable categories."
+  },
+  {
+    "id": "i-47",
+    "score": 0.65,
+    "reasoning": "Fixing MISMATCHes 'minimally' is subjective. For simple mismatches (wrong constant), minimal is clear. For complex mismatches (different algorithm), 'minimal' could mean a targeted patch or a partial rewrite. Prior runs showed 42+ fixes with varying scope, suggesting interpretation varies. Also, what about SUSPECT items — fix or not?"
+  },
+  {
+    "id": "i-48",
+    "score": 0.75,
+    "reasoning": "Writing a test per fix is clear and actionable. The quality and specificity of the test varies (see i-25), but the instruction to write one is stable. Slightly lower for complex fixes where writing a meaningful test is harder."
+  },
+  {
+    "id": "i-49",
+    "score": 0.60,
+    "reasoning": "RUST-ONLY verification is inherently more subjective than C++-comparison. 'No dead code, no panicking paths, edge cases handled' requires judgment about what constitutes dead code or an edge case. Different features will get different levels of scrutiny. Only 7 features use this template, but each will be evaluated differently."
+  },
+  {
+    "id": "i-50",
+    "score": 0.70,
+    "reasoning": "Writing tests for RUST-ONLY edge cases depends on what edge cases are found (i-49). If no edge cases are found, no test is written, which is a valid but different outcome. The instruction is conditionally stable."
+  },
+  {
+    "id": "i-51",
+    "score": 0.85,
+    "reasoning": "CRITICAL step with specific scope: verify config field defaults. Applies to exactly 2 features. The instruction is precise and the verification is mechanical (compare default values). High stability for those 2 features."
+  },
+  {
+    "id": "i-52",
+    "score": 0.70,
+    "reasoning": "Macro boilerplate detection requires C++ macro knowledge. The specific macros are named (EM_IMPL_OBJ_CLASS, EM_IMPLEMENT_*_REC) which helps, but recognizing which methods are macro-generated vs hand-written varies across features. Phase-2-only."
+  },
+  {
+    "id": "i-53",
+    "score": 0.65,
+    "reasoning": "The 3-question framework (needed? implemented under different name? feasible?) is clear but the answers require judgment. 'Is it actually needed in the Rust port?' is especially subjective and will be answered differently across the 27 Phase 2 features depending on method complexity and the agent's understanding."
+  },
+  {
+    "id": "i-54",
+    "score": 0.75,
+    "reasoning": "The 3-category classification (IMPLEMENTED/NOT_NEEDED/NEEDS_IMPLEMENTATION) is clearer than Phase 1's 4 categories because the categories are more distinct. The boundary between NOT_NEEDED and NEEDS_IMPLEMENTATION is the main judgment call."
+  },
+  {
+    "id": "i-55",
+    "score": 0.60,
+    "reasoning": "Implementing NEEDS_IMPLEMENTATION items varies enormously in scope. Some may be trivial (add a getter), others may be substantial (new state machine). The instruction is uniform but the work it triggers is highly variable, and implementation quality will vary with complexity."
+  },
+  {
+    "id": "i-56",
+    "score": 0.90,
+    "reasoning": "Reading a Rust file is mechanical. Same stability as i-42. Applies to all 50 Phase 3 features."
+  },
+  {
+    "id": "i-57",
+    "score": 0.75,
+    "reasoning": "Verifying symbol coverage is relatively mechanical but the number of symbols varies per feature. For features with few consolidated classes, this is straightforward. For features consolidating many classes, thoroughness may vary."
+  },
+  {
+    "id": "i-58",
+    "score": 0.65,
+    "reasoning": "Verifying ALL public methods from consolidated classes is a completeness check that scales with the number of consolidated classes. Similar instability to i-43 — larger features get less thorough treatment. Phase 3's 50 features create significant context fatigue by the time the agent reaches the later ones."
+  },
+  {
+    "id": "i-59",
+    "score": 0.75,
+    "reasoning": "Listing test functions is mechanical (grep/search). Stable across the 6 Phase 4 features. The number of tests found varies significantly per directory, but the listing step itself is stable."
+  },
+  {
+    "id": "i-60",
+    "score": 0.40,
+    "reasoning": "The 5-point checklist must be applied to every test function in a directory. For directories with 50+ tests, the agent will almost certainly shortcut. The checklist items themselves require judgment (especially 'would FAIL if implementation were subtly wrong'). Applied after 105 other features, context fatigue is maximal. This is the least stable instruction in the prompt for its intended scope."
+  },
+  {
+    "id": "i-61",
+    "score": 0.50,
+    "reasoning": "Fixing defective tests conflicts with i-28 (do NOT modify existing tests). The agent must recognize that Phase 4 is an exception. The quality of 'strengthened assertions' varies with test complexity. Some tests may need simple value changes; others need structural rewrites."
+  },
+  {
+    "id": "i-62",
+    "score": 0.65,
+    "reasoning": "Bug-finding through test strengthening is well-defined in principle but rare in practice. Most strengthened tests will still pass. For the few that fail, the agent must debug and fix production code — a variable and potentially complex task. The instruction is clear but the triggering condition is unpredictable."
+  },
+  {
+    "id": "i-63",
+    "score": 0.80,
+    "reasoning": "Running grep for #[cfg(test)] is mechanical and deterministic. Applies to exactly 1 Phase 4 feature. Stable."
+  },
+  {
+    "id": "i-64",
+    "score": 0.90,
+    "reasoning": "Type conventions are clear and mechanical. Apply uniformly to all code written during the audit. The rules are concrete (f64/i32/u32/u8) with no ambiguity."
+  },
+  {
+    "id": "i-65",
+    "score": 0.90,
+    "reasoning": "Color type rule is clear and mechanical. Applies uniformly when writing color-related code. Not all features involve color, but the rule is unambiguous when it does apply."
+  },
+  {
+    "id": "i-66",
+    "score": 0.90,
+    "reasoning": "Ownership convention is clear. Rc/RefCell vs Arc/Mutex is a binary choice. Applies uniformly."
+  },
+  {
+    "id": "i-67",
+    "score": 0.90,
+    "reasoning": "String convention is clear and binary. No Cow, use String/&str. Applies uniformly."
+  },
+  {
+    "id": "i-68",
+    "score": 0.80,
+    "reasoning": "Error handling rule is clear but 'logic-error invariant' is slightly subjective. Most cases are obvious (file not found = recoverable, impossible enum variant = invariant), but edge cases exist."
+  },
+  {
+    "id": "i-69",
+    "score": 0.90,
+    "reasoning": "Import ordering is mechanical and enforceable. Applies uniformly to all code written."
+  },
+  {
+    "id": "i-70",
+    "score": 0.85,
+    "reasoning": "Construction convention is clear. new() primary, with_* builders. Minor ambiguity for types that need multiple constructors, but generally stable."
+  },
+  {
+    "id": "i-71",
+    "score": 0.80,
+    "reasoning": "Module organization guidance is clear for new files but rarely triggered — the audit mostly modifies existing files. When it does apply (Phase 2 new implementations), the convention is straightforward."
+  },
+  {
+    "id": "i-72",
+    "score": 0.85,
+    "reasoning": "Visibility rule is clear: pub(crate) by default. The distinction between library API (pub) and internal (pub(crate)) requires judgment but is well-bounded by the workspace structure."
+  },
+  {
+    "id": "i-73",
+    "score": 0.80,
+    "reasoning": "Unwrap rule is clear with explicit exceptions (tests, same-line proofs). 'Obvious from context' is slightly subjective but the test exception covers most audit-written code."
+  },
+  {
+    "id": "i-74",
+    "score": 0.85,
+    "reasoning": "Warning handling is clear and enforced by clippy gate. 'Genuine false positives' is the only subjective part, and the instruction says to add a comment when suppressing."
+  },
+  {
+    "id": "i-75",
+    "score": 0.85,
+    "reasoning": "Pixel fidelity rules are precise and unambiguous for PIXEL-layer features. The specific formula (x*257+0x8073)>>16 is concrete. Only applies to PIXEL features, which is a subset of the input distribution, but within that subset it's highly stable."
+  },
+  {
+    "id": "i-76",
+    "score": 0.75,
+    "reasoning": "Geometry fidelity is less precise than pixel fidelity. 'Same algorithm and operation order' is clear for simple operations but subjective for complex geometry. 'Clamp/min/max must preserve C++ boundary values' is concrete."
+  },
+  {
+    "id": "i-77",
+    "score": 0.75,
+    "reasoning": "State fidelity is the most permissive layer — 'fully idiomatic Rust, preserve behavioral contracts.' The boundary between behavioral contract and implementation detail is subjective. More stable than i-19 because it adds concrete examples."
+  },
+  {
+    "id": "i-78",
+    "score": 0.70,
+    "reasoning": "The tiebreaker rule requires knowing whether a function feeds a golden test, which the agent may not always be able to determine. For well-known golden-tested paths it's clear; for auxiliary functions it requires investigation that may be skipped under time pressure."
+  },
+  {
+    "id": "i-79",
+    "score": 0.90,
+    "reasoning": "Clear prohibition with one explicit exception (too many arguments). Binary, mechanical, enforceable by clippy."
+  },
+  {
+    "id": "i-80",
+    "score": 0.95,
+    "reasoning": "Clear prohibition. Arc/Mutex vs Rc/RefCell is a binary choice. Highly stable."
+  },
+  {
+    "id": "i-81",
+    "score": 0.95,
+    "reasoning": "Clear prohibition. Cow is either used or not. Highly stable."
+  },
+  {
+    "id": "i-82",
+    "score": 0.90,
+    "reasoning": "Clear prohibition with one explicit exception (use super::* in tests). Binary, enforceable."
+  },
+  {
+    "id": "i-83",
+    "score": 0.85,
+    "reasoning": "Clear prohibition for PIXEL-layer code. 'Mid-calculation' requires knowing the calculation boundaries, which is usually obvious but occasionally ambiguous for multi-step pipelines."
+  },
+  {
+    "id": "i-84",
+    "score": 0.85,
+    "reasoning": "Clear prohibition. Same stability as i-75 — applies to PIXEL paths, which are identifiable via the layer field."
+  },
+  {
+    "id": "i-85",
+    "score": 0.95,
+    "reasoning": "Clear prohibition. Rayon/parallel iteration is a binary choice. Highly stable."
+  },
+  {
+    "id": "i-86",
+    "score": 0.80,
+    "reasoning": "Prohibition on assert! for recoverable errors. Same stability as i-68 — 'recoverable' is slightly subjective but usually clear."
+  },
+  {
+    "id": "i-87",
+    "score": 0.95,
+    "reasoning": "Clear prohibition. --no-verify is either used or not. Highly stable and applies to every commit identically."
+  },
+  {
+    "id": "i-88",
+    "score": 0.90,
+    "reasoning": "Pre-commit hook description is factual and applies to every commit. The instruction to fix and retry is clear. Stable across all features."
+  },
+  {
+    "id": "i-89",
+    "score": 0.55,
+    "reasoning": "Log format requires MATCH/MISMATCH/MISSING counts. This maps cleanly to Phase 1 but poorly to Phase 2 (IMPLEMENTED/NOT_NEEDED/NEEDS_IMPLEMENTATION), Phase 3 (present/missing symbols), and Phase 4 (anti-pattern counts). The agent must reinterpret or force-fit the format for non-Phase-1 features, leading to inconsistent logging."
+  },
+  {
+    "id": "i-90",
+    "score": 0.90,
+    "reasoning": "Append semantics are clear and mechanical. The agent either appends or overwrites. Stable across all features."
+  },
+  {
+    "id": "i-91",
+    "score": 0.85,
+    "reasoning": "Commit message format is simple and well-defined. feature_id is from the contract. Summary requires brief judgment but is generally stable."
+  },
+  {
+    "id": "i-92",
+    "score": 0.90,
+    "reasoning": "Including the contract JSON in git add is mechanical and applies to every commit identically."
+  },
+  {
+    "id": "i-93",
+    "score": 0.55,
+    "reasoning": "'Minimally' is subjective and varies significantly with mismatch complexity. Simple mismatches (wrong constant) have an obvious minimal fix. Complex mismatches (different algorithm, missing state machine) have no clear 'minimal' — is adding 100 lines minimal if that's what the C++ does? Prior runs showed fixes ranging from 1-line to multi-function rewrites."
+  },
+  {
+    "id": "i-94",
+    "score": 0.65,
+    "reasoning": "Scope estimates are subjective. What counts as a useful scope estimate varies with the agent's confidence and the method's complexity. Some estimates will be precise ('add 1 getter method'), others vague ('significant refactoring needed')."
+  },
+  {
+    "id": "i-95",
+    "score": 0.70,
+    "reasoning": "Modifier key checking applies only to modifier-dependent tests. The agent must first identify which tests are modifier-dependent, which is a variable-difficulty judgment across test directories. Within those tests, the check is clear."
+  },
+  {
+    "id": "i-96",
+    "score": 0.50,
+    "reasoning": "'Exercises actual behavior not just compilation' requires understanding what the test is supposed to test. For simple tests this is obvious. For complex tests with multiple setup steps, determining whether the test exercises behavior or just compiles is subjective and varies with test complexity."
+  },
+  {
+    "id": "i-97",
+    "score": 0.45,
+    "reasoning": "The mutation-testing criterion ('would FAIL if implementation were subtly wrong') is the hardest to evaluate consistently. It requires the agent to imagine plausible implementation bugs and check if the test catches them. This is inherently subjective and will produce different results depending on the agent's reasoning about each specific test. Applied to hundreds of tests, consistency is very low."
+  },
+  {
+    "id": "i-98",
+    "score": 0.65,
+    "reasoning": "The 4-category system is defined but SUSPECT lacks a clear definition in the prompt .md. The contract steps use it but the prompt describes only MATCH/MISMATCH/MISSING. Prior runs used SUSPECT extensively, suggesting it fills a real need, but without a formal definition the boundary between SUSPECT and MISMATCH/MATCH varies per agent interpretation."
+  }
+]

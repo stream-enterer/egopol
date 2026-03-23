@@ -1,0 +1,230 @@
+{
+  "run_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "last_updated": "2026-03-15T17:11:14Z",
+  "items": [
+    {
+      "capability_id": "CAP-0015",
+      "capability_name": "Persistent Configuration Model (emConfigModel)",
+      "gen_tier": "tier3_behavioral",
+      "cpp_classes": [
+        "emConfigModel"
+      ],
+      "golden_subdir": "config",
+      "golden_type": "config.golden",
+      "comparison_method": "inline_assertion",
+      "status": "failed",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": "F22: ConfigModel requires filesystem I/O for load/save; covered by behavioral/unit tests"
+    },
+    {
+      "capability_id": "CAP-0020",
+      "capability_name": "Cursor Type Enumeration (emCursor)",
+      "gen_tier": "tier3_behavioral",
+      "cpp_classes": [
+        "emCursor"
+      ],
+      "golden_subdir": "input",
+      "golden_type": "input.golden",
+      "comparison_method": "inline_assertion",
+      "status": "failed",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": "F22: Cursor is a pure enum with no visual output; no golden data possible. Covered by construction tests."
+    },
+    {
+      "capability_id": "CAP-0021",
+      "capability_name": "Modal Dialog Widget (emDialog)",
+      "gen_tier": "tier4_widget",
+      "cpp_classes": [
+        "emDialog"
+      ],
+      "golden_subdir": "widget",
+      "golden_type": "widget.golden",
+      "comparison_method": "inline_assertion",
+      "status": "verified",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": null
+    },
+    {
+      "capability_id": "CAP-0023",
+      "capability_name": "Error Display Panel Widget (emErrorPanel)",
+      "gen_tier": "tier4_widget",
+      "cpp_classes": [
+        "emErrorPanel"
+      ],
+      "golden_subdir": "widget",
+      "golden_type": "widget.golden",
+      "comparison_method": "inline_assertion",
+      "status": "verified",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": null
+    },
+    {
+      "capability_id": "CAP-0024",
+      "capability_name": "File Chooser Dialog (emFileDialog)",
+      "gen_tier": "tier4_widget",
+      "cpp_classes": [
+        "emFileDialog"
+      ],
+      "golden_subdir": "widget",
+      "golden_type": "widget.golden",
+      "comparison_method": "inline_assertion",
+      "status": "failed",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": "F22: FileDialog requires windowing system for dialog window creation"
+    },
+    {
+      "capability_id": "CAP-0026",
+      "capability_name": "File-displaying Panel (emFilePanel)",
+      "gen_tier": "tier4_widget",
+      "cpp_classes": [
+        "emFilePanel"
+      ],
+      "golden_subdir": "widget",
+      "golden_type": "widget.golden",
+      "comparison_method": "inline_assertion",
+      "status": "failed",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": "F22: FilePanel requires FileModel which needs filesystem I/O"
+    },
+    {
+      "capability_id": "CAP-0027",
+      "capability_name": "File Browser Widget (emFileSelectionBox)",
+      "gen_tier": "tier4_widget",
+      "cpp_classes": [
+        "emFileSelectionBox"
+      ],
+      "golden_subdir": "widget",
+      "golden_type": "widget.golden",
+      "comparison_method": "inline_assertion",
+      "status": "failed",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": "F22: FileSelectionBox requires filesystem directory listing"
+    },
+    {
+      "capability_id": "CAP-0037",
+      "capability_name": "Background Job System (emJob)",
+      "gen_tier": "tier3_behavioral",
+      "cpp_classes": [
+        "emJob"
+      ],
+      "golden_subdir": "scheduler",
+      "golden_type": "scheduler.golden",
+      "comparison_method": "inline_assertion",
+      "status": "failed",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": "F22: Job system is pure state machine; covered by scheduler golden tests and unit tests"
+    },
+    {
+      "capability_id": "CAP-0050",
+      "capability_name": "Priority Scheduling Agent (emPriSchedAgent)",
+      "gen_tier": "tier3_behavioral",
+      "cpp_classes": [
+        "emPriSchedAgent"
+      ],
+      "golden_subdir": "scheduler",
+      "golden_type": "scheduler.golden",
+      "comparison_method": "inline_assertion",
+      "status": "failed",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": "F22: PriSchedAgent is scheduler infrastructure; covered by scheduler golden tests"
+    },
+    {
+      "capability_id": "CAP-0061",
+      "capability_name": "Display Screen Information (emScreen)",
+      "gen_tier": "tier3_behavioral",
+      "cpp_classes": [
+        "emScreen"
+      ],
+      "golden_subdir": "platform",
+      "golden_type": "platform.golden",
+      "comparison_method": "inline_assertion",
+      "status": "failed",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": "F22: Screen requires windowing system (X11/Wayland); cannot exercise in headless gen_golden"
+    },
+    {
+      "capability_id": "CAP-0070",
+      "capability_name": "Painter Texture Support (emTexture)",
+      "gen_tier": "tier1_painter",
+      "cpp_classes": [
+        "emTexture"
+      ],
+      "golden_subdir": "painter",
+      "golden_type": "painter.golden",
+      "comparison_method": "compare_images",
+      "status": "verified",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": null
+    },
+    {
+      "capability_id": "CAP-0072",
+      "capability_name": "Tiling Layout (emTiling)",
+      "gen_tier": "tier2_layout",
+      "cpp_classes": [
+        "emTiling"
+      ],
+      "golden_subdir": "layout",
+      "golden_type": "layout.golden",
+      "comparison_method": "compare_rects",
+      "status": "verified",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": null
+    },
+    {
+      "capability_id": "CAP-0076",
+      "capability_name": "Tunnel/Viewport Widget (emTunnel)",
+      "gen_tier": "tier4_widget",
+      "cpp_classes": [
+        "emTunnel"
+      ],
+      "golden_subdir": "widget",
+      "golden_type": "widget.golden",
+      "comparison_method": "inline_assertion",
+      "status": "verified",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": null
+    },
+    {
+      "capability_id": "CAP-0083",
+      "capability_name": "Window State Persistence (emWindowStateSaver)",
+      "gen_tier": "tier3_behavioral",
+      "cpp_classes": [
+        "emWindowStateSaver"
+      ],
+      "golden_subdir": "platform",
+      "golden_type": "platform.golden",
+      "comparison_method": "inline_assertion",
+      "status": "failed",
+      "gen_function_name": null,
+      "golden_file": null,
+      "rust_test_function": null,
+      "error": "F22: WindowStateSaver requires windowing system; cannot exercise headless"
+    }
+  ]
+}

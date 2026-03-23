@@ -1,0 +1,472 @@
+{
+  "run_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "last_updated": "2026-03-15T17:12:36Z",
+  "features": [
+    {
+      "feature_id": "GAP-001",
+      "capability_id": "CAP-0002",
+      "cpp_header": "emAnything.h",
+      "cpp_symbols": [
+        "emAnything",
+        "emAnything::emAnything()",
+        "emAnything::emAnything(const emAnything&)",
+        "emAnything::~emAnything",
+        "emAnything::operator="
+      ],
+      "description": "Port Type-erased Value Container (emAnything) from Eagle Mode emCore to Rust",
+      "complexity": "medium",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-002",
+      "capability_id": "CAP-0003",
+      "cpp_header": "emArray.h",
+      "cpp_symbols": [
+        "emSortArray",
+        "emBinarySearch",
+        "emArray",
+        "emArray::emArray()",
+        "emArray::emArray(const emArray&)"
+      ],
+      "description": "Port Dynamic Array Container (emArray) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-003",
+      "capability_id": "CAP-0004",
+      "cpp_header": "emAvlTree.h",
+      "cpp_symbols": [
+        "emAvlNode",
+        "emAvlNode::Left",
+        "emAvlNode::Right",
+        "emAvlNode::Balance",
+        "emAvlTree"
+      ],
+      "description": "Port AVL Tree Low-level Macros (emAvlTree) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-004",
+      "capability_id": "CAP-0005",
+      "cpp_header": "emAvlTreeMap.h",
+      "cpp_symbols": [
+        "emAvlTreeMap",
+        "emAvlTreeMap::emAvlTreeMap()",
+        "emAvlTreeMap::emAvlTreeMap(const emAvlTreeMap&)",
+        "emAvlTreeMap::emAvlTreeMap(const KEY&,const VALUE&)",
+        "emAvlTreeMap::~emAvlTreeMap"
+      ],
+      "description": "Port AVL Tree Map (emAvlTreeMap) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-005",
+      "capability_id": "CAP-0006",
+      "cpp_header": "emAvlTreeSet.h",
+      "cpp_symbols": [
+        "emAvlTreeSet",
+        "emAvlTreeSet::emAvlTreeSet()",
+        "emAvlTreeSet::emAvlTreeSet(const emAvlTreeSet &)",
+        "emAvlTreeSet::emAvlTreeSet(const OBJ &)",
+        "emAvlTreeSet::~emAvlTreeSet"
+      ],
+      "description": "Port AVL Tree Set (emAvlTreeSet) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-006",
+      "capability_id": "CAP-0017",
+      "cpp_header": "emCoreConfig.h",
+      "cpp_symbols": [
+        "emCoreConfig",
+        "emCoreConfig",
+        "TryLoadOldVersion"
+      ],
+      "description": "Port Core Configuration Settings (emCoreConfig) from Eagle Mode emCore to Rust",
+      "complexity": "low",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-007",
+      "capability_id": "CAP-0018",
+      "cpp_header": "emCoreConfigPanel.h",
+      "cpp_symbols": [
+        "emCoreConfigPanel",
+        "emCoreConfigPanel",
+        "Cycle",
+        "AutoExpand",
+        "AutoShrink"
+      ],
+      "description": "Port Core Configuration Panel UI (emCoreConfigPanel) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-008",
+      "capability_id": "CAP-0019",
+      "cpp_header": "emCrossPtr.h",
+      "cpp_symbols": [
+        "emCrossPtrPrivate",
+        "Unlink",
+        "emCrossPtr",
+        "emCrossPtr",
+        "emCrossPtr"
+      ],
+      "description": "Port Cross-Object Weak Pointer (emCrossPtr) from Eagle Mode emCore to Rust",
+      "complexity": "medium",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-009",
+      "capability_id": "CAP-0028",
+      "cpp_header": "emFileStream.h",
+      "cpp_symbols": [
+        "emFileStream",
+        "emFileStream::emFileStream",
+        "emFileStream::~emFileStream",
+        "emFileStream::TryOpen",
+        "emFileStream::TryClose"
+      ],
+      "description": "Port File I/O Stream (emFileStream) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-010",
+      "capability_id": "CAP-0030",
+      "cpp_header": "emFpPlugin.h",
+      "cpp_symbols": [
+        "emFpPluginFunc",
+        "emFpPluginModelFunc",
+        "emFpPlugin",
+        "emFpPlugin::emFpPlugin",
+        "emFpPlugin::~emFpPlugin"
+      ],
+      "description": "Port File Panel Plugin Interface (emFpPlugin) from Eagle Mode emCore to Rust",
+      "complexity": "medium",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-011",
+      "capability_id": "CAP-0031",
+      "cpp_header": "emGUIFramework.h",
+      "cpp_symbols": [
+        "MAIN_OR_WINMAIN_HERE",
+        "emGUIFramework",
+        "emGUIFramework::emGUIFramework",
+        "emGUIFramework::~emGUIFramework",
+        "emGUIFramework::GetScheduler"
+      ],
+      "description": "Port Application Bootstrap Framework (emGUIFramework) from Eagle Mode emCore to Rust",
+      "complexity": "medium",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-012",
+      "capability_id": "CAP-0032",
+      "cpp_header": "emGroup.h",
+      "cpp_symbols": [
+        "emGroup",
+        "emGroup::emGroup (public deprecated constructor)",
+        "emGroup::~emGroup",
+        "emGroup::emGroup (protected constructor for emRadioButton::Group)"
+      ],
+      "description": "Port Layout Group Base (emGroup) from Eagle Mode emCore to Rust",
+      "complexity": "low",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-013",
+      "capability_id": "CAP-0034",
+      "cpp_header": "emImageFile.h",
+      "cpp_symbols": [
+        "emImageFileModel",
+        "emImageFileModel::GetImage",
+        "emImageFileModel::SetImage",
+        "emImageFileModel::GetComment",
+        "emImageFileModel::SetComment"
+      ],
+      "description": "Port Image File Format I/O (emImageFile) from Eagle Mode emCore to Rust",
+      "complexity": "medium",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-014",
+      "capability_id": "CAP-0036",
+      "cpp_header": "emInstallInfo.h",
+      "cpp_symbols": [
+        "emContext",
+        "EM_IDT_BIN",
+        "EM_IDT_INCLUDE",
+        "EM_IDT_LIB",
+        "EM_IDT_HTML_DOC"
+      ],
+      "description": "Port Installation Information (emInstallInfo) from Eagle Mode emCore to Rust",
+      "complexity": "medium",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-015",
+      "capability_id": "CAP-0040",
+      "cpp_header": "emList.h",
+      "cpp_symbols": [
+        "emSortSingleLinkedList",
+        "emSortDoubleLinkedList",
+        "emList",
+        "emList::emList()",
+        "emList::emList(const emList &)"
+      ],
+      "description": "Port Doubly-Linked List Container (emList) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-016",
+      "capability_id": "CAP-0043",
+      "cpp_header": "emMiniIpc.h",
+      "cpp_symbols": [
+        "emMiniIpcClient",
+        "emMiniIpcClient::TrySend",
+        "emMiniIpcServer",
+        "emMiniIpcServer::emMiniIpcServer",
+        "emMiniIpcServer::~emMiniIpcServer"
+      ],
+      "description": "Port Minimal IPC System (emMiniIpc) from Eagle Mode emCore to Rust",
+      "complexity": "medium",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-017",
+      "capability_id": "CAP-0045",
+      "cpp_header": "emOwnPtr.h",
+      "cpp_symbols": [
+        "emOwnPtrBase",
+        "emOwnPtrBase::emOwnPtrBase",
+        "emOwnPtrBase::~emOwnPtrBase",
+        "emOwnPtrBase::Set",
+        "emOwnPtrBase::operator=",
+        "emOwnPtrArray",
+        "emOwnPtrArray::emOwnPtrArray",
+        "emOwnPtrArray::~emOwnPtrArray",
+        "emOwnPtrArray::GetCount",
+        "emOwnPtrArray::SetCount"
+      ],
+      "description": "Port Owning Pointer (emOwnPtr + emOwnPtrArray) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-018",
+      "capability_id": "CAP-0051",
+      "cpp_header": "emProcess.h",
+      "cpp_symbols": [
+        "emProcess",
+        "emProcess::emProcess",
+        "emProcess::~emProcess",
+        "StartFlags",
+        "SF_SHARE_STDIN"
+      ],
+      "description": "Port Process Management (emProcess) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-019",
+      "capability_id": "CAP-0054",
+      "cpp_header": "emRec.h",
+      "cpp_symbols": [
+        "emRecNode",
+        "emRec",
+        "emRec::emRec()",
+        "emRec::emRec(emStructRec*, const char*)",
+        "emRec::~emRec"
+      ],
+      "description": "Port Record Persistent Data Node (emRec) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-020",
+      "capability_id": "CAP-0056",
+      "cpp_header": "emRef.h",
+      "cpp_symbols": [
+        "emRefTarget",
+        "emRefTarget::emRefTarget()",
+        "emRefTarget::~emRefTarget",
+        "emRefTarget::emRefTarget(const emRefTarget&)",
+        "emRefTarget::operator="
+      ],
+      "description": "Port Reference-counted Smart Pointer (emRef) from Eagle Mode emCore to Rust",
+      "complexity": "medium",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-021",
+      "capability_id": "CAP-0057",
+      "cpp_header": "emRenderThreadPool.h",
+      "cpp_symbols": [
+        "emRenderThreadPool",
+        "GetThreadCount",
+        "void",
+        "CallParallel",
+        "CallParallel"
+      ],
+      "description": "Port Render Thread Pool (emRenderThreadPool) from Eagle Mode emCore to Rust",
+      "complexity": "medium",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-022",
+      "capability_id": "CAP-0065",
+      "cpp_header": "emStd2.h",
+      "cpp_symbols": [
+        "emException",
+        "emException::emException",
+        "emException::~emException",
+        "emException::operator=",
+        "emException::SetText"
+      ],
+      "description": "Port Extended Standard Utilities (emStd2) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-023",
+      "capability_id": "CAP-0066",
+      "cpp_header": "emString.h",
+      "cpp_symbols": [
+        "emString",
+        "emString::emString()",
+        "emString::emString(const emString &)",
+        "emString::emString(const char *)",
+        "emString::emString(const char *, int)"
+      ],
+      "description": "Port String Type (emString) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-024",
+      "capability_id": "CAP-0071",
+      "cpp_header": "emThread.h",
+      "cpp_symbols": [
+        "emThreadId",
+        "emThread",
+        "emThread::emThread",
+        "emThread::~emThread",
+        "emThread::Start(void*)"
+      ],
+      "description": "Port Thread Management (emThread) from Eagle Mode emCore to Rust",
+      "complexity": "high",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-025",
+      "capability_id": "CAP-0074",
+      "cpp_header": "emTmpFile.h",
+      "cpp_symbols": [
+        "emTmpFile",
+        "emTmpFile::emTmpFile()",
+        "emTmpFile::emTmpFile(emRootContext&,const char*)",
+        "emTmpFile::emTmpFile(const emString&)",
+        "emTmpFile::~emTmpFile"
+      ],
+      "description": "Port Temporary File Management (emTmpFile) from Eagle Mode emCore to Rust",
+      "complexity": "medium",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    },
+    {
+      "feature_id": "GAP-026",
+      "capability_id": "CAP-0075",
+      "cpp_header": "emToolkit.h",
+      "cpp_symbols": [
+        "emToolkit.h (aggregate include header)"
+      ],
+      "description": "Port Toolkit Utility Images (emToolkit) from Eagle Mode emCore to Rust",
+      "complexity": "low",
+      "status": "stubbed",
+      "rust_file": null,
+      "golden_test": null,
+      "commit_sha": null
+    }
+  ]
+}

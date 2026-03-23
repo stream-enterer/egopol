@@ -1,0 +1,87 @@
+{
+  "audited_at": "2026-03-16T12:00:00Z",
+  "deep_diagnosis_at": "2026-03-16T14:30:00Z",
+  "files_scanned": 100,
+  "total_grep_matches": 58,
+  "false_positives_filtered": 55,
+  "stubs_found": [
+    {
+      "rust_file": "src/panel/view.rs",
+      "rust_line": 1882,
+      "method": "create_control_panel",
+      "stub_type": "returns_none",
+      "capability_id": "CAP-0078",
+      "capability_status": "verified",
+      "cpp_equivalent": "Forwards to active panel's CreateControlPanel virtual method, which creates an overlay control panel (e.g. BgColor editor in emTestPanel). Returns the new panel or NULL. emView::CreateControlPanel delegates to the active panel in the content view.",
+      "cpp_source": "emView.h:160-166, emPanel.h:689-692",
+      "affects_golden_tests": false,
+      "severity": "behavioral_gap",
+      "description": "View::create_control_panel always returns None. In C++, it delegates to the active panel's CreateControlPanel virtual, which can create overlay control widgets (e.g., emImageFilePanel creates format info, emTestPanel creates BgColor field). The PanelBehavior trait has the hook (behavior.rs:197) and PanelTree has the walk-up logic (tree.rs:1333), but View::create_control_panel ignores both and hardcodes None. No caller currently invokes the tree walk.",
+      "deep_diagnosis": {
+        "cpp_mechanism": "In C++, emView::CreateControlPanel (emView.cpp:193-199) checks for an ActivePanel and calls ActivePanel->CreateControlPanel(parent, name). The emPanel::CreateControlPanel default (emPanel.cpp:1244-1248) walks up the parent chain: if a panel has a Parent, it delegates to Parent->CreateControlPanel; otherwise returns NULL. Subclasses override this to create actual control widgets. The control panel is created in a separate 'control view' (a different emView), not as a child of the content panel. The lifecycle is: (1) when the active panel changes, emView signals ControlPanelSignal (emView.cpp:308); (2) the control view's owner listens for this signal, deletes the old control panel, then calls CreateControlPanel to create a new one; (3) the control panel is destroyed before creating a new one or when the content view is destructed. InvalidateControlPanel (emPanel.cpp:1323-1325) re-signals ControlPanelSignal when the panel is in the active path, triggering recreation.",
+        "rust_current_state": "Substantial partial infrastructure exists: (1) PanelBehavior trait has create_control_panel hook (behavior.rs:197) returning Option<PanelId>, defaulting to None; (2) PanelTree::create_control_panel (tree.rs:1333-1355) implements the parent-chain walk-up logic, correctly mirroring C++; (3) View has control_panel_invalid flag (view.rs:76), invalidate_control_panel method (view.rs:1582), is_control_panel_invalid/clear_control_panel_invalid accessors, and needs_control_panel_update; (4) Unit tests exist for both the tree walk-up (tree.rs:2124) and invalidation (view.rs:2655). The ONLY missing piece is: View::create_control_panel (view.rs:1882) ignores all this infrastructure and returns None, and there is no caller that connects ControlPanelSignal to actual panel creation/destruction in a control view. There is no ControlView struct or control-view window.",
+        "implementation_scope": "Two distinct pieces: (A) Fix View::create_control_panel to delegate to tree.create_control_panel(active_panel, parent_arg, name) — approximately 5 lines. (B) Build the control view consumer: a component that owns a separate View, listens for control_panel_invalid, destroys old control panel, calls create_control_panel, and manages the overlay lifecycle. This is the hard part — estimated 150-300 lines depending on how the control view is rendered (separate window, overlay panel, or side panel). The C++ architecture uses emSubViewPanel to embed a control view inside a window frame, which is a complex subsystem not yet ported. Integration points: window frame (which shows the control view), panel activation changes, view update loop.",
+        "dependencies": "emTestPanel's BgColor field (the only emCore override of CreateControlPanel). emImageFilePanel and other file panels in the broader Eagle Mode ecosystem override it too, but those are outside emCore scope. Within the zuicchini port, no panel currently overrides create_control_panel in its PanelBehavior, so enabling the delegation alone has no visible effect until a panel behavior provides an override AND a control view consumer exists.",
+        "performance_impact": "None. This is a feature gap, not a performance issue.",
+        "practical_impact": "When navigating to a panel that provides control UI (like emTestPanel's background color picker), no control panel appears. The user cannot interact with panel-specific controls. In the current zuicchini scope (emCore port without the full Eagle Mode application shell), the impact is limited because no behaviors override create_control_panel yet. The gap becomes visible only when porting emTestPanel's BgColor field or similar interactive panels.",
+        "recommendation": "defer_with_justification",
+        "justification": "The delegation fix (part A) is trivial but has zero observable effect without a control view consumer (part B). Part B requires porting the emSubViewPanel embedding mechanism or designing a Rust-native alternative, which is a 300+ line subsystem touching window frame layout, view nesting, and panel lifecycle management. No current panel behavior overrides create_control_panel, so the entire feature has no user-visible effect in the current codebase. The partial infrastructure (trait hook, tree walk, invalidation flag, unit tests) is correctly pre-positioned for when this is needed."
+      }
+    },
+    {
+      "rust_file": "src/window/app.rs",
+      "rust_line": 285,
+      "method": "run_frame (partial-repaint loop)",
+      "stub_type": "no_op",
+      "capability_id": "CAP-0031",
+      "capability_status": "verified",
+      "cpp_equivalent": "C++ emViewPort::InvalidatePainting(x,y,w,h) accumulates dirty rectangles and the rendering backend only repaints those regions. In emX11ViewRenderer, dirty rects are intersected with the damage region to skip clean areas during the Paint traversal.",
+      "cpp_source": "emView.h:521-525, emView.h:978-988",
+      "affects_golden_tests": false,
+      "severity": "behavioral_gap",
+      "description": "The dirty-rect loop at app.rs:284 iterates over invalidated regions but does nothing with them (for _r in dirty.iter() { // TODO }). The full window is repainted every frame regardless. C++ uses dirty rects to clip the repaint area, significantly reducing rendering work for partial updates (cursor blink, scrolling, single-widget changes). This is a performance stub — correctness is maintained by full repaint, but efficiency is lost.",
+      "deep_diagnosis": {
+        "cpp_mechanism": "C++ emViewRenderer::RenderView (emViewRenderer.cpp:53-97) receives invalidRects as emClipRects<int>. It iterates each invalid rect, subdivides it into tile-sized chunks (BufWidth x BufHeight), and adds them to a TodoRects array. Only those tiles are rendered — either single-threaded (sequential loop) or multi-threaded (ThreadPool->CallParallel). The key optimization: PaintView is only called for tiles that intersect an invalid rect. Dirty rects originate from emPanel::InvalidatePainting (emPanel.cpp:1282-1309), which transforms the panel's clip rect to view coordinates and calls View.InvalidatePainting. The emViewPort base class (emView.cpp:2698) has a virtual InvalidatePainting that the X11 port overrides to accumulate rects into its InvalidRects member. Between frames, multiple invalidations coalesce. On ConfigureNotify (resize), the entire viewport is invalidated (emX11WindowPort.cpp:896).",
+        "rust_current_state": "The Rust implementation has complete dirty rect collection: View::invalidate_painting (view.rs:1520) and invalidate_painting_rect (view.rs:1534) correctly transform panel coords to view coords and push to dirty_rects Vec. View::has_dirty_rects and take_dirty_clip_rects work correctly. The app loop (app.rs:277-288) drains dirty rects and logs them. However, the critical gap is at two points: (1) the TODO loop at app.rs:284 does not convert dirty rects to per-tile dirty marks — it should call tile_cache.mark_dirty(col, row) for each tile overlapping a dirty rect; (2) ZuiWindow::invalidate() (zui_window.rs:716-717) unconditionally calls tile_cache.mark_all_dirty(), and this is called every frame that needs_repaint is true (app.rs:297). So even if the TODO loop marked individual tiles dirty, the subsequent invalidate() call overwrites that with mark_all_dirty. The tile_cache.mark_dirty(col, row) method exists (tile_cache.rs:86) but is never called externally.",
+        "implementation_scope": "The fix requires: (1) In the TODO loop at app.rs:284, for each dirty rect, compute which tiles it overlaps and call tile_cache.mark_dirty(col, row) for each — approximately 15-20 lines of rect-to-tile-grid intersection. (2) Replace the unconditional invalidate() call at app.rs:297 with conditional logic: if dirty rects were processed, skip mark_all_dirty; if the repaint was triggered by viewport change (scroll/zoom), keep mark_all_dirty since the entire view content shifted. (3) For scroll/pan, implement tile reuse: shift clean tiles and only dirty the newly exposed edges — this is the hard optimization (50-100 lines, requires tile_cache coordinate tracking). Without step 3, scroll/pan still marks all tiles dirty, which is the most common repaint trigger. The DrawList replay architecture already supports partial replay: each tile is independently replayed with a tile-specific offset (zui_window.rs:327), so only dirty tiles get replayed. No restructuring needed.",
+        "dependencies": "No features depend on this — it is purely a performance optimization. All rendering paths (single-threaded, viewport-buffer, parallel display-list) already check tile.dirty before rendering, so marking fewer tiles dirty directly reduces work.",
+        "performance_impact": "Current: 21ms/frame multi-threaded full repaint (from benchmarks). At 1920x1080 with 256px tiles, there are approximately 8x5=40 tiles. A cursor blink invalidates ~1 tile. With dirty-rect clipping, that frame would render 1/40th of the work: ~0.5ms instead of 21ms. For scroll/pan (all tiles dirty), no improvement without tile shifting. The 21ms full-repaint exceeds the 16.7ms budget for 60fps. Dirty-rect clipping would bring static-scene updates (cursor blink, hover highlight, single widget change) well under budget. However, the heaviest frames — panning and zooming — still need full repaint and are the actual bottleneck. Dirty-rect clipping helps idle/interaction frames but not the worst case.",
+        "practical_impact": "Without dirty-rect clipping, every mouse hover, cursor blink, or single-widget state change triggers a full 21ms repaint of all 40 tiles. This causes unnecessary CPU/GPU load during otherwise idle periods, increasing power consumption and heat. During active panning/zooming the impact is zero (full repaint is needed anyway). The user may notice dropped frames during light interactions on slower hardware, but on modern hardware the 21ms single-frame cost is absorbed by the event loop's frame pacing.",
+        "recommendation": "implement",
+        "justification": "The implementation is straightforward (15-20 lines for the core rect-to-tile mapping) and the infrastructure already exists (mark_dirty per tile, dirty flag checked in all render paths). The 21ms full-repaint exceeds the 16.7ms 60fps budget, making this optimization necessary for smooth interaction on standard hardware. The fix does not require architectural changes — the tile cache, display list, and parallel replay all already support per-tile dirty tracking. The only deferred part should be tile-shift optimization for scroll/pan, which is a separate, more complex optimization."
+      }
+    },
+    {
+      "rust_file": "src/window/zui_window.rs",
+      "rust_line": 804,
+      "method": "set_win_size",
+      "stub_type": "hardcoded_value",
+      "capability_id": "CAP-0082",
+      "capability_status": "verified",
+      "cpp_equivalent": "C++ SetWinSize calls WindowPort->SetPosSize with PSAS_WINDOW flag. The WindowPort implementation (emX11WindowPort) subtracts the window border sizes from the requested outer size to compute the correct inner size via _NET_FRAME_EXTENTS.",
+      "cpp_source": "emWindow.h:142,357-363",
+      "affects_golden_tests": false,
+      "severity": "platform_limitation",
+      "description": "set_win_size(w, h) should set the outer window size (including decorations), but uses winit's request_inner_size which sets the content area only. The window will be smaller than requested by the border amount. Related to the documented border_sizes stub (returns hardcoded 4,30,4,4) but distinct: even with correct border_sizes, this method does not subtract them. set_win_pos_size (line 815) has the same issue.",
+      "deep_diagnosis": {
+        "cpp_mechanism": "C++ emX11WindowPort::SetPosSize (emX11WindowPort.cpp:69-110) handles two coordinate spaces via PosSizeArgSpec flags. For PSAS_WINDOW size: it subtracts BorderL+BorderR from width and BorderT+BorderB from height to convert outer size to inner (content) size, then calls XResizeWindow with the inner size. For PSAS_WINDOW position: it adds BorderL to x and BorderT to y to convert outer position to inner position (X11 positions the content area, not the frame). The border sizes are initialized to hardcoded defaults (3,18,3,3 for decorated windows) and are NOT dynamically updated from _NET_FRAME_EXTENTS — the C++ code does not query this property at all. So C++ also uses hardcoded guesses, just different ones.",
+        "rust_current_state": "The Rust border_sizes() method (zui_window.rs:638-673) is actually MORE accurate than C++: on X11, it dynamically computes exact border sizes by comparing inner_position vs outer_position and inner_size vs outer_size from winit. On Wayland with CSD, it infers from outer/inner size differences. On Wayland with SSD where sizes match, it returns (0,0,0,0). The original audit description saying 'returns hardcoded (4,30,4,4)' is INCORRECT — that was an earlier version. The current code queries live values. However, set_win_size (line 804) and set_win_pos_size (line 815) do NOT call border_sizes() to perform the conversion. They pass the requested outer dimensions directly to request_inner_size, making the content area equal to the requested outer size rather than smaller by the border amount. The fix is to subtract border_sizes() from the dimensions before passing to request_inner_size.",
+        "implementation_scope": "Minimal: (1) In set_win_size, call self.border_sizes() to get (l, t, r, b), then pass (w - l - r, h - t - b) to request_inner_size. Approximately 4 lines. (2) In set_win_pos_size, same border subtraction for size, and the position is already correct (set_outer_position handles window-frame coords). Approximately 4 lines. Total: ~8 lines of code change. No new methods, no new integration points.",
+        "dependencies": "set_win_size and set_win_pos_size are currently only defined in zui_window.rs and have no external callers in the current codebase (grep confirms only the definitions exist, no call sites). They are public API intended for use by the geometry/state-saver system (SetWinPosViewSize parsing of geometry strings). The state_saver (state_saver.rs:101-133) uses winit_window.outer_position and inner_size directly, bypassing these methods. So the bug is currently dormant — no code path triggers it.",
+        "performance_impact": "None. This is a correctness issue, not performance.",
+        "practical_impact": "Currently zero — no code calls set_win_size or set_win_pos_size. When these methods eventually get callers (e.g., geometry string parsing like '800x600+100+100', or programmatic window management), the window content area would be set to the full requested outer size, making the window larger than intended by the border amount. On X11 with typical GNOME decorations (1px side borders, ~37px title bar), the window would be ~2px too wide and ~38px too tall. On KDE with typical borders (~4px sides, ~30px title), ~8px too wide and ~34px too tall. On tiling WMs with no decorations, zero error. On Wayland with SSD, zero error (border_sizes returns 0,0,0,0). On Wayland with CSD, the CSD borders (typically ~1px sides, ~36px title) would cause ~2px width and ~37px height oversize.",
+        "recommendation": "implement",
+        "justification": "The fix is 8 lines of code, the border_sizes() method already provides accurate values, and leaving the bug means any future caller silently gets wrong sizing. The implementation is trivial and eliminates a class of bugs before they manifest. Fixing it now while the methods have no callers means zero regression risk."
+      }
+    }
+  ],
+  "summary": {
+    "in_verified_capabilities": 3,
+    "new_findings": 3,
+    "deep_diagnosis_summary": {
+      "implement_now": ["partial-repaint loop (app.rs:285)", "set_win_size/set_win_pos_size border subtraction (zui_window.rs:804,815)"],
+      "defer": ["create_control_panel (view.rs:1882)"],
+      "total_estimated_lines_for_fixes": "25-30 lines for the two implement-now items; 300+ for the deferred control panel consumer"
+    }
+  }
+}

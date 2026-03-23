@@ -1,0 +1,1128 @@
+{
+  "worker_id": "W-0008",
+  "item_id_range": "ITEM-080000 to ITEM-089999",
+  "assigned_files": [
+    "emModel",
+    "emConfigModel",
+    "emSigModel",
+    "emVarModel",
+    "emVarSigModel",
+    "emFileModel",
+    "emRecFileModel"
+  ],
+  "items": [
+    {
+      "item_id": "ITEM-080000",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel",
+      "kind": "class",
+      "classification": "superseded",
+      "superseding_construct": "Rust uses Rc<RefCell<T>> with typed singletons in src/model/context.rs; there is no direct emModel base class — the context/registry pattern is replaced by typed fields and ResourceCache",
+      "rust_equivalent": null,
+      "notes": "The C++ emModel provides ref-counting, context registration (common model lookup), and lifetime management. In Rust, Rc handles ref-counting, and Context (context.rs) handles typed singleton lookup. No 1:1 class."
+    },
+    {
+      "item_id": "ITEM-080001",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::Acquire",
+      "kind": "static method",
+      "classification": "superseded",
+      "superseding_construct": "Context::new_root / Context::new_child + typed getter methods in src/model/context.rs",
+      "rust_equivalent": null,
+      "notes": "Acquire is the C++ pattern for get-or-create common models. In Rust this is done by constructing typed singletons directly."
+    },
+    {
+      "item_id": "ITEM-080002",
+      "cpp_file": "emModel.h",
+      "symbol": "EM_IMPL_ACQUIRE",
+      "kind": "macro",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust generics and ownership eliminate the need for this macro pattern",
+      "rust_equivalent": null,
+      "notes": "C++ preprocessor macro helper for implementing Acquire. Not applicable in Rust."
+    },
+    {
+      "item_id": "ITEM-080003",
+      "cpp_file": "emModel.h",
+      "symbol": "EM_IMPL_ACQUIRE_COMMON",
+      "kind": "macro",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust generics and ownership eliminate the need for this macro pattern",
+      "rust_equivalent": null,
+      "notes": "C++ preprocessor macro helper for common-only Acquire. Not applicable in Rust."
+    },
+    {
+      "item_id": "ITEM-080004",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::GetRootContext",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Context::parent() walking to root in src/model/context.rs",
+      "rust_equivalent": null,
+      "notes": "Context tree traversal is available via parent() but there is no dedicated get_root_context method."
+    },
+    {
+      "item_id": "ITEM-080005",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::GetContext",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Models hold Rc<Context> directly in Rust; no wrapper method needed",
+      "rust_equivalent": null,
+      "notes": "In Rust, callers hold Rc<Context> directly."
+    },
+    {
+      "item_id": "ITEM-080006",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::GetName",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Model names (string-based lookup identity) are not a concept in the Rust port. Typed singletons replace named lookup."
+    },
+    {
+      "item_id": "ITEM-080007",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::IsCommon",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "The common/private model distinction does not exist in the Rust port."
+    },
+    {
+      "item_id": "ITEM-080008",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::IsRegistered",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Synonym for IsCommon; not ported."
+    },
+    {
+      "item_id": "ITEM-080009",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::GetMinCommonLifetime",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Lifetime management is handled by Rc reference counting in Rust; no equivalent."
+    },
+    {
+      "item_id": "ITEM-080010",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::SetMinCommonLifetime",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Lifetime management is handled by Rc reference counting in Rust; no equivalent."
+    },
+    {
+      "item_id": "ITEM-080011",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::Alloc",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Rc::clone in Rust",
+      "rust_equivalent": null,
+      "notes": "Manual ref-count increment. Superseded by Rc."
+    },
+    {
+      "item_id": "ITEM-080012",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::Free",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Rc drop semantics in Rust",
+      "rust_equivalent": null,
+      "notes": "Manual ref-count decrement. Superseded by Rc drop."
+    },
+    {
+      "item_id": "ITEM-080013",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::LinkCrossPtr",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Weak<T> in Rust",
+      "rust_equivalent": null,
+      "notes": "Cross/weak pointer support. Superseded by Rc::downgrade / Weak."
+    },
+    {
+      "item_id": "ITEM-080014",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::Register",
+      "kind": "protected method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Registration in context's AVL tree. Not ported; Rust uses typed fields."
+    },
+    {
+      "item_id": "ITEM-080015",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::Unregister",
+      "kind": "protected method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Unregistration from context's AVL tree. Not ported."
+    },
+    {
+      "item_id": "ITEM-080016",
+      "cpp_file": "emModel.h",
+      "symbol": "emModel::Cycle",
+      "kind": "virtual method",
+      "classification": "superseded",
+      "superseding_construct": "Scheduler Engine trait (src/scheduler/engine.rs)",
+      "rust_equivalent": null,
+      "notes": "emModel inherits from emEngine::Cycle. The Rust Scheduler/Engine pattern replaces this."
+    },
+    {
+      "item_id": "ITEM-081000",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "model/config_model.rs",
+      "notes": "Rust ConfigModel<T> is a direct port with load/save/load_or_install and dirty tracking."
+    },
+    {
+      "item_id": "ITEM-081001",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::GetInstallPath",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/config_model.rs",
+      "notes": "Mapped to ConfigModel::path() -> &Path."
+    },
+    {
+      "item_id": "ITEM-081002",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::IsUnsaved",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/config_model.rs",
+      "notes": "Mapped to ConfigModel::is_dirty() -> bool."
+    },
+    {
+      "item_id": "ITEM-081003",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::GetChangeSignal",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/config_model.rs",
+      "notes": "Mapped to ConfigModel::change_signal() -> SignalId."
+    },
+    {
+      "item_id": "ITEM-081004",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::TrySave",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/config_model.rs",
+      "notes": "Mapped to ConfigModel::save() -> Result<(), RecError>."
+    },
+    {
+      "item_id": "ITEM-081005",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::Save",
+      "kind": "method",
+      "classification": "ambiguous",
+      "confidence": 0.7,
+      "ambiguity_reason": "Rust save() returns Result rather than calling emFatalError on failure; the two overloads (TrySave/Save) are collapsed to one Result-returning method.",
+      "rust_equivalent": "model/config_model.rs"
+    },
+    {
+      "item_id": "ITEM-081006",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::GetAutoSaveDelaySeconds",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Auto-save timer feature not implemented in Rust ConfigModel."
+    },
+    {
+      "item_id": "ITEM-081007",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::SetAutoSaveDelaySeconds",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Auto-save timer feature not implemented in Rust ConfigModel."
+    },
+    {
+      "item_id": "ITEM-081008",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::PostConstruct",
+      "kind": "protected method",
+      "classification": "superseded",
+      "superseding_construct": "ConfigModel::new() constructor in src/model/config_model.rs",
+      "rust_equivalent": null,
+      "notes": "C++ two-phase construction pattern. Rust uses a single new() constructor."
+    },
+    {
+      "item_id": "ITEM-081009",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::TryLoad",
+      "kind": "protected method",
+      "classification": "ported",
+      "rust_equivalent": "model/config_model.rs",
+      "notes": "Mapped to ConfigModel::load() -> Result<(), RecError>."
+    },
+    {
+      "item_id": "ITEM-081010",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::Load",
+      "kind": "protected method",
+      "classification": "ambiguous",
+      "confidence": 0.7,
+      "ambiguity_reason": "Rust load() returns Result rather than calling emFatalError; TryLoad/Load are collapsed to one method.",
+      "rust_equivalent": "model/config_model.rs"
+    },
+    {
+      "item_id": "ITEM-081011",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::TryLoadOrInstall",
+      "kind": "protected method",
+      "classification": "ported",
+      "rust_equivalent": "model/config_model.rs",
+      "notes": "Mapped to ConfigModel::load_or_install() -> Result<(), RecError>."
+    },
+    {
+      "item_id": "ITEM-081012",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::LoadOrInstall",
+      "kind": "protected method",
+      "classification": "ambiguous",
+      "confidence": 0.7,
+      "ambiguity_reason": "TryLoadOrInstall and LoadOrInstall collapsed to one Result-returning Rust method.",
+      "rust_equivalent": "model/config_model.rs"
+    },
+    {
+      "item_id": "ITEM-081013",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::GetRec",
+      "kind": "protected method",
+      "classification": "superseded",
+      "superseding_construct": "ConfigModel::get() / ConfigModel::set() / ConfigModel::modify() in src/model/config_model.rs",
+      "rust_equivalent": null,
+      "notes": "C++ GetRec() returns the emRec for direct manipulation. Rust uses typed generic T with accessor methods."
+    },
+    {
+      "item_id": "ITEM-081014",
+      "cpp_file": "emConfigModel.h",
+      "symbol": "emConfigModel::Cycle",
+      "kind": "virtual method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Auto-save Cycle implementation not ported as the auto-save feature is not implemented."
+    },
+    {
+      "item_id": "ITEM-082000",
+      "cpp_file": "emSigModel.h",
+      "symbol": "emSigModel",
+      "kind": "class",
+      "classification": "superseded",
+      "superseding_construct": "SignalId in src/scheduler/ (signals are identified by SignalId, not wrapped in a named model)",
+      "rust_equivalent": null,
+      "notes": "emSigModel is a named/common model wrapping a single emSignal. In Rust, signals are first-class scheduler SignalIds and do not require a model wrapper. No direct equivalent."
+    },
+    {
+      "item_id": "ITEM-082001",
+      "cpp_file": "emSigModel.h",
+      "symbol": "emSigModel::Acquire",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Signal lookup by name not required in Rust scheduler."
+    },
+    {
+      "item_id": "ITEM-082002",
+      "cpp_file": "emSigModel.h",
+      "symbol": "emSigModel::Lookup",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Signal lookup by name not required in Rust scheduler."
+    },
+    {
+      "item_id": "ITEM-082003",
+      "cpp_file": "emSigModel.h",
+      "symbol": "emSigModel::LookupInherited",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inherited context signal lookup not required in Rust scheduler."
+    },
+    {
+      "item_id": "ITEM-082004",
+      "cpp_file": "emSigModel.h",
+      "symbol": "emSigModel::Sig",
+      "kind": "public field",
+      "classification": "superseded",
+      "superseding_construct": "SignalId value type in src/scheduler/",
+      "rust_equivalent": null,
+      "notes": "The signal itself. In Rust, signals are SignalId integers managed by the scheduler."
+    },
+    {
+      "item_id": "ITEM-083000",
+      "cpp_file": "emVarModel.h",
+      "symbol": "emVarModel<VAR>",
+      "kind": "class template",
+      "classification": "superseded",
+      "superseding_construct": "WatchedVar<T> in src/model/watched_var.rs",
+      "rust_equivalent": "model/watched_var.rs",
+      "notes": "WatchedVar<T> is the Rust equivalent of emVarModel: a typed value container with change detection. It omits the context registration / named lookup aspects."
+    },
+    {
+      "item_id": "ITEM-083001",
+      "cpp_file": "emVarModel.h",
+      "symbol": "emVarModel::Acquire",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Context-based named acquisition not needed; WatchedVar is constructed directly."
+    },
+    {
+      "item_id": "ITEM-083002",
+      "cpp_file": "emVarModel.h",
+      "symbol": "emVarModel::Lookup",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Named context lookup not implemented in Rust."
+    },
+    {
+      "item_id": "ITEM-083003",
+      "cpp_file": "emVarModel.h",
+      "symbol": "emVarModel::LookupInherited",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inherited context lookup not implemented in Rust."
+    },
+    {
+      "item_id": "ITEM-083004",
+      "cpp_file": "emVarModel.h",
+      "symbol": "emVarModel::Set",
+      "kind": "static method",
+      "classification": "ported",
+      "rust_equivalent": "model/watched_var.rs",
+      "notes": "Mapped to WatchedVar::set(). The static context-lookup version is not ported; only the instance method equivalent."
+    },
+    {
+      "item_id": "ITEM-083005",
+      "cpp_file": "emVarModel.h",
+      "symbol": "emVarModel::Remove",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Context registration removal not applicable in Rust."
+    },
+    {
+      "item_id": "ITEM-083006",
+      "cpp_file": "emVarModel.h",
+      "symbol": "emVarModel::Get",
+      "kind": "static method",
+      "classification": "ported",
+      "rust_equivalent": "model/watched_var.rs",
+      "notes": "Mapped to WatchedVar::get(). Static named-lookup form not ported."
+    },
+    {
+      "item_id": "ITEM-083007",
+      "cpp_file": "emVarModel.h",
+      "symbol": "emVarModel::GetAndRemove",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Context registration removal not applicable in Rust."
+    },
+    {
+      "item_id": "ITEM-083008",
+      "cpp_file": "emVarModel.h",
+      "symbol": "emVarModel::GetInherited",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inherited context lookup not implemented in Rust."
+    },
+    {
+      "item_id": "ITEM-083009",
+      "cpp_file": "emVarModel.h",
+      "symbol": "emVarModel::Var",
+      "kind": "public field",
+      "classification": "ported",
+      "rust_equivalent": "model/watched_var.rs",
+      "notes": "Mapped to WatchedVar::value (private, accessed via get()/set())."
+    },
+    {
+      "item_id": "ITEM-084000",
+      "cpp_file": "emVarSigModel.h",
+      "symbol": "emVarSigModel<VAR>",
+      "kind": "class template",
+      "classification": "superseded",
+      "superseding_construct": "WatchedVar<T> in src/model/watched_var.rs (signal firing is caller's responsibility via SignalId)",
+      "rust_equivalent": "model/watched_var.rs",
+      "notes": "emVarSigModel combines emVarModel + emSigModel. WatchedVar<T> handles the variable part; callers fire the SignalId when the value changes (set() returns bool)."
+    },
+    {
+      "item_id": "ITEM-084001",
+      "cpp_file": "emVarSigModel.h",
+      "symbol": "emVarSigModel::Acquire",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Context-based named acquisition not needed in Rust."
+    },
+    {
+      "item_id": "ITEM-084002",
+      "cpp_file": "emVarSigModel.h",
+      "symbol": "emVarSigModel::Lookup",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Named context lookup not implemented."
+    },
+    {
+      "item_id": "ITEM-084003",
+      "cpp_file": "emVarSigModel.h",
+      "symbol": "emVarSigModel::LookupInherited",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inherited context lookup not implemented."
+    },
+    {
+      "item_id": "ITEM-084004",
+      "cpp_file": "emVarSigModel.h",
+      "symbol": "emVarSigModel::Set",
+      "kind": "static method",
+      "classification": "ported",
+      "rust_equivalent": "model/watched_var.rs",
+      "notes": "Instance-level equivalent: WatchedVar::set() + caller fires SignalId. Static named-lookup form not ported."
+    },
+    {
+      "item_id": "ITEM-084005",
+      "cpp_file": "emVarSigModel.h",
+      "symbol": "emVarSigModel::Remove",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Context registration removal not applicable in Rust."
+    },
+    {
+      "item_id": "ITEM-084006",
+      "cpp_file": "emVarSigModel.h",
+      "symbol": "emVarSigModel::Get",
+      "kind": "static method",
+      "classification": "ported",
+      "rust_equivalent": "model/watched_var.rs",
+      "notes": "Instance-level equivalent: WatchedVar::get(). Static named-lookup form not ported."
+    },
+    {
+      "item_id": "ITEM-084007",
+      "cpp_file": "emVarSigModel.h",
+      "symbol": "emVarSigModel::GetAndRemove",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Context registration removal not applicable in Rust."
+    },
+    {
+      "item_id": "ITEM-084008",
+      "cpp_file": "emVarSigModel.h",
+      "symbol": "emVarSigModel::GetInherited",
+      "kind": "static method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inherited context lookup not implemented."
+    },
+    {
+      "item_id": "ITEM-084009",
+      "cpp_file": "emVarSigModel.h",
+      "symbol": "emVarSigModel::Var",
+      "kind": "public field",
+      "classification": "ported",
+      "rust_equivalent": "model/watched_var.rs",
+      "notes": "Mapped to WatchedVar::value (private, accessed via get()/set())."
+    },
+    {
+      "item_id": "ITEM-084010",
+      "cpp_file": "emVarSigModel.h",
+      "symbol": "emVarSigModel::Sig",
+      "kind": "public field",
+      "classification": "ported",
+      "rust_equivalent": "model/watched_var.rs",
+      "notes": "Mapped to WatchedVar::signal_id (signal_id() accessor)."
+    },
+    {
+      "item_id": "ITEM-085000",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "FileModel<T> is a comprehensive port of emFileModel with the full 8-state machine."
+    },
+    {
+      "item_id": "ITEM-085001",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::GetFilePath",
+      "kind": "virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::path() -> &Path."
+    },
+    {
+      "item_id": "ITEM-085002",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::GetFileStateSignal",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::change_signal() -> SignalId."
+    },
+    {
+      "item_id": "ITEM-085003",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::FileState",
+      "kind": "enum",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "FileState enum fully ported with all 8 variants (Waiting, Loading, Loaded, Unsaved, Saving, TooCostly, LoadError, SaveError)."
+    },
+    {
+      "item_id": "ITEM-085004",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::FileState::FS_WAITING",
+      "kind": "enum variant",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "FileState::Waiting"
+    },
+    {
+      "item_id": "ITEM-085005",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::FileState::FS_LOADING",
+      "kind": "enum variant",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "FileState::Loading { progress }"
+    },
+    {
+      "item_id": "ITEM-085006",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::FileState::FS_LOADED",
+      "kind": "enum variant",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "FileState::Loaded"
+    },
+    {
+      "item_id": "ITEM-085007",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::FileState::FS_UNSAVED",
+      "kind": "enum variant",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "FileState::Unsaved"
+    },
+    {
+      "item_id": "ITEM-085008",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::FileState::FS_SAVING",
+      "kind": "enum variant",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "FileState::Saving"
+    },
+    {
+      "item_id": "ITEM-085009",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::FileState::FS_TOO_COSTLY",
+      "kind": "enum variant",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "FileState::TooCostly"
+    },
+    {
+      "item_id": "ITEM-085010",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::FileState::FS_LOAD_ERROR",
+      "kind": "enum variant",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "FileState::LoadError(String)"
+    },
+    {
+      "item_id": "ITEM-085011",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::FileState::FS_SAVE_ERROR",
+      "kind": "enum variant",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "FileState::SaveError(String)"
+    },
+    {
+      "item_id": "ITEM-085012",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::GetFileState",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::state() -> &FileState."
+    },
+    {
+      "item_id": "ITEM-085013",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::GetMemoryNeed",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::get_memory_need() -> u64."
+    },
+    {
+      "item_id": "ITEM-085014",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::GetFileProgress",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::progress() -> f64."
+    },
+    {
+      "item_id": "ITEM-085015",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::GetErrorText",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::error_text() -> &str."
+    },
+    {
+      "item_id": "ITEM-085016",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::Update",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::update()."
+    },
+    {
+      "item_id": "ITEM-085017",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::AcquireUpdateSignalModel",
+      "kind": "static method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::update_signal() -> SignalId. Signal ownership is external in Rust."
+    },
+    {
+      "item_id": "ITEM-085018",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::GetIgnoreUpdateSignal",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::ignore_update_signal() -> bool."
+    },
+    {
+      "item_id": "ITEM-085019",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::SetIgnoreUpdateSignal",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::set_ignore_update_signal(bool)."
+    },
+    {
+      "item_id": "ITEM-085020",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::Load",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::load(ops, immediately)."
+    },
+    {
+      "item_id": "ITEM-085021",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::Save",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::save(ops, immediately)."
+    },
+    {
+      "item_id": "ITEM-085022",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::ClearSaveError",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::clear_save_error()."
+    },
+    {
+      "item_id": "ITEM-085023",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::HardResetFileState",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::hard_reset_file_state(ops)."
+    },
+    {
+      "item_id": "ITEM-085024",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::Cycle",
+      "kind": "virtual method",
+      "classification": "superseded",
+      "superseding_construct": "FileModel::step_loading / step_saving driven by scheduler in src/model/file_model.rs",
+      "rust_equivalent": null,
+      "notes": "The C++ Cycle method drives incremental loading/saving. Rust splits this into step_loading() and step_saving() called by the scheduler."
+    },
+    {
+      "item_id": "ITEM-085025",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::SetUnsavedState",
+      "kind": "protected method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::set_unsaved_state(ops)."
+    },
+    {
+      "item_id": "ITEM-085026",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::ResetData",
+      "kind": "pure virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Part of FileModelOps trait: reset_data()."
+    },
+    {
+      "item_id": "ITEM-085027",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::TryStartLoading",
+      "kind": "pure virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Part of FileModelOps trait: try_start_loading()."
+    },
+    {
+      "item_id": "ITEM-085028",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::TryContinueLoading",
+      "kind": "pure virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Part of FileModelOps trait: try_continue_loading()."
+    },
+    {
+      "item_id": "ITEM-085029",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::QuitLoading",
+      "kind": "pure virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Part of FileModelOps trait: quit_loading()."
+    },
+    {
+      "item_id": "ITEM-085030",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::TryStartSaving",
+      "kind": "pure virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Part of FileModelOps trait: try_start_saving()."
+    },
+    {
+      "item_id": "ITEM-085031",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::TryContinueSaving",
+      "kind": "pure virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Part of FileModelOps trait: try_continue_saving()."
+    },
+    {
+      "item_id": "ITEM-085032",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::QuitSaving",
+      "kind": "pure virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Part of FileModelOps trait: quit_saving()."
+    },
+    {
+      "item_id": "ITEM-085033",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::CalcMemoryNeed",
+      "kind": "pure virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Part of FileModelOps trait: calc_memory_need()."
+    },
+    {
+      "item_id": "ITEM-085034",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::CalcFileProgress",
+      "kind": "pure virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Part of FileModelOps trait: calc_file_progress()."
+    },
+    {
+      "item_id": "ITEM-085035",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::TryFetchDate",
+      "kind": "virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::try_fetch_date() (private) and set_file_date()."
+    },
+    {
+      "item_id": "ITEM-085036",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModel::IsOutOfDate",
+      "kind": "virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/file_model.rs",
+      "notes": "Mapped to FileModel::check_out_of_date(mtime, size)."
+    },
+    {
+      "item_id": "ITEM-085100",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModelClient",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "The client pattern (memory limit negotiation, priority, reload annoyance) is not implemented in the Rust port. FileModel uses a fixed memory_limit field instead."
+    },
+    {
+      "item_id": "ITEM-085101",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModelClient::GetModel",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emFileModelClient not ported."
+    },
+    {
+      "item_id": "ITEM-085102",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModelClient::SetModel",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emFileModelClient not ported."
+    },
+    {
+      "item_id": "ITEM-085103",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModelClient::GetMemoryLimit",
+      "kind": "pure virtual method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emFileModelClient not ported."
+    },
+    {
+      "item_id": "ITEM-085104",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModelClient::GetPriority",
+      "kind": "pure virtual method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emFileModelClient not ported."
+    },
+    {
+      "item_id": "ITEM-085105",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModelClient::IsReloadAnnoying",
+      "kind": "pure virtual method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emFileModelClient not ported."
+    },
+    {
+      "item_id": "ITEM-085106",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModelClient::InvalidateMemoryLimit",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emFileModelClient not ported."
+    },
+    {
+      "item_id": "ITEM-085107",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModelClient::InvalidatePriority",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emFileModelClient not ported."
+    },
+    {
+      "item_id": "ITEM-085108",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emFileModelClient::IsTheOnlyClient",
+      "kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emFileModelClient not ported."
+    },
+    {
+      "item_id": "ITEM-085200",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emAbsoluteFileModelClient",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Concrete always-load client; not ported since the client pattern is not ported."
+    },
+    {
+      "item_id": "ITEM-085201",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emAbsoluteFileModelClient::GetMemoryLimit",
+      "kind": "virtual method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emAbsoluteFileModelClient not ported."
+    },
+    {
+      "item_id": "ITEM-085202",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emAbsoluteFileModelClient::GetPriority",
+      "kind": "virtual method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emAbsoluteFileModelClient not ported."
+    },
+    {
+      "item_id": "ITEM-085203",
+      "cpp_file": "emFileModel.h",
+      "symbol": "emAbsoluteFileModelClient::IsReloadAnnoying",
+      "kind": "virtual method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emAbsoluteFileModelClient not ported."
+    },
+    {
+      "item_id": "ITEM-086000",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "model/rec_file_model.rs",
+      "notes": "RecFileModel<T> is a direct port. Standalone implementation (does not wrap FileModel<T>)."
+    },
+    {
+      "item_id": "ITEM-086001",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::GetChangeSignal",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RecFileModel exposes data_mut() which marks unsaved; callers fire signals externally via SignalId",
+      "rust_equivalent": null,
+      "notes": "In Rust, there is no per-model ChangeSignal stored in RecFileModel; change notification is done through external SignalId mechanism."
+    },
+    {
+      "item_id": "ITEM-086002",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::PostConstruct",
+      "kind": "protected method",
+      "classification": "superseded",
+      "superseding_construct": "RecFileModel::new(path) constructor in src/model/rec_file_model.rs",
+      "rust_equivalent": null,
+      "notes": "Two-phase C++ construction replaced by single Rust constructor."
+    },
+    {
+      "item_id": "ITEM-086003",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::GetRec",
+      "kind": "protected method",
+      "classification": "superseded",
+      "superseding_construct": "RecFileModel::data() and RecFileModel::data_mut() in src/model/rec_file_model.rs",
+      "rust_equivalent": "model/rec_file_model.rs",
+      "notes": "C++ GetRec() returns raw emRec. Rust uses typed T with data()/data_mut() accessors."
+    },
+    {
+      "item_id": "ITEM-086004",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::ResetData",
+      "kind": "virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/rec_file_model.rs",
+      "notes": "Implemented internally in do_step_loading() via data.set_to_default()."
+    },
+    {
+      "item_id": "ITEM-086005",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::TryStartLoading",
+      "kind": "virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/rec_file_model.rs",
+      "notes": "Implemented in do_step_loading() initial Waiting branch."
+    },
+    {
+      "item_id": "ITEM-086006",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::TryContinueLoading",
+      "kind": "virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/rec_file_model.rs",
+      "notes": "Implemented in do_step_loading() Loading branch."
+    },
+    {
+      "item_id": "ITEM-086007",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::QuitLoading",
+      "kind": "virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/rec_file_model.rs",
+      "notes": "Handled implicitly in do_step_loading(); no separate quit step needed for synchronous load."
+    },
+    {
+      "item_id": "ITEM-086008",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::TryStartSaving",
+      "kind": "virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/rec_file_model.rs",
+      "notes": "Implemented in RecFileModel::save()."
+    },
+    {
+      "item_id": "ITEM-086009",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::TryContinueSaving",
+      "kind": "virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/rec_file_model.rs",
+      "notes": "Saving is synchronous in Rust; TryContinueSaving collapses into save()."
+    },
+    {
+      "item_id": "ITEM-086010",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::QuitSaving",
+      "kind": "virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/rec_file_model.rs",
+      "notes": "Handled implicitly in save(); no separate quit step."
+    },
+    {
+      "item_id": "ITEM-086011",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::CalcMemoryNeed",
+      "kind": "virtual method",
+      "classification": "ported",
+      "rust_equivalent": "model/rec_file_model.rs",
+      "notes": "Implemented in do_step_loading() / save() as last_size + size_of::<T>()."
+    },
+    {
+      "item_id": "ITEM-086012",
+      "cpp_file": "emRecFileModel.h",
+      "symbol": "emRecFileModel::CalcFileProgress",
+      "kind": "virtual method",
+      "classification": "ambiguous",
+      "confidence": 0.6,
+      "ambiguity_reason": "RecFileModel loads synchronously so progress is always 0 or 100; no CalcFileProgress method exists separately in Rust.",
+      "rust_equivalent": null
+    }
+  ]
+}

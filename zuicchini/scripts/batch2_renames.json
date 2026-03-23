@@ -1,0 +1,1242 @@
+{
+  "renames": [
+    {
+      "old": "is_signaled",
+      "new": "IsSignaled",
+      "header": "emEngine.h",
+      "file": "emEngine.rs"
+    },
+    {
+      "old": "is_time_slice_at_end",
+      "new": "IsTimeSliceAtEnd",
+      "header": "emEngine.h",
+      "file": "emEngine.rs"
+    },
+    {
+      "old": "mode",
+      "new": "GetMode",
+      "header": "emFileDialog.h",
+      "file": "emFileDialog.rs"
+    },
+    {
+      "old": "parent_directory",
+      "new": "GetParentDirectory",
+      "header": "emFileDialog.h",
+      "file": "emFileDialog.rs"
+    },
+    {
+      "old": "selected_name",
+      "new": "GetSelectedName",
+      "header": "emFileDialog.h",
+      "file": "emFileDialog.rs"
+    },
+    {
+      "old": "selected_names",
+      "new": "GetSelectedNames",
+      "header": "emFileDialog.h",
+      "file": "emFileDialog.rs"
+    },
+    {
+      "old": "selected_path",
+      "new": "GetSelectedPath",
+      "header": "emFileDialog.h",
+      "file": "emFileDialog.rs"
+    },
+    {
+      "old": "filters",
+      "new": "GetFilters",
+      "header": "emFileDialog.h",
+      "file": "emFileDialog.rs"
+    },
+    {
+      "old": "selected_filter_index",
+      "new": "GetSelectedFilterIndex",
+      "header": "emFileDialog.h",
+      "file": "emFileDialog.rs"
+    },
+    {
+      "old": "check_finish",
+      "new": "CheckFinish",
+      "header": "emFileDialog.h",
+      "file": "emFileDialog.rs"
+    },
+    {
+      "old": "state",
+      "new": "GetFileState",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "path",
+      "new": "GetFilePath",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "change_signal",
+      "new": "GetFileStateSignal",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "progress",
+      "new": "GetFileProgress",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "error_text",
+      "new": "GetErrorText",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "ignore_update_signal",
+      "new": "GetIgnoreUpdateSignal",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "update_signal",
+      "new": "AcquireUpdateSignalModel",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "request_load",
+      "new": "Load",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "request_save",
+      "new": "Save",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "reset",
+      "new": "HardResetFileState",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "mark_unsaved",
+      "new": "SetUnsavedState",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "check_out_of_date",
+      "new": "IsOutOfDate",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "set_file_date",
+      "new": "TryFetchDate",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "update_memory_need",
+      "new": "CalcMemoryNeed",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "update_file_progress",
+      "new": "CalcFileProgress",
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs"
+    },
+    {
+      "old": "file_state",
+      "new": "GetFileState",
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs"
+    },
+    {
+      "old": "has_model",
+      "new": "GetFileModel",
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs"
+    },
+    {
+      "old": "set_has_model",
+      "new": "SetFileModel",
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs"
+    },
+    {
+      "old": "error_text",
+      "new": "GetErrorText",
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs"
+    },
+    {
+      "old": "vir_file_state",
+      "new": "GetVirFileState",
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs"
+    },
+    {
+      "old": "custom_error",
+      "new": "GetCustomError",
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs"
+    },
+    {
+      "old": "memory_need",
+      "new": "GetMemoryNeed",
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs"
+    },
+    {
+      "old": "memory_limit",
+      "new": "GetMemoryLimit",
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs"
+    },
+    {
+      "old": "parent_directory",
+      "new": "GetParentDirectory",
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs"
+    },
+    {
+      "old": "selected_name",
+      "new": "GetSelectedName",
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs"
+    },
+    {
+      "old": "selected_names",
+      "new": "GetSelectedNames",
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs"
+    },
+    {
+      "old": "selected_path",
+      "new": "GetSelectedPath",
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs"
+    },
+    {
+      "old": "filters",
+      "new": "GetFilters",
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs"
+    },
+    {
+      "old": "selected_filter_index",
+      "new": "GetSelectedFilterIndex",
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs"
+    },
+    {
+      "old": "triggered_file_name",
+      "new": "GetTriggeredFileName",
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs"
+    },
+    {
+      "old": "get_property",
+      "new": "GetProperty",
+      "header": "emFpPlugin.h",
+      "file": "emFpPlugin.rs"
+    },
+    {
+      "old": "is_matching",
+      "new": "IsMatchingPlugin",
+      "header": "emFpPlugin.h",
+      "file": "emFpPlugin.rs"
+    },
+    {
+      "old": "search_plugin",
+      "new": "SearchPlugin",
+      "header": "emFpPlugin.h",
+      "file": "emFpPlugin.rs"
+    },
+    {
+      "old": "search_plugins",
+      "new": "SearchPlugins",
+      "header": "emFpPlugin.h",
+      "file": "emFpPlugin.rs"
+    },
+    {
+      "old": "acquire",
+      "new": "Acquire",
+      "header": "emFpPlugin.h",
+      "file": "emFpPlugin.rs"
+    },
+    {
+      "old": "width",
+      "new": "GetWidth",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "height",
+      "new": "GetHeight",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "channel_count",
+      "new": "GetChannelCount",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "data",
+      "new": "GetMap",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "data_mut",
+      "new": "GetWritableMap",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "pixel",
+      "new": "GetPixel",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "pixel_mut",
+      "new": "SetPixel",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "fill_rect",
+      "new": "Fill",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "fill_channel_rect",
+      "new": "FillChannel",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "copy_from",
+      "new": "Copy",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "copy_from_rect",
+      "new": "Copy",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "copy_channel",
+      "new": "CopyChannel",
+      "header": "emImage.h",
+      "file": "emImage.rs"
+    },
+    {
+      "old": "image",
+      "new": "GetImage",
+      "header": "emImageFile.h",
+      "file": "emImageFile.rs"
+    },
+    {
+      "old": "comment",
+      "new": "GetComment",
+      "header": "emImageFile.h",
+      "file": "emImageFile.rs"
+    },
+    {
+      "old": "format_info",
+      "new": "GetFileFormatInfo",
+      "header": "emImageFile.h",
+      "file": "emImageFile.rs"
+    },
+    {
+      "old": "saving_quality",
+      "new": "GetSavingQuality",
+      "header": "emImageFile.h",
+      "file": "emImageFile.rs"
+    },
+    {
+      "old": "data_change_signal",
+      "new": "GetChangeSignal",
+      "header": "emImageFile.h",
+      "file": "emImageFile.rs"
+    },
+    {
+      "old": "set_format_info",
+      "new": "SetFileFormatInfo",
+      "header": "emImageFile.h",
+      "file": "emImageFile.rs"
+    },
+    {
+      "old": "as_str",
+      "new": "emInputKeyToString",
+      "header": "emInput.h",
+      "file": "emInput.rs"
+    },
+    {
+      "old": "from_str_name",
+      "new": "emStringToInputKey",
+      "header": "emInput.h",
+      "file": "emInput.rs"
+    },
+    {
+      "old": "is_mouse",
+      "new": "emIsMouseInputKey",
+      "header": "emInput.h",
+      "file": "emInput.rs"
+    },
+    {
+      "old": "is_touch",
+      "new": "emIsTouchInputKey",
+      "header": "emInput.h",
+      "file": "emInput.rs"
+    },
+    {
+      "old": "is_keyboard",
+      "new": "emIsKeyboardInputKey",
+      "header": "emInput.h",
+      "file": "emInput.rs"
+    },
+    {
+      "old": "is_modifier",
+      "new": "emIsModifierInputKey",
+      "header": "emInput.h",
+      "file": "emInput.rs"
+    },
+    {
+      "old": "is_pressed",
+      "new": "Get",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "press",
+      "new": "Set",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "left_button",
+      "new": "GetLeftButton",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "middle_button",
+      "new": "GetMiddleButton",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "right_button",
+      "new": "GetRightButton",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "shift",
+      "new": "GetShift",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "ctrl",
+      "new": "GetCtrl",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "alt",
+      "new": "GetAlt",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "meta",
+      "new": "GetMeta",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_no_mod",
+      "new": "IsNoMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_shift_mod",
+      "new": "IsShiftMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_ctrl_mod",
+      "new": "IsCtrlMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_alt_mod",
+      "new": "IsAltMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_meta_mod",
+      "new": "IsMetaMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_shift_ctrl_mod",
+      "new": "IsShiftCtrlMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_shift_alt_mod",
+      "new": "IsShiftAltMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_shift_meta_mod",
+      "new": "IsShiftMetaMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_ctrl_alt_mod",
+      "new": "IsCtrlAltMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_ctrl_meta_mod",
+      "new": "IsCtrlMetaMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_alt_meta_mod",
+      "new": "IsAltMetaMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_shift_ctrl_alt_mod",
+      "new": "IsShiftCtrlAltMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_shift_ctrl_meta_mod",
+      "new": "IsShiftCtrlMetaMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_shift_alt_meta_mod",
+      "new": "IsShiftAltMetaMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_ctrl_alt_meta_mod",
+      "new": "IsCtrlAltMetaMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "is_shift_ctrl_alt_meta_mod",
+      "new": "IsShiftCtrlAltMetaMod",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "clear_key_states",
+      "new": "ClearKeyStates",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "pressed_keys",
+      "new": "GetKeyStates",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "touches",
+      "new": "GetTouchCount",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "set_touch",
+      "new": "SetTouch",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "remove_touch",
+      "new": "RemoveTouch",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "clear_touches",
+      "new": "ClearTouches",
+      "header": "emInput.h",
+      "file": "emInputState.rs"
+    },
+    {
+      "old": "matches",
+      "new": "Match",
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs"
+    },
+    {
+      "old": "parse",
+      "new": "TryParse",
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs"
+    },
+    {
+      "old": "clear_modifiers",
+      "new": "ClearModifiers",
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs"
+    },
+    {
+      "old": "add_modifier",
+      "new": "AddModifier",
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs"
+    },
+    {
+      "old": "set_key",
+      "new": "SetKey",
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs"
+    }
+  ],
+  "diverged": [
+    {
+      "header": "emEngine.h",
+      "file": "emEngine.rs",
+      "cpp_name": "GetScheduler",
+      "reason": "not ported — scheduler is implicit in Rust architecture"
+    },
+    {
+      "header": "emEngine.h",
+      "file": "emEngine.rs",
+      "cpp_name": "WakeUp",
+      "reason": "pub field/method on EngineCtx: wake_up() wakes other engines; self-wakeup is via return value of cycle()"
+    },
+    {
+      "header": "emEngine.h",
+      "file": "emEngine.rs",
+      "cpp_name": "AddWakeUpSignal",
+      "reason": "not ported — signal-engine wiring handled differently in Rust scheduler"
+    },
+    {
+      "header": "emEngine.h",
+      "file": "emEngine.rs",
+      "cpp_name": "RemoveWakeUpSignal",
+      "reason": "not ported — signal-engine wiring handled differently in Rust scheduler"
+    },
+    {
+      "header": "emEngine.h",
+      "file": "emEngine.rs",
+      "cpp_name": "GetWakeUpSignalRefs",
+      "reason": "not ported — signal-engine wiring handled differently in Rust scheduler"
+    },
+    {
+      "header": "emEngine.h",
+      "file": "emEngine.rs",
+      "cpp_name": "Signal",
+      "reason": "Rust equivalent is EngineCtx::fire()"
+    },
+    {
+      "header": "emEngine.h",
+      "file": "emEngine.rs",
+      "cpp_name": "SetEnginePriority",
+      "reason": "not ported — priority set at registration time"
+    },
+    {
+      "header": "emEngine.h",
+      "file": "emEngine.rs",
+      "cpp_name": "GetEnginePriority",
+      "reason": "not ported — priority set at registration time"
+    },
+    {
+      "header": "emEngine.h",
+      "file": "emEngine.rs",
+      "cpp_name": "Cycle",
+      "reason": "Rust trait method emEngine::cycle()"
+    },
+    {
+      "header": "emFileDialog.h",
+      "file": "emFileDialog.rs",
+      "cpp_name": "GetSelectionSignal",
+      "reason": "not ported — Rust uses direct method calls instead of signal forwarding"
+    },
+    {
+      "header": "emFileDialog.h",
+      "file": "emFileDialog.rs",
+      "cpp_name": "Cycle",
+      "reason": "not ported — no engine cycle in Rust file dialog"
+    },
+    {
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs",
+      "cpp_name": "GetMemoryNeed",
+      "reason": "Rust method is get_memory_need (already snake_case of C++ name)"
+    },
+    {
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs",
+      "cpp_name": "Cycle",
+      "reason": "not ported — loading/saving driven by explicit step_loading/step_saving calls"
+    },
+    {
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs",
+      "cpp_name": "ResetData",
+      "reason": "Rust method is reset_data (already snake_case of C++ name)"
+    },
+    {
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs",
+      "cpp_name": "TryStartLoading",
+      "reason": "Rust trait method FileModelOps::try_start_loading"
+    },
+    {
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs",
+      "cpp_name": "TryContinueLoading",
+      "reason": "Rust trait method FileModelOps::try_continue_loading"
+    },
+    {
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs",
+      "cpp_name": "QuitLoading",
+      "reason": "Rust trait method FileModelOps::quit_loading"
+    },
+    {
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs",
+      "cpp_name": "TryStartSaving",
+      "reason": "Rust trait method FileModelOps::try_start_saving"
+    },
+    {
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs",
+      "cpp_name": "TryContinueSaving",
+      "reason": "Rust trait method FileModelOps::try_continue_saving"
+    },
+    {
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs",
+      "cpp_name": "QuitSaving",
+      "reason": "Rust trait method FileModelOps::quit_saving"
+    },
+    {
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs",
+      "cpp_name": "emFileModelClient",
+      "reason": "not ported — client pattern replaced by direct method calls on emFileModel"
+    },
+    {
+      "header": "emFileModel.h",
+      "file": "emFileModel.rs",
+      "cpp_name": "emAbsoluteFileModelClient",
+      "reason": "not ported — client pattern replaced by direct method calls on emFileModel"
+    },
+    {
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs",
+      "cpp_name": "GetVirFileStateSignal",
+      "reason": "not ported — no signal system in Rust panel"
+    },
+    {
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs",
+      "cpp_name": "IsVFSGood",
+      "reason": "Rust method is VirtualFileState::is_good() on the enum"
+    },
+    {
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs",
+      "cpp_name": "IsReloadAnnoying",
+      "reason": "not ported — client pattern not used"
+    },
+    {
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs",
+      "cpp_name": "GetIconFileName",
+      "reason": "PanelBehavior trait method get_icon_file_name"
+    },
+    {
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs",
+      "cpp_name": "IsContentReady",
+      "reason": "not ported"
+    },
+    {
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs",
+      "cpp_name": "Cycle",
+      "reason": "not ported — no engine cycle in Rust panel"
+    },
+    {
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs",
+      "cpp_name": "Notice",
+      "reason": "not ported"
+    },
+    {
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs",
+      "cpp_name": "IsOpaque",
+      "reason": "PanelBehavior trait method is_opaque"
+    },
+    {
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs",
+      "cpp_name": "Paint",
+      "reason": "PanelBehavior trait method paint"
+    },
+    {
+      "header": "emFilePanel.h",
+      "file": "emFilePanel.rs",
+      "cpp_name": "IsHopeForSeeking",
+      "reason": "Rust method is VirtualFileState::is_hope_for_seeking() on the enum"
+    },
+    {
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs",
+      "cpp_name": "GetSelectionSignal",
+      "reason": "not ported — no signal system in Rust"
+    },
+    {
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs",
+      "cpp_name": "GetFileTriggerSignal",
+      "reason": "not ported — no signal system in Rust"
+    },
+    {
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs",
+      "cpp_name": "Cycle",
+      "reason": "not ported"
+    },
+    {
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs",
+      "cpp_name": "Input",
+      "reason": "not ported as standalone method"
+    },
+    {
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs",
+      "cpp_name": "AutoExpand",
+      "reason": "not ported"
+    },
+    {
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs",
+      "cpp_name": "AutoShrink",
+      "reason": "not ported"
+    },
+    {
+      "header": "emFileSelectionBox.h",
+      "file": "emFileSelectionBox.rs",
+      "cpp_name": "LayoutChildren",
+      "reason": "not ported"
+    },
+    {
+      "header": "emFpPlugin.h",
+      "file": "emFpPlugin.rs",
+      "cpp_name": "TryCreateFilePanel",
+      "reason": "not ported — dynamic library panel creation not implemented"
+    },
+    {
+      "header": "emFpPlugin.h",
+      "file": "emFpPlugin.rs",
+      "cpp_name": "TryAcquireModel",
+      "reason": "not ported — dynamic library model acquisition not implemented"
+    },
+    {
+      "header": "emFpPlugin.h",
+      "file": "emFpPlugin.rs",
+      "cpp_name": "GetFormatName",
+      "reason": "not ported as method — file_format_name is pub field"
+    },
+    {
+      "header": "emFpPlugin.h",
+      "file": "emFpPlugin.rs",
+      "cpp_name": "CreateFilePanel",
+      "reason": "not ported — emFpPluginList panel creation not implemented"
+    },
+    {
+      "header": "emGUIFramework.h",
+      "file": "emGUIFramework.rs",
+      "cpp_name": "emGUIFramework",
+      "reason": "Rust equivalent is App struct with completely different architecture (winit+wgpu)"
+    },
+    {
+      "header": "emGUIFramework.h",
+      "file": "emGUIFramework.rs",
+      "cpp_name": "GetScheduler",
+      "reason": "pub field `scheduler` replaces getter"
+    },
+    {
+      "header": "emGUIFramework.h",
+      "file": "emGUIFramework.rs",
+      "cpp_name": "GetRootContext",
+      "reason": "not ported — Rust uses different context model"
+    },
+    {
+      "header": "emGUIFramework.h",
+      "file": "emGUIFramework.rs",
+      "cpp_name": "EnableAutoTermination",
+      "reason": "not ported — handled by winit event loop"
+    },
+    {
+      "header": "emGUIFramework.h",
+      "file": "emGUIFramework.rs",
+      "cpp_name": "Run",
+      "reason": "Rust equivalent is App::run() with different architecture"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "SetUserMap",
+      "reason": "Rust method is set_user_map (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "HasUserMap",
+      "reason": "Rust method is has_user_map (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "TryParseXpm",
+      "reason": "Rust method is try_parse_xpm (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "Setup",
+      "reason": "Rust method is setup (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "Clear",
+      "reason": "Rust method is clear (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "IsEmpty",
+      "reason": "Rust method is is_empty (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "Fill",
+      "reason": "Rust method is fill (already snake_case of C++ name, whole-image overload)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "FillChannel",
+      "reason": "Rust method is fill_channel (already snake_case, whole-image overload)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "GetPixelChannel",
+      "reason": "Rust method is get_pixel_channel (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "SetPixelChannel",
+      "reason": "Rust method is set_pixel_channel (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "GetPixelInterpolated",
+      "reason": "Rust method is get_pixel_interpolated (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "CopyTransformed",
+      "reason": "Rust method is copy_transformed (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "GetTransformed",
+      "reason": "Rust method is get_transformed (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "CalcMinMaxRect",
+      "reason": "Rust method is calc_min_max_rect (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "CalcChannelMinMaxRect",
+      "reason": "Rust method is calc_channel_min_max_rect (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "CalcAlphaMinMaxRect",
+      "reason": "Rust method is calc_alpha_min_max_rect (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "GetConverted",
+      "reason": "Rust method is get_converted (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "GetCropped",
+      "reason": "Rust method is get_cropped (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "GetCroppedByAlpha",
+      "reason": "Rust method is get_cropped_by_alpha (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "HasAnyNonGreyPixel",
+      "reason": "Rust method is has_any_non_grey_pixel (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "HasAnyTransparentPixel",
+      "reason": "Rust method is has_any_transparent_pixel (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "PreparePainter",
+      "reason": "Rust method is prepare_painter (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "IsChannelCountPaintable",
+      "reason": "Rust method is is_channel_count_paintable (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "DetermineAllColorsSorted",
+      "reason": "Rust method is determine_all_colors_sorted (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "GetDataRefCount",
+      "reason": "not ported — Rust does not use shared data / copy-on-write"
+    },
+    {
+      "header": "emImage.h",
+      "file": "emImage.rs",
+      "cpp_name": "MakeNonShared",
+      "reason": "not ported — Rust does not use shared data / copy-on-write"
+    },
+    {
+      "header": "emImageFile.h",
+      "file": "emImageFile.rs",
+      "cpp_name": "ResetData",
+      "reason": "Rust method is reset_data (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImageFile.h",
+      "file": "emImageFileImageFilePanel.rs",
+      "cpp_name": "SetFileModel",
+      "reason": "not ported as standalone method — panel wraps emFilePanel"
+    },
+    {
+      "header": "emImageFile.h",
+      "file": "emImageFileImageFilePanel.rs",
+      "cpp_name": "GetIconFileName",
+      "reason": "not ported as standalone method — delegated to emFilePanel trait"
+    },
+    {
+      "header": "emImageFile.h",
+      "file": "emImageFileImageFilePanel.rs",
+      "cpp_name": "GetEssenceRect",
+      "reason": "Rust method is get_essence_rect (already snake_case of C++ name)"
+    },
+    {
+      "header": "emImageFile.h",
+      "file": "emImageFileImageFilePanel.rs",
+      "cpp_name": "Cycle",
+      "reason": "not ported"
+    },
+    {
+      "header": "emImageFile.h",
+      "file": "emImageFileImageFilePanel.rs",
+      "cpp_name": "IsOpaque",
+      "reason": "PanelBehavior trait method is_opaque"
+    },
+    {
+      "header": "emImageFile.h",
+      "file": "emImageFileImageFilePanel.rs",
+      "cpp_name": "Paint",
+      "reason": "PanelBehavior trait method paint"
+    },
+    {
+      "header": "emImageFile.h",
+      "file": "emImageFileImageFilePanel.rs",
+      "cpp_name": "CreateControlPanel",
+      "reason": "not ported"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInput.rs",
+      "cpp_name": "emInputEvent::Setup",
+      "reason": "Rust uses builder pattern (press/release constructors + with_* methods)"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInput.rs",
+      "cpp_name": "emInputEvent::GetKey",
+      "reason": "pub field `key` replaces getter"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInput.rs",
+      "cpp_name": "emInputEvent::GetChars",
+      "reason": "pub field `chars` replaces getter"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInput.rs",
+      "cpp_name": "emInputEvent::GetRepeat",
+      "reason": "pub field `repeat` replaces getter"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInput.rs",
+      "cpp_name": "emInputEvent::GetVariant",
+      "reason": "pub field `source_variant` replaces getter"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputState.rs",
+      "cpp_name": "emInputState::GetMouseX",
+      "reason": "pub field `mouse_x` replaces getter"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputState.rs",
+      "cpp_name": "emInputState::GetMouseY",
+      "reason": "pub field `mouse_y` replaces getter"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputState.rs",
+      "cpp_name": "emInputState::SearchTouch",
+      "reason": "not ported — touches stored as Vec<(u64,f64,f64)>"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputState.rs",
+      "cpp_name": "emInputState::GetTouchId",
+      "reason": "not ported — touches stored as Vec<(u64,f64,f64)>"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputState.rs",
+      "cpp_name": "emInputState::GetTouchX",
+      "reason": "not ported — touches stored as Vec<(u64,f64,f64)>"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputState.rs",
+      "cpp_name": "emInputState::GetTouchY",
+      "reason": "not ported — touches stored as Vec<(u64,f64,f64)>"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputState.rs",
+      "cpp_name": "emInputState::AddTouch",
+      "reason": "Rust uses set_touch which adds or updates"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs",
+      "cpp_name": "emInputHotkey::IsValid",
+      "reason": "not ported — Hotkey is always valid when constructed"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs",
+      "cpp_name": "emInputHotkey::GetShift",
+      "reason": "pub field `shift` replaces getter"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs",
+      "cpp_name": "emInputHotkey::GetCtrl",
+      "reason": "pub field `ctrl` replaces getter"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs",
+      "cpp_name": "emInputHotkey::GetAlt",
+      "reason": "pub field `alt` replaces getter"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs",
+      "cpp_name": "emInputHotkey::GetMeta",
+      "reason": "pub field `meta` replaces getter"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs",
+      "cpp_name": "emInputHotkey::GetKey",
+      "reason": "pub field `key` replaces getter"
+    },
+    {
+      "header": "emInput.h",
+      "file": "emInputHotkey.rs",
+      "cpp_name": "emInputHotkey::GetString",
+      "reason": "Rust uses Display trait (fmt::Display for Hotkey)"
+    }
+  ]
+}

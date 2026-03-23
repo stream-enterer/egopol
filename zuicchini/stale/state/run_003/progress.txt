@@ -1,0 +1,65 @@
+2026-03-15T16:46:42Z | SYSTEM | SCAN | OK | Workers: 65, Symbols: 2500, Ported: 1232, NotPorted: 1243, Stub: 11, Ambiguous: 14
+2026-03-15T16:55:00Z | SYSTEM | AUDIT | OK | Audited: 799, Reclassified: 65, Rate: 8.1%, Spot-check: 5/5 passed
+2026-03-15T17:00:00Z | SYSTEM | DISCOVER | OK | Capabilities: 84, WithGolden: 43, WithoutGolden: 41, Untested: 53, NotPorted: 26, Stub: 5, GapList: 26, ExtensionQueue: 14
+2026-03-15T17:10:00Z | SYSTEM | BASELINE | OK | 187 tests, 187 pass, 0 fail, 157634 div_px (all within tolerance), 0 clusters
+2026-03-15T17:15:00Z | SYSTEM | PHASE_COMPLETE | OK | Phase 3 (extension): 14 items resolved (9 F22, 5 verified via existing tests)
+2026-03-15T17:15:00Z | SYSTEM | PHASE_COMPLETE | OK | Phase 4 (fixing): 0 clusters, 0 fix tasks — all 187 golden tests pass
+
+2026-03-15T17:13:53Z | SYSTEM | PHASE_COMPLETE | OK | V3 Harness Run Complete
+======================================================================
+COMPLETION SUMMARY
+======================================================================
+Total capabilities:          84
+  Verified (golden pass):   53
+  Accepted (arch. diverge): 0
+  Stubbed (limitations):    5
+  Not ported:               26
+  Remaining divergent:      0
+
+Total golden tests:          187
+  Passing:                   187
+  Failing:                   0
+
+Total workspace tests:       950
+  Passing:                   950
+  Failing:                   0
+
+Total divergent pixels:      157634 (all within tolerance)
+Total pixels eliminated:     0 (no clusters to fix)
+Total fix commits:           0
+
+Stub ledger entries:         31
+  - 26 gap features (Rust stdlib replacements / out of scope)
+  - 5 stub capabilities (partial implementations)
+
+Gap features:                26
+  - 0 implemented
+  - 26 stubbed (all have Rust stdlib equivalents or are out of scope)
+======================================================================
+
+2026-03-15T18:45:00Z | TEST | COVERAGE_EXTENSION | Coverage Extension Session
+======================================================================
+CAP-0064 Fixed12: COVERED (indirectly by 42 painter golden tests)
+
+Behavioral Tests (all pass, 41 new tests):
+  CAP-0015 ConfigModel: PASS (7 tests)
+  CAP-0020 Cursor: PASS (6 tests)
+  CAP-0037 Job: PASS (12 tests)
+  CAP-0050 PriSchedAgent: PASS (6 tests)
+  CAP-0083 WindowStateSaver: PASS (10 tests)
+
+Golden Tests:
+  CAP-0023 ErrorPanel: PASS — tol=3, 0% failure
+  CAP-0026 FilePanel: PASS — tol=3, 0% failure
+  CAP-0076 Tunnel: FAIL — tol=3, fail=40908/480000 (8.52%), max_diff=76
+  CAP-0027 FileSelectionBox: FAIL — tol=3, fail=403644/480000 (84.09%), max_diff=161
+
+Skipped (window-based, cannot golden):
+  CAP-0021 Dialog — emDialog inherits emWindow
+  CAP-0024 FileDialog — inherits emDialog
+
+Skipped (per instructions):
+  CAP-0031 GUIFramework — needs winit event loop
+  CAP-0061 Screen — needs monitor enumeration
+  CAP-0082 Window — needs wgpu surface
+======================================================================

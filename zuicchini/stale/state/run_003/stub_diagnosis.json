@@ -1,0 +1,343 @@
+{
+  "diagnosed_at": "2026-03-15T00:00:00Z",
+  "closed_at": "2026-03-16T00:00:00Z",
+  "capabilities": [
+    {
+      "capability_id": "CAP-0033",
+      "rust_file": "src/foundation/image.rs",
+      "stubs": [
+        {
+          "method": "try_parse_xpm",
+          "rust_line": 749,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "07f7760",
+          "cpp_source": "emImage.cpp:111-282",
+          "description": "Parse XPM image data: header (width, height, num_colors, sym_size), sorted color table from color entries with key types (c/g/g4/m/s), then map pixel symbols to colors. Supports 1-4 channel output.",
+          "resolution": "Full XPM parser implemented with symbol packing, binary-search color table, auto-detect channel count. Depends on new Color::try_parse and x11_colors.rs (676-entry X11 named color table)."
+        },
+        {
+          "method": "get_pixel_interpolated",
+          "rust_line": 471,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "07f7760",
+          "cpp_source": "emImage.cpp:389-491",
+          "description": "Area-sampling when w >= 1.0 or h >= 1.0 (iterating over all covered pixels with fractional weights). Currently delegates to bilinear only, ignoring w/h params entirely (_w, _h).",
+          "resolution": "Area-sampling implemented with i32 arithmetic, 0x8000 rounding bias, 65536/h scale, >>16 final shift. Handles all channel counts (1-4) in source. Falls back to bilinear when footprint is exactly 1x1."
+        },
+        {
+          "method": "fill",
+          "rust_line": 117,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "07f7760",
+          "cpp_source": "emImage.cpp:494-591",
+          "description": "Should work with all channel counts (1-4), converting color appropriately (grey for 1-ch, grey+alpha for 2-ch, etc.). Currently panics if channel_count != 4.",
+          "resolution": "Match on channel_count (1-4) with appropriate color decomposition. 1-ch: to_grey(), 2-ch: [to_grey(), a()], 3-ch: [r,g,b], 4-ch: [r,g,b,a]."
+        },
+        {
+          "method": "fill_rect",
+          "rust_line": 156,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "07f7760",
+          "cpp_source": "emImage.cpp:494-591",
+          "description": "Same as fill — should work with all channel counts. Currently panics if channel_count != 4.",
+          "resolution": "Same channel_count match pattern as fill, with rect clipping."
+        },
+        {
+          "method": "calc_min_max_rect",
+          "rust_line": 404,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "07f7760",
+          "cpp_source": "emImage.cpp:1186-1228",
+          "description": "Should work with all channel counts, decomposing background color by channel and calling per-channel min/max rect. Returns None immediately if channel_count != 4.",
+          "resolution": "Decompose bg color per channel_count into appropriate byte slice, then compare pixel slices."
+        },
+        {
+          "method": "copy_from_rect",
+          "rust_line": 208,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "07f7760",
+          "cpp_source": "emImage.cpp:628-823",
+          "description": "Should handle cross-channel-count copies (all 16 src/dst combinations) with color conversion. Currently asserts channel counts must match.",
+          "resolution": "Fast path when cc matches (copy_from_slice). Cross-channel path uses convert_pixel() helper implementing all 16 src×dst combinations with C++ grey formula ((r+g+b+1)/3)."
+        },
+        {
+          "method": "copy_transformed",
+          "rust_line": 500,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "07f7760",
+          "cpp_source": "emImage.cpp:886-1145",
+          "description": "Should work with all channel count combinations (src/dst can differ). Currently requires both to be 4-channel.",
+          "resolution": "Removed both 4-channel assertions. Interpolated path computes sw/sh from inverse matrix and calls get_pixel_interpolated. Non-interpolated reads per src-cc, writes per dst-cc. get_transformed simplified (no longer needs 4-ch workaround)."
+        },
+        {
+          "method": "determine_all_colors_sorted",
+          "rust_line": 774,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "07f7760",
+          "cpp_source": "emImage.cpp:1398-1432",
+          "description": "Missing limit parameter — C++ aborts returning empty if unique colors exceed limit. Also C++ handles all channel counts while Rust requires 4-channel.",
+          "resolution": "Added limit: usize parameter. Returns empty vec if set.len() > limit. Handles all channel counts by packing per-cc bytes into u32 key."
+        },
+        {
+          "method": "get_cropped",
+          "rust_line": 265,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "07f7760",
+          "cpp_source": "emImage.cpp:1311-1332",
+          "description": "Missing optional channelCount parameter for converting channels during crop. Currently always preserves channel count.",
+          "resolution": "Added out_cc: Option<u8> parameter. None preserves channel count. Some(cc) crops then converts via get_converted."
+        },
+        {
+          "method": "get_cropped_by_alpha",
+          "rust_line": 365,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "07f7760",
+          "cpp_source": "emImage.cpp:1335-1341",
+          "description": "Missing optional channelCount parameter, same as get_cropped.",
+          "resolution": "Added out_cc: Option<u8> parameter, passed through to get_cropped."
+        },
+        {
+          "method": "has_user_map",
+          "rust_line": 741,
+          "category": "C",
+          "status": "not_applicable",
+          "cpp_source": "emImage.h:403-406",
+          "description": "In C++ returns whether image wraps user-provided raw pointer. Rust set_user_map copies data into owned Vec, so always returns false correctly.",
+          "evidence": "Rust deliberately copies user data (line 733). Returning false is correct behavior for API parity."
+        }
+      ],
+      "summary": "11 stubs found, 10 Category A closed in 07f7760, 1 Category C not applicable. All multi-channel support gaps closed. Area-sampling, XPM parser, cross-channel conversion all implemented. Also added Color::try_parse (hex + X11 named colors) and x11_colors.rs as prerequisites. Fixed to_grey rounding to match C++ ((r+g+b+1)/3). Fixed get_converted grey formulas to match."
+    },
+    {
+      "capability_id": "CAP-0041",
+      "rust_file": "src/widget/list_box.rs",
+      "stubs": [
+        {
+          "method": "scroll_to_index",
+          "rust_line": 1326,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "4e8eae0",
+          "cpp_source": "emListBox.cpp:915-916",
+          "description": "Should scroll item into view using View.Visit(). Only handles scroll-up; scroll-down case is unimplemented with dead let _ = item_bottom.",
+          "resolution": "Added visible_height field (set during paint). scroll_to_index now scrolls down when item_bottom > scroll_y + visible_height."
+        },
+        {
+          "method": "DefaultItemPanelBehavior::paint",
+          "rust_line": 144,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "4e8eae0",
+          "cpp_source": "emListBox.cpp:554-608",
+          "description": "Missing ReadOnly/disabled color logic. Hardcodes input_bg/fg/hl colors; should use output colors for ReadOnly mode and blend at 80% when disabled.",
+          "resolution": "Added selection_mode and enabled fields to DefaultItemPanelBehavior. Selects output_* colors for ReadOnly, blends 80% toward bg_color when disabled."
+        },
+        {
+          "method": "ListBox::paint (inline path)",
+          "rust_line": 891,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "4e8eae0",
+          "cpp_source": "emListBox.cpp:554-608",
+          "description": "Same missing ReadOnly/disabled color logic as DefaultItemPanelBehavior::paint, in the inline painting path.",
+          "resolution": "Computes (bg, fg, hl) at top of paint based on selection_mode and enabled state, then uses throughout."
+        },
+        {
+          "method": "(missing) Notice / focus change handler",
+          "rust_line": 0,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "4e8eae0",
+          "cpp_source": "emListBox.cpp:647-656",
+          "description": "C++ Notice checks NF_FOCUS_CHANGED and clears KeyWalkChars when panel leaves focused path. No equivalent in Rust, so keywalk state persists after focus loss.",
+          "resolution": "Added on_focus_changed() and on_enable_changed() methods to ListBox. ListBoxPanel in field_panel.rs implements notice() to propagate FOCUS_CHANGED and ENABLE_CHANGED."
+        },
+        {
+          "method": "input / select_by_input",
+          "rust_line": 983,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "4e8eae0",
+          "cpp_source": "emListBox.cpp:659-683, 786-848",
+          "description": "Missing IsEnabled() check. C++ returns early if !IsEnabled(). Rust processes all input regardless of enabled state.",
+          "resolution": "Added if !self.enabled { return false; } at top of input()."
+        },
+        {
+          "method": "keywalk (beep on miss)",
+          "rust_line": 1210,
+          "category": "D",
+          "status": "blocked",
+          "cpp_source": "emListBox.cpp:920-924",
+          "description": "When keywalk finds no match, C++ calls screen->Beep(). Rust silently clears keywalk_chars.",
+          "evidence": "No Screen or Beep abstraction in the Rust codebase. Depends on platform Screen API not yet ported."
+        },
+        {
+          "method": "auto_expand_items / auto_shrink_items",
+          "rust_line": 817,
+          "category": "A",
+          "status": "not_applicable",
+          "cpp_source": "emListBox.cpp:686-718",
+          "description": "Does not call base expand/shrink, does not validate ItemPanelInterface (C++ fatal errors if missing), does not call base RasterGroup methods.",
+          "resolution": "Architectural difference makes this irrelevant. C++ ListBox inherits emRasterGroup and must call base AutoExpand/AutoShrink; Rust composes a RasterLayout as a child panel in the tree (created in create_item_children). C++ emFatalError for missing interface catches virtual-dispatch programmer errors; Rust create_item_panel always succeeds (factory or DefaultItemPanel fallback, no virtual dispatch). No base class calls needed."
+        },
+        {
+          "method": "keywalk_search (* prefix)",
+          "rust_line": 1260,
+          "category": "A",
+          "status": "verified_correct",
+          "cpp_source": "emListBox.cpp:874-908",
+          "description": "Original diagnosis said C++ uses subsequence matching. Re-analysis shows C++ uses naive substring search (reset needle index on mismatch, advance haystack by 1) — same semantics as str::contains().",
+          "resolution": "No change needed. Rust contains() already matches C++ behavior. Original diagnosis was incorrect about subsequence vs substring."
+        }
+      ],
+      "summary": "8 stubs found. 5 Category A closed in 4e8eae0, 1 verified already correct, 1 reclassified as not_applicable (auto_expand — Rust uses composition not inheritance, no base class to call, create_item_panel always succeeds), 1 Category D blocked (beep, needs Screen API)."
+    },
+    {
+      "capability_id": "CAP-0069",
+      "rust_file": "src/widget/text_field.rs",
+      "stubs": [
+        {
+          "method": "selection_changed",
+          "rust_line": 2002,
+          "category": "C",
+          "status": "not_applicable",
+          "cpp_source": "emTextField.cpp:301-303",
+          "description": "Empty virtual hook for subclass override. C++ base implementation is also empty. Rust uses callback pattern (on_selection, on_selection_signal) instead.",
+          "evidence": "C++ base is void emTextField::SelectionChanged() {}. Rust callbacks at lines 354-364 replace virtual dispatch."
+        },
+        {
+          "method": "paint (cursor rendering)",
+          "rust_line": 1096,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "121533c",
+          "cpp_source": "emTextField.cpp:1056-1091",
+          "description": "Cursor drawn as simple rectangle instead of C++ I-beam polygon (8-vertex with serifs for insert) or frame polygon (10-vertex with inner cutout for overwrite).",
+          "resolution": "Overwrite cursor: 10-vertex frame polygon with d=ch*0.07. Insert cursor: 8-vertex I-beam with serifs (d1=d*0.5, d2=d*2.2). Both use paint_polygon. Applied to both single-line and multi-line paint paths."
+        },
+        {
+          "method": "paint (multi-line selection highlight)",
+          "rust_line": 1169,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "121533c",
+          "cpp_source": "emTextField.cpp:976-991",
+          "description": "Multi-line selection drawn as per-row rectangles instead of single 8-vertex polygon spanning row boundaries.",
+          "resolution": "Single-row: paint_rect. Multi-row: 8-vertex polygon using index_to_col_row for start/end positions, spanning from start column through right edge to end column."
+        },
+        {
+          "method": "paint (cursor transparency)",
+          "rust_line": 1092,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "121533c",
+          "cpp_source": "emTextField.cpp:1057-1059",
+          "description": "Missing cursor transparency: 75% for read-only, 88% for blink-off. Rust does not render cursor at all when not focused but has no transparency levels.",
+          "resolution": "GetTransparented(75) = 25% opaque: with_alpha(a * 0.25). GetTransparented(88) = 12% opaque: with_alpha(a * 0.12). Applied to both single-line and multi-line cursor paths."
+        },
+        {
+          "method": "paint (output field colors)",
+          "rust_line": 1073,
+          "category": "A",
+          "status": "closed",
+          "closed_in": "121533c",
+          "cpp_source": "emTextField.cpp:956-965",
+          "description": "Read-only fields should use OutputBg/Fg/Hl colors instead of InputBg/Fg/Hl. Rust always uses input colors with lerp dimming for disabled.",
+          "resolution": "Non-editable fields now use look.output_fg_color instead of dimmed input_fg_color. Applied to both single-line and multi-line paint paths."
+        }
+      ],
+      "summary": "5 stubs found. 4 Category A closed in 121533c, 1 Category C not applicable. All visual fidelity gaps addressed: cursor shape (polygon), selection polygon, cursor transparency, output field colors."
+    },
+    {
+      "capability_id": "CAP-0082",
+      "rust_file": "src/window/zui_window.rs",
+      "stubs": [
+        {
+          "method": "move_mouse_pointer",
+          "rust_line": 785,
+          "category": "B",
+          "status": "blocked",
+          "cpp_source": "emX11Screen.cpp:98-104",
+          "description": "Should move mouse pointer by (dx,dy) relative to current position. C++ accumulates deltas and applies via XWarpPointer. Disabled on XWayland.",
+          "evidence": "No-op with debug log. Winit has no relative mouse warp API. Would need platform-specific code (XWarpPointer, CGWarpMouseCursorPosition, SetCursorPos)."
+        },
+        {
+          "method": "beep",
+          "rust_line": 795,
+          "category": "B",
+          "status": "blocked",
+          "cpp_source": "emX11Screen.cpp:107-112",
+          "description": "Should emit acoustic warning beep. C++ calls XBell on X11.",
+          "evidence": "No-op with debug log. Winit does not expose beep/bell API. Needs platform calls (XBell, NSBeep, MessageBeep)."
+        },
+        {
+          "method": "inhibit_screensaver / allow_screensaver",
+          "rust_line": 756,
+          "category": "B",
+          "status": "blocked",
+          "cpp_source": "emX11WindowPort.cpp:155-167, emX11Screen.cpp:740-765",
+          "description": "Counter tracking is correct. Missing actual screensaver inhibition: C++ uses 59-second timer with XResetScreenSaver + xscreensaver-command -deactivate.",
+          "evidence": "Counter-only with debug log. Needs D-Bus org.freedesktop.ScreenSaver.Inhibit or X11 reset approach."
+        },
+        {
+          "method": "window_flags_signal",
+          "rust_line": 478,
+          "category": "D",
+          "status": "blocked",
+          "cpp_source": "emWindow.h:420-424",
+          "description": "Should return dedicated signal firing when window flags change. Returns close_signal as placeholder. set_window_flags sets flags_changed=true as workaround but cannot fire a signal (no &mut Scheduler reference).",
+          "evidence": "Comment and TODO say 'allocate a dedicated signal when the scheduler supports it.' Design/plumbing issue."
+        },
+        {
+          "method": "border_sizes",
+          "rust_line": 529,
+          "category": "B",
+          "status": "blocked",
+          "cpp_source": "emX11WindowPort.cpp:113-121",
+          "description": "Should return actual window decoration border sizes from _NET_FRAME_EXTENTS. Returns hardcoded defaults (4,30,4,4 decorated; 0,0,0,0 undecorated).",
+          "evidence": "Comment says 'Winit does not expose decoration sizes directly.' Hardcoded values will be wrong on many WMs."
+        }
+      ],
+      "summary": "5 stubs found. 4 are Category B (platform limitation — winit lacks mouse warp, beep, screensaver, and decoration size APIs). 1 is Category D (window_flags_signal blocked on scheduler signal plumbing). No Category A stubs — all real gaps require platform integration beyond current deps. No changes in Phase 6b."
+    },
+    {
+      "capability_id": "CAP-0064",
+      "rust_file": "src/foundation/fixed.rs",
+      "stubs": [],
+      "summary": "Zero stubs found. All 16 methods fully implemented with correct fixed-point arithmetic (i64 intermediate for multiply, bitwise floor/ceil/round). Confirmed covered by 42 painter golden tests. Reclassify from stub to verified."
+    }
+  ],
+  "phase_6b_summary": {
+    "total_category_a_stubs": 21,
+    "closed": 19,
+    "verified_correct": 1,
+    "remaining_open": 0,
+    "category_c_not_applicable": 3,
+    "category_d_blocked": 2,
+    "category_b_blocked": 4,
+    "commits": [
+      "07f7760 fix(CAP-0033): close 10 Image stubs — multi-channel support, XPM parser, area sampling",
+      "4e8eae0 fix(CAP-0041): close ListBox stubs — disabled state, scroll-down, focus cleanup",
+      "121533c fix(CAP-0069): close TextField stubs — cursor shape, selection polygon, output colors"
+    ],
+    "prerequisites_added": [
+      "Color::try_parse — hex format extensions + X11 named color lookup",
+      "x11_colors.rs — 676-entry sorted X11 named color table",
+      "to_grey rounding fix — (r+g+b+1)/3 matching C++ GetGrey",
+      "convert_pixel() helper — all 16 channel conversion combinations",
+      "ListBox: enabled, in_focused_path, visible_height fields",
+      "ListBoxPanel: notice() handler for FOCUS_CHANGED, ENABLE_CHANGED"
+    ],
+    "test_results": "1096 tests pass (611 unit + 216 integration + 191 golden + 78 other). Zero golden test regressions."
+  }
+}

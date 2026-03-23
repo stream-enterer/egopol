@@ -1,0 +1,2256 @@
+{
+  "worker_id": "W-0005",
+  "item_id_range": [50000, 59999],
+  "items": [
+    {
+      "item_id": "ITEM-050000",
+      "cpp_file": "emLabel",
+      "symbol": "emLabel::emLabel(ParentArg, const emString&, const emString&, const emString&, const emImage&)",
+      "symbol_kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "widget/label.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Label::new(caption, look). Parent/name args superseded by panel tree. description/icon not ported (not in Rust Label)."
+    },
+    {
+      "item_id": "ITEM-050001",
+      "cpp_file": "emLabel",
+      "symbol": "emLabel::PaintContent",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/label.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Label::paint(painter, w, h)."
+    },
+    {
+      "item_id": "ITEM-051000",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::emScalarField(ParentArg, const emString&, const emString&, const emString&, const emImage&, emInt64, emInt64, emInt64, bool)",
+      "symbol_kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::new(min, max, look). Parent/name/caption/description/icon handled differently."
+    },
+    {
+      "item_id": "ITEM-051001",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::~emScalarField",
+      "symbol_kind": "destructor",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "Rust Drop trait (implicit)",
+      "notes": "C++ destructor pattern — Rust handles memory automatically."
+    },
+    {
+      "item_id": "ITEM-051002",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::IsEditable",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::is_editable()."
+    },
+    {
+      "item_id": "ITEM-051003",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::SetEditable",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::set_editable(editable)."
+    },
+    {
+      "item_id": "ITEM-051004",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::GetMinValue",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::min_value()."
+    },
+    {
+      "item_id": "ITEM-051005",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::GetMaxValue",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::max_value()."
+    },
+    {
+      "item_id": "ITEM-051006",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::SetMinValue",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::set_min_value(min)."
+    },
+    {
+      "item_id": "ITEM-051007",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::SetMaxValue",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::set_max_value(max)."
+    },
+    {
+      "item_id": "ITEM-051008",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::SetMinMaxValues",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::set_min_max_values(min, max)."
+    },
+    {
+      "item_id": "ITEM-051009",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::GetValueSignal",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "ScalarField::on_value (Option<Box<dyn FnMut(f64)>>)",
+      "notes": "C++ signal pattern replaced by Rust callback closure."
+    },
+    {
+      "item_id": "ITEM-051010",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::GetValue",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::value(). Returns f64 (C++ returns i64; Rust uses f64 internally)."
+    },
+    {
+      "item_id": "ITEM-051011",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::SetValue",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::set_value(val: f64)."
+    },
+    {
+      "item_id": "ITEM-051012",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::GetScaleMarkIntervals",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::scale_mark_intervals() -> &[u64]."
+    },
+    {
+      "item_id": "ITEM-051013",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::SetScaleMarkIntervals(const emArray<emUInt64>&)",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::set_scale_mark_intervals(intervals: &[u64])."
+    },
+    {
+      "item_id": "ITEM-051014",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::SetScaleMarkIntervals(unsigned, unsigned, ...)",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "ScalarField::set_scale_mark_intervals(intervals: &[u64])",
+      "notes": "Variadic C++ overload superseded by slice parameter in Rust."
+    },
+    {
+      "item_id": "ITEM-051015",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::IsNeverHidingMarks",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::is_never_hiding_marks()."
+    },
+    {
+      "item_id": "ITEM-051016",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::SetNeverHideMarks",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::set_never_hide_marks(never_hide)."
+    },
+    {
+      "item_id": "ITEM-051017",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::TextOfValue",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "ScalarField::set_text_of_value_fn(Box<dyn Fn(i64, u64) -> String>)",
+      "notes": "Virtual override pattern replaced by closure callback in Rust."
+    },
+    {
+      "item_id": "ITEM-051018",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::SetTextOfValueFunc",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::set_text_of_value_fn(f: Box<dyn Fn(i64, u64) -> String>). Context pointer replaced by closure capture."
+    },
+    {
+      "item_id": "ITEM-051019",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::DefaultTextOfValue",
+      "symbol_kind": "static_method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as module-level fn default_text_of_value(value: i64, mark_interval: u64) -> String (private)."
+    },
+    {
+      "item_id": "ITEM-051020",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::GetTextBoxTallness",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::text_box_tallness()."
+    },
+    {
+      "item_id": "ITEM-051021",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::SetTextBoxTallness",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::set_text_box_tallness(tallness)."
+    },
+    {
+      "item_id": "ITEM-051022",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::GetKeyboardInterval",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::keyboard_interval()."
+    },
+    {
+      "item_id": "ITEM-051023",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::SetKeyboardInterval",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::set_keyboard_interval(interval)."
+    },
+    {
+      "item_id": "ITEM-051024",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::ValueChanged",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "ScalarField::on_value callback",
+      "notes": "Virtual override hook replaced by on_value closure callback."
+    },
+    {
+      "item_id": "ITEM-051025",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::Input",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::input(event: &InputEvent) -> bool."
+    },
+    {
+      "item_id": "ITEM-051026",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::HasHowTo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::has_how_to()."
+    },
+    {
+      "item_id": "ITEM-051027",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::GetHowTo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::get_how_to(enabled, focusable)."
+    },
+    {
+      "item_id": "ITEM-051028",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::PaintContent",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::paint(painter, w, h, enabled)."
+    },
+    {
+      "item_id": "ITEM-051029",
+      "cpp_file": "emScalarField",
+      "symbol": "emScalarField::CheckMouse",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/scalar_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ScalarField::check_mouse(mx, my) -> Option<f64>."
+    },
+    {
+      "item_id": "ITEM-052000",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::emTextField(ParentArg, const emString&, const emString&, const emString&, const emImage&, const emString&, bool)",
+      "symbol_kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::new(look). Parent/name/caption/description/icon handled differently."
+    },
+    {
+      "item_id": "ITEM-052001",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::~emTextField",
+      "symbol_kind": "destructor",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "Rust Drop trait (implicit)",
+      "notes": "C++ destructor pattern — Rust handles memory automatically."
+    },
+    {
+      "item_id": "ITEM-052002",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::IsEditable",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::is_editable()."
+    },
+    {
+      "item_id": "ITEM-052003",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::SetEditable",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::set_editable(editable)."
+    },
+    {
+      "item_id": "ITEM-052004",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetMultiLineMode",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::is_multi_line()."
+    },
+    {
+      "item_id": "ITEM-052005",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::SetMultiLineMode",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::set_multi_line(multi_line)."
+    },
+    {
+      "item_id": "ITEM-052006",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetPasswordMode",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::password_mode()."
+    },
+    {
+      "item_id": "ITEM-052007",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::SetPasswordMode",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::set_password_mode(enabled)."
+    },
+    {
+      "item_id": "ITEM-052008",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetOverwriteMode",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::is_overwrite_mode()."
+    },
+    {
+      "item_id": "ITEM-052009",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::SetOverwriteMode",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::set_overwrite_mode(mode)."
+    },
+    {
+      "item_id": "ITEM-052010",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetTextSignal",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "TextField::on_text (Option<Box<dyn FnMut(&str)>>)",
+      "notes": "C++ signal replaced by Rust callback closure."
+    },
+    {
+      "item_id": "ITEM-052011",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetText",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::text()."
+    },
+    {
+      "item_id": "ITEM-052012",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::SetText",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::set_text(text: &str)."
+    },
+    {
+      "item_id": "ITEM-052013",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetTextLen",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::text_len()."
+    },
+    {
+      "item_id": "ITEM-052014",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetCursorIndex",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::cursor_pos()."
+    },
+    {
+      "item_id": "ITEM-052015",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::SetCursorIndex",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::set_cursor_index(idx)."
+    },
+    {
+      "item_id": "ITEM-052016",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetSelectionSignal",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "TextField::on_selection_signal (Option<Box<dyn FnMut()>>)",
+      "notes": "C++ signal replaced by Rust callback closure."
+    },
+    {
+      "item_id": "ITEM-052017",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetSelectionStartIndex",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::selection_start()."
+    },
+    {
+      "item_id": "ITEM-052018",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetSelectionEndIndex",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::selection_end()."
+    },
+    {
+      "item_id": "ITEM-052019",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::IsSelectionEmpty",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::is_selection_empty()."
+    },
+    {
+      "item_id": "ITEM-052020",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::Select",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::select(start, end). publish param handled by publish_selection()."
+    },
+    {
+      "item_id": "ITEM-052021",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::SelectAll",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::select_all()."
+    },
+    {
+      "item_id": "ITEM-052022",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::EmptySelection",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::deselect()."
+    },
+    {
+      "item_id": "ITEM-052023",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::PublishSelection",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::publish_selection()."
+    },
+    {
+      "item_id": "ITEM-052024",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::CutSelectedTextToClipboard",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 0.9,
+      "notes": "Handled via on_clipboard_copy callback + DeleteSelectedText in Rust TextField input handling."
+    },
+    {
+      "item_id": "ITEM-052025",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::CopySelectedTextToClipboard",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 0.9,
+      "notes": "Handled via on_clipboard_copy callback in Rust TextField input handling."
+    },
+    {
+      "item_id": "ITEM-052026",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::PasteSelectedTextFromClipboard",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 0.9,
+      "notes": "Handled via on_clipboard_paste callback in Rust TextField input handling."
+    },
+    {
+      "item_id": "ITEM-052027",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::PasteSelectedText",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::paste_text(text: &str)."
+    },
+    {
+      "item_id": "ITEM-052028",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::DeleteSelectedText",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 0.9,
+      "notes": "Handled in TextField input processing. No standalone public method but functionality present."
+    },
+    {
+      "item_id": "ITEM-052029",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::IsCursorBlinkOn",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::is_cursor_blink_on()."
+    },
+    {
+      "item_id": "ITEM-052030",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetCanUndoRedoSignal",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "TextField::on_can_undo_redo (Option<Box<dyn FnMut(bool, bool)>>)",
+      "notes": "C++ signal replaced by Rust callback closure."
+    },
+    {
+      "item_id": "ITEM-052031",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::CanUndo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::can_undo()."
+    },
+    {
+      "item_id": "ITEM-052032",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::CanRedo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::can_redo()."
+    },
+    {
+      "item_id": "ITEM-052033",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::Undo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::undo() -> bool."
+    },
+    {
+      "item_id": "ITEM-052034",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::Redo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::redo() -> bool."
+    },
+    {
+      "item_id": "ITEM-052035",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::Validate",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "TextField::on_validate (Option<Box<dyn FnMut(&str) -> bool>>)",
+      "notes": "Virtual override pattern replaced by callback closure."
+    },
+    {
+      "item_id": "ITEM-052036",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::SetValidateFunc",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::on_validate callback field."
+    },
+    {
+      "item_id": "ITEM-052037",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::TextChanged",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "TextField::on_text callback",
+      "notes": "Virtual override hook replaced by on_text closure."
+    },
+    {
+      "item_id": "ITEM-052038",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::SelectionChanged",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "TextField::on_selection callback",
+      "notes": "Virtual override hook replaced by on_selection closure."
+    },
+    {
+      "item_id": "ITEM-052039",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::Cycle",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::cycle_blink(focused) which handles cursor blink timing."
+    },
+    {
+      "item_id": "ITEM-052040",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::Notice",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "PanelBehavior trait methods in panel system",
+      "notes": "Panel lifecycle notification replaced by Rust panel system trait."
+    },
+    {
+      "item_id": "ITEM-052041",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::Input",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::input(event: &InputEvent) -> bool."
+    },
+    {
+      "item_id": "ITEM-052042",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::HasHowTo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::has_how_to()."
+    },
+    {
+      "item_id": "ITEM-052043",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::GetHowTo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::get_how_to(enabled, focusable)."
+    },
+    {
+      "item_id": "ITEM-052044",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::PaintContent",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::paint(painter, w, h, enabled)."
+    },
+    {
+      "item_id": "ITEM-052045",
+      "cpp_file": "emTextField",
+      "symbol": "emTextField::CheckMouse",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/text_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as TextField::check_mouse(mx, my, w, h) -> (usize, bool)."
+    },
+    {
+      "item_id": "ITEM-053000",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::emColorField(ParentArg, const emString&, const emString&, const emString&, const emImage&, emColor, bool, bool)",
+      "symbol_kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::new(look)."
+    },
+    {
+      "item_id": "ITEM-053001",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::~emColorField",
+      "symbol_kind": "destructor",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "Rust Drop trait (implicit)",
+      "notes": "C++ destructor pattern."
+    },
+    {
+      "item_id": "ITEM-053002",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::IsEditable",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::is_editable()."
+    },
+    {
+      "item_id": "ITEM-053003",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::SetEditable",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::set_editable(editable)."
+    },
+    {
+      "item_id": "ITEM-053004",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::IsAlphaEnabled",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::is_alpha_enabled()."
+    },
+    {
+      "item_id": "ITEM-053005",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::SetAlphaEnabled",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::set_alpha_enabled(alpha_enabled)."
+    },
+    {
+      "item_id": "ITEM-053006",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::GetColorSignal",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "ColorField::on_color (Option<Box<dyn FnMut(Color)>>)",
+      "notes": "C++ signal replaced by Rust callback closure."
+    },
+    {
+      "item_id": "ITEM-053007",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::GetColor",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::color()."
+    },
+    {
+      "item_id": "ITEM-053008",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::SetColor",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::set_color(color)."
+    },
+    {
+      "item_id": "ITEM-053009",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::ColorChanged",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "ColorField::on_color callback",
+      "notes": "Virtual override hook replaced by callback closure."
+    },
+    {
+      "item_id": "ITEM-053010",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::Cycle",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::cycle() -> bool."
+    },
+    {
+      "item_id": "ITEM-053011",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::AutoExpand",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::auto_expand() (private) and create_expansion_children(ctx)."
+    },
+    {
+      "item_id": "ITEM-053012",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::AutoShrink",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::auto_shrink() (private)."
+    },
+    {
+      "item_id": "ITEM-053013",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::LayoutChildren",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::layout_children(ctx, w, h)."
+    },
+    {
+      "item_id": "ITEM-053014",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::HasHowTo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::has_how_to()."
+    },
+    {
+      "item_id": "ITEM-053015",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::GetHowTo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::get_how_to(enabled, focusable)."
+    },
+    {
+      "item_id": "ITEM-053016",
+      "cpp_file": "emColorField",
+      "symbol": "emColorField::PaintContent",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/color_field.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ColorField::paint(painter, w, h)."
+    },
+    {
+      "item_id": "ITEM-054000",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::emSplitter(ParentArg, const emString&, const emString&, const emString&, const emImage&, bool, double, double, double)",
+      "symbol_kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Splitter::new(orientation, look)."
+    },
+    {
+      "item_id": "ITEM-054001",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::~emSplitter",
+      "symbol_kind": "destructor",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "Rust Drop trait (implicit)",
+      "notes": "C++ destructor pattern."
+    },
+    {
+      "item_id": "ITEM-054002",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::IsVertical",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported via Splitter::orientation field and Orientation enum."
+    },
+    {
+      "item_id": "ITEM-054003",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::SetVertical",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Splitter::set_orientation(orientation)."
+    },
+    {
+      "item_id": "ITEM-054004",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::GetMinPos",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Splitter::min_position()."
+    },
+    {
+      "item_id": "ITEM-054005",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::GetMaxPos",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Splitter::max_position()."
+    },
+    {
+      "item_id": "ITEM-054006",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::GetPos",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Splitter::position()."
+    },
+    {
+      "item_id": "ITEM-054007",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::SetMinMaxPos",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Splitter::set_limits(min, max)."
+    },
+    {
+      "item_id": "ITEM-054008",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::SetPos",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Splitter::set_position(pos)."
+    },
+    {
+      "item_id": "ITEM-054009",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::GetPosSignal",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Splitter::on_position (Option<Box<dyn FnMut(f64)>>)",
+      "notes": "C++ signal replaced by Rust callback closure."
+    },
+    {
+      "item_id": "ITEM-054010",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::Input",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Splitter::input(event: &InputEvent) -> bool."
+    },
+    {
+      "item_id": "ITEM-054011",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::GetCursor",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Splitter::get_cursor() -> Cursor."
+    },
+    {
+      "item_id": "ITEM-054012",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::PaintContent",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Splitter::paint(painter, w, h)."
+    },
+    {
+      "item_id": "ITEM-054013",
+      "cpp_file": "emSplitter",
+      "symbol": "emSplitter::LayoutChildren",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/splitter.rs",
+      "confidence": 1.0,
+      "notes": "Ported as Splitter::layout_children(ctx, w, h)."
+    },
+    {
+      "item_id": "ITEM-055000",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::SelectionType",
+      "symbol_kind": "enum",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as SelectionMode enum with variants ReadOnly/Single/Multi/Toggle."
+    },
+    {
+      "item_id": "ITEM-055001",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::emListBox(ParentArg, const emString&, const emString&, const emString&, const emImage&, SelectionType)",
+      "symbol_kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::new(selection_mode, look)."
+    },
+    {
+      "item_id": "ITEM-055002",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::~emListBox",
+      "symbol_kind": "destructor",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "Rust Drop trait (implicit)",
+      "notes": "C++ destructor pattern."
+    },
+    {
+      "item_id": "ITEM-055003",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetSelectionType",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::selection_mode()."
+    },
+    {
+      "item_id": "ITEM-055004",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::SetSelectionType",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::set_selection_mode(mode)."
+    },
+    {
+      "item_id": "ITEM-055005",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetItemCount",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::item_count()."
+    },
+    {
+      "item_id": "ITEM-055006",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::AddItem",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::add_item(name, text)."
+    },
+    {
+      "item_id": "ITEM-055007",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::InsertItem",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::insert_item(index, name, text)."
+    },
+    {
+      "item_id": "ITEM-055008",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::MoveItem",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::move_item(from, to)."
+    },
+    {
+      "item_id": "ITEM-055009",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::SortItems",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::sort_items(compare_fn)."
+    },
+    {
+      "item_id": "ITEM-055010",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::RemoveItem",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::remove_item(index)."
+    },
+    {
+      "item_id": "ITEM-055011",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::ClearItems",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::clear_items()."
+    },
+    {
+      "item_id": "ITEM-055012",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetItemName",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::item_name(index)."
+    },
+    {
+      "item_id": "ITEM-055013",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetItemIndex",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::item_index_by_name(name)."
+    },
+    {
+      "item_id": "ITEM-055014",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetItemText",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::item_text(index)."
+    },
+    {
+      "item_id": "ITEM-055015",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::SetItemText",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::set_item_text(index, text)."
+    },
+    {
+      "item_id": "ITEM-055016",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetItemData",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 0.9,
+      "notes": "emAnything data type ported; Rust uses Box<dyn Any> or similar mechanism."
+    },
+    {
+      "item_id": "ITEM-055017",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::SetItemData",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 0.9,
+      "notes": "emAnything data type ported in Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-055018",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetSelectionCount",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::selection_count()."
+    },
+    {
+      "item_id": "ITEM-055019",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetSelectedIndices",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::selected_indices()."
+    },
+    {
+      "item_id": "ITEM-055020",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::SetSelectedIndices",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::set_selected_indices(indices)."
+    },
+    {
+      "item_id": "ITEM-055021",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetSelectedIndex",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::selected_index()."
+    },
+    {
+      "item_id": "ITEM-055022",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::SetSelectedIndex",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::set_selected_index(index)."
+    },
+    {
+      "item_id": "ITEM-055023",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::IsSelected",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::is_selected(index)."
+    },
+    {
+      "item_id": "ITEM-055024",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::Select",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::select(index, solely)."
+    },
+    {
+      "item_id": "ITEM-055025",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::Deselect",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::deselect(index)."
+    },
+    {
+      "item_id": "ITEM-055026",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::ToggleSelection",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::toggle_selection(index)."
+    },
+    {
+      "item_id": "ITEM-055027",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::SelectAll",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::select_all()."
+    },
+    {
+      "item_id": "ITEM-055028",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::ClearSelection",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::clear_selection()."
+    },
+    {
+      "item_id": "ITEM-055029",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetSelectionSignal",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "ListBox::on_selection callback",
+      "notes": "C++ signal replaced by Rust callback closure."
+    },
+    {
+      "item_id": "ITEM-055030",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetItemTriggerSignal",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "ListBox::on_trigger callback",
+      "notes": "C++ signal replaced by Rust callback closure."
+    },
+    {
+      "item_id": "ITEM-055031",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetTriggeredItemIndex",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::triggered_item_index()."
+    },
+    {
+      "item_id": "ITEM-055032",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::TriggerItem",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::trigger_item(index)."
+    },
+    {
+      "item_id": "ITEM-055033",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::ItemPanelInterface",
+      "symbol_kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ItemPanelInterface trait with item_text_changed, item_data_changed, item_selection_changed, item_index, etc."
+    },
+    {
+      "item_id": "ITEM-055034",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::DefaultItemPanel",
+      "symbol_kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as DefaultItemPanel struct implementing ItemPanelInterface trait."
+    },
+    {
+      "item_id": "ITEM-055035",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetItemPanel",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 0.8,
+      "notes": "Ported via ListBox::item_panel(index) returning panel reference."
+    },
+    {
+      "item_id": "ITEM-055036",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetItemPanelInterface",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 0.8,
+      "notes": "Ported via ListBox panel interface access methods."
+    },
+    {
+      "item_id": "ITEM-055037",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::CreateItemPanel",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "ListBox item_panel_factory field (ItemPanelFactory closure)",
+      "notes": "Virtual override replaced by factory closure in Rust."
+    },
+    {
+      "item_id": "ITEM-055038",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::Notice",
+      "symbol_kind": "method",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "PanelBehavior trait methods in panel system",
+      "notes": "Panel lifecycle notification replaced by Rust panel system trait."
+    },
+    {
+      "item_id": "ITEM-055039",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::Input",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::input(event)."
+    },
+    {
+      "item_id": "ITEM-055040",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::AutoExpand",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox expansion via panel tree."
+    },
+    {
+      "item_id": "ITEM-055041",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::AutoShrink",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox shrink via panel tree."
+    },
+    {
+      "item_id": "ITEM-055042",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::HasHowTo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::has_how_to()."
+    },
+    {
+      "item_id": "ITEM-055043",
+      "cpp_file": "emListBox",
+      "symbol": "emListBox::GetHowTo",
+      "symbol_kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "widget/list_box.rs",
+      "confidence": 1.0,
+      "notes": "Ported as ListBox::get_how_to()."
+    },
+    {
+      "item_id": "ITEM-056000",
+      "cpp_file": "emErrorPanel",
+      "symbol": "emErrorPanel::emErrorPanel(ParentArg, const emString&, const emString&)",
+      "symbol_kind": "constructor",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No error_panel.rs found in src/. ErrorPanel class not ported."
+    },
+    {
+      "item_id": "ITEM-056001",
+      "cpp_file": "emErrorPanel",
+      "symbol": "emErrorPanel::~emErrorPanel",
+      "symbol_kind": "destructor",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No error_panel.rs found in src/."
+    },
+    {
+      "item_id": "ITEM-056002",
+      "cpp_file": "emErrorPanel",
+      "symbol": "emErrorPanel::IsOpaque",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No error_panel.rs found in src/."
+    },
+    {
+      "item_id": "ITEM-056003",
+      "cpp_file": "emErrorPanel",
+      "symbol": "emErrorPanel::Paint",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No error_panel.rs found in src/."
+    },
+    {
+      "item_id": "ITEM-057000",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::emFilePanel(ParentArg, const emString&, emFileModel*, bool)",
+      "symbol_kind": "constructor",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file_panel.rs found in src/widget/ or src/panel/. emFileModel is partially ported (src/model/file_model.rs) but emFilePanel is not."
+    },
+    {
+      "item_id": "ITEM-057001",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::~emFilePanel",
+      "symbol_kind": "destructor",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057002",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::GetFileModel",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057003",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::SetFileModel",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057004",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::SetCustomError",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057005",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::ClearCustomError",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057006",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::GetCustomError",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057007",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::GetVirFileStateSignal",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057008",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::VirtualFileState",
+      "symbol_kind": "enum",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057009",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::GetVirFileState",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057010",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::IsVFSGood",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057011",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::IsReloadAnnoying",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057012",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::GetIconFileName",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-057013",
+      "cpp_file": "emFilePanel",
+      "symbol": "emFilePanel::IsContentReady",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No emFilePanel Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058000",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::ModeType",
+      "symbol_kind": "enum",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent found."
+    },
+    {
+      "item_id": "ITEM-058001",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::emFileDialog(emContext&, ModeType, ViewFlags, WindowFlags, const emString&)",
+      "symbol_kind": "constructor",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent found."
+    },
+    {
+      "item_id": "ITEM-058002",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::~emFileDialog",
+      "symbol_kind": "destructor",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent found."
+    },
+    {
+      "item_id": "ITEM-058003",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::GetMode",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058004",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::SetMode",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058005",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::IsDirectoryResultAllowed",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058006",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::SetDirectoryResultAllowed",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058007",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::IsMultiSelectionEnabled",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058008",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::SetMultiSelectionEnabled",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058009",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::GetParentDirectory",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058010",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::SetParentDirectory",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058011",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::GetSelectedName",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058012",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::GetSelectedNames",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058013",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::SetSelectedName",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058014",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::SetSelectedNames",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058015",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::ClearSelection",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058016",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::GetSelectedPath",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058017",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::SetSelectedPath",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058018",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::GetSelectionSignal",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058019",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::GetFilters",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058020",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::SetFilters",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058021",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::GetSelectedFilterIndex",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058022",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::SetSelectedFilterIndex",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058023",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::AreHiddenFilesShown",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058024",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::SetHiddenFilesShown",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058025",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::Cycle",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-058026",
+      "cpp_file": "emFileDialog",
+      "symbol": "emFileDialog::CheckFinish",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file dialog Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059000",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::emFileSelectionBox(ParentArg, const emString&, const emString&, const emString&, const emImage&)",
+      "symbol_kind": "constructor",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file_selection_box.rs found in src/. Not ported."
+    },
+    {
+      "item_id": "ITEM-059001",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::~emFileSelectionBox",
+      "symbol_kind": "destructor",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059002",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::IsMultiSelectionEnabled",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059003",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetMultiSelectionEnabled",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059004",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::GetParentDirectory",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059005",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetParentDirectory",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059006",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::GetSelectedName",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059007",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::GetSelectedNames",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059008",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetSelectedName",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059009",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetSelectedNames",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059010",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::ClearSelection",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059011",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::GetSelectedPath",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059012",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetSelectedPath",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059013",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::GetSelectionSignal",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059014",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::GetFilters",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059015",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetFilters",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059016",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::GetSelectedFilterIndex",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059017",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetSelectedFilterIndex",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059018",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::AreHiddenFilesShown",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059019",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetHiddenFilesShown",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059020",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::GetFileTriggerSignal",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059021",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::GetTriggeredFileName",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059022",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::TriggerFile",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059023",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::EnterSubDir",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059024",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::IsParentDirFieldHidden",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059025",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetParentDirFieldHidden",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059026",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::IsHiddenCheckBoxHidden",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059027",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetHiddenCheckBoxHidden",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059028",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::IsNameFieldHidden",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059029",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetNameFieldHidden",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059030",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::IsFilterHidden",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059031",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::SetFilterHidden",
+      "symbol_kind": "method",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No file selection box Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059032",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::FilesListBox",
+      "symbol_kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Private inner class, no Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059033",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::FileItemPanel",
+      "symbol_kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Private inner class, no Rust equivalent."
+    },
+    {
+      "item_id": "ITEM-059034",
+      "cpp_file": "emFileSelectionBox",
+      "symbol": "emFileSelectionBox::FileOverlayPanel",
+      "symbol_kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Private inner class, no Rust equivalent."
+    }
+  ]
+}

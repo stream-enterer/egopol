@@ -1,0 +1,134 @@
+Audit the Rust port against C++ using the master contract at `prompts/master-contract.json`. That file lists every method to check, organized in phases. Read it now, then read `CLAUDE.md` at the workspace root.
+
+## How this works
+
+The contract has 4 phases with 111 features total. Each feature is a file, group of methods, or test directory to audit. Each has steps, and a `passes` field starting at `false`.
+
+Your loop:
+
+```
+Read next feature where passes == false
+  → Read its steps
+  → Execute each step (read files, compare, report, fix, test)
+  → cargo clippy --workspace -- -D warnings: must be clean
+  → cargo nextest run --workspace: must pass
+  → Edit the contract JSON: set passes to true
+  → git add prompts/master-contract.json <changed files>
+  → git commit -m "audit: <feature_id> <summary>"
+  → Move to next feature
+```
+
+Do not enter plan mode.
+
+## Bootstrap
+
+```bash
+cd /home/ar/Development/sosumi-7/zuicchini
+python3 -c "
+import json
+d = json.load(open('prompts/master-contract.json'))
+total = sum(1 for p in d['phases'] for f in p['features'])
+done = sum(1 for p in d['phases'] for f in p['features'] if f['passes'])
+print(f'{done}/{total} features passing')
+for p in d['phases']:
+    phase_done = sum(1 for f in p['features'] if f['passes'])
+    print(f'  {p[\"name\"]}: {phase_done}/{len(p[\"features\"])}')
+"
+cargo nextest run --workspace 2>&1 | tail -1
+```
+
+## Phase descriptions
+
+**Phase 1 — Uncovered Files Audit (28 features):** Each feature is one Rust file with its C++ counterpart. The `methods` field lists every C++ method to check. Compare each method, report MATCH/MISMATCH/MISSING, fix MISMATCHes, write tests.
+
+**Phase 2 — Gap Assessment (27 features):** Each feature is a group of C++ methods that have no Rust equivalent. For each method: determine if it's IMPLEMENTED (under a different name), NOT_NEEDED (superseded), or NEEDS_IMPLEMENTATION. Implement what's needed, write tests.
+
+**Phase 3 — Consolidation Verification (50 features):** Each feature is a Rust file that consolidates multiple C++ classes. Verify all consolidated methods are present.
+
+**Phase 4 — Test Review (6 features):** Review ALL existing tests (1500+) across every test directory for the documented anti-patterns: test-shaped validation, missing side-effect checks, hardcoded-pass inputs, missing modifier setup. Strengthen defective tests. If a strengthened test reveals a real bug, fix it.
+
+## Testing layer requirements
+
+Phase 1 features have a `required_test_layers` field listing which testing layers each fix MUST have. This is not guidance — it is a requirement:
+
+- `["unit"]` — write a unit test in the source file's `#[cfg(test)]` module
+- `["unit", "golden"]` — also verify or add a golden pixel test in `tests/golden/`
+- `["unit", "pipeline"]` — also add a pipeline dispatch test in `tests/pipeline/` using `PipelineTestHarness`
+- `["unit", "golden", "pipeline"]` — all three layers
+
+A fix is not complete until all required layers have a test. The clippy/nextest gate verifies tests compile and pass, but YOU must verify the required layers are covered.
+
+When writing tests, follow the patterns in the corresponding test directory:
+- Unit tests: `#[cfg(test)] mod tests` in the source file
+- Pipeline tests: `tests/pipeline/<widget>.rs`
+- Golden tests: `tests/golden/widget.rs` or `tests/golden/painter.rs`
+- Integration tests: `tests/integration/`
+
+Phase 1 steps also require reading the C++ `.cpp` file (not just the header) to catch implementation details: static helpers, constructor defaults, and side effects (signals, invalidation, repaint) that headers don't show.
+
+## Fidelity rules
+
+Each feature has a `layer` field:
+- **PIXEL**: Exact C++ formulas. Integer arithmetic must match. `(x*257+0x8073)>>16` not f64.
+- **STATE**: Idiomatic Rust is correct. Only flag behavioral differences. Do NOT flag Rc vs pointers, enum vs int flags.
+- Features without a layer field: use STATE.
+
+## Phase dependencies
+
+Phases execute in order. Before starting a phase, verify its dependency phase is fully complete — every feature in the dependency phase has `passes: true`. Phase 2 depends on phase 1. Phase 3 depends on phase 2. Phase 4 depends on phase 3. If a dependency phase has incomplete features, finish those first.
+
+## Cross-feature modifications
+
+If a later feature requires changing code from a previously-completed feature (e.g., phase 2 discovers a method needs to be added to a file audited in phase 1), you MAY modify that code. But you MUST re-run `cargo nextest run --workspace` to confirm all previously-passing tests still pass. If any break, fix them before proceeding.
+
+## Known failure modes
+
+**Speed-over-fidelity.** The gate (clippy + tests) does NOT verify you compared every method. If the `methods` field lists 20 methods and you compared 5, the gate still passes. You must compare ALL listed methods.
+
+**Steps are requirements.** If a step says "compare these 20 methods" — compare all 20, not the ones that seem important.
+
+**Test-shaped validation.** Tests must assert on specific values and behaviors, not just `is_some()` or `is_ok()`.
+
+**Reusing existing tests.** If you fix a MISMATCH, write a NEW test. Existing tests didn't catch the bug.
+
+## What NOT to do
+
+- Do NOT modify the contract's `steps`, `description`, or `methods` fields.
+- Do NOT modify existing tests (write new tests only).
+- Do NOT modify unrelated production code.
+- Do NOT skip a feature. If 0 MISMATCHes found, it still passes — set passes to true.
+- Do NOT flag idiomatic Rust as MISMATCH. Read the layer field.
+- Do NOT treat the gate as proof of completeness. The gate is necessary but not sufficient.
+
+## Completion
+
+```bash
+python3 -c "
+import json
+d = json.load(open('prompts/master-contract.json'))
+total = sum(1 for p in d['phases'] for f in p['features'])
+done = sum(1 for p in d['phases'] for f in p['features'] if f['passes'])
+print(f'{done}/{total} features passing')
+if done < total:
+    for p in d['phases']:
+        for f in p['features']:
+            if not f['passes']:
+                print(f'  PENDING: {f[\"id\"]}')
+else:
+    print('ALL FEATURES COMPLETE')
+"
+```
+
+## Log
+
+After each feature, append to `.workflow/widget-comparison/run-log.md`:
+```
+### <feature_id>: <description>
+**MATCHes**: N | **MISMATCHes**: N | **MISSINGs**: N
+**Fixes applied**: <list or "none">
+**Tests added**: <count>
+```
+
+## Begin
+
+Run the bootstrap script. Start with the first feature in phase-1 where `passes` is `false`.

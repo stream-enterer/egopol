@@ -1,0 +1,1505 @@
+{
+  "worker_id": "W-0011",
+  "item_id_range": [110000, 119999],
+  "items": [
+    {
+      "item_id": "ITEM-110000",
+      "symbol": "emThreadId",
+      "kind": "typedef",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed",
+      "notes": "typedef emUInt64 for thread identity; not needed in single-threaded zuicchini"
+    },
+    {
+      "item_id": "ITEM-110001",
+      "symbol": "emThread",
+      "kind": "class",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed",
+      "notes": "Thread management class; zuicchini is single-threaded"
+    },
+    {
+      "item_id": "ITEM-110002",
+      "symbol": "emThread::emThread",
+      "kind": "constructor",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110003",
+      "symbol": "emThread::~emThread",
+      "kind": "destructor",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110004",
+      "symbol": "emThread::Start(void*)",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110005",
+      "symbol": "emThread::Start(int(*)(void*), void*)",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110006",
+      "symbol": "emThread::StartUnmanaged",
+      "kind": "static_method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110007",
+      "symbol": "emThread::WaitForTermination",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110008",
+      "symbol": "emThread::IsRunning",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110009",
+      "symbol": "emThread::GetExitStatus",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110010",
+      "symbol": "emThread::GetThreadId",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110011",
+      "symbol": "emThread::GetCurrentThreadId",
+      "kind": "static_method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110012",
+      "symbol": "emThread::ExitCurrentThread",
+      "kind": "static_method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110013",
+      "symbol": "emThread::GetHardwareThreadCount",
+      "kind": "static_method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110014",
+      "symbol": "emThread::Run",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed",
+      "notes": "protected virtual method"
+    },
+    {
+      "item_id": "ITEM-110015",
+      "symbol": "emThreadMutexLocker<OBJ>",
+      "kind": "class_template",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed",
+      "notes": "RAII mutex locker template; Rust ownership eliminates need"
+    },
+    {
+      "item_id": "ITEM-110016",
+      "symbol": "emThreadMiniMutex",
+      "kind": "class",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed",
+      "notes": "Spin-lock mutex; not needed in single-threaded design"
+    },
+    {
+      "item_id": "ITEM-110017",
+      "symbol": "emThreadMiniMutex::emThreadMiniMutex",
+      "kind": "constructor",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110018",
+      "symbol": "emThreadMiniMutex::~emThreadMiniMutex",
+      "kind": "destructor",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110019",
+      "symbol": "emThreadMiniMutex::Lock",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110020",
+      "symbol": "emThreadMiniMutex::Unlock",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110021",
+      "symbol": "emThreadMiniMutex::Locker",
+      "kind": "typedef",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110022",
+      "symbol": "emThreadEvent",
+      "kind": "class",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed",
+      "notes": "Semaphore-like thread synchronization primitive"
+    },
+    {
+      "item_id": "ITEM-110023",
+      "symbol": "emThreadEvent::emThreadEvent()",
+      "kind": "constructor",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110024",
+      "symbol": "emThreadEvent::emThreadEvent(int)",
+      "kind": "constructor",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110025",
+      "symbol": "emThreadEvent::~emThreadEvent",
+      "kind": "destructor",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110026",
+      "symbol": "emThreadEvent::Send",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110027",
+      "symbol": "emThreadEvent::Receive",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110028",
+      "symbol": "emThreadEvent::GetCount",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110029",
+      "symbol": "emThreadEvent::SetCount",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110030",
+      "symbol": "emThreadEvent::Clear",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110031",
+      "symbol": "emThreadMutex",
+      "kind": "class",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed",
+      "notes": "Fair readers/writers mutex; not needed in single-threaded design"
+    },
+    {
+      "item_id": "ITEM-110032",
+      "symbol": "emThreadMutex::emThreadMutex",
+      "kind": "constructor",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110033",
+      "symbol": "emThreadMutex::~emThreadMutex",
+      "kind": "destructor",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110034",
+      "symbol": "emThreadMutex::Lock",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110035",
+      "symbol": "emThreadMutex::Unlock",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110036",
+      "symbol": "emThreadMutex::IsLocked",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110037",
+      "symbol": "emThreadMutex::LockReadOnly",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110038",
+      "symbol": "emThreadMutex::UnlockReadOnly",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110039",
+      "symbol": "emThreadMutex::IsLockedAnyhow",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110040",
+      "symbol": "emThreadMutex::Locker",
+      "kind": "typedef",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110041",
+      "symbol": "emThreadMutex::ReadOnlyLocker",
+      "kind": "inner_class",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110042",
+      "symbol": "emThreadRecursiveMutex",
+      "kind": "class",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed",
+      "notes": "Recursive mutex; not needed in single-threaded design"
+    },
+    {
+      "item_id": "ITEM-110043",
+      "symbol": "emThreadRecursiveMutex::emThreadRecursiveMutex",
+      "kind": "constructor",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110044",
+      "symbol": "emThreadRecursiveMutex::~emThreadRecursiveMutex",
+      "kind": "destructor",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110045",
+      "symbol": "emThreadRecursiveMutex::Lock",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110046",
+      "symbol": "emThreadRecursiveMutex::Unlock",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110047",
+      "symbol": "emThreadRecursiveMutex::IsLocked",
+      "kind": "method",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-110048",
+      "symbol": "emThreadRecursiveMutex::Locker",
+      "kind": "typedef",
+      "source_file": "emCore/emThread.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-111000",
+      "symbol": "emRenderThreadPool",
+      "kind": "class",
+      "source_file": "emCore/emRenderThreadPool.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed",
+      "notes": "Thread pool for concurrent rendering; zuicchini is single-threaded"
+    },
+    {
+      "item_id": "ITEM-111001",
+      "symbol": "emRenderThreadPool::Acquire",
+      "kind": "static_method",
+      "source_file": "emCore/emRenderThreadPool.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-111002",
+      "symbol": "emRenderThreadPool::GetThreadCount",
+      "kind": "method",
+      "source_file": "emCore/emRenderThreadPool.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-111003",
+      "symbol": "emRenderThreadPool::Func",
+      "kind": "typedef",
+      "source_file": "emCore/emRenderThreadPool.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-111004",
+      "symbol": "emRenderThreadPool::CallParallel(Func, void*, int)",
+      "kind": "method",
+      "source_file": "emCore/emRenderThreadPool.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-111005",
+      "symbol": "emRenderThreadPool::CallParallel(Func, void*)",
+      "kind": "method",
+      "source_file": "emCore/emRenderThreadPool.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "single-threaded design, no threading needed"
+    },
+    {
+      "item_id": "ITEM-112000",
+      "symbol": "emProcess",
+      "kind": "class",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Process spawning and management class. No process spawning exists in zuicchini; std::process::Command would supersede if needed."
+    },
+    {
+      "item_id": "ITEM-112001",
+      "symbol": "emProcess::emProcess",
+      "kind": "constructor",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112002",
+      "symbol": "emProcess::~emProcess",
+      "kind": "destructor",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112003",
+      "symbol": "emProcess::StartFlags",
+      "kind": "enum",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112004",
+      "symbol": "emProcess::TryStart",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112005",
+      "symbol": "emProcess::TryStartUnmanaged",
+      "kind": "static_method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112006",
+      "symbol": "emProcess::TryWrite",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112007",
+      "symbol": "emProcess::TryRead",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112008",
+      "symbol": "emProcess::TryReadErr",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112009",
+      "symbol": "emProcess::WaitFlags",
+      "kind": "enum",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112010",
+      "symbol": "emProcess::WaitPipes",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112011",
+      "symbol": "emProcess::CloseWriting",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112012",
+      "symbol": "emProcess::CloseReading",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112013",
+      "symbol": "emProcess::CloseReadingErr",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112014",
+      "symbol": "emProcess::SendTerminationSignal",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112015",
+      "symbol": "emProcess::SendKillSignal",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112016",
+      "symbol": "emProcess::WaitForTermination",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112017",
+      "symbol": "emProcess::IsRunning",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112018",
+      "symbol": "emProcess::Terminate",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112019",
+      "symbol": "emProcess::GetExitStatus",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-112020",
+      "symbol": "emProcess::GetArg0",
+      "kind": "method",
+      "source_file": "emCore/emProcess.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-113000",
+      "symbol": "emMiniIpcClient",
+      "kind": "class",
+      "source_file": "emCore/emMiniIpc.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "no IPC needed in zuicchini; single-application design",
+      "notes": "Client side of minimalistic IPC; Eagle Mode-specific multi-process architecture not replicated"
+    },
+    {
+      "item_id": "ITEM-113001",
+      "symbol": "emMiniIpcClient::TrySend",
+      "kind": "static_method",
+      "source_file": "emCore/emMiniIpc.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "no IPC needed in zuicchini; single-application design"
+    },
+    {
+      "item_id": "ITEM-113002",
+      "symbol": "emMiniIpcServer",
+      "kind": "class",
+      "source_file": "emCore/emMiniIpc.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "no IPC needed in zuicchini; single-application design",
+      "notes": "Server side of minimalistic IPC"
+    },
+    {
+      "item_id": "ITEM-113003",
+      "symbol": "emMiniIpcServer::emMiniIpcServer",
+      "kind": "constructor",
+      "source_file": "emCore/emMiniIpc.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "no IPC needed in zuicchini; single-application design"
+    },
+    {
+      "item_id": "ITEM-113004",
+      "symbol": "emMiniIpcServer::~emMiniIpcServer",
+      "kind": "destructor",
+      "source_file": "emCore/emMiniIpc.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "no IPC needed in zuicchini; single-application design"
+    },
+    {
+      "item_id": "ITEM-113005",
+      "symbol": "emMiniIpcServer::GetScheduler",
+      "kind": "method",
+      "source_file": "emCore/emMiniIpc.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "no IPC needed in zuicchini; single-application design"
+    },
+    {
+      "item_id": "ITEM-113006",
+      "symbol": "emMiniIpcServer::StartServing",
+      "kind": "method",
+      "source_file": "emCore/emMiniIpc.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "no IPC needed in zuicchini; single-application design"
+    },
+    {
+      "item_id": "ITEM-113007",
+      "symbol": "emMiniIpcServer::StopServing",
+      "kind": "method",
+      "source_file": "emCore/emMiniIpc.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "no IPC needed in zuicchini; single-application design"
+    },
+    {
+      "item_id": "ITEM-113008",
+      "symbol": "emMiniIpcServer::IsServing",
+      "kind": "method",
+      "source_file": "emCore/emMiniIpc.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "no IPC needed in zuicchini; single-application design"
+    },
+    {
+      "item_id": "ITEM-113009",
+      "symbol": "emMiniIpcServer::GetServerName",
+      "kind": "method",
+      "source_file": "emCore/emMiniIpc.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "no IPC needed in zuicchini; single-application design"
+    },
+    {
+      "item_id": "ITEM-113010",
+      "symbol": "emMiniIpcServer::OnReception",
+      "kind": "method",
+      "source_file": "emCore/emMiniIpc.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "no IPC needed in zuicchini; single-application design",
+      "notes": "protected pure virtual method"
+    },
+    {
+      "item_id": "ITEM-114000",
+      "symbol": "emCrossPtr<CLS>",
+      "kind": "class_template",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Weak<T> from std::rc — Rust's Weak reference achieves the same null-on-drop semantics via Rc/Weak reference counting",
+      "notes": "Auto-nulling weak pointer that survives object destruction; Rust uses Rc<RefCell<T>> + Weak<T>"
+    },
+    {
+      "item_id": "ITEM-114001",
+      "symbol": "emCrossPtr<CLS>::emCrossPtr()",
+      "kind": "constructor",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Weak<T>::new() or Weak::default()"
+    },
+    {
+      "item_id": "ITEM-114002",
+      "symbol": "emCrossPtr<CLS>::emCrossPtr(const emCrossPtr&)",
+      "kind": "constructor",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Weak<T>::clone()"
+    },
+    {
+      "item_id": "ITEM-114003",
+      "symbol": "emCrossPtr<CLS>::emCrossPtr(CLS*)",
+      "kind": "constructor",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Rc::downgrade(&rc)"
+    },
+    {
+      "item_id": "ITEM-114004",
+      "symbol": "emCrossPtr<CLS>::~emCrossPtr",
+      "kind": "destructor",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Weak<T> drop impl"
+    },
+    {
+      "item_id": "ITEM-114005",
+      "symbol": "emCrossPtr<CLS>::operator=(const emCrossPtr&)",
+      "kind": "operator",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Weak<T> Clone trait"
+    },
+    {
+      "item_id": "ITEM-114006",
+      "symbol": "emCrossPtr<CLS>::Set",
+      "kind": "method",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Rc::downgrade(&rc) assignment"
+    },
+    {
+      "item_id": "ITEM-114007",
+      "symbol": "emCrossPtr<CLS>::operator=(CLS*)",
+      "kind": "operator",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Rc::downgrade(&rc) assignment"
+    },
+    {
+      "item_id": "ITEM-114008",
+      "symbol": "emCrossPtr<CLS>::Reset",
+      "kind": "method",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "assigning Weak::new() or None in Option<Weak<T>>"
+    },
+    {
+      "item_id": "ITEM-114009",
+      "symbol": "emCrossPtr<CLS>::operator CLS*()",
+      "kind": "operator",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Weak<T>::upgrade() -> Option<Rc<T>>"
+    },
+    {
+      "item_id": "ITEM-114010",
+      "symbol": "emCrossPtr<CLS>::Get",
+      "kind": "method",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Weak<T>::upgrade() -> Option<Rc<T>>"
+    },
+    {
+      "item_id": "ITEM-114011",
+      "symbol": "emCrossPtr<CLS>::operator->",
+      "kind": "operator",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Weak<T>::upgrade().unwrap().borrow() with Deref"
+    },
+    {
+      "item_id": "ITEM-114012",
+      "symbol": "emCrossPtrList",
+      "kind": "class",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Rc<T> strong reference counting — Weak references are tracked by Rc automatically; no separate list needed",
+      "notes": "Intrusive list tracking all cross-pointers to an object; Rust Rc handles this internally"
+    },
+    {
+      "item_id": "ITEM-114013",
+      "symbol": "emCrossPtrList::emCrossPtrList",
+      "kind": "constructor",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Rc<T> reference counting infrastructure"
+    },
+    {
+      "item_id": "ITEM-114014",
+      "symbol": "emCrossPtrList::~emCrossPtrList",
+      "kind": "destructor",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Rc<T> drop implementation"
+    },
+    {
+      "item_id": "ITEM-114015",
+      "symbol": "emCrossPtrList::BreakCrossPtrs",
+      "kind": "method",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "dropping Rc<T> — Weak refs automatically return None on upgrade after Rc is dropped"
+    },
+    {
+      "item_id": "ITEM-114016",
+      "symbol": "emCrossPtrList::LinkCrossPtr",
+      "kind": "method",
+      "source_file": "emCore/emCrossPtr.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Rc::downgrade — Rc handles weak reference bookkeeping internally"
+    },
+    {
+      "item_id": "ITEM-115000",
+      "symbol": "emTmpFile",
+      "kind": "class",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "RAII temporary file path manager with auto-delete. No equivalent in zuicchini; std::env::temp_dir() + manual cleanup or 'tempfile' crate would supersede if needed."
+    },
+    {
+      "item_id": "ITEM-115001",
+      "symbol": "emTmpFile::emTmpFile()",
+      "kind": "constructor",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-115002",
+      "symbol": "emTmpFile::emTmpFile(emRootContext&, const char*)",
+      "kind": "constructor",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-115003",
+      "symbol": "emTmpFile::emTmpFile(const emString&)",
+      "kind": "constructor",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-115004",
+      "symbol": "emTmpFile::~emTmpFile",
+      "kind": "destructor",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-115005",
+      "symbol": "emTmpFile::TrySetup",
+      "kind": "method",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-115006",
+      "symbol": "emTmpFile::Setup",
+      "kind": "method",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-115007",
+      "symbol": "emTmpFile::SetupCustomPath",
+      "kind": "method",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-115008",
+      "symbol": "emTmpFile::GetPath",
+      "kind": "method",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-115009",
+      "symbol": "emTmpFile::Discard",
+      "kind": "method",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-115010",
+      "symbol": "emTmpFileMaster",
+      "kind": "class",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Central singleton for inventing temp paths and cleaning up orphaned temp dirs via IPC. No equivalent in zuicchini."
+    },
+    {
+      "item_id": "ITEM-115011",
+      "symbol": "emTmpFileMaster::Acquire",
+      "kind": "static_method",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-115012",
+      "symbol": "emTmpFileMaster::TryInventPath",
+      "kind": "method",
+      "source_file": "emCore/emTmpFile.h",
+      "classification": "not_ported",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-116000",
+      "symbol": "emFileStream",
+      "kind": "class",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::fs::File + std::io::BufReader / std::io::BufWriter from Rust stdlib",
+      "notes": "Buffered FILE* wrapper with typed read/write helpers. No zuicchini equivalent; Rust stdlib provides this natively."
+    },
+    {
+      "item_id": "ITEM-116001",
+      "symbol": "emFileStream::emFileStream",
+      "kind": "constructor",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::fs::File::open / File::create + BufReader::new"
+    },
+    {
+      "item_id": "ITEM-116002",
+      "symbol": "emFileStream::~emFileStream",
+      "kind": "destructor",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Drop impl on std::fs::File"
+    },
+    {
+      "item_id": "ITEM-116003",
+      "symbol": "emFileStream::TryOpen",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::fs::File::open / OpenOptions"
+    },
+    {
+      "item_id": "ITEM-116004",
+      "symbol": "emFileStream::TryClose",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "drop(file) or BufWriter::into_inner()"
+    },
+    {
+      "item_id": "ITEM-116005",
+      "symbol": "emFileStream::Close",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "drop(file)"
+    },
+    {
+      "item_id": "ITEM-116006",
+      "symbol": "emFileStream::IsOpen",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Option<File> pattern in Rust"
+    },
+    {
+      "item_id": "ITEM-116007",
+      "symbol": "emFileStream::TryTell",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::Seek::stream_position"
+    },
+    {
+      "item_id": "ITEM-116008",
+      "symbol": "emFileStream::TrySeek",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::Seek::seek(SeekFrom::Start)"
+    },
+    {
+      "item_id": "ITEM-116009",
+      "symbol": "emFileStream::TrySeekEnd",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::Seek::seek(SeekFrom::End)"
+    },
+    {
+      "item_id": "ITEM-116010",
+      "symbol": "emFileStream::TrySkip",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::Seek::seek(SeekFrom::Current)"
+    },
+    {
+      "item_id": "ITEM-116011",
+      "symbol": "emFileStream::TryRead",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::Read::read_exact"
+    },
+    {
+      "item_id": "ITEM-116012",
+      "symbol": "emFileStream::TryReadAtMost",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::Read::read"
+    },
+    {
+      "item_id": "ITEM-116013",
+      "symbol": "emFileStream::TryReadLine",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::BufRead::read_line"
+    },
+    {
+      "item_id": "ITEM-116014",
+      "symbol": "emFileStream::TryReadCharOrEOF",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::Read::bytes() iterator"
+    },
+    {
+      "item_id": "ITEM-116015",
+      "symbol": "emFileStream::TryReadInt8",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate or manual read_exact into [u8;1]"
+    },
+    {
+      "item_id": "ITEM-116016",
+      "symbol": "emFileStream::TryReadUInt8",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate or manual read_exact into [u8;1]"
+    },
+    {
+      "item_id": "ITEM-116017",
+      "symbol": "emFileStream::TryReadInt16LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_i16::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116018",
+      "symbol": "emFileStream::TryReadInt16BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_i16::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116019",
+      "symbol": "emFileStream::TryReadUInt16LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_u16::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116020",
+      "symbol": "emFileStream::TryReadUInt16BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_u16::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116021",
+      "symbol": "emFileStream::TryReadInt32LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_i32::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116022",
+      "symbol": "emFileStream::TryReadInt32BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_i32::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116023",
+      "symbol": "emFileStream::TryReadUInt32LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_u32::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116024",
+      "symbol": "emFileStream::TryReadUInt32BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_u32::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116025",
+      "symbol": "emFileStream::TryReadInt64LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_i64::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116026",
+      "symbol": "emFileStream::TryReadInt64BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_i64::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116027",
+      "symbol": "emFileStream::TryReadUInt64LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_u64::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116028",
+      "symbol": "emFileStream::TryReadUInt64BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate ReadBytesExt::read_u64::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116029",
+      "symbol": "emFileStream::TryWrite(const void*, size_t)",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::Write::write_all"
+    },
+    {
+      "item_id": "ITEM-116030",
+      "symbol": "emFileStream::TryWrite(const char*)",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::Write::write_all on str bytes"
+    },
+    {
+      "item_id": "ITEM-116031",
+      "symbol": "emFileStream::TryWriteChar",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::Write::write_all on single byte"
+    },
+    {
+      "item_id": "ITEM-116032",
+      "symbol": "emFileStream::TryWriteInt8",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_i8"
+    },
+    {
+      "item_id": "ITEM-116033",
+      "symbol": "emFileStream::TryWriteUInt8",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_u8"
+    },
+    {
+      "item_id": "ITEM-116034",
+      "symbol": "emFileStream::TryWriteInt16LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_i16::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116035",
+      "symbol": "emFileStream::TryWriteInt16BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_i16::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116036",
+      "symbol": "emFileStream::TryWriteUInt16LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_u16::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116037",
+      "symbol": "emFileStream::TryWriteUInt16BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_u16::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116038",
+      "symbol": "emFileStream::TryWriteInt32LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_i32::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116039",
+      "symbol": "emFileStream::TryWriteInt32BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_i32::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116040",
+      "symbol": "emFileStream::TryWriteUInt32LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_u32::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116041",
+      "symbol": "emFileStream::TryWriteUInt32BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_u32::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116042",
+      "symbol": "emFileStream::TryWriteInt64LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_i64::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116043",
+      "symbol": "emFileStream::TryWriteInt64BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_i64::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116044",
+      "symbol": "emFileStream::TryWriteUInt64LE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_u64::<LittleEndian>"
+    },
+    {
+      "item_id": "ITEM-116045",
+      "symbol": "emFileStream::TryWriteUInt64BE",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "byteorder crate WriteBytesExt::write_u64::<BigEndian>"
+    },
+    {
+      "item_id": "ITEM-116046",
+      "symbol": "emFileStream::TryFlush",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::io::Write::flush"
+    },
+    {
+      "item_id": "ITEM-116047",
+      "symbol": "emFileStream::TryGetFile",
+      "kind": "method",
+      "source_file": "emCore/emFileStream.h",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::fs::File (direct ownership, no raw FILE* needed)"
+    },
+    {
+      "item_id": "ITEM-117000",
+      "symbol": "emInstallDirType",
+      "kind": "enum",
+      "source_file": "emCore/emInstallInfo.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "Eagle Mode installation system not relevant to zuicchini",
+      "notes": "Enumerates Eagle Mode installation directory types (bin, lib, res, etc.)"
+    },
+    {
+      "item_id": "ITEM-117001",
+      "symbol": "emGetInstallPath",
+      "kind": "function",
+      "source_file": "emCore/emInstallInfo.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "Eagle Mode installation system not relevant to zuicchini",
+      "notes": "Returns Eagle Mode installation paths by type and sub-project"
+    },
+    {
+      "item_id": "ITEM-117002",
+      "symbol": "emGetConfigDirOverloadable",
+      "kind": "function",
+      "source_file": "emCore/emInstallInfo.h",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "Eagle Mode installation system not relevant to zuicchini",
+      "notes": "Returns host vs user config directory with version-based override logic"
+    }
+  ]
+}

@@ -1,0 +1,464 @@
+[
+  {
+    "tension_ids": ["t-01", "t-07", "t-14", "t-12"],
+    "cluster_name": "Empirical pixel diffing value vs. renderer noise floor and non-visual blind spots",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a1-06": {"robustness": -0.25, "defensibility": -0.15},
+          "a2-08": {"robustness": -0.20, "defensibility": -0.10},
+          "a2-21": {"robustness": -0.20, "defensibility": -0.10},
+          "a1-11": {"robustness": -0.15},
+          "a3-08": {"defensibility": 0.02},
+          "a2-09": {"defensibility": 0.02}
+        },
+        "reasoning": "a1-06 claims empirical pixel diffing is the 'single most valuable' strategy. This claim is attacked from two independent directions that compound devastatingly. First, a3-08 identifies a permanent noise floor: emCore's software renderer and wgpu produce systematically different pixels for identical logical content (font hinting, anti-aliasing, gamma curves). This is not a speculative concern — it follows necessarily from the different rendering backends. The noise floor is fixed while real bug signal decreases as the port improves, meaning the signal-to-noise ratio degrades monotonically. Second, a2-09 establishes that pixel diffing is categorically blind to non-rendering behavior (signals, callbacks, clipboard, focus). The claim of being 'holistic' is therefore false — pixel diffing is holistic only within the visual dimension. Combined, these two limitations mean pixel diffing operates in a shrinking window: it can only detect rendering bugs, and its ability to distinguish rendering bugs from rendering noise degrades over time. a2-08 and a2-21 inherit these problems because they propose scaling up the very methodology that a3-08 predicts will be noise-dominated. a2-21's grid of widget states would multiply both the real bug signal AND the noise floor, with no guarantee the former dominates. a1-06's robustness score of 0.68 already reflects some awareness of limitations but not enough given the structural nature of the noise floor problem."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a1-06": {"robustness": 0.10, "defensibility": 0.08},
+          "a2-08": {"robustness": 0.10, "defensibility": 0.05},
+          "a2-21": {"robustness": 0.08},
+          "a3-08": {"robustness": -0.05, "specificity": -0.05}
+        },
+        "reasoning": "The prosecution overstates the noise floor problem by conflating two different kinds of pixel diffing. a3-08 specifically targets cross-renderer diffing (C++ emCore software renderer vs. Rust wgpu). But the project's golden test infrastructure uses the SAME Rust renderer for both reference and test — the golden test generator produces C++ reference output that goes through the same comparison pipeline. The golden tests in common.rs compare pixel buffers produced by the same rendering pipeline, not by different renderers. a3-08's noise floor argument applies to live cross-binary visual comparison but NOT to the golden test framework, which is where most of the empirical value actually lives. Furthermore, a1-06 says 'empirical pixel diffing of full TkTest scene' — this likely means running the golden test generator to produce reference framebuffers and comparing against Rust output through the existing tolerance-aware comparison in common.rs, not literally screenshotting two different windows. If the same renderer produces both outputs, the noise floor is near zero except for legitimate algorithmic differences. The prosecution also fails to credit the unique composition-effect detection that a1-11 identifies: Fixes 6, 22, and 26 all modify the label pipeline, and no amount of per-fix unit testing catches their interaction. Only a full-scene render test does this. Finally, a2-09's limitation (non-visual blind spots) is real but does not undermine the claim that pixel diffing is the MOST valuable strategy — it only means it is not the ONLY needed strategy."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a1-06": {"robustness": -0.08, "defensibility": -0.05},
+          "a2-08": {"robustness": -0.08, "defensibility": -0.05},
+          "a2-21": {"robustness": -0.10, "defensibility": -0.05},
+          "a1-11": {"robustness": -0.05},
+          "a3-08": {"specificity": -0.03, "robustness": -0.03},
+          "a2-09": {"defensibility": 0.02}
+        },
+        "reasoning": "The defense correctly identifies that the prosecution conflated cross-renderer diffing with same-renderer golden test comparison. The golden test infrastructure produces both reference and test output through the Rust rendering pipeline, so a3-08's noise floor argument applies only to a specific interpretation of pixel diffing (live cross-binary comparison), not to the golden test framework. This substantially weakens the prosecution's case for a1-06. However, the defense does not fully rescue a1-06's 'single most valuable' claim. a2-09's non-visual blind spots are fundamental and irrecoverable — no amount of pixel comparison finds callback sequencing bugs. This means pixel diffing cannot be holistic in the way a1-06 claims. The word 'single' is the problem: pixel diffing is extremely valuable but cannot be the single most valuable strategy when it is categorically blind to an entire class of bugs. a1-06 loses moderate robustness and slight defensibility for overclaiming. a2-21's grid proposal loses more because it doesn't address which combinations are worth testing first, and if interpreted as cross-renderer testing, the noise floor IS relevant. a3-08 itself loses slight robustness because its specificity about 'emCore software renderer vs. wgpu' is too narrow — the golden test generator may not use this exact comparison path. a2-09 gains slightly for being a logically necessary and irrefutable limitation."
+      }
+    ]
+  },
+  {
+    "tension_ids": ["t-02", "t-03", "t-15", "t-21"],
+    "cluster_name": "LLM-as-reviewer reliability: diff review, adversarial rationale review, and structured outputs",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a2-02": {"robustness": -0.20, "defensibility": -0.10},
+          "a2-19": {"robustness": -0.20, "defensibility": -0.10},
+          "a1-23": {"robustness": -0.15, "defensibility": -0.08},
+          "a1-03": {"defensibility": 0.05},
+          "a3-05": {"defensibility": 0.03},
+          "a3-22": {"defensibility": 0.03}
+        },
+        "reasoning": "Four tensions converge on the same structural problem: LLM agents reviewing LLM-generated artifacts have correlated failure modes. a1-03 states this as a first principle — a second opinion from an identical system is not independent verification. a3-05 sharpens it: both writer and reviewer optimize for 'sounds reasonable,' so fluent falsehoods pass the same filter. a3-22 adds that without access to referenced source files, the reviewer can only check internal consistency, which is trivially achievable for false claims. Against this backdrop, a2-02's claim that fix diff re-audit is the 'single highest-ROI strategy' is severely undermined. The re-audit IS an agent reading a diff and declaring it correct — exactly what a1-03 warns against. The C++ reference partially mitigates this (the agent compares against an oracle, not just its own reasoning), but the agent still must correctly interpret both the diff and the C++ code, and its errors in doing so are correlated with the original fix agent's errors because both are LLMs with similar training distributions. a2-19's claim that adversarial rationale review catches silent skipping is undermined by a3-05: the reviewer accepts well-written false justifications. Silent skipping with a plausible one-sentence justification ('verified against C++ reference, behavior matches') would pass adversarial review because the reviewer cannot distinguish it from a genuine verification without reading the source. a1-23's structured MATCH/MISMATCH output improves on free-form review but a3-22 correctly identifies that the output format doesn't change the underlying limitation: the agent may output MATCH based on internal consistency rather than factual accuracy."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a2-02": {"robustness": 0.12, "defensibility": 0.08},
+          "a2-19": {"robustness": 0.10, "defensibility": 0.05},
+          "a1-23": {"robustness": 0.08},
+          "a1-03": {"robustness": -0.08},
+          "a3-05": {"robustness": -0.05}
+        },
+        "reasoning": "The prosecution treats all agent review as equivalent, ignoring crucial differences in task structure. a2-02's fix diff re-audit is NOT the same as reading a diff and declaring it correct (a1-03's characterization). The re-audit task has two key structural advantages that make it less susceptible to correlated errors: (1) it has a concrete reference artifact — the C++ function — providing an external ground truth that constrains the reviewer's interpretation, and (2) the scope is bounded to a single function diff, reducing the holistic reasoning burden that causes LLM failures. This is qualitatively different from open-ended 'is this code good?' review. The prosecution also overstates the correlation. While LLMs share training distributions, a re-audit agent operating on {diff + C++ source + finding description} has different context from the original fix agent operating on {finding description + Rust code}. Different context produces different errors even from the same model — this is why ensemble methods work in ML despite using the same architecture. a2-19 is also partially rescued: while a3-05 is correct that LLM review cannot catch sophisticated false justifications, the specific failure mode of 'silent skipping' (marking ACCEPTED with NO justification) IS detectable by checking whether any justification exists at all. The adversarial reviewer doesn't need deep understanding to flag 'no justification provided.' a1-23's MATCH/MISMATCH format further constrains the reviewer to binary decisions with mandatory evidence fields, reducing the degrees of freedom available for plausible-sounding nonsense. Finally, a1-03's claim of 'exactly the same failure modes' deserves a robustness penalty because it conflates correlated errors with identical errors — the correlation is real but less than 1.0."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a2-02": {"robustness": -0.08, "defensibility": -0.03},
+          "a2-19": {"robustness": -0.12, "defensibility": -0.05},
+          "a1-23": {"robustness": -0.07, "defensibility": -0.03},
+          "a1-03": {"robustness": -0.03, "specificity": 0.03},
+          "a3-05": {"defensibility": 0.02},
+          "a3-22": {"defensibility": 0.02}
+        },
+        "reasoning": "The defense makes a legitimate structural distinction for a2-02: fix diff re-audit with C++ reference is genuinely different from open-ended code review. The external oracle constrains interpretation and partially decorrelates the reviewer's errors from the fixer's errors. This rescues a2-02 from the prosecution's harshest penalties but does not fully vindicate it — the 'single highest-ROI' claim remains overclaimed because the agent still must correctly parse both the diff and C++ code, and subtle errors (wrong control flow point, missing downstream effects) can survive re-audit. a2-02 takes moderate penalties. a2-19 fares worse. The defense's point about detecting completely absent justifications is valid but narrow — this catches only the crudest form of silent skipping. Any agent sophisticated enough to be useful is also sophisticated enough to produce a one-sentence justification, at which point a3-05's fluent-falsehood problem kicks in. The defense did not adequately address this escalation. a2-19 takes larger penalties. a1-23 takes moderate penalties — the structured output format is a genuine improvement over free-form review, but a3-22's factual-accuracy limitation is fundamental. An agent outputting MATCH with confident reasoning but wrong facts is worse than an agent admitting uncertainty, and structured formats can increase overconfidence. a1-03 takes a small robustness hit for the 'exactly the same failure modes' overclaim — the defense correctly notes that correlation < 1.0 — but gains specificity because the core insight about correlated errors is validated by the evidence from a3-05 and a3-22."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-04",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a2-02": {"robustness": -0.12},
+          "a3-07": {"defensibility": 0.03}
+        },
+        "reasoning": "a3-07 identifies a fundamental limitation of diff-based review that directly undermines a2-02. A diff shows what changed but cannot show what SHOULD have changed but didn't. The Border label_space example is concrete: changing label_space in one function without updating its three call sites (content_rect, content_round_rect, content_rect_unobscured) would not appear in a single-commit diff unless the fix agent happened to update all of them. This is not an edge case — it is the normal case for any fix with downstream dependencies. a2-02's 'highest-ROI' claim assumes the fix diffs contain all relevant information, but a3-07 proves they don't. The temporal boundary of a commit is an arbitrary slice through the dependency graph."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a2-02": {"robustness": 0.05},
+          "a3-07": {"robustness": -0.05}
+        },
+        "reasoning": "The prosecution assumes the re-audit is limited to reading the diff in isolation. A competent re-audit agent can and should read the full function being modified and check for downstream callers — the diff is the entry point, not the boundary. The CLAUDE.md coding rules already mandate understanding call sites when modifying functions. Furthermore, the 31 fix commits in this project are well-structured, and the finding descriptions identify the exact functions involved, providing the auditor with the scope to investigate beyond the diff. a3-07's limitation is real for naive diff-reading tools but overstated for an agent that can read surrounding code."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a2-02": {"robustness": -0.05},
+          "a3-07": {"defensibility": 0.02, "robustness": -0.02}
+        },
+        "reasoning": "The defense is partially right: a competent agent CAN look beyond the diff. But the prosecution's point is that the diff-based framing of the re-audit task creates a cognitive anchor that makes it LESS LIKELY the agent will investigate downstream effects. The task is defined as 're-audit fix diffs,' not 'verify all implications of each fix.' Scope framing matters for LLM agents. a2-02 takes a moderate robustness hit because the diff-boundary limitation is real even if not absolute. a3-07 gains slight defensibility for identifying a genuine structural weakness, but loses slight robustness because the limitation can be partially mitigated by expanding the audit scope."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-10",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a2-07": {"robustness": -0.15, "defensibility": -0.08},
+          "a3-01": {"defensibility": 0.03}
+        },
+        "reasoning": "a3-01 identifies a mathematically sound mechanism that directly undermines a2-07's revert-and-test methodology. Golden tests use ch_tol (channel tolerance) and max_failure_pct (maximum percentage of failing pixels). As the port improves and more pixels become correct, each individual revert affects a smaller fraction of the total pixel count. If the tolerance budget is large enough to absorb the disturbance from a single revert, the mutation test passes even though the revert reintroduces a real bug. This is not speculative — it follows directly from the arithmetic of tolerance-based comparison. a2-07 proposes mutation testing specifically for FIXED items with no coverage, meaning these are fixes whose pixel effects are not verified. If reverting such a fix produces pixel changes that fall within the tolerance budget of existing golden tests, the mutation test is useless. The more the port improves, the more tolerance budget is freed, and the more reverts can be absorbed — exactly the opposite of what a2-07 needs to work."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a2-07": {"robustness": 0.07},
+          "a3-01": {"robustness": -0.05}
+        },
+        "reasoning": "The prosecution assumes mutation testing uses only existing golden tests with their current tolerances. But a2-07's methodology can be implemented with tighter per-revert tolerances: run the test suite, record the pixel diff count, revert one fix, run again, and compare the two diff counts. If the count INCREASES, the fix was contributing to correctness regardless of whether it crosses a tolerance threshold. This relative comparison (before-revert vs. after-revert) is immune to tolerance absorption because it measures the delta, not the absolute level. Additionally, a3-01 overestimates how quickly the tolerance budget absorbs reverts. If a fix changes 50 pixels in a 1000-pixel test image with ch_tol=2 and max_failure_pct=1.0, reverting it adds 5% failure — well above typical thresholds. The argument that tolerance absorption makes mutation testing 'less effective' is directionally correct but the magnitude may be small for meaningful fixes."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a2-07": {"robustness": -0.08},
+          "a3-01": {"defensibility": 0.02, "robustness": -0.03}
+        },
+        "reasoning": "The defense makes a valid methodological point: relative diff comparison (before vs. after revert) partially sidesteps the tolerance absorption problem. However, a2-07 as stated proposes 'revert-and-test' without specifying this refinement, so the prosecution's reading of the proposition is fair. a2-07 loses robustness because the stated methodology is vulnerable to a3-01's concern. If a2-07 had specified relative comparison, the penalty would be smaller. a3-01 gains slight defensibility for the soundness of the mathematical argument but loses slight robustness because the defense shows the mechanism can be mitigated with a simple methodological refinement."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-23",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a2-17": {"robustness": -0.15, "specificity": -0.10},
+          "a3-17": {"defensibility": 0.03}
+        },
+        "reasoning": "a3-17 lands a devastating blow on a2-17 by exposing that the current verification framework cannot distinguish 'all known findings resolved' from 'the port is high quality.' a2-17 defines doneness as matching the oracle for every possible input, but the strategies only verify responses to the 170+ identified findings. Unknown bugs — functions with errors that no audit finding identified — are invisible to all 8 strategies. a2-17's aspirational standard is fine as a theoretical goal but its robustness and specificity are undermined because it provides no actionable path to distinguish the two interpretations. The proposition creates false confidence: teams that 'pass all strategies' may believe they've achieved a2-17's standard when they've actually only achieved a3-17's weaker interpretation."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a2-17": {"robustness": 0.05},
+          "a3-17": {"specificity": -0.05}
+        },
+        "reasoning": "a3-17 is logically correct but practically overstated. The strategies are not ONLY about known findings — empirical pixel diffing (Strategy 6) and boundary value differential testing (a2-13) DO discover unknown bugs because they compare full rendering output, not just specific finding-related pixels. If an unfound bug produces a visible pixel difference, differential testing catches it regardless of whether any audit identified it. Furthermore, a2-17 explicitly frames its standard as aspirational ('every input the function can receive'), which is clearly unachievable but correctly orients effort toward broader coverage rather than narrower known-bug verification. a3-17's critique applies to the analytical strategies (re-audit, consistency checks, rationale review) but not to the empirical strategies that compare full outputs."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a2-17": {"robustness": -0.08, "specificity": -0.05},
+          "a3-17": {"defensibility": 0.02, "specificity": -0.03}
+        },
+        "reasoning": "The defense correctly notes that empirical strategies can discover unknown bugs, partially rescuing a2-17 from the prosecution's harshest reading. However, a2-17's specificity score (already 0.50) was too high for a proposition that provides no actionable path to its own standard. It functions as a motivational principle, not a verification criterion. a3-17's critique is valid for analytical strategies but overstated for empirical ones — it loses slight specificity for not distinguishing between strategy types. a2-17 loses moderate robustness because its gap between aspiration and achievability creates the false-confidence risk the prosecution identified."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-20",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a2-13": {"robustness": -0.12},
+          "a3-09": {"defensibility": 0.03}
+        },
+        "reasoning": "a2-13 advocates boundary value differential testing as where empirical diffing 'becomes most powerful.' But boundary values are precisely where rendering pipeline differences (font hinting at extreme sizes, anti-aliasing at minimum dimensions, color clamping at boundary values) are most likely to produce renderer-specific artifacts. These artifacts must be triaged and added to exclusion lists, feeding the monotonic growth a3-09 identifies. More boundary testing means more exclusion entries, each of which is a permanent blind spot. The very strength a2-13 claims — probing edge cases — accelerates the exclusion list problem a3-09 warns about."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a2-13": {"robustness": 0.05},
+          "a3-09": {"robustness": -0.05}
+        },
+        "reasoning": "The prosecution assumes cross-renderer comparison, but boundary value testing can be done within the golden test framework using the same renderer. The golden test generator produces both C++ and Rust reference output through a shared comparison path. Boundary values that produce different results in the golden test framework represent genuine algorithmic differences, not renderer artifacts. Furthermore, a3-09's exclusion list concern is operationally manageable: exclusion entries can be structured as (widget, parameter range, expected diff) tuples with mandatory re-triage dates, preventing monotonic growth."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a2-13": {"robustness": -0.05},
+          "a3-09": {"defensibility": 0.02, "robustness": -0.02}
+        },
+        "reasoning": "The defense correctly distinguishes same-renderer golden tests from cross-renderer comparison, partially mitigating the exclusion list concern. However, a2-13 describes 'differential testing' comparing 'both C++ and Rust,' which suggests cross-binary comparison where the exclusion list problem is real. The proposition could be strengthened by specifying same-renderer comparison, but as stated it is vulnerable. Moderate robustness penalty. a3-09 gains slight defensibility for identifying a real operational risk but loses slight robustness because the growth can be managed with structured exclusion metadata."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-11",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a1-04": {"robustness": -0.10, "defensibility": -0.05},
+          "a3-19": {"defensibility": 0.02}
+        },
+        "reasoning": "a1-04 claims writing golden tests for the 31 applied fixes is the highest-value work. a3-19 reveals that golden tests skip alpha channel comparison entirely (compare_images in common.rs skips channel 3). Any fix affecting compositing alpha handling — compositing order, transparency accumulation, layer visibility — is structurally unverifiable by golden tests. If some of the 31 fixes involve alpha-affecting code paths, golden test 'coverage' for those fixes is illusory. a1-04's blanket claim that golden tests are the highest value for ALL 31 fixes is undermined for the alpha-related subset."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a1-04": {"robustness": 0.05},
+          "a3-19": {"specificity": -0.03}
+        },
+        "reasoning": "The prosecution assumes a significant fraction of the 31 fixes involve alpha-path code. The actual fixes are enumerated (20-23, 26 are cited as lacking coverage). Examining these: Fix 20 is substance_round_rect (geometry/rendering), Fix 21 is best_label_tallness (layout), Fix 22 is label rendering, Fix 23 is label_space (geometry), Fix 26 is ScrollBar rendering. None of these are primarily alpha/compositing fixes. The alpha blind spot is real in principle but may affect few or none of the 31 specific fixes a1-04 targets. Furthermore, even for alpha-affecting code, the RGB channels often change in response to alpha changes (premultiplied alpha means RGB values scale with alpha), so RGB-only golden tests provide partial coverage of alpha-dependent behavior."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a1-04": {"robustness": -0.03},
+          "a3-19": {"defensibility": 0.01}
+        },
+        "reasoning": "The defense makes a strong practical point: the specific 31 fixes are mostly geometry and rendering, not alpha-path code. The alpha blind spot is a real limitation of the golden test infrastructure but applies to a narrow subset of the 31 fixes a1-04 targets. a1-04 takes only a small robustness penalty to acknowledge the blind spot exists, even if it affects few of the target fixes. a3-19 gains minimal defensibility because its factual claim about alpha skipping is verified, even though its impact on a1-04 is limited."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-19",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a1-22": {"robustness": -0.10, "defensibility": -0.05},
+          "a3-16": {"defensibility": 0.03}
+        },
+        "reasoning": "a1-22 proposes using agents to write tests exercising existing infrastructure. a3-16 identifies that ALL 8 strategies (and the test-writing proposal is effectively another strategy) are biased toward verifying already-identified findings with no mechanism for discovering unknown bugs. Writing golden tests for the 31 known fixes is exactly this: it verifies that known fixes work but provides zero coverage for bugs the audit never found. The codebase has 20+ widgets and hundreds of functions — the 170 findings may represent a small fraction of actual bugs. a1-22's approach is sound but incomplete, and its framing as a comprehensive solution ignores the discovery gap."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a1-22": {"robustness": 0.05},
+          "a3-16": {"robustness": -0.05}
+        },
+        "reasoning": "a3-16 critiques all strategies for known-bug bias, but a1-22 specifically mentions writing tests that exercise the golden test infrastructure — which includes the golden test generator that compares full widget rendering output. Tests written this way DO discover unknown bugs because they compare all pixels, not just finding-related ones. Furthermore, a1-22 does not claim to be comprehensive — it says agents should write tests rather than render opinions, which is a role assignment principle, not a completeness claim. Writing tests for known fixes also provides regression protection, which has value independent of bug discovery."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a1-22": {"robustness": -0.05},
+          "a3-16": {"defensibility": 0.02}
+        },
+        "reasoning": "The defense makes a fair point that golden tests can discover unknown bugs through full-scene comparison. However, a1-22's specific prescription ('write tests that exercise this infrastructure') in context of 'the project has the infrastructure to make empirical methods work' is oriented toward known-fix coverage, not exploratory testing. a3-16's structural observation is valid: none of the strategies explicitly include an open-ended bug-hunting component. a1-22 takes a moderate penalty for not addressing the discovery gap. a3-16 gains slight defensibility for a sound structural observation."
+      }
+    ]
+  },
+  {
+    "tension_ids": ["t-08", "t-09"],
+    "cluster_name": "Traceability audit value vs. superficiality and Goodhart's Law",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a1-19": {"robustness": -0.15, "defensibility": -0.08},
+          "a3-10": {"defensibility": 0.03},
+          "a3-11": {"defensibility": 0.03}
+        },
+        "reasoning": "a1-19 claims traceability auditing is cheap, reliable, and catches stale metadata. Two independent criticisms undermine this. a3-10 argues that traceability operates on titles and commit messages, not content — it verifies that a finding number appears in a commit message but not that the commit actually addresses the finding's content. Edge cases described in finding descriptions may be completely ignored as long as the finding number is referenced. a3-11 applies Goodhart's Law: traceability audits will train future agents to reference finding numbers ritually in commit messages without necessarily addressing finding content, degrading the signal value of the traceability link over time. Together, these criticisms show that traceability auditing provides a thin, gameable verification that may create false confidence in response adequacy."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a1-19": {"robustness": 0.07},
+          "a3-10": {"robustness": -0.03},
+          "a3-11": {"robustness": -0.05}
+        },
+        "reasoning": "The prosecution conflates the value of traceability with the value of verification. a1-19 explicitly scopes traceability as catching 'stale metadata' — specifically, detecting when a finding's status annotation says FIXED but no corresponding commit exists, or when a commit references a finding that doesn't exist. This is a data integrity check, not a correctness verification. a3-10's criticism (doesn't verify adequacy) is accurate but irrelevant to the claimed purpose. a3-11's Goodhart concern is speculative about future behavior and may not apply when the traceability audit is a one-time exercise on historical data (31 existing commits) rather than an ongoing process that shapes future behavior."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a1-19": {"robustness": -0.05, "defensibility": -0.03},
+          "a3-10": {"defensibility": 0.02},
+          "a3-11": {"defensibility": 0.01, "robustness": -0.02}
+        },
+        "reasoning": "The defense correctly notes that a1-19 scopes traceability as a metadata check, not a correctness verification. However, a1-19 also claims it 'directly catches the stale metadata failure mode' — implying more impact than a simple data integrity check warrants. The value is real but modest, and a1-19's scoring slightly overstates it. a3-10 gains slight defensibility for correctly identifying the existence-vs-adequacy gap, which matters even if a1-19 doesn't claim adequacy verification. a3-11 gains minimal defensibility — the Goodhart concern is theoretically valid but less applicable to a one-time retrospective audit. It loses slight robustness for the speculative future-behavior prediction."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-13",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a1-17": {"robustness": -0.10, "compatibility": -0.10},
+          "a2-15": {"robustness": -0.10, "defensibility": -0.05}
+        },
+        "reasoning": "These two propositions make mutually exclusive resource allocation claims and both suffer from overclaiming. a1-17 says with 3-5 agents, ONLY pixel diffing and coverage gap closure should be performed — explicitly excluding fix diff re-audit. a2-15 says fix diff re-audit MUST be completed BEFORE any other strategy. They cannot both be optimal. a1-17's exclusion of fix re-audit is aggressive given a2-02's concrete evidence (Ctrl+Left/Right bug) that diff re-audit catches real bugs. a2-15's strict sequencing is impractical — if pixel diffing can independently find fix errors, demanding sequential execution wastes parallelism."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a1-17": {"robustness": 0.05},
+          "a2-15": {"robustness": 0.05}
+        },
+        "reasoning": "The two propositions operate under different assumptions that make the mutual exclusion less stark than it appears. a1-17 assumes a constrained budget where opportunity cost matters — in that regime, the two highest-empirical-value strategies are correct choices. a2-15 assumes an unconstrained (or at least sequential) execution model where ordering matters more than budget. Both could be partially correct in their respective contexts: with 3-5 agents, do pixel diffing and coverage first; with more agents, add diff re-audit before the analytical strategies."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a1-17": {"robustness": -0.05, "compatibility": -0.05},
+          "a2-15": {"robustness": -0.07, "defensibility": -0.03}
+        },
+        "reasoning": "The defense partially reconciles the two by noting different budget assumptions. However, a1-17 still overclaims by saying 'only' these two strategies — even under budget constraints, a lightweight fix re-audit of HIGH-severity items could fit. a2-15 overclaims with 'must be completed before ANY other' — this rigid sequencing sacrifices parallelism without sufficient justification, especially when empirical strategies can independently surface fix errors. Both take moderate hits: a1-17 for excessive exclusion, a2-15 for excessive sequencing rigidity."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-25",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a1-15": {"robustness": -0.10, "defensibility": -0.08},
+          "a2-04": {"defensibility": 0.03}
+        },
+        "reasoning": "a1-15 claims cross-fix consistency checking has low remaining value because cross-cutting concerns are already resolved. a2-04 directly contradicts this by identifying an ongoing obligation: the 5-widget duplication design means EVERY fix to shared logic must be verified across all 5 widgets. This is not a one-time concern — it persists as long as the duplication exists. a1-15's claim that the concerns are 'already resolved and documented' assumes the documentation is correct, which contradicts a1-15's own document's warnings about stale metadata. The internal inconsistency weakens a1-15 further."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a1-15": {"robustness": 0.05},
+          "a2-04": {"robustness": -0.03}
+        },
+        "reasoning": "a1-15 specifically cites that 'CC-06 fixed in all 5 widgets, modifier guards added' — this is evidence that the cross-cutting fixes were actually mirrored, not just documented. The claim is about current state (the work is done), not about future obligations. a2-04's ongoing obligation is valid for future changes but a1-15 is about the value of RE-CHECKING already-completed mirroring, which is lower than initially checking it."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a1-15": {"robustness": -0.05, "defensibility": -0.03},
+          "a2-04": {"defensibility": 0.02}
+        },
+        "reasoning": "The defense is partially right: re-checking completed work has lower value than initial checking. But a1-15's robustness score should account for the possibility that the mirroring was done incorrectly — exactly the scenario a2-04 warns about. If the documentation says 'CC-06 fixed in all 5 widgets' but one widget was missed, only a cross-fix consistency check would catch it. a1-15 takes moderate penalties for dismissing this risk; a2-04 gains slight defensibility for the ongoing obligation argument."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-18",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a2-04": {"robustness": -0.08},
+          "a3-04": {"defensibility": 0.03}
+        },
+        "reasoning": "a2-04 establishes that every fix must be mirrored across all 5 widgets. a3-04 warns that this mirroring pressure leads to textual harmonization that can propagate a template bug to all copies. The obligation a2-04 creates is the direct cause of the failure mode a3-04 predicts. When an agent mirrors Fix X to widgets B-E by copying the template from widget A, if widget A's version is wrong, the mirroring propagates the error to all widgets. The verification obligation creates the harmonization pressure creates the template propagation risk."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a2-04": {"robustness": 0.05},
+          "a3-04": {"robustness": -0.03}
+        },
+        "reasoning": "a2-04 says 'every fix must be mirrored' — this does NOT mean 'copy from widget A to B-E.' Proper mirroring means independently applying each fix against the C++ base class for each widget, which is the opposite of template propagation. a3-04's failure mode occurs when the mirroring is done lazily (copy-paste) rather than correctly (independent application). The obligation itself is sound; the risk is in the execution method, not in the obligation."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a2-04": {"robustness": -0.03},
+          "a3-04": {"defensibility": 0.02}
+        },
+        "reasoning": "The defense correctly distinguishes the obligation (mirror) from the risky execution method (copy-paste). However, in practice with LLM agents, the cheaper execution method (copy from template) is the one that will be chosen, because agents optimize for efficiency. a2-04's obligation is correct but its robustness should account for the likely execution pattern. Small penalty to a2-04, small gain to a3-04 for identifying a realistic failure mode."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-17",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a1-10": {"robustness": -0.10, "defensibility": -0.05},
+          "a3-06": {"defensibility": 0.03}
+        },
+        "reasoning": "a1-10 claims Strategy 5 (existence tests for CLOSED divergences) is 'strictly superior' to Strategy 3 (adversarial rationale review). a3-06 identifies that when any strategy flags a CLOSED finding, the response will be a better-written justification rather than technical re-investigation. This applies EQUALLY to Strategy 5's test results: if an existence test for a CLOSED divergence reveals an unexpected behavior, the response pathway is rationalization ('this difference is expected because...') rather than re-investigation. The 'strict superiority' claim is undermined because both strategies face the same downstream rationalization problem."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a1-10": {"robustness": 0.05},
+          "a3-06": {"robustness": -0.03}
+        },
+        "reasoning": "a3-06's rationalization concern applies to the RESPONSE to test results, not to the test itself. Strategy 5's existence test produces a binary, mechanical signal (test passes or fails). Strategy 3's adversarial review produces prose that is subject to the rationalization problem FROM THE START. Even if responses to both are rationalized, Strategy 5 at least produces an objective signal that persists in the test suite — it cannot be rationalized away because it keeps failing. Strategy 3 produces only prose, which CAN be rationalized away by writing a better justification."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a1-10": {"robustness": -0.05, "defensibility": -0.02},
+          "a3-06": {"defensibility": 0.02}
+        },
+        "reasoning": "The defense makes an excellent point: a failing test persists and cannot be rationalized away, while prose can. This preserves Strategy 5's advantage over Strategy 3. However, the 'strictly superior' claim remains too strong — a3-06 is right that the response to UNEXPECTED test results (not just failures) can be rationalized. If a CLOSED divergence test reveals an unexpected-but-passing behavior, it may be dismissed as 'expected' without investigation. a1-10 takes moderate penalties for the 'strictly' overclaim; a3-06 gains slight defensibility for identifying the rationalization dynamic."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-16",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a1-08": {"robustness": -0.08},
+          "a2-06": {"defensibility": 0.02}
+        },
+        "reasoning": "a1-08 treats golden test coverage as the critical quality metric — every fix without coverage is a regression waiting to happen, scored at very high confidence (robustness 0.85). a2-06 proves that golden test coverage can be illusory: the Label alignment bug was masked by golden tests using width-constrained text that happened to produce identical output regardless of alignment. This means a fix could have golden test 'coverage' while the test uses inputs that don't actually exercise the fix's behavior. a1-08's implicit assumption — that golden test coverage = regression protection — is weakened by a2-06's demonstration that coverage != meaningful coverage."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a1-08": {"robustness": 0.03},
+          "a2-06": {"specificity": -0.02}
+        },
+        "reasoning": "a1-08 says coverage is 'necessary but not sufficient' (this is literally proposition a1-14's thesis, and a1-08 is consistent with it). a1-08 argues for writing golden tests as the highest-value work, not that having golden tests eliminates all risk. The tension with a2-06 is real but a1-08 already acknowledges the gap implicitly — the fix numbers it cites (20-23, 26) have NO coverage, which is worse than having masking coverage. a2-06's concern applies to tests that exist but use bad inputs, while a1-08's concern is about tests that don't exist at all."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a1-08": {"robustness": -0.03},
+          "a2-06": {"defensibility": 0.01}
+        },
+        "reasoning": "The defense correctly notes that a1-08 targets the no-coverage case (worse than masking coverage). However, a1-08's high robustness score (0.85) implies strong confidence that writing golden tests is sufficient for regression protection, and a2-06 proves this confidence should be tempered. Small robustness penalty to account for the masking risk when the coverage is eventually written. a2-06 gains minimal defensibility — its point was already well-supported."
+      }
+    ]
+  },
+  {
+    "tension_id": "t-05",
+    "passes": [
+      {
+        "pass": "prosecution",
+        "proposed_deltas": {
+          "a1-12": {"compatibility": -0.08},
+          "a2-16": {"specificity": 0.05}
+        },
+        "reasoning": "a1-12 says the optimal meta-strategy is agents as test authors, NOT as judges. a2-16 says 'use the oracle when you can, use code reading when you must.' When empirical methods are insufficient (signals, callbacks, focus management — per a2-09), a1-12 offers no alternative while a2-16 accepts code reading as a valid fallback. a1-12's absolutism creates a gap: for non-rendering behavior, if agents can't write tests (because the test infrastructure only supports pixel comparison), what should they do? a1-12 implies they should do nothing, which is practically untenable."
+      },
+      {
+        "pass": "defense",
+        "proposed_deltas": {
+          "a1-12": {"compatibility": 0.03},
+          "a2-16": {"specificity": -0.02}
+        },
+        "reasoning": "a1-12 says agents should be test authors, not judges. For non-rendering behavior, agents CAN write tests — unit tests for callback sequencing, state transition tests, focus management tests. The test infrastructure is not limited to pixel comparison; Rust has a full unit test framework. a1-12's prescription (write tests, don't write prose opinions) applies perfectly to behavioral testing, not just visual testing."
+      },
+      {
+        "pass": "adjudication",
+        "final_deltas": {
+          "a1-12": {"compatibility": -0.03},
+          "a2-16": {"specificity": 0.02}
+        },
+        "reasoning": "The defense makes a valid point that agents can write non-pixel tests. However, a1-12's 'never as judges' absolutism still creates practical problems for cases where the correct behavior is ambiguous and requires judgment to determine what test to write. a2-16's more nuanced position gains slight specificity for acknowledging this reality. a1-12 takes a small compatibility hit for the absolutist framing."
+      }
+    ]
+  }
+]

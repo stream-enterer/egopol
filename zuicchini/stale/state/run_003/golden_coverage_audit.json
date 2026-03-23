@@ -1,0 +1,339 @@
+{
+  "audited_at": "2026-03-15T18:30:00Z",
+  "results": [
+    {
+      "capability_id": "CAP-0002",
+      "capability_name": "Type-erased Value Container (emAnything)",
+      "category": "A",
+      "evidence": "std::any::{Any, TypeId} used in src/model/context.rs:1; Box<dyn Any> in src/widget/list_box.rs:200; Rc<dyn Any> in context.rs:21",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0003",
+      "capability_name": "Dynamic Array Container (emArray)",
+      "category": "A",
+      "evidence": "Vec used pervasively across the codebase (tga.rs, clip_rects.rs, em_rec.rs, panel/tree.rs, etc.)",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0004",
+      "capability_name": "AVL Tree Low-level Macros (emAvlTree)",
+      "category": "A",
+      "evidence": "C++ macro-based intrusive tree. Rust uses std::collections::HashMap (process.rs, linear.rs, pack.rs) and BTreeSet (image.rs). The macro layer is subsumed by Rust owned collection types.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0005",
+      "capability_name": "AVL Tree Map (emAvlTreeMap)",
+      "category": "A",
+      "evidence": "Map wrapper over AVL macros. Rust stdlib HashMap/BTreeMap subsumes this. src uses HashMap (process.rs, linear.rs, pack.rs) for keyed maps; BTreeSet in image.rs.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0006",
+      "capability_name": "AVL Tree Set (emAvlTreeSet)",
+      "category": "A",
+      "evidence": "std::collections::BTreeSet used directly: src/foundation/image.rs:1 `use std::collections::BTreeSet;`; image.rs:779 `let mut set = BTreeSet::new();`",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0015",
+      "capability_name": "Persistent Configuration Model (emConfigModel)",
+      "category": "D",
+      "evidence": "No matches for ConfigModel or config_model in tests/golden/*.rs. Source src/model/config_model.rs has non-trivial load(), save(), and load_or_install() methods using parse_rec/write_rec.",
+      "covered_by_tests": [],
+      "extension_needed": "Round-trip load()/save() with a known emRec file, verifying field values survive serialization and deserialization."
+    },
+    {
+      "capability_id": "CAP-0017",
+      "capability_name": "Core Configuration Settings (emCoreConfig)",
+      "category": "B",
+      "evidence": "Eagle Mode's concrete application-level config (look-and-feel, mouse speed, etc.). The Rust port has a generic ConfigModel<T> but CoreConfig is a separate app-layer singleton. From emCoreConfig.h.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0018",
+      "capability_name": "Core Configuration Panel UI (emCoreConfigPanel)",
+      "category": "B",
+      "evidence": "UI panel for editing emCoreConfig settings — pure Eagle Mode application UI. No grep hit for CoreConfigPanel in src/. From emCoreConfigPanel.h.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0019",
+      "capability_name": "Cross-Object Weak Pointer (emCrossPtr)",
+      "category": "A",
+      "evidence": "std::rc::Weak used directly: src/model/context.rs:4 `use std::rc::{Rc, Weak};`; context.rs:40 `parent: Option<Weak<Context>>`; context.rs:41 `children: RefCell<Vec<Weak<Context>>>`",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0020",
+      "capability_name": "Cursor Type Enumeration (emCursor)",
+      "category": "D",
+      "evidence": "Cursor imported in tests/golden/test_panel.rs:18 but used only in get_cursor() method stubs — not in any golden-data-loading test function. Source src/input/cursor.rs defines Cursor enum with 19 variants and as_str().",
+      "covered_by_tests": [],
+      "extension_needed": "Exercise get_cursor() returning specific Cursor variants from widgets under hover/interaction, comparing resolved cursor name against golden-recorded string."
+    },
+    {
+      "capability_id": "CAP-0021",
+      "capability_name": "Modal Dialog Widget (emDialog)",
+      "category": "D",
+      "evidence": "Dialog appears in test_panel.rs only as a comment and a Button label string — no Dialog struct imported or instantiated in any golden test. Source src/widget/dialog.rs implements add_button(), finish(), layout, and paint.",
+      "covered_by_tests": [],
+      "extension_needed": "Render a Dialog with Ok/Cancel buttons and compare painted output against C++ emDialog golden image."
+    },
+    {
+      "capability_id": "CAP-0023",
+      "capability_name": "Error Display Panel Widget (emErrorPanel)",
+      "category": "D",
+      "evidence": "No matches for ErrorPanel or error_panel in any golden test file. Source src/widget/error_panel.rs implements paint() with dark-red background and yellow text.",
+      "covered_by_tests": [],
+      "extension_needed": "Render ErrorPanel with a known error message and compare red/yellow painted result against C++ emErrorPanel golden image."
+    },
+    {
+      "capability_id": "CAP-0024",
+      "capability_name": "File Chooser Dialog (emFileDialog)",
+      "category": "D",
+      "evidence": "No matches for FileDialog or file_dialog in any golden test file. Source src/widget/file_dialog.rs wraps Dialog + FileSelectionBox with mode-dependent validation logic.",
+      "covered_by_tests": [],
+      "extension_needed": "Render FileDialog in Open mode and compare painted dialog against C++ emFileDialog golden image."
+    },
+    {
+      "capability_id": "CAP-0026",
+      "capability_name": "File-displaying Panel (emFilePanel)",
+      "category": "D",
+      "evidence": "No matches for FilePanel or file_panel in any golden test file. Source src/widget/file_panel.rs implements VirtualFileState with loading/error state display.",
+      "covered_by_tests": [],
+      "extension_needed": "Render FilePanel in each VirtualFileState variant (Waiting, Loading, Error) and compare painted status display against C++ emFilePanel golden images."
+    },
+    {
+      "capability_id": "CAP-0027",
+      "capability_name": "File Browser Widget (emFileSelectionBox)",
+      "category": "D",
+      "evidence": "FileSelectionBoxStubPanel in test_panel.rs is an explicit stub (line 300: 'Stub for C++ emFileSelectionBox') — does not use real FileSelectionBox. No import of FileSelectionBox in golden tests. Source src/widget/file_selection_box.rs has full PanelBehavior with directory listing, multi-select, filters.",
+      "covered_by_tests": [],
+      "extension_needed": "Render FileSelectionBox with a known directory listing and compare painted widget tree against C++ emFileSelectionBox golden image."
+    },
+    {
+      "capability_id": "CAP-0028",
+      "capability_name": "File I/O Stream (emFileStream)",
+      "category": "A",
+      "evidence": "std::io and std::fs used directly: process.rs:3 `use std::io::{self, Read, Write};`; config_model.rs:70 `std::fs::read_to_string`; config_model.rs:83 `std::fs::create_dir_all`; file_model.rs:309 `std::fs::metadata`",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0030",
+      "capability_name": "File Panel Plugin Interface (emFpPlugin)",
+      "category": "B",
+      "evidence": "Eagle Mode file-panel plugin interface for hooking custom file viewers into the file browser. Rust port has FilePanel as a base but the plugin registry is app-layer infrastructure. From emFpPlugin.h.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0031",
+      "capability_name": "Application Bootstrap Framework (emGUIFramework)",
+      "category": "D",
+      "evidence": "No matches for App from src/window/app.rs or window::app in any golden test file. Source implements full winit ApplicationHandler loop integrating GPU, scheduler, panel tree, and input dispatch.",
+      "covered_by_tests": [],
+      "extension_needed": "Exercise App event-loop integration by simulating resumed/window_event/about_to_wait cycles, asserting scheduler + panel-tree state transitions."
+    },
+    {
+      "capability_id": "CAP-0032",
+      "capability_name": "Layout Group Base (emGroup)",
+      "category": "B",
+      "evidence": "C++ base class for layout groups with border and focus. Rust port has concrete LinearGroup (layout/linear.rs:479) and PackGroup (layout/pack.rs:163) as subtypes. The base emGroup is subsumed by framework layout infrastructure. From emGroup.h.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0034",
+      "capability_name": "Image File Format I/O (emImageFile)",
+      "category": "B",
+      "evidence": "Eagle Mode's image-format I/O plugin system. Rust codebase has hand-written TGA loader (foundation/tga.rs) and Image type but no general image-file plugin system. No image crate in Cargo.toml. From emImageFile.h.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0036",
+      "capability_name": "Installation Information (emInstallInfo)",
+      "category": "B",
+      "evidence": "Queries Eagle Mode's installation paths (install dir, config dir, etc.). No dirs crate, no home_dir/config_dir/data_dir usage in src/. From emInstallInfo.h.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0037",
+      "capability_name": "Background Job System (emJob)",
+      "category": "D",
+      "evidence": "No matches for Job or scheduler::job in tests/golden/*.rs. Source src/scheduler/job.rs has internal unit tests but no golden test exercises Job/JobQueue against golden data.",
+      "covered_by_tests": [],
+      "extension_needed": "Exercise JobQueue priority ordering, state transitions, and signal firing against a golden-recorded sequence of state values."
+    },
+    {
+      "capability_id": "CAP-0040",
+      "capability_name": "Doubly-Linked List Container (emList)",
+      "category": "A",
+      "evidence": "C++ doubly-linked intrusive list. Rust uses Vec pervasively; src/model/rec_types.rs:19 notes 'single-threaded Rc/RefCell ownership model makes linked-list unnecessary'. Vec is the stdlib replacement.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0043",
+      "capability_name": "Minimal IPC System (emMiniIpc)",
+      "category": "B",
+      "evidence": "Eagle Mode's inter-process communication layer for single-instance detection and cross-process signaling. No IPC, Unix socket, pipe, or mpsc usage in src/. From emMiniIpc.h.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0045",
+      "capability_name": "Owning Pointer (emOwnPtr + emOwnPtrArray)",
+      "category": "A",
+      "evidence": "Box used directly throughout: em_rec.rs:51 Box<RecValue>; rec_types.rs:23 Box<dyn Fn()>; list_box.rs:200 Box<dyn Any>. Box<T> is Rust's owning pointer equivalent.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0050",
+      "capability_name": "Priority Scheduling Agent (emPriSchedAgent)",
+      "category": "D",
+      "evidence": "No matches for PriSchedAgent or pri_sched_agent in tests/golden/*.rs. Source src/scheduler/pri_sched_agent.rs has internal unit tests but no golden test verifies priority-scheduling arbitration.",
+      "covered_by_tests": [],
+      "extension_needed": "Exercise PriSchedModel with multiple agents at different priorities, recording grant order against a golden-recorded sequence."
+    },
+    {
+      "capability_id": "CAP-0051",
+      "capability_name": "Process Management (emProcess)",
+      "category": "A",
+      "evidence": "std::process used directly in src/foundation/process.rs:5 `use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};`. The Rust port wraps std::process::Command/Child.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0056",
+      "capability_name": "Reference-counted Smart Pointer (emRef)",
+      "category": "A",
+      "evidence": "std::rc::Rc used directly: resource_cache.rs:2 `use std::rc::Rc;`; context.rs:4 `use std::rc::{Rc, Weak};`. Rc<RefCell<T>> is the idiomatic Rust equivalent.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0057",
+      "capability_name": "Render Thread Pool (emRenderThreadPool)",
+      "category": "B",
+      "evidence": "Manages background threads for expensive render jobs. No thread pool, rayon, or crossbeam in src/ or Cargo.toml. Project enforces single-threaded design (no Arc/Mutex). From emRenderThreadPool.h.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0061",
+      "capability_name": "Display Screen Information (emScreen)",
+      "category": "D",
+      "evidence": "No matches for Screen or window::screen in tests/golden/*.rs. Source src/window/screen.rs has internal unit tests for monitor_index_of_rect but no golden test verifies monitor geometry queries.",
+      "covered_by_tests": [],
+      "extension_needed": "Exercise Screen::monitor_index_of_rect and get_dpi with a synthetic monitor set, comparing results against golden-recorded monitor geometry values."
+    },
+    {
+      "capability_id": "CAP-0064",
+      "capability_name": "Core Standard Utilities (emStd1)",
+      "category": "D",
+      "evidence": "No matches for Fixed or foundation::fixed in tests/golden/*.rs. Source src/foundation/fixed.rs has internal unit tests for Fixed12 arithmetic but no golden test verifies fixed-point rasterization output.",
+      "covered_by_tests": [],
+      "extension_needed": "Render anti-aliased primitives and compare pixel coverage against C++ fixed-point rasterization golden output to verify Fixed12 sub-pixel accuracy."
+    },
+    {
+      "capability_id": "CAP-0065",
+      "capability_name": "Extended Standard Utilities (emStd2)",
+      "category": "A",
+      "evidence": "Extended standard utilities header (string ops, math helpers). Rust uses std directly: std::fmt (color.rs, tga.rs), std::str::FromStr (color.rs), std::collections (image.rs, process.rs), std::sync::atomic (foundation/mod.rs). All emStd2 functionality covered by Rust stdlib.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0066",
+      "capability_name": "String Type (emString)",
+      "category": "A",
+      "evidence": "Rust String and &str used pervasively across all 36 files in src/ (210+ occurrences). em_rec.rs:6-8,47 shows String used for every string field.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0070",
+      "capability_name": "Painter Texture Support (emTexture)",
+      "category": "C",
+      "evidence": "Texture imported in test_panel.rs:27 and used in testpanel_root/testpanel_expanded to fill polygons with Texture::LinearGradient, Texture::RadialGradient, and Texture::Image. Both tests call load_compositor_golden() and compare_images() against C++ golden output.",
+      "covered_by_tests": ["testpanel_root", "testpanel_expanded"],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0071",
+      "capability_name": "Thread Management (emThread)",
+      "category": "A",
+      "evidence": "std::thread used directly: src/foundation/process.rs:6 `use std::thread;`; process.rs:507 `thread::sleep(sleep_dur)`. Rust's std::thread covers emThread's basic thread-management API.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0072",
+      "capability_name": "Tiling Layout (emTiling)",
+      "category": "C",
+      "evidence": "Capability maps to src/layout/raster.rs (RasterLayout/RasterGroup). RasterLayout imported in tests/golden/layout.rs:4 and tests/golden/test_panel.rs:20. Golden tests layout_raster_3col, layout_raster_2row, layout_raster_strict, layout_raster_pref_tall all use compare_rects() with golden data.",
+      "covered_by_tests": ["layout_raster_3col", "layout_raster_2row", "layout_raster_strict", "layout_raster_pref_tall"],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0074",
+      "capability_name": "Temporary File Management (emTmpFile)",
+      "category": "B",
+      "evidence": "Creates and auto-deletes temporary files. No tempfile crate in Cargo.toml, no temp_dir/TempFile usage in src/. Only /tmp reference is a hardcoded test path. From emTmpFile.h.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0075",
+      "capability_name": "Toolkit Utility Images (emToolkit)",
+      "category": "B",
+      "evidence": "Eagle Mode's built-in UI images (arrows, borders, icons). Rust port has src/widget/toolkit_images.rs with ToolkitImages struct using include_bytes! for TGA assets. Application/framework infrastructure, not stdlib replacement. From emToolkit.h.",
+      "covered_by_tests": [],
+      "extension_needed": ""
+    },
+    {
+      "capability_id": "CAP-0076",
+      "capability_name": "Tunnel/Viewport Widget (emTunnel)",
+      "category": "D",
+      "evidence": "Tunnel in test_panel.rs only as TunnelStubPanel comments (lines 259, 1334, 1338-1339) — explicit stub, does not use real Tunnel widget. Source src/widget/tunnel.rs has non-trivial tunnel geometry and concentric rounded-rectangle painting.",
+      "covered_by_tests": [],
+      "extension_needed": "Render Tunnel widget at known depth and child tallness, compare concentric rounded-rectangle painted output against C++ emTunnel golden image."
+    },
+    {
+      "capability_id": "CAP-0082",
+      "capability_name": "Platform Window (emWindow)",
+      "category": "D",
+      "evidence": "No matches for ZuiWindow or zui_window in tests/golden/*.rs. Source src/window/zui_window.rs implements wgpu surface management, tile cache, view, input dispatch, and fullscreen logic.",
+      "covered_by_tests": [],
+      "extension_needed": "Exercise ZuiWindow render and resize paths with a headless wgpu surface, comparing rendered tile output against golden image."
+    },
+    {
+      "capability_id": "CAP-0083",
+      "capability_name": "Window State Persistence (emWindowStateSaver)",
+      "category": "D",
+      "evidence": "No matches for StateSaver or state_saver in tests/golden/*.rs. Source src/window/state_saver.rs implements WindowGeometry as a Record with from_rec/to_rec serialization backed by ConfigModel.",
+      "covered_by_tests": [],
+      "extension_needed": "Round-trip WindowGeometry through to_rec/from_rec with known emRec string, verifying all geometry fields survive serialization."
+    }
+  ],
+  "summary": {
+    "category_a_stdlib": 14,
+    "category_b_platform": 10,
+    "category_c_covered": 2,
+    "category_d_needs_extension": 15
+  }
+}

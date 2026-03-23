@@ -1,0 +1,107 @@
+{
+  "source_run_id": "9c299ed3-6291-41b8-b0ac-52096971607d",
+  "generated_at": "2026-03-15T12:00:26.822948+00:00",
+  "total_mapped": 1815,
+  "total_ambiguous": 11,
+  "items": [
+    {
+      "item_id": "ITEM-020200",
+      "source_file": "src/emCore/emImage.cpp",
+      "cpp_symbol": "emFontCache",
+      "kind": "class",
+      "confidence": 0.5,
+      "ambiguity_reason": "low_confidence",
+      "raw_output": "{\"item_id\": \"ITEM-020200\", \"cpp_symbol\": \"emFontCache\", \"kind\": \"class\", \"line_start\": 41, \"line_end\": 94, \"classification\": \"ambiguous\", \"rust_equivalent\": \"render/em_font.rs\", \"superseding_construct\": null, \"confidence\": 0.5, \"ambiguity_reason\": \"low_confidence\", \"source_file\": \"src/emCore/emImage.cpp\"}"
+    },
+    {
+      "item_id": "ITEM-020400",
+      "source_file": "src/emCore/emImage.cpp",
+      "cpp_symbol": "emGetResImage",
+      "kind": "function",
+      "confidence": 0.4,
+      "ambiguity_reason": "low_confidence",
+      "raw_output": "{\"item_id\": \"ITEM-020400\", \"cpp_symbol\": \"emGetResImage\", \"kind\": \"function\", \"line_start\": 37, \"line_end\": 38, \"classification\": \"ambiguous\", \"rust_equivalent\": \"model/resource_cache.rs\", \"superseding_construct\": null, \"confidence\": 0.4, \"ambiguity_reason\": \"low_confidence\", \"source_file\": \"src/emCore/emImage.cpp\"}"
+    },
+    {
+      "item_id": "ITEM-020401",
+      "source_file": "src/emCore/emImage.cpp",
+      "cpp_symbol": "emTryGetResImage",
+      "kind": "function",
+      "confidence": 0.4,
+      "ambiguity_reason": "low_confidence",
+      "raw_output": "{\"item_id\": \"ITEM-020401\", \"cpp_symbol\": \"emTryGetResImage\", \"kind\": \"function\", \"line_start\": 39, \"line_end\": 40, \"classification\": \"ambiguous\", \"rust_equivalent\": \"model/resource_cache.rs\", \"superseding_construct\": null, \"confidence\": 0.4, \"ambiguity_reason\": \"low_confidence\", \"source_file\": \"src/emCore/emImage.cpp\"}"
+    },
+    {
+      "item_id": "ITEM-040029",
+      "source_file": "",
+      "cpp_symbol": "emBorder::GetLook",
+      "kind": "method",
+      "confidence": 0.6,
+      "ambiguity_reason": "In Rust, Look is held as Rc<Look> per widget, not inside Border. No GetLook on Border directly; accessible through the parent widget struct.",
+      "raw_output": "{\"item_id\": \"ITEM-040029\", \"cpp_symbol\": \"emBorder::GetLook\", \"kind\": \"method\", \"line_start\": 184, \"line_end\": 184, \"classification\": \"ambiguous\", \"rust_equivalent\": null, \"superseding_construct\": null, \"confidence\": 0.6, \"ambiguity_reason\": \"In Rust, Look is held as Rc<Look> per widget, not inside Border. No GetLook on Border directly; accessible through the parent widget struct.\", \"source_file\": \"\"}"
+    },
+    {
+      "item_id": "ITEM-040030",
+      "source_file": "",
+      "cpp_symbol": "emBorder::SetLook",
+      "kind": "method",
+      "confidence": 0.6,
+      "ambiguity_reason": "In Rust, Look is held as Rc<Look> per widget, not inside Border. No SetLook on Border; the Rc reference is replaced at the widget level.",
+      "raw_output": "{\"item_id\": \"ITEM-040030\", \"cpp_symbol\": \"emBorder::SetLook\", \"kind\": \"method\", \"line_start\": 185, \"line_end\": 185, \"classification\": \"ambiguous\", \"rust_equivalent\": null, \"superseding_construct\": null, \"confidence\": 0.6, \"ambiguity_reason\": \"In Rust, Look is held as Rc<Look> per widget, not inside Border. No SetLook on Border; the Rc reference is replaced at the widget level.\", \"source_file\": \"\"}"
+    },
+    {
+      "item_id": "ITEM-047004",
+      "source_file": "",
+      "cpp_symbol": "emDialog::GetContentPanel",
+      "kind": "method",
+      "confidence": 0.5,
+      "ambiguity_reason": "Rust Dialog::layout_children() manages content area but no separate content panel accessor exists; children are laid out positionally",
+      "raw_output": "{\"item_id\": \"ITEM-047004\", \"cpp_symbol\": \"emDialog::GetContentPanel\", \"kind\": \"method\", \"line_start\": 65, \"line_end\": 71, \"classification\": \"ambiguous\", \"rust_equivalent\": null, \"superseding_construct\": null, \"confidence\": 0.5, \"ambiguity_reason\": \"Rust Dialog::layout_children() manages content area but no separate content panel accessor exists; children are laid out positionally\", \"source_file\": \"\"}"
+    },
+    {
+      "item_id": "ITEM-081005",
+      "source_file": "emConfigModel.h",
+      "cpp_symbol": "emConfigModel::Save",
+      "kind": "method",
+      "confidence": 0.7,
+      "ambiguity_reason": "Rust save() returns Result rather than calling emFatalError on failure; the two overloads (TrySave/Save) are collapsed to one Result-returning method.",
+      "raw_output": "{\"item_id\": \"ITEM-081005\", \"kind\": \"method\", \"classification\": \"ambiguous\", \"confidence\": 0.7, \"ambiguity_reason\": \"Rust save() returns Result rather than calling emFatalError on failure; the two overloads (TrySave/Save) are collapsed to one Result-returning method.\", \"rust_equivalent\": \"model/config_model.rs\", \"cpp_symbol\": \"emConfigModel::Save\", \"source_file\": \"emConfigModel.h\", \"line_start\": 1, \"line_end\": 1, \"superseding_construct\": null}"
+    },
+    {
+      "item_id": "ITEM-081010",
+      "source_file": "emConfigModel.h",
+      "cpp_symbol": "emConfigModel::Load",
+      "kind": "protected method",
+      "confidence": 0.7,
+      "ambiguity_reason": "Rust load() returns Result rather than calling emFatalError; TryLoad/Load are collapsed to one method.",
+      "raw_output": "{\"item_id\": \"ITEM-081010\", \"kind\": \"protected method\", \"classification\": \"ambiguous\", \"confidence\": 0.7, \"ambiguity_reason\": \"Rust load() returns Result rather than calling emFatalError; TryLoad/Load are collapsed to one method.\", \"rust_equivalent\": \"model/config_model.rs\", \"cpp_symbol\": \"emConfigModel::Load\", \"source_file\": \"emConfigModel.h\", \"line_start\": 1, \"line_end\": 1, \"superseding_construct\": null}"
+    },
+    {
+      "item_id": "ITEM-081012",
+      "source_file": "emConfigModel.h",
+      "cpp_symbol": "emConfigModel::LoadOrInstall",
+      "kind": "protected method",
+      "confidence": 0.7,
+      "ambiguity_reason": "TryLoadOrInstall and LoadOrInstall collapsed to one Result-returning Rust method.",
+      "raw_output": "{\"item_id\": \"ITEM-081012\", \"kind\": \"protected method\", \"classification\": \"ambiguous\", \"confidence\": 0.7, \"ambiguity_reason\": \"TryLoadOrInstall and LoadOrInstall collapsed to one Result-returning Rust method.\", \"rust_equivalent\": \"model/config_model.rs\", \"cpp_symbol\": \"emConfigModel::LoadOrInstall\", \"source_file\": \"emConfigModel.h\", \"line_start\": 1, \"line_end\": 1, \"superseding_construct\": null}"
+    },
+    {
+      "item_id": "ITEM-086012",
+      "source_file": "emRecFileModel.h",
+      "cpp_symbol": "emRecFileModel::CalcFileProgress",
+      "kind": "virtual method",
+      "confidence": 0.6,
+      "ambiguity_reason": "RecFileModel loads synchronously so progress is always 0 or 100; no CalcFileProgress method exists separately in Rust.",
+      "raw_output": "{\"item_id\": \"ITEM-086012\", \"kind\": \"virtual method\", \"classification\": \"ambiguous\", \"confidence\": 0.6, \"ambiguity_reason\": \"RecFileModel loads synchronously so progress is always 0 or 100; no CalcFileProgress method exists separately in Rust.\", \"rust_equivalent\": null, \"cpp_symbol\": \"emRecFileModel::CalcFileProgress\", \"source_file\": \"emRecFileModel.h\", \"line_start\": 1, \"line_end\": 1, \"superseding_construct\": null}"
+    },
+    {
+      "item_id": "ITEM-120242",
+      "source_file": "emInput",
+      "cpp_symbol": "emInputState::ClearTouches",
+      "kind": "method",
+      "confidence": 0.7,
+      "ambiguity_reason": "No direct clear_touches method; InputState::remove_touch is per-id, or touches could be cleared by removing all. No explicit bulk clear in the Rust implementation.",
+      "raw_output": "{\"item_id\": \"ITEM-120242\", \"source_file\": \"emInput\", \"kind\": \"method\", \"classification\": \"ambiguous\", \"confidence\": 0.7, \"ambiguity_reason\": \"No direct clear_touches method; InputState::remove_touch is per-id, or touches could be cleared by removing all. No explicit bulk clear in the Rust implementation.\", \"rust_equivalent\": null, \"cpp_symbol\": \"emInputState::ClearTouches\", \"line_start\": 1, \"line_end\": 1, \"superseding_construct\": null}"
+    }
+  ]
+}

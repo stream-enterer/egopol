@@ -1,0 +1,106 @@
+{
+  "source_run_id": "9c299ed3-6291-41b8-b0ac-52096971607d",
+  "completed_at": "2026-03-15T12:00:31.999776+00:00",
+  "resolutions": [
+    {
+      "item_id": "ITEM-020200",
+      "resolved_classification": "ported",
+      "rust_equivalent": "render/em_font.rs",
+      "superseding_construct": null,
+      "reasoning": "emFontCache maps to em_font.rs EmFont with OnceLock-based singleton. Core glyph lookup is ported via get_glyph/atlas.",
+      "sources_consulted": 2,
+      "search_rounds": 1
+    },
+    {
+      "item_id": "ITEM-020400",
+      "resolved_classification": "not_ported",
+      "rust_equivalent": null,
+      "superseding_construct": null,
+      "reasoning": "emGetResImage loads images from Eagle Mode install paths. No equivalent resource loading in Rust; images loaded differently.",
+      "sources_consulted": 1,
+      "search_rounds": 1
+    },
+    {
+      "item_id": "ITEM-020401",
+      "resolved_classification": "not_ported",
+      "rust_equivalent": null,
+      "superseding_construct": null,
+      "reasoning": "emTryGetResImage is the try variant of emGetResImage. Same: not ported.",
+      "sources_consulted": 1,
+      "search_rounds": 1
+    },
+    {
+      "item_id": "ITEM-040029",
+      "resolved_classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Rc<Look> held per-widget, accessed via widget struct fields rather than Border method",
+      "reasoning": "Look is stored at the widget level in Rust, not on Border. Functional equivalent exists but with different access pattern.",
+      "sources_consulted": 2,
+      "search_rounds": 1
+    },
+    {
+      "item_id": "ITEM-040030",
+      "resolved_classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Rc<Look> replacement at widget level via Rc::clone",
+      "reasoning": "SetLook replaced by direct Rc<Look> assignment at widget level.",
+      "sources_consulted": 2,
+      "search_rounds": 1
+    },
+    {
+      "item_id": "ITEM-047004",
+      "resolved_classification": "superseded",
+      "rust_equivalent": "widget/dialog.rs",
+      "superseding_construct": "Dialog::layout_children manages content area positionally without separate accessor",
+      "reasoning": "Content panel concept replaced by layout_children positioning. No separate accessor needed.",
+      "sources_consulted": 1,
+      "search_rounds": 1
+    },
+    {
+      "item_id": "ITEM-081005",
+      "resolved_classification": "ported",
+      "rust_equivalent": "model/config_model.rs",
+      "superseding_construct": null,
+      "reasoning": "Save/TrySave collapsed to single save() returning Result. Functionally equivalent.",
+      "sources_consulted": 1,
+      "search_rounds": 1
+    },
+    {
+      "item_id": "ITEM-081010",
+      "resolved_classification": "ported",
+      "rust_equivalent": "model/config_model.rs",
+      "superseding_construct": null,
+      "reasoning": "Load/TryLoad collapsed to single load() returning Result. Functionally equivalent.",
+      "sources_consulted": 1,
+      "search_rounds": 1
+    },
+    {
+      "item_id": "ITEM-081012",
+      "resolved_classification": "ported",
+      "rust_equivalent": "model/config_model.rs",
+      "superseding_construct": null,
+      "reasoning": "LoadOrInstall/TryLoadOrInstall collapsed to load_or_install() returning Result.",
+      "sources_consulted": 1,
+      "search_rounds": 1
+    },
+    {
+      "item_id": "ITEM-086012",
+      "resolved_classification": "superseded",
+      "rust_equivalent": "model/rec_file_model.rs",
+      "superseding_construct": "Synchronous loading makes progress tracking unnecessary",
+      "reasoning": "RecFileModel loads synchronously in Rust; progress is always 0 or 100, no CalcFileProgress needed.",
+      "sources_consulted": 1,
+      "search_rounds": 1
+    },
+    {
+      "item_id": "ITEM-120242",
+      "resolved_classification": "not_ported",
+      "rust_equivalent": null,
+      "superseding_construct": null,
+      "reasoning": "No bulk clear_touches method in Rust InputState. Only per-id remove_touch exists.",
+      "sources_consulted": 1,
+      "search_rounds": 1
+    }
+  ],
+  "unresolved": []
+}

@@ -1,0 +1,570 @@
+{
+  "meta": {
+    "cpp_source": "/home/ar/.local/git/eaglemode-0.96.4/emTkTest/emTkTestPanel.cpp",
+    "rust_source": "examples/test_toolkit.rs",
+    "cpp_screenshot": "/home/ar/Pictures/Screenshots/tktest_cpp.png",
+    "rust_screenshot": "/home/ar/Pictures/Screenshots/tktest_rust.png",
+    "rust_screenshot_zoomedout": "/home/ar/Pictures/Screenshots/tktest_rust_zoomedout.png",
+    "date": "2026-03-17",
+    "last_updated": "2026-03-18"
+  },
+
+  "structural_differences": [
+    {
+      "id": "STRUCT-01",
+      "severity": "resolved",
+      "category": "layout_topology",
+      "summary": "FIXED: Rust now mounts a single TkTestPanel as root, matching C++ standalone launcher",
+      "resolution": "Removed TkTestGrpPanel, main() mounts TkTestPanel directly with Look::new()"
+    },
+    {
+      "id": "STRUCT-02",
+      "severity": "low",
+      "category": "group_naming",
+      "summary": "Group caption strings differ from C++",
+      "differences": [
+        { "cpp": "Check Buttons and Boxes", "rust": "Check Widgets" },
+        { "cpp": "Radio Buttons and Boxes", "rust": "Radio Widgets" }
+      ],
+      "cpp_line": "emTkTestPanel.cpp:164,173",
+      "rust_line": "examples/test_toolkit.rs:487-488"
+    }
+  ],
+
+  "missing_groups": [
+    {
+      "id": "MISS-GRP-01",
+      "severity": "high",
+      "category": "missing_group",
+      "summary": "Tunnels group entirely absent",
+      "cpp_group_name": "tunnels",
+      "cpp_caption": "Tunnels",
+      "cpp_line": "emTkTestPanel.cpp:258-276",
+      "cpp_contents": [
+        { "name": "t1", "type": "emTunnel", "caption": "Tunnel", "child": "emButton('End Of Tunnel')" },
+        { "name": "t2", "type": "emTunnel", "caption": "Deeper Tunnel", "depth": 30.0, "child": "emRasterGroup('End Of Tunnel')" },
+        { "name": "t3", "type": "emTunnel", "caption": "Square End", "child_tallness": 1.0, "child": "emRasterGroup('End Of Tunnel')" },
+        { "name": "t4", "type": "emTunnel", "caption": "Square End, Zero Depth", "child_tallness": 1.0, "depth": 0.0, "child": "emRasterGroup('End Of Tunnel')" }
+      ],
+      "rust_status": "emTunnel widget type not ported"
+    },
+    {
+      "id": "MISS-GRP-02",
+      "severity": "high",
+      "category": "missing_group",
+      "summary": "Test Dialog group entirely absent",
+      "cpp_group_name": "dlgs",
+      "cpp_caption": "Test Dialog",
+      "cpp_line": "emTkTestPanel.cpp:329-344",
+      "cpp_contents": [
+        { "name": "rl", "type": "emRasterLayout", "pref_child_tallness": 0.1, "children": [
+          { "name": "tl", "type": "emCheckBox", "caption": "Top-Level" },
+          { "name": "VF_POPUP_ZOOM", "type": "emCheckBox", "caption": "VF_POPUP_ZOOM", "initially_checked": true },
+          { "name": "WF_MODAL", "type": "emCheckBox", "caption": "WF_MODAL", "initially_checked": true },
+          { "name": "WF_UNDECORATED", "type": "emCheckBox", "caption": "WF_UNDECORATED" },
+          { "name": "WF_POPUP", "type": "emCheckBox", "caption": "WF_POPUP" },
+          { "name": "WF_MAXIMIZED", "type": "emCheckBox", "caption": "WF_MAXIMIZED" },
+          { "name": "WF_FULLSCREEN", "type": "emCheckBox", "caption": "WF_FULLSCREEN" }
+        ]},
+        { "name": "bt", "type": "emButton", "caption": "Create Test Dialog" }
+      ],
+      "rust_status": "emDialog not ported; group depends on dialog creation logic (Cycle callback)"
+    },
+    {
+      "id": "MISS-GRP-03",
+      "severity": "high",
+      "category": "missing_group",
+      "summary": "File Selection group entirely absent",
+      "cpp_group_name": "fileChoosers",
+      "cpp_caption": "File Selection",
+      "cpp_line": "emTkTestPanel.cpp:346-360",
+      "cpp_contents": [
+        { "name": "l8", "type": "emFileSelectionBox", "caption": "File Selection Box" },
+        { "name": "openFile", "type": "emButton", "caption": "Open..." },
+        { "name": "openFiles", "type": "emButton", "caption": "Open Multi, Allow Dir..." },
+        { "name": "saveFile", "type": "emButton", "caption": "Save As..." }
+      ],
+      "rust_status": "emFileSelectionBox and emFileDialog not ported"
+    }
+  ],
+
+  "missing_widgets_within_groups": [
+    {
+      "id": "MISS-WID-01",
+      "severity": "medium",
+      "category": "missing_widget",
+      "group": "Buttons",
+      "summary": "NoEOI button missing",
+      "cpp_has": ["b1:Button", "b2:Long Desc (with long description)", "b3:NoEOI (SetNoEOI)"],
+      "rust_has": ["b1:Button", "b2:Long Desc"],
+      "missing": ["b3:NoEOI — requires Button::set_no_eoi() API"],
+      "cpp_line": "emTkTestPanel.cpp:161-162",
+      "rust_line": "examples/test_toolkit.rs:328-331"
+    },
+    {
+      "id": "MISS-WID-02",
+      "severity": "medium",
+      "category": "missing_widget",
+      "group": "Check Widgets",
+      "summary": "C++ has 6 check widgets, Rust has 4",
+      "cpp_has": ["c1:CheckButton", "c2:CheckButton", "c3:CheckButton", "c4:CheckBox", "c5:CheckBox", "c6:CheckBox"],
+      "rust_has": ["c1:CheckButton", "c2:CheckButton", "c4:CheckBox", "c5:CheckBox"],
+      "missing": ["c3:CheckButton", "c6:CheckBox"],
+      "cpp_line": "emTkTestPanel.cpp:166-171",
+      "rust_line": "examples/test_toolkit.rs:333-341"
+    },
+    {
+      "id": "MISS-WID-03",
+      "severity": "medium",
+      "category": "missing_widget",
+      "group": "Scalar Fields",
+      "summary": "C++ has 6 scalar fields, Rust has 3",
+      "cpp_has": [
+        "sf1: Read-Only (default 0-100)",
+        "sf2: Editable (default 0-100)",
+        "sf3: Editable, range -1000..1000, scale marks [1000,100,10,5,1]",
+        "sf4: Level, editable, range 1..5, value=3, TextOfLevelValue callback, textbox_tallness=0.25",
+        "sf5: Play Length, editable, range 0..86400000ms, value=4h, time scale marks, TextOfTimeValue callback",
+        "sf6: Play Position, editable, range 0..sf5.value, time scale marks, TextOfTimeValue callback"
+      ],
+      "rust_has": [
+        "sf1: Read-Only (0-100)",
+        "sf2: Editable (0-100)",
+        "sf3: Editable, range -1000..1000, scale marks [1000,100,10,5,1]"
+      ],
+      "missing": [
+        "sf4: Level field — requires TextOfValueFunc callback support",
+        "sf5: Play Length field — requires TextOfValueFunc callback + signal wiring",
+        "sf6: Play Position field — requires TextOfValueFunc callback + cross-field signal dependency"
+      ],
+      "cpp_line": "emTkTestPanel.cpp:221-240",
+      "rust_line": "examples/test_toolkit.rs:378-387"
+    },
+    {
+      "id": "MISS-WID-04",
+      "severity": "medium",
+      "category": "missing_widget",
+      "group": "List Boxes",
+      "summary": "C++ has 7 list boxes, Rust has 5",
+      "cpp_has": [
+        "l1: Empty",
+        "l2: Single-Selection, 7 items, selected_index=0",
+        "l3: Read-Only, 7 items, selected_index=2",
+        "l4: Multi-Selection, 7 items, selected=[1,2,3,4]",
+        "l5: Toggle-Selection, 7 items, selected=[2,4]",
+        "l6: Single Column (SetFixedColumnCount(1)), 7 items, selected_index=0",
+        "l7: Custom List Box (CustomListBox subclass), Multi-Selection, 7 items, selected_index=0"
+      ],
+      "rust_has": [
+        "l1: Empty",
+        "l2: Single, 7 items (no initial selection)",
+        "l3: ReadOnly, 7 items (no initial selection)",
+        "l4: Multi, 7 items (no initial selection)",
+        "l5: Toggle, 7 items (no initial selection)"
+      ],
+      "missing": [
+        "l6: Single Column — requires ListBox::set_fixed_column_count()",
+        "l7: Custom List Box — requires CustomListBox/CustomItemPanel (recursive list)"
+      ],
+      "cpp_line": "emTkTestPanel.cpp:315-327",
+      "rust_line": "examples/test_toolkit.rs:403-421"
+    }
+  ],
+
+  "configuration_differences": [
+    {
+      "id": "CONF-01",
+      "severity": "low",
+      "category": "initial_state",
+      "group": "List Boxes",
+      "summary": "C++ sets initial selections on list boxes; Rust does not",
+      "details": [
+        { "widget": "l2", "cpp": "SetSelectedIndex(0)", "rust": "no initial selection" },
+        { "widget": "l3", "cpp": "SetSelectedIndex(2)", "rust": "no initial selection" },
+        { "widget": "l4", "cpp": "Select(1,2,3,4)", "rust": "no initial selection" },
+        { "widget": "l5", "cpp": "Select(2,4)", "rust": "no initial selection" }
+      ]
+    },
+    {
+      "id": "CONF-02",
+      "severity": "low",
+      "category": "widget_config",
+      "group": "Buttons",
+      "summary": "b2 'Long Desc' button missing long description text",
+      "cpp": "bt->SetDescription(100-line repeated string)",
+      "rust": "No description set on b2",
+      "cpp_line": "emTkTestPanel.cpp:155-160"
+    },
+    {
+      "id": "CONF-03",
+      "severity": "resolved",
+      "category": "widget_config",
+      "group": "Text Fields",
+      "summary": "FIXED: Text field captions now set via set_caption()",
+      "resolution": "Commit f31ccb9 added set_caption() calls for all text fields in test_toolkit.rs"
+    },
+    {
+      "id": "CONF-04",
+      "severity": "low",
+      "category": "widget_config",
+      "group": "Scalar Fields",
+      "summary": "C++ scalar field groups set PrefChildTallness(0.1); Rust does not",
+      "cpp_line": "emTkTestPanel.cpp:209"
+    },
+    {
+      "id": "CONF-05",
+      "severity": "low",
+      "category": "widget_config",
+      "group": "Color Fields",
+      "summary": "C++ color field groups set PrefChildTallness(0.4); Rust does not",
+      "cpp_line": "emTkTestPanel.cpp:244"
+    },
+    {
+      "id": "CONF-06",
+      "severity": "resolved",
+      "category": "widget_config",
+      "summary": "FIXED: All groups now use set_border_scaling(2.5)",
+      "resolution": "Commit 76a844a set border_scaling=2.5 on TkTestPanel and all WidgetGroupPanels"
+    },
+    {
+      "id": "CONF-07",
+      "severity": "low",
+      "category": "widget_config",
+      "group": "Color Fields",
+      "summary": "C++ color fields have captions; Rust color fields have none",
+      "details": [
+        { "widget": "cf1", "cpp_caption": "Read-Only" },
+        { "widget": "cf2", "cpp_caption": "Editable" },
+        { "widget": "cf3", "cpp_caption": "Editable, Alpha Enabled" }
+      ]
+    },
+    {
+      "id": "CONF-08",
+      "severity": "low",
+      "category": "widget_config",
+      "group": "Scalar Fields",
+      "summary": "C++ scalar fields sf1/sf2 have captions; Rust scalar fields have none",
+      "details": [
+        { "widget": "sf1", "cpp_caption": "Read-Only" },
+        { "widget": "sf2", "cpp_caption": "Editable" }
+      ]
+    }
+  ],
+
+  "missing_api_surface": [
+    {
+      "id": "API-01",
+      "feature": "Button::set_no_eoi()",
+      "blocks": ["MISS-WID-01"],
+      "description": "emButton::SetNoEOI() — prevents End-Of-Interaction on click"
+    },
+    {
+      "id": "API-02",
+      "feature": "ScalarField::set_text_of_value_func()",
+      "blocks": ["MISS-WID-03"],
+      "description": "emScalarField::SetTextOfValueFunc() — custom value-to-text callback for display"
+    },
+    {
+      "id": "API-03",
+      "feature": "ScalarField::set_text_box_tallness()",
+      "blocks": ["MISS-WID-03"],
+      "description": "emScalarField::SetTextBoxTallness() — controls text box aspect ratio"
+    },
+    {
+      "id": "API-04",
+      "feature": "Signal/Cycle wiring",
+      "blocks": ["MISS-WID-03"],
+      "description": "Rust panels lack Cycle()/signal mechanism for cross-widget reactivity (sf5→sf6 dependency)"
+    },
+    {
+      "id": "API-05",
+      "feature": "ListBox::set_fixed_column_count()",
+      "blocks": ["MISS-WID-04"],
+      "description": "emListBox::SetFixedColumnCount() — forces single-column layout"
+    },
+    {
+      "id": "API-06",
+      "feature": "ListBox::set_selected_index() / select()",
+      "blocks": ["CONF-01"],
+      "description": "ListBox initial selection API — SetSelectedIndex and Select methods"
+    },
+    {
+      "id": "API-07",
+      "feature": "CustomListBox / ItemPanelInterface",
+      "blocks": ["MISS-WID-04"],
+      "description": "emListBox::ItemPanelInterface for custom item panel rendering (recursive list boxes)"
+    },
+    {
+      "id": "API-08",
+      "feature": "emTunnel widget",
+      "blocks": ["MISS-GRP-01"],
+      "description": "emTunnel widget type — ZUI tunnel with configurable depth and child tallness"
+    },
+    {
+      "id": "API-09",
+      "feature": "emDialog / emFileDialog / emFileSelectionBox",
+      "blocks": ["MISS-GRP-02", "MISS-GRP-03"],
+      "description": "Dialog and file selection infrastructure — not ported"
+    },
+    {
+      "id": "API-10",
+      "feature": "Widget captions/descriptions (emBorder)",
+      "status": "partially_resolved",
+      "blocks": ["CONF-02", "CONF-07", "CONF-08"],
+      "description": "emBorder caption/description system used by TextField, ScalarField, ColorField, Button. CONF-03 (TextField captions) resolved."
+    },
+    {
+      "id": "API-11",
+      "severity": "resolved",
+      "feature": "RasterGroup::set_border_scaling()",
+      "blocks": ["CONF-06"],
+      "description": "FIXED: set_border_scaling() already existed; now applied in test_toolkit.rs"
+    },
+    {
+      "id": "API-12",
+      "feature": "RasterGroup::set_pref_child_tallness()",
+      "blocks": ["CONF-04", "CONF-05"],
+      "description": "emRasterGroup::SetPrefChildTallness() — controls preferred child aspect ratio. API exists (layout.preferred_child_tallness field); not yet set per-group in test_toolkit.rs."
+    }
+  ],
+
+  "visual_observations": [
+    {
+      "id": "VIS-01",
+      "severity": "resolved",
+      "summary": "FIXED: Rust now shows a single TkTestPanel matching C++ layout",
+      "see": "STRUCT-01"
+    },
+    {
+      "id": "VIS-02",
+      "severity": "resolved",
+      "summary": "FIXED: TkTestPanel now uses RasterGroup with proper border chrome, background, and caption",
+      "resolution": "Commit 76a844a replaced manual paint_rect with RasterGroup delegation"
+    },
+    {
+      "id": "VIS-02b",
+      "severity": "resolved",
+      "summary": "FIXED: Root-level 'Toolkit Test' caption now rendered via RasterGroup border",
+      "resolution": "Commit 76a844a set group.border.caption = 'Toolkit Test'"
+    },
+    {
+      "id": "VIS-03",
+      "severity": "resolved",
+      "summary": "FIXED: Radio Box items no longer render at dramatically smaller text size",
+      "resolved_date": "2026-03-18"
+    },
+    {
+      "id": "VIS-04-chrome",
+      "severity": "resolved",
+      "summary": "FIXED: CheckButton now renders with raised 3D bevel appearance",
+      "resolved_date": "2026-03-18"
+    },
+    {
+      "id": "VIS-05-chrome",
+      "severity": "resolved",
+      "summary": "FIXED: Group border proportions now correct with SetBorderScaling(2.5)",
+      "resolution": "Commit 76a844a",
+      "see": "CONF-06"
+    },
+    {
+      "id": "VIS-06-chrome",
+      "severity": "resolved",
+      "summary": "FIXED: Root uses pref_child_tallness=0.3; per-group tallness (CONF-04/05) still pending",
+      "resolution": "Commit 76a844a set root pref_child_tallness=0.3. Child groups still use default 0.2."
+    },
+    {
+      "id": "VIS-04",
+      "summary": "Row 3 has only List Boxes (col 1); cols 2-3 are empty",
+      "screenshot": "tktest_rust_zoomedout.png",
+      "details": "Rust 3-column grid: row 1 = Buttons/CheckWidgets/RadioWidgets, row 2 = TextFields/ScalarFields/ColorFields, row 3 = ListBoxes only. C++ row 3 would also contain Tunnels (col 2) and Test Dialog (col 3), with File Selection overflowing to row 4. The 2 empty cells are a direct consequence of the 3 missing groups (MISS-GRP-01..03)."
+    },
+    {
+      "id": "VIS-05",
+      "summary": "List boxes render as stacked single-column rectangles with tiny item labels on left edge",
+      "screenshot": "tktest_rust_zoomedout.png",
+      "details": "5 list boxes visible: 1 empty (top), 4 with 7 items each. Items show as narrow rows with small text at the left margin. No visible selection highlighting on any items (see CONF-01: no initial selections set). C++ list boxes would show selected items highlighted and use raster layout for item arrangement."
+    },
+    {
+      "id": "VIS-06",
+      "summary": "Scalar field sf3 (-1000..1000) shows scale marks with labeled endpoints and center, matching C++ behavior",
+      "screenshot": "tktest_rust_zoomedout.png",
+      "details": "The third scalar field clearly shows -1000, 0, 1000 labels with tick marks between them. The first two scalar fields (sf1, sf2) show slider handles but no visible scale marks (matching C++ default: no marks specified)."
+    }
+  ],
+
+  "behavioral_bugs": {
+    "_schema": "[id] widget_hierarchy | cpp_behavior | rust_behavior",
+    "_systemic_hypothesis": "RESOLVED (2026-03-18): All three systemic issues fixed — mouse hit-test dispatch, keyboard input routing, and layout stacking.",
+
+    "input_routing": [
+      {
+        "id": "BEH-01",
+        "severity": "resolved",
+        "hierarchy": "Buttons > Button",
+        "summary": "FIXED: Button click state machine now works correctly",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-02",
+        "severity": "resolved",
+        "hierarchy": "Buttons > Long Desc",
+        "summary": "FIXED: Long Desc button now depresses visually on click",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-04",
+        "severity": "resolved",
+        "hierarchy": "Check Buttons and Boxes > Check Boxes",
+        "summary": "FIXED: Check boxes now toggle correctly",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-05",
+        "severity": "resolved",
+        "hierarchy": "Radio Buttons and Boxes > *",
+        "summary": "FIXED: Radio buttons and boxes now activate correctly within their groups",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-09",
+        "severity": "resolved",
+        "hierarchy": "Text Fields > Read-Only",
+        "summary": "FIXED: Read-only TextField now has grey background and cursor on click",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-10",
+        "severity": "resolved",
+        "hierarchy": "Text Fields > * (keyboard input)",
+        "summary": "FIXED: Keyboard input now routed to focused widget only",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-15",
+        "severity": "resolved",
+        "hierarchy": "Text Fields > multi-line box",
+        "summary": "FIXED: Multi-line text now zooms proportionally with panel content",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-16",
+        "severity": "resolved",
+        "hierarchy": "Text Fields > * (selection highlight)",
+        "summary": "FIXED: Selection highlight now uses correct color per editable state and focus blend",
+        "resolved_date": "2026-03-18"
+      }
+    ],
+
+    "rendering": [
+      {
+        "id": "BEH-03",
+        "severity": "resolved",
+        "hierarchy": "Check Buttons and Boxes > Check Buttons",
+        "summary": "FIXED: CheckButton now renders with raised 3D bevel appearance",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-07",
+        "severity": "resolved",
+        "hierarchy": "* > labels",
+        "summary": "FIXED: Group labels now visible above children",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-11",
+        "severity": "resolved",
+        "hierarchy": "* > selection_arrows",
+        "summary": "CLOSED: Code is identical to C++ — yellow tint (255,255,187) applied when activation_adherent is true. No code change needed.",
+        "resolved_date": "2026-03-18"
+      }
+    ],
+
+    "layout": [
+      {
+        "id": "BEH-06",
+        "severity": "resolved",
+        "hierarchy": "Toolkit Test > *",
+        "summary": "FIXED: TkTestPanel now uses RasterGroup with pref_child_tallness=0.3, matching C++ auto-layout",
+        "resolution": "Commit 76a844a. Grid order now determined by RasterGroup algorithm instead of hardcoded 3-col manual layout.",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-06b",
+        "severity": "resolved",
+        "hierarchy": "* > children",
+        "summary": "FIXED: Children within groups now use multi-column raster grid layout",
+        "resolution": "Root cause was TkTestPanel giving groups tallness=0.8 via manual layout, making 1-column optimal for pref_ct=0.2. Replaced with RasterGroup (commit 76a844a) + border_scaling=2.5 so groups get landscape cells where multi-column is optimal.",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-08",
+        "severity": "resolved",
+        "hierarchy": "Text Fields > *",
+        "summary": "FIXED: Label occlusion resolved",
+        "resolved_date": "2026-03-18"
+      }
+    ],
+
+    "interaction": [
+      {
+        "id": "BEH-12",
+        "severity": "resolved",
+        "hierarchy": "Scalar Fields > *",
+        "summary": "FIXED: ScalarField input used pixel-space content_rect but received normalized mouse coords. Now uses normalized (1.0, tallness) for content_rect in input handler. Also fixed Move returning true when not dragging.",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-13",
+        "severity": "resolved",
+        "hierarchy": "Color Fields > *",
+        "summary": "FIXED: ColorFieldPanel now implements layout_children + auto_expand, wiring create_expansion_children() into the panel lifecycle. Expansion children (7 ScalarFields + 1 TextField) are created when ColorField is expanded.",
+        "resolved_date": "2026-03-18"
+      },
+      {
+        "id": "BEH-14",
+        "severity": "resolved",
+        "hierarchy": "List Boxes > *",
+        "summary": "FIXED: ListBox input handler used pixel-space content_rect Y but received normalized mouse Y. Now converts event.mouse_y to paint space (multiply by last_w) before index calculation. 5 list boxes interactable; 2 still missing (MISS-WID-04).",
+        "resolved_date": "2026-03-18"
+      }
+    ]
+  },
+
+  "systemic_patterns": {
+    "input_misdirection": {
+      "status": "resolved",
+      "resolved_date": "2026-03-18",
+      "summary": "FIXED: Mouse hit-test dispatch and keyboard input routing both resolved."
+    },
+    "stacking_instead_of_grid": {
+      "status": "resolved",
+      "resolved_date": "2026-03-18",
+      "summary": "FIXED: Root cause was TkTestPanel manual layout giving groups tallness=0.8. Replaced with RasterGroup (pref_child_tallness=0.3, border_scaling=2.5). RasterLayout algorithm was correct all along.",
+      "resolution": "Commit 76a844a"
+    },
+    "label_occlusion": {
+      "status": "resolved",
+      "resolved_date": "2026-03-18",
+      "summary": "FIXED: Group labels now visible. Border content rect correctly reserves caption space."
+    }
+  },
+
+  "summary": {
+    "total_groups_cpp": 10,
+    "total_groups_rust": 7,
+    "missing_groups": 3,
+    "total_widgets_cpp_approx": 48,
+    "total_widgets_rust_approx": 28,
+    "missing_widget_count_approx": 20,
+    "blocking_api_gaps": 9,
+    "behavioral_bugs_open": 0,
+    "behavioral_bugs_resolved": 18,
+    "systemic_issues_resolved": 3,
+    "open_behavioral": [],
+    "open_missing_groups": ["MISS-GRP-01", "MISS-GRP-02", "MISS-GRP-03"],
+    "open_missing_widgets": ["MISS-WID-01", "MISS-WID-02", "MISS-WID-03", "MISS-WID-04"],
+    "open_config": ["CONF-01", "CONF-02", "CONF-04", "CONF-05", "CONF-07", "CONF-08"],
+    "critical_missing": ["emTunnel", "emDialog", "emFileDialog", "emFileSelectionBox", "ScalarField::TextOfValueFunc", "ListBox::CustomItemPanel"],
+    "low_priority_config": ["pref_child_tallness per group", "captions/descriptions on fields", "initial selections", "button descriptions"]
+  }
+}

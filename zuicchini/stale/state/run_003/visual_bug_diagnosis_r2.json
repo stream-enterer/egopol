@@ -1,0 +1,115 @@
+{
+  "diagnosed_at": "2026-03-16T12:00:00Z",
+  "bugs": [
+    {
+      "bug_id": "R2-1",
+      "title": "raw_zoom_out uses viewport aspect ratio where C++ uses pixel aspect ratio",
+      "root_cause": "Rust pixel_tallness = viewport_height/viewport_width (the viewport aspect ratio, e.g. 0.75 for 800x600). C++ HomePixelTallness = pixel height/width shape ratio (1.0 for square pixels). In raw_zoom_out (view.rs:512-513), Rust divides by pixel_tallness where C++ divides by HomePixelTallness. With ROOT_SAME_TALLNESS on an 800x600 window: C++ computes relA=1.0 (panel fits viewport exactly), Rust computes rel_a=1.333 (panel 33% larger than viewport → title cropped). The formulas are structurally identical but the Rust pixel_tallness variable holds a fundamentally different value than C++ HomePixelTallness.",
+      "category": "view_state",
+      "rust_source": "src/panel/view.rs:363 (pixel_tallness = height/width), src/panel/view.rs:509-523 (raw_zoom_out)",
+      "cpp_reference": "emView.cpp:1811-1825 (RawZoomOut), emView.h:868-876 (HomePixelTallness vs GetHomeTallness), emView.cpp:1261 (SetGeometry sets HomePixelTallness from window system)",
+      "confidence": 0.95,
+      "ruled_out": [
+        "Formula structure mismatch (formulas have identical structure, the variable semantics differ)",
+        "ROOT_SAME_TALLNESS not applied (it IS applied at view.rs:367-369, correctly using pixel_tallness for layout)"
+      ],
+      "verification_prediction": "If pixel_tallness is replaced with 1.0 (or a separate home_pixel_tallness field initialized to 1.0) in raw_zoom_out lines 512-513, the root panel will fit exactly within the viewport and the Test Panel title will be fully visible.",
+      "related_bugs": ["R2-2"],
+      "round1_status": "partially_fixed",
+      "diagnostic_complete": true,
+      "needs_manual_review": false,
+      "manual_review_reason": null
+    },
+    {
+      "bug_id": "R2-2",
+      "title": "TkTestPanel uses flat 3-column grid instead of 10 grouped emRasterGroups",
+      "root_cause": "Rust TkTestPanel (test_panel.rs:979-1122) creates 25+ individual widget wrappers in a uniform 3-column grid. C++ TkTest (emTestPanel.cpp:538-767) creates 10 distinct emRasterGroup categories — buttons, check buttons/boxes, radio buttons/boxes, text fields, scalar fields, color fields, tunnels, list boxes, dialogs, file choosers — each with its own caption, borders, and internal layout. Additionally, TkTestGrpPanel (test_panel.rs:892-942) uses a flat 2x2 grid for its 4 children, while C++ TkTestGrp::AutoExpand (emTestPanel.cpp:890-911) creates a nested splitter hierarchy: sp(horizontal) → sp1(vertical)/sp2(vertical) → t1a/t1b/t2a/t2b with interactive resizing. Comment at test_panel.rs:920 incorrectly claims flat layout is equivalent.",
+      "category": "layout",
+      "rust_source": "examples/test_panel.rs:892-942 (TkTestGrpPanel flat 2x2 grid), examples/test_panel.rs:979-1122 (TkTestPanel flat 3-column widget grid)",
+      "cpp_reference": "emTestPanel.cpp:890-911 (TkTestGrp::AutoExpand with splitter hierarchy), emTestPanel.cpp:538-767 (TkTest constructor creating 10 grouped widget categories)",
+      "confidence": 0.95,
+      "ruled_out": [
+        "Hierarchy fix from round 1 applied but wrong container type (no splitter exists in Rust code at all)",
+        "Correct widget types in wrong layout (Rust does create buttons/checkboxes/etc but not TextField, ScalarField, ColorField, ListBox types)"
+      ],
+      "verification_prediction": "Replacing TkTestPanel's flat grid with 10 emRasterGroup-equivalent grouped containers (each with caption and border), and replacing TkTestGrpPanel's 2x2 grid with a splitter-based hierarchy, will produce the structured widget showcase matching C++.",
+      "related_bugs": ["R2-1"],
+      "round1_status": "partially_fixed",
+      "diagnostic_complete": true,
+      "needs_manual_review": false,
+      "manual_review_reason": null
+    },
+    {
+      "bug_id": "R2-3",
+      "title": "Arrow direction vector reversed — points toward goal instead of away",
+      "root_cause": "In compute_arrow_vertices (view.rs:2213-2214), Rust computes gdx=goal_x-x, gdy=goal_y-y — the vector FROM the arrow position TO the goal (panel center). C++ PaintHighlightArrow (emView.cpp:2442-2443) computes dx=x-goalX, dy=y-goalY — the vector FROM the goal TO the arrow position. The arrow polygon's tip is at (x,y) and the body (wings) extends in the (dx,dy) direction. So C++ arrows point outward (body extends away from center, tip faces center), while Rust arrows point inward (body extends toward center, tip faces outward). This is a single sign error on both dx and dy components. Secondary issue: shadow Y-offset in Rust (view.rs:2265) applies a pixel_tallness multiplication (sd*pt) that C++ does not (emView.cpp:2471 uses sd uniformly for both X and Y).",
+      "category": "rendering",
+      "rust_source": "src/panel/view.rs:2213-2214 (gdx=goal_x-x reversed), src/panel/view.rs:2265 (shadow Y-offset has extra *pt factor)",
+      "cpp_reference": "emView.cpp:2442-2443 (dx=x-goalX correct direction), emView.cpp:2468-2475 (shadow offset uniform sd for X and Y)",
+      "confidence": 0.95,
+      "ruled_out": [
+        "Color mismatch (both use white 255,255,255 normal / 255,255,187 adherent — colors match)",
+        "Arrow count algorithm difference (both use identical round-to-nice-number formula)"
+      ],
+      "verification_prediction": "Changing view.rs:2213-2214 from gdx=goal_x-x,gdy=goal_y-y to gdx=x-goal_x,gdy=y-goal_y will reverse the arrows to point outward (matching C++). Removing the *pt factor from the shadow Y-offset will match C++ shadow geometry.",
+      "related_bugs": [],
+      "round1_status": "partially_fixed",
+      "diagnostic_complete": true,
+      "needs_manual_review": false,
+      "manual_review_reason": null
+    },
+    {
+      "bug_id": "R2-4",
+      "title": "create_control_panel stub still returns None",
+      "root_cause": "View::create_control_panel at view.rs:1882 still returns None. The TODO comment (view.rs:1879-1881) confirms the stub was never completed. The test_panel.rs:832 has a local create_control_panel override that creates a label with panel identity and BgColor info, but the base View method that the framework calls is still a stub. Without the framework-level control panel creation, the BgColor widget overlay never appears.",
+      "category": "missing_feature",
+      "rust_source": "src/panel/view.rs:1879-1884 (create_control_panel returns None with TODO comment)",
+      "cpp_reference": "emView.cpp (CreateControlPanel), emTestPanel.cpp:511-517 (BgColor field override)",
+      "confidence": 1.0,
+      "ruled_out": [
+        "Control panel created but not displayed (create_control_panel literally returns None)"
+      ],
+      "verification_prediction": "Implementing create_control_panel to return a real panel (mirroring C++ CreateControlPanel) and wiring the test_panel override will make the BgColor widget visible.",
+      "related_bugs": [],
+      "round1_status": "not_applied",
+      "diagnostic_complete": true,
+      "needs_manual_review": false,
+      "manual_review_reason": null
+    },
+    {
+      "bug_id": "R2-5",
+      "title": "Wheel spring constant is 0 — set_wheel_anim_params never called",
+      "root_cause": "MouseZoomScrollVIF::wheel_spring_const is initialized to 0.0 (input_filter.rs:108) and set_wheel_anim_params (input_filter.rs:279) is never called outside of tests. The wheel event path IS fully wired: winit MouseWheel → InputKey::WheelUp/Down (zui_window.rs:473-495) → filter() sets wheel_active=true and accumulates wheel_spring_z (input_filter.rs:594-614) → animate_wheel() IS called from main loop via tick_vif_animations (app.rs:267). However, with spring_const=0.0: w=sqrt(0)=0, decay=exp(0)=1.0, so e1=e0 (spring never decays) and wheel_velocity_z=(e0-e0)/dt=0. The zoom operation raw_scroll_and_zoom is called with dz=0, so nothing happens. The spring accumulates extension but never releases it as velocity.",
+      "category": "input",
+      "rust_source": "src/panel/input_filter.rs:108 (wheel_spring_const: 0.0 initialization), src/panel/input_filter.rs:279-293 (set_wheel_anim_params never called in production), src/panel/input_filter.rs:490-501 (spring equation degenerates when spring_const=0)",
+      "cpp_reference": "emViewInputFilter.cpp (C++ calls SetWheelAnimParams during VIF construction/configuration with kinetic settings from emCoreConfig)",
+      "confidence": 0.95,
+      "ruled_out": [
+        "animate_wheel never called from main loop (it IS called via tick_vif_animations at app.rs:267)",
+        "Wheel events not reaching VIF filter (they do reach filter at input_filter.rs:594, wheel_active is set to true)"
+      ],
+      "verification_prediction": "Calling set_wheel_anim_params(1.0, 0.25, zflpp) during VIF construction or window initialization will set wheel_spring_const=480.0 and enable the spring to produce nonzero velocity, making wheel zoom work.",
+      "related_bugs": [],
+      "round1_status": "partially_fixed",
+      "diagnostic_complete": true,
+      "needs_manual_review": false,
+      "manual_review_reason": null
+    }
+  ],
+  "cross_bug_analysis": {
+    "shared_root_causes": [
+      {
+        "bugs": ["R2-1", "R2-2"],
+        "description": "R2-1's incorrect pixel_tallness affects ROOT_SAME_TALLNESS layout (view.rs:368 sets root height to pixel_tallness). Since the root panel's height feeds into child layout, fixing R2-1 may partially improve R2-2's appearance, but R2-2's core issue (flat grid vs grouped categories) is independent and requires its own structural fix."
+      },
+      {
+        "bugs": ["R2-4", "R2-5"],
+        "description": "Both have a 'wiring gap' pattern: R2-4 is a stub that was never implemented (pure missing feature). R2-5 has all infrastructure wired but the initialization call (set_wheel_anim_params) was never added — a classic integration gap where the component works in isolation (tests pass) but is never connected at startup."
+      },
+      {
+        "bugs": ["R2-1", "R2-3", "R2-5"],
+        "description": "All three involve the pixel_tallness / HomePixelTallness confusion. R2-1 uses it in zoom formulas. R2-3's shadow offset multiplies by pt (pixel_tallness) where C++ doesn't. R2-5's spring initialization gap may relate to missing the C++ emCoreConfig kinetic settings that reference pixel tallness. Consider introducing a separate home_pixel_tallness field (always 1.0 for square pixels) distinct from the viewport aspect ratio."
+      }
+    ]
+  }
+}

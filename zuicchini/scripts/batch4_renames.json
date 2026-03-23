@@ -1,0 +1,990 @@
+{
+  "renames": [
+    {
+      "old": "row_major",
+      "new": "RowByRow",
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs"
+    },
+    {
+      "old": "thread_count",
+      "new": "GetThreadCount",
+      "header": "emRenderThreadPool.h",
+      "file": "emRenderThreadPool.rs"
+    },
+    {
+      "old": "update_thread_count",
+      "new": "UpdateThreadCount",
+      "header": "emRenderThreadPool.h",
+      "file": "emRenderThreadPool.rs"
+    },
+    {
+      "old": "call_parallel",
+      "new": "CallParallel",
+      "header": "emRenderThreadPool.h",
+      "file": "emRenderThreadPool.rs"
+    },
+    {
+      "old": "is_editable",
+      "new": "IsEditable",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "set_editable",
+      "new": "SetEditable",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "min_value",
+      "new": "GetMinValue",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "max_value",
+      "new": "GetMaxValue",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "set_min_value",
+      "new": "SetMinValue",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "set_max_value",
+      "new": "SetMaxValue",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "set_min_max_values",
+      "new": "SetMinMaxValues",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "value",
+      "new": "GetValue",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "set_value",
+      "new": "SetValue",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "scale_mark_intervals",
+      "new": "GetScaleMarkIntervals",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "set_scale_mark_intervals",
+      "new": "SetScaleMarkIntervals",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "is_never_hiding_marks",
+      "new": "IsNeverHidingMarks",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "set_never_hide_marks",
+      "new": "SetNeverHideMarks",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "set_text_of_value_fn",
+      "new": "SetTextOfValueFunc",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "text_box_tallness",
+      "new": "GetTextBoxTallness",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "set_text_box_tallness",
+      "new": "SetTextBoxTallness",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "keyboard_interval",
+      "new": "GetKeyboardInterval",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "set_keyboard_interval",
+      "new": "SetKeyboardInterval",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "step_by_keyboard",
+      "new": "StepByKeyboard",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "check_mouse",
+      "new": "CheckMouse",
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs"
+    },
+    {
+      "old": "selected",
+      "new": "GetChecked",
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs"
+    },
+    {
+      "old": "select",
+      "new": "SetChecked",
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs"
+    },
+    {
+      "old": "set_check_index",
+      "new": "SetCheckIndex",
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs"
+    },
+    {
+      "old": "count",
+      "new": "GetCount",
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs"
+    },
+    {
+      "old": "get_button",
+      "new": "GetButton",
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs"
+    },
+    {
+      "old": "get_index_of",
+      "new": "GetIndexOf",
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs"
+    },
+    {
+      "old": "remove_all",
+      "new": "RemoveAll",
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs"
+    },
+    {
+      "old": "remove_by_index",
+      "new": "RemoveByIndex",
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs"
+    },
+    {
+      "old": "add_all",
+      "new": "AddAll",
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs"
+    },
+    {
+      "old": "has_how_to",
+      "new": "HasHowTo",
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs"
+    },
+    {
+      "old": "get_how_to",
+      "new": "GetHowTo",
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs"
+    },
+    {
+      "old": "set_to_default",
+      "new": "SetToDefault",
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs"
+    },
+    {
+      "old": "is_default",
+      "new": "IsSetToDefault",
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs"
+    },
+    {
+      "old": "from_rec_value",
+      "new": "FromRecValue",
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs"
+    },
+    {
+      "old": "to_rec_value",
+      "new": "ToRecValue",
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs"
+    },
+    {
+      "old": "have_alpha",
+      "new": "HaveAlpha",
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs"
+    },
+    {
+      "old": "from_rec_struct",
+      "new": "FromRecStruct",
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs"
+    },
+    {
+      "old": "to_rec_struct",
+      "new": "ToRecStruct",
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs"
+    },
+    {
+      "old": "do_time_slice",
+      "new": "DoTimeSlice",
+      "header": "emScheduler.h",
+      "file": "emScheduler.rs"
+    },
+    {
+      "old": "is_time_slice_at_end",
+      "new": "IsTimeSliceAtEnd",
+      "header": "emScheduler.h",
+      "file": "emScheduler.rs"
+    },
+    {
+      "old": "time_slice_counter",
+      "new": "GetTimeSliceCounter",
+      "header": "emScheduler.h",
+      "file": "emScheduler.rs"
+    },
+    {
+      "old": "initiate_termination",
+      "new": "InitiateTermination",
+      "header": "emScheduler.h",
+      "file": "emScheduler.rs"
+    },
+    {
+      "old": "purge_unused",
+      "new": "PurgeUnused",
+      "header": "emRes.h",
+      "file": "emRes.rs"
+    },
+    {
+      "old": "get_or_insert_with",
+      "new": "GetOrInsertWith",
+      "header": "emRes.h",
+      "file": "emRes.rs"
+    }
+  ],
+  "diverged": [
+    {
+      "header": "emRadioBox.h",
+      "file": "emRadioBox.rs",
+      "cpp_name": "all methods",
+      "reason": "emRadioBox has no public/protected methods beyond constructor/destructor (inherits emRadioButton)"
+    },
+    {
+      "header": "emRasterGroup.h",
+      "file": "emRasterGroup.rs",
+      "cpp_name": "all methods",
+      "reason": "emRasterGroup has no public/protected methods beyond constructor/destructor (inherits emRasterLayout)"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "IsRowByRow",
+      "reason": "pub field `row_major` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetRowByRow",
+      "reason": "pub field `row_major` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetFixedColumnCount",
+      "reason": "pub field `fixed_columns` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetFixedColumnCount",
+      "reason": "pub field `fixed_columns` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetFixedRowCount",
+      "reason": "pub field `fixed_rows` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetFixedRowCount",
+      "reason": "pub field `fixed_rows` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetMinCellCount",
+      "reason": "pub field `min_cell_count` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetMinCellCount",
+      "reason": "pub field `min_cell_count` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetPrefChildTallness",
+      "reason": "pub field `preferred_child_tallness` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetPrefChildTallness",
+      "reason": "pub field `preferred_child_tallness` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetMinChildTallness",
+      "reason": "pub field `min_child_tallness` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetMinChildTallness",
+      "reason": "pub field `min_child_tallness` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetMaxChildTallness",
+      "reason": "pub field `max_child_tallness` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetMaxChildTallness",
+      "reason": "pub field `max_child_tallness` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetChildTallness",
+      "reason": "not ported (set all three tallness fields directly)"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "IsStrictRaster",
+      "reason": "pub field `strict_raster` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetStrictRaster",
+      "reason": "pub field `strict_raster` replaces getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetAlignment",
+      "reason": "pub fields `alignment_h` and `alignment_v` replace getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetAlignment",
+      "reason": "pub fields `alignment_h` and `alignment_v` replace getter/setter"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetSpaceL",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetSpaceT",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetSpaceH",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetSpaceV",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetSpaceR",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "GetSpaceB",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetSpaceL",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetSpaceT",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetSpaceH",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetSpaceV",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetSpaceR",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetSpaceB",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetSpace",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetInnerSpace",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "SetOuterSpace",
+      "reason": "pub field `spacing` replaces individual space getters/setters"
+    },
+    {
+      "header": "emRasterLayout.h",
+      "file": "emRasterLayout.rs",
+      "cpp_name": "LayoutChildren",
+      "reason": "PanelBehavior trait method"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::GetParent",
+      "reason": "not ported (Rust uses flat RecStruct instead of tree hierarchy)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::GetRoot",
+      "reason": "not ported (Rust uses flat RecStruct instead of tree hierarchy)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::GetFormatName",
+      "reason": "not ported (format name passed to parse_rec_with_format as argument)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::TryLoad",
+      "reason": "not ported (use emRecFileReader::read instead)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::TrySave",
+      "reason": "not ported (use emRecFileWriter::write instead)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::TryLoadFromMem",
+      "reason": "not ported (use parse_rec directly)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::SaveToMem",
+      "reason": "not ported (use write_rec directly)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::TryCopy",
+      "reason": "not ported (Rust Clone trait)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::Copy",
+      "reason": "not ported (Rust Clone trait)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::SetToDefault",
+      "reason": "not ported (Record trait in emRecRecord.rs)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::IsSetToDefault",
+      "reason": "not ported (Record trait in emRecRecord.rs)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::TryStartReading",
+      "reason": "not ported (Rust uses synchronous parse_rec)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::TryContinueReading",
+      "reason": "not ported (Rust uses synchronous parse_rec)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::QuitReading",
+      "reason": "not ported (Rust uses synchronous parse_rec)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::TryStartWriting",
+      "reason": "not ported (Rust uses synchronous write_rec)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::TryContinueWriting",
+      "reason": "not ported (Rust uses synchronous write_rec)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::QuitWriting",
+      "reason": "not ported (Rust uses synchronous write_rec)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::CalcRecMemNeed",
+      "reason": "not ported"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::CheckIdentifier",
+      "reason": "not ported"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::Changed",
+      "reason": "not ported (RecListenerList::notify replaces tree-walk notification)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emRec::BeTheParentOf",
+      "reason": "not ported (Rust uses flat RecStruct)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs",
+      "cpp_name": "emRecListener::GetListenedRec",
+      "reason": "not ported (replaced by RecListenerList callback model)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs",
+      "cpp_name": "emRecListener::SetListenedRec",
+      "reason": "not ported (replaced by RecListenerList callback model)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs",
+      "cpp_name": "emRecListener::OnRecChanged",
+      "reason": "not ported (replaced by RecListenerList callback model)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs",
+      "cpp_name": "emBoolRec",
+      "reason": "not ported (RecValue::Bool used directly)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs",
+      "cpp_name": "emIntRec",
+      "reason": "not ported (RecValue::Int used directly)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs",
+      "cpp_name": "emDoubleRec",
+      "reason": "not ported (RecValue::Double used directly)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs",
+      "cpp_name": "emEnumRec",
+      "reason": "not ported (RecValue::Ident used directly)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs",
+      "cpp_name": "emFlagsRec",
+      "reason": "not ported (RecValue::Ident used directly)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRecRecTypes.rs",
+      "cpp_name": "emStringRec",
+      "reason": "not ported (RecValue::Str used directly)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emStructRec::GetCount",
+      "reason": "not ported (use RecStruct::fields().len())"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emStructRec::Get",
+      "reason": "not ported (RecStruct has typed get_bool/get_int/etc accessors)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emStructRec::GetIdentifierOf",
+      "reason": "not ported (fields stored as named tuples)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emStructRec::GetIndexOf",
+      "reason": "not ported (use string lookup)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emStructRec::ShallWriteOptionalOnly",
+      "reason": "not ported"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emUnionRec",
+      "reason": "not ported (RecValue::Union variant used directly)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emArrayRec",
+      "reason": "not ported (RecValue::Array variant used directly)"
+    },
+    {
+      "header": "emRec.h",
+      "file": "emRec.rs",
+      "cpp_name": "emTArrayRec",
+      "reason": "not ported (RecValue::Array variant used directly)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "GetChangeSignal",
+      "reason": "not ported (no signal system; use on_value callback)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "PostConstruct",
+      "reason": "not ported (Rust generic parameter T fills this role)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "GetRec",
+      "reason": "not ported (use data() method instead)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "ResetData",
+      "reason": "not ported (hard_reset covers this)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "TryStartLoading",
+      "reason": "not ported (synchronous load() replaces incremental protocol)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "TryContinueLoading",
+      "reason": "not ported (synchronous load() replaces incremental protocol)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "QuitLoading",
+      "reason": "not ported (synchronous load() replaces incremental protocol)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "TryStartSaving",
+      "reason": "not ported (synchronous save() replaces incremental protocol)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "TryContinueSaving",
+      "reason": "not ported (synchronous save() replaces incremental protocol)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "QuitSaving",
+      "reason": "not ported (synchronous save() replaces incremental protocol)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "CalcMemoryNeed",
+      "reason": "not ported (simplified to inline memory_need field)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "CalcFileProgress",
+      "reason": "not ported (synchronous load/save replaces progress reporting)"
+    },
+    {
+      "header": "emRenderThreadPool.h",
+      "file": "emRenderThreadPool.rs",
+      "cpp_name": "Acquire",
+      "reason": "not ported (use emRenderThreadPool::new directly)"
+    },
+    {
+      "header": "emRenderThreadPool.h",
+      "file": "emRenderThreadPool.rs",
+      "cpp_name": "Cycle",
+      "reason": "not ported (no emModel lifecycle)"
+    },
+    {
+      "header": "emRes.h",
+      "file": "emRes.rs",
+      "cpp_name": "emGetResImage",
+      "reason": "not ported (resource loading via embedded TGA)"
+    },
+    {
+      "header": "emRes.h",
+      "file": "emRes.rs",
+      "cpp_name": "emTryGetResImage",
+      "reason": "not ported (resource loading via embedded TGA)"
+    },
+    {
+      "header": "emRes.h",
+      "file": "emRes.rs",
+      "cpp_name": "emGetInsResImage",
+      "reason": "not ported (resource loading via embedded TGA)"
+    },
+    {
+      "header": "emRes.h",
+      "file": "emRes.rs",
+      "cpp_name": "emTryGetInsResImage",
+      "reason": "not ported (resource loading via embedded TGA)"
+    },
+    {
+      "header": "emRes.h",
+      "file": "emRes.rs",
+      "cpp_name": "emResModelBase::Touch",
+      "reason": "not ported (no emModel lifecycle)"
+    },
+    {
+      "header": "emRes.h",
+      "file": "emRes.rs",
+      "cpp_name": "emResModelBase::GetDataRefCount",
+      "reason": "not ported (Rc::strong_count used instead)"
+    },
+    {
+      "header": "emRes.h",
+      "file": "emRes.rs",
+      "cpp_name": "emResModelBase::Cycle",
+      "reason": "not ported (no emModel lifecycle)"
+    },
+    {
+      "header": "emRes.h",
+      "file": "emRes.rs",
+      "cpp_name": "emResModel::Acquire",
+      "reason": "not ported (use ResourceCache::get_or_insert_with)"
+    },
+    {
+      "header": "emRes.h",
+      "file": "emRes.rs",
+      "cpp_name": "emResModel::Lookup",
+      "reason": "not ported (use ResourceCache::get)"
+    },
+    {
+      "header": "emRes.h",
+      "file": "emRes.rs",
+      "cpp_name": "emResModel::LookupInherited",
+      "reason": "not ported (no context hierarchy)"
+    },
+    {
+      "header": "emRes.h",
+      "file": "emRes.rs",
+      "cpp_name": "emResModel::Set",
+      "reason": "not ported (ResourceCache handles insertion)"
+    },
+    {
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs",
+      "cpp_name": "GetValueSignal",
+      "reason": "not ported (on_value callback replaces signal)"
+    },
+    {
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs",
+      "cpp_name": "TextOfValue",
+      "reason": "not ported (virtual method replaced by text_of_value_fn closure)"
+    },
+    {
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs",
+      "cpp_name": "DefaultTextOfValue",
+      "reason": "not ported (default_text_of_value is a private function)"
+    },
+    {
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs",
+      "cpp_name": "ValueChanged",
+      "reason": "not ported (on_value callback replaces virtual method)"
+    },
+    {
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs",
+      "cpp_name": "Input",
+      "reason": "PanelBehavior trait method"
+    },
+    {
+      "header": "emScalarField.h",
+      "file": "emScalarField.rs",
+      "cpp_name": "PaintContent",
+      "reason": "PanelBehavior trait method"
+    },
+    {
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs",
+      "cpp_name": "Clicked",
+      "reason": "not ported (inline select logic in input handler)"
+    },
+    {
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs",
+      "cpp_name": "CheckChanged",
+      "reason": "not ported (on_select callback replaces virtual method)"
+    },
+    {
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs",
+      "cpp_name": "Mechanism::GetCheckSignal",
+      "reason": "not ported (on_select callback replaces signal)"
+    },
+    {
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs",
+      "cpp_name": "Mechanism::Add",
+      "reason": "not ported (register called automatically in constructor)"
+    },
+    {
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs",
+      "cpp_name": "Mechanism::Remove",
+      "reason": "not ported (deregister called automatically in Drop)"
+    },
+    {
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs",
+      "cpp_name": "Mechanism::SetChecked",
+      "reason": "not ported (select takes index, not pointer)"
+    },
+    {
+      "header": "emRadioButton.h",
+      "file": "emRadioButton.rs",
+      "cpp_name": "Mechanism::GetCheckIndex",
+      "reason": "not ported (selected() returns Option<usize>)"
+    },
+    {
+      "header": "emScheduler.h",
+      "file": "emScheduler.rs",
+      "cpp_name": "emScheduler::Run",
+      "reason": "Rust trait implementation (EngineScheduler::run)"
+    },
+    {
+      "header": "emScheduler.h",
+      "file": "emScheduler.rs",
+      "cpp_name": "emStandardScheduler",
+      "reason": "merged into EngineScheduler (no separate standard scheduler)"
+    },
+    {
+      "header": "emRecFileModel.h",
+      "file": "emRecFileModel.rs",
+      "cpp_name": "emRecFileModel class hierarchy",
+      "reason": "not ported (standalone generic struct, not emFileModel subclass)"
+    }
+  ]
+}

@@ -1,0 +1,191 @@
+[
+  {
+    "tension_id": "t-01",
+    "propositions": ["a1-06", "a3-08"],
+    "type": "undermining",
+    "severity": 0.92,
+    "description": "a1-06 claims empirical pixel diffing of the full TkTest scene is the single most valuable quality strategy. a3-08 identifies a permanent noise floor from differing rendering backends (emCore software renderer vs. wgpu) that degrades signal-to-noise ratio as real bugs are fixed, fundamentally undermining the strategy's value proposition."
+  },
+  {
+    "tension_id": "t-02",
+    "propositions": ["a1-03", "a2-02"],
+    "type": "contradiction",
+    "severity": 0.88,
+    "description": "a1-03 asserts that an agent reading a diff and declaring it correct is not verification but merely a second opinion with the same failure modes. a2-02 claims adversarial re-audit of fix diffs against the C++ reference is the single highest-ROI verification strategy. These make mutually exclusive claims about the value of agent-based diff review."
+  },
+  {
+    "tension_id": "t-03",
+    "propositions": ["a1-07", "a2-19"],
+    "type": "contradiction",
+    "severity": 0.85,
+    "description": "a1-07 declares adversarial rationale review the worst strategy because challenging a justification requires the same holistic understanding that produced it. a2-19 argues adversarial rationale review is specifically designed to catch silent skipping and is effective at it. They disagree fundamentally on whether LLM-on-LLM review has value for catching non-fixes."
+  },
+  {
+    "tension_id": "t-04",
+    "propositions": ["a2-02", "a3-07"],
+    "type": "undermining",
+    "severity": 0.87,
+    "description": "a2-02 champions fix diff re-audit as the highest-ROI strategy. a3-07 identifies that diff-based review cannot detect what should have changed but didn't, because downstream call sites and cross-file interactions fall outside the diff's temporal boundary, undermining the completeness of the approach."
+  },
+  {
+    "tension_id": "t-05",
+    "propositions": ["a1-12", "a2-16"],
+    "type": "latent_tension",
+    "severity": 0.65,
+    "description": "a1-12 says the optimal meta-strategy is to use agents as test authors, never as judges. a2-16 says the meta-strategy is 'use the oracle whenever you can, use code reading when you must.' Both agree on empirical primacy but diverge on what agents should do when empirical methods are insufficient: a1-12 implies they should not judge at all, while a2-16 accepts code reading as a valid fallback role."
+  },
+  {
+    "tension_id": "t-06",
+    "propositions": ["a1-21", "a2-14"],
+    "type": "undermining",
+    "severity": 0.72,
+    "description": "a1-21 draws a sharp divide between empirical methods (reliable) and analytical methods (unreliable because they require the same agent judgment being checked). a2-14 proposes control flow graph comparison — an analytical method — as catching structural divergences that empirical methods miss. a1-21's framing would classify a2-14's strategy as fundamentally unreliable."
+  },
+  {
+    "tension_id": "t-07",
+    "propositions": ["a2-08", "a3-08"],
+    "type": "undermining",
+    "severity": 0.88,
+    "description": "a2-08 advocates exploratory differential testing with systematically varied parameters as the most direct exploitation of the oracle. a3-08 argues that cross-renderer pixel diffing produces a permanent noise floor of rendering pipeline artifacts that will drown the signal from real bugs, particularly as the port improves."
+  },
+  {
+    "tension_id": "t-08",
+    "propositions": ["a1-19", "a3-10"],
+    "type": "undermining",
+    "severity": 0.75,
+    "description": "a1-19 claims commit-to-finding traceability auditing is a cheap, reliable mechanical task that catches stale metadata. a3-10 argues such audits verify existence of a response but not adequacy, operating on titles and commit messages rather than content, making the 'catch' superficial."
+  },
+  {
+    "tension_id": "t-09",
+    "propositions": ["a1-19", "a3-11"],
+    "type": "undermining",
+    "severity": 0.70,
+    "description": "a1-19 values traceability auditing as a cheap quality check. a3-11 warns that traceability audits will train future fix agents to optimize for referencing finding numbers in commit messages rather than addressing finding content, creating a ritual compliance pattern that undermines the mechanism's future value."
+  },
+  {
+    "tension_id": "t-10",
+    "propositions": ["a2-07", "a3-01"],
+    "type": "undermining",
+    "severity": 0.80,
+    "description": "a2-07 proposes mutation testing targeting FIXED items with no coverage, using revert-and-test as verification. a3-01 argues mutation testing on golden tests becomes less effective as the port improves because fixed pixels free up tolerance budget that absorbs future reverts without failing the test, undermining the revert-and-test methodology."
+  },
+  {
+    "tension_id": "t-11",
+    "propositions": ["a1-04", "a3-19"],
+    "type": "undermining",
+    "severity": 0.78,
+    "description": "a1-04 claims the highest-value work is writing golden tests for the 31 already-applied fixes. a3-19 reveals that golden tests skip alpha channel comparison, so fixes affecting compositing pipeline alpha handling are structurally unverifiable by golden tests despite appearing covered, meaning some of those 31 fixes cannot be meaningfully covered by golden tests alone."
+  },
+  {
+    "tension_id": "t-12",
+    "propositions": ["a2-21", "a3-08"],
+    "type": "mutual_exclusion",
+    "severity": 0.82,
+    "description": "a2-21 proposes extending the golden test generator to produce a full grid of widget states for systematic differential comparison across C++ and Rust. a3-08 argues that cross-renderer differences create a permanent noise floor. These two propositions pull in opposite directions: a2-21 invests heavily in infrastructure that a3-08 predicts will be dominated by rendering artifacts."
+  },
+  {
+    "tension_id": "t-13",
+    "propositions": ["a1-17", "a2-15"],
+    "type": "mutual_exclusion",
+    "severity": 0.76,
+    "description": "a1-17 says with a limited agent budget of 3-5, only empirical pixel diffing and coverage gap closure should be performed. a2-15 says fix diff re-audit must be completed before any other verification strategy. These propose mutually exclusive resource allocations: a1-17 excludes fix diff re-audit entirely while a2-15 makes it the mandatory first step."
+  },
+  {
+    "tension_id": "t-14",
+    "propositions": ["a1-06", "a2-09"],
+    "type": "undermining",
+    "severity": 0.83,
+    "description": "a1-06 claims empirical pixel diffing is the single most valuable strategy because it is holistic without requiring holistic reasoning. a2-09 establishes that pixel diffing fundamentally cannot find logic bugs in non-rendering code paths (signals, callbacks, clipboard, focus), limiting its holistic coverage to only the visual dimension."
+  },
+  {
+    "tension_id": "t-15",
+    "propositions": ["a2-19", "a3-05"],
+    "type": "contradiction",
+    "severity": 0.86,
+    "description": "a2-19 argues adversarial rationale review is specifically designed to catch silent skipping and is effective at forcing justifications. a3-05 argues an LLM adversarial reviewer will accept well-written false justifications and reject poorly-written correct ones because both writer and reviewer optimize for the same 'sounds reasonable' objective, making the review structurally unable to catch sophisticated silent skipping."
+  },
+  {
+    "tension_id": "t-16",
+    "propositions": ["a2-06", "a1-08"],
+    "type": "latent_tension",
+    "severity": 0.68,
+    "description": "a1-08 treats golden test coverage as the critical measure — every fix without it is a regression waiting to happen. a2-06 warns that golden tests can actively mask bugs by using inputs that happen to produce identical output regardless of underlying correctness. Together they create a tension: pursuing coverage (a1-08) may create false confidence if the tests use masking inputs (a2-06)."
+  },
+  {
+    "tension_id": "t-17",
+    "propositions": ["a1-10", "a3-06"],
+    "type": "undermining",
+    "severity": 0.74,
+    "description": "a1-10 claims Strategy 5 (existence tests for CLOSED divergences) is strictly superior to Strategy 3 (adversarial rationale review) because it validates empirically. a3-06 warns that when any strategy flags a CLOSED finding, the response will be a better-written justification rather than re-investigation, meaning even the existence test results may be rationalized away rather than investigated."
+  },
+  {
+    "tension_id": "t-18",
+    "propositions": ["a2-04", "a3-04"],
+    "type": "latent_tension",
+    "severity": 0.73,
+    "description": "a2-04 establishes a verification obligation: every fix to shared logic must be mirrored across all 5 widgets. a3-04 warns that iterative source-level harmonization of duplicated widget code will converge on textual similarity while potentially introducing bugs by making correct-but-different implementations match an incorrect template. The obligation to mirror (a2-04) creates pressure toward the very harmonization failure mode a3-04 identifies."
+  },
+  {
+    "tension_id": "t-19",
+    "propositions": ["a1-22", "a3-16"],
+    "type": "undermining",
+    "severity": 0.79,
+    "description": "a1-22 says the project has infrastructure to make empirical methods work and agents should write tests exercising it. a3-16 argues all 8 strategies share a structural bias toward verifying already-identified findings with no mechanism to discover bugs the original audit missed. Writing tests for known fixes (a1-22) exemplifies the very known-bug-verification bias a3-16 identifies."
+  },
+  {
+    "tension_id": "t-20",
+    "propositions": ["a2-13", "a3-09"],
+    "type": "undermining",
+    "severity": 0.77,
+    "description": "a2-13 advocates boundary value differential testing as where empirical diffing becomes most powerful. a3-09 warns that known-difference exclusion lists for empirical diffing will grow monotonically and become a shadow tolerance system hiding real bugs. Boundary testing generates more differences that feed the exclusion list growth, accelerating the problem a3-09 identifies."
+  },
+  {
+    "tension_id": "t-21",
+    "propositions": ["a1-23", "a3-22"],
+    "type": "undermining",
+    "severity": 0.81,
+    "description": "a1-23 proposes narrowing adversarial re-audit to HIGH/MEDIUM fixes with structured MATCH/MISMATCH outputs as a pragmatic middle ground. a3-22 argues an LLM reviewer cannot verify factual claims in justifications without reading referenced source files, so it evaluates internal consistency rather than factual accuracy — meaning MATCH/MISMATCH outputs may be confidently wrong."
+  },
+  {
+    "tension_id": "t-22",
+    "propositions": ["a1-02", "a3-15"],
+    "type": "latent_tension",
+    "severity": 0.71,
+    "description": "a1-02 advocates decomposing work into per-finding or per-function verification units to avoid holistic reasoning failures. a3-15 warns that as strategy outputs accumulate across dispatches, later strategies operate on summaries of summaries with multiplicative information loss. Decomposition (a1-02) increases the number of dispatches and thus the summarization layers that a3-15 identifies as degrading quality."
+  },
+  {
+    "tension_id": "t-23",
+    "propositions": ["a2-17", "a3-17"],
+    "type": "undermining",
+    "severity": 0.84,
+    "description": "a2-17 defines the port as done when every function's output matches the oracle for every input. a3-17 argues that strategy-pass measures audit completeness rather than port quality, because the strategies only verify known findings while unknown bugs remain unexamined. a2-17's aspirational standard is precisely what a3-17 says the current verification framework cannot measure."
+  },
+  {
+    "tension_id": "t-24",
+    "propositions": ["a1-20", "a2-18"],
+    "type": "latent_tension",
+    "severity": 0.55,
+    "description": "a1-20 says fragility analysis produces no immediate quality improvement and does not belong in a QA pass. a2-18 says fragility analysis should be deferred until the code stabilizes. Both agree on deferral but for different reasons — a1-20 sees it as categorically out of scope for QA, while a2-18 sees it as premature given code instability, implying it would be in-scope after stabilization."
+  },
+  {
+    "tension_id": "t-25",
+    "propositions": ["a1-15", "a2-04"],
+    "type": "contradiction",
+    "severity": 0.72,
+    "description": "a1-15 claims cross-fix consistency checking has low remaining value because cross-cutting concerns are already resolved and documented. a2-04 asserts the duplicated-widget design creates an ongoing verification obligation requiring every fix to shared logic be mirrored across all 5 widgets, implying cross-fix consistency checking has high ongoing value."
+  },
+  {
+    "tension_id": "t-26",
+    "propositions": ["a2-12", "a1-02"],
+    "type": "latent_tension",
+    "severity": 0.66,
+    "description": "a2-12 proposes verifying every integer operation in pixel arithmetic and geometry layers to ensure Rust types match C++ promoted types — a holistic per-file scanning task. a1-02 argues that holistic file-level reasoning triggers lossy summarization failure modes in LLM agents and that per-finding decomposition is structurally superior. The exhaustive integer verification a2-12 proposes is exactly the kind of holistic task a1-02 warns fails."
+  },
+  {
+    "tension_id": "t-27",
+    "propositions": ["a2-15", "a3-21"],
+    "type": "latent_tension",
+    "severity": 0.69,
+    "description": "a2-15 insists fix diff re-audit must be completed before any other strategy to validate the foundation. a3-21 argues the 8-strategy process produces confident 'all clear' signals through breadth rather than depth. Strict sequential ordering (a2-15) increases the time before contradictory signals can emerge, reinforcing the confidence-over-bugs dynamic a3-21 warns about."
+  }
+]

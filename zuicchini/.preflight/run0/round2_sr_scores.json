@@ -1,0 +1,492 @@
+[
+  {
+    "id": "i-01",
+    "score": 0.95,
+    "reasoning": "First sentence of the prompt. Absolute top position. Imperative verb 'Read'. Will be executed before any context dilution occurs. Maximum positional advantage."
+  },
+  {
+    "id": "i-02",
+    "score": 0.93,
+    "reasoning": "Second clause of the first sentence. Same top-line position as i-01. Read at start before context window fills. Very high survival."
+  },
+  {
+    "id": "i-03",
+    "score": 0.90,
+    "reasoning": "Core loop definition in a fenced code block (lines 9-18). Code blocks have strong formatting resilience. Top-third position. The loop structure is reinforced by phase descriptions and contract steps later. High SR."
+  },
+  {
+    "id": "i-04",
+    "score": 0.88,
+    "reasoning": "Inside the code block loop. Steps are loaded fresh per-feature from contract JSON (progressive disclosure), so even if the .md instruction fades, the contract steps array keeps it alive each iteration."
+  },
+  {
+    "id": "i-05",
+    "score": 0.90,
+    "reasoning": "In the code block loop, reinforced by contract rules.gate_protocol (i-37), and also by the pre-commit hook (i-88) which runs clippy automatically. Triple reinforcement: prompt loop + contract + hook. Very resilient."
+  },
+  {
+    "id": "i-06",
+    "score": 0.90,
+    "reasoning": "Same triple reinforcement as i-05: code block loop + contract gate_protocol + pre-commit hook runs nextest. Very resilient."
+  },
+  {
+    "id": "i-07",
+    "score": 0.85,
+    "reasoning": "In the code block loop. Reinforced by contract rules.gate_protocol (i-37). Part of the mechanical loop, likely to persist. Slightly less salient than the gate commands because it's an edit action not a verification."
+  },
+  {
+    "id": "i-08",
+    "score": 0.82,
+    "reasoning": "In the code block loop. Reinforced by contract rules.commit_protocol (i-38). Two-source reinforcement. The specific format is repeated in i-91. Good SR."
+  },
+  {
+    "id": "i-09",
+    "score": 0.80,
+    "reasoning": "Single line 'Do not enter plan mode.' at line 21, just after the code block. Short, imperative, bold-free. No reinforcement elsewhere. Position is good (top-third) but it's a one-liner that could be lost under 50K+ tokens of contract JSON context pressure."
+  },
+  {
+    "id": "i-10",
+    "score": 0.85,
+    "reasoning": "Bootstrap section with ## header and a fenced code block. Headers and code blocks have strong formatting support. Positioned early. The 'Begin' section at bottom also references it. Good SR."
+  },
+  {
+    "id": "i-11",
+    "score": 0.82,
+    "reasoning": "Phase 1 description under ## Phase descriptions with bold label. Well-formatted. Top-third. Reinforced by contract steps (i-40 through i-48). However, the summary is dense and could blur after many features."
+  },
+  {
+    "id": "i-12",
+    "score": 0.78,
+    "reasoning": "Phase 2 description under same ## header. Bold label. Top-third. Reinforced by contract steps (i-52 through i-55). Slightly lower than i-11 because Phase 2 won't be relevant until Phase 1 completes, and by then the prompt is very far back in context."
+  },
+  {
+    "id": "i-13",
+    "score": 0.75,
+    "reasoning": "Phase 3 description. Same ## header, bold label. Reinforced by contract steps (i-56 through i-58). Even further from relevance point than Phase 2. Moderate-high SR."
+  },
+  {
+    "id": "i-14",
+    "score": 0.75,
+    "reasoning": "Phase 4 description. Bold label, emphasizes 'ALL existing tests (1500+)' and lists specific anti-patterns. Reinforced by contract steps (i-59 through i-63). Same temporal distance concern as Phase 3."
+  },
+  {
+    "id": "i-15",
+    "score": 0.72,
+    "reasoning": "Middle-third, under ## Testing layer requirements. Has header support and bullet list formatting. The explicit callout 'This is not guidance -- it is a requirement' adds salience. But middle position + dense bullet list under context pressure reduces survival. Contract steps don't repeat this per-feature."
+  },
+  {
+    "id": "i-16",
+    "score": 0.60,
+    "reasoning": "Middle-third under same section. Bullet list of test directories. No bold emphasis, no reinforcement from contract. Convention that must be remembered across all features. Moderate SR."
+  },
+  {
+    "id": "i-17",
+    "score": 0.78,
+    "reasoning": "Middle-third. Single paragraph. But reinforced twice in contract steps (i-41, i-44) which are loaded fresh each Phase 1 feature. The contract step reinforcement significantly boosts SR despite mid-prompt position."
+  },
+  {
+    "id": "i-18",
+    "score": 0.80,
+    "reasoning": "Middle-third under ## Fidelity rules with bold 'PIXEL' label. Reinforced by CLAUDE.md (i-75, i-84), contract rules.fidelity_layer (i-39), and per-feature layer field. Triple+ reinforcement from persistent sources."
+  },
+  {
+    "id": "i-19",
+    "score": 0.78,
+    "reasoning": "Same section as i-18, bold 'STATE' label. Reinforced by CLAUDE.md (i-77) and contract rules (i-39). Good multi-source reinforcement. Slightly less salient than PIXEL because STATE is the 'do nothing special' case."
+  },
+  {
+    "id": "i-20",
+    "score": 0.55,
+    "reasoning": "Single line 'Features without a layer field: use STATE.' Middle-third. No bold, no reinforcement. Easy to miss. A default that's only mentioned once in the entire prompt ecosystem."
+  },
+  {
+    "id": "i-21",
+    "score": 0.72,
+    "reasoning": "Under ## Phase dependencies header. Explicit ordering constraint. But only relevant at phase transitions (4 times total), and by phase 2/3/4 transition this instruction is very far back in context. Header formatting helps."
+  },
+  {
+    "id": "i-22",
+    "score": 0.65,
+    "reasoning": "Under ## Cross-feature modifications. Has its own header which helps. But it's a conditional rule that only applies occasionally. Middle position. No reinforcement from contract. Moderate SR."
+  },
+  {
+    "id": "i-23",
+    "score": 0.75,
+    "reasoning": "Under ## Known failure modes with bold 'Speed-over-fidelity' label. Bold + header + explicit callout of the gate's limitation. Reinforced by i-32 and i-24. The bold formatting and failure-mode framing add psychological salience."
+  },
+  {
+    "id": "i-24",
+    "score": 0.72,
+    "reasoning": "Under same ## section with bold 'Steps are requirements.' Short, imperative, bolded. Reinforces i-23. Middle-third but the bold formatting and brevity help it stick."
+  },
+  {
+    "id": "i-25",
+    "score": 0.70,
+    "reasoning": "Bold 'Test-shaped validation.' under ## Known failure modes. Short, concrete examples (is_some()/is_ok()). Middle-third. Reinforced indirectly by Phase 4 anti-pattern checklist (i-60). Moderate-high."
+  },
+  {
+    "id": "i-26",
+    "score": 0.68,
+    "reasoning": "Bold 'Reusing existing tests.' Short and direct. Middle-third. No direct reinforcement from contract steps. The reasoning is clear but could fade after many features."
+  },
+  {
+    "id": "i-27",
+    "score": 0.55,
+    "reasoning": "Bottom-third. In a 'What NOT to do' bullet list — the least salient section position. However, reinforced by contract rules.immutability (i-36). Dual-source but poor position."
+  },
+  {
+    "id": "i-28",
+    "score": 0.45,
+    "reasoning": "Bottom-third bullet in 'What NOT to do'. Has a direct conflict with Phase 4 (which requires modifying existing tests). The conflict itself may cause confusion. No reinforcement. Low position. Low SR."
+  },
+  {
+    "id": "i-29",
+    "score": 0.48,
+    "reasoning": "Bottom-third bullet in 'What NOT to do'. Vague ('unrelated production code'). No reinforcement. Bottom position. Likely to be lost under context pressure."
+  },
+  {
+    "id": "i-30",
+    "score": 0.55,
+    "reasoning": "Bottom-third bullet in 'What NOT to do'. Important procedural rule (don't skip features). No reinforcement from contract. Bottom position weakens it, but the rule is simple and ties directly to the loop."
+  },
+  {
+    "id": "i-31",
+    "score": 0.58,
+    "reasoning": "Bottom-third bullet. Reinforced by i-19 (middle-third) and contract fidelity rules (i-39). The reinforcement partially compensates for bottom position."
+  },
+  {
+    "id": "i-32",
+    "score": 0.50,
+    "reasoning": "Bottom-third bullet, last in the 'What NOT to do' list. Meta-instruction about the gate. Reinforced by i-23 (middle-third). But this is the absolute bottom of the 'don't' list — lowest position of any non-log instruction."
+  },
+  {
+    "id": "i-33",
+    "score": 0.60,
+    "reasoning": "Under ## Completion header with fenced code block. Headers and code blocks are resilient formatting. Bottom-third but has its own section. Only relevant at session end, so distance from prompt top matters less."
+  },
+  {
+    "id": "i-34",
+    "score": 0.52,
+    "reasoning": "Under ## Log header at bottom-third. Has a fenced code block with the format template. But logging is a secondary action after the core audit work. Could be forgotten mid-run despite code block formatting. The format in i-89 is a sub-detail that makes this harder to follow precisely."
+  },
+  {
+    "id": "i-35",
+    "score": 0.70,
+    "reasoning": "Under ## Begin at the very end. Normally bottom = low SR, but 'Begin' sections get a recency boost — LLMs often attend to the last instruction. Also reinforced by bootstrap script context. Single execution at start, so persistence doesn't matter much."
+  },
+  {
+    "id": "i-36",
+    "score": 0.72,
+    "reasoning": "From contract JSON rules.immutability. Contract is read at start and its rules section is compact. Reinforced by i-27 in prompt. The contract JSON is a separate data source that may be re-read, adding resilience."
+  },
+  {
+    "id": "i-37",
+    "score": 0.82,
+    "reasoning": "From contract JSON rules.gate_protocol. Reinforced by i-05/i-06 in the main loop code block and by the pre-commit hook. Triple reinforcement across three sources. High SR."
+  },
+  {
+    "id": "i-38",
+    "score": 0.78,
+    "reasoning": "From contract JSON rules.commit_protocol. Reinforced by i-08 in the loop and i-92. Multiple reinforcement sources. Good SR."
+  },
+  {
+    "id": "i-39",
+    "score": 0.80,
+    "reasoning": "From contract JSON rules.fidelity_layer. Adds GEOMETRY layer. Reinforced by prompt fidelity rules (i-18/i-19) and CLAUDE.md (i-75/i-76/i-77). Heavily reinforced across all three sources. High SR."
+  },
+  {
+    "id": "i-40",
+    "score": 0.88,
+    "reasoning": "Per-feature step from contract, loaded fresh each iteration. Progressive disclosure means this is re-read for every Phase 1 feature. Maximum per-iteration SR — effectively top-of-context each time."
+  },
+  {
+    "id": "i-41",
+    "score": 0.88,
+    "reasoning": "Per-feature step, loaded fresh each iteration. Reinforced by i-17 and i-44. Very high per-iteration SR."
+  },
+  {
+    "id": "i-42",
+    "score": 0.88,
+    "reasoning": "Per-feature step, loaded fresh each iteration. Simple read instruction. Very high per-iteration SR."
+  },
+  {
+    "id": "i-43",
+    "score": 0.87,
+    "reasoning": "Per-feature step loaded fresh. The methods array is right there in the feature data. High SR. But the 'ALL methods' emphasis from i-23/i-24 is in the prompt .md which fades — the step itself just says 'compare the methods listed'."
+  },
+  {
+    "id": "i-44",
+    "score": 0.87,
+    "reasoning": "Per-feature step loaded fresh. Explicitly mentions static helpers, constructor defaults, side effects. Reinforces i-17. High per-iteration SR."
+  },
+  {
+    "id": "i-45",
+    "score": 0.85,
+    "reasoning": "Per-feature step loaded fresh. Specifies what to verify (defaults, side effects). High per-iteration SR but slightly lower because it's a sub-detail of the comparison step."
+  },
+  {
+    "id": "i-46",
+    "score": 0.85,
+    "reasoning": "Per-feature step loaded fresh. The four categories (MATCH/MISMATCH/SUSPECT/MISSING) are in the step text. High per-iteration SR."
+  },
+  {
+    "id": "i-47",
+    "score": 0.85,
+    "reasoning": "Per-feature step loaded fresh. Fix instruction. High per-iteration SR."
+  },
+  {
+    "id": "i-48",
+    "score": 0.85,
+    "reasoning": "Per-feature step loaded fresh. Test-writing instruction. High per-iteration SR. But the required_test_layers constraint (i-15) that specifies WHICH test layers is only in the prompt .md, not in the step."
+  },
+  {
+    "id": "i-49",
+    "score": 0.85,
+    "reasoning": "Per-feature step for RUST-ONLY variant, loaded fresh. Only 7 features use this. High per-iteration SR."
+  },
+  {
+    "id": "i-50",
+    "score": 0.85,
+    "reasoning": "Per-feature step for RUST-ONLY variant. High per-iteration SR."
+  },
+  {
+    "id": "i-51",
+    "score": 0.88,
+    "reasoning": "Per-feature CRITICAL step loaded fresh. Only on 2 features. The step text itself says 'CRITICAL' and specifies exact field checks. Very high per-iteration SR due to emphasis and fresh loading."
+  },
+  {
+    "id": "i-52",
+    "score": 0.83,
+    "reasoning": "Per-feature step for Phase 2, loaded fresh. Macro guidance. High per-iteration SR but Phase 2 is later in the run, meaning the prompt .md is further back in context."
+  },
+  {
+    "id": "i-53",
+    "score": 0.83,
+    "reasoning": "Per-feature step for Phase 2, loaded fresh. Analysis framework with three outcomes. High per-iteration SR."
+  },
+  {
+    "id": "i-54",
+    "score": 0.83,
+    "reasoning": "Per-feature step for Phase 2, loaded fresh. Classification categories in the step text. High per-iteration SR."
+  },
+  {
+    "id": "i-55",
+    "score": 0.83,
+    "reasoning": "Per-feature step for Phase 2, loaded fresh. Implementation + test requirement. High per-iteration SR."
+  },
+  {
+    "id": "i-56",
+    "score": 0.83,
+    "reasoning": "Per-feature step for Phase 3, loaded fresh. Simple read instruction. High per-iteration SR."
+  },
+  {
+    "id": "i-57",
+    "score": 0.83,
+    "reasoning": "Per-feature step for Phase 3, loaded fresh. Verification step with per-feature symbols. High per-iteration SR."
+  },
+  {
+    "id": "i-58",
+    "score": 0.82,
+    "reasoning": "Per-feature step for Phase 3, loaded fresh. Completeness check. High per-iteration SR but slightly more abstract than earlier steps."
+  },
+  {
+    "id": "i-59",
+    "score": 0.83,
+    "reasoning": "Per-feature step for Phase 4, loaded fresh. List all test functions. High per-iteration SR."
+  },
+  {
+    "id": "i-60",
+    "score": 0.85,
+    "reasoning": "Per-feature step for Phase 4, loaded fresh. The 5-point anti-pattern checklist is in the step text. Detailed and specific. Very high per-iteration SR due to specificity."
+  },
+  {
+    "id": "i-61",
+    "score": 0.83,
+    "reasoning": "Per-feature step for Phase 4, loaded fresh. Fix defective tests. High per-iteration SR. Note this conflicts with i-28 but the step itself is clear."
+  },
+  {
+    "id": "i-62",
+    "score": 0.83,
+    "reasoning": "Per-feature step for Phase 4, loaded fresh. Bug-finding through test strengthening. High per-iteration SR."
+  },
+  {
+    "id": "i-63",
+    "score": 0.82,
+    "reasoning": "Per-feature step for review-inline-tests. Loaded fresh. Uses grep command. High per-iteration SR."
+  },
+  {
+    "id": "i-64",
+    "score": 0.70,
+    "reasoning": "CLAUDE.md code rule. CLAUDE.md is auto-loaded by the system as context, giving it persistent top-of-context presence. But it's one bullet among many in a dense list, and under 50K+ token pressure it can fade. The system-reminder injection helps significantly."
+  },
+  {
+    "id": "i-65",
+    "score": 0.70,
+    "reasoning": "CLAUDE.md code rule. Same persistent injection as i-64. Dense bullet list position. Reinforced by pixel fidelity section. Moderate-high SR."
+  },
+  {
+    "id": "i-66",
+    "score": 0.72,
+    "reasoning": "CLAUDE.md code rule. Reinforced by i-80 (Do NOT Arc/Mutex). Dual mention in CLAUDE.md (code rules + Do NOT). Slightly higher than i-64/i-65."
+  },
+  {
+    "id": "i-67",
+    "score": 0.68,
+    "reasoning": "CLAUDE.md code rule. Reinforced by i-81 (Do NOT Cow). Dual mention. But String/&str is a low-stakes rule unlikely to cause audit failures."
+  },
+  {
+    "id": "i-68",
+    "score": 0.68,
+    "reasoning": "CLAUDE.md code rule. Reinforced by i-86 (Do NOT assert! for recoverable). Dual mention. Moderate SR."
+  },
+  {
+    "id": "i-69",
+    "score": 0.62,
+    "reasoning": "CLAUDE.md import rule. Single mention (no reinforcement elsewhere). Dense bullet list. Easily forgotten under context pressure but cargo fmt may auto-fix some violations."
+  },
+  {
+    "id": "i-70",
+    "score": 0.58,
+    "reasoning": "CLAUDE.md construction convention. Guidance, not constraint. Single mention. Unlikely to cause failures if missed. Low-moderate SR."
+  },
+  {
+    "id": "i-71",
+    "score": 0.55,
+    "reasoning": "CLAUDE.md module organization. Guidance. Single mention. Rarely relevant during an audit (you're mostly fixing existing files, not creating new modules). Low-moderate SR."
+  },
+  {
+    "id": "i-72",
+    "score": 0.62,
+    "reasoning": "CLAUDE.md visibility rule. Single mention. Persistent via system reminder but buried in bullet list. Moderate SR."
+  },
+  {
+    "id": "i-73",
+    "score": 0.58,
+    "reasoning": "CLAUDE.md unwrap rule. Guidance. Single mention. Tests allow bare unwrap() which partially self-enforces. Low-moderate SR."
+  },
+  {
+    "id": "i-74",
+    "score": 0.72,
+    "reasoning": "CLAUDE.md warning rule. Reinforced by clippy gate (i-05) which enforces -D warnings. The gate mechanically enforces this, so even if the instruction fades, the gate catches violations. High effective SR."
+  },
+  {
+    "id": "i-75",
+    "score": 0.78,
+    "reasoning": "CLAUDE.md pixel fidelity rule. Detailed with specific formula. Reinforced by prompt fidelity rules (i-18), contract fidelity_layer (i-39), and CLAUDE.md Do NOT rules (i-84). Quadruple reinforcement. Has bold header in CLAUDE.md. High SR."
+  },
+  {
+    "id": "i-76",
+    "score": 0.72,
+    "reasoning": "CLAUDE.md geometry fidelity rule. Reinforced by contract fidelity_layer (i-39). Dual reinforcement. Has bold header. Moderate-high SR."
+  },
+  {
+    "id": "i-77",
+    "score": 0.70,
+    "reasoning": "CLAUDE.md state fidelity rule. Reinforced by prompt i-19 and contract i-39. Triple reinforcement. But STATE is the permissive rule so forgetting it is less harmful. Moderate-high SR."
+  },
+  {
+    "id": "i-78",
+    "score": 0.65,
+    "reasoning": "CLAUDE.md tiebreaker rule. Has bold 'When in doubt' framing. Single mention. Guidance. Useful but conditional — only matters when uncertain. Moderate SR."
+  },
+  {
+    "id": "i-79",
+    "score": 0.72,
+    "reasoning": "CLAUDE.md Do NOT rule. In a bold-header Do NOT section with bullet formatting. Reinforced by clippy gate which catches most allow/expect attributes. Mechanically enforced. Good SR."
+  },
+  {
+    "id": "i-80",
+    "score": 0.72,
+    "reasoning": "CLAUDE.md Do NOT rule. Reinforced by i-66 in code rules section. Dual mention within same file. Good SR."
+  },
+  {
+    "id": "i-81",
+    "score": 0.68,
+    "reasoning": "CLAUDE.md Do NOT rule. Reinforced by i-67. Dual mention. Low-stakes rule. Moderate SR."
+  },
+  {
+    "id": "i-82",
+    "score": 0.65,
+    "reasoning": "CLAUDE.md Do NOT rule. Single effective mention (import rules). clippy may or may not catch glob imports. Moderate SR."
+  },
+  {
+    "id": "i-83",
+    "score": 0.72,
+    "reasoning": "CLAUDE.md Do NOT rule. Critical for pixel fidelity. Reinforced by i-75 and i-18. High-stakes rule with multi-source reinforcement. Good SR."
+  },
+  {
+    "id": "i-84",
+    "score": 0.75,
+    "reasoning": "CLAUDE.md Do NOT rule. Reinforced by i-75 and i-18. High-stakes for PIXEL layer features. Strong multi-source reinforcement. Good SR."
+  },
+  {
+    "id": "i-85",
+    "score": 0.62,
+    "reasoning": "CLAUDE.md Do NOT rule. Single mention. Unlikely to be relevant during audit (no reason to add parallelism). Low-moderate SR."
+  },
+  {
+    "id": "i-86",
+    "score": 0.65,
+    "reasoning": "CLAUDE.md Do NOT rule. Reinforced by i-68. Dual mention. Moderate SR."
+  },
+  {
+    "id": "i-87",
+    "score": 0.78,
+    "reasoning": "CLAUDE.md Do NOT rule. Reinforced by i-88 (pre-commit hook description). Also reinforced by system-level Claude Code instructions that say not to skip hooks. Triple reinforcement across CLAUDE.md + prompt ecosystem + system prompt. High SR."
+  },
+  {
+    "id": "i-88",
+    "score": 0.80,
+    "reasoning": "CLAUDE.md pre-commit hook rule. Has its own subsection '## Pre-commit hook'. Header formatting. Reinforced by i-87 and system instructions. The hook itself mechanically enforces compliance. Very high effective SR."
+  },
+  {
+    "id": "i-89",
+    "score": 0.45,
+    "reasoning": "Bottom-third, sub-detail of the log format (i-34). Inside a fenced code block which helps, but the specific fields (MATCHes count, MISSINGs count, etc.) are details that fade easily. No reinforcement. Low SR."
+  },
+  {
+    "id": "i-90",
+    "score": 0.48,
+    "reasoning": "Bottom-third. Single word 'append' in line 124. No bold, no reinforcement. Easy to miss — agent might overwrite instead of append. Low SR."
+  },
+  {
+    "id": "i-91",
+    "score": 0.72,
+    "reasoning": "Commit message format in the top-third code block. Reinforced by contract commit_protocol (i-38). The format string 'audit: <feature_id> <summary>' is in a code block. Dual reinforcement. Good SR."
+  },
+  {
+    "id": "i-92",
+    "score": 0.75,
+    "reasoning": "In the top-third code block loop. Contract JSON is explicitly listed in the git add line. Reinforced by contract commit_protocol (i-38). Good formatting + dual reinforcement. Good SR."
+  },
+  {
+    "id": "i-93",
+    "score": 0.78,
+    "reasoning": "Per-feature step from contract, loaded fresh each iteration. The word 'minimally' is in the step text. High per-iteration SR."
+  },
+  {
+    "id": "i-94",
+    "score": 0.75,
+    "reasoning": "Per-feature step from contract for Phase 2, loaded fresh. Scope estimate is a minor detail within the step. Good per-iteration SR but easy to skip as a sub-requirement."
+  },
+  {
+    "id": "i-95",
+    "score": 0.83,
+    "reasoning": "Per-feature step from contract for Phase 4, loaded fresh. Part of the 5-point checklist (i-60). Specific and concrete. High per-iteration SR."
+  },
+  {
+    "id": "i-96",
+    "score": 0.83,
+    "reasoning": "Per-feature step from contract for Phase 4, loaded fresh. Part of the 5-point checklist. Specific and concrete. High per-iteration SR."
+  },
+  {
+    "id": "i-97",
+    "score": 0.83,
+    "reasoning": "Per-feature step from contract for Phase 4, loaded fresh. Part of the 5-point checklist. The 'would FAIL if subtly wrong' criterion is the most cognitively demanding of the five. High per-iteration SR though compliance quality may vary."
+  },
+  {
+    "id": "i-98",
+    "score": 0.82,
+    "reasoning": "Per-feature step from contract, loaded fresh. The four categories are in the step text. SUSPECT category only appears in contract (not prompt .md), which could cause confusion but the per-iteration loading keeps it visible. Good SR."
+  }
+]

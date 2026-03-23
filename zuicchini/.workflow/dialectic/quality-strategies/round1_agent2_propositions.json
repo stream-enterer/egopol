@@ -1,0 +1,354 @@
+[
+  {
+    "id": "a2-01",
+    "proposition": "Port verification is a distinct discipline from code review or testing, because the C++ codebase serves as an executable specification that can answer any question formulated as an input.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.60,
+      "robustness": 0.85,
+      "compatibility": 0.90
+    },
+    "reasoning": {
+      "defensibility": "Well-grounded claim: having a running reference implementation fundamentally changes verification methodology compared to reviewing code against informal specs.",
+      "specificity": "Frames the problem space but does not prescribe a concrete action; it is a foundational assertion rather than an instruction.",
+      "robustness": "Holds under adversarial pressure because the oracle genuinely exists and is executable; the asymmetry is structural, not assumed.",
+      "compatibility": "Compatible with all strategies since it establishes the meta-framework rather than constraining any specific approach."
+    }
+  },
+  {
+    "id": "a2-02",
+    "proposition": "Adversarial re-audit of fix diffs against the C++ reference is the single highest-ROI verification strategy, because fixes that are 'close but not right' are the most dangerous remaining bug class.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.85,
+      "robustness": 0.80,
+      "compatibility": 0.75
+    },
+    "reasoning": {
+      "defensibility": "Strong argument: fix diffs are bounded artifacts and the C++ reference provides a definitive comparison point. The Ctrl+Left/Right bug is concrete evidence of this failure mode.",
+      "specificity": "Prescribes a clear action (re-audit each fix commit's diff against the corresponding C++ function) with a defined scope (31 fix commits).",
+      "robustness": "Could miss fixes whose correctness depends on runtime state rather than static code comparison, but the bounded scope limits wasted effort.",
+      "compatibility": "May compete for attention with empirical diffing (Strategy 6), but the two are complementary since one is code-level and the other is output-level."
+    }
+  },
+  {
+    "id": "a2-03",
+    "proposition": "LLM fix agents commonly introduce four specific error patterns: applying a correct formula at the wrong control flow point, using f64 division instead of C++ integer arithmetic, missing duplicated code paths, and over-fixing surrounding code.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.92,
+      "robustness": 0.75,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Based on observed failure modes in the project (CC-01 problem, over-fixing from context brief), though the enumeration may not be exhaustive.",
+      "specificity": "Highly actionable: each error pattern can be checked for mechanically during a re-audit pass.",
+      "robustness": "New LLM failure modes may emerge that are not in this taxonomy, so the list should be treated as non-exhaustive.",
+      "compatibility": "These patterns inform multiple strategies (fix re-audit, CC-01 consistency, coverage analysis) without conflicting with any."
+    }
+  },
+  {
+    "id": "a2-04",
+    "proposition": "The Rust port's decision to use 5 standalone widgets with duplicated logic instead of C++ inheritance creates a verification obligation: every fix to shared logic must be mirrored across all 5 widgets.",
+    "scores": {
+      "defensibility": 0.92,
+      "specificity": 0.88,
+      "robustness": 0.85,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "The obligation follows logically from the design choice; CC-05 alignment propagation failure is direct evidence of the risk.",
+      "specificity": "Identifies the exact widgets (button family) and the exact check (pairwise diff of shared functions against C++ base class).",
+      "robustness": "As long as the duplicated-logic design persists, this obligation remains valid regardless of project changes.",
+      "compatibility": "Slightly tensions with fragility analysis (Strategy 8) which would refactor the duplication away, but compatible in the near term."
+    }
+  },
+  {
+    "id": "a2-05",
+    "proposition": "For each intentional divergence, the critical question is not 'is this architecturally defensible?' but 'what specific user-visible behavior differs, and can it be triggered through normal UI interaction?'",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.80,
+      "robustness": 0.82,
+      "compatibility": 0.88
+    },
+    "reasoning": {
+      "defensibility": "Sound reframing: architectural elegance is irrelevant if the divergence creates user-facing behavioral differences.",
+      "specificity": "Provides a concrete test (enumerate user-visible differences, check triggerability) rather than vague 'review the divergence'.",
+      "robustness": "Some intentional divergences may have no user-visible effect now but could interact with future code changes; the criterion is necessary but not sufficient.",
+      "compatibility": "Complements coverage analysis and empirical diffing since behavioral differences can be validated through those strategies."
+    }
+  },
+  {
+    "id": "a2-06",
+    "proposition": "Golden tests can actively mask bugs by using inputs that happen to produce identical output regardless of the underlying correctness, as demonstrated by the Label alignment bug being hidden by width-constrained text.",
+    "scores": {
+      "defensibility": 0.93,
+      "specificity": 0.90,
+      "robustness": 0.88,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Proven by concrete evidence in the project: the alignment bug was masked by golden tests using width-constrained single-line text.",
+      "specificity": "Names the exact mechanism (input selection that coincidentally produces same output) and the exact example (Label alignment).",
+      "robustness": "This is a general testing principle that will remain true regardless of project evolution; the observation is fundamental.",
+      "compatibility": "Motivates boundary value testing and coverage gap analysis without conflicting with any other strategy."
+    }
+  },
+  {
+    "id": "a2-07",
+    "proposition": "Mutation testing should target FIXED items with no coverage rather than CLOSED items, because the higher-value question is 'would reverting this fix cause a test failure?' not 'can we prove a closed item was correctly closed.'",
+    "scores": {
+      "defensibility": 0.87,
+      "specificity": 0.85,
+      "robustness": 0.78,
+      "compatibility": 0.82
+    },
+    "reasoning": {
+      "defensibility": "Logically sound: FIXED items with no coverage have the highest risk of silent regression; CLOSED items were investigated and need no fix.",
+      "specificity": "Clearly redirects effort from one target (CLOSED) to another (FIXED uncovered) with a concrete methodology (revert-and-test).",
+      "robustness": "Some CLOSED items may have been incorrectly closed, so ignoring them entirely carries risk, but the prioritization is defensible.",
+      "compatibility": "Works well with coverage gap analysis (Strategy 4) as a natural follow-on."
+    }
+  },
+  {
+    "id": "a2-08",
+    "proposition": "Exploratory differential testing — rendering the same widget tree with systematically varied parameters in both C++ and Rust and diffing outputs — is the most direct exploitation of the oracle and finds bugs that targeted tests miss.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.82,
+      "robustness": 0.80,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Differential testing is a well-established technique; having both binaries and a pixel comparison infrastructure makes it directly applicable.",
+      "specificity": "Specifies the approach (vary widget type x enabled/disabled x zoom levels x content variants) and the infrastructure (golden test generator).",
+      "robustness": "Limited to rendering-visible bugs; logic bugs in signals, callbacks, and focus management are invisible to pixel diffing.",
+      "compatibility": "Complements code-level strategies (fix re-audit, semantic equivalence) that catch non-rendering bugs."
+    }
+  },
+  {
+    "id": "a2-09",
+    "proposition": "Empirical pixel diffing cannot find logic bugs in code paths that do not affect rendering, such as signal firing order, callback sequencing, clipboard operations, and focus management.",
+    "scores": {
+      "defensibility": 0.95,
+      "specificity": 0.85,
+      "robustness": 0.92,
+      "compatibility": 0.90
+    },
+    "reasoning": {
+      "defensibility": "Logically necessary: pixel comparison can only observe pixels. Non-visual behavior is by definition invisible to it.",
+      "specificity": "Enumerates four concrete categories of invisible bugs (signals, callbacks, clipboard, focus).",
+      "robustness": "This limitation is fundamental and cannot be overcome by improving the pixel diffing strategy itself.",
+      "compatibility": "Motivates complementary strategies (control flow comparison, behavioral testing) without diminishing the value of pixel diffing."
+    }
+  },
+  {
+    "id": "a2-10",
+    "proposition": "Commit-message-to-finding traceability auditing is low-value for finding bugs and should be used only as a preprocessing step to identify orphaned fixes and scope the fix diff re-audit.",
+    "scores": {
+      "defensibility": 0.80,
+      "specificity": 0.78,
+      "robustness": 0.75,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Sound distinction between process hygiene (did we attempt everything?) and correctness verification (did we fix everything right?).",
+      "specificity": "Defines the limited role (preprocessing for Strategy 1) and the one port-specific use (detecting orphaned fixes).",
+      "robustness": "In a less mature project, traceability might have higher value; the low ranking is context-dependent.",
+      "compatibility": "Naturally feeds into the fix diff re-audit without competing for resources."
+    }
+  },
+  {
+    "id": "a2-11",
+    "proposition": "C++ implicit integer promotion (u8 * u8 promoting to signed int) is a pervasive class of port bug where the explicit Rust type choice may be wrong, and the alpha dimming signed/unsigned mismatch proves this class exists in the codebase.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.92,
+      "robustness": 0.85,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "The alpha dimming bug is concrete proof; C++ integer promotion rules are well-documented and differ fundamentally from Rust's explicit typing.",
+      "specificity": "Names the exact mechanism (C++ promotes to 32-bit signed int, Rust keeps u8 and panics) and the specific categories to check (widening, shifts, float-to-int, enum discriminants).",
+      "robustness": "This class of bug is inherent to any C++-to-Rust port and will remain relevant as long as there is ported arithmetic code.",
+      "compatibility": "Supports pixel arithmetic fidelity rules in CLAUDE.md and complements the fix re-audit strategy."
+    }
+  },
+  {
+    "id": "a2-12",
+    "proposition": "For every function in the pixel arithmetic and geometry layers, every integer operation should be verified to ensure the Rust type matches the C++ promoted type, focusing on code that mixes signed/unsigned, shifts, or converts between float and integer.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.90,
+      "robustness": 0.78,
+      "compatibility": 0.75
+    },
+    "reasoning": {
+      "defensibility": "Follows directly from the integer promotion risk, and the project's CLAUDE.md already mandates matching C++ integer formulas exactly.",
+      "specificity": "Prescribes a mechanical verification procedure with clear scope (pixel arithmetic + geometry layers) and focus areas (mixed types, shifts, float-int).",
+      "robustness": "Tedious manual work may lead to incomplete coverage; automated tooling would strengthen this but is not proposed.",
+      "compatibility": "Could conflict with velocity goals due to the labor-intensive nature, but is fully aligned with the port fidelity requirements."
+    }
+  },
+  {
+    "id": "a2-13",
+    "proposition": "Boundary value differential testing — systematically probing minimum/maximum sizes, empty/max-length content, boundary color values, and edge coordinates in both C++ and Rust — is where empirical diffing becomes most powerful for finding port bugs.",
+    "scores": {
+      "defensibility": 0.86,
+      "specificity": 0.88,
+      "robustness": 0.82,
+      "compatibility": 0.88
+    },
+    "reasoning": {
+      "defensibility": "Boundary value analysis is well-established, and the alignment bug example proves boundary inputs find bugs that typical inputs miss in this project.",
+      "specificity": "Lists four concrete boundary categories (sizes, content length, color values, edge coordinates) with actionable examples for each.",
+      "robustness": "The boundary space is still large; systematic coverage requires disciplined enumeration but the principle is sound.",
+      "compatibility": "Natural extension of empirical pixel diffing (Strategy 6) and directly addresses the golden test masking problem."
+    }
+  },
+  {
+    "id": "a2-14",
+    "proposition": "Control flow graph comparison between C++ and Rust function pairs — verifying that every return point has the same side effects (mutations, signals, invalidations) — catches structural divergences that line-by-line code comparison misses.",
+    "scores": {
+      "defensibility": 0.83,
+      "specificity": 0.80,
+      "robustness": 0.72,
+      "compatibility": 0.82
+    },
+    "reasoning": {
+      "defensibility": "The example of early return with a forgotten side effect is a concrete and plausible bug pattern; structural divergence is a real risk.",
+      "specificity": "Describes a concrete methodology (draw decision trees, compare leaves, verify side effects) with priority targets (paint functions, input handlers).",
+      "robustness": "Manual decision tree comparison is error-prone and does not scale well to large functions; the methodology is conceptually sound but practically fragile.",
+      "compatibility": "Fills a gap left by pixel diffing (catches non-rendering bugs) and fix re-audit (catches structural rather than formula errors)."
+    }
+  },
+  {
+    "id": "a2-15",
+    "proposition": "The fix diff re-audit must be completed before any other verification strategy because it validates the foundation — all subsequent strategies assume the fixes are correct.",
+    "scores": {
+      "defensibility": 0.78,
+      "specificity": 0.75,
+      "robustness": 0.68,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Reasonable ordering argument: if fixes are wrong, coverage analysis and differential testing may produce misleading results.",
+      "specificity": "States a clear sequencing constraint with justification.",
+      "robustness": "The strict sequencing may be unnecessarily rigid; some strategies (empirical diffing) could find fix errors independently and could proceed in parallel.",
+      "compatibility": "The strict ordering constraint may reduce throughput if taken literally, creating friction with parallel execution strategies."
+    }
+  },
+  {
+    "id": "a2-16",
+    "proposition": "The unifying meta-strategy is 'use the oracle whenever you can, use code reading when you must' — every verification strategy should be evaluated by how effectively it leverages the C++ code, binary, and golden test generator.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.65,
+      "robustness": 0.82,
+      "compatibility": 0.90
+    },
+    "reasoning": {
+      "defensibility": "Sound principle: empirical verification against a reference implementation is more reliable and less biased than analytical code review.",
+      "specificity": "A high-level organizing principle rather than a concrete action; useful for prioritization but not directly executable.",
+      "robustness": "Correctly acknowledges that code reading is unavoidable for non-rendering behavior, preventing over-reliance on the oracle.",
+      "compatibility": "Provides a unifying framework that all other strategies can be evaluated against without constraining any of them."
+    }
+  },
+  {
+    "id": "a2-17",
+    "proposition": "The port is not done when all tests pass; it is done when every function's output matches the oracle's output for every input the function can receive.",
+    "scores": {
+      "defensibility": 0.75,
+      "specificity": 0.50,
+      "robustness": 0.60,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Aspirationally correct but the input space is infinite; in practice, 'done' requires a pragmatic coverage threshold.",
+      "specificity": "An ideal endpoint definition rather than an actionable criterion; does not specify what coverage level constitutes 'done enough.'",
+      "robustness": "Taken literally, this standard is unachievable; taken as a guiding principle, it correctly orients effort toward broader oracle utilization.",
+      "compatibility": "Aligns with the oracle-first meta-strategy and motivates all verification work, but may set unrealistic expectations."
+    }
+  },
+  {
+    "id": "a2-18",
+    "proposition": "Fragility analysis and maintenance documentation should be deferred until after the code stabilizes, because the code is still actively changing with 30 pending LOW-priority items and ongoing development.",
+    "scores": {
+      "defensibility": 0.80,
+      "specificity": 0.78,
+      "robustness": 0.72,
+      "compatibility": 0.75
+    },
+    "reasoning": {
+      "defensibility": "Standard engineering judgment: documenting maintenance procedures for unstable code wastes effort if the code changes significantly.",
+      "specificity": "Cites concrete project state (30 pending LOWs, active development) as justification for deferral.",
+      "robustness": "If stabilization takes longer than expected, the deferred documentation gap could allow new bugs to accumulate in duplicated code.",
+      "compatibility": "May conflict with strategies that want to refactor duplicated code now (CC-01 consistency), but the deferral is about documentation, not the consistency checks themselves."
+    }
+  },
+  {
+    "id": "a2-19",
+    "proposition": "Silent skipping — fix agents marking audit items ACCEPTED without justification to clear the checklist — is a specific failure mode that adversarial rationale review is designed to catch.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.88,
+      "robustness": 0.80,
+      "compatibility": 0.82
+    },
+    "reasoning": {
+      "defensibility": "Well-defined failure mode with a clear detection mechanism: require each acceptance to be justified against the oracle.",
+      "specificity": "Names the exact anti-pattern (silent skipping) and the exact countermeasure (adversarial review forcing justification).",
+      "robustness": "A sufficiently sophisticated agent could generate plausible-sounding but incorrect justifications, weakening the adversarial check.",
+      "compatibility": "Complements fix re-audit (which catches wrong fixes) by catching non-fixes disguised as acceptances."
+    }
+  },
+  {
+    "id": "a2-20",
+    "proposition": "Rounding differences that compound across nested layouts, font rendering differences at specific sizes, and interactions between independently-correct fixes that produce visible artifacts are bugs that can only be found through empirical pixel diffing, not code reading.",
+    "scores": {
+      "defensibility": 0.84,
+      "specificity": 0.85,
+      "robustness": 0.78,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Each bug category involves emergent behavior from multiple correct components interacting, which is genuinely hard to predict from code reading alone.",
+      "specificity": "Enumerates three concrete bug categories with clear mechanisms (rounding accumulation, size-dependent text metrics, fix interaction).",
+      "robustness": "Some of these could theoretically be found by very careful static analysis, but the practical argument for empirical detection is strong.",
+      "compatibility": "Motivates empirical diffing investment and complements code-level strategies by identifying their blind spots."
+    }
+  },
+  {
+    "id": "a2-21",
+    "proposition": "The golden test generator should be extended to produce a grid of widget states covering every widget type crossed with enabled/disabled states, multiple zoom levels, and multiple content variants for systematic differential comparison.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.90,
+      "robustness": 0.75,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Combinatorial testing is established methodology; the infrastructure (golden test generator) already exists, reducing implementation cost.",
+      "specificity": "Specifies the exact dimensions of the test grid (widget type x enabled/disabled x 3 zoom levels x 3 content variants) and the comparison method (tolerance-aware pixel diff).",
+      "robustness": "Combinatorial explosion may make the full grid impractical; prioritization of which combinations to test first is not addressed.",
+      "compatibility": "Natural extension of existing golden test infrastructure; aligns with boundary value testing and coverage gap analysis."
+    }
+  },
+  {
+    "id": "a2-22",
+    "proposition": "Strategies that do not leverage the C++ oracle (traceability auditing, fragility analysis) are generic quality practices with low port-specificity and should be ranked lowest in priority.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.78,
+      "robustness": 0.74,
+      "compatibility": 0.78
+    },
+    "reasoning": {
+      "defensibility": "Follows from the meta-strategy: in a port with a running oracle, strategies that ignore the oracle leave value on the table.",
+      "specificity": "Names the two specific strategies and their ranking, with clear justification (port-specificity as ranking criterion).",
+      "robustness": "Some non-oracle strategies (like traceability) serve as enablers for oracle-based strategies, so their value is partially indirect.",
+      "compatibility": "Consistent with the oracle-first principle; may undervalue process hygiene that prevents downstream errors."
+    }
+  }
+]

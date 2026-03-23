@@ -1,0 +1,370 @@
+[
+  {
+    "id": "a3-01",
+    "proposition": "Mutation testing on golden tests will become less effective as the port improves, because fixed pixels free up tolerance budget that absorbs future reverts without failing the test.",
+    "scores": {
+      "defensibility": 0.92,
+      "specificity": 0.88,
+      "robustness": 0.85,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "The argument is mathematically sound: if ch_tol and max_failure_pct are fixed and correct pixels increase, each individual revert disturbs a smaller fraction of the tolerance budget.",
+      "specificity": "Identifies a concrete mechanism (tolerance absorption) in a specific test infrastructure (golden tests with ch_tol/max_failure_pct), making it directly actionable.",
+      "robustness": "Holds as long as golden tests use per-frame tolerance budgets rather than per-pixel exact match. Could be mitigated by per-fix tolerance tracking, but the core claim survives.",
+      "compatibility": "Partially conflicts with strategies that rely on mutation testing as a verification gate, but compatible with strategies that use empirical diffing or source-level review instead."
+    }
+  },
+  {
+    "id": "a3-02",
+    "proposition": "Tightening golden test tolerances to compensate for tolerance absorption will introduce false failures on correct fixes that differ by 1 channel value due to legitimate rounding order differences.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.82,
+      "robustness": 0.75,
+      "compatibility": 0.65
+    },
+    "reasoning": {
+      "defensibility": "Well-grounded in the reality that C++ and Rust integer math can produce +-1 differences at rounding boundaries, and the CLAUDE.md rules acknowledge this by requiring exact C++ formulas only in pixel arithmetic.",
+      "specificity": "Identifies the specific consequence (1-channel-value false failures) of a specific action (tightening tolerances), though doesn't quantify how often this occurs.",
+      "robustness": "Could be weakened if someone proves that all correct ports produce exact matches. The argument depends on there being legitimate rounding differences, which is empirically true but not proven exhaustively.",
+      "compatibility": "Tension with any strategy that proposes tolerance tightening, but compatible with strategies that leave tolerances unchanged."
+    }
+  },
+  {
+    "id": "a3-03",
+    "proposition": "Cross-fix consistency checks that compare source code across the 5 button-family widgets cannot distinguish cosmetic differences from behavioral differences without executing the code, reducing them to empirical pixel diffing.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.85,
+      "robustness": 0.80,
+      "compatibility": 0.72
+    },
+    "reasoning": {
+      "defensibility": "Logically sound: behavioral equivalence of two code fragments is generally undecidable by static analysis alone (a weak form of Rice's theorem applies).",
+      "specificity": "Names the exact widgets (Button, CheckButton, CheckBox, RadioButton, RadioBox) and the exact problem (source-level comparison conflating cosmetic and behavioral differences).",
+      "robustness": "Strong because it rests on a fundamental computability argument. Could be partially mitigated by structured comparison (e.g., comparing only specific coefficients), but the general claim holds.",
+      "compatibility": "Compatible with empirical testing strategies; directly challenges source-level consistency audits."
+    }
+  },
+  {
+    "id": "a3-04",
+    "proposition": "Iterative source-level harmonization of duplicated widget code will converge on textual similarity while potentially introducing bugs by making correct-but-different implementations match an incorrect template.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.78,
+      "robustness": 0.77,
+      "compatibility": 0.68
+    },
+    "reasoning": {
+      "defensibility": "The mechanism is plausible: harmonization without behavioral verification can propagate a template bug to all copies. Requires the template to be wrong, which isn't guaranteed but is a real risk.",
+      "specificity": "Describes a concrete failure scenario (template propagation) but doesn't cite a specific instance from the codebase where this has happened or could happen.",
+      "robustness": "Mitigable by running golden tests after each harmonization step, but the core risk (textual convergence != behavioral correctness) remains valid.",
+      "compatibility": "Conflicts with consistency-enforcement strategies; compatible with strategies that prefer shared-trait extraction over copy harmonization."
+    }
+  },
+  {
+    "id": "a3-05",
+    "proposition": "An LLM adversarial reviewer evaluating LLM-written justifications will accept well-written false justifications and reject poorly-written correct justifications, because both the writer and reviewer optimize for the same 'sounds reasonable' objective.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.83,
+      "robustness": 0.88,
+      "compatibility": 0.60
+    },
+    "reasoning": {
+      "defensibility": "Strong structural argument: LLM generation and LLM evaluation share training distributions, so fluent falsehoods pass the same filter that produced them.",
+      "specificity": "Identifies the exact failure pattern (well-written wrong vs. poorly-written right) but doesn't quantify how often this actually occurs in practice.",
+      "robustness": "Highly robust because it follows from the fundamental nature of LLM text evaluation. Mitigation requires non-LLM verification (running code, reading source), which transforms the strategy into something else.",
+      "compatibility": "Low compatibility with any strategy relying on LLM-on-LLM review, but compatible with strategies that ground verification in executable tests."
+    }
+  },
+  {
+    "id": "a3-06",
+    "proposition": "When an adversarial reviewer flags a CLOSED finding, the response will be a better-written justification rather than a re-investigation of the technical question, causing the system to optimize for prose quality instead of decision quality.",
+    "scores": {
+      "defensibility": 0.87,
+      "specificity": 0.80,
+      "robustness": 0.82,
+      "compatibility": 0.58
+    },
+    "reasoning": {
+      "defensibility": "Follows from incentive structure: writing a better justification is cheaper than re-investigating, so agents will choose the cheaper path. This is a well-known principal-agent problem.",
+      "specificity": "Identifies the specific perverse incentive and its concrete outcome (prose improvement vs. technical re-investigation).",
+      "robustness": "Could be mitigated by requiring re-investigation artifacts (new test results, code diffs) alongside justifications, but the default incentive gradient strongly favors prose improvement.",
+      "compatibility": "Conflicts with adversarial rationale review strategies; compatible with strategies that require executable evidence of correctness."
+    }
+  },
+  {
+    "id": "a3-07",
+    "proposition": "Fix diff re-audits verify what changed in individual commits but cannot detect what should have changed but didn't, because downstream call sites and cross-file interactions are outside the diff's temporal boundary.",
+    "scores": {
+      "defensibility": 0.91,
+      "specificity": 0.86,
+      "robustness": 0.84,
+      "compatibility": 0.75
+    },
+    "reasoning": {
+      "defensibility": "Logically necessary: diffs show additions/removals, not the set of all locations that should have been modified. This is a fundamental limitation of diff-based review.",
+      "specificity": "Cites a concrete example: Border's label_space change and its three call sites (content_rect, content_round_rect, content_rect_unobscured) that may not appear in the same diff.",
+      "robustness": "Very robust because it follows from the definition of a diff. Mitigation requires full-file review, which is a different strategy.",
+      "compatibility": "Compatible with full-file review strategies and empirical testing; directly challenges diff-based re-audit approaches."
+    }
+  },
+  {
+    "id": "a3-08",
+    "proposition": "Empirical pixel diffing between C++ (emCore software renderer to X11) and Rust (wgpu) will produce a permanent noise floor of rendering pipeline artifacts (font hinting, anti-aliasing, gamma curves) that degrades the signal-to-noise ratio as real bugs are fixed.",
+    "scores": {
+      "defensibility": 0.93,
+      "specificity": 0.90,
+      "robustness": 0.88,
+      "compatibility": 0.65
+    },
+    "reasoning": {
+      "defensibility": "Empirically verifiable: different rendering backends produce systematically different pixel output for identical logical content. This is well-established in graphics engineering.",
+      "specificity": "Names the exact rendering backends (emCore software renderer vs. wgpu), the exact artifact types (font hinting, anti-aliasing, gamma), and the exact degradation mechanism (fixed noise floor, decreasing real bugs).",
+      "robustness": "Very robust because the noise floor is structural (different renderers) and cannot be eliminated without renderer unification. Exclusion lists are the only mitigation, and they create their own problems.",
+      "compatibility": "Conflicts with empirical diffing strategies; compatible with golden-test-based verification that uses the same renderer."
+    }
+  },
+  {
+    "id": "a3-09",
+    "proposition": "Known-difference exclusion lists for empirical pixel diffing will grow monotonically and become a shadow tolerance system that hides real bugs falling in excluded regions.",
+    "scores": {
+      "defensibility": 0.84,
+      "specificity": 0.82,
+      "robustness": 0.79,
+      "compatibility": 0.62
+    },
+    "reasoning": {
+      "defensibility": "Sound reasoning: removing an exclusion requires re-triaging it (same cost as original triage), so exclusions accumulate. New bugs in excluded regions are invisible by construction.",
+      "specificity": "Describes a concrete operational mechanism (exclusion list growth, re-triage cost) with clear consequences.",
+      "robustness": "Could be mitigated by periodic exclusion list audits, but the cost argument (re-triage is expensive) makes this mitigation unlikely to be sustained.",
+      "compatibility": "Conflicts with empirical diffing strategies; compatible with strategies using same-renderer golden tests."
+    }
+  },
+  {
+    "id": "a3-10",
+    "proposition": "Commit-to-finding traceability audits verify the existence of a response to each finding but not the adequacy of that response, because they operate on finding titles and commit messages rather than finding content and code changes.",
+    "scores": {
+      "defensibility": 0.89,
+      "specificity": 0.84,
+      "robustness": 0.83,
+      "compatibility": 0.72
+    },
+    "reasoning": {
+      "defensibility": "Logically sound: traceability maps identifiers (finding numbers) to identifiers (commit hashes), not semantic content to semantic content.",
+      "specificity": "Identifies the specific gap (title-level vs. content-level matching) and the specific consequence (edge cases in finding descriptions being ignored).",
+      "robustness": "Robust because it follows from the structure of traceability systems. Mitigation requires content-level verification, which is a different kind of audit.",
+      "compatibility": "Compatible with strategies that do content-level verification; challenges traceability-only approaches."
+    }
+  },
+  {
+    "id": "a3-11",
+    "proposition": "Traceability audits will train future fix agents to optimize for referencing finding numbers in commit messages rather than addressing finding content, creating a ritual compliance pattern.",
+    "scores": {
+      "defensibility": 0.83,
+      "specificity": 0.79,
+      "robustness": 0.76,
+      "compatibility": 0.65
+    },
+    "reasoning": {
+      "defensibility": "Classic Goodhart's Law application: when the measure (finding number in commit message) becomes the target, it ceases to be a good measure of the goal (finding actually addressed).",
+      "specificity": "Describes a concrete behavioral pattern (ritual invocation of finding numbers) with a clear mechanism (agents optimizing for what is measured).",
+      "robustness": "Could be mitigated by requiring fix agents to quote the full finding description, but this increases context consumption. The incentive gradient still favors minimal compliance.",
+      "compatibility": "Compatible with strategies that verify fix adequacy through testing rather than traceability."
+    }
+  },
+  {
+    "id": "a3-12",
+    "proposition": "A maintenance guide documenting cross-file update dependencies ('if you change X, change Y too') will codify code duplication as a permanent architectural decision and foreclose the refactoring option of extracting shared traits.",
+    "scores": {
+      "defensibility": 0.80,
+      "specificity": 0.83,
+      "robustness": 0.72,
+      "compatibility": 0.60
+    },
+    "reasoning": {
+      "defensibility": "Reasonable inference: documenting how to maintain duplicated code implicitly endorses the duplication. However, a guide could explicitly note that deduplication is preferred when feasible.",
+      "specificity": "Names the concrete failure (foreclosing shared-trait extraction) and the concrete mechanism (guide treating duplication as intentional).",
+      "robustness": "Weakened by the possibility that a guide could explicitly recommend deduplication. The claim assumes the guide doesn't include that recommendation.",
+      "compatibility": "Conflicts with documentation strategies; compatible with refactoring-first strategies."
+    }
+  },
+  {
+    "id": "a3-13",
+    "proposition": "Stale maintenance documentation is worse than no documentation because it carries authority that overrides an agent's correct independent judgment, causing agents to follow outdated instructions over current code reality.",
+    "scores": {
+      "defensibility": 0.86,
+      "specificity": 0.75,
+      "robustness": 0.80,
+      "compatibility": 0.58
+    },
+    "reasoning": {
+      "defensibility": "Well-established principle in software engineering and organizational theory: stale authoritative documents cause more harm than absence. The CLAUDE.md mechanism demonstrates that agents do follow documented instructions.",
+      "specificity": "Somewhat general as a principle, though grounded in the specific context of LLM agents that follow file-based instructions.",
+      "robustness": "Robust because it follows from how LLM agents weight authoritative documents. Mitigation requires active document maintenance, which has its own cost.",
+      "compatibility": "Conflicts with all documentation-centric strategies; compatible with code-as-documentation approaches (tests, types, traits)."
+    }
+  },
+  {
+    "id": "a3-14",
+    "proposition": "Running all 8 strategies across 20 widgets requires 160+ agent dispatches that re-read the same source files in fresh contexts, consuming approximately 3x the context tokens of a single-pass approach due to lack of shared state between dispatches.",
+    "scores": {
+      "defensibility": 0.78,
+      "specificity": 0.85,
+      "robustness": 0.70,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "The multiplication (8 strategies x 20 widgets) and the re-reading overhead are straightforward. The 3x estimate is rough but directionally correct.",
+      "specificity": "Provides concrete numbers (160 dispatches, 5000-15000 tokens per dispatch, 3x overhead) that can be verified or disputed.",
+      "robustness": "Could be mitigated by batching strategies per widget or sharing context across strategies. The 3x multiplier is an estimate, not a proof.",
+      "compatibility": "Highly compatible with most strategies because it's an operational concern, not a strategic conflict. Any strategy benefits from reduced context waste."
+    }
+  },
+  {
+    "id": "a3-15",
+    "proposition": "As strategy outputs accumulate across dispatches, later strategies will operate on summaries of summaries rather than source code, with multiplicative information loss at each summarization layer degrading specific findings into vague concerns.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.82,
+      "robustness": 0.85,
+      "compatibility": 0.72
+    },
+    "reasoning": {
+      "defensibility": "Information-theoretic argument: each summarization step loses detail, and the losses compound multiplicatively. The concrete example given (specific line-number finding degrading to 'some discrepancies may exist') is illustrative and plausible.",
+      "specificity": "Provides a concrete before/after example of information loss, making the abstract argument tangible.",
+      "robustness": "Robust because it follows from fundamental properties of lossy summarization. Mitigation requires either carrying full reports (context explosion) or structured data formats (not natural language).",
+      "compatibility": "Compatible with strategies that minimize inter-strategy dependencies; challenges multi-strategy orchestration approaches."
+    }
+  },
+  {
+    "id": "a3-16",
+    "proposition": "All 8 proposed strategies share a structural bias toward verifying the 170+ already-identified findings while providing no mechanism to discover bugs that the original audit missed entirely.",
+    "scores": {
+      "defensibility": 0.91,
+      "specificity": 0.80,
+      "robustness": 0.88,
+      "compatibility": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Verifiable by examining each strategy's scope: all operate on existing findings, fix commits, or known widget structures. None includes an open-ended bug-hunting component.",
+      "specificity": "Clear structural claim about all 8 strategies, though doesn't propose what a bug-discovery strategy would look like.",
+      "robustness": "Very robust because it's a scope observation, not a mechanism claim. The strategies literally don't include unknown-bug discovery.",
+      "compatibility": "Low compatibility because it challenges the entire 8-strategy framework, not just individual strategies. Compatible with strategies that include exploratory testing."
+    }
+  },
+  {
+    "id": "a3-17",
+    "proposition": "The conclusion 'all 8 strategies passed, the port is high quality' is indistinguishable from 'all 8 strategies confirmed resolution of known bugs while unknown bugs remain unexamined,' making strategy-pass a measure of audit completeness rather than port quality.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.77,
+      "robustness": 0.87,
+      "compatibility": 0.52
+    },
+    "reasoning": {
+      "defensibility": "Logically rigorous: the strategies verify known findings, so their pass/fail is about known findings, not overall quality. The distinction between the two interpretations is real and important.",
+      "specificity": "Clear conceptual distinction but somewhat abstract. Doesn't provide a concrete way to tell the two interpretations apart.",
+      "robustness": "Very robust as a logical argument. The only mitigation is to include unknown-bug-discovery strategies, which the current framework doesn't.",
+      "compatibility": "Low compatibility with the overall strategy framework because it questions the framework's ability to produce meaningful quality signals."
+    }
+  },
+  {
+    "id": "a3-18",
+    "proposition": "When strategies 1 (re-audit), 5 (mutation testing), and 6 (empirical diffing) produce contradictory signals about a fix, the orchestrator will resolve the contradiction by majority vote rather than analysis, discarding the informative disagreement signal.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.84,
+      "robustness": 0.75,
+      "compatibility": 0.68
+    },
+    "reasoning": {
+      "defensibility": "Plausible prediction about LLM orchestrator behavior: majority-signal default is a common LLM pattern when facing contradictory inputs. Not proven but well-motivated.",
+      "specificity": "Names the exact strategies (1, 5, 6), the exact contradiction pattern (correct-by-inspection vs. unverified-by-test vs. unobservable-by-diff), and the exact resolution mechanism (majority vote).",
+      "robustness": "Could be mitigated by explicit orchestrator instructions for handling contradictions. The prediction is about default behavior, not about what must happen.",
+      "compatibility": "Compatible with strategies that define explicit contradiction-resolution protocols; challenges naive multi-strategy orchestration."
+    }
+  },
+  {
+    "id": "a3-19",
+    "proposition": "Golden tests explicitly skip alpha channel comparison, so any fix affecting compositing pipeline alpha handling (compositing order, transparency accumulation, layer visibility) is structurally unverifiable by golden tests despite coverage analysis reporting the function as covered.",
+    "scores": {
+      "defensibility": 0.94,
+      "specificity": 0.92,
+      "robustness": 0.90,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Directly verifiable in the codebase: compare_images in common.rs skips alpha. If true, the claim follows necessarily.",
+      "specificity": "Names the exact file (common.rs), the exact channel (alpha/channel 3), the exact reason (C++ uses it for remaining canvas visibility), and the exact consequence (coverage reports are misleading).",
+      "robustness": "Very robust because it's a factual claim about test infrastructure behavior. Only mitigation is to add alpha comparison, which requires resolving the C++ semantic difference.",
+      "compatibility": "Compatible with most strategies; specifically warns coverage analysis and mutation testing about a blind spot they share."
+    }
+  },
+  {
+    "id": "a3-20",
+    "proposition": "As the port improves, a larger fraction of remaining bugs will concentrate in the alpha/compositing path that golden tests cannot verify, causing quality metrics to improve while actual risk concentrates in the blind spot.",
+    "scores": {
+      "defensibility": 0.79,
+      "specificity": 0.76,
+      "robustness": 0.74,
+      "compatibility": 0.68
+    },
+    "reasoning": {
+      "defensibility": "Reasonable inference from a3-19: if easy bugs are fixed first and alpha bugs are undetectable, the remaining bug population skews toward alpha. However, this assumes alpha bugs exist in meaningful quantity.",
+      "specificity": "Describes a concrete risk concentration mechanism but relies on the assumption that alpha-related bugs are a significant fraction of remaining bugs.",
+      "robustness": "Weakened if there are few alpha-related bugs in practice. The mechanism is sound but the magnitude is uncertain.",
+      "compatibility": "Compatible with strategies that acknowledge golden test limitations; challenges strategies that use golden test metrics as quality indicators."
+    }
+  },
+  {
+    "id": "a3-21",
+    "proposition": "The 8-strategy process is more likely to produce a confident 'all clear' signal than a single deep investigation of the 30 PENDING items, because breadth across many shallow passes produces confidence while depth on specific items produces bugs.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.81,
+      "robustness": 0.78,
+      "compatibility": 0.50
+    },
+    "reasoning": {
+      "defensibility": "Well-argued: shallow passes aggregate reassuring signals, while deep dives surface uncomfortable specifics. The structural incentive toward breadth over depth is real.",
+      "specificity": "Identifies the specific alternative (deep investigation of 30 PENDING items) and the specific mechanism (breadth vs. depth tradeoff).",
+      "robustness": "Could be mitigated by designing strategies to do deep investigation rather than broad sweeps. The claim is about the current strategy designs, not about multi-strategy approaches in general.",
+      "compatibility": "Low compatibility because it fundamentally challenges the multi-strategy approach in favor of focused deep dives."
+    }
+  },
+  {
+    "id": "a3-22",
+    "proposition": "An LLM adversarial reviewer cannot verify factual claims in justifications (e.g., 'C++ emListBox.cpp has no VCT_MIN_EXT check') without reading the referenced source files, so it evaluates internal consistency of justifications rather than factual accuracy, and internal consistency is trivially achievable for false claims.",
+    "scores": {
+      "defensibility": 0.91,
+      "specificity": 0.88,
+      "robustness": 0.86,
+      "compatibility": 0.62
+    },
+    "reasoning": {
+      "defensibility": "Logically necessary: verifying a claim about source file contents requires reading those contents. If the reviewer's context doesn't include the source, it can only check coherence, not truth.",
+      "specificity": "Provides a concrete example claim ('emListBox.cpp has no VCT_MIN_EXT check') and names the exact limitation (context doesn't include C++ source).",
+      "robustness": "Robust because it follows from context window constraints. Mitigation requires including all referenced sources in the reviewer's context, which hits the context budget problem (a3-14).",
+      "compatibility": "Conflicts with adversarial review strategies that don't include source access; compatible with strategies that ground review in code reading."
+    }
+  },
+  {
+    "id": "a3-23",
+    "proposition": "The orchestrator's combined confidence from 8 strategy reports cannot be computed as a product of individual confidences (e.g., 0.95^8) because the strategies share correlated failure modes (same codebase, same LLM blind spots, same audit artifacts), making the actual combined confidence much weaker than the formula suggests.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.80,
+      "robustness": 0.85,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Statistically sound: independence is required for product-of-probabilities, and the strategies are clearly not independent (shared inputs, shared LLM failure modes).",
+      "specificity": "Identifies the specific statistical error (treating correlated signals as independent) and names the shared failure sources.",
+      "robustness": "Robust because correlation between LLM-based strategies operating on the same codebase is inherent, not eliminable. The only mitigation is using diverse verification methods (some non-LLM).",
+      "compatibility": "Compatible with strategies that acknowledge correlation; challenges orchestration approaches that aggregate strategy results naively."
+    }
+  }
+]

@@ -1,0 +1,492 @@
+[
+  {
+    "id": "i-01",
+    "score": 0.85,
+    "reasoning": "Imperative 'Read ... at the start of the run' is clear and verifiable (did the agent read the file or not). Minor ambiguity: 'at the start' is relative but contextually unambiguous."
+  },
+  {
+    "id": "i-02",
+    "score": 0.85,
+    "reasoning": "Same structure as i-01. Clear imperative to read a specific file at a specific time."
+  },
+  {
+    "id": "i-03",
+    "score": 0.80,
+    "reasoning": "The loop structure is presented in code-block pseudocode, making it fairly precise. 'passes == false' is binary. 'In order' is verifiable. Slight ambiguity in what 'next' means if features are nested in phases."
+  },
+  {
+    "id": "i-04",
+    "score": 0.65,
+    "reasoning": "The parenthetical '(read files, compare, report, fix, test)' is a summary, not a precise specification. The actual steps come from the contract JSON, so this is a pointer to external data rather than a self-contained constraint."
+  },
+  {
+    "id": "i-05",
+    "score": 0.95,
+    "reasoning": "Exact command specified. 'Zero warnings' is binary and machine-verifiable. Gate condition with clear pass/fail criteria. Near-perfect CE."
+  },
+  {
+    "id": "i-06",
+    "score": 0.95,
+    "reasoning": "Exact command specified. 'Zero failures' is binary and machine-verifiable. Same quality as i-05."
+  },
+  {
+    "id": "i-07",
+    "score": 0.90,
+    "reasoning": "Binary state transition: set passes to true. Depends on gate passing. Clear and verifiable -- either the JSON field is true or it isn't."
+  },
+  {
+    "id": "i-08",
+    "score": 0.85,
+    "reasoning": "Specifies exact files to add and commit message format. The '<changed files>' placeholder requires agent judgment about what changed, which introduces minor ambiguity."
+  },
+  {
+    "id": "i-09",
+    "score": 0.95,
+    "reasoning": "Binary prohibition: 'Do not enter plan mode.' Five words, zero ambiguity, fully verifiable. Excellent drift resistance."
+  },
+  {
+    "id": "i-10",
+    "score": 0.75,
+    "reasoning": "The bootstrap script is provided verbatim in a code block, which is precise. But 'see current progress' is descriptive rather than constraining -- the agent could skip interpreting the output."
+  },
+  {
+    "id": "i-11",
+    "score": 0.70,
+    "reasoning": "Describes the Phase 1 workflow at summary level. 'Compare each C++ method' is clear, but 'Report MATCH/MISMATCH/MISSING for each' lacks specification of what constitutes each category at this summary level. The contract steps provide more detail."
+  },
+  {
+    "id": "i-12",
+    "score": 0.70,
+    "reasoning": "Phase 2 summary with three classification categories. The categories are named but the boundaries between IMPLEMENTED/NOT_NEEDED/NEEDS_IMPLEMENTATION require judgment. 'Implement what's needed' is open-ended."
+  },
+  {
+    "id": "i-13",
+    "score": 0.65,
+    "reasoning": "'Verify all consolidated C++ methods are present' requires judgment about what 'present' means (exact name match? behavioral equivalent?). Less binary than Phase 1's explicit categories."
+  },
+  {
+    "id": "i-14",
+    "score": 0.60,
+    "reasoning": "Phase 4 requires reviewing ALL 1500+ tests for anti-patterns, but the anti-pattern definitions (test-shaped validation, missing side-effect checks, etc.) involve judgment calls. 'Strengthen defective tests' is subjective. The scope is clear (ALL tests) but the action criteria are soft."
+  },
+  {
+    "id": "i-15",
+    "score": 0.90,
+    "reasoning": "Explicitly states 'This is not guidance -- it is a requirement.' The test layers are enumerated with exact locations. Binary verifiability: either all required layers have a test or they don't. The prompt reinforces this with imperative language."
+  },
+  {
+    "id": "i-16",
+    "score": 0.50,
+    "reasoning": "'Follow the patterns' is guidance language -- which patterns? How closely? The directories are specified but 'follow patterns' is subjective and easy to reinterpret as a suggestion."
+  },
+  {
+    "id": "i-17",
+    "score": 0.85,
+    "reasoning": "Specifies exactly what to look for in .cpp files: 'static helpers, constructor defaults, and side effects (signals, invalidation, repaint)'. The instruction to read .cpp not just headers is binary. Concrete examples strengthen it."
+  },
+  {
+    "id": "i-18",
+    "score": 0.90,
+    "reasoning": "Provides a specific formula example '(x*257+0x8073)>>16 not f64'. Binary: either integer arithmetic matches C++ or it doesn't. Concrete anti-example (f64) makes violation detectable."
+  },
+  {
+    "id": "i-19",
+    "score": 0.85,
+    "reasoning": "'Do NOT flag Rc vs pointers, enum vs int flags' provides concrete examples of what NOT to flag. 'Only flag behavioral differences' is slightly subjective but the examples anchor it well."
+  },
+  {
+    "id": "i-20",
+    "score": 0.95,
+    "reasoning": "Pure binary default rule: no layer field means STATE. Zero ambiguity, zero judgment required."
+  },
+  {
+    "id": "i-21",
+    "score": 0.90,
+    "reasoning": "Phase ordering with explicit dependency chain. 'Every feature has passes: true' is machine-verifiable. 'If incomplete, finish those first' is imperative. Clear and binary."
+  },
+  {
+    "id": "i-22",
+    "score": 0.85,
+    "reasoning": "Uses MAY/MUST language clearly. 'Re-run cargo nextest run --workspace' is a specific command. 'If any break, fix them before proceeding' is imperative with clear sequencing. The trigger ('requires changing code from a previously-completed feature') requires some judgment."
+  },
+  {
+    "id": "i-23",
+    "score": 0.90,
+    "reasoning": "Explicitly calls out that the gate is insufficient. Provides a concrete scenario (20 methods listed, 5 compared). 'You must compare ALL listed methods' is binary and verifiable against the methods array."
+  },
+  {
+    "id": "i-24",
+    "score": 0.90,
+    "reasoning": "'Steps are requirements' is maximally explicit about treating them as rules not suggestions. Concrete example reinforces. Strong drift resistance."
+  },
+  {
+    "id": "i-25",
+    "score": 0.80,
+    "reasoning": "'Not just is_some() or is_ok()' provides concrete anti-examples. 'Specific values and behaviors' is somewhat open to interpretation -- how specific? But the anti-examples anchor it."
+  },
+  {
+    "id": "i-26",
+    "score": 0.90,
+    "reasoning": "Binary: 'write a NEW test.' Rationale provided ('existing tests didn't catch the bug') which reinforces compliance. Clear and verifiable."
+  },
+  {
+    "id": "i-27",
+    "score": 0.95,
+    "reasoning": "'Do NOT modify' is a binary prohibition on specific fields (steps, description, methods). Fully verifiable via diff. Near-perfect CE."
+  },
+  {
+    "id": "i-28",
+    "score": 0.70,
+    "reasoning": "Binary prohibition 'Do NOT modify existing tests (write new tests only)' is clear, BUT Phase 4 explicitly requires strengthening existing tests. This contradiction weakens the constraint because the agent must determine when the exception applies. The conflict itself creates ambiguity."
+  },
+  {
+    "id": "i-29",
+    "score": 0.65,
+    "reasoning": "'Unrelated production code' requires judgment about what is 'related' vs 'unrelated'. A cross-feature fix might touch code the agent considers related but the user considers unrelated."
+  },
+  {
+    "id": "i-30",
+    "score": 0.90,
+    "reasoning": "Binary: every feature must be visited, and passes set to true even with 0 MISMATCHes. Clear, verifiable, no room for reinterpretation."
+  },
+  {
+    "id": "i-31",
+    "score": 0.85,
+    "reasoning": "Binary prohibition with a concrete action ('Read the layer field'). References the layer system for disambiguation. Minor ambiguity in what counts as 'idiomatic Rust' vs a behavioral difference."
+  },
+  {
+    "id": "i-32",
+    "score": 0.75,
+    "reasoning": "Metacognitive instruction. 'Necessary but not sufficient' is precise logically, but it's a mindset instruction rather than a verifiable action. Harder to verify compliance -- how do you confirm the agent didn't treat the gate as sufficient?"
+  },
+  {
+    "id": "i-33",
+    "score": 0.80,
+    "reasoning": "Script provided verbatim. 'At the end' is slightly ambiguous (end of what? session? all phases?). The action itself is clear."
+  },
+  {
+    "id": "i-34",
+    "score": 0.80,
+    "reasoning": "Specific file path, specific format with template. 'Append' semantics specified. The format template is concrete but some fields ('list or none') allow variation."
+  },
+  {
+    "id": "i-35",
+    "score": 0.90,
+    "reasoning": "Binary: start with the first feature in phase-1 where passes is false. Fully deterministic -- there's exactly one correct starting point."
+  },
+  {
+    "id": "i-36",
+    "score": 0.90,
+    "reasoning": "MAY/MAY NOT language is precise permission/prohibition framing. Specific actions enumerated (delete, modify steps, mark N/A). Binary and verifiable."
+  },
+  {
+    "id": "i-37",
+    "score": 0.90,
+    "reasoning": "Binary gate condition from the contract. 'Only after clippy clean + all tests pass' is machine-verifiable. Reinforcement of i-05/i-06 strengthens it."
+  },
+  {
+    "id": "i-38",
+    "score": 0.80,
+    "reasoning": "Clear procedural instruction. 'Include the contract JSON' is specific. Minor: doesn't specify the exact git commands (those come from i-08)."
+  },
+  {
+    "id": "i-39",
+    "score": 0.85,
+    "reasoning": "Three layers with distinct rules. PIXEL='exact formulas', GEOMETRY='same algorithm', STATE='idiomatic Rust OK'. Each is fairly precise, though 'same algorithm' for GEOMETRY has some interpretation room."
+  },
+  {
+    "id": "i-40",
+    "score": 0.85,
+    "reasoning": "Simple file-read instruction. File path specified per-feature in the contract. Binary: either you read it or you didn't."
+  },
+  {
+    "id": "i-41",
+    "score": 0.85,
+    "reasoning": "Same as i-40. Specific file to read. Reinforces i-17's requirement to read .cpp not just headers."
+  },
+  {
+    "id": "i-42",
+    "score": 0.85,
+    "reasoning": "Same pattern as i-40/i-41. Read a specific file."
+  },
+  {
+    "id": "i-43",
+    "score": 0.85,
+    "reasoning": "The methods field provides an enumerable list. 'Compare the N methods' is binary when combined with i-23/i-24 (must compare ALL). The comparison criteria come from other instructions."
+  },
+  {
+    "id": "i-44",
+    "score": 0.80,
+    "reasoning": "Specifies exactly what to look for: 'static helpers, default values in constructors, and side effects (signals, invalidation, repaint calls)'. Concrete but the agent must judge whether something qualifies as a 'static helper' or 'side effect'."
+  },
+  {
+    "id": "i-45",
+    "score": 0.75,
+    "reasoning": "Lists specific things to verify (constructor defaults, side effects) with examples (callback firing, flag invalidation, repaint triggers). But 'same default values' and 'same side effects' require cross-language comparison judgment."
+  },
+  {
+    "id": "i-46",
+    "score": 0.85,
+    "reasoning": "Four discrete categories (MATCH, MISMATCH, SUSPECT, MISSING). Each method gets exactly one label. Binary classification scheme, though the boundaries between categories (especially SUSPECT) need judgment."
+  },
+  {
+    "id": "i-47",
+    "score": 0.75,
+    "reasoning": "'Fix the Rust code minimally' -- 'minimally' is subjective. How minimal is minimal? The intent is clear (don't rewrite) but the boundary is fuzzy."
+  },
+  {
+    "id": "i-48",
+    "score": 0.85,
+    "reasoning": "Binary: for each fix, write a test. The trigger (fix applied) and action (write test) are both clear and verifiable."
+  },
+  {
+    "id": "i-49",
+    "score": 0.55,
+    "reasoning": "'Verify internal correctness: no dead code, no panicking paths, edge cases handled' is broad and subjective. What counts as 'handled'? Which edge cases? 'No panicking paths' is more verifiable but 'edge cases handled' is open-ended."
+  },
+  {
+    "id": "i-50",
+    "score": 0.70,
+    "reasoning": "'Write a unit test for any untested edge case found' -- 'untested edge case' requires judgment. The action (write a test) is clear, but the trigger (finding an untested edge case) is subjective."
+  },
+  {
+    "id": "i-51",
+    "score": 0.90,
+    "reasoning": "'Verify every config field's default value matches C++ ... exactly' is highly specific and binary. Each field either matches or it doesn't. Concrete examples of what's at stake (zoom speed, scroll speed, etc.) anchor the requirement."
+  },
+  {
+    "id": "i-52",
+    "score": 0.55,
+    "reasoning": "Guidance about C++ macros. Uses hedging language: 'typically NOT_NEEDED', 'check whether it was macro-generated'. Helpful context but not a binary constraint -- it's advice for classification judgment."
+  },
+  {
+    "id": "i-53",
+    "score": 0.70,
+    "reasoning": "Three-question analysis framework (needed? already implemented? feasible?). The questions are clear but the answers require significant judgment. Not binary -- it's an analytical framework."
+  },
+  {
+    "id": "i-54",
+    "score": 0.80,
+    "reasoning": "Three discrete categories with clear definitions. 'With scope estimate' for NEEDS_IMPLEMENTATION adds a requirement. Classification is more binary than i-53's analysis."
+  },
+  {
+    "id": "i-55",
+    "score": 0.80,
+    "reasoning": "Binary trigger (NEEDS_IMPLEMENTATION) with clear actions (implement + write test). Straightforward and verifiable."
+  },
+  {
+    "id": "i-56",
+    "score": 0.85,
+    "reasoning": "Simple file-read instruction. Binary: read the file or not."
+  },
+  {
+    "id": "i-57",
+    "score": 0.70,
+    "reasoning": "'Verify the listed C++ symbols are covered' -- 'covered' is ambiguous. Exact name match? Behavioral equivalent? Partial implementation? The symbols are enumerable but the verification criterion is soft."
+  },
+  {
+    "id": "i-58",
+    "score": 0.65,
+    "reasoning": "'Verify all public methods from the consolidated C++ classes have Rust equivalents' -- 'equivalents' requires judgment. What counts as an equivalent? The scope (all public methods) is clear but the matching criterion is not."
+  },
+  {
+    "id": "i-59",
+    "score": 0.85,
+    "reasoning": "'List all #[test] functions in the specified test directory' is concrete and verifiable. The output is enumerable."
+  },
+  {
+    "id": "i-60",
+    "score": 0.75,
+    "reasoning": "Five-point checklist with specific anti-patterns. Points 1 and 4 are fairly binary. Points 2, 3, and 5 require judgment ('side effects verified', 'would FAIL if subtly wrong', 'exercises actual behavior'). Mixed."
+  },
+  {
+    "id": "i-61",
+    "score": 0.70,
+    "reasoning": "'Fix any defective test by strengthening its assertions' -- 'defective' is defined by the 5-point checklist but still requires judgment. 'Strengthening' is directional but not specific about how much."
+  },
+  {
+    "id": "i-62",
+    "score": 0.85,
+    "reasoning": "Binary trigger: strengthened test now FAILS. Clear action: fix the production code. The causal chain (failed test = real bug = fix needed) is unambiguous."
+  },
+  {
+    "id": "i-63",
+    "score": 0.85,
+    "reasoning": "Exact grep command provided. Finding all inline test modules is mechanical and verifiable."
+  },
+  {
+    "id": "i-64",
+    "score": 0.90,
+    "reasoning": "Four type-coordinate pairs. Binary: f64 for logical, i32 for pixel, u32 for image dims, u8 for color. Fully verifiable in code review."
+  },
+  {
+    "id": "i-65",
+    "score": 0.90,
+    "reasoning": "Binary: Color (packed u32 RGBA) for storage, i32 or wider for blend math. Specific type requirements, verifiable in code."
+  },
+  {
+    "id": "i-66",
+    "score": 0.90,
+    "reasoning": "Binary: Rc/RefCell yes, Weak for parents, Arc/Mutex no. Specific types named. Fully verifiable."
+  },
+  {
+    "id": "i-67",
+    "score": 0.90,
+    "reasoning": "Binary: String owned, &str params, no Cow. Three rules, all verifiable by type checking."
+  },
+  {
+    "id": "i-68",
+    "score": 0.75,
+    "reasoning": "'Per-module Result with custom error enums' is clear. 'assert! only for logic-error invariants' requires judgment about what constitutes a 'logic-error invariant' vs a recoverable error."
+  },
+  {
+    "id": "i-69",
+    "score": 0.85,
+    "reasoning": "Import ordering (std, external, crate::) is verifiable. 'Explicit names' is clear (no glob imports). 'use super::* only in #[cfg(test)]' is binary."
+  },
+  {
+    "id": "i-70",
+    "score": 0.60,
+    "reasoning": "Convention guidance: new() primary, with_* builder pattern. 'Optional config' is somewhat subjective -- what qualifies? It's a pattern recommendation, not a binary rule."
+  },
+  {
+    "id": "i-71",
+    "score": 0.60,
+    "reasoning": "'One primary type per file' has edge cases (what about helper types?). 'Private mod + public use re-exports' is a pattern, not binary. Guidance-level language."
+  },
+  {
+    "id": "i-72",
+    "score": 0.85,
+    "reasoning": "Binary default: pub(crate). Exception: pub only for sosumi-7 API. Verifiable by checking which items are pub vs pub(crate)."
+  },
+  {
+    "id": "i-73",
+    "score": 0.55,
+    "reasoning": "'Unless invariant is obvious from context' is inherently subjective. What's 'obvious' to one reviewer may not be to another. 'Fine in tests and same-line proofs' helps but 'same-line proofs' is fuzzy."
+  },
+  {
+    "id": "i-74",
+    "score": 0.80,
+    "reasoning": "Lists specific actions (remove dead code, prefix _, apply clippy fix). 'Suppress only genuine false positives with a comment' requires judgment on 'genuine' but the actions are concrete."
+  },
+  {
+    "id": "i-75",
+    "score": 0.90,
+    "reasoning": "Extremely specific: exact formula example, specific techniques (newtypes, named constants with derivations), explicit prohibition (no f64 in compositing). Highly verifiable."
+  },
+  {
+    "id": "i-76",
+    "score": 0.80,
+    "reasoning": "'Same algorithm and operation order' is fairly binary on golden-tested paths. 'Iterator::sum OK' provides concrete exception. 'Preserve C++ boundary values' is specific. Minor ambiguity in 'same algorithm'."
+  },
+  {
+    "id": "i-77",
+    "score": 0.60,
+    "reasoning": "'Fully idiomatic Rust' and 'Adapt syntax freely' are permissive guidance. 'Preserve behavioral contracts (return values, side effects, ordering)' is more constraining but requires judgment about what constitutes a behavioral contract."
+  },
+  {
+    "id": "i-78",
+    "score": 0.70,
+    "reasoning": "Decision framework: golden test input → exact port, otherwise → idiomatic. Requires the agent to determine whether output feeds a golden test, which is investigative but has a binary answer."
+  },
+  {
+    "id": "i-79",
+    "score": 0.90,
+    "reasoning": "Binary prohibition on #[allow(...)] and #[expect(...)]. One explicit exception (too many arguments). Fully verifiable by searching for the attributes."
+  },
+  {
+    "id": "i-80",
+    "score": 0.95,
+    "reasoning": "Binary prohibition: no Arc/Mutex. Verifiable by grep. Zero ambiguity."
+  },
+  {
+    "id": "i-81",
+    "score": 0.95,
+    "reasoning": "Binary prohibition: no Cow. Verifiable by grep. Zero ambiguity."
+  },
+  {
+    "id": "i-82",
+    "score": 0.90,
+    "reasoning": "Binary prohibition with one explicit exception (super::* in tests). Verifiable by grep for 'use.*::*'."
+  },
+  {
+    "id": "i-83",
+    "score": 0.90,
+    "reasoning": "Binary prohibition: no u8 truncation mid-calculation. Verifiable by reviewing color math code for intermediate casts to u8."
+  },
+  {
+    "id": "i-84",
+    "score": 0.90,
+    "reasoning": "Binary prohibition: no f64 in blend/coverage/interpolation. Verifiable by type checking. Specific code paths named."
+  },
+  {
+    "id": "i-85",
+    "score": 0.90,
+    "reasoning": "Binary prohibition: no Rayon/parallel iteration on golden-tested paths. Verifiable by checking for rayon usage."
+  },
+  {
+    "id": "i-86",
+    "score": 0.75,
+    "reasoning": "Prohibition on assert! for recoverable errors is clear in principle, but 'recoverable' requires judgment about error handling strategy."
+  },
+  {
+    "id": "i-87",
+    "score": 0.95,
+    "reasoning": "Binary prohibition: no --no-verify on commits. Verifiable by checking commit commands. Zero ambiguity."
+  },
+  {
+    "id": "i-88",
+    "score": 0.90,
+    "reasoning": "Describes the pre-commit hook pipeline exactly (fmt → clippy → nextest). 'Fix the cause and retry' is imperative. Machine-verifiable via hook execution."
+  },
+  {
+    "id": "i-89",
+    "score": 0.80,
+    "reasoning": "Enumerates required fields in the log entry. Each field is named specifically. The format template provides structure. Minor ambiguity in 'fixes applied list' format."
+  },
+  {
+    "id": "i-90",
+    "score": 0.90,
+    "reasoning": "Binary: append, not overwrite. Specific file path. Fully verifiable."
+  },
+  {
+    "id": "i-91",
+    "score": 0.85,
+    "reasoning": "Specific format string: 'audit: <feature_id> <summary>'. Template is clear. '<summary>' allows variation but the prefix is fixed."
+  },
+  {
+    "id": "i-92",
+    "score": 0.90,
+    "reasoning": "Binary: include prompts/master-contract.json in git add. Specific file, specific command. Verifiable."
+  },
+  {
+    "id": "i-93",
+    "score": 0.55,
+    "reasoning": "'Minimal changes' and 'not rewrite' set a direction but the boundary between minimal and non-minimal is subjective. Guidance-level constraint."
+  },
+  {
+    "id": "i-94",
+    "score": 0.70,
+    "reasoning": "'Include a scope estimate' is clear as a requirement but doesn't specify format or granularity of the estimate. Present/absent is binary, but quality is not."
+  },
+  {
+    "id": "i-95",
+    "score": 0.70,
+    "reasoning": "Specific anti-pattern (modifier keys set correctly) is concrete but 'correctly' requires knowing the expected behavior for each test. Verifiable case-by-case but requires domain knowledge."
+  },
+  {
+    "id": "i-96",
+    "score": 0.65,
+    "reasoning": "'Exercises actual behavior, not just compilation' is directional but 'actual behavior' is subjective. What level of behavior exercise is sufficient? The anti-pattern is clear conceptually but hard to verify in edge cases."
+  },
+  {
+    "id": "i-97",
+    "score": 0.60,
+    "reasoning": "'Would FAIL if implementation were subtly wrong' is a mutation-testing criterion. Conceptually precise (would a mutant survive?) but practically requires judgment about which mutations to consider. Hard to verify without actually running mutations."
+  },
+  {
+    "id": "i-98",
+    "score": 0.85,
+    "reasoning": "Four discrete categories, each method gets exactly one. Binary classification. Minor issue: SUSPECT is not defined in the prompt .md (only in contract steps), creating potential for inconsistent interpretation."
+  }
+]

@@ -1,0 +1,1151 @@
+{
+  "worker_id": "W-0010",
+  "item_id_range": [100000, 109999],
+  "items": [
+    {
+      "item_id": "ITEM-100000",
+      "symbol": "emSortArray<T>",
+      "source_file": "emArray.h",
+      "kind": "free_function_template",
+      "classification": "superseded",
+      "superseding_construct": "slice::sort_unstable_by / sort_by from std; or Vec::sort_by for owned data",
+      "rust_equivalent": null,
+      "notes": "Stable merge-sort over raw C array with function pointer comparator. Superseded by Rust's sort/sort_by on slices."
+    },
+    {
+      "item_id": "ITEM-100001",
+      "symbol": "emBinarySearch<OBJ,KEY>",
+      "source_file": "emArray.h",
+      "kind": "free_function_template",
+      "classification": "superseded",
+      "superseding_construct": "slice::binary_search_by / binary_search_by_key from std",
+      "rust_equivalent": null,
+      "notes": "Binary search over raw C array with function pointer comparator. Superseded by slice::binary_search_by in std."
+    },
+    {
+      "item_id": "ITEM-100100",
+      "symbol": "emArray<T>",
+      "source_file": "emArray.h",
+      "kind": "class_template",
+      "classification": "superseded",
+      "superseding_construct": "Vec<T> from std",
+      "rust_equivalent": null,
+      "notes": "Dynamic array with copy-on-write and tuning levels. Superseded by Vec<T> from std."
+    },
+    {
+      "item_id": "ITEM-100101",
+      "symbol": "emArray::emArray (constructors)",
+      "source_file": "emArray.h",
+      "kind": "constructor",
+      "classification": "superseded",
+      "superseding_construct": "Vec::new(), Vec::from(), vec![], Vec::with_capacity()",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100102",
+      "symbol": "emArray::operator=",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec clone / assignment in Rust (Clone trait)",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100103",
+      "symbol": "emArray::GetTuningLevel / SetTuningLevel",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: Rust's type system and ownership eliminate the need for manual tuning of copy/move/destructor behavior",
+      "rust_equivalent": null,
+      "notes": "C++ performance tuning knob for controlling constructor/destructor/copy behavior on elements. Rust's ownership/move semantics make this unnecessary."
+    },
+    {
+      "item_id": "ITEM-100104",
+      "symbol": "emArray::GetCount",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::len() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100105",
+      "symbol": "emArray::SetCount",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::resize() / Vec::truncate() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100106",
+      "symbol": "emArray::Compact",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::shrink_to_fit() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100107",
+      "symbol": "emArray::Get (pointer/index)",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::as_slice() / indexing with [] / Vec::get() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100108",
+      "symbol": "emArray::GetWritable",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::as_mut_slice() / mutable indexing in Rust; copy-on-write is automatic via ownership",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100109",
+      "symbol": "emArray::Set",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "vec[index] = value in Rust",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100110",
+      "symbol": "emArray::Add / operator+=",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::push() / Vec::extend() / Vec::append() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100111",
+      "symbol": "emArray::Insert",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::insert() / Vec::splice() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100112",
+      "symbol": "emArray::Replace / ReplaceByNew",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::splice() / drain+insert from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100113",
+      "symbol": "emArray::GetSubArray",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "slice indexing / Vec::from(&slice[a..b]) from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100114",
+      "symbol": "emArray::Extract",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::drain() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100115",
+      "symbol": "emArray::Remove",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::remove() / Vec::drain() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100116",
+      "symbol": "emArray::Clear",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::clear() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100117",
+      "symbol": "emArray::IsEmpty",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::is_empty() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100118",
+      "symbol": "emArray::PointerToIndex",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Pointer arithmetic / iterator position in Rust; unsafe ptr offset or slice position",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100119",
+      "symbol": "emArray::Sort",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::sort() / sort_by() / sort_unstable_by() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100120",
+      "symbol": "emArray::BinarySearch / BinarySearchByKey",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "slice::binary_search_by() / binary_search_by_key() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100121",
+      "symbol": "emArray::BinaryInsert / BinaryInsertIfNew / BinaryInsertOrReplace / BinaryReplace / BinaryRemove / BinaryRemoveByKey",
+      "source_file": "emArray.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap/BTreeSet from std for sorted unique collections; or manual binary_search+insert on Vec",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100122",
+      "symbol": "emArray::GetDataRefCount / MakeNonShared",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: copy-on-write reference counting is a C++ workaround; Rust ownership/Clone handles this at the type level",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100123",
+      "symbol": "emArray::Iterator",
+      "source_file": "emArray.h",
+      "kind": "nested_class",
+      "classification": "superseded",
+      "superseding_construct": "Standard Rust iterator protocol (impl Iterator) on Vec slices",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-100124",
+      "symbol": "emArray::begin / end",
+      "source_file": "emArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::iter() / IntoIterator for &Vec<T> from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101000",
+      "symbol": "emSortSingleLinkedList",
+      "source_file": "emList.h",
+      "kind": "free_function",
+      "classification": "superseded",
+      "superseding_construct": "Vec::sort_by() on Vec<T>; Rust doesn't use intrusive linked lists via raw pointer offsets",
+      "rust_equivalent": null,
+      "notes": "Low-level intrusive single-linked list sort using raw pointer offsets. Rust doesn't need this pattern."
+    },
+    {
+      "item_id": "ITEM-101001",
+      "symbol": "emSortDoubleLinkedList",
+      "source_file": "emList.h",
+      "kind": "free_function",
+      "classification": "superseded",
+      "superseding_construct": "Vec::sort_by() on Vec<T>; Rust doesn't use intrusive linked lists via raw pointer offsets",
+      "rust_equivalent": null,
+      "notes": "Low-level intrusive double-linked list sort using raw pointer offsets. Rust doesn't need this pattern."
+    },
+    {
+      "item_id": "ITEM-101100",
+      "symbol": "emList<T>",
+      "source_file": "emList.h",
+      "kind": "class_template",
+      "classification": "superseded",
+      "superseding_construct": "Vec<T> from std (emList is a dynamic sequence, not a linked list despite the name; it uses copy-on-write doubly-linked allocation internally)",
+      "rust_equivalent": null,
+      "notes": "Despite the name, emList is used as a general sequential/ordered container with copy-on-write. Superseded by Vec<T> from std."
+    },
+    {
+      "item_id": "ITEM-101101",
+      "symbol": "emList::emList (constructors)",
+      "source_file": "emList.h",
+      "kind": "constructor",
+      "classification": "superseded",
+      "superseding_construct": "Vec::new() / vec![] from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101102",
+      "symbol": "emList::operator=",
+      "source_file": "emList.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Clone trait / assignment in Rust",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101103",
+      "symbol": "emList::GetFirst / GetLast / GetNext / GetPrev",
+      "source_file": "emList.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec::first() / Vec::last() / slice iteration / Iterator::peekable() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101104",
+      "symbol": "emList::GetWritable / GetFirstWritable / GetLastWritable / GetNextWritable / GetPrevWritable",
+      "source_file": "emList.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec::iter_mut() / &mut Vec<T> indexing from std; Rust ownership ensures write access directly",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101105",
+      "symbol": "emList::Set",
+      "source_file": "emList.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Mutable indexing vec[i] = v in Rust",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101106",
+      "symbol": "emList::InsertAtBeg / InsertAtEnd / InsertBefore / InsertAfter",
+      "source_file": "emList.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec::insert() / Vec::push() / Vec::extend() / VecDeque::push_front() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101107",
+      "symbol": "emList::Add / operator+= / operator+",
+      "source_file": "emList.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec::push() / Vec::extend() / Vec::append() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101108",
+      "symbol": "emList::MoveToBeg / MoveToEnd / MoveBefore / MoveAfter",
+      "source_file": "emList.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec::remove + insert, or VecDeque rotation; no direct single-op equivalent in std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101109",
+      "symbol": "emList::GetSubList / GetSubListOfFirst / GetSubListOfLast",
+      "source_file": "emList.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "slice indexing / Vec::from(&slice[a..b]) from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101110",
+      "symbol": "emList::Extract / ExtractFirst / ExtractLast",
+      "source_file": "emList.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec::drain() / Vec::remove() / Vec::pop() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101111",
+      "symbol": "emList::Remove / RemoveFirst / RemoveLast",
+      "source_file": "emList.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec::remove() / Vec::retain() / Vec::pop() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101112",
+      "symbol": "emList::Clear",
+      "source_file": "emList.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::clear() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101113",
+      "symbol": "emList::IsEmpty",
+      "source_file": "emList.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::is_empty() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101114",
+      "symbol": "emList::Sort",
+      "source_file": "emList.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::sort_by() / sort_unstable_by() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101115",
+      "symbol": "emList::GetCount",
+      "source_file": "emList.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::len() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101116",
+      "symbol": "emList::GetAtIndex / GetIndexOf",
+      "source_file": "emList.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "slice indexing / Iterator::position() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101117",
+      "symbol": "emList::GetDataRefCount / MakeNonShared",
+      "source_file": "emList.h",
+      "kind": "method",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: copy-on-write reference counting is a C++ workaround; Rust ownership/Clone handles this at the type level",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101118",
+      "symbol": "emList::Iterator",
+      "source_file": "emList.h",
+      "kind": "nested_class",
+      "classification": "superseded",
+      "superseding_construct": "Standard Rust iterator protocol (impl Iterator / iter_mut()) on Vec<T>",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-101119",
+      "symbol": "emList::begin / end",
+      "source_file": "emList.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::iter() / IntoIterator for &Vec<T> from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102000",
+      "symbol": "emString",
+      "source_file": "emString.h",
+      "kind": "class",
+      "classification": "superseded",
+      "superseding_construct": "String / &str from std",
+      "rust_equivalent": null,
+      "notes": "Null-terminated copy-on-write string. Superseded by String (owned) and &str (borrowed) from std."
+    },
+    {
+      "item_id": "ITEM-102001",
+      "symbol": "emString::emString (constructors)",
+      "source_file": "emString.h",
+      "kind": "constructor",
+      "classification": "superseded",
+      "superseding_construct": "String::new() / String::from() / format!() / str::repeat() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102002",
+      "symbol": "emString::Format / VFormat",
+      "source_file": "emString.h",
+      "kind": "static_method",
+      "classification": "superseded",
+      "superseding_construct": "format!() macro from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102003",
+      "symbol": "emString::operator= / operator+= / operator+",
+      "source_file": "emString.h",
+      "kind": "operator",
+      "classification": "superseded",
+      "superseding_construct": "String assignment, push_str(), + operator / format!() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102004",
+      "symbol": "emString::GetCount / GetLen",
+      "source_file": "emString.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "str::len() / String::len() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102005",
+      "symbol": "emString::Get / operator const char* / operator[]",
+      "source_file": "emString.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "str::as_bytes() / &str indexing / String::as_str() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102006",
+      "symbol": "emString::GetWritable / SetLenGetWritable",
+      "source_file": "emString.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "String::as_mut_str() / unsafe str manipulation in Rust; Rust ownership provides write access directly",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102007",
+      "symbol": "emString::Add / Insert / Replace",
+      "source_file": "emString.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "String::push_str() / push() / insert_str() / replace_range() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102008",
+      "symbol": "emString::GetSubString",
+      "source_file": "emString.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "str slicing &s[start..end] / str::get() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102009",
+      "symbol": "emString::Extract",
+      "source_file": "emString.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "String::drain() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102010",
+      "symbol": "emString::Remove",
+      "source_file": "emString.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "String::drain() / replace_range() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102011",
+      "symbol": "emString::Clear / IsEmpty",
+      "source_file": "emString.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "String::clear() / str::is_empty() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102012",
+      "symbol": "emString::operator== / operator!= / operator< / operator> / operator<= / operator>= (and friend overloads)",
+      "source_file": "emString.h",
+      "kind": "operator",
+      "classification": "superseded",
+      "superseding_construct": "PartialEq / PartialOrd / Ord traits on str/String from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-102013",
+      "symbol": "emString::GetDataRefCount / MakeNonShared",
+      "source_file": "emString.h",
+      "kind": "method",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: copy-on-write reference counting is a C++ workaround; Rust ownership/Clone handles this at the type level",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-103000",
+      "symbol": "emRefTarget",
+      "source_file": "emRef.h",
+      "kind": "class",
+      "classification": "superseded",
+      "superseding_construct": "Rc<T> from std; the target/base-class pattern is replaced by Rc reference counting built into the smart pointer",
+      "rust_equivalent": null,
+      "notes": "Base class providing Alloc/Free reference counting for use by emRef. Superseded by Rc<T> which manages ref counts automatically."
+    },
+    {
+      "item_id": "ITEM-103001",
+      "symbol": "emRefTarget::Alloc / Free / GetRefCount",
+      "source_file": "emRef.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Rc::clone() / drop() / Rc::strong_count() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-103100",
+      "symbol": "emRef<T>",
+      "source_file": "emRef.h",
+      "kind": "class_template",
+      "classification": "superseded",
+      "superseding_construct": "Rc<T> from std",
+      "rust_equivalent": null,
+      "notes": "Reference-counted smart pointer. Superseded by Rc<T> (or Weak<T> for non-owning refs) from std."
+    },
+    {
+      "item_id": "ITEM-103101",
+      "symbol": "emRef::emRef (constructors) / operator= / Set / Reset",
+      "source_file": "emRef.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Rc::new() / Rc::clone() / Option<Rc<T>> for nullable refs from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-103102",
+      "symbol": "emRef::Get / operator CLS* / operator->",
+      "source_file": "emRef.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Rc::as_ref() / Deref on Rc<T> / *rc from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-104000",
+      "symbol": "emOwnPtrBase<OBJECT,DELETER>",
+      "source_file": "emOwnPtr.h",
+      "kind": "class_template",
+      "classification": "superseded",
+      "superseding_construct": "Box<T> from std (with custom deleters handled by Drop trait implementations)",
+      "rust_equivalent": null,
+      "notes": "Owning smart pointer base class with pluggable deleter. Superseded by Box<T> from std."
+    },
+    {
+      "item_id": "ITEM-104001",
+      "symbol": "emOwnPtrBase::Set / operator= / Reset / Release / Get / operator OBJECT* / operator->",
+      "source_file": "emOwnPtr.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Box::new() / Box::into_raw() / Box::from_raw() / Deref / Option<Box<T>> from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-104100",
+      "symbol": "emOwnPtr<T>",
+      "source_file": "emOwnPtr.h",
+      "kind": "class_template",
+      "classification": "superseded",
+      "superseding_construct": "Box<T> from std",
+      "rust_equivalent": null,
+      "notes": "Owning smart pointer with normal delete. Superseded by Box<T> from std."
+    },
+    {
+      "item_id": "ITEM-104200",
+      "symbol": "emOwnArrayPtr<T>",
+      "source_file": "emOwnPtr.h",
+      "kind": "class_template",
+      "classification": "superseded",
+      "superseding_construct": "Vec<T> or Box<[T]> from std",
+      "rust_equivalent": null,
+      "notes": "Owning smart pointer with array delete []. Superseded by Vec<T> or Box<[T]> from std."
+    },
+    {
+      "item_id": "ITEM-104300",
+      "symbol": "emOwnPtrDeleter<T> / emOwnArrayPtrDeleter<T>",
+      "source_file": "emOwnPtr.h",
+      "kind": "struct_template",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: Rust's Drop trait handles deletion automatically; no separate deleter functor needed",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-105000",
+      "symbol": "emOwnPtrArray<T>",
+      "source_file": "emOwnPtrArray.h",
+      "kind": "class_template",
+      "classification": "superseded",
+      "superseding_construct": "Vec<Box<T>> from std",
+      "rust_equivalent": null,
+      "notes": "Dynamic array of owning pointers. Superseded by Vec<Box<T>> from std."
+    },
+    {
+      "item_id": "ITEM-105001",
+      "symbol": "emOwnPtrArray::GetCount / SetCount / Compact",
+      "source_file": "emOwnPtrArray.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec::len() / Vec::resize() / Vec::truncate() / Vec::shrink_to_fit() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-105002",
+      "symbol": "emOwnPtrArray::Get / operator[]",
+      "source_file": "emOwnPtrArray.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec indexing / Vec::get() / as_slice() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-105003",
+      "symbol": "emOwnPtrArray::Set / Reset / Release",
+      "source_file": "emOwnPtrArray.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec<Box<T>> indexed assignment / Box::into_raw() / take / Option<Box<T>> from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-105004",
+      "symbol": "emOwnPtrArray::Add / operator+= / Insert",
+      "source_file": "emOwnPtrArray.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec::push() / Vec::insert() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-105005",
+      "symbol": "emOwnPtrArray::Remove / Clear / IsEmpty",
+      "source_file": "emOwnPtrArray.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec::remove() / Vec::clear() / Vec::is_empty() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-105006",
+      "symbol": "emOwnPtrArray::Sort / BinarySearchByKey / BinaryInsert / BinaryRemoveByKey",
+      "source_file": "emOwnPtrArray.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "Vec::sort_by() / slice::binary_search_by() / manual binary insert on Vec<Box<T>> from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-105007",
+      "symbol": "emOwnPtrArray::begin / end",
+      "source_file": "emOwnPtrArray.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Vec::iter() / IntoIterator from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-106000",
+      "symbol": "emAvlNode",
+      "source_file": "emAvlTree.h",
+      "kind": "struct",
+      "classification": "superseded",
+      "superseding_construct": "Internal node type inside BTreeMap<K,V> / BTreeSet<K> from std",
+      "rust_equivalent": null,
+      "notes": "Raw AVL tree node with Left/Right/Balance fields. Superseded by std BTree internals."
+    },
+    {
+      "item_id": "ITEM-106001",
+      "symbol": "emAvlTree (typedef)",
+      "source_file": "emAvlTree.h",
+      "kind": "typedef",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap / BTreeSet from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-106002",
+      "symbol": "emAvlIterator",
+      "source_file": "emAvlTree.h",
+      "kind": "struct",
+      "classification": "superseded",
+      "superseding_construct": "std::collections::btree_map::Iter / btree_set::Iter from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-106003",
+      "symbol": "emAvlCheck",
+      "source_file": "emAvlTree.h",
+      "kind": "free_function",
+      "classification": "superseded",
+      "superseding_construct": "Not needed: std BTreeMap/BTreeSet maintain invariants automatically; debug assertions in std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-106004",
+      "symbol": "EM_AVL_ELEMENT macro",
+      "source_file": "emAvlTree.h",
+      "kind": "macro",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: C++ intrusive container pattern using offsetof. Rust does not use intrusive data structures.",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-106005",
+      "symbol": "EM_AVL_INSERT_VARS / EM_AVL_INSERT_BEGIN_SEARCH / EM_AVL_INSERT_GO_LEFT / EM_AVL_INSERT_GO_RIGHT / EM_AVL_INSERT_END_SEARCH / EM_AVL_INSERT_NOW (insert macros)",
+      "source_file": "emAvlTree.h",
+      "kind": "macro_group",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: C++ macro-based intrusive AVL tree insert algorithm. Rust uses BTreeMap::insert() from std.",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-106006",
+      "symbol": "EM_AVL_REMOVE_* macros (remove algorithm macros)",
+      "source_file": "emAvlTree.h",
+      "kind": "macro_group",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: C++ macro-based intrusive AVL tree remove algorithm. Rust uses BTreeMap::remove() from std.",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-106007",
+      "symbol": "EM_AVL_CLEAR_* macros (clear algorithm macros)",
+      "source_file": "emAvlTree.h",
+      "kind": "macro_group",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: C++ macro-based intrusive AVL tree clear algorithm. Rust uses BTreeMap::clear() from std.",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-106008",
+      "symbol": "EM_AVL_SEARCH_* macros (search algorithm macros)",
+      "source_file": "emAvlTree.h",
+      "kind": "macro_group",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: C++ macro-based intrusive AVL tree search algorithm. Rust uses BTreeMap::get() from std.",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-106009",
+      "symbol": "EM_AVL_LOOP_* / EM_AVL_REV_LOOP_* macros (loop algorithm macros)",
+      "source_file": "emAvlTree.h",
+      "kind": "macro_group",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: C++ macro-based intrusive AVL tree traversal. Rust uses BTreeMap::iter() / BTreeMap::iter().rev() from std.",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-106010",
+      "symbol": "EM_AVL_ITER_* macros (iterator algorithm macros)",
+      "source_file": "emAvlTree.h",
+      "kind": "macro_group",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: C++ macro-based intrusive AVL tree stable-iterator implementation. Rust uses standard Iterator protocol from std.",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-106011",
+      "symbol": "EM_AVL_INS_LOOP_VARS / EM_AVL_INS_ITER_VARS macros",
+      "source_file": "emAvlTree.h",
+      "kind": "macro_group",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: C++ macro variable union helpers for combined insert+loop/iter. Not needed in Rust.",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107000",
+      "symbol": "emAvlTreeMap<KEY,VALUE>",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "class_template",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap<K,V> from std (or HashMap<K,V> for unordered)",
+      "rust_equivalent": null,
+      "notes": "AVL tree sorted map with copy-on-write and stable iterators. Superseded by BTreeMap<K,V> from std."
+    },
+    {
+      "item_id": "ITEM-107001",
+      "symbol": "emAvlTreeMap::emAvlTreeMap (constructors)",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "constructor",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap::new() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107002",
+      "symbol": "emAvlTreeMap::operator=",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "operator",
+      "classification": "superseded",
+      "superseding_construct": "Clone trait / assignment in Rust",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107003",
+      "symbol": "emAvlTreeMap::Contains",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap::contains_key() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107004",
+      "symbol": "emAvlTreeMap::Get (by key / first / last)",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap::get() / BTreeMap::first_key_value() / BTreeMap::last_key_value() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107005",
+      "symbol": "emAvlTreeMap::GetNearestGreater / GetNearestGreaterOrEqual / GetNearestLess / GetNearestLessOrEqual",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap::range() with Bound::Excluded/Included from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107006",
+      "symbol": "emAvlTreeMap::GetKey / GetKeyWritable",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap key access via iter() tuple .0 from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107007",
+      "symbol": "emAvlTreeMap::GetValue / GetValueWritable / SetValue / operator[]",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap::get() / BTreeMap::get_mut() / BTreeMap::insert() / entry() API from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107008",
+      "symbol": "emAvlTreeMap::Insert",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap::insert() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107009",
+      "symbol": "emAvlTreeMap::Remove / RemoveFirst / RemoveLast / Clear",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap::remove() / BTreeMap::pop_first() / BTreeMap::pop_last() / BTreeMap::clear() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107010",
+      "symbol": "emAvlTreeMap::IsEmpty / GetCount",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap::is_empty() / BTreeMap::len() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107011",
+      "symbol": "emAvlTreeMap::GetDataRefCount / MakeNonShared",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "method",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: copy-on-write reference counting is a C++ workaround; Rust ownership/Clone handles this at the type level",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-107012",
+      "symbol": "emAvlTreeMap::Iterator",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "nested_class",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap::iter() returning std::collections::btree_map::Iter from std",
+      "rust_equivalent": null,
+      "notes": "Stable iterator that survives map modifications (advance to next on removal). std BTreeMap iterators are simpler — invalidated by mutation."
+    },
+    {
+      "item_id": "ITEM-107013",
+      "symbol": "emAvlTreeMap::begin / end",
+      "source_file": "emAvlTreeMap.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "BTreeMap::iter() / IntoIterator from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108000",
+      "symbol": "emAvlTreeSet<OBJ>",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "class_template",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet<T> from std (or HashSet<T> for unordered)",
+      "rust_equivalent": null,
+      "notes": "AVL tree sorted set with copy-on-write and stable iterators. Superseded by BTreeSet<T> from std."
+    },
+    {
+      "item_id": "ITEM-108001",
+      "symbol": "emAvlTreeSet::emAvlTreeSet (constructors)",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "constructor",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::new() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108002",
+      "symbol": "emAvlTreeSet::operator=",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "operator",
+      "classification": "superseded",
+      "superseding_construct": "Clone trait / assignment in Rust",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108003",
+      "symbol": "emAvlTreeSet::Contains",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::contains() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108004",
+      "symbol": "emAvlTreeSet::Get / GetFirst / GetLast",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::get() / BTreeSet::first() / BTreeSet::last() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108005",
+      "symbol": "emAvlTreeSet::GetNearestGreater / GetNearestGreaterOrEqual / GetNearestLess / GetNearestLessOrEqual",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::range() with Bound::Excluded/Included from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108006",
+      "symbol": "emAvlTreeSet::GetWritable",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::take() + re-insert pattern; or BTreeMap with dummy value for mutable access from std",
+      "rust_equivalent": null,
+      "notes": "Returns mutable pointer to element (for in-place modification not disturbing order). No direct equivalent in std BTreeSet."
+    },
+    {
+      "item_id": "ITEM-108007",
+      "symbol": "emAvlTreeSet::Insert (single / set)",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::insert() / BTreeSet::extend() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108008",
+      "symbol": "emAvlTreeSet::Remove / RemoveFirst / RemoveLast (single / set)",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::remove() / BTreeSet::pop_first() / BTreeSet::pop_last() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108009",
+      "symbol": "emAvlTreeSet::Intersect",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::retain() / BTreeSet::intersection() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108010",
+      "symbol": "emAvlTreeSet::Clear / IsEmpty / GetCount",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "method_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::clear() / BTreeSet::is_empty() / BTreeSet::len() from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108011",
+      "symbol": "emAvlTreeSet::operator== / operator!=",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "operator",
+      "classification": "superseded",
+      "superseding_construct": "PartialEq / Eq traits on BTreeSet<T> from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108012",
+      "symbol": "emAvlTreeSet::operator+= / operator+ / operator|= / operator| (union operators)",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "operator_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::union() / BitOr trait on BTreeSet from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108013",
+      "symbol": "emAvlTreeSet::operator-= / operator- (difference operators)",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "operator_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::difference() / BitAnd trait on BTreeSet from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108014",
+      "symbol": "emAvlTreeSet::operator&= / operator& (intersection operators)",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "operator_group",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::intersection() / BitAnd trait on BTreeSet from std",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108015",
+      "symbol": "emAvlTreeSet::GetDataRefCount / MakeNonShared",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "method",
+      "classification": "not_applicable",
+      "superseding_construct": "Not applicable: copy-on-write reference counting is a C++ workaround; Rust ownership/Clone handles this at the type level",
+      "rust_equivalent": null
+    },
+    {
+      "item_id": "ITEM-108016",
+      "symbol": "emAvlTreeSet::Iterator",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "nested_class",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::iter() returning std::collections::btree_set::Iter from std",
+      "rust_equivalent": null,
+      "notes": "Stable iterator that advances to next on element removal. std BTreeSet iterators are simpler — invalidated by mutation."
+    },
+    {
+      "item_id": "ITEM-108017",
+      "symbol": "emAvlTreeSet::begin / end",
+      "source_file": "emAvlTreeSet.h",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "BTreeSet::iter() / IntoIterator from std",
+      "rust_equivalent": null
+    }
+  ]
+}

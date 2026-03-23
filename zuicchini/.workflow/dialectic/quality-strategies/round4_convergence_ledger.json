@@ -1,0 +1,1853 @@
+[
+  {
+    "id": "a2-09",
+    "proposition": "Empirical pixel diffing cannot find logic bugs in code paths that do not affect rendering, such as signal firing order, callback sequencing, clipboard operations, and focus management.",
+    "initial_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.85,
+      "robustness": 0.92,
+      "compatibility": 0.9
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-01",
+        "cluster": "Empirical pixel diffing value vs. renderer noise floor and non-visual blind spots",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense correctly identifies that the prosecution conflated cross-renderer diffing with same-renderer golden test comparison. The golden test infrastructure produces both reference and test output..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.97,
+      "specificity": 0.85,
+      "robustness": 0.92,
+      "compatibility": 0.9
+    },
+    "composite": 0.91,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-14",
+    "proposition": "Test passage is necessary but not sufficient for correctness \u2014 the golden tests cover specific scenarios, and functions like substance_round_rect, best_label_tallness, and label_space have no direct golden test coverage despite being modified by fixes.",
+    "initial_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.9,
+      "robustness": 0.88,
+      "compatibility": 0.92
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.9,
+      "robustness": 0.88,
+      "compatibility": 0.92
+    },
+    "composite": 0.905,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-06",
+    "proposition": "Golden tests can actively mask bugs by using inputs that happen to produce identical output regardless of the underlying correctness, as demonstrated by the Label alignment bug being hidden by width-constrained text.",
+    "initial_scores": {
+      "defensibility": 0.93,
+      "specificity": 0.9,
+      "robustness": 0.88,
+      "compatibility": 0.85
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-16",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.01,
+        "reasoning": "The defense correctly notes that a1-08 targets the no-coverage case (worse than masking coverage). However, a1-08's high robustness score (0.85) implies strong confidence that writing golden tests is ..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.94,
+      "specificity": 0.9,
+      "robustness": 0.88,
+      "compatibility": 0.85
+    },
+    "composite": 0.8925,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-08",
+    "proposition": "Every fix that lacks golden test coverage is a regression waiting to happen, and at least 5 of the 31 applied fixes target functions explicitly noted as not golden-tested.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.92,
+      "robustness": 0.85,
+      "compatibility": 0.9
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-16",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.03,
+        "reasoning": "The defense correctly notes that a1-08 targets the no-coverage case (worse than masking coverage). However, a1-08's high robustness score (0.85) implies strong confidence that writing golden tests is ..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.92,
+      "robustness": 0.82,
+      "compatibility": 0.9
+    },
+    "composite": 0.885,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-11",
+    "proposition": "C++ implicit integer promotion (u8 * u8 promoting to signed int) is a pervasive class of port bug where the explicit Rust type choice may be wrong, and the alpha dimming signed/unsigned mismatch proves this class exists in the codebase.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.92,
+      "robustness": 0.85,
+      "compatibility": 0.8
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.92,
+      "robustness": 0.85,
+      "compatibility": 0.8
+    },
+    "composite": 0.8675,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-19",
+    "proposition": "Golden tests explicitly skip alpha channel comparison, so any fix affecting compositing pipeline alpha handling (compositing order, transparency accumulation, layer visibility) is structurally unverifiable by golden tests despite coverage analysis reporting the function as covered.",
+    "initial_scores": {
+      "defensibility": 0.94,
+      "specificity": 0.92,
+      "robustness": 0.9,
+      "compatibility": 0.7
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-11",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.01,
+        "reasoning": "The defense makes a strong practical point: the specific 31 fixes are mostly geometry and rendering, not alpha-path code. The alpha blind spot is a real limitation of the golden test infrastructure bu..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.95,
+      "specificity": 0.92,
+      "robustness": 0.9,
+      "compatibility": 0.7
+    },
+    "composite": 0.8675,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-04",
+    "proposition": "The Rust port's decision to use 5 standalone widgets with duplicated logic instead of C++ inheritance creates a verification obligation: every fix to shared logic must be mirrored across all 5 widgets.",
+    "initial_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.88,
+      "robustness": 0.85,
+      "compatibility": 0.8
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-25",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense is partially right: re-checking completed work has lower value than initial checking. But a1-15's robustness score should account for the possibility that the mirroring was done incorrectl..."
+      },
+      {
+        "round": 3,
+        "tension": "t-18",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.03,
+        "reasoning": "The defense correctly distinguishes the obligation (mirror) from the risky execution method (copy-paste). However, in practice with LLM agents, the cheaper execution method (copy from template) is the..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.94,
+      "specificity": 0.88,
+      "robustness": 0.82,
+      "compatibility": 0.8
+    },
+    "composite": 0.86,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-13",
+    "proposition": "Fixing remaining DEFERRED items (RadioButton Drop re-index, FileSelectionBox reactive layer) requires building infrastructure that does not exist yet, making these poor targets for LLM point fixes.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.85,
+      "robustness": 0.82,
+      "compatibility": 0.85
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.85,
+      "robustness": 0.82,
+      "compatibility": 0.85
+    },
+    "composite": 0.85,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-13",
+    "proposition": "Boundary value differential testing \u2014 systematically probing minimum/maximum sizes, empty/max-length content, boundary color values, and edge coordinates in both C++ and Rust \u2014 is where empirical diffing becomes most powerful for finding port bugs.",
+    "initial_scores": {
+      "defensibility": 0.86,
+      "specificity": 0.88,
+      "robustness": 0.82,
+      "compatibility": 0.88
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-20",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense correctly distinguishes same-renderer golden tests from cross-renderer comparison, partially mitigating the exclusion list concern. However, a2-13 describes 'differential testing' comparin..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.86,
+      "specificity": 0.88,
+      "robustness": 0.77,
+      "compatibility": 0.88
+    },
+    "composite": 0.8475,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-07",
+    "proposition": "Fix diff re-audits verify what changed in individual commits but cannot detect what should have changed but didn't, because downstream call sites and cross-file interactions are outside the diff's temporal boundary.",
+    "initial_scores": {
+      "defensibility": 0.91,
+      "specificity": 0.86,
+      "robustness": 0.84,
+      "compatibility": 0.75
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-04",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense is partially right: a competent agent CAN look beyond the diff. But the prosecution's point is that the diff-based framing of the re-audit task creates a cognitive anchor that makes it LES..."
+      },
+      {
+        "round": 3,
+        "tension": "t-04",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.02,
+        "reasoning": "The defense is partially right: a competent agent CAN look beyond the diff. But the prosecution's point is that the diff-based framing of the re-audit task creates a cognitive anchor that makes it LES..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.93,
+      "specificity": 0.86,
+      "robustness": 0.82,
+      "compatibility": 0.75
+    },
+    "composite": 0.84,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-05",
+    "proposition": "For each intentional divergence, the critical question is not 'is this architecturally defensible?' but 'what specific user-visible behavior differs, and can it be triggered through normal UI interaction?'",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.82,
+      "compatibility": 0.88
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.8,
+      "robustness": 0.82,
+      "compatibility": 0.88
+    },
+    "composite": 0.8375,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-03",
+    "proposition": "LLM fix agents commonly introduce four specific error patterns: applying a correct formula at the wrong control flow point, using f64 division instead of C++ integer arithmetic, missing duplicated code paths, and over-fixing surrounding code.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.92,
+      "robustness": 0.75,
+      "compatibility": 0.85
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.92,
+      "robustness": 0.75,
+      "compatibility": 0.85
+    },
+    "composite": 0.835,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-01",
+    "proposition": "Mutation testing on golden tests will become less effective as the port improves, because fixed pixels free up tolerance budget that absorbs future reverts without failing the test.",
+    "initial_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.88,
+      "robustness": 0.85,
+      "compatibility": 0.7
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-10",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense makes a valid methodological point: relative diff comparison (before vs. after revert) partially sidesteps the tolerance absorption problem. However, a2-07 as stated proposes 'revert-and-t..."
+      },
+      {
+        "round": 3,
+        "tension": "t-10",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.03,
+        "reasoning": "The defense makes a valid methodological point: relative diff comparison (before vs. after revert) partially sidesteps the tolerance absorption problem. However, a2-07 as stated proposes 'revert-and-t..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.94,
+      "specificity": 0.88,
+      "robustness": 0.82,
+      "compatibility": 0.7
+    },
+    "composite": 0.835,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-20",
+    "proposition": "Rounding differences that compound across nested layouts, font rendering differences at specific sizes, and interactions between independently-correct fixes that produce visible artifacts are bugs that can only be found through empirical pixel diffing, not code reading.",
+    "initial_scores": {
+      "defensibility": 0.84,
+      "specificity": 0.85,
+      "robustness": 0.78,
+      "compatibility": 0.85
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.84,
+      "specificity": 0.85,
+      "robustness": 0.78,
+      "compatibility": 0.85
+    },
+    "composite": 0.83,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-08",
+    "proposition": "Empirical pixel diffing between C++ (emCore software renderer to X11) and Rust (wgpu) will produce a permanent noise floor of rendering pipeline artifacts (font hinting, anti-aliasing, gamma curves) that degrades the signal-to-noise ratio as real bugs are fixed.",
+    "initial_scores": {
+      "defensibility": 0.93,
+      "specificity": 0.9,
+      "robustness": 0.88,
+      "compatibility": 0.65
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-01",
+        "cluster": "Empirical pixel diffing value vs. renderer noise floor and non-visual blind spots",
+        "pass": "adjudication",
+        "axis": "specificity",
+        "delta": -0.03,
+        "reasoning": "The defense correctly identifies that the prosecution conflated cross-renderer diffing with same-renderer golden test comparison. The golden test infrastructure produces both reference and test output..."
+      },
+      {
+        "round": 3,
+        "tension": "t-01",
+        "cluster": "Empirical pixel diffing value vs. renderer noise floor and non-visual blind spots",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.03,
+        "reasoning": "The defense correctly identifies that the prosecution conflated cross-renderer diffing with same-renderer golden test comparison. The golden test infrastructure produces both reference and test output..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.93,
+      "specificity": 0.87,
+      "robustness": 0.85,
+      "compatibility": 0.65
+    },
+    "composite": 0.825,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-10",
+    "proposition": "Commit-to-finding traceability audits verify the existence of a response to each finding but not the adequacy of that response, because they operate on finding titles and commit messages rather than finding content and code changes.",
+    "initial_scores": {
+      "defensibility": 0.89,
+      "specificity": 0.84,
+      "robustness": 0.83,
+      "compatibility": 0.72
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-08",
+        "cluster": "Traceability audit value vs. superficiality and Goodhart's Law",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense correctly notes that a1-19 scopes traceability as a metadata check, not a correctness verification. However, a1-19 also claims it 'directly catches the stale metadata failure mode' \u2014 imply..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.91,
+      "specificity": 0.84,
+      "robustness": 0.83,
+      "compatibility": 0.72
+    },
+    "composite": 0.825,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-04",
+    "proposition": "The highest-value work at this project stage is writing golden tests for the 31 already-applied fixes, not fixing additional LOW-severity items.",
+    "initial_scores": {
+      "defensibility": 0.87,
+      "specificity": 0.88,
+      "robustness": 0.75,
+      "compatibility": 0.82
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-11",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.03,
+        "reasoning": "The defense makes a strong practical point: the specific 31 fixes are mostly geometry and rendering, not alpha-path code. The alpha blind spot is a real limitation of the golden test infrastructure bu..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.87,
+      "specificity": 0.88,
+      "robustness": 0.72,
+      "compatibility": 0.82
+    },
+    "composite": 0.8225,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-22",
+    "proposition": "An LLM adversarial reviewer cannot verify factual claims in justifications (e.g., 'C++ emListBox.cpp has no VCT_MIN_EXT check') without reading the referenced source files, so it evaluates internal consistency of justifications rather than factual accuracy, and internal consistency is trivially achievable for false claims.",
+    "initial_scores": {
+      "defensibility": 0.91,
+      "specificity": 0.88,
+      "robustness": 0.86,
+      "compatibility": 0.62
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-02",
+        "cluster": "LLM-as-reviewer reliability: diff review, adversarial rationale review, and structured outputs",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense makes a legitimate structural distinction for a2-02: fix diff re-audit with C++ reference is genuinely different from open-ended code review. The external oracle constrains interpretation ..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.93,
+      "specificity": 0.88,
+      "robustness": 0.86,
+      "compatibility": 0.62
+    },
+    "composite": 0.8225,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-16",
+    "proposition": "Verification failures (early completion, lossy derivative documents, silent skipping, stale metadata) are more insidious than generation failures because they corrupt the trust chain that all subsequent decisions depend on.",
+    "initial_scores": {
+      "defensibility": 0.87,
+      "specificity": 0.8,
+      "robustness": 0.82,
+      "compatibility": 0.78
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.87,
+      "specificity": 0.8,
+      "robustness": 0.82,
+      "compatibility": 0.78
+    },
+    "composite": 0.8175,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-16",
+    "proposition": "The unifying meta-strategy is 'use the oracle whenever you can, use code reading when you must' \u2014 every verification strategy should be evaluated by how effectively it leverages the C++ code, binary, and golden test generator.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.65,
+      "robustness": 0.82,
+      "compatibility": 0.9
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-05",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "specificity",
+        "delta": 0.02,
+        "reasoning": "The defense makes a valid point that agents can write non-pixel tests. However, a1-12's 'never as judges' absolutism still creates practical problems for cases where the correct behavior is ambiguous ..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.67,
+      "robustness": 0.82,
+      "compatibility": 0.9
+    },
+    "composite": 0.8175,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-15",
+    "proposition": "As strategy outputs accumulate across dispatches, later strategies will operate on summaries of summaries rather than source code, with multiplicative information loss at each summarization layer degrading specific findings into vague concerns.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.82,
+      "robustness": 0.85,
+      "compatibility": 0.72
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.82,
+      "robustness": 0.85,
+      "compatibility": 0.72
+    },
+    "composite": 0.8175,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-01",
+    "proposition": "Port verification is a distinct discipline from code review or testing, because the C++ codebase serves as an executable specification that can answer any question formulated as an input.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.6,
+      "robustness": 0.85,
+      "compatibility": 0.9
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.6,
+      "robustness": 0.85,
+      "compatibility": 0.9
+    },
+    "composite": 0.8125,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-12",
+    "proposition": "For every function in the pixel arithmetic and geometry layers, every integer operation should be verified to ensure the Rust type matches the C++ promoted type, focusing on code that mixes signed/unsigned, shifts, or converts between float and integer.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.9,
+      "robustness": 0.78,
+      "compatibility": 0.75
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.9,
+      "robustness": 0.78,
+      "compatibility": 0.75
+    },
+    "composite": 0.8125,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-03",
+    "proposition": "Cross-fix consistency checks that compare source code across the 5 button-family widgets cannot distinguish cosmetic differences from behavioral differences without executing the code, reducing them to empirical pixel diffing.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.85,
+      "robustness": 0.8,
+      "compatibility": 0.72
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.85,
+      "robustness": 0.8,
+      "compatibility": 0.72
+    },
+    "composite": 0.8125,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-07",
+    "proposition": "Mutation testing should target FIXED items with no coverage rather than CLOSED items, because the higher-value question is 'would reverting this fix cause a test failure?' not 'can we prove a closed item was correctly closed.'",
+    "initial_scores": {
+      "defensibility": 0.87,
+      "specificity": 0.85,
+      "robustness": 0.78,
+      "compatibility": 0.82
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-10",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.08,
+        "reasoning": "The defense makes a valid methodological point: relative diff comparison (before vs. after revert) partially sidesteps the tolerance absorption problem. However, a2-07 as stated proposes 'revert-and-t..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.87,
+      "specificity": 0.85,
+      "robustness": 0.7,
+      "compatibility": 0.82
+    },
+    "composite": 0.81,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-22",
+    "proposition": "The project has the infrastructure to make empirical methods work (C++ binaries, golden test generator, comparison functions, divergence measurement tools), and agents should be used to write tests that exercise this infrastructure rather than to render opinions.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.82,
+      "robustness": 0.8,
+      "compatibility": 0.78
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-19",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense makes a fair point that golden tests can discover unknown bugs through full-scene comparison. However, a1-22's specific prescription ('write tests that exercise this infrastructure') in co..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.82,
+      "robustness": 0.75,
+      "compatibility": 0.78
+    },
+    "composite": 0.8075,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-05",
+    "proposition": "An LLM adversarial reviewer evaluating LLM-written justifications will accept well-written false justifications and reject poorly-written correct justifications, because both the writer and reviewer optimize for the same 'sounds reasonable' objective.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.83,
+      "robustness": 0.88,
+      "compatibility": 0.6
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-02",
+        "cluster": "LLM-as-reviewer reliability: diff review, adversarial rationale review, and structured outputs",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense makes a legitimate structural distinction for a2-02: fix diff re-audit with C++ reference is genuinely different from open-ended code review. The external oracle constrains interpretation ..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.83,
+      "robustness": 0.88,
+      "compatibility": 0.6
+    },
+    "composite": 0.8075,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-23",
+    "proposition": "The orchestrator's combined confidence from 8 strategy reports cannot be computed as a product of individual confidences (e.g., 0.95^8) because the strategies share correlated failure modes (same codebase, same LLM blind spots, same audit artifacts), making the actual combined confidence much weaker than the formula suggests.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.8,
+      "robustness": 0.85,
+      "compatibility": 0.7
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.8,
+      "robustness": 0.85,
+      "compatibility": 0.7
+    },
+    "composite": 0.8075,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-08",
+    "proposition": "Exploratory differential testing \u2014 rendering the same widget tree with systematically varied parameters in both C++ and Rust and diffing outputs \u2014 is the most direct exploitation of the oracle and finds bugs that targeted tests miss.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.82,
+      "robustness": 0.8,
+      "compatibility": 0.85
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-01",
+        "cluster": "Empirical pixel diffing value vs. renderer noise floor and non-visual blind spots",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.08,
+        "reasoning": "The defense correctly identifies that the prosecution conflated cross-renderer diffing with same-renderer golden test comparison. The golden test infrastructure produces both reference and test output..."
+      },
+      {
+        "round": 3,
+        "tension": "t-01",
+        "cluster": "Empirical pixel diffing value vs. renderer noise floor and non-visual blind spots",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.05,
+        "reasoning": "The defense correctly identifies that the prosecution conflated cross-renderer diffing with same-renderer golden test comparison. The golden test infrastructure produces both reference and test output..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.83,
+      "specificity": 0.82,
+      "robustness": 0.72,
+      "compatibility": 0.85
+    },
+    "composite": 0.805,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-23",
+    "proposition": "Adversarial re-audit of fix diffs should be narrowed to HIGH and MEDIUM severity fixes only, with agents required to produce structured MATCH/MISMATCH outputs rather than prose reviews.",
+    "initial_scores": {
+      "defensibility": 0.83,
+      "specificity": 0.9,
+      "robustness": 0.78,
+      "compatibility": 0.8
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-02",
+        "cluster": "LLM-as-reviewer reliability: diff review, adversarial rationale review, and structured outputs",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.07,
+        "reasoning": "The defense makes a legitimate structural distinction for a2-02: fix diff re-audit with C++ reference is genuinely different from open-ended code review. The external oracle constrains interpretation ..."
+      },
+      {
+        "round": 3,
+        "tension": "t-02",
+        "cluster": "LLM-as-reviewer reliability: diff review, adversarial rationale review, and structured outputs",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.03,
+        "reasoning": "The defense makes a legitimate structural distinction for a2-02: fix diff re-audit with C++ reference is genuinely different from open-ended code review. The external oracle constrains interpretation ..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.9,
+      "robustness": 0.71,
+      "compatibility": 0.8
+    },
+    "composite": 0.8025,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-19",
+    "proposition": "Strategy 7 (commit-to-finding traceability audit) is a cheap, mechanical task that agents can perform reliably because it is pattern matching, not judgment, and it directly catches the stale metadata failure mode.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.8,
+      "robustness": 0.78,
+      "compatibility": 0.88
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-08",
+        "cluster": "Traceability audit value vs. superficiality and Goodhart's Law",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense correctly notes that a1-19 scopes traceability as a metadata check, not a correctness verification. However, a1-19 also claims it 'directly catches the stale metadata failure mode' \u2014 imply..."
+      },
+      {
+        "round": 3,
+        "tension": "t-08",
+        "cluster": "Traceability audit value vs. superficiality and Goodhart's Law",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.03,
+        "reasoning": "The defense correctly notes that a1-19 scopes traceability as a metadata check, not a correctness verification. However, a1-19 also claims it 'directly catches the stale metadata failure mode' \u2014 imply..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.79,
+      "specificity": 0.8,
+      "robustness": 0.73,
+      "compatibility": 0.88
+    },
+    "composite": 0.8,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-10",
+    "proposition": "Commit-message-to-finding traceability auditing is low-value for finding bugs and should be used only as a preprocessing step to identify orphaned fixes and scope the fix diff re-audit.",
+    "initial_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.78,
+      "robustness": 0.75,
+      "compatibility": 0.85
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.78,
+      "robustness": 0.75,
+      "compatibility": 0.85
+    },
+    "composite": 0.795,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-19",
+    "proposition": "Silent skipping \u2014 fix agents marking audit items ACCEPTED without justification to clear the checklist \u2014 is a specific failure mode that adversarial rationale review is designed to catch.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.88,
+      "robustness": 0.8,
+      "compatibility": 0.82
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-02",
+        "cluster": "LLM-as-reviewer reliability: diff review, adversarial rationale review, and structured outputs",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.12,
+        "reasoning": "The defense makes a legitimate structural distinction for a2-02: fix diff re-audit with C++ reference is genuinely different from open-ended code review. The external oracle constrains interpretation ..."
+      },
+      {
+        "round": 3,
+        "tension": "t-02",
+        "cluster": "LLM-as-reviewer reliability: diff review, adversarial rationale review, and structured outputs",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.05,
+        "reasoning": "The defense makes a legitimate structural distinction for a2-02: fix diff re-audit with C++ reference is genuinely different from open-ended code review. The external oracle constrains interpretation ..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.88,
+      "robustness": 0.68,
+      "compatibility": 0.82
+    },
+    "composite": 0.795,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-14",
+    "proposition": "Control flow graph comparison between C++ and Rust function pairs \u2014 verifying that every return point has the same side effects (mutations, signals, invalidations) \u2014 catches structural divergences that line-by-line code comparison misses.",
+    "initial_scores": {
+      "defensibility": 0.83,
+      "specificity": 0.8,
+      "robustness": 0.72,
+      "compatibility": 0.82
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.83,
+      "specificity": 0.8,
+      "robustness": 0.72,
+      "compatibility": 0.82
+    },
+    "composite": 0.7925,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-16",
+    "proposition": "All 8 proposed strategies share a structural bias toward verifying the 170+ already-identified findings while providing no mechanism to discover bugs that the original audit missed entirely.",
+    "initial_scores": {
+      "defensibility": 0.91,
+      "specificity": 0.8,
+      "robustness": 0.88,
+      "compatibility": 0.55
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-19",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense makes a fair point that golden tests can discover unknown bugs through full-scene comparison. However, a1-22's specific prescription ('write tests that exercise this infrastructure') in co..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.93,
+      "specificity": 0.8,
+      "robustness": 0.88,
+      "compatibility": 0.55
+    },
+    "composite": 0.79,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-01",
+    "proposition": "Mechanically verifiable work (tests, pixel diffs) produces reliable value, while subjective agent judgment under token pressure produces unreliable value.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.65,
+      "robustness": 0.82,
+      "compatibility": 0.8
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.65,
+      "robustness": 0.82,
+      "compatibility": 0.8
+    },
+    "composite": 0.7875,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-03",
+    "proposition": "An agent reading a diff and declaring it correct is not verification \u2014 it is a second opinion with the same failure modes as the first opinion.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.7,
+      "robustness": 0.85,
+      "compatibility": 0.68
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-02",
+        "cluster": "LLM-as-reviewer reliability: diff review, adversarial rationale review, and structured outputs",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.03,
+        "reasoning": "The defense makes a legitimate structural distinction for a2-02: fix diff re-audit with C++ reference is genuinely different from open-ended code review. The external oracle constrains interpretation ..."
+      },
+      {
+        "round": 3,
+        "tension": "t-02",
+        "cluster": "LLM-as-reviewer reliability: diff review, adversarial rationale review, and structured outputs",
+        "pass": "adjudication",
+        "axis": "specificity",
+        "delta": 0.03,
+        "reasoning": "The defense makes a legitimate structural distinction for a2-02: fix diff re-audit with C++ reference is genuinely different from open-ended code review. The external oracle constrains interpretation ..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.73,
+      "robustness": 0.82,
+      "compatibility": 0.68
+    },
+    "composite": 0.7825,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-14",
+    "proposition": "Running all 8 strategies across 20 widgets requires 160+ agent dispatches that re-read the same source files in fresh contexts, consuming approximately 3x the context tokens of a single-pass approach due to lack of shared state between dispatches.",
+    "initial_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.85,
+      "robustness": 0.7,
+      "compatibility": 0.8
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.85,
+      "robustness": 0.7,
+      "compatibility": 0.8
+    },
+    "composite": 0.7825,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-02",
+    "proposition": "Adversarial re-audit of fix diffs against the C++ reference is the single highest-ROI verification strategy, because fixes that are 'close but not right' are the most dangerous remaining bug class.",
+    "initial_scores": {
+      "defensibility": 0.88,
+      "specificity": 0.85,
+      "robustness": 0.8,
+      "compatibility": 0.75
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-02",
+        "cluster": "LLM-as-reviewer reliability: diff review, adversarial rationale review, and structured outputs",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.08,
+        "reasoning": "The defense makes a legitimate structural distinction for a2-02: fix diff re-audit with C++ reference is genuinely different from open-ended code review. The external oracle constrains interpretation ..."
+      },
+      {
+        "round": 3,
+        "tension": "t-02",
+        "cluster": "LLM-as-reviewer reliability: diff review, adversarial rationale review, and structured outputs",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.03,
+        "reasoning": "The defense makes a legitimate structural distinction for a2-02: fix diff re-audit with C++ reference is genuinely different from open-ended code review. The external oracle constrains interpretation ..."
+      },
+      {
+        "round": 3,
+        "tension": "t-04",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense is partially right: a competent agent CAN look beyond the diff. But the prosecution's point is that the diff-based framing of the re-audit task creates a cognitive anchor that makes it LES..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.85,
+      "robustness": 0.67,
+      "compatibility": 0.75
+    },
+    "composite": 0.78,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-21",
+    "proposition": "The golden test generator should be extended to produce a grid of widget states covering every widget type crossed with enabled/disabled states, multiple zoom levels, and multiple content variants for systematic differential comparison.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.9,
+      "robustness": 0.75,
+      "compatibility": 0.8
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-01",
+        "cluster": "Empirical pixel diffing value vs. renderer noise floor and non-visual blind spots",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.1,
+        "reasoning": "The defense correctly identifies that the prosecution conflated cross-renderer diffing with same-renderer golden test comparison. The golden test infrastructure produces both reference and test output..."
+      },
+      {
+        "round": 3,
+        "tension": "t-01",
+        "cluster": "Empirical pixel diffing value vs. renderer noise floor and non-visual blind spots",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.05,
+        "reasoning": "The defense correctly identifies that the prosecution conflated cross-renderer diffing with same-renderer golden test comparison. The golden test infrastructure produces both reference and test output..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.77,
+      "specificity": 0.9,
+      "robustness": 0.65,
+      "compatibility": 0.8
+    },
+    "composite": 0.78,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-22",
+    "proposition": "Strategies that do not leverage the C++ oracle (traceability auditing, fragility analysis) are generic quality practices with low port-specificity and should be ranked lowest in priority.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.78,
+      "robustness": 0.74,
+      "compatibility": 0.78
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.78,
+      "robustness": 0.74,
+      "compatibility": 0.78
+    },
+    "composite": 0.78,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-02",
+    "proposition": "Strategies that decompose into per-finding or per-function verification units are structurally superior to strategies that require holistic file-level reasoning, because holistic tasks trigger lossy summarization failure modes in LLM agents.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.75,
+      "robustness": 0.78,
+      "compatibility": 0.72
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.75,
+      "robustness": 0.78,
+      "compatibility": 0.72
+    },
+    "composite": 0.775,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-06",
+    "proposition": "When an adversarial reviewer flags a CLOSED finding, the response will be a better-written justification rather than a re-investigation of the technical question, causing the system to optimize for prose quality instead of decision quality.",
+    "initial_scores": {
+      "defensibility": 0.87,
+      "specificity": 0.8,
+      "robustness": 0.82,
+      "compatibility": 0.58
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-17",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense makes an excellent point: a failing test persists and cannot be rationalized away, while prose can. This preserves Strategy 5's advantage over Strategy 3. However, the 'strictly superior' ..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.89,
+      "specificity": 0.8,
+      "robustness": 0.82,
+      "compatibility": 0.58
+    },
+    "composite": 0.7725,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-18",
+    "proposition": "When strategies 1 (re-audit), 5 (mutation testing), and 6 (empirical diffing) produce contradictory signals about a fix, the orchestrator will resolve the contradiction by majority vote rather than analysis, discarding the informative disagreement signal.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.84,
+      "robustness": 0.75,
+      "compatibility": 0.68
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.84,
+      "robustness": 0.75,
+      "compatibility": 0.68
+    },
+    "composite": 0.7725,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-05",
+    "proposition": "Agents are more dangerous as auditors than as coders, because coding mistakes are caught by pre-commit hooks and tests while audit mistakes accumulate silently.",
+    "initial_scores": {
+      "defensibility": 0.86,
+      "specificity": 0.72,
+      "robustness": 0.8,
+      "compatibility": 0.7
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.86,
+      "specificity": 0.72,
+      "robustness": 0.8,
+      "compatibility": 0.7
+    },
+    "composite": 0.77,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-18",
+    "proposition": "A behavioral replay strategy that scripts input sequences through both C++ and Rust widgets and compares resulting state transitions would catch 'fix is self-consistent but wrong' bugs that pixel diffing misses.",
+    "initial_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.82,
+      "robustness": 0.6,
+      "compatibility": 0.85
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.82,
+      "robustness": 0.6,
+      "compatibility": 0.85
+    },
+    "composite": 0.7675,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-02",
+    "proposition": "Tightening golden test tolerances to compensate for tolerance absorption will introduce false failures on correct fixes that differ by 1 channel value due to legitimate rounding order differences.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.82,
+      "robustness": 0.75,
+      "compatibility": 0.65
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.82,
+      "robustness": 0.75,
+      "compatibility": 0.65
+    },
+    "composite": 0.7675,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-04",
+    "proposition": "Iterative source-level harmonization of duplicated widget code will converge on textual similarity while potentially introducing bugs by making correct-but-different implementations match an incorrect template.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.78,
+      "robustness": 0.77,
+      "compatibility": 0.68
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-18",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense correctly distinguishes the obligation (mirror) from the risky execution method (copy-paste). However, in practice with LLM agents, the cheaper execution method (copy from template) is the..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.84,
+      "specificity": 0.78,
+      "robustness": 0.77,
+      "compatibility": 0.68
+    },
+    "composite": 0.7675,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-09",
+    "proposition": "Known-difference exclusion lists for empirical pixel diffing will grow monotonically and become a shadow tolerance system that hides real bugs falling in excluded regions.",
+    "initial_scores": {
+      "defensibility": 0.84,
+      "specificity": 0.82,
+      "robustness": 0.79,
+      "compatibility": 0.62
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-20",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense correctly distinguishes same-renderer golden tests from cross-renderer comparison, partially mitigating the exclusion list concern. However, a2-13 describes 'differential testing' comparin..."
+      },
+      {
+        "round": 3,
+        "tension": "t-20",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.02,
+        "reasoning": "The defense correctly distinguishes same-renderer golden tests from cross-renderer comparison, partially mitigating the exclusion list concern. However, a2-13 describes 'differential testing' comparin..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.86,
+      "specificity": 0.82,
+      "robustness": 0.77,
+      "compatibility": 0.62
+    },
+    "composite": 0.7675,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-11",
+    "proposition": "Full-scene rendering tests are the cheapest way to detect composition effects from multiple independently-correct fixes interacting incorrectly.",
+    "initial_scores": {
+      "defensibility": 0.83,
+      "specificity": 0.78,
+      "robustness": 0.7,
+      "compatibility": 0.8
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-01",
+        "cluster": "Empirical pixel diffing value vs. renderer noise floor and non-visual blind spots",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense correctly identifies that the prosecution conflated cross-renderer diffing with same-renderer golden test comparison. The golden test infrastructure produces both reference and test output..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.83,
+      "specificity": 0.78,
+      "robustness": 0.65,
+      "compatibility": 0.8
+    },
+    "composite": 0.765,
+    "category": "survivor"
+  },
+  {
+    "id": "a2-18",
+    "proposition": "Fragility analysis and maintenance documentation should be deferred until after the code stabilizes, because the code is still actively changing with 30 pending LOW-priority items and ongoing development.",
+    "initial_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.78,
+      "robustness": 0.72,
+      "compatibility": 0.75
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.78,
+      "robustness": 0.72,
+      "compatibility": 0.75
+    },
+    "composite": 0.7625,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-17",
+    "proposition": "The conclusion 'all 8 strategies passed, the port is high quality' is indistinguishable from 'all 8 strategies confirmed resolution of known bugs while unknown bugs remain unexamined,' making strategy-pass a measure of audit completeness rather than port quality.",
+    "initial_scores": {
+      "defensibility": 0.9,
+      "specificity": 0.77,
+      "robustness": 0.87,
+      "compatibility": 0.52
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-23",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.02,
+        "reasoning": "The defense correctly notes that empirical strategies can discover unknown bugs, partially rescuing a2-17 from the prosecution's harshest reading. However, a2-17's specificity score (already 0.50) was..."
+      },
+      {
+        "round": 3,
+        "tension": "t-23",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "specificity",
+        "delta": -0.03,
+        "reasoning": "The defense correctly notes that empirical strategies can discover unknown bugs, partially rescuing a2-17 from the prosecution's harshest reading. However, a2-17's specificity score (already 0.50) was..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.92,
+      "specificity": 0.74,
+      "robustness": 0.87,
+      "compatibility": 0.52
+    },
+    "composite": 0.7625,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-12",
+    "proposition": "The optimal meta-strategy is to use agents as test authors, not as judges, and let the test infrastructure be the judge.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.72,
+      "robustness": 0.78,
+      "compatibility": 0.7
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-05",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.03,
+        "reasoning": "The defense makes a valid point that agents can write non-pixel tests. However, a1-12's 'never as judges' absolutism still creates practical problems for cases where the correct behavior is ambiguous ..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.72,
+      "robustness": 0.78,
+      "compatibility": 0.67
+    },
+    "composite": 0.755,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-11",
+    "proposition": "Traceability audits will train future fix agents to optimize for referencing finding numbers in commit messages rather than addressing finding content, creating a ritual compliance pattern.",
+    "initial_scores": {
+      "defensibility": 0.83,
+      "specificity": 0.79,
+      "robustness": 0.76,
+      "compatibility": 0.65
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-08",
+        "cluster": "Traceability audit value vs. superficiality and Goodhart's Law",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": 0.01,
+        "reasoning": "The defense correctly notes that a1-19 scopes traceability as a metadata check, not a correctness verification. However, a1-19 also claims it 'directly catches the stale metadata failure mode' \u2014 imply..."
+      },
+      {
+        "round": 3,
+        "tension": "t-08",
+        "cluster": "Traceability audit value vs. superficiality and Goodhart's Law",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.02,
+        "reasoning": "The defense correctly notes that a1-19 scopes traceability as a metadata check, not a correctness verification. However, a1-19 also claims it 'directly catches the stale metadata failure mode' \u2014 imply..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.84,
+      "specificity": 0.79,
+      "robustness": 0.74,
+      "compatibility": 0.65
+    },
+    "composite": 0.755,
+    "category": "survivor"
+  },
+  {
+    "id": "a1-21",
+    "proposition": "Empirical methods (pixel diffing, golden tests, behavioral replay) detect risk without requiring agent judgment, while analytical methods (adversarial review, rationale challenging, consistency checks) require agent judgment that is exactly as reliable as the judgment being checked.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.75,
+      "robustness": 0.75,
+      "compatibility": 0.68
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.75,
+      "robustness": 0.75,
+      "compatibility": 0.68
+    },
+    "composite": 0.75,
+    "category": "survivor"
+  },
+  {
+    "id": "a3-13",
+    "proposition": "Stale maintenance documentation is worse than no documentation because it carries authority that overrides an agent's correct independent judgment, causing agents to follow outdated instructions over current code reality.",
+    "initial_scores": {
+      "defensibility": 0.86,
+      "specificity": 0.75,
+      "robustness": 0.8,
+      "compatibility": 0.58
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.86,
+      "specificity": 0.75,
+      "robustness": 0.8,
+      "compatibility": 0.58
+    },
+    "composite": 0.7475,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-17",
+    "proposition": "Given a limited agent budget of 3-5 agents, only empirical pixel diffing and coverage gap closure should be performed, as they provide the broadest coverage and most durable value respectively.",
+    "initial_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.88,
+      "robustness": 0.7,
+      "compatibility": 0.72
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-13",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense partially reconciles the two by noting different budget assumptions. However, a1-17 still overclaims by saying 'only' these two strategies \u2014 even under budget constraints, a lightweight fi..."
+      },
+      {
+        "round": 3,
+        "tension": "t-13",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "compatibility",
+        "delta": -0.05,
+        "reasoning": "The defense partially reconciles the two by noting different budget assumptions. However, a1-17 still overclaims by saying 'only' these two strategies \u2014 even under budget constraints, a lightweight fi..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.88,
+      "robustness": 0.65,
+      "compatibility": 0.67
+    },
+    "composite": 0.745,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-06",
+    "proposition": "Strategy 6 (empirical pixel diffing of full TkTest scene) is the single most valuable quality strategy because it is holistic without requiring holistic reasoning from an agent.",
+    "initial_scores": {
+      "defensibility": 0.82,
+      "specificity": 0.85,
+      "robustness": 0.68,
+      "compatibility": 0.75
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-01",
+        "cluster": "Empirical pixel diffing value vs. renderer noise floor and non-visual blind spots",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.08,
+        "reasoning": "The defense correctly identifies that the prosecution conflated cross-renderer diffing with same-renderer golden test comparison. The golden test infrastructure produces both reference and test output..."
+      },
+      {
+        "round": 3,
+        "tension": "t-01",
+        "cluster": "Empirical pixel diffing value vs. renderer noise floor and non-visual blind spots",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.05,
+        "reasoning": "The defense correctly identifies that the prosecution conflated cross-renderer diffing with same-renderer golden test comparison. The golden test infrastructure produces both reference and test output..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.77,
+      "specificity": 0.85,
+      "robustness": 0.6,
+      "compatibility": 0.75
+    },
+    "composite": 0.7425,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-20",
+    "proposition": "As the port improves, a larger fraction of remaining bugs will concentrate in the alpha/compositing path that golden tests cannot verify, causing quality metrics to improve while actual risk concentrates in the blind spot.",
+    "initial_scores": {
+      "defensibility": 0.79,
+      "specificity": 0.76,
+      "robustness": 0.74,
+      "compatibility": 0.68
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.79,
+      "specificity": 0.76,
+      "robustness": 0.74,
+      "compatibility": 0.68
+    },
+    "composite": 0.7425,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-09",
+    "proposition": "CLOSED items are the riskiest category because they represent a trust boundary where 'we decided this is fine' is the most common source of latent bugs.",
+    "initial_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.7,
+      "robustness": 0.72,
+      "compatibility": 0.78
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.7,
+      "robustness": 0.72,
+      "compatibility": 0.78
+    },
+    "composite": 0.7375,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-12",
+    "proposition": "A maintenance guide documenting cross-file update dependencies ('if you change X, change Y too') will codify code duplication as a permanent architectural decision and foreclose the refactoring option of extracting shared traits.",
+    "initial_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.83,
+      "robustness": 0.72,
+      "compatibility": 0.6
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.83,
+      "robustness": 0.72,
+      "compatibility": 0.6
+    },
+    "composite": 0.7375,
+    "category": "wounded"
+  },
+  {
+    "id": "a3-21",
+    "proposition": "The 8-strategy process is more likely to produce a confident 'all clear' signal than a single deep investigation of the 30 PENDING items, because breadth across many shallow passes produces confidence while depth on specific items produces bugs.",
+    "initial_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.81,
+      "robustness": 0.78,
+      "compatibility": 0.5
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.85,
+      "specificity": 0.81,
+      "robustness": 0.78,
+      "compatibility": 0.5
+    },
+    "composite": 0.735,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-10",
+    "proposition": "Strategy 5 (existence tests for CLOSED divergences) is strictly superior to Strategy 3 (rationale adversarial review) because it validates the same trust boundary empirically rather than analytically.",
+    "initial_scores": {
+      "defensibility": 0.8,
+      "specificity": 0.82,
+      "robustness": 0.7,
+      "compatibility": 0.65
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-17",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense makes an excellent point: a failing test persists and cannot be rationalized away, while prose can. This preserves Strategy 5's advantage over Strategy 3. However, the 'strictly superior' ..."
+      },
+      {
+        "round": 3,
+        "tension": "t-17",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.02,
+        "reasoning": "The defense makes an excellent point: a failing test persists and cannot be rationalized away, while prose can. This preserves Strategy 5's advantage over Strategy 3. However, the 'strictly superior' ..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.82,
+      "robustness": 0.65,
+      "compatibility": 0.65
+    },
+    "composite": 0.725,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-07",
+    "proposition": "Strategy 3 (rationale adversarial review) is the worst strategy for this project because challenging a justification requires the same holistic understanding that produced it, making a second agent equally likely to be wrong.",
+    "initial_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.8,
+      "robustness": 0.72,
+      "compatibility": 0.55
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.8,
+      "robustness": 0.72,
+      "compatibility": 0.55
+    },
+    "composite": 0.7125,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-15",
+    "proposition": "The fix diff re-audit must be completed before any other verification strategy because it validates the foundation \u2014 all subsequent strategies assume the fixes are correct.",
+    "initial_scores": {
+      "defensibility": 0.78,
+      "specificity": 0.75,
+      "robustness": 0.68,
+      "compatibility": 0.7
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-13",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.07,
+        "reasoning": "The defense partially reconciles the two by noting different budget assumptions. However, a1-17 still overclaims by saying 'only' these two strategies \u2014 even under budget constraints, a lightweight fi..."
+      },
+      {
+        "round": 3,
+        "tension": "t-13",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.03,
+        "reasoning": "The defense partially reconciles the two by noting different budget assumptions. However, a1-17 still overclaims by saying 'only' these two strategies \u2014 even under budget constraints, a lightweight fi..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.75,
+      "robustness": 0.61,
+      "compatibility": 0.7
+    },
+    "composite": 0.7025,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-20",
+    "proposition": "Strategy 8 (forward-looking fragility analysis) produces no immediate quality improvement and does not belong in a quality assurance pass, despite being useful documentation.",
+    "initial_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.72,
+      "robustness": 0.68,
+      "compatibility": 0.65
+    },
+    "deltas": [],
+    "final_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.72,
+      "robustness": 0.68,
+      "compatibility": 0.65
+    },
+    "composite": 0.7,
+    "category": "wounded"
+  },
+  {
+    "id": "a1-15",
+    "proposition": "Strategy 2 (cross-fix consistency check) has low remaining value because the cross-cutting concerns are already resolved and documented, and an agent re-checking would mostly confirm what is already known.",
+    "initial_scores": {
+      "defensibility": 0.72,
+      "specificity": 0.78,
+      "robustness": 0.65,
+      "compatibility": 0.68
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-25",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.05,
+        "reasoning": "The defense is partially right: re-checking completed work has lower value than initial checking. But a1-15's robustness score should account for the possibility that the mirroring was done incorrectl..."
+      },
+      {
+        "round": 3,
+        "tension": "t-25",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "defensibility",
+        "delta": -0.03,
+        "reasoning": "The defense is partially right: re-checking completed work has lower value than initial checking. But a1-15's robustness score should account for the possibility that the mirroring was done incorrectl..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.69,
+      "specificity": 0.78,
+      "robustness": 0.6,
+      "compatibility": 0.68
+    },
+    "composite": 0.6875,
+    "category": "wounded"
+  },
+  {
+    "id": "a2-17",
+    "proposition": "The port is not done when all tests pass; it is done when every function's output matches the oracle's output for every input the function can receive.",
+    "initial_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.5,
+      "robustness": 0.6,
+      "compatibility": 0.8
+    },
+    "deltas": [
+      {
+        "round": 3,
+        "tension": "t-23",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "robustness",
+        "delta": -0.08,
+        "reasoning": "The defense correctly notes that empirical strategies can discover unknown bugs, partially rescuing a2-17 from the prosecution's harshest reading. However, a2-17's specificity score (already 0.50) was..."
+      },
+      {
+        "round": 3,
+        "tension": "t-23",
+        "cluster": "",
+        "pass": "adjudication",
+        "axis": "specificity",
+        "delta": -0.05,
+        "reasoning": "The defense correctly notes that empirical strategies can discover unknown bugs, partially rescuing a2-17 from the prosecution's harshest reading. However, a2-17's specificity score (already 0.50) was..."
+      }
+    ],
+    "final_scores": {
+      "defensibility": 0.75,
+      "specificity": 0.45,
+      "robustness": 0.52,
+      "compatibility": 0.8
+    },
+    "composite": 0.63,
+    "category": "wounded"
+  }
+]

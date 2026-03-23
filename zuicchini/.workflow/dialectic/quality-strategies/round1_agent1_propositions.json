@@ -1,0 +1,370 @@
+[
+  {
+    "id": "a1-01",
+    "proposition": "Mechanically verifiable work (tests, pixel diffs) produces reliable value, while subjective agent judgment under token pressure produces unreliable value.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.65,
+      "robustness": 0.82,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Well-supported by the documented failure modes where verification failures (silent skipping, stale metadata) went undetected while generation failures were caught by tests.",
+      "specificity": "States a clear principle but remains somewhat abstract — does not specify exactly which tasks fall into which category in edge cases.",
+      "robustness": "Holds up well because the binary pass/fail nature of mechanical verification is objectively harder to game than prose judgments.",
+      "compatibility": "Broadly compatible with most strategies since it is a meta-principle about task assignment, not a specific implementation choice."
+    }
+  },
+  {
+    "id": "a1-02",
+    "proposition": "Strategies that decompose into per-finding or per-function verification units are structurally superior to strategies that require holistic file-level reasoning, because holistic tasks trigger lossy summarization failure modes in LLM agents.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.75,
+      "robustness": 0.78,
+      "compatibility": 0.72
+    },
+    "reasoning": {
+      "defensibility": "Grounded in concrete context window economics — the border.rs example shows 180 lines for one finding vs. thousands for holistic review.",
+      "specificity": "Provides a clear decomposition criterion (per-finding/per-function) and names the failure mode (lossy summarization).",
+      "robustness": "Could be challenged if agents with very large context windows become reliable at holistic reasoning, but currently well-supported.",
+      "compatibility": "May conflict with strategies that inherently require cross-cutting analysis, such as composition effect detection."
+    }
+  },
+  {
+    "id": "a1-03",
+    "proposition": "An agent reading a diff and declaring it correct is not verification — it is a second opinion with the same failure modes as the first opinion.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.70,
+      "robustness": 0.85,
+      "compatibility": 0.68
+    },
+    "reasoning": {
+      "defensibility": "Logically sound: a second agent with identical capabilities and similar context has correlated error modes, not independent ones.",
+      "specificity": "Clear claim but does not quantify the correlation or specify when a second opinion does add marginal value.",
+      "robustness": "Strong because the argument is structural — identical tools produce correlated errors regardless of prompt engineering.",
+      "compatibility": "Somewhat adversarial toward strategies that rely on agent review (Strategies 1, 2, 3), which may have some residual value."
+    }
+  },
+  {
+    "id": "a1-04",
+    "proposition": "The highest-value work at this project stage is writing golden tests for the 31 already-applied fixes, not fixing additional LOW-severity items.",
+    "scores": {
+      "defensibility": 0.87,
+      "specificity": 0.88,
+      "robustness": 0.75,
+      "compatibility": 0.82
+    },
+    "reasoning": {
+      "defensibility": "Well-supported by the diminishing returns analysis and the explicit list of uncovered fixes (20-23, 26).",
+      "specificity": "Highly actionable — names the exact count (31 fixes), the exact priority (golden tests over new fixes), and specific examples.",
+      "robustness": "Could be weakened if the remaining LOWs turn out to have user-facing impact that outweighs regression risk from uncovered fixes.",
+      "compatibility": "Compatible with most strategies since golden test authorship can coexist with other verification approaches."
+    }
+  },
+  {
+    "id": "a1-05",
+    "proposition": "Agents are more dangerous as auditors than as coders, because coding mistakes are caught by pre-commit hooks and tests while audit mistakes accumulate silently.",
+    "scores": {
+      "defensibility": 0.86,
+      "specificity": 0.72,
+      "robustness": 0.80,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Supported by the documented failure mode classification: generation failures produce testable artifacts, verification failures produce unchecked metadata.",
+      "specificity": "Names the mechanism (pre-commit hooks catch code errors, nothing catches audit errors) but does not quantify the risk differential.",
+      "robustness": "Could be weakened by adding mechanical checks on audit outputs (structured schemas, mandatory evidence), but the core asymmetry remains.",
+      "compatibility": "Directly conflicts with strategies that assign agents to audit roles, which some team members may still value."
+    }
+  },
+  {
+    "id": "a1-06",
+    "proposition": "Strategy 6 (empirical pixel diffing of full TkTest scene) is the single most valuable quality strategy because it is holistic without requiring holistic reasoning from an agent.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.85,
+      "robustness": 0.68,
+      "compatibility": 0.75
+    },
+    "reasoning": {
+      "defensibility": "Strong argument: pixel diffing catches composition effects, validates closures empirically, and requires no agent judgment.",
+      "specificity": "Names the exact strategy, the exact test target (TkTest panel), and the mechanism (framebuffer capture and diff).",
+      "robustness": "Weakened by the acknowledged limitation that pixel diffing cannot catch behavioral divergences (keyboard handling, state transitions, callbacks).",
+      "compatibility": "Compatible with other strategies as a first-pass filter, but its claim of being 'single most valuable' may be contested by behavioral testing advocates."
+    }
+  },
+  {
+    "id": "a1-07",
+    "proposition": "Strategy 3 (rationale adversarial review) is the worst strategy for this project because challenging a justification requires the same holistic understanding that produced it, making a second agent equally likely to be wrong.",
+    "scores": {
+      "defensibility": 0.78,
+      "specificity": 0.80,
+      "robustness": 0.72,
+      "compatibility": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Logically consistent but somewhat overstated — a second agent may have different biases or catch different errors even with similar capabilities.",
+      "specificity": "Very specific: names the strategy, explains why it fails, and identifies the three likely outcomes (agree/disagree without evidence/find genuine error).",
+      "robustness": "Could be challenged by showing cases where adversarial review did catch genuine errors that empirical methods missed.",
+      "compatibility": "Low compatibility — directly attacks a strategy that other agents may champion, creating friction in synthesis."
+    }
+  },
+  {
+    "id": "a1-08",
+    "proposition": "Every fix that lacks golden test coverage is a regression waiting to happen, and at least 5 of the 31 applied fixes target functions explicitly noted as not golden-tested.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.92,
+      "robustness": 0.85,
+      "compatibility": 0.90
+    },
+    "reasoning": {
+      "defensibility": "Directly supported by the audit reports which annotate coverage for each finding, with specific fix numbers cited.",
+      "specificity": "Extremely specific — names the count (5 of 31), lists the fix numbers (20-23, 26), and describes each uncovered function.",
+      "robustness": "Very strong because the claim is empirically verifiable by checking coverage annotations.",
+      "compatibility": "Universally compatible — all strategies benefit from knowing which fixes lack test coverage."
+    }
+  },
+  {
+    "id": "a1-09",
+    "proposition": "CLOSED items are the riskiest category because they represent a trust boundary where 'we decided this is fine' is the most common source of latent bugs.",
+    "scores": {
+      "defensibility": 0.75,
+      "specificity": 0.70,
+      "robustness": 0.72,
+      "compatibility": 0.78
+    },
+    "reasoning": {
+      "defensibility": "Reasonable claim but 'most common source of latent bugs' is asserted without statistical evidence from this project.",
+      "specificity": "Identifies the category (CLOSED) and the risk mechanism (trust boundary) but does not quantify the risk level.",
+      "robustness": "Could be challenged by arguing that the 10 CLOSED items have detailed justifications with C++ line references, making them less risky than claimed.",
+      "compatibility": "Compatible with strategies that propose empirical validation of closures (Strategy 5)."
+    }
+  },
+  {
+    "id": "a1-10",
+    "proposition": "Strategy 5 (existence tests for CLOSED divergences) is strictly superior to Strategy 3 (rationale adversarial review) because it validates the same trust boundary empirically rather than analytically.",
+    "scores": {
+      "defensibility": 0.80,
+      "specificity": 0.82,
+      "robustness": 0.70,
+      "compatibility": 0.65
+    },
+    "reasoning": {
+      "defensibility": "The 'strictly superior' claim is strong but defensible: empirical tests produce binary pass/fail while analytical review produces prose opinions.",
+      "specificity": "Names both strategies and the exact mechanism of superiority (empirical vs. analytical validation of the same boundary).",
+      "robustness": "Could be challenged by arguing that some CLOSED items involve behavioral or architectural concerns that tests cannot capture.",
+      "compatibility": "Somewhat adversarial toward Strategy 3 advocates, but the constructive alternative (Strategy 5) aids synthesis."
+    }
+  },
+  {
+    "id": "a1-11",
+    "proposition": "Full-scene rendering tests are the cheapest way to detect composition effects from multiple independently-correct fixes interacting incorrectly.",
+    "scores": {
+      "defensibility": 0.83,
+      "specificity": 0.78,
+      "robustness": 0.70,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Supported by the concrete example of Fixes 6, 22, and 26 all modifying the label rendering pipeline with no combined test.",
+      "specificity": "Names the mechanism (full-scene rendering) and the specific risk (composition effects from Fixes 6/22/26).",
+      "robustness": "Weakened by the requirement for both C++ and Rust binaries to be runnable, which may need display/framebuffer infrastructure.",
+      "compatibility": "Compatible with per-fix testing strategies as a complementary layer."
+    }
+  },
+  {
+    "id": "a1-12",
+    "proposition": "The optimal meta-strategy is to use agents as test authors, not as judges, and let the test infrastructure be the judge.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.72,
+      "robustness": 0.78,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Well-supported by the structural argument about correlated agent errors and the asymmetry between testable code output and uncheckable prose output.",
+      "specificity": "Clear principle but somewhat high-level — does not specify exactly how to handle cases where test authorship is insufficient.",
+      "robustness": "Robust against most counterarguments because the test infrastructure provides an independent verification mechanism.",
+      "compatibility": "Creates tension with strategies that rely on agent judgment, but provides a clear alternative approach."
+    }
+  },
+  {
+    "id": "a1-13",
+    "proposition": "Fixing remaining DEFERRED items (RadioButton Drop re-index, FileSelectionBox reactive layer) requires building infrastructure that does not exist yet, making these poor targets for LLM point fixes.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.85,
+      "robustness": 0.82,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Well-grounded in the project's actual state — these items require hundreds of lines of new code and architectural decisions about Cycle/signal systems.",
+      "specificity": "Names the specific items and the specific infrastructure gaps (Cycle engine, signal systems, FileItemPanel).",
+      "robustness": "Strong because the claim is about structural complexity, not agent capability — even capable agents need the infrastructure to exist.",
+      "compatibility": "Compatible with most strategies since it argues for deferral, which frees resources for higher-value work."
+    }
+  },
+  {
+    "id": "a1-14",
+    "proposition": "Test passage is necessary but not sufficient for correctness — the golden tests cover specific scenarios, and functions like substance_round_rect, best_label_tallness, and label_space have no direct golden test coverage despite being modified by fixes.",
+    "scores": {
+      "defensibility": 0.92,
+      "specificity": 0.90,
+      "robustness": 0.88,
+      "compatibility": 0.92
+    },
+    "reasoning": {
+      "defensibility": "Empirically verifiable claim backed by specific coverage annotations from the audit reports.",
+      "specificity": "Names three specific functions and the distinction between test passage and coverage.",
+      "robustness": "Very robust — the gap between test passage and coverage is a well-established software engineering principle with concrete evidence here.",
+      "compatibility": "Universally compatible — no strategy is harmed by acknowledging coverage gaps."
+    }
+  },
+  {
+    "id": "a1-15",
+    "proposition": "Strategy 2 (cross-fix consistency check) has low remaining value because the cross-cutting concerns are already resolved and documented, and an agent re-checking would mostly confirm what is already known.",
+    "scores": {
+      "defensibility": 0.72,
+      "specificity": 0.78,
+      "robustness": 0.65,
+      "compatibility": 0.68
+    },
+    "reasoning": {
+      "defensibility": "Reasonable but assumes the existing documentation is correct — if the documentation has the 'stale metadata' problem the author identifies elsewhere, re-checking has value.",
+      "specificity": "Names the specific strategy and the specific evidence (CC-06 fixed in all 5 widgets, modifier guards added).",
+      "robustness": "Weakened by internal tension: the document warns about stale metadata elsewhere but assumes cross-cutting documentation is reliable here.",
+      "compatibility": "May conflict with strategies that value redundant verification as a safety net."
+    }
+  },
+  {
+    "id": "a1-16",
+    "proposition": "Verification failures (early completion, lossy derivative documents, silent skipping, stale metadata) are more insidious than generation failures because they corrupt the trust chain that all subsequent decisions depend on.",
+    "scores": {
+      "defensibility": 0.87,
+      "specificity": 0.80,
+      "robustness": 0.82,
+      "compatibility": 0.78
+    },
+    "reasoning": {
+      "defensibility": "Well-supported by the documented failure modes from the actual workflow — four specific verification failures are named.",
+      "specificity": "Lists four concrete failure modes and identifies the downstream effect (corrupted trust chain).",
+      "robustness": "Robust because the mechanism is structural: metadata errors propagate silently while code errors trigger test failures.",
+      "compatibility": "Compatible with strategies that add mechanical checks to audit processes."
+    }
+  },
+  {
+    "id": "a1-17",
+    "proposition": "Given a limited agent budget of 3-5 agents, only empirical pixel diffing and coverage gap closure should be performed, as they provide the broadest coverage and most durable value respectively.",
+    "scores": {
+      "defensibility": 0.78,
+      "specificity": 0.88,
+      "robustness": 0.70,
+      "compatibility": 0.72
+    },
+    "reasoning": {
+      "defensibility": "Follows logically from the tier rankings but the exclusion of all other strategies is a strong claim that may sacrifice valuable complementary checks.",
+      "specificity": "Very specific — names the budget constraint (3-5 agents), the two strategies, and the rationale for each.",
+      "robustness": "Could fail if pixel diffing infrastructure is not ready, leaving the entire budget on coverage gap closure alone.",
+      "compatibility": "Low-moderate compatibility because it explicitly excludes strategies other agents may champion."
+    }
+  },
+  {
+    "id": "a1-18",
+    "proposition": "A behavioral replay strategy that scripts input sequences through both C++ and Rust widgets and compares resulting state transitions would catch 'fix is self-consistent but wrong' bugs that pixel diffing misses.",
+    "scores": {
+      "defensibility": 0.80,
+      "specificity": 0.82,
+      "robustness": 0.60,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Sound in principle — the Fix 29 Dialog keyboard handling example concretely illustrates the gap pixel diffing leaves.",
+      "specificity": "Names the mechanism (input replay), the gap (behavioral divergences), and a specific example (Fix 29 Enter/Escape handling).",
+      "robustness": "Significantly weakened by the acknowledged difficulty of automating input replay across two UI toolkits.",
+      "compatibility": "Highly compatible as a complement to pixel diffing — fills the exact gap that Strategy 6 acknowledges."
+    }
+  },
+  {
+    "id": "a1-19",
+    "proposition": "Strategy 7 (commit-to-finding traceability audit) is a cheap, mechanical task that agents can perform reliably because it is pattern matching, not judgment, and it directly catches the stale metadata failure mode.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.80,
+      "robustness": 0.78,
+      "compatibility": 0.88
+    },
+    "reasoning": {
+      "defensibility": "Well-argued: cross-referencing commit references against finding annotations is indeed mechanical pattern matching.",
+      "specificity": "Names the exact task (cross-reference 31 fixes against per-widget status annotations) and the failure mode it catches.",
+      "robustness": "Robust because the task is well-defined with clear inputs and outputs, though its value depends on how much metadata drift actually exists.",
+      "compatibility": "Highly compatible — a lightweight metadata check complements both empirical and analytical strategies."
+    }
+  },
+  {
+    "id": "a1-20",
+    "proposition": "Strategy 8 (forward-looking fragility analysis) produces no immediate quality improvement and does not belong in a quality assurance pass, despite being useful documentation.",
+    "scores": {
+      "defensibility": 0.75,
+      "specificity": 0.72,
+      "robustness": 0.68,
+      "compatibility": 0.65
+    },
+    "reasoning": {
+      "defensibility": "Reasonable but debatable — fragility analysis prevents future quality regressions, which some would consider quality assurance.",
+      "specificity": "Names the strategy and its limitation (documentation, not immediate quality) but the boundary between QA and maintenance is subjective.",
+      "robustness": "Could be challenged by arguing that preventing future regressions is a core QA function.",
+      "compatibility": "Moderate — does not strongly conflict with other strategies but may be seen as dismissive of preventive quality work."
+    }
+  },
+  {
+    "id": "a1-21",
+    "proposition": "Empirical methods (pixel diffing, golden tests, behavioral replay) detect risk without requiring agent judgment, while analytical methods (adversarial review, rationale challenging, consistency checks) require agent judgment that is exactly as reliable as the judgment being checked.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.75,
+      "robustness": 0.75,
+      "compatibility": 0.68
+    },
+    "reasoning": {
+      "defensibility": "The core dichotomy is well-drawn, though 'exactly as reliable' is slightly overstated — different agents may have uncorrelated errors.",
+      "specificity": "Names both categories with multiple examples each, but the 'exactly as reliable' claim lacks quantitative backing.",
+      "robustness": "Could be weakened by evidence that adversarial review with different prompting strategies produces meaningfully uncorrelated errors.",
+      "compatibility": "Creates a sharp divide that may make synthesis harder, though the underlying distinction is productive."
+    }
+  },
+  {
+    "id": "a1-22",
+    "proposition": "The project has the infrastructure to make empirical methods work (C++ binaries, golden test generator, comparison functions, divergence measurement tools), and agents should be used to write tests that exercise this infrastructure rather than to render opinions.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.82,
+      "robustness": 0.80,
+      "compatibility": 0.78
+    },
+    "reasoning": {
+      "defensibility": "Strong because it leverages existing infrastructure rather than requiring new tooling, and the infrastructure inventory is concrete.",
+      "specificity": "Names four specific infrastructure components and the proposed use pattern (test authorship).",
+      "robustness": "Depends on the infrastructure actually being functional and accessible to agents, but the claim that it exists is verifiable.",
+      "compatibility": "Compatible with most strategies since it proposes a role for agents (test authors) that can serve multiple strategy goals."
+    }
+  },
+  {
+    "id": "a1-23",
+    "proposition": "Adversarial re-audit of fix diffs should be narrowed to HIGH and MEDIUM severity fixes only, with agents required to produce structured MATCH/MISMATCH outputs rather than prose reviews.",
+    "scores": {
+      "defensibility": 0.83,
+      "specificity": 0.90,
+      "robustness": 0.78,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Well-reasoned compromise — acknowledges the value of diff review while constraining it to tractable scope and structured output.",
+      "specificity": "Very specific: names the severity filter (HIGH/MEDIUM), the output format (MATCH/MISMATCH + evidence), and the count (~17 fixes).",
+      "robustness": "Structured outputs reduce but do not eliminate the 'LGTM shortcut' failure mode — an agent can still output MATCH incorrectly.",
+      "compatibility": "Good compatibility — offers a pragmatic middle ground between fully empirical and fully analytical approaches."
+    }
+  }
+]

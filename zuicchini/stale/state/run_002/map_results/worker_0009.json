@@ -1,0 +1,494 @@
+{
+  "worker_id": "W-0009",
+  "item_id_range": ["ITEM-090000", "ITEM-099999"],
+  "assigned_files": ["emRec", "emAnything", "emATMatrix", "emContext", "emCoreConfig", "emCoreConfigPanel", "emGUIFramework", "emFpPlugin"],
+  "started_at": "2026-03-15T00:00:00Z",
+  "completed_at": "2026-03-15T00:15:00Z",
+  "results": [
+    {
+      "item_id": "ITEM-090000",
+      "source_file": "emRec",
+      "symbol": "emRecNode",
+      "kind": "class",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Rust ownership/lifetime system eliminates the linked-node parent-chain for change propagation.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-090001",
+      "source_file": "emRec",
+      "symbol": "emRec",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "foundation/em_rec.rs (RecValue enum) + model/record.rs (Record trait)",
+      "notes": "C++ abstract base with runtime serialization dispatch is split in Rust: data values → RecValue variants; serializable-struct contract → Record trait."
+    },
+    {
+      "item_id": "ITEM-090002",
+      "source_file": "emRec",
+      "symbol": "emRecListener",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Observer pattern for record change propagation. Rust target uses signal-based watched_var instead; no emRecListener equivalent."
+    },
+    {
+      "item_id": "ITEM-090003",
+      "source_file": "emRec",
+      "symbol": "emRecAllocator",
+      "kind": "type_alias",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "Rust generics + Default trait; dynamic function-pointer allocators not needed.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-090004",
+      "source_file": "emRec",
+      "symbol": "EM_DEFAULT_REC_ALLOCATOR",
+      "kind": "macro",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "Rust generics make this template-instantiation helper macro unnecessary.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-090005",
+      "source_file": "emRec",
+      "symbol": "emDfltRecAllocImp",
+      "kind": "template",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "Implementation detail of EM_DEFAULT_REC_ALLOCATOR; Rust generics make this unnecessary.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-090006",
+      "source_file": "emRec",
+      "symbol": "emBoolRec",
+      "kind": "class",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "RecValue::Bool + RecStruct::set_bool/get_bool in foundation/em_rec.rs; Rust uses plain bool in Record implementors.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-090007",
+      "source_file": "emRec",
+      "symbol": "emIntRec",
+      "kind": "class",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "RecValue::Int + RecStruct::set_int/get_int in foundation/em_rec.rs; Rust uses plain i32 in Record implementors.",
+      "notes": "C++ has min/max clamping; Rust variant has no bounds enforcement at the RecValue level."
+    },
+    {
+      "item_id": "ITEM-090008",
+      "source_file": "emRec",
+      "symbol": "emDoubleRec",
+      "kind": "class",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "RecValue::Double + RecStruct::set_double/get_double in foundation/em_rec.rs; Rust uses plain f64.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-090009",
+      "source_file": "emRec",
+      "symbol": "emEnumRec",
+      "kind": "class",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "RecValue::Ident in foundation/em_rec.rs + Rust enums in Record implementors; identifier string decoded by implementor.",
+      "notes": "C++ stores integer value + identifier table; Rust keeps identifier string only (same serialization form)."
+    },
+    {
+      "item_id": "ITEM-090010",
+      "source_file": "emRec",
+      "symbol": "emFlagsRec",
+      "kind": "class",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "RecValue::Ident / RecValue::Array in foundation/em_rec.rs; Rust Record implementors can use bitflags crate or sets.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-090011",
+      "source_file": "emRec",
+      "symbol": "emAlignmentRec",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "emAlignment type and its record wrapper are not present in the Rust target."
+    },
+    {
+      "item_id": "ITEM-090012",
+      "source_file": "emRec",
+      "symbol": "emStringRec",
+      "kind": "class",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "RecValue::Str + RecStruct::set_str/get_str in foundation/em_rec.rs; Rust uses plain String.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-090013",
+      "source_file": "emRec",
+      "symbol": "emColorRec",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "No color-typed record field wrapper in Rust target; Color fields in configs handled as plain Color/u32 in Record implementors."
+    },
+    {
+      "item_id": "ITEM-090014",
+      "source_file": "emRec",
+      "symbol": "emStructRec",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "foundation/em_rec.rs :: RecStruct",
+      "notes": "emStructRec (named-field struct record) corresponds directly to RecStruct in foundation/em_rec.rs."
+    },
+    {
+      "item_id": "ITEM-090015",
+      "source_file": "emRec",
+      "symbol": "emUnionRec",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "foundation/em_rec.rs :: RecValue::Union",
+      "notes": "Discriminated union record maps to the Union(name, Box<RecValue>) variant in RecValue."
+    },
+    {
+      "item_id": "ITEM-090016",
+      "source_file": "emRec",
+      "symbol": "emArrayRec",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "foundation/em_rec.rs :: RecValue::Array",
+      "notes": "emArrayRec maps to the Array(Vec<RecValue>) variant in RecValue."
+    },
+    {
+      "item_id": "ITEM-090017",
+      "source_file": "emRec",
+      "symbol": "emTArrayRec",
+      "kind": "template",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "RecValue::Array (Vec<RecValue>) in foundation/em_rec.rs; typed arrays replaced by Vec<T> in Record implementors.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-090018",
+      "source_file": "emRec",
+      "symbol": "emRecReader",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "foundation/em_rec.rs :: parse_rec / parse_rec_with_format",
+      "notes": "C++ streaming pull-parser class replaced by parse-all free functions; same purpose."
+    },
+    {
+      "item_id": "ITEM-090019",
+      "source_file": "emRec",
+      "symbol": "emRecWriter",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "foundation/em_rec.rs :: write_rec / write_rec_with_format",
+      "notes": "C++ streaming writer class replaced by free functions that produce a String."
+    },
+    {
+      "item_id": "ITEM-090020",
+      "source_file": "emRec",
+      "symbol": "emRecFileReader",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "superseding_construct": "std::fs::read_to_string + parse_rec() used directly in ConfigModel::load().",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-090021",
+      "source_file": "emRec",
+      "symbol": "emRecFileWriter",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "superseding_construct": "std::fs::write + write_rec() used directly in ConfigModel::save().",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-091000",
+      "source_file": "emAnything",
+      "symbol": "emAnything",
+      "kind": "class",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::any::Any + Box<dyn Any>; Rust's Any trait provides type-erased values with safe downcasting.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-091001",
+      "source_file": "emAnything",
+      "symbol": "emCastAnything",
+      "kind": "template",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "std::any::Any::downcast_ref::<T>(); same typed cast from type-erased container.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-092000",
+      "source_file": "emATMatrix",
+      "symbol": "emATMatrix",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Affine transformation matrix (3x2 col-major). No equivalent struct found in src/render/ or anywhere in the Rust target."
+    },
+    {
+      "item_id": "ITEM-092001",
+      "source_file": "emATMatrix",
+      "symbol": "emIdentityATM",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Identity matrix constructor helper. Not ported."
+    },
+    {
+      "item_id": "ITEM-092002",
+      "source_file": "emATMatrix",
+      "symbol": "emInvertATM",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Matrix inversion constructor helper. Not ported."
+    },
+    {
+      "item_id": "ITEM-092003",
+      "source_file": "emATMatrix",
+      "symbol": "emMultiplyATM",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Matrix multiplication constructor helper. Not ported."
+    },
+    {
+      "item_id": "ITEM-092004",
+      "source_file": "emATMatrix",
+      "symbol": "emTranslateATM",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Translation matrix constructor. Not ported."
+    },
+    {
+      "item_id": "ITEM-092005",
+      "source_file": "emATMatrix",
+      "symbol": "emScaleATM",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Scaling matrix constructor. Not ported."
+    },
+    {
+      "item_id": "ITEM-092006",
+      "source_file": "emATMatrix",
+      "symbol": "emRotateATM",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Rotation matrix constructor. Not ported."
+    },
+    {
+      "item_id": "ITEM-092007",
+      "source_file": "emATMatrix",
+      "symbol": "emShearATM",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Shear matrix constructor. Not ported."
+    },
+    {
+      "item_id": "ITEM-093000",
+      "source_file": "emContext",
+      "symbol": "emContext",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "model/context.rs :: Context",
+      "notes": "C++ uses AVL-tree model registry + GC; Rust Context uses Rc tree with inherited clipboard lookup. Model registry not yet ported — partial port."
+    },
+    {
+      "item_id": "ITEM-093001",
+      "source_file": "emContext",
+      "symbol": "emRootContext",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "model/context.rs :: Context::new_root()",
+      "notes": "Root context with no parent maps to Context::new_root()."
+    },
+    {
+      "item_id": "ITEM-094000",
+      "source_file": "emCoreConfig",
+      "symbol": "emCoreConfig",
+      "kind": "class",
+      "classification": "superseded",
+      "rust_equivalent": null,
+      "superseding_construct": "model/config_model.rs :: ConfigModel<T> + model/record.rs :: Record trait; Rust uses a generic config model — no concrete CoreConfig struct.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-095000",
+      "source_file": "emCoreConfigPanel",
+      "symbol": "emCoreConfigPanel",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Config UI panel. emToolkit / emLinearGroup not ported; no equivalent UI panel in Rust target."
+    },
+    {
+      "item_id": "ITEM-095001",
+      "source_file": "emCoreConfigPanel",
+      "symbol": "emCoreConfigPanel::FactorField",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inner UI widget; emToolkit not ported."
+    },
+    {
+      "item_id": "ITEM-095002",
+      "source_file": "emCoreConfigPanel",
+      "symbol": "emCoreConfigPanel::MouseMiscGroup",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inner UI widget; emToolkit not ported."
+    },
+    {
+      "item_id": "ITEM-095003",
+      "source_file": "emCoreConfigPanel",
+      "symbol": "emCoreConfigPanel::MouseGroup",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inner UI widget; emToolkit not ported."
+    },
+    {
+      "item_id": "ITEM-095004",
+      "source_file": "emCoreConfigPanel",
+      "symbol": "emCoreConfigPanel::KBGroup",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inner UI widget; emToolkit not ported."
+    },
+    {
+      "item_id": "ITEM-095005",
+      "source_file": "emCoreConfigPanel",
+      "symbol": "emCoreConfigPanel::KineticGroup",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inner UI widget; emToolkit not ported."
+    },
+    {
+      "item_id": "ITEM-095006",
+      "source_file": "emCoreConfigPanel",
+      "symbol": "emCoreConfigPanel::MaxMemGroup",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inner UI widget; emToolkit not ported."
+    },
+    {
+      "item_id": "ITEM-095007",
+      "source_file": "emCoreConfigPanel",
+      "symbol": "emCoreConfigPanel::MaxMemTunnel",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inner UI widget; emToolkit not ported."
+    },
+    {
+      "item_id": "ITEM-095008",
+      "source_file": "emCoreConfigPanel",
+      "symbol": "emCoreConfigPanel::PerformanceGroup",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Inner UI widget; emToolkit not ported."
+    },
+    {
+      "item_id": "ITEM-096000",
+      "source_file": "emGUIFramework",
+      "symbol": "MAIN_OR_WINMAIN_HERE",
+      "kind": "macro",
+      "classification": "not_applicable",
+      "rust_equivalent": null,
+      "superseding_construct": "Rust fn main(); no WinMain distinction at language level.",
+      "notes": null
+    },
+    {
+      "item_id": "ITEM-096001",
+      "source_file": "emGUIFramework",
+      "symbol": "emGUIFramework",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "window/app.rs :: App",
+      "notes": "emGUIFramework (scheduler + root context + screen + auto-termination) maps to App struct integrating winit event loop, GPU context, EngineScheduler, and window map."
+    },
+    {
+      "item_id": "ITEM-096002",
+      "source_file": "emGUIFramework",
+      "symbol": "emGUIFramework::AutoTerminatorClass",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "window/app.rs :: App::window_event (CloseRequested branch)",
+      "notes": "Auto-termination on last window close is handled inline: App::window_event calls event_loop.exit() when self.windows is empty."
+    },
+    {
+      "item_id": "ITEM-097000",
+      "source_file": "emFpPlugin",
+      "symbol": "emFpPluginFunc",
+      "kind": "type_alias",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "File panel plugin function pointer type. Plugin system not ported to Rust."
+    },
+    {
+      "item_id": "ITEM-097001",
+      "source_file": "emFpPlugin",
+      "symbol": "emFpPluginModelFunc",
+      "kind": "type_alias",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "File panel plugin model function pointer type. Plugin system not ported to Rust."
+    },
+    {
+      "item_id": "ITEM-097002",
+      "source_file": "emFpPlugin",
+      "symbol": "emFpPlugin",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "File panel plugin record (config + dynamic library loading for panel creation). No plugin system in Rust target."
+    },
+    {
+      "item_id": "ITEM-097003",
+      "source_file": "emFpPlugin",
+      "symbol": "emFpPlugin::PropertyRec",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Plugin property name/value pair record. Plugin system not ported."
+    },
+    {
+      "item_id": "ITEM-097004",
+      "source_file": "emFpPlugin",
+      "symbol": "emFpPluginList",
+      "kind": "class",
+      "classification": "not_ported",
+      "rust_equivalent": null,
+      "notes": "Model holding the list of all configured file panel plugins. Plugin system not ported to Rust."
+    }
+  ]
+}

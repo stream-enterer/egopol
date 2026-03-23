@@ -1,0 +1,165 @@
+{
+  "diagnosed_at": "2026-03-16T12:00:00Z",
+  "bugs": [
+    {
+      "bug_id": 1,
+      "title": "Toolkit Test widget collapsed — children flat + unlaid-out",
+      "root_cause": "TkTestGrpPanel::layout_children creates 7 children (sp, sp1, sp2, t1a, t1b, t2a, t2b) as flat siblings but only lays out the 'sp' splitter panel. The other 6 children retain their default layout_rect of (-2.0, -2.0, 1.0, 1.0) and are positioned off-screen. Additionally, the parent-child hierarchy is wrong: in C++, sp1/sp2 are children of sp (the main splitter), and t1a/t1b are children of sp1, t2a/t2b are children of sp2. In Rust, all are flat siblings under TkTestGrpPanel. The C++ TkTestGrp extends emRasterGroup (which inherits emRasterLayout for automatic child layout); the Rust port uses a plain PanelBehavior with no layout management.",
+      "category": "layout",
+      "rust_source": "examples/test_panel.rs:912-957 (children created flat, only sp_id laid out)",
+      "cpp_reference": "~/.local/git/eaglemode-0.96.4/src/emTest/emTestPanel.cpp:890-911 (TkTestGrp::AutoExpand creates sp1/sp2 as children of sp, t1a/t1b/t2a/t2b as children of sp1/sp2)",
+      "confidence": 0.95,
+      "ruled_out": [
+        "Auto-expansion threshold not being met (auto_expand returns true unconditionally)",
+        "Children created with zero tallness (children exist, they just aren't laid out)"
+      ],
+      "verification_prediction": "Adding dbg!() in layout_children for TkTestGrpPanel will show only 'sp' gets a non-default layout rect. Reparenting sp1/sp2 under sp and t1a/t1b under sp1, t2a/t2b under sp2 (or adding explicit 2x2 grid layout for all children) will make the widget showcase visible.",
+      "related_bugs": [8],
+      "diagnostic_complete": true,
+      "needs_manual_review": false
+    },
+    {
+      "bug_id": 2,
+      "title": "Font renders smaller — root panel stuck at 1:1 square layout",
+      "root_cause": "ROOT_SAME_TALLNESS flag is set on the view AFTER window creation (test_panel.rs:1349), but set_view_flags() at view.rs:662-684 is missing the C++ parity code that updates root layout to (0,0,1,HomeTallness) when this flag is newly set. The root panel stays at 1:1 square layout. In a landscape window, the root panel renders area-preserving (e.g. ~693x693 in 800x600) instead of filling viewport width (800x600). Text at relative height 0.1 renders ~13% smaller than expected.",
+      "category": "view_state",
+      "rust_source": "src/panel/view.rs:662-684 (set_view_flags missing ROOT_SAME_TALLNESS handling), examples/test_panel.rs:1349 (direct flag mutation bypasses set_view_flags)",
+      "cpp_reference": "~/.local/git/eaglemode-0.96.4/src/emCore/emView.cpp:145-150 (SetViewFlags ROOT_SAME_TALLNESS handling updates root layout)",
+      "confidence": 0.85,
+      "ruled_out": [
+        "Font atlas dimensions differ (both 128x224, CharBoxTallness both 1.77)",
+        "paint_text_boxed parameters differ (identical between Rust and C++)"
+      ],
+      "verification_prediction": "Setting root layout to (0, 0, 1, viewport_h/viewport_w) at creation time, or fixing set_view_flags to update root layout when ROOT_SAME_TALLNESS is newly set, will make text render at matching size. Adding dbg!() for the root panel's layout_h will show 1.0 instead of ~0.75 (for an 800x600 window).",
+      "related_bugs": [6],
+      "diagnostic_complete": true,
+      "needs_manual_review": false
+    },
+    {
+      "bug_id": 3,
+      "title": "Background Color control panel widget missing",
+      "root_cause": "Two issues: (1) The ColorField widget 'bgcf' IS created at test_panel.rs:832-839 with layout (0.775, 0.34, 0.10, 0.02), but it is very small (0.02 height) and may not be visible at default zoom. It is also missing its caption 'Background Color' — C++ passes it in constructor, Rust never calls set_caption. (2) The View::create_control_panel() at view.rs:1853 is a TODO stub that always returns None — the entire control panel overlay mechanism is unimplemented.",
+      "category": "missing_feature",
+      "rust_source": "src/panel/view.rs:1853 (create_control_panel TODO stub), examples/test_panel.rs:832-839 (ColorField created without caption)",
+      "cpp_reference": "~/.local/git/eaglemode-0.96.4/src/emTest/emTestPanel.cpp:489-493 (BgColorField construction with caption), emTestPanel.cpp:511-517 (CreateControlPanel override)",
+      "confidence": 0.7,
+      "ruled_out": [
+        "Widget not created (test_panel.rs:839 creates 'bgcf' child)",
+        "Widget not laid out (CHILD_LAYOUT includes bgcf at correct position)"
+      ],
+      "verification_prediction": "Zooming into coordinates (0.775, 0.34) in the Rust TestPanel should reveal a small color swatch. The control panel overlay (separate mechanism) requires implementing View::create_control_panel and wiring it into the app main loop.",
+      "related_bugs": [],
+      "diagnostic_complete": true,
+      "needs_manual_review": false
+    },
+    {
+      "bug_id": 4,
+      "title": "Selection border is plain white rect — arrow highlight never ported",
+      "root_cause": "The C++ PaintHighlight() (emView.cpp:2149-2479, ~330 lines) procedurally generates arrow/chevron polygons along the panel's rounded-rect border using three helper functions: PaintHighlightArrowsOnLine, PaintHighlightArrowsOnBow, and PaintHighlightArrow. The entire arrow-based highlight system was never ported. The Rust paint_highlight() (view.rs:1928-1991) uses a simple paint_rect_outlined() as a placeholder.",
+      "category": "missing_feature",
+      "rust_source": "src/panel/view.rs:1928-1991 (paint_highlight paints simple outlined rect)",
+      "cpp_reference": "~/.local/git/eaglemode-0.96.4/src/emCore/emView.cpp:2149-2479 (PaintHighlight + 3 helper functions for procedural arrow polygons)",
+      "confidence": 0.98,
+      "ruled_out": [
+        "Missing resource images (C++ does not use images — arrows are procedurally generated via PaintPolygon)",
+        "Wrong coordinates on existing arrow code (no arrow code exists in Rust at all)"
+      ],
+      "verification_prediction": "Porting PaintHighlightArrowsOnLine, PaintHighlightArrowsOnBow, and PaintHighlightArrow from C++ and calling them from paint_highlight() instead of paint_rect_outlined() will produce the arrow/chevron selection indicator. The Rust painter already has paint_polygon().",
+      "related_bugs": [8],
+      "diagnostic_complete": true,
+      "needs_manual_review": false
+    },
+    {
+      "bug_id": 5,
+      "title": "Recursive TestPanel tiles limited by MAX_DEPTH + wrong threshold",
+      "root_cause": "Two issues: (1) Rust TestPanel has MAX_DEPTH = 2 (test_panel.rs:29), preventing recursive child creation at depth >= 2. C++ has NO depth limit — every emTestPanel unconditionally creates 4 more in AutoExpand (emTestPanel.cpp:482-496), limited only by auto-expansion threshold. (2) Only the root TestPanel gets set_auto_expansion_threshold(900.0) (test_panel.rs:1335). In C++, every emTestPanel constructor calls SetAutoExpansionThreshold(900.0) (emTestPanel.cpp:39). Child TestPanels in Rust use the default threshold (150.0), causing premature expansion cutoff.",
+      "category": "layout",
+      "rust_source": "examples/test_panel.rs:29 (MAX_DEPTH = 2), examples/test_panel.rs:820 (depth guard), examples/test_panel.rs:1335 (threshold only on root)",
+      "cpp_reference": "~/.local/git/eaglemode-0.96.4/src/emTest/emTestPanel.cpp:39 (SetAutoExpansionThreshold(900.0) in constructor), emTestPanel.cpp:485-488 (unconditional recursive creation)",
+      "confidence": 0.7,
+      "ruled_out": [
+        "Input dispatch differs per panel (all viewed panels receive events)",
+        "Layout coordinates differ (identical between C++ and Rust for all 4 tiles)"
+      ],
+      "verification_prediction": "Removing the MAX_DEPTH guard and propagating set_auto_expansion_threshold(900.0) to all child TestPanels in their constructor will restore C++ parity. The auto-expansion threshold will naturally limit recursion depth based on viewed size.",
+      "related_bugs": [],
+      "diagnostic_complete": true,
+      "needs_manual_review": false
+    },
+    {
+      "bug_id": 6,
+      "title": "Wrong zoom level — raw_zoom_out hardcodes rel_a=1.0",
+      "root_cause": "raw_zoom_out() at view.rs:515-523 unconditionally sets rel_a = 1.0. The C++ RawZoomOut() (emView.cpp:1811-1825) computes rel_a as max(HomeWidth*panelHeight/pixelTallness/HomeHeight, HomeHeight/panelHeight*pixelTallness/HomeWidth) — the 'fit' computation ensuring the root panel fills the viewport regardless of aspect ratio. With rel_a=1.0, the Rust view shows the root panel at a fixed scale that doesn't adapt to window dimensions. The same bug appears in set_viewport() (view.rs:369-374) where the 'was_zoomed_out → re-zoom' path also hardcodes rel_a=1.0. Additionally, is_zoomed_out() (view.rs:525-533) checks rel_a==1.0 instead of checking viewport coverage of the root panel like C++ does (emView.cpp:911-937).",
+      "category": "view_state",
+      "rust_source": "src/panel/view.rs:515-523 (raw_zoom_out hardcodes rel_a=1.0), src/panel/view.rs:525-533 (is_zoomed_out checks rel_a==1.0)",
+      "cpp_reference": "~/.local/git/eaglemode-0.96.4/src/emCore/emView.cpp:1811-1825 (RawZoomOut computes fit), emView.cpp:911-937 (IsZoomedOut checks viewport coverage)",
+      "confidence": 0.95,
+      "ruled_out": [
+        "Root panel tallness mismatch (ROOT_SAME_TALLNESS is set, layout uses pixel_tallness)",
+        "Animator bug changing viewport after startup (initial state itself is already wrong)"
+      ],
+      "verification_prediction": "Replacing hardcoded rel_a=1.0 in raw_zoom_out() with the C++ formula (computing fit based on root panel height, viewport dimensions, and pixel tallness) will make the view show the same zoom level as C++. Updating is_zoomed_out() to check viewport coverage instead of rel_a==1.0 will fix zoom-out detection.",
+      "related_bugs": [7, 2],
+      "diagnostic_complete": true,
+      "needs_manual_review": false
+    },
+    {
+      "bug_id": 7,
+      "title": "Mouse wheel zoom — VIF spring animations never ticked",
+      "root_cause": "MouseZoomScrollVIF::filter() at input_filter.rs:588-608 correctly receives WheelUp/WheelDown events, computes wheel_zoom_speed, accumulates wheel_spring_z, and sets wheel_active=true. However, animate_wheel() (input_filter.rs:442) that steps the spring physics and calls view.raw_scroll_and_zoom() is NEVER called from the main loop. In C++, the SwipingViewAnimator (WheelAnim) is an emEngine whose Cycle() is called by the scheduler each frame. In Rust, the ViewInputFilter trait has only filter() — no animate() method. The ZuiWindow::about_to_wait() loop (app.rs:253-264) ticks active_animator (ViewAnimator for visit/seek) but has no code to tick VIF animations. The same bug affects middle-button pan (animate_grip() also never called).",
+      "category": "input",
+      "rust_source": "src/panel/input_filter.rs:588-608 (wheel event captured, sets wheel_active=true), src/panel/input_filter.rs:442 (animate_wheel exists but never called), src/panel/input_filter.rs:8-11 (ViewInputFilter trait has only filter()), src/window/app.rs:253-264 (about_to_wait only ticks active_animator)",
+      "cpp_reference": "~/.local/git/eaglemode-0.96.4/src/emCore/emViewInputFilter.cpp:105-229 (emMouseZoomScrollVIF::Input handles wheel via WheelAnim), emViewInputFilter.cpp:231-250 (Cycle checks WheelAnim activity)",
+      "confidence": 0.95,
+      "ruled_out": [
+        "Wheel events not captured by winit (zui_window.rs:473-520 handles MouseWheel correctly)",
+        "VIF filter not handling wheel (input_filter.rs:588-608 matches WheelUp/WheelDown)"
+      ],
+      "verification_prediction": "Adding animate_wheel() and animate_grip() calls per frame in the about_to_wait loop (iterating vif_chain on ZuiWindow) will make wheel zoom and middle-button pan coasting work immediately.",
+      "related_bugs": [6],
+      "diagnostic_complete": true,
+      "needs_manual_review": false
+    },
+    {
+      "bug_id": 8,
+      "title": "Highlight rect height uses viewed_height instead of viewed_width",
+      "root_cause": "In paint_highlight() at view.rs:1946-1948, the substance rect Y coordinate and height are scaled by panel.viewed_height instead of panel.viewed_width. In Eagle Mode's coordinate system, ALL panel-local coordinates (including Y axis) are expressed in parent-width units — height = tallness * width. C++ (emView.cpp:2179-2183) multiplies ALL substance rect components by vw (ViewedWidth): sy = vy + sy * vw; sh *= vw. Rust incorrectly uses: hy = viewed_y + sy * viewed_height; hh = sh * viewed_height. Since viewed_height = tallness * viewed_width and sh = tallness, the Rust code computes hh = tallness^2 * viewed_width instead of hh = tallness * viewed_width, making the highlight tallness times too short.",
+      "category": "rendering",
+      "rust_source": "src/panel/view.rs:1946-1948 (sy and sh multiplied by viewed_height instead of viewed_width)",
+      "cpp_reference": "~/.local/git/eaglemode-0.96.4/src/emCore/emView.cpp:2179-2184 (all substance rect components multiplied by vw)",
+      "confidence": 0.98,
+      "ruled_out": [
+        "Panel's layout rect being too small (panel renders content at full size, only highlight is wrong)",
+        "Clip region constraining the highlight (highlight painted outside clip system)"
+      ],
+      "verification_prediction": "Changing lines 1946 and 1948 from viewed_height to viewed_width will make the highlight cover the full panel area: let hy = panel.viewed_y + sy * panel.viewed_width; let hh = sh * panel.viewed_width;",
+      "related_bugs": [4],
+      "diagnostic_complete": true,
+      "needs_manual_review": false
+    }
+  ],
+  "cross_bug_analysis": {
+    "shared_root_causes": [
+      {
+        "bugs": [1, 8],
+        "shared_cause": null,
+        "evidence": "Independent root causes. Bug 1 is a layout/hierarchy issue in the example code (TkTestGrpPanel creates children flat). Bug 8 is a coordinate system error in core view.rs (viewed_height vs viewed_width). Both manifest in the Toolkit Test area but have unrelated code paths."
+      },
+      {
+        "bugs": [4, 8],
+        "shared_cause": "Both involve the paint_highlight code path in view.rs:1928-1991",
+        "evidence": "Bug 4 is about the visual style (plain rect vs arrow polygons) and Bug 8 is about the geometry (rect too short). Both are in paint_highlight(). Fixing Bug 8's coordinate math is prerequisite — the arrow polygons from Bug 4 will also need correct coordinates. However, the root causes are distinct: Bug 4 is missing code, Bug 8 is wrong math."
+      },
+      {
+        "bugs": [6, 7],
+        "shared_cause": "Both involve the view/zoom subsystem, but independent root causes",
+        "evidence": "Bug 6 is about raw_zoom_out() hardcoding rel_a=1.0 (wrong initial zoom computation). Bug 7 is about VIF animate_wheel() never being called from the main loop (missing animation tick wiring). Both live in the view/zoom system but fixing one does not fix the other."
+      },
+      {
+        "bugs": [2, 6],
+        "shared_cause": "ROOT_SAME_TALLNESS + raw_zoom_out interact to produce wrong root panel dimensions",
+        "evidence": "Bug 2's root panel staying at 1:1 and Bug 6's raw_zoom_out hardcoding rel_a=1.0 both stem from incomplete ROOT_SAME_TALLNESS handling. set_view_flags doesn't update root layout when the flag is set (Bug 2), and raw_zoom_out doesn't compute the fit ratio accounting for the flag (Bug 6). Fixing ROOT_SAME_TALLNESS handling in set_view_flags may partially address both, but raw_zoom_out still needs its own fix for the rel_a computation."
+      }
+    ]
+  }
+}

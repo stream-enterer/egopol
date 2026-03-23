@@ -1,0 +1,124 @@
+{
+  "W-0001": [
+    "emPainter",
+    "emPainter_ScTl",
+    "emPainter_ScTlIntGra",
+    "emPainter_ScTlIntImg",
+    "emPainter_ScTlIntImg_AVX2",
+    "emPainter_ScTlPSCol",
+    "emPainter_ScTlPSCol_AVX2",
+    "emPainter_ScTlPSInt",
+    "emPainter_ScTlPSInt_AVX2"
+  ],
+  "W-0002": [
+    "emImage",
+    "emImageFile",
+    "emFontCache",
+    "emColor",
+    "emRes",
+    "emLook",
+    "emClipRects",
+    "emTexture",
+    "emStroke",
+    "emStrokeEnd"
+  ],
+  "W-0003": [
+    "emPanel",
+    "emSubViewPanel",
+    "emView",
+    "emViewAnimator",
+    "emViewInputFilter",
+    "emViewRenderer",
+    "emScreen"
+  ],
+  "W-0004": [
+    "emBorder",
+    "emButton",
+    "emCheckBox",
+    "emCheckButton",
+    "emRadioBox",
+    "emRadioButton",
+    "emToolkit",
+    "emDialog"
+  ],
+  "W-0005": [
+    "emLabel",
+    "emScalarField",
+    "emTextField",
+    "emColorField",
+    "emSplitter",
+    "emListBox",
+    "emErrorPanel",
+    "emFilePanel",
+    "emFileDialog",
+    "emFileSelectionBox"
+  ],
+  "W-0006": [
+    "emGroup",
+    "emLinearGroup",
+    "emLinearLayout",
+    "emPackGroup",
+    "emPackLayout",
+    "emRasterGroup",
+    "emRasterLayout",
+    "emTiling"
+  ],
+  "W-0007": [
+    "emScheduler",
+    "emEngine",
+    "emSignal",
+    "emTimer",
+    "emPriSchedAgent",
+    "emJob"
+  ],
+  "W-0008": [
+    "emModel",
+    "emConfigModel",
+    "emSigModel",
+    "emVarModel",
+    "emVarSigModel",
+    "emFileModel",
+    "emRecFileModel"
+  ],
+  "W-0009": [
+    "emRec",
+    "emAnything",
+    "emATMatrix",
+    "emContext",
+    "emCoreConfig",
+    "emCoreConfigPanel",
+    "emGUIFramework",
+    "emFpPlugin"
+  ],
+  "W-0010": [
+    "emArray",
+    "emList",
+    "emString",
+    "emRef",
+    "emOwnPtr",
+    "emOwnPtrArray",
+    "emAvlTree",
+    "emAvlTreeMap",
+    "emAvlTreeSet"
+  ],
+  "W-0011": [
+    "emThread",
+    "emRenderThreadPool",
+    "emProcess",
+    "emMiniIpc",
+    "emCrossPtr",
+    "emTmpFile",
+    "emFileStream",
+    "emInstallInfo"
+  ],
+  "W-0012": [
+    "emWindow",
+    "emWindowStateSaver",
+    "emInput",
+    "emCursor",
+    "emClipboard",
+    "emStd1",
+    "emStd2",
+    "emTunnel"
+  ]
+}

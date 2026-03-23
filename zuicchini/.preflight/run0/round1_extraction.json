@@ -1,0 +1,893 @@
+{
+  "metadata": {
+    "source_file": "prompts/prompt-master-audit.md",
+    "total_instructions": 98,
+    "estimated_runtime_tokens": 50000,
+    "is_agent_prompt": true,
+    "input_distribution_notes": "Run log shows 10+ prior sessions covering ~42 fixes, ~1500 tests, 20 widget types. The prompt has been used for widget-by-widget parity audits, integer-promotion audits, alpha-channel audits, boundary-value differential testing, and composition testing. The contract JSON has 111 features (28 phase-1, 27 phase-2, 50 phase-3, 6 phase-4). Phase-1 features average 11 steps each. Prior sessions operated under earlier prompt versions (no contract JSON). This master-contract prompt is new and has not yet been run. Known failure modes include speed-over-fidelity (skipping methods), test-shaped validation (weak assertions), and reusing existing tests instead of writing new ones. Features include RUST-ONLY (7 features with no C++ counterpart) which have a different step template."
+  },
+  "instructions": [
+    {
+      "id": "i-01",
+      "text": "Read the master contract at prompts/master-contract.json at the start of the run.",
+      "lines": [1],
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": [],
+      "notes": "First sentence of the prompt. Establishes the contract as the primary data source."
+    },
+    {
+      "id": "i-02",
+      "text": "Read CLAUDE.md at the workspace root at the start of the run.",
+      "lines": [1],
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-01"],
+      "notes": "Second part of first sentence. CLAUDE.md contains code rules, fidelity rules, and Do NOT rules."
+    },
+    {
+      "id": "i-03",
+      "text": "Process features in order: read next feature where passes == false, execute its steps, then move to next.",
+      "lines": [7, 10, 11, 12, 18],
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-01"],
+      "notes": "The main loop. Sequential processing of features."
+    },
+    {
+      "id": "i-04",
+      "text": "For each feature, read its steps array and execute each step (read files, compare, report, fix, test).",
+      "lines": [11, 12],
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-03"],
+      "notes": "Steps are the per-feature instructions from the contract JSON."
+    },
+    {
+      "id": "i-05",
+      "text": "After executing a feature's steps, run cargo clippy --workspace -- -D warnings and ensure zero warnings.",
+      "lines": [13],
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": ["i-04"],
+      "notes": "Gate condition 1 of 2. Must pass before marking passes=true."
+    },
+    {
+      "id": "i-06",
+      "text": "After executing a feature's steps, run cargo nextest run --workspace and ensure zero failures.",
+      "lines": [14],
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": ["i-04"],
+      "notes": "Gate condition 2 of 2. Must pass before marking passes=true."
+    },
+    {
+      "id": "i-07",
+      "text": "After the gate passes, edit the contract JSON to set the feature's passes field to true.",
+      "lines": [15],
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-05", "i-06"],
+      "notes": "Modifying the contract is part of the loop."
+    },
+    {
+      "id": "i-08",
+      "text": "After setting passes to true, run git add prompts/master-contract.json <changed files> and commit with message 'audit: <feature_id> <summary>'.",
+      "lines": [16, 17],
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-07"],
+      "notes": "One commit per feature."
+    },
+    {
+      "id": "i-09",
+      "text": "Do not enter plan mode.",
+      "lines": [21],
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Prevents the LLM from using a plan/think tool instead of acting."
+    },
+    {
+      "id": "i-10",
+      "text": "Run the bootstrap script at the start to see current progress (done/total features passing, test results).",
+      "lines": [23, 37, 38],
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": [],
+      "notes": "Bootstrap gives the agent situational awareness."
+    },
+    {
+      "id": "i-11",
+      "text": "Phase 1 features: Compare each C++ method listed in the methods field. Report MATCH/MISMATCH/MISSING for each. Fix MISMATCHes. Write tests.",
+      "lines": [42],
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-03"],
+      "notes": "Phase 1 workflow summary."
+    },
+    {
+      "id": "i-12",
+      "text": "Phase 2 features: For each gap method, determine IMPLEMENTED (different name), NOT_NEEDED (superseded), or NEEDS_IMPLEMENTATION. Implement what's needed, write tests.",
+      "lines": [44],
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-03"],
+      "notes": "Phase 2 workflow summary."
+    },
+    {
+      "id": "i-13",
+      "text": "Phase 3 features: Verify all consolidated C++ methods are present in the Rust file that consolidates multiple C++ classes.",
+      "lines": [46],
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-03"],
+      "notes": "Phase 3 workflow summary."
+    },
+    {
+      "id": "i-14",
+      "text": "Phase 4 features: Review ALL existing tests (1500+) across every test directory for anti-patterns: test-shaped validation, missing side-effect checks, hardcoded-pass inputs, missing modifier setup. Strengthen defective tests. If a strengthened test reveals a real bug, fix it.",
+      "lines": [48],
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-03"],
+      "notes": "Phase 4 workflow summary. Emphasizes ALL tests."
+    },
+    {
+      "id": "i-15",
+      "text": "Phase 1 features have a required_test_layers field. A fix is not complete until ALL required layers have a test. Layers are: unit (#[cfg(test)] module), golden (tests/golden/), pipeline (tests/pipeline/ using PipelineTestHarness).",
+      "lines": [50, 51, 52, 53, 54, 55, 56, 57, 58, 59],
+      "position_zone": "middle-third",
+      "type": "constraint",
+      "dependencies": ["i-11"],
+      "notes": "Strict requirement, not guidance. The prompt says 'This is not guidance -- it is a requirement'."
+    },
+    {
+      "id": "i-16",
+      "text": "When writing tests, follow the patterns in the corresponding test directory (unit tests in source file, pipeline in tests/pipeline/, golden in tests/golden/, integration in tests/integration/).",
+      "lines": [61, 62, 63, 64, 65],
+      "position_zone": "middle-third",
+      "type": "guidance",
+      "dependencies": ["i-15"],
+      "notes": "Test organization convention."
+    },
+    {
+      "id": "i-17",
+      "text": "Phase 1 steps require reading the C++ .cpp file (not just the header) to catch implementation details: static helpers, constructor defaults, and side effects (signals, invalidation, repaint) that headers don't show.",
+      "lines": [67],
+      "position_zone": "middle-third",
+      "type": "constraint",
+      "dependencies": ["i-11"],
+      "notes": "Explicitly calls out a failure mode: only reading headers misses implementation details."
+    },
+    {
+      "id": "i-18",
+      "text": "Features with layer=PIXEL require exact C++ formulas. Integer arithmetic must match. Use (x*257+0x8073)>>16 not f64.",
+      "lines": [72],
+      "position_zone": "middle-third",
+      "type": "constraint",
+      "dependencies": ["i-03"],
+      "notes": "Fidelity rule for PIXEL layer. Matches CLAUDE.md fidelity rules."
+    },
+    {
+      "id": "i-19",
+      "text": "Features with layer=STATE: idiomatic Rust is correct. Only flag behavioral differences. Do NOT flag Rc vs pointers, enum vs int flags.",
+      "lines": [73],
+      "position_zone": "middle-third",
+      "type": "constraint",
+      "dependencies": ["i-03"],
+      "notes": "Fidelity rule for STATE layer. Prevents false positive MISMATCHes."
+    },
+    {
+      "id": "i-20",
+      "text": "Features without a layer field default to STATE fidelity rules.",
+      "lines": [74],
+      "position_zone": "middle-third",
+      "type": "constraint",
+      "dependencies": ["i-19"],
+      "notes": "Default layer assignment."
+    },
+    {
+      "id": "i-21",
+      "text": "Phases execute in order. Before starting a phase, verify its dependency phase is fully complete (every feature has passes: true). Phase 2 depends on phase 1. Phase 3 depends on phase 2. Phase 4 depends on phase 3.",
+      "lines": [78],
+      "position_zone": "middle-third",
+      "type": "constraint",
+      "dependencies": ["i-03"],
+      "notes": "Phase ordering constraint. If dependency phase has incomplete features, finish those first."
+    },
+    {
+      "id": "i-22",
+      "text": "If a later feature requires changing code from a previously-completed feature, you MAY modify that code, but you MUST re-run cargo nextest run --workspace to confirm all previously-passing tests still pass. If any break, fix them before proceeding.",
+      "lines": [82],
+      "position_zone": "middle-third",
+      "type": "constraint",
+      "dependencies": ["i-03"],
+      "notes": "Cross-feature modification rule. Prevents regressions."
+    },
+    {
+      "id": "i-23",
+      "text": "The gate (clippy + tests) does NOT verify you compared every method. If the methods field lists 20 methods and you compared 5, the gate still passes. You must compare ALL listed methods.",
+      "lines": [86],
+      "position_zone": "middle-third",
+      "type": "constraint",
+      "dependencies": ["i-05", "i-06"],
+      "notes": "Known failure mode: speed-over-fidelity. The gate is necessary but not sufficient."
+    },
+    {
+      "id": "i-24",
+      "text": "Steps are requirements. If a step says 'compare these 20 methods' -- compare all 20, not the ones that seem important.",
+      "lines": [88],
+      "position_zone": "middle-third",
+      "type": "constraint",
+      "dependencies": ["i-04"],
+      "notes": "Reinforces i-23. Steps are not suggestions."
+    },
+    {
+      "id": "i-25",
+      "text": "Tests must assert on specific values and behaviors, not just is_some() or is_ok().",
+      "lines": [90],
+      "position_zone": "middle-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Known failure mode: test-shaped validation."
+    },
+    {
+      "id": "i-26",
+      "text": "If you fix a MISMATCH, write a NEW test. Existing tests didn't catch the bug.",
+      "lines": [92],
+      "position_zone": "middle-third",
+      "type": "constraint",
+      "dependencies": ["i-11"],
+      "notes": "Known failure mode: reusing existing tests."
+    },
+    {
+      "id": "i-27",
+      "text": "Do NOT modify the contract's steps, description, or methods fields.",
+      "lines": [96],
+      "position_zone": "bottom-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Contract immutability rule. Also in contract rules.immutability."
+    },
+    {
+      "id": "i-28",
+      "text": "Do NOT modify existing tests (write new tests only).",
+      "lines": [97],
+      "position_zone": "bottom-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Exception: Phase 4 explicitly requires strengthening existing tests. Potential conflict."
+    },
+    {
+      "id": "i-29",
+      "text": "Do NOT modify unrelated production code.",
+      "lines": [98],
+      "position_zone": "bottom-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Scope containment."
+    },
+    {
+      "id": "i-30",
+      "text": "Do NOT skip a feature. If 0 MISMATCHes found, it still passes -- set passes to true.",
+      "lines": [99],
+      "position_zone": "bottom-third",
+      "type": "constraint",
+      "dependencies": ["i-03"],
+      "notes": "Every feature must be visited regardless of outcome."
+    },
+    {
+      "id": "i-31",
+      "text": "Do NOT flag idiomatic Rust as MISMATCH. Read the layer field.",
+      "lines": [100],
+      "position_zone": "bottom-third",
+      "type": "constraint",
+      "dependencies": ["i-18", "i-19"],
+      "notes": "Prevents false positives on STATE-layer features."
+    },
+    {
+      "id": "i-32",
+      "text": "Do NOT treat the gate as proof of completeness. The gate is necessary but not sufficient.",
+      "lines": [101],
+      "position_zone": "bottom-third",
+      "type": "meta",
+      "dependencies": ["i-23"],
+      "notes": "Metacognitive instruction about the gate's limitations."
+    },
+    {
+      "id": "i-33",
+      "text": "Run the completion script at the end to report total progress and list any PENDING features.",
+      "lines": [103, 120],
+      "position_zone": "bottom-third",
+      "type": "procedural",
+      "dependencies": [],
+      "notes": "Final status report."
+    },
+    {
+      "id": "i-34",
+      "text": "After each feature, append to .workflow/widget-comparison/run-log.md with format: feature_id, description, MATCHes/MISMATCHes/MISSINGs counts, fixes applied, tests added.",
+      "lines": [122, 123, 124, 125, 126, 127, 128, 129, 130],
+      "position_zone": "bottom-third",
+      "type": "format",
+      "dependencies": ["i-07"],
+      "notes": "Logging requirement with specific format."
+    },
+    {
+      "id": "i-35",
+      "text": "Start with the first feature in phase-1 where passes is false.",
+      "lines": [134],
+      "position_zone": "bottom-third",
+      "type": "procedural",
+      "dependencies": ["i-10"],
+      "notes": "Entry point after bootstrap."
+    },
+    {
+      "id": "i-36",
+      "text": "Contract rule: Agent MAY set passes to true. Agent MAY NOT delete features, modify steps, or mark as not applicable.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "From contract rules.immutability. Overlaps with i-27."
+    },
+    {
+      "id": "i-37",
+      "text": "Contract rule: passes may only be set to true after clippy clean + all tests pass.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": ["i-05", "i-06"],
+      "notes": "From contract rules.gate_protocol. Reinforces i-05/i-06."
+    },
+    {
+      "id": "i-38",
+      "text": "Contract rule: Commit after each feature. Include the contract JSON.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-07"],
+      "notes": "From contract rules.commit_protocol. Reinforces i-08."
+    },
+    {
+      "id": "i-39",
+      "text": "Contract rule: Check each feature's layer field. PIXEL = exact formulas, GEOMETRY = same algorithm, STATE = idiomatic Rust OK.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": ["i-18", "i-19"],
+      "notes": "From contract rules.fidelity_layer. Adds GEOMETRY layer not mentioned in prompt .md."
+    },
+    {
+      "id": "i-40",
+      "text": "Phase 1 step (standard): Read the C++ header file for the feature.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-11"],
+      "notes": "Step 1 of standard phase-1 template. File path specified per-feature."
+    },
+    {
+      "id": "i-41",
+      "text": "Phase 1 step (standard): Read the C++ .cpp implementation file for the feature.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-11"],
+      "notes": "Step 2 of standard phase-1 template. Reinforces i-17."
+    },
+    {
+      "id": "i-42",
+      "text": "Phase 1 step (standard): Read the Rust source file for the feature.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-11"],
+      "notes": "Step 3 of standard phase-1 template."
+    },
+    {
+      "id": "i-43",
+      "text": "Phase 1 step (standard): Compare the N methods listed in the methods field.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-11", "i-23"],
+      "notes": "Step 4 of standard phase-1 template. Must compare ALL listed methods."
+    },
+    {
+      "id": "i-44",
+      "text": "Phase 1 step (standard): Also read the C++ .cpp implementation file -- check for static helpers, default values in constructors, and side effects (signals, invalidation, repaint calls) that the header doesn't show.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-17"],
+      "notes": "Step 5 of standard phase-1 template. Reinforces i-17."
+    },
+    {
+      "id": "i-45",
+      "text": "Phase 1 step (standard): For each method, verify constructors set the same default values, and methods produce the same side effects (callback firing, flag invalidation, repaint triggers).",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-43"],
+      "notes": "Step 6 of standard phase-1 template. Specifies what to check."
+    },
+    {
+      "id": "i-46",
+      "text": "Phase 1 step (standard): For each method, report MATCH, MISMATCH, SUSPECT, or MISSING.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "format",
+      "dependencies": ["i-43"],
+      "notes": "Step 7 of standard phase-1 template. SUSPECT is an additional category beyond the prompt's MATCH/MISMATCH/MISSING."
+    },
+    {
+      "id": "i-47",
+      "text": "Phase 1 step (standard): For each MISMATCH, fix the Rust code minimally.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-46"],
+      "notes": "Step 8 of standard phase-1 template. Emphasizes minimal fixes."
+    },
+    {
+      "id": "i-48",
+      "text": "Phase 1 step (standard): For each fix, write a test verifying the corrected behavior.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-47"],
+      "notes": "Step 9 of standard phase-1 template. Reinforces i-26."
+    },
+    {
+      "id": "i-49",
+      "text": "Phase 1 step (RUST-ONLY variant): No C++ equivalent. Verify internal correctness: no dead code, no panicking paths, edge cases handled.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-11"],
+      "notes": "Alternate step for 7 RUST-ONLY features with no C++ counterpart."
+    },
+    {
+      "id": "i-50",
+      "text": "Phase 1 step (RUST-ONLY variant): Write a unit test for any untested edge case found.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-49"],
+      "notes": "Test writing for RUST-ONLY features."
+    },
+    {
+      "id": "i-51",
+      "text": "Phase 1 step (CRITICAL, 2 features): Verify every config field's default value matches C++ emCoreConfig constructor defaults exactly -- these control zoom speed, scroll speed, magnetism radius, thread count, and render quality.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": ["i-11"],
+      "notes": "Special CRITICAL step on ext-model-core_config and ext-widget-core_config_panel features. Elevated priority."
+    },
+    {
+      "id": "i-52",
+      "text": "Phase 2 step: Note that some C++ methods are generated by macros (EM_IMPL_OBJ_CLASS, EM_IMPLEMENT_*_REC). If a symbol looks like boilerplate (constructor/destructor/copy), check whether it was macro-generated. Macro boilerplate is typically NOT_NEEDED in Rust.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "guidance",
+      "dependencies": ["i-12"],
+      "notes": "Phase-2-specific guidance about C++ macro boilerplate."
+    },
+    {
+      "id": "i-53",
+      "text": "Phase 2 step: For each listed C++ method, determine: (a) is it actually needed in the Rust port? (b) if yes, is it already implemented under a different name? (c) if truly missing, is it feasible to implement?",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-12"],
+      "notes": "Phase 2 analysis framework."
+    },
+    {
+      "id": "i-54",
+      "text": "Phase 2 step: For each method, mark as IMPLEMENTED (found under different name), NOT_NEEDED (superseded or not applicable), or NEEDS_IMPLEMENTATION (with scope estimate).",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "format",
+      "dependencies": ["i-53"],
+      "notes": "Phase 2 classification categories."
+    },
+    {
+      "id": "i-55",
+      "text": "Phase 2 step: For NEEDS_IMPLEMENTATION items, implement them and write a test.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-54"],
+      "notes": "Phase 2 implementation requirement."
+    },
+    {
+      "id": "i-56",
+      "text": "Phase 3 step: Read the Rust source file.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-13"],
+      "notes": "Phase 3 step 1."
+    },
+    {
+      "id": "i-57",
+      "text": "Phase 3 step: Verify the listed C++ symbols are covered in the Rust file.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-13"],
+      "notes": "Phase 3 step 2. Symbols listed per-feature."
+    },
+    {
+      "id": "i-58",
+      "text": "Phase 3 step: Verify all public methods from the consolidated C++ classes have Rust equivalents.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-57"],
+      "notes": "Phase 3 step 3. Completeness check."
+    },
+    {
+      "id": "i-59",
+      "text": "Phase 4 step: List all #[test] functions in the specified test directory.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-14"],
+      "notes": "Phase 4 step 1. Directory varies per feature (pipeline, golden, behavioral, integration, unit, or src/ inline)."
+    },
+    {
+      "id": "i-60",
+      "text": "Phase 4 step: For each test function, check 5 anti-patterns: (1) assertions verify SPECIFIC expected values not is_some()/is_ok(), (2) side effects are verified, (3) test would FAIL if implementation were subtly wrong, (4) modifier keys set correctly, (5) test exercises actual behavior not just compilation.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-59"],
+      "notes": "Phase 4 step 2. The 5-point checklist for each test."
+    },
+    {
+      "id": "i-61",
+      "text": "Phase 4 step: Fix any defective test by strengthening its assertions.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-60"],
+      "notes": "Phase 4 step 3. Note: this conflicts with i-28 (do NOT modify existing tests). Phase 4 is an exception."
+    },
+    {
+      "id": "i-62",
+      "text": "Phase 4 step: If a strengthened test now FAILS, that is a real bug. Fix the production code too.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-61"],
+      "notes": "Phase 4 step 4. Bug-finding through test strengthening."
+    },
+    {
+      "id": "i-63",
+      "text": "Phase 4 (inline test variant): grep -rn '#[cfg(test)]' src/ to find all inline test modules.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-14"],
+      "notes": "review-inline-tests feature uses grep instead of listing a test directory."
+    },
+    {
+      "id": "i-64",
+      "text": "CLAUDE.md: Use f64 for logical coordinates, i32 for pixel coordinates, u32 for image dimensions, u8 for color channels.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Code rule from CLAUDE.md. Applies to any code written during the audit."
+    },
+    {
+      "id": "i-65",
+      "text": "CLAUDE.md: Use Color (packed u32 RGBA) for storage. Intermediate blend math in i32 or wider.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Code rule from CLAUDE.md."
+    },
+    {
+      "id": "i-66",
+      "text": "CLAUDE.md: Use Rc/RefCell for shared state, Weak for parent refs. No Arc/Mutex (single-threaded UI tree).",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Ownership rule from CLAUDE.md."
+    },
+    {
+      "id": "i-67",
+      "text": "CLAUDE.md: Use String owned, &str params. No Cow.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "String handling rule from CLAUDE.md."
+    },
+    {
+      "id": "i-68",
+      "text": "CLAUDE.md: Per-module Result with custom error enums (Display + Error). assert! only for logic-error invariants.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Error handling rule from CLAUDE.md."
+    },
+    {
+      "id": "i-69",
+      "text": "CLAUDE.md: Import order: std then external then crate::. Explicit names. use super::* only in #[cfg(test)].",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Import rule from CLAUDE.md."
+    },
+    {
+      "id": "i-70",
+      "text": "CLAUDE.md: Construction: new() primary, builder with_*(self) -> Self for optional config.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "guidance",
+      "dependencies": [],
+      "notes": "Construction convention from CLAUDE.md."
+    },
+    {
+      "id": "i-71",
+      "text": "CLAUDE.md: One primary type per file. Private mod + public use re-exports in mod.rs.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "guidance",
+      "dependencies": [],
+      "notes": "Module organization from CLAUDE.md."
+    },
+    {
+      "id": "i-72",
+      "text": "CLAUDE.md: pub(crate) default visibility. pub only for library API consumed by sosumi-7.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Visibility rule from CLAUDE.md."
+    },
+    {
+      "id": "i-73",
+      "text": "CLAUDE.md: Use expect('reason') unless invariant is obvious from context. Bare unwrap() fine in tests and same-line proofs.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "guidance",
+      "dependencies": [],
+      "notes": "Unwrap rule from CLAUDE.md."
+    },
+    {
+      "id": "i-74",
+      "text": "CLAUDE.md: Fix warnings (remove dead code, prefix _, apply clippy fix). Suppress only genuine false positives with a comment.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Warning handling rule from CLAUDE.md."
+    },
+    {
+      "id": "i-75",
+      "text": "CLAUDE.md (Pixel fidelity): Reproduce C++ integer formulas exactly in blend/coverage/interpolation/sampling. Use (x*257+0x8073)>>16 not f64 division. Wrap in newtypes. Named constants with derivations. No f64 approximations in compositing pipeline.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": ["i-18"],
+      "notes": "Detailed pixel fidelity rule from CLAUDE.md. Reinforces i-18."
+    },
+    {
+      "id": "i-76",
+      "text": "CLAUDE.md (Geometry fidelity): Same algorithm and operation order on golden-tested paths. Iterator::sum OK. Clamp/min/max must preserve C++ boundary values.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": ["i-39"],
+      "notes": "Geometry fidelity rule from CLAUDE.md. Matches contract GEOMETRY layer."
+    },
+    {
+      "id": "i-77",
+      "text": "CLAUDE.md (State fidelity): Fully idiomatic Rust for state logic, data structures, ownership, API surface. Preserve behavioral contracts (return values, side effects, ordering). Adapt syntax freely.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "guidance",
+      "dependencies": ["i-19"],
+      "notes": "State fidelity rule from CLAUDE.md. Reinforces i-19."
+    },
+    {
+      "id": "i-78",
+      "text": "CLAUDE.md: When in doubt, check if the function's output feeds a golden test. If yes, port the C++ formula exactly. If no, write idiomatic Rust.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "guidance",
+      "dependencies": ["i-75", "i-77"],
+      "notes": "Tiebreaker rule from CLAUDE.md."
+    },
+    {
+      "id": "i-79",
+      "text": "CLAUDE.md: Do NOT use #[allow(...)] or #[expect(...)]. Fix the warning instead. UNLESS warning is for too many arguments (which is allowed).",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Do NOT rule from CLAUDE.md."
+    },
+    {
+      "id": "i-80",
+      "text": "CLAUDE.md: Do NOT use Arc/Mutex -- single-threaded UI tree.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Do NOT rule from CLAUDE.md. Overlaps with i-66."
+    },
+    {
+      "id": "i-81",
+      "text": "CLAUDE.md: Do NOT use Cow -- use String/&str.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Do NOT rule from CLAUDE.md. Overlaps with i-67."
+    },
+    {
+      "id": "i-82",
+      "text": "CLAUDE.md: Do NOT use glob imports (use foo::*) except use super::* in tests.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Do NOT rule from CLAUDE.md."
+    },
+    {
+      "id": "i-83",
+      "text": "CLAUDE.md: Do NOT truncate color math to u8 mid-calculation.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Do NOT rule from CLAUDE.md. Critical for pixel fidelity."
+    },
+    {
+      "id": "i-84",
+      "text": "CLAUDE.md: Do NOT use f64 in blend/coverage/interpolation paths -- use C++ integer arithmetic.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": ["i-75"],
+      "notes": "Do NOT rule from CLAUDE.md. Reinforces i-75."
+    },
+    {
+      "id": "i-85",
+      "text": "CLAUDE.md: Do NOT use Rayon/parallel iteration on golden-tested code paths.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Do NOT rule from CLAUDE.md."
+    },
+    {
+      "id": "i-86",
+      "text": "CLAUDE.md: Do NOT use assert! for recoverable errors.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": ["i-68"],
+      "notes": "Do NOT rule from CLAUDE.md. Overlaps with i-68."
+    },
+    {
+      "id": "i-87",
+      "text": "CLAUDE.md: Do NOT use --no-verify on commits.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": [],
+      "notes": "Do NOT rule from CLAUDE.md. Pre-commit hook must run."
+    },
+    {
+      "id": "i-88",
+      "text": "CLAUDE.md: Pre-commit hook runs cargo fmt (auto-applied) then clippy -D warnings then cargo-nextest ntr. Do not skip with --no-verify. If a commit fails, fix the cause and retry.",
+      "lines": "CLAUDE.md",
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": ["i-87"],
+      "notes": "Pre-commit hook rule from CLAUDE.md."
+    },
+    {
+      "id": "i-89",
+      "text": "Log format: feature entry must include feature_id, description, MATCHes count, MISMATCHes count, MISSINGs count, fixes applied list, and tests added count.",
+      "lines": [126, 127, 128, 129, 130],
+      "position_zone": "bottom-third",
+      "type": "format",
+      "dependencies": ["i-34"],
+      "notes": "Specific fields required in the run log entry."
+    },
+    {
+      "id": "i-90",
+      "text": "Log entry must be appended (not overwritten) to .workflow/widget-comparison/run-log.md.",
+      "lines": [124],
+      "position_zone": "bottom-third",
+      "type": "constraint",
+      "dependencies": ["i-34"],
+      "notes": "Append semantics for the log."
+    },
+    {
+      "id": "i-91",
+      "text": "Commit message format: 'audit: <feature_id> <summary>'.",
+      "lines": [17],
+      "position_zone": "top-third",
+      "type": "format",
+      "dependencies": ["i-08"],
+      "notes": "Commit message convention."
+    },
+    {
+      "id": "i-92",
+      "text": "Include prompts/master-contract.json in the git add for each commit.",
+      "lines": [16],
+      "position_zone": "top-third",
+      "type": "constraint",
+      "dependencies": ["i-08"],
+      "notes": "The contract JSON tracks progress and must be committed each time."
+    },
+    {
+      "id": "i-93",
+      "text": "Phase 1 step: For MISMATCH fixes, apply minimal changes to the Rust code (not rewrite).",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "guidance",
+      "dependencies": ["i-47"],
+      "notes": "The word 'minimally' in the step constrains fix scope."
+    },
+    {
+      "id": "i-94",
+      "text": "Phase 2 step: For NEEDS_IMPLEMENTATION items, include a scope estimate.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "format",
+      "dependencies": ["i-54"],
+      "notes": "Scope estimates help prioritize implementation."
+    },
+    {
+      "id": "i-95",
+      "text": "Phase 4 anti-pattern check: verify modifier keys are set correctly for modifier-dependent tests.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-60"],
+      "notes": "Specific anti-pattern from the 5-point checklist."
+    },
+    {
+      "id": "i-96",
+      "text": "Phase 4 anti-pattern check: verify test exercises actual behavior, not just compilation.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-60"],
+      "notes": "Specific anti-pattern from the 5-point checklist."
+    },
+    {
+      "id": "i-97",
+      "text": "Phase 4 anti-pattern check: verify test would FAIL if implementation were subtly wrong.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "procedural",
+      "dependencies": ["i-60"],
+      "notes": "Mutation-testing-like criterion from the 5-point checklist."
+    },
+    {
+      "id": "i-98",
+      "text": "Phase 1 step: The report for each method must use one of four categories: MATCH, MISMATCH, SUSPECT, or MISSING.",
+      "lines": "contract",
+      "position_zone": "top-third",
+      "type": "format",
+      "dependencies": ["i-46"],
+      "notes": "SUSPECT is a category from the contract steps that is not mentioned in the prompt .md (which only mentions MATCH/MISMATCH/MISSING)."
+    }
+  ]
+}

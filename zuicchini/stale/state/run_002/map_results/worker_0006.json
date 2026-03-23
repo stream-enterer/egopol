@@ -1,0 +1,1595 @@
+{
+  "worker_id": "W-0006",
+  "item_id_range": [60000, 69999],
+  "assigned_files": [
+    "emGroup",
+    "emLinearGroup",
+    "emLinearLayout",
+    "emPackGroup",
+    "emPackLayout",
+    "emRasterGroup",
+    "emRasterLayout",
+    "emTiling"
+  ],
+  "items": [
+    {
+      "item_id": "ITEM-060000",
+      "source_file": "emTiling",
+      "symbol": "emTiling",
+      "kind": "class",
+      "classification": "superseded",
+      "superseding_construct": "emRasterLayout / emLinearLayout / emPackLayout (C++); RasterLayout / LinearLayout / PackLayout (Rust, layout/raster.rs, layout/linear.rs, layout/pack.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "Explicitly deprecated in C++ header. The class itself has no Rust equivalent; its functionality is split across the three modern layout classes."
+    },
+    {
+      "item_id": "ITEM-060001",
+      "source_file": "emTiling",
+      "symbol": "emTiling::emTiling (constructor)",
+      "kind": "constructor",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::new() / LinearLayout::horizontal() / LinearLayout::vertical() / PackLayout::new()",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "Deprecated constructor. Superseded by constructors of the three modern layout types."
+    },
+    {
+      "item_id": "ITEM-060002",
+      "source_file": "emTiling",
+      "symbol": "emTiling::~emTiling (destructor)",
+      "kind": "destructor",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust drop semantics",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "C++ explicit destructor. Rust uses RAII / Drop trait automatically."
+    },
+    {
+      "item_id": "ITEM-060003",
+      "source_file": "emTiling",
+      "symbol": "emTiling::IsRowByRow",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::row_major (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "Functionality available via RasterLayout::row_major public field."
+    },
+    {
+      "item_id": "ITEM-060004",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetRowByRow",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::row_major (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "Superseded by direct field assignment on RasterLayout."
+    },
+    {
+      "item_id": "ITEM-060005",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetFixedColumnCount",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::fixed_columns (Option<usize> field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "Superseded by RasterLayout::fixed_columns."
+    },
+    {
+      "item_id": "ITEM-060006",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetFixedRowCount",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::fixed_rows (Option<usize> field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "Superseded by RasterLayout::fixed_rows."
+    },
+    {
+      "item_id": "ITEM-060007",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetFixedColumnCount",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::fixed_columns (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060008",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetFixedRowCount",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::fixed_rows (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060009",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetMinCellCount",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::min_cell_count (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060010",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetMinCellCount",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::min_cell_count / RasterLayout::with_min_cell_count (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060011",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetChildTallness",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::preferred_child_tallness / min_child_tallness / max_child_tallness (fields, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "C++ shortcut that sets pref+forced. In Rust, these are separate fields on RasterLayout."
+    },
+    {
+      "item_id": "ITEM-060012",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetPrefChildTallness (scalar overload)",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::preferred_child_tallness (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060013",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetPrefChildTallness(int idx)",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::preferred_child_tallness (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "C++ supports per-cell preferred tallness via idx. Rust uses a single scalar field."
+    },
+    {
+      "item_id": "ITEM-060014",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetPrefChildTallness(double pct, int idx, bool allFurther)",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::preferred_child_tallness (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "Per-cell PCT array not replicated in Rust (emTiling is deprecated anyway)."
+    },
+    {
+      "item_id": "ITEM-060015",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetChildTallnessForced",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "emRasterLayout::SetChildTallness / RasterLayout min/max_child_tallness fields",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "Forced tallness concept is not ported for emTiling; use RasterLayout strict_raster or tallness clamp fields."
+    },
+    {
+      "item_id": "ITEM-060016",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetForcedChildTallnessColumn",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::strict_raster (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060017",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetForcedChildTallnessRow",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::strict_raster (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060018",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetForcedChildTallnessColumn",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::strict_raster (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060019",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetForcedChildTallnessRow",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::strict_raster (field, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060020",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetAlignment",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::alignment_h / alignment_v (fields, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060021",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetAlignment",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::alignment_h / alignment_v (fields, layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060022",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetSpaceL",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.margin_left (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060023",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetSpaceT",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.margin_top (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060024",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetSpaceH",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.inner_h (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060025",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetSpaceV",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.inner_v (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060026",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetSpaceR",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.margin_right (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060027",
+      "source_file": "emTiling",
+      "symbol": "emTiling::GetSpaceB",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.margin_bottom (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060028",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetSpaceL",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.margin_left (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060029",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetSpaceT",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.margin_top (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060030",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetSpaceH",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.inner_h (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060031",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetSpaceV",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.inner_v (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060032",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetSpaceR",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.margin_right (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060033",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetSpaceB",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "RasterLayout::spacing.margin_bottom (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060034",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetSpace(double l, double t, double h, double v, double r, double b)",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Spacing struct fields on RasterLayout (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060035",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetSpace(double lr, double tb, double h, double v)",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Spacing struct fields on RasterLayout (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060036",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetInnerSpace",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Spacing::inner_h / inner_v fields (layout/mod.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060037",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetOuterSpace(double l, double t, double r, double b)",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Spacing margin fields (layout/mod.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060038",
+      "source_file": "emTiling",
+      "symbol": "emTiling::SetOuterSpace(double lr, double tb)",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "Spacing margin fields (layout/mod.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-060039",
+      "source_file": "emTiling",
+      "symbol": "emTiling::LayoutChildren (protected virtual)",
+      "kind": "method",
+      "classification": "superseded",
+      "superseding_construct": "PanelBehavior::layout_children trait method implemented on RasterLayout (layout/raster.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "C++ virtual dispatch replaced by trait object dispatch in Rust."
+    },
+    {
+      "item_id": "ITEM-061000",
+      "source_file": "emGroup",
+      "symbol": "emGroup",
+      "kind": "class",
+      "classification": "superseded",
+      "superseding_construct": "emLinearGroup / emRasterGroup / emPackGroup (C++); LinearGroup / RasterGroup / PackGroup (Rust)",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "Explicitly deprecated in C++ header. Functionality is split into the three modern group types. The internal emGroup(notWarningDeprecatedForInternalUse) variant is used by emRadioButton::Group which maps to RadioGroup in Rust."
+    },
+    {
+      "item_id": "ITEM-061001",
+      "source_file": "emGroup",
+      "symbol": "emGroup::emGroup (public deprecated constructor)",
+      "kind": "constructor",
+      "classification": "superseded",
+      "superseding_construct": "LinearGroup::horizontal() / RasterGroup::new() / PackGroup::new() (layout/linear.rs, layout/raster.rs, layout/pack.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-061002",
+      "source_file": "emGroup",
+      "symbol": "emGroup::~emGroup (destructor)",
+      "kind": "destructor",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust drop semantics",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-061003",
+      "source_file": "emGroup",
+      "symbol": "emGroup::emGroup (protected constructor for emRadioButton::Group)",
+      "kind": "constructor",
+      "classification": "superseded",
+      "superseding_construct": "RadioGroup (src/widget/radio_button.rs)",
+      "rust_equivalent": null,
+      "confidence": 1.0,
+      "notes": "Internal-use constructor used to create a non-deprecated group for emRadioButton. Rust uses RadioGroup which does not extend the deprecated emGroup path."
+    },
+    {
+      "item_id": "ITEM-062000",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "architectural_note": "Rust consolidates emLinearLayout and emLinearGroup into a single file (layout/linear.rs) with two distinct structs: LinearLayout (pure layout, non-focusable) and LinearGroup (with border, focusable). C++ uses class inheritance; Rust uses composition via PanelBehavior trait."
+    },
+    {
+      "item_id": "ITEM-062001",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::emLinearLayout (constructor)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::horizontal() / LinearLayout::vertical() / LinearLayout::adaptive(). C++ sets non-focusable by default; Rust LinearLayout has no border by default."
+    },
+    {
+      "item_id": "ITEM-062002",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::~emLinearLayout (destructor)",
+      "kind": "destructor",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust drop semantics",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-062003",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetHorizontal",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::horizontal() constructor or setting orientation = Orientation::Horizontal."
+    },
+    {
+      "item_id": "ITEM-062004",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetVertical",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::vertical() constructor or setting orientation = Orientation::Vertical."
+    },
+    {
+      "item_id": "ITEM-062005",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetOrientationThresholdTallness",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to reading LinearLayout::orientation when it is Orientation::Adaptive { tallness_threshold }."
+    },
+    {
+      "item_id": "ITEM-062006",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetOrientationThresholdTallness",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::adaptive(threshold) or setting orientation = Orientation::Adaptive { tallness_threshold }."
+    },
+    {
+      "item_id": "ITEM-062007",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetMinCellCount",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::min_cell_count field."
+    },
+    {
+      "item_id": "ITEM-062008",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetMinCellCount",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::min_cell_count field assignment."
+    },
+    {
+      "item_id": "ITEM-062009",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetChildWeight(int index)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to looking up ChildConstraint::weight from LinearLayout::child_constraints."
+    },
+    {
+      "item_id": "ITEM-062010",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetChildWeight(int index, double weight)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::set_child_constraint with ChildConstraint::weight."
+    },
+    {
+      "item_id": "ITEM-062011",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetChildWeight(double weight)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::default_constraint.weight assignment (sets all children to the same weight)."
+    },
+    {
+      "item_id": "ITEM-062012",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetMinChildTallness(int index)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to ChildConstraint::min_tallness from child_constraints."
+    },
+    {
+      "item_id": "ITEM-062013",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetMinChildTallness(int index, double minCT)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::set_child_constraint with ChildConstraint::min_tallness."
+    },
+    {
+      "item_id": "ITEM-062014",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetMinChildTallness(double minCT)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::default_constraint.min_tallness."
+    },
+    {
+      "item_id": "ITEM-062015",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetMaxChildTallness(int index)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to ChildConstraint::max_tallness from child_constraints."
+    },
+    {
+      "item_id": "ITEM-062016",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetMaxChildTallness(int index, double maxCT)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-062017",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetMaxChildTallness(double maxCT)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::default_constraint.max_tallness."
+    },
+    {
+      "item_id": "ITEM-062018",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetChildTallness(int index, double tallness)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to setting both min_tallness and max_tallness to the same value in ChildConstraint."
+    },
+    {
+      "item_id": "ITEM-062019",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetChildTallness(double tallness)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to setting default_constraint.min_tallness = default_constraint.max_tallness = tallness."
+    },
+    {
+      "item_id": "ITEM-062020",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetAlignment",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::alignment_h and alignment_v fields."
+    },
+    {
+      "item_id": "ITEM-062021",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetAlignment",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::with_alignment_h / with_alignment_v or direct field assignment."
+    },
+    {
+      "item_id": "ITEM-062022",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetSpaceL",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::spacing.margin_left."
+    },
+    {
+      "item_id": "ITEM-062023",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetSpaceT",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::spacing.margin_top."
+    },
+    {
+      "item_id": "ITEM-062024",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetSpaceH",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::spacing.inner_h."
+    },
+    {
+      "item_id": "ITEM-062025",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetSpaceV",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::spacing.inner_v."
+    },
+    {
+      "item_id": "ITEM-062026",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetSpaceR",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::spacing.margin_right."
+    },
+    {
+      "item_id": "ITEM-062027",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::GetSpaceB",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearLayout::spacing.margin_bottom."
+    },
+    {
+      "item_id": "ITEM-062028",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetSpaceL",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-062029",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetSpaceT",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-062030",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetSpaceH",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-062031",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetSpaceV",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-062032",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetSpaceR",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-062033",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetSpaceB",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-062034",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetSpace(double l, double t, double h, double v, double r, double b)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to constructing a Spacing struct and assigning to LinearLayout::spacing."
+    },
+    {
+      "item_id": "ITEM-062035",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetSpace(double lr, double tb, double h, double v)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-062036",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetInnerSpace",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Spacing::inner_h / inner_v fields."
+    },
+    {
+      "item_id": "ITEM-062037",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetOuterSpace(double l, double t, double r, double b)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Spacing margin fields."
+    },
+    {
+      "item_id": "ITEM-062038",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::SetOuterSpace(double lr, double tb)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-062039",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::LayoutChildren (protected virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PanelBehavior::layout_children on LinearLayout. C++ virtual dispatch replaced by trait object dispatch."
+    },
+    {
+      "item_id": "ITEM-062040",
+      "source_file": "emLinearLayout",
+      "symbol": "emLinearLayout::CalculateForce (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Private method. Corresponds to LinearLayout::calculate_force. Fully ported including iterative conflict resolution."
+    },
+    {
+      "item_id": "ITEM-063000",
+      "source_file": "emLinearGroup",
+      "symbol": "emLinearGroup",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "architectural_note": "C++ emLinearGroup inherits from emLinearLayout. In Rust, LinearGroup is a separate struct that composes LinearLayout and Border, implementing PanelBehavior. Both classes are co-located in layout/linear.rs."
+    },
+    {
+      "item_id": "ITEM-063001",
+      "source_file": "emLinearGroup",
+      "symbol": "emLinearGroup::emLinearGroup (constructor)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "layout/linear.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to LinearGroup::horizontal() and LinearGroup::vertical() constructors."
+    },
+    {
+      "item_id": "ITEM-063002",
+      "source_file": "emLinearGroup",
+      "symbol": "emLinearGroup::~emLinearGroup (destructor)",
+      "kind": "destructor",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust drop semantics",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-064000",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "architectural_note": "C++ emPackLayout and emPackGroup are consolidated into layout/pack.rs as PackLayout and PackGroup structs. Rust uses composition + PanelBehavior trait instead of C++ inheritance."
+    },
+    {
+      "item_id": "ITEM-064001",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::emPackLayout (constructor)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PackLayout::new()."
+    },
+    {
+      "item_id": "ITEM-064002",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::~emPackLayout (destructor)",
+      "kind": "destructor",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust drop semantics",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-064003",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::GetMinCellCount",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PackLayout::min_cell_count field."
+    },
+    {
+      "item_id": "ITEM-064004",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::SetMinCellCount",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PackLayout::with_min_cell_count or direct field assignment."
+    },
+    {
+      "item_id": "ITEM-064005",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::GetChildWeight(int index)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to reading ChildConstraint::weight from PackLayout::child_constraints."
+    },
+    {
+      "item_id": "ITEM-064006",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::SetChildWeight(int index, double weight)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PackLayout::set_child_constraint with ChildConstraint::weight."
+    },
+    {
+      "item_id": "ITEM-064007",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::SetChildWeight(double weight)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PackLayout::set_default_weight which also clears per-child overrides."
+    },
+    {
+      "item_id": "ITEM-064008",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::GetPrefChildTallness(int index)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to ChildConstraint::preferred_tallness from PackLayout::child_constraints."
+    },
+    {
+      "item_id": "ITEM-064009",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::SetPrefChildTallness(int index, double pct)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PackLayout::set_child_constraint with ChildConstraint::preferred_tallness."
+    },
+    {
+      "item_id": "ITEM-064010",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::SetPrefChildTallness(double pct)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PackLayout::set_default_preferred_tallness which clears per-child overrides."
+    },
+    {
+      "item_id": "ITEM-064011",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::LayoutChildren (protected virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PanelBehavior::layout_children on PackLayout."
+    },
+    {
+      "item_id": "ITEM-064012",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::CountCells (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 0.9,
+      "notes": "Logic inlined in PackLayout::do_layout_inner as min_cell_count.saturating_sub(items.len()) padding loop."
+    },
+    {
+      "item_id": "ITEM-064013",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::FillTPIs (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Packer struct construction with cum_weight / cum_log_pct prefix sums."
+    },
+    {
+      "item_id": "ITEM-064014",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::GetTPIWeightSum (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Packer::weight_sum."
+    },
+    {
+      "item_id": "ITEM-064015",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::GetTPILogPCTSum (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Packer::log_pct_sum."
+    },
+    {
+      "item_id": "ITEM-064016",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::RateCell (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to free function rate_cell in layout/pack.rs."
+    },
+    {
+      "item_id": "ITEM-064017",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::Pack1 (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Packer::pack1."
+    },
+    {
+      "item_id": "ITEM-064018",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::Pack2 (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Packer::pack2."
+    },
+    {
+      "item_id": "ITEM-064019",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::Pack3 (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Packer::pack3."
+    },
+    {
+      "item_id": "ITEM-064020",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::PackN (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Packer::pack_n / pack_n_general."
+    },
+    {
+      "item_id": "ITEM-064021",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::RateHorizontally (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Packer::rate_horizontally."
+    },
+    {
+      "item_id": "ITEM-064022",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::RateVertically (private)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Packer::rate_vertically."
+    },
+    {
+      "item_id": "ITEM-064023",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::TmpPanelInfo (private struct)",
+      "kind": "struct",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PackItem struct in layout/pack.rs."
+    },
+    {
+      "item_id": "ITEM-064024",
+      "source_file": "emPackLayout",
+      "symbol": "emPackLayout::TmpInfo (private struct)",
+      "kind": "struct",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to Packer struct in layout/pack.rs (holds items + prefix sums)."
+    },
+    {
+      "item_id": "ITEM-065000",
+      "source_file": "emPackGroup",
+      "symbol": "emPackGroup",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "architectural_note": "C++ emPackGroup inherits from emPackLayout. In Rust, PackGroup composes PackLayout and Border fields, implementing PanelBehavior. Both are co-located in layout/pack.rs."
+    },
+    {
+      "item_id": "ITEM-065001",
+      "source_file": "emPackGroup",
+      "symbol": "emPackGroup::emPackGroup (constructor)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "layout/pack.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PackGroup::new()."
+    },
+    {
+      "item_id": "ITEM-065002",
+      "source_file": "emPackGroup",
+      "symbol": "emPackGroup::~emPackGroup (destructor)",
+      "kind": "destructor",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust drop semantics",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066000",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "architectural_note": "C++ emRasterLayout and emRasterGroup are consolidated into layout/raster.rs as RasterLayout and RasterGroup structs. Rust uses composition + PanelBehavior trait instead of C++ inheritance."
+    },
+    {
+      "item_id": "ITEM-066001",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::emRasterLayout (constructor)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::new() / RasterLayout::default()."
+    },
+    {
+      "item_id": "ITEM-066002",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::~emRasterLayout (destructor)",
+      "kind": "destructor",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust drop semantics",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066003",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::IsRowByRow",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::row_major field."
+    },
+    {
+      "item_id": "ITEM-066004",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetRowByRow",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::row_major field assignment."
+    },
+    {
+      "item_id": "ITEM-066005",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetFixedColumnCount",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::fixed_columns (Option<usize>)."
+    },
+    {
+      "item_id": "ITEM-066006",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetFixedRowCount",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::fixed_rows (Option<usize>)."
+    },
+    {
+      "item_id": "ITEM-066007",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetFixedColumnCount",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::with_columns or fixed_columns field assignment."
+    },
+    {
+      "item_id": "ITEM-066008",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetFixedRowCount",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::with_rows or fixed_rows field assignment."
+    },
+    {
+      "item_id": "ITEM-066009",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetMinCellCount",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::min_cell_count field."
+    },
+    {
+      "item_id": "ITEM-066010",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetMinCellCount",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::with_min_cell_count or field assignment."
+    },
+    {
+      "item_id": "ITEM-066011",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetPrefChildTallness",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::preferred_child_tallness field."
+    },
+    {
+      "item_id": "ITEM-066012",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetPrefChildTallness",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::with_preferred_tallness or field assignment."
+    },
+    {
+      "item_id": "ITEM-066013",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetMinChildTallness",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::min_child_tallness field."
+    },
+    {
+      "item_id": "ITEM-066014",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetMinChildTallness",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066015",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetMaxChildTallness",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::max_child_tallness field."
+    },
+    {
+      "item_id": "ITEM-066016",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetMaxChildTallness",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066017",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetChildTallness",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to setting preferred_child_tallness = min_child_tallness = max_child_tallness on RasterLayout."
+    },
+    {
+      "item_id": "ITEM-066018",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::IsStrictRaster",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::strict_raster field."
+    },
+    {
+      "item_id": "ITEM-066019",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetStrictRaster",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::with_strict_raster or field assignment."
+    },
+    {
+      "item_id": "ITEM-066020",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetAlignment",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::alignment_h / alignment_v fields."
+    },
+    {
+      "item_id": "ITEM-066021",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetAlignment",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066022",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetSpaceL",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::spacing.margin_left."
+    },
+    {
+      "item_id": "ITEM-066023",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetSpaceT",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066024",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetSpaceH",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::spacing.inner_h."
+    },
+    {
+      "item_id": "ITEM-066025",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetSpaceV",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterLayout::spacing.inner_v."
+    },
+    {
+      "item_id": "ITEM-066026",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetSpaceR",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066027",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::GetSpaceB",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066028",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetSpaceL",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066029",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetSpaceT",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066030",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetSpaceH",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066031",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetSpaceV",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066032",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetSpaceR",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066033",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetSpaceB",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066034",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetSpace(double l, double t, double h, double v, double r, double b)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to constructing a Spacing struct and assigning to RasterLayout::spacing."
+    },
+    {
+      "item_id": "ITEM-066035",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetSpace(double lr, double tb, double h, double v)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066036",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetInnerSpace",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066037",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetOuterSpace(double l, double t, double r, double b)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066038",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::SetOuterSpace(double lr, double tb)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0
+    },
+    {
+      "item_id": "ITEM-066039",
+      "source_file": "emRasterLayout",
+      "symbol": "emRasterLayout::LayoutChildren (protected virtual)",
+      "kind": "method",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to PanelBehavior::layout_children on RasterLayout."
+    },
+    {
+      "item_id": "ITEM-067000",
+      "source_file": "emRasterGroup",
+      "symbol": "emRasterGroup",
+      "kind": "class",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "architectural_note": "C++ emRasterGroup inherits from emRasterLayout. In Rust, RasterGroup composes RasterLayout and Border fields, implementing PanelBehavior. Both are co-located in layout/raster.rs."
+    },
+    {
+      "item_id": "ITEM-067001",
+      "source_file": "emRasterGroup",
+      "symbol": "emRasterGroup::emRasterGroup (constructor)",
+      "kind": "constructor",
+      "classification": "ported",
+      "rust_equivalent": "layout/raster.rs",
+      "confidence": 1.0,
+      "notes": "Corresponds to RasterGroup::new()."
+    },
+    {
+      "item_id": "ITEM-067002",
+      "source_file": "emRasterGroup",
+      "symbol": "emRasterGroup::~emRasterGroup (destructor)",
+      "kind": "destructor",
+      "classification": "not_applicable",
+      "superseding_construct": "Rust drop semantics",
+      "rust_equivalent": null,
+      "confidence": 1.0
+    }
+  ]
+}
