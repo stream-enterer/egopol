@@ -8,15 +8,15 @@ use crate::support::{RecordingBehavior, TestHarness};
 #[test]
 fn mouse_click_activates_correct_panel() {
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     // Panel A: left half
     let a = h.add_panel(root, "a");
-    h.tree.set_layout_rect(a, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(a, 0.0, 0.0, 0.5, 1.0);
 
     // Panel B: right half
     let b = h.add_panel(root, "b");
-    h.tree.set_layout_rect(b, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(b, 0.5, 0.0, 0.5, 1.0);
 
     h.tick();
 
@@ -25,7 +25,7 @@ fn mouse_click_activates_correct_panel() {
     h.inject_input(&Click);
 
     assert_eq!(
-        h.view.active(),
+        h.view.GetActivePanel(),
         Some(b),
         "Click at x=600 should activate panel B (right half)"
     );
@@ -34,7 +34,7 @@ fn mouse_click_activates_correct_panel() {
 #[test]
 fn vif_consumes_prevents_behavior() {
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
     let log = Rc::new(RefCell::new(Vec::new()));
 
     let _child = h.add_panel_with(
@@ -46,7 +46,7 @@ fn vif_consumes_prevents_behavior() {
 
     // Set child as active
     h.view.set_active_panel(&mut h.tree, _child, false);
-    h.view.update_viewing(&mut h.tree);
+    h.view.Update(&mut h.tree);
 
     // Alt+ArrowUp should be consumed by emKeyboardZoomScrollVIF (zoom/scroll)
     h.input_state.press(InputKey::Alt);
@@ -68,7 +68,7 @@ fn vif_consumes_prevents_behavior() {
 #[test]
 fn focus_change_routes_keyboard() {
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
     let log_a = Rc::new(RefCell::new(Vec::new()));
     let log_b = Rc::new(RefCell::new(Vec::new()));
 
@@ -78,7 +78,7 @@ fn focus_change_routes_keyboard() {
         "a",
         Box::new(RecordingBehavior::new(Rc::clone(&log_a))),
     );
-    h.tree.set_layout_rect(a, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(a, 0.0, 0.0, 0.5, 1.0);
 
     // Panel B: right half
     let b = h.add_panel_with(
@@ -86,13 +86,13 @@ fn focus_change_routes_keyboard() {
         "b",
         Box::new(RecordingBehavior::new(Rc::clone(&log_b))),
     );
-    h.tree.set_layout_rect(b, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(b, 0.5, 0.0, 0.5, 1.0);
 
     h.tick();
 
     // Activate A and type a key
     h.view.set_active_panel(&mut h.tree, a, false);
-    h.view.update_viewing(&mut h.tree);
+    h.view.Update(&mut h.tree);
     let key_x = emInputEvent::press(InputKey::Key('x'));
     h.inject_input(&key_x);
 
@@ -128,18 +128,18 @@ fn input_without_update_returns_none() {
     let mut tree = zuicchini::emCore::emPanelTree::PanelTree::new();
     let root = tree.create_root("root");
     tree.set_focusable(root, true);
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
 
     let child = tree.create_child(root, "child");
     tree.set_focusable(child, true);
-    tree.set_layout_rect(child, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(child, 0.0, 0.0, 1.0, 1.0);
 
     // Create view but do NOT call update_viewing
     let view = zuicchini::emCore::emView::emView::new(root, 800.0, 600.0);
 
     // Hit-test should return None since SVP is not computed
     // (SVP is set during update_viewing)
-    let hit = view.get_focusable_panel_at(&tree, 400.0, 300.0);
+    let hit = view.GetFocusablePanelAt(&tree, 400.0, 300.0);
     // Note: emView::new sets initial visit_stack with root, which may or may not
     // compute SVP. This test documents the behavior either way.
     // If SVP is set during new(), hit may succeed for root.

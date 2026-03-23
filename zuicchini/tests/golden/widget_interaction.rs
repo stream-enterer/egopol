@@ -137,7 +137,7 @@ fn widget_radiobutton_switch() {
     let _rb_c = emRadioButton::new("Option C", look, group.clone(), 2);
 
     // Initial: A checked
-    group.borrow_mut().select(0);
+    group.borrow_mut().Select(0);
     let initial = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
     assert_eq!(
         group.borrow().GetChecked(),
@@ -176,8 +176,8 @@ fn widget_listbox_select() {
     lb.AddItem("item4".to_string(), "Epsilon".to_string());
 
     // Select 2, then 4 (single GetMode should replace)
-    lb.select(2, true);
-    lb.select(4, true);
+    lb.Select(2, true);
+    lb.Select(4, true);
 
     // Parse golden: [u32 GetCount][u32 * GetCount indices]
     let GetCount = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
@@ -268,7 +268,7 @@ fn widget_textfield_type() {
         u32::from_le_bytes(golden[cursor_off..cursor_off + 4].try_into().unwrap()) as usize;
 
     assert_eq!(tf.text(), text, "text mismatch");
-    assert_eq!(tf.cursor_pos(), cursor, "cursor mismatch");
+    assert_eq!(tf.GetCursorIndex(), cursor, "cursor mismatch");
 }
 
 // ─── Test 6: widget_textfield_backspace ──────────────────────────
@@ -302,7 +302,7 @@ fn widget_textfield_backspace() {
         u32::from_le_bytes(golden[cursor_off..cursor_off + 4].try_into().unwrap()) as usize;
 
     assert_eq!(tf.text(), text, "text mismatch");
-    assert_eq!(tf.cursor_pos(), cursor, "cursor mismatch");
+    assert_eq!(tf.GetCursorIndex(), cursor, "cursor mismatch");
 }
 
 // ─── Test 7: widget_textfield_select ────────────────────────────
@@ -335,9 +335,9 @@ fn widget_textfield_select() {
     let sel_end = u32::from_le_bytes(golden[4..8].try_into().unwrap()) as usize;
     let cursor = u32::from_le_bytes(golden[8..12].try_into().unwrap()) as usize;
 
-    assert_eq!(tf.selection_start(), sel_start, "sel_start mismatch");
-    assert_eq!(tf.selection_end(), sel_end, "sel_end mismatch");
-    assert_eq!(tf.cursor_pos(), cursor, "cursor mismatch");
+    assert_eq!(tf.GetSelectionStartIndex(), sel_start, "sel_start mismatch");
+    assert_eq!(tf.GetSelectionEndIndex(), sel_end, "sel_end mismatch");
+    assert_eq!(tf.GetCursorIndex(), cursor, "cursor mismatch");
 }
 
 // ─── Test 8: widget_scalarfield_inc ─────────────────────────────
@@ -392,7 +392,7 @@ fn widget_button_click() {
     let click_count = std::rc::Rc::new(std::cell::Cell::new(0u32));
     let cc = click_count.clone();
     btn.on_click = Some(Box::new(move || {
-        cc.set(cc.GetRec() + 1);
+        cc.Set(cc.GetRec() + 1);
     }));
 
     // Initial state: not pressed, callback not fired
@@ -441,8 +441,8 @@ fn widget_listbox_multi() {
     lb.AddItem("item4".to_string(), "Epsilon".to_string());
 
     // Select items 1 and 3 additively
-    lb.select(1, false);
-    lb.select(3, false);
+    lb.Select(1, false);
+    lb.Select(3, false);
 
     // Parse golden: [u32 GetCount][u32*GetCount indices]
     let GetCount = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
@@ -522,15 +522,15 @@ fn widget_textfield_cursor_nav() {
     let look = emLook::new();
     let mut tf = emTextField::new(look);
     tf.SetEditable(true);
-    tf.set_multi_line(true);
-    tf.set_text("abc\ndef");
-    tf.set_cursor_index(7); // End of "abc\ndef"
+    tf.SetMultiLineMode(true);
+    tf.SetText("abc\ndef");
+    tf.SetCursorIndex(7); // End of "abc\ndef"
     let ps = default_panel_state();
     let is = default_input_state();
 
     let cursor_before = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
     assert_eq!(
-        tf.cursor_pos(),
+        tf.GetCursorIndex(),
         cursor_before,
         "cursor before ArrowUp mismatch"
     );
@@ -540,7 +540,7 @@ fn widget_textfield_cursor_nav() {
 
     let cursor_after = u32::from_le_bytes(golden[4..8].try_into().unwrap()) as usize;
     assert_eq!(
-        tf.cursor_pos(),
+        tf.GetCursorIndex(),
         cursor_after,
         "cursor after ArrowUp mismatch"
     );
@@ -630,7 +630,7 @@ fn run_splitter_layout_step(
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(
+    tree.Layout(
         root,
         parent_rect.0,
         parent_rect.1,
@@ -749,20 +749,20 @@ fn dispatch_event(
         )
     {
         let panel = view
-            .get_focusable_panel_at(tree, event.mouse_x, event.mouse_y)
-            .unwrap_or_else(|| view.root());
+            .GetFocusablePanelAt(tree, event.mouse_x, event.mouse_y)
+            .unwrap_or_else(|| view.GetRootPanel());
         view.set_active_panel(tree, panel, false);
     }
 
-    let wf = view.window_focused();
+    let wf = view.IsFocused();
     let viewed = tree.viewed_panels_dfs();
     for panel_id in viewed {
         let mut panel_ev = event.clone();
-        panel_ev.mouse_x = tree.view_to_panel_x(panel_id, event.mouse_x);
-        panel_ev.mouse_y = tree.view_to_panel_y(panel_id, event.mouse_y, view.pixel_tallness());
+        panel_ev.mouse_x = tree.ViewToPanelX(panel_id, event.mouse_x);
+        panel_ev.mouse_y = tree.ViewToPanelY(panel_id, event.mouse_y, view.GetCurrentPixelTallness());
 
         if let Some(mut behavior) = tree.take_behavior(panel_id) {
-            let panel_state = tree.build_panel_state(panel_id, wf, view.pixel_tallness());
+            let panel_state = tree.build_panel_state(panel_id, wf, view.GetCurrentPixelTallness());
             // Suppress keyboard events for panels not in the active path
             if panel_ev.is_keyboard_event() && !panel_state.in_active_path {
                 tree.put_behavior(panel_id, behavior);
@@ -771,7 +771,7 @@ fn dispatch_event(
             let consumed = behavior.Input(&panel_ev, &panel_state, input_state);
             tree.put_behavior(panel_id, behavior);
             if consumed {
-                view.invalidate_painting(tree, panel_id);
+                view.InvalidatePainting(tree, panel_id);
                 break;
             }
         }
@@ -802,7 +802,7 @@ fn composition_click_through_tree() {
         .with_inner(InnerBorderType::None)
         .with_caption("Root");
     root_group.border.label_in_border = true;
-    tree.set_layout_rect(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
 
     // Container: vertical emLinearGroup with OBT_Rect border
     let container_id = tree.create_child(root, "container");
@@ -817,7 +817,7 @@ fn composition_click_through_tree() {
     let button_id = tree.create_child(container_id, "button");
     let mut btn = emButton::new("Click Me", look);
     btn.on_click = Some(Box::new(move || {
-        clicked_clone.set(clicked_clone.GetRec() + 1);
+        clicked_clone.Set(clicked_clone.GetRec() + 1);
     }));
     tree.set_behavior(button_id, Box::new(ClickableButtonPanel { widget: btn }));
 
@@ -828,8 +828,8 @@ fn composition_click_through_tree() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     for _ in 0..200 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     // Render once so the button caches its PaintContent dimensions (last_w, last_h)

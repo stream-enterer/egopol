@@ -57,8 +57,8 @@ macro_rules! require_golden {
 /// Settle: deliver notices and update viewing until stable.
 fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     for _ in 0..rounds {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(tree);
     }
 }
 
@@ -264,7 +264,7 @@ impl PanelBehavior for TunnelStubPanel {
         ctx.layout_child(children[0], cr.x, cr.y, cr.w, cr.h);
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 
@@ -441,30 +441,30 @@ impl TkTestPanel {
         let gid = Self::make_category(ctx.tree, grid_id, "textfields", "Text Fields", None, None);
         {
             let mut tf1 = emTextField::new(look.clone());
-            tf1.set_text("Read-Only");
+            tf1.SetText("Read-Only");
             let id = ctx.tree.create_child(gid, "tf1");
             ctx.tree
                 .set_behavior(id, Box::new(TextFieldPanel { widget: tf1 }));
 
             let mut tf2 = emTextField::new(look.clone());
             tf2.SetEditable(true);
-            tf2.set_text("Editable");
+            tf2.SetText("Editable");
             let id = ctx.tree.create_child(gid, "tf2");
             ctx.tree
                 .set_behavior(id, Box::new(TextFieldPanel { widget: tf2 }));
 
             let mut tf3 = emTextField::new(look.clone());
             tf3.SetEditable(true);
-            tf3.set_text("Password");
-            tf3.set_password_mode(true);
+            tf3.SetText("Password");
+            tf3.SetPasswordMode(true);
             let id = ctx.tree.create_child(gid, "tf3");
             ctx.tree
                 .set_behavior(id, Box::new(TextFieldPanel { widget: tf3 }));
 
             let mut mltf1 = emTextField::new(look.clone());
             mltf1.SetEditable(true);
-            mltf1.set_multi_line(true);
-            mltf1.set_text("first line\nsecond line\n...");
+            mltf1.SetMultiLineMode(true);
+            mltf1.SetText("first line\nsecond line\n...");
             let id = ctx.tree.create_child(gid, "mltf1");
             ctx.tree
                 .set_behavior(id, Box::new(TextFieldPanel { widget: mltf1 }));
@@ -774,7 +774,7 @@ impl PanelBehavior for TkTestPanel {
         }
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -797,21 +797,21 @@ fn composition_tktest_1x() {
     let root = tree.create_root("tktest");
     tree.set_behavior(root, Box::new(TkTestPanel::new(look)));
     // C++ gen: tk->Layout(0, 0, 800.0/600.0, 1.0)
-    tree.set_layout_rect(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
     // C++ default auto-expansion threshold for TkTest
-    tree.set_auto_expansion_threshold(root, 900.0, ViewConditionType::Area);
+    tree.SetAutoExpansionThreshold(root, 900.0, ViewConditionType::Area);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window
-    view.set_window_focused(&mut tree, false);
+    view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     settle(&mut tree, &mut view, 200);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     // TkTestPanel with emRasterGroup categories has layout GetPos differences
     // from C++ emTestPanel::TkTest due to GetContentRect vs border rounding.
@@ -846,27 +846,27 @@ fn composition_tktest_2x() {
     let root = tree.create_root("tktest");
     tree.set_behavior(root, Box::new(TkTestPanel::new(look)));
     // C++ gen: tk->Layout(0, 0, 800.0/600.0, 1.0)
-    tree.set_layout_rect(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
     // C++ default auto-expansion threshold for TkTest
-    tree.set_auto_expansion_threshold(root, 900.0, ViewConditionType::Area);
+    tree.SetAutoExpansionThreshold(root, 900.0, ViewConditionType::Area);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window
-    view.set_window_focused(&mut tree, false);
+    view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     settle(&mut tree, &mut view, 200);
 
     // C++ gen_golden.cpp: view.Zoom(400, 300, 2.0)
-    // Rust emView::zoom(factor, center_x, center_y)
-    view.zoom(2.0, 400.0, 300.0);
+    // Rust emView::Zoom(factor, center_x, center_y)
+    view.Zoom(2.0, 400.0, 300.0);
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 10)
     settle(&mut tree, &mut view, 10);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     // TkTestPanel at 2x zoom amplifies layout GetPos differences.
     // Zoom shifts expose border-rounding rects that differ from C++ at sub-pixel level.

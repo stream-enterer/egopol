@@ -35,8 +35,8 @@ macro_rules! require_golden {
 
 fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(tree);
     }
 }
 
@@ -59,7 +59,7 @@ fn assert_parallel_identical(
     // Build the scene.
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, behavior);
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
@@ -69,13 +69,13 @@ fn assert_parallel_identical(
     let pool_1 = zuicchini::emCore::emRenderThreadPool::emRenderThreadPool::new(1);
     let mut single = SoftwareCompositor::new(w, h);
     single.render_parallel(&mut tree, &view, &pool_1, tile_size);
-    let single_data = single.framebuffer().data().to_vec();
+    let single_data = single.framebuffer().GetMap().to_vec();
 
     // Multi-threaded tiled render.
     let pool_n = zuicchini::emCore::emRenderThreadPool::emRenderThreadPool::new(GetThreadCount);
     let mut multi = SoftwareCompositor::new(w, h);
     multi.render_parallel(&mut tree, &view, &pool_n, tile_size);
-    let multi_data = multi.framebuffer().data().to_vec();
+    let multi_data = multi.framebuffer().GetMap().to_vec();
 
     assert_eq!(
         single_data.len(),
@@ -295,7 +295,7 @@ fn parallel_benchmark() {
     let single_elapsed = {
         let mut tree = PanelTree::new();
         let root = tree.create_root("bench");
-        tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+        tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
         tree.set_behavior(
             root,
             Box::new(BorderBehavior {
@@ -321,7 +321,7 @@ fn parallel_benchmark() {
     let multi_elapsed = {
         let mut tree = PanelTree::new();
         let root = tree.create_root("bench");
-        tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+        tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
         tree.set_behavior(
             root,
             Box::new(BorderBehavior {
@@ -361,7 +361,7 @@ fn parallel_benchmark() {
     let single_pixels = {
         let mut tree = PanelTree::new();
         let root = tree.create_root("verify");
-        tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+        tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
         tree.set_behavior(
             root,
             Box::new(BorderBehavior {
@@ -376,12 +376,12 @@ fn parallel_benchmark() {
         settle(&mut tree, &mut view);
         let mut comp = SoftwareCompositor::new(800, 600);
         comp.render(&mut tree, &view);
-        comp.framebuffer().data().to_vec()
+        comp.framebuffer().GetMap().to_vec()
     };
     let multi_pixels = {
         let mut tree = PanelTree::new();
         let root = tree.create_root("verify");
-        tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+        tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
         tree.set_behavior(
             root,
             Box::new(BorderBehavior {
@@ -397,7 +397,7 @@ fn parallel_benchmark() {
         let pool = zuicchini::emCore::emRenderThreadPool::emRenderThreadPool::new(4);
         let mut comp = SoftwareCompositor::new(800, 600);
         comp.render_parallel(&mut tree, &view, &pool, 128);
-        comp.framebuffer().data().to_vec()
+        comp.framebuffer().GetMap().to_vec()
     };
     assert_eq!(
         single_pixels, multi_pixels,

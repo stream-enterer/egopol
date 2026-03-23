@@ -46,7 +46,7 @@ fn auto_expand_preserves_selection() {
     let look = emLook::new();
     let mut lb = emListBox::new(look);
     lb.AddItem("a".to_string(), "A".to_string());
-    lb.select(0, true);
+    lb.Select(0, true);
     lb.auto_expand_items();
     assert!(lb.GetItemPanel(0).unwrap().IsSelected());
 }

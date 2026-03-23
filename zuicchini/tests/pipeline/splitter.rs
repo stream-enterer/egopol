@@ -60,7 +60,7 @@ fn setup_splitter(
     initial_pos: f64,
 ) -> (PipelineTestHarness, Rc<RefCell<emSplitter>>, SoftwareCompositor) {
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let look = emLook::new();
     let mut sp = emSplitter::new(orientation, look);
@@ -309,7 +309,7 @@ fn setup_splitter_with_id(
     initial_pos: f64,
 ) -> (PipelineTestHarness, Rc<RefCell<emSplitter>>, SoftwareCompositor, zuicchini::emCore::emPanelTree::PanelId) {
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let look = emLook::new();
     let mut sp = emSplitter::new(orientation, look);
@@ -558,7 +558,7 @@ fn splitter_disabled_rejects_input() {
         setup_splitter_with_id(Orientation::Horizontal, 0.5);
 
     // Disable the panel via the tree.
-    h.tree.set_enable_switch(panel_id, false);
+    h.tree.SetEnableSwitch(panel_id, false);
     h.tick_n(3);
     // Re-render so the emSplitter caches enabled=false from the PaintContent call.
     compositor.render(&mut h.tree, &h.view);

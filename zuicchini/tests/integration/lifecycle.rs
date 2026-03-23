@@ -3,7 +3,7 @@ use crate::support::TestHarness;
 #[test]
 fn create_tree_tick_destroy() {
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let a = h.add_panel(root, "a");
     let b = h.add_panel(root, "b");
@@ -27,18 +27,18 @@ fn create_tree_tick_destroy() {
 #[test]
 fn remove_active_panel_reselects() {
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let a = h.add_panel(root, "a");
-    h.tree.set_layout_rect(a, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(a, 0.0, 0.0, 0.5, 1.0);
     let b = h.add_panel(root, "b");
-    h.tree.set_layout_rect(b, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(b, 0.5, 0.0, 0.5, 1.0);
     h.tick();
 
     // Make A active
     h.view.set_active_panel(&mut h.tree, a, false);
-    h.view.update_viewing(&mut h.tree);
-    assert_eq!(h.view.active(), Some(a));
+    h.view.Update(&mut h.tree);
+    assert_eq!(h.view.GetActivePanel(), Some(a));
 
     // Remove A
     h.tree.remove(a);
@@ -46,8 +46,8 @@ fn remove_active_panel_reselects() {
 
     // emView should auto-select a new active panel (set_active_panel_best_possible).
     // Only B and root remain; B is the expected pick (deepest focusable).
-    h.view.set_active_panel_best_possible(&mut h.tree);
-    assert_eq!(h.view.active(), Some(b), "view should reselect panel B after removing A");
+    h.view.SetActivePanelBestPossible(&mut h.tree);
+    assert_eq!(h.view.GetActivePanel(), Some(b), "view should reselect panel B after removing A");
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn remove_panel_with_engine() {
     }
 
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
     let child = h.add_panel(root, "child");
 
     // Register an engine associated with this panel
@@ -84,7 +84,7 @@ fn remove_panel_with_engine() {
 #[test]
 fn rapid_create_remove() {
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     for i in 0..100 {
         let name = format!("panel_{i}");
@@ -101,7 +101,7 @@ fn rapid_create_remove() {
 #[test]
 fn stale_panel_id_after_remove() {
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let child = h.add_panel(root, "child");
     h.tree.remove(child);

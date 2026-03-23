@@ -46,7 +46,7 @@ impl PanelBehavior for PaintPanel {
 
     fn PaintContent(&mut self, p: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         // Background
-        p.paint_rect(0.0, 0.0, w, h, emColor::WHITE, emColor::TRANSPARENT);
+        p.PaintRect(0.0, 0.0, w, h, emColor::WHITE, emColor::TRANSPARENT);
 
         // ── Section 1: emImage ──
         p.paint_image_scaled(
@@ -60,7 +60,7 @@ impl PanelBehavior for PaintPanel {
         );
 
         // ── Section 2: Filled shapes ──
-        p.paint_rect(
+        p.PaintRect(
             0.3 * w,
             0.05 * h,
             0.15 * w,
@@ -70,7 +70,7 @@ impl PanelBehavior for PaintPanel {
         );
 
         // Ellipse (center + radius)
-        p.paint_ellipse(
+        p.PaintEllipse(
             0.6 * w,
             0.15 * h,
             0.08 * w,
@@ -80,7 +80,7 @@ impl PanelBehavior for PaintPanel {
         );
 
         // Triangle
-        p.paint_polygon(
+        p.PaintPolygon(
             &[
                 (0.05 * w, 0.35 * h),
                 (0.25 * w, 0.45 * h),
@@ -91,7 +91,7 @@ impl PanelBehavior for PaintPanel {
         );
 
         // Round rect
-        p.paint_round_rect(
+        p.PaintRoundRect(
             0.3 * w,
             0.30 * h,
             0.15 * w,
@@ -102,7 +102,7 @@ impl PanelBehavior for PaintPanel {
 
         // ── Section 3: Outlines ──
         let outline = emStroke::new(emColor::rgba(0x00, 0x80, 0xC0, 0xFF), 0.005 * w);
-        p.paint_rect_outlined(
+        p.PaintRectOutline(
             0.5 * w,
             0.30 * h,
             0.15 * w,
@@ -111,7 +111,7 @@ impl PanelBehavior for PaintPanel {
             emColor::TRANSPARENT,
         );
 
-        p.paint_ellipse_outlined(
+        p.PaintEllipseOutline(
             0.77 * w,
             0.37 * h,
             0.08 * w,
@@ -120,7 +120,7 @@ impl PanelBehavior for PaintPanel {
             emColor::TRANSPARENT,
         );
 
-        p.paint_polygon_outlined(
+        p.PaintPolygonOutline(
             &[
                 (0.05 * w, 0.60 * h),
                 (0.15 * w, 0.58 * h),
@@ -132,10 +132,10 @@ impl PanelBehavior for PaintPanel {
             emColor::TRANSPARENT,
         );
 
-        p.paint_round_rect_outlined(0.25 * w, 0.55 * h, 0.15 * w, 0.15 * h, 0.02 * w, &outline);
+        p.PaintRoundRectOutline(0.25 * w, 0.55 * h, 0.15 * w, 0.15 * h, 0.02 * w, &outline);
 
         // ── Section 4: Text ──
-        p.paint_text_boxed(
+        p.PaintTextBoxed(
             0.50 * w,
             0.05 * h,
             0.25 * w,
@@ -152,7 +152,7 @@ impl PanelBehavior for PaintPanel {
             0.15,
         );
 
-        p.paint_text(
+        p.PaintText(
             0.78 * w,
             0.05 * h,
             "paint_text()",
@@ -184,14 +184,14 @@ impl PanelBehavior for PaintPanel {
             (0.80 * w, 0.65 * h),
             (0.70 * w, 0.72 * h),
         ];
-        p.paint_bezier(
+        p.PaintBezier(
             &bezier_pts,
             emColor::rgba(0x00, 0xAA, 0x00, 0xFF),
             emColor::TRANSPARENT,
         );
 
         let bezier_stroke = emStroke::new(emColor::rgba(0xCC, 0x00, 0x88, 0xFF), 0.003 * w);
-        p.paint_bezier_outline(&bezier_pts, &bezier_stroke, emColor::TRANSPARENT);
+        p.PaintBezierOutline(&bezier_pts, &bezier_stroke, emColor::TRANSPARENT);
 
         let mut arrow_stroke = emStroke::new(emColor::rgba(0x00, 0x00, 0xFF, 0xFF), 0.004 * w);
         arrow_stroke.cap = LineCap::Round;
@@ -205,7 +205,7 @@ impl PanelBehavior for PaintPanel {
             (0.82 * w, 0.65 * h),
             (0.92 * w, 0.72 * h),
         ];
-        p.paint_bezier_line(&bezier_pts2, &arrow_stroke, emColor::TRANSPARENT);
+        p.PaintBezierLine(&bezier_pts2, &arrow_stroke, emColor::TRANSPARENT);
 
         // ── Section 7: Gradients ──
         p.paint_linear_gradient(
@@ -267,7 +267,7 @@ impl PanelBehavior for PaintPanel {
 
         // ── Section 9: Clipping demo ──
         p.push_state();
-        p.clip_rect(0.05 * w, 0.88 * h, 0.15 * w, 0.10 * h);
+        p.SetClipping(0.05 * w, 0.88 * h, 0.15 * w, 0.10 * h);
         // Draw a circle that extends beyond the clip rectangle
         let verts: Vec<(f64, f64)> = (0..64)
             .map(|i| {
@@ -278,7 +278,7 @@ impl PanelBehavior for PaintPanel {
                 )
             })
             .collect();
-        p.paint_polygon(&verts, emColor::rgba(255, 255, 0, 180), emColor::TRANSPARENT);
+        p.PaintPolygon(&verts, emColor::rgba(255, 255, 0, 180), emColor::TRANSPARENT);
         p.pop_state();
 
         // ── Section 10: All 17 StrokeEndType variants ──
@@ -346,7 +346,7 @@ fn main() {
     let app = App::new(Box::new(|app, event_loop| {
         let root = app.tree.create_root("root");
         app.tree.set_behavior(root, Box::new(PaintPanel::new()));
-        app.tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+        app.tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
 
         let close_sig = app.scheduler.create_signal();
         let flags_sig = app.scheduler.create_signal();

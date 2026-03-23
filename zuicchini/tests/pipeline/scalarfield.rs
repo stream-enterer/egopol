@@ -72,7 +72,7 @@ fn assert_approx(actual: f64, expected: f64, tolerance: f64, context: &str) {
 fn scalarfield_click_and_drag_1x_and_2x() {
     // 1. Create PipelineTestHarness (800x600 viewport).
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     // 2. Create emScalarField (range 0-100, GetValue 50, editable).
     let look = emLook::new();
@@ -187,7 +187,7 @@ fn setup_sf(
     kb_interval: u64,
 ) -> (PipelineTestHarness, Rc<RefCell<f64>>, zuicchini::emCore::emPanelTree::PanelId) {
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let look = emLook::new();
     let mut sf = emScalarField::new(min, max, look);
@@ -450,7 +450,7 @@ fn scalarfield_disabled_rejects_input() {
     let (mut h, GetValue, pid) = setup_sf(0.0, 100.0, 50.0, true, &[], 10);
 
     // Disable the panel via the tree.
-    h.tree.set_enable_switch(pid, false);
+    h.tree.SetEnableSwitch(pid, false);
     h.tick_n(3);
     // Re-render so that PaintContent() propagates the disabled state into the widget.
     let mut comp = SoftwareCompositor::new(800, 600);

@@ -75,7 +75,7 @@ fn radiobutton_select_1x_and_2x() {
 
     // ── Build pipeline harness (800x600 viewport) ────────────────────
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     // Each radio button gets its own child panel, stacked vertically:
     //   panel 0: y=0.00..0.33  (top third)
@@ -83,15 +83,15 @@ fn radiobutton_select_1x_and_2x() {
     //   panel 2: y=0.66..1.00  (bottom third)
     let panel0 = h.add_panel_with(root, "radio0", Box::new(RadioButtonBehavior::new(rb0)));
     h.tree
-        .set_layout_rect(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
+        .Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
 
     let panel1 = h.add_panel_with(root, "radio1", Box::new(RadioButtonBehavior::new(rb1)));
     h.tree
-        .set_layout_rect(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
+        .Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
 
     let panel2 = h.add_panel_with(root, "radio2", Box::new(RadioButtonBehavior::new(rb2)));
     h.tree
-        .set_layout_rect(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
+        .Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
 
     // Settle layout and viewing Restore.
     h.tick_n(5);
@@ -105,8 +105,8 @@ fn radiobutton_select_1x_and_2x() {
     let panel_center = |harness: &PipelineTestHarness, panel_id| {
         let state = harness.tree.build_panel_state(
             panel_id,
-            harness.view.window_focused(),
-            harness.view.pixel_tallness(),
+            harness.view.IsFocused(),
+            harness.view.GetCurrentPixelTallness(),
         );
         let vr = state.viewed_rect;
         (vr.x + vr.w * 0.5, vr.y + vr.h * 0.5)
@@ -199,19 +199,19 @@ impl RadioButtonHarness {
         assert_eq!(group.borrow().GetChecked(), None);
 
         let mut h = PipelineTestHarness::new();
-        let root = h.root();
+        let root = h.GetRootPanel();
 
         let panel0 = h.add_panel_with(root, "radio0", Box::new(RadioButtonBehavior::new(rb0)));
         h.tree
-            .set_layout_rect(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
+            .Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
 
         let panel1 = h.add_panel_with(root, "radio1", Box::new(RadioButtonBehavior::new(rb1)));
         h.tree
-            .set_layout_rect(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
+            .Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
 
         let panel2 = h.add_panel_with(root, "radio2", Box::new(RadioButtonBehavior::new(rb2)));
         h.tree
-            .set_layout_rect(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
+            .Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
 
         h.tick_n(5);
 
@@ -229,8 +229,8 @@ impl RadioButtonHarness {
     fn panel_center(&self, index: usize) -> (f64, f64) {
         let state = self.h.tree.build_panel_state(
             self.panels[index],
-            self.h.view.window_focused(),
-            self.h.view.pixel_tallness(),
+            self.h.view.IsFocused(),
+            self.h.view.GetCurrentPixelTallness(),
         );
         let vr = state.viewed_rect;
         (vr.x + vr.w * 0.5, vr.y + vr.h * 0.5)
@@ -522,7 +522,7 @@ fn bp13_disabled_radio_rejects_input() {
     let mut t = RadioButtonHarness::new();
 
     // Disable panel 0
-    t.h.tree.set_enable_switch(t.panels[0], false);
+    t.h.tree.SetEnableSwitch(t.panels[0], false);
     t.h.tick_n(3);
     // Re-render so the disabled state is propagated to the widget via PaintContent
     t.compositor.render(&mut t.h.tree, &t.h.view);

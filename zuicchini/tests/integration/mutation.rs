@@ -10,7 +10,7 @@ use crate::support::{MutatingBehavior, RecordingBehavior, TestHarness};
 fn add_child_during_layout_children() {
     // Behavior adds children in LayoutChildren() callback → no panic.
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let created_ids: Rc<RefCell<Vec<PanelId>>> = Rc::new(RefCell::new(Vec::new()));
     let ids_clone = Rc::clone(&created_ids);
@@ -40,7 +40,7 @@ fn add_child_during_layout_children() {
 fn remove_sibling_during_layout_children() {
     // Behavior removes a sibling in LayoutChildren() → no panic.
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let sibling = h.add_panel(root, "sibling");
     let sibling_id = sibling;
@@ -70,7 +70,7 @@ fn remove_sibling_during_layout_children() {
 fn child_iter_snapshot_safety() {
     // Collect children to Vec → remove during Vec iteration → safe.
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let a = h.add_panel(root, "a");
     let b = h.add_panel(root, "b");
@@ -95,7 +95,7 @@ fn deliver_notices_with_new_panels() {
     // Notice callback (via LayoutChildren) creates new panels →
     // new panels don't GetRec notices this tick (not in snapshot) → GetRec them next tick.
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
     let new_panel_log = Rc::new(RefCell::new(Vec::new()));
     let created: Rc<RefCell<Option<PanelId>>> = Rc::new(RefCell::new(None));
     let created_clone = Rc::clone(&created);
@@ -122,7 +122,7 @@ fn deliver_notices_with_new_panels() {
     );
 
     // Trigger a layout change on the child
-    h.tree.set_layout_rect(child_id, 0.0, 0.0, 0.9, 0.9);
+    h.tree.Layout(child_id, 0.0, 0.0, 0.9, 0.9);
     h.tick(); // Second tick: child should now receive notices
 
     let entries = new_panel_log.borrow();
@@ -137,7 +137,7 @@ fn delete_all_children_during_layout() {
     // Deleting children during LayoutChildren is safe — deliver_notices
     // skips panels removed by prior callbacks in the same loop.
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
     let deleted = Rc::new(RefCell::new(false));
     let deleted_clone = Rc::clone(&deleted);
 
@@ -152,7 +152,7 @@ fn delete_all_children_during_layout() {
     let mut behavior = MutatingBehavior::new();
     behavior.on_layout = Some(Box::new(move |ctx: &mut PanelCtx| {
         if !*deleted_clone.borrow() {
-            ctx.delete_all_children();
+            ctx.DeleteAllChildren();
             *deleted_clone.borrow_mut() = true;
         }
     }));

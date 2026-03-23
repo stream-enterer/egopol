@@ -69,8 +69,8 @@ fn watched_var_fires_on_change() {
     let sig = make_signal();
     let mut var = WatchedVar::new(10, sig);
 
-    assert!(!var.set(10), "same value should return false");
-    assert!(var.set(20), "different value should return true");
+    assert!(!var.Set(10), "same value should return false");
+    assert!(var.Set(20), "different value should return true");
     assert_eq!(*var.GetRec(), 20);
 }
 
@@ -142,7 +142,7 @@ fn file_model_state_machine() {
     // Loading -> Loaded
     fm.complete_load(vec![1, 2, 3]);
     assert_eq!(*fm.state(), FileState::Loaded);
-    assert_eq!(fm.data().unwrap(), &vec![1, 2, 3]);
+    assert_eq!(fm.GetMap().unwrap(), &vec![1, 2, 3]);
     assert_eq!(fm.GetFileProgress(), 100.0);
 
     // Loaded -> Unsaved
@@ -160,7 +160,7 @@ fn file_model_state_machine() {
     // Reset
     assert!(fm.HardResetFileState());
     assert_eq!(*fm.state(), FileState::Waiting);
-    assert!(fm.data().is_none());
+    assert!(fm.GetMap().is_none());
 }
 
 #[test]
@@ -203,8 +203,8 @@ fn rec_file_model_load_roundtrip() {
     m.TryLoad();
 
     assert_eq!(*m.state(), FileState::Loaded);
-    assert_eq!(m.data().name, "hello");
-    assert_eq!(m.data().GetCount, 42);
+    assert_eq!(m.GetMap().name, "hello");
+    assert_eq!(m.GetMap().GetCount, 42);
 }
 
 #[test]
@@ -237,8 +237,8 @@ fn rec_file_model_save_roundtrip() {
     m.TryLoad();
     assert_eq!(*m.state(), FileState::Loaded);
 
-    m.data_mut().name = "modified".to_string();
-    m.data_mut().GetCount = 99;
+    m.GetWritableMap().name = "modified".to_string();
+    m.GetWritableMap().GetCount = 99;
     assert_eq!(*m.state(), FileState::Unsaved);
 
     m.Save();
@@ -280,7 +280,7 @@ fn rec_file_model_hard_reset() {
     m.hard_reset();
 
     assert_eq!(*m.state(), FileState::Waiting);
-    assert!(m.data().IsSetToDefault());
+    assert!(m.GetMap().IsSetToDefault());
 }
 
 #[test]
@@ -294,7 +294,7 @@ fn rec_file_model_clear_save_error() {
     assert_eq!(*m.state(), FileState::Loaded);
 
     // Mark unsaved via data_mut()
-    m.data_mut().GetCount = 5;
+    m.GetWritableMap().GetCount = 5;
     assert_eq!(*m.state(), FileState::Unsaved);
 
     // Redirect to unwritable path (GetParentContext is a regular file)

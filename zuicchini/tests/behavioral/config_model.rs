@@ -146,7 +146,7 @@ fn config_model_set_marks_dirty() {
 
     let mut model = emConfigModel::new(TestConfig::default(), path, sig);
     assert!(!model.IsUnsaved());
-    model.set(TestConfig {
+    model.Set(TestConfig {
         name: "changed".to_string(),
         ..TestConfig::default()
     });

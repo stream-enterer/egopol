@@ -56,8 +56,8 @@ macro_rules! require_golden {
 /// Settle: deliver notices and update viewing until stable.
 fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(tree);
     }
 }
 
@@ -160,7 +160,7 @@ fn render_and_compare_tol(
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, behavior);
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -169,7 +169,7 @@ fn render_and_compare_tol(
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         name,
@@ -361,7 +361,7 @@ fn widget_textfield_content() {
     let mut tf = emTextField::new(look);
     tf.SetCaption("Name");
     tf.SetEditable(true);
-    tf.set_text("Hello");
+    tf.SetText("Hello");
     // Residual from 9-slice border interpolation + text rendering diffs
     render_and_compare_tol(
         "widget_textfield_content",
@@ -442,9 +442,9 @@ fn widget_colorfield() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     // C++ emColorField.cpp:36 — SetAutoExpansionThreshold(9, VCT_MIN_EXT)
-    tree.set_auto_expansion_threshold(root, 9.0, ViewConditionType::MinExt);
+    tree.SetAutoExpansionThreshold(root, 9.0, ViewConditionType::MinExt);
     tree.set_behavior(
         root,
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
@@ -455,13 +455,13 @@ fn widget_colorfield() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 30)
     for _ in 0..30 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images("widget_colorfield", actual, &expected, w, h, 3, 3.5);
     if GetResult.is_err() && dump_golden_enabled() {
@@ -588,9 +588,9 @@ fn colorfield_expanded() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     // C++ emColorField uses AE threshold 9 (VCT_MIN_EXT)
-    tree.set_auto_expansion_threshold(root, 9.0, ViewConditionType::MinExt);
+    tree.SetAutoExpansionThreshold(root, 9.0, ViewConditionType::MinExt);
     tree.set_behavior(
         root,
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
@@ -598,17 +598,17 @@ fn colorfield_expanded() {
 
     let mut view = emView::new(root, 800.0, 800.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
-    view.set_window_focused(&mut tree, false);
+    view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images("colorfield_expanded", actual, &expected, w, h, 3, 4.0);
     if GetResult.is_err() && dump_golden_enabled() {
@@ -661,29 +661,29 @@ fn listbox_expanded() {
             .map(|s| s.to_string())
             .collect(),
     );
-    lb.select(1, false);
-    lb.select(3, false);
-    lb.select(5, false);
+    lb.Select(1, false);
+    lb.Select(3, false);
+    lb.Select(5, false);
     lb.auto_expand_items();
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     tree.set_behavior(root, Box::new(ListBoxExpandedBehavior { list_box: lb }));
 
     let mut view = emView::new(root, 800.0, 800.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
-    view.set_window_focused(&mut tree, false);
+    view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images("listbox_expanded", actual, &expected, w, h, 3, 2.0);
     if GetResult.is_err() && dump_golden_enabled() {
@@ -710,7 +710,7 @@ fn golden_widget_border_rect_extreme_tall() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 8.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 8.0);
     tree.set_behavior(root, Box::new(behavior));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -719,7 +719,7 @@ fn golden_widget_border_rect_extreme_tall() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_border_rect_extreme_tall",
@@ -754,7 +754,7 @@ fn golden_widget_border_rect_extreme_wide() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.05);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.05);
     tree.set_behavior(root, Box::new(behavior));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -763,7 +763,7 @@ fn golden_widget_border_rect_extreme_wide() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_border_rect_extreme_wide",
@@ -798,7 +798,7 @@ fn golden_widget_border_roundrect_thin() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.002);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.002);
     tree.set_behavior(root, Box::new(behavior));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -807,7 +807,7 @@ fn golden_widget_border_roundrect_thin() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_border_roundrect_thin",
@@ -843,7 +843,7 @@ fn golden_widget_border_instrument_cramped() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.15);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.15);
     tree.set_behavior(root, Box::new(behavior));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -852,7 +852,7 @@ fn golden_widget_border_instrument_cramped() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_border_instrument_cramped",
@@ -882,7 +882,7 @@ fn golden_widget_label_single_char() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.1);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.1);
     tree.set_behavior(root, Box::new(LabelBehavior { label }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -891,7 +891,7 @@ fn golden_widget_label_single_char() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_label_single_char",
@@ -921,7 +921,7 @@ fn golden_widget_label_empty() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(LabelBehavior { label }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -930,7 +930,7 @@ fn golden_widget_label_empty() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_label_empty",
@@ -963,7 +963,7 @@ fn golden_widget_label_long_narrow() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 4.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 4.0);
     tree.set_behavior(root, Box::new(LabelBehavior { label }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -972,7 +972,7 @@ fn golden_widget_label_long_narrow() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_label_long_narrow",
@@ -1029,7 +1029,7 @@ fn widget_tunnel() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(TunnelBehavior { tunnel }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1038,7 +1038,7 @@ fn widget_tunnel() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images("widget_tunnel", actual, &expected, w, h, 3, 10.0);
     if GetResult.is_err() && dump_golden_enabled() {
@@ -1071,7 +1071,7 @@ fn widget_file_selection_box() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(fsb));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1080,7 +1080,7 @@ fn widget_file_selection_box() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images("widget_file_selection_box", actual, &expected, w, h, 3, 5.0);
     if GetResult.is_err() && dump_golden_enabled() {
@@ -1104,7 +1104,7 @@ fn golden_widget_textfield_empty_wide() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.05);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.05);
     tree.set_behavior(root, Box::new(TextFieldBehavior { text_field: tf }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1113,7 +1113,7 @@ fn golden_widget_textfield_empty_wide() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_textfield_empty_wide",
@@ -1142,11 +1142,11 @@ fn golden_widget_textfield_single_char_square() {
     let mut tf = emTextField::new(look);
     tf.SetCaption("Name");
     tf.SetEditable(true);
-    tf.set_text("A");
+    tf.SetText("A");
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     tree.set_behavior(root, Box::new(TextFieldBehavior { text_field: tf }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1155,7 +1155,7 @@ fn golden_widget_textfield_single_char_square() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_textfield_single_char_square",
@@ -1188,7 +1188,7 @@ fn golden_widget_scalarfield_min_value() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(ScalarFieldBehavior { scalar_field: sf }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1197,7 +1197,7 @@ fn golden_widget_scalarfield_min_value() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_scalarfield_min_value",
@@ -1230,7 +1230,7 @@ fn golden_widget_scalarfield_max_value() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(ScalarFieldBehavior { scalar_field: sf }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1239,7 +1239,7 @@ fn golden_widget_scalarfield_max_value() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_scalarfield_max_value",
@@ -1272,7 +1272,7 @@ fn golden_widget_scalarfield_zero_range() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(ScalarFieldBehavior { scalar_field: sf }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1281,7 +1281,7 @@ fn golden_widget_scalarfield_zero_range() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_scalarfield_zero_range",
@@ -1312,7 +1312,7 @@ fn golden_widget_listbox_empty() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(ListBoxBehavior { list_box: lb }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1321,7 +1321,7 @@ fn golden_widget_listbox_empty() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_listbox_empty",
@@ -1353,7 +1353,7 @@ fn golden_widget_listbox_single() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(ListBoxBehavior { list_box: lb }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1362,7 +1362,7 @@ fn golden_widget_listbox_single() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_listbox_single",
@@ -1396,7 +1396,7 @@ fn golden_widget_listbox_extreme_wide() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.05);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.05);
     tree.set_behavior(root, Box::new(ListBoxBehavior { list_box: lb }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1405,7 +1405,7 @@ fn golden_widget_listbox_extreme_wide() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_listbox_extreme_wide",
@@ -1436,7 +1436,7 @@ fn golden_widget_splitter_h_pos0() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(SplitterBehavior { splitter: sp }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1445,7 +1445,7 @@ fn golden_widget_splitter_h_pos0() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_splitter_h_pos0",
@@ -1476,7 +1476,7 @@ fn golden_widget_splitter_h_pos1() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(SplitterBehavior { splitter: sp }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1485,7 +1485,7 @@ fn golden_widget_splitter_h_pos1() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_splitter_h_pos1",
@@ -1516,7 +1516,7 @@ fn golden_widget_splitter_v_extreme_tall() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 8.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 8.0);
     tree.set_behavior(root, Box::new(SplitterBehavior { splitter: sp }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1525,7 +1525,7 @@ fn golden_widget_splitter_v_extreme_tall() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_splitter_v_extreme_tall",
@@ -1555,7 +1555,7 @@ fn golden_widget_checkbox_extreme_tall() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 4.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 4.0);
     tree.set_behavior(root, Box::new(CheckBoxBehavior { check_box: cb }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1564,7 +1564,7 @@ fn golden_widget_checkbox_extreme_tall() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_checkbox_extreme_tall",
@@ -1596,7 +1596,7 @@ fn golden_widget_tunnel_extreme_wide() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.02);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.02);
     tree.set_behavior(root, Box::new(TunnelBehavior { tunnel }));
 
     let mut view = emView::new(root, 800.0, 600.0);
@@ -1605,7 +1605,7 @@ fn golden_widget_tunnel_extreme_wide() {
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_tunnel_extreme_wide",
@@ -1637,8 +1637,8 @@ fn golden_widget_colorfield_alpha_zero() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
-    tree.set_auto_expansion_threshold(root, 9.0, ViewConditionType::MinExt);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.SetAutoExpansionThreshold(root, 9.0, ViewConditionType::MinExt);
     tree.set_behavior(
         root,
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
@@ -1648,13 +1648,13 @@ fn golden_widget_colorfield_alpha_zero() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_colorfield_alpha_zero",
@@ -1686,8 +1686,8 @@ fn golden_widget_colorfield_alpha_opaque() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
-    tree.set_auto_expansion_threshold(root, 9.0, ViewConditionType::MinExt);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.SetAutoExpansionThreshold(root, 9.0, ViewConditionType::MinExt);
     tree.set_behavior(
         root,
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
@@ -1697,13 +1697,13 @@ fn golden_widget_colorfield_alpha_opaque() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_colorfield_alpha_opaque",
@@ -1735,8 +1735,8 @@ fn golden_widget_colorfield_alpha_near() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
-    tree.set_auto_expansion_threshold(root, 9.0, ViewConditionType::MinExt);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.SetAutoExpansionThreshold(root, 9.0, ViewConditionType::MinExt);
     tree.set_behavior(
         root,
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
@@ -1746,13 +1746,13 @@ fn golden_widget_colorfield_alpha_near() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "widget_colorfield_alpha_near",
@@ -1793,7 +1793,7 @@ fn composition_border_nest() {
         .with_caption("Outer");
     outer.border.label_in_border = true;
     // C++: outer->DoLayout(0, 0, 800.0/600.0, 1.0);
-    tree.set_layout_rect(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
 
     // Inner: emLinearGroup vertical, OBT_RECT / IBT_GROUP, caption "Inner"
     // C++: inner = new Testable<emLinearLayout>(*outer, "inner", "Inner");
@@ -1830,7 +1830,7 @@ fn composition_border_nest() {
     let mut tf = emTextField::new(look.clone());
     tf.SetCaption("Field");
     tf.SetEditable(true);
-    tf.set_text("Hello");
+    tf.SetText("Hello");
     tree.set_behavior(tf_id, Box::new(TextFieldBehavior { text_field: tf }));
 
     // Set outer behavior last (after children are created)
@@ -1839,17 +1839,17 @@ fn composition_border_nest() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window
-    view.set_window_focused(&mut tree, false);
+    view.SetFocused(&mut tree, false);
 
     // C++: TerminateEngine ctrl(sched, 200) — 200 settle rounds
     for _ in 0..200 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     // Rust emLinearGroup positions children slightly differently from C++ emLinearLayout
     // due to GetContentRect rounding in the OBT_ROUND_RECT/IBT_GROUP border hierarchy.
@@ -1914,7 +1914,7 @@ fn composition_splitter_content() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
     // C++ DoLayout(0, 0, 800/600, 1.0)
-    tree.set_layout_rect(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
     tree.set_behavior(
         root,
         Box::new(SplitterCompositionBehavior { splitter: sp }),
@@ -1956,17 +1956,17 @@ fn composition_splitter_content() {
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
-    view.set_window_focused(&mut tree, false);
+    view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "composed_splitter_content",
@@ -2002,7 +2002,7 @@ fn composition_scrolled_listbox_in_border() {
 
     // C++: emBorder with OBT_ROUND_RECT/IBT_NONE, caption "Scrolled List"
     // emBorder does not layout children — use PaintContent-only BorderBehavior.
-    tree.set_layout_rect(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
     tree.set_behavior(
         root,
         Box::new(BorderBehavior::new(
@@ -2025,17 +2025,17 @@ fn composition_scrolled_listbox_in_border() {
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
-    view.set_window_focused(&mut tree, false);
+    view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         "composed_scrolled_listbox",
@@ -2071,7 +2071,7 @@ fn composition_colorfield_expansion_wide() {
 
     // C++: border->SetBorderType(OBT_ROUND_RECT, IBT_GROUP);
     // C++: border->DoLayout(0, 0, 800.0/400.0, 1.0);
-    tree.set_layout_rect(root, 0.0, 0.0, 800.0 / 400.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 800.0 / 400.0, 1.0);
     tree.set_behavior(
         root,
         Box::new(BorderBehavior::new(
@@ -2087,17 +2087,17 @@ fn composition_colorfield_expansion_wide() {
 
     let mut view = emView::new(root, 800.0, 400.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
-    view.set_window_focused(&mut tree, false);
+    view.SetFocused(&mut tree, false);
 
     // C++: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images("composed_colorfield_wide", actual, &expected, w, h, 1, 2.0);
     if GetResult.is_err() && dump_golden_enabled() {
@@ -2124,7 +2124,7 @@ fn composition_colorfield_expansion_tall() {
 
     // C++: border->SetBorderType(OBT_ROUND_RECT, IBT_GROUP);
     // C++: border->DoLayout(0, 0, 400.0/800.0, 1.0);
-    tree.set_layout_rect(root, 0.0, 0.0, 400.0 / 800.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 400.0 / 800.0, 1.0);
     tree.set_behavior(
         root,
         Box::new(BorderBehavior::new(
@@ -2140,17 +2140,17 @@ fn composition_colorfield_expansion_tall() {
 
     let mut view = emView::new(root, 400.0, 800.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
-    view.set_window_focused(&mut tree, false);
+    view.SetFocused(&mut tree, false);
 
     // C++: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(&mut tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(&mut tree);
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images("composed_colorfield_tall", actual, &expected, w, h, 1, 2.0);
     if GetResult.is_err() && dump_golden_enabled() {
@@ -2173,7 +2173,7 @@ fn stress_test_overlay_golden() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
 
     // Render baseline (no stress test)
     let mut view = emView::new(root, w as f64, h as f64);
@@ -2182,7 +2182,7 @@ fn stress_test_overlay_golden() {
 
     let mut compositor_base = SoftwareCompositor::new(w, h);
     compositor_base.render(&mut tree, &view);
-    let baseline = compositor_base.framebuffer().data().to_vec();
+    let baseline = compositor_base.framebuffer().GetMap().to_vec();
 
     // Enable stress test, sync a few frames to accumulate ring buffer entries
     view.flags.insert(ViewFlags::STRESS_TEST);
@@ -2192,7 +2192,7 @@ fn stress_test_overlay_golden() {
 
     let mut compositor_st = SoftwareCompositor::new(w, h);
     compositor_st.render(&mut tree, &view);
-    let actual = compositor_st.framebuffer().data();
+    let actual = compositor_st.framebuffer().GetMap();
 
     // The overlay should make the images differ. compare_images returns Err
     // when images diverge beyond tolerance — we EXPECT divergence here.

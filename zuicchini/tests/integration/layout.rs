@@ -10,7 +10,7 @@ use crate::support::{RecordingBehavior, TestHarness};
 #[test]
 fn parent_resize_triggers_child_relayout() {
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
     let log_parent = Rc::new(RefCell::new(Vec::new()));
     let log_child = Rc::new(RefCell::new(Vec::new()));
 
@@ -45,7 +45,7 @@ fn parent_resize_triggers_child_relayout() {
 
     // Resize GetParentContext — GetParentContext gets LAYOUT_CHANGED → LayoutChildren sets child rect
     // → child gets LAYOUT_CHANGED on next deliver_notices
-    h.tree.set_layout_rect(GetParentContext, 0.0, 0.0, 0.8, 0.8);
+    h.tree.Layout(GetParentContext, 0.0, 0.0, 0.8, 0.8);
     h.tick();
 
     {
@@ -76,7 +76,7 @@ fn parent_resize_triggers_child_relayout() {
 #[test]
 fn nested_layout_cascade() {
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
     let log_parent = Rc::new(RefCell::new(Vec::new()));
     let log_child = Rc::new(RefCell::new(Vec::new()));
 
@@ -98,12 +98,12 @@ fn nested_layout_cascade() {
     log_child.borrow_mut().Clear();
 
     // Resize grandparent — cascade should reach GetParentContext and child
-    h.tree.set_layout_rect(grandparent, 0.0, 0.0, 0.7, 0.7);
+    h.tree.Layout(grandparent, 0.0, 0.0, 0.7, 0.7);
 
     // Resize GetParentContext too (simulating the cascade — in a real app, GetParentContext's
     // LayoutChildren would set child rects, which triggers child notices)
-    h.tree.set_layout_rect(GetParentContext, 0.0, 0.0, 0.6, 0.6);
-    h.tree.set_layout_rect(_child, 0.0, 0.0, 0.5, 0.5);
+    h.tree.Layout(GetParentContext, 0.0, 0.0, 0.6, 0.6);
+    h.tree.Layout(_child, 0.0, 0.0, 0.5, 0.5);
 
     h.tick();
 
@@ -123,11 +123,11 @@ fn nested_layout_cascade() {
 #[test]
 fn layout_affects_hit_test() {
     let mut h = TestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     // Panel at left side initially
     let panel = h.add_panel(root, "movable");
-    h.tree.set_layout_rect(panel, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(panel, 0.0, 0.0, 0.5, 1.0);
     h.tick();
 
     // Click at right side — should NOT find the panel
@@ -135,10 +135,10 @@ fn layout_affects_hit_test() {
     // zoom-out of the square root panel on an 800x600 viewport).
     let click_right = emInputEvent::press(InputKey::MouseLeft).with_mouse(600.0, 300.0);
     h.inject_input(&click_right);
-    let _active_before = h.view.active();
+    let _active_before = h.view.GetActivePanel();
 
     // Move panel to right side
-    h.tree.set_layout_rect(panel, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(panel, 0.5, 0.0, 0.5, 1.0);
     h.tick();
 
     // Click at right side — should now find the panel
@@ -146,7 +146,7 @@ fn layout_affects_hit_test() {
     h.inject_input(&click_right2);
 
     assert_eq!(
-        h.view.active(),
+        h.view.GetActivePanel(),
         Some(panel),
         "After moving panel to right side and updating, click at x=600 should find it"
     );

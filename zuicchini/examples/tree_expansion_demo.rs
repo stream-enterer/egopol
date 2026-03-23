@@ -22,7 +22,7 @@ impl PanelBehavior for MyPanel {
     }
 
     fn PaintContent(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        painter.paint_rect(0.0, 0.0, w, h, self.bg, emColor::TRANSPARENT);
+        painter.PaintRect(0.0, 0.0, w, h, self.bg, emColor::TRANSPARENT);
     }
 
     fn auto_expand(&self) -> bool {
@@ -67,7 +67,7 @@ fn main() {
         let root = app.tree.create_root("root");
         app.tree
             .set_behavior(root, Box::new(MyPanel { bg: emColor::WHITE }));
-        app.tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+        app.tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
 
         let close_sig = app.scheduler.create_signal();
         let flags_sig = app.scheduler.create_signal();

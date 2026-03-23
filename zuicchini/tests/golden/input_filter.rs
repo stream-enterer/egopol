@@ -23,14 +23,14 @@ macro_rules! require_golden {
 fn setup_vif_view() -> (PanelTree, emView) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
     // C++ Zoom(400,300,100.0) -> ra = ra/(100^2) -> rel_a = 100^2 = 10000
-    view.zoom(10000.0, 400.0, 300.0);
-    view.update_viewing(&mut tree);
-    view.set_window_focused(&mut tree, true);
+    view.Zoom(10000.0, 400.0, 300.0);
+    view.Update(&mut tree);
+    view.SetFocused(&mut tree, true);
     (tree, view)
 }
 
@@ -54,7 +54,7 @@ const CLOCK_STEP: u64 = 16;
 /// Create a emMouseZoomScrollVIF with C++ default config parameters.
 fn setup_mouse_vif(view: &emView) -> emMouseZoomScrollVIF {
     let mut vif = emMouseZoomScrollVIF::new();
-    let zflpp = view.get_zoom_factor_log_per_pixel();
+    let zflpp = view.GetZoomFactorLogarithmPerPixel();
     // C++ default config: KineticZoomingAndScrolling=1.0, MinKZAS=0.25
     vif.set_mouse_anim_params(1.0, 0.25, zflpp);
     vif.set_wheel_anim_params(1.0, 0.25, zflpp);
@@ -65,7 +65,7 @@ fn setup_mouse_vif(view: &emView) -> emMouseZoomScrollVIF {
 /// Create a emKeyboardZoomScrollVIF with C++ default config parameters.
 fn setup_keyboard_vif(view: &emView) -> emKeyboardZoomScrollVIF {
     let mut vif = emKeyboardZoomScrollVIF::new();
-    let zflpp = view.get_zoom_factor_log_per_pixel();
+    let zflpp = view.GetZoomFactorLogarithmPerPixel();
     // C++ default config: kinetic=1.0, min=0.25, scroll/zoom speed=1.0
     vif.set_animator_params(1.0, 0.25, 1.0, 1.0, zflpp);
     vif

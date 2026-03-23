@@ -300,24 +300,24 @@ impl PanelBehavior for WidgetGroupPanel {
                     let mut tf1 = emTextField::new(look.clone());
                     tf1.SetEditable(false);
                     tf1.SetCaption("Read-Only");
-                    tf1.set_text("Read-Only");
+                    tf1.SetText("Read-Only");
                     ctx.create_child_with("tf1", Box::new(TextFieldPanel { widget: tf1 }));
                     let mut tf2 = emTextField::new(look.clone());
                     tf2.SetEditable(true);
                     tf2.SetCaption("Editable");
-                    tf2.set_text("Editable");
+                    tf2.SetText("Editable");
                     ctx.create_child_with("tf2", Box::new(TextFieldPanel { widget: tf2 }));
                     let mut tf3 = emTextField::new(look.clone());
                     tf3.SetEditable(true);
                     tf3.SetCaption("Password");
-                    tf3.set_text("Password");
-                    tf3.set_password_mode(true);
+                    tf3.SetText("Password");
+                    tf3.SetPasswordMode(true);
                     ctx.create_child_with("tf3", Box::new(TextFieldPanel { widget: tf3 }));
                     let mut tf4 = emTextField::new(look);
                     tf4.SetEditable(true);
                     tf4.SetCaption("Multi-Line");
-                    tf4.set_multi_line(true);
-                    tf4.set_text("first line\nsecond line\n...");
+                    tf4.SetMultiLineMode(true);
+                    tf4.SetText("first line\nsecond line\n...");
                     ctx.create_child_with("mltf1", Box::new(TextFieldPanel { widget: tf4 }));
                 }
                 WidgetCategory::ScalarFields => {
@@ -427,14 +427,14 @@ impl PanelBehavior for WidgetGroupPanel {
                     lb6.SetCaption("Single Column");
                     lb6.set_fixed_column_count(Some(1));
                     lb6.set_items((1..=7).map(|i| format!("Item {i}")).collect());
-                    lb6.select(0, true);
+                    lb6.Select(0, true);
                     ctx.create_child_with("l6", Box::new(ListBoxPanel { widget: lb6 }));
                     // l7: Custom List Box (Multi selection placeholder)
                     let mut lb7 = emListBox::new(look);
                     lb7.SetCaption("Custom List Box");
                     lb7.SetSelectionType(SelectionMode::Multi);
                     lb7.set_items((1..=7).map(|i| format!("Item {i}")).collect());
-                    lb7.select(0, true);
+                    lb7.Select(0, true);
                     ctx.create_child_with("l7", Box::new(ListBoxPanel { widget: lb7 }));
                 }
                 WidgetCategory::Tunnels => {
@@ -532,9 +532,9 @@ fn main() {
         let root = app.tree.create_root("root");
         app.tree
             .set_behavior(root, Box::new(TkTestPanel::new(look.clone())));
-        app.tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+        app.tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
         app.tree
-            .set_auto_expansion_threshold(root, 900.0, ViewConditionType::Area);
+            .SetAutoExpansionThreshold(root, 900.0, ViewConditionType::Area);
 
         let close_sig = app.scheduler.create_signal();
         let flags_sig = app.scheduler.create_signal();
@@ -552,7 +552,7 @@ fn main() {
             let win = app.windows.get_mut(&wid).unwrap();
             // SCAFFOLDING: ROOT_SAME_TALLNESS Match test_panel.rs window setup
             let flags = win.view().flags | ViewFlags::ROOT_SAME_TALLNESS;
-            win.view_mut().set_view_flags(flags, &mut app.tree);
+            win.view_mut().SetViewFlags(flags, &mut app.tree);
         }
     }));
     app.run();

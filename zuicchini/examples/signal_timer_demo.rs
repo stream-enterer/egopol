@@ -64,7 +64,7 @@ impl PanelBehavior for CounterPanel {
     }
 
     fn PaintContent(&mut self, p: &mut emPainter, w: f64, h: f64, _ps: &PanelState) {
-        p.paint_rect(
+        p.PaintRect(
             0.0,
             0.0,
             w,
@@ -77,7 +77,7 @@ impl PanelBehavior for CounterPanel {
             "Button Signals: {}\nTimer Signals: {}",
             s.button_count, s.timer_count
         );
-        p.paint_text_boxed(
+        p.PaintTextBoxed(
             0.0,
             h * 0.3,
             w,
@@ -123,8 +123,8 @@ impl PanelBehavior for ClickPanel {
         } else {
             emColor::rgba(0xA0, 0xC0, 0xA0, 0xFF)
         };
-        p.paint_rect(0.0, 0.0, w, h, bg, emColor::TRANSPARENT);
-        p.paint_text_boxed(
+        p.PaintRect(0.0, 0.0, w, h, bg, emColor::TRANSPARENT);
+        p.PaintTextBoxed(
             0.0,
             0.0,
             w,
@@ -195,7 +195,7 @@ fn main() {
                 state: state.clone(),
             }),
         );
-        app.tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+        app.tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
 
         // Create button child — fires the button signal on Click
         let button = app.tree.create_child(root, "button");

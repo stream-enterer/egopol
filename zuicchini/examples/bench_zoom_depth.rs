@@ -51,15 +51,15 @@ impl PanelBehavior for TestPanel {
         let fg = emColor::SetGrey(136);
         let bg = emColor::rgba(0x00, 0x1C, 0x38, 0xFF);
 
-        painter.paint_rect(0.0, 0.0, 1.0, h, bg, emColor::TRANSPARENT);
-        painter.paint_rect_outlined(
+        painter.PaintRect(0.0, 0.0, 1.0, h, bg, emColor::TRANSPARENT);
+        painter.PaintRectOutline(
             0.01, 0.01, 1.0 - 0.02, h - 0.02,
             &emStroke::new(fg, 0.02), emColor::TRANSPARENT,
         );
 
-        painter.paint_rect(0.25, 0.8, 0.05, 0.05, emColor::rgba(255, 0, 0, 32), emColor::TRANSPARENT);
+        painter.PaintRect(0.25, 0.8, 0.05, 0.05, emColor::rgba(255, 0, 0, 32), emColor::TRANSPARENT);
 
-        painter.paint_polygon(
+        painter.PaintPolygon(
             &[(0.7, 0.6), (0.6, 0.7), (0.8, 0.8)],
             fg, emColor::TRANSPARENT,
         );
@@ -70,20 +70,20 @@ impl PanelBehavior for TestPanel {
                 (a.sin() * 0.05 + 0.65, a.cos() * 0.05 + 0.85)
             })
             .collect();
-        painter.paint_polygon(&circle, emColor::rgba(255, 255, 0, 255), emColor::TRANSPARENT);
+        painter.PaintPolygon(&circle, emColor::rgba(255, 255, 0, 255), emColor::TRANSPARENT);
 
-        painter.paint_ellipse(0.055, 0.805, 0.005, 0.005, emColor::WHITE, emColor::TRANSPARENT);
-        painter.paint_ellipse(0.07, 0.805, 0.01, 0.005, emColor::WHITE, emColor::TRANSPARENT);
+        painter.PaintEllipse(0.055, 0.805, 0.005, 0.005, emColor::WHITE, emColor::TRANSPARENT);
+        painter.PaintEllipse(0.07, 0.805, 0.01, 0.005, emColor::WHITE, emColor::TRANSPARENT);
 
-        painter.paint_round_rect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
-        painter.paint_round_rect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
+        painter.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
+        painter.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
 
-        painter.paint_ellipse_outlined(
+        painter.PaintEllipseOutline(
             0.055, 0.865, 0.005, 0.005,
             &emStroke::new(emColor::WHITE, 0.003), emColor::TRANSPARENT,
         );
 
-        painter.paint_round_rect_outlined(
+        painter.PaintRoundRectOutline(
             0.05, 0.88, 0.01, 0.01, 0.001,
             &emStroke::new(emColor::WHITE, 0.001),
         );
@@ -112,12 +112,12 @@ fn measure_at_zoom(zoom_factor: f64) -> (f64, f64, f64) {
     let root = tree.create_root("bench_root");
     tree.set_behavior(root, Box::new(TestPanel::new()));
     let tallness = VH as f64 / VW as f64;
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
+    tree.Layout(root, 0.0, 0.0, 1.0, tallness);
     tree.set_focusable(root, true);
 
     let mut view = emView::new(root, VW as f64, VH as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
     view.update(&mut tree);
 
     // Zoom in by the specified factor, centered on viewport center
@@ -127,9 +127,9 @@ fn measure_at_zoom(zoom_factor: f64) -> (f64, f64, f64) {
     let steps = 100;
     let per_step = zoom_factor.powf(1.0 / steps as f64);
     for _ in 0..steps {
-        view.zoom(per_step, cx, cy);
+        view.Zoom(per_step, cx, cy);
     }
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
     view.update(&mut tree);
     view.clear_viewport_changed();
 
@@ -165,7 +165,7 @@ fn measure_nested_at_zoom(panel_count: usize, zoom_factor: f64) -> (f64, f64, f6
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
     let tallness = VH as f64 / VW as f64;
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
+    tree.Layout(root, 0.0, 0.0, 1.0, tallness);
     tree.set_behavior(root, Box::new(TestPanel::new()));
     tree.set_focusable(root, true);
 
@@ -187,7 +187,7 @@ fn measure_nested_at_zoom(panel_count: usize, zoom_factor: f64) -> (f64, f64, f6
                     let siblings = branching.min(panel_count - created + child_idx);
                     let x = child_idx as f64 / siblings as f64;
                     let w = 1.0 / siblings as f64;
-                    tree.set_layout_rect(child, x, 0.0, w, 1.0);
+                    tree.Layout(child, x, 0.0, w, 1.0);
                     tree.set_behavior(child, Box::new(TestPanel::new()));
                     next_parents.push(child);
                     created += 1;
@@ -199,7 +199,7 @@ fn measure_nested_at_zoom(panel_count: usize, zoom_factor: f64) -> (f64, f64, f6
 
     let mut view = emView::new(root, VW as f64, VH as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
     view.update(&mut tree);
 
     // Zoom in
@@ -208,9 +208,9 @@ fn measure_nested_at_zoom(panel_count: usize, zoom_factor: f64) -> (f64, f64, f6
     let steps = 100;
     let per_step = zoom_factor.powf(1.0 / steps as f64);
     for _ in 0..steps {
-        view.zoom(per_step, cx, cy);
+        view.Zoom(per_step, cx, cy);
     }
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
     view.update(&mut tree);
     view.clear_viewport_changed();
 

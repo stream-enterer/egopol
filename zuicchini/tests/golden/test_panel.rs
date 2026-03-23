@@ -81,8 +81,8 @@ macro_rules! require_golden {
 /// `rounds` Match C++ TerminateEngine Cycle GetCount from gen_golden.cpp.
 fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     for _ in 0..rounds {
-        tree.deliver_notices(view.window_focused(), view.pixel_tallness());
-        view.update_viewing(tree);
+        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.Update(tree);
     }
 }
 
@@ -327,7 +327,7 @@ impl PanelBehavior for TunnelStubPanel {
         ctx.layout_child(children[0], cr.x, cr.y, cr.w, cr.h);
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 
@@ -407,9 +407,9 @@ impl PanelBehavior for CanvasPanel {
             .iter()
             .map(|&(vx, vy)| (vx * w, vy * h))
             .collect();
-        p.paint_polygon(&scaled, self.fill_color, emColor::TRANSPARENT);
+        p.PaintPolygon(&scaled, self.fill_color, emColor::TRANSPARENT);
 
-        p.paint_text_boxed(
+        p.PaintTextBoxed(
             0.0,
             h - 0.05 * h,
             w,
@@ -454,7 +454,7 @@ impl TestPanel {
 
     fn paint_primitives(&self, p: &mut emPainter, fg: emColor, bg: emColor) {
         // Text test with tabs
-        p.paint_text_boxed(
+        p.PaintTextBoxed(
             0.25,
             0.80,
             0.05,
@@ -470,7 +470,7 @@ impl TestPanel {
             true,
             0.1,
         );
-        p.paint_rect(
+        p.PaintRect(
             0.25,
             0.80,
             0.05,
@@ -480,10 +480,10 @@ impl TestPanel {
         );
 
         // Triangle
-        p.paint_polygon(&[(0.7, 0.6), (0.6, 0.7), (0.8, 0.8)], fg, bg);
+        p.PaintPolygon(&[(0.7, 0.6), (0.6, 0.7), (0.8, 0.8)], fg, bg);
 
         // Holed polygon (non-zero winding, same-direction inner — C++ PaintPolygon)
-        p.paint_polygon(
+        p.PaintPolygon(
             &[
                 (0.90, 0.90),
                 (0.94, 0.90),
@@ -501,7 +501,7 @@ impl TestPanel {
         );
 
         // Holed polygon (non-zero winding, reversed inner)
-        p.paint_polygon(
+        p.PaintPolygon(
             &[
                 (0.80, 0.90),
                 (0.84, 0.90),
@@ -525,18 +525,18 @@ impl TestPanel {
                 (a.sin() * 0.05 + 0.65, a.cos() * 0.05 + 0.85)
             })
             .collect();
-        p.paint_polygon(&circle, emColor::YELLOW, bg);
+        p.PaintPolygon(&circle, emColor::YELLOW, bg);
 
         // Clipped circle
         p.push_state();
-        p.clip_rect(0.51, 0.81, 0.08, 0.08);
+        p.SetClipping(0.51, 0.81, 0.08, 0.08);
         let circle2: Vec<(f64, f64)> = (0..64)
             .map(|i| {
                 let a = PI * i as f64 / 32.0;
                 (a.sin() * 0.05 + 0.55, a.cos() * 0.05 + 0.85)
             })
             .collect();
-        p.paint_polygon(&circle2, emColor::GREEN, bg);
+        p.PaintPolygon(&circle2, emColor::GREEN, bg);
         p.pop_state();
 
         // Ellipse (polygon)
@@ -546,54 +546,54 @@ impl TestPanel {
                 (a.sin() * 0.06 + 0.6, a.cos() * 0.04 + 0.86)
             })
             .collect();
-        p.paint_polygon(&ellipse, emColor::rgba(255, 0, 0, 92), emColor::TRANSPARENT);
+        p.PaintPolygon(&ellipse, emColor::rgba(255, 0, 0, 92), emColor::TRANSPARENT);
 
         // More triangles
-        p.paint_polygon(
+        p.PaintPolygon(
             &[(0.6, 0.9), (0.5, 0.92), (0.65, 0.95)],
             emColor::rgba(187, 255, 255, 255),
             bg,
         );
-        p.paint_polygon(&[(0.6, 0.96), (0.5, 0.92), (0.65, 0.95)], emColor::RED, bg);
-        p.paint_polygon(
+        p.PaintPolygon(&[(0.6, 0.96), (0.5, 0.92), (0.65, 0.95)], emColor::RED, bg);
+        p.PaintPolygon(
             &[(0.45, 0.9), (0.35, 0.92), (0.5, 0.95)],
             emColor::rgba(187, 255, 255, 255),
             emColor::TRANSPARENT,
         );
-        p.paint_polygon(
+        p.PaintPolygon(
             &[(0.45, 0.96), (0.35, 0.92), (0.5, 0.95)],
             emColor::RED,
             emColor::TRANSPARENT,
         );
 
         // Thin triangles
-        p.paint_polygon(
+        p.PaintPolygon(
             &[(0.6, 0.6), (0.602, 0.6), (0.502, 0.7)],
             emColor::rgba(187, 136, 255, 192),
             emColor::TRANSPARENT,
         );
-        p.paint_polygon(
+        p.PaintPolygon(
             &[(0.7, 0.55), (0.702, 0.55), (0.802, 0.9), (0.8, 0.9)],
             emColor::rgba(136, 187, 255, 192),
             emColor::TRANSPARENT,
         );
-        p.paint_polygon(
+        p.PaintPolygon(
             &[(0.8, 0.55), (0.9, 0.55), (0.8, 0.8), (0.9, 0.8)],
             emColor::rgba(136, 187, 255, 192),
             emColor::TRANSPARENT,
         );
 
         // Ellipses (center + radius)
-        p.paint_ellipse(0.055, 0.805, 0.005, 0.005, emColor::WHITE, bg);
-        p.paint_ellipse(0.07, 0.805, 0.01, 0.005, emColor::WHITE, bg);
-        p.paint_ellipse(0.0925, 0.805, 0.0025, 0.005, emColor::WHITE, bg);
+        p.PaintEllipse(0.055, 0.805, 0.005, 0.005, emColor::WHITE, bg);
+        p.PaintEllipse(0.07, 0.805, 0.01, 0.005, emColor::WHITE, bg);
+        p.PaintEllipse(0.0925, 0.805, 0.0025, 0.005, emColor::WHITE, bg);
 
         // Ellipse sectors
-        p.paint_ellipse_sector(0.105, 0.805, 0.005, 0.005, 45.0, 305.0, emColor::WHITE, bg);
-        p.paint_ellipse_sector(0.12, 0.805, 0.01, 0.005, 45.0, -395.0, emColor::WHITE, bg);
+        p.PaintEllipseSector(0.105, 0.805, 0.005, 0.005, 45.0, 305.0, emColor::WHITE, bg);
+        p.PaintEllipseSector(0.12, 0.805, 0.01, 0.005, 45.0, -395.0, emColor::WHITE, bg);
 
         // Rect outlines
-        p.paint_rect_outlined(
+        p.PaintRectOutline(
             0.05,
             0.82,
             0.01,
@@ -601,7 +601,7 @@ impl TestPanel {
             &emStroke::new(emColor::WHITE, 0.001),
             bg,
         );
-        p.paint_rect_outlined(
+        p.PaintRectOutline(
             0.10,
             0.82,
             0.01,
@@ -611,13 +611,13 @@ impl TestPanel {
         );
 
         // Round rects
-        p.set_canvas_color(bg);
-        p.paint_round_rect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
-        p.paint_round_rect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
-        p.paint_round_rect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE);
+        p.SetCanvasColor(bg);
+        p.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
+        p.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
+        p.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE);
 
         // Ellipse outlines
-        p.paint_ellipse_outlined(
+        p.PaintEllipseOutline(
             0.055,
             0.865,
             0.005,
@@ -625,7 +625,7 @@ impl TestPanel {
             &emStroke::new(emColor::WHITE, 0.003),
             bg,
         );
-        p.paint_ellipse_outlined(
+        p.PaintEllipseOutline(
             0.075,
             0.865,
             0.01,
@@ -635,8 +635,8 @@ impl TestPanel {
         );
 
         // Round rect outlines
-        p.set_canvas_color(bg);
-        p.paint_round_rect_outlined(
+        p.SetCanvasColor(bg);
+        p.PaintRoundRectOutline(
             0.05,
             0.88,
             0.01,
@@ -644,7 +644,7 @@ impl TestPanel {
             0.001,
             &emStroke::new(emColor::WHITE, 0.001),
         );
-        p.paint_round_rect_outlined(
+        p.PaintRoundRectOutline(
             0.07,
             0.88,
             0.02,
@@ -654,12 +654,12 @@ impl TestPanel {
         );
 
         // Bezier curves
-        p.paint_bezier(
+        p.PaintBezier(
             &[(0.05, 0.90), (0.06, 0.90), (0.05, 0.91)],
             emColor::WHITE,
             bg,
         );
-        p.paint_bezier(
+        p.PaintBezier(
             &[
                 (0.065, 0.91),
                 (0.05, 0.902),
@@ -673,7 +673,7 @@ impl TestPanel {
         );
 
         let bezier_stroke = emStroke::new(emColor::WHITE, 0.0002);
-        p.paint_bezier_outline(
+        p.PaintBezierOutline(
             &[
                 (0.085, 0.91),
                 (0.07, 0.902),
@@ -692,7 +692,7 @@ impl TestPanel {
         arrow_s.start_end =
             emStrokeEnd::new(StrokeEndType::ContourTriangle).with_inner_color(emColor::RED);
         arrow_s.finish_end = emStrokeEnd::new(StrokeEndType::Arrow);
-        p.paint_bezier_line(
+        p.PaintBezierLine(
             &[(0.105, 0.91), (0.09, 0.902), (0.098, 0.89), (0.105, 0.900)],
             &arrow_s,
             bg,
@@ -745,7 +745,7 @@ impl TestPanel {
         poly_s.join = LineJoin::Round;
         poly_s.start_end = emStrokeEnd::new(StrokeEndType::ContourArrow);
         poly_s.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
-        p.paint_polyline_with_arrows(
+        p.PaintPolylineWithArrows(
             &[(0.13, 0.897), (0.14, 0.902), (0.13, 0.906), (0.137, 0.909)],
             &poly_s,
             false,
@@ -753,7 +753,7 @@ impl TestPanel {
         );
 
         // Polygon outline
-        p.paint_polygon_outlined(
+        p.PaintPolygonOutline(
             &[(0.06, 0.80), (0.10, 0.85), (0.08, 0.91)],
             emColor::RED,
             0.0002,
@@ -816,7 +816,7 @@ impl TestPanel {
             emColor::rgba(0, 0x55, 0, 0xFF),
             emColor::TRANSPARENT,
         );
-        p.paint_ellipse(
+        p.PaintEllipse(
             0.24,
             0.945,
             0.01,
@@ -865,11 +865,11 @@ impl PanelBehavior for TestPanel {
         painter.scale(w, w);
         let panel_h = h / w;
 
-        painter.paint_rect(0.0, 0.0, 1.0, panel_h, bg, emColor::TRANSPARENT);
-        painter.paint_rect_outlined(0.01, 0.01, 0.98, panel_h - 0.02, &emStroke::new(fg, 0.02), bg);
+        painter.PaintRect(0.0, 0.0, 1.0, panel_h, bg, emColor::TRANSPARENT);
+        painter.PaintRectOutline(0.01, 0.01, 0.98, panel_h - 0.02, &emStroke::new(fg, 0.02), bg);
 
         // Title
-        painter.paint_text_boxed(
+        painter.PaintTextBoxed(
             0.02,
             0.02,
             0.49,
@@ -894,7 +894,7 @@ impl PanelBehavior for TestPanel {
         if state.in_focused_path() {
             status += " InFocusedPath";
         }
-        painter.paint_text_boxed(
+        painter.PaintTextBoxed(
             0.05,
             0.4,
             0.9,
@@ -913,7 +913,7 @@ impl PanelBehavior for TestPanel {
 
         // C++ emTestPanel.cpp:152 uses %f (6 decimal places) for GetPriority.
         let pri_str = format!("Pri={:.6} MemLim={}", state.GetPriority, state.GetMemoryLimit);
-        painter.paint_text_boxed(
+        painter.PaintTextBoxed(
             0.05,
             0.45,
             0.9,
@@ -961,7 +961,7 @@ impl PanelBehavior for TestPanel {
                     Box::new(TestPanel::new(self.GetDepth + 1, child_bg)),
                 );
                 ctx.tree
-                    .set_auto_expansion_threshold(tp_id, 900.0, ViewConditionType::Area);
+                    .SetAutoExpansionThreshold(tp_id, 900.0, ViewConditionType::Area);
             }
         }
 
@@ -971,7 +971,7 @@ impl PanelBehavior for TestPanel {
         cf.SetAlphaEnabled(true);
         cf.SetColor(bg_shared.GetRec());
         cf.on_color = Some(Box::new(move |GetColor| {
-            bg_for_cf.set(GetColor);
+            bg_for_cf.Set(GetColor);
         }));
         ctx.create_child_with("bgcf", Box::new(ColorFieldPanel { widget: cf }));
 
@@ -1068,7 +1068,7 @@ impl PanelBehavior for TkTestGrpPanel {
                 t2b_id,
                 Box::new(TkTestPanel::new_with_caption(look, "Disabled")),
             );
-            ctx.tree.set_enable_switch(t2b_id, false);
+            ctx.tree.SetEnableSwitch(t2b_id, false);
         }
 
         // Position sp in border content rect
@@ -1078,7 +1078,7 @@ impl PanelBehavior for TkTestGrpPanel {
         }
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -1236,30 +1236,30 @@ impl TkTestPanel {
         let gid = Self::make_category(ctx.tree, grid_id, "textfields", "Text Fields", None, None);
         {
             let mut tf1 = emTextField::new(look.clone());
-            tf1.set_text("Read-Only");
+            tf1.SetText("Read-Only");
             let id = ctx.tree.create_child(gid, "tf1");
             ctx.tree
                 .set_behavior(id, Box::new(TextFieldPanel { widget: tf1 }));
 
             let mut tf2 = emTextField::new(look.clone());
             tf2.SetEditable(true);
-            tf2.set_text("Editable");
+            tf2.SetText("Editable");
             let id = ctx.tree.create_child(gid, "tf2");
             ctx.tree
                 .set_behavior(id, Box::new(TextFieldPanel { widget: tf2 }));
 
             let mut tf3 = emTextField::new(look.clone());
             tf3.SetEditable(true);
-            tf3.set_text("Password");
-            tf3.set_password_mode(true);
+            tf3.SetText("Password");
+            tf3.SetPasswordMode(true);
             let id = ctx.tree.create_child(gid, "tf3");
             ctx.tree
                 .set_behavior(id, Box::new(TextFieldPanel { widget: tf3 }));
 
             let mut mltf1 = emTextField::new(look.clone());
             mltf1.SetEditable(true);
-            mltf1.set_multi_line(true);
-            mltf1.set_text("first line\nsecond line\n...");
+            mltf1.SetMultiLineMode(true);
+            mltf1.SetText("first line\nsecond line\n...");
             let id = ctx.tree.create_child(gid, "mltf1");
             ctx.tree
                 .set_behavior(id, Box::new(TextFieldPanel { widget: mltf1 }));
@@ -1577,7 +1577,7 @@ impl PanelBehavior for TkTestPanel {
         }
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -1758,7 +1758,7 @@ impl PolyDrawPanel {
                 widget: {
                     let mut tf = emTextField::new(look.clone());
                     tf.SetEditable(true);
-                    tf.set_text("9");
+                    tf.SetText("9");
                     tf
                 },
             }),
@@ -1783,7 +1783,7 @@ impl PolyDrawPanel {
                 widget: {
                     let mut tf = emTextField::new(look.clone());
                     tf.SetEditable(true);
-                    tf.set_text("0.01");
+                    tf.SetText("0.01");
                     tf
                 },
             }),
@@ -1842,7 +1842,7 @@ impl PolyDrawPanel {
                 widget: {
                     let mut tf = emTextField::new(look.clone());
                     tf.SetEditable(true);
-                    tf.set_text("1.0");
+                    tf.SetText("1.0");
                     tf
                 },
             }),
@@ -1851,7 +1851,7 @@ impl PolyDrawPanel {
                 widget: {
                     let mut tf = emTextField::new(look.clone());
                     tf.SetEditable(true);
-                    tf.set_text("1.0");
+                    tf.SetText("1.0");
                     tf
                 },
             }),
@@ -1898,7 +1898,7 @@ impl PolyDrawPanel {
                 widget: {
                     let mut tf = emTextField::new(look.clone());
                     tf.SetEditable(true);
-                    tf.set_text("1.0");
+                    tf.SetText("1.0");
                     tf
                 },
             }),
@@ -1907,7 +1907,7 @@ impl PolyDrawPanel {
                 widget: {
                     let mut tf = emTextField::new(look.clone());
                     tf.SetEditable(true);
-                    tf.set_text("1.0");
+                    tf.SetText("1.0");
                     tf
                 },
             }),
@@ -1954,7 +1954,7 @@ impl PolyDrawPanel {
                 widget: {
                     let mut tf = emTextField::new(look.clone());
                     tf.SetEditable(true);
-                    tf.set_text("1.0");
+                    tf.SetText("1.0");
                     tf
                 },
             }),
@@ -1963,7 +1963,7 @@ impl PolyDrawPanel {
                 widget: {
                     let mut tf = emTextField::new(look.clone());
                     tf.SetEditable(true);
-                    tf.set_text("1.0");
+                    tf.SetText("1.0");
                     tf
                 },
             }),
@@ -2029,7 +2029,7 @@ impl PanelBehavior for PolyDrawPanel {
         }
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -2063,7 +2063,7 @@ fn render_testpanel(
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(tree, view);
-    let actual = compositor.framebuffer().data();
+    let actual = compositor.framebuffer().GetMap();
 
     let GetResult = compare_images(
         name,
@@ -2097,14 +2097,14 @@ fn testpanel_root() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
     tree.set_behavior(root, Box::new(TestPanel::new(0, bg_color)));
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     // Very high threshold prevents auto-expansion (Match C++ gen)
-    tree.set_auto_expansion_threshold(root, 1e9, ViewConditionType::Area);
+    tree.SetAutoExpansionThreshold(root, 1e9, ViewConditionType::Area);
 
     let mut view = emView::new(root, 1000.0, 1000.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window — match unfocused state
-    view.set_window_focused(&mut tree, false);
+    view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 30)
     render_testpanel(
@@ -2130,14 +2130,14 @@ fn testpanel_expanded() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
     tree.set_behavior(root, Box::new(TestPanel::new(0, bg_color)));
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     // C++ default threshold: 900 (VCT_AREA). At 1000x1000, vc=1e6 > 900 → expands.
-    tree.set_auto_expansion_threshold(root, 900.0, ViewConditionType::Area);
+    tree.SetAutoExpansionThreshold(root, 900.0, ViewConditionType::Area);
 
     let mut view = emView::new(root, 1000.0, 1000.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window — match unfocused state
-    view.set_window_focused(&mut tree, false);
+    view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     render_testpanel(

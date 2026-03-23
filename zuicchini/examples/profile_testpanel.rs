@@ -60,8 +60,8 @@ impl PanelBehavior for TestPanel {
         let bg = emColor::rgba(0x00, 0x1C, 0x38, 0xFF);
 
         // Background + border
-        painter.paint_rect(0.0, 0.0, 1.0, h, bg, emColor::TRANSPARENT);
-        painter.paint_rect_outlined(
+        painter.PaintRect(0.0, 0.0, 1.0, h, bg, emColor::TRANSPARENT);
+        painter.PaintRectOutline(
             0.01,
             0.01,
             1.0 - 0.02,
@@ -79,7 +79,7 @@ impl PanelBehavior for TestPanel {
         // --- All the paint_primitives from the real TestPanel ---
 
         // TODO(font): PaintContent text here
-        painter.paint_rect(
+        painter.PaintRect(
             0.25,
             0.8,
             0.05,
@@ -89,7 +89,7 @@ impl PanelBehavior for TestPanel {
         );
 
         // Polygons
-        painter.paint_polygon(
+        painter.PaintPolygon(
             &[(0.7, 0.6), (0.6, 0.7), (0.8, 0.8)],
             fg,
             emColor::TRANSPARENT,
@@ -110,7 +110,7 @@ impl PanelBehavior for TestPanel {
             emColor::rgba(255, 255, 255, 128),
             emColor::TRANSPARENT,
         );
-        painter.paint_polygon(
+        painter.PaintPolygon(
             &[
                 (0.80, 0.90),
                 (0.84, 0.90),
@@ -134,7 +134,7 @@ impl PanelBehavior for TestPanel {
                 (a.sin() * 0.05 + 0.65, a.cos() * 0.05 + 0.85)
             })
             .collect();
-        painter.paint_polygon(&circle, emColor::rgba(255, 255, 0, 255), emColor::TRANSPARENT);
+        painter.PaintPolygon(&circle, emColor::rgba(255, 255, 0, 255), emColor::TRANSPARENT);
 
         // Clipped circle
         let clipped: Vec<_> = (0..64)
@@ -144,8 +144,8 @@ impl PanelBehavior for TestPanel {
             })
             .collect();
         painter.push_state();
-        painter.clip_rect(0.51, 0.81, 0.08, 0.08);
-        painter.paint_polygon(&clipped, emColor::rgba(0, 255, 0, 255), emColor::TRANSPARENT);
+        painter.SetClipping(0.51, 0.81, 0.08, 0.08);
+        painter.PaintPolygon(&clipped, emColor::rgba(0, 255, 0, 255), emColor::TRANSPARENT);
         painter.pop_state();
 
         // Ellipse
@@ -155,51 +155,51 @@ impl PanelBehavior for TestPanel {
                 (a.sin() * 0.06 + 0.6, a.cos() * 0.04 + 0.86)
             })
             .collect();
-        painter.paint_polygon(&ellipse, emColor::rgba(255, 0, 0, 92), emColor::TRANSPARENT);
+        painter.PaintPolygon(&ellipse, emColor::rgba(255, 0, 0, 92), emColor::TRANSPARENT);
 
         // Adjacent triangles
-        painter.paint_polygon(
+        painter.PaintPolygon(
             &[(0.6, 0.9), (0.5, 0.92), (0.65, 0.95)],
             emColor::rgba(187, 255, 255, 255),
             emColor::TRANSPARENT,
         );
-        painter.paint_polygon(
+        painter.PaintPolygon(
             &[(0.6, 0.96), (0.5, 0.92), (0.65, 0.95)],
             emColor::RED,
             emColor::TRANSPARENT,
         );
-        painter.paint_polygon(
+        painter.PaintPolygon(
             &[(0.45, 0.9), (0.35, 0.92), (0.5, 0.95)],
             emColor::rgba(187, 255, 255, 255),
             emColor::TRANSPARENT,
         );
-        painter.paint_polygon(
+        painter.PaintPolygon(
             &[(0.45, 0.96), (0.35, 0.92), (0.5, 0.95)],
             emColor::RED,
             emColor::TRANSPARENT,
         );
 
         // Thin polygons
-        painter.paint_polygon(
+        painter.PaintPolygon(
             &[(0.6, 0.6), (0.602, 0.6), (0.502, 0.7)],
             emColor::rgba(187, 136, 255, 192),
             emColor::TRANSPARENT,
         );
-        painter.paint_polygon(
+        painter.PaintPolygon(
             &[(0.7, 0.55), (0.702, 0.55), (0.802, 0.9), (0.8, 0.9)],
             emColor::rgba(136, 187, 255, 192),
             emColor::TRANSPARENT,
         );
-        painter.paint_polygon(
+        painter.PaintPolygon(
             &[(0.8, 0.55), (0.9, 0.55), (0.8, 0.8), (0.9, 0.8)],
             emColor::rgba(136, 187, 255, 192),
             emColor::TRANSPARENT,
         );
 
         // Ellipses
-        painter.paint_ellipse(0.055, 0.805, 0.005, 0.005, emColor::WHITE, emColor::TRANSPARENT);
-        painter.paint_ellipse(0.07, 0.805, 0.01, 0.005, emColor::WHITE, emColor::TRANSPARENT);
-        painter.paint_ellipse(
+        painter.PaintEllipse(0.055, 0.805, 0.005, 0.005, emColor::WHITE, emColor::TRANSPARENT);
+        painter.PaintEllipse(0.07, 0.805, 0.01, 0.005, emColor::WHITE, emColor::TRANSPARENT);
+        painter.PaintEllipse(
             0.0925,
             0.805,
             0.0025,
@@ -210,7 +210,7 @@ impl PanelBehavior for TestPanel {
 
         // Ellipse sectors (degrees: start_angle, sweep_angle)
         let deg = PI / 180.0;
-        painter.paint_ellipse_sector(
+        painter.PaintEllipseSector(
             0.105,
             0.805,
             0.005,
@@ -220,7 +220,7 @@ impl PanelBehavior for TestPanel {
             emColor::WHITE,
             emColor::TRANSPARENT,
         );
-        painter.paint_ellipse_sector(
+        painter.PaintEllipseSector(
             0.12,
             0.805,
             0.01,
@@ -230,7 +230,7 @@ impl PanelBehavior for TestPanel {
             emColor::WHITE,
             emColor::TRANSPARENT,
         );
-        painter.paint_ellipse_sector(
+        painter.PaintEllipseSector(
             0.1325,
             0.805,
             0.0025,
@@ -240,7 +240,7 @@ impl PanelBehavior for TestPanel {
             emColor::WHITE,
             emColor::TRANSPARENT,
         );
-        painter.paint_ellipse_sector(
+        painter.PaintEllipseSector(
             0.145,
             0.805,
             0.005,
@@ -252,7 +252,7 @@ impl PanelBehavior for TestPanel {
         );
 
         // Rect outlines
-        painter.paint_rect_outlined(
+        painter.PaintRectOutline(
             0.05,
             0.82,
             0.01,
@@ -262,8 +262,8 @@ impl PanelBehavior for TestPanel {
         );
         let mut sd = emStroke::new(emColor::WHITE, 0.001);
         sd.dash_pattern = vec![0.002, 0.001];
-        painter.paint_rect_outlined(0.07, 0.82, 0.02, 0.01, &sd, emColor::TRANSPARENT);
-        painter.paint_rect_outlined(
+        painter.PaintRectOutline(0.07, 0.82, 0.02, 0.01, &sd, emColor::TRANSPARENT);
+        painter.PaintRectOutline(
             0.10,
             0.82,
             0.01,
@@ -271,7 +271,7 @@ impl PanelBehavior for TestPanel {
             &emStroke::new(emColor::WHITE, 0.008),
             emColor::TRANSPARENT,
         );
-        painter.paint_rect_outlined(
+        painter.PaintRectOutline(
             0.13,
             0.82,
             0.01,
@@ -281,14 +281,14 @@ impl PanelBehavior for TestPanel {
         );
 
         // Round rects
-        painter.paint_round_rect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
-        painter.paint_round_rect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
-        painter.paint_round_rect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE);
-        painter.paint_round_rect(0.13, 0.84, 0.01, 0.01, 0.006, emColor::WHITE);
-        painter.paint_round_rect(0.15, 0.84, 0.01, 0.01, 0.0, emColor::WHITE);
+        painter.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
+        painter.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
+        painter.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE);
+        painter.PaintRoundRect(0.13, 0.84, 0.01, 0.01, 0.006, emColor::WHITE);
+        painter.PaintRoundRect(0.15, 0.84, 0.01, 0.01, 0.0, emColor::WHITE);
 
         // Ellipse outlines
-        painter.paint_ellipse_outlined(
+        painter.PaintEllipseOutline(
             0.055,
             0.865,
             0.005,
@@ -296,7 +296,7 @@ impl PanelBehavior for TestPanel {
             &emStroke::new(emColor::WHITE, 0.003),
             emColor::TRANSPARENT,
         );
-        painter.paint_ellipse_outlined(
+        painter.PaintEllipseOutline(
             0.075,
             0.865,
             0.01,
@@ -308,10 +308,10 @@ impl PanelBehavior for TestPanel {
         dot_s.join = LineJoin::Round;
         dot_s.cap = LineCap::Round;
         dot_s.dash_pattern = vec![0.0001, 0.0005];
-        painter.paint_ellipse_outlined(0.0925, 0.865, 0.0025, 0.005, &dot_s, emColor::TRANSPARENT);
+        painter.PaintEllipseOutline(0.0925, 0.865, 0.0025, 0.005, &dot_s, emColor::TRANSPARENT);
 
         // Ellipse arcs
-        painter.paint_ellipse_arc(
+        painter.PaintEllipseArc(
             0.105,
             0.865,
             0.005,
@@ -321,7 +321,7 @@ impl PanelBehavior for TestPanel {
             &emStroke::new(emColor::WHITE, 0.001),
             emColor::TRANSPARENT,
         );
-        painter.paint_ellipse_sector_outlined(
+        painter.PaintEllipseSectorOutline(
             0.12,
             0.865,
             0.01,
@@ -331,7 +331,7 @@ impl PanelBehavior for TestPanel {
             &emStroke::new(emColor::WHITE, 0.0001),
             emColor::TRANSPARENT,
         );
-        painter.paint_ellipse_arc(
+        painter.PaintEllipseArc(
             0.1325,
             0.865,
             0.0025,
@@ -341,7 +341,7 @@ impl PanelBehavior for TestPanel {
             &emStroke::new(emColor::WHITE, 0.001),
             emColor::TRANSPARENT,
         );
-        painter.paint_ellipse_arc(
+        painter.PaintEllipseArc(
             0.145,
             0.865,
             0.005,
@@ -356,7 +356,7 @@ impl PanelBehavior for TestPanel {
         rs.cap = LineCap::Round;
         rs.start_end = emStrokeEnd::new(StrokeEndType::Cap);
         rs.finish_end = emStrokeEnd::new(StrokeEndType::LineArrow);
-        painter.paint_ellipse_arc(
+        painter.PaintEllipseArc(
             0.155,
             0.865,
             0.005,
@@ -368,7 +368,7 @@ impl PanelBehavior for TestPanel {
         );
 
         // Round rect outlines
-        painter.paint_round_rect_outlined(
+        painter.PaintRoundRectOutline(
             0.05,
             0.88,
             0.01,
@@ -376,7 +376,7 @@ impl PanelBehavior for TestPanel {
             0.001,
             &emStroke::new(emColor::WHITE, 0.001),
         );
-        painter.paint_round_rect_outlined(
+        painter.PaintRoundRectOutline(
             0.07,
             0.88,
             0.02,
@@ -384,7 +384,7 @@ impl PanelBehavior for TestPanel {
             0.002,
             &emStroke::new(emColor::WHITE, 0.001),
         );
-        painter.paint_round_rect_outlined(
+        painter.PaintRoundRectOutline(
             0.10,
             0.88,
             0.01,
@@ -392,7 +392,7 @@ impl PanelBehavior for TestPanel {
             0.003,
             &emStroke::new(emColor::WHITE, 0.003),
         );
-        painter.paint_round_rect_outlined(
+        painter.PaintRoundRectOutline(
             0.12,
             0.88,
             0.01,
@@ -402,8 +402,8 @@ impl PanelBehavior for TestPanel {
         );
         let mut dds = emStroke::new(emColor::WHITE, 0.00002);
         dds.dash_pattern = vec![0.0001, 0.00005, 0.00003, 0.00005];
-        painter.paint_round_rect_outlined(0.135, 0.88, 0.01, 0.01, 0.001, &dds);
-        painter.paint_round_rect_outlined(
+        painter.PaintRoundRectOutline(0.135, 0.88, 0.01, 0.01, 0.001, &dds);
+        painter.PaintRoundRectOutline(
             0.15,
             0.88,
             0.01,
@@ -413,12 +413,12 @@ impl PanelBehavior for TestPanel {
         );
 
         // Bezier curves
-        painter.paint_bezier(
+        painter.PaintBezier(
             &[(0.05, 0.90), (0.06, 0.90), (0.05, 0.91)],
             emColor::WHITE,
             emColor::TRANSPARENT,
         );
-        painter.paint_bezier(
+        painter.PaintBezier(
             &[
                 (0.065, 0.91),
                 (0.05, 0.902),
@@ -434,7 +434,7 @@ impl PanelBehavior for TestPanel {
         rd.join = LineJoin::Round;
         rd.cap = LineCap::Round;
         rd.dash_pattern = vec![0.001, 0.0005];
-        painter.paint_bezier_outline(
+        painter.PaintBezierOutline(
             &[
                 (0.085, 0.91),
                 (0.07, 0.902),
@@ -452,7 +452,7 @@ impl PanelBehavior for TestPanel {
         bls.dash_pattern = vec![0.001, 0.0005];
         bls.start_end = emStrokeEnd::new(StrokeEndType::ContourTriangle).with_inner_color(emColor::RED);
         bls.finish_end = emStrokeEnd::new(StrokeEndType::Arrow);
-        painter.paint_bezier_line(
+        painter.PaintBezierLine(
             &[(0.105, 0.91), (0.09, 0.902), (0.098, 0.89), (0.105, 0.900)],
             &bls,
             emColor::TRANSPARENT,
@@ -506,7 +506,7 @@ impl PanelBehavior for TestPanel {
         ps.start_end =
             emStrokeEnd::new(StrokeEndType::ContourArrow).with_inner_color(emColor::TRANSPARENT);
         ps.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
-        painter.paint_solid_polyline(
+        painter.PaintSolidPolyline(
             &[(0.13, 0.897), (0.14, 0.902), (0.13, 0.906), (0.137, 0.909)],
             &ps,
             false,
@@ -514,7 +514,7 @@ impl PanelBehavior for TestPanel {
         );
 
         // Polygon outline
-        painter.paint_polygon_outlined(
+        painter.PaintPolygonOutline(
             &[(0.06, 0.80), (0.10, 0.85), (0.08, 0.91)],
             emColor::RED,
             0.0002,
@@ -663,12 +663,12 @@ fn main() {
     let root = tree.create_root("test_panel_root");
     tree.set_behavior(root, Box::new(TestPanel::new()));
     let tallness = vh as f64 / vw as f64;
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
+    tree.Layout(root, 0.0, 0.0, 1.0, tallness);
     tree.set_focusable(root, true);
 
     let mut view = zuicchini::emCore::emView::emView::new(root, vw as f64, vh as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
     view.update(&mut tree);
 
     let mut tile_cache = TileCache::new(vw, vh, 256);

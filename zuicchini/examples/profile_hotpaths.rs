@@ -101,8 +101,8 @@ fn main() {
     // ── Phase 4: Initial layout (set_layout_rect + deliver_notices) ──
     let t0 = Instant::now();
     let tallness = vh as f64 / vw as f64;
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
-    tree.deliver_notices(true, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, tallness);
+    tree.HandleNotice(true, 1.0);
     let t_layout = t0.elapsed();
 
     // ── Phase 5: emView update (update_viewing) ──
@@ -137,9 +137,9 @@ fn main() {
         // Simulate resize: vary height slightly
         let new_h = vh + (i as u32 % 100);
         let new_tallness = new_h as f64 / vw as f64;
-        tree.set_layout_rect(root, 0.0, 0.0, 1.0, new_tallness);
-        tree.deliver_notices(true, 1.0);
-        view.set_viewport(&mut tree, vw as f64, new_h as f64);
+        tree.Layout(root, 0.0, 0.0, 1.0, new_tallness);
+        tree.HandleNotice(true, 1.0);
+        view.SetGeometry(&mut tree, vw as f64, new_h as f64);
         view.update(&mut tree);
 
         tile_cache.resize(vw, new_h);

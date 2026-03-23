@@ -83,7 +83,7 @@ impl RadioBoxHarness {
         assert_eq!(group.borrow().GetChecked(), None);
 
         let mut h = PipelineTestHarness::new();
-        let root = h.root();
+        let root = h.GetRootPanel();
 
         // Each radio box gets its own child panel, stacked vertically:
         //   panel 0: y=0.00..0.33  (top third)
@@ -91,15 +91,15 @@ impl RadioBoxHarness {
         //   panel 2: y=0.66..1.00  (bottom third)
         let panel0 = h.add_panel_with(root, "rbox0", Box::new(RadioBoxBehavior::new(rb0)));
         h.tree
-            .set_layout_rect(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
+            .Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
 
         let panel1 = h.add_panel_with(root, "rbox1", Box::new(RadioBoxBehavior::new(rb1)));
         h.tree
-            .set_layout_rect(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
+            .Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
 
         let panel2 = h.add_panel_with(root, "rbox2", Box::new(RadioBoxBehavior::new(rb2)));
         h.tree
-            .set_layout_rect(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
+            .Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
 
         // Settle layout and viewing Restore.
         h.tick_n(5);
@@ -121,8 +121,8 @@ impl RadioBoxHarness {
     fn panel_center(&self, index: usize) -> (f64, f64) {
         let state = self.h.tree.build_panel_state(
             self.panels[index],
-            self.h.view.window_focused(),
-            self.h.view.pixel_tallness(),
+            self.h.view.IsFocused(),
+            self.h.view.GetCurrentPixelTallness(),
         );
         let vr = state.viewed_rect;
         (vr.x + vr.w * 0.5, vr.y + vr.h * 0.5)

@@ -56,7 +56,7 @@ fn update_unloads_out_of_date() {
     m.IsOutOfDate(2000, 512); // marks out_of_date = true
     m.update();
     assert!(Match!(m.state(), &FileState::Waiting));
-    assert!(m.data().is_none());
+    assert!(m.GetMap().is_none());
 }
 
 #[test]
@@ -69,7 +69,7 @@ fn update_keeps_loaded_if_fresh() {
     m.IsOutOfDate(1000, 512); // same date, not out of date
     m.update();
     assert!(Match!(m.state(), &FileState::Loaded));
-    assert_eq!(m.data().unwrap(), "data", "loaded data should be preserved after fresh update");
+    assert_eq!(m.GetMap().unwrap(), "data", "loaded data should be preserved after fresh update");
 }
 
 #[test]
@@ -81,7 +81,7 @@ fn reset_data_clears_everything() {
     m.CalcMemoryNeed(500);
     m.reset_data();
     assert!(Match!(m.state(), &FileState::Waiting));
-    assert!(m.data().is_none());
+    assert!(m.GetMap().is_none());
     assert_eq!(m.get_memory_need(), 0);
 }
 

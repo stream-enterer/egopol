@@ -22,16 +22,16 @@ macro_rules! require_golden {
 fn setup_anim_view() -> (PanelTree, emView) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
     // Moderate zoom in: rel_a ≈ 4. Gives room to scroll (sqrt(4)=2x panel size)
     // and room for 60 zoom-in steps at vz=5 (max rel_a ≈ 4 * exp(5/60*60) ≈ 593).
-    view.zoom(4.0, 400.0, 300.0);
-    view.update_viewing(&mut tree);
+    view.Zoom(4.0, 400.0, 300.0);
+    view.Update(&mut tree);
 
     (tree, view)
 }
@@ -48,14 +48,14 @@ fn run_kinetic_velocity_trajectory(
     steps: usize,
 ) -> Vec<TrajectoryStep> {
     let mut anim = emKineticViewAnimator::new(vx, vy, vz, friction);
-    anim.set_friction_enabled(friction_enabled);
+    anim.SetFrictionEnabled(friction_enabled);
 
     let dt = 1.0 / 60.0;
     let mut trajectory = Vec::with_capacity(steps);
 
     for _ in 0..steps {
         anim.animate(view, tree, dt);
-        let (vel_x, vel_y, vel_z) = anim.velocity();
+        let (vel_x, vel_y, vel_z) = anim.GetVelocity();
         trajectory.push(TrajectoryStep {
             vel_x,
             vel_y,
@@ -113,16 +113,16 @@ fn animator_speeding_ramp() {
     let (mut tree, mut view) = setup_anim_view();
 
     let mut anim = emSpeedingViewAnimator::new(2.0);
-    anim.inner_mut().set_friction_enabled(true);
-    anim.set_acceleration(500.0);
-    anim.set_reverse_acceleration(1000.0);
-    anim.set_target(200.0, 0.0, 0.0);
+    anim.inner_mut().SetFrictionEnabled(true);
+    anim.SetAcceleration(500.0);
+    anim.SetReverseAcceleration(1000.0);
+    anim.SetTargetVelocity(200.0, 0.0, 0.0);
 
     let dt = 1.0 / 60.0;
     let mut actual = Vec::with_capacity(60);
     for _ in 0..60 {
         anim.animate(&mut view, &mut tree, dt);
-        let (vel_x, vel_y, vel_z) = anim.inner().velocity();
+        let (vel_x, vel_y, vel_z) = anim.inner().GetVelocity();
         actual.push(TrajectoryStep {
             vel_x,
             vel_y,
@@ -141,17 +141,17 @@ fn animator_speeding_reverse() {
     let (mut tree, mut view) = setup_anim_view();
 
     let mut anim = emSpeedingViewAnimator::new(2.0);
-    anim.inner_mut().set_friction_enabled(true);
-    anim.inner_mut().set_velocity(100.0, 0.0, 0.0);
-    anim.set_acceleration(500.0);
-    anim.set_reverse_acceleration(1000.0);
-    anim.set_target(-200.0, 0.0, 0.0);
+    anim.inner_mut().SetFrictionEnabled(true);
+    anim.inner_mut().SetVelocity(100.0, 0.0, 0.0);
+    anim.SetAcceleration(500.0);
+    anim.SetReverseAcceleration(1000.0);
+    anim.SetTargetVelocity(-200.0, 0.0, 0.0);
 
     let dt = 1.0 / 60.0;
     let mut actual = Vec::with_capacity(60);
     for _ in 0..60 {
         anim.animate(&mut view, &mut tree, dt);
-        let (vel_x, vel_y, vel_z) = anim.inner().velocity();
+        let (vel_x, vel_y, vel_z) = anim.inner().GetVelocity();
         actual.push(TrajectoryStep {
             vel_x,
             vel_y,
@@ -170,10 +170,10 @@ fn animator_speeding_release() {
     let (mut tree, mut view) = setup_anim_view();
 
     let mut anim = emSpeedingViewAnimator::new(2.0);
-    anim.inner_mut().set_friction_enabled(true);
-    anim.set_acceleration(500.0);
-    anim.set_reverse_acceleration(1000.0);
-    anim.set_target(200.0, 0.0, 0.0);
+    anim.inner_mut().SetFrictionEnabled(true);
+    anim.SetAcceleration(500.0);
+    anim.SetReverseAcceleration(1000.0);
+    anim.SetTargetVelocity(200.0, 0.0, 0.0);
 
     let dt = 1.0 / 60.0;
     let mut actual = Vec::with_capacity(60);
@@ -182,7 +182,7 @@ fn animator_speeding_release() {
             anim.release();
         }
         anim.animate(&mut view, &mut tree, dt);
-        let (vel_x, vel_y, vel_z) = anim.inner().velocity();
+        let (vel_x, vel_y, vel_z) = anim.inner().GetVelocity();
         actual.push(TrajectoryStep {
             vel_x,
             vel_y,
@@ -203,18 +203,18 @@ fn animator_swiping_grip() {
     let (mut tree, mut view) = setup_anim_view();
 
     let mut anim = emSwipingViewAnimator::new(2.0);
-    anim.inner_mut().set_friction_enabled(true);
-    anim.set_spring_constant(100.0);
-    anim.set_gripped(true);
+    anim.inner_mut().SetFrictionEnabled(true);
+    anim.SetSpringConstant(100.0);
+    anim.SetGripped(true);
 
     let dt = 1.0 / 60.0;
     let mut actual = Vec::with_capacity(60);
     for i in 0..60 {
         if i < 10 {
-            anim.move_grip(0, 5.0);
+            anim.MoveGrip(0, 5.0);
         }
         anim.animate(&mut view, &mut tree, dt);
-        let (vel_x, vel_y, vel_z) = anim.inner().velocity();
+        let (vel_x, vel_y, vel_z) = anim.inner().GetVelocity();
         actual.push(TrajectoryStep {
             vel_x,
             vel_y,
@@ -233,21 +233,21 @@ fn animator_swiping_release() {
     let (mut tree, mut view) = setup_anim_view();
 
     let mut anim = emSwipingViewAnimator::new(2.0);
-    anim.inner_mut().set_friction_enabled(true);
-    anim.set_spring_constant(100.0);
-    anim.set_gripped(true);
+    anim.inner_mut().SetFrictionEnabled(true);
+    anim.SetSpringConstant(100.0);
+    anim.SetGripped(true);
 
     let dt = 1.0 / 60.0;
     let mut actual = Vec::with_capacity(60);
     for i in 0..60 {
         if i < 10 {
-            anim.move_grip(0, 5.0);
+            anim.MoveGrip(0, 5.0);
         }
         if i == 20 {
-            anim.set_gripped(false);
+            anim.SetGripped(false);
         }
         anim.animate(&mut view, &mut tree, dt);
-        let (vel_x, vel_y, vel_z) = anim.inner().velocity();
+        let (vel_x, vel_y, vel_z) = anim.inner().GetVelocity();
         actual.push(TrajectoryStep {
             vel_x,
             vel_y,
@@ -272,10 +272,10 @@ fn run_visiting_trajectory(
 ) -> Vec<TrajectoryStep> {
     let mut anim = emVisitingViewAnimator::new(target_x, target_y, target_a, 0.0);
     anim.set_identity("root", "");
-    anim.set_animated(true);
-    anim.set_acceleration(5.0);
-    anim.set_max_absolute_speed(5.0);
-    anim.set_max_cusp_speed(2.5);
+    anim.SetAnimated(true);
+    anim.SetAcceleration(5.0);
+    anim.SetMaxAbsoluteSpeed(5.0);
+    anim.SetMaxCuspSpeed(2.5);
 
     let dt = 1.0 / 60.0;
     let mut trajectory = Vec::with_capacity(steps);
@@ -322,14 +322,14 @@ fn animator_visiting_short() {
 fn setup_anim_view_square_panel() -> (PanelTree, emView) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0); // square panel
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0); // square panel
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.zoom(4.0, 400.0, 300.0);
-    view.update_viewing(&mut tree);
+    view.Zoom(4.0, 400.0, 300.0);
+    view.Update(&mut tree);
 
     (tree, view)
 }
@@ -367,17 +367,17 @@ fn animator_visiting_zoom() {
 fn run_magnetic_trajectory(steps: usize) -> Vec<TrajectoryStep> {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_focusable(root, true);
 
     // Add a focusable target panel offset from center
     let target = tree.create_child(root, "target");
-    tree.set_layout_rect(target, 0.3, 0.2, 0.4, 0.4);
+    tree.Layout(target, 0.3, 0.2, 0.4, 0.4);
     tree.set_focusable(target, true);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
     let mut mag = emMagneticViewAnimator::new(100.0);
     mag.set_radius_factor(1.0);
@@ -398,7 +398,7 @@ fn run_magnetic_trajectory(steps: usize) -> Vec<TrajectoryStep> {
         // Run hill-rolling physics
         mag.hill_rolling_physics(dt, abs_dist, dx, dy, dz, vw, vh);
 
-        let (vel_x, vel_y) = mag.velocity();
+        let (vel_x, vel_y) = mag.GetVelocity();
         trajectory.push(TrajectoryStep {
             vel_x,
             vel_y,

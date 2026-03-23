@@ -34,15 +34,15 @@ impl PipelineTestHarness {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
         tree.set_focusable(root, true);
-        tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
 
         let mut view = emView::new(root, 800.0, 600.0);
-        view.update_viewing(&mut tree);
+        view.Update(&mut tree);
 
         let vif_chain: Vec<Box<dyn emViewInputFilter>> = vec![
             {
                 let mut mouse_vif = emMouseZoomScrollVIF::new();
-                let zflpp = view.get_zoom_factor_log_per_pixel();
+                let zflpp = view.GetZoomFactorLogarithmPerPixel();
                 mouse_vif.set_mouse_anim_params(1.0, 0.25, zflpp);
                 mouse_vif.set_wheel_anim_params(1.0, 0.25, zflpp);
                 Box::new(mouse_vif)
@@ -60,7 +60,7 @@ impl PipelineTestHarness {
         }
     }
 
-    pub fn root(&self) -> PanelId {
+    pub fn GetRootPanel(&self) -> PanelId {
         self.root
     }
 
@@ -70,8 +70,8 @@ impl PipelineTestHarness {
     pub fn tick(&mut self) {
         self.scheduler.DoTimeSlice();
         self.tree
-            .deliver_notices(self.view.window_focused(), self.view.pixel_tallness());
-        self.view.update_viewing(&mut self.tree);
+            .HandleNotice(self.view.IsFocused(), self.view.GetCurrentPixelTallness());
+        self.view.Update(&mut self.tree);
     }
 
     /// Run n frames.
@@ -87,7 +87,7 @@ impl PipelineTestHarness {
     pub fn add_panel(&mut self, GetParentContext: PanelId, name: &str) -> PanelId {
         let id = self.tree.create_child(GetParentContext, name);
         self.tree.set_focusable(id, true);
-        self.tree.set_layout_rect(id, 0.0, 0.0, 1.0, 1.0);
+        self.tree.Layout(id, 0.0, 0.0, 1.0, 1.0);
         id
     }
 
@@ -115,7 +115,7 @@ impl PipelineTestHarness {
     pub fn set_zoom(&mut self, level: f64) {
         // Step 1: HardResetFileState to the 1x baseline (raw_zoom_out sets rel_a to
         // zoom_out_rel_a and calls update_viewing internally).
-        self.view.raw_zoom_out(&mut self.tree);
+        self.view.RawZoomOut(&mut self.tree);
 
         // Step 2: apply the magnification factor. zoom() multiplies rel_a by
         // the given factor. Since viewed_width ~ sqrt(rel_a), multiplying
@@ -123,11 +123,11 @@ impl PipelineTestHarness {
         // Centering at viewport center keeps rel_x = rel_y = 0.
         if (level - 1.0).abs() > 1e-12 {
             let (vw, vh) = self.view.viewport_size();
-            self.view.zoom(level * level, vw * 0.5, vh * 0.5);
+            self.view.Zoom(level * level, vw * 0.5, vh * 0.5);
         }
 
         // Step 3: refresh viewed Restore for all panels.
-        self.view.update_viewing(&mut self.tree);
+        self.view.Update(&mut self.tree);
     }
 
     // ── Auto-expansion ─────────────────────────────────────────
@@ -144,7 +144,7 @@ impl PipelineTestHarness {
 
     /// Query whether a panel is currently auto-expanded.
     pub fn is_expanded(&self, panel_id: PanelId) -> bool {
-        self.tree.is_auto_expanded(panel_id)
+        self.tree.IsAutoExpanded(panel_id)
     }
 
     // ── Input dispatch (full pipeline) ───────────────────────────
@@ -167,10 +167,10 @@ impl PipelineTestHarness {
 
         // Tab / Shift+Tab focus cycling (C++ emPanel.cpp FocusNext/FocusPrev)
         if event.key == InputKey::Tab && event.variant == InputVariant::Press {
-            if self.input_state.shift() {
-                self.view.visit_prev(&mut self.tree);
+            if self.input_state.GetShift() {
+                self.view.VisitPrev(&mut self.tree);
             } else {
-                self.view.visit_next(&mut self.tree);
+                self.view.VisitNext(&mut self.tree);
             }
             return;
         }
@@ -184,8 +184,8 @@ impl PipelineTestHarness {
         {
             let panel = self
                 .view
-                .get_focusable_panel_at(&self.tree, event.mouse_x, event.mouse_y)
-                .unwrap_or_else(|| self.view.root());
+                .GetFocusablePanelAt(&self.tree, event.mouse_x, event.mouse_y)
+                .unwrap_or_else(|| self.view.GetRootPanel());
             self.view.set_active_panel(&mut self.tree, panel, false);
         }
 
@@ -194,21 +194,21 @@ impl PipelineTestHarness {
 
         // Dispatch to ALL viewed panels in post-order, transforming mouse
         // coordinates to panel-local space for each panel.
-        let wf = self.view.window_focused();
+        let wf = self.view.IsFocused();
         let viewed = self.tree.viewed_panels_dfs();
         let mut consumed = false;
         for panel_id in viewed {
             // Transform view-space mouse coords to panel-local coords
             let mut panel_ev = ev.clone();
-            panel_ev.mouse_x = self.tree.view_to_panel_x(panel_id, ev.mouse_x);
+            panel_ev.mouse_x = self.tree.ViewToPanelX(panel_id, ev.mouse_x);
             panel_ev.mouse_y =
                 self.tree
-                    .view_to_panel_y(panel_id, ev.mouse_y, self.view.pixel_tallness());
+                    .ViewToPanelY(panel_id, ev.mouse_y, self.view.GetCurrentPixelTallness());
 
             if let Some(mut behavior) = self.tree.take_behavior(panel_id) {
                 let panel_state =
                     self.tree
-                        .build_panel_state(panel_id, wf, self.view.pixel_tallness());
+                        .build_panel_state(panel_id, wf, self.view.GetCurrentPixelTallness());
 
                 // C++ RecurseInput: keyboard events are suppressed for
                 // panels not in the active path.
@@ -220,7 +220,7 @@ impl PipelineTestHarness {
                 consumed = behavior.Input(&panel_ev, &panel_state, &self.input_state);
                 self.tree.put_behavior(panel_id, behavior);
                 if consumed {
-                    self.view.invalidate_painting(&self.tree, panel_id);
+                    self.view.InvalidatePainting(&self.tree, panel_id);
                     break;
                 }
             }
@@ -230,13 +230,13 @@ impl PipelineTestHarness {
         // Only fires if no behavior consumed the event.
         if !consumed
             && event.variant == InputVariant::Press
-            && self.input_state.is_no_mod()
+            && self.input_state.IsNoMod()
         {
             match event.key {
-                InputKey::ArrowLeft => self.view.visit_left(&mut self.tree),
-                InputKey::ArrowRight => self.view.visit_right(&mut self.tree),
-                InputKey::ArrowUp => self.view.visit_up(&mut self.tree),
-                InputKey::ArrowDown => self.view.visit_down(&mut self.tree),
+                InputKey::ArrowLeft => self.view.VisitLeft(&mut self.tree),
+                InputKey::ArrowRight => self.view.VisitRight(&mut self.tree),
+                InputKey::ArrowUp => self.view.VisitUp(&mut self.tree),
+                InputKey::ArrowDown => self.view.VisitDown(&mut self.tree),
                 _ => {}
             }
         }

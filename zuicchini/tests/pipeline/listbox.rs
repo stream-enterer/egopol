@@ -122,7 +122,7 @@ fn content_center_view_x(
 fn listbox_click_items_1x_and_2x() {
     // 1. Create PipelineTestHarness (800x600 viewport).
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     // 2. Create emListBox with 5 items, SelectionMode::Single.
     let look = emLook::new();
@@ -150,13 +150,13 @@ fn listbox_click_items_1x_and_2x() {
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
 
-    let pt = h.view.pixel_tallness();
+    let pt = h.view.GetCurrentPixelTallness();
 
     // ---------- 5. At 1x zoom ----------
 
     let state = h.tree.build_panel_state(
         panel_id,
-        h.view.window_focused(),
+        h.view.IsFocused(),
         pt,
     );
     let vr = state.viewed_rect;
@@ -194,7 +194,7 @@ fn listbox_click_items_1x_and_2x() {
 
     let state_2x = h.tree.build_panel_state(
         panel_id,
-        h.view.window_focused(),
+        h.view.IsFocused(),
         pt,
     );
     let vr2 = state_2x.viewed_rect;
@@ -247,7 +247,7 @@ fn setup_listbox_harness(
     [f64; 5],
 ) {
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let look = emLook::new();
     let mut lb = emListBox::new(look);
@@ -271,8 +271,8 @@ fn setup_listbox_harness(
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
 
-    let pt = h.view.pixel_tallness();
-    let state = h.tree.build_panel_state(panel_id, h.view.window_focused(), pt);
+    let pt = h.view.GetCurrentPixelTallness();
+    let state = h.tree.build_panel_state(panel_id, h.view.IsFocused(), pt);
     let vr = state.viewed_rect;
     let click_x = content_center_view_x(&vr, pt);
     let item_ys = [
@@ -825,7 +825,7 @@ fn setup_keywalk_harness(
     f64,
 ) {
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let look = emLook::new();
     let mut lb = emListBox::new(look);
@@ -847,8 +847,8 @@ fn setup_keywalk_harness(
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
 
-    let pt = h.view.pixel_tallness();
-    let state = h.tree.build_panel_state(panel_id, h.view.window_focused(), pt);
+    let pt = h.view.GetCurrentPixelTallness();
+    let state = h.tree.build_panel_state(panel_id, h.view.IsFocused(), pt);
     let vr = state.viewed_rect;
     let click_x = content_center_view_x(&vr, pt);
     let first_y = item_center_view_y(&vr, pt, 0, items.len());
@@ -1103,7 +1103,7 @@ fn listbox_keywalk_readonly_no_selection_change() {
     // C++ ref: emListBox.cpp:912 — if (IsEnabled() && SelType != READ_ONLY_SELECTION)
     // In ReadOnly GetMode, keywalk finds the item but does NOT change selection.
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let look = emLook::new();
     let mut lb = emListBox::new(look);
@@ -1126,8 +1126,8 @@ fn listbox_keywalk_readonly_no_selection_change() {
     compositor.render(&mut h.tree, &h.view);
 
     // Activate the panel by clicking (ReadOnly won't select on Click).
-    let pt = h.view.pixel_tallness();
-    let state = h.tree.build_panel_state(_panel_id, h.view.window_focused(), pt);
+    let pt = h.view.GetCurrentPixelTallness();
+    let state = h.tree.build_panel_state(_panel_id, h.view.IsFocused(), pt);
     let vr = state.viewed_rect;
     let cx = content_center_view_x(&vr, pt);
     let fy = item_center_view_y(&vr, pt, 0, 3);
@@ -1176,12 +1176,12 @@ fn listbox_keywalk_timeout_clears_accumulator() {
     lb.borrow_mut().ClearSelection();
 
     // Time 0ms: type 'a' -> Match "Apple".
-    FAKE_OFFSET.with(|c| c.set(0));
+    FAKE_OFFSET.with(|c| c.Set(0));
     h.press_char('a');
     assert_eq!(lb.borrow().GetSelectedIndex(), Some(0));
 
     // Advance past the 1000ms timeout, then type 'b'.
-    FAKE_OFFSET.with(|c| c.set(1500));
+    FAKE_OFFSET.with(|c| c.Set(1500));
     h.press_char('b');
     assert_eq!(
         lb.borrow().GetSelectedIndex(),

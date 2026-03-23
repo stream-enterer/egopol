@@ -102,7 +102,7 @@ fn paint_200(state: FrameState) {
 #[bench::run(args = (10), setup = setup_update)]
 fn update_10(state: (PanelTree, emView)) {
     let (mut tree, mut view) = state;
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
     view.update(&mut tree);
 }
 
@@ -110,7 +110,7 @@ fn update_10(state: (PanelTree, emView)) {
 #[bench::run(args = (50), setup = setup_update)]
 fn update_50(state: (PanelTree, emView)) {
     let (mut tree, mut view) = state;
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
     view.update(&mut tree);
 }
 
@@ -118,7 +118,7 @@ fn update_50(state: (PanelTree, emView)) {
 #[bench::run(args = (200), setup = setup_update)]
 fn update_200(state: (PanelTree, emView)) {
     let (mut tree, mut view) = state;
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
     view.update(&mut tree);
 }
 

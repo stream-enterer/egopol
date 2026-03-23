@@ -49,7 +49,7 @@ impl PanelBehavior for ButtonPanel {
 fn button_click_1x_and_2x() {
     // 1. Create PipelineTestHarness (800x600 viewport).
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     // 2. Create emButton with on_click callback incrementing a shared counter.
     let counter = Rc::new(Cell::new(0u32));
@@ -58,7 +58,7 @@ fn button_click_1x_and_2x() {
     let look = emLook::new();
     let mut btn = emButton::new("Systematic Test", look);
     btn.on_click = Some(Box::new(move || {
-        counter_clone.set(counter_clone.GetRec() + 1);
+        counter_clone.Set(counter_clone.GetRec() + 1);
     }));
 
     // 3. Wrap in PanelBehavior and add to tree.
@@ -107,7 +107,7 @@ fn make_button_harness() -> (
     Rc<std::cell::RefCell<Vec<bool>>>,
 ) {
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let counter = Rc::new(Cell::new(0u32));
     let press_log: Rc<std::cell::RefCell<Vec<bool>>> = Rc::new(std::cell::RefCell::new(Vec::new()));
@@ -118,7 +118,7 @@ fn make_button_harness() -> (
     let look = emLook::new();
     let mut btn = emButton::new("BP9", look);
     btn.on_click = Some(Box::new(move || {
-        counter_c.set(counter_c.GetRec() + 1);
+        counter_c.Set(counter_c.GetRec() + 1);
     }));
     btn.on_press_state = Some(Box::new(move |pressed| {
         press_log_c.borrow_mut().push(pressed);
@@ -308,7 +308,7 @@ fn bp9_disabled_button_ignores_press() {
     let (mut h, panel_id, counter, press_log) = make_button_harness();
 
     // Disable the panel via the tree's enable_switch mechanism.
-    h.tree.set_enable_switch(panel_id, false);
+    h.tree.SetEnableSwitch(panel_id, false);
     h.tick_n(3);
     // Re-render so emButton.PaintContent() caches enabled=false.
     let mut compositor = SoftwareCompositor::new(800, 600);
@@ -328,7 +328,7 @@ fn bp9_disabled_button_ignores_press() {
 fn bp9_disabled_button_ignores_enter() {
     let (mut h, panel_id, counter, _press_log) = make_button_harness();
 
-    h.tree.set_enable_switch(panel_id, false);
+    h.tree.SetEnableSwitch(panel_id, false);
     h.tick_n(3);
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
@@ -346,7 +346,7 @@ fn bp9_disabled_button_ignores_enter() {
 #[test]
 fn bp9_vct_min_ext_guard_mouse() {
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let counter = Rc::new(Cell::new(0u32));
     let counter_c = counter.clone();
@@ -354,13 +354,13 @@ fn bp9_vct_min_ext_guard_mouse() {
     let look = emLook::new();
     let mut btn = emButton::new("Tiny", look);
     btn.on_click = Some(Box::new(move || {
-        counter_c.set(counter_c.GetRec() + 1);
+        counter_c.Set(counter_c.GetRec() + 1);
     }));
 
     let panel_id = h.tree.create_child(root, "button");
     h.tree.set_focusable(panel_id, true);
     // Tiny layout: 0.1% of root in each dimension → ~0.8px at 800x600.
-    h.tree.set_layout_rect(panel_id, 0.0, 0.0, 0.001, 0.001);
+    h.tree.Layout(panel_id, 0.0, 0.0, 0.001, 0.001);
     h.tree
         .set_behavior(panel_id, Box::new(ButtonPanel { widget: btn }));
 
@@ -384,7 +384,7 @@ fn bp9_vct_min_ext_guard_mouse() {
 #[test]
 fn bp9_vct_min_ext_guard_enter() {
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     let counter = Rc::new(Cell::new(0u32));
     let counter_c = counter.clone();
@@ -392,12 +392,12 @@ fn bp9_vct_min_ext_guard_enter() {
     let look = emLook::new();
     let mut btn = emButton::new("Tiny", look);
     btn.on_click = Some(Box::new(move || {
-        counter_c.set(counter_c.GetRec() + 1);
+        counter_c.Set(counter_c.GetRec() + 1);
     }));
 
     let panel_id = h.tree.create_child(root, "button");
     h.tree.set_focusable(panel_id, true);
-    h.tree.set_layout_rect(panel_id, 0.0, 0.0, 0.001, 0.001);
+    h.tree.Layout(panel_id, 0.0, 0.0, 0.001, 0.001);
     h.tree
         .set_behavior(panel_id, Box::new(ButtonPanel { widget: btn }));
 

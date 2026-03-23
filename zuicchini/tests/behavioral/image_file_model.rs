@@ -151,7 +151,7 @@ fn set_on_no_data_returns_false() {
 #[test]
 fn essence_rect_no_image_returns_none() {
     let panel = emImageFilePanel::new();
-    assert!(panel.get_essence_rect(100.0, 100.0).is_none());
+    assert!(panel.GetEssenceRect(100.0, 100.0).is_none());
 }
 
 #[test]
@@ -159,7 +159,7 @@ fn essence_rect_square_image_in_square_panel() {
     let mut panel = emImageFilePanel::new();
     panel.set_current_image(Some(emImage::new(100, 100, 4)));
 
-    let (x, y, w, h) = panel.get_essence_rect(200.0, 200.0).unwrap();
+    let (x, y, w, h) = panel.GetEssenceRect(200.0, 200.0).unwrap();
     assert!((x - 0.0).abs() < 1e-10);
     assert!((y - 0.0).abs() < 1e-10);
     assert!((w - 200.0).abs() < 1e-10);
@@ -171,7 +171,7 @@ fn essence_rect_landscape_image_in_square_panel() {
     let mut panel = emImageFilePanel::new();
     panel.set_current_image(Some(emImage::new(200, 100, 4)));
 
-    let (x, y, w, h) = panel.get_essence_rect(200.0, 200.0).unwrap();
+    let (x, y, w, h) = panel.GetEssenceRect(200.0, 200.0).unwrap();
     // Landscape GetImage fits width, centered vertically
     assert!((w - 200.0).abs() < 1e-10);
     assert!((h - 100.0).abs() < 1e-10);
@@ -184,7 +184,7 @@ fn essence_rect_portrait_image_in_square_panel() {
     let mut panel = emImageFilePanel::new();
     panel.set_current_image(Some(emImage::new(100, 200, 4)));
 
-    let (x, y, w, h) = panel.get_essence_rect(200.0, 200.0).unwrap();
+    let (x, y, w, h) = panel.GetEssenceRect(200.0, 200.0).unwrap();
     // Portrait GetImage fits height, centered horizontally
     assert!((h - 200.0).abs() < 1e-10);
     assert!((w - 100.0).abs() < 1e-10);
@@ -197,7 +197,7 @@ fn essence_rect_wide_panel() {
     let mut panel = emImageFilePanel::new();
     panel.set_current_image(Some(emImage::new(100, 100, 4)));
 
-    let (x, y, w, h) = panel.get_essence_rect(400.0, 200.0).unwrap();
+    let (x, y, w, h) = panel.GetEssenceRect(400.0, 200.0).unwrap();
     // Square GetImage in wide panel: fits height
     assert!((h - 200.0).abs() < 1e-10);
     assert!((w - 200.0).abs() < 1e-10);
@@ -209,5 +209,5 @@ fn essence_rect_wide_panel() {
 fn essence_rect_zero_dim_image() {
     let mut panel = emImageFilePanel::new();
     panel.set_current_image(Some(emImage::new(0, 0, 4)));
-    assert!(panel.get_essence_rect(100.0, 100.0).is_none());
+    assert!(panel.GetEssenceRect(100.0, 100.0).is_none());
 }

@@ -52,8 +52,8 @@ impl PanelBehavior for GamePanel {
         let bg = emColor::rgba(0x00, 0x1C, 0x38, 0xFF);
         let fg = emColor::SetGrey(136);
 
-        painter.paint_rect(0.0, 0.0, 1.0, h, bg, emColor::TRANSPARENT);
-        painter.paint_rect_outlined(
+        painter.PaintRect(0.0, 0.0, 1.0, h, bg, emColor::TRANSPARENT);
+        painter.PaintRectOutline(
             0.01, 0.01, 1.0 - 0.02, h - 0.02,
             &emStroke::new(fg, 0.02), emColor::TRANSPARENT,
         );
@@ -61,7 +61,7 @@ impl PanelBehavior for GamePanel {
         // Several polygons
         for i in 0..5 {
             let ox = 0.1 + i as f64 * 0.15;
-            painter.paint_polygon(
+            painter.PaintPolygon(
                 &[(ox, 0.3), (ox + 0.1, 0.3), (ox + 0.05, 0.5)],
                 emColor::rgba(100 + i * 30, 50, 200 - i * 30, 200),
                 emColor::TRANSPARENT,
@@ -71,7 +71,7 @@ impl PanelBehavior for GamePanel {
         // Ellipses
         for i in 0..4 {
             let cx = 0.15 + i as f64 * 0.2;
-            painter.paint_ellipse(cx, 0.7, 0.05, 0.03, emColor::WHITE, emColor::TRANSPARENT);
+            painter.PaintEllipse(cx, 0.7, 0.05, 0.03, emColor::WHITE, emColor::TRANSPARENT);
         }
 
         // Circle
@@ -81,7 +81,7 @@ impl PanelBehavior for GamePanel {
                 (a.sin() * 0.08 + 0.5, a.cos() * 0.08 + 0.85)
             })
             .collect();
-        painter.paint_polygon(&circle, emColor::rgba(255, 255, 0, 180), emColor::TRANSPARENT);
+        painter.PaintPolygon(&circle, emColor::rgba(255, 255, 0, 180), emColor::TRANSPARENT);
 
         // emImage
         painter.paint_image_scaled(
@@ -103,7 +103,7 @@ fn build_tree(panel_count: usize) -> (PanelTree, emView) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
     let tallness = VH as f64 / VW as f64;
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
+    tree.Layout(root, 0.0, 0.0, 1.0, tallness);
     tree.set_behavior(root, Box::new(GamePanel::new()));
     tree.set_focusable(root, true);
 
@@ -122,7 +122,7 @@ fn build_tree(panel_count: usize) -> (PanelTree, emView) {
                     let siblings = branching.min(panel_count - created + child_idx);
                     let x = child_idx as f64 / siblings as f64;
                     let w = 1.0 / siblings as f64;
-                    tree.set_layout_rect(child, x, 0.0, w, 1.0);
+                    tree.Layout(child, x, 0.0, w, 1.0);
                     tree.set_behavior(child, Box::new(GamePanel::new()));
                     next_parents.push(child);
                     created += 1;
@@ -134,7 +134,7 @@ fn build_tree(panel_count: usize) -> (PanelTree, emView) {
 
     let mut view = emView::new(root, VW as f64, VH as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
     view.update(&mut tree);
     view.clear_viewport_changed();
 
@@ -155,9 +155,9 @@ fn simulate_zoom_animation(panel_count: usize, start_zoom: f64, zoom_speed: f64,
     let steps = 200;
     let per_step = start_zoom.powf(1.0 / steps as f64);
     for _ in 0..steps {
-        view.zoom(per_step, cx, cy);
+        view.Zoom(per_step, cx, cy);
     }
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
     view.update(&mut tree);
     view.clear_viewport_changed();
 
@@ -176,13 +176,13 @@ fn simulate_zoom_animation(panel_count: usize, start_zoom: f64, zoom_speed: f64,
         let frame_start = Instant::now();
 
         // 1. Zoom step (simulates animator)
-        let zflpp = view.get_zoom_factor_log_per_pixel();
+        let zflpp = view.GetZoomFactorLogarithmPerPixel();
         let re_fac = (-zoom_speed * dt * zflpp).exp();
         let area_factor = 1.0 / (re_fac * re_fac);
-        view.zoom(area_factor, cx, cy);
+        view.Zoom(area_factor, cx, cy);
 
         // 2. Update
-        tree.deliver_notices(true, dt);
+        tree.HandleNotice(true, dt);
         view.update(&mut tree);
         view.clear_viewport_changed();
 

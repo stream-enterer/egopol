@@ -195,7 +195,7 @@ impl PanelBehavior for ToolkitRoot {
     }
 
     fn PaintContent(&mut self, p: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        p.paint_rect(
+        p.PaintRect(
             0.0,
             0.0,
             w,
@@ -204,7 +204,7 @@ impl PanelBehavior for ToolkitRoot {
             emColor::TRANSPARENT,
         );
 
-        p.paint_text_boxed(
+        p.PaintTextBoxed(
             0.0,
             0.0,
             w,
@@ -255,7 +255,7 @@ impl PanelBehavior for ToolkitRoot {
 
         // 1. Message label (read-only text field)
         let mut tf_msg = emTextField::new(look.clone());
-        tf_msg.set_text("Click a widget to see its callback here");
+        tf_msg.SetText("Click a widget to see its callback here");
         let msg_id = ctx.create_child_with("msg", Box::new(TextFieldPanel { widget: tf_msg }));
 
         // 2. emButton
@@ -303,8 +303,8 @@ impl PanelBehavior for ToolkitRoot {
         let msg_c = msg.clone();
         let mut tf = emTextField::new(look.clone());
         tf.SetEditable(true);
-        tf.set_multi_line(true);
-        tf.set_text("Edit me\nsecond line");
+        tf.SetMultiLineMode(true);
+        tf.SetText("Edit me\nsecond line");
         tf.on_text = Some(Box::new(move |text| {
             let preview: String = text.chars().take(30).collect();
             *msg_c.borrow_mut() = format!("Text changed: \"{preview}\"");
@@ -378,7 +378,7 @@ fn main() {
                 look,
             }),
         );
-        app.tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+        app.tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
 
         let close_sig = app.scheduler.create_signal();
         let flags_sig = app.scheduler.create_signal();

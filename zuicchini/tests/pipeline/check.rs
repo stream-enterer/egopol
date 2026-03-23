@@ -90,7 +90,7 @@ impl PanelBehavior for SharedCheckBoxPanel {
 fn checkbutton_toggle_1x_and_2x() {
     // 1. Create PipelineTestHarness (800x600 viewport).
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     // 2. Create emCheckButton (initially unchecked).
     let look = emLook::new();
@@ -156,7 +156,7 @@ fn checkbutton_toggle_1x_and_2x() {
 fn checkbox_toggle_1x_and_2x() {
     // 1. Create PipelineTestHarness (800x600 viewport).
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     // 2. Create emCheckBox (initially unchecked).
     let look = emLook::new();
@@ -225,7 +225,7 @@ fn setup_checkbutton_harness() -> (
     zuicchini::emCore::emPanelTree::PanelId,
 ) {
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
     let look = emLook::new();
     let cb = emCheckButton::new("Test", look);
     let cb_ref = Rc::new(RefCell::new(cb));
@@ -249,7 +249,7 @@ fn setup_checkbutton_with_recorder() -> (
     zuicchini::emCore::emPanelTree::PanelId,
 ) {
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
     let look = emLook::new();
     let mut cb = emCheckButton::new("Test", look);
     let states = Rc::new(RefCell::new(Vec::new()));
@@ -559,7 +559,7 @@ fn checkbutton_disabled_rejects_click() {
     let (mut h, cb_ref, panel_id) = setup_checkbutton_harness();
 
     // Disable the panel via the tree's enable switch
-    h.tree.set_enable_switch(panel_id, false);
+    h.tree.SetEnableSwitch(panel_id, false);
     h.tick_n(3);
     // Re-render so the emCheckButton's cached `enabled` field updates
     let mut compositor = SoftwareCompositor::new(800, 600);
@@ -581,7 +581,7 @@ fn checkbutton_disabled_rejects_click() {
 fn checkbutton_disabled_rejects_enter() {
     let (mut h, cb_ref, panel_id) = setup_checkbutton_harness();
 
-    h.tree.set_enable_switch(panel_id, false);
+    h.tree.SetEnableSwitch(panel_id, false);
     h.tick_n(3);
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
@@ -603,7 +603,7 @@ fn checkbutton_reenable_accepts_input() {
     let (mut h, cb_ref, panel_id) = setup_checkbutton_harness();
 
     // Disable
-    h.tree.set_enable_switch(panel_id, false);
+    h.tree.SetEnableSwitch(panel_id, false);
     h.tick_n(3);
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
@@ -612,7 +612,7 @@ fn checkbutton_reenable_accepts_input() {
     assert!(!cb_ref.borrow().IsChecked(), "disabled: click rejected");
 
     // Re-enable
-    h.tree.set_enable_switch(panel_id, true);
+    h.tree.SetEnableSwitch(panel_id, true);
     h.tick_n(3);
     compositor.render(&mut h.tree, &h.view);
 

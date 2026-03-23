@@ -58,20 +58,20 @@ fn hotkey_matches() {
 #[test]
 fn input_state_modifiers() {
     let mut state = emInputState::new();
-    assert!(!state.shift());
-    assert!(!state.ctrl());
-    assert!(!state.alt());
-    assert!(!state.meta());
+    assert!(!state.GetShift());
+    assert!(!state.GetCtrl());
+    assert!(!state.GetAlt());
+    assert!(!state.GetMeta());
 
     state.press(InputKey::Shift);
-    assert!(state.shift());
+    assert!(state.GetShift());
 
     state.press(InputKey::Ctrl);
-    assert!(state.ctrl());
+    assert!(state.GetCtrl());
 
     state.release(InputKey::Shift);
-    assert!(!state.shift());
-    assert!(state.ctrl());
+    assert!(!state.GetShift());
+    assert!(state.GetCtrl());
 }
 
 #[test]
@@ -97,13 +97,13 @@ fn input_state_key_tracking() {
 #[test]
 fn input_state_touches() {
     let mut state = emInputState::new();
-    state.set_touch(1, 100.0, 200.0);
-    state.set_touch(2, 300.0, 400.0);
-    assert_eq!(state.touches().len(), 2);
+    state.SetTouch(1, 100.0, 200.0);
+    state.SetTouch(2, 300.0, 400.0);
+    assert_eq!(state.GetTouchCount().len(), 2);
 
-    state.remove_touch(1);
-    assert_eq!(state.touches().len(), 1);
-    assert_eq!(state.touches()[0].0, 2);
+    state.RemoveTouch(1);
+    assert_eq!(state.GetTouchCount().len(), 1);
+    assert_eq!(state.GetTouchCount()[0].0, 2);
 }
 
 #[test]

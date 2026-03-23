@@ -19,7 +19,7 @@ pub struct ColorPanel {
 
 impl PanelBehavior for ColorPanel {
     fn PaintContent(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        painter.paint_rect(0.0, 0.0, w, h, self.GetColor, emColor::TRANSPARENT);
+        painter.PaintRect(0.0, 0.0, w, h, self.GetColor, emColor::TRANSPARENT);
     }
 
     fn IsOpaque(&self) -> bool {
@@ -37,7 +37,7 @@ pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, emView, PanelId) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("scaled_root");
     let tallness = DEFAULT_VH as f64 / DEFAULT_VW as f64;
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
+    tree.Layout(root, 0.0, 0.0, 1.0, tallness);
     tree.set_behavior(
         root,
         Box::new(ColorPanel {
@@ -62,7 +62,7 @@ pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, emView, PanelId) {
                     let siblings = branching.min(panel_count - created + child_idx);
                     let x = child_idx as f64 / siblings as f64;
                     let w = 1.0 / siblings as f64;
-                    tree.set_layout_rect(child, x, 0.0, w, 1.0);
+                    tree.Layout(child, x, 0.0, w, 1.0);
                     tree.set_behavior(
                         child,
                         Box::new(ColorPanel {
@@ -79,7 +79,7 @@ pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, emView, PanelId) {
 
     let mut view = emView::new(root, DEFAULT_VW as f64, DEFAULT_VH as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
     view.update(&mut tree);
 
     (tree, view, root)
@@ -97,8 +97,8 @@ pub fn run_one_scaled_frame(
     let fix_x = DEFAULT_VW as f64 / 2.0;
     let fix_y = DEFAULT_VH as f64 / 2.0;
 
-    view.raw_scroll_and_zoom(tree, fix_x, fix_y, dx, dy, dz);
-    tree.deliver_notices(true, 1.0);
+    view.RawScrollAndZoom(tree, fix_x, fix_y, dx, dy, dz);
+    tree.HandleNotice(true, 1.0);
     view.update(tree);
 
     viewport_buf.fill(emColor::BLACK);

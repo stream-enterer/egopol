@@ -80,7 +80,7 @@ fn main() {
         }
 
         app.tree.set_behavior(root, Box::new(layout));
-        app.tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+        app.tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
 
         let close_sig = app.scheduler.create_signal();
         let flags_sig = app.scheduler.create_signal();

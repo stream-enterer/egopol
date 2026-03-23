@@ -59,7 +59,7 @@ fn bench_scaled_update(c: &mut Criterion) {
             let (mut tree, mut view, _) = build_scaled_tree(GetCount);
 
             b.iter(|| {
-                tree.deliver_notices(true, 1.0);
+                tree.HandleNotice(true, 1.0);
                 view.update(&mut tree);
             });
         });

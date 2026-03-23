@@ -80,7 +80,7 @@ fn scalarfield_drag_changes_value() {
 
     // Set up the pipeline harness (800x600 viewport).
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     // Add the emScalarField as a child panel filling the entire root.
     let _panel_id = h.add_panel_with(root, "scalar_field", Box::new(behavior));
@@ -190,7 +190,7 @@ impl PanelBehavior for ColorFieldBehavior {
 #[test]
 fn colorfield_expansion_creates_child_sliders() {
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
 
     // Create a emColorField panel with behavior.
     let look = emLook::new();
@@ -346,7 +346,7 @@ fn button_click_works_after_zoom() {
 
     let mut btn2 = emButton::new("Pipeline Test", look);
     btn2.on_click = Some(Box::new(move || {
-        clicked_clone.set(true);
+        clicked_clone.Set(true);
     }));
 
     struct BtnPanel {
@@ -373,7 +373,7 @@ fn button_click_works_after_zoom() {
     }
 
     let mut h = PipelineTestHarness::new();
-    let root = h.root();
+    let root = h.GetRootPanel();
     let _panel_id = h.add_panel_with(root, "button", Box::new(BtnPanel { widget: btn2 }));
     h.tick_n(5);
 
@@ -387,7 +387,7 @@ fn button_click_works_after_zoom() {
         clicked.GetRec(),
         "Pipeline calibration: button should fire at 1x zoom"
     );
-    clicked.set(false);
+    clicked.Set(false);
 
     // Zoom to 2x and re-render so last_w/last_h update.
     h.set_zoom(2.0);
@@ -479,7 +479,7 @@ fn listbox_click_selects_correct_item() {
     let lb_ref = Rc::new(RefCell::new(lb));
 
     // ── 3. Add it as a panel with behavior ───────────────────────
-    let root = harness.root();
+    let root = harness.GetRootPanel();
     let panel_id = harness.add_panel_with(
         root,
         "listbox",
@@ -505,8 +505,8 @@ fn listbox_click_selects_correct_item() {
     // Use build_panel_state to GetRec the viewed rect in viewport pixels.
     let state = harness.tree.build_panel_state(
         panel_id,
-        harness.view.window_focused(),
-        harness.view.pixel_tallness(),
+        harness.view.IsFocused(),
+        harness.view.GetCurrentPixelTallness(),
     );
     let vr = state.viewed_rect;
 

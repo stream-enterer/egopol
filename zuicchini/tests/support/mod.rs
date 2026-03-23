@@ -35,15 +35,15 @@ impl TestHarness {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
         tree.set_focusable(root, true);
-        tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
 
         let mut view = emView::new(root, 800.0, 600.0);
-        view.update_viewing(&mut tree);
+        view.Update(&mut tree);
 
         let vif_chain: Vec<Box<dyn emViewInputFilter>> = vec![
             {
                 let mut mouse_vif = emMouseZoomScrollVIF::new();
-                let zflpp = view.get_zoom_factor_log_per_pixel();
+                let zflpp = view.GetZoomFactorLogarithmPerPixel();
                 mouse_vif.set_mouse_anim_params(1.0, 0.25, zflpp);
                 mouse_vif.set_wheel_anim_params(1.0, 0.25, zflpp);
                 Box::new(mouse_vif)
@@ -61,7 +61,7 @@ impl TestHarness {
         }
     }
 
-    pub fn root(&self) -> PanelId {
+    pub fn GetRootPanel(&self) -> PanelId {
         self.root
     }
 
@@ -69,8 +69,8 @@ impl TestHarness {
     pub fn tick(&mut self) {
         self.scheduler.DoTimeSlice();
         self.tree
-            .deliver_notices(self.view.window_focused(), self.view.pixel_tallness());
-        self.view.update_viewing(&mut self.tree);
+            .HandleNotice(self.view.IsFocused(), self.view.GetCurrentPixelTallness());
+        self.view.Update(&mut self.tree);
     }
 
     /// Run n frames.
@@ -84,7 +84,7 @@ impl TestHarness {
     pub fn add_panel(&mut self, GetParentContext: PanelId, name: &str) -> PanelId {
         let id = self.tree.create_child(GetParentContext, name);
         self.tree.set_focusable(id, true);
-        self.tree.set_layout_rect(id, 0.0, 0.0, 1.0, 1.0);
+        self.tree.Layout(id, 0.0, 0.0, 1.0, 1.0);
         id
     }
 
@@ -120,8 +120,8 @@ impl TestHarness {
         {
             let panel = self
                 .view
-                .get_focusable_panel_at(&self.tree, event.mouse_x, event.mouse_y)
-                .unwrap_or_else(|| self.view.root());
+                .GetFocusablePanelAt(&self.tree, event.mouse_x, event.mouse_y)
+                .unwrap_or_else(|| self.view.GetRootPanel());
             self.view.set_active_panel(&mut self.tree, panel, false);
         }
 
@@ -131,13 +131,13 @@ impl TestHarness {
         // Dispatch to ALL viewed panels in post-order (matching C++ emPanel::Input
         // recursive broadcast: children before parents, last-child first).
         // If any returns true (consumed), propagation stops.
-        let wf = self.view.window_focused();
+        let wf = self.view.IsFocused();
         let viewed = self.tree.viewed_panels_dfs();
         for panel_id in viewed {
             if let Some(mut behavior) = self.tree.take_behavior(panel_id) {
                 let state = self
                     .tree
-                    .build_panel_state(panel_id, wf, self.view.pixel_tallness());
+                    .build_panel_state(panel_id, wf, self.view.GetCurrentPixelTallness());
                 let consumed = behavior.Input(&ev, &state, &self.input_state);
                 self.tree.put_behavior(panel_id, behavior);
                 if consumed {

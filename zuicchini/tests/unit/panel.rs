@@ -114,7 +114,7 @@ fn notice_flag_propagation() {
         .contains(NoticeFlags::CHILDREN_CHANGED));
 
     // Deliver notices
-    tree.deliver_notices(true, 1.0);
+    tree.HandleNotice(true, 1.0);
 
     // Verify notices were cleared after delivery
     assert!(tree.pending_notices(root).IsEmpty());
@@ -144,14 +144,14 @@ fn view_visit_and_navigation() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
     let child = tree.create_child(root, "child");
-    tree.set_layout_rect(child, 0.0, 0.0, 100.0, 100.0);
+    tree.Layout(child, 0.0, 0.0, 100.0, 100.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
-    assert_eq!(view.root(), root);
+    assert_eq!(view.GetRootPanel(), root);
     assert_eq!(view.current_visit().panel, root);
 
     // Visit a child
-    view.visit(child, 10.0, 20.0, 0.5);
+    view.Visit(child, 10.0, 20.0, 0.5);
     assert_eq!(view.current_visit().panel, child);
     assert_eq!(view.visit_stack().len(), 2);
 
@@ -172,13 +172,13 @@ fn view_zoom_and_scroll() {
     let mut view = emView::new(root, 800.0, 600.0);
 
     // scroll(dx, dy) normalizes by viewport: rel_x += dx / vw
-    view.scroll(10.0, 20.0);
+    view.Scroll(10.0, 20.0);
     let expected_x = 10.0 / 800.0;
     let expected_y = 20.0 / 600.0;
     assert!((view.current_visit().rel_x - expected_x).abs() < 0.001);
     assert!((view.current_visit().rel_y - expected_y).abs() < 0.001);
 
-    view.zoom(2.0, 400.0, 300.0);
+    view.Zoom(2.0, 400.0, 300.0);
     assert!((view.current_visit().rel_a - 2.0).abs() < 0.01);
 }
 
@@ -190,7 +190,7 @@ fn view_flags_disable_zoom() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags = ViewFlags::NO_ZOOM;
 
-    view.zoom(2.0, 400.0, 300.0);
+    view.Zoom(2.0, 400.0, 300.0);
     // Zoom should have been blocked
     assert!((view.current_visit().rel_a - 1.0).abs() < 0.001);
 }
@@ -200,14 +200,14 @@ fn layout_rect_and_canvas_color() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
 
-    tree.set_layout_rect(root, 10.0, 20.0, 300.0, 200.0);
-    tree.set_canvas_color(root, emColor::rgb(128, 128, 128));
+    tree.Layout(root, 10.0, 20.0, 300.0, 200.0);
+    tree.SetCanvasColor(root, emColor::rgb(128, 128, 128));
 
     assert_eq!(
         tree.layout_rect(root).unwrap(),
         Rect::new(10.0, 20.0, 300.0, 200.0)
     );
-    assert_eq!(tree.canvas_color(root).unwrap(), emColor::rgb(128, 128, 128));
+    assert_eq!(tree.GetCanvasColor(root).unwrap(), emColor::rgb(128, 128, 128));
     assert!(tree
         .pending_notices(root)
         .contains(NoticeFlags::LAYOUT_CHANGED));

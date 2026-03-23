@@ -131,10 +131,10 @@ impl PanelBehavior for InputPanel {
     }
 
     fn PaintContent(&mut self, p: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        p.paint_rect(0.0, 0.0, w, h, emColor::WHITE, emColor::TRANSPARENT);
+        p.PaintRect(0.0, 0.0, w, h, emColor::WHITE, emColor::TRANSPARENT);
 
         // Title
-        p.paint_text_boxed(
+        p.PaintTextBoxed(
             0.0,
             0.0,
             w,
@@ -153,7 +153,7 @@ impl PanelBehavior for InputPanel {
 
         // Event log
         for (i, entry) in self.log.iter().enumerate() {
-            p.paint_text(
+            p.PaintText(
                 0.02 * w,
                 (0.10 + i as f64 * 0.04) * h,
                 entry,
@@ -167,7 +167,7 @@ impl PanelBehavior for InputPanel {
         // Mouse GetPos indicator
         if self.button_down {
             let sz = 0.01 * w;
-            p.paint_rect(
+            p.PaintRect(
                 self.last_mx - sz,
                 self.last_my - sz,
                 sz * 2.0,
@@ -183,7 +183,7 @@ fn main() {
     let app = App::new(Box::new(|app, event_loop| {
         let root = app.tree.create_root("root");
         app.tree.set_behavior(root, Box::new(InputPanel::new()));
-        app.tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+        app.tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
 
         let close_sig = app.scheduler.create_signal();
         let flags_sig = app.scheduler.create_signal();

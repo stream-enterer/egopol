@@ -23,14 +23,14 @@ fn panel_state(tree: &PanelTree, id: PanelId) -> (bool, bool) {
 fn three_panel_tree() -> (PanelTree, emView, PanelId, PanelId, PanelId) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
     (tree, view, root, child1, child2)
 }
@@ -60,16 +60,16 @@ fn interaction_activate_path() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
     let gc = tree.create_child(child1, "gc");
-    tree.set_layout_rect(gc, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(gc, 0.0, 0.0, 0.5, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
     view.set_active_panel(&mut tree, gc, false);
 
     let actual = vec![
@@ -106,7 +106,7 @@ fn interaction_focus_click() {
     let expected = load_behavioral_golden("focus_click");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child1, true);
 
     let actual = vec![
@@ -156,9 +156,9 @@ fn interaction_focus_tab_forward() {
     let expected = load_behavioral_golden("focus_tab_forward");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child1, true);
-    view.visit_next(&mut tree);
+    view.VisitNext(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -175,9 +175,9 @@ fn interaction_focus_tab_backward() {
     let expected = load_behavioral_golden("focus_tab_backward");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child2, true);
-    view.visit_prev(&mut tree);
+    view.VisitPrev(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -195,21 +195,21 @@ fn interaction_focus_unfocusable_skip() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
     tree.set_focusable(child2, false);
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child1, true);
-    view.visit_next(&mut tree);
+    view.VisitNext(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -228,20 +228,20 @@ fn interaction_focus_nested() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
     let gc = tree.create_child(child1, "gc");
-    tree.set_layout_rect(gc, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child1, true);
-    view.visit_in(&mut tree);
+    view.VisitIn(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -260,20 +260,20 @@ fn interaction_focus_visit_out() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
     let gc = tree.create_child(child1, "gc");
-    tree.set_layout_rect(gc, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, gc, true);
-    view.visit_out(&mut tree);
+    view.VisitOut(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -291,9 +291,9 @@ fn interaction_focus_tab_wrap() {
     let expected = load_behavioral_golden("focus_tab_wrap");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child2, true);
-    view.visit_next(&mut tree);
+    view.VisitNext(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -311,20 +311,20 @@ fn interaction_focus_visit_first() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child2, true);
-    view.visit_first(&mut tree);
+    view.VisitFirst(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -343,20 +343,20 @@ fn interaction_focus_visit_last() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child1, true);
-    view.visit_last(&mut tree);
+    view.VisitLast(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -375,20 +375,20 @@ fn interaction_focus_visit_left() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child3, true);
-    view.visit_left(&mut tree);
+    view.VisitLeft(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -407,20 +407,20 @@ fn interaction_focus_visit_right() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child1, true);
-    view.visit_right(&mut tree);
+    view.VisitRight(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -439,20 +439,20 @@ fn interaction_focus_visit_down() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 1.0, 0.33);
+    tree.Layout(child1, 0.0, 0.0, 1.0, 0.33);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.0, 0.33, 1.0, 0.33);
+    tree.Layout(child2, 0.0, 0.33, 1.0, 0.33);
     let child3 = tree.create_child(root, "child3");
-    tree.set_layout_rect(child3, 0.0, 0.66, 1.0, 0.34);
+    tree.Layout(child3, 0.0, 0.66, 1.0, 0.34);
 
     let mut view = emView::new(root, 800.0, 600.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child1, true);
-    view.visit_down(&mut tree);
+    view.VisitDown(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -471,20 +471,20 @@ fn interaction_focus_visit_up() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 1.0, 0.33);
+    tree.Layout(child1, 0.0, 0.0, 1.0, 0.33);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.0, 0.33, 1.0, 0.33);
+    tree.Layout(child2, 0.0, 0.33, 1.0, 0.33);
     let child3 = tree.create_child(root, "child3");
-    tree.set_layout_rect(child3, 0.0, 0.66, 1.0, 0.34);
+    tree.Layout(child3, 0.0, 0.66, 1.0, 0.34);
 
     let mut view = emView::new(root, 800.0, 600.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child3, true);
-    view.visit_up(&mut tree);
+    view.VisitUp(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -502,8 +502,8 @@ fn interaction_focus_disabled_panel() {
     let expected = load_behavioral_golden("focus_disabled_panel");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
 
-    tree.set_enable_switch(child1, false);
-    view.set_window_focused(&mut tree, true);
+    tree.SetEnableSwitch(child1, false);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child1, true);
 
     let actual = vec![
@@ -522,18 +522,18 @@ fn interaction_activate_remove_middle() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child1, true);
     view.remove_panel(&mut tree, child2);
 
@@ -553,18 +553,18 @@ fn interaction_activate_remove_in_path() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
     let gc = tree.create_child(child1, "gc");
-    tree.set_layout_rect(gc, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, gc, true);
     view.remove_panel(&mut tree, child1);
 
@@ -580,22 +580,22 @@ fn interaction_focus_tab_deep() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
     let gc1 = tree.create_child(child1, "gc1");
-    tree.set_layout_rect(gc1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(gc1, 0.0, 0.0, 0.5, 1.0);
     let gc2 = tree.create_child(child1, "gc2");
-    tree.set_layout_rect(gc2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(gc2, 0.5, 0.0, 0.5, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, gc1, true);
-    view.visit_next(&mut tree);
+    view.VisitNext(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -620,20 +620,20 @@ fn interaction_focus_tab_ascend() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.set_layout_rect(child1, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 1.0, 1.0);
     let gc1 = tree.create_child(child1, "gc1");
-    tree.set_layout_rect(gc1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(gc1, 0.0, 0.0, 0.5, 1.0);
     let gc2 = tree.create_child(child1, "gc2");
-    tree.set_layout_rect(gc2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(gc2, 0.5, 0.0, 0.5, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
-    view.update_viewing(&mut tree);
+    view.Update(&mut tree);
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, gc2, true);
-    view.visit_next(&mut tree);
+    view.VisitNext(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -651,9 +651,9 @@ fn interaction_focus_visit_out_to_root() {
     let expected = load_behavioral_golden("focus_visit_out_to_root");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child1, true);
-    view.visit_out(&mut tree);
+    view.VisitOut(&mut tree);
 
     let actual = vec![
         panel_state(&tree, root),
@@ -670,7 +670,7 @@ fn interaction_focus_remove_focused() {
     let expected = load_behavioral_golden("focus_remove_focused");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
 
-    view.set_window_focused(&mut tree, true);
+    view.SetFocused(&mut tree, true);
     view.set_active_panel(&mut tree, child1, true);
     view.remove_panel(&mut tree, child1);
 
