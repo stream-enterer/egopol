@@ -1,23 +1,23 @@
 use std::rc::Rc;
 
-use crate::emCore::emCursor::Cursor;
-use crate::emCore::emInput::InputEvent;
-use crate::emCore::emInputState::InputState;
+use crate::emCore::emCursor::emCursor;
+use crate::emCore::emInput::emInputEvent;
+use crate::emCore::emInputState::emInputState;
 use crate::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use crate::emCore::emPainter::Painter;
+use crate::emCore::emPainter::emPainter;
 
 use super::emBorder::{InnerBorderType, OuterBorderType};
-use crate::emCore::emButton::Button;
-use crate::emCore::emCheckBox::CheckBox;
-use crate::emCore::emLabel::Label;
-use crate::emCore::emListBox::ListBox;
-use crate::emCore::emLook::Look;
-use crate::emCore::emScalarField::ScalarField;
-use crate::emCore::emTextField::TextField;
+use crate::emCore::emButton::emButton;
+use crate::emCore::emCheckBox::emCheckBox;
+use crate::emCore::emLabel::emLabel;
+use crate::emCore::emListBox::emListBox;
+use crate::emCore::emLook::emLook;
+use crate::emCore::emScalarField::emScalarField;
+use crate::emCore::emTextField::emTextField;
 
-/// PanelBehavior wrapper for ScalarField — used by ColorField expansion.
+/// PanelBehavior wrapper for emScalarField — used by emColorField expansion.
 pub(crate) struct ScalarFieldPanel {
-    pub scalar_field: ScalarField,
+    pub scalar_field: emScalarField,
 }
 
 impl ScalarFieldPanel {
@@ -26,10 +26,10 @@ impl ScalarFieldPanel {
         min: f64,
         max: f64,
         value: f64,
-        look: Rc<Look>,
+        look: Rc<emLook>,
         editable: bool,
     ) -> Self {
-        let mut sf = ScalarField::new(min, max, look);
+        let mut sf = emScalarField::new(min, max, look);
         sf.set_caption(caption);
         sf.set_value(value);
         sf.set_editable(editable);
@@ -41,32 +41,32 @@ impl ScalarFieldPanel {
 }
 
 impl PanelBehavior for ScalarFieldPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.scalar_field.paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         _state: &PanelState,
-        _input_state: &InputState,
+        _input_state: &emInputState,
     ) -> bool {
         self.scalar_field.input(event, _state, _input_state)
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.scalar_field.get_cursor()
     }
 }
 
-/// PanelBehavior wrapper for TextField — used by ColorField expansion.
+/// PanelBehavior wrapper for emTextField — used by emColorField expansion.
 pub(crate) struct TextFieldPanel {
-    pub text_field: TextField,
+    pub text_field: emTextField,
 }
 
 impl TextFieldPanel {
-    pub fn new(caption: &str, text: &str, look: Rc<Look>, editable: bool) -> Self {
-        let mut tf = TextField::new(look);
+    pub fn new(caption: &str, text: &str, look: Rc<emLook>, editable: bool) -> Self {
+        let mut tf = emTextField::new(look);
         tf.set_caption(caption);
         tf.set_text(text);
         tf.set_editable(editable);
@@ -78,7 +78,7 @@ impl TextFieldPanel {
 }
 
 impl PanelBehavior for TextFieldPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.text_field.cycle_blink(state.in_focused_path());
         self.text_field.paint(painter, w, h, state.enabled);
     }
@@ -90,45 +90,45 @@ impl PanelBehavior for TextFieldPanel {
     }
 }
 
-/// PanelBehavior wrapper for CheckBox.
+/// PanelBehavior wrapper for emCheckBox.
 pub(crate) struct CheckBoxPanel {
-    pub check_box: CheckBox,
+    pub check_box: emCheckBox,
 }
 
 impl PanelBehavior for CheckBoxPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.check_box.paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         _state: &PanelState,
-        _input_state: &InputState,
+        _input_state: &emInputState,
     ) -> bool {
         self.check_box.input(event, _state, _input_state)
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.check_box.get_cursor()
     }
 }
 
-/// PanelBehavior wrapper for ListBox.
+/// PanelBehavior wrapper for emListBox.
 pub(crate) struct ListBoxPanel {
-    pub list_box: ListBox,
+    pub list_box: emListBox,
 }
 
 impl PanelBehavior for ListBoxPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.list_box.paint(painter, w, h);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         _state: &PanelState,
-        _input_state: &InputState,
+        _input_state: &emInputState,
     ) -> bool {
         self.list_box.input(event, _state, _input_state)
     }
@@ -143,37 +143,37 @@ impl PanelBehavior for ListBoxPanel {
     }
 }
 
-/// PanelBehavior wrapper for Button.
+/// PanelBehavior wrapper for emButton.
 pub(crate) struct ButtonPanel {
-    pub button: Button,
+    pub button: emButton,
 }
 
 impl PanelBehavior for ButtonPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.button.paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         _state: &PanelState,
-        _input_state: &InputState,
+        _input_state: &emInputState,
     ) -> bool {
         self.button.input(event, _state, _input_state)
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.button.get_cursor()
     }
 }
 
-/// PanelBehavior wrapper for Label (non-focusable text display).
+/// PanelBehavior wrapper for emLabel (non-focusable text display).
 pub(crate) struct LabelPanel {
-    pub label: Label,
+    pub label: emLabel,
 }
 
 impl PanelBehavior for LabelPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.label.paint(painter, w, h, _state.enabled);
     }
 }

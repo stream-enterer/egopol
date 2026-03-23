@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emEngine::{Engine, EngineCtx, Priority};
+use zuicchini::emCore::emEngine::{emEngine, EngineCtx, Priority};
 use zuicchini::emCore::emScheduler::EngineScheduler;
 use zuicchini::emCore::emSignal::SignalId;
 
@@ -11,7 +11,7 @@ struct RecordingEngine {
     stay_awake: bool,
 }
 
-impl Engine for RecordingEngine {
+impl emEngine for RecordingEngine {
     fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
         self.log.borrow_mut().push(self.label);
         self.stay_awake
@@ -63,13 +63,13 @@ fn engines_execute_in_priority_order() {
 
 #[test]
 fn signal_chaining_within_time_slice() {
-    // Engine A fires a signal that wakes Engine B during the same time slice.
+    // emEngine A fires a signal that wakes emEngine B during the same time slice.
     let mut sched = EngineScheduler::new();
     let log = Rc::new(RefCell::new(Vec::new()));
 
     let sig = sched.create_signal();
 
-    // Engine B: low priority, woken by signal
+    // emEngine B: low priority, woken by signal
     let eng_b = sched.register_engine(
         Priority::Low,
         Box::new(RecordingEngine {
@@ -80,7 +80,7 @@ fn signal_chaining_within_time_slice() {
     );
     sched.connect(sig, eng_b);
 
-    // Fire signal before time slice — the signal phase wakes Engine B
+    // Fire signal before time slice — the signal phase wakes emEngine B
     sched.fire(sig);
     sched.do_time_slice();
 
@@ -139,7 +139,7 @@ fn remove_engine_cleans_up() {
 
 #[test]
 fn instant_signal_chaining_via_engine() {
-    // Engine A fires a signal during its cycle. Engine B (connected to that signal)
+    // emEngine A fires a signal during its cycle. emEngine B (connected to that signal)
     // must run within the SAME time slice.
     let mut sched = EngineScheduler::new();
     let sig = sched.create_signal();
@@ -149,7 +149,7 @@ fn instant_signal_chaining_via_engine() {
         sig: SignalId,
         log: Rc<RefCell<Vec<&'static str>>>,
     }
-    impl Engine for FiringEngine {
+    impl emEngine for FiringEngine {
         fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
             self.log.borrow_mut().push("A_fires");
             ctx.fire(self.sig);
@@ -197,7 +197,7 @@ fn is_signaled_distinguishes_signals() {
         a_fired: Rc<RefCell<bool>>,
         b_fired: Rc<RefCell<bool>>,
     }
-    impl Engine for CheckSignalEngine {
+    impl emEngine for CheckSignalEngine {
         fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
             *self.a_fired.borrow_mut() = ctx.is_signaled(self.sig_a);
             *self.b_fired.borrow_mut() = ctx.is_signaled(self.sig_b);

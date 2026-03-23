@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emInput::{InputEvent, InputKey};
+use zuicchini::emCore::emInput::{emInputEvent, InputKey};
 use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
 
 use super::common::*;
@@ -57,7 +57,7 @@ fn input_mouse_hit() {
 
     // Click at (600, 300) → right half → child2
     h.input_state.set_mouse(600.0, 300.0);
-    let event = InputEvent::press(InputKey::MouseLeft).with_mouse(600.0, 300.0);
+    let event = emInputEvent::press(InputKey::MouseLeft).with_mouse(600.0, 300.0);
     h.inject_input(&event);
     h.tick();
 
@@ -102,7 +102,7 @@ fn input_key_to_focused() {
     *recv_child2.borrow_mut() = false;
 
     // Key press
-    let event = InputEvent::press(InputKey::Key('a')).with_chars("a");
+    let event = emInputEvent::press(InputKey::Key('a')).with_chars("a");
     h.inject_input(&event);
     h.tick();
 
@@ -143,12 +143,12 @@ fn input_scroll_delta() {
     *recv_child1.borrow_mut() = false;
 
     // Clear VIF chain: C++ golden generator uses DoInputToView which bypasses VIF.
-    // MouseZoomScrollVIF would consume the wheel event before it reaches panels.
+    // emMouseZoomScrollVIF would consume the wheel event before it reaches panels.
     h.vif_chain.clear();
 
     // Wheel event
     h.input_state.set_mouse(200.0, 300.0);
-    let event = InputEvent::press(InputKey::WheelUp).with_mouse(200.0, 300.0);
+    let event = emInputEvent::press(InputKey::WheelUp).with_mouse(200.0, 300.0);
     h.inject_input(&event);
     h.tick();
 
@@ -188,7 +188,7 @@ fn input_mouse_miss() {
     // Rust update_viewing maps root differently (clip starts at ~y=55), so click
     // above the clip top to achieve the same empty-space miss scenario.
     h.input_state.set_mouse(400.0, 20.0);
-    let event = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 20.0);
+    let event = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 20.0);
     h.inject_input(&event);
     h.tick();
 
@@ -234,7 +234,7 @@ fn input_nested_hit() {
 
     // Click at (100, 300) → inside gc
     h.input_state.set_mouse(100.0, 300.0);
-    let event = InputEvent::press(InputKey::MouseLeft).with_mouse(100.0, 300.0);
+    let event = emInputEvent::press(InputKey::MouseLeft).with_mouse(100.0, 300.0);
     h.inject_input(&event);
     h.tick();
 
@@ -285,18 +285,18 @@ fn input_drag_sequence() {
     // Mouse down on child1
     h.input_state.set_mouse(200.0, 300.0);
     h.input_state.press(InputKey::MouseLeft);
-    let event = InputEvent::press(InputKey::MouseLeft).with_mouse(200.0, 300.0);
+    let event = emInputEvent::press(InputKey::MouseLeft).with_mouse(200.0, 300.0);
     h.inject_input(&event);
 
     // Mouse move
     h.input_state.set_mouse(300.0, 300.0);
-    let event = InputEvent::mouse_move(InputKey::MouseLeft, 300.0, 300.0);
+    let event = emInputEvent::mouse_move(InputKey::MouseLeft, 300.0, 300.0);
     h.inject_input(&event);
 
     // Mouse up
     h.input_state.set_mouse(300.0, 300.0);
     h.input_state.release(InputKey::MouseLeft);
-    let event = InputEvent::release(InputKey::MouseLeft).with_mouse(300.0, 300.0);
+    let event = emInputEvent::release(InputKey::MouseLeft).with_mouse(300.0, 300.0);
     h.inject_input(&event);
 
     h.tick();

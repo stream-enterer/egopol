@@ -176,7 +176,7 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
 
     let mut scanlines: Vec<Vec<ScanEntry>> = vec![Vec::new(); num_scanlines];
 
-    // Process edges in reverse order, matching C++ iteration.
+    // emProcess edges in reverse order, matching C++ iteration.
     let mut x0 = vertices[0].0;
     let mut y0_iter = vertices[0].1;
 
@@ -286,7 +286,7 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
             }
         }
 
-        // Process main segment, then any extra vertical segments from x-clipping.
+        // emProcess main segment, then any extra vertical segments from x-clipping.
         loop {
             let dy = y2 - y1;
             if dy >= 0.0001 {

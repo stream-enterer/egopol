@@ -1,43 +1,43 @@
-//! Systematic interaction test for Button at 1x and 2x zoom, driven through
+//! Systematic interaction test for emButton at 1x and 2x zoom, driven through
 //! the full input dispatch pipeline (PipelineTestHarness).
 
 
 use std::cell::Cell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::{InputEvent, InputKey};
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey};
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emButton::Button;
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emButton::emButton;
+use zuicchini::emCore::emLook::emLook;
 
 use super::support::pipeline::PipelineTestHarness;
 
-/// Minimal PanelBehavior wrapper for Button so it can be installed into the
+/// Minimal PanelBehavior wrapper for emButton so it can be installed into the
 /// panel tree. Delegates paint/input to the underlying widget.
 struct ButtonPanel {
-    widget: Button,
+    widget: emButton,
 }
 
 impl PanelBehavior for ButtonPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.widget.paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         self.widget.input(event, state, input_state)
     }
 
-    fn get_cursor(&self) -> Cursor {
-        Cursor::Normal
+    fn get_cursor(&self) -> emCursor {
+        emCursor::Normal
     }
 
     fn is_opaque(&self) -> bool {
@@ -51,12 +51,12 @@ fn button_click_1x_and_2x() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    // 2. Create Button with on_click callback incrementing a shared counter.
+    // 2. Create emButton with on_click callback incrementing a shared counter.
     let counter = Rc::new(Cell::new(0u32));
     let counter_clone = counter.clone();
 
-    let look = Look::new();
-    let mut btn = Button::new("Systematic Test", look);
+    let look = emLook::new();
+    let mut btn = emButton::new("Systematic Test", look);
     btn.on_click = Some(Box::new(move || {
         counter_clone.set(counter_clone.get() + 1);
     }));
@@ -91,11 +91,11 @@ fn button_click_1x_and_2x() {
 }
 
 // ---------------------------------------------------------------------------
-// BP-9: Button state machine behavioral parity tests
+// BP-9: emButton state machine behavioral parity tests
 // C++ ref: emButton.cpp Input() lines 73-123
 // ---------------------------------------------------------------------------
 
-/// Helper: create a PipelineTestHarness with a Button installed, returning the
+/// Helper: create a PipelineTestHarness with a emButton installed, returning the
 /// harness, panel id, click counter, and press-state log.
 ///
 /// The press-state log records `true` on press, `false` on release, so
@@ -115,8 +115,8 @@ fn make_button_harness() -> (
     let counter_c = counter.clone();
     let press_log_c = press_log.clone();
 
-    let look = Look::new();
-    let mut btn = Button::new("BP9", look);
+    let look = emLook::new();
+    let mut btn = emButton::new("BP9", look);
     btn.on_click = Some(Box::new(move || {
         counter_c.set(counter_c.get() + 1);
     }));
@@ -139,7 +139,7 @@ fn bp9_mouse_press_enters_pressed_state() {
     let (mut h, _panel_id, _counter, press_log) = make_button_harness();
 
     // Dispatch only a press (no release) at viewport center.
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
 
     let log = press_log.borrow();
@@ -169,13 +169,13 @@ fn bp9_mouse_release_outside_no_click() {
     let (mut h, _panel_id, counter, press_log) = make_button_harness();
 
     // Press at viewport center (inside button).
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
     assert_eq!(counter.get(), 0, "no click on press alone");
 
     // Release far outside the button (top-left corner of viewport, well
     // outside the panel face area).
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(0.0, 0.0);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(0.0, 0.0);
     h.dispatch(&release);
 
     assert_eq!(counter.get(), 0, "no click when release is outside button");
@@ -214,8 +214,8 @@ fn bp9_ctrl_click_rejected() {
     let (mut h, _panel_id, counter, _press_log) = make_button_harness();
 
     h.input_state.press(InputKey::Ctrl);
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
     h.dispatch(&release);
     h.input_state.release(InputKey::Ctrl);
@@ -229,8 +229,8 @@ fn bp9_alt_click_rejected() {
     let (mut h, _panel_id, counter, _press_log) = make_button_harness();
 
     h.input_state.press(InputKey::Alt);
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
     h.dispatch(&release);
     h.input_state.release(InputKey::Alt);
@@ -244,8 +244,8 @@ fn bp9_meta_click_rejected() {
     let (mut h, _panel_id, counter, _press_log) = make_button_harness();
 
     h.input_state.press(InputKey::Meta);
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
     h.dispatch(&release);
     h.input_state.release(InputKey::Meta);
@@ -259,8 +259,8 @@ fn bp9_shift_click_accepted() {
     let (mut h, _panel_id, counter, _press_log) = make_button_harness();
 
     h.input_state.press(InputKey::Shift);
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
     h.dispatch(&release);
     h.input_state.release(InputKey::Shift);
@@ -278,7 +278,7 @@ fn bp9_ctrl_enter_rejected() {
     assert_eq!(counter.get(), 1, "setup click");
 
     h.input_state.press(InputKey::Ctrl);
-    let press = InputEvent::press(InputKey::Enter);
+    let press = emInputEvent::press(InputKey::Enter);
     h.dispatch(&press);
     h.input_state.release(InputKey::Ctrl);
 
@@ -295,7 +295,7 @@ fn bp9_shift_enter_accepted() {
     assert_eq!(counter.get(), 1, "setup click");
 
     h.input_state.press(InputKey::Shift);
-    let press = InputEvent::press(InputKey::Enter);
+    let press = emInputEvent::press(InputKey::Enter);
     h.dispatch(&press);
     h.input_state.release(InputKey::Shift);
 
@@ -310,7 +310,7 @@ fn bp9_disabled_button_ignores_press() {
     // Disable the panel via the tree's enable_switch mechanism.
     h.tree.set_enable_switch(panel_id, false);
     h.tick_n(3);
-    // Re-render so Button.paint() caches enabled=false.
+    // Re-render so emButton.paint() caches enabled=false.
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
 
@@ -351,8 +351,8 @@ fn bp9_vct_min_ext_guard_mouse() {
     let counter = Rc::new(Cell::new(0u32));
     let counter_c = counter.clone();
 
-    let look = Look::new();
-    let mut btn = Button::new("Tiny", look);
+    let look = emLook::new();
+    let mut btn = emButton::new("Tiny", look);
     btn.on_click = Some(Box::new(move || {
         counter_c.set(counter_c.get() + 1);
     }));
@@ -389,8 +389,8 @@ fn bp9_vct_min_ext_guard_enter() {
     let counter = Rc::new(Cell::new(0u32));
     let counter_c = counter.clone();
 
-    let look = Look::new();
-    let mut btn = Button::new("Tiny", look);
+    let look = emLook::new();
+    let mut btn = emButton::new("Tiny", look);
     btn.on_click = Some(Box::new(move || {
         counter_c.set(counter_c.get() + 1);
     }));
@@ -425,7 +425,7 @@ fn bp9_release_without_press_is_noop() {
     let (mut h, _panel_id, counter, press_log) = make_button_harness();
 
     // Dispatch release without press.
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&release);
 
     assert_eq!(counter.get(), 0, "release without press should not fire click");

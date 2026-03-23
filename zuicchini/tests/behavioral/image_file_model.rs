@@ -1,17 +1,17 @@
 use std::path::PathBuf;
 
-use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emImage::emImage;
 use zuicchini::emCore::emFileModel::FileState;
-use zuicchini::emCore::emImageFile::{ImageFileData, ImageFileModel};
+use zuicchini::emCore::emImageFile::{ImageFileData, emImageFileModel};
 use zuicchini::emCore::emScheduler::EngineScheduler;
-use zuicchini::emCore::emImageFileImageFilePanel::ImageFilePanel;
+use zuicchini::emCore::emImageFileImageFilePanel::emImageFilePanel;
 
-fn make_model() -> ImageFileModel {
+fn make_model() -> emImageFileModel {
     let mut sched = EngineScheduler::new();
     let change = sched.create_signal();
     let update = sched.create_signal();
     let data_change = sched.create_signal();
-    ImageFileModel::new(PathBuf::from("test.png"), change, update, data_change)
+    emImageFileModel::new(PathBuf::from("test.png"), change, update, data_change)
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn set_image_changes_data() {
     m.file_model_mut().complete_load(data);
     assert!(matches!(m.state(), &FileState::Loaded));
 
-    let img = Image::new(10, 10, 4);
+    let img = emImage::new(10, 10, 4);
     let changed = m.set_image(img);
     assert!(changed);
     assert!(matches!(m.state(), &FileState::Unsaved));
@@ -65,13 +65,13 @@ fn set_image_changes_data() {
 fn set_image_same_value_no_change() {
     let mut m = make_model();
     let data = ImageFileData {
-        image: Image::new(10, 10, 4),
+        image: emImage::new(10, 10, 4),
         comment: String::new(),
         format_info: String::new(),
     };
     m.file_model_mut().complete_load(data);
 
-    let same_img = Image::new(10, 10, 4);
+    let same_img = emImage::new(10, 10, 4);
     let changed = m.set_image(same_img);
     assert!(!changed);
     assert!(matches!(m.state(), &FileState::Loaded));
@@ -92,7 +92,7 @@ fn set_comment_changes_data() {
 fn set_comment_same_value_no_change() {
     let mut m = make_model();
     let data = ImageFileData {
-        image: Image::new(0, 0, 4),
+        image: emImage::new(0, 0, 4),
         comment: "hello".to_string(),
         format_info: String::new(),
     };
@@ -117,7 +117,7 @@ fn set_format_info_changes_data() {
 fn set_format_info_same_value_no_change() {
     let mut m = make_model();
     let data = ImageFileData {
-        image: Image::new(0, 0, 4),
+        image: emImage::new(0, 0, 4),
         comment: String::new(),
         format_info: "PNG".to_string(),
     };
@@ -141,23 +141,23 @@ fn reset_data_clears() {
 #[test]
 fn set_on_no_data_returns_false() {
     let mut m = make_model();
-    assert!(!m.set_image(Image::new(5, 5, 4)));
+    assert!(!m.set_image(emImage::new(5, 5, 4)));
     assert!(!m.set_comment("test".to_string()));
     assert!(!m.set_format_info("test".to_string()));
 }
 
-// ── ImageFilePanel tests ─────────────────────────────────────────
+// ── emImageFilePanel tests ─────────────────────────────────────────
 
 #[test]
 fn essence_rect_no_image_returns_none() {
-    let panel = ImageFilePanel::new();
+    let panel = emImageFilePanel::new();
     assert!(panel.get_essence_rect(100.0, 100.0).is_none());
 }
 
 #[test]
 fn essence_rect_square_image_in_square_panel() {
-    let mut panel = ImageFilePanel::new();
-    panel.set_current_image(Some(Image::new(100, 100, 4)));
+    let mut panel = emImageFilePanel::new();
+    panel.set_current_image(Some(emImage::new(100, 100, 4)));
 
     let (x, y, w, h) = panel.get_essence_rect(200.0, 200.0).unwrap();
     assert!((x - 0.0).abs() < 1e-10);
@@ -168,8 +168,8 @@ fn essence_rect_square_image_in_square_panel() {
 
 #[test]
 fn essence_rect_landscape_image_in_square_panel() {
-    let mut panel = ImageFilePanel::new();
-    panel.set_current_image(Some(Image::new(200, 100, 4)));
+    let mut panel = emImageFilePanel::new();
+    panel.set_current_image(Some(emImage::new(200, 100, 4)));
 
     let (x, y, w, h) = panel.get_essence_rect(200.0, 200.0).unwrap();
     // Landscape image fits width, centered vertically
@@ -181,8 +181,8 @@ fn essence_rect_landscape_image_in_square_panel() {
 
 #[test]
 fn essence_rect_portrait_image_in_square_panel() {
-    let mut panel = ImageFilePanel::new();
-    panel.set_current_image(Some(Image::new(100, 200, 4)));
+    let mut panel = emImageFilePanel::new();
+    panel.set_current_image(Some(emImage::new(100, 200, 4)));
 
     let (x, y, w, h) = panel.get_essence_rect(200.0, 200.0).unwrap();
     // Portrait image fits height, centered horizontally
@@ -194,8 +194,8 @@ fn essence_rect_portrait_image_in_square_panel() {
 
 #[test]
 fn essence_rect_wide_panel() {
-    let mut panel = ImageFilePanel::new();
-    panel.set_current_image(Some(Image::new(100, 100, 4)));
+    let mut panel = emImageFilePanel::new();
+    panel.set_current_image(Some(emImage::new(100, 100, 4)));
 
     let (x, y, w, h) = panel.get_essence_rect(400.0, 200.0).unwrap();
     // Square image in wide panel: fits height
@@ -207,7 +207,7 @@ fn essence_rect_wide_panel() {
 
 #[test]
 fn essence_rect_zero_dim_image() {
-    let mut panel = ImageFilePanel::new();
-    panel.set_current_image(Some(Image::new(0, 0, 4)));
+    let mut panel = emImageFilePanel::new();
+    panel.set_current_image(Some(emImage::new(0, 0, 4)));
     assert!(panel.get_essence_rect(100.0, 100.0).is_none());
 }

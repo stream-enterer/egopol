@@ -18,12 +18,12 @@ pub enum JobState {
     Error,
 }
 
-/// A unit of deferred work managed by a `JobQueue`.
+/// A unit of deferred work managed by a `emJobQueue`.
 ///
 /// This is the Rust equivalent of the C++ `emJob`. Jobs have a priority that
 /// determines their execution order in the waiting list, and a state that
 /// tracks their lifecycle.
-pub struct Job {
+pub struct emJob {
     priority: f64,
     state: JobState,
     error_text: String,
@@ -39,11 +39,11 @@ enum QueueSlot {
     Running(usize),
 }
 
-/// Opaque handle to a job within a `JobQueue`.
+/// Opaque handle to a job within a `emJobQueue`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct JobId(usize);
 
-impl Job {
+impl emJob {
     /// Create a new job with the given priority. A signal is allocated from the
     /// scheduler for state-change notifications.
     pub fn new(priority: f64, scheduler: &mut EngineScheduler) -> Self {
@@ -83,7 +83,7 @@ impl Job {
     }
 }
 
-impl Drop for Job {
+impl Drop for emJob {
     fn drop(&mut self) {
         debug_assert!(
             self.queue_slot.is_none(),
@@ -99,9 +99,9 @@ impl Drop for Job {
 /// This is the Rust equivalent of the C++ `emJobQueue`. Jobs in the waiting
 /// list are sorted by priority (highest first). The queue maintains separate
 /// lists for waiting and running jobs.
-pub struct JobQueue {
+pub struct emJobQueue {
     /// Jobs stored by index. Indices are stable (we never remove, just mark as empty).
-    jobs: Vec<Option<Job>>,
+    jobs: Vec<Option<emJob>>,
     /// Indices into `jobs` for waiting jobs, sorted by priority (highest first).
     waiting: Vec<usize>,
     /// Indices into `jobs` for running jobs, in insertion order.
@@ -110,7 +110,7 @@ pub struct JobQueue {
     sorting_invalid: bool,
 }
 
-impl JobQueue {
+impl emJobQueue {
     /// Create a new empty job queue.
     pub fn new() -> Self {
         Self {
@@ -123,7 +123,7 @@ impl JobQueue {
 
     /// Add a job to the queue and return its handle. The job transitions to
     /// `Waiting` state and its state signal is fired.
-    pub fn enqueue(&mut self, mut job: Job, scheduler: &mut EngineScheduler) -> JobId {
+    pub fn enqueue(&mut self, mut job: emJob, scheduler: &mut EngineScheduler) -> JobId {
         let idx = self.jobs.len();
         let id = JobId(idx);
 
@@ -146,12 +146,12 @@ impl JobQueue {
     }
 
     /// Get a reference to a job by its handle.
-    pub fn get(&self, id: JobId) -> Option<&Job> {
+    pub fn get(&self, id: JobId) -> Option<&emJob> {
         self.jobs.get(id.0).and_then(|slot| slot.as_ref())
     }
 
     /// Get a mutable reference to a job by its handle.
-    pub fn get_mut(&mut self, id: JobId) -> Option<&mut Job> {
+    pub fn get_mut(&mut self, id: JobId) -> Option<&mut emJob> {
         self.jobs.get_mut(id.0).and_then(|slot| slot.as_mut())
     }
 
@@ -347,7 +347,7 @@ impl JobQueue {
     }
 }
 
-impl Default for JobQueue {
+impl Default for emJobQueue {
     fn default() -> Self {
         Self::new()
     }
@@ -360,9 +360,9 @@ mod tests {
     #[test]
     fn enqueue_and_start() {
         let mut sched = EngineScheduler::new();
-        let mut queue = JobQueue::new();
+        let mut queue = emJobQueue::new();
 
-        let job = Job::new(1.0, &mut sched);
+        let job = emJob::new(1.0, &mut sched);
         let sig = job.state_signal();
         let id = queue.enqueue(job, &mut sched);
 
@@ -382,13 +382,13 @@ mod tests {
     #[test]
     fn priority_ordering() {
         let mut sched = EngineScheduler::new();
-        let mut queue = JobQueue::new();
+        let mut queue = emJobQueue::new();
 
-        let job_low = Job::new(1.0, &mut sched);
+        let job_low = emJob::new(1.0, &mut sched);
         let sig_low = job_low.state_signal();
         let id_low = queue.enqueue(job_low, &mut sched);
 
-        let job_high = Job::new(10.0, &mut sched);
+        let job_high = emJob::new(10.0, &mut sched);
         let sig_high = job_high.state_signal();
         let id_high = queue.enqueue(job_high, &mut sched);
 
@@ -407,9 +407,9 @@ mod tests {
     #[test]
     fn fail_job_records_error() {
         let mut sched = EngineScheduler::new();
-        let mut queue = JobQueue::new();
+        let mut queue = emJobQueue::new();
 
-        let job = Job::new(1.0, &mut sched);
+        let job = emJob::new(1.0, &mut sched);
         let sig = job.state_signal();
         let id = queue.enqueue(job, &mut sched);
         queue.start_job(id, &mut sched);
@@ -425,14 +425,14 @@ mod tests {
     #[test]
     fn fail_all_jobs() {
         let mut sched = EngineScheduler::new();
-        let mut queue = JobQueue::new();
+        let mut queue = emJobQueue::new();
 
-        let job1 = Job::new(1.0, &mut sched);
+        let job1 = emJob::new(1.0, &mut sched);
         let sig1 = job1.state_signal();
         let id1 = queue.enqueue(job1, &mut sched);
         queue.start_job(id1, &mut sched);
 
-        let job2 = Job::new(2.0, &mut sched);
+        let job2 = emJob::new(2.0, &mut sched);
         let sig2 = job2.state_signal();
         let id2 = queue.enqueue(job2, &mut sched);
 
@@ -449,9 +449,9 @@ mod tests {
     #[test]
     fn abort_job() {
         let mut sched = EngineScheduler::new();
-        let mut queue = JobQueue::new();
+        let mut queue = emJobQueue::new();
 
-        let job = Job::new(1.0, &mut sched);
+        let job = emJob::new(1.0, &mut sched);
         let sig = job.state_signal();
         let id = queue.enqueue(job, &mut sched);
         queue.abort_job(id, &mut sched);

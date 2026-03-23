@@ -1,5 +1,5 @@
-use crate::emCore::emColor::Color;
-pub use super::emStrokeEnd::{StrokeEnd, StrokeEndType};
+use crate::emCore::emColor::emColor;
+pub use super::emStrokeEnd::{emStrokeEnd, StrokeEndType};
 
 /// Line join style.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -32,21 +32,21 @@ pub enum DashType {
 
 
 
-/// Stroke properties for outlined shapes.
+/// emStroke properties for outlined shapes.
 #[derive(Clone, Debug)]
-pub struct Stroke {
-    /// Stroke color.
-    pub color: Color,
-    /// Stroke width in pixels.
+pub struct emStroke {
+    /// emStroke color.
+    pub color: emColor,
+    /// emStroke width in pixels.
     pub width: f64,
     /// Line join style.
     pub join: LineJoin,
     /// Line cap style.
     pub cap: LineCap,
     /// Start end style.
-    pub start_end: StrokeEnd,
+    pub start_end: emStrokeEnd,
     /// Finish end style.
-    pub finish_end: StrokeEnd,
+    pub finish_end: emStrokeEnd,
     /// Dash pattern: alternating on/off lengths. Empty = solid line.
     /// This is the legacy API; prefer `dash_type` + factors for C++ parity.
     pub dash_pattern: Vec<f64>,
@@ -60,15 +60,15 @@ pub struct Stroke {
     pub gap_length_factor: f64,
 }
 
-impl Default for Stroke {
+impl Default for emStroke {
     fn default() -> Self {
         Self {
-            color: Color::BLACK,
+            color: emColor::BLACK,
             width: 1.0,
             join: LineJoin::Miter,
             cap: LineCap::Butt,
-            start_end: StrokeEnd::butt(),
-            finish_end: StrokeEnd::butt(),
+            start_end: emStrokeEnd::butt(),
+            finish_end: emStrokeEnd::butt(),
             dash_pattern: Vec::new(),
             dash_offset: 0.0,
             dash_type: DashType::Solid,
@@ -78,9 +78,9 @@ impl Default for Stroke {
     }
 }
 
-impl Stroke {
+impl emStroke {
     /// Create a simple solid stroke with the given color and width.
-    pub fn new(color: Color, width: f64) -> Self {
+    pub fn new(color: emColor, width: f64) -> Self {
         Self {
             color,
             width,

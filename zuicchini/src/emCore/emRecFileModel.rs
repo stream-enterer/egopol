@@ -9,9 +9,9 @@ use crate::emCore::emRecRecord::Record;
 
 /// A file-backed model that loads and saves a `Record`-typed value as emRec.
 ///
-/// Standalone Rust port of C++ `emRecFileModel`. Does not wrap `FileModel<T>`
+/// Standalone Rust port of C++ `emRecFileModel`. Does not wrap `emFileModel<T>`
 /// to avoid self-referential borrow-checker constraints.
-pub struct RecFileModel<T: Record + Default> {
+pub struct emRecFileModel<T: Record + Default> {
     data: T,
     state: FileState,
     path: PathBuf,
@@ -24,7 +24,7 @@ pub struct RecFileModel<T: Record + Default> {
     read_buffer: Option<String>,
 }
 
-impl<T: Record + Default> RecFileModel<T> {
+impl<T: Record + Default> emRecFileModel<T> {
     pub fn new(path: PathBuf) -> Self {
         Self {
             data: T::default(),

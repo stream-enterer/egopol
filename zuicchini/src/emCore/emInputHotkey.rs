@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::emCore::emInput::InputKey;
-use crate::emCore::emInputState::InputState;
+use crate::emCore::emInputState::emInputState;
 
 /// A hotkey is a modifier+key combination.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -67,7 +67,7 @@ impl Hotkey {
     }
 
     /// Check if this hotkey matches the current input state plus a just-pressed key.
-    pub fn matches(&self, key: InputKey, state: &InputState) -> bool {
+    pub fn matches(&self, key: InputKey, state: &emInputState) -> bool {
         self.key == key
             && self.ctrl == state.ctrl()
             && self.alt == state.alt()

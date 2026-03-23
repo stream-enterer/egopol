@@ -6,10 +6,10 @@ use super::emFontCache;
 use super::emPainterInterpolation;
 use super::emPainterScanline::{self, WindingRule};
 use super::emPainterScanlineTool::{blend_scanline, blend_scanline_premul, BlendMode, InterpolationBuffer};
-use super::emStroke::{Stroke, StrokeEnd, StrokeEndType};
-use super::emTexture::{ImageExtension, ImageQuality, Texture};
-use crate::emCore::emColor::Color;
-use crate::emCore::emImage::Image;
+use super::emStroke::{emStroke, emStrokeEnd, StrokeEndType};
+use super::emTexture::{ImageExtension, ImageQuality, emTexture};
+use crate::emCore::emColor::emColor;
+use crate::emCore::emImage::emImage;
 use crate::emCore::fixed::Fixed12;
 
 /// Base multiplier for decoration size.
@@ -52,16 +52,16 @@ pub const BORDER_EDGES_ONLY: u16 = 0o757;
 /// Pre-transformed texture with coordinates in pixel space.
 /// Used internally by the textured polygon rasterizer.
 enum PixelTexture<'t> {
-    Solid(Color),
+    Solid(emColor),
     LinearGradient {
-        color_a: Color,
-        color_b: Color,
+        color_a: emColor,
+        color_b: emColor,
         start: (f64, f64),
         end: (f64, f64),
     },
     RadialGradient {
-        color_inner: Color,
-        color_outer: Color,
+        color_inner: emColor,
+        color_outer: emColor,
         /// Fixed-point base: `(center_px - 0.5) * tdx`, cast to i64.
         fp_tx: i64,
         /// Fixed-point base: `(center_py - 0.5) * tdy`, cast to i64.
@@ -71,8 +71,8 @@ enum PixelTexture<'t> {
         /// Fixed-point Y step: `(255 << 23) / pry`, cast to i64.
         fp_tdy: i64,
     },
-    Image {
-        image: &'t Image,
+    emImage {
+        image: &'t emImage,
         extension: ImageExtension,
         quality: ImageQuality,
         inv_scale_x: f64,
@@ -81,8 +81,8 @@ enum PixelTexture<'t> {
         offset_y: f64,
     },
     ImageColored {
-        image: &'t Image,
-        color: Color,
+        image: &'t emImage,
+        color: emColor,
         extension: ImageExtension,
         quality: ImageQuality,
         inv_scale_x: f64,
@@ -147,7 +147,7 @@ struct PainterState {
     /// Clip rectangle in pixel coordinates (f64, matching C++ emPainter).
     clip: ClipRect,
     /// Canvas color for canvas_blend operations.
-    canvas_color: Color,
+    canvas_color: emColor,
     /// Global alpha multiplier (0–255).
     alpha: u8,
 }
@@ -238,13 +238,13 @@ impl SubPixelEdges {
 /// Paint target: either a real image or a draw list for recording.
 pub(crate) enum PaintTarget<'a> {
     /// Direct pixel rendering to an image buffer.
-    Image(&'a mut Image),
+    emImage(&'a mut emImage),
     /// Recording mode: draw operations are captured for parallel replay.
     DrawList(&'a mut Vec<DrawOp>),
 }
 
-/// CPU software rasterizer that paints into an Image buffer.
-pub struct Painter<'a> {
+/// CPU software rasterizer that paints into an emImage buffer.
+pub struct emPainter<'a> {
     target: PaintTarget<'a>,
     target_width: u32,
     target_height: u32,
@@ -252,12 +252,12 @@ pub struct Painter<'a> {
     state_stack: Vec<PainterState>,
 }
 
-impl<'a> Painter<'a> {
+impl<'a> emPainter<'a> {
     /// Create a new painter targeting the given RGBA image.
     ///
     /// # Panics
     /// Panics if the image is not 4-channel RGBA.
-    pub fn new(target: &'a mut Image) -> Self {
+    pub fn new(target: &'a mut emImage) -> Self {
         assert_eq!(
             target.channel_count(),
             4,
@@ -266,7 +266,7 @@ impl<'a> Painter<'a> {
         let w = target.width();
         let h = target.height();
         Self {
-            target: PaintTarget::Image(target),
+            target: PaintTarget::emImage(target),
             target_width: w,
             target_height: h,
             state: PainterState {
@@ -280,7 +280,7 @@ impl<'a> Painter<'a> {
                     x2: w as f64,
                     y2: h as f64,
                 },
-                canvas_color: Color::BLACK,
+                canvas_color: emColor::BLACK,
                 alpha: 255,
             },
             state_stack: Vec::new(),
@@ -309,7 +309,7 @@ impl<'a> Painter<'a> {
                     x2: width as f64,
                     y2: height as f64,
                 },
-                canvas_color: Color::BLACK,
+                canvas_color: emColor::BLACK,
                 alpha: 255,
             },
             state_stack: Vec::new(),
@@ -318,17 +318,17 @@ impl<'a> Painter<'a> {
 
     /// Get a mutable reference to the target image.
     /// Panics if in recording mode — callers must check `is_recording()` first.
-    fn image(&mut self) -> &mut Image {
+    fn image(&mut self) -> &mut emImage {
         match &mut self.target {
-            PaintTarget::Image(img) => img,
+            PaintTarget::emImage(img) => img,
             PaintTarget::DrawList(_) => unreachable!("pixel access in recording mode"),
         }
     }
 
     /// Get an immutable reference to the target image.
-    fn image_ref(&self) -> &Image {
+    fn image_ref(&self) -> &emImage {
         match &self.target {
-            PaintTarget::Image(img) => img,
+            PaintTarget::emImage(img) => img,
             PaintTarget::DrawList(_) => unreachable!("pixel access in recording mode"),
         }
     }
@@ -367,12 +367,12 @@ impl<'a> Painter<'a> {
     }
 
     /// Get the current canvas color.
-    pub fn canvas_color(&self) -> Color {
+    pub fn canvas_color(&self) -> emColor {
         self.state.canvas_color
     }
 
     /// Set the canvas color used for canvas_blend operations.
-    pub fn set_canvas_color(&mut self, color: Color) {
+    pub fn set_canvas_color(&mut self, color: emColor) {
         self.record(DrawOp::SetCanvasColor(color));
         self.state.canvas_color = color;
     }
@@ -533,8 +533,8 @@ impl<'a> Painter<'a> {
         y: f64,
         w: f64,
         h: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
     ) {
         if w <= 0.0 || h <= 0.0 || color.a() == 0 {
             return;
@@ -644,8 +644,8 @@ impl<'a> Painter<'a> {
         cy: f64,
         rx: f64,
         ry: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
     ) {
         if rx <= 0.0 || ry <= 0.0 {
             return;
@@ -680,8 +680,8 @@ impl<'a> Painter<'a> {
         ry: f64,
         start_angle: f64,
         sweep_angle: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
     ) {
         if rx <= 0.0 || ry <= 0.0 {
             return;
@@ -741,10 +741,10 @@ impl<'a> Painter<'a> {
         y: f64,
         w: f64,
         h: f64,
-        color_a: Color,
-        color_b: Color,
+        color_a: emColor,
+        color_b: emColor,
         horizontal: bool,
-        canvas_color: Color,
+        canvas_color: emColor,
     ) {
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
@@ -810,9 +810,9 @@ impl<'a> Painter<'a> {
         cy: f64,
         rx: f64,
         ry: f64,
-        color_inner: Color,
-        color_outer: Color,
-        canvas_color: Color,
+        color_inner: emColor,
+        color_outer: emColor,
+        canvas_color: emColor,
     ) {
         if rx <= 0.0 || ry <= 0.0 {
             return;
@@ -878,8 +878,8 @@ impl<'a> Painter<'a> {
         y0: f64,
         x1: f64,
         y1: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
     ) {
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
@@ -893,7 +893,7 @@ impl<'a> Painter<'a> {
 
     /// Fill a polygon defined by a list of (x, y) vertices.
     /// Uses anti-aliased scanline rasterization with NonZero winding rule.
-    pub fn paint_polygon(&mut self, vertices: &[(f64, f64)], color: Color, canvas_color: Color) {
+    pub fn paint_polygon(&mut self, vertices: &[(f64, f64)], color: emColor, canvas_color: emColor) {
         if self.record(DrawOp::PaintPolygon {
             vertices: vertices.to_vec(),
             color,
@@ -911,8 +911,8 @@ impl<'a> Painter<'a> {
     pub fn paint_polygon_even_odd(
         &mut self,
         vertices: &[(f64, f64)],
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
     ) {
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
@@ -925,12 +925,12 @@ impl<'a> Painter<'a> {
     pub fn paint_polygon_textured(
         &mut self,
         vertices: &[(f64, f64)],
-        texture: &Texture,
-        canvas_color: Color,
+        texture: &emTexture,
+        canvas_color: emColor,
     ) {
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
-        if let Texture::SolidColor(color) = texture {
+        if let emTexture::SolidColor(color) = texture {
             self.fill_polygon_aa(vertices, *color, WindingRule::NonZero);
         } else {
             self.fill_polygon_aa_textured(vertices, texture, WindingRule::NonZero);
@@ -942,12 +942,12 @@ impl<'a> Painter<'a> {
     pub fn paint_polygon_textured_even_odd(
         &mut self,
         vertices: &[(f64, f64)],
-        texture: &Texture,
-        canvas_color: Color,
+        texture: &emTexture,
+        canvas_color: emColor,
     ) {
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
-        if let Texture::SolidColor(color) = texture {
+        if let emTexture::SolidColor(color) = texture {
             self.fill_polygon_aa(vertices, *color, WindingRule::EvenOdd);
         } else {
             self.fill_polygon_aa_textured(vertices, texture, WindingRule::EvenOdd);
@@ -959,14 +959,14 @@ impl<'a> Painter<'a> {
     pub fn paint_polygon_outlined(
         &mut self,
         vertices: &[(f64, f64)],
-        stroke_color: Color,
+        stroke_color: emColor,
         thickness: f64,
-        canvas_color: Color,
+        canvas_color: emColor,
     ) {
         if vertices.len() < 2 {
             return;
         }
-        let stroke = Stroke::new(stroke_color, thickness);
+        let stroke = emStroke::new(stroke_color, thickness);
         self.paint_polyline_without_arrows(vertices, &stroke, true, canvas_color);
     }
 
@@ -974,9 +974,9 @@ impl<'a> Painter<'a> {
     pub fn paint_polyline(
         &mut self,
         vertices: &[(f64, f64)],
-        stroke_color: Color,
+        stroke_color: emColor,
         thickness: f64,
-        canvas_color: Color,
+        canvas_color: emColor,
     ) {
         if vertices.len() < 2 {
             return;
@@ -1008,7 +1008,7 @@ impl<'a> Painter<'a> {
 
     /// Fill a rounded rectangle using AA polygon approximation.
     /// Reads canvas_color from painter state (set by caller).
-    pub fn paint_round_rect(&mut self, x: f64, y: f64, w: f64, h: f64, radius: f64, color: Color) {
+    pub fn paint_round_rect(&mut self, x: f64, y: f64, w: f64, h: f64, radius: f64, color: emColor) {
         if self.record(DrawOp::PaintRoundRect {
             x,
             y,
@@ -1028,10 +1028,10 @@ impl<'a> Painter<'a> {
 
     /// Draw a source image at the given position (convenience wrapper).
     /// Draws at 1:1 scale with full opacity and no canvas color.
-    pub fn paint_image(&mut self, x: f64, y: f64, image: &Image) {
+    pub fn paint_image(&mut self, x: f64, y: f64, image: &emImage) {
         let iw = image.width() as f64 / self.state.scale_x;
         let ih = image.height() as f64 / self.state.scale_y;
-        self.paint_image_full(x, y, iw, ih, image, 255, Color::TRANSPARENT);
+        self.paint_image_full(x, y, iw, ih, image, 255, emColor::TRANSPARENT);
     }
 
     /// Draw a source image scaled to fill a destination rectangle with alpha
@@ -1043,9 +1043,9 @@ impl<'a> Painter<'a> {
         y: f64,
         w: f64,
         h: f64,
-        image: &Image,
+        image: &emImage,
         alpha: u8,
-        canvas_color: Color,
+        canvas_color: emColor,
     ) {
         if image.channel_count() != 4 || w <= 0.0 || h <= 0.0 || alpha == 0 {
             return;
@@ -1055,7 +1055,7 @@ impl<'a> Painter<'a> {
             y,
             w,
             h,
-            image_ptr: image as *const Image,
+            image_ptr: image as *const emImage,
             alpha,
             canvas_color,
         }) {
@@ -1234,7 +1234,7 @@ impl<'a> Painter<'a> {
 
     /// Draw an image with two-color mapping and canvas color support.
     /// Pixel luminance maps linearly from `color1` (at 0) to `color2` (at 255).
-    /// For single-color alpha mask behavior, pass `Color::TRANSPARENT` as color1.
+    /// For single-color alpha mask behavior, pass `emColor::TRANSPARENT` as color1.
     /// Source region is (src_x, src_y, src_w, src_h) within the image.
     /// Matches C++ `PaintImageColored(x, y, w, h, img, color1, color2, canvasColor)`.
     #[allow(clippy::too_many_arguments)]
@@ -1244,14 +1244,14 @@ impl<'a> Painter<'a> {
         y: f64,
         w: f64,
         h: f64,
-        image: &Image,
+        image: &emImage,
         src_x: u32,
         src_y: u32,
         src_w: u32,
         src_h: u32,
-        color1: Color,
-        color2: Color,
-        canvas_color: Color,
+        color1: emColor,
+        color2: emColor,
+        canvas_color: emColor,
         extension: ImageExtension,
     ) {
         if self.record(DrawOp::PaintImageColored {
@@ -1259,7 +1259,7 @@ impl<'a> Painter<'a> {
             y,
             w,
             h,
-            image_ptr: image as *const Image,
+            image_ptr: image as *const emImage,
             src_x,
             src_y,
             src_w,
@@ -1314,14 +1314,14 @@ impl<'a> Painter<'a> {
         let ext = extension.resolve_for_colored(color1, color2);
 
         // Helper: lum -> color mapping (shared between downscaling and non-downscaling paths).
-        let lum_to_color = |lum: u8| -> Color {
+        let lum_to_color = |lum: u8| -> emColor {
             if color1.is_transparent() {
                 let a = (lum as u32 * color2.a() as u32 + 127) / 255;
-                Color::rgba(color2.r(), color2.g(), color2.b(), a as u8)
+                emColor::rgba(color2.r(), color2.g(), color2.b(), a as u8)
             } else if color2.is_transparent() {
                 let inv = 255 - lum;
                 let a = (inv as u32 * color1.a() as u32 + 127) / 255;
-                Color::rgba(color1.r(), color1.g(), color1.b(), a as u8)
+                emColor::rgba(color1.r(), color1.g(), color1.b(), a as u8)
             } else {
                 let t = lum as f64 / 255.0;
                 color1.lerp(color2, t)
@@ -1500,8 +1500,8 @@ impl<'a> Painter<'a> {
         text: &str,
         char_height: f64,
         width_scale: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
     ) {
         if text.is_empty() || char_height <= 0.0 || color.a() == 0 {
             return;
@@ -1580,7 +1580,7 @@ impl<'a> Painter<'a> {
                 src_y,
                 src_w,
                 src_h,
-                Color::TRANSPARENT,
+                emColor::TRANSPARENT,
                 color,
                 canvas_color,
                 ImageExtension::Zero,
@@ -1601,8 +1601,8 @@ impl<'a> Painter<'a> {
         text: &str,
         char_width: f64,
         char_height: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
     ) {
         let reduced_alpha = (color.a() as u32).div_ceil(3) as u8;
         let rc = color.with_alpha(reduced_alpha);
@@ -1644,8 +1644,8 @@ impl<'a> Painter<'a> {
         h: f64,
         text: &str,
         max_char_height: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
         box_h_align: TextAlignment,
         box_v_align: VAlign,
         text_alignment: TextAlignment,
@@ -1766,8 +1766,8 @@ impl<'a> Painter<'a> {
         text: &str,
         char_height: f64,
         width_scale: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
         text_alignment: TextAlignment,
         rel_line_space: f64,
     ) {
@@ -1814,7 +1814,7 @@ impl<'a> Painter<'a> {
         y: f64,
         w: f64,
         h: f64,
-        image: &Image,
+        image: &emImage,
         quality: super::emTexture::ImageQuality,
         extension: super::emTexture::ImageExtension,
     ) {
@@ -1826,7 +1826,7 @@ impl<'a> Painter<'a> {
             y,
             w,
             h,
-            image_ptr: image as *const Image,
+            image_ptr: image as *const emImage,
             quality,
             extension,
         }) {
@@ -1917,7 +1917,7 @@ impl<'a> Painter<'a> {
     /// `points` length must be a multiple of 3. Uses stride-3 convention:
     /// segment i uses points[i*3], points[i*3+1], points[i*3+2], points[((i+1)*3) % n].
     /// The path is implicitly closed.
-    pub fn paint_bezier(&mut self, points: &[(f64, f64)], color: Color, canvas_color: Color) {
+    pub fn paint_bezier(&mut self, points: &[(f64, f64)], color: emColor, canvas_color: emColor) {
         if points.len() < 3 {
             return;
         }
@@ -1942,13 +1942,13 @@ impl<'a> Painter<'a> {
         self.state.canvas_color = saved_canvas;
     }
 
-    /// Stroke a closed Bezier path outline (tessellated to polyline, then stroked).
+    /// emStroke a closed Bezier path outline (tessellated to polyline, then stroked).
     /// Corresponds to C++ `PaintBezierOutline`: tessellates + strokes as closed path.
     pub fn paint_bezier_outline(
         &mut self,
         points: &[(f64, f64)],
-        stroke: &Stroke,
-        canvas_color: Color,
+        stroke: &emStroke,
+        canvas_color: emColor,
     ) {
         if points.len() < 3 {
             return;
@@ -1969,14 +1969,14 @@ impl<'a> Painter<'a> {
         }
     }
 
-    /// Stroke a cubic Bezier curve (tessellated to polyline).
+    /// emStroke a cubic Bezier curve (tessellated to polyline).
     /// For open paths, `points` length must be 3k+1. For closed paths, 3k.
     /// Uses stride-3 convention.
     pub fn paint_bezier_line(
         &mut self,
         points: &[(f64, f64)],
-        stroke: &Stroke,
-        canvas_color: Color,
+        stroke: &emStroke,
+        canvas_color: emColor,
     ) {
         let n = points.len();
         if n < 4 {
@@ -2028,13 +2028,13 @@ impl<'a> Painter<'a> {
         t: f64,
         r: f64,
         b: f64,
-        image: &Image,
+        image: &emImage,
         src_l: i32,
         src_t: i32,
         src_r: i32,
         src_b: i32,
         alpha: u8,
-        canvas_color: Color,
+        canvas_color: emColor,
         which_sub_rects: u16,
     ) {
         if alpha == 0 || w <= 0.0 || h <= 0.0 {
@@ -2049,7 +2049,7 @@ impl<'a> Painter<'a> {
             t,
             r,
             b,
-            image_ptr: image as *const Image,
+            image_ptr: image as *const emImage,
             src_l,
             src_t,
             src_r,
@@ -2269,14 +2269,14 @@ impl<'a> Painter<'a> {
         t: f64,
         r: f64,
         b: f64,
-        image: &Image,
+        image: &emImage,
         src_l: i32,
         src_t: i32,
         src_r: i32,
         src_b: i32,
-        color1: Color,
-        color2: Color,
-        canvas_color: Color,
+        color1: emColor,
+        color2: emColor,
+        canvas_color: emColor,
         which_sub_rects: u16,
         alpha: u8,
     ) {
@@ -2501,7 +2501,7 @@ impl<'a> Painter<'a> {
         dy: f64,
         dw: f64,
         dh: f64,
-        image: &Image,
+        image: &emImage,
         sx: f64,
         sy: f64,
         sw: f64,
@@ -2659,7 +2659,7 @@ impl<'a> Painter<'a> {
 
     // --- Ellipse/sector outline utilities ---
 
-    /// Stroke an arc of an ellipse (no radii, just the curved portion).
+    /// emStroke an arc of an ellipse (no radii, just the curved portion).
     #[allow(clippy::too_many_arguments)]
     pub fn paint_ellipse_arc(
         &mut self,
@@ -2669,8 +2669,8 @@ impl<'a> Painter<'a> {
         ry: f64,
         start_angle: f64,
         range_angle: f64,
-        stroke: &Stroke,
-        canvas_color: Color,
+        stroke: &emStroke,
+        canvas_color: emColor,
     ) {
         if rx <= 0.0 || ry <= 0.0 || stroke.width <= 0.0 {
             return;
@@ -2706,8 +2706,8 @@ impl<'a> Painter<'a> {
         ry: f64,
         start_angle: f64,
         sweep_angle: f64,
-        stroke: &Stroke,
-        canvas_color: Color,
+        stroke: &emStroke,
+        canvas_color: emColor,
     ) {
         if rx <= 0.0 || ry <= 0.0 || stroke.width <= 0.0 {
             return;
@@ -2736,7 +2736,7 @@ impl<'a> Painter<'a> {
         }
     }
 
-    /// Draw a rectangle outline. Stroke is centered on the shape boundary.
+    /// Draw a rectangle outline. emStroke is centered on the shape boundary.
     ///
     /// Matches C++ `PaintRectOutline`: for solid non-rounded strokes, builds a
     /// 10-vertex polygon (outer rect + bridge + reversed inner rect). For
@@ -2747,8 +2747,8 @@ impl<'a> Painter<'a> {
         y: f64,
         w: f64,
         h: f64,
-        stroke: &Stroke,
-        canvas_color: Color,
+        stroke: &emStroke,
+        canvas_color: emColor,
     ) {
         if self.record(DrawOp::PaintRectOutlined {
             x,
@@ -2792,7 +2792,7 @@ impl<'a> Painter<'a> {
         let iy2 = oy2 - sw;
 
         if ix1 >= ix2 || iy1 >= iy2 {
-            // Stroke fills entire rect.
+            // emStroke fills entire rect.
             self.paint_polygon(
                 &[(ox1, oy1), (ox2, oy1), (ox2, oy2), (ox1, oy2)],
                 stroke.color,
@@ -2817,7 +2817,7 @@ impl<'a> Painter<'a> {
         self.fill_polygon_aa(&poly, stroke.color, WindingRule::NonZero);
     }
 
-    /// Draw a rounded rectangle outline. Stroke is centered on the shape boundary.
+    /// Draw a rounded rectangle outline. emStroke is centered on the shape boundary.
     ///
     /// Matches C++ `PaintRoundRectOutline`: for solid strokes, builds outer +
     /// inner round-rect polygons with a bridge for NonZero winding hole.
@@ -2830,7 +2830,7 @@ impl<'a> Painter<'a> {
         w: f64,
         h: f64,
         radius: f64,
-        stroke: &Stroke,
+        stroke: &emStroke,
     ) {
         if w <= 0.0 || h <= 0.0 || stroke.width <= 0.0 {
             return;
@@ -2884,7 +2884,7 @@ impl<'a> Painter<'a> {
         self.fill_polygon_aa(&outer, stroke.color, WindingRule::NonZero);
     }
 
-    /// Draw an ellipse outline. Stroke is centered on the shape boundary.
+    /// Draw an ellipse outline. emStroke is centered on the shape boundary.
     ///
     /// Matches C++ `PaintEllipseOutline`: for solid strokes, builds
     /// outer + inner ellipse polygons with adaptive segment counts and a
@@ -2895,8 +2895,8 @@ impl<'a> Painter<'a> {
         cy: f64,
         rx: f64,
         ry: f64,
-        stroke: &Stroke,
-        canvas_color: Color,
+        stroke: &emStroke,
+        canvas_color: emColor,
     ) {
         if rx <= 0.0 || ry <= 0.0 || stroke.width <= 0.0 {
             return;
@@ -2947,8 +2947,8 @@ impl<'a> Painter<'a> {
         mut y1: f64,
         mut x2: f64,
         mut y2: f64,
-        mut color1: Color,
-        mut color2: Color,
+        mut color1: emColor,
+        mut color2: emColor,
     ) {
         // Transform to pixel coordinates.
         x1 = x1 * self.state.scale_x + self.state.offset_x;
@@ -3078,7 +3078,7 @@ impl<'a> Painter<'a> {
                             let cb =
                                 (color1.b() as f64 * w1 + color2.b() as f64 * w2).round() as u8;
                             let ca = alpha3.min(255) as u8;
-                            let correction = Color::rgba(cr, cg, cb, ca);
+                            let correction = emColor::rgba(cr, cg, cb, ca);
                             self.blend_pixel(sx, sy, correction);
                         }
                     }
@@ -3112,7 +3112,7 @@ impl<'a> Painter<'a> {
     }
 
     /// Fill the current clip rect with a solid color.
-    pub fn clear(&mut self, color: Color) {
+    pub fn clear(&mut self, color: emColor) {
         let x = self.state.clip.x1 as i32;
         let y = self.state.clip.y1 as i32;
         let w = self.state.clip.x2.ceil() as i32 - x;
@@ -3125,9 +3125,9 @@ impl<'a> Painter<'a> {
     pub fn paint_dashed_polyline(
         &mut self,
         vertices: &[(f64, f64)],
-        stroke: &Stroke,
+        stroke: &emStroke,
         closed: bool,
-        canvas_color: Color,
+        canvas_color: emColor,
     ) {
         use crate::emCore::emStroke::DashType;
 
@@ -3174,7 +3174,7 @@ impl<'a> Painter<'a> {
         }
 
         let mut current_segment: Vec<(f64, f64)> = Vec::new();
-        let dash_stroke = Stroke {
+        let dash_stroke = emStroke {
             dash_pattern: Vec::new(),
             dash_offset: 0.0,
             dash_type: DashType::Solid,
@@ -3238,7 +3238,7 @@ impl<'a> Painter<'a> {
     fn paint_dashed_polyline_fitted(
         &mut self,
         vertices: &[(f64, f64)],
-        stroke: &Stroke,
+        stroke: &emStroke,
         closed: bool,
     ) {
         use crate::emCore::emStroke::DashType;
@@ -3418,8 +3418,8 @@ impl<'a> Painter<'a> {
         solid_stroke.dash_type = DashType::Solid;
         solid_stroke.dash_pattern.clear();
 
-        let cap_end = StrokeEnd::new(StrokeEndType::Cap);
-        let butt_end = StrokeEnd::butt();
+        let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
+        let butt_end = emStrokeEnd::butt();
 
         // Walk the path, emitting dash sub-polylines.
         let mut is_in_stroke = false;
@@ -3547,9 +3547,9 @@ impl<'a> Painter<'a> {
     pub fn paint_polyline_without_arrows(
         &mut self,
         vertices: &[(f64, f64)],
-        stroke: &Stroke,
+        stroke: &emStroke,
         closed: bool,
-        canvas_color: Color,
+        canvas_color: emColor,
     ) {
         if stroke.is_dashed() {
             self.paint_dashed_polyline(vertices, stroke, closed, canvas_color);
@@ -3564,9 +3564,9 @@ impl<'a> Painter<'a> {
     pub fn paint_polyline_with_arrows(
         &mut self,
         vertices: &[(f64, f64)],
-        stroke: &Stroke,
+        stroke: &emStroke,
         closed: bool,
-        canvas_color: Color,
+        canvas_color: emColor,
     ) {
         if vertices.len() < 2 {
             return;
@@ -3738,9 +3738,9 @@ impl<'a> Painter<'a> {
     pub fn paint_solid_polyline(
         &mut self,
         vertices: &[(f64, f64)],
-        stroke: &Stroke,
+        stroke: &emStroke,
         closed: bool,
-        canvas_color: Color,
+        canvas_color: emColor,
     ) {
         if vertices.is_empty() || stroke.width <= 0.0 {
             return;
@@ -4168,8 +4168,8 @@ impl<'a> Painter<'a> {
         y0: f64,
         x1: f64,
         y1: f64,
-        stroke: &Stroke,
-        canvas_color: Color,
+        stroke: &emStroke,
+        canvas_color: emColor,
     ) {
         // For width=1 with no decorations and no rounding, simple line.
         if stroke.width <= 1.0
@@ -4193,9 +4193,9 @@ impl<'a> Painter<'a> {
     /// Corresponds to C++ `CalculateLinePointMinMaxRadius`.
     pub fn calculate_line_point_min_max_radius(
         thickness: f64,
-        stroke: &Stroke,
-        stroke_start: &StrokeEnd,
-        stroke_end: &StrokeEnd,
+        stroke: &emStroke,
+        stroke_start: &emStrokeEnd,
+        stroke_end: &emStrokeEnd,
     ) -> f64 {
         let mut r = thickness * 0.5;
         if stroke.join != super::emStroke::LineJoin::Round {
@@ -4229,8 +4229,8 @@ impl<'a> Painter<'a> {
         x2: f64,
         y2: f64,
         thickness: f64,
-        stroke: &Stroke,
-        end: &StrokeEnd,
+        stroke: &emStroke,
+        end: &emStrokeEnd,
     ) -> f64 {
         let mut r = (thickness * ARROW_BASE_SIZE * 0.5 * end.width_factor).abs();
         if r <= 1e-140 {
@@ -4371,7 +4371,7 @@ impl<'a> Painter<'a> {
                 } - l * 0.5;
                 return Self::cut_diamond(x1 - s, y1, x2 - s, y2, r, l, true);
             }
-            StrokeEndType::Stroke => {
+            StrokeEndType::emStroke => {
                 l = thickness * (end.length_factor.abs() - 1.0);
                 if l < 0.0 {
                     l = 0.0;
@@ -4597,8 +4597,8 @@ impl<'a> Painter<'a> {
         dx: f64,
         dy: f64,
         thickness: f64,
-        stroke_color: Color,
-        stroke_end: &StrokeEnd,
+        stroke_color: emColor,
+        stroke_end: &emStrokeEnd,
         rounded: bool,
     ) {
         // C++ uses fabs for r and handles negative l by flipping direction.
@@ -4618,10 +4618,10 @@ impl<'a> Painter<'a> {
             return;
         }
 
-        // Stroke for sub-drawing (outlines, open polylines).
+        // emStroke for sub-drawing (outlines, open polylines).
         // Matches C++ `arrowStroke = stroke; arrowStroke.DashType = SOLID;`.
         let arrow_stroke = {
-            let mut s = Stroke::new(stroke_color, thickness);
+            let mut s = emStroke::new(stroke_color, thickness);
             if rounded {
                 s.join = super::emStroke::LineJoin::Round;
                 s.cap = super::emStroke::LineCap::Round;
@@ -4693,8 +4693,8 @@ impl<'a> Painter<'a> {
                     (x + (s + l) * dx + r * nx, y + (s + l) * dy + r * ny),
                 ];
                 let mut line_stroke = arrow_stroke.clone();
-                line_stroke.start_end = StrokeEnd::new(StrokeEndType::Cap);
-                line_stroke.finish_end = StrokeEnd::new(StrokeEndType::Cap);
+                line_stroke.start_end = emStrokeEnd::new(StrokeEndType::Cap);
+                line_stroke.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
                 self.paint_polyline_without_arrows(
                     &verts,
                     &line_stroke,
@@ -4771,8 +4771,8 @@ impl<'a> Painter<'a> {
                     (x + s * dx - r * nx, y + s * dy - r * ny),
                 ];
                 let mut hs_stroke = arrow_stroke.clone();
-                hs_stroke.start_end = StrokeEnd::new(StrokeEndType::Cap);
-                hs_stroke.finish_end = StrokeEnd::new(StrokeEndType::Cap);
+                hs_stroke.start_end = emStrokeEnd::new(StrokeEndType::Cap);
+                hs_stroke.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
                 self.paint_polyline_without_arrows(
                     &verts,
                     &hs_stroke,
@@ -4882,8 +4882,8 @@ impl<'a> Painter<'a> {
                 ];
                 let mut hc_stroke = arrow_stroke.clone();
                 if rounded {
-                    hc_stroke.start_end = StrokeEnd::new(StrokeEndType::Cap);
-                    hc_stroke.finish_end = StrokeEnd::new(StrokeEndType::Cap);
+                    hc_stroke.start_end = emStrokeEnd::new(StrokeEndType::Cap);
+                    hc_stroke.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
                 }
                 self.paint_bezier_line(&bezier_pts, &hc_stroke, self.state.canvas_color);
             }
@@ -4950,8 +4950,8 @@ impl<'a> Painter<'a> {
                     (x + s * dx - r * nx, y + s * dy - r * ny),
                 ];
                 let mut hd_stroke = arrow_stroke.clone();
-                hd_stroke.start_end = StrokeEnd::new(StrokeEndType::Cap);
-                hd_stroke.finish_end = StrokeEnd::new(StrokeEndType::Cap);
+                hd_stroke.start_end = emStrokeEnd::new(StrokeEndType::Cap);
+                hd_stroke.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
                 self.paint_polyline_without_arrows(
                     &verts,
                     &hd_stroke,
@@ -4960,13 +4960,13 @@ impl<'a> Painter<'a> {
                 );
             }
 
-            StrokeEndType::Stroke => {
+            StrokeEndType::emStroke => {
                 let stroke_thickness = thickness * stroke_end.length_factor.abs();
                 let verts = [(x + r * nx, y + r * ny), (x - r * nx, y - r * ny)];
                 let mut st_stroke = arrow_stroke.clone();
                 st_stroke.width = stroke_thickness;
-                st_stroke.start_end = StrokeEnd::new(StrokeEndType::Cap);
-                st_stroke.finish_end = StrokeEnd::new(StrokeEndType::Cap);
+                st_stroke.start_end = emStrokeEnd::new(StrokeEndType::Cap);
+                st_stroke.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
                 self.paint_polyline_without_arrows(
                     &verts,
                     &st_stroke,
@@ -4980,7 +4980,7 @@ impl<'a> Painter<'a> {
     // --- Anti-aliased polygon fill ---
 
     /// Fill a polygon with anti-aliased edges using the scanline rasterizer.
-    fn fill_polygon_aa(&mut self, vertices: &[(f64, f64)], color: Color, rule: WindingRule) {
+    fn fill_polygon_aa(&mut self, vertices: &[(f64, f64)], color: emColor, rule: WindingRule) {
         if vertices.len() < 3 {
             return;
         }
@@ -5005,7 +5005,7 @@ impl<'a> Painter<'a> {
     }
 
     /// Blit a single AA span onto the target.
-    fn blit_span(&mut self, y: i32, span: &emPainterScanline::Span, color: Color) {
+    fn blit_span(&mut self, y: i32, span: &emPainterScanline::Span, color: emColor) {
         let tw = self.target_width as i32;
         let th = self.target_height as i32;
         if y < 0 || y >= th {
@@ -5044,7 +5044,7 @@ impl<'a> Painter<'a> {
                 // Uniform partial coverage: pre-compute alpha-adjusted color once.
                 let alpha =
                     ((color.a() as i32 * span.opacity_mid + 0x800) >> 12).clamp(0, 255) as u8;
-                let blended = Color::rgba(color.r(), color.g(), color.b(), alpha);
+                let blended = emColor::rgba(color.r(), color.g(), color.b(), alpha);
                 self.fill_span_blended(y, ix1, ix2, blended);
             }
         }
@@ -5058,13 +5058,13 @@ impl<'a> Painter<'a> {
 
     /// Blend a sampled color with sub-pixel edge coverage (0..=0x1000).
     #[inline]
-    fn blend_with_coverage(&mut self, x: i32, y: i32, color: Color, cov: i32) {
+    fn blend_with_coverage(&mut self, x: i32, y: i32, color: emColor, cov: i32) {
         if cov >= 0x1000 {
             self.blend_pixel(x, y, color);
         } else if cov > 0 {
             // C++ single-step: alpha = (color_alpha * opacity_12bit + 0x800) >> 12
             let alpha = ((color.a() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8;
-            let blended = Color::rgba(color.r(), color.g(), color.b(), alpha);
+            let blended = emColor::rgba(color.r(), color.g(), color.b(), alpha);
             self.blend_pixel(x, y, blended);
         }
     }
@@ -5072,7 +5072,7 @@ impl<'a> Painter<'a> {
     /// Same as `blend_pixel` but without clip/bounds checks.
     /// Caller must guarantee x,y are within both the clip rect and the target image.
     #[inline(always)]
-    fn blend_pixel_unchecked(&mut self, x: i32, y: i32, color: Color) {
+    fn blend_pixel_unchecked(&mut self, x: i32, y: i32, color: emColor) {
         let xu = x as u32;
         let yu = y as u32;
         if color.is_opaque() && self.state.alpha == 255 {
@@ -5091,7 +5091,7 @@ impl<'a> Painter<'a> {
                 return;
             }
             let px = self.read_pixel(xu, yu);
-            let existing = Color::rgba(px[0], px[1], px[2], px[3]);
+            let existing = emColor::rgba(px[0], px[1], px[2], px[3]);
             let result = existing.canvas_blend(color, self.state.canvas_color, combined_alpha);
             let out = self.image().pixel_mut(xu, yu);
             out[0] = result.r();
@@ -5136,12 +5136,12 @@ impl<'a> Painter<'a> {
 
     /// Same as `blend_with_coverage` but without clip/bounds checks.
     #[inline(always)]
-    fn blend_with_coverage_unchecked(&mut self, x: i32, y: i32, color: Color, cov: i32) {
+    fn blend_with_coverage_unchecked(&mut self, x: i32, y: i32, color: emColor, cov: i32) {
         if cov >= 0x1000 {
             self.blend_pixel_unchecked(x, y, color);
         } else if cov > 0 {
             let alpha = ((color.a() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8;
-            let blended = Color::rgba(color.r(), color.g(), color.b(), alpha);
+            let blended = emColor::rgba(color.r(), color.g(), color.b(), alpha);
             self.blend_pixel_unchecked(x, y, blended);
         }
     }
@@ -5150,7 +5150,7 @@ impl<'a> Painter<'a> {
     fn fill_polygon_aa_textured(
         &mut self,
         vertices: &[(f64, f64)],
-        texture: &Texture,
+        texture: &emTexture,
         rule: WindingRule,
     ) {
         if vertices.len() < 3 {
@@ -5180,11 +5180,11 @@ impl<'a> Painter<'a> {
         }
     }
 
-    /// Convert a Texture's coordinates from local space to pixel space.
-    fn build_pixel_texture<'t>(texture: &'t Texture, state: &PainterState) -> PixelTexture<'t> {
+    /// Convert a emTexture's coordinates from local space to pixel space.
+    fn build_pixel_texture<'t>(texture: &'t emTexture, state: &PainterState) -> PixelTexture<'t> {
         match texture {
-            Texture::SolidColor(c) => PixelTexture::Solid(*c),
-            Texture::LinearGradient {
+            emTexture::SolidColor(c) => PixelTexture::Solid(*c),
+            emTexture::LinearGradient {
                 color_a,
                 color_b,
                 start,
@@ -5201,7 +5201,7 @@ impl<'a> Painter<'a> {
                     end.1 * state.scale_y + state.offset_y,
                 ),
             },
-            Texture::RadialGradient {
+            emTexture::RadialGradient {
                 color_inner,
                 color_outer,
                 center,
@@ -5223,11 +5223,11 @@ impl<'a> Painter<'a> {
                     fp_tdy: ny as i64,
                 }
             }
-            Texture::Image {
+            emTexture::emImage {
                 image,
                 extension,
                 quality,
-            } => PixelTexture::Image {
+            } => PixelTexture::emImage {
                 image,
                 extension: *extension,
                 quality: *quality,
@@ -5236,7 +5236,7 @@ impl<'a> Painter<'a> {
                 offset_x: state.offset_x,
                 offset_y: state.offset_y,
             },
-            Texture::ImageColored {
+            emTexture::ImageColored {
                 image,
                 color,
                 extension,
@@ -5255,7 +5255,7 @@ impl<'a> Painter<'a> {
     }
 
     /// Sample a color from a pixel-space texture at the given pixel coordinates.
-    fn sample_pixel_texture(texture: &PixelTexture, px: f64, py: f64) -> Color {
+    fn sample_pixel_texture(texture: &PixelTexture, px: f64, py: f64) -> emColor {
         match texture {
             PixelTexture::Solid(c) => *c,
             PixelTexture::LinearGradient {
@@ -5304,7 +5304,7 @@ impl<'a> Painter<'a> {
                 // factor is 0–255: 0=center (inner), 255=edge (outer).
                 color_inner.lerp(*color_outer, factor as f64 / 255.0)
             }
-            PixelTexture::Image {
+            PixelTexture::emImage {
                 image,
                 extension,
                 quality,
@@ -5330,7 +5330,7 @@ impl<'a> Painter<'a> {
                 let lx = (px - offset_x) * inv_scale_x;
                 let ly = (py - offset_y) * inv_scale_y;
                 let sampled = Self::sample_image_at(image, lx, ly, *extension, *quality);
-                Color::rgba(
+                emColor::rgba(
                     ((sampled.r() as u32 * color.r() as u32 + 128) >> 8) as u8,
                     ((sampled.g() as u32 * color.g() as u32 + 128) >> 8) as u8,
                     ((sampled.b() as u32 * color.b() as u32 + 128) >> 8) as u8,
@@ -5342,12 +5342,12 @@ impl<'a> Painter<'a> {
 
     /// Sample an image at local coordinates using the given extension and quality.
     fn sample_image_at(
-        image: &Image,
+        image: &emImage,
         x: f64,
         y: f64,
         extension: super::emTexture::ImageExtension,
         quality: super::emTexture::ImageQuality,
-    ) -> Color {
+    ) -> emColor {
         match quality {
             super::emTexture::ImageQuality::Nearest => {
                 emPainterInterpolation::sample_nearest(image, x, y, extension)
@@ -5546,7 +5546,7 @@ impl<'a> Painter<'a> {
 
     // --- Pixel-level operations ---
 
-    fn blend_pixel(&mut self, x: i32, y: i32, color: Color) {
+    fn blend_pixel(&mut self, x: i32, y: i32, color: emColor) {
         let clip = self.state.clip;
         if (x as f64) < clip.x1
             || (x as f64) >= clip.x2
@@ -5585,7 +5585,7 @@ impl<'a> Painter<'a> {
                 return;
             }
             let px = self.read_pixel(x as u32, y as u32);
-            let existing = Color::rgba(px[0], px[1], px[2], px[3]);
+            let existing = emColor::rgba(px[0], px[1], px[2], px[3]);
             let result = existing.canvas_blend(color, self.state.canvas_color, combined_alpha);
             let out = self.image().pixel_mut(x as u32, y as u32);
             out[0] = result.r();
@@ -5640,7 +5640,7 @@ impl<'a> Painter<'a> {
     /// clip or bounds checks.  Caller must guarantee that `y` and `x1..x2`
     /// are within both the clip rect and the target image.
     #[inline]
-    fn fill_span_blended(&mut self, y: i32, x1: i32, x2: i32, color: Color) {
+    fn fill_span_blended(&mut self, y: i32, x1: i32, x2: i32, color: emColor) {
         debug_assert!(x1 >= 0 && x2 <= self.target_width as i32);
         debug_assert!(y >= 0 && y < self.target_height as i32);
         debug_assert!(x1 < x2);
@@ -5718,7 +5718,7 @@ impl<'a> Painter<'a> {
         }
     }
 
-    fn fill_rect_pixels(&mut self, x: i32, y: i32, w: i32, h: i32, color: Color) {
+    fn fill_rect_pixels(&mut self, x: i32, y: i32, w: i32, h: i32, color: emColor) {
         let cx1 = (self.state.clip.x1 as i32).max(0);
         let cy1 = (self.state.clip.y1 as i32).max(0);
         let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
@@ -5752,7 +5752,7 @@ impl<'a> Painter<'a> {
         }
     }
 
-    fn draw_line_pixels(&mut self, mut x0: i32, mut y0: i32, x1: i32, y1: i32, color: Color) {
+    fn draw_line_pixels(&mut self, mut x0: i32, mut y0: i32, x1: i32, y1: i32, color: emColor) {
         // Bresenham's line algorithm
         let dx = (x1 - x0).abs();
         let dy = -(y1 - y0).abs();
@@ -5894,42 +5894,42 @@ fn tessellate_cubic_cpp(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::emCore::emImage::Image;
+    use crate::emCore::emImage::emImage;
 
-    fn make_painter<'a>(target: &'a mut Image) -> Painter<'a> {
-        Painter::new(target)
+    fn make_painter<'a>(target: &'a mut emImage) -> emPainter<'a> {
+        emPainter::new(target)
     }
 
     #[test]
     fn edge_correction_no_crash() {
-        let mut img = Image::new(32, 32, 4);
+        let mut img = emImage::new(32, 32, 4);
         let mut p = make_painter(&mut img);
         p.paint_polygon(
             &[(0.0, 0.0), (16.0, 0.0), (16.0, 16.0)],
-            Color::RED,
-            Color::TRANSPARENT,
+            emColor::RED,
+            emColor::TRANSPARENT,
         );
         p.paint_polygon(
             &[(0.0, 0.0), (16.0, 16.0), (0.0, 16.0)],
-            Color::BLUE,
-            Color::TRANSPARENT,
+            emColor::BLUE,
+            emColor::TRANSPARENT,
         );
-        p.paint_edge_correction(0.0, 0.0, 16.0, 16.0, Color::RED, Color::BLUE);
+        p.paint_edge_correction(0.0, 0.0, 16.0, 16.0, emColor::RED, emColor::BLUE);
     }
 
     #[test]
     fn edge_correction_transparent_noop() {
-        let mut img = Image::new(16, 16, 4);
+        let mut img = emImage::new(16, 16, 4);
         let mut p = make_painter(&mut img);
-        p.paint_edge_correction(0.0, 0.0, 10.0, 10.0, Color::TRANSPARENT, Color::RED);
-        p.paint_edge_correction(0.0, 0.0, 10.0, 10.0, Color::RED, Color::TRANSPARENT);
+        p.paint_edge_correction(0.0, 0.0, 10.0, 10.0, emColor::TRANSPARENT, emColor::RED);
+        p.paint_edge_correction(0.0, 0.0, 10.0, 10.0, emColor::RED, emColor::TRANSPARENT);
     }
 
     #[test]
     fn bezier_outline_paints_pixels() {
-        let mut img = Image::new(64, 64, 4);
+        let mut img = emImage::new(64, 64, 4);
         let mut p = make_painter(&mut img);
-        let stroke = Stroke::new(Color::WHITE, 2.0);
+        let stroke = emStroke::new(emColor::WHITE, 2.0);
         // Stride-3 convention: 12 points = 4 cubic segments (closed path).
         let points = [
             (32.0, 10.0),
@@ -5945,39 +5945,39 @@ mod tests {
             (14.0, 10.0),
             (32.0, 10.0),
         ];
-        p.paint_bezier_outline(&points, &stroke, Color::TRANSPARENT);
+        p.paint_bezier_outline(&points, &stroke, emColor::TRANSPARENT);
         let px = img.pixel(32, 10);
         assert!(px[0] > 0 || px[1] > 0 || px[2] > 0);
     }
 
     #[test]
     fn line_radius_miter_no_arrow() {
-        let stroke = Stroke::new(Color::BLACK, 4.0);
-        let butt = StrokeEnd::butt();
-        let r = Painter::calculate_line_point_min_max_radius(4.0, &stroke, &butt, &butt);
+        let stroke = emStroke::new(emColor::BLACK, 4.0);
+        let butt = emStrokeEnd::butt();
+        let r = emPainter::calculate_line_point_min_max_radius(4.0, &stroke, &butt, &butt);
         assert!((r - 10.0).abs() < 0.01, "miter: expected 10.0, got {r}");
     }
 
     #[test]
     fn line_radius_round_no_arrow() {
-        let stroke = Stroke {
+        let stroke = emStroke {
             join: super::super::emStroke::LineJoin::Round,
-            ..Stroke::new(Color::BLACK, 4.0)
+            ..emStroke::new(emColor::BLACK, 4.0)
         };
-        let butt = StrokeEnd::butt();
-        let r = Painter::calculate_line_point_min_max_radius(4.0, &stroke, &butt, &butt);
+        let butt = emStrokeEnd::butt();
+        let r = emPainter::calculate_line_point_min_max_radius(4.0, &stroke, &butt, &butt);
         assert!((r - 2.0).abs() < 0.01, "round: expected 2.0, got {r}");
     }
 
     #[test]
     fn line_radius_with_arrow() {
-        let stroke = Stroke {
+        let stroke = emStroke {
             join: super::super::emStroke::LineJoin::Round,
-            ..Stroke::new(Color::BLACK, 4.0)
+            ..emStroke::new(emColor::BLACK, 4.0)
         };
-        let butt = StrokeEnd::butt();
-        let arrow = StrokeEnd::new(StrokeEndType::Arrow);
-        let r = Painter::calculate_line_point_min_max_radius(4.0, &stroke, &arrow, &butt);
+        let butt = emStrokeEnd::butt();
+        let arrow = emStrokeEnd::new(StrokeEndType::Arrow);
+        let r = emPainter::calculate_line_point_min_max_radius(4.0, &stroke, &arrow, &butt);
         let expected = (20.0f64 * 20.0 + 40.0 * 40.0).sqrt();
         assert!(
             (r - expected).abs() < 0.1,
@@ -5987,18 +5987,18 @@ mod tests {
 
     #[test]
     fn polyline_without_arrows_solid() {
-        let mut img = Image::new(32, 32, 4);
+        let mut img = emImage::new(32, 32, 4);
         let mut p = make_painter(&mut img);
-        let stroke = Stroke::new(Color::WHITE, 2.0);
+        let stroke = emStroke::new(emColor::WHITE, 2.0);
         let verts = [(5.0, 5.0), (25.0, 5.0), (25.0, 25.0)];
-        p.paint_polyline_without_arrows(&verts, &stroke, false, Color::TRANSPARENT);
+        p.paint_polyline_without_arrows(&verts, &stroke, false, emColor::TRANSPARENT);
         let px = img.pixel(15, 5);
         assert!(px[0] > 0, "solid polyline should paint pixels");
     }
 
     #[test]
     fn paint_image_scaled_bilinear() {
-        let mut src = Image::new(4, 4, 4);
+        let mut src = emImage::new(4, 4, 4);
         for y in 0..4u32 {
             for x in 0..4u32 {
                 let v = ((x + y) * 32) as u8;
@@ -6009,7 +6009,7 @@ mod tests {
                 p[3] = 255;
             }
         }
-        let mut img = Image::new(16, 16, 4);
+        let mut img = emImage::new(16, 16, 4);
         let mut p = make_painter(&mut img);
         p.paint_image_scaled(
             0.0,
@@ -6027,23 +6027,23 @@ mod tests {
 
     #[test]
     fn paint_radial_gradient_fills() {
-        let mut img = Image::new(32, 32, 4);
+        let mut img = emImage::new(32, 32, 4);
         let mut p = make_painter(&mut img);
         p.paint_radial_gradient(
             16.0,
             16.0,
             12.0,
             12.0,
-            Color::WHITE,
-            Color::BLACK,
-            Color::TRANSPARENT,
+            emColor::WHITE,
+            emColor::BLACK,
+            emColor::TRANSPARENT,
         );
         let center = img.pixel(16, 16);
         assert!(center[0] > 200, "center should be near white");
     }
 
-    fn make_gradient_src() -> Image {
-        let mut src = Image::new(8, 8, 4);
+    fn make_gradient_src() -> emImage {
+        let mut src = emImage::new(8, 8, 4);
         for y in 0..8u32 {
             for x in 0..8u32 {
                 let v = ((x + y) * 16).min(255) as u8;
@@ -6060,7 +6060,7 @@ mod tests {
     #[test]
     fn paint_image_scaled_bicubic() {
         let src = make_gradient_src();
-        let mut img = Image::new(32, 32, 4);
+        let mut img = emImage::new(32, 32, 4);
         let mut p = make_painter(&mut img);
         p.paint_image_scaled(
             0.0,
@@ -6078,7 +6078,7 @@ mod tests {
     #[test]
     fn paint_image_scaled_lanczos() {
         let src = make_gradient_src();
-        let mut img = Image::new(32, 32, 4);
+        let mut img = emImage::new(32, 32, 4);
         let mut p = make_painter(&mut img);
         p.paint_image_scaled(
             0.0,
@@ -6096,7 +6096,7 @@ mod tests {
     #[test]
     fn paint_image_scaled_adaptive() {
         let src = make_gradient_src();
-        let mut img = Image::new(32, 32, 4);
+        let mut img = emImage::new(32, 32, 4);
         let mut p = make_painter(&mut img);
         p.paint_image_scaled(
             0.0,
@@ -6114,7 +6114,7 @@ mod tests {
     #[test]
     fn paint_image_scaled_area_sampled() {
         let src = make_gradient_src();
-        let mut img = Image::new(4, 4, 4);
+        let mut img = emImage::new(4, 4, 4);
         let mut p = make_painter(&mut img);
         // Downscale: 8x8 -> 4x4 (area sampling)
         p.paint_image_scaled(
@@ -6136,29 +6136,29 @@ mod tests {
     #[test]
     fn draw_list_replay_matches_direct() {
         use crate::emCore::emPainterDrawList::DrawList;
-        use crate::emCore::emRenderThreadPool::RenderThreadPool;
+        use crate::emCore::emRenderThreadPool::emRenderThreadPool;
 
         let w = 64u32;
         let h = 64u32;
 
         // --- Direct rendering (single-threaded, no recording) ---
-        let mut direct_img = Image::new(w, h, 4);
-        direct_img.fill(crate::emCore::emColor::Color::BLACK);
+        let mut direct_img = emImage::new(w, h, 4);
+        direct_img.fill(crate::emCore::emColor::emColor::BLACK);
         {
-            let mut p = Painter::new(&mut direct_img);
+            let mut p = emPainter::new(&mut direct_img);
             draw_test_scene(&mut p);
         }
 
         // --- Recording + single-tile replay ---
         let mut draw_list = DrawList::new();
         {
-            let mut rec = Painter::new_recording(w, h, draw_list.ops_mut());
+            let mut rec = emPainter::new_recording(w, h, draw_list.ops_mut());
             draw_test_scene(&mut rec);
         }
-        let mut replay_img = Image::new(w, h, 4);
-        replay_img.fill(crate::emCore::emColor::Color::BLACK);
+        let mut replay_img = emImage::new(w, h, 4);
+        replay_img.fill(crate::emCore::emColor::emColor::BLACK);
         {
-            let mut p = Painter::new(&mut replay_img);
+            let mut p = emPainter::new(&mut replay_img);
             draw_list.replay(&mut p, (0.0, 0.0));
         }
 
@@ -6170,7 +6170,7 @@ mod tests {
 
         // --- Multi-threaded replay (thread counts 1, 2, 4) ---
         for thread_count in [1, 2, 4] {
-            let pool = RenderThreadPool::new(thread_count);
+            let pool = emRenderThreadPool::new(thread_count);
             // Split into 4 tiles of 32x32
             let tile_size = 32u32;
             let cols = w / tile_size;
@@ -6178,9 +6178,9 @@ mod tests {
             let tiles: Vec<(u32, u32)> = (0..rows)
                 .flat_map(|r| (0..cols).map(move |c| (c, r)))
                 .collect();
-            let results: Vec<std::sync::Mutex<Option<Image>>> = tiles
+            let results: Vec<std::sync::Mutex<Option<emImage>>> = tiles
                 .iter()
-                .map(|_| std::sync::Mutex::new(None::<Image>))
+                .map(|_| std::sync::Mutex::new(None::<emImage>))
                 .collect();
             let results_ref = &results;
             let tiles_ref = &tiles;
@@ -6190,10 +6190,10 @@ mod tests {
             pool.call_parallel(
                 |idx| {
                     let (col, row) = tiles_ref[idx];
-                    let mut buf = Image::new(tile_size, tile_size, 4);
-                    buf.fill(crate::emCore::emColor::Color::BLACK);
+                    let mut buf = emImage::new(tile_size, tile_size, 4);
+                    buf.fill(crate::emCore::emColor::emColor::BLACK);
                     {
-                        let mut p = Painter::new(&mut buf);
+                        let mut p = emPainter::new(&mut buf);
                         draw_list_ref.replay(&mut p, (col as f64 * ts, row as f64 * ts));
                     }
                     *results_ref[idx].lock().unwrap() = Some(buf);
@@ -6202,8 +6202,8 @@ mod tests {
             );
 
             // Reconstruct the full image from tiles
-            let mut composed = Image::new(w, h, 4);
-            composed.fill(crate::emCore::emColor::Color::BLACK);
+            let mut composed = emImage::new(w, h, 4);
+            composed.fill(crate::emCore::emColor::emColor::BLACK);
             for (idx, (col, row)) in tiles.iter().enumerate() {
                 let tile_buf = results[idx].lock().unwrap();
                 let tile = tile_buf.as_ref().unwrap();
@@ -6225,15 +6225,15 @@ mod tests {
     }
 
     /// Draw a test scene with various primitives for recording/replay testing.
-    fn draw_test_scene(p: &mut Painter) {
-        let red = Color::rgba(255, 0, 0, 255);
-        let green = Color::rgba(0, 255, 0, 200);
-        let blue = Color::rgba(0, 0, 255, 180);
-        let white = Color::rgba(255, 255, 255, 255);
-        let canvas = Color::rgba(50, 50, 50, 255);
+    fn draw_test_scene(p: &mut emPainter) {
+        let red = emColor::rgba(255, 0, 0, 255);
+        let green = emColor::rgba(0, 255, 0, 200);
+        let blue = emColor::rgba(0, 0, 255, 180);
+        let white = emColor::rgba(255, 255, 255, 255);
+        let canvas = emColor::rgba(50, 50, 50, 255);
 
         // Background
-        p.paint_rect(0.0, 0.0, 64.0, 64.0, canvas, Color::BLACK);
+        p.paint_rect(0.0, 0.0, 64.0, 64.0, canvas, emColor::BLACK);
 
         // Overlapping rectangles with transparency
         p.push_state();

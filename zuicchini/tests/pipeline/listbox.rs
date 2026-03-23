@@ -1,4 +1,4 @@
-//! Systematic interaction test for ListBox at 1x and 2x zoom, driven through
+//! Systematic interaction test for emListBox at 1x and 2x zoom, driven through
 //! the full input dispatch pipeline (PipelineTestHarness).
 //!
 //! Verifies that clicking on different items selects the correct item at both
@@ -9,37 +9,37 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::{InputEvent, InputKey};
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey};
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
+use zuicchini::emCore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 
-use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
+use zuicchini::emCore::emListBox::{emListBox, SelectionMode};
 
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emLook::emLook;
 
 use super::support::pipeline::PipelineTestHarness;
 
-/// PanelBehavior wrapper for ListBox, allowing shared access via Rc<RefCell>.
+/// PanelBehavior wrapper for emListBox, allowing shared access via Rc<RefCell>.
 ///
 /// Copied from `behavioral_interaction.rs` SharedListBoxPanel pattern.
 struct SharedListBoxPanel {
-    inner: Rc<RefCell<ListBox>>,
+    inner: Rc<RefCell<emListBox>>,
 }
 
 impl PanelBehavior for SharedListBoxPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.inner.borrow_mut().paint(painter, w, h);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         self.inner.borrow_mut().input(event, state, input_state)
     }
@@ -59,17 +59,17 @@ impl PanelBehavior for SharedListBoxPanel {
         true
     }
 
-    fn get_cursor(&self) -> Cursor {
-        Cursor::Normal
+    fn get_cursor(&self) -> emCursor {
+        emCursor::Normal
     }
 }
 
 /// Compute the view-space Y coordinate for the vertical center of item `n`
-/// (0-indexed) in a ListBox with `item_count` items.
+/// (0-indexed) in a emListBox with `item_count` items.
 ///
 /// The items are positioned within the border's content rect in panel-local
 /// space (x in [0,1], y in [0,tallness]). This function:
-///   1. Constructs a border matching ListBox's default config
+///   1. Constructs a border matching emListBox's default config
 ///   2. Queries content_rect_unobscured in normalized panel-local space
 ///   3. Computes item N's center within the content rect
 ///   4. Maps the panel-local coordinate to view space using the viewed rect
@@ -79,10 +79,10 @@ fn item_center_view_y(
     n: usize,
     item_count: usize,
 ) -> f64 {
-    let look = Look::new();
+    let look = emLook::new();
 
-    // Reconstruct the border with the same config as ListBox::new.
-    let border = Border::new(OuterBorderType::Instrument)
+    // Reconstruct the border with the same config as emListBox::new.
+    let border = emBorder::new(OuterBorderType::Instrument)
         .with_inner(InnerBorderType::InputField)
         .with_how_to(true);
 
@@ -106,8 +106,8 @@ fn content_center_view_x(
     vr: &zuicchini::emCore::rect::Rect,
     pixel_tallness: f64,
 ) -> f64 {
-    let look = Look::new();
-    let border = Border::new(OuterBorderType::Instrument)
+    let look = emLook::new();
+    let border = emBorder::new(OuterBorderType::Instrument)
         .with_inner(InnerBorderType::InputField)
         .with_how_to(true);
 
@@ -124,9 +124,9 @@ fn listbox_click_items_1x_and_2x() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    // 2. Create ListBox with 5 items, SelectionMode::Single.
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    // 2. Create emListBox with 5 items, SelectionMode::Single.
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_selection_mode(SelectionMode::Single);
     lb.add_item("item0".to_string(), "Alpha".to_string());
     lb.add_item("item1".to_string(), "Beta".to_string());
@@ -225,7 +225,7 @@ fn listbox_click_items_1x_and_2x() {
     );
 }
 
-// ── BP-1: ListBox selection mode behavioral parity tests ─────────────────
+// ── BP-1: emListBox selection mode behavioral parity tests ─────────────────
 //
 // These tests exercise every branch in C++ emListBox::SelectByInput across
 // all four SelectionMode variants (ReadOnly, Single, Multi, Toggle), driven
@@ -234,14 +234,14 @@ fn listbox_click_items_1x_and_2x() {
 // C++ ref: emListBox.cpp:786-848 (SelectByInput)
 //          emListBox.cpp:751-783 (ProcessItemInput)
 
-/// Helper: create a PipelineTestHarness with a ListBox containing 5 items
+/// Helper: create a PipelineTestHarness with a emListBox containing 5 items
 /// in the given SelectionMode, render once to populate geometry, and return
 /// (harness, lb_ref, panel_id, click_x, item_ys).
 fn setup_listbox_harness(
     mode: SelectionMode,
 ) -> (
     PipelineTestHarness,
-    Rc<RefCell<ListBox>>,
+    Rc<RefCell<emListBox>>,
     zuicchini::emCore::emPanelTree::PanelId,
     f64,
     [f64; 5],
@@ -249,8 +249,8 @@ fn setup_listbox_harness(
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_selection_mode(mode);
     lb.add_item("i0".to_string(), "Alpha".to_string());
     lb.add_item("i1".to_string(), "Beta".to_string());
@@ -531,15 +531,15 @@ fn listbox_readonly_rejects_ctrl_click() {
 /// rapid second click.
 fn double_click(h: &mut PipelineTestHarness, view_x: f64, view_y: f64) {
     // First click (repeat=0).
-    let press1 = InputEvent::press(InputKey::MouseLeft).with_mouse(view_x, view_y);
-    let release1 = InputEvent::release(InputKey::MouseLeft).with_mouse(view_x, view_y);
+    let press1 = emInputEvent::press(InputKey::MouseLeft).with_mouse(view_x, view_y);
+    let release1 = emInputEvent::release(InputKey::MouseLeft).with_mouse(view_x, view_y);
     h.dispatch(&press1);
     h.dispatch(&release1);
     // Second click (repeat=1 = double-click).
-    let press2 = InputEvent::press(InputKey::MouseLeft)
+    let press2 = emInputEvent::press(InputKey::MouseLeft)
         .with_mouse(view_x, view_y)
         .with_repeat(1);
-    let release2 = InputEvent::release(InputKey::MouseLeft).with_mouse(view_x, view_y);
+    let release2 = emInputEvent::release(InputKey::MouseLeft).with_mouse(view_x, view_y);
     h.dispatch(&press2);
     h.dispatch(&release2);
 }
@@ -654,9 +654,9 @@ fn listbox_multi_ctrl_a_selects_all() {
     h.click(cx, ys[0]);
 
     h.input_state.press(InputKey::Ctrl);
-    let press = InputEvent::press(InputKey::Key('a')).with_chars("a");
+    let press = emInputEvent::press(InputKey::Key('a')).with_chars("a");
     h.dispatch(&press);
-    let release = InputEvent::release(InputKey::Key('a'));
+    let release = emInputEvent::release(InputKey::Key('a'));
     h.dispatch(&release);
     h.input_state.release(InputKey::Ctrl);
 
@@ -674,9 +674,9 @@ fn listbox_multi_shift_ctrl_a_clears() {
 
     h.input_state.press(InputKey::Shift);
     h.input_state.press(InputKey::Ctrl);
-    let press = InputEvent::press(InputKey::Key('a')).with_chars("a");
+    let press = emInputEvent::press(InputKey::Key('a')).with_chars("a");
     h.dispatch(&press);
-    let release = InputEvent::release(InputKey::Key('a'));
+    let release = emInputEvent::release(InputKey::Key('a'));
     h.dispatch(&release);
     h.input_state.release(InputKey::Shift);
     h.input_state.release(InputKey::Ctrl);
@@ -692,9 +692,9 @@ fn listbox_toggle_ctrl_a_selects_all() {
     h.click(cx, ys[0]);
 
     h.input_state.press(InputKey::Ctrl);
-    let press = InputEvent::press(InputKey::Key('a')).with_chars("a");
+    let press = emInputEvent::press(InputKey::Key('a')).with_chars("a");
     h.dispatch(&press);
-    let release = InputEvent::release(InputKey::Key('a'));
+    let release = emInputEvent::release(InputKey::Key('a'));
     h.dispatch(&release);
     h.input_state.release(InputKey::Ctrl);
 
@@ -710,9 +710,9 @@ fn listbox_single_ctrl_a_no_effect() {
     assert_eq!(lb.borrow().selected_indices(), &[1]);
 
     h.input_state.press(InputKey::Ctrl);
-    let press = InputEvent::press(InputKey::Key('a')).with_chars("a");
+    let press = emInputEvent::press(InputKey::Key('a')).with_chars("a");
     h.dispatch(&press);
-    let release = InputEvent::release(InputKey::Key('a'));
+    let release = emInputEvent::release(InputKey::Key('a'));
     h.dispatch(&release);
     h.input_state.release(InputKey::Ctrl);
 
@@ -799,7 +799,7 @@ fn listbox_multi_ctrl_space_toggles() {
     assert!(!lb.borrow().is_selected(1), "Ctrl+Space toggles off in Multi");
 }
 
-// ── BP-2: ListBox keywalk (type-ahead search) behavioral parity tests ────
+// ── BP-2: emListBox keywalk (type-ahead search) behavioral parity tests ────
 //
 // These tests verify the keywalk/type-to-search behavior matching C++
 // emListBox::KeyWalk (emListBox.cpp:851-927).
@@ -819,7 +819,7 @@ fn setup_keywalk_harness(
     items: &[&str],
 ) -> (
     PipelineTestHarness,
-    Rc<RefCell<ListBox>>,
+    Rc<RefCell<emListBox>>,
     zuicchini::emCore::emPanelTree::PanelId,
     f64,
     f64,
@@ -827,8 +827,8 @@ fn setup_keywalk_harness(
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_selection_mode(SelectionMode::Single);
     for (i, text) in items.iter().enumerate() {
         lb.add_item(format!("item{}", i), text.to_string());
@@ -1105,8 +1105,8 @@ fn listbox_keywalk_readonly_no_selection_change() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_selection_mode(SelectionMode::ReadOnly);
     lb.add_item("i0".to_string(), "Apple".to_string());
     lb.add_item("i1".to_string(), "Banana".to_string());
@@ -1190,9 +1190,9 @@ fn listbox_keywalk_timeout_clears_accumulator() {
     );
 }
 
-// ── BP-3: ListBox keyboard navigation (arrow keys) behavioral parity tests ──
+// ── BP-3: emListBox keyboard navigation (arrow keys) behavioral parity tests ──
 //
-// The Rust ListBox adds arrow-key focus navigation that is NOT present in the
+// The Rust emListBox adds arrow-key focus navigation that is NOT present in the
 // C++ emListBox (which relies on mouse clicks and keywalk only). These tests
 // verify the Rust-specific arrow key behavior through the full pipeline.
 //
@@ -1411,7 +1411,7 @@ fn listbox_arrow_then_space_selects_focused_multi() {
 #[test]
 fn listbox_home_jumps_to_first() {
     // Home key should move focus to the first item.
-    // Not implemented in Rust ListBox::input() — the C++ emListBox also does
+    // Not implemented in Rust emListBox::input() — the C++ emListBox also does
     // not handle Home/End.
     let (mut h, lb, _pid, cx, ys) = setup_listbox_harness(SelectionMode::Single);
 
@@ -1425,7 +1425,7 @@ fn listbox_home_jumps_to_first() {
 #[test]
 fn listbox_end_jumps_to_last() {
     // End key should move focus to the last item.
-    // Not implemented in Rust ListBox::input() — the C++ emListBox also does
+    // Not implemented in Rust emListBox::input() — the C++ emListBox also does
     // not handle Home/End.
     let (mut h, lb, _pid, cx, ys) = setup_listbox_harness(SelectionMode::Single);
 

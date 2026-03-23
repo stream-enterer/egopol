@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use crate::emCore::emClipboard::Clipboard;
+use crate::emCore::emClipboard::emClipboard;
 
 /// Key for the model registry: (concrete type, name).
 ///
@@ -29,22 +29,22 @@ struct ModelEntry {
 /// Models can be *registered* (common) so they are discoverable by
 /// `(TypeId, name)`. Unregistered (private) models are not stored here.
 ///
-/// Typed singletons (e.g. `Clipboard`, `CoreConfig`) are added as
+/// Typed singletons (e.g. `emClipboard`, `emCoreConfig`) are added as
 /// `RefCell<Option<Rc<T>>>` fields with getter methods that walk the parent
 /// chain (inherited lookup). Dynamic resources use `ResourceCache<V>` stored
 /// as typed singletons.
 ///
 /// Children are stored as `Weak` references to avoid memory leaks.
-/// The child `Rc` is owned by whoever created it (typically a View or Panel).
-pub struct Context {
-    parent: Option<Weak<Context>>,
-    children: RefCell<Vec<Weak<Context>>>,
-    clipboard: RefCell<Option<Rc<RefCell<dyn Clipboard>>>>,
+/// The child `Rc` is owned by whoever created it (typically a emView or Panel).
+pub struct emContext {
+    parent: Option<Weak<emContext>>,
+    children: RefCell<Vec<Weak<emContext>>>,
+    clipboard: RefCell<Option<Rc<RefCell<dyn emClipboard>>>>,
     /// Registry of common (named) models, keyed by `(TypeId, name)`.
     registry: RefCell<HashMap<ModelKey, ModelEntry>>,
 }
 
-impl Context {
+impl emContext {
     pub fn new_root() -> Rc<Self> {
         Rc::new(Self {
             parent: None,
@@ -54,7 +54,7 @@ impl Context {
         })
     }
 
-    pub fn new_child(parent: &Rc<Context>) -> Rc<Self> {
+    pub fn new_child(parent: &Rc<emContext>) -> Rc<Self> {
         let child = Rc::new(Self {
             parent: Some(Rc::downgrade(parent)),
             children: RefCell::new(Vec::new()),
@@ -65,7 +65,7 @@ impl Context {
         child
     }
 
-    pub fn parent(&self) -> Option<Rc<Context>> {
+    pub fn parent(&self) -> Option<Rc<emContext>> {
         self.parent.as_ref().and_then(|w| w.upgrade())
     }
 
@@ -84,13 +84,13 @@ impl Context {
     }
 
     /// Install a clipboard into this context node.
-    pub fn set_clipboard(&self, clipboard: Rc<RefCell<dyn Clipboard>>) {
+    pub fn set_clipboard(&self, clipboard: Rc<RefCell<dyn emClipboard>>) {
         *self.clipboard.borrow_mut() = Some(clipboard);
     }
 
-    /// Look up the installed clipboard by walking the parent chain.
+    /// emLook up the installed clipboard by walking the parent chain.
     /// Port of C++ emClipboard::LookupInherited.
-    pub fn lookup_clipboard(&self) -> Option<Rc<RefCell<dyn Clipboard>>> {
+    pub fn lookup_clipboard(&self) -> Option<Rc<RefCell<dyn emClipboard>>> {
         if let Some(cb) = self.clipboard.borrow().as_ref() {
             return Some(Rc::clone(cb));
         }
@@ -158,7 +158,7 @@ impl Context {
         self.registry.borrow().contains_key(&key)
     }
 
-    /// Look up a registered model by type and name in this context only.
+    /// emLook up a registered model by type and name in this context only.
     ///
     /// Port of C++ `emContext::Lookup(typeid(T), name)`.
     /// Returns `None` if not found.
@@ -175,7 +175,7 @@ impl Context {
         })
     }
 
-    /// Look up a registered model by walking up the parent chain.
+    /// emLook up a registered model by walking up the parent chain.
     ///
     /// Port of C++ `emContext::LookupInherited`.
     pub fn lookup_inherited<T: 'static>(&self, name: &str) -> Option<Rc<RefCell<T>>> {
@@ -188,7 +188,7 @@ impl Context {
         None
     }
 
-    /// Look up a registered model, or create and register it if absent.
+    /// emLook up a registered model, or create and register it if absent.
     ///
     /// Port of C++ `EM_IMPL_ACQUIRE_COMMON` macro. The `create` closure is
     /// called only when the model is not already registered.
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn register_and_lookup() {
-        let ctx = Context::new_root();
+        let ctx = emContext::new_root();
         let model = Rc::new(RefCell::new(42_i32));
         ctx.register_model::<i32>("answer", Rc::clone(&model));
 
@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn unregister() {
-        let ctx = Context::new_root();
+        let ctx = emContext::new_root();
         ctx.register_model::<i32>("x", Rc::new(RefCell::new(1)));
         assert!(ctx.is_registered::<i32>("x"));
         ctx.unregister_model::<i32>("x");
@@ -276,17 +276,17 @@ mod tests {
     #[test]
     #[should_panic(expected = "duplicate common model")]
     fn duplicate_registration_panics() {
-        let ctx = Context::new_root();
+        let ctx = emContext::new_root();
         ctx.register_model::<i32>("dup", Rc::new(RefCell::new(1)));
         ctx.register_model::<i32>("dup", Rc::new(RefCell::new(2)));
     }
 
     #[test]
     fn lookup_inherited_walks_parents() {
-        let root = Context::new_root();
+        let root = emContext::new_root();
         root.register_model::<String>("greeting", Rc::new(RefCell::new("hello".to_string())));
 
-        let child = Context::new_child(&root);
+        let child = emContext::new_child(&root);
         // Not in child, but found via parent.
         let found = child
             .lookup_inherited::<String>("greeting")
@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn acquire_creates_or_returns_existing() {
-        let ctx = Context::new_root();
+        let ctx = emContext::new_root();
         let m1 = ctx.acquire::<Vec<u8>>("buf", Vec::new);
         m1.borrow_mut().push(42);
 
@@ -310,7 +310,7 @@ mod tests {
 
     #[test]
     fn min_common_lifetime() {
-        let ctx = Context::new_root();
+        let ctx = emContext::new_root();
         ctx.register_model::<i32>("lt", Rc::new(RefCell::new(0)));
         assert_eq!(ctx.get_min_common_lifetime::<i32>("lt"), Some(0));
         ctx.set_min_common_lifetime::<i32>("lt", 300);
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn different_types_same_name() {
-        let ctx = Context::new_root();
+        let ctx = emContext::new_root();
         ctx.register_model::<i32>("val", Rc::new(RefCell::new(1_i32)));
         ctx.register_model::<u32>("val", Rc::new(RefCell::new(2_u32)));
 
@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn common_model_count_and_listing() {
-        let ctx = Context::new_root();
+        let ctx = emContext::new_root();
         assert_eq!(ctx.common_model_count(), 0);
         ctx.register_model::<i32>("a", Rc::new(RefCell::new(1)));
         ctx.register_model::<u32>("b", Rc::new(RefCell::new(2)));

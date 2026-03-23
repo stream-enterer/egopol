@@ -2,36 +2,36 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use zuicchini::emCore::rect::Rect;
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use zuicchini::emCore::emInputState::InputState;
-use zuicchini::emCore::emLinearGroup::LinearGroup;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use zuicchini::emCore::emInputState::emInputState;
+use zuicchini::emCore::emLinearGroup::emLinearGroup;
 use zuicchini::emCore::emTiling::Orientation;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 use zuicchini::emCore::emPanelCtx::PanelCtx;
 use zuicchini::emCore::emPanelTree::PanelTree;
-use zuicchini::emCore::emView::{View, ViewFlags};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emView::{emView, ViewFlags};
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
+use zuicchini::emCore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 
-use zuicchini::emCore::emButton::Button;
+use zuicchini::emCore::emButton::emButton;
 
-use zuicchini::emCore::emCheckBox::CheckBox;
+use zuicchini::emCore::emCheckBox::emCheckBox;
 
-use zuicchini::emCore::emCheckButton::CheckButton;
+use zuicchini::emCore::emCheckButton::emCheckButton;
 
-use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
+use zuicchini::emCore::emListBox::{emListBox, SelectionMode};
 
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emLook::emLook;
 
-use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+use zuicchini::emCore::emRadioButton::{emRadioButton, RadioGroup};
 
-use zuicchini::emCore::emScalarField::ScalarField;
+use zuicchini::emCore::emScalarField::emScalarField;
 
-use zuicchini::emCore::emSplitter::Splitter;
+use zuicchini::emCore::emSplitter::emSplitter;
 
-use zuicchini::emCore::emTextField::TextField;
+use zuicchini::emCore::emTextField::emTextField;
 
 use super::common::*;
 
@@ -39,8 +39,8 @@ fn default_panel_state() -> PanelState {
     PanelState::default_for_test()
 }
 
-fn default_input_state() -> InputState {
-    InputState::new()
+fn default_input_state() -> emInputState {
+    emInputState::new()
 }
 
 /// Skip test if golden data hasn't been generated yet.
@@ -72,8 +72,8 @@ fn widget_checkbox_toggle() {
     let golden = load_widget_state_golden("widget_checkbox_toggle");
     assert_eq!(golden.len(), 3, "unexpected golden file size");
 
-    let look = Look::new();
-    let mut cb = CheckBox::new("Check Option", look);
+    let look = emLook::new();
+    let mut cb = emCheckBox::new("Check Option", look);
     let ps = default_panel_state();
     let is = default_input_state();
 
@@ -85,11 +85,11 @@ fn widget_checkbox_toggle() {
     );
 
     // After first activation (Enter is instant — no release needed)
-    cb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+    cb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
     assert_eq!(cb.is_checked() as u8, golden[1], "after 1st click mismatch");
 
     // After second activation
-    cb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+    cb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
     assert_eq!(cb.is_checked() as u8, golden[2], "after 2nd click mismatch");
 }
 
@@ -101,8 +101,8 @@ fn widget_checkbutton_toggle() {
     let golden = load_widget_state_golden("widget_checkbutton_toggle");
     assert_eq!(golden.len(), 3, "unexpected golden file size");
 
-    let look = Look::new();
-    let mut cb = CheckButton::new("Toggle Option", look);
+    let look = emLook::new();
+    let mut cb = emCheckButton::new("Toggle Option", look);
     let ps = default_panel_state();
     let is = default_input_state();
 
@@ -114,11 +114,11 @@ fn widget_checkbutton_toggle() {
     );
 
     // After first activation (Enter is instant — no release needed)
-    cb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+    cb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
     assert_eq!(cb.is_checked() as u8, golden[1], "after 1st click mismatch");
 
     // After second activation
-    cb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+    cb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
     assert_eq!(cb.is_checked() as u8, golden[2], "after 2nd click mismatch");
 }
 
@@ -130,11 +130,11 @@ fn widget_radiobutton_switch() {
     let golden = load_widget_state_golden("widget_radiobutton_switch");
     assert_eq!(golden.len(), 8, "unexpected golden file size");
 
-    let look = Look::new();
+    let look = emLook::new();
     let group = RadioGroup::new();
-    let _rb_a = RadioButton::new("Option A", look.clone(), group.clone(), 0);
-    let mut rb_b = RadioButton::new("Option B", look.clone(), group.clone(), 1);
-    let _rb_c = RadioButton::new("Option C", look, group.clone(), 2);
+    let _rb_a = emRadioButton::new("Option A", look.clone(), group.clone(), 0);
+    let mut rb_b = emRadioButton::new("Option B", look.clone(), group.clone(), 1);
+    let _rb_c = emRadioButton::new("Option C", look, group.clone(), 2);
 
     // Initial: A checked
     group.borrow_mut().select(0);
@@ -148,7 +148,7 @@ fn widget_radiobutton_switch() {
     // Activate B (Enter is instant — no release needed)
     let ps = default_panel_state();
     let is = default_input_state();
-    rb_b.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+    rb_b.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
     let after = u32::from_le_bytes(golden[4..8].try_into().unwrap()) as usize;
     assert_eq!(
         group.borrow().selected(),
@@ -166,8 +166,8 @@ fn widget_listbox_select() {
     // Golden format: [u32 count][u32 * count indices]. Single mode → count=1, 1 index = 8 bytes.
     assert_eq!(golden.len(), 8, "golden file size mismatch (expected count + 1 index = 8 bytes)");
 
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_selection_mode(SelectionMode::Single);
     lb.add_item("item0".to_string(), "Alpha".to_string());
     lb.add_item("item1".to_string(), "Beta".to_string());
@@ -203,8 +203,8 @@ fn widget_splitter_setpos() {
     let golden = load_widget_state_golden("widget_splitter_setpos");
     assert_eq!(golden.len(), 24, "unexpected golden file size");
 
-    let look = Look::new();
-    let mut sp = Splitter::new(Orientation::Horizontal, look);
+    let look = emLook::new();
+    let mut sp = emSplitter::new(Orientation::Horizontal, look);
     sp.set_limits(0.0, 1.0);
 
     let eps = 1e-9;
@@ -248,15 +248,15 @@ fn widget_textfield_type() {
     let golden = load_widget_state_golden("widget_textfield_type");
     assert!(golden.len() >= 8, "golden file too short");
 
-    let look = Look::new();
-    let mut tf = TextField::new(look);
+    let look = emLook::new();
+    let mut tf = emTextField::new(look);
     tf.set_editable(true);
     let ps = default_panel_state();
     let is = default_input_state();
 
     // Type "abc"
     for ch in ['a', 'b', 'c'] {
-        let event = InputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
+        let event = emInputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
         tf.input(&event, &ps, &is);
     }
 
@@ -279,20 +279,20 @@ fn widget_textfield_backspace() {
     let golden = load_widget_state_golden("widget_textfield_backspace");
     assert!(golden.len() >= 8, "golden file too short");
 
-    let look = Look::new();
-    let mut tf = TextField::new(look);
+    let look = emLook::new();
+    let mut tf = emTextField::new(look);
     tf.set_editable(true);
     let ps = default_panel_state();
     let is = default_input_state();
 
     // Type "abc"
     for ch in ['a', 'b', 'c'] {
-        let event = InputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
+        let event = emInputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
         tf.input(&event, &ps, &is);
     }
 
     // Backspace
-    tf.input(&InputEvent::press(InputKey::Backspace), &ps, &is);
+    tf.input(&emInputEvent::press(InputKey::Backspace), &ps, &is);
 
     // Parse golden: [u32 text_len][text_bytes][u32 cursor_pos]
     let text_len = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
@@ -313,21 +313,21 @@ fn widget_textfield_select() {
     let golden = load_widget_state_golden("widget_textfield_select");
     assert_eq!(golden.len(), 12, "unexpected golden file size");
 
-    let look = Look::new();
-    let mut tf = TextField::new(look);
+    let look = emLook::new();
+    let mut tf = emTextField::new(look);
     tf.set_editable(true);
     let ps = default_panel_state();
     let is = default_input_state();
 
     // Type "abcdef"
     for ch in ['a', 'b', 'c', 'd', 'e', 'f'] {
-        let event = InputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
+        let event = emInputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
         tf.input(&event, &ps, &is);
     }
 
     // Shift+ArrowLeft × 3 to select last 3 chars
     for _ in 0..3 {
-        tf.input(&InputEvent::press(InputKey::ArrowLeft).with_shift(), &ps, &is);
+        tf.input(&emInputEvent::press(InputKey::ArrowLeft).with_shift(), &ps, &is);
     }
 
     // Parse golden: [u32 sel_start][u32 sel_end][u32 cursor]
@@ -348,8 +348,8 @@ fn widget_scalarfield_inc() {
     let golden = load_widget_state_golden("widget_scalarfield_inc");
     assert_eq!(golden.len(), 16, "unexpected golden file size");
 
-    let look = Look::new();
-    let mut sf = ScalarField::new(0.0, 100.0, look);
+    let look = emLook::new();
+    let mut sf = emScalarField::new(0.0, 100.0, look);
     sf.set_value(50.0);
     let ps = default_panel_state();
     let is = default_input_state();
@@ -357,7 +357,7 @@ fn widget_scalarfield_inc() {
     let eps = 1e-9;
 
     // Press "+" to increment
-    sf.input(&InputEvent::press(InputKey::Key('+')), &ps, &is);
+    sf.input(&emInputEvent::press(InputKey::Key('+')), &ps, &is);
     let expected_inc = f64::from_le_bytes(golden[0..8].try_into().unwrap());
     assert!(
         (sf.value() - expected_inc).abs() < eps,
@@ -367,7 +367,7 @@ fn widget_scalarfield_inc() {
     );
 
     // Press "-" to decrement
-    sf.input(&InputEvent::press(InputKey::Key('-')), &ps, &is);
+    sf.input(&emInputEvent::press(InputKey::Key('-')), &ps, &is);
     let expected_dec = f64::from_le_bytes(golden[8..16].try_into().unwrap());
     assert!(
         (sf.value() - expected_dec).abs() < eps,
@@ -385,8 +385,8 @@ fn widget_button_click() {
     let golden = load_widget_state_golden("widget_button_click");
     assert_eq!(golden.len(), 3, "unexpected golden file size");
 
-    let look = Look::new();
-    let mut btn = Button::new("Click Me", look);
+    let look = emLook::new();
+    let mut btn = emButton::new("Click Me", look);
 
     // Track on_click callback invocations to verify side effects.
     let click_count = std::rc::Rc::new(std::cell::Cell::new(0u32));
@@ -431,8 +431,8 @@ fn widget_listbox_multi() {
     // Golden format: [u32 count][u32 * count indices]. Multi select 2 items → count=2, 2 indices = 12 bytes.
     assert_eq!(golden.len(), 12, "golden file size mismatch (expected count + 2 indices = 12 bytes)");
 
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_selection_mode(SelectionMode::Multi);
     lb.add_item("item0".to_string(), "Alpha".to_string());
     lb.add_item("item1".to_string(), "Beta".to_string());
@@ -469,8 +469,8 @@ fn widget_listbox_toggle() {
     // Golden format: two snapshots. Snap 1: [count=1][1 index] = 8 bytes. Snap 2: [count=0] = 4 bytes. Total = 12.
     assert_eq!(golden.len(), 12, "golden file size mismatch (expected 2 snapshots = 12 bytes)");
 
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_selection_mode(SelectionMode::Toggle);
     lb.add_item("item0".to_string(), "Alpha".to_string());
     lb.add_item("item1".to_string(), "Beta".to_string());
@@ -519,8 +519,8 @@ fn widget_textfield_cursor_nav() {
     let golden = load_widget_state_golden("widget_textfield_cursor_nav");
     assert_eq!(golden.len(), 8, "unexpected golden file size");
 
-    let look = Look::new();
-    let mut tf = TextField::new(look);
+    let look = emLook::new();
+    let mut tf = emTextField::new(look);
     tf.set_editable(true);
     tf.set_multi_line(true);
     tf.set_text("abc\ndef");
@@ -536,7 +536,7 @@ fn widget_textfield_cursor_nav() {
     );
 
     // ArrowUp
-    tf.input(&InputEvent::press(InputKey::ArrowUp), &ps, &is);
+    tf.input(&emInputEvent::press(InputKey::ArrowUp), &ps, &is);
 
     let cursor_after = u32::from_le_bytes(golden[4..8].try_into().unwrap()) as usize;
     assert_eq!(
@@ -554,8 +554,8 @@ fn widget_splitter_drag() {
     let golden = load_widget_state_golden("widget_splitter_drag");
     assert_eq!(golden.len(), 16, "unexpected golden file size");
 
-    let look = Look::new();
-    let mut sp = Splitter::new(Orientation::Horizontal, look);
+    let look = emLook::new();
+    let mut sp = emSplitter::new(Orientation::Horizontal, look);
     sp.set_limits(0.0, 1.0);
     sp.set_position(0.5);
 
@@ -582,13 +582,13 @@ fn widget_splitter_drag() {
 
 // ─── Test 14: splitter_layout_h ─────────────────────────────────
 
-/// Wraps a Splitter as PanelBehavior for layout testing.
+/// Wraps a emSplitter as PanelBehavior for layout testing.
 struct SplitterLayoutBehavior {
-    splitter: Splitter,
+    splitter: emSplitter,
 }
 
 impl PanelBehavior for SplitterLayoutBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.splitter.paint(painter, w, h, _state.enabled);
     }
 
@@ -622,8 +622,8 @@ fn run_splitter_layout_step(
     parent_rect: (f64, f64, f64, f64),
     pos: f64,
 ) -> [f64; 9] {
-    let look = Look::new();
-    let mut sp = Splitter::new(orientation, look);
+    let look = emLook::new();
+    let mut sp = emSplitter::new(orientation, look);
     sp.set_limits(0.0, 1.0);
     sp.set_position(pos);
     let clamped_pos = sp.position();
@@ -710,19 +710,19 @@ fn splitter_layout_v() {
 
 // ─── Test: composition_click_through_tree ────────────────────────
 
-/// Button wrapper that delegates input handling (needed for mouse click dispatch).
+/// emButton wrapper that delegates input handling (needed for mouse click dispatch).
 struct ClickableButtonPanel {
-    widget: Button,
+    widget: emButton,
 }
 
 impl PanelBehavior for ClickableButtonPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
         self.widget.paint(p, w, h, s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, s: &PanelState, is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, s: &PanelState, is: &emInputState) -> bool {
         self.widget.input(e, s, is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -737,9 +737,9 @@ impl PanelBehavior for ClickableButtonPanel {
 /// consumption.
 fn dispatch_event(
     tree: &mut PanelTree,
-    view: &mut View,
-    event: &InputEvent,
-    input_state: &InputState,
+    view: &mut emView,
+    event: &emInputEvent,
+    input_state: &emInputState,
 ) {
     // For mouse press: set active panel via hit test
     if event.variant == InputVariant::Press
@@ -783,39 +783,39 @@ fn dispatch_event(
 /// on_click callback fires).
 ///
 /// Hierarchy:
-///   Root: LinearGroup vertical (OBT_Rect, caption "Root")
-///     Child: LinearGroup vertical (OBT_Rect, caption "Container")
-///       Grandchild: Button ("Click Me")
+///   Root: emLinearGroup vertical (OBT_Rect, caption "Root")
+///     Child: emLinearGroup vertical (OBT_Rect, caption "Container")
+///       Grandchild: emButton ("Click Me")
 #[test]
 fn composition_click_through_tree() {
     let click_count = Rc::new(Cell::new(0u32));
     let clicked_clone = click_count.clone();
 
-    let look = Look::new();
+    let look = emLook::new();
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
 
-    // Root: vertical LinearGroup with OBT_Rect border
-    let mut root_group = LinearGroup::vertical();
-    root_group.border = Border::new(OuterBorderType::Rect)
+    // Root: vertical emLinearGroup with OBT_Rect border
+    let mut root_group = emLinearGroup::vertical();
+    root_group.border = emBorder::new(OuterBorderType::Rect)
         .with_inner(InnerBorderType::None)
         .with_caption("Root");
     root_group.border.label_in_border = true;
     tree.set_layout_rect(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
 
-    // Container: vertical LinearGroup with OBT_Rect border
+    // Container: vertical emLinearGroup with OBT_Rect border
     let container_id = tree.create_child(root, "container");
-    let mut container_group = LinearGroup::vertical();
-    container_group.border = Border::new(OuterBorderType::Rect)
+    let mut container_group = emLinearGroup::vertical();
+    container_group.border = emBorder::new(OuterBorderType::Rect)
         .with_inner(InnerBorderType::None)
         .with_caption("Container");
     container_group.border.label_in_border = true;
     tree.set_behavior(container_id, Box::new(container_group));
 
-    // Button with on_click callback
+    // emButton with on_click callback
     let button_id = tree.create_child(container_id, "button");
-    let mut btn = Button::new("Click Me", look);
+    let mut btn = emButton::new("Click Me", look);
     btn.on_click = Some(Box::new(move || {
         clicked_clone.set(clicked_clone.get() + 1);
     }));
@@ -825,7 +825,7 @@ fn composition_click_through_tree() {
     tree.set_behavior(root, Box::new(root_group));
 
     // Set up view and settle layout
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     for _ in 0..200 {
         tree.deliver_notices(view.window_focused(), view.pixel_tallness());
@@ -841,14 +841,14 @@ fn composition_click_through_tree() {
     // within the nested borders and the center should fall inside it.
     let click_x = 400.0;
     let click_y = 300.0;
-    let input_state = InputState::new();
+    let input_state = emInputState::new();
 
     // Mouse press
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(click_x, click_y);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(click_x, click_y);
     dispatch_event(&mut tree, &mut view, &press, &input_state);
 
     // Mouse release at the same position
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(click_x, click_y);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(click_x, click_y);
     dispatch_event(&mut tree, &mut view, &release, &input_state);
 
     assert_eq!(

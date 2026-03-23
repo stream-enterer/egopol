@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
-use crate::emCore::emImage::Image;
-use crate::emCore::emPainter::{Painter, TextAlignment};
+use crate::emCore::emImage::emImage;
+use crate::emCore::emPainter::{emPainter, TextAlignment};
 
-use super::emBorder::{Border, OuterBorderType};
-use crate::emCore::emLook::Look;
+use super::emBorder::{emBorder, OuterBorderType};
+use crate::emCore::emLook::emLook;
 
 /// Non-focusable text display widget.
 ///
@@ -14,15 +14,15 @@ use crate::emCore::emLook::Look;
 /// This Rust port now delegates painting to `border.paint_label`, which
 /// implements the full DoLabel layout (icon + caption + description with
 /// configurable alignment).
-pub struct Label {
-    border: Border,
-    look: Rc<Look>,
+pub struct emLabel {
+    border: emBorder,
+    look: Rc<emLook>,
 }
 
-impl Label {
-    pub fn new(caption: &str, look: Rc<Look>) -> Self {
+impl emLabel {
+    pub fn new(caption: &str, look: Rc<emLook>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::Margin)
+            border: emBorder::new(OuterBorderType::Margin)
                 .with_caption(caption)
                 .with_label_in_border(false),
             look,
@@ -34,10 +34,10 @@ impl Label {
     pub fn with_label(
         caption: &str,
         description: &str,
-        icon: Option<Image>,
-        look: Rc<Look>,
+        icon: Option<emImage>,
+        look: Rc<emLook>,
     ) -> Self {
-        let mut border = Border::new(OuterBorderType::Margin)
+        let mut border = emBorder::new(OuterBorderType::Margin)
             .with_caption(caption)
             .with_label_in_border(false);
         if !description.is_empty() {
@@ -65,7 +65,7 @@ impl Label {
         &self.border.description
     }
 
-    pub fn set_icon(&mut self, icon: Option<Image>) {
+    pub fn set_icon(&mut self, icon: Option<emImage>) {
         self.border.set_icon(icon);
     }
 
@@ -93,7 +93,7 @@ impl Label {
     /// and fg_color (dimmed when disabled). The border's `paint_label`
     /// implements the full DoLabel layout including icon, caption, and
     /// description with configurable alignment.
-    pub fn paint(&self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
+    pub fn paint(&self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.border
             .paint_border(painter, w, h, &self.look, false, enabled, 1.0);
 
@@ -110,7 +110,7 @@ impl Label {
 
     pub fn preferred_size(&self) -> (f64, f64) {
         let ch = 13.0;
-        let tw = Painter::measure_text_width(&self.border.caption, ch);
+        let tw = emPainter::measure_text_width(&self.border.caption, ch);
         let lh = ch + 2.0;
         (tw + 4.0, lh)
     }
@@ -122,8 +122,8 @@ mod tests {
 
     #[test]
     fn label_caption() {
-        let look = Look::new();
-        let mut label = Label::new("Hello", look);
+        let look = emLook::new();
+        let mut label = emLabel::new("Hello", look);
         assert_eq!(label.caption(), "Hello");
         label.set_caption("World");
         assert_eq!(label.caption(), "World");
@@ -131,8 +131,8 @@ mod tests {
 
     #[test]
     fn label_preferred_size() {
-        let look = Look::new();
-        let label = Label::new("Test", look);
+        let look = emLook::new();
+        let label = emLabel::new("Test", look);
         let (w, h) = label.preferred_size();
         assert!(w > 4.0, "Label should have positive width");
         assert!(h > 0.0, "Label should have positive height");
@@ -140,16 +140,16 @@ mod tests {
 
     #[test]
     fn label_with_description() {
-        let look = Look::new();
-        let label = Label::with_label("Title", "A longer description", None, look);
+        let look = emLook::new();
+        let label = emLabel::with_label("Title", "A longer description", None, look);
         assert_eq!(label.caption(), "Title");
         assert_eq!(label.description(), "A longer description");
     }
 
     #[test]
     fn label_set_description() {
-        let look = Look::new();
-        let mut label = Label::new("Title", look);
+        let look = emLook::new();
+        let mut label = emLabel::new("Title", look);
         assert!(label.description().is_empty());
         label.set_description("Desc");
         assert_eq!(label.description(), "Desc");

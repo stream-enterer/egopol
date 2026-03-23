@@ -1,8 +1,8 @@
-use crate::emCore::emColor::Color;
-use crate::emCore::emImage::Image;
+use crate::emCore::emColor::emColor;
+use crate::emCore::emImage::emImage;
 
 use super::emPainter::{TextAlignment, VAlign};
-use crate::emCore::emStroke::Stroke;
+use crate::emCore::emStroke::emStroke;
 use super::emTexture::{ImageExtension, ImageQuality};
 
 /// A recorded drawing operation for parallel tile rendering.
@@ -21,7 +21,7 @@ pub(crate) enum DrawOp {
         w: f64,
         h: f64,
     },
-    SetCanvasColor(Color),
+    SetCanvasColor(emColor),
     SetAlpha(u8),
 
     // Shapes
@@ -30,8 +30,8 @@ pub(crate) enum DrawOp {
         y: f64,
         w: f64,
         h: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
     },
     PaintRoundRect {
         x: f64,
@@ -39,15 +39,15 @@ pub(crate) enum DrawOp {
         w: f64,
         h: f64,
         radius: f64,
-        color: Color,
+        color: emColor,
     },
     PaintRectOutlined {
         x: f64,
         y: f64,
         w: f64,
         h: f64,
-        stroke: Stroke,
-        canvas_color: Color,
+        stroke: emStroke,
+        canvas_color: emColor,
     },
     PaintRoundRectOutlined {
         x: f64,
@@ -55,26 +55,26 @@ pub(crate) enum DrawOp {
         w: f64,
         h: f64,
         radius: f64,
-        stroke: Stroke,
+        stroke: emStroke,
     },
     PaintEllipse {
         cx: f64,
         cy: f64,
         rx: f64,
         ry: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
     },
     PaintPolygon {
         vertices: Vec<(f64, f64)>,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
     },
     PaintSolidPolyline {
         vertices: Vec<(f64, f64)>,
-        stroke: Stroke,
+        stroke: emStroke,
         closed: bool,
-        canvas_color: Color,
+        canvas_color: emColor,
     },
 
     // Images — raw pointers to images owned by panel behaviors.
@@ -83,23 +83,23 @@ pub(crate) enum DrawOp {
         y: f64,
         w: f64,
         h: f64,
-        image_ptr: *const Image,
+        image_ptr: *const emImage,
         alpha: u8,
-        canvas_color: Color,
+        canvas_color: emColor,
     },
     PaintImageColored {
         x: f64,
         y: f64,
         w: f64,
         h: f64,
-        image_ptr: *const Image,
+        image_ptr: *const emImage,
         src_x: u32,
         src_y: u32,
         src_w: u32,
         src_h: u32,
-        color1: Color,
-        color2: Color,
-        canvas_color: Color,
+        color1: emColor,
+        color2: emColor,
+        canvas_color: emColor,
         extension: ImageExtension,
     },
     PaintImageScaled {
@@ -107,7 +107,7 @@ pub(crate) enum DrawOp {
         y: f64,
         w: f64,
         h: f64,
-        image_ptr: *const Image,
+        image_ptr: *const emImage,
         quality: ImageQuality,
         extension: ImageExtension,
     },
@@ -120,13 +120,13 @@ pub(crate) enum DrawOp {
         t: f64,
         r: f64,
         b: f64,
-        image_ptr: *const Image,
+        image_ptr: *const emImage,
         src_l: i32,
         src_t: i32,
         src_r: i32,
         src_b: i32,
         alpha: u8,
-        canvas_color: Color,
+        canvas_color: emColor,
         which_sub_rects: u16,
     },
 
@@ -137,8 +137,8 @@ pub(crate) enum DrawOp {
         text: String,
         char_height: f64,
         width_scale: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
     },
     PaintTextBoxed {
         x: f64,
@@ -147,8 +147,8 @@ pub(crate) enum DrawOp {
         h: f64,
         text: String,
         max_char_height: f64,
-        color: Color,
-        canvas_color: Color,
+        color: emColor,
+        canvas_color: emColor,
         box_h_align: TextAlignment,
         box_v_align: VAlign,
         text_alignment: TextAlignment,
@@ -158,13 +158,13 @@ pub(crate) enum DrawOp {
     },
 }
 
-// SAFETY: DrawOp contains *const Image raw pointers to images owned by
+// SAFETY: DrawOp contains *const emImage raw pointers to images owned by
 // panel behaviors in the PanelTree. These pointers remain valid during
 // the parallel replay phase because:
 // 1. Images are owned by behaviors stored in PanelTree
 // 2. The tree is not modified between recording and replay
 // 3. std::thread::scope ensures all replay threads complete before returning
-// All other fields are owned values (f64, Color, String, Vec, Stroke).
+// All other fields are owned values (f64, emColor, String, Vec, emStroke).
 unsafe impl Send for DrawOp {}
 unsafe impl Sync for DrawOp {}
 
@@ -188,7 +188,7 @@ impl DrawList {
     ///
     /// `tile_offset` is subtracted from all absolute `SetOffset` calls to
     /// convert viewport coordinates to tile-local coordinates.
-    pub fn replay(&self, painter: &mut super::emPainter::Painter, tile_offset: (f64, f64)) {
+    pub fn replay(&self, painter: &mut super::emPainter::emPainter, tile_offset: (f64, f64)) {
         // Initialize the painter's offset to account for the tile position.
         // Draw operations recorded at viewport coordinates are shifted so that
         // viewport pixels in the tile's region map to tile-local coordinates.

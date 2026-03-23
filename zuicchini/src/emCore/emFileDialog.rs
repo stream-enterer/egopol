@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use super::emDialog::{Dialog, DialogResult};
-use crate::emCore::emFileSelectionBox::FileSelectionBox;
-use crate::emCore::emLook::Look;
+use super::emDialog::{emDialog, DialogResult};
+use crate::emCore::emFileSelectionBox::emFileSelectionBox;
+use crate::emCore::emLook::emLook;
 
 /// Mode of the file dialog.
 ///
@@ -32,26 +32,26 @@ pub enum FileDialogCheckResult {
 
 /// A dialog for file open/save operations.
 ///
-/// Port of C++ `emFileDialog`. Wraps a `FileSelectionBox` in a `Dialog` with
+/// Port of C++ `emFileDialog`. Wraps a `emFileSelectionBox` in a `emDialog` with
 /// OK/Cancel buttons and mode-dependent validation (existence checks for Open,
 /// overwrite confirmation for Save).
-pub struct FileDialog {
-    dialog: Dialog,
-    fsb: FileSelectionBox,
+pub struct emFileDialog {
+    dialog: emDialog,
+    fsb: emFileSelectionBox,
     mode: FileDialogMode,
     dir_allowed: bool,
     overwrite_asked: String,
     overwrite_confirmed: String,
 }
 
-impl FileDialog {
-    pub fn new(mode: FileDialogMode, look: std::rc::Rc<Look>) -> Self {
+impl emFileDialog {
+    pub fn new(mode: FileDialogMode, look: std::rc::Rc<emLook>) -> Self {
         let (title, ok_label) = mode_title_and_ok(mode);
-        let mut dialog = Dialog::new(title, look);
+        let mut dialog = emDialog::new(title, look);
         dialog.add_button(ok_label, DialogResult::Ok);
         dialog.add_button("Cancel", DialogResult::Cancel);
 
-        let mut fsb = FileSelectionBox::new("");
+        let mut fsb = emFileSelectionBox::new("");
         fsb.border_mut().outer = super::emBorder::OuterBorderType::None;
         fsb.border_mut().inner = super::emBorder::InnerBorderType::None;
 
@@ -153,19 +153,19 @@ impl FileDialog {
         self.fsb.set_hidden_files_shown(shown);
     }
 
-    pub fn dialog(&self) -> &Dialog {
+    pub fn dialog(&self) -> &emDialog {
         &self.dialog
     }
 
-    pub fn dialog_mut(&mut self) -> &mut Dialog {
+    pub fn dialog_mut(&mut self) -> &mut emDialog {
         &mut self.dialog
     }
 
-    pub fn file_selection_box(&self) -> &FileSelectionBox {
+    pub fn file_selection_box(&self) -> &emFileSelectionBox {
         &self.fsb
     }
 
-    pub fn file_selection_box_mut(&mut self) -> &mut FileSelectionBox {
+    pub fn file_selection_box_mut(&mut self) -> &mut emFileSelectionBox {
         &mut self.fsb
     }
 
@@ -286,9 +286,9 @@ fn mode_title_and_ok(mode: FileDialogMode) -> (&'static str, &'static str) {
 mod tests {
     use super::*;
 
-    fn make_dialog(mode: FileDialogMode) -> FileDialog {
-        let look = Look::new();
-        FileDialog::new(mode, look)
+    fn make_dialog(mode: FileDialogMode) -> emFileDialog {
+        let look = emLook::new();
+        emFileDialog::new(mode, look)
     }
 
     #[test]

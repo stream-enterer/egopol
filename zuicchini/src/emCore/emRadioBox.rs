@@ -1,16 +1,16 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::rect::Rect;
-use crate::emCore::emCursor::Cursor;
-use crate::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
+use crate::emCore::emCursor::emCursor;
+use crate::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use crate::emCore::emInputState::emInputState;
 use crate::emCore::emPanel::PanelState;
-use crate::emCore::emPainter::{Painter, BORDER_EDGES_ONLY};
+use crate::emCore::emPainter::{emPainter, BORDER_EDGES_ONLY};
 
-use super::emBorder::{Border, OuterBorderType};
-use crate::emCore::emLook::Look;
+use super::emBorder::{emBorder, OuterBorderType};
+use crate::emCore::emLook::emLook;
 use crate::emCore::emRadioButton::RadioGroup;
 use crate::emCore::toolkit_images::with_toolkit_images;
 
@@ -21,10 +21,10 @@ use crate::emCore::toolkit_images::with_toolkit_images;
 /// `ShownRadioed=true`.
 ///
 /// Paint uses the C++ DoButton boxed+radioed path (emButton.cpp:233-341):
-/// content_rect → box geometry → circular face → radio dot → RadioBox image overlay.
-pub struct RadioBox {
-    border: Border,
-    look: Rc<Look>,
+/// content_rect → box geometry → circular face → radio dot → emRadioBox image overlay.
+pub struct emRadioBox {
+    border: emBorder,
+    look: Rc<emLook>,
     group: Rc<RefCell<RadioGroup>>,
     index_cell: Rc<Cell<usize>>,
     pressed: bool,
@@ -35,11 +35,11 @@ pub struct RadioBox {
     last_h: f64,
 }
 
-impl RadioBox {
-    pub fn new(label: &str, look: Rc<Look>, group: Rc<RefCell<RadioGroup>>, _index: usize) -> Self {
+impl emRadioBox {
+    pub fn new(label: &str, look: Rc<emLook>, group: Rc<RefCell<RadioGroup>>, _index: usize) -> Self {
         let index_cell = group.borrow_mut().register();
         Self {
-            border: Border::new(OuterBorderType::Margin)
+            border: emBorder::new(OuterBorderType::Margin)
                 .with_caption(label)
                 .with_label_in_border(false)
                 .with_label_alignment(crate::emCore::emPainter::TextAlignment::Left)
@@ -106,7 +106,7 @@ impl RadioBox {
     }
 
     /// Paint using the C++ DoButton ShownBoxed=true, ShownRadioed=true path.
-    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
+    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -167,19 +167,19 @@ impl RadioBox {
                 dot_w * 0.5,
                 dot_h * 0.5,
                 self.look.input_fg_color,
-                Color::TRANSPARENT,
+                emColor::TRANSPARENT,
             );
         }
 
         // Paint radio box image overlay (C++ lines 318-331).
-        // BoxPressed → RadioBoxPressed image, else → RadioBox image.
+        // BoxPressed → RadioBoxPressed image, else → emRadioBox image.
         with_toolkit_images(|img| {
             let box_img = if self.box_pressed {
                 &img.radio_box_pressed
             } else {
                 &img.radio_box
             };
-            painter.paint_image_full(bx, by, bw, bh, box_img, 255, Color::TRANSPARENT);
+            painter.paint_image_full(bx, by, bw, bh, box_img, 255, emColor::TRANSPARENT);
         });
 
         // C++ lines 333-340: Pressed && !BoxPressed → GroupInnerBorder overlay.
@@ -201,7 +201,7 @@ impl RadioBox {
                     225,
                     225,
                     255,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     BORDER_EDGES_ONLY,
                 );
             });
@@ -210,7 +210,7 @@ impl RadioBox {
         // C++ DoButton: disabled gray overlay for boxed+radioed path.
         // PaintRoundRect(fx, fy, fw, fh, fr, fr, 0x888888E0).
         if !enabled {
-            painter.paint_round_rect(fx, fy, fw, fh, fr, Color::rgba(0x88, 0x88, 0x88, 0xE0));
+            painter.paint_round_rect(fx, fy, fw, fh, fr, emColor::rgba(0x88, 0x88, 0x88, 0xE0));
         }
     }
 
@@ -257,9 +257,9 @@ impl RadioBox {
 
     pub fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        _input_state: &InputState,
+        _input_state: &emInputState,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -334,18 +334,18 @@ impl RadioBox {
         }
     }
 
-    pub fn get_cursor(&self) -> Cursor {
-        Cursor::Normal
+    pub fn get_cursor(&self) -> emCursor {
+        emCursor::Normal
     }
 
     pub fn preferred_size(&self) -> (f64, f64) {
         let th = 13.0;
-        let tw = Painter::measure_text_width(&self.border.caption, th);
+        let tw = emPainter::measure_text_width(&self.border.caption, th);
         self.border.preferred_size_for_content(tw + 8.0, th + 4.0)
     }
 }
 
-impl Drop for RadioBox {
+impl Drop for emRadioBox {
     fn drop(&mut self) {
         self.group.borrow_mut().deregister(&self.index_cell);
     }
@@ -375,17 +375,17 @@ mod tests {
         }
     }
 
-    fn default_input_state() -> InputState {
-        InputState::new()
+    fn default_input_state() -> emInputState {
+        emInputState::new()
     }
 
     #[test]
     fn radio_box_selection() {
-        let look = Look::new();
+        let look = emLook::new();
         let group = RadioGroup::new();
 
-        let mut rb0 = RadioBox::new("X", look.clone(), group.clone(), 0);
-        let mut rb1 = RadioBox::new("Y", look, group.clone(), 1);
+        let mut rb0 = emRadioBox::new("X", look.clone(), group.clone(), 0);
+        let mut rb1 = emRadioBox::new("Y", look, group.clone(), 1);
         let ps = default_panel_state();
         let is = default_input_state();
 
@@ -393,11 +393,11 @@ mod tests {
         assert!(!rb1.is_selected());
 
         // Enter is instant: selects on press, no release needed.
-        rb0.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        rb0.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(rb0.is_selected()); // Selected immediately on press
         assert!(!rb1.is_selected());
 
-        rb1.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        rb1.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!rb0.is_selected());
         assert!(rb1.is_selected());
     }
@@ -405,13 +405,13 @@ mod tests {
     #[test]
     fn pressed_state_tracks_press_release() {
         // Enter is instant — no visual press state. Verify pressed stays false.
-        let look = Look::new();
+        let look = emLook::new();
         let group = RadioGroup::new();
-        let mut rb = RadioBox::new("X", look, group.clone(), 0);
+        let mut rb = emRadioBox::new("X", look, group.clone(), 0);
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!rb.pressed);
-        rb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        rb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!rb.pressed); // Enter selects instantly, no press state
         assert!(rb.is_selected()); // But the selection did happen
     }

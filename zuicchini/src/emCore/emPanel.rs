@@ -2,18 +2,18 @@ use std::any::Any;
 
 use bitflags::bitflags;
 
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::rect::Rect;
-use crate::emCore::emCursor::Cursor;
-use crate::emCore::emInput::InputEvent;
-use crate::emCore::emInputState::InputState;
-use crate::emCore::emPainter::Painter;
+use crate::emCore::emCursor::emCursor;
+use crate::emCore::emInput::emInputEvent;
+use crate::emCore::emInputState::emInputState;
+use crate::emCore::emPainter::emPainter;
 
 use crate::emCore::emPanelCtx::PanelCtx;
 use super::emPanelTree::{PanelId, PlaybackState};
 
 /// Invalidation signals that a panel behavior wants to propagate to the parent
-/// view. Used by [`SubViewPanel`](super::emSubViewPanel::SubViewPanel) to forward its sub-view's
+/// view. Used by [`emSubViewPanel`](super::emSubViewPanel::emSubViewPanel) to forward its sub-view's
 /// dirty rects, title changes, and cursor changes to the enclosing view.
 ///
 /// Corresponds to the C++ invalidation chain:
@@ -157,21 +157,21 @@ bitflags! {
 /// only the methods they need.
 pub trait PanelBehavior: AsAny {
     /// Paint the panel's content.
-    fn paint(&mut self, _painter: &mut Painter, _w: f64, _h: f64, _state: &PanelState) {}
+    fn paint(&mut self, _painter: &mut emPainter, _w: f64, _h: f64, _state: &PanelState) {}
 
     /// Handle an input event. Returns true if the event was consumed.
     fn input(
         &mut self,
-        _event: &InputEvent,
+        _event: &emInputEvent,
         _state: &PanelState,
-        _input_state: &InputState,
+        _input_state: &emInputState,
     ) -> bool {
         false
     }
 
     /// Get the cursor to display when the mouse is over this panel.
-    fn get_cursor(&self) -> Cursor {
-        Cursor::Normal
+    fn get_cursor(&self) -> emCursor {
+        emCursor::Normal
     }
 
     /// Whether this panel is fully opaque (no need to paint panels behind it).
@@ -206,8 +206,8 @@ pub trait PanelBehavior: AsAny {
     }
 
     /// Get the canvas color for this panel (used for canvas blending).
-    fn canvas_color(&self) -> Color {
-        Color::TRANSPARENT
+    fn canvas_color(&self) -> emColor {
+        emColor::TRANSPARENT
     }
 
     /// Return a title for this panel, or `None` to delegate to the parent.
@@ -279,7 +279,7 @@ pub trait PanelBehavior: AsAny {
     /// viewing updates.
     ///
     /// The default returns `None` (no propagation). Override in behaviors that
-    /// manage a sub-view (e.g. [`SubViewPanel`](super::emSubViewPanel::SubViewPanel)) to
+    /// manage a sub-view (e.g. [`emSubViewPanel`](super::emSubViewPanel::emSubViewPanel)) to
     /// forward dirty rects, title, and cursor invalidation from the embedded
     /// view to the enclosing view.
     fn drain_parent_invalidation(&mut self) -> Option<ParentInvalidation> {

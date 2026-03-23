@@ -132,9 +132,9 @@ pub enum PipeResult {
 /// This is the Rust equivalent of the C++ `emProcess` class. It uses
 /// `std::process::Command` / `Child` internally and exposes a similar API.
 ///
-/// Dropping a `Process` while the child is still running will attempt to kill
+/// Dropping a `emProcess` while the child is still running will attempt to kill
 /// the child and wait for it.
-pub struct Process {
+pub struct emProcess {
     /// The first argument (program name), kept for error messages.
     arg0: String,
     /// The managed child process, if running.
@@ -149,10 +149,10 @@ pub struct Process {
     exit_status: Option<ExitStatus>,
 }
 
-impl Process {
-    /// Create a new `Process` with no child running.
+impl emProcess {
+    /// Create a new `emProcess` with no child running.
     pub fn new() -> Self {
-        Process {
+        emProcess {
             arg0: String::new(),
             child: None,
             stdin_pipe: None,
@@ -576,13 +576,13 @@ impl Process {
     }
 }
 
-impl Default for Process {
+impl Default for emProcess {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Drop for Process {
+impl Drop for emProcess {
     fn drop(&mut self) {
         if self.is_running() {
             self.terminate(Duration::from_secs(20));
@@ -596,7 +596,7 @@ mod tests {
 
     #[test]
     fn start_and_read_stdout() {
-        let mut proc = Process::new();
+        let mut proc = emProcess::new();
         let env = HashMap::new();
         proc.try_start(
             &["echo", "hello"],
@@ -627,7 +627,7 @@ mod tests {
 
     #[test]
     fn empty_args_error() {
-        let mut proc = Process::new();
+        let mut proc = emProcess::new();
         let env = HashMap::new();
         let err = proc
             .try_start(&[], &env, None, StartFlags::DEFAULT)
@@ -637,7 +637,7 @@ mod tests {
 
     #[test]
     fn exit_code_nonzero() {
-        let mut proc = Process::new();
+        let mut proc = emProcess::new();
         let env = HashMap::new();
         proc.try_start(&["false"], &env, None, StartFlags::empty())
             .expect("failed to start false");
@@ -647,7 +647,7 @@ mod tests {
 
     #[test]
     fn write_to_stdin_pipe() {
-        let mut proc = Process::new();
+        let mut proc = emProcess::new();
         let env = HashMap::new();
         proc.try_start(
             &["cat"],
@@ -677,7 +677,7 @@ mod tests {
 
     #[test]
     fn kill_long_running() {
-        let mut proc = Process::new();
+        let mut proc = emProcess::new();
         let env = HashMap::new();
         proc.try_start(&["sleep", "60"], &env, None, StartFlags::empty())
             .expect("failed to start sleep");

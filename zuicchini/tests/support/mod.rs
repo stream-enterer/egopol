@@ -5,27 +5,27 @@ pub mod pipeline;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 
 use zuicchini::emCore::emPanelCtx::PanelCtx;
 
 use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
 
-use zuicchini::emCore::emView::View;
+use zuicchini::emCore::emView::emView;
 
-use zuicchini::emCore::emViewInputFilter::{KeyboardZoomScrollVIF, MouseZoomScrollVIF, ViewInputFilter};
+use zuicchini::emCore::emViewInputFilter::{emKeyboardZoomScrollVIF, emMouseZoomScrollVIF, emViewInputFilter};
 use zuicchini::emCore::emScheduler::EngineScheduler;
 
-/// Headless test harness that wires together PanelTree, EngineScheduler, and View
+/// Headless test harness that wires together PanelTree, EngineScheduler, and emView
 /// without needing wgpu/winit.
 pub struct TestHarness {
     pub tree: PanelTree,
     pub scheduler: EngineScheduler,
-    pub view: View,
-    pub vif_chain: Vec<Box<dyn ViewInputFilter>>,
-    pub input_state: InputState,
+    pub view: emView,
+    pub vif_chain: Vec<Box<dyn emViewInputFilter>>,
+    pub input_state: emInputState,
     root: PanelId,
 }
 
@@ -37,18 +37,18 @@ impl TestHarness {
         tree.set_focusable(root, true);
         tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
 
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
-        let vif_chain: Vec<Box<dyn ViewInputFilter>> = vec![
+        let vif_chain: Vec<Box<dyn emViewInputFilter>> = vec![
             {
-                let mut mouse_vif = MouseZoomScrollVIF::new();
+                let mut mouse_vif = emMouseZoomScrollVIF::new();
                 let zflpp = view.get_zoom_factor_log_per_pixel();
                 mouse_vif.set_mouse_anim_params(1.0, 0.25, zflpp);
                 mouse_vif.set_wheel_anim_params(1.0, 0.25, zflpp);
                 Box::new(mouse_vif)
             },
-            Box::new(KeyboardZoomScrollVIF::new()),
+            Box::new(emKeyboardZoomScrollVIF::new()),
         ];
 
         Self {
@@ -56,7 +56,7 @@ impl TestHarness {
             scheduler: EngineScheduler::new(),
             view,
             vif_chain,
-            input_state: InputState::new(),
+            input_state: emInputState::new(),
             root,
         }
     }
@@ -103,7 +103,7 @@ impl TestHarness {
     /// Dispatch input through VIF chain → hit-test → behavior delivery.
     /// Matches C++ emPanel::Input which broadcasts to ALL viewed panels in
     /// post-order (children → parents, last → first).
-    pub fn inject_input(&mut self, event: &InputEvent) {
+    pub fn inject_input(&mut self, event: &emInputEvent) {
         // Run VIF chain
         for vif in &mut self.vif_chain {
             if vif.filter(event, &self.input_state, &mut self.view) {
@@ -125,7 +125,7 @@ impl TestHarness {
             self.view.set_active_panel(&mut self.tree, panel, false);
         }
 
-        // Stamp modifier keys from InputState onto the event
+        // Stamp modifier keys from emInputState onto the event
         let ev = event.clone().with_modifiers(&self.input_state);
 
         // Dispatch to ALL viewed panels in post-order (matching C++ emPanel::Input
@@ -151,7 +151,7 @@ impl TestHarness {
 /// A behavior that records calls via shared log. Optional closures for custom actions.
 pub struct RecordingBehavior {
     pub log: Rc<RefCell<Vec<String>>>,
-    pub on_input: Option<Box<dyn FnMut(&InputEvent) -> bool>>,
+    pub on_input: Option<Box<dyn FnMut(&emInputEvent) -> bool>>,
     pub on_layout: Option<Box<dyn FnMut(&mut PanelCtx)>>,
 }
 
@@ -172,9 +172,9 @@ impl PanelBehavior for RecordingBehavior {
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         _state: &PanelState,
-        _input_state: &InputState,
+        _input_state: &emInputState,
     ) -> bool {
         self.log
             .borrow_mut()
@@ -225,9 +225,9 @@ impl InputTrackingBehavior {
 impl PanelBehavior for InputTrackingBehavior {
     fn input(
         &mut self,
-        _event: &InputEvent,
+        _event: &emInputEvent,
         _state: &PanelState,
-        _input_state: &InputState,
+        _input_state: &emInputState,
     ) -> bool {
         *self.input_received.borrow_mut() = true;
         false // don't consume — let default behavior handle activation

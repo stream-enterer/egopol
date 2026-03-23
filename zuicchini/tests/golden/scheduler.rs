@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emEngine::{Engine, EngineCtx, Priority};
+use zuicchini::emCore::emEngine::{emEngine, EngineCtx, Priority};
 use zuicchini::emCore::emScheduler::EngineScheduler;
 use zuicchini::emCore::emSignal::SignalId;
 
@@ -15,7 +15,7 @@ struct RecordingEngine {
     stay_awake: bool,
 }
 
-impl Engine for RecordingEngine {
+impl emEngine for RecordingEngine {
     fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
         self.log.borrow_mut().push(self.label);
         self.stay_awake
@@ -93,7 +93,7 @@ fn signal_abort() {
     sched.abort(sig);
     assert!(!sched.is_pending(sig));
 
-    // Engine should NOT be cycled
+    // emEngine should NOT be cycled
     sched.do_time_slice();
     assert!(log.borrow().is_empty());
 
@@ -355,7 +355,7 @@ fn engine_multi_signal() {
         b_seen: Rc<RefCell<bool>>,
         c_seen: Rc<RefCell<bool>>,
     }
-    impl Engine for MultiSigEngine {
+    impl emEngine for MultiSigEngine {
         fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
             if ctx.is_signaled(self.sig_a) {
                 *self.a_seen.borrow_mut() = true;

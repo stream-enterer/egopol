@@ -5,7 +5,7 @@ use crate::emCore::emInput::InputKey;
 /// Tracks the current state of all input devices.
 /// (C++ emInputState operator== / operator!= parity via PartialEq.)
 #[derive(Clone, Debug, PartialEq)]
-pub struct InputState {
+pub struct emInputState {
     /// Currently pressed keys.
     pressed: HashSet<InputKey>,
     /// Current mouse position in window coordinates.
@@ -15,7 +15,7 @@ pub struct InputState {
     touches: Vec<(u64, f64, f64)>,
 }
 
-impl InputState {
+impl emInputState {
     pub fn new() -> Self {
         Self {
             pressed: HashSet::new(),
@@ -205,7 +205,7 @@ impl InputState {
     }
 }
 
-impl Default for InputState {
+impl Default for emInputState {
     fn default() -> Self {
         Self::new()
     }
@@ -217,7 +217,7 @@ mod tests {
 
     #[test]
     fn modifier_combo_no_mod() {
-        let s = InputState::new();
+        let s = emInputState::new();
         assert!(s.is_no_mod());
         assert!(!s.is_shift_mod());
         assert!(!s.is_ctrl_mod());
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn modifier_combo_single() {
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Shift);
         assert!(s.is_shift_mod());
         assert!(!s.is_no_mod());
@@ -235,14 +235,14 @@ mod tests {
 
     #[test]
     fn modifier_combo_double() {
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Shift);
         s.press(InputKey::Ctrl);
         assert!(s.is_shift_ctrl_mod());
         assert!(!s.is_shift_mod());
         assert!(!s.is_ctrl_mod());
 
-        let mut s2 = InputState::new();
+        let mut s2 = emInputState::new();
         s2.press(InputKey::Alt);
         s2.press(InputKey::Meta);
         assert!(s2.is_alt_meta_mod());
@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn modifier_combo_triple() {
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Shift);
         s.press(InputKey::Ctrl);
         s.press(InputKey::Alt);
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn modifier_combo_all_four() {
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Shift);
         s.press(InputKey::Ctrl);
         s.press(InputKey::Alt);
@@ -272,47 +272,47 @@ mod tests {
 
     #[test]
     fn modifier_remaining_combos() {
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Alt);
         assert!(s.is_alt_mod());
 
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Meta);
         assert!(s.is_meta_mod());
 
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Shift);
         s.press(InputKey::Alt);
         assert!(s.is_shift_alt_mod());
 
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Shift);
         s.press(InputKey::Meta);
         assert!(s.is_shift_meta_mod());
 
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Ctrl);
         s.press(InputKey::Alt);
         assert!(s.is_ctrl_alt_mod());
 
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Ctrl);
         s.press(InputKey::Meta);
         assert!(s.is_ctrl_meta_mod());
 
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Shift);
         s.press(InputKey::Ctrl);
         s.press(InputKey::Meta);
         assert!(s.is_shift_ctrl_meta_mod());
 
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Shift);
         s.press(InputKey::Alt);
         s.press(InputKey::Meta);
         assert!(s.is_shift_alt_meta_mod());
 
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         s.press(InputKey::Ctrl);
         s.press(InputKey::Alt);
         s.press(InputKey::Meta);
@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn clear_key_states() {
-        let mut s = InputState::new();
+        let mut s = emInputState::new();
         assert!(!s.clear_key_states());
         s.press(InputKey::Shift);
         s.press(InputKey::Key('A'));

@@ -1,11 +1,11 @@
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emImage::emImage;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 
 use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
 
-use zuicchini::emCore::emView::{View, ViewFlags};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emView::{emView, ViewFlags};
+use zuicchini::emCore::emPainter::emPainter;
 
 use super::{DEFAULT_VH, DEFAULT_VW};
 
@@ -14,12 +14,12 @@ use super::{DEFAULT_VH, DEFAULT_VW};
 // ---------------------------------------------------------------------------
 
 pub struct ColorPanel {
-    color: Color,
+    color: emColor,
 }
 
 impl PanelBehavior for ColorPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
-        painter.paint_rect(0.0, 0.0, w, h, self.color, Color::TRANSPARENT);
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
+        painter.paint_rect(0.0, 0.0, w, h, self.color, emColor::TRANSPARENT);
     }
 
     fn is_opaque(&self) -> bool {
@@ -32,8 +32,8 @@ impl PanelBehavior for ColorPanel {
 // ---------------------------------------------------------------------------
 
 /// Build a balanced tree with `panel_count` panels (branching factor 4).
-/// Returns the tree with a primed View at DEFAULT_VW x DEFAULT_VH.
-pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, View, PanelId) {
+/// Returns the tree with a primed emView at DEFAULT_VW x DEFAULT_VH.
+pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, emView, PanelId) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("scaled_root");
     let tallness = DEFAULT_VH as f64 / DEFAULT_VW as f64;
@@ -77,7 +77,7 @@ pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, View, PanelId) {
         }
     }
 
-    let mut view = View::new(root, DEFAULT_VW as f64, DEFAULT_VH as f64);
+    let mut view = emView::new(root, DEFAULT_VW as f64, DEFAULT_VH as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
     tree.deliver_notices(true, 1.0);
     view.update(&mut tree);
@@ -88,8 +88,8 @@ pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, View, PanelId) {
 /// Execute one frame with pan+zoom on a scaled tree (no tile copy).
 pub fn run_one_scaled_frame(
     tree: &mut PanelTree,
-    view: &mut View,
-    viewport_buf: &mut Image,
+    view: &mut emView,
+    viewport_buf: &mut emImage,
     dx: f64,
     dy: f64,
     dz: f64,
@@ -101,18 +101,18 @@ pub fn run_one_scaled_frame(
     tree.deliver_notices(true, 1.0);
     view.update(tree);
 
-    viewport_buf.fill(Color::BLACK);
+    viewport_buf.fill(emColor::BLACK);
     {
-        let mut painter = Painter::new(viewport_buf);
+        let mut painter = emPainter::new(viewport_buf);
         view.paint(tree, &mut painter);
     }
 
     view.clear_viewport_changed();
 }
 
-fn color_for_index(idx: usize) -> Color {
+fn color_for_index(idx: usize) -> emColor {
     let r = ((idx * 73 + 29) % 256) as u8;
     let g = ((idx * 137 + 43) % 256) as u8;
     let b = ((idx * 53 + 97) % 256) as u8;
-    Color::rgba(r, g, b, 255)
+    emColor::rgba(r, g, b, 255)
 }

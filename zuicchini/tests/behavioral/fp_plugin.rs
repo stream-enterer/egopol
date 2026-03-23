@@ -1,11 +1,11 @@
 use zuicchini::emCore::emRec::RecStruct;
-use zuicchini::emCore::emFpPlugin::{FileStatMode, FpPlugin, FpPluginList, FpPluginProperty};
+use zuicchini::emCore::emFpPlugin::{FileStatMode, emFpPlugin, emFpPluginList, FpPluginProperty};
 use zuicchini::emCore::emRecRecord::Record;
 
 // ── Helper ──────────────────────────────────────────────────────────
 
-fn make_plugin(file_types: &[&str], priority: f64, library: &str, function: &str) -> FpPlugin {
-    let mut p = FpPlugin::new();
+fn make_plugin(file_types: &[&str], priority: f64, library: &str, function: &str) -> emFpPlugin {
+    let mut p = emFpPlugin::new();
     p.file_types = file_types.iter().map(|s| s.to_string()).collect();
     p.priority = priority;
     p.library = library.to_string();
@@ -20,7 +20,7 @@ fn make_plugin_full(
     function: &str,
     model_classes: &[&str],
     model_able_to_save: bool,
-) -> FpPlugin {
+) -> emFpPlugin {
     let mut p = make_plugin(file_types, priority, library, function);
     p.model_function = "model_fn".to_string();
     p.model_classes = model_classes.iter().map(|s| s.to_string()).collect();
@@ -32,9 +32,9 @@ fn make_plugin_full(
 
 #[test]
 fn record_round_trip_default() {
-    let plugin = FpPlugin::default();
+    let plugin = emFpPlugin::default();
     let rec = plugin.to_rec();
-    let restored = FpPlugin::from_rec(&rec).unwrap();
+    let restored = emFpPlugin::from_rec(&rec).unwrap();
 
     assert_eq!(restored.file_types, plugin.file_types);
     assert_eq!(restored.file_format_name, plugin.file_format_name);
@@ -49,7 +49,7 @@ fn record_round_trip_default() {
 
 #[test]
 fn record_round_trip_with_data() {
-    let mut plugin = FpPlugin::new();
+    let mut plugin = emFpPlugin::new();
     plugin.file_types = vec![".png".to_string(), ".jpg".to_string()];
     plugin.file_format_name = "Image File".to_string();
     plugin.priority = 5.0;
@@ -71,7 +71,7 @@ fn record_round_trip_with_data() {
     let plugin = plugin;
 
     let rec = plugin.to_rec();
-    let restored = FpPlugin::from_rec(&rec).unwrap();
+    let restored = emFpPlugin::from_rec(&rec).unwrap();
 
     assert_eq!(restored.file_types, vec![".png", ".jpg"]);
     assert_eq!(restored.file_format_name, "Image File");
@@ -91,7 +91,7 @@ fn record_round_trip_with_data() {
 #[test]
 fn from_rec_missing_fields_uses_defaults() {
     let rec = RecStruct::new();
-    let plugin = FpPlugin::from_rec(&rec).unwrap();
+    let plugin = emFpPlugin::from_rec(&rec).unwrap();
 
     assert!(plugin.file_types.is_empty());
     assert_eq!(plugin.priority, 1.0);
@@ -104,13 +104,13 @@ fn from_rec_missing_fields_uses_defaults() {
 
 #[test]
 fn default_is_default() {
-    let plugin = FpPlugin::default();
+    let plugin = emFpPlugin::default();
     assert!(plugin.is_default());
 }
 
 #[test]
 fn set_to_default_restores() {
-    let mut plugin = FpPlugin::new();
+    let mut plugin = emFpPlugin::new();
     plugin.file_types = vec![".txt".to_string()];
     plugin.priority = 10.0;
     plugin.library = "foo".to_string();
@@ -123,7 +123,7 @@ fn set_to_default_restores() {
 
 #[test]
 fn get_property_found() {
-    let mut plugin = FpPlugin::new();
+    let mut plugin = emFpPlugin::new();
     plugin.properties = vec![
         FpPluginProperty {
             name: "A".to_string(),
@@ -140,7 +140,7 @@ fn get_property_found() {
 
 #[test]
 fn get_property_not_found() {
-    let plugin = FpPlugin::default();
+    let plugin = emFpPlugin::default();
     assert!(plugin.get_property("missing").is_none());
 }
 
@@ -208,11 +208,11 @@ fn extension_must_be_shorter_than_filename() {
     assert!(plugin.is_matching(None, Some("a.png"), false, FileStatMode::Regular));
 }
 
-// ── FpPluginList search ─────────────────────────────────────────────
+// ── emFpPluginList search ─────────────────────────────────────────────
 
 #[test]
 fn search_plugin_by_extension() {
-    let list = FpPluginList::from_plugins(vec![
+    let list = emFpPluginList::from_plugins(vec![
         make_plugin(&[".png"], 1.0, "libA", "fnA"),
         make_plugin(&[".txt"], 2.0, "libB", "fnB"),
     ]);
@@ -252,7 +252,7 @@ fn search_plugin_by_extension() {
 
 #[test]
 fn search_plugin_priority_ordering() {
-    let list = FpPluginList::from_plugins(vec![
+    let list = emFpPluginList::from_plugins(vec![
         make_plugin(&[".png"], 1.0, "libLow", "fn"),
         make_plugin(&[".png"], 5.0, "libHigh", "fn"),
         make_plugin(&[".png"], 3.0, "libMid", "fn"),
@@ -284,7 +284,7 @@ fn search_plugin_priority_ordering() {
 
 #[test]
 fn search_plugins_returns_all_sorted() {
-    let list = FpPluginList::from_plugins(vec![
+    let list = emFpPluginList::from_plugins(vec![
         make_plugin(&[".png"], 1.0, "libLow", "fn"),
         make_plugin(&[".png"], 5.0, "libHigh", "fn"),
         make_plugin(&[".jpg"], 3.0, "libJpg", "fn"),
@@ -300,7 +300,7 @@ fn search_plugins_returns_all_sorted() {
 
 #[test]
 fn search_plugin_no_file_path_matches_all() {
-    let list = FpPluginList::from_plugins(vec![
+    let list = emFpPluginList::from_plugins(vec![
         make_plugin(&[".png"], 1.0, "libA", "fn"),
         make_plugin(&[".txt"], 2.0, "libB", "fn"),
     ]);
@@ -314,7 +314,7 @@ fn search_plugin_no_file_path_matches_all() {
 
 #[test]
 fn search_plugin_with_model_class_filter() {
-    let list = FpPluginList::from_plugins(vec![
+    let list = emFpPluginList::from_plugins(vec![
         make_plugin_full(&[".png"], 5.0, "libA", "fn", &["ImageModel"], false),
         make_plugin_full(&[".png"], 3.0, "libB", "fn", &["TextModel"], false),
     ]);
@@ -333,7 +333,7 @@ fn search_plugin_with_model_class_filter() {
 
 #[test]
 fn search_plugin_case_insensitive_extension() {
-    let list = FpPluginList::from_plugins(vec![make_plugin(&[".PNG"], 1.0, "lib", "fn")]);
+    let list = emFpPluginList::from_plugins(vec![make_plugin(&[".PNG"], 1.0, "lib", "fn")]);
 
     // File has lowercase extension, plugin has uppercase — should still match.
     let found = list.search_plugin(None, Some("image.png"), false, 0, FileStatMode::Regular);
@@ -342,7 +342,7 @@ fn search_plugin_case_insensitive_extension() {
 
 #[test]
 fn search_plugin_extracts_filename_from_path() {
-    let list = FpPluginList::from_plugins(vec![make_plugin(&[".txt"], 1.0, "lib", "fn")]);
+    let list = emFpPluginList::from_plugins(vec![make_plugin(&[".txt"], 1.0, "lib", "fn")]);
 
     // Full path — extension matching should use just the file name.
     let found = list.search_plugin(
@@ -357,7 +357,7 @@ fn search_plugin_extracts_filename_from_path() {
 
 #[test]
 fn plugin_count() {
-    let list = FpPluginList::from_plugins(vec![
+    let list = emFpPluginList::from_plugins(vec![
         make_plugin(&[".a"], 1.0, "l1", "f1"),
         make_plugin(&[".b"], 2.0, "l2", "f2"),
     ]);
@@ -366,7 +366,7 @@ fn plugin_count() {
 
 #[test]
 fn empty_plugin_list() {
-    let list = FpPluginList::from_plugins(vec![]);
+    let list = emFpPluginList::from_plugins(vec![]);
     assert_eq!(list.plugin_count(), 0);
     assert!(list
         .search_plugin(None, Some("x.txt"), false, 0, FileStatMode::Regular)

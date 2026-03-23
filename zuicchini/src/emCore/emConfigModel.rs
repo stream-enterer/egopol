@@ -10,14 +10,14 @@ use crate::emCore::emRecRecord::Record;
 /// Tracks a dirty flag for unsaved changes. `load()` reads from disk,
 /// `save()` writes to disk. `load_or_install()` handles first-run by
 /// creating a default config file if none exists.
-pub struct ConfigModel<T: Record> {
+pub struct emConfigModel<T: Record> {
     value: T,
     path: PathBuf,
     change_signal: SignalId,
     dirty: bool,
 }
 
-impl<T: Record> ConfigModel<T> {
+impl<T: Record> emConfigModel<T> {
     pub fn new(value: T, path: PathBuf, signal_id: SignalId) -> Self {
         Self {
             value,

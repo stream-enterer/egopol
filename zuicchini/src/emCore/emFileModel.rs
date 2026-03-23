@@ -70,7 +70,7 @@ pub trait FileModelOps {
 /// The loading/saving lifecycle is driven by the caller (typically a scheduler
 /// engine). The abstract loading/saving operations are implemented via the
 /// `FileModelOps` trait.
-pub struct FileModel<T> {
+pub struct emFileModel<T> {
     data: Option<T>,
     path: PathBuf,
     state: FileState,
@@ -86,7 +86,7 @@ pub struct FileModel<T> {
     update_signal: SignalId,
 }
 
-impl<T> FileModel<T> {
+impl<T> emFileModel<T> {
     pub fn new(path: PathBuf, signal_id: SignalId, update_signal: SignalId) -> Self {
         Self {
             data: None,

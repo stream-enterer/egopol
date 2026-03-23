@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use zuicchini::emCore::emLinearGroup::LinearGroup;
+use zuicchini::emCore::emLinearGroup::emLinearGroup;
 use zuicchini::emCore::emTiling::Orientation;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 
@@ -8,38 +8,38 @@ use zuicchini::emCore::emPanelCtx::PanelCtx;
 
 use zuicchini::emCore::emPanelTree::{PanelTree, ViewConditionType};
 
-use zuicchini::emCore::emView::{View, ViewFlags};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emView::{emView, ViewFlags};
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
+use zuicchini::emCore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 
-use zuicchini::emCore::emButton::Button;
+use zuicchini::emCore::emButton::emButton;
 
-use zuicchini::emCore::emCheckBox::CheckBox;
+use zuicchini::emCore::emCheckBox::emCheckBox;
 
-use zuicchini::emCore::emColorField::ColorField;
+use zuicchini::emCore::emColorField::emColorField;
 
-use zuicchini::emCore::emErrorPanel::ErrorPanel;
+use zuicchini::emCore::emErrorPanel::emErrorPanel;
 
-use zuicchini::emCore::emFilePanel::FilePanel;
+use zuicchini::emCore::emFilePanel::emFilePanel;
 
-use zuicchini::emCore::emFileSelectionBox::FileSelectionBox;
+use zuicchini::emCore::emFileSelectionBox::emFileSelectionBox;
 
-use zuicchini::emCore::emLabel::Label;
+use zuicchini::emCore::emLabel::emLabel;
 
-use zuicchini::emCore::emListBox::ListBox;
+use zuicchini::emCore::emListBox::emListBox;
 
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emLook::emLook;
 
-use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+use zuicchini::emCore::emRadioButton::{emRadioButton, RadioGroup};
 
-use zuicchini::emCore::emScalarField::ScalarField;
+use zuicchini::emCore::emScalarField::emScalarField;
 
-use zuicchini::emCore::emSplitter::Splitter;
+use zuicchini::emCore::emSplitter::emSplitter;
 
-use zuicchini::emCore::emTextField::TextField;
+use zuicchini::emCore::emTextField::emTextField;
 
-use zuicchini::emCore::emTunnel::Tunnel;
+use zuicchini::emCore::emTunnel::emTunnel;
 
 use super::common::*;
 
@@ -54,7 +54,7 @@ macro_rules! require_golden {
 }
 
 /// Settle: deliver notices and update viewing until stable.
-fn settle(tree: &mut PanelTree, view: &mut View) {
+fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
         tree.deliver_notices(view.window_focused(), view.pixel_tallness());
         view.update_viewing(tree);
@@ -63,15 +63,15 @@ fn settle(tree: &mut PanelTree, view: &mut View) {
 
 // ─── PanelBehavior wrappers for widgets ──────────────────────────
 
-/// Wraps a Border (with specific outer/inner type) as a PanelBehavior.
+/// Wraps a emBorder (with specific outer/inner type) as a PanelBehavior.
 struct BorderBehavior {
-    border: Border,
-    look: Rc<Look>,
+    border: emBorder,
+    look: Rc<emLook>,
 }
 
 impl BorderBehavior {
-    fn new(outer: OuterBorderType, inner: InnerBorderType, caption: &str, look: Rc<Look>) -> Self {
-        let mut border = Border::new(outer).with_inner(inner).with_caption(caption);
+    fn new(outer: OuterBorderType, inner: InnerBorderType, caption: &str, look: Rc<emLook>) -> Self {
+        let mut border = emBorder::new(outer).with_inner(inner).with_caption(caption);
         border.label_in_border = true;
         Self { border, look }
     }
@@ -83,63 +83,63 @@ impl BorderBehavior {
 }
 
 impl PanelBehavior for BorderBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.border
             .paint_border(painter, w, h, &self.look, false, true, 1.0);
     }
 }
 
-/// Wraps a Label widget as a PanelBehavior.
+/// Wraps a emLabel widget as a PanelBehavior.
 struct LabelBehavior {
-    label: Label,
+    label: emLabel,
 }
 
 impl PanelBehavior for LabelBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.label.paint(painter, w, h, _state.enabled);
     }
 }
 
-/// Wraps a Button widget as a PanelBehavior.
+/// Wraps a emButton widget as a PanelBehavior.
 struct ButtonBehavior {
-    button: Button,
+    button: emButton,
 }
 
 impl PanelBehavior for ButtonBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.button.paint(painter, w, h, _state.enabled);
     }
 }
 
-/// Wraps a CheckBox widget as a PanelBehavior.
+/// Wraps a emCheckBox widget as a PanelBehavior.
 struct CheckBoxBehavior {
-    check_box: CheckBox,
+    check_box: emCheckBox,
 }
 
 impl PanelBehavior for CheckBoxBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.check_box.paint(painter, w, h, _state.enabled);
     }
 }
 
-/// Wraps a TextField widget as a PanelBehavior.
+/// Wraps a emTextField widget as a PanelBehavior.
 struct TextFieldBehavior {
-    text_field: TextField,
+    text_field: emTextField,
 }
 
 impl PanelBehavior for TextFieldBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.text_field.paint(painter, w, h, _state.enabled);
     }
 }
 
-/// Wraps a ScalarField widget as a PanelBehavior.
+/// Wraps a emScalarField widget as a PanelBehavior.
 struct ScalarFieldBehavior {
-    scalar_field: ScalarField,
+    scalar_field: emScalarField,
 }
 
 impl PanelBehavior for ScalarFieldBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.scalar_field.paint(painter, w, h, state.enabled);
     }
 }
@@ -163,7 +163,7 @@ fn render_and_compare_tol(
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, behavior);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -192,7 +192,7 @@ fn render_and_compare_tol(
 #[test]
 fn widget_border_rect() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     // Residual from 9-slice section boundary rounding (~1.5%)
     render_and_compare_tol(
         "widget_border_rect",
@@ -212,7 +212,7 @@ fn widget_border_rect() {
 #[test]
 fn widget_border_round_rect() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     // Residual from 9-slice section boundary rounding (~2.1%)
     render_and_compare_tol(
         "widget_border_round_rect",
@@ -235,7 +235,7 @@ fn widget_border_round_rect() {
 #[test]
 fn widget_border_group() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     // Residual from 9-slice section boundary rounding (~3.6%)
     render_and_compare_tol(
         "widget_border_group",
@@ -255,7 +255,7 @@ fn widget_border_group() {
 #[test]
 fn widget_border_instrument() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     // Residual from 9-slice section boundary rounding (~2.6%)
     render_and_compare_tol(
         "widget_border_instrument",
@@ -275,11 +275,11 @@ fn widget_border_instrument() {
 #[test]
 fn widget_label() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     render_and_compare(
         "widget_label",
         Box::new(LabelBehavior {
-            label: Label::new("Hello World", look),
+            label: emLabel::new("Hello World", look),
         }),
     );
 }
@@ -289,12 +289,12 @@ fn widget_label() {
 #[test]
 fn widget_button_normal() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     // Residual diffs from text rendering and 9-slice boundary rounding (~0.9%)
     render_and_compare_tol(
         "widget_button_normal",
         Box::new(ButtonBehavior {
-            button: Button::new("Click Me", look),
+            button: emButton::new("Click Me", look),
         }),
         3,
         1.5,
@@ -306,12 +306,12 @@ fn widget_button_normal() {
 #[test]
 fn widget_checkbox_unchecked() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     // Residual from checkbox image 9-slice section boundary rounding (~4.8%)
     render_and_compare_tol(
         "widget_checkbox_unchecked",
         Box::new(CheckBoxBehavior {
-            check_box: CheckBox::new("Check Option", look),
+            check_box: emCheckBox::new("Check Option", look),
         }),
         1,
         1.5,
@@ -323,8 +323,8 @@ fn widget_checkbox_unchecked() {
 #[test]
 fn widget_checkbox_checked() {
     require_golden!();
-    let look = Look::new();
-    let mut cb = CheckBox::new("Check Option", look);
+    let look = emLook::new();
+    let mut cb = emCheckBox::new("Check Option", look);
     cb.set_checked(true);
     // Residual from checkbox image + text rendering diffs (~5.1%)
     render_and_compare_tol(
@@ -340,8 +340,8 @@ fn widget_checkbox_checked() {
 #[test]
 fn widget_textfield_empty() {
     require_golden!();
-    let look = Look::new();
-    let mut tf = TextField::new(look);
+    let look = emLook::new();
+    let mut tf = emTextField::new(look);
     tf.set_caption("Name");
     tf.set_editable(true);
     render_and_compare_tol(
@@ -357,8 +357,8 @@ fn widget_textfield_empty() {
 #[test]
 fn widget_textfield_content() {
     require_golden!();
-    let look = Look::new();
-    let mut tf = TextField::new(look);
+    let look = emLook::new();
+    let mut tf = emTextField::new(look);
     tf.set_caption("Name");
     tf.set_editable(true);
     tf.set_text("Hello");
@@ -376,8 +376,8 @@ fn widget_textfield_content() {
 #[test]
 fn widget_scalarfield() {
     require_golden!();
-    let look = Look::new();
-    let mut sf = ScalarField::new(0.0, 100.0, look);
+    let look = emLook::new();
+    let mut sf = emScalarField::new(0.0, 100.0, look);
     sf.set_caption("Value");
     sf.set_editable(true);
     sf.set_value(50.0);
@@ -392,35 +392,35 @@ fn widget_scalarfield() {
 
 // ─── Additional behavior wrappers ──────────────────────────────
 
-/// Wraps a RadioButton widget as a PanelBehavior.
+/// Wraps a emRadioButton widget as a PanelBehavior.
 struct RadioButtonBehavior {
-    radio_button: RadioButton,
+    radio_button: emRadioButton,
 }
 
 impl PanelBehavior for RadioButtonBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.radio_button.paint(painter, w, h, _state.enabled);
     }
 }
 
-/// Wraps a ListBox widget as a PanelBehavior.
+/// Wraps a emListBox widget as a PanelBehavior.
 struct ListBoxBehavior {
-    list_box: ListBox,
+    list_box: emListBox,
 }
 
 impl PanelBehavior for ListBoxBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.list_box.paint(painter, w, h);
     }
 }
 
-/// Wraps a Splitter widget as a PanelBehavior.
+/// Wraps a emSplitter widget as a PanelBehavior.
 struct SplitterBehavior {
-    splitter: Splitter,
+    splitter: emSplitter,
 }
 
 impl PanelBehavior for SplitterBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.splitter.paint(painter, w, h, _state.enabled);
     }
 }
@@ -435,10 +435,10 @@ fn widget_colorfield() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_colorfield");
 
-    let look = Look::new();
-    let mut cf = ColorField::new(look);
+    let look = emLook::new();
+    let mut cf = emColorField::new(look);
     cf.set_caption("Color");
-    cf.set_color(zuicchini::emCore::emColor::Color::rgba(255, 0, 0, 255));
+    cf.set_color(zuicchini::emCore::emColor::emColor::rgba(255, 0, 0, 255));
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -450,7 +450,7 @@ fn widget_colorfield() {
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
     );
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 30)
@@ -476,9 +476,9 @@ fn widget_colorfield() {
 #[test]
 fn widget_radiobutton() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     let group = RadioGroup::new();
-    let mut rb = RadioButton::new("Radio Option", look, group, 0);
+    let mut rb = emRadioButton::new("Radio Option", look, group, 0);
     rb.set_checked(true);
     // Residual diffs from text rendering and 9-slice boundary rounding (~0.8%)
     render_and_compare_tol(
@@ -494,8 +494,8 @@ fn widget_radiobutton() {
 #[test]
 fn widget_listbox() {
     require_golden!();
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_caption("Items");
     lb.add_item("item0".to_string(), "Alpha".to_string());
     lb.add_item("item1".to_string(), "Beta".to_string());
@@ -517,8 +517,8 @@ fn widget_listbox() {
 #[test]
 fn widget_splitter_h() {
     require_golden!();
-    let look = Look::new();
-    let sp = Splitter::new(Orientation::Horizontal, look);
+    let look = emLook::new();
+    let sp = emSplitter::new(Orientation::Horizontal, look);
     // Residual from 9-slice interpolation rounding (~0.9%)
     render_and_compare_tol(
         "widget_splitter_h",
@@ -533,8 +533,8 @@ fn widget_splitter_h() {
 #[test]
 fn widget_splitter_v() {
     require_golden!();
-    let look = Look::new();
-    let mut sp = Splitter::new(Orientation::Vertical, look);
+    let look = emLook::new();
+    let mut sp = emSplitter::new(Orientation::Vertical, look);
     sp.set_position(0.3);
     // Residual from 9-slice interpolation rounding + grip position (~1.7%)
     render_and_compare_tol(
@@ -547,14 +547,14 @@ fn widget_splitter_v() {
 
 // ─── Test 17: colorfield_expanded ─────────────────────────────
 
-/// Wraps a ColorField as a PanelBehavior with layout_children delegation
+/// Wraps a emColorField as a PanelBehavior with layout_children delegation
 /// for auto-expanded child panels.
 struct ColorFieldExpandedBehavior {
-    color_field: ColorField,
+    color_field: emColorField,
 }
 
 impl PanelBehavior for ColorFieldExpandedBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.color_field.paint(painter, w, h);
     }
 
@@ -572,19 +572,19 @@ impl PanelBehavior for ColorFieldExpandedBehavior {
     }
 }
 
-/// Expanded ColorField with child ScalarFields for RGBA/HSV editing.
-/// C++ renders RasterLayout with 8 ScalarFields + TextField on right half.
+/// Expanded emColorField with child ScalarFields for RGBA/HSV editing.
+/// C++ renders emRasterLayout with 8 ScalarFields + emTextField on right half.
 #[test]
 fn colorfield_expanded() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("colorfield_expanded");
 
-    let look = Look::new();
-    let mut cf = ColorField::new(look);
+    let look = emLook::new();
+    let mut cf = emColorField::new(look);
     cf.set_caption("Color");
     cf.set_editable(true);
     cf.set_alpha_enabled(true);
-    cf.set_color(zuicchini::emCore::emColor::Color::rgba(0xBB, 0x22, 0x22, 0xFF));
+    cf.set_color(zuicchini::emCore::emColor::emColor::rgba(0xBB, 0x22, 0x22, 0xFF));
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -596,7 +596,7 @@ fn colorfield_expanded() {
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
     );
 
-    let mut view = View::new(root, 800.0, 800.0);
+    let mut view = emView::new(root, 800.0, 800.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.set_window_focused(&mut tree, false);
 
@@ -620,13 +620,13 @@ fn colorfield_expanded() {
 
 // ─── Test 18: listbox_expanded ────────────────────────────────
 
-/// Wraps a ListBox as a PanelBehavior for expanded rendering.
+/// Wraps a emListBox as a PanelBehavior for expanded rendering.
 struct ListBoxExpandedBehavior {
-    list_box: ListBox,
+    list_box: emListBox,
 }
 
 impl PanelBehavior for ListBoxExpandedBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.list_box.paint(painter, w, h);
     }
 
@@ -644,15 +644,15 @@ impl PanelBehavior for ListBoxExpandedBehavior {
     }
 }
 
-/// Expanded ListBox with 7 items, 3 multi-selected.
+/// Expanded emListBox with 7 items, 3 multi-selected.
 /// C++ renders child DefaultItemPanel panels laid out by emRasterGroup grid.
 #[test]
 fn listbox_expanded() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("listbox_expanded");
 
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_caption("Items");
     lb.set_selection_mode(zuicchini::emCore::emListBox::SelectionMode::Multi);
     lb.set_items(
@@ -671,7 +671,7 @@ fn listbox_expanded() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
     tree.set_behavior(root, Box::new(ListBoxExpandedBehavior { list_box: lb }));
 
-    let mut view = View::new(root, 800.0, 800.0);
+    let mut view = emView::new(root, 800.0, 800.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.set_window_focused(&mut tree, false);
 
@@ -700,7 +700,7 @@ fn golden_widget_border_rect_extreme_tall() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_border_rect_extreme_tall");
 
-    let look = Look::new();
+    let look = emLook::new();
     let behavior = BorderBehavior::new(
         OuterBorderType::Rect,
         InnerBorderType::None,
@@ -713,7 +713,7 @@ fn golden_widget_border_rect_extreme_tall() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 8.0);
     tree.set_behavior(root, Box::new(behavior));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -744,7 +744,7 @@ fn golden_widget_border_rect_extreme_wide() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_border_rect_extreme_wide");
 
-    let look = Look::new();
+    let look = emLook::new();
     let behavior = BorderBehavior::new(
         OuterBorderType::Rect,
         InnerBorderType::None,
@@ -757,7 +757,7 @@ fn golden_widget_border_rect_extreme_wide() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.05);
     tree.set_behavior(root, Box::new(behavior));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -788,7 +788,7 @@ fn golden_widget_border_roundrect_thin() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_border_roundrect_thin");
 
-    let look = Look::new();
+    let look = emLook::new();
     let behavior = BorderBehavior::new(
         OuterBorderType::RoundRect,
         InnerBorderType::None,
@@ -801,7 +801,7 @@ fn golden_widget_border_roundrect_thin() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.002);
     tree.set_behavior(root, Box::new(behavior));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -832,7 +832,7 @@ fn golden_widget_border_instrument_cramped() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_border_instrument_cramped");
 
-    let look = Look::new();
+    let look = emLook::new();
     let behavior = BorderBehavior::new(
         OuterBorderType::Instrument,
         InnerBorderType::None,
@@ -846,7 +846,7 @@ fn golden_widget_border_instrument_cramped() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.15);
     tree.set_behavior(root, Box::new(behavior));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -877,15 +877,15 @@ fn golden_widget_label_single_char() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_label_single_char");
 
-    let look = Look::new();
-    let label = Label::new("X", look);
+    let look = emLook::new();
+    let label = emLabel::new("X", look);
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.1);
     tree.set_behavior(root, Box::new(LabelBehavior { label }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -916,15 +916,15 @@ fn golden_widget_label_empty() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_label_empty");
 
-    let look = Look::new();
-    let label = Label::new("", look);
+    let look = emLook::new();
+    let label = emLabel::new("", look);
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(LabelBehavior { label }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -955,8 +955,8 @@ fn golden_widget_label_long_narrow() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_label_long_narrow");
 
-    let look = Look::new();
-    let label = Label::new(
+    let look = emLook::new();
+    let label = emLabel::new(
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789 !@#$%^&*() test",
         look,
     );
@@ -966,7 +966,7 @@ fn golden_widget_label_long_narrow() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 4.0);
     tree.set_behavior(root, Box::new(LabelBehavior { label }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -999,20 +999,20 @@ fn golden_widget_label_long_narrow() {
 #[test]
 fn widget_error_panel() {
     require_golden!();
-    let panel = ErrorPanel::new("Test error: something went wrong");
+    let panel = emErrorPanel::new("Test error: something went wrong");
 
     render_and_compare_tol("widget_error_panel", Box::new(panel), 3, 3.0);
 }
 
 // ─── CAP-0076: widget_tunnel ───────────────────────────────────
 
-/// Wraps a Tunnel widget as a PanelBehavior.
+/// Wraps a emTunnel widget as a PanelBehavior.
 struct TunnelBehavior {
-    tunnel: Tunnel,
+    tunnel: emTunnel,
 }
 
 impl PanelBehavior for TunnelBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.tunnel.paint_tunnel(painter, w, h);
     }
 }
@@ -1022,8 +1022,8 @@ fn widget_tunnel() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_tunnel");
 
-    let look = Look::new();
-    let mut tunnel = Tunnel::new(look).with_caption("Tunnel Test");
+    let look = emLook::new();
+    let mut tunnel = emTunnel::new(look).with_caption("Tunnel Test");
     tunnel.set_depth(10.0);
     tunnel.set_child_tallness(0.75);
 
@@ -1032,7 +1032,7 @@ fn widget_tunnel() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(TunnelBehavior { tunnel }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1054,7 +1054,7 @@ fn widget_tunnel() {
 fn widget_file_panel() {
     require_golden!();
     // Matches C++ gen: `new emFilePanel(view, "test", NULL, true)` — no file model.
-    let panel = FilePanel::new();
+    let panel = emFilePanel::new();
 
     render_and_compare_tol("widget_file_panel", Box::new(panel), 3, 3.0);
 }
@@ -1066,7 +1066,7 @@ fn widget_file_selection_box() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_file_selection_box");
 
-    let mut fsb = FileSelectionBox::new("Select File");
+    let mut fsb = emFileSelectionBox::new("Select File");
     fsb.set_parent_directory(std::path::Path::new("/nonexistent_golden_test_dir"));
 
     let mut tree = PanelTree::new();
@@ -1074,7 +1074,7 @@ fn widget_file_selection_box() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(fsb));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1097,8 +1097,8 @@ fn golden_widget_textfield_empty_wide() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_textfield_empty_wide");
 
-    let look = Look::new();
-    let mut tf = TextField::new(look);
+    let look = emLook::new();
+    let mut tf = emTextField::new(look);
     tf.set_caption("Name");
     tf.set_editable(true);
 
@@ -1107,7 +1107,7 @@ fn golden_widget_textfield_empty_wide() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.05);
     tree.set_behavior(root, Box::new(TextFieldBehavior { text_field: tf }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1138,8 +1138,8 @@ fn golden_widget_textfield_single_char_square() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_textfield_single_char_square");
 
-    let look = Look::new();
-    let mut tf = TextField::new(look);
+    let look = emLook::new();
+    let mut tf = emTextField::new(look);
     tf.set_caption("Name");
     tf.set_editable(true);
     tf.set_text("A");
@@ -1149,7 +1149,7 @@ fn golden_widget_textfield_single_char_square() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
     tree.set_behavior(root, Box::new(TextFieldBehavior { text_field: tf }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1180,8 +1180,8 @@ fn golden_widget_scalarfield_min_value() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_scalarfield_min_value");
 
-    let look = Look::new();
-    let mut sf = ScalarField::new(-1_000_000_000_000.0, 1_000_000_000_000.0, look);
+    let look = emLook::new();
+    let mut sf = emScalarField::new(-1_000_000_000_000.0, 1_000_000_000_000.0, look);
     sf.set_caption("Value");
     sf.set_editable(true);
     sf.set_value(-1_000_000_000_000.0);
@@ -1191,7 +1191,7 @@ fn golden_widget_scalarfield_min_value() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(ScalarFieldBehavior { scalar_field: sf }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1222,8 +1222,8 @@ fn golden_widget_scalarfield_max_value() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_scalarfield_max_value");
 
-    let look = Look::new();
-    let mut sf = ScalarField::new(-1_000_000_000_000.0, 1_000_000_000_000.0, look);
+    let look = emLook::new();
+    let mut sf = emScalarField::new(-1_000_000_000_000.0, 1_000_000_000_000.0, look);
     sf.set_caption("Value");
     sf.set_editable(true);
     sf.set_value(1_000_000_000_000.0);
@@ -1233,7 +1233,7 @@ fn golden_widget_scalarfield_max_value() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(ScalarFieldBehavior { scalar_field: sf }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1264,8 +1264,8 @@ fn golden_widget_scalarfield_zero_range() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_scalarfield_zero_range");
 
-    let look = Look::new();
-    let mut sf = ScalarField::new(50.0, 50.0, look);
+    let look = emLook::new();
+    let mut sf = emScalarField::new(50.0, 50.0, look);
     sf.set_caption("Value");
     sf.set_editable(true);
     sf.set_value(50.0);
@@ -1275,7 +1275,7 @@ fn golden_widget_scalarfield_zero_range() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(ScalarFieldBehavior { scalar_field: sf }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1306,8 +1306,8 @@ fn golden_widget_listbox_empty() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_listbox_empty");
 
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_caption("Items");
 
     let mut tree = PanelTree::new();
@@ -1315,7 +1315,7 @@ fn golden_widget_listbox_empty() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(ListBoxBehavior { list_box: lb }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1346,8 +1346,8 @@ fn golden_widget_listbox_single() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_listbox_single");
 
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_caption("Items");
     lb.add_item("item0".to_string(), "Solo".to_string());
 
@@ -1356,7 +1356,7 @@ fn golden_widget_listbox_single() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(ListBoxBehavior { list_box: lb }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1387,8 +1387,8 @@ fn golden_widget_listbox_extreme_wide() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_listbox_extreme_wide");
 
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_caption("Items");
     lb.add_item("item0".to_string(), "Alpha".to_string());
     lb.add_item("item1".to_string(), "Beta".to_string());
@@ -1399,7 +1399,7 @@ fn golden_widget_listbox_extreme_wide() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.05);
     tree.set_behavior(root, Box::new(ListBoxBehavior { list_box: lb }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1430,8 +1430,8 @@ fn golden_widget_splitter_h_pos0() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_splitter_h_pos0");
 
-    let look = Look::new();
-    let mut sp = Splitter::new(Orientation::Horizontal, look);
+    let look = emLook::new();
+    let mut sp = emSplitter::new(Orientation::Horizontal, look);
     sp.set_position(0.0);
 
     let mut tree = PanelTree::new();
@@ -1439,7 +1439,7 @@ fn golden_widget_splitter_h_pos0() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(SplitterBehavior { splitter: sp }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1470,8 +1470,8 @@ fn golden_widget_splitter_h_pos1() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_splitter_h_pos1");
 
-    let look = Look::new();
-    let mut sp = Splitter::new(Orientation::Horizontal, look);
+    let look = emLook::new();
+    let mut sp = emSplitter::new(Orientation::Horizontal, look);
     sp.set_position(1.0);
 
     let mut tree = PanelTree::new();
@@ -1479,7 +1479,7 @@ fn golden_widget_splitter_h_pos1() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, Box::new(SplitterBehavior { splitter: sp }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1510,8 +1510,8 @@ fn golden_widget_splitter_v_extreme_tall() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_splitter_v_extreme_tall");
 
-    let look = Look::new();
-    let mut sp = Splitter::new(Orientation::Vertical, look);
+    let look = emLook::new();
+    let mut sp = emSplitter::new(Orientation::Vertical, look);
     sp.set_position(0.5);
 
     let mut tree = PanelTree::new();
@@ -1519,7 +1519,7 @@ fn golden_widget_splitter_v_extreme_tall() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 8.0);
     tree.set_behavior(root, Box::new(SplitterBehavior { splitter: sp }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1550,15 +1550,15 @@ fn golden_widget_checkbox_extreme_tall() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_checkbox_extreme_tall");
 
-    let look = Look::new();
-    let cb = CheckBox::new("Check", look);
+    let look = emLook::new();
+    let cb = emCheckBox::new("Check", look);
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 4.0);
     tree.set_behavior(root, Box::new(CheckBoxBehavior { check_box: cb }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1589,8 +1589,8 @@ fn golden_widget_tunnel_extreme_wide() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_tunnel_extreme_wide");
 
-    let look = Look::new();
-    let mut tunnel = Tunnel::new(look).with_caption("Tunnel");
+    let look = emLook::new();
+    let mut tunnel = emTunnel::new(look).with_caption("Tunnel");
     tunnel.set_depth(10.0);
     tunnel.set_child_tallness(0.75);
 
@@ -1599,7 +1599,7 @@ fn golden_widget_tunnel_extreme_wide() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.02);
     tree.set_behavior(root, Box::new(TunnelBehavior { tunnel }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1630,10 +1630,10 @@ fn golden_widget_colorfield_alpha_zero() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_colorfield_alpha_zero");
 
-    let look = Look::new();
-    let mut cf = ColorField::new(look);
+    let look = emLook::new();
+    let mut cf = emColorField::new(look);
     cf.set_caption("Color");
-    cf.set_color(zuicchini::emCore::emColor::Color::rgba(255, 0, 0, 0));
+    cf.set_color(zuicchini::emCore::emColor::emColor::rgba(255, 0, 0, 0));
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -1644,7 +1644,7 @@ fn golden_widget_colorfield_alpha_zero() {
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
     );
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
@@ -1679,10 +1679,10 @@ fn golden_widget_colorfield_alpha_opaque() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_colorfield_alpha_opaque");
 
-    let look = Look::new();
-    let mut cf = ColorField::new(look);
+    let look = emLook::new();
+    let mut cf = emColorField::new(look);
     cf.set_caption("Color");
-    cf.set_color(zuicchini::emCore::emColor::Color::rgba(255, 0, 0, 255));
+    cf.set_color(zuicchini::emCore::emColor::emColor::rgba(255, 0, 0, 255));
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -1693,7 +1693,7 @@ fn golden_widget_colorfield_alpha_opaque() {
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
     );
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
@@ -1728,10 +1728,10 @@ fn golden_widget_colorfield_alpha_near() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_colorfield_alpha_near");
 
-    let look = Look::new();
-    let mut cf = ColorField::new(look);
+    let look = emLook::new();
+    let mut cf = emColorField::new(look);
     cf.set_caption("Color");
-    cf.set_color(zuicchini::emCore::emColor::Color::rgba(255, 0, 0, 1));
+    cf.set_color(zuicchini::emCore::emColor::emColor::rgba(255, 0, 0, 1));
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -1742,7 +1742,7 @@ fn golden_widget_colorfield_alpha_near() {
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
     );
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
@@ -1772,35 +1772,35 @@ fn golden_widget_colorfield_alpha_near() {
 
 // ─── Test: composition_border_nest ──────────────────────────────
 
-/// Nested border hierarchy: outer Border (RoundRect/Filled) containing
-/// inner Border (Rect/Group) containing Label + Button + TextField.
+/// Nested border hierarchy: outer emBorder (RoundRect/Filled) containing
+/// inner emBorder (Rect/Group) containing emLabel + emButton + emTextField.
 /// Matches C++ gen_composed_border_nest().
 #[test]
 fn composition_border_nest() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("composed_border_nest");
 
-    let look = Look::new();
+    let look = emLook::new();
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("outer");
 
-    // Outer: LinearGroup vertical, OBT_ROUND_RECT / IBT_NONE, caption "Outer"
+    // Outer: emLinearGroup vertical, OBT_ROUND_RECT / IBT_NONE, caption "Outer"
     // C++: outer->SetBorderType(OBT_ROUND_RECT, IBT_NONE); outer->SetVertical();
-    let mut outer = LinearGroup::vertical();
-    outer.border = Border::new(OuterBorderType::RoundRect)
+    let mut outer = emLinearGroup::vertical();
+    outer.border = emBorder::new(OuterBorderType::RoundRect)
         .with_inner(InnerBorderType::None)
         .with_caption("Outer");
     outer.border.label_in_border = true;
     // C++: outer->DoLayout(0, 0, 800.0/600.0, 1.0);
     tree.set_layout_rect(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
 
-    // Inner: LinearGroup vertical, OBT_RECT / IBT_GROUP, caption "Inner"
+    // Inner: emLinearGroup vertical, OBT_RECT / IBT_GROUP, caption "Inner"
     // C++: inner = new Testable<emLinearLayout>(*outer, "inner", "Inner");
     //      inner->SetBorderType(OBT_RECT, IBT_GROUP); inner->SetVertical();
     let inner_id = tree.create_child(root, "inner");
-    let mut inner = LinearGroup::vertical();
-    inner.border = Border::new(OuterBorderType::Rect)
+    let mut inner = emLinearGroup::vertical();
+    inner.border = emBorder::new(OuterBorderType::Rect)
         .with_inner(InnerBorderType::Group)
         .with_caption("Inner");
     inner.border.label_in_border = true;
@@ -1812,7 +1812,7 @@ fn composition_border_nest() {
     tree.set_behavior(
         label_id,
         Box::new(LabelBehavior {
-            label: Label::new("Test Label", look.clone()),
+            label: emLabel::new("Test Label", look.clone()),
         }),
     );
 
@@ -1821,13 +1821,13 @@ fn composition_border_nest() {
     tree.set_behavior(
         button_id,
         Box::new(ButtonBehavior {
-            button: Button::new("Test Button", look.clone()),
+            button: emButton::new("Test Button", look.clone()),
         }),
     );
 
     // C++: new Testable<emTextField>(*inner, "textfield", "Field", "", emImage(), "Hello", true)
     let tf_id = tree.create_child(inner_id, "textfield");
-    let mut tf = TextField::new(look.clone());
+    let mut tf = emTextField::new(look.clone());
     tf.set_caption("Field");
     tf.set_editable(true);
     tf.set_text("Hello");
@@ -1836,7 +1836,7 @@ fn composition_border_nest() {
     // Set outer behavior last (after children are created)
     tree.set_behavior(root, Box::new(outer));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window
     view.set_window_focused(&mut tree, false);
@@ -1851,7 +1851,7 @@ fn composition_border_nest() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().data();
 
-    // Rust LinearGroup positions children slightly differently from C++ emLinearLayout
+    // Rust emLinearGroup positions children slightly differently from C++ emLinearLayout
     // due to content_rect rounding in the OBT_ROUND_RECT/IBT_GROUP border hierarchy.
     // This causes ~35% pixel mismatch at tol=3 (child position offsets ~40-60px).
     // Tolerance relaxed to accommodate the structural layout difference while still
@@ -1874,13 +1874,13 @@ fn composition_border_nest() {
 
 // ─── Test: composition_splitter_content ─────────────────────────
 
-/// Wraps a Splitter with layout_children for composition tests.
+/// Wraps a emSplitter with layout_children for composition tests.
 struct SplitterCompositionBehavior {
-    splitter: Splitter,
+    splitter: emSplitter,
 }
 
 impl PanelBehavior for SplitterCompositionBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.splitter.paint(painter, w, h, state.enabled);
     }
 
@@ -1894,8 +1894,8 @@ impl PanelBehavior for SplitterCompositionBehavior {
     }
 }
 
-/// Composition test: horizontal Splitter (pos=0.5) with two Borders (OBT_Rect),
-/// each containing a ColorField and ListBox. Matches C++ gen_composed_splitter_content().
+/// Composition test: horizontal emSplitter (pos=0.5) with two Borders (OBT_Rect),
+/// each containing a emColorField and emListBox. Matches C++ gen_composed_splitter_content().
 ///
 /// In C++, emBorder does NOT auto-layout children — children exist in the tree
 /// but stay at default off-screen positions (-2,-2). The golden output shows
@@ -1905,10 +1905,10 @@ fn composition_splitter_content() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("composed_splitter_content");
 
-    let look = Look::new();
+    let look = emLook::new();
 
     // Root: horizontal splitter, pos=0.5, no border (OBT_NONE/IBT_NONE)
-    let mut sp = Splitter::new(Orientation::Horizontal, look.clone());
+    let mut sp = emSplitter::new(Orientation::Horizontal, look.clone());
     sp.set_position(0.5);
 
     let mut tree = PanelTree::new();
@@ -1954,7 +1954,7 @@ fn composition_splitter_content() {
     let _cf_id = tree.create_child(right_id, "color");
     let _lb_id = tree.create_child(right_id, "list");
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.set_window_focused(&mut tree, false);
 
@@ -1986,8 +1986,8 @@ fn composition_splitter_content() {
 
 // ─── Test: composition_scrolled_listbox_in_border ───────────────
 
-/// Border (OBT_RoundRect, Filled) with caption "Scrolled List" containing
-/// a ListBox with 50 items scrolled to item 25.
+/// emBorder (OBT_RoundRect, Filled) with caption "Scrolled List" containing
+/// a emListBox with 50 items scrolled to item 25.
 /// In C++, emBorder doesn't auto-layout children — children stay at default
 /// positions, so the golden data shows only the border chrome.
 #[test]
@@ -1995,7 +1995,7 @@ fn composition_scrolled_listbox_in_border() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("composed_scrolled_listbox");
 
-    let look = Look::new();
+    let look = emLook::new();
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("border");
@@ -2013,9 +2013,9 @@ fn composition_scrolled_listbox_in_border() {
         )),
     );
 
-    // ListBox child exists in tree but won't be visible (emBorder default positions).
+    // emListBox child exists in tree but won't be visible (emBorder default positions).
     let lb_id = tree.create_child(root, "list");
-    let mut lb = ListBox::new(look);
+    let mut lb = emListBox::new(look);
     lb.set_caption("Items");
     for i in 1..=50 {
         lb.add_item(format!("item{}", i - 1), format!("Item {}", i));
@@ -2023,7 +2023,7 @@ fn composition_scrolled_listbox_in_border() {
     lb.set_selected_index(24); // Item 25 (0-based index 24)
     tree.set_behavior(lb_id, Box::new(ListBoxBehavior { list_box: lb }));
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.set_window_focused(&mut tree, false);
 
@@ -2055,7 +2055,7 @@ fn composition_scrolled_listbox_in_border() {
 
 // ─── Test: composition_colorfield_expansion_wide ────────────────
 
-/// Border (OBT_RoundRect, IBT_Group) containing a ColorField, rendered at 800x400
+/// emBorder (OBT_RoundRect, IBT_Group) containing a emColorField, rendered at 800x400
 /// (wide aspect ratio). In C++, emBorder doesn't auto-layout children, so the
 /// golden data shows only the border shape. Verifies border rendering differs
 /// correctly between wide and tall aspects after substance_round_rect fixes.
@@ -2064,7 +2064,7 @@ fn composition_colorfield_expansion_wide() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("composed_colorfield_wide");
 
-    let look = Look::new();
+    let look = emLook::new();
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -2085,7 +2085,7 @@ fn composition_colorfield_expansion_wide() {
     // C++ child: emColorField — exists in tree but not positioned by emBorder
     let _cf_id = tree.create_child(root, "color");
 
-    let mut view = View::new(root, 800.0, 400.0);
+    let mut view = emView::new(root, 800.0, 400.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.set_window_focused(&mut tree, false);
 
@@ -2109,7 +2109,7 @@ fn composition_colorfield_expansion_wide() {
 
 // ─── Test: composition_colorfield_expansion_tall ────────────────
 
-/// Border (OBT_RoundRect, IBT_Group) containing a ColorField, rendered at 400x800
+/// emBorder (OBT_RoundRect, IBT_Group) containing a emColorField, rendered at 400x800
 /// (tall aspect ratio). Same hierarchy as the wide variant, verifying that the
 /// border shape adapts correctly to tall geometry.
 #[test]
@@ -2117,7 +2117,7 @@ fn composition_colorfield_expansion_tall() {
     require_golden!();
     let (w, h, expected) = load_compositor_golden("composed_colorfield_tall");
 
-    let look = Look::new();
+    let look = emLook::new();
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -2138,7 +2138,7 @@ fn composition_colorfield_expansion_tall() {
     // C++ child: emColorField — exists in tree but not positioned by emBorder
     let _cf_id = tree.create_child(root, "color");
 
-    let mut view = View::new(root, 400.0, 800.0);
+    let mut view = emView::new(root, 400.0, 800.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.set_window_focused(&mut tree, false);
 
@@ -2176,7 +2176,7 @@ fn stress_test_overlay_golden() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
 
     // Render baseline (no stress test)
-    let mut view = View::new(root, w as f64, h as f64);
+    let mut view = emView::new(root, w as f64, h as f64);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 

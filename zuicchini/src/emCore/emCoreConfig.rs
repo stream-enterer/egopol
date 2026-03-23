@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use crate::emCore::emInstallInfo::{get_install_path, InstallDirType};
 use crate::emCore::emRec::{RecError, RecStruct};
-use crate::emCore::emConfigModel::ConfigModel;
-use crate::emCore::emContext::Context;
+use crate::emCore::emConfigModel::emConfigModel;
+use crate::emCore::emContext::emContext;
 use crate::emCore::emRecRecord::Record;
 use slotmap::Key as _;
 
@@ -13,9 +13,9 @@ use crate::emCore::emSignal::SignalId;
 /// Toolkit-wide configuration settings.
 ///
 /// Port of C++ `emCoreConfig`. Holds navigation speeds, rendering quality,
-/// and resource limits. Backed by a `ConfigModel` for file persistence.
+/// and resource limits. Backed by a `emConfigModel` for file persistence.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CoreConfig {
+pub struct emCoreConfig {
     pub stick_mouse_when_navigating: bool,
     pub emulate_middle_button: bool,
     pub pan_function: bool,
@@ -36,7 +36,7 @@ pub struct CoreConfig {
     pub upscale_quality: i32,
 }
 
-impl Default for CoreConfig {
+impl Default for emCoreConfig {
     fn default() -> Self {
         Self {
             stick_mouse_when_navigating: false,
@@ -72,7 +72,7 @@ fn clamp_i32(val: i32, min: i32, max: i32) -> i32 {
     val.clamp(min, max)
 }
 
-impl Record for CoreConfig {
+impl Record for emCoreConfig {
     fn from_rec(rec: &RecStruct) -> Result<Self, RecError> {
         let d = Self::default();
         Ok(Self {
@@ -207,13 +207,13 @@ impl Record for CoreConfig {
     }
 }
 
-impl CoreConfig {
-    /// Acquire the singleton `ConfigModel<CoreConfig>` from the context registry.
+impl emCoreConfig {
+    /// Acquire the singleton `emConfigModel<emCoreConfig>` from the context registry.
     ///
     /// Port of C++ `emCoreConfig::Acquire`. On first call, creates the model,
     /// registers it, and loads from disk (or installs defaults).
-    pub fn acquire(ctx: &Context) -> Rc<RefCell<ConfigModel<Self>>> {
-        ctx.acquire::<ConfigModel<Self>>("", || {
+    pub fn acquire(ctx: &emContext) -> Rc<RefCell<emConfigModel<Self>>> {
+        ctx.acquire::<emConfigModel<Self>>("", || {
             let path = get_install_path(InstallDirType::UserConfig, "emCore", Some("config.rec"))
                 .unwrap_or_else(|_| {
                     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
@@ -223,7 +223,7 @@ impl CoreConfig {
                         .join("config.rec")
                 });
 
-            let mut model = ConfigModel::new(Self::default(), path, SignalId::null());
+            let mut model = emConfigModel::new(Self::default(), path, SignalId::null());
 
             if let Err(e) = model.load_or_install() {
                 log::warn!("CoreConfig: failed to load or install config: {e}");

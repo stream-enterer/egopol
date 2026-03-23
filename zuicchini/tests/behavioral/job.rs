@@ -1,12 +1,12 @@
-use zuicchini::emCore::emJob::{Job, JobQueue, JobState};
+use zuicchini::emCore::emJob::{emJob, emJobQueue, JobState};
 use zuicchini::emCore::emScheduler::EngineScheduler;
 
 #[test]
 fn enqueue_transitions_to_waiting() {
     let mut sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
 
-    let job = Job::new(5.0, &mut sched);
+    let job = emJob::new(5.0, &mut sched);
     let sig = job.state_signal();
     let id = queue.enqueue(job, &mut sched);
 
@@ -20,9 +20,9 @@ fn enqueue_transitions_to_waiting() {
 #[test]
 fn start_transitions_to_running() {
     let mut sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
 
-    let job = Job::new(1.0, &mut sched);
+    let job = emJob::new(1.0, &mut sched);
     let sig = job.state_signal();
     let id = queue.enqueue(job, &mut sched);
     queue.start_job(id, &mut sched);
@@ -37,9 +37,9 @@ fn start_transitions_to_running() {
 #[test]
 fn succeed_transitions_to_success() {
     let mut sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
 
-    let job = Job::new(1.0, &mut sched);
+    let job = emJob::new(1.0, &mut sched);
     let sig = job.state_signal();
     let id = queue.enqueue(job, &mut sched);
     queue.start_job(id, &mut sched);
@@ -54,9 +54,9 @@ fn succeed_transitions_to_success() {
 #[test]
 fn fail_records_error_text() {
     let mut sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
 
-    let job = Job::new(1.0, &mut sched);
+    let job = emJob::new(1.0, &mut sched);
     let sig = job.state_signal();
     let id = queue.enqueue(job, &mut sched);
     queue.start_job(id, &mut sched);
@@ -73,9 +73,9 @@ fn fail_records_error_text() {
 #[test]
 fn abort_transitions_to_aborted() {
     let mut sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
 
-    let job = Job::new(1.0, &mut sched);
+    let job = emJob::new(1.0, &mut sched);
     let sig = job.state_signal();
     let id = queue.enqueue(job, &mut sched);
     queue.abort_job(id, &mut sched);
@@ -89,17 +89,17 @@ fn abort_transitions_to_aborted() {
 #[test]
 fn priority_ordering_highest_first() {
     let mut sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
 
-    let job_low = Job::new(1.0, &mut sched);
+    let job_low = emJob::new(1.0, &mut sched);
     let sig_low = job_low.state_signal();
     let id_low = queue.enqueue(job_low, &mut sched);
 
-    let job_mid = Job::new(5.0, &mut sched);
+    let job_mid = emJob::new(5.0, &mut sched);
     let sig_mid = job_mid.state_signal();
     let id_mid = queue.enqueue(job_mid, &mut sched);
 
-    let job_high = Job::new(10.0, &mut sched);
+    let job_high = emJob::new(10.0, &mut sched);
     let sig_high = job_high.state_signal();
     let id_high = queue.enqueue(job_high, &mut sched);
 
@@ -128,13 +128,13 @@ fn priority_ordering_highest_first() {
 #[test]
 fn set_priority_reorders_waiting() {
     let mut sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
 
-    let job_a = Job::new(1.0, &mut sched);
+    let job_a = emJob::new(1.0, &mut sched);
     let sig_a = job_a.state_signal();
     let id_a = queue.enqueue(job_a, &mut sched);
 
-    let job_b = Job::new(10.0, &mut sched);
+    let job_b = emJob::new(10.0, &mut sched);
     let sig_b = job_b.state_signal();
     let id_b = queue.enqueue(job_b, &mut sched);
 
@@ -153,18 +153,18 @@ fn set_priority_reorders_waiting() {
 #[test]
 fn fail_all_running_and_waiting() {
     let mut sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
 
-    let job1 = Job::new(1.0, &mut sched);
+    let job1 = emJob::new(1.0, &mut sched);
     let sig1 = job1.state_signal();
     let id1 = queue.enqueue(job1, &mut sched);
     queue.start_job(id1, &mut sched);
 
-    let job2 = Job::new(2.0, &mut sched);
+    let job2 = emJob::new(2.0, &mut sched);
     let sig2 = job2.state_signal();
     let id2 = queue.enqueue(job2, &mut sched);
 
-    let job3 = Job::new(3.0, &mut sched);
+    let job3 = emJob::new(3.0, &mut sched);
     let sig3 = job3.state_signal();
     let id3 = queue.enqueue(job3, &mut sched);
 
@@ -184,13 +184,13 @@ fn fail_all_running_and_waiting() {
 #[test]
 fn waiting_and_running_job_lists() {
     let mut sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
 
-    let job1 = Job::new(1.0, &mut sched);
+    let job1 = emJob::new(1.0, &mut sched);
     let sig1 = job1.state_signal();
     let id1 = queue.enqueue(job1, &mut sched);
 
-    let job2 = Job::new(2.0, &mut sched);
+    let job2 = emJob::new(2.0, &mut sched);
     let sig2 = job2.state_signal();
     let id2 = queue.enqueue(job2, &mut sched);
 
@@ -216,14 +216,14 @@ fn waiting_and_running_job_lists() {
 #[test]
 fn clear_aborts_all() {
     let mut sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
 
-    let job1 = Job::new(1.0, &mut sched);
+    let job1 = emJob::new(1.0, &mut sched);
     let sig1 = job1.state_signal();
     let id1 = queue.enqueue(job1, &mut sched);
     queue.start_job(id1, &mut sched);
 
-    let job2 = Job::new(2.0, &mut sched);
+    let job2 = emJob::new(2.0, &mut sched);
     let sig2 = job2.state_signal();
     let id2 = queue.enqueue(job2, &mut sched);
 
@@ -240,7 +240,7 @@ fn clear_aborts_all() {
 #[test]
 fn job_priority_and_signal_accessors() {
     let mut sched = EngineScheduler::new();
-    let job = Job::new(7.5, &mut sched);
+    let job = emJob::new(7.5, &mut sched);
     assert_eq!(job.priority(), 7.5);
     assert_eq!(job.state(), JobState::NotEnqueued);
     assert_eq!(job.error_text(), "");
@@ -254,14 +254,14 @@ fn job_priority_and_signal_accessors() {
 #[test]
 fn start_next_returns_none_when_empty() {
     let mut sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
     assert!(queue.start_next(&mut sched).is_none());
 }
 
 #[test]
 fn first_waiting_and_running_none_when_empty() {
     let _sched = EngineScheduler::new();
-    let mut queue = JobQueue::new();
+    let mut queue = emJobQueue::new();
     assert!(queue.first_waiting_job().is_none());
     assert!(queue.first_running_job().is_none());
 }

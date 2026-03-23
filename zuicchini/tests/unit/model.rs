@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 
 use zuicchini::emCore::emRec::RecStruct;
-use zuicchini::emCore::emContext::Context;
+use zuicchini::emCore::emContext::emContext;
 
-use zuicchini::emCore::emFileModel::{FileModel, FileModelOps, FileState};
+use zuicchini::emCore::emFileModel::{emFileModel, FileModelOps, FileState};
 
 use zuicchini::emCore::emRec::RecError;
 
-use zuicchini::emCore::emRecFileModel::RecFileModel;
+use zuicchini::emCore::emRecFileModel::emRecFileModel;
 
 use zuicchini::emCore::emRecRecord::Record;
 
@@ -57,7 +57,7 @@ fn write_test_rec(path: &std::path::Path, name: &str, count: i32) {
     std::fs::write(path, content).unwrap();
 }
 
-// ── RecFileModel tests ───────────────────────────────────────────────────────
+// ── emRecFileModel tests ───────────────────────────────────────────────────────
 
 fn make_signal() -> zuicchini::emCore::emSignal::SignalId {
     let mut sched = EngineScheduler::new();
@@ -97,11 +97,11 @@ fn resource_cache_purge_unused() {
 
 #[test]
 fn context_parent_child_tree() {
-    let root = Context::new_root();
+    let root = emContext::new_root();
     assert!(root.parent().is_none());
     assert_eq!(root.child_count(), 0);
 
-    let child = Context::new_child(&root);
+    let child = emContext::new_child(&root);
     assert_eq!(root.child_count(), 1);
     assert!(child.parent().is_some());
     assert!(std::rc::Rc::ptr_eq(&child.parent().unwrap(), &root));
@@ -111,8 +111,8 @@ fn context_parent_child_tree() {
 fn context_children_are_weak() {
     // Children stored as Weak references -- dropping the child Rc
     // should reduce the parent's child_count.
-    let root = Context::new_root();
-    let child = Context::new_child(&root);
+    let root = emContext::new_root();
+    let child = emContext::new_child(&root);
     assert_eq!(root.child_count(), 1);
     drop(child);
     // Weak ref is now dead
@@ -122,7 +122,7 @@ fn context_children_are_weak() {
 #[test]
 fn file_model_state_machine() {
     let sig = make_signal();
-    let mut fm = FileModel::<Vec<u8>>::new(PathBuf::from("/tmp/test"), sig, sig);
+    let mut fm = emFileModel::<Vec<u8>>::new(PathBuf::from("/tmp/test"), sig, sig);
 
     assert_eq!(*fm.state(), FileState::Waiting);
     assert_eq!(fm.progress(), 0.0);
@@ -166,7 +166,7 @@ fn file_model_state_machine() {
 #[test]
 fn file_model_too_costly() {
     let sig = make_signal();
-    let mut fm = FileModel::<String>::new(PathBuf::from("/tmp/test"), sig, sig);
+    let mut fm = emFileModel::<String>::new(PathBuf::from("/tmp/test"), sig, sig);
 
     fm.mark_too_costly();
     assert_eq!(*fm.state(), FileState::TooCostly);
@@ -191,7 +191,7 @@ fn rec_round_trip() {
     assert!(format!("{invalid}").contains("must be positive"));
 }
 
-// ── RecFileModel tests ───────────────────────────────────────────────────────
+// ── emRecFileModel tests ───────────────────────────────────────────────────────
 
 #[test]
 fn rec_file_model_load_roundtrip() {
@@ -199,7 +199,7 @@ fn rec_file_model_load_roundtrip() {
     let path = dir.join("test.rec");
     write_test_rec(&path, "hello", 42);
 
-    let mut m = RecFileModel::<TestRecord>::new(path);
+    let mut m = emRecFileModel::<TestRecord>::new(path);
     m.load();
 
     assert_eq!(*m.state(), FileState::Loaded);
@@ -210,7 +210,7 @@ fn rec_file_model_load_roundtrip() {
 #[test]
 fn rec_file_model_load_error_missing() {
     let path = PathBuf::from("/tmp/zuicchini_rfm_no_such_file_xyz.rec");
-    let mut m = RecFileModel::<TestRecord>::new(path);
+    let mut m = emRecFileModel::<TestRecord>::new(path);
     m.load();
     assert!(matches!(*m.state(), FileState::LoadError(_)));
 }
@@ -222,7 +222,7 @@ fn rec_file_model_load_error_bad_rec() {
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(&path, b"{{not valid rec content!!!").unwrap();
 
-    let mut m = RecFileModel::<TestRecord>::new(path);
+    let mut m = emRecFileModel::<TestRecord>::new(path);
     m.load();
     assert!(matches!(*m.state(), FileState::LoadError(_)));
 }
@@ -233,7 +233,7 @@ fn rec_file_model_save_roundtrip() {
     let path = dir.join("save.rec");
     write_test_rec(&path, "original", 1);
 
-    let mut m = RecFileModel::<TestRecord>::new(path.clone());
+    let mut m = emRecFileModel::<TestRecord>::new(path.clone());
     m.load();
     assert_eq!(*m.state(), FileState::Loaded);
 
@@ -255,7 +255,7 @@ fn rec_file_model_out_of_date() {
     let path = dir.join("ood.rec");
     write_test_rec(&path, "v1", 1);
 
-    let mut m = RecFileModel::<TestRecord>::new(path.clone());
+    let mut m = emRecFileModel::<TestRecord>::new(path.clone());
     m.load();
     assert_eq!(*m.state(), FileState::Loaded);
 
@@ -273,7 +273,7 @@ fn rec_file_model_hard_reset() {
     let path = dir.join("reset.rec");
     write_test_rec(&path, "data", 7);
 
-    let mut m = RecFileModel::<TestRecord>::new(path);
+    let mut m = emRecFileModel::<TestRecord>::new(path);
     m.load();
     assert_eq!(*m.state(), FileState::Loaded);
 
@@ -289,7 +289,7 @@ fn rec_file_model_clear_save_error() {
     let path = dir.join("valid.rec");
     write_test_rec(&path, "x", 0);
 
-    let mut m = RecFileModel::<TestRecord>::new(path.clone());
+    let mut m = emRecFileModel::<TestRecord>::new(path.clone());
     m.load();
     assert_eq!(*m.state(), FileState::Loaded);
 
@@ -320,7 +320,7 @@ fn rec_file_model_memory_limit() {
     let path = dir.join("mem.rec");
     write_test_rec(&path, "big", 1);
 
-    let mut m = RecFileModel::<TestRecord>::new(path);
+    let mut m = emRecFileModel::<TestRecord>::new(path);
     m.set_memory_limit(1);
     m.load();
 
@@ -333,7 +333,7 @@ fn rec_file_model_protect_file_state() {
     let path = dir.join("protect.rec");
     write_test_rec(&path, "protected", 3);
 
-    let mut m = RecFileModel::<TestRecord>::new(path);
+    let mut m = emRecFileModel::<TestRecord>::new(path);
     m.load();
 
     // Loading internally guards data mutations with protect_file_state,
@@ -341,7 +341,7 @@ fn rec_file_model_protect_file_state() {
     assert_eq!(*m.state(), FileState::Loaded);
 }
 
-// ── FileModel<T> lifecycle tests ─────────────────────────────────────────────
+// ── emFileModel<T> lifecycle tests ─────────────────────────────────────────────
 
 struct MemOps {
     start_called: bool,
@@ -416,7 +416,7 @@ fn make_temp_file(subdir: &str) -> PathBuf {
 fn file_model_step_loading() {
     let sig = make_signal();
     let path = make_temp_file("zuicchini_fm_10");
-    let mut fm = FileModel::<()>::new(path, sig, sig);
+    let mut fm = emFileModel::<()>::new(path, sig, sig);
     let mut ops = MemOps::new();
 
     // First step: Waiting → Loading
@@ -438,7 +438,7 @@ fn file_model_step_loading() {
 fn file_model_step_saving() {
     let sig = make_signal();
     let path = make_temp_file("zuicchini_fm_11");
-    let mut fm = FileModel::<()>::new(path, sig, sig);
+    let mut fm = emFileModel::<()>::new(path, sig, sig);
 
     // Reach Loaded state manually
     fm.complete_load(());
@@ -466,7 +466,7 @@ fn file_model_step_saving() {
 fn file_model_hard_reset_file_state() {
     let sig = make_signal();
     let path = make_temp_file("zuicchini_fm_12");
-    let mut fm = FileModel::<()>::new(path, sig, sig);
+    let mut fm = emFileModel::<()>::new(path, sig, sig);
     fm.complete_load(());
     assert_eq!(*fm.state(), FileState::Loaded);
 
@@ -481,7 +481,7 @@ fn file_model_hard_reset_file_state() {
 fn file_model_set_unsaved_state_aborts_loading() {
     let sig = make_signal();
     let path = make_temp_file("zuicchini_fm_13");
-    let mut fm = FileModel::<()>::new(path, sig, sig);
+    let mut fm = emFileModel::<()>::new(path, sig, sig);
     let mut ops = MemOps::new();
 
     // Step once: Waiting → Loading

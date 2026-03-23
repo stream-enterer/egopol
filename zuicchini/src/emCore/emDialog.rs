@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
 use crate::emCore::rect::Rect;
-use crate::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
+use crate::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use crate::emCore::emInputState::emInputState;
 use crate::emCore::emPanel::PanelState;
 use crate::emCore::emPanelCtx::PanelCtx;
-use crate::emCore::emPainter::Painter;
+use crate::emCore::emPainter::emPainter;
 
-use super::emBorder::{Border, OuterBorderType};
-use crate::emCore::emLook::Look;
+use super::emBorder::{emBorder, OuterBorderType};
+use crate::emCore::emLook::emLook;
 
 /// Result of a dialog interaction.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -22,9 +22,9 @@ type DialogFinishCb = Box<dyn FnMut(&DialogResult)>;
 type DialogCheckFinishCb = Box<dyn FnMut(&DialogResult) -> bool>;
 
 /// Modal dialog container widget.
-pub struct Dialog {
-    border: Border,
-    look: Rc<Look>,
+pub struct emDialog {
+    border: emBorder,
+    look: Rc<emLook>,
     buttons: Vec<(String, DialogResult)>,
     result: Option<DialogResult>,
     pub on_finish: Option<DialogFinishCb>,
@@ -36,10 +36,10 @@ const BUTTON_HEIGHT: f64 = 22.0;
 const BUTTON_SPACING: f64 = 4.0;
 const BOTTOM_MARGIN: f64 = 4.0;
 
-impl Dialog {
-    pub fn new(title: &str, look: Rc<Look>) -> Self {
+impl emDialog {
+    pub fn new(title: &str, look: Rc<emLook>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::PopupRoot).with_caption(title),
+            border: emBorder::new(OuterBorderType::PopupRoot).with_caption(title),
             look,
             buttons: Vec::new(),
             result: None,
@@ -81,7 +81,7 @@ impl Dialog {
         }
     }
 
-    pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint(&self, painter: &mut emPainter, w: f64, h: f64) {
         self.border
             .paint_border(painter, w, h, &self.look, false, true, 1.0);
     }
@@ -169,10 +169,10 @@ impl Dialog {
         self.auto_delete
     }
 
-    /// Static convenience to create a message dialog (returns a configured `Dialog`).
+    /// Static convenience to create a message dialog (returns a configured `emDialog`).
     ///
     /// Port of C++ `emDialog::ShowMessage`.
-    pub fn show_message(text: &str, look: Rc<Look>) -> Self {
+    pub fn show_message(text: &str, look: Rc<emLook>) -> Self {
         let mut dlg = Self::new(text, look);
         dlg.add_button("OK", DialogResult::Ok);
         dlg
@@ -185,9 +185,9 @@ impl Dialog {
     /// - Escape (no modifiers) → finish with `DialogResult::Cancel`
     pub fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         _state: &PanelState,
-        _input_state: &InputState,
+        _input_state: &emInputState,
     ) -> bool {
         if event.variant != InputVariant::Press {
             return false;
@@ -241,17 +241,17 @@ mod tests {
         }
     }
 
-    fn default_input_state() -> InputState {
-        InputState::new()
+    fn default_input_state() -> emInputState {
+        emInputState::new()
     }
 
     #[test]
     fn dialog_finish_fires_callback() {
-        let look = Look::new();
+        let look = emLook::new();
         let results = Rc::new(RefCell::new(Vec::new()));
         let res_clone = results.clone();
 
-        let mut dlg = Dialog::new("Test", look);
+        let mut dlg = emDialog::new("Test", look);
         dlg.add_button("OK", DialogResult::Ok);
         dlg.add_button("Cancel", DialogResult::Cancel);
         dlg.on_finish = Some(Box::new(move |r| {
@@ -266,8 +266,8 @@ mod tests {
 
     #[test]
     fn check_finish_can_veto() {
-        let look = Look::new();
-        let mut dlg = Dialog::new("Veto", look);
+        let look = emLook::new();
+        let mut dlg = emDialog::new("Veto", look);
         dlg.on_check_finish = Some(Box::new(|r| *r != DialogResult::Cancel));
 
         dlg.finish(DialogResult::Cancel);
@@ -279,8 +279,8 @@ mod tests {
 
     #[test]
     fn dialog_custom_result() {
-        let look = Look::new();
-        let mut dlg = Dialog::new("Custom", look);
+        let look = emLook::new();
+        let mut dlg = emDialog::new("Custom", look);
         dlg.add_button("Retry", DialogResult::Custom(42));
         dlg.finish(DialogResult::Custom(42));
         assert_eq!(dlg.result(), Some(&DialogResult::Custom(42)));
@@ -288,36 +288,36 @@ mod tests {
 
     #[test]
     fn enter_finishes_with_ok() {
-        let look = Look::new();
-        let mut dlg = Dialog::new("Test", look);
+        let look = emLook::new();
+        let mut dlg = emDialog::new("Test", look);
         let ps = default_panel_state();
         let is = default_input_state();
 
-        let consumed = dlg.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        let consumed = dlg.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(consumed);
         assert_eq!(dlg.result(), Some(&DialogResult::Ok));
     }
 
     #[test]
     fn escape_finishes_with_cancel() {
-        let look = Look::new();
-        let mut dlg = Dialog::new("Test", look);
+        let look = emLook::new();
+        let mut dlg = emDialog::new("Test", look);
         let ps = default_panel_state();
         let is = default_input_state();
 
-        let consumed = dlg.input(&InputEvent::press(InputKey::Escape), &ps, &is);
+        let consumed = dlg.input(&emInputEvent::press(InputKey::Escape), &ps, &is);
         assert!(consumed);
         assert_eq!(dlg.result(), Some(&DialogResult::Cancel));
     }
 
     #[test]
     fn enter_with_modifier_is_ignored() {
-        let look = Look::new();
-        let mut dlg = Dialog::new("Test", look);
+        let look = emLook::new();
+        let mut dlg = emDialog::new("Test", look);
         let ps = default_panel_state();
         let is = default_input_state();
 
-        let mut ev = InputEvent::press(InputKey::Enter);
+        let mut ev = emInputEvent::press(InputKey::Enter);
         ev.ctrl = true;
         let consumed = dlg.input(&ev, &ps, &is);
         assert!(!consumed);
@@ -326,12 +326,12 @@ mod tests {
 
     #[test]
     fn release_event_is_ignored() {
-        let look = Look::new();
-        let mut dlg = Dialog::new("Test", look);
+        let look = emLook::new();
+        let mut dlg = emDialog::new("Test", look);
         let ps = default_panel_state();
         let is = default_input_state();
 
-        let consumed = dlg.input(&InputEvent::release(InputKey::Enter), &ps, &is);
+        let consumed = dlg.input(&emInputEvent::release(InputKey::Enter), &ps, &is);
         assert!(!consumed);
         assert!(dlg.result().is_none());
     }

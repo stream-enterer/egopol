@@ -8,21 +8,21 @@
 
 use std::time::Instant;
 
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emImage::emImage;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 use zuicchini::emCore::emPanelTree::PanelTree;
-use zuicchini::emCore::emView::{View, ViewFlags};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emView::{emView, ViewFlags};
+use zuicchini::emCore::emPainter::emPainter;
 
 // Reuse the same TestPanel from bench_interaction
 struct TestPanel {
-    test_image: Image,
+    test_image: emImage,
 }
 
 impl TestPanel {
     fn new() -> Self {
-        let mut img = Image::new(64, 64, 4);
+        let mut img = emImage::new(64, 64, 4);
         for y in 0..64u32 {
             for x in 0..64u32 {
                 img.set_pixel_channel(x, y, 0, (x * 4) as u8);
@@ -36,9 +36,9 @@ impl TestPanel {
 }
 
 impl PanelBehavior for TestPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         use std::f64::consts::PI;
-        use zuicchini::emCore::emStroke::Stroke;
+        use zuicchini::emCore::emStroke::emStroke;
 
         if state.viewed_rect.w < 25.0 {
             return;
@@ -48,20 +48,20 @@ impl PanelBehavior for TestPanel {
         painter.scale(w, w);
         let h = h / w;
 
-        let fg = Color::grey(136);
-        let bg = Color::rgba(0x00, 0x1C, 0x38, 0xFF);
+        let fg = emColor::grey(136);
+        let bg = emColor::rgba(0x00, 0x1C, 0x38, 0xFF);
 
-        painter.paint_rect(0.0, 0.0, 1.0, h, bg, Color::TRANSPARENT);
+        painter.paint_rect(0.0, 0.0, 1.0, h, bg, emColor::TRANSPARENT);
         painter.paint_rect_outlined(
             0.01, 0.01, 1.0 - 0.02, h - 0.02,
-            &Stroke::new(fg, 0.02), Color::TRANSPARENT,
+            &emStroke::new(fg, 0.02), emColor::TRANSPARENT,
         );
 
-        painter.paint_rect(0.25, 0.8, 0.05, 0.05, Color::rgba(255, 0, 0, 32), Color::TRANSPARENT);
+        painter.paint_rect(0.25, 0.8, 0.05, 0.05, emColor::rgba(255, 0, 0, 32), emColor::TRANSPARENT);
 
         painter.paint_polygon(
             &[(0.7, 0.6), (0.6, 0.7), (0.8, 0.8)],
-            fg, Color::TRANSPARENT,
+            fg, emColor::TRANSPARENT,
         );
 
         let circle: Vec<_> = (0..64)
@@ -70,22 +70,22 @@ impl PanelBehavior for TestPanel {
                 (a.sin() * 0.05 + 0.65, a.cos() * 0.05 + 0.85)
             })
             .collect();
-        painter.paint_polygon(&circle, Color::rgba(255, 255, 0, 255), Color::TRANSPARENT);
+        painter.paint_polygon(&circle, emColor::rgba(255, 255, 0, 255), emColor::TRANSPARENT);
 
-        painter.paint_ellipse(0.055, 0.805, 0.005, 0.005, Color::WHITE, Color::TRANSPARENT);
-        painter.paint_ellipse(0.07, 0.805, 0.01, 0.005, Color::WHITE, Color::TRANSPARENT);
+        painter.paint_ellipse(0.055, 0.805, 0.005, 0.005, emColor::WHITE, emColor::TRANSPARENT);
+        painter.paint_ellipse(0.07, 0.805, 0.01, 0.005, emColor::WHITE, emColor::TRANSPARENT);
 
-        painter.paint_round_rect(0.05, 0.84, 0.01, 0.01, 0.001, Color::WHITE);
-        painter.paint_round_rect(0.07, 0.84, 0.02, 0.01, 0.002, Color::WHITE);
+        painter.paint_round_rect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
+        painter.paint_round_rect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
 
         painter.paint_ellipse_outlined(
             0.055, 0.865, 0.005, 0.005,
-            &Stroke::new(Color::WHITE, 0.003), Color::TRANSPARENT,
+            &emStroke::new(emColor::WHITE, 0.003), emColor::TRANSPARENT,
         );
 
         painter.paint_round_rect_outlined(
             0.05, 0.88, 0.01, 0.01, 0.001,
-            &Stroke::new(Color::WHITE, 0.001),
+            &emStroke::new(emColor::WHITE, 0.001),
         );
 
         painter.paint_image_scaled(
@@ -115,7 +115,7 @@ fn measure_at_zoom(zoom_factor: f64) -> (f64, f64, f64) {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
     tree.set_focusable(root, true);
 
-    let mut view = View::new(root, VW as f64, VH as f64);
+    let mut view = emView::new(root, VW as f64, VH as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
     tree.deliver_notices(true, 1.0);
     view.update(&mut tree);
@@ -133,22 +133,22 @@ fn measure_at_zoom(zoom_factor: f64) -> (f64, f64, f64) {
     view.update(&mut tree);
     view.clear_viewport_changed();
 
-    let mut buf = Image::new(VW, VH, 4);
+    let mut buf = emImage::new(VW, VH, 4);
 
     // Warmup
-    buf.fill(Color::BLACK);
+    buf.fill(emColor::BLACK);
     {
-        let mut painter = Painter::new(&mut buf);
+        let mut painter = emPainter::new(&mut buf);
         view.paint(&mut tree, &mut painter);
     }
 
     // Measure
     let mut times = Vec::with_capacity(FRAMES);
     for _ in 0..FRAMES {
-        buf.fill(Color::BLACK);
+        buf.fill(emColor::BLACK);
         let t = Instant::now();
         {
-            let mut painter = Painter::new(&mut buf);
+            let mut painter = emPainter::new(&mut buf);
             view.paint(&mut tree, &mut painter);
         }
         times.push(t.elapsed().as_micros() as f64);
@@ -197,7 +197,7 @@ fn measure_nested_at_zoom(panel_count: usize, zoom_factor: f64) -> (f64, f64, f6
         }
     }
 
-    let mut view = View::new(root, VW as f64, VH as f64);
+    let mut view = emView::new(root, VW as f64, VH as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
     tree.deliver_notices(true, 1.0);
     view.update(&mut tree);
@@ -214,22 +214,22 @@ fn measure_nested_at_zoom(panel_count: usize, zoom_factor: f64) -> (f64, f64, f6
     view.update(&mut tree);
     view.clear_viewport_changed();
 
-    let mut buf = Image::new(VW, VH, 4);
+    let mut buf = emImage::new(VW, VH, 4);
 
     // Warmup
-    buf.fill(Color::BLACK);
+    buf.fill(emColor::BLACK);
     {
-        let mut painter = Painter::new(&mut buf);
+        let mut painter = emPainter::new(&mut buf);
         view.paint(&mut tree, &mut painter);
     }
 
     // Measure
     let mut times = Vec::with_capacity(FRAMES);
     for _ in 0..FRAMES {
-        buf.fill(Color::BLACK);
+        buf.fill(emColor::BLACK);
         let t = Instant::now();
         {
-            let mut painter = Painter::new(&mut buf);
+            let mut painter = emPainter::new(&mut buf);
             view.paint(&mut tree, &mut painter);
         }
         times.push(t.elapsed().as_micros() as f64);

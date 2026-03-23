@@ -1,4 +1,4 @@
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 
 /// C++ MaxInterpolationBytesAtOnce = 1024.
 /// Buffer is always 1024 bytes; pixel count = 1024 / channel_count.
@@ -87,14 +87,14 @@ impl InterpolationBuffer {
 /// (canvas vs source-over), not the alpha value (which varies per pixel).
 pub(crate) enum BlendMode {
     /// Canvas-color compositing (C++ HAVE_CVC). Writes RGB only.
-    CanvasBlend { canvas: Color, painter_alpha: u8 },
+    CanvasBlend { canvas: emColor, painter_alpha: u8 },
     /// Standard source-over alpha compositing. Writes RGBA.
     SourceOver { painter_alpha: u8 },
 }
 
 impl BlendMode {
     /// Construct from current painter state (after canvas/alpha overrides).
-    pub(crate) fn from_state(canvas_color: Color, alpha: u8) -> Self {
+    pub(crate) fn from_state(canvas_color: emColor, alpha: u8) -> Self {
         if canvas_color.is_opaque() {
             BlendMode::CanvasBlend {
                 canvas: canvas_color,
@@ -143,7 +143,7 @@ fn blend_scanline_canvas(
     buf: &InterpolationBuffer,
     count: usize,
     coverages: Option<&[i32]>,
-    canvas: Color,
+    canvas: emColor,
     painter_alpha: u8,
 ) {
     for i in 0..count {
@@ -174,8 +174,8 @@ fn blend_scanline_canvas(
         }
 
         let off = i * 4;
-        let existing = Color::rgba(dest[off], dest[off + 1], dest[off + 2], dest[off + 3]);
-        let src_color = Color::rgba(src[0], src[1], src[2], adjusted_a);
+        let existing = emColor::rgba(dest[off], dest[off + 1], dest[off + 2], dest[off + 3]);
+        let src_color = emColor::rgba(src[0], src[1], src[2], adjusted_a);
         let result = existing.canvas_blend(src_color, canvas, combined_alpha);
         dest[off] = result.r();
         dest[off + 1] = result.g();
@@ -285,7 +285,7 @@ fn blend_scanline_premul_canvas(
     buf: &InterpolationBuffer,
     count: usize,
     coverages: Option<&[i32]>,
-    canvas: Color,
+    canvas: emColor,
     painter_alpha: u8,
 ) {
     for i in 0..count {
@@ -408,11 +408,11 @@ fn blend_scanline_premul_source_over(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::emCore::emImage::Image;
+    use crate::emCore::emImage::emImage;
 
     /// Build a minimal painter-like setup for testing blend equivalence.
     /// Returns (dest image data as Vec<u8>, target_width).
-    fn make_dest(width: u32, height: u32, fill: Color) -> Vec<u8> {
+    fn make_dest(width: u32, height: u32, fill: emColor) -> Vec<u8> {
         let mut data = vec![0u8; (width * height * 4) as usize];
         for chunk in data.chunks_exact_mut(4) {
             chunk[0] = fill.r();
@@ -424,7 +424,7 @@ mod tests {
     }
 
     /// Reference per-pixel blend matching blend_pixel_unchecked (source-over).
-    fn ref_blend_source_over(dest: &mut [u8], color: Color, painter_alpha: u8) {
+    fn ref_blend_source_over(dest: &mut [u8], color: emColor, painter_alpha: u8) {
         let ca = color.a() as u16;
         let ea = if painter_alpha == 255 {
             ca
@@ -454,7 +454,7 @@ mod tests {
     }
 
     /// Reference per-pixel blend matching blend_pixel_unchecked (canvas).
-    fn ref_blend_canvas(dest: &mut [u8], color: Color, canvas: Color, painter_alpha: u8) {
+    fn ref_blend_canvas(dest: &mut [u8], color: emColor, canvas: emColor, painter_alpha: u8) {
         let combined_alpha = if painter_alpha == 255 {
             color.a()
         } else {
@@ -463,7 +463,7 @@ mod tests {
         if combined_alpha == 0 {
             return;
         }
-        let existing = Color::rgba(dest[0], dest[1], dest[2], dest[3]);
+        let existing = emColor::rgba(dest[0], dest[1], dest[2], dest[3]);
         let result = existing.canvas_blend(color, canvas, combined_alpha);
         dest[0] = result.r();
         dest[1] = result.g();
@@ -491,7 +491,7 @@ mod tests {
     }
 
     /// Reference premul blend matching blend_pixel_premul_unchecked (canvas).
-    fn ref_blend_premul_canvas(dest: &mut [u8], pm: [u8; 4], canvas: Color) {
+    fn ref_blend_premul_canvas(dest: &mut [u8], pm: [u8; 4], canvas: emColor) {
         let a = pm[3] as u32;
         if a == 0 {
             return;
@@ -507,12 +507,12 @@ mod tests {
     #[test]
     fn blend_scanline_source_over_matches_perpixel() {
         let colors = [
-            Color::rgba(255, 0, 0, 255),   // opaque red
-            Color::rgba(0, 255, 0, 128),    // semi-transparent green
-            Color::rgba(0, 0, 255, 0),      // fully transparent
-            Color::rgba(200, 100, 50, 200), // arbitrary
+            emColor::rgba(255, 0, 0, 255),   // opaque red
+            emColor::rgba(0, 255, 0, 128),    // semi-transparent green
+            emColor::rgba(0, 0, 255, 0),      // fully transparent
+            emColor::rgba(200, 100, 50, 200), // arbitrary
         ];
-        let bg = Color::rgba(100, 100, 100, 200);
+        let bg = emColor::rgba(100, 100, 100, 200);
         let painter_alpha = 200u8;
 
         // Fill buffer
@@ -539,13 +539,13 @@ mod tests {
     #[test]
     fn blend_scanline_canvas_matches_perpixel() {
         let colors = [
-            Color::rgba(255, 0, 0, 255),
-            Color::rgba(0, 255, 0, 128),
-            Color::rgba(0, 0, 255, 0),
-            Color::rgba(200, 100, 50, 200),
+            emColor::rgba(255, 0, 0, 255),
+            emColor::rgba(0, 255, 0, 128),
+            emColor::rgba(0, 0, 255, 0),
+            emColor::rgba(200, 100, 50, 200),
         ];
-        let bg = Color::rgba(100, 100, 100, 200);
-        let canvas = Color::rgba(50, 50, 50, 255);
+        let bg = emColor::rgba(100, 100, 100, 200);
+        let canvas = emColor::rgba(50, 50, 50, 255);
         let painter_alpha = 200u8;
 
         let mut buf = InterpolationBuffer::new(4);
@@ -572,12 +572,12 @@ mod tests {
     #[test]
     fn blend_scanline_with_coverage_matches_perpixel() {
         let colors = [
-            Color::rgba(255, 0, 0, 255),
-            Color::rgba(0, 255, 0, 128),
-            Color::rgba(200, 100, 50, 200),
+            emColor::rgba(255, 0, 0, 255),
+            emColor::rgba(0, 255, 0, 128),
+            emColor::rgba(200, 100, 50, 200),
         ];
         let coverages = [0x1000i32, 0x800, 0x100];
-        let bg = Color::rgba(100, 100, 100, 200);
+        let bg = emColor::rgba(100, 100, 100, 200);
         let painter_alpha = 180u8;
 
         let mut buf = InterpolationBuffer::new(4);
@@ -605,7 +605,7 @@ mod tests {
             } else {
                 ((c.a() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8
             };
-            let adjusted = Color::rgba(c.r(), c.g(), c.b(), adjusted_a);
+            let adjusted = emColor::rgba(c.r(), c.g(), c.b(), adjusted_a);
             ref_blend_source_over(&mut dest_ref[i * 4..(i + 1) * 4], adjusted, painter_alpha);
         }
 
@@ -623,7 +623,7 @@ mod tests {
             [0, 0, 0, 0],       // transparent
             [255, 255, 255, 255], // opaque white
         ];
-        let bg = Color::rgba(100, 100, 100, 200);
+        let bg = emColor::rgba(100, 100, 100, 200);
 
         let mut buf = InterpolationBuffer::new(4);
         for (i, pm) in pm_pixels.iter().enumerate() {
@@ -651,8 +651,8 @@ mod tests {
             [0, 100, 0, 128],
             [255, 255, 255, 255],
         ];
-        let bg = Color::rgba(100, 100, 100, 200);
-        let canvas = Color::rgba(50, 50, 50, 255);
+        let bg = emColor::rgba(100, 100, 100, 200);
+        let canvas = emColor::rgba(50, 50, 50, 255);
 
         let mut buf = InterpolationBuffer::new(4);
         for (i, pm) in pm_pixels.iter().enumerate() {
@@ -683,7 +683,7 @@ mod tests {
             [50, 50, 50, 100],
         ];
         let coverages = [0x1000i32, 0x800, 0x400];
-        let bg = Color::rgba(100, 100, 100, 200);
+        let bg = emColor::rgba(100, 100, 100, 200);
         let painter_alpha = 200u8;
 
         let mut buf = InterpolationBuffer::new(4);
@@ -744,7 +744,7 @@ mod tests {
 
     #[test]
     fn row_slice_basics() {
-        let img = Image::new(4, 4, 4);
+        let img = emImage::new(4, 4, 4);
         let row = img.row_slice(0);
         assert_eq!(row.len(), 16);
         let row3 = img.row_slice(3);
@@ -757,8 +757,8 @@ mod tests {
         // with full coverage and painter_alpha=255.
         // Expected alpha: div255(dst_a * (255 - src_a)) + div255(255 * src_a)
         // where div255(x) = (x * 257 + 0x8073) >> 16  (Blinn formula)
-        let src = Color::rgba(100, 150, 200, 128);
-        let dst = Color::rgba(50, 75, 100, 200);
+        let src = emColor::rgba(100, 150, 200, 128);
+        let dst = emColor::rgba(50, 75, 100, 200);
 
         let mut buf = InterpolationBuffer::new(4);
         buf.set_pixel(0, [src.r(), src.g(), src.b(), src.a()]);
@@ -791,7 +791,7 @@ mod tests {
         // Expected: out_a = div255(dst_a * (255 - pm_a)) + pm_a
         // where div255(x) = (x * 257 + 0x8073) >> 16
         let pm = [50u8, 75, 100, 128];
-        let dst = Color::rgba(50, 75, 100, 200);
+        let dst = emColor::rgba(50, 75, 100, 200);
 
         let mut buf = InterpolationBuffer::new(4);
         buf.set_pixel(0, pm);
@@ -816,9 +816,9 @@ mod tests {
     #[test]
     fn test_canvas_blend_preserves_alpha() {
         // Canvas blend should leave destination alpha unchanged.
-        let src = Color::rgba(200, 100, 50, 200);
-        let dst = Color::rgba(100, 100, 100, 177);
-        let canvas = Color::rgba(80, 80, 80, 255);
+        let src = emColor::rgba(200, 100, 50, 200);
+        let dst = emColor::rgba(100, 100, 100, 177);
+        let canvas = emColor::rgba(80, 80, 80, 255);
 
         let mut buf = InterpolationBuffer::new(4);
         buf.set_pixel(0, [src.r(), src.g(), src.b(), src.a()]);
@@ -849,7 +849,7 @@ mod tests {
 
     #[test]
     fn blend_scanline_zero_coverage_noop() {
-        let bg = Color::rgba(100, 100, 100, 200);
+        let bg = emColor::rgba(100, 100, 100, 200);
         let mut dest = make_dest(2, 1, bg);
         let dest_copy = dest.clone();
 

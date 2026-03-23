@@ -1,4 +1,4 @@
-//! Systematic interaction tests for TextField at 1x and 2x zoom.
+//! Systematic interaction tests for emTextField at 1x and 2x zoom.
 //!
 //! These tests drive input through the full PipelineTestHarness dispatch
 //! pipeline (VIF chain, hit test, coordinate transform, keyboard suppression)
@@ -8,37 +8,37 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::{InputEvent, InputKey};
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey};
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emLook::Look;
-use zuicchini::emCore::emTextField::TextField;
+use zuicchini::emCore::emLook::emLook;
+use zuicchini::emCore::emTextField::emTextField;
 
 use super::support::pipeline::PipelineTestHarness;
 
 // ---------------------------------------------------------------------------
-// SharedTextFieldPanel -- PanelBehavior wrapper with shared TextField access
+// SharedTextFieldPanel -- PanelBehavior wrapper with shared emTextField access
 // ---------------------------------------------------------------------------
 
-/// PanelBehavior wrapper for TextField. The widget is stored behind
+/// PanelBehavior wrapper for emTextField. The widget is stored behind
 /// Rc<RefCell> so the test can inspect state after input dispatch.
 struct SharedTextFieldPanel {
-    inner: Rc<RefCell<TextField>>,
+    inner: Rc<RefCell<emTextField>>,
 }
 
 impl PanelBehavior for SharedTextFieldPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.inner.borrow_mut().paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         self.inner.borrow_mut().input(event, state, input_state)
     }
@@ -51,7 +51,7 @@ impl PanelBehavior for SharedTextFieldPanel {
         }
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.inner.borrow().get_cursor()
     }
 
@@ -61,14 +61,14 @@ impl PanelBehavior for SharedTextFieldPanel {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: set up a pipeline harness with a single editable TextField panel
+// Helper: set up a pipeline harness with a single editable emTextField panel
 // ---------------------------------------------------------------------------
 
-/// Create a PipelineTestHarness with an editable TextField child panel
-/// filling the entire root. Returns the harness and the shared TextField ref.
-fn setup_textfield_harness() -> (PipelineTestHarness, Rc<RefCell<TextField>>) {
-    let look = Look::new();
-    let mut tf = TextField::new(look);
+/// Create a PipelineTestHarness with an editable emTextField child panel
+/// filling the entire root. Returns the harness and the shared emTextField ref.
+fn setup_textfield_harness() -> (PipelineTestHarness, Rc<RefCell<emTextField>>) {
+    let look = emLook::new();
+    let mut tf = emTextField::new(look);
     tf.set_editable(true);
 
     let tf_ref = Rc::new(RefCell::new(tf));
@@ -90,7 +90,7 @@ fn setup_textfield_harness() -> (PipelineTestHarness, Rc<RefCell<TextField>>) {
 }
 
 /// Render the harness at the given viewport size so that paint() is called on
-/// the TextField, populating its cached last_w / last_h dimensions (required
+/// the emTextField, populating its cached last_w / last_h dimensions (required
 /// for mouse hit-testing and the min_ext guard in input()).
 fn render(h: &mut PipelineTestHarness, width: u32, height: u32) {
     let mut compositor = SoftwareCompositor::new(width, height);
@@ -327,7 +327,7 @@ fn textfield_delete_key() {
     }
 }
 
-/// Verify that a non-editable TextField rejects typed characters.
+/// Verify that a non-editable emTextField rejects typed characters.
 #[test]
 fn textfield_non_editable_rejects_input() {
     let (mut h, tf_ref) = setup_textfield_harness();
@@ -415,12 +415,12 @@ fn textfield_type_across_zoom_levels() {
 }
 
 // ===========================================================================
-// BP-4: TextField cursor navigation tests
+// BP-4: emTextField cursor navigation tests
 // ===========================================================================
 
-/// Helper: set up a focused, editable TextField pre-populated with `text`,
-/// cursor at `cursor_pos`. Returns harness + shared TextField ref.
-fn setup_nav_harness(text: &str, cursor_pos: usize) -> (PipelineTestHarness, Rc<RefCell<TextField>>) {
+/// Helper: set up a focused, editable emTextField pre-populated with `text`,
+/// cursor at `cursor_pos`. Returns harness + shared emTextField ref.
+fn setup_nav_harness(text: &str, cursor_pos: usize) -> (PipelineTestHarness, Rc<RefCell<emTextField>>) {
     let (mut h, tf_ref) = setup_textfield_harness();
     tf_ref.borrow_mut().set_text(text);
     tf_ref.borrow_mut().set_cursor_index(cursor_pos);
@@ -436,11 +436,11 @@ fn setup_nav_harness(text: &str, cursor_pos: usize) -> (PipelineTestHarness, Rc<
     (h, tf_ref)
 }
 
-/// Helper: set up a focused, editable, multi-line TextField.
+/// Helper: set up a focused, editable, multi-line emTextField.
 fn setup_multiline_nav_harness(
     text: &str,
     cursor_pos: usize,
-) -> (PipelineTestHarness, Rc<RefCell<TextField>>) {
+) -> (PipelineTestHarness, Rc<RefCell<emTextField>>) {
     let (mut h, tf_ref) = setup_textfield_harness();
     tf_ref.borrow_mut().set_multi_line(true);
     tf_ref.borrow_mut().set_text(text);
@@ -971,7 +971,7 @@ fn textfield_ctrl_up_prev_paragraph() {
 }
 
 // ===========================================================================
-// BP-5: TextField editing operations
+// BP-5: emTextField editing operations
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
@@ -1288,7 +1288,7 @@ fn textfield_overwrite_mode_at_end_inserts() {
 }
 
 // ---------------------------------------------------------------------------
-// Non-editable TextField rejects all editing operations
+// Non-editable emTextField rejects all editing operations
 // (C++ IsEditable() guard on editing block)
 // ---------------------------------------------------------------------------
 
@@ -1420,7 +1420,7 @@ fn textfield_ctrl_delete_with_selection_deletes_selection() {
 }
 
 // ===========================================================================
-// BP-6: TextField mouse-based selection
+// BP-6: emTextField mouse-based selection
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
@@ -1880,11 +1880,11 @@ fn textfield_ctrl_a_then_type_replaces_all() {
 }
 
 // ===========================================================================
-// BP-7: TextField clipboard operations
+// BP-7: emTextField clipboard operations
 // ===========================================================================
 
 // ---------------------------------------------------------------------------
-// Helper: set up a focused, editable TextField with clipboard recorders wired.
+// Helper: set up a focused, editable emTextField with clipboard recorders wired.
 // Returns (harness, shared_tf, copy_recorder, paste_source).
 // The copy_recorder captures all strings passed to on_clipboard_copy.
 // The paste_source provides the text returned by on_clipboard_paste.
@@ -1896,7 +1896,7 @@ fn setup_clipboard_harness(
     paste_content: &str,
 ) -> (
     PipelineTestHarness,
-    Rc<RefCell<TextField>>,
+    Rc<RefCell<emTextField>>,
     Rc<RefCell<Vec<String>>>,
 ) {
     let (mut h, tf_ref) = setup_textfield_harness();
@@ -2291,7 +2291,7 @@ fn textfield_ctrl_v_noop_when_non_editable() {
 }
 
 // ===========================================================================
-// BP-14: TextField drag-move (DM_MOVE)
+// BP-14: emTextField drag-move (DM_MOVE)
 // ===========================================================================
 //
 // C++ ref: emTextField.cpp:526-560 (DM_MOVE) and :374-389 (Ctrl+click
@@ -2309,11 +2309,11 @@ fn textfield_ctrl_v_noop_when_non_editable() {
 /// Ctrl is held in `input_state` for the entire sequence.
 fn ctrl_drag(h: &mut PipelineTestHarness, from_x: f64, from_y: f64, to_x: f64, to_y: f64) {
     h.input_state.press(InputKey::Ctrl);
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(from_x, from_y);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(from_x, from_y);
     h.dispatch(&press);
-    let move_ev = InputEvent::mouse_move(InputKey::MouseLeft, to_x, to_y);
+    let move_ev = emInputEvent::mouse_move(InputKey::MouseLeft, to_x, to_y);
     h.dispatch(&move_ev);
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(to_x, to_y);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(to_x, to_y);
     h.dispatch(&release);
     h.input_state.release(InputKey::Ctrl);
 }

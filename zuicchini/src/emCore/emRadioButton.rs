@@ -1,18 +1,18 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::rect::Rect;
-use crate::emCore::emCursor::Cursor;
-use crate::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
-use crate::emCore::emLinearLayout::LinearLayout;
-use crate::emCore::emRasterLayout::RasterLayout;
+use crate::emCore::emCursor::emCursor;
+use crate::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use crate::emCore::emInputState::emInputState;
+use crate::emCore::emLinearLayout::emLinearLayout;
+use crate::emCore::emRasterLayout::emRasterLayout;
 use crate::emCore::emPanel::PanelState;
-use crate::emCore::emPainter::{Painter, BORDER_EDGES_ONLY};
+use crate::emCore::emPainter::{emPainter, BORDER_EDGES_ONLY};
 
-use super::emBorder::{Border, OuterBorderType};
-use crate::emCore::emLook::Look;
+use super::emBorder::{emBorder, OuterBorderType};
+use crate::emCore::emLook::emLook;
 use crate::emCore::toolkit_images::with_toolkit_images;
 
 /// Shared state for a group of radio buttons enforcing mutual exclusion.
@@ -164,8 +164,8 @@ impl RadioGroup {
     /// Add multiple buttons to the group at once.
     ///
     /// Port of C++ `emRadioButton::Mechanism::AddAll(emPanel* parent)`.
-    /// In C++, this iterates panel children and dynamic_casts to RadioButton.
-    /// In Rust, since buttons register themselves in `RadioButton::new()`,
+    /// In C++, this iterates panel children and dynamic_casts to emRadioButton.
+    /// In Rust, since buttons register themselves in `emRadioButton::new()`,
     /// this method registers `n` additional button slots for buttons that
     /// were created outside the normal constructor flow.
     pub fn add_all(&mut self, n: usize) {
@@ -178,7 +178,7 @@ impl RadioGroup {
     /// Get the button index at the given position in the group.
     ///
     /// Port of C++ `emRadioButton::Mechanism::GetButton(int)`.
-    /// In C++, returns a pointer to the RadioButton at `index`.
+    /// In C++, returns a pointer to the emRadioButton at `index`.
     /// In Rust, validates the index and returns it (since buttons are
     /// identified by their index in the group).
     pub fn get_button(&self, index: usize) -> Option<usize> {
@@ -221,9 +221,9 @@ impl RadioGroup {
 }
 
 /// Radio button widget -- mutually exclusive selection within a group.
-pub struct RadioButton {
-    border: Border,
-    look: Rc<Look>,
+pub struct emRadioButton {
+    border: emBorder,
+    look: Rc<emLook>,
     group: Rc<RefCell<RadioGroup>>,
     index_cell: Rc<Cell<usize>>,
     pressed: bool,
@@ -233,16 +233,16 @@ pub struct RadioButton {
     last_h: f64,
 }
 
-impl RadioButton {
+impl emRadioButton {
     pub fn new(
         caption: &str,
-        look: Rc<Look>,
+        look: Rc<emLook>,
         group: Rc<RefCell<RadioGroup>>,
         _index: usize,
     ) -> Self {
         let index_cell = group.borrow_mut().register();
         Self {
-            border: Border::new(OuterBorderType::InstrumentMoreRound)
+            border: emBorder::new(OuterBorderType::InstrumentMoreRound)
                 .with_caption(caption)
                 .with_label_in_border(false)
                 .with_how_to(true),
@@ -288,10 +288,10 @@ impl RadioButton {
 
     /// Paint using the non-boxed C++ DoButton path (emButton.cpp:343-421).
     ///
-    /// RadioButton renders as a normal button (face + centered label).
+    /// emRadioButton renders as a normal button (face + centered label).
     /// When checked (ShownChecked=true), the label is slightly shrunk and
-    /// a ButtonChecked overlay is painted instead of the normal Button overlay.
-    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
+    /// a ButtonChecked overlay is painted instead of the normal emButton overlay.
+    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -315,7 +315,7 @@ impl RadioButton {
         painter.paint_round_rect(fx, fy, fw, fh, fr, face_color);
         painter.set_canvas_color(face_color);
 
-        // Label inside face with padding (C++ lines 370-391).
+        // emLabel inside face with padding (C++ lines 370-391).
         let d_min = fw.min(fh) * 0.1;
         let dx = (r * 0.7).max(d_min);
         let dy = (r * 0.4).max(d_min);
@@ -348,8 +348,8 @@ impl RadioButton {
             true,
         );
 
-        // Button overlay image (C++ lines 393-421).
-        // Priority: Pressed -> ButtonPressed, ShownChecked -> ButtonChecked, else -> Button.
+        // emButton overlay image (C++ lines 393-421).
+        // Priority: Pressed -> ButtonPressed, ShownChecked -> ButtonChecked, else -> emButton.
         with_toolkit_images(|img| {
             if self.pressed {
                 // Pressed: ButtonPressed overlay (C++ lines 393-401).
@@ -368,7 +368,7 @@ impl RadioButton {
                     264,
                     264,
                     255,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     BORDER_EDGES_ONLY,
                 );
             } else if checked {
@@ -388,11 +388,11 @@ impl RadioButton {
                     264,
                     264,
                     255,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     BORDER_EDGES_ONLY,
                 );
             } else {
-                // Normal: Button overlay (C++ lines 411-420).
+                // Normal: emButton overlay (C++ lines 411-420).
                 let extra = (658.0 - 648.0) / 264.0 * r;
                 painter.paint_border_image(
                     cr.x,
@@ -409,7 +409,7 @@ impl RadioButton {
                     278,
                     278,
                     255,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     BORDER_EDGES_ONLY,
                 );
             }
@@ -434,9 +434,9 @@ impl RadioButton {
 
     pub fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        _input_state: &InputState,
+        _input_state: &emInputState,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -509,8 +509,8 @@ impl RadioButton {
         }
     }
 
-    pub fn get_cursor(&self) -> Cursor {
-        Cursor::Normal
+    pub fn get_cursor(&self) -> emCursor {
+        emCursor::Normal
     }
 
     /// Whether this radio button provides how-to help text.
@@ -537,7 +537,7 @@ impl RadioButton {
 
     pub fn preferred_size(&self) -> (f64, f64) {
         let th = 13.0;
-        let tw = Painter::measure_text_width(&self.border.caption, th);
+        let tw = emPainter::measure_text_width(&self.border.caption, th);
         self.border.preferred_size_for_content(tw + 8.0, th + 4.0)
     }
 }
@@ -567,35 +567,35 @@ const HOWTO_RADIO_BUTTON: &str = "\n\n\
     unchecked. There is no way to uncheck a radio button directly.\n";
 
 pub struct RadioLinearGroup {
-    pub layout: LinearLayout,
+    pub layout: emLinearLayout,
     pub group: Rc<RefCell<RadioGroup>>,
 }
 
 impl RadioLinearGroup {
     pub fn horizontal() -> Self {
         Self {
-            layout: LinearLayout::horizontal(),
+            layout: emLinearLayout::horizontal(),
             group: RadioGroup::new(),
         }
     }
 
     pub fn vertical() -> Self {
         Self {
-            layout: LinearLayout::vertical(),
+            layout: emLinearLayout::vertical(),
             group: RadioGroup::new(),
         }
     }
 }
 
 pub struct RadioRasterGroup {
-    pub layout: RasterLayout,
+    pub layout: emRasterLayout,
     pub group: Rc<RefCell<RadioGroup>>,
 }
 
 impl Default for RadioRasterGroup {
     fn default() -> Self {
         Self {
-            layout: RasterLayout::default(),
+            layout: emRasterLayout::default(),
             group: RadioGroup::new(),
         }
     }
@@ -607,7 +607,7 @@ impl RadioRasterGroup {
     }
 }
 
-impl Drop for RadioButton {
+impl Drop for emRadioButton {
     fn drop(&mut self) {
         self.group.borrow_mut().deregister(&self.index_cell);
     }
@@ -637,18 +637,18 @@ mod tests {
         }
     }
 
-    fn default_input_state() -> InputState {
-        InputState::new()
+    fn default_input_state() -> emInputState {
+        emInputState::new()
     }
 
     #[test]
     fn radio_group_mutual_exclusion() {
-        let look = Look::new();
+        let look = emLook::new();
         let group = RadioGroup::new();
 
-        let mut r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
-        let mut r1 = RadioButton::new("B", look.clone(), group.clone(), 1);
-        let mut r2 = RadioButton::new("C", look, group.clone(), 2);
+        let mut r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
+        let mut r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
+        let mut r2 = emRadioButton::new("C", look, group.clone(), 2);
         let ps = default_panel_state();
         let is = default_input_state();
 
@@ -657,15 +657,15 @@ mod tests {
         assert!(!r2.is_selected());
 
         // Enter is instant: selects on press, no release needed.
-        r0.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        r0.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(r0.is_selected()); // Selected immediately on press
         assert!(!r1.is_selected());
 
-        r2.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        r2.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!r0.is_selected());
         assert!(r2.is_selected());
 
-        r1.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        r1.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!r0.is_selected());
         assert!(r1.is_selected());
         assert!(!r2.is_selected());
@@ -674,13 +674,13 @@ mod tests {
     #[test]
     fn pressed_state_tracks_press_release() {
         // Enter is instant -- no visual press state. Verify pressed stays false.
-        let look = Look::new();
+        let look = emLook::new();
         let group = RadioGroup::new();
-        let mut r0 = RadioButton::new("A", look, group.clone(), 0);
+        let mut r0 = emRadioButton::new("A", look, group.clone(), 0);
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!r0.pressed);
-        r0.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        r0.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!r0.pressed); // Enter selects instantly, no press state
         assert!(r0.is_selected()); // But the selection did happen
     }
@@ -694,28 +694,28 @@ mod tests {
             sel_clone.borrow_mut().push(idx);
         }));
 
-        let look = Look::new();
-        let mut r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
-        let mut r1 = RadioButton::new("B", look, group.clone(), 1);
+        let look = emLook::new();
+        let mut r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
+        let mut r1 = emRadioButton::new("B", look, group.clone(), 1);
         let ps = default_panel_state();
         let is = default_input_state();
 
         // Enter is instant: each press fires the callback immediately.
-        r0.input(&InputEvent::press(InputKey::Enter), &ps, &is);
-        r1.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        r0.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        r1.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*selections.borrow(), vec![Some(0), Some(1)]);
     }
 
     #[test]
     fn count_tracks_construction_and_drop() {
-        let look = Look::new();
+        let look = emLook::new();
         let group = RadioGroup::new();
         assert_eq!(group.borrow().count(), 0);
 
-        let r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
+        let r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
         assert_eq!(group.borrow().count(), 1);
 
-        let r1 = RadioButton::new("B", look.clone(), group.clone(), 1);
+        let r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
         assert_eq!(group.borrow().count(), 2);
 
         drop(r0);
@@ -727,10 +727,10 @@ mod tests {
 
     #[test]
     fn index_returns_correct_value() {
-        let look = Look::new();
+        let look = emLook::new();
         let group = RadioGroup::new();
-        let r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
-        let r1 = RadioButton::new("B", look, group.clone(), 1);
+        let r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
+        let r1 = emRadioButton::new("B", look, group.clone(), 1);
         assert_eq!(r0.index(), 0);
         assert_eq!(r1.index(), 1);
     }
@@ -739,10 +739,10 @@ mod tests {
 
     #[test]
     fn set_checked_selects_in_group() {
-        let look = Look::new();
+        let look = emLook::new();
         let group = RadioGroup::new();
-        let mut r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
-        let mut r1 = RadioButton::new("B", look, group.clone(), 1);
+        let mut r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
+        let mut r1 = emRadioButton::new("B", look, group.clone(), 1);
 
         // set_checked(true) selects this button
         r0.set_checked(true);
@@ -765,10 +765,10 @@ mod tests {
 
     #[test]
     fn set_checked_false_on_unselected_is_noop() {
-        let look = Look::new();
+        let look = emLook::new();
         let group = RadioGroup::new();
-        let mut r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
-        let mut r1 = RadioButton::new("B", look, group.clone(), 1);
+        let mut r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
+        let mut r1 = emRadioButton::new("B", look, group.clone(), 1);
 
         r0.set_checked(true);
         assert_eq!(group.borrow().selected(), Some(0));
@@ -931,12 +931,12 @@ mod tests {
 
     #[test]
     fn drop_middle_button_reindexes_remaining() {
-        let look = Look::new();
+        let look = emLook::new();
         let group = RadioGroup::new();
 
-        let r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
-        let r1 = RadioButton::new("B", look.clone(), group.clone(), 1);
-        let r2 = RadioButton::new("C", look, group.clone(), 2);
+        let r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
+        let r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
+        let r2 = emRadioButton::new("C", look, group.clone(), 2);
 
         // Select the last button
         group.borrow_mut().select(2);
@@ -957,12 +957,12 @@ mod tests {
 
     #[test]
     fn drop_selected_button_clears_selection() {
-        let look = Look::new();
+        let look = emLook::new();
         let group = RadioGroup::new();
 
-        let r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
-        let r1 = RadioButton::new("B", look.clone(), group.clone(), 1);
-        let r2 = RadioButton::new("C", look, group.clone(), 2);
+        let r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
+        let r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
+        let r2 = emRadioButton::new("C", look, group.clone(), 2);
 
         group.borrow_mut().select(1);
         assert!(r1.is_selected());

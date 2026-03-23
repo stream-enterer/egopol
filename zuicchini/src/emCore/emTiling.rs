@@ -45,7 +45,7 @@ pub enum ResolvedOrientation {
 
 /// Cross-axis alignment for children within a layout.
 ///
-/// Used by RasterLayout for block-level alignment. LinearLayout uses
+/// Used by emRasterLayout for block-level alignment. emLinearLayout uses
 /// per-axis `AlignmentH`/`AlignmentV` instead.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum Alignment {
@@ -208,7 +208,7 @@ impl Spacing {
     }
 }
 
-/// Per-child constraint used by LinearLayout and PackLayout.
+/// Per-child constraint used by emLinearLayout and emPackLayout.
 #[derive(Clone, Debug)]
 pub struct ChildConstraint {
     /// Relative weight for distributing space on the main axis.
@@ -254,7 +254,7 @@ pub(crate) fn get_constraint<'a>(
 /// PanelId so the layout algorithm can exclude it from normal layout.
 pub(crate) fn position_aux_panel(
     ctx: &mut crate::emCore::emPanelCtx::PanelCtx,
-    border: &crate::emCore::emBorder::Border,
+    border: &crate::emCore::emBorder::emBorder,
 ) -> Option<PanelId> {
     let aux_name = border.get_aux_panel_name();
     if aux_name.is_empty() {

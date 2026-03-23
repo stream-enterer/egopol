@@ -7,11 +7,11 @@ use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
 use crate::emCore::emInput::{InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
+use crate::emCore::emInputState::emInputState;
 use crate::emCore::emPanelTree::PanelTree;
 use crate::emCore::emScheduler::EngineScheduler;
 
-use crate::emCore::emScreen::Screen;
+use crate::emCore::emScreen::emScreen;
 use super::emWindow::{WindowFlags, ZuiWindow};
 
 /// Shared GPU resources created once and used by all windows.
@@ -77,11 +77,11 @@ pub type SetupFn = Box<dyn FnOnce(&mut App, &ActiveEventLoop)>;
 /// the scheduler.
 pub struct App {
     pub gpu: Option<GpuContext>,
-    pub screen: Option<Screen>,
+    pub screen: Option<emScreen>,
     pub scheduler: EngineScheduler,
     pub tree: PanelTree,
     pub windows: HashMap<WindowId, ZuiWindow>,
-    pub input_state: InputState,
+    pub input_state: emInputState,
     setup_fn: Option<SetupFn>,
     initialized: bool,
     last_frame_time: Instant,
@@ -95,7 +95,7 @@ impl App {
             scheduler: EngineScheduler::new(),
             tree: PanelTree::new(),
             windows: HashMap::new(),
-            input_state: InputState::new(),
+            input_state: emInputState::new(),
             setup_fn: Some(setup),
             initialized: false,
             last_frame_time: Instant::now(),
@@ -119,7 +119,7 @@ impl App {
         self.gpu.as_ref().expect("GPU not initialized yet")
     }
 
-    pub fn screen(&self) -> &Screen {
+    pub fn screen(&self) -> &emScreen {
         self.screen.as_ref().expect("Screen not initialized yet")
     }
 }
@@ -137,7 +137,7 @@ impl ApplicationHandler for App {
         // Scan monitors — allocate signal IDs for geometry/window-list changes.
         let geom_sig = self.scheduler.create_signal();
         let win_sig = self.scheduler.create_signal();
-        self.screen = Some(Screen::from_event_loop(event_loop, geom_sig, win_sig));
+        self.screen = Some(emScreen::from_event_loop(event_loop, geom_sig, win_sig));
 
         // Call user setup
         if let Some(setup) = self.setup_fn.take() {

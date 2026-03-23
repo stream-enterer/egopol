@@ -2,10 +2,10 @@
 mod common;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emColor::emColor;
 
-use zuicchini::emCore::emImage::Image;
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emImage::emImage;
+use zuicchini::emCore::emPainter::emPainter;
 
 use common::scaled::{build_scaled_tree, run_one_scaled_frame};
 use common::{DEFAULT_VH, DEFAULT_VW};
@@ -18,7 +18,7 @@ fn bench_scaled_pan_zoom(c: &mut Criterion) {
     for &count in PANEL_COUNTS {
         group.bench_with_input(BenchmarkId::new("panels", count), &count, |b, &count| {
             let (mut tree, mut view, _) = build_scaled_tree(count);
-            let mut buf = Image::new(DEFAULT_VW, DEFAULT_VH, 4);
+            let mut buf = emImage::new(DEFAULT_VW, DEFAULT_VH, 4);
 
             // Warmup
             run_one_scaled_frame(&mut tree, &mut view, &mut buf, 3.0, 0.0, 0.015);
@@ -38,11 +38,11 @@ fn bench_scaled_paint(c: &mut Criterion) {
     for &count in PANEL_COUNTS {
         group.bench_with_input(BenchmarkId::new("panels", count), &count, |b, &count| {
             let (mut tree, view, _) = build_scaled_tree(count);
-            let mut buf = Image::new(DEFAULT_VW, DEFAULT_VH, 4);
+            let mut buf = emImage::new(DEFAULT_VW, DEFAULT_VH, 4);
 
             b.iter(|| {
-                buf.fill(Color::BLACK);
-                let mut painter = Painter::new(&mut buf);
+                buf.fill(emColor::BLACK);
+                let mut painter = emPainter::new(&mut buf);
                 view.paint(&mut tree, &mut painter);
             });
         });

@@ -1,4 +1,4 @@
-//! Systematic interaction tests for CheckButton and CheckBox at 1x and 2x zoom,
+//! Systematic interaction tests for emCheckButton and emCheckBox at 1x and 2x zoom,
 //! driven through the full input dispatch pipeline (PipelineTestHarness).
 //!
 //! These tests verify that mouse clicks toggle the checked state correctly when
@@ -8,41 +8,41 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::InputEvent;
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::emInputEvent;
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emCheckBox::CheckBox;
-use zuicchini::emCore::emCheckButton::CheckButton;
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emCheckBox::emCheckBox;
+use zuicchini::emCore::emCheckButton::emCheckButton;
+use zuicchini::emCore::emLook::emLook;
 
 use super::support::pipeline::PipelineTestHarness;
 
 // ---------------------------------------------------------------------------
-// PanelBehavior wrapper for CheckButton (shared via Rc<RefCell>)
+// PanelBehavior wrapper for emCheckButton (shared via Rc<RefCell>)
 // ---------------------------------------------------------------------------
 
 struct SharedCheckButtonPanel {
-    inner: Rc<RefCell<CheckButton>>,
+    inner: Rc<RefCell<emCheckButton>>,
 }
 
 impl PanelBehavior for SharedCheckButtonPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.inner.borrow_mut().paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         self.inner.borrow_mut().input(event, state, input_state)
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.inner.borrow().get_cursor()
     }
 
@@ -52,28 +52,28 @@ impl PanelBehavior for SharedCheckButtonPanel {
 }
 
 // ---------------------------------------------------------------------------
-// PanelBehavior wrapper for CheckBox (shared via Rc<RefCell>)
+// PanelBehavior wrapper for emCheckBox (shared via Rc<RefCell>)
 // ---------------------------------------------------------------------------
 
 struct SharedCheckBoxPanel {
-    inner: Rc<RefCell<CheckBox>>,
+    inner: Rc<RefCell<emCheckBox>>,
 }
 
 impl PanelBehavior for SharedCheckBoxPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.inner.borrow_mut().paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         self.inner.borrow_mut().input(event, state, input_state)
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.inner.borrow().get_cursor()
     }
 
@@ -83,7 +83,7 @@ impl PanelBehavior for SharedCheckBoxPanel {
 }
 
 // ---------------------------------------------------------------------------
-// Test 1: CheckButton toggle at 1x and 2x zoom
+// Test 1: emCheckButton toggle at 1x and 2x zoom
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -92,9 +92,9 @@ fn checkbutton_toggle_1x_and_2x() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    // 2. Create CheckButton (initially unchecked).
-    let look = Look::new();
-    let cb = CheckButton::new("Toggle Me", look);
+    // 2. Create emCheckButton (initially unchecked).
+    let look = emLook::new();
+    let cb = emCheckButton::new("Toggle Me", look);
     let cb_ref = Rc::new(RefCell::new(cb));
 
     // 3. Wrap in PanelBehavior, add to tree, tick + render.
@@ -149,7 +149,7 @@ fn checkbutton_toggle_1x_and_2x() {
 }
 
 // ---------------------------------------------------------------------------
-// Test 2: CheckBox toggle at 1x and 2x zoom
+// Test 2: emCheckBox toggle at 1x and 2x zoom
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -158,9 +158,9 @@ fn checkbox_toggle_1x_and_2x() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    // 2. Create CheckBox (initially unchecked).
-    let look = Look::new();
-    let cb = CheckBox::new("Enable Option", look);
+    // 2. Create emCheckBox (initially unchecked).
+    let look = emLook::new();
+    let cb = emCheckBox::new("Enable Option", look);
     let cb_ref = Rc::new(RefCell::new(cb));
 
     // 3. Wrap in PanelBehavior, add to tree, tick + render.
@@ -215,19 +215,19 @@ fn checkbox_toggle_1x_and_2x() {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: create a PipelineTestHarness with a CheckButton, optionally with
+// Helper: create a PipelineTestHarness with a emCheckButton, optionally with
 // an on_check callback that records states into a shared Vec.
 // ---------------------------------------------------------------------------
 
 fn setup_checkbutton_harness() -> (
     PipelineTestHarness,
-    Rc<RefCell<CheckButton>>,
+    Rc<RefCell<emCheckButton>>,
     zuicchini::emCore::emPanelTree::PanelId,
 ) {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
-    let look = Look::new();
-    let cb = CheckButton::new("Test", look);
+    let look = emLook::new();
+    let cb = emCheckButton::new("Test", look);
     let cb_ref = Rc::new(RefCell::new(cb));
     let panel_id = h.add_panel_with(
         root,
@@ -244,14 +244,14 @@ fn setup_checkbutton_harness() -> (
 
 fn setup_checkbutton_with_recorder() -> (
     PipelineTestHarness,
-    Rc<RefCell<CheckButton>>,
+    Rc<RefCell<emCheckButton>>,
     Rc<RefCell<Vec<bool>>>,
     zuicchini::emCore::emPanelTree::PanelId,
 ) {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
-    let look = Look::new();
-    let mut cb = CheckButton::new("Test", look);
+    let look = emLook::new();
+    let mut cb = emCheckButton::new("Test", look);
     let states = Rc::new(RefCell::new(Vec::new()));
     let states_clone = states.clone();
     cb.on_check = Some(Box::new(move |checked| {
@@ -299,8 +299,8 @@ fn checkbutton_set_checked_fires_callback() {
     let states = Rc::new(RefCell::new(Vec::new()));
     let states_clone = states.clone();
 
-    let look = Look::new();
-    let mut cb = CheckButton::new("Test", look);
+    let look = emLook::new();
+    let mut cb = emCheckButton::new("Test", look);
     cb.on_check = Some(Box::new(move |checked| {
         states_clone.borrow_mut().push(checked);
     }));
@@ -324,8 +324,8 @@ fn checkbutton_set_checked_noop_same_value() {
     let states = Rc::new(RefCell::new(Vec::new()));
     let states_clone = states.clone();
 
-    let look = Look::new();
-    let mut cb = CheckButton::new("Test", look);
+    let look = emLook::new();
+    let mut cb = emCheckButton::new("Test", look);
     cb.on_check = Some(Box::new(move |checked| {
         states_clone.borrow_mut().push(checked);
     }));
@@ -371,7 +371,7 @@ fn checkbutton_double_click_toggles_twice() {
 }
 
 // ---------------------------------------------------------------------------
-// Test: Enter key toggles checked state (inherited from Button)
+// Test: Enter key toggles checked state (inherited from emButton)
 // C++ ref: emButton.cpp:113-119 — Enter press triggers Click()
 // ---------------------------------------------------------------------------
 
@@ -410,7 +410,7 @@ fn checkbutton_enter_key_toggles() {
 fn checkbutton_shift_click_accepted() {
     let (mut h, cb_ref, _panel_id) = setup_checkbutton_harness();
 
-    // Set Shift in InputState so dispatch's with_modifiers stamps it onto events
+    // Set Shift in emInputState so dispatch's with_modifiers stamps it onto events
     h.input_state.press(zuicchini::emCore::emInput::InputKey::Shift);
     h.click(400.0, 300.0);
     h.input_state.release(zuicchini::emCore::emInput::InputKey::Shift);
@@ -549,7 +549,7 @@ fn checkbutton_alt_enter_rejected() {
 }
 
 // ---------------------------------------------------------------------------
-// Test: Disabled CheckButton rejects mouse click
+// Test: Disabled emCheckButton rejects mouse click
 // C++ ref: emButton.cpp:55 — Click() gates on IsEnabled()
 //          emButton.cpp:83 — Input() gates on IsEnabled()
 // ---------------------------------------------------------------------------
@@ -561,7 +561,7 @@ fn checkbutton_disabled_rejects_click() {
     // Disable the panel via the tree's enable switch
     h.tree.set_enable_switch(panel_id, false);
     h.tick_n(3);
-    // Re-render so the CheckButton's cached `enabled` field updates
+    // Re-render so the emCheckButton's cached `enabled` field updates
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
 
@@ -573,7 +573,7 @@ fn checkbutton_disabled_rejects_click() {
 }
 
 // ---------------------------------------------------------------------------
-// Test: Disabled CheckButton rejects Enter key
+// Test: Disabled emCheckButton rejects Enter key
 // C++ ref: emButton.cpp:116 — Enter gated on IsEnabled()
 // ---------------------------------------------------------------------------
 
@@ -594,7 +594,7 @@ fn checkbutton_disabled_rejects_enter() {
 }
 
 // ---------------------------------------------------------------------------
-// Test: Re-enabled CheckButton accepts input after being disabled
+// Test: Re-enabled emCheckButton accepts input after being disabled
 // C++ ref: emButton.cpp:55,83,116 — IsEnabled() gates all input
 // ---------------------------------------------------------------------------
 
@@ -664,8 +664,8 @@ fn checkbutton_press_inside_release_outside_no_toggle() {
 
 #[test]
 fn checkbutton_initial_state_unchecked() {
-    let look = Look::new();
-    let cb = CheckButton::new("Test", look);
+    let look = emLook::new();
+    let cb = emCheckButton::new("Test", look);
     assert!(
         !cb.is_checked(),
         "CheckButton should be unchecked on construction"

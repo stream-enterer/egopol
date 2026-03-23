@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 
-use zuicchini::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::PanelBehavior;
 
 use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
 
-use zuicchini::emCore::emView::View;
+use zuicchini::emCore::emView::emView;
 
-use zuicchini::emCore::emViewInputFilter::{KeyboardZoomScrollVIF, MouseZoomScrollVIF, ViewInputFilter};
+use zuicchini::emCore::emViewInputFilter::{emKeyboardZoomScrollVIF, emMouseZoomScrollVIF, emViewInputFilter};
 use zuicchini::emCore::emScheduler::EngineScheduler;
 
 /// Test harness that dispatches input through the FULL coordinate transform
@@ -22,9 +22,9 @@ use zuicchini::emCore::emScheduler::EngineScheduler;
 pub struct PipelineTestHarness {
     pub tree: PanelTree,
     pub scheduler: EngineScheduler,
-    pub view: View,
-    pub vif_chain: Vec<Box<dyn ViewInputFilter>>,
-    pub input_state: InputState,
+    pub view: emView,
+    pub vif_chain: Vec<Box<dyn emViewInputFilter>>,
+    pub input_state: emInputState,
     root: PanelId,
 }
 
@@ -36,18 +36,18 @@ impl PipelineTestHarness {
         tree.set_focusable(root, true);
         tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
 
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
-        let vif_chain: Vec<Box<dyn ViewInputFilter>> = vec![
+        let vif_chain: Vec<Box<dyn emViewInputFilter>> = vec![
             {
-                let mut mouse_vif = MouseZoomScrollVIF::new();
+                let mut mouse_vif = emMouseZoomScrollVIF::new();
                 let zflpp = view.get_zoom_factor_log_per_pixel();
                 mouse_vif.set_mouse_anim_params(1.0, 0.25, zflpp);
                 mouse_vif.set_wheel_anim_params(1.0, 0.25, zflpp);
                 Box::new(mouse_vif)
             },
-            Box::new(KeyboardZoomScrollVIF::new()),
+            Box::new(emKeyboardZoomScrollVIF::new()),
         ];
 
         Self {
@@ -55,7 +55,7 @@ impl PipelineTestHarness {
             scheduler: EngineScheduler::new(),
             view,
             vif_chain,
-            input_state: InputState::new(),
+            input_state: emInputState::new(),
             root,
         }
     }
@@ -157,7 +157,7 @@ impl PipelineTestHarness {
     /// 3. Transform mouse coords from view space to panel-local space
     /// 4. Keyboard suppression for non-active-path panels
     /// 5. Deliver to behavior
-    pub fn dispatch(&mut self, event: &InputEvent) {
+    pub fn dispatch(&mut self, event: &emInputEvent) {
         // Run VIF chain
         for vif in &mut self.vif_chain {
             if vif.filter(event, &self.input_state, &mut self.view) {
@@ -189,7 +189,7 @@ impl PipelineTestHarness {
             self.view.set_active_panel(&mut self.tree, panel, false);
         }
 
-        // Stamp modifier keys from InputState onto the event
+        // Stamp modifier keys from emInputState onto the event
         let ev = event.clone().with_modifiers(&self.input_state);
 
         // Dispatch to ALL viewed panels in post-order, transforming mouse
@@ -246,8 +246,8 @@ impl PipelineTestHarness {
 
     /// Click (press + release) the left mouse button at view-space coordinates.
     pub fn click(&mut self, view_x: f64, view_y: f64) {
-        let press = InputEvent::press(InputKey::MouseLeft).with_mouse(view_x, view_y);
-        let release = InputEvent::release(InputKey::MouseLeft).with_mouse(view_x, view_y);
+        let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(view_x, view_y);
+        let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(view_x, view_y);
         self.dispatch(&press);
         self.dispatch(&release);
     }
@@ -255,9 +255,9 @@ impl PipelineTestHarness {
     /// Drag: press at `from`, move to `to`, release at `to`. All coordinates
     /// are in view space.
     pub fn drag(&mut self, from_x: f64, from_y: f64, to_x: f64, to_y: f64) {
-        let press = InputEvent::press(InputKey::MouseLeft).with_mouse(from_x, from_y);
-        let move_ev = InputEvent::mouse_move(InputKey::MouseLeft, to_x, to_y);
-        let release = InputEvent::release(InputKey::MouseLeft).with_mouse(to_x, to_y);
+        let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(from_x, from_y);
+        let move_ev = emInputEvent::mouse_move(InputKey::MouseLeft, to_x, to_y);
+        let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(to_x, to_y);
         self.dispatch(&press);
         self.dispatch(&move_ev);
         self.dispatch(&release);
@@ -265,17 +265,17 @@ impl PipelineTestHarness {
 
     /// Press and release a keyboard key.
     pub fn press_key(&mut self, key: InputKey) {
-        let press = InputEvent::press(key);
-        let release = InputEvent::release(key);
+        let press = emInputEvent::press(key);
+        let release = emInputEvent::release(key);
         self.dispatch(&press);
         self.dispatch(&release);
     }
 
     /// Press and release a character key, including the `chars` field so that
-    /// text-input widgets (e.g. TextField) receive the typed character.
+    /// text-input widgets (e.g. emTextField) receive the typed character.
     pub fn press_char(&mut self, ch: char) {
-        let press = InputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
-        let release = InputEvent::release(InputKey::Key(ch));
+        let press = emInputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
+        let release = emInputEvent::release(InputKey::Key(ch));
         self.dispatch(&press);
         self.dispatch(&release);
     }

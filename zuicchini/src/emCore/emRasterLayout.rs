@@ -6,7 +6,7 @@ use crate::emCore::emPanelTree::PanelId;
 use super::emTiling::{AlignmentH, AlignmentV, Spacing};
 
 /// Raster (grid) layout: arranges children in a uniform grid.
-pub struct RasterLayout {
+pub struct emRasterLayout {
     /// If true, fill row-by-row; otherwise column-by-column.
     pub row_major: bool,
     /// Fixed number of columns (None = auto).
@@ -31,7 +31,7 @@ pub struct RasterLayout {
     pub strict_raster: bool,
 }
 
-impl Default for RasterLayout {
+impl Default for emRasterLayout {
     fn default() -> Self {
         Self {
             row_major: false,
@@ -49,7 +49,7 @@ impl Default for RasterLayout {
     }
 }
 
-impl RasterLayout {
+impl emRasterLayout {
     pub fn new() -> Self {
         Self::default()
     }
@@ -333,7 +333,7 @@ impl RasterLayout {
     }
 }
 
-impl PanelBehavior for RasterLayout {
+impl PanelBehavior for emRasterLayout {
     fn layout_children(&mut self, ctx: &mut PanelCtx) {
         self.do_layout(ctx);
     }
@@ -361,7 +361,7 @@ mod tests {
     #[test]
     fn fixed_columns() {
         let (mut tree, root, children) = setup(6, 300.0, 200.0);
-        let mut layout = RasterLayout::new().with_columns(3);
+        let mut layout = emRasterLayout::new().with_columns(3);
         layout.row_major = true;
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
@@ -379,7 +379,7 @@ mod tests {
     #[test]
     fn auto_column_count_square() {
         let (mut tree, root, children) = setup(4, 400.0, 400.0);
-        let mut layout = RasterLayout::new().with_preferred_tallness(1.0);
+        let mut layout = emRasterLayout::new().with_preferred_tallness(1.0);
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         // 4 items in normalized 1.0x1.0 with tallness 1.0 -> 2x2 grid, each 0.5x0.5
@@ -394,7 +394,7 @@ mod tests {
         // cell_w=400, unclamped tallness=0.75, clamped to max 0.5 -> cell_h=200.
         // Grid is 400x400, vertical surplus=200. Center -> offset_y=100.
         let (mut tree, root, children) = setup(2, 400.0, 600.0);
-        let mut layout = RasterLayout::new();
+        let mut layout = emRasterLayout::new();
         layout.row_major = true;
         layout.alignment_h = AlignmentH::Center;
         layout.alignment_v = AlignmentV::Center;
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn column_major() {
         let (mut tree, root, children) = setup(4, 200.0, 200.0);
-        let mut layout = RasterLayout::new().with_columns(2);
+        let mut layout = emRasterLayout::new().with_columns(2);
         layout.row_major = false;
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
@@ -432,7 +432,7 @@ mod tests {
         // 2 children but min_cell_count=6, fixed 3 cols -> 2 rows.
         // Each cell is 100x100; children only placed in first 2 slots.
         let (mut tree, root, children) = setup(2, 300.0, 200.0);
-        let mut layout = RasterLayout::new().with_columns(3).with_min_cell_count(6);
+        let mut layout = emRasterLayout::new().with_columns(3).with_min_cell_count(6);
         layout.row_major = true;
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
@@ -451,7 +451,7 @@ mod tests {
         // (tallness=1.0). With strict + min_child_tallness=2.0, it should increase cols
         // until tallness >= 2.0.
         let (mut tree, root, children) = setup(4, 100.0, 400.0);
-        let mut layout = RasterLayout::new()
+        let mut layout = emRasterLayout::new()
             .with_preferred_tallness(1.0)
             .with_strict_raster(true);
         layout.row_major = true;

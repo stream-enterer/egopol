@@ -14,16 +14,16 @@ use std::cell::Cell;
 use std::f64::consts::PI;
 use std::rc::Rc;
 
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emImage::emImage;
 use zuicchini::emCore::emResTga::load_tga;
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::InputEvent;
-use zuicchini::emCore::emInputState::InputState;
-use zuicchini::emCore::emLinearLayout::LinearLayout;
-use zuicchini::emCore::emLinearGroup::LinearGroup;
-use zuicchini::emCore::emRasterLayout::RasterLayout;
-use zuicchini::emCore::emRasterGroup::RasterGroup;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::emInputEvent;
+use zuicchini::emCore::emInputState::emInputState;
+use zuicchini::emCore::emLinearLayout::emLinearLayout;
+use zuicchini::emCore::emLinearGroup::emLinearGroup;
+use zuicchini::emCore::emRasterLayout::emRasterLayout;
+use zuicchini::emCore::emRasterGroup::emRasterGroup;
 use zuicchini::emCore::emTiling::{ChildConstraint, Orientation};
 use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 
@@ -31,39 +31,39 @@ use zuicchini::emCore::emPanelCtx::PanelCtx;
 
 use zuicchini::emCore::emPanelTree::{PanelId, PanelTree, ViewConditionType};
 
-use zuicchini::emCore::emView::{View, ViewFlags};
-use zuicchini::emCore::emPainter::{Painter, TextAlignment, VAlign};
+use zuicchini::emCore::emView::{emView, ViewFlags};
+use zuicchini::emCore::emPainter::{emPainter, TextAlignment, VAlign};
 
-use zuicchini::emCore::emStroke::{LineCap, LineJoin, Stroke};
+use zuicchini::emCore::emStroke::{LineCap, LineJoin, emStroke};
 
-use zuicchini::emCore::emStrokeEnd::{StrokeEnd, StrokeEndType};
+use zuicchini::emCore::emStrokeEnd::{emStrokeEnd, StrokeEndType};
 
-use zuicchini::emCore::emTexture::{ImageExtension, ImageQuality, Texture};
+use zuicchini::emCore::emTexture::{ImageExtension, ImageQuality, emTexture};
 
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
+use zuicchini::emCore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 
-use zuicchini::emCore::emButton::Button;
+use zuicchini::emCore::emButton::emButton;
 
-use zuicchini::emCore::emCheckBox::CheckBox;
+use zuicchini::emCore::emCheckBox::emCheckBox;
 
-use zuicchini::emCore::emCheckButton::CheckButton;
+use zuicchini::emCore::emCheckButton::emCheckButton;
 
-use zuicchini::emCore::emColorField::ColorField;
+use zuicchini::emCore::emColorField::emColorField;
 
-use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
+use zuicchini::emCore::emListBox::{emListBox, SelectionMode};
 
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emLook::emLook;
 
-use zuicchini::emCore::emRadioBox::RadioBox;
+use zuicchini::emCore::emRadioBox::emRadioBox;
 
-use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+use zuicchini::emCore::emRadioButton::{emRadioButton, RadioGroup};
 
-use zuicchini::emCore::emScalarField::ScalarField;
+use zuicchini::emCore::emScalarField::emScalarField;
 
-use zuicchini::emCore::emSplitter::Splitter;
+use zuicchini::emCore::emSplitter::emSplitter;
 
-use zuicchini::emCore::emTextField::TextField;
+use zuicchini::emCore::emTextField::emTextField;
 
 use super::common::*;
 
@@ -79,7 +79,7 @@ macro_rules! require_golden {
 
 /// Settle: deliver notices and update viewing until stable.
 /// `rounds` matches C++ TerminateEngine cycle count from gen_golden.cpp.
-fn settle(tree: &mut PanelTree, view: &mut View, rounds: usize) {
+fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     for _ in 0..rounds {
         tree.deliver_notices(view.window_focused(), view.pixel_tallness());
         view.update_viewing(tree);
@@ -91,7 +91,7 @@ fn settle(tree: &mut PanelTree, view: &mut View, rounds: usize) {
 // ═══════════════════════════════════════════════════════════════════
 
 const MAX_DEPTH: u32 = 2;
-const DEFAULT_BG: Color = Color::rgba(0x00, 0x1C, 0x38, 0xFF);
+const DEFAULT_BG: emColor = emColor::rgba(0x00, 0x1C, 0x38, 0xFF);
 
 const CHILD_LAYOUT: [(&str, f64, f64, f64, f64); 7] = [
     ("tktest", 0.20, 0.15, 0.30, 0.12),
@@ -108,16 +108,16 @@ const CHILD_LAYOUT: [(&str, f64, f64, f64, f64); 7] = [
 // ═══════════════════════════════════════════════════════════════════
 
 struct ButtonPanel {
-    widget: Button,
+    widget: emButton,
 }
 impl PanelBehavior for ButtonPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -126,16 +126,16 @@ impl PanelBehavior for ButtonPanel {
 }
 
 struct CheckButtonPanel {
-    widget: CheckButton,
+    widget: emCheckButton,
 }
 impl PanelBehavior for CheckButtonPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -144,16 +144,16 @@ impl PanelBehavior for CheckButtonPanel {
 }
 
 struct CheckBoxPanel {
-    widget: CheckBox,
+    widget: emCheckBox,
 }
 impl PanelBehavior for CheckBoxPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -162,16 +162,16 @@ impl PanelBehavior for CheckBoxPanel {
 }
 
 struct RadioButtonPanel {
-    widget: RadioButton,
+    widget: emRadioButton,
 }
 impl PanelBehavior for RadioButtonPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -180,16 +180,16 @@ impl PanelBehavior for RadioButtonPanel {
 }
 
 struct RadioBoxPanel {
-    widget: RadioBox,
+    widget: emRadioBox,
 }
 impl PanelBehavior for RadioBoxPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -198,17 +198,17 @@ impl PanelBehavior for RadioBoxPanel {
 }
 
 struct TextFieldPanel {
-    widget: TextField,
+    widget: emTextField,
 }
 impl PanelBehavior for TextFieldPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.cycle_blink(_s.in_focused_path());
         self.widget.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -222,16 +222,16 @@ impl PanelBehavior for TextFieldPanel {
 }
 
 struct ScalarFieldPanel {
-    widget: ScalarField,
+    widget: emScalarField,
 }
 impl PanelBehavior for ScalarFieldPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
         self.widget.paint(p, w, h, s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -240,13 +240,13 @@ impl PanelBehavior for ScalarFieldPanel {
 }
 
 struct ColorFieldPanel {
-    widget: ColorField,
+    widget: emColorField,
 }
 impl PanelBehavior for ColorFieldPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
     fn is_opaque(&self) -> bool {
@@ -255,13 +255,13 @@ impl PanelBehavior for ColorFieldPanel {
 }
 
 struct ListBoxPanel {
-    widget: ListBox,
+    widget: emListBox,
 }
 impl PanelBehavior for ListBoxPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
     fn is_opaque(&self) -> bool {
@@ -270,16 +270,16 @@ impl PanelBehavior for ListBoxPanel {
 }
 
 struct SplitterPanel {
-    widget: Splitter,
+    widget: emSplitter,
 }
 impl PanelBehavior for SplitterPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -298,13 +298,13 @@ impl PanelBehavior for SplitterPanel {
 /// Stub for C++ emTunnel — renders a Group border with caption, positions
 /// a single child filling the content area.
 struct TunnelStubPanel {
-    border: Border,
-    look: Rc<Look>,
+    border: emBorder,
+    look: Rc<emLook>,
 }
 
 impl TunnelStubPanel {
-    fn new(caption: &str, look: Rc<Look>) -> Self {
-        let border = Border::new(OuterBorderType::Group)
+    fn new(caption: &str, look: Rc<emLook>) -> Self {
+        let border = emBorder::new(OuterBorderType::Group)
             .with_inner(InnerBorderType::Group)
             .with_caption(caption);
         Self { border, look }
@@ -312,7 +312,7 @@ impl TunnelStubPanel {
 }
 
 impl PanelBehavior for TunnelStubPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
         self.border
             .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
     }
@@ -338,13 +338,13 @@ impl PanelBehavior for TunnelStubPanel {
 
 /// Stub for C++ emFileSelectionBox — renders a Group border with caption.
 struct FileSelectionBoxStubPanel {
-    border: Border,
-    look: Rc<Look>,
+    border: emBorder,
+    look: Rc<emLook>,
 }
 
 impl FileSelectionBoxStubPanel {
-    fn new(look: Rc<Look>) -> Self {
-        let border = Border::new(OuterBorderType::Group)
+    fn new(look: Rc<emLook>) -> Self {
+        let border = emBorder::new(OuterBorderType::Group)
             .with_inner(InnerBorderType::Group)
             .with_caption("File Selection");
         Self { border, look }
@@ -352,7 +352,7 @@ impl FileSelectionBoxStubPanel {
 }
 
 impl PanelBehavior for FileSelectionBoxStubPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
         self.border
             .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
     }
@@ -366,7 +366,7 @@ impl PanelBehavior for FileSelectionBoxStubPanel {
 /// Extracted from the original PolyDrawPanel.
 struct CanvasPanel {
     vertices: Vec<(f64, f64)>,
-    fill_color: Color,
+    fill_color: emColor,
 }
 
 impl CanvasPanel {
@@ -380,7 +380,7 @@ impl CanvasPanel {
             .collect();
         Self {
             vertices,
-            fill_color: Color::WHITE,
+            fill_color: emColor::WHITE,
         }
     }
 }
@@ -390,16 +390,16 @@ impl PanelBehavior for CanvasPanel {
         true
     }
 
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         p.paint_linear_gradient(
             0.0,
             0.0,
             w,
             h,
-            Color::rgba(80, 80, 160, 255),
-            Color::rgba(160, 160, 80, 255),
+            emColor::rgba(80, 80, 160, 255),
+            emColor::rgba(160, 160, 80, 255),
             false,
-            Color::TRANSPARENT,
+            emColor::TRANSPARENT,
         );
 
         let scaled: Vec<(f64, f64)> = self
@@ -407,7 +407,7 @@ impl PanelBehavior for CanvasPanel {
             .iter()
             .map(|&(vx, vy)| (vx * w, vy * h))
             .collect();
-        p.paint_polygon(&scaled, self.fill_color, Color::TRANSPARENT);
+        p.paint_polygon(&scaled, self.fill_color, emColor::TRANSPARENT);
 
         p.paint_text_boxed(
             0.0,
@@ -416,8 +416,8 @@ impl PanelBehavior for CanvasPanel {
             0.05 * h,
             "Drag vertices with left mouse button",
             0.03 * h,
-            Color::WHITE,
-            Color::TRANSPARENT,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
             TextAlignment::Center,
             VAlign::Center,
             TextAlignment::Center,
@@ -433,13 +433,13 @@ impl PanelBehavior for CanvasPanel {
 // ═══════════════════════════════════════════════════════════════════
 
 struct TestPanel {
-    bg_color_shared: Rc<Cell<Color>>,
-    test_image: Image,
+    bg_color_shared: Rc<Cell<emColor>>,
+    test_image: emImage,
     depth: u32,
 }
 
 impl TestPanel {
-    fn new(depth: u32, bg_color_shared: Rc<Cell<Color>>) -> Self {
+    fn new(depth: u32, bg_color_shared: Rc<Cell<emColor>>) -> Self {
         let img = load_tga(include_bytes!("assets/teddy.tga")).expect("failed to load teddy.tga");
         Self {
             bg_color_shared,
@@ -448,11 +448,11 @@ impl TestPanel {
         }
     }
 
-    fn bg_color(&self) -> Color {
+    fn bg_color(&self) -> emColor {
         self.bg_color_shared.get()
     }
 
-    fn paint_primitives(&self, p: &mut Painter, fg: Color, bg: Color) {
+    fn paint_primitives(&self, p: &mut emPainter, fg: emColor, bg: emColor) {
         // Text test with tabs
         p.paint_text_boxed(
             0.25,
@@ -475,8 +475,8 @@ impl TestPanel {
             0.80,
             0.05,
             0.05,
-            Color::rgba(255, 0, 0, 32),
-            Color::TRANSPARENT,
+            emColor::rgba(255, 0, 0, 32),
+            emColor::TRANSPARENT,
         );
 
         // Triangle
@@ -496,7 +496,7 @@ impl TestPanel {
                 (0.91, 0.93),
                 (0.91, 0.91),
             ],
-            Color::rgba(255, 255, 255, 128),
+            emColor::rgba(255, 255, 255, 128),
             bg,
         );
 
@@ -514,7 +514,7 @@ impl TestPanel {
                 (0.83, 0.91),
                 (0.81, 0.91),
             ],
-            Color::WHITE,
+            emColor::WHITE,
             bg,
         );
 
@@ -525,7 +525,7 @@ impl TestPanel {
                 (a.sin() * 0.05 + 0.65, a.cos() * 0.05 + 0.85)
             })
             .collect();
-        p.paint_polygon(&circle, Color::YELLOW, bg);
+        p.paint_polygon(&circle, emColor::YELLOW, bg);
 
         // Clipped circle
         p.push_state();
@@ -536,7 +536,7 @@ impl TestPanel {
                 (a.sin() * 0.05 + 0.55, a.cos() * 0.05 + 0.85)
             })
             .collect();
-        p.paint_polygon(&circle2, Color::GREEN, bg);
+        p.paint_polygon(&circle2, emColor::GREEN, bg);
         p.pop_state();
 
         // Ellipse (polygon)
@@ -546,51 +546,51 @@ impl TestPanel {
                 (a.sin() * 0.06 + 0.6, a.cos() * 0.04 + 0.86)
             })
             .collect();
-        p.paint_polygon(&ellipse, Color::rgba(255, 0, 0, 92), Color::TRANSPARENT);
+        p.paint_polygon(&ellipse, emColor::rgba(255, 0, 0, 92), emColor::TRANSPARENT);
 
         // More triangles
         p.paint_polygon(
             &[(0.6, 0.9), (0.5, 0.92), (0.65, 0.95)],
-            Color::rgba(187, 255, 255, 255),
+            emColor::rgba(187, 255, 255, 255),
             bg,
         );
-        p.paint_polygon(&[(0.6, 0.96), (0.5, 0.92), (0.65, 0.95)], Color::RED, bg);
+        p.paint_polygon(&[(0.6, 0.96), (0.5, 0.92), (0.65, 0.95)], emColor::RED, bg);
         p.paint_polygon(
             &[(0.45, 0.9), (0.35, 0.92), (0.5, 0.95)],
-            Color::rgba(187, 255, 255, 255),
-            Color::TRANSPARENT,
+            emColor::rgba(187, 255, 255, 255),
+            emColor::TRANSPARENT,
         );
         p.paint_polygon(
             &[(0.45, 0.96), (0.35, 0.92), (0.5, 0.95)],
-            Color::RED,
-            Color::TRANSPARENT,
+            emColor::RED,
+            emColor::TRANSPARENT,
         );
 
         // Thin triangles
         p.paint_polygon(
             &[(0.6, 0.6), (0.602, 0.6), (0.502, 0.7)],
-            Color::rgba(187, 136, 255, 192),
-            Color::TRANSPARENT,
+            emColor::rgba(187, 136, 255, 192),
+            emColor::TRANSPARENT,
         );
         p.paint_polygon(
             &[(0.7, 0.55), (0.702, 0.55), (0.802, 0.9), (0.8, 0.9)],
-            Color::rgba(136, 187, 255, 192),
-            Color::TRANSPARENT,
+            emColor::rgba(136, 187, 255, 192),
+            emColor::TRANSPARENT,
         );
         p.paint_polygon(
             &[(0.8, 0.55), (0.9, 0.55), (0.8, 0.8), (0.9, 0.8)],
-            Color::rgba(136, 187, 255, 192),
-            Color::TRANSPARENT,
+            emColor::rgba(136, 187, 255, 192),
+            emColor::TRANSPARENT,
         );
 
         // Ellipses (center + radius)
-        p.paint_ellipse(0.055, 0.805, 0.005, 0.005, Color::WHITE, bg);
-        p.paint_ellipse(0.07, 0.805, 0.01, 0.005, Color::WHITE, bg);
-        p.paint_ellipse(0.0925, 0.805, 0.0025, 0.005, Color::WHITE, bg);
+        p.paint_ellipse(0.055, 0.805, 0.005, 0.005, emColor::WHITE, bg);
+        p.paint_ellipse(0.07, 0.805, 0.01, 0.005, emColor::WHITE, bg);
+        p.paint_ellipse(0.0925, 0.805, 0.0025, 0.005, emColor::WHITE, bg);
 
         // Ellipse sectors
-        p.paint_ellipse_sector(0.105, 0.805, 0.005, 0.005, 45.0, 305.0, Color::WHITE, bg);
-        p.paint_ellipse_sector(0.12, 0.805, 0.01, 0.005, 45.0, -395.0, Color::WHITE, bg);
+        p.paint_ellipse_sector(0.105, 0.805, 0.005, 0.005, 45.0, 305.0, emColor::WHITE, bg);
+        p.paint_ellipse_sector(0.12, 0.805, 0.01, 0.005, 45.0, -395.0, emColor::WHITE, bg);
 
         // Rect outlines
         p.paint_rect_outlined(
@@ -598,7 +598,7 @@ impl TestPanel {
             0.82,
             0.01,
             0.01,
-            &Stroke::new(Color::WHITE, 0.001),
+            &emStroke::new(emColor::WHITE, 0.001),
             bg,
         );
         p.paint_rect_outlined(
@@ -606,15 +606,15 @@ impl TestPanel {
             0.82,
             0.01,
             0.01,
-            &Stroke::new(Color::WHITE, 0.008),
+            &emStroke::new(emColor::WHITE, 0.008),
             bg,
         );
 
         // Round rects
         p.set_canvas_color(bg);
-        p.paint_round_rect(0.05, 0.84, 0.01, 0.01, 0.001, Color::WHITE);
-        p.paint_round_rect(0.07, 0.84, 0.02, 0.01, 0.002, Color::WHITE);
-        p.paint_round_rect(0.10, 0.84, 0.01, 0.01, 0.003, Color::WHITE);
+        p.paint_round_rect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
+        p.paint_round_rect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
+        p.paint_round_rect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE);
 
         // Ellipse outlines
         p.paint_ellipse_outlined(
@@ -622,7 +622,7 @@ impl TestPanel {
             0.865,
             0.005,
             0.005,
-            &Stroke::new(Color::WHITE, 0.003),
+            &emStroke::new(emColor::WHITE, 0.003),
             bg,
         );
         p.paint_ellipse_outlined(
@@ -630,7 +630,7 @@ impl TestPanel {
             0.865,
             0.01,
             0.005,
-            &Stroke::new(Color::WHITE, 0.001),
+            &emStroke::new(emColor::WHITE, 0.001),
             bg,
         );
 
@@ -642,7 +642,7 @@ impl TestPanel {
             0.01,
             0.01,
             0.001,
-            &Stroke::new(Color::WHITE, 0.001),
+            &emStroke::new(emColor::WHITE, 0.001),
         );
         p.paint_round_rect_outlined(
             0.07,
@@ -650,13 +650,13 @@ impl TestPanel {
             0.02,
             0.01,
             0.002,
-            &Stroke::new(Color::WHITE, 0.001),
+            &emStroke::new(emColor::WHITE, 0.001),
         );
 
         // Bezier curves
         p.paint_bezier(
             &[(0.05, 0.90), (0.06, 0.90), (0.05, 0.91)],
-            Color::WHITE,
+            emColor::WHITE,
             bg,
         );
         p.paint_bezier(
@@ -668,11 +668,11 @@ impl TestPanel {
                 (0.072, 0.89),
                 (0.08, 0.902),
             ],
-            Color::WHITE,
+            emColor::WHITE,
             bg,
         );
 
-        let bezier_stroke = Stroke::new(Color::WHITE, 0.0002);
+        let bezier_stroke = emStroke::new(emColor::WHITE, 0.0002);
         p.paint_bezier_outline(
             &[
                 (0.085, 0.91),
@@ -686,12 +686,12 @@ impl TestPanel {
             bg,
         );
 
-        let mut arrow_s = Stroke::new(Color::WHITE, 0.0002);
+        let mut arrow_s = emStroke::new(emColor::WHITE, 0.0002);
         arrow_s.cap = LineCap::Round;
         arrow_s.join = LineJoin::Round;
         arrow_s.start_end =
-            StrokeEnd::new(StrokeEndType::ContourTriangle).with_inner_color(Color::RED);
-        arrow_s.finish_end = StrokeEnd::new(StrokeEndType::Arrow);
+            emStrokeEnd::new(StrokeEndType::ContourTriangle).with_inner_color(emColor::RED);
+        arrow_s.finish_end = emStrokeEnd::new(StrokeEndType::Arrow);
         p.paint_bezier_line(
             &[(0.105, 0.91), (0.09, 0.902), (0.098, 0.89), (0.105, 0.900)],
             &arrow_s,
@@ -716,35 +716,35 @@ impl TestPanel {
             StrokeEndType::Diamond,
             StrokeEndType::ContourDiamond,
             StrokeEndType::HalfDiamond,
-            StrokeEndType::Stroke,
+            StrokeEndType::emStroke,
         ];
         let n = end_types.len();
         for i in 0..(2 * n) {
             let a = 2.0 * PI * i as f64 / (2 * n) as f64;
-            let mut s = Stroke::new(Color::WHITE, 0.0001);
+            let mut s = emStroke::new(emColor::WHITE, 0.0001);
             if i & 1 != 0 {
                 s.cap = LineCap::Round;
                 s.join = LineJoin::Round;
             }
-            s.start_end = StrokeEnd::new(StrokeEndType::Cap);
-            s.finish_end = StrokeEnd::new(end_types[i / 2])
-                .with_inner_color(Color::rgba(0xFF, 0xFF, 0xFF, 0x40));
+            s.start_end = emStrokeEnd::new(StrokeEndType::Cap);
+            s.finish_end = emStrokeEnd::new(end_types[i / 2])
+                .with_inner_color(emColor::rgba(0xFF, 0xFF, 0xFF, 0x40));
             p.paint_line_stroked(
                 0.117 + 0.002 * a.cos(),
                 0.903 + 0.002 * a.sin(),
                 0.117 + 0.0075 * a.cos(),
                 0.903 + 0.0075 * a.sin(),
                 &s,
-                Color::TRANSPARENT,
+                emColor::TRANSPARENT,
             );
         }
 
         // Polyline with contour arrow
-        let mut poly_s = Stroke::new(Color::WHITE, 0.0005);
+        let mut poly_s = emStroke::new(emColor::WHITE, 0.0005);
         poly_s.cap = LineCap::Round;
         poly_s.join = LineJoin::Round;
-        poly_s.start_end = StrokeEnd::new(StrokeEndType::ContourArrow);
-        poly_s.finish_end = StrokeEnd::new(StrokeEndType::Cap);
+        poly_s.start_end = emStrokeEnd::new(StrokeEndType::ContourArrow);
+        poly_s.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
         p.paint_polyline_with_arrows(
             &[(0.13, 0.897), (0.14, 0.902), (0.13, 0.906), (0.137, 0.909)],
             &poly_s,
@@ -755,45 +755,45 @@ impl TestPanel {
         // Polygon outline
         p.paint_polygon_outlined(
             &[(0.06, 0.80), (0.10, 0.85), (0.08, 0.91)],
-            Color::RED,
+            emColor::RED,
             0.0002,
-            Color::TRANSPARENT,
+            emColor::TRANSPARENT,
         );
 
         // Textured polygons — star shapes
         let star = make_star(0.215, 0.917, 0.015, 0.015, 8);
         p.paint_polygon_textured(
             &star,
-            &Texture::LinearGradient {
-                color_a: Color::rgba(0, 0xFF, 0, 0x80),
-                color_b: Color::rgba(0xFF, 0xFF, 0, 0xFF),
+            &emTexture::LinearGradient {
+                color_a: emColor::rgba(0, 0xFF, 0, 0x80),
+                color_b: emColor::rgba(0xFF, 0xFF, 0, 0xFF),
                 start: (0.23, 0.9),
                 end: (0.2, 0.93),
             },
-            Color::TRANSPARENT,
+            emColor::TRANSPARENT,
         );
 
         let star2 = make_star(0.235, 0.917, 0.015, 0.015, 8);
         p.paint_polygon_textured(
             &star2,
-            &Texture::RadialGradient {
-                color_inner: Color::rgba(0xCC, 0xCC, 0x33, 0xFF),
-                color_outer: Color::rgba(0, 0, 0xFF, 0x60),
+            &emTexture::RadialGradient {
+                color_inner: emColor::rgba(0xCC, 0xCC, 0x33, 0xFF),
+                color_outer: emColor::rgba(0, 0, 0xFF, 0x60),
                 center: (0.21, 0.90),
                 radius: 0.05,
             },
-            Color::TRANSPARENT,
+            emColor::TRANSPARENT,
         );
 
         let star3 = make_star(0.255, 0.917, 0.015, 0.015, 8);
         p.paint_polygon_textured(
             &star3,
-            &Texture::Image {
+            &emTexture::emImage {
                 image: self.test_image.clone(),
                 extension: ImageExtension::Repeat,
                 quality: ImageQuality::Bilinear,
             },
-            Color::TRANSPARENT,
+            emColor::TRANSPARENT,
         );
 
         // Gradient rects
@@ -802,30 +802,30 @@ impl TestPanel {
             0.94,
             0.02,
             0.01,
-            Color::rgba(0, 0, 0, 0x80),
-            Color::rgba(0x80, 0x80, 0x80, 0x80),
+            emColor::rgba(0, 0, 0, 0x80),
+            emColor::rgba(0x80, 0x80, 0x80, 0x80),
             true,
-            Color::TRANSPARENT,
+            emColor::TRANSPARENT,
         );
         p.paint_radial_gradient(
             0.225,
             0.946,
             0.004,
             0.008,
-            Color::rgba(0xFF, 0x88, 0, 0xFF),
-            Color::rgba(0, 0x55, 0, 0xFF),
-            Color::TRANSPARENT,
+            emColor::rgba(0xFF, 0x88, 0, 0xFF),
+            emColor::rgba(0, 0x55, 0, 0xFF),
+            emColor::TRANSPARENT,
         );
         p.paint_ellipse(
             0.24,
             0.945,
             0.01,
             0.005,
-            Color::rgba(0, 0xCC, 0x88, 0xFF),
-            Color::TRANSPARENT,
+            emColor::rgba(0, 0xCC, 0x88, 0xFF),
+            emColor::TRANSPARENT,
         );
 
-        // Image scaled
+        // emImage scaled
         p.paint_image_scaled(
             0.26,
             0.94,
@@ -851,22 +851,22 @@ impl PanelBehavior for TestPanel {
         Some("Test Panel".into())
     }
 
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let bg = self.bg_color();
         let fg = if state.is_focused() {
-            Color::rgba(255, 136, 136, 255)
+            emColor::rgba(255, 136, 136, 255)
         } else if state.in_focused_path() {
-            Color::rgba(187, 136, 136, 255)
+            emColor::rgba(187, 136, 136, 255)
         } else {
-            Color::rgba(136, 136, 136, 255)
+            emColor::rgba(136, 136, 136, 255)
         };
 
         painter.push_state();
         painter.scale(w, w);
         let panel_h = h / w;
 
-        painter.paint_rect(0.0, 0.0, 1.0, panel_h, bg, Color::TRANSPARENT);
-        painter.paint_rect_outlined(0.01, 0.01, 0.98, panel_h - 0.02, &Stroke::new(fg, 0.02), bg);
+        painter.paint_rect(0.0, 0.0, 1.0, panel_h, bg, emColor::TRANSPARENT);
+        painter.paint_rect_outlined(0.01, 0.01, 0.98, panel_h - 0.02, &emStroke::new(fg, 0.02), bg);
 
         // Title
         painter.paint_text_boxed(
@@ -966,7 +966,7 @@ impl PanelBehavior for TestPanel {
         }
 
         let bg_for_cf = bg_shared.clone();
-        let mut cf = ColorField::new(Look::new());
+        let mut cf = emColorField::new(emLook::new());
         cf.set_editable(true);
         cf.set_alpha_enabled(true);
         cf.set_color(bg_shared.get());
@@ -990,15 +990,15 @@ impl PanelBehavior for TestPanel {
 // ═══════════════════════════════════════════════════════════════════
 
 struct TkTestGrpPanel {
-    border: Border,
-    look: Rc<Look>,
+    border: emBorder,
+    look: Rc<emLook>,
     children_created: bool,
 }
 
 impl TkTestGrpPanel {
     fn new() -> Self {
-        let look = Look::new();
-        let border = Border::new(OuterBorderType::Group)
+        let look = emLook::new();
+        let border = emBorder::new(OuterBorderType::Group)
             .with_inner(InnerBorderType::Group)
             .with_caption("Toolkit Test");
         Self {
@@ -1018,7 +1018,7 @@ impl PanelBehavior for TkTestGrpPanel {
         true
     }
 
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
         self.border
             .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
     }
@@ -1031,12 +1031,12 @@ impl PanelBehavior for TkTestGrpPanel {
             let look = self.look.clone();
 
             // sp: horizontal splitter, pos=0.8 (C++ emTestPanel.cpp:889)
-            let mut sp = Splitter::new(Orientation::Horizontal, look.clone());
+            let mut sp = emSplitter::new(Orientation::Horizontal, look.clone());
             sp.set_position(0.8);
             let sp_id = ctx.create_child_with("sp", Box::new(SplitterPanel { widget: sp }));
 
             // sp1: vertical splitter, child of sp, pos=0.8
-            let mut sp1 = Splitter::new(Orientation::Vertical, look.clone());
+            let mut sp1 = emSplitter::new(Orientation::Vertical, look.clone());
             sp1.set_position(0.8);
             let sp1_id = ctx.tree.create_child(sp_id, "sp1");
             ctx.tree
@@ -1051,7 +1051,7 @@ impl PanelBehavior for TkTestGrpPanel {
                 .set_behavior(t1b_id, Box::new(TkTestPanel::new(look.clone())));
 
             // sp2: vertical splitter, child of sp, pos=0.8
-            let mut sp2 = Splitter::new(Orientation::Vertical, look.clone());
+            let mut sp2 = emSplitter::new(Orientation::Vertical, look.clone());
             sp2.set_position(0.8);
             let sp2_id = ctx.tree.create_child(sp_id, "sp2");
             ctx.tree
@@ -1088,14 +1088,14 @@ impl PanelBehavior for TkTestGrpPanel {
 // ═══════════════════════════════════════════════════════════════════
 
 struct TkTestPanel {
-    look: Rc<Look>,
-    border: Border,
+    look: Rc<emLook>,
+    border: emBorder,
     children_created: bool,
 }
 
 impl TkTestPanel {
-    fn new(look: Rc<Look>) -> Self {
-        let border = Border::new(OuterBorderType::Group)
+    fn new(look: Rc<emLook>) -> Self {
+        let border = emBorder::new(OuterBorderType::Group)
             .with_inner(InnerBorderType::Group)
             .with_caption("Toolkit Test");
         Self {
@@ -1105,8 +1105,8 @@ impl TkTestPanel {
         }
     }
 
-    fn new_with_caption(look: Rc<Look>, caption: &str) -> Self {
-        let border = Border::new(OuterBorderType::Group)
+    fn new_with_caption(look: Rc<emLook>, caption: &str) -> Self {
+        let border = emBorder::new(OuterBorderType::Group)
             .with_inner(InnerBorderType::Group)
             .with_caption(caption);
         Self {
@@ -1116,7 +1116,7 @@ impl TkTestPanel {
         }
     }
 
-    /// Helper: create a RasterGroup category under `parent`.
+    /// Helper: create a emRasterGroup category under `parent`.
     fn make_category(
         tree: &mut PanelTree,
         parent: PanelId,
@@ -1125,7 +1125,7 @@ impl TkTestPanel {
         pct: Option<f64>,
         fixed_cols: Option<usize>,
     ) -> PanelId {
-        let mut rg = RasterGroup::new();
+        let mut rg = emRasterGroup::new();
         rg.border.set_border_scaling(2.5);
         rg.border.caption = caption.to_string();
         if let Some(p) = pct {
@@ -1149,11 +1149,11 @@ impl TkTestPanel {
             ctx.tree.set_behavior(
                 id,
                 Box::new(ButtonPanel {
-                    widget: Button::new("Button", look.clone()),
+                    widget: emButton::new("Button", look.clone()),
                 }),
             );
 
-            let mut b2 = Button::new("Button", look.clone());
+            let mut b2 = emButton::new("Button", look.clone());
             b2.set_description(
                 "This is a long description for testing.\n\
                  It has multiple lines.\n\
@@ -1163,7 +1163,7 @@ impl TkTestPanel {
             ctx.tree
                 .set_behavior(id, Box::new(ButtonPanel { widget: b2 }));
 
-            let mut b3 = Button::new("Button", look.clone());
+            let mut b3 = emButton::new("Button", look.clone());
             b3.set_no_eoi(true);
             let id = ctx.tree.create_child(gid, "b3");
             ctx.tree
@@ -1185,7 +1185,7 @@ impl TkTestPanel {
                 ctx.tree.set_behavior(
                     id,
                     Box::new(CheckButtonPanel {
-                        widget: CheckButton::new("Check Button", look.clone()),
+                        widget: emCheckButton::new("Check Button", look.clone()),
                     }),
                 );
             }
@@ -1194,7 +1194,7 @@ impl TkTestPanel {
                 ctx.tree.set_behavior(
                     id,
                     Box::new(CheckBoxPanel {
-                        widget: CheckBox::new("Check Box", look.clone()),
+                        widget: emCheckBox::new("Check Box", look.clone()),
                     }),
                 );
             }
@@ -1216,7 +1216,7 @@ impl TkTestPanel {
                 ctx.tree.set_behavior(
                     id,
                     Box::new(RadioButtonPanel {
-                        widget: RadioButton::new("Radio Button", look.clone(), rg.clone(), i - 1),
+                        widget: emRadioButton::new("Radio Button", look.clone(), rg.clone(), i - 1),
                     }),
                 );
             }
@@ -1226,7 +1226,7 @@ impl TkTestPanel {
                 ctx.tree.set_behavior(
                     id,
                     Box::new(RadioBoxPanel {
-                        widget: RadioBox::new("Radio Box", look.clone(), rg2.clone(), i - 4),
+                        widget: emRadioBox::new("Radio Box", look.clone(), rg2.clone(), i - 4),
                     }),
                 );
             }
@@ -1235,20 +1235,20 @@ impl TkTestPanel {
         // 4. Text Fields (C++ :626-656)
         let gid = Self::make_category(ctx.tree, grid_id, "textfields", "Text Fields", None, None);
         {
-            let mut tf1 = TextField::new(look.clone());
+            let mut tf1 = emTextField::new(look.clone());
             tf1.set_text("Read-Only");
             let id = ctx.tree.create_child(gid, "tf1");
             ctx.tree
                 .set_behavior(id, Box::new(TextFieldPanel { widget: tf1 }));
 
-            let mut tf2 = TextField::new(look.clone());
+            let mut tf2 = emTextField::new(look.clone());
             tf2.set_editable(true);
             tf2.set_text("Editable");
             let id = ctx.tree.create_child(gid, "tf2");
             ctx.tree
                 .set_behavior(id, Box::new(TextFieldPanel { widget: tf2 }));
 
-            let mut tf3 = TextField::new(look.clone());
+            let mut tf3 = emTextField::new(look.clone());
             tf3.set_editable(true);
             tf3.set_text("Password");
             tf3.set_password_mode(true);
@@ -1256,7 +1256,7 @@ impl TkTestPanel {
             ctx.tree
                 .set_behavior(id, Box::new(TextFieldPanel { widget: tf3 }));
 
-            let mut mltf1 = TextField::new(look.clone());
+            let mut mltf1 = emTextField::new(look.clone());
             mltf1.set_editable(true);
             mltf1.set_multi_line(true);
             mltf1.set_text("first line\nsecond line\n...");
@@ -1279,17 +1279,17 @@ impl TkTestPanel {
             ctx.tree.set_behavior(
                 id,
                 Box::new(ScalarFieldPanel {
-                    widget: ScalarField::new(0.0, 100.0, look.clone()),
+                    widget: emScalarField::new(0.0, 100.0, look.clone()),
                 }),
             );
 
-            let mut sf2 = ScalarField::new(0.0, 100.0, look.clone());
+            let mut sf2 = emScalarField::new(0.0, 100.0, look.clone());
             sf2.set_editable(true);
             let id = ctx.tree.create_child(gid, "sf2");
             ctx.tree
                 .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf2 }));
 
-            let mut sf3 = ScalarField::new(-1000.0, 1000.0, look.clone());
+            let mut sf3 = emScalarField::new(-1000.0, 1000.0, look.clone());
             sf3.set_editable(true);
             sf3.set_scale_mark_intervals(&[1000, 100, 10, 5, 1]);
             let id = ctx.tree.create_child(gid, "sf3");
@@ -1297,7 +1297,7 @@ impl TkTestPanel {
                 .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf3 }));
 
             // sf4: Level 1-5, val=3, custom format, text_box_tallness=0.25
-            let mut sf4 = ScalarField::new(1.0, 5.0, look.clone());
+            let mut sf4 = emScalarField::new(1.0, 5.0, look.clone());
             sf4.set_editable(true);
             sf4.set_value(3.0);
             sf4.set_text_box_tallness(0.25);
@@ -1307,7 +1307,7 @@ impl TkTestPanel {
                 .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf4 }));
 
             // sf5: PlayLength, time format
-            let mut sf5 = ScalarField::new(0.0, 86400000.0, look.clone());
+            let mut sf5 = emScalarField::new(0.0, 86400000.0, look.clone());
             sf5.set_editable(true);
             sf5.set_value(14400000.0);
             sf5.set_scale_mark_intervals(&[
@@ -1326,7 +1326,7 @@ impl TkTestPanel {
                 .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf5 }));
 
             // sf6: PlayPos, same time format, max=sf5.value
-            let mut sf6 = ScalarField::new(0.0, 14400000.0, look.clone());
+            let mut sf6 = emScalarField::new(0.0, 14400000.0, look.clone());
             sf6.set_editable(true);
             sf6.set_text_of_value_fn(Box::new(|val, _interval| {
                 let ms = val.unsigned_abs();
@@ -1340,7 +1340,7 @@ impl TkTestPanel {
                 .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf6 }));
         }
 
-        // 6. Color Fields (C++ :714-733)
+        // 6. emColor Fields (C++ :714-733)
         let gid = Self::make_category(
             ctx.tree,
             grid_id,
@@ -1350,23 +1350,23 @@ impl TkTestPanel {
             None,
         );
         {
-            let mut cf1 = ColorField::new(look.clone());
-            cf1.set_color(Color::rgba(0xBB, 0x22, 0x22, 0xFF));
+            let mut cf1 = emColorField::new(look.clone());
+            cf1.set_color(emColor::rgba(0xBB, 0x22, 0x22, 0xFF));
             let id = ctx.tree.create_child(gid, "cf1");
             ctx.tree
                 .set_behavior(id, Box::new(ColorFieldPanel { widget: cf1 }));
 
-            let mut cf2 = ColorField::new(look.clone());
+            let mut cf2 = emColorField::new(look.clone());
             cf2.set_editable(true);
-            cf2.set_color(Color::rgba(0x22, 0xBB, 0x22, 0xFF));
+            cf2.set_color(emColor::rgba(0x22, 0xBB, 0x22, 0xFF));
             let id = ctx.tree.create_child(gid, "cf2");
             ctx.tree
                 .set_behavior(id, Box::new(ColorFieldPanel { widget: cf2 }));
 
-            let mut cf3 = ColorField::new(look.clone());
+            let mut cf3 = emColorField::new(look.clone());
             cf3.set_editable(true);
             cf3.set_alpha_enabled(true);
-            cf3.set_color(Color::rgba(0x22, 0x22, 0xBB, 0xFF));
+            cf3.set_color(emColor::rgba(0x22, 0x22, 0xBB, 0xFF));
             let id = ctx.tree.create_child(gid, "cf3");
             ctx.tree
                 .set_behavior(id, Box::new(ColorFieldPanel { widget: cf3 }));
@@ -1390,7 +1390,7 @@ impl TkTestPanel {
                 ctx.tree.set_behavior(
                     child,
                     Box::new(ButtonPanel {
-                        widget: Button::new("Inside", look.clone()),
+                        widget: emButton::new("Inside", look.clone()),
                     }),
                 );
             }
@@ -1412,32 +1412,32 @@ impl TkTestPanel {
             ctx.tree.set_behavior(
                 id,
                 Box::new(ListBoxPanel {
-                    widget: ListBox::new(look.clone()),
+                    widget: emListBox::new(look.clone()),
                 }),
             );
 
-            let mut lb2 = ListBox::new(look.clone());
+            let mut lb2 = emListBox::new(look.clone());
             lb2.set_selection_mode(SelectionMode::Single);
             lb2.set_items(items7.clone());
             let id = ctx.tree.create_child(gid, "l2");
             ctx.tree
                 .set_behavior(id, Box::new(ListBoxPanel { widget: lb2 }));
 
-            let mut lb3 = ListBox::new(look.clone());
+            let mut lb3 = emListBox::new(look.clone());
             lb3.set_selection_mode(SelectionMode::ReadOnly);
             lb3.set_items(items7.clone());
             let id = ctx.tree.create_child(gid, "l3");
             ctx.tree
                 .set_behavior(id, Box::new(ListBoxPanel { widget: lb3 }));
 
-            let mut lb4 = ListBox::new(look.clone());
+            let mut lb4 = emListBox::new(look.clone());
             lb4.set_selection_mode(SelectionMode::Multi);
             lb4.set_items(items7.clone());
             let id = ctx.tree.create_child(gid, "l4");
             ctx.tree
                 .set_behavior(id, Box::new(ListBoxPanel { widget: lb4 }));
 
-            let mut lb5 = ListBox::new(look.clone());
+            let mut lb5 = emListBox::new(look.clone());
             lb5.set_selection_mode(SelectionMode::Toggle);
             lb5.set_items(items7.clone());
             let id = ctx.tree.create_child(gid, "l5");
@@ -1445,7 +1445,7 @@ impl TkTestPanel {
                 .set_behavior(id, Box::new(ListBoxPanel { widget: lb5 }));
 
             // l6: single column
-            let mut lb6 = ListBox::new(look.clone());
+            let mut lb6 = emListBox::new(look.clone());
             lb6.set_selection_mode(SelectionMode::Single);
             lb6.set_items(items7.clone());
             lb6.set_fixed_column_count(Some(1));
@@ -1454,7 +1454,7 @@ impl TkTestPanel {
                 .set_behavior(id, Box::new(ListBoxPanel { widget: lb6 }));
 
             // l7: regular listbox (custom panels not ported)
-            let mut lb7 = ListBox::new(look.clone());
+            let mut lb7 = emListBox::new(look.clone());
             lb7.set_selection_mode(SelectionMode::Single);
             lb7.set_items(items7);
             let id = ctx.tree.create_child(gid, "l7");
@@ -1462,11 +1462,11 @@ impl TkTestPanel {
                 .set_behavior(id, Box::new(ListBoxPanel { widget: lb7 }));
         }
 
-        // 9. Test Dialog (C++ :800-831)
+        // 9. Test emDialog (C++ :800-831)
         let gid = Self::make_category(ctx.tree, grid_id, "dlgs", "Test Dialog", None, Some(1));
         {
-            // RasterLayout with checkboxes
-            let mut rl = RasterLayout::new();
+            // emRasterLayout with checkboxes
+            let mut rl = emRasterLayout::new();
             rl.preferred_child_tallness = 0.1;
             let rl_id = ctx.tree.create_child(gid, "rl");
 
@@ -1484,18 +1484,18 @@ impl TkTestPanel {
                 ctx.tree.set_behavior(
                     id,
                     Box::new(CheckBoxPanel {
-                        widget: CheckBox::new(name, look.clone()),
+                        widget: emCheckBox::new(name, look.clone()),
                     }),
                 );
             }
             ctx.tree.set_behavior(rl_id, Box::new(rl));
 
-            // Button
+            // emButton
             let id = ctx.tree.create_child(gid, "dlgButton");
             ctx.tree.set_behavior(
                 id,
                 Box::new(ButtonPanel {
-                    widget: Button::new("Test Dialog...", look.clone()),
+                    widget: emButton::new("Test Dialog...", look.clone()),
                 }),
             );
         }
@@ -1518,7 +1518,7 @@ impl TkTestPanel {
             ctx.tree.set_behavior(
                 id,
                 Box::new(ButtonPanel {
-                    widget: Button::new("Open", look.clone()),
+                    widget: emButton::new("Open", look.clone()),
                 }),
             );
 
@@ -1526,7 +1526,7 @@ impl TkTestPanel {
             ctx.tree.set_behavior(
                 id,
                 Box::new(ButtonPanel {
-                    widget: Button::new("Open Multi", look.clone()),
+                    widget: emButton::new("Open Multi", look.clone()),
                 }),
             );
 
@@ -1534,7 +1534,7 @@ impl TkTestPanel {
             ctx.tree.set_behavior(
                 id,
                 Box::new(ButtonPanel {
-                    widget: Button::new("Save As", look.clone()),
+                    widget: emButton::new("Save As", look.clone()),
                 }),
             );
         }
@@ -1550,7 +1550,7 @@ impl PanelBehavior for TkTestPanel {
         true
     }
 
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
         self.border
             .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
     }
@@ -1561,8 +1561,8 @@ impl PanelBehavior for TkTestPanel {
         if !self.children_created {
             self.children_created = true;
 
-            // Create grid child with RasterLayout (PCT=0.3)
-            let mut layout = RasterLayout::new();
+            // Create grid child with emRasterLayout (PCT=0.3)
+            let mut layout = emRasterLayout::new();
             layout.preferred_child_tallness = 0.3;
             let grid_id = ctx.create_child_with("grid", Box::new(layout));
 
@@ -1587,15 +1587,15 @@ impl PanelBehavior for TkTestPanel {
 // ═══════════════════════════════════════════════════════════════════
 
 struct PolyDrawPanel {
-    border: Border,
-    look: Rc<Look>,
+    border: emBorder,
+    look: Rc<emLook>,
     children_created: bool,
 }
 
 impl PolyDrawPanel {
     fn new() -> Self {
-        let look = Look::new();
-        let border = Border::new(OuterBorderType::Group)
+        let look = emLook::new();
+        let border = emBorder::new(OuterBorderType::Group)
             .with_inner(InnerBorderType::Group)
             .with_caption("Poly Draw Test")
             .with_description(
@@ -1609,9 +1609,9 @@ impl PolyDrawPanel {
         }
     }
 
-    /// Create the 16-method RadioBox group under a parent.
-    fn create_method_radio(tree: &mut PanelTree, parent: PanelId, look: &Rc<Look>) -> PanelId {
-        let mut rg = RasterGroup::new();
+    /// Create the 16-method emRadioBox group under a parent.
+    fn create_method_radio(tree: &mut PanelTree, parent: PanelId, look: &Rc<emLook>) -> PanelId {
+        let mut rg = emRasterGroup::new();
         rg.border.set_border_scaling(1.5);
         rg.border.caption = "Method".to_string();
         rg.layout.preferred_child_tallness = 0.07;
@@ -1641,7 +1641,7 @@ impl PolyDrawPanel {
             tree.set_behavior(
                 id,
                 Box::new(RadioBoxPanel {
-                    widget: RadioBox::new(name, look.clone(), method_group.clone(), i),
+                    widget: emRadioBox::new(name, look.clone(), method_group.clone(), i),
                 }),
             );
         }
@@ -1649,9 +1649,9 @@ impl PolyDrawPanel {
         mid
     }
 
-    /// Create a 4-option dash type RadioBox group.
-    fn create_dash_radio(tree: &mut PanelTree, parent: PanelId, look: &Rc<Look>) -> PanelId {
-        let mut rg = RasterGroup::new();
+    /// Create a 4-option dash type emRadioBox group.
+    fn create_dash_radio(tree: &mut PanelTree, parent: PanelId, look: &Rc<emLook>) -> PanelId {
+        let mut rg = emRasterGroup::new();
         rg.border.set_border_scaling(1.5);
         rg.border.caption = "Dash Type".to_string();
         rg.layout.preferred_child_tallness = 0.08;
@@ -1664,7 +1664,7 @@ impl PolyDrawPanel {
             tree.set_behavior(
                 id,
                 Box::new(RadioBoxPanel {
-                    widget: RadioBox::new(name, look.clone(), dash_group.clone(), i),
+                    widget: emRadioBox::new(name, look.clone(), dash_group.clone(), i),
                 }),
             );
         }
@@ -1672,15 +1672,15 @@ impl PolyDrawPanel {
         did
     }
 
-    /// Create a 17-option stroke end type RadioBox group.
+    /// Create a 17-option stroke end type emRadioBox group.
     fn create_stroke_end_radio(
         tree: &mut PanelTree,
         parent: PanelId,
         name: &str,
         caption: &str,
-        look: &Rc<Look>,
+        look: &Rc<emLook>,
     ) -> PanelId {
-        let mut rg = RasterGroup::new();
+        let mut rg = emRasterGroup::new();
         rg.border.set_border_scaling(1.5);
         rg.border.caption = caption.to_string();
         rg.layout.preferred_child_tallness = 0.08;
@@ -1711,7 +1711,7 @@ impl PolyDrawPanel {
             tree.set_behavior(
                 id,
                 Box::new(RadioBoxPanel {
-                    widget: RadioBox::new(n, look.clone(), group.clone(), i),
+                    widget: emRadioBox::new(n, look.clone(), group.clone(), i),
                 }),
             );
         }
@@ -1719,7 +1719,7 @@ impl PolyDrawPanel {
         sid
     }
 
-    /// Create a horizontal LinearLayout with 2 children (TextField + widget).
+    /// Create a horizontal emLinearLayout with 2 children (emTextField + widget).
     fn create_horizontal_pair(
         tree: &mut PanelTree,
         parent: PanelId,
@@ -1734,14 +1734,14 @@ impl PolyDrawPanel {
         tree.set_behavior(c1, child1);
         let c2 = tree.create_child(ll_id, child2_name);
         tree.set_behavior(c2, child2);
-        tree.set_behavior(ll_id, Box::new(LinearLayout::horizontal()));
+        tree.set_behavior(ll_id, Box::new(emLinearLayout::horizontal()));
         ll_id
     }
 
     fn create_controls(&self, ctx: &mut PanelCtx, layout_id: PanelId) {
         let look = self.look.clone();
 
-        // Controls: RasterLayout with PCT=0.6
+        // Controls: emRasterLayout with PCT=0.6
         let ctrl_id = ctx.tree.create_child(layout_id, "Controls");
 
         // ── general section ──
@@ -1756,7 +1756,7 @@ impl PolyDrawPanel {
             "VertexCount",
             Box::new(TextFieldPanel {
                 widget: {
-                    let mut tf = TextField::new(look.clone());
+                    let mut tf = emTextField::new(look.clone());
                     tf.set_editable(true);
                     tf.set_text("9");
                     tf
@@ -1765,10 +1765,10 @@ impl PolyDrawPanel {
             "FillColor",
             Box::new(ColorFieldPanel {
                 widget: {
-                    let mut cf = ColorField::new(look.clone());
+                    let mut cf = emColorField::new(look.clone());
                     cf.set_editable(true);
                     cf.set_alpha_enabled(true);
-                    cf.set_color(Color::WHITE);
+                    cf.set_color(emColor::WHITE);
                     cf
                 },
             }),
@@ -1781,7 +1781,7 @@ impl PolyDrawPanel {
             "StrokeWidth",
             Box::new(TextFieldPanel {
                 widget: {
-                    let mut tf = TextField::new(look.clone());
+                    let mut tf = emTextField::new(look.clone());
                     tf.set_editable(true);
                     tf.set_text("0.01");
                     tf
@@ -1789,12 +1789,12 @@ impl PolyDrawPanel {
             }),
             "WithCanvasColor",
             Box::new(CheckBoxPanel {
-                widget: CheckBox::new("With Canvas Color", look.clone()),
+                widget: emCheckBox::new("With Canvas Color", look.clone()),
             }),
         );
 
         // Set general behavior with weight on Method
-        let mut gen_group = LinearGroup::vertical();
+        let mut gen_group = emLinearGroup::vertical();
         gen_group.border.set_border_scaling(2.0);
         gen_group.border.caption = "General".to_string();
         gen_group.layout.set_child_constraint(
@@ -1814,10 +1814,10 @@ impl PolyDrawPanel {
             stroke_color_id,
             Box::new(ColorFieldPanel {
                 widget: {
-                    let mut cf = ColorField::new(look.clone());
+                    let mut cf = emColorField::new(look.clone());
                     cf.set_editable(true);
                     cf.set_alpha_enabled(true);
-                    cf.set_color(Color::rgba(0, 0, 0, 0xFF));
+                    cf.set_color(emColor::rgba(0, 0, 0, 0xFF));
                     cf
                 },
             }),
@@ -1827,7 +1827,7 @@ impl PolyDrawPanel {
         ctx.tree.set_behavior(
             rounded_id,
             Box::new(CheckBoxPanel {
-                widget: CheckBox::new("Rounded", look.clone()),
+                widget: emCheckBox::new("Rounded", look.clone()),
             }),
         );
 
@@ -1840,7 +1840,7 @@ impl PolyDrawPanel {
             "DashLengthFactor",
             Box::new(TextFieldPanel {
                 widget: {
-                    let mut tf = TextField::new(look.clone());
+                    let mut tf = emTextField::new(look.clone());
                     tf.set_editable(true);
                     tf.set_text("1.0");
                     tf
@@ -1849,7 +1849,7 @@ impl PolyDrawPanel {
             "GapLengthFactor",
             Box::new(TextFieldPanel {
                 widget: {
-                    let mut tf = TextField::new(look.clone());
+                    let mut tf = emTextField::new(look.clone());
                     tf.set_editable(true);
                     tf.set_text("1.0");
                     tf
@@ -1857,7 +1857,7 @@ impl PolyDrawPanel {
             }),
         );
 
-        let mut stroke_group = LinearGroup::vertical();
+        let mut stroke_group = emLinearGroup::vertical();
         stroke_group.border.set_border_scaling(2.0);
         stroke_group.border.caption = "Stroke".to_string();
         stroke_group.layout.set_child_constraint(
@@ -1880,10 +1880,10 @@ impl PolyDrawPanel {
             ss_color_id,
             Box::new(ColorFieldPanel {
                 widget: {
-                    let mut cf = ColorField::new(look.clone());
+                    let mut cf = emColorField::new(look.clone());
                     cf.set_editable(true);
                     cf.set_alpha_enabled(true);
-                    cf.set_color(Color::rgba(0xEE, 0xEE, 0xEE, 0xFF));
+                    cf.set_color(emColor::rgba(0xEE, 0xEE, 0xEE, 0xFF));
                     cf
                 },
             }),
@@ -1896,7 +1896,7 @@ impl PolyDrawPanel {
             "WidthFactor",
             Box::new(TextFieldPanel {
                 widget: {
-                    let mut tf = TextField::new(look.clone());
+                    let mut tf = emTextField::new(look.clone());
                     tf.set_editable(true);
                     tf.set_text("1.0");
                     tf
@@ -1905,7 +1905,7 @@ impl PolyDrawPanel {
             "LengthFactor",
             Box::new(TextFieldPanel {
                 widget: {
-                    let mut tf = TextField::new(look.clone());
+                    let mut tf = emTextField::new(look.clone());
                     tf.set_editable(true);
                     tf.set_text("1.0");
                     tf
@@ -1913,7 +1913,7 @@ impl PolyDrawPanel {
             }),
         );
 
-        let mut ss_group = LinearGroup::vertical();
+        let mut ss_group = emLinearGroup::vertical();
         ss_group.border.set_border_scaling(2.0);
         ss_group.border.caption = "Stroke Start".to_string();
         ss_group.layout.set_child_constraint(
@@ -1936,10 +1936,10 @@ impl PolyDrawPanel {
             se_color_id,
             Box::new(ColorFieldPanel {
                 widget: {
-                    let mut cf = ColorField::new(look.clone());
+                    let mut cf = emColorField::new(look.clone());
                     cf.set_editable(true);
                     cf.set_alpha_enabled(true);
-                    cf.set_color(Color::rgba(0xEE, 0xEE, 0xEE, 0xFF));
+                    cf.set_color(emColor::rgba(0xEE, 0xEE, 0xEE, 0xFF));
                     cf
                 },
             }),
@@ -1952,7 +1952,7 @@ impl PolyDrawPanel {
             "WidthFactor",
             Box::new(TextFieldPanel {
                 widget: {
-                    let mut tf = TextField::new(look.clone());
+                    let mut tf = emTextField::new(look.clone());
                     tf.set_editable(true);
                     tf.set_text("1.0");
                     tf
@@ -1961,7 +1961,7 @@ impl PolyDrawPanel {
             "LengthFactor",
             Box::new(TextFieldPanel {
                 widget: {
-                    let mut tf = TextField::new(look.clone());
+                    let mut tf = emTextField::new(look.clone());
                     tf.set_editable(true);
                     tf.set_text("1.0");
                     tf
@@ -1969,7 +1969,7 @@ impl PolyDrawPanel {
             }),
         );
 
-        let mut se_group = LinearGroup::vertical();
+        let mut se_group = emLinearGroup::vertical();
         se_group.border.set_border_scaling(2.0);
         se_group.border.caption = "Stroke End".to_string();
         se_group.layout.set_child_constraint(
@@ -1981,8 +1981,8 @@ impl PolyDrawPanel {
         );
         ctx.tree.set_behavior(se_id, Box::new(se_group));
 
-        // Set Controls behavior (RasterLayout, PCT=0.6)
-        let mut ctrl_layout = RasterLayout::new();
+        // Set Controls behavior (emRasterLayout, PCT=0.6)
+        let mut ctrl_layout = emRasterLayout::new();
         ctrl_layout.preferred_child_tallness = 0.6;
         ctx.tree.set_behavior(ctrl_id, Box::new(ctrl_layout));
 
@@ -2002,7 +2002,7 @@ impl PanelBehavior for PolyDrawPanel {
         true
     }
 
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
         self.border
             .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
     }
@@ -2013,13 +2013,13 @@ impl PanelBehavior for PolyDrawPanel {
         if !self.children_created {
             self.children_created = true;
 
-            // LinearLayout child (adaptive, threshold=1.0)
+            // emLinearLayout child (adaptive, threshold=1.0)
             let layout_id = ctx.create_child("layout");
             self.create_controls(ctx, layout_id);
 
-            // Set behavior last — the adaptive LinearLayout
+            // Set behavior last — the adaptive emLinearLayout
             ctx.tree
-                .set_behavior(layout_id, Box::new(LinearLayout::adaptive(1.0)));
+                .set_behavior(layout_id, Box::new(emLinearLayout::adaptive(1.0)));
         }
 
         // Position layout in border content rect
@@ -2051,7 +2051,7 @@ fn make_star(cx: f64, cy: f64, rx: f64, ry: f64, points: usize) -> Vec<(f64, f64
 fn render_testpanel(
     name: &str,
     tree: &mut PanelTree,
-    view: &mut View,
+    view: &mut emView,
     expected: &(u32, u32, Vec<u8>),
     channel_tolerance: u8,
     max_failure_pct: f64,
@@ -2101,7 +2101,7 @@ fn testpanel_root() {
     // Very high threshold prevents auto-expansion (matches C++ gen)
     tree.set_auto_expansion_threshold(root, 1e9, ViewConditionType::Area);
 
-    let mut view = View::new(root, 1000.0, 1000.0);
+    let mut view = emView::new(root, 1000.0, 1000.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window — match unfocused state
     view.set_window_focused(&mut tree, false);
@@ -2134,7 +2134,7 @@ fn testpanel_expanded() {
     // C++ default threshold: 900 (VCT_AREA). At 1000x1000, vc=1e6 > 900 → expands.
     tree.set_auto_expansion_threshold(root, 900.0, ViewConditionType::Area);
 
-    let mut view = View::new(root, 1000.0, 1000.0);
+    let mut view = emView::new(root, 1000.0, 1000.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window — match unfocused state
     view.set_window_focused(&mut tree, false);

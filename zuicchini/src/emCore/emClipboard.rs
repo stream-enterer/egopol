@@ -1,13 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::emCore::emContext::Context;
+use crate::emCore::emContext::emContext;
 
 /// Abstract clipboard interface matching C++ emClipboard.
 ///
 /// Provides clipboard and selection buffer operations. Concrete
-/// implementations are installed into a Context via `install`.
-pub trait Clipboard {
+/// implementations are installed into a emContext via `install`.
+pub trait emClipboard {
     /// Put text into the clipboard or selection buffer.
     /// If `selection` is true, returns a selection ID (incrementing counter).
     /// If `selection` is false, returns 0.
@@ -24,13 +24,13 @@ pub trait Clipboard {
 /// In-memory clipboard implementation matching C++ emPrivateClipboard.
 ///
 /// Maintains separate clipboard and selection buffers with no platform integration.
-pub struct PrivateClipboard {
+pub struct emPrivateClipboard {
     clip_text: String,
     sel_text: String,
     sel_id: i64,
 }
 
-impl PrivateClipboard {
+impl emPrivateClipboard {
     pub fn new() -> Self {
         Self {
             clip_text: String::new(),
@@ -41,19 +41,19 @@ impl PrivateClipboard {
 
     /// Install this clipboard into the given context.
     /// Port of C++ emPrivateClipboard::Install(emContext&).
-    pub fn install(context: &Rc<Context>) {
-        let clipboard: Rc<RefCell<dyn Clipboard>> = Rc::new(RefCell::new(Self::new()));
+    pub fn install(context: &Rc<emContext>) {
+        let clipboard: Rc<RefCell<dyn emClipboard>> = Rc::new(RefCell::new(Self::new()));
         context.set_clipboard(clipboard);
     }
 }
 
-impl Default for PrivateClipboard {
+impl Default for emPrivateClipboard {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Clipboard for PrivateClipboard {
+impl emClipboard for emPrivateClipboard {
     fn put_text(&mut self, text: &str, selection: bool) -> i64 {
         if selection {
             self.sel_text = text.to_string();
@@ -85,8 +85,8 @@ impl Clipboard for PrivateClipboard {
     }
 }
 
-/// Look up the installed clipboard by walking the context hierarchy.
+/// emLook up the installed clipboard by walking the context hierarchy.
 /// Port of C++ emClipboard::LookupInherited(emContext&).
-pub fn lookup_clipboard(context: &Rc<Context>) -> Option<Rc<RefCell<dyn Clipboard>>> {
+pub fn lookup_clipboard(context: &Rc<emContext>) -> Option<Rc<RefCell<dyn emClipboard>>> {
     context.lookup_clipboard()
 }

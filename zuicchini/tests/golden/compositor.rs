@@ -1,8 +1,8 @@
-use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emColor::emColor;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 use zuicchini::emCore::emPanelTree::PanelTree;
-use zuicchini::emCore::emView::{View, ViewFlags};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emView::{emView, ViewFlags};
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
 
 use super::common::*;
@@ -19,23 +19,23 @@ macro_rules! require_golden {
 
 /// Behavior that fills its panel with a solid color.
 struct ColorFillBehavior {
-    color: Color,
+    color: emColor,
 }
 
 impl ColorFillBehavior {
-    fn new(color: Color) -> Self {
+    fn new(color: emColor) -> Self {
         Self { color }
     }
 }
 
 impl PanelBehavior for ColorFillBehavior {
-    fn paint(&mut self, painter: &mut Painter, vw: f64, vh: f64, _state: &PanelState) {
-        painter.paint_rect(0.0, 0.0, vw, vh, self.color, Color::TRANSPARENT);
+    fn paint(&mut self, painter: &mut emPainter, vw: f64, vh: f64, _state: &PanelState) {
+        painter.paint_rect(0.0, 0.0, vw, vh, self.color, emColor::TRANSPARENT);
     }
 }
 
 /// Settle: deliver notices and update viewing until stable.
-fn settle(tree: &mut PanelTree, view: &mut View) {
+fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
         tree.deliver_notices(view.window_focused(), view.pixel_tallness());
         view.update_viewing(tree);
@@ -56,10 +56,10 @@ fn compositor_single_panel() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(
         root,
-        Box::new(ColorFillBehavior::new(Color::rgba(255, 0, 0, 255))),
+        Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255))),
     );
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -86,17 +86,17 @@ fn compositor_overlap() {
     tree.set_layout_rect(panel_a, 0.1, 0.1, 0.4, 0.3);
     tree.set_behavior(
         panel_a,
-        Box::new(ColorFillBehavior::new(Color::rgba(255, 0, 0, 255))),
+        Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255))),
     );
 
     let panel_b = tree.create_child(root, "panelB");
     tree.set_layout_rect(panel_b, 0.3, 0.2, 0.4, 0.3);
     tree.set_behavior(
         panel_b,
-        Box::new(ColorFillBehavior::new(Color::rgba(0, 0, 255, 255))),
+        Box::new(ColorFillBehavior::new(emColor::rgba(0, 0, 255, 255))),
     );
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -126,10 +126,10 @@ fn compositor_nested() {
     tree.set_layout_rect(child, 0.1, 0.075, 0.8, 0.6);
     tree.set_behavior(
         child,
-        Box::new(ColorFillBehavior::new(Color::rgba(0, 255, 0, 255))),
+        Box::new(ColorFillBehavior::new(emColor::rgba(0, 255, 0, 255))),
     );
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -153,18 +153,18 @@ fn compositor_canvas_color() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(
         root,
-        Box::new(ColorFillBehavior::new(Color::rgba(255, 255, 255, 255))),
+        Box::new(ColorFillBehavior::new(emColor::rgba(255, 255, 255, 255))),
     );
 
     let child = tree.create_child(root, "child");
     tree.set_layout_rect(child, 0.1, 0.075, 0.8, 0.6);
-    tree.set_canvas_color(child, Color::rgba(255, 255, 255, 255));
+    tree.set_canvas_color(child, emColor::rgba(255, 255, 255, 255));
     tree.set_behavior(
         child,
-        Box::new(ColorFillBehavior::new(Color::rgba(255, 0, 0, 128))),
+        Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 128))),
     );
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -192,17 +192,17 @@ fn compositor_two_children() {
     tree.set_layout_rect(left, 0.0, 0.0, 0.5, 0.75);
     tree.set_behavior(
         left,
-        Box::new(ColorFillBehavior::new(Color::rgba(255, 0, 0, 255))),
+        Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255))),
     );
 
     let right = tree.create_child(root, "right");
     tree.set_layout_rect(right, 0.5, 0.0, 0.5, 0.75);
     tree.set_behavior(
         right,
-        Box::new(ColorFillBehavior::new(Color::rgba(0, 0, 255, 255))),
+        Box::new(ColorFillBehavior::new(emColor::rgba(0, 0, 255, 255))),
     );
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 

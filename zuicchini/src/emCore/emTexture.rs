@@ -1,5 +1,5 @@
-use crate::emCore::emColor::Color;
-use crate::emCore::emImage::Image;
+use crate::emCore::emColor::emColor;
+use crate::emCore::emImage::emImage;
 
 /// How to extend an image beyond its bounds.
 ///
@@ -23,7 +23,7 @@ impl ImageExtension {
     /// C++ rule (emTexture.h:102-107): if IMAGE_COLORED and one of the gradient
     /// colors has zero alpha → EXTEND_ZERO, else if image has alpha channel →
     /// EXTEND_ZERO, else EXTEND_EDGE.
-    pub(crate) fn resolve_for_colored(self, color1: Color, color2: Color) -> Self {
+    pub(crate) fn resolve_for_colored(self, color1: emColor, color2: emColor) -> Self {
         match self {
             Self::EdgeOrZero => {
                 if color1.a() == 0 || color2.a() == 0 {
@@ -56,19 +56,19 @@ pub enum ImageQuality {
 
 /// A texture describes how a shape is filled.
 #[derive(Clone, Debug)]
-pub enum Texture {
+pub enum emTexture {
     /// Solid color fill.
-    SolidColor(Color),
-    /// Image fill with extension and quality options.
-    Image {
-        image: Image,
+    SolidColor(emColor),
+    /// emImage fill with extension and quality options.
+    emImage {
+        image: emImage,
         extension: ImageExtension,
         quality: ImageQuality,
     },
     /// Linear gradient between two colors.
     LinearGradient {
-        color_a: Color,
-        color_b: Color,
+        color_a: emColor,
+        color_b: emColor,
         /// Start point (x, y) in local coordinates.
         start: (f64, f64),
         /// End point (x, y) in local coordinates.
@@ -76,25 +76,25 @@ pub enum Texture {
     },
     /// Radial gradient between two colors.
     RadialGradient {
-        color_inner: Color,
-        color_outer: Color,
+        color_inner: emColor,
+        color_outer: emColor,
         /// Center (x, y) in local coordinates.
         center: (f64, f64),
         /// Radius.
         radius: f64,
     },
-    /// Image tinted with a color (multiplied).
+    /// emImage tinted with a color (multiplied).
     ImageColored {
-        image: Image,
-        color: Color,
+        image: emImage,
+        color: emColor,
         extension: ImageExtension,
         quality: ImageQuality,
     },
 }
 
-impl Texture {
+impl emTexture {
     /// Create a solid color texture.
-    pub fn color(c: Color) -> Self {
-        Texture::SolidColor(c)
+    pub fn color(c: emColor) -> Self {
+        emTexture::SolidColor(c)
     }
 }

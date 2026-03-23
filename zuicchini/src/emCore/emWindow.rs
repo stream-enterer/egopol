@@ -2,20 +2,20 @@ use std::sync::Arc;
 
 use bitflags::bitflags;
 
-use crate::emCore::emImage::Image;
-use crate::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
-use crate::emCore::emViewInputFilter::{CheatAction, CheatVIF, KeyboardZoomScrollVIF, MouseZoomScrollVIF, ViewInputFilter};
+use crate::emCore::emImage::emImage;
+use crate::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use crate::emCore::emInputState::emInputState;
+use crate::emCore::emViewInputFilter::{CheatAction, emCheatVIF, emKeyboardZoomScrollVIF, emMouseZoomScrollVIF, emViewInputFilter};
 use crate::emCore::emPanelTree::{PanelId, PanelTree};
-use crate::emCore::emView::View;
-use crate::emCore::emViewAnimator::ViewAnimator;
-use crate::emCore::emRenderThreadPool::RenderThreadPool;
+use crate::emCore::emView::emView;
+use crate::emCore::emViewAnimator::emViewAnimator;
+use crate::emCore::emRenderThreadPool::emRenderThreadPool;
 use crate::emCore::emViewRendererCompositor::WgpuCompositor;
 use crate::emCore::emViewRendererTileCache::TileCache;
 use crate::emCore::emSignal::SignalId;
 
 use crate::emCore::emGUIFramework::GpuContext;
-use crate::emCore::emScreen::Screen;
+use crate::emCore::emScreen::emScreen;
 
 bitflags! {
     #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -40,29 +40,29 @@ pub struct ZuiWindow {
     surface_config: wgpu::SurfaceConfiguration,
     compositor: WgpuCompositor,
     tile_cache: TileCache,
-    view: View,
+    view: emView,
     /// Pre-allocated viewport-sized buffer for single-pass rendering.
     /// Used when many tiles are dirty (e.g. during panning) to avoid
     /// redundant tree walks and primitive rasterization across tiles.
-    viewport_buffer: crate::emCore::emImage::Image,
+    viewport_buffer: crate::emCore::emImage::emImage,
     pub flags: WindowFlags,
     pub close_signal: SignalId,
     pub flags_signal: SignalId,
     root_panel: PanelId,
-    vif_chain: Vec<Box<dyn ViewInputFilter>>,
-    cheat_vif: CheatVIF,
-    pub active_animator: Option<Box<dyn ViewAnimator>>,
-    window_icon: Option<Image>,
+    vif_chain: Vec<Box<dyn emViewInputFilter>>,
+    cheat_vif: emCheatVIF,
+    pub active_animator: Option<Box<dyn emViewAnimator>>,
+    window_icon: Option<emImage>,
     last_mouse_pos: (f64, f64),
     screensaver_inhibit_count: u32,
     screensaver_cookie: Option<u32>,
     flags_changed: bool,
     wm_res_name: String,
-    render_pool: RenderThreadPool,
+    render_pool: emRenderThreadPool,
     /// Separate panel tree for the control panel region.
     pub(crate) control_tree: PanelTree,
-    /// View for the control panel region.
-    pub(crate) control_view: View,
+    /// emView for the control panel region.
+    pub(crate) control_view: emView,
     /// Currently active control panel (child of control_root).
     pub(crate) control_panel_id: Option<PanelId>,
     /// Height of the control strip: 0 when hidden, CONTROL_STRIP_PX when active.
@@ -129,25 +129,25 @@ impl ZuiWindow {
 
         let compositor = WgpuCompositor::new(&gpu.device, format, w, h);
         let tile_cache = TileCache::new(w, h, 256);
-        let viewport_buffer = crate::emCore::emImage::Image::new(w, h, 4);
-        let view = View::new(root_panel, w as f64, h as f64);
+        let viewport_buffer = crate::emCore::emImage::emImage::new(w, h, 4);
+        let view = emView::new(root_panel, w as f64, h as f64);
 
         // Create control tree with a root panel
         let mut control_tree = PanelTree::new();
         let control_root = control_tree.create_root("control_root");
         control_tree.set_layout_rect(control_root, 0.0, 0.0, 1.0, 1.0);
         // Hidden initially — zero viewport height
-        let control_view = View::new(control_root, w as f64, 0.0);
+        let control_view = emView::new(control_root, w as f64, 0.0);
 
-        let vif_chain: Vec<Box<dyn ViewInputFilter>> = vec![
+        let vif_chain: Vec<Box<dyn emViewInputFilter>> = vec![
             {
-                let mut mouse_vif = MouseZoomScrollVIF::new();
+                let mut mouse_vif = emMouseZoomScrollVIF::new();
                 let zflpp = view.get_zoom_factor_log_per_pixel();
                 mouse_vif.set_mouse_anim_params(1.0, 0.25, zflpp);
                 mouse_vif.set_wheel_anim_params(1.0, 0.25, zflpp);
                 Box::new(mouse_vif)
             },
-            Box::new(KeyboardZoomScrollVIF::new()),
+            Box::new(emKeyboardZoomScrollVIF::new()),
         ];
 
         Self {
@@ -163,7 +163,7 @@ impl ZuiWindow {
             flags_signal,
             root_panel,
             vif_chain,
-            cheat_vif: CheatVIF::new(),
+            cheat_vif: emCheatVIF::new(),
             active_animator: None,
             window_icon: None,
             last_mouse_pos: (0.0, 0.0),
@@ -171,8 +171,8 @@ impl ZuiWindow {
             screensaver_cookie: None,
             flags_changed: false,
             wm_res_name: String::from("zuicchini"),
-            render_pool: RenderThreadPool::new(
-                crate::emCore::emCoreConfig::CoreConfig::default().max_render_threads,
+            render_pool: emRenderThreadPool::new(
+                crate::emCore::emCoreConfig::emCoreConfig::default().max_render_threads,
             ),
             control_tree,
             control_view,
@@ -242,14 +242,14 @@ impl ZuiWindow {
         }
     }
 
-    /// Update the render thread pool from CoreConfig.
+    /// Update the render thread pool from emCoreConfig.
     pub fn set_max_render_threads(&mut self, max_render_threads: i32) {
         self.render_pool.update_thread_count(max_render_threads);
     }
 
     /// Render a frame: paint dirty tiles on CPU, upload to GPU, composite.
     pub fn render(&mut self, tree: &mut crate::emCore::emPanelTree::PanelTree, gpu: &GpuContext) {
-        use crate::emCore::emPainter::Painter;
+        use crate::emCore::emPainter::emPainter;
 
         let (cols, rows) = self.tile_cache.grid_size();
         let tile_size = crate::emCore::emViewRendererTileCache::TILE_SIZE;
@@ -268,13 +268,13 @@ impl ZuiWindow {
             // Many dirty tiles (e.g. panning): paint into viewport-sized buffer
             // once, then copy tile-sized chunks. Avoids redundant tree walks and
             // re-rasterization of primitives across tiles.
-            self.viewport_buffer.fill(crate::emCore::emColor::Color::BLACK);
+            self.viewport_buffer.fill(crate::emCore::emColor::emColor::BLACK);
             let ctrl_height = self.control_strip_height;
             let content_h = self.content_height() as f64;
             let ctrl_root = self.control_view.root();
             let ctrl_bg = self.control_view.background_color();
             {
-                let mut painter = Painter::new(&mut self.viewport_buffer);
+                let mut painter = emPainter::new(&mut self.viewport_buffer);
                 self.view.paint(tree, &mut painter);
                 if ctrl_height > 0 {
                     self.control_view.paint_sub_tree(
@@ -314,9 +314,9 @@ impl ZuiWindow {
                 for col in 0..cols {
                     let tile = self.tile_cache.get_or_create(col, row);
                     if tile.dirty {
-                        tile.image.fill(crate::emCore::emColor::Color::BLACK);
+                        tile.image.fill(crate::emCore::emColor::emColor::BLACK);
                         {
-                            let mut painter = Painter::new(&mut tile.image);
+                            let mut painter = emPainter::new(&mut tile.image);
                             let ts = tile_size as f64;
                             painter.translate(-(col as f64 * ts), -(row as f64 * ts));
                             self.view.paint(tree, &mut painter);
@@ -365,7 +365,7 @@ impl ZuiWindow {
     /// Multi-threaded tile rendering using a display list.
     ///
     /// Phase 1 (single-threaded): Walk the panel tree and record all draw
-    /// operations into a `DrawList` using a recording `Painter`.
+    /// operations into a `DrawList` using a recording `emPainter`.
     ///
     /// Phase 2 (parallel): Replay the `DrawList` into each dirty tile's
     /// buffer concurrently, with tile-specific clipping.
@@ -379,9 +379,9 @@ impl ZuiWindow {
         rows: u32,
         tile_size: u32,
     ) {
-        use crate::emCore::emColor::Color;
+        use crate::emCore::emColor::emColor;
         use crate::emCore::emPainterDrawList::DrawList;
-        use crate::emCore::emPainter::Painter;
+        use crate::emCore::emPainter::emPainter;
 
         let vp_w = self.surface_config.width;
         let vp_h = self.surface_config.height;
@@ -389,7 +389,7 @@ impl ZuiWindow {
         // Phase 1: Record draw operations.
         let mut draw_list = DrawList::new();
         {
-            let mut painter = Painter::new_recording(vp_w, vp_h, draw_list.ops_mut());
+            let mut painter = emPainter::new_recording(vp_w, vp_h, draw_list.ops_mut());
             self.view.paint(tree, &mut painter);
             if self.control_strip_height > 0 {
                 let content_h = self.content_height() as f64;
@@ -422,7 +422,7 @@ impl ZuiWindow {
         // Phase 2: Parallel replay into tile buffers.
         let ts = tile_size as f64;
         let draw_list_ref = &draw_list;
-        let results: Vec<std::sync::Mutex<Option<crate::emCore::emImage::Image>>> = dirty_tiles
+        let results: Vec<std::sync::Mutex<Option<crate::emCore::emImage::emImage>>> = dirty_tiles
             .iter()
             .map(|_| std::sync::Mutex::new(None))
             .collect();
@@ -432,10 +432,10 @@ impl ZuiWindow {
         self.render_pool.call_parallel(
             |idx| {
                 let (col, row) = dirty_ref[idx];
-                let mut buffer = crate::emCore::emImage::Image::new(tile_size, tile_size, 4);
-                buffer.fill(Color::BLACK);
+                let mut buffer = crate::emCore::emImage::emImage::new(tile_size, tile_size, 4);
+                buffer.fill(emColor::BLACK);
                 {
-                    let mut painter = Painter::new(&mut buffer);
+                    let mut painter = emPainter::new(&mut buffer);
                     let tile_offset = (col as f64 * ts, row as f64 * ts);
                     draw_list_ref.replay(&mut painter, tile_offset);
                 }
@@ -457,8 +457,8 @@ impl ZuiWindow {
         }
     }
 
-    /// Translate a winit window event to a zuicchini InputEvent.
-    pub fn handle_input(event: &winit::event::WindowEvent) -> Option<InputEvent> {
+    /// Translate a winit window event to a zuicchini emInputEvent.
+    pub fn handle_input(event: &winit::event::WindowEvent) -> Option<emInputEvent> {
         use winit::event::WindowEvent;
         use winit::keyboard::{Key, NamedKey};
 
@@ -522,7 +522,7 @@ impl ZuiWindow {
                 };
 
                 let key = key?;
-                let mut input_event = InputEvent {
+                let mut input_event = emInputEvent {
                     key,
                     variant,
                     chars: String::new(),
@@ -554,7 +554,7 @@ impl ZuiWindow {
                     winit::event::ElementState::Pressed => InputVariant::Press,
                     winit::event::ElementState::Released => InputVariant::Release,
                 };
-                Some(InputEvent {
+                Some(emInputEvent {
                     key,
                     variant,
                     chars: String::new(),
@@ -569,7 +569,7 @@ impl ZuiWindow {
                     eaten: false,
                 })
             }
-            WindowEvent::CursorMoved { position, .. } => Some(InputEvent {
+            WindowEvent::CursorMoved { position, .. } => Some(emInputEvent {
                 key: InputKey::MouseLeft, // Dummy key for position-only events
                 variant: InputVariant::Move,
                 chars: String::new(),
@@ -590,7 +590,7 @@ impl ZuiWindow {
                 };
                 // Encode scroll as a wheel event with delta in mouse_x/y
                 if dy.abs() > dx.abs() {
-                    Some(InputEvent {
+                    Some(emInputEvent {
                         key: if dy > 0.0 {
                             InputKey::WheelUp
                         } else {
@@ -609,7 +609,7 @@ impl ZuiWindow {
                         eaten: false,
                     })
                 } else if dx.abs() > 0.0 {
-                    Some(InputEvent {
+                    Some(emInputEvent {
                         key: if dx > 0.0 {
                             InputKey::WheelRight
                         } else {
@@ -636,7 +636,7 @@ impl ZuiWindow {
     }
 
     /// Dispatch an input event through VIF chain, then to panel behavior.
-    pub fn dispatch_input(&mut self, tree: &mut PanelTree, event: &InputEvent, state: &mut InputState) {
+    pub fn dispatch_input(&mut self, tree: &mut PanelTree, event: &emInputEvent, state: &mut emInputState) {
         // Track mouse position for cursor warping (skip wheel events).
         if !matches!(
             event.key,
@@ -711,12 +711,12 @@ impl ZuiWindow {
         if let Some(mouse_vif) = self
             .vif_chain
             .first_mut()
-            .and_then(|v| v.as_any_mut().downcast_mut::<MouseZoomScrollVIF>())
+            .and_then(|v| v.as_any_mut().downcast_mut::<emMouseZoomScrollVIF>())
         {
             let (wx, wy) = mouse_vif.drain_pending_warp();
             if wx.abs() > 0.1 || wy.abs() > 0.1 {
                 self.move_mouse_pointer(wx, wy);
-                // Adjust InputState to match new cursor position
+                // Adjust emInputState to match new cursor position
                 state.mouse_x += wx;
                 state.mouse_y += wy;
             }
@@ -732,7 +732,7 @@ impl ZuiWindow {
                     if let Some(mouse_vif) = self
                         .vif_chain
                         .first_mut()
-                        .and_then(|v| v.as_any_mut().downcast_mut::<MouseZoomScrollVIF>())
+                        .and_then(|v| v.as_any_mut().downcast_mut::<emMouseZoomScrollVIF>())
                     {
                         match action {
                             CheatAction::PanFunction => {
@@ -784,7 +784,7 @@ impl ZuiWindow {
             self.view.set_active_panel(tree, panel, false);
         }
 
-        // Stamp modifier keys from InputState onto the event
+        // Stamp modifier keys from emInputState onto the event
         let ev = event.clone().with_modifiers(state);
 
         // Dispatch to ALL viewed panels in post-order, matching C++
@@ -827,7 +827,7 @@ impl ZuiWindow {
                         panel_id, name, panel_ev.mouse_x, panel_ev.mouse_y, consumed
                     );
                 }
-                // TF-003: Process scroll-to-visible requests from behaviors
+                // TF-003: emProcess scroll-to-visible requests from behaviors
                 if let Some(rect) = behavior.take_scroll_to_visible() {
                     self.view.scroll_to_panel_rect(tree, panel_id, rect);
                 }
@@ -951,11 +951,11 @@ impl ZuiWindow {
         }
     }
 
-    pub fn view(&self) -> &View {
+    pub fn view(&self) -> &emView {
         &self.view
     }
 
-    pub fn view_mut(&mut self) -> &mut View {
+    pub fn view_mut(&mut self) -> &mut emView {
         &mut self.view
     }
 
@@ -1142,9 +1142,9 @@ impl ZuiWindow {
     /// Return the monitor index this window is on, by maximum overlap.
     ///
     /// Matches C++ emWindow::GetMonitorIndex: delegates to
-    /// Screen::monitor_index_of_rect with the window's outer position
+    /// emScreen::monitor_index_of_rect with the window's outer position
     /// and inner size.
-    pub fn get_monitor_index(&self, screen: &Screen) -> Option<usize> {
+    pub fn get_monitor_index(&self, screen: &emScreen) -> Option<usize> {
         let pos = self.winit_window.outer_position().unwrap_or_default();
         let size = self.winit_window.inner_size();
         screen.monitor_index_of_rect(pos.x, pos.y, size.width, size.height)
@@ -1164,11 +1164,11 @@ impl ZuiWindow {
     // D-WINDOW-01c: Misc window methods
     // ---------------------------------------------------------------
 
-    /// Set the window icon from a zuicchini Image.
+    /// Set the window icon from a zuicchini emImage.
     ///
     /// Matches C++ emWindow::SetWindowIcon: copies the image, then applies
     /// it to the winit window. The image is converted to RGBA if needed.
-    pub fn set_window_icon(&mut self, icon: &Image) {
+    pub fn set_window_icon(&mut self, icon: &emImage) {
         self.window_icon = Some(icon.clone());
 
         if icon.is_empty() {
@@ -1197,7 +1197,7 @@ impl ZuiWindow {
     }
 
     /// Get the current window icon, if set.
-    pub fn window_icon(&self) -> Option<&Image> {
+    pub fn window_icon(&self) -> Option<&emImage> {
         self.window_icon.as_ref()
     }
 
@@ -1243,7 +1243,7 @@ impl ZuiWindow {
     /// Matches C++ emScreen::MoveMousePointer. Uses winit's set_cursor_position
     /// which works on X11. On Wayland, set_cursor_position returns NotSupported
     /// and the error is logged at debug level. Callers should check
-    /// Screen::can_move_mouse_pointer() before calling.
+    /// emScreen::can_move_mouse_pointer() before calling.
     pub fn move_mouse_pointer(&self, dx: f64, dy: f64) {
         let target_x = self.last_mouse_pos.0 + dx;
         let target_y = self.last_mouse_pos.1 + dy;

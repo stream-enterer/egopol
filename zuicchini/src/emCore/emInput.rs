@@ -14,7 +14,7 @@ pub enum InputKey {
     WheelLeft,
     WheelRight,
 
-    // Screen touch
+    // emScreen touch
     Touch,
 
     // Modifier keys
@@ -266,7 +266,7 @@ pub enum InputVariant {
 
 /// An input event.
 #[derive(Clone, Debug)]
-pub struct InputEvent {
+pub struct emInputEvent {
     /// Which key or button.
     pub key: InputKey,
     /// Event variant (press, release, repeat).
@@ -293,7 +293,7 @@ pub struct InputEvent {
     pub(crate) eaten: bool,
 }
 
-impl InputEvent {
+impl emInputEvent {
     pub fn press(key: InputKey) -> Self {
         Self {
             key,
@@ -396,7 +396,7 @@ impl InputEvent {
         self
     }
 
-    pub fn with_modifiers(mut self, state: &super::emInputState::InputState) -> Self {
+    pub fn with_modifiers(mut self, state: &super::emInputState::emInputState) -> Self {
         self.shift = state.shift();
         self.ctrl = state.ctrl();
         self.alt = state.alt();
@@ -460,7 +460,7 @@ mod tests {
 
     #[test]
     fn eat_marks_empty() {
-        let mut ev = InputEvent::press(InputKey::Key('A')).with_chars("a");
+        let mut ev = emInputEvent::press(InputKey::Key('A')).with_chars("a");
         assert!(!ev.is_empty());
         assert!(ev.is_key(InputKey::Key('A')));
         ev.eat();
@@ -471,42 +471,42 @@ mod tests {
 
     #[test]
     fn source_variant_default() {
-        let ev = InputEvent::press(InputKey::Enter);
+        let ev = emInputEvent::press(InputKey::Enter);
         assert_eq!(ev.source_variant, 0);
     }
 
     #[test]
     fn is_button_helpers() {
-        let left = InputEvent::press(InputKey::MouseLeft);
+        let left = emInputEvent::press(InputKey::MouseLeft);
         assert!(left.is_left_button());
         assert!(!left.is_middle_button());
         assert!(!left.is_right_button());
 
-        let mid = InputEvent::press(InputKey::MouseMiddle);
+        let mid = emInputEvent::press(InputKey::MouseMiddle);
         assert!(mid.is_middle_button());
 
-        let right = InputEvent::press(InputKey::MouseRight);
+        let right = emInputEvent::press(InputKey::MouseRight);
         assert!(right.is_right_button());
     }
 
     #[test]
     fn event_type_queries() {
-        let mouse = InputEvent::press(InputKey::MouseLeft);
+        let mouse = emInputEvent::press(InputKey::MouseLeft);
         assert!(mouse.is_mouse_event());
         assert!(!mouse.is_keyboard_event());
         assert!(!mouse.is_touch_event());
 
-        let key = InputEvent::press(InputKey::Key('A'));
+        let key = emInputEvent::press(InputKey::Key('A'));
         assert!(key.is_keyboard_event());
         assert!(!key.is_mouse_event());
 
-        let touch = InputEvent::press(InputKey::Touch);
+        let touch = emInputEvent::press(InputKey::Touch);
         assert!(touch.is_touch_event());
     }
 
     #[test]
     fn eaten_event_not_typed() {
-        let mut ev = InputEvent::press(InputKey::MouseLeft);
+        let mut ev = emInputEvent::press(InputKey::MouseLeft);
         assert!(ev.is_mouse_event());
         ev.eat();
         assert!(!ev.is_mouse_event());
@@ -516,7 +516,7 @@ mod tests {
 
     #[test]
     fn mouse_move_constructor() {
-        let ev = InputEvent::mouse_move(InputKey::MouseLeft, 10.0, 20.0);
+        let ev = emInputEvent::mouse_move(InputKey::MouseLeft, 10.0, 20.0);
         assert_eq!(ev.variant, InputVariant::Move);
         assert_eq!(ev.mouse_x, 10.0);
         assert_eq!(ev.mouse_y, 20.0);

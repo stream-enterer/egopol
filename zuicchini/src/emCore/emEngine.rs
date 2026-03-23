@@ -10,7 +10,7 @@ new_key_type! {
 /// Engines are the primary scheduling primitive. They receive `cycle()` calls
 /// from the scheduler with an `EngineCtx` that provides access to signals,
 /// timers, and time-slice queries.
-pub trait Engine {
+pub trait emEngine {
     /// Called when the engine is awake. Return `true` to stay awake next slice,
     /// `false` to go to sleep.
     ///
@@ -19,7 +19,7 @@ pub trait Engine {
     fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool;
 }
 
-/// Engine execution priority. Higher priority engines run first within a time slice.
+/// emEngine execution priority. Higher priority engines run first within a time slice.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Priority {
     VeryLow = 0,
@@ -38,12 +38,12 @@ pub(crate) struct EngineData {
     pub priority: Priority,
     /// -1 = sleeping, 0 or 1 = awake in that parity's queue.
     pub awake_state: i8,
-    pub behavior: Option<Box<dyn Engine>>,
+    pub behavior: Option<Box<dyn emEngine>>,
     /// Clock value after last Cycle() call. Used by `is_signaled`.
     pub clock: u64,
 }
 
-/// Context passed to `Engine::cycle()`, providing scheduler operations.
+/// emContext passed to `emEngine::cycle()`, providing scheduler operations.
 ///
 /// This is a limited borrow of the scheduler that lets engines fire signals,
 /// check which signals woke them, query the time-slice deadline, and wake

@@ -7,7 +7,7 @@ use crate::dlog;
 
 use super::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use crate::emCore::emPanelCtx::PanelCtx;
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::rect::Rect;
 
 // ── Autoplay handling flags ─────────────────────────────────────────
@@ -38,7 +38,7 @@ pub struct PlaybackState {
     pub supported: bool,
 }
 
-// ── View condition type ───────────────────────────────────────────────
+// ── emView condition type ───────────────────────────────────────────────
 
 /// Type of size metric used for auto-expansion threshold comparisons.
 ///
@@ -159,7 +159,7 @@ pub(crate) struct PanelData {
 
     // Layout & appearance
     pub(crate) layout_rect: Rect,
-    pub(crate) canvas_color: Color,
+    pub(crate) canvas_color: emColor,
     pub(crate) visible: bool,
     pub(crate) focusable: bool,
 
@@ -184,7 +184,7 @@ pub(crate) struct PanelData {
     /// True if this panel was created during auto-expansion (C++ `CreatedByAE`).
     pub(crate) created_by_ae: bool,
 
-    // Viewing state (set by View::update_viewing each frame)
+    // Viewing state (set by emView::update_viewing each frame)
     pub(crate) viewed: bool,
     pub(crate) in_viewed_path: bool,
     pub(crate) in_active_path: bool,
@@ -209,7 +209,7 @@ impl PanelData {
             prev_sibling: None,
             name,
             layout_rect: Rect::new(-2.0, -2.0, 1.0, 1.0),
-            canvas_color: Color::TRANSPARENT,
+            canvas_color: emColor::TRANSPARENT,
             visible: true,
             focusable: true,
             enable_switch: true,
@@ -430,7 +430,7 @@ impl PanelTree {
     }
 
     /// Get the canvas color.
-    pub fn canvas_color(&self, id: PanelId) -> Option<Color> {
+    pub fn canvas_color(&self, id: PanelId) -> Option<emColor> {
         self.panels.get(id).map(|p| p.canvas_color)
     }
 
@@ -481,12 +481,12 @@ impl PanelTree {
         }
     }
 
-    /// Look up a child panel by parent and name.
+    /// emLook up a child panel by parent and name.
     pub fn find_child_by_name(&self, parent: PanelId, name: &str) -> Option<PanelId> {
         self.name_index.get(&(parent, name.to_string())).copied()
     }
 
-    /// Look up a panel by name (searches all panels).
+    /// emLook up a panel by name (searches all panels).
     pub fn find_by_name(&self, name: &str) -> Option<PanelId> {
         self.panels
             .iter()
@@ -913,7 +913,7 @@ impl PanelTree {
     }
 
     /// Set the canvas color for a panel.
-    pub fn set_canvas_color(&mut self, id: PanelId, color: Color) {
+    pub fn set_canvas_color(&mut self, id: PanelId, color: emColor) {
         if let Some(panel) = self.panels.get_mut(id) {
             panel.canvas_color = color;
             panel.pending_notices.insert(NoticeFlags::CANVAS_CHANGED);
@@ -1388,7 +1388,7 @@ impl PanelTree {
     /// sought by the visiting animator, or `None` otherwise.
     ///
     /// `seek_pos_panel` and `seek_pos_child_name` come from
-    /// [`View::seek_pos_panel`] and [`View::seek_pos_child_name`].
+    /// [`emView::seek_pos_panel`] and [`emView::seek_pos_child_name`].
     ///
     /// Corresponds to `emPanel::GetSoughtName`.
     pub fn get_sought_name<'a>(
@@ -1489,7 +1489,7 @@ impl PanelTree {
         }
     }
 
-    // ── View condition ──────────────────────────────────────────────
+    // ── emView condition ──────────────────────────────────────────────
 
     /// Return a size metric for how large the panel appears in the view.
     ///
@@ -2354,7 +2354,7 @@ mod tests {
         assert!(t.get(root).unwrap().ae_invalid);
     }
 
-    // ── View condition tests ─────────────────────────────────────────
+    // ── emView condition tests ─────────────────────────────────────────
 
     #[test]
     fn test_get_view_condition() {

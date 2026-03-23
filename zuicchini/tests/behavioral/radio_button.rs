@@ -1,5 +1,5 @@
-use zuicchini::emCore::emLook::Look;
-use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+use zuicchini::emCore::emLook::emLook;
+use zuicchini::emCore::emRadioButton::{emRadioButton, RadioGroup};
 
 /// emRadioButton::Mechanism::AddAll(emPanel*)
 /// Adds multiple button slots to the group at once.
@@ -20,9 +20,9 @@ fn add_all_zero_is_noop() {
 
 #[test]
 fn add_all_preserves_existing_buttons() {
-    let look = Look::new();
+    let look = emLook::new();
     let group = RadioGroup::new();
-    let _r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
+    let _r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
     assert_eq!(group.borrow().count(), 1);
 
     // AddAll adds 3 more slots
@@ -72,10 +72,10 @@ fn get_button_empty_group() {
 
 #[test]
 fn get_button_with_real_buttons() {
-    let look = Look::new();
+    let look = emLook::new();
     let group = RadioGroup::new();
-    let _r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
-    let _r1 = RadioButton::new("B", look.clone(), group.clone(), 1);
+    let _r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
+    let _r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
 
     assert_eq!(group.borrow().get_button(0), Some(0));
     assert_eq!(group.borrow().get_button(1), Some(1));

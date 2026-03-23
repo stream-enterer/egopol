@@ -1,12 +1,12 @@
-use crate::emCore::emCursor::Cursor;
-use crate::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
+use crate::emCore::emCursor::emCursor;
+use crate::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use crate::emCore::emInputState::emInputState;
 use crate::emCore::emTiling::{Orientation, ResolvedOrientation};
 use crate::emCore::emPanel::PanelState;
 use crate::emCore::emPanelCtx::PanelCtx;
-use crate::emCore::emPainter::{Painter, BORDER_EDGES_ONLY};
+use crate::emCore::emPainter::{emPainter, BORDER_EDGES_ONLY};
 
-use crate::emCore::emLook::Look;
+use crate::emCore::emLook::emLook;
 use crate::emCore::toolkit_images::with_toolkit_images;
 use std::rc::Rc;
 
@@ -14,8 +14,8 @@ use std::rc::Rc;
 const GRIP_BASE: f64 = 0.015;
 
 /// Resizable two-panel divider widget.
-pub struct Splitter {
-    look: Rc<Look>,
+pub struct emSplitter {
+    look: Rc<emLook>,
     orientation: Orientation,
     position: f64,
     min_position: f64,
@@ -34,8 +34,8 @@ pub struct Splitter {
     pub on_position: Option<Box<dyn FnMut(f64)>>,
 }
 
-impl Splitter {
-    pub fn new(orientation: Orientation, look: Rc<Look>) -> Self {
+impl emSplitter {
+    pub fn new(orientation: Orientation, look: Rc<emLook>) -> Self {
         Self {
             look,
             orientation,
@@ -112,7 +112,7 @@ impl Splitter {
         self.set_position(self.position);
     }
 
-    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
+    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -181,7 +181,7 @@ impl Splitter {
         }
     }
 
-    pub fn input(&mut self, event: &InputEvent, _state: &PanelState, _input_state: &InputState) -> bool {
+    pub fn input(&mut self, event: &emInputEvent, _state: &PanelState, _input_state: &emInputState) -> bool {
         if self.last_w <= 0.0 || self.last_h <= 0.0 {
             return false;
         }
@@ -250,14 +250,14 @@ impl Splitter {
         }
     }
 
-    pub fn get_cursor(&self) -> Cursor {
+    pub fn get_cursor(&self) -> emCursor {
         // C++ emSplitter.cpp:158: only resize cursor when mouse over grip AND enabled.
         if (!self.mouse_in_grip && !self.dragging) || !self.enabled {
-            return Cursor::Normal;
+            return emCursor::Normal;
         }
         match self.orientation.resolve(self.last_w, self.last_h) {
-            ResolvedOrientation::Horizontal => Cursor::ResizeEW,
-            ResolvedOrientation::Vertical => Cursor::ResizeNS,
+            ResolvedOrientation::Horizontal => emCursor::ResizeEW,
+            ResolvedOrientation::Vertical => emCursor::ResizeNS,
         }
     }
 
@@ -308,14 +308,14 @@ mod tests {
         }
     }
 
-    fn default_input_state() -> InputState {
-        InputState::new()
+    fn default_input_state() -> emInputState {
+        emInputState::new()
     }
 
     #[test]
     fn splitter_position_clamping() {
-        let look = Look::new();
-        let mut sp = Splitter::new(Orientation::Horizontal, look);
+        let look = emLook::new();
+        let mut sp = emSplitter::new(Orientation::Horizontal, look);
         sp.set_position(0.3);
         assert!((sp.position() - 0.3).abs() < 0.001);
 
@@ -328,8 +328,8 @@ mod tests {
 
     #[test]
     fn splitter_drag() {
-        let look = Look::new();
-        let mut sp = Splitter::new(Orientation::Horizontal, look);
+        let look = emLook::new();
+        let mut sp = emSplitter::new(Orientation::Horizontal, look);
         sp.set_position(0.5);
         let ps = default_panel_state();
         let is = default_input_state();
@@ -341,12 +341,12 @@ mod tests {
 
         // Press at the divider center in normalized space (tallness = 0.5).
         // Grip center: gx = 0.5 * (1.0 - 0.015) + 0.015/2 ≈ 0.5.
-        let press = InputEvent::press(InputKey::MouseLeft).with_mouse(0.5, 0.1);
+        let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(0.5, 0.1);
         assert!(sp.input(&press, &ps, &is));
         assert!(sp.dragging);
 
         // Drag to x = 0.7 in normalized space.
-        let drag = InputEvent {
+        let drag = emInputEvent {
             key: InputKey::MouseLeft,
             variant: InputVariant::Repeat,
             chars: String::new(),
@@ -364,7 +364,7 @@ mod tests {
         assert!((sp.position() - 0.7).abs() < 0.01);
 
         // Release
-        let release = InputEvent::release(InputKey::MouseLeft);
+        let release = emInputEvent::release(InputKey::MouseLeft);
         sp.input(&release, &ps, &is);
         assert!(!sp.dragging);
     }

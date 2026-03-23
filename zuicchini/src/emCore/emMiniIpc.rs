@@ -101,7 +101,7 @@ mod platform {
     use nix::sys::stat::Mode;
 
     use super::{decode_message, encode_message, MiniIpcError};
-    use crate::emCore::emEngine::{Engine, EngineCtx, EngineId, Priority};
+    use crate::emCore::emEngine::{emEngine, EngineCtx, EngineId, Priority};
     use crate::emCore::emScheduler::EngineScheduler;
     use crate::emCore::emSignal::SignalId;
     use crate::emCore::emTimer::TimerId;
@@ -219,9 +219,9 @@ mod platform {
     /// Client for sending one-shot messages to a MiniIpc server.
     ///
     /// Port of C++ `emMiniIpcClient`.
-    pub struct MiniIpcClient;
+    pub struct emMiniIpcClient;
 
-    impl MiniIpcClient {
+    impl emMiniIpcClient {
         /// Send a message to the named server.
         pub fn try_send(server_name: &str, args: &[&str]) -> Result<(), MiniIpcError> {
             let fifo = fifo_path(server_name);
@@ -311,7 +311,7 @@ mod platform {
         timer_signal: SignalId,
     }
 
-    impl Engine for MiniIpcEngine {
+    impl emEngine for MiniIpcEngine {
         fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
             if ctx.is_signaled(self.timer_signal) {
                 self.inner.borrow_mut().poll();
@@ -327,14 +327,14 @@ mod platform {
     /// Port of C++ `emMiniIpcServer`. Creates a FIFO, registers a polling
     /// engine with a 200ms timer, and invokes a callback for each received
     /// message.
-    pub struct MiniIpcServer {
+    pub struct emMiniIpcServer {
         inner: Rc<RefCell<MiniIpcServerInner>>,
         engine_id: EngineId,
         timer_id: TimerId,
         timer_signal: SignalId,
     }
 
-    impl MiniIpcServer {
+    impl emMiniIpcServer {
         /// Create a new server. Does not start serving yet.
         pub fn new(scheduler: &mut EngineScheduler, callback: MessageCallback) -> Self {
             let timer_signal = scheduler.create_signal();
@@ -469,13 +469,13 @@ mod platform {
 }
 
 #[cfg(target_os = "linux")]
-pub use platform::{MiniIpcClient, MiniIpcServer};
+pub use platform::{emMiniIpcClient, emMiniIpcServer};
 
 #[cfg(not(target_os = "linux"))]
-pub struct MiniIpcClient;
+pub struct emMiniIpcClient;
 
 #[cfg(not(target_os = "linux"))]
-impl MiniIpcClient {
+impl emMiniIpcClient {
     pub fn try_send(_server_name: &str, _args: &[&str]) -> Result<(), MiniIpcError> {
         Err(MiniIpcError::UnsupportedPlatform)
     }

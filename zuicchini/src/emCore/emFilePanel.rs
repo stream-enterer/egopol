@@ -1,7 +1,7 @@
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::emFileModel::FileState;
 use crate::emCore::emPanel::{PanelBehavior, PanelState};
-use crate::emCore::emPainter::{Painter, TextAlignment, VAlign};
+use crate::emCore::emPainter::{emPainter, TextAlignment, VAlign};
 
 /// Extended file state for a file panel, adding custom error and no-model states.
 ///
@@ -39,7 +39,7 @@ impl VirtualFileState {
 /// Port of C++ `emFilePanel`. Observes a `FileState` and paints status
 /// information. Derived types should override `paint` to render the actual
 /// content when the virtual file state is good.
-pub struct FilePanel {
+pub struct emFilePanel {
     file_state: FileState,
     error_text: String,
     memory_need: u64,
@@ -48,13 +48,13 @@ pub struct FilePanel {
     has_model: bool,
 }
 
-impl Default for FilePanel {
+impl Default for emFilePanel {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl FilePanel {
+impl emFilePanel {
     pub fn new() -> Self {
         Self {
             file_state: FileState::Waiting,
@@ -161,7 +161,7 @@ impl FilePanel {
     /// This renders informational text about the current virtual file state.
     /// Derived panels should check `vir_file_state().is_good()` and render
     /// their content instead of calling this method when the state is good.
-    pub fn paint_status(&self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint_status(&self, painter: &mut emPainter, w: f64, h: f64) {
         let canvas_color = painter.canvas_color();
         let vfs = self.vir_file_state();
 
@@ -172,7 +172,7 @@ impl FilePanel {
                     w,
                     h,
                     "Wait...",
-                    Color::rgba(92, 92, 0, 192),
+                    emColor::rgba(92, 92, 0, 192),
                     canvas_color,
                 );
             }
@@ -183,7 +183,7 @@ impl FilePanel {
                     w,
                     h,
                     &text,
-                    Color::rgba(0, 112, 0, 192),
+                    emColor::rgba(0, 112, 0, 192),
                     canvas_color,
                 );
             }
@@ -193,7 +193,7 @@ impl FilePanel {
                     w,
                     h,
                     "Loaded",
-                    Color::rgba(0, 116, 112, 192),
+                    emColor::rgba(0, 116, 112, 192),
                     canvas_color,
                 );
             }
@@ -203,7 +203,7 @@ impl FilePanel {
                     w,
                     h,
                     "Unsaved",
-                    Color::rgba(144, 0, 144, 192),
+                    emColor::rgba(144, 0, 144, 192),
                     canvas_color,
                 );
             }
@@ -213,7 +213,7 @@ impl FilePanel {
                     w,
                     h,
                     "Saving...",
-                    Color::rgba(0, 112, 0, 192),
+                    emColor::rgba(0, 112, 0, 192),
                     canvas_color,
                 );
             }
@@ -223,12 +223,12 @@ impl FilePanel {
                     w,
                     h,
                     "Costly",
-                    Color::rgba(112, 64, 64, 192),
+                    emColor::rgba(112, 64, 64, 192),
                     canvas_color,
                 );
             }
             VirtualFileState::LoadError(ref _e) => {
-                let bg = Color::rgb(128, 0, 0);
+                let bg = emColor::rgb(128, 0, 0);
                 painter.paint_rect(0.0, 0.0, w, h, bg, canvas_color);
                 painter.paint_text_boxed(
                     0.05 * w,
@@ -237,7 +237,7 @@ impl FilePanel {
                     h * 0.1,
                     "Loading Failed",
                     h * 0.1,
-                    Color::rgb(204, 136, 0),
+                    emColor::rgb(204, 136, 0),
                     bg,
                     TextAlignment::Center,
                     VAlign::Center,
@@ -253,7 +253,7 @@ impl FilePanel {
                     h * 0.4,
                     &self.error_text,
                     h * 0.4,
-                    Color::rgb(255, 255, 0),
+                    emColor::rgb(255, 255, 0),
                     bg,
                     TextAlignment::Center,
                     VAlign::Center,
@@ -264,7 +264,7 @@ impl FilePanel {
                 );
             }
             VirtualFileState::SaveError(ref _e) => {
-                let bg = Color::rgb(128, 0, 0);
+                let bg = emColor::rgb(128, 0, 0);
                 painter.paint_rect(0.0, 0.0, w, h, bg, canvas_color);
                 painter.paint_text_boxed(
                     0.05 * w,
@@ -273,7 +273,7 @@ impl FilePanel {
                     h * 0.3,
                     "Saving Failed",
                     h * 0.3,
-                    Color::rgb(255, 0, 0),
+                    emColor::rgb(255, 0, 0),
                     bg,
                     TextAlignment::Center,
                     VAlign::Center,
@@ -289,7 +289,7 @@ impl FilePanel {
                     h * 0.3,
                     &self.error_text,
                     h * 0.3,
-                    Color::rgb(255, 255, 0),
+                    emColor::rgb(255, 255, 0),
                     bg,
                     TextAlignment::Center,
                     VAlign::Center,
@@ -300,7 +300,7 @@ impl FilePanel {
                 );
             }
             VirtualFileState::CustomError(ref msg) => {
-                let bg = Color::rgb(128, 0, 0);
+                let bg = emColor::rgb(128, 0, 0);
                 painter.paint_rect(0.0, 0.0, w, h, bg, canvas_color);
                 painter.paint_text_boxed(
                     0.05 * w,
@@ -309,7 +309,7 @@ impl FilePanel {
                     h * 0.2,
                     "Error",
                     h * 0.2,
-                    Color::rgb(221, 0, 0),
+                    emColor::rgb(221, 0, 0),
                     bg,
                     TextAlignment::Center,
                     VAlign::Center,
@@ -325,7 +325,7 @@ impl FilePanel {
                     h * 0.3,
                     msg,
                     h * 0.4,
-                    Color::rgb(255, 255, 0),
+                    emColor::rgb(255, 255, 0),
                     bg,
                     TextAlignment::Center,
                     VAlign::Center,
@@ -341,7 +341,7 @@ impl FilePanel {
                     w,
                     h,
                     "No file model",
-                    Color::rgba(128, 0, 0, 192),
+                    emColor::rgba(128, 0, 0, 192),
                     canvas_color,
                 );
             }
@@ -352,12 +352,12 @@ impl FilePanel {
 
 /// Paint a centered status text over the full panel area.
 fn paint_status_text(
-    painter: &mut Painter,
+    painter: &mut emPainter,
     w: f64,
     h: f64,
     text: &str,
-    color: Color,
-    canvas_color: Color,
+    color: emColor,
+    canvas_color: emColor,
 ) {
     painter.paint_text_boxed(
         0.0,
@@ -377,7 +377,7 @@ fn paint_status_text(
     );
 }
 
-impl PanelBehavior for FilePanel {
+impl PanelBehavior for emFilePanel {
     fn is_opaque(&self) -> bool {
         matches!(
             self.vir_file_state(),
@@ -387,12 +387,12 @@ impl PanelBehavior for FilePanel {
         )
     }
 
-    fn canvas_color(&self) -> Color {
+    fn canvas_color(&self) -> emColor {
         match self.vir_file_state() {
             VirtualFileState::LoadError(_)
             | VirtualFileState::SaveError(_)
-            | VirtualFileState::CustomError(_) => Color::rgb(128, 0, 0),
-            _ => Color::TRANSPARENT,
+            | VirtualFileState::CustomError(_) => emColor::rgb(128, 0, 0),
+            _ => emColor::TRANSPARENT,
         }
     }
 
@@ -400,7 +400,7 @@ impl PanelBehavior for FilePanel {
         Some("file.tga".to_string())
     }
 
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.paint_status(painter, w, h);
     }
 }
@@ -411,19 +411,19 @@ mod tests {
 
     #[test]
     fn vfs_no_model() {
-        let panel = FilePanel::new();
+        let panel = emFilePanel::new();
         assert_eq!(panel.vir_file_state(), VirtualFileState::NoFileModel);
     }
 
     #[test]
     fn vfs_with_model_waiting() {
-        let panel = FilePanel::with_model();
+        let panel = emFilePanel::with_model();
         assert_eq!(panel.vir_file_state(), VirtualFileState::Waiting);
     }
 
     #[test]
     fn vfs_custom_error_overrides() {
-        let mut panel = FilePanel::with_model();
+        let mut panel = emFilePanel::with_model();
         panel.set_file_state(FileState::Loaded);
         panel.set_custom_error("custom problem");
         assert_eq!(
@@ -436,7 +436,7 @@ mod tests {
 
     #[test]
     fn vfs_too_costly_when_over_limit() {
-        let mut panel = FilePanel::with_model();
+        let mut panel = emFilePanel::with_model();
         panel.set_file_state(FileState::Loaded);
         panel.set_memory_need(1000);
         panel.set_memory_limit(500);
@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn vfs_good_states() {
-        let mut panel = FilePanel::with_model();
+        let mut panel = emFilePanel::with_model();
         panel.set_file_state(FileState::Loaded);
         assert!(panel.vir_file_state().is_good());
 
@@ -458,7 +458,7 @@ mod tests {
 
     #[test]
     fn is_opaque_for_errors() {
-        let mut panel = FilePanel::with_model();
+        let mut panel = emFilePanel::with_model();
         panel.set_file_state(FileState::LoadError("err".to_string()));
         assert!(panel.is_opaque());
 

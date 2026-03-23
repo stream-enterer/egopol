@@ -88,12 +88,12 @@ mod linux {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    use zuicchini::emCore::emMiniIpc::{MiniIpcClient, MiniIpcServer};
+    use zuicchini::emCore::emMiniIpc::{emMiniIpcClient, emMiniIpcServer};
     use zuicchini::emCore::emScheduler::EngineScheduler;
 
     #[test]
     fn server_not_found() {
-        let result = MiniIpcClient::try_send("nonexistent_test_server_12345", &["hello"]);
+        let result = emMiniIpcClient::try_send("nonexistent_test_server_12345", &["hello"]);
         assert!(result.is_err());
     }
 
@@ -103,7 +103,7 @@ mod linux {
         let received: Rc<RefCell<Vec<Vec<String>>>> = Rc::new(RefCell::new(Vec::new()));
         let received_clone = Rc::clone(&received);
 
-        let mut server = MiniIpcServer::new(
+        let mut server = emMiniIpcServer::new(
             &mut sched,
             Box::new(move |args: &[String]| {
                 received_clone.borrow_mut().push(args.to_vec());
@@ -118,7 +118,7 @@ mod linux {
         assert_eq!(server.server_name(), name);
 
         // Send a message
-        MiniIpcClient::try_send(&name, &["hello", "world"]).expect("send message");
+        emMiniIpcClient::try_send(&name, &["hello", "world"]).expect("send message");
 
         // Poll to receive
         // Directly invoke poll by running scheduler time slices
@@ -151,7 +151,7 @@ mod linux {
     #[test]
     fn server_cleanup_removes_fifo() {
         let mut sched = EngineScheduler::new();
-        let mut server = MiniIpcServer::new(&mut sched, Box::new(|_: &[String]| {}));
+        let mut server = emMiniIpcServer::new(&mut sched, Box::new(|_: &[String]| {}));
 
         let name = format!("test-cleanup-{}", std::process::id());
         server
@@ -163,7 +163,7 @@ mod linux {
         assert!(!server.is_serving());
 
         // Verify FIFO is removed — sending should fail
-        let result = MiniIpcClient::try_send(&name, &["test"]);
+        let result = emMiniIpcClient::try_send(&name, &["test"]);
         assert!(result.is_err());
 
         server.cleanup(&mut sched);
@@ -175,7 +175,7 @@ mod linux {
         let received: Rc<RefCell<Vec<Vec<String>>>> = Rc::new(RefCell::new(Vec::new()));
         let received_clone = Rc::clone(&received);
 
-        let mut server = MiniIpcServer::new(
+        let mut server = emMiniIpcServer::new(
             &mut sched,
             Box::new(move |args: &[String]| {
                 received_clone.borrow_mut().push(args.to_vec());
@@ -187,9 +187,9 @@ mod linux {
             .start_serving(&mut sched, Some(&name))
             .expect("start serving");
 
-        MiniIpcClient::try_send(&name, &["msg1"]).expect("send 1");
-        MiniIpcClient::try_send(&name, &["msg2", "arg2"]).expect("send 2");
-        MiniIpcClient::try_send(&name, &["msg3"]).expect("send 3");
+        emMiniIpcClient::try_send(&name, &["msg1"]).expect("send 1");
+        emMiniIpcClient::try_send(&name, &["msg2", "arg2"]).expect("send 2");
+        emMiniIpcClient::try_send(&name, &["msg3"]).expect("send 3");
 
         let start = std::time::Instant::now();
         while received.borrow().len() < 3 {

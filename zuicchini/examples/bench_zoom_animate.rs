@@ -5,13 +5,13 @@
 
 use std::time::Instant;
 
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emImage::emImage;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 use zuicchini::emCore::emPanelTree::PanelTree;
-use zuicchini::emCore::emView::{View, ViewFlags};
-use zuicchini::emCore::emPainter::Painter;
-use zuicchini::emCore::emStroke::Stroke;
+use zuicchini::emCore::emView::{emView, ViewFlags};
+use zuicchini::emCore::emPainter::emPainter;
+use zuicchini::emCore::emStroke::emStroke;
 use zuicchini::emCore::emViewRendererTileCache::{TileCache, TILE_SIZE};
 
 const VW: u32 = 1920;
@@ -19,12 +19,12 @@ const VH: u32 = 1080;
 
 // Panel with moderate complexity (shapes, not just color fill)
 struct GamePanel {
-    test_image: Image,
+    test_image: emImage,
 }
 
 impl GamePanel {
     fn new() -> Self {
-        let mut img = Image::new(64, 64, 4);
+        let mut img = emImage::new(64, 64, 4);
         for y in 0..64u32 {
             for x in 0..64u32 {
                 img.set_pixel_channel(x, y, 0, (x * 4) as u8);
@@ -38,7 +38,7 @@ impl GamePanel {
 }
 
 impl PanelBehavior for GamePanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         use std::f64::consts::PI;
 
         if state.viewed_rect.w < 25.0 {
@@ -49,13 +49,13 @@ impl PanelBehavior for GamePanel {
         painter.scale(w, w);
         let h = h / w;
 
-        let bg = Color::rgba(0x00, 0x1C, 0x38, 0xFF);
-        let fg = Color::grey(136);
+        let bg = emColor::rgba(0x00, 0x1C, 0x38, 0xFF);
+        let fg = emColor::grey(136);
 
-        painter.paint_rect(0.0, 0.0, 1.0, h, bg, Color::TRANSPARENT);
+        painter.paint_rect(0.0, 0.0, 1.0, h, bg, emColor::TRANSPARENT);
         painter.paint_rect_outlined(
             0.01, 0.01, 1.0 - 0.02, h - 0.02,
-            &Stroke::new(fg, 0.02), Color::TRANSPARENT,
+            &emStroke::new(fg, 0.02), emColor::TRANSPARENT,
         );
 
         // Several polygons
@@ -63,15 +63,15 @@ impl PanelBehavior for GamePanel {
             let ox = 0.1 + i as f64 * 0.15;
             painter.paint_polygon(
                 &[(ox, 0.3), (ox + 0.1, 0.3), (ox + 0.05, 0.5)],
-                Color::rgba(100 + i * 30, 50, 200 - i * 30, 200),
-                Color::TRANSPARENT,
+                emColor::rgba(100 + i * 30, 50, 200 - i * 30, 200),
+                emColor::TRANSPARENT,
             );
         }
 
         // Ellipses
         for i in 0..4 {
             let cx = 0.15 + i as f64 * 0.2;
-            painter.paint_ellipse(cx, 0.7, 0.05, 0.03, Color::WHITE, Color::TRANSPARENT);
+            painter.paint_ellipse(cx, 0.7, 0.05, 0.03, emColor::WHITE, emColor::TRANSPARENT);
         }
 
         // Circle
@@ -81,9 +81,9 @@ impl PanelBehavior for GamePanel {
                 (a.sin() * 0.08 + 0.5, a.cos() * 0.08 + 0.85)
             })
             .collect();
-        painter.paint_polygon(&circle, Color::rgba(255, 255, 0, 180), Color::TRANSPARENT);
+        painter.paint_polygon(&circle, emColor::rgba(255, 255, 0, 180), emColor::TRANSPARENT);
 
-        // Image
+        // emImage
         painter.paint_image_scaled(
             0.3, 0.1, 0.1, 0.1,
             &self.test_image,
@@ -99,7 +99,7 @@ impl PanelBehavior for GamePanel {
     }
 }
 
-fn build_tree(panel_count: usize) -> (PanelTree, View) {
+fn build_tree(panel_count: usize) -> (PanelTree, emView) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
     let tallness = VH as f64 / VW as f64;
@@ -132,7 +132,7 @@ fn build_tree(panel_count: usize) -> (PanelTree, View) {
         }
     }
 
-    let mut view = View::new(root, VW as f64, VH as f64);
+    let mut view = emView::new(root, VW as f64, VH as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
     tree.deliver_notices(true, 1.0);
     view.update(&mut tree);
@@ -144,7 +144,7 @@ fn build_tree(panel_count: usize) -> (PanelTree, View) {
 fn simulate_zoom_animation(panel_count: usize, start_zoom: f64, zoom_speed: f64, frames: usize) {
     let (mut tree, mut view) = build_tree(panel_count);
 
-    let mut buf = Image::new(VW, VH, 4);
+    let mut buf = emImage::new(VW, VH, 4);
     let mut tc = TileCache::new(VW, VH, 256);
     let (cols, rows) = tc.grid_size();
 
@@ -162,9 +162,9 @@ fn simulate_zoom_animation(panel_count: usize, start_zoom: f64, zoom_speed: f64,
     view.clear_viewport_changed();
 
     // Warmup frame
-    buf.fill(Color::BLACK);
+    buf.fill(emColor::BLACK);
     {
-        let mut painter = Painter::new(&mut buf);
+        let mut painter = emPainter::new(&mut buf);
         view.paint(&mut tree, &mut painter);
     }
 
@@ -187,9 +187,9 @@ fn simulate_zoom_animation(panel_count: usize, start_zoom: f64, zoom_speed: f64,
         view.clear_viewport_changed();
 
         // 3. Paint (full viewport, simulating mark_all_dirty)
-        buf.fill(Color::BLACK);
+        buf.fill(emColor::BLACK);
         {
-            let mut painter = Painter::new(&mut buf);
+            let mut painter = emPainter::new(&mut buf);
             view.paint(&mut tree, &mut painter);
         }
 

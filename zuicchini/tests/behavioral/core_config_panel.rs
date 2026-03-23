@@ -1,18 +1,18 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emConfigModel::ConfigModel;
-use zuicchini::emCore::emCoreConfig::CoreConfig;
-use zuicchini::emCore::emCoreConfigPanel::CoreConfigPanel;
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emConfigModel::emConfigModel;
+use zuicchini::emCore::emCoreConfig::emCoreConfig;
+use zuicchini::emCore::emCoreConfigPanel::emCoreConfigPanel;
+use zuicchini::emCore::emLook::emLook;
 
 #[test]
 fn smoke_new() {
-    let config = Rc::new(RefCell::new(ConfigModel::new(
-        CoreConfig::default(),
+    let config = Rc::new(RefCell::new(emConfigModel::new(
+        emCoreConfig::default(),
         std::path::PathBuf::from("/tmp/test_core_config.rec"),
         slotmap::KeyData::from_ffi(u64::MAX).into(),
     )));
-    let look = Look::new();
-    let _panel = CoreConfigPanel::new(config, look);
+    let look = emLook::new();
+    let _panel = emCoreConfigPanel::new(config, look);
 }

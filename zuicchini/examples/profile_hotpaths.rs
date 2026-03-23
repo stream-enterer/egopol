@@ -6,26 +6,26 @@
 
 use std::time::Instant;
 
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emPackLayout::PackLayout;
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emPackLayout::emPackLayout;
 use zuicchini::emCore::emTiling::ChildConstraint;
 use zuicchini::emCore::emPanel::PanelBehavior;
 use zuicchini::emCore::emPanelTree::PanelTree;
 use zuicchini::emCore::emView::ViewFlags;
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRendererTileCache::{TileCache, TILE_SIZE};
-use zuicchini::emCore::emBorder::{Border, OuterBorderType};
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emBorder::{emBorder, OuterBorderType};
+use zuicchini::emCore::emLook::emLook;
 
 struct BorderPanel {
-    border: Border,
-    look: Look,
+    border: emBorder,
+    look: emLook,
 }
 
 impl PanelBehavior for BorderPanel {
     fn paint(
         &mut self,
-        painter: &mut Painter,
+        painter: &mut emPainter,
         w: f64,
         h: f64,
         _state: &zuicchini::emCore::emPanel::PanelState,
@@ -43,20 +43,20 @@ fn build_tree(panel_count: usize) -> (PanelTree, zuicchini::emCore::emPanelTree:
     use rand::Rng;
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    let mut layout = PackLayout::new();
+    let mut layout = emPackLayout::new();
     let mut rng = rand::rng();
 
     for i in 0..panel_count {
         let weight: f64 = rng.random_range(1.0..100.0);
         let pct: f64 = rng.random_range(-2.5_f64..2.5).exp();
         let hue: u32 = rng.random_range(0..360);
-        let color = Color::from_hsv(hue as f32, 0.5, 0.5);
-        let look = Look {
+        let color = emColor::from_hsv(hue as f32, 0.5, 0.5);
+        let look = emLook {
             bg_color: color,
-            ..Look::default()
+            ..emLook::default()
         };
         let caption = format!("{pct:.4}");
-        let border = Border::new(OuterBorderType::Filled).with_caption(&caption);
+        let border = emBorder::new(OuterBorderType::Filled).with_caption(&caption);
         let child = tree.create_child(root, &format!("{i:06}"));
         tree.set_behavior(child, Box::new(BorderPanel { border, look }));
         layout.set_child_constraint(
@@ -92,9 +92,9 @@ fn main() {
 
     let t_font = std::time::Duration::ZERO;
 
-    // ── Phase 3: View creation ──
+    // ── Phase 3: emView creation ──
     let t0 = Instant::now();
-    let mut view = zuicchini::emCore::emView::View::new(root, vw as f64, vh as f64);
+    let mut view = zuicchini::emCore::emView::emView::new(root, vw as f64, vh as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
     let t_view = t0.elapsed();
 
@@ -105,7 +105,7 @@ fn main() {
     tree.deliver_notices(true, 1.0);
     let t_layout = t0.elapsed();
 
-    // ── Phase 5: View update (update_viewing) ──
+    // ── Phase 5: emView update (update_viewing) ──
     let t0 = Instant::now();
     view.update(&mut tree);
     let t_update = t0.elapsed();
@@ -121,8 +121,8 @@ fn main() {
     for row in 0..rows {
         for col in 0..cols {
             let tile = tile_cache.get_or_create(col, row);
-            tile.image.fill(Color::BLACK);
-            let mut painter = Painter::new(&mut tile.image);
+            tile.image.fill(emColor::BLACK);
+            let mut painter = emPainter::new(&mut tile.image);
             let tile_size = TILE_SIZE as f64;
             painter.translate(-(col as f64 * tile_size), -(row as f64 * tile_size));
             view.paint(&mut tree, &mut painter);
@@ -147,8 +147,8 @@ fn main() {
         for row in 0..rows {
             for col in 0..cols {
                 let tile = tile_cache.get_or_create(col, row);
-                tile.image.fill(Color::BLACK);
-                let mut painter = Painter::new(&mut tile.image);
+                tile.image.fill(emColor::BLACK);
+                let mut painter = emPainter::new(&mut tile.image);
                 let tile_size = TILE_SIZE as f64;
                 painter.translate(-(col as f64 * tile_size), -(row as f64 * tile_size));
                 view.paint(&mut tree, &mut painter);

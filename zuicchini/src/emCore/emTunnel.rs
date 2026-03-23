@@ -1,20 +1,20 @@
 use std::cell::OnceCell;
 use std::rc::Rc;
 
-use crate::emCore::emColor::Color;
-use crate::emCore::emImage::Image;
+use crate::emCore::emColor::emColor;
+use crate::emCore::emImage::emImage;
 use crate::emCore::rect::Rect;
 use crate::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use crate::emCore::emPanelCtx::PanelCtx;
-use crate::emCore::emPainter::Painter;
+use crate::emCore::emPainter::emPainter;
 
-use super::emBorder::{Border, OuterBorderType};
-use crate::emCore::emLook::Look;
+use super::emBorder::{emBorder, OuterBorderType};
+use crate::emCore::emLook::emLook;
 
-/// Tunnel image loaded once from the toolkit resources.
-fn tunnel_image() -> Image {
+/// emTunnel image loaded once from the toolkit resources.
+fn tunnel_image() -> emImage {
     thread_local! {
-        static IMG: OnceCell<Image> = const { OnceCell::new() };
+        static IMG: OnceCell<emImage> = const { OnceCell::new() };
     }
     IMG.with(|cell| {
         cell.get_or_init(|| {
@@ -33,9 +33,9 @@ fn tunnel_image() -> Image {
 /// (innermost rectangle) of the tunnel.
 ///
 /// Ported from C++ `emTunnel`.
-pub struct Tunnel {
-    border: Border,
-    look: Rc<Look>,
+pub struct emTunnel {
+    border: emBorder,
+    look: Rc<emLook>,
     /// Tallness (height/width) for the child panel at the tunnel end.
     /// A value <= 0.0 means use the tallness of the content rectangle.
     child_tallness: f64,
@@ -61,13 +61,13 @@ pub struct TunnelChildRect {
     /// Height of the child rect.
     pub h: f64,
     /// Canvas color at the tunnel end.
-    pub canvas_color: Color,
+    pub canvas_color: emColor,
 }
 
-impl Tunnel {
-    pub fn new(look: Rc<Look>) -> Self {
+impl emTunnel {
+    pub fn new(look: Rc<emLook>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::Instrument)
+            border: emBorder::new(OuterBorderType::Instrument)
                 .with_inner(super::emBorder::InnerBorderType::Group),
             look,
             child_tallness: 0.0,
@@ -107,7 +107,7 @@ impl Tunnel {
         self.layout_invalid = true;
     }
 
-    pub(crate) fn border_mut(&mut self) -> &mut Border {
+    pub(crate) fn border_mut(&mut self) -> &mut emBorder {
         &mut self.border
     }
 
@@ -115,10 +115,10 @@ impl Tunnel {
     ///
     /// `parent_canvas` is the canvas color of this tunnel panel (i.e.
     /// `ctx.canvas_color()`). It is threaded through the border paint pipeline
-    /// via `Border::content_canvas_color` to arrive at the correct color for
+    /// via `emBorder::content_canvas_color` to arrive at the correct color for
     /// the child panel — matching how C++ `DoTunnel` passes `cc` from
     /// `GetContentRoundRect` into `pCanvasColor`.
-    pub fn child_rect(&self, w: f64, h: f64, parent_canvas: Color) -> TunnelChildRect {
+    pub fn child_rect(&self, w: f64, h: f64, parent_canvas: emColor) -> TunnelChildRect {
         let (rect, ar) = self.content_round_rect(w, h);
         let ax = rect.x;
         let ay = rect.y;
@@ -130,7 +130,7 @@ impl Tunnel {
         // Child rect is the inner rect inset by half the corner radius.
         // Canvas color is computed by walking the border paint pipeline, matching
         // C++ GetContentRoundRect which returns `cc` after DoBorder's canvasColor
-        // tracking (always enabled=true: Tunnel has no InputField/OutputField inner).
+        // tracking (always enabled=true: emTunnel has no InputField/OutputField inner).
         TunnelChildRect {
             x: bx + 0.5 * br,
             y: by + 0.5 * br,
@@ -141,7 +141,7 @@ impl Tunnel {
     }
 
     /// Paint the tunnel decoration.
-    pub fn paint_tunnel(&self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint_tunnel(&self, painter: &mut emPainter, w: f64, h: f64) {
         // Paint the border chrome first.
         self.border
             .paint_border(painter, w, h, &self.look, false, true, 1.0);
@@ -220,9 +220,9 @@ impl Tunnel {
                 let iy = ((img_ry + (img_ry - 0.6) * edge_dy + 0.5) as u32).min(img.height() - 1);
                 let pix = img.pixel(ix, iy);
                 let color = if img.channel_count() >= 4 {
-                    Color::rgba(pix[0], pix[1], pix[2], pix[3])
+                    emColor::rgba(pix[0], pix[1], pix[2], pix[3])
                 } else {
-                    Color::rgb(pix[0], pix[1], pix[2])
+                    emColor::rgb(pix[0], pix[1], pix[2])
                 };
 
                 // Build the quad from the 4 points and paint it.
@@ -286,8 +286,8 @@ impl Tunnel {
     }
 }
 
-impl PanelBehavior for Tunnel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+impl PanelBehavior for emTunnel {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.paint_tunnel(painter, w, h);
     }
 
@@ -327,25 +327,25 @@ mod tests {
 
     #[test]
     fn tunnel_default_depth() {
-        let look = Look::new();
-        let tunnel = Tunnel::new(look);
+        let look = emLook::new();
+        let tunnel = emTunnel::new(look);
         assert!((tunnel.depth() - 10.0).abs() < f64::EPSILON);
         assert!((tunnel.child_tallness() - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn tunnel_set_depth_clamps() {
-        let look = Look::new();
-        let mut tunnel = Tunnel::new(look);
+        let look = emLook::new();
+        let mut tunnel = emTunnel::new(look);
         tunnel.set_depth(-5.0);
         assert!(tunnel.depth() > 0.0);
     }
 
     #[test]
     fn tunnel_child_rect_is_inside_content() {
-        let look = Look::new();
-        let tunnel = Tunnel::new(look);
-        let cr = tunnel.child_rect(100.0, 60.0, Color::BLACK);
+        let look = emLook::new();
+        let tunnel = emTunnel::new(look);
+        let cr = tunnel.child_rect(100.0, 60.0, emColor::BLACK);
         assert!(cr.x > 0.0, "child x={} should be positive", cr.x);
         assert!(cr.y > 0.0, "child y={} should be positive", cr.y);
         assert!(

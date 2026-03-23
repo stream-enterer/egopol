@@ -1,7 +1,7 @@
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 
 
-/// Stroke end type matching Eagle Mode's 17 `emStrokeEnd` variants.
+/// emStroke end type matching Eagle Mode's 17 `emStrokeEnd` variants.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum StrokeEndType {
     Butt,
@@ -20,28 +20,28 @@ pub enum StrokeEndType {
     Diamond,
     ContourDiamond,
     HalfDiamond,
-    Stroke,
+    emStroke,
 }
 
-/// Stroke end decoration with configurable color and size factors.
+/// emStroke end decoration with configurable color and size factors.
 #[derive(Copy, Clone, Debug)]
-pub struct StrokeEnd {
+pub struct emStrokeEnd {
     /// The type of end decoration.
     pub end_type: StrokeEndType,
     /// Fill color for Contour* variants.
-    pub inner_color: Color,
+    pub inner_color: emColor,
     /// Multiplier on decoration width (default 1.0).
     pub width_factor: f64,
     /// Multiplier on decoration length (default 1.0).
     pub length_factor: f64,
 }
 
-impl StrokeEnd {
+impl emStrokeEnd {
     /// Create a butt (no decoration) stroke end.
     pub fn butt() -> Self {
         Self {
             end_type: StrokeEndType::Butt,
-            inner_color: Color::TRANSPARENT,
+            inner_color: emColor::TRANSPARENT,
             width_factor: 1.0,
             length_factor: 1.0,
         }
@@ -51,14 +51,14 @@ impl StrokeEnd {
     pub fn new(end_type: StrokeEndType) -> Self {
         Self {
             end_type,
-            inner_color: Color::TRANSPARENT,
+            inner_color: emColor::TRANSPARENT,
             width_factor: 1.0,
             length_factor: 1.0,
         }
     }
 
     /// Set the inner color (for Contour* variants).
-    pub fn with_inner_color(mut self, color: Color) -> Self {
+    pub fn with_inner_color(mut self, color: emColor) -> Self {
         self.inner_color = color;
         self
     }

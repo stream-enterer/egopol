@@ -1,23 +1,23 @@
-use crate::emCore::emCursor::Cursor;
-use crate::emCore::emInput::InputEvent;
-use crate::emCore::emInputState::InputState;
-use crate::emCore::emPainter::Painter;
+use crate::emCore::emCursor::emCursor;
+use crate::emCore::emInput::emInputEvent;
+use crate::emCore::emInputState::emInputState;
+use crate::emCore::emPainter::emPainter;
 
 use super::emPanel::{NoticeFlags, PanelBehavior, PanelState, ParentInvalidation};
 use super::emPanelTree::{PanelId, PanelTree};
-use super::emView::{View, ViewFlags};
+use super::emView::{emView, ViewFlags};
 
 /// A panel that embeds a sub-view within the parent view's panel tree.
 ///
 /// This enables split-view or embedded-view functionality by maintaining a
-/// separate [`View`] and [`PanelTree`] that are rendered within the bounds of
+/// separate [`emView`] and [`PanelTree`] that are rendered within the bounds of
 /// this panel. Input is forwarded from the parent to the sub-view, and
 /// painting is delegated to the sub-view's own render pipeline.
 ///
 /// Corresponds to C++ `emSubViewPanel`.
-pub struct SubViewPanel {
+pub struct emSubViewPanel {
     sub_tree: PanelTree,
-    sub_view: View,
+    sub_view: emView,
     /// Cached viewed geometry from the parent panel (absolute viewport pixels).
     viewed_x: f64,
     viewed_y: f64,
@@ -25,14 +25,14 @@ pub struct SubViewPanel {
     viewed_height: f64,
 }
 
-impl Default for SubViewPanel {
+impl Default for emSubViewPanel {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl SubViewPanel {
-    /// Create a new SubViewPanel with an empty sub-view.
+impl emSubViewPanel {
+    /// Create a new emSubViewPanel with an empty sub-view.
     ///
     /// The sub-tree is initialized with a root panel. Use [`sub_root`],
     /// [`sub_tree_mut`], and [`sub_view_mut`] to populate the sub-view.
@@ -41,7 +41,7 @@ impl SubViewPanel {
         let root = sub_tree.create_root("sub_root");
         sub_tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
 
-        let sub_view = View::new(root, 1.0, 1.0);
+        let sub_view = emView::new(root, 1.0, 1.0);
 
         Self {
             sub_tree,
@@ -71,12 +71,12 @@ impl SubViewPanel {
     }
 
     /// Get a reference to the sub-view.
-    pub fn sub_view(&self) -> &View {
+    pub fn sub_view(&self) -> &emView {
         &self.sub_view
     }
 
     /// Get a mutable reference to the sub-view.
-    pub fn sub_view_mut(&mut self) -> &mut View {
+    pub fn sub_view_mut(&mut self) -> &mut emView {
         &mut self.sub_view
     }
 
@@ -110,16 +110,16 @@ impl SubViewPanel {
     }
 }
 
-impl PanelBehavior for SubViewPanel {
+impl PanelBehavior for emSubViewPanel {
     fn is_opaque(&self) -> bool {
         true
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         // C++ emSubViewPanel::Input:
         //   if (IsFocusable() && (event.IsMouseEvent() || event.IsTouchEvent())) {
@@ -202,7 +202,7 @@ impl PanelBehavior for SubViewPanel {
         }
     }
 
-    fn paint(&mut self, painter: &mut Painter, _w: f64, _h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, _w: f64, _h: f64, state: &PanelState) {
         if !state.viewed {
             return;
         }
@@ -225,7 +225,7 @@ impl PanelBehavior for SubViewPanel {
             .paint_sub_tree(&mut self.sub_tree, painter, root, base_offset, bg);
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.sub_view.cursor()
     }
 

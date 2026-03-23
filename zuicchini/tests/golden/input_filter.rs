@@ -1,10 +1,10 @@
-use zuicchini::emCore::emInput::{InputEvent, InputKey};
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey};
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanelTree::PanelTree;
 
-use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emView::{emView, ViewFlags};
 
-use zuicchini::emCore::emViewInputFilter::{KeyboardZoomScrollVIF, MouseZoomScrollVIF, ViewInputFilter};
+use zuicchini::emCore::emViewInputFilter::{emKeyboardZoomScrollVIF, emMouseZoomScrollVIF, emViewInputFilter};
 
 use super::common::*;
 
@@ -20,11 +20,11 @@ macro_rules! require_golden {
 /// C++ VIFTestSetup equivalent: 800x600, root panel (0,0,1,0.75),
 /// ROOT_SAME_TALLNESS, zoom 10000x (matching C++ Zoom(400,300,100.0)),
 /// window focused.
-fn setup_vif_view() -> (PanelTree, View) {
+fn setup_vif_view() -> (PanelTree, emView) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.update_viewing(&mut tree);
     // C++ Zoom(400,300,100.0) -> ra = ra/(100^2) -> rel_a = 100^2 = 10000
@@ -51,9 +51,9 @@ const CLOCK_INIT: u64 = 1_000_000;
 /// Clock step per frame (16ms).
 const CLOCK_STEP: u64 = 16;
 
-/// Create a MouseZoomScrollVIF with C++ default config parameters.
-fn setup_mouse_vif(view: &View) -> MouseZoomScrollVIF {
-    let mut vif = MouseZoomScrollVIF::new();
+/// Create a emMouseZoomScrollVIF with C++ default config parameters.
+fn setup_mouse_vif(view: &emView) -> emMouseZoomScrollVIF {
+    let mut vif = emMouseZoomScrollVIF::new();
     let zflpp = view.get_zoom_factor_log_per_pixel();
     // C++ default config: KineticZoomingAndScrolling=1.0, MinKZAS=0.25
     vif.set_mouse_anim_params(1.0, 0.25, zflpp);
@@ -62,9 +62,9 @@ fn setup_mouse_vif(view: &View) -> MouseZoomScrollVIF {
     vif
 }
 
-/// Create a KeyboardZoomScrollVIF with C++ default config parameters.
-fn setup_keyboard_vif(view: &View) -> KeyboardZoomScrollVIF {
-    let mut vif = KeyboardZoomScrollVIF::new();
+/// Create a emKeyboardZoomScrollVIF with C++ default config parameters.
+fn setup_keyboard_vif(view: &emView) -> emKeyboardZoomScrollVIF {
+    let mut vif = emKeyboardZoomScrollVIF::new();
     let zflpp = view.get_zoom_factor_log_per_pixel();
     // C++ default config: kinetic=1.0, min=0.25, scroll/zoom speed=1.0
     vif.set_animator_params(1.0, 0.25, 1.0, 1.0, zflpp);
@@ -72,7 +72,7 @@ fn setup_keyboard_vif(view: &View) -> KeyboardZoomScrollVIF {
 }
 
 /// Record view state trajectory as (rel_x, rel_y, rel_a).
-fn read_view_state(view: &View) -> TrajectoryStep {
+fn read_view_state(view: &emView) -> TrajectoryStep {
     let visit = view.current_visit();
     TrajectoryStep {
         vel_x: visit.rel_x,
@@ -91,8 +91,8 @@ fn filter_wheel_zoom_in() {
     let mut vif = setup_mouse_vif(&view);
 
     // Frame 0: single wheel up at center
-    let event = InputEvent::press(InputKey::WheelUp).with_mouse(400.0, 300.0);
-    let mut state = InputState::new();
+    let event = emInputEvent::press(InputKey::WheelUp).with_mouse(400.0, 300.0);
+    let mut state = emInputState::new();
     state.set_mouse(400.0, 300.0);
     vif.filter(&event, &state, &mut view);
 
@@ -114,8 +114,8 @@ fn filter_wheel_zoom_out() {
     let (mut tree, mut view) = setup_vif_view();
     let mut vif = setup_mouse_vif(&view);
 
-    let event = InputEvent::press(InputKey::WheelDown).with_mouse(400.0, 300.0);
-    let mut state = InputState::new();
+    let event = emInputEvent::press(InputKey::WheelDown).with_mouse(400.0, 300.0);
+    let mut state = emInputState::new();
     state.set_mouse(400.0, 300.0);
     vif.filter(&event, &state, &mut view);
 
@@ -142,8 +142,8 @@ fn filter_wheel_acceleration() {
         // 5 wheel-up events at frames 0, 3, 6, 9, 12 (before step)
         if i == 0 || i == 3 || i == 6 || i == 9 || i == 12 {
             vif.set_test_clock(CLOCK_INIT + i as u64 * CLOCK_STEP);
-            let event = InputEvent::press(InputKey::WheelUp).with_mouse(400.0, 300.0);
-            let mut state = InputState::new();
+            let event = emInputEvent::press(InputKey::WheelUp).with_mouse(400.0, 300.0);
+            let mut state = emInputState::new();
             state.set_mouse(400.0, 300.0);
             vif.filter(&event, &state, &mut view);
         }
@@ -168,8 +168,8 @@ fn filter_middle_pan() {
 
     // Frame 0: middle press at (400, 300)
     {
-        let event = InputEvent::press(InputKey::MouseMiddle).with_mouse(400.0, 300.0);
-        let mut state = InputState::new();
+        let event = emInputEvent::press(InputKey::MouseMiddle).with_mouse(400.0, 300.0);
+        let mut state = emInputState::new();
         state.set_mouse(400.0, 300.0);
         state.press(InputKey::MouseMiddle);
         vif.filter(&event, &state, &mut view);
@@ -181,8 +181,8 @@ fn filter_middle_pan() {
         if (1..=10).contains(&i) {
             let mx = 400.0 + i as f64 * 10.0;
             let my = 300.0 + i as f64 * 10.0;
-            let event = InputEvent::mouse_move(InputKey::MouseMiddle, mx, my);
-            let mut state = InputState::new();
+            let event = emInputEvent::mouse_move(InputKey::MouseMiddle, mx, my);
+            let mut state = emInputState::new();
             state.set_mouse(mx, my);
             state.press(InputKey::MouseMiddle);
             vif.filter(&event, &state, &mut view);
@@ -204,8 +204,8 @@ fn filter_middle_fling() {
 
     // Frame 0: middle press at (400, 300)
     {
-        let event = InputEvent::press(InputKey::MouseMiddle).with_mouse(400.0, 300.0);
-        let mut state = InputState::new();
+        let event = emInputEvent::press(InputKey::MouseMiddle).with_mouse(400.0, 300.0);
+        let mut state = emInputState::new();
         state.set_mouse(400.0, 300.0);
         state.press(InputKey::MouseMiddle);
         vif.filter(&event, &state, &mut view);
@@ -217,8 +217,8 @@ fn filter_middle_fling() {
         if (1..=10).contains(&i) {
             let mx = 400.0 + i as f64 * 10.0;
             let my = 300.0 + i as f64 * 10.0;
-            let event = InputEvent::mouse_move(InputKey::MouseMiddle, mx, my);
-            let mut state = InputState::new();
+            let event = emInputEvent::mouse_move(InputKey::MouseMiddle, mx, my);
+            let mut state = emInputState::new();
             state.set_mouse(mx, my);
             state.press(InputKey::MouseMiddle);
             vif.filter(&event, &state, &mut view);
@@ -226,8 +226,8 @@ fn filter_middle_fling() {
 
         // Frame 10: release middle button (after move event)
         if i == 10 {
-            let event = InputEvent::release(InputKey::MouseMiddle).with_mouse(500.0, 400.0);
-            let mut state = InputState::new();
+            let event = emInputEvent::release(InputKey::MouseMiddle).with_mouse(500.0, 400.0);
+            let mut state = emInputState::new();
             state.set_mouse(500.0, 400.0);
             vif.filter(&event, &state, &mut view);
         }
@@ -251,9 +251,9 @@ fn filter_keyboard_scroll() {
 
     // Frame 0: Alt+Right press (held for all 60 frames)
     {
-        let mut event = InputEvent::press(InputKey::ArrowRight);
+        let mut event = emInputEvent::press(InputKey::ArrowRight);
         event.alt = true;
-        let mut state = InputState::new();
+        let mut state = emInputState::new();
         state.press(InputKey::Alt);
         state.press(InputKey::ArrowRight);
         vif.filter(&event, &state, &mut view);
@@ -278,9 +278,9 @@ fn filter_keyboard_zoom() {
 
     // Frame 0: Alt+PageUp press
     {
-        let mut event = InputEvent::press(InputKey::PageUp);
+        let mut event = emInputEvent::press(InputKey::PageUp);
         event.alt = true;
-        let mut state = InputState::new();
+        let mut state = emInputState::new();
         state.press(InputKey::Alt);
         state.press(InputKey::PageUp);
         vif.filter(&event, &state, &mut view);
@@ -305,9 +305,9 @@ fn filter_keyboard_release() {
 
     // Frame 0: Alt+Right press
     {
-        let mut event = InputEvent::press(InputKey::ArrowRight);
+        let mut event = emInputEvent::press(InputKey::ArrowRight);
         event.alt = true;
-        let mut state = InputState::new();
+        let mut state = emInputState::new();
         state.press(InputKey::Alt);
         state.press(InputKey::ArrowRight);
         vif.filter(&event, &state, &mut view);
@@ -317,9 +317,9 @@ fn filter_keyboard_release() {
     for i in 0..60 {
         // Frame 30: release Right (Alt still held)
         if i == 30 {
-            let mut event = InputEvent::release(InputKey::ArrowRight);
+            let mut event = emInputEvent::release(InputKey::ArrowRight);
             event.alt = true;
-            let mut state = InputState::new();
+            let mut state = emInputState::new();
             state.press(InputKey::Alt);
             vif.filter(&event, &state, &mut view);
         }

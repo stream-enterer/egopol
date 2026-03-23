@@ -1,17 +1,17 @@
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emImage::Image;
-use zuicchini::emCore::emPainter::Painter;
-use zuicchini::emCore::emStroke::Stroke;
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emImage::emImage;
+use zuicchini::emCore::emPainter::emPainter;
+use zuicchini::emCore::emStroke::emStroke;
 
 #[test]
 fn paint_rect_fills_correct_pixels() {
-    let mut img = Image::new(10, 10, 4);
-    img.fill(Color::BLACK);
+    let mut img = emImage::new(10, 10, 4);
+    img.fill(emColor::BLACK);
 
     {
-        let mut p = Painter::new(&mut img);
-        p.set_canvas_color(Color::BLACK);
-        p.paint_rect(2.0, 3.0, 4.0, 2.0, Color::RED, Color::TRANSPARENT);
+        let mut p = emPainter::new(&mut img);
+        p.set_canvas_color(emColor::BLACK);
+        p.paint_rect(2.0, 3.0, 4.0, 2.0, emColor::RED, emColor::TRANSPARENT);
     }
     // Pixel inside the rect
     assert_eq!(img.pixel(3, 3), &[255, 0, 0, 255]);
@@ -23,11 +23,11 @@ fn paint_rect_fills_correct_pixels() {
 
 #[test]
 fn canvas_blend_works_in_painter() {
-    let mut img = Image::new(4, 4, 4);
-    img.fill(Color::rgb(100, 100, 100));
+    let mut img = emImage::new(4, 4, 4);
+    img.fill(emColor::rgb(100, 100, 100));
 
     {
-        let mut p = Painter::new(&mut img);
+        let mut p = emPainter::new(&mut img);
         // Canvas = rgb(50,50,50), source = rgb(150,150,150), alpha = 128
         // target += (150 - 50) * 128 / 255 = target + 50 = 150
         p.set_alpha(128);
@@ -36,8 +36,8 @@ fn canvas_blend_works_in_painter() {
             0.0,
             4.0,
             4.0,
-            Color::rgb(150, 150, 150),
-            Color::rgb(50, 50, 50),
+            emColor::rgb(150, 150, 150),
+            emColor::rgb(50, 50, 50),
         );
     }
     let px = img.pixel(0, 0);
@@ -48,15 +48,15 @@ fn canvas_blend_works_in_painter() {
 
 #[test]
 fn clip_rect_respected() {
-    let mut img = Image::new(10, 10, 4);
-    img.fill(Color::BLACK);
+    let mut img = emImage::new(10, 10, 4);
+    img.fill(emColor::BLACK);
 
     {
-        let mut p = Painter::new(&mut img);
-        p.set_canvas_color(Color::BLACK);
+        let mut p = emPainter::new(&mut img);
+        p.set_canvas_color(emColor::BLACK);
         p.clip_rect(2.0, 2.0, 4.0, 4.0);
         // Paint a rect that extends beyond the clip
-        p.paint_rect(0.0, 0.0, 10.0, 10.0, Color::GREEN, Color::TRANSPARENT);
+        p.paint_rect(0.0, 0.0, 10.0, 10.0, emColor::GREEN, emColor::TRANSPARENT);
     }
     // Inside clip: should be painted
     assert_eq!(img.pixel(3, 3), &[0, 255, 0, 255]);
@@ -67,14 +67,14 @@ fn clip_rect_respected() {
 
 #[test]
 fn coordinate_transforms() {
-    let mut img = Image::new(20, 20, 4);
-    img.fill(Color::BLACK);
+    let mut img = emImage::new(20, 20, 4);
+    img.fill(emColor::BLACK);
 
     {
-        let mut p = Painter::new(&mut img);
-        p.set_canvas_color(Color::BLACK);
+        let mut p = emPainter::new(&mut img);
+        p.set_canvas_color(emColor::BLACK);
         p.translate(5.0, 5.0);
-        p.paint_rect(0.0, 0.0, 2.0, 2.0, Color::BLUE, Color::TRANSPARENT);
+        p.paint_rect(0.0, 0.0, 2.0, 2.0, emColor::BLUE, emColor::TRANSPARENT);
     }
     // Translated rect should appear at (5,5)
     assert_eq!(img.pixel(5, 5), &[0, 0, 255, 255]);
@@ -85,18 +85,18 @@ fn coordinate_transforms() {
 
 #[test]
 fn push_pop_state() {
-    let mut img = Image::new(20, 20, 4);
-    img.fill(Color::BLACK);
+    let mut img = emImage::new(20, 20, 4);
+    img.fill(emColor::BLACK);
 
     {
-        let mut p = Painter::new(&mut img);
-        p.set_canvas_color(Color::BLACK);
+        let mut p = emPainter::new(&mut img);
+        p.set_canvas_color(emColor::BLACK);
         p.push_state();
         p.translate(10.0, 10.0);
-        p.paint_rect(0.0, 0.0, 2.0, 2.0, Color::RED, Color::TRANSPARENT);
+        p.paint_rect(0.0, 0.0, 2.0, 2.0, emColor::RED, emColor::TRANSPARENT);
         p.pop_state();
         // After pop, translation is restored
-        p.paint_rect(0.0, 0.0, 2.0, 2.0, Color::GREEN, Color::TRANSPARENT);
+        p.paint_rect(0.0, 0.0, 2.0, 2.0, emColor::GREEN, emColor::TRANSPARENT);
     }
     // Red at translated position
     assert_eq!(img.pixel(10, 10), &[255, 0, 0, 255]);
@@ -106,13 +106,13 @@ fn push_pop_state() {
 
 #[test]
 fn paint_ellipse_basic() {
-    let mut img = Image::new(20, 20, 4);
-    img.fill(Color::BLACK);
+    let mut img = emImage::new(20, 20, 4);
+    img.fill(emColor::BLACK);
 
     {
-        let mut p = Painter::new(&mut img);
-        p.set_canvas_color(Color::BLACK);
-        p.paint_ellipse(10.0, 10.0, 5.0, 5.0, Color::RED, Color::TRANSPARENT);
+        let mut p = emPainter::new(&mut img);
+        p.set_canvas_color(emColor::BLACK);
+        p.paint_ellipse(10.0, 10.0, 5.0, 5.0, emColor::RED, emColor::TRANSPARENT);
     }
     // Center should be filled
     let px = img.pixel(10, 10);
@@ -123,13 +123,13 @@ fn paint_ellipse_basic() {
 
 #[test]
 fn paint_line_basic() {
-    let mut img = Image::new(10, 10, 4);
-    img.fill(Color::BLACK);
+    let mut img = emImage::new(10, 10, 4);
+    img.fill(emColor::BLACK);
 
     {
-        let mut p = Painter::new(&mut img);
-        p.set_canvas_color(Color::BLACK);
-        p.paint_line(0.0, 0.0, 9.0, 0.0, Color::WHITE, Color::TRANSPARENT);
+        let mut p = emPainter::new(&mut img);
+        p.set_canvas_color(emColor::BLACK);
+        p.paint_line(0.0, 0.0, 9.0, 0.0, emColor::WHITE, emColor::TRANSPARENT);
     }
     // Horizontal line at y=0
     assert_eq!(img.pixel(0, 0), &[255, 255, 255, 255]);
@@ -140,17 +140,17 @@ fn paint_line_basic() {
 
 #[test]
 fn paint_rect_outlined() {
-    let mut img = Image::new(20, 20, 4);
-    img.fill(Color::BLACK);
+    let mut img = emImage::new(20, 20, 4);
+    img.fill(emColor::BLACK);
 
     {
-        let mut p = Painter::new(&mut img);
-        p.set_canvas_color(Color::BLACK);
-        let stroke = Stroke::new(Color::WHITE, 2.0);
-        p.paint_rect_outlined(5.0, 5.0, 10.0, 10.0, &stroke, Color::TRANSPARENT);
+        let mut p = emPainter::new(&mut img);
+        p.set_canvas_color(emColor::BLACK);
+        let stroke = emStroke::new(emColor::WHITE, 2.0);
+        p.paint_rect_outlined(5.0, 5.0, 10.0, 10.0, &stroke, emColor::TRANSPARENT);
     }
     // Top edge interior pixel (fully inside the stroke ring).
-    // Stroke centered on boundary: outer=(4,4), inner=(6,6).
+    // emStroke centered on boundary: outer=(4,4), inner=(6,6).
     // Pixel (8,5) is fully within the top stroke band.
     assert_eq!(img.pixel(8, 5), &[255, 255, 255, 255]);
     // Center should be canvas color (only outline)
@@ -160,18 +160,18 @@ fn paint_rect_outlined() {
 #[test]
 fn paint_image_colored_basic() {
     // Create a 2x2 greyscale image
-    let mut alpha_img = Image::new(2, 2, 1);
+    let mut alpha_img = emImage::new(2, 2, 1);
     alpha_img.pixel_mut(0, 0)[0] = 255;
     alpha_img.pixel_mut(1, 0)[0] = 128;
     alpha_img.pixel_mut(0, 1)[0] = 0;
     alpha_img.pixel_mut(1, 1)[0] = 64;
 
-    let mut target = Image::new(4, 4, 4);
-    target.fill(Color::BLACK);
+    let mut target = emImage::new(4, 4, 4);
+    target.fill(emColor::BLACK);
 
     {
-        let mut p = Painter::new(&mut target);
-        p.set_canvas_color(Color::BLACK);
+        let mut p = emPainter::new(&mut target);
+        p.set_canvas_color(emColor::BLACK);
         p.paint_image_colored(
             0.0,
             0.0,
@@ -182,9 +182,9 @@ fn paint_image_colored_basic() {
             0,
             2,
             2,
-            Color::TRANSPARENT,
-            Color::RED,
-            Color::TRANSPARENT,
+            emColor::TRANSPARENT,
+            emColor::RED,
+            emColor::TRANSPARENT,
             zuicchini::emCore::emTexture::ImageExtension::EdgeOrZero,
         );
     }

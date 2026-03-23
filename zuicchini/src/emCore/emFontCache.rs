@@ -5,7 +5,7 @@
 //! is an 8-bit anti-aliased coverage value (0 = transparent, 255 = fully
 //! opaque foreground).
 
-use crate::emCore::emImage::Image;
+use crate::emCore::emImage::emImage;
 use std::sync::OnceLock;
 
 const TGA_DATA: &[u8] =
@@ -25,10 +25,10 @@ const COLUMN_COUNT: u32 = 16;
 /// Height-to-width ratio matching C++ `emPainter::CharBoxTallness`.
 pub(crate) const CHAR_BOX_TALLNESS: f64 = 1.77;
 
-static ATLAS: OnceLock<Image> = OnceLock::new();
+static ATLAS: OnceLock<emImage> = OnceLock::new();
 
 /// Returns a reference to the decoded font atlas (single-channel grayscale).
-pub(crate) fn atlas() -> &'static Image {
+pub(crate) fn atlas() -> &'static emImage {
     ATLAS.get_or_init(|| decode_tga_rle_grayscale(TGA_DATA))
 }
 
@@ -47,8 +47,8 @@ pub(crate) fn get_glyph(ch: char) -> (u32, u32, u32, u32) {
 }
 
 /// Decode a TGA type 11 (RLE-compressed grayscale, 8bpp) into a
-/// single-channel `Image`.
-fn decode_tga_rle_grayscale(data: &[u8]) -> Image {
+/// single-channel `emImage`.
+fn decode_tga_rle_grayscale(data: &[u8]) -> emImage {
     assert!(data.len() >= 18, "TGA data too short");
 
     let id_len = data[0] as usize;
@@ -104,7 +104,7 @@ fn decode_tga_rle_grayscale(data: &[u8]) -> Image {
         pixels = flipped;
     }
 
-    Image::from_raw(width, height, 1, pixels)
+    emImage::from_raw(width, height, 1, pixels)
 }
 
 #[cfg(test)]

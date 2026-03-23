@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::emCore::emInstallInfo::get_config_dir_overloadable;
 use crate::emCore::emRec::{RecError, RecStruct, RecValue};
-use crate::emCore::emContext::Context;
+use crate::emCore::emContext::emContext;
 use crate::emCore::emRecRecord::Record;
 
 // ── FpPluginProperty ────────────────────────────────────────────────
@@ -44,7 +44,7 @@ pub enum FileStatMode {
     Directory,
 }
 
-// ── FpPlugin ────────────────────────────────────────────────────────
+// ── emFpPlugin ────────────────────────────────────────────────────────
 
 /// A file panel plugin record.
 ///
@@ -52,7 +52,7 @@ pub enum FileStatMode {
 /// panels (and optionally models) for files of certain types. The metadata
 /// is loaded from `.emFpPlugin` configuration files.
 #[derive(Debug)]
-pub struct FpPlugin {
+pub struct emFpPlugin {
     /// File types this plugin handles (e.g. `".png"`, `"file"`, `"directory"`).
     pub file_types: Vec<String>,
     /// Human-readable name for the file format.
@@ -93,14 +93,14 @@ impl std::fmt::Debug for CachedLibrary {
     }
 }
 
-impl FpPlugin {
-    /// Create a new FpPlugin with default values.
+impl emFpPlugin {
+    /// Create a new emFpPlugin with default values.
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl Clone for FpPlugin {
+impl Clone for emFpPlugin {
     fn clone(&self) -> Self {
         Self {
             file_types: self.file_types.clone(),
@@ -118,8 +118,8 @@ impl Clone for FpPlugin {
     }
 }
 
-impl FpPlugin {
-    /// Look up a plugin property by name.
+impl emFpPlugin {
+    /// emLook up a plugin property by name.
     ///
     /// Port of C++ `emFpPlugin::GetProperty`. Returns `None` if not found.
     pub fn get_property(&self, name: &str) -> Option<&FpPluginProperty> {
@@ -226,7 +226,7 @@ impl FpPlugin {
     }
 }
 
-impl Record for FpPlugin {
+impl Record for emFpPlugin {
     fn from_rec(rec: &RecStruct) -> Result<Self, RecError> {
         // FileTypes — array of strings.
         let file_types = match rec.get_array("filetypes") {
@@ -352,7 +352,7 @@ impl Record for FpPlugin {
     }
 }
 
-impl Default for FpPlugin {
+impl Default for emFpPlugin {
     fn default() -> Self {
         Self {
             file_types: Vec::new(),
@@ -372,7 +372,7 @@ impl Default for FpPlugin {
 
 // ── FpPluginError ───────────────────────────────────────────────────
 
-/// Errors from FpPlugin operations.
+/// Errors from emFpPlugin operations.
 #[derive(Debug)]
 pub enum FpPluginError {
     /// The library name field is empty.
@@ -427,22 +427,22 @@ impl std::fmt::Display for FpPluginError {
 
 impl std::error::Error for FpPluginError {}
 
-// ── FpPluginList ────────────────────────────────────────────────────
+// ── emFpPluginList ────────────────────────────────────────────────────
 
 /// A registry of file panel plugins, loaded from `.emFpPlugin` config files.
 ///
 /// Port of C++ `emFpPluginList`. Registered as a common model in the root
-/// context via `FpPluginList::acquire()`. Plugins are sorted by descending
+/// context via `emFpPluginList::acquire()`. Plugins are sorted by descending
 /// priority.
-pub struct FpPluginList {
-    plugins: Vec<FpPlugin>,
+pub struct emFpPluginList {
+    plugins: Vec<emFpPlugin>,
 }
 
-impl FpPluginList {
+impl emFpPluginList {
     /// Acquire the plugin list from the root context (create if absent).
     ///
     /// Port of C++ `emFpPluginList::Acquire(rootContext)`.
-    pub fn acquire(root_context: &Rc<Context>) -> Rc<RefCell<Self>> {
+    pub fn acquire(root_context: &Rc<emContext>) -> Rc<RefCell<Self>> {
         root_context.acquire::<Self>("", Self::load_plugins)
     }
 
@@ -474,10 +474,10 @@ impl FpPluginList {
         Self { plugins }
     }
 
-    /// Create an `FpPluginList` from an explicit list of plugins (for testing).
+    /// Create an `emFpPluginList` from an explicit list of plugins (for testing).
     ///
     /// Plugins are sorted by descending priority.
-    pub fn from_plugins(mut plugins: Vec<FpPlugin>) -> Self {
+    pub fn from_plugins(mut plugins: Vec<emFpPlugin>) -> Self {
         plugins.sort_by(|a, b| {
             b.priority
                 .partial_cmp(&a.priority)
@@ -492,7 +492,7 @@ impl FpPluginList {
     }
 
     /// Return a slice of all plugins (sorted by descending priority).
-    pub fn plugins(&self) -> &[FpPlugin] {
+    pub fn plugins(&self) -> &[emFpPlugin] {
         &self.plugins
     }
 
@@ -516,7 +516,7 @@ impl FpPluginList {
         require_able_to_save: bool,
         alternative: usize,
         stat_mode: FileStatMode,
-    ) -> Option<&FpPlugin> {
+    ) -> Option<&emFpPlugin> {
         let file_name = file_path.map(extract_file_name);
 
         let mut skip = alternative;
@@ -541,7 +541,7 @@ impl FpPluginList {
         file_path: Option<&str>,
         require_able_to_save: bool,
         stat_mode: FileStatMode,
-    ) -> Vec<&FpPlugin> {
+    ) -> Vec<&emFpPlugin> {
         let file_name = file_path.map(extract_file_name);
 
         self.plugins
@@ -564,7 +564,7 @@ fn extract_file_name(path: &str) -> &str {
 }
 
 /// Load all `.emFpPlugin` files from a directory.
-fn load_plugins_from_dir(dir_path: &PathBuf) -> Vec<FpPlugin> {
+fn load_plugins_from_dir(dir_path: &PathBuf) -> Vec<emFpPlugin> {
     let mut plugins = Vec::new();
 
     let entries = match std::fs::read_dir(dir_path) {
@@ -605,10 +605,10 @@ fn load_plugins_from_dir(dir_path: &PathBuf) -> Vec<FpPlugin> {
     plugins
 }
 
-/// Load a single FpPlugin from an emRec config file.
-fn load_plugin_from_file(path: &Path) -> Result<FpPlugin, RecError> {
-    use crate::emCore::emRecRecTypes::RecFileReader;
+/// Load a single emFpPlugin from an emRec config file.
+fn load_plugin_from_file(path: &Path) -> Result<emFpPlugin, RecError> {
+    use crate::emCore::emRecRecTypes::emRecFileReader;
 
-    let rec = RecFileReader::read_with_format(path, "emFpPlugin")?;
-    FpPlugin::from_rec(&rec)
+    let rec = emRecFileReader::read_with_format(path, "emFpPlugin")?;
+    emFpPlugin::from_rec(&rec)
 }

@@ -6,11 +6,11 @@ use crate::dlog;
 use crate::emCore::emPanelCtx::PanelCtx;
 use super::emPanelTree::{PanelId, PanelTree};
 use crate::emCore::emClipRects::ClipRects;
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::emRec::{write_rec_with_format, RecStruct, RecValue};
 use crate::emCore::rect::Rect;
-use crate::emCore::emCursor::Cursor;
-use crate::emCore::emPainter::{Painter, TextAlignment, VAlign};
+use crate::emCore::emCursor::emCursor;
+use crate::emCore::emPainter::{emPainter, TextAlignment, VAlign};
 
 bitflags! {
     /// Flags controlling view behavior.
@@ -136,17 +136,17 @@ impl StressTest {
     }
 
     /// Paint the "Stress Test XX.X Hz" overlay in the top-left corner.
-    pub fn paint_info(&self, painter: &mut Painter, _view_w: f64, view_h: f64) {
+    pub fn paint_info(&self, painter: &mut emPainter, _view_w: f64, view_h: f64) {
         let text_h = (view_h / 45.0).max(10.0);
         let box_w = text_h * 8.0;
         let box_h = text_h * 2.5;
 
         // Purple background (matches C++: 255,0,255,128)
-        let bg = Color::rgba(255, 0, 255, 128);
-        painter.paint_rect(0.0, 0.0, box_w, box_h, bg, Color::TRANSPARENT);
+        let bg = emColor::rgba(255, 0, 255, 128);
+        painter.paint_rect(0.0, 0.0, box_w, box_h, bg, emColor::TRANSPARENT);
 
         // Yellow text (matches C++: 255,255,0,192)
-        let fg = Color::rgba(255, 255, 0, 192);
+        let fg = emColor::rgba(255, 255, 0, 192);
         let label = format!("Stress Test\n{:.1} Hz", self.frame_rate);
         painter.paint_text_boxed(
             0.0,
@@ -175,9 +175,9 @@ impl StressTest {
     }
 }
 
-/// The View manages the viewport — which panels are visible and how they're
+/// The emView manages the viewport — which panels are visible and how they're
 /// navigated and rendered.
-pub struct View {
+pub struct emView {
     root: PanelId,
     active: Option<PanelId>,
     focused: Option<PanelId>,
@@ -186,7 +186,7 @@ pub struct View {
     viewport_width: f64,
     viewport_height: f64,
     svp: Option<PanelId>,
-    background_color: Color,
+    background_color: emColor,
     svp_update_count: u32,
     window_focused: bool,
     /// Panel targeted by the visiting animator's seek operation.
@@ -215,7 +215,7 @@ pub struct View {
     needs_animator_abort: bool,
     /// D-PANEL-02: Pending animated visit goal. Navigation methods set this
     /// instead of doing an instant jump. The window loop feeds this to the
-    /// VisitingViewAnimator. None means no pending animated visit.
+    /// emVisitingViewAnimator. None means no pending animated visit.
     pending_animated_visit: Option<VisitState>,
     /// PORT-0129: Countdown for delayed End-Of-Interaction signal.
     /// When `Some(n)`, tick_eoi() decrements each frame and fires when 0.
@@ -226,7 +226,7 @@ pub struct View {
     /// The view title. Updated from the active panel's title.
     pub title: String,
     /// Current mouse cursor for this view.
-    pub cursor: Cursor,
+    pub cursor: emCursor,
     /// Maximum popup view rectangle (pixel coords of bounding monitor rect).
     pub max_popup_rect: Option<Rect>,
     /// Whether the view is currently in popped-up state (popup window active).
@@ -244,7 +244,7 @@ pub struct View {
     stress_test: Option<StressTest>,
 }
 
-impl View {
+impl emView {
     pub fn new(root: PanelId, viewport_width: f64, viewport_height: f64) -> Self {
         let initial_visit = VisitState {
             panel: root,
@@ -261,7 +261,7 @@ impl View {
             viewport_width,
             viewport_height,
             svp: None,
-            background_color: Color::rgba(0x80, 0x80, 0x80, 0xFF),
+            background_color: emColor::rgba(0x80, 0x80, 0x80, 0xFF),
             svp_update_count: 0,
             window_focused: true,
             seek_pos_panel: None,
@@ -282,7 +282,7 @@ impl View {
             pending_animated_visit: None,
             eoi_countdown: None,
             title: String::new(),
-            cursor: Cursor::Normal,
+            cursor: emCursor::Normal,
             max_popup_rect: None,
             popped_up: false,
             visited_vw: viewport_width.max(1.0),
@@ -444,7 +444,7 @@ impl View {
     }
 
     /// D-PANEL-02: Request an animated visit to a panel. Sets a pending goal
-    /// that the window loop feeds to the VisitingViewAnimator. Also sets the
+    /// that the window loop feeds to the emVisitingViewAnimator. Also sets the
     /// active panel immediately for UI responsiveness.
     pub fn animated_visit(
         &mut self,
@@ -1615,7 +1615,7 @@ impl View {
 
     /// Remove a panel from the tree, moving activation to its parent if needed.
     /// Matches C++ `~emPanel` which calls `SetFocusable(false)` before unlinking,
-    /// causing `View.SetActivePanel(Parent, false)`.
+    /// causing `emView.SetActivePanel(Parent, false)`.
     pub fn remove_panel(&mut self, tree: &mut PanelTree, id: PanelId) {
         if tree.get(id).map(|p| p.in_active_path).unwrap_or(false) {
             if let Some(parent) = tree.parent(id) {
@@ -1682,7 +1682,7 @@ impl View {
     /// Return the pixel tallness (height/width ratio of a pixel).
     ///
     /// Corresponds to `emPanel::GetViewedPixelTallness` (delegates to
-    /// `View.CurrentPixelTallness`).
+    /// `emView.CurrentPixelTallness`).
     pub fn pixel_tallness(&self) -> f64 {
         self.pixel_tallness
     }
@@ -1842,7 +1842,7 @@ impl View {
     }
 
     /// Collect invalidation signals from panel behaviors that manage sub-views
-    /// (e.g. [`SubViewPanel`](super::emSubViewPanel::SubViewPanel)). Drains each behavior's
+    /// (e.g. [`emSubViewPanel`](super::emSubViewPanel::emSubViewPanel)). Drains each behavior's
     /// pending parent invalidation and merges the dirty rects, title, and
     /// cursor flags into this view.
     ///
@@ -1882,7 +1882,7 @@ impl View {
 
     /// VIEW-003: Whether scroll/zoom was called and any active animator should
     /// be aborted. The window loop should check this and abort the
-    /// VisitingViewAnimator if active.
+    /// emVisitingViewAnimator if active.
     pub fn needs_animator_abort(&self) -> bool {
         self.needs_animator_abort
     }
@@ -1894,7 +1894,7 @@ impl View {
 
     /// D-PANEL-02: Take the pending animated visit goal. Returns `Some` if a
     /// navigation method requested an animated visit. The window loop should
-    /// feed this to the VisitingViewAnimator.
+    /// feed this to the emVisitingViewAnimator.
     pub fn take_pending_animated_visit(&mut self) -> Option<VisitState> {
         self.pending_animated_visit.take()
     }
@@ -1908,13 +1908,13 @@ impl View {
 
     /// Get the background color of this view. Used for areas not covered by
     /// panels or where panels are transparent. Matches C++ `emView::GetBackgroundColor`.
-    pub fn background_color(&self) -> Color {
+    pub fn background_color(&self) -> emColor {
         self.background_color
     }
 
     /// Set the background color of this view. If changed, the view is
     /// invalidated for repainting. Matches C++ `emView::SetBackgroundColor`.
-    pub fn set_background_color(&mut self, color: Color) {
+    pub fn set_background_color(&mut self, color: emColor) {
         if self.background_color != color {
             self.background_color = color;
             self.viewport_changed = true;
@@ -2088,21 +2088,21 @@ impl View {
         self.max_popup_rect = rect;
     }
 
-    // --- Cursor (C++ GetCursor) ---
+    // --- emCursor (C++ GetCursor) ---
 
     /// Get the current mouse cursor for this view. In C++, GetCursor() is
     /// virtual and defaults to the cursor of the panel under the mouse.
-    pub fn cursor(&self) -> Cursor {
+    pub fn cursor(&self) -> emCursor {
         // C++ emView.cpp ~1358: when EGO_MODE active and cursor is Normal,
         // override to Crosshair.
-        if self.flags.contains(ViewFlags::EGO_MODE) && self.cursor == Cursor::Normal {
-            return Cursor::Crosshair;
+        if self.flags.contains(ViewFlags::EGO_MODE) && self.cursor == emCursor::Normal {
+            return emCursor::Crosshair;
         }
         self.cursor
     }
 
     /// Set the current mouse cursor. Called after resolving cursor from panels.
-    pub fn set_cursor(&mut self, cursor: Cursor) {
+    pub fn set_cursor(&mut self, cursor: emCursor) {
         self.cursor = cursor;
         self.cursor_invalid = false;
     }
@@ -2132,15 +2132,15 @@ impl View {
         self.control_panel_invalid
     }
 
-    // --- Window/Screen access (C++ GetWindow / GetScreen) ---
+    // --- Window/emScreen access (C++ GetWindow / GetScreen) ---
     //
     // In C++, emView inherits from emContext which provides a parent-context
     // chain. GetWindow() walks up the context chain to find the nearest
     // emWindow, and GetScreen() finds the nearest emScreen.
     //
-    // In Rust, View is a plain struct owned by the window. The window/screen
-    // relationship is managed externally. These methods are not needed on View
-    // itself — callers that have a View reference already know which window
+    // In Rust, emView is a plain struct owned by the window. The window/screen
+    // relationship is managed externally. These methods are not needed on emView
+    // itself — callers that have a emView reference already know which window
     // owns it. If cross-view queries are needed in the future, the window
     // layer can provide the mapping.
 
@@ -2202,7 +2202,7 @@ impl View {
 
     // --- Paint ---
 
-    pub fn paint(&self, tree: &mut PanelTree, painter: &mut Painter) {
+    pub fn paint(&self, tree: &mut PanelTree, painter: &mut emPainter) {
         // Fill background
         painter.push_state();
         painter.paint_rect(
@@ -2211,7 +2211,7 @@ impl View {
             self.viewport_width,
             self.viewport_height,
             self.background_color,
-            Color::TRANSPARENT,
+            emColor::TRANSPARENT,
         );
         painter.pop_state();
 
@@ -2234,7 +2234,7 @@ impl View {
     /// C++ draws a rounded rectangle with arrows around the active panel's
     /// substance rect. White normally, light yellow if adherent, dimmed if
     /// window not focused.
-    fn paint_highlight(&self, tree: &PanelTree, painter: &mut Painter) {
+    fn paint_highlight(&self, tree: &PanelTree, painter: &mut emPainter) {
         if self.flags.contains(ViewFlags::NO_ACTIVE_HIGHLIGHT) {
             return;
         }
@@ -2267,11 +2267,11 @@ impl View {
         let hw = hw + pad * 2.0;
         let hh = hh + pad * 2.0;
 
-        // Color selection (C++ constants)
+        // emColor selection (C++ constants)
         let base_color = if self.activation_adherent {
-            Color::rgba(255, 255, 187, 255) // Light yellow for adherent
+            emColor::rgba(255, 255, 187, 255) // Light yellow for adherent
         } else {
-            Color::rgba(255, 255, 255, 255) // White
+            emColor::rgba(255, 255, 255, 255) // White
         };
 
         let alpha = if !self.window_focused || self.flags.contains(ViewFlags::NO_FOCUS_HIGHLIGHT) {
@@ -2280,7 +2280,7 @@ impl View {
             255
         };
 
-        let color = Color::rgba(base_color.r(), base_color.g(), base_color.b(), alpha);
+        let color = emColor::rgba(base_color.r(), base_color.g(), base_color.b(), alpha);
 
         // Shadow color: black with alpha 192 normally, alpha/3 when unfocused
         let shadow_alpha =
@@ -2289,7 +2289,7 @@ impl View {
             } else {
                 192
             };
-        let shadow_color = Color::rgba(0, 0, 0, shadow_alpha);
+        let shadow_color = emColor::rgba(0, 0, 0, shadow_alpha);
 
         // C++ constants
         let arrow_size = 11.0;
@@ -2374,15 +2374,15 @@ impl View {
     }
 
     /// Paint a sub-tree starting at `root` with the given base offset and
-    /// background color. Used by [`SubViewPanel`] to delegate painting to a
+    /// background color. Used by [`emSubViewPanel`] to delegate painting to a
     /// sub-view's panel tree.
     pub(crate) fn paint_sub_tree(
         &self,
         tree: &mut PanelTree,
-        painter: &mut Painter,
+        painter: &mut emPainter,
         root: PanelId,
         base_offset: (f64, f64),
-        background: Color,
+        background: emColor,
     ) {
         self.paint_panel_recursive(tree, painter, root, base_offset, background);
     }
@@ -2390,10 +2390,10 @@ impl View {
     fn paint_panel_recursive(
         &self,
         tree: &mut PanelTree,
-        painter: &mut Painter,
+        painter: &mut emPainter,
         id: PanelId,
         base_offset: (f64, f64),
-        parent_canvas: Color,
+        parent_canvas: emColor,
     ) {
         let (vx, vy, vw, vh, clip_x, clip_y, clip_w, clip_h, canvas_color, layout_rect) = {
             match tree.get(id) {
@@ -2482,7 +2482,7 @@ impl View {
     pub fn dump_tree(&self, tree: &mut PanelTree) -> std::path::PathBuf {
         let path = std::env::temp_dir().join("debug.emTreeDump");
 
-        // View-level data: flags, title, focused, home_rect
+        // emView-level data: flags, title, focused, home_rect
         let mut view_rec = RecStruct::new();
         view_rec.set_str("title", &self.title);
         view_rec.set_str("flags", &format!("{:?}", self.flags));
@@ -2608,30 +2608,30 @@ fn compute_arrow_count(len: f64, arrow_distance: f64) -> usize {
 /// Paint a single highlight arrow (shadow + arrow polygon).
 #[allow(clippy::too_many_arguments)]
 fn paint_highlight_arrow(
-    painter: &mut Painter,
+    painter: &mut emPainter,
     x: f64,
     y: f64,
     goal_x: f64,
     goal_y: f64,
     arrow_size: f64,
-    color: Color,
-    shadow_color: Color,
+    color: emColor,
+    shadow_color: emColor,
 ) {
     let sd = arrow_size * 0.2;
 
     // Shadow polygon (offset toward bottom-right)
     let shadow_verts = compute_arrow_vertices(x + sd, y + sd, goal_x, goal_y, arrow_size);
-    painter.paint_polygon(&shadow_verts, shadow_color, Color::TRANSPARENT);
+    painter.paint_polygon(&shadow_verts, shadow_color, emColor::TRANSPARENT);
 
     // Arrow polygon
     let verts = compute_arrow_vertices(x, y, goal_x, goal_y, arrow_size);
-    painter.paint_polygon(&verts, color, Color::TRANSPARENT);
+    painter.paint_polygon(&verts, color, emColor::TRANSPARENT);
 }
 
 /// Paint arrows along a straight line segment.
 #[allow(clippy::too_many_arguments)]
 fn paint_highlight_arrows_on_line(
-    painter: &mut Painter,
+    painter: &mut emPainter,
     x1: f64,
     y1: f64,
     x2: f64,
@@ -2640,8 +2640,8 @@ fn paint_highlight_arrows_on_line(
     goal_y: f64,
     arrow_size: f64,
     arrow_distance: f64,
-    color: Color,
-    shadow_color: Color,
+    color: emColor,
+    shadow_color: emColor,
     vw: f64,
     vh: f64,
 ) {
@@ -2685,7 +2685,7 @@ fn paint_highlight_arrows_on_line(
 /// Paint arrows along a quarter-circle arc (bow).
 #[allow(clippy::too_many_arguments)]
 fn paint_highlight_arrows_on_bow(
-    painter: &mut Painter,
+    painter: &mut emPainter,
     cx: f64,
     cy: f64,
     radius: f64,
@@ -2694,8 +2694,8 @@ fn paint_highlight_arrows_on_bow(
     goal_y: f64,
     arrow_size: f64,
     arrow_distance: f64,
-    color: Color,
-    shadow_color: Color,
+    color: emColor,
+    shadow_color: emColor,
     vw: f64,
     vh: f64,
 ) {
@@ -2767,7 +2767,7 @@ mod tests {
     #[test]
     fn test_update_viewing_sets_coords() {
         let (mut tree, root, child1, child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         // Root should be viewed
@@ -2784,7 +2784,7 @@ mod tests {
     #[test]
     fn test_svp_selection() {
         let (mut tree, root, _child1, _child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         // SVP should be set
@@ -2800,7 +2800,7 @@ mod tests {
         let offscreen = tree.create_child(root, "offscreen");
         tree.set_layout_rect(offscreen, 5.0, 5.0, 0.1, 0.1);
 
-        let mut view = View::new(root, 100.0, 100.0);
+        let mut view = emView::new(root, 100.0, 100.0);
         view.update_viewing(&mut tree);
 
         assert!(!tree.get(offscreen).unwrap().viewed);
@@ -2809,7 +2809,7 @@ mod tests {
     #[test]
     fn test_active_path_flags() {
         let (mut tree, root, child1, _child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.set_active_panel(&mut tree, child1, false);
         view.update_viewing(&mut tree);
 
@@ -2821,7 +2821,7 @@ mod tests {
     #[test]
     fn test_fix_point_zoom() {
         let (_tree, root, _c1, _c2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
 
         // Zoom around center — should keep center stable
         let before = view.current_visit().clone();
@@ -2835,7 +2835,7 @@ mod tests {
     #[test]
     fn test_visit_next_prev() {
         let (mut tree, root, child1, child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
         view.set_active_panel(&mut tree, child1, false);
 
@@ -2853,7 +2853,7 @@ mod tests {
         tree.get_mut(grandchild).unwrap().focusable = true;
         tree.set_layout_rect(grandchild, 0.0, 0.0, 1.0, 1.0);
 
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
         view.set_active_panel(&mut tree, child1, false);
 
@@ -2867,7 +2867,7 @@ mod tests {
     #[test]
     fn test_hit_testing() {
         let (mut tree, root, child1, child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         // Hit test in left half should find child1, right half child2
@@ -2881,7 +2881,7 @@ mod tests {
     #[test]
     fn test_directional_navigation() {
         let (mut tree, root, child1, child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
         view.set_active_panel(&mut tree, child1, false);
 
@@ -2896,7 +2896,7 @@ mod tests {
     #[test]
     fn test_focus_panel() {
         let (mut tree, root, child1, _child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.set_window_focused(&mut tree, false);
 
         view.focus_panel(&mut tree, child1);
@@ -2907,7 +2907,7 @@ mod tests {
     #[test]
     fn test_is_panel_focused() {
         let (mut tree, root, child1, _child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
         view.set_active_panel(&mut tree, child1, false);
 
@@ -2921,7 +2921,7 @@ mod tests {
     #[test]
     fn test_is_panel_in_focused_path() {
         let (mut tree, root, child1, child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
         view.set_active_panel(&mut tree, child1, false);
 
@@ -2936,7 +2936,7 @@ mod tests {
     #[test]
     fn test_is_view_focused_delegate() {
         let (mut tree, root, _c1, _c2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         assert!(view.is_view_focused());
         view.set_window_focused(&mut tree, false);
         assert!(!view.is_view_focused());
@@ -2947,7 +2947,7 @@ mod tests {
     #[test]
     fn test_invalidate_painting_whole() {
         let (mut tree, root, child1, _child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         // child1 should be viewed after update_viewing
@@ -2963,7 +2963,7 @@ mod tests {
     #[test]
     fn test_invalidate_painting_rect() {
         let (mut tree, root, child1, _child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         // Invalidate a sub-rect of child1 in panel coordinates
@@ -2983,7 +2983,7 @@ mod tests {
     #[test]
     fn test_invalidate_title_and_cursor() {
         let (mut tree, root, child1, _child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
         view.set_active_panel(&mut tree, child1, false);
 
@@ -3008,7 +3008,7 @@ mod tests {
     #[test]
     fn test_invalidate_control_panel() {
         let (mut tree, root, child1, child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
         view.set_active_panel(&mut tree, child1, false);
 
@@ -3029,10 +3029,10 @@ mod tests {
     #[test]
     fn test_pixel_tallness() {
         let (mut tree, root, _c1, _c2) = setup_tree();
-        let view = View::new(root, 800.0, 600.0);
+        let view = emView::new(root, 800.0, 600.0);
         assert!((view.pixel_tallness() - 0.75).abs() < 1e-6);
 
-        let mut view2 = View::new(root, 1920.0, 1080.0);
+        let mut view2 = emView::new(root, 1920.0, 1080.0);
         assert!((view2.pixel_tallness() - 1080.0 / 1920.0).abs() < 1e-6);
 
         view2.set_viewport(&mut tree, 100.0, 200.0);
@@ -3042,7 +3042,7 @@ mod tests {
     #[test]
     fn test_activation_adherent() {
         let (mut tree, root, child1, _child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         // Direct activation is not adherent
@@ -3063,7 +3063,7 @@ mod tests {
     #[test]
     fn test_activation_adherent_early_return_update() {
         let (mut tree, root, child1, _child2) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         // Set active non-adherent
@@ -3082,7 +3082,7 @@ mod tests {
     #[test]
     fn test_get_input_clock_ms() {
         let (_tree, root, _c1, _c2) = setup_tree();
-        let view = View::new(root, 800.0, 600.0);
+        let view = emView::new(root, 800.0, 600.0);
         let ms = view.get_input_clock_ms();
         // Should be a reasonable epoch-based timestamp (after year 2020)
         assert!(ms > 1_577_836_800_000);
@@ -3103,7 +3103,7 @@ mod tests {
         // Non-square child: w=0.5, h=0.25 → tallness = 0.5
         tree.set_layout_rect(child, 0.1, 0.1, 0.5, 0.25);
 
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.set_active_panel(&mut tree, child, false);
         view.update_viewing(&mut tree);
 
@@ -3137,7 +3137,7 @@ mod tests {
         let root = tree.create_root("root");
         tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
 
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.raw_zoom_out(&mut tree);
 
         let state = view.current_visit();
@@ -3160,7 +3160,7 @@ mod tests {
         let root = tree.create_root("root");
         tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
 
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.raw_zoom_out(&mut tree);
         assert!(view.is_zoomed_out(&tree));
 
@@ -3175,7 +3175,7 @@ mod tests {
         let root = tree.create_root("root");
         tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0); // starts square
 
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         // pixel_tallness = 600/800 = 0.75
         let flags = view.flags | ViewFlags::ROOT_SAME_TALLNESS;
         view.set_view_flags(flags, &mut tree);
@@ -3222,31 +3222,31 @@ mod tests {
     #[test]
     fn ego_mode_cursor_override() {
         let (mut tree, root, _, _) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         // Default cursor is Normal
-        view.set_cursor(Cursor::Normal);
-        assert_eq!(view.cursor(), Cursor::Normal);
+        view.set_cursor(emCursor::Normal);
+        assert_eq!(view.cursor(), emCursor::Normal);
 
         // With EGO_MODE, Normal cursor becomes Crosshair
         view.flags |= ViewFlags::EGO_MODE;
-        assert_eq!(view.cursor(), Cursor::Crosshair);
+        assert_eq!(view.cursor(), emCursor::Crosshair);
 
         // Non-Normal cursors are NOT overridden
-        view.set_cursor(Cursor::Text);
-        assert_eq!(view.cursor(), Cursor::Text);
+        view.set_cursor(emCursor::Text);
+        assert_eq!(view.cursor(), emCursor::Text);
 
         // Turning off EGO_MODE restores Normal
-        view.set_cursor(Cursor::Normal);
+        view.set_cursor(emCursor::Normal);
         view.flags -= ViewFlags::EGO_MODE;
-        assert_eq!(view.cursor(), Cursor::Normal);
+        assert_eq!(view.cursor(), emCursor::Normal);
     }
 
     #[test]
     fn ego_mode_scroll_locked() {
         let (mut tree, root, _, _) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         // Record initial center position
@@ -3277,7 +3277,7 @@ mod tests {
     #[test]
     fn ego_mode_zoom_still_works() {
         let (mut tree, root, _, _) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         let rel_a_before = view.current_visit().rel_a;
@@ -3296,7 +3296,7 @@ mod tests {
     #[test]
     fn ego_mode_toggle_invalidates_cursor() {
         let (mut tree, root, _, _) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         assert!(!view.is_cursor_invalid());
@@ -3308,7 +3308,7 @@ mod tests {
     #[test]
     fn stress_test_sync_creates_and_destroys() {
         let (mut tree, root, _, _) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         // Initially no stress test
@@ -3331,7 +3331,7 @@ mod tests {
     #[test]
     fn stress_test_ring_buffer_accumulates() {
         let (mut tree, root, _, _) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         view.flags |= ViewFlags::STRESS_TEST;
@@ -3345,18 +3345,18 @@ mod tests {
 
     #[test]
     fn stress_test_paint_overlay() {
-        use crate::emCore::emImage::Image;
+        use crate::emCore::emImage::emImage;
 
         let (mut tree, root, _, _) = setup_tree();
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
 
         view.flags |= ViewFlags::STRESS_TEST;
         view.sync_stress_test();
 
         // Paint into a real image and verify the overlay renders without panic
-        let mut img = Image::new(800, 600, 4);
-        let mut painter = Painter::new(&mut img);
+        let mut img = emImage::new(800, 600, 4);
+        let mut painter = emPainter::new(&mut img);
         view.paint(&mut tree, &mut painter);
 
         // Check that the top-left corner has non-zero (overlay painted) pixels.
@@ -3373,7 +3373,7 @@ mod tests {
         use crate::emCore::emRec::parse_rec_with_format;
 
         let (mut tree, root, child1, child2) = setup_tree();
-        let view = View::new(root, 800.0, 600.0);
+        let view = emView::new(root, 800.0, 600.0);
 
         let path = view.dump_tree(&mut tree);
 

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use crate::emCore::emImage::Image;
-use crate::emCore::emFileModel::{FileModel, FileState};
+use crate::emCore::emImage::emImage;
+use crate::emCore::emFileModel::{emFileModel, FileState};
 use crate::emCore::emSignal::SignalId;
 
 /// Data payload for an image file model.
@@ -9,7 +9,7 @@ use crate::emCore::emSignal::SignalId;
 /// Port of C++ `emImageFileModel`'s protected data members.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImageFileData {
-    pub image: Image,
+    pub image: emImage,
     pub comment: String,
     pub format_info: String,
 }
@@ -17,7 +17,7 @@ pub struct ImageFileData {
 impl Default for ImageFileData {
     fn default() -> Self {
         Self {
-            image: Image::new(0, 0, 4),
+            image: emImage::new(0, 0, 4),
             comment: String::new(),
             format_info: String::new(),
         }
@@ -26,16 +26,16 @@ impl Default for ImageFileData {
 
 /// A file model that holds image data, comment, and format info.
 ///
-/// Port of C++ `emImageFileModel`. Wraps `FileModel<ImageFileData>` and adds
+/// Port of C++ `emImageFileModel`. Wraps `emFileModel<ImageFileData>` and adds
 /// a data-change signal and saving quality. Setters check equality before
 /// marking the model as unsaved.
-pub struct ImageFileModel {
-    file_model: FileModel<ImageFileData>,
+pub struct emImageFileModel {
+    file_model: emFileModel<ImageFileData>,
     data_change_signal: SignalId,
     saving_quality: u32,
 }
 
-impl ImageFileModel {
+impl emImageFileModel {
     pub fn new(
         path: PathBuf,
         change_signal: SignalId,
@@ -43,7 +43,7 @@ impl ImageFileModel {
         data_change_signal: SignalId,
     ) -> Self {
         Self {
-            file_model: FileModel::new(path, change_signal, update_signal),
+            file_model: emFileModel::new(path, change_signal, update_signal),
             data_change_signal,
             saving_quality: 100,
         }
@@ -57,11 +57,11 @@ impl ImageFileModel {
         self.file_model.path()
     }
 
-    pub fn file_model(&self) -> &FileModel<ImageFileData> {
+    pub fn file_model(&self) -> &emFileModel<ImageFileData> {
         &self.file_model
     }
 
-    pub fn file_model_mut(&mut self) -> &mut FileModel<ImageFileData> {
+    pub fn file_model_mut(&mut self) -> &mut emFileModel<ImageFileData> {
         &mut self.file_model
     }
 
@@ -69,7 +69,7 @@ impl ImageFileModel {
         self.data_change_signal
     }
 
-    pub fn image(&self) -> Option<&Image> {
+    pub fn image(&self) -> Option<&emImage> {
         self.file_model.data().map(|d| &d.image)
     }
 
@@ -91,7 +91,7 @@ impl ImageFileModel {
 
     /// Set the image. Returns `true` if the image changed (and the model was
     /// marked unsaved). Returns `false` if the value was identical.
-    pub fn set_image(&mut self, image: Image) -> bool {
+    pub fn set_image(&mut self, image: emImage) -> bool {
         if let Some(data) = self.file_model.data() {
             if data.image == image {
                 return false;

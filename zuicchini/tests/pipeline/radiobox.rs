@@ -1,7 +1,7 @@
-//! Systematic interaction test for RadioBox at 1x and 2x zoom, driven
+//! Systematic interaction test for emRadioBox at 1x and 2x zoom, driven
 //! through the full input dispatch pipeline (PipelineTestHarness).
 //!
-//! Three RadioBox widgets share a group, each installed in its own child panel
+//! Three emRadioBox widgets share a group, each installed in its own child panel
 //! stacked vertically. Clicking each panel's center selects the corresponding
 //! radio box. The test verifies correct selection at both 1x and 2x zoom,
 //! re-clicking the already-selected box (no-op), and cycling through all items.
@@ -10,47 +10,47 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::InputEvent;
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::emInputEvent;
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emLook::Look;
-use zuicchini::emCore::emRadioBox::RadioBox;
+use zuicchini::emCore::emLook::emLook;
+use zuicchini::emCore::emRadioBox::emRadioBox;
 use zuicchini::emCore::emRadioButton::RadioGroup;
 
 use super::support::pipeline::PipelineTestHarness;
 
 // ---------------------------------------------------------------------------
-// RadioBoxBehavior -- minimal PanelBehavior wrapper for RadioBox
+// RadioBoxBehavior -- minimal PanelBehavior wrapper for emRadioBox
 // ---------------------------------------------------------------------------
 
 struct RadioBoxBehavior {
-    widget: RadioBox,
+    widget: emRadioBox,
 }
 
 impl RadioBoxBehavior {
-    fn new(widget: RadioBox) -> Self {
+    fn new(widget: emRadioBox) -> Self {
         Self { widget }
     }
 }
 
 impl PanelBehavior for RadioBoxBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.widget.paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         self.widget.input(event, state, input_state)
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
 
@@ -60,7 +60,7 @@ impl PanelBehavior for RadioBoxBehavior {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: set up a 3-option RadioBox harness
+// Helper: set up a 3-option emRadioBox harness
 // ---------------------------------------------------------------------------
 
 struct RadioBoxHarness {
@@ -72,12 +72,12 @@ struct RadioBoxHarness {
 
 impl RadioBoxHarness {
     fn new() -> Self {
-        let look = Look::new();
+        let look = emLook::new();
         let group: Rc<RefCell<RadioGroup>> = RadioGroup::new();
 
-        let rb0 = RadioBox::new("Alpha", look.clone(), group.clone(), 0);
-        let rb1 = RadioBox::new("Beta", look.clone(), group.clone(), 1);
-        let rb2 = RadioBox::new("Gamma", look, group.clone(), 2);
+        let rb0 = emRadioBox::new("Alpha", look.clone(), group.clone(), 0);
+        let rb1 = emRadioBox::new("Beta", look.clone(), group.clone(), 1);
+        let rb2 = emRadioBox::new("Gamma", look, group.clone(), 2);
 
         assert_eq!(group.borrow().count(), 3);
         assert_eq!(group.borrow().selected(), None);
@@ -104,7 +104,7 @@ impl RadioBoxHarness {
         // Settle layout and viewing geometry.
         h.tick_n(5);
 
-        // Render so that RadioBox::paint() caches last_w/last_h (required
+        // Render so that emRadioBox::paint() caches last_w/last_h (required
         // for hit_test to function).
         let mut compositor = SoftwareCompositor::new(800, 600);
         compositor.render(&mut h.tree, &h.view);

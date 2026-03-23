@@ -4,16 +4,16 @@
 //! creates four children whose color is the inverse of the parent's.
 //! Zooming into any panel reveals the next level.
 
-use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emColor::emColor;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 use zuicchini::emCore::emPanelCtx::PanelCtx;
 use zuicchini::emCore::emView::ViewFlags;
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emGUIFramework::App;
 use zuicchini::emCore::emWindow::WindowFlags;
 
 struct MyPanel {
-    bg: Color,
+    bg: emColor,
 }
 
 impl PanelBehavior for MyPanel {
@@ -21,8 +21,8 @@ impl PanelBehavior for MyPanel {
         self.bg.is_opaque()
     }
 
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
-        painter.paint_rect(0.0, 0.0, w, h, self.bg, Color::TRANSPARENT);
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
+        painter.paint_rect(0.0, 0.0, w, h, self.bg, emColor::TRANSPARENT);
     }
 
     fn auto_expand(&self) -> bool {
@@ -46,7 +46,7 @@ impl PanelBehavior for MyPanel {
         }
 
         // Create four children with inverted color.
-        let inv = Color::rgba(
+        let inv = emColor::rgba(
             255 - self.bg.r(),
             255 - self.bg.g(),
             255 - self.bg.b(),
@@ -66,7 +66,7 @@ fn main() {
     let app = App::new(Box::new(|app, event_loop| {
         let root = app.tree.create_root("root");
         app.tree
-            .set_behavior(root, Box::new(MyPanel { bg: Color::WHITE }));
+            .set_behavior(root, Box::new(MyPanel { bg: emColor::WHITE }));
         app.tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
 
         let close_sig = app.scheduler.create_signal();

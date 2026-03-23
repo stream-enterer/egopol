@@ -1,49 +1,49 @@
-use crate::emCore::emColor::Color;
-use crate::emCore::emImage::Image;
+use crate::emCore::emColor::emColor;
+use crate::emCore::emImage::emImage;
 use crate::emCore::emPanel::{PanelBehavior, PanelState};
-use crate::emCore::emPainter::Painter;
-use crate::emCore::emFilePanel::FilePanel;
+use crate::emCore::emPainter::emPainter;
+use crate::emCore::emFilePanel::emFilePanel;
 
 /// A panel that displays an image file with aspect-ratio preservation.
 ///
-/// Port of C++ `emImageFilePanel`. Wraps a `FilePanel` for status display
+/// Port of C++ `emImageFilePanel`. Wraps a `emFilePanel` for status display
 /// and holds a cached copy of the current image for painting.
-pub struct ImageFilePanel {
-    file_panel: FilePanel,
-    current_image: Option<Image>,
+pub struct emImageFilePanel {
+    file_panel: emFilePanel,
+    current_image: Option<emImage>,
 }
 
-impl Default for ImageFilePanel {
+impl Default for emImageFilePanel {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ImageFilePanel {
+impl emImageFilePanel {
     pub fn new() -> Self {
         Self {
-            file_panel: FilePanel::new(),
+            file_panel: emFilePanel::new(),
             current_image: None,
         }
     }
 
     pub fn with_model() -> Self {
         Self {
-            file_panel: FilePanel::with_model(),
+            file_panel: emFilePanel::with_model(),
             current_image: None,
         }
     }
 
-    pub fn file_panel(&self) -> &FilePanel {
+    pub fn file_panel(&self) -> &emFilePanel {
         &self.file_panel
     }
 
-    pub fn file_panel_mut(&mut self) -> &mut FilePanel {
+    pub fn file_panel_mut(&mut self) -> &mut emFilePanel {
         &mut self.file_panel
     }
 
     /// Update the cached image for painting.
-    pub fn set_current_image(&mut self, image: Option<Image>) {
+    pub fn set_current_image(&mut self, image: Option<emImage>) {
         self.current_image = image;
     }
 
@@ -64,14 +64,14 @@ impl ImageFilePanel {
         let panel_aspect = panel_w / panel_h;
 
         if image_aspect > panel_aspect {
-            // Image is wider than panel — fit to width, center vertically
+            // emImage is wider than panel — fit to width, center vertically
             let w = panel_w;
             let h = panel_w / image_aspect;
             let x = 0.0;
             let y = (panel_h - h) * 0.5;
             Some((x, y, w, h))
         } else {
-            // Image is taller than panel — fit to height, center horizontally
+            // emImage is taller than panel — fit to height, center horizontally
             let h = panel_h;
             let w = panel_h * image_aspect;
             let x = (panel_w - w) * 0.5;
@@ -81,7 +81,7 @@ impl ImageFilePanel {
     }
 }
 
-impl PanelBehavior for ImageFilePanel {
+impl PanelBehavior for emImageFilePanel {
     fn is_opaque(&self) -> bool {
         if self.file_panel.vir_file_state().is_good() {
             false
@@ -90,11 +90,11 @@ impl PanelBehavior for ImageFilePanel {
         }
     }
 
-    fn canvas_color(&self) -> Color {
+    fn canvas_color(&self) -> emColor {
         self.file_panel.canvas_color()
     }
 
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         if !self.file_panel.vir_file_state().is_good() {
             self.file_panel.paint(painter, w, h, state);
             return;

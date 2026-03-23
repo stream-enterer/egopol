@@ -1,6 +1,6 @@
 use zuicchini::emCore::emPanelTree::PanelTree;
-use zuicchini::emCore::emView::{View, ViewFlags};
-use zuicchini::emCore::emViewAnimator::{KineticViewAnimator, MagneticViewAnimator, SpeedingViewAnimator, SwipingViewAnimator, ViewAnimator, VisitingViewAnimator};
+use zuicchini::emCore::emView::{emView, ViewFlags};
+use zuicchini::emCore::emViewAnimator::{emKineticViewAnimator, emMagneticViewAnimator, emSpeedingViewAnimator, emSwipingViewAnimator, emViewAnimator, emVisitingViewAnimator};
 
 use super::common::*;
 
@@ -14,17 +14,17 @@ macro_rules! require_golden {
     };
 }
 
-/// Create a PanelTree + View zoomed in deeply (matching C++ AnimViewSetup).
+/// Create a PanelTree + emView zoomed in deeply (matching C++ AnimViewSetup).
 /// Returns (tree, view) ready for animator testing.
 /// Set up view zoomed in moderately (rel_a ≈ 4). Gives room for both
 /// scrolling (panel larger than viewport) and further zoom-in (rel_a < 1000).
 /// The velocity trajectory is view-independent as long as no boundaries are hit.
-fn setup_anim_view() -> (PanelTree, View) {
+fn setup_anim_view() -> (PanelTree, emView) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.update_viewing(&mut tree);
 
@@ -36,10 +36,10 @@ fn setup_anim_view() -> (PanelTree, View) {
     (tree, view)
 }
 
-/// Collect velocity trajectory from KineticViewAnimator.
+/// Collect velocity trajectory from emKineticViewAnimator.
 fn run_kinetic_velocity_trajectory(
     tree: &mut PanelTree,
-    view: &mut View,
+    view: &mut emView,
     vx: f64,
     vy: f64,
     vz: f64,
@@ -47,7 +47,7 @@ fn run_kinetic_velocity_trajectory(
     friction_enabled: bool,
     steps: usize,
 ) -> Vec<TrajectoryStep> {
-    let mut anim = KineticViewAnimator::new(vx, vy, vz, friction);
+    let mut anim = emKineticViewAnimator::new(vx, vy, vz, friction);
     anim.set_friction_enabled(friction_enabled);
 
     let dt = 1.0 / 60.0;
@@ -112,7 +112,7 @@ fn animator_speeding_ramp() {
     let golden = load_trajectory_golden("animator_speeding_ramp");
     let (mut tree, mut view) = setup_anim_view();
 
-    let mut anim = SpeedingViewAnimator::new(2.0);
+    let mut anim = emSpeedingViewAnimator::new(2.0);
     anim.inner_mut().set_friction_enabled(true);
     anim.set_acceleration(500.0);
     anim.set_reverse_acceleration(1000.0);
@@ -140,7 +140,7 @@ fn animator_speeding_reverse() {
     let golden = load_trajectory_golden("animator_speeding_reverse");
     let (mut tree, mut view) = setup_anim_view();
 
-    let mut anim = SpeedingViewAnimator::new(2.0);
+    let mut anim = emSpeedingViewAnimator::new(2.0);
     anim.inner_mut().set_friction_enabled(true);
     anim.inner_mut().set_velocity(100.0, 0.0, 0.0);
     anim.set_acceleration(500.0);
@@ -169,7 +169,7 @@ fn animator_speeding_release() {
     let golden = load_trajectory_golden("animator_speeding_release");
     let (mut tree, mut view) = setup_anim_view();
 
-    let mut anim = SpeedingViewAnimator::new(2.0);
+    let mut anim = emSpeedingViewAnimator::new(2.0);
     anim.inner_mut().set_friction_enabled(true);
     anim.set_acceleration(500.0);
     anim.set_reverse_acceleration(1000.0);
@@ -202,7 +202,7 @@ fn animator_swiping_grip() {
     let golden = load_trajectory_golden("animator_swiping_grip");
     let (mut tree, mut view) = setup_anim_view();
 
-    let mut anim = SwipingViewAnimator::new(2.0);
+    let mut anim = emSwipingViewAnimator::new(2.0);
     anim.inner_mut().set_friction_enabled(true);
     anim.set_spring_constant(100.0);
     anim.set_gripped(true);
@@ -232,7 +232,7 @@ fn animator_swiping_release() {
     let golden = load_trajectory_golden("animator_swiping_release");
     let (mut tree, mut view) = setup_anim_view();
 
-    let mut anim = SwipingViewAnimator::new(2.0);
+    let mut anim = emSwipingViewAnimator::new(2.0);
     anim.inner_mut().set_friction_enabled(true);
     anim.set_spring_constant(100.0);
     anim.set_gripped(true);
@@ -261,16 +261,16 @@ fn animator_swiping_release() {
 
 // ─── Visiting trajectory tests ──────────────────────────────────
 
-/// Collect position trajectory from VisitingViewAnimator.
+/// Collect position trajectory from emVisitingViewAnimator.
 fn run_visiting_trajectory(
     tree: &mut PanelTree,
-    view: &mut View,
+    view: &mut emView,
     target_x: f64,
     target_y: f64,
     target_a: f64,
     steps: usize,
 ) -> Vec<TrajectoryStep> {
-    let mut anim = VisitingViewAnimator::new(target_x, target_y, target_a, 0.0);
+    let mut anim = emVisitingViewAnimator::new(target_x, target_y, target_a, 0.0);
     anim.set_identity("root", "");
     anim.set_animated(true);
     anim.set_acceleration(5.0);
@@ -319,12 +319,12 @@ fn animator_visiting_short() {
 /// Same as setup_anim_view but with a SQUARE panel (height=1.0) on a 4:3
 /// viewport. This makes panel_aspect != viewport_aspect, exercising the
 /// scroll denominator fix (BUG-8) which is invisible at matching aspects.
-fn setup_anim_view_square_panel() -> (PanelTree, View) {
+fn setup_anim_view_square_panel() -> (PanelTree, emView) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0); // square panel
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.update_viewing(&mut tree);
 
@@ -375,11 +375,11 @@ fn run_magnetic_trajectory(steps: usize) -> Vec<TrajectoryStep> {
     tree.set_layout_rect(target, 0.3, 0.2, 0.4, 0.4);
     tree.set_focusable(target, true);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.update_viewing(&mut tree);
 
-    let mut mag = MagneticViewAnimator::new(100.0);
+    let mut mag = emMagneticViewAnimator::new(100.0);
     mag.set_radius_factor(1.0);
     mag.set_speed_factor(1.0);
 
@@ -389,7 +389,7 @@ fn run_magnetic_trajectory(steps: usize) -> Vec<TrajectoryStep> {
     for _ in 0..steps {
         // Calculate distance to nearest focusable panel
         let (dx, dy, dz, abs_dist) =
-            MagneticViewAnimator::calculate_distance(&view, &tree);
+            emMagneticViewAnimator::calculate_distance(&view, &tree);
 
         // Update magnetism activation
         let (vw, vh) = view.viewport_size();

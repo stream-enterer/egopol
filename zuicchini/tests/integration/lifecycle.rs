@@ -44,7 +44,7 @@ fn remove_active_panel_reselects() {
     h.tree.remove(a);
     h.tick();
 
-    // View should auto-select a new active panel (set_active_panel_best_possible).
+    // emView should auto-select a new active panel (set_active_panel_best_possible).
     // Only B and root remain; B is the expected pick (deepest focusable).
     h.view.set_active_panel_best_possible(&mut h.tree);
     assert_eq!(h.view.active(), Some(b), "view should reselect panel B after removing A");
@@ -52,10 +52,10 @@ fn remove_active_panel_reselects() {
 
 #[test]
 fn remove_panel_with_engine() {
-    use zuicchini::emCore::emEngine::{Engine, EngineCtx, Priority};
+    use zuicchini::emCore::emEngine::{emEngine, EngineCtx, Priority};
 
     struct DummyEngine;
-    impl Engine for DummyEngine {
+    impl emEngine for DummyEngine {
         fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
             false
         }

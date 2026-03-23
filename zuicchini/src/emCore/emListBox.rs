@@ -2,17 +2,17 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::rect::Rect;
-use crate::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
-use crate::emCore::emRasterLayout::RasterLayout;
+use crate::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use crate::emCore::emInputState::emInputState;
+use crate::emCore::emRasterLayout::emRasterLayout;
 use crate::emCore::emPanel::{PanelBehavior, PanelState};
 use crate::emCore::emPanelCtx::PanelCtx;
-use crate::emCore::emPainter::Painter;
+use crate::emCore::emPainter::emPainter;
 
-use super::emBorder::{Border, InnerBorderType, OuterBorderType};
-use crate::emCore::emLook::Look;
+use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use crate::emCore::emLook::emLook;
 
 const ROW_HEIGHT: f64 = 17.0;
 
@@ -23,7 +23,7 @@ type SelectionCb = Box<dyn FnMut(&[usize])>;
 type TriggerCb = Box<dyn FnMut(usize)>;
 type ItemPanelFactory = Box<dyn Fn(usize, String, bool) -> Box<dyn ItemPanelInterface>>;
 type ItemBehaviorFactory =
-    Box<dyn Fn(usize, &str, bool, Rc<Look>, SelectionMode, bool) -> Box<dyn PanelBehavior>>;
+    Box<dyn Fn(usize, &str, bool, Rc<emLook>, SelectionMode, bool) -> Box<dyn PanelBehavior>>;
 
 /// Selection mode for list box items.
 ///
@@ -132,7 +132,7 @@ impl ItemPanelInterface for DefaultItemPanel {
 pub(crate) struct DefaultItemPanelBehavior {
     text: String,
     selected: bool,
-    look: Rc<Look>,
+    look: Rc<emLook>,
     selection_mode: SelectionMode,
     enabled: bool,
 }
@@ -141,7 +141,7 @@ impl DefaultItemPanelBehavior {
     pub fn new(
         text: String,
         selected: bool,
-        look: Rc<Look>,
+        look: Rc<emLook>,
         selection_mode: SelectionMode,
         enabled: bool,
     ) -> Self {
@@ -156,7 +156,7 @@ impl DefaultItemPanelBehavior {
 }
 
 impl PanelBehavior for DefaultItemPanelBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         let s = w.min(h);
 
         // Select color set based on ReadOnly vs editable (C++ emListBox.cpp:554-608)
@@ -215,7 +215,7 @@ impl PanelBehavior for DefaultItemPanelBehavior {
         );
     }
 
-    fn canvas_color(&self) -> Color {
+    fn canvas_color(&self) -> emColor {
         if self.selection_mode == SelectionMode::ReadOnly {
             self.look.output_bg_color
         } else {
@@ -243,9 +243,9 @@ struct Item {
 ///
 /// Implements the full emListBox API: individual item manipulation, multi-mode
 /// selection, trigger/double-click, and type-to-search (keywalk).
-pub struct ListBox {
-    border: Border,
-    look: Rc<Look>,
+pub struct emListBox {
+    border: emBorder,
+    look: Rc<emLook>,
     last_w: f64,
     last_h: f64,
     items: Vec<Item>,
@@ -289,10 +289,10 @@ pub struct ListBox {
     in_focused_path: bool,
 }
 
-impl ListBox {
-    pub fn new(look: Rc<Look>) -> Self {
+impl emListBox {
+    pub fn new(look: Rc<emLook>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::Instrument)
+            border: emBorder::new(OuterBorderType::Instrument)
                 .with_inner(InnerBorderType::InputField)
                 .with_how_to(true),
             look,
@@ -332,7 +332,7 @@ impl ListBox {
         self.border.caption = caption.to_string();
     }
 
-    pub fn border_mut(&mut self) -> &mut Border {
+    pub fn border_mut(&mut self) -> &mut emBorder {
         &mut self.border
     }
 
@@ -875,7 +875,7 @@ impl ListBox {
     /// Port of C++ emListBox::CreateItemPanel(name, itemIndex).
     ///
     /// Override point: the default creates a DefaultItemPanel.
-    /// Custom ListBox implementations can override this by setting
+    /// Custom emListBox implementations can override this by setting
     /// a factory function.
     pub fn create_item_panel(&mut self, index: usize) {
         if let Some(item) = self.items.get_mut(index) {
@@ -908,7 +908,7 @@ impl ListBox {
     /// Signature: `(index, text, selected, look, selection_mode, enabled) -> Box<dyn PanelBehavior>`
     pub fn set_item_behavior_factory<F>(&mut self, factory: F)
     where
-        F: Fn(usize, &str, bool, Rc<Look>, SelectionMode, bool) -> Box<dyn PanelBehavior> + 'static,
+        F: Fn(usize, &str, bool, Rc<emLook>, SelectionMode, bool) -> Box<dyn PanelBehavior> + 'static,
     {
         self.item_behavior_factory = Some(Box::new(factory));
     }
@@ -933,19 +933,19 @@ impl ListBox {
         }
     }
 
-    /// Create child panels for all items and a RasterLayout to position them.
+    /// Create child panels for all items and a emRasterLayout to position them.
     ///
-    /// Called when the ListBox expands. Each item becomes a
-    /// `DefaultItemPanelBehavior` child under a RasterLayout, matching C++
+    /// Called when the emListBox expands. Each item becomes a
+    /// `DefaultItemPanelBehavior` child under a emRasterLayout, matching C++
     /// `emListBox` (which inherits from `emRasterGroup`).
     pub fn create_item_children(&mut self, ctx: &mut PanelCtx) {
         if !self.expanded {
             self.auto_expand_items();
         }
 
-        // Create a RasterLayout child to handle grid positioning.
+        // Create a emRasterLayout child to handle grid positioning.
         // C++ emListBox inherits from emRasterGroup with default settings.
-        let mut layout = RasterLayout::new();
+        let mut layout = emRasterLayout::new();
         if let Some(cols) = self.fixed_column_count {
             layout.fixed_columns = Some(cols);
         }
@@ -973,17 +973,17 @@ impl ListBox {
         }
     }
 
-    /// Layout the RasterLayout child that contains item panels.
+    /// Layout the emRasterLayout child that contains item panels.
     ///
-    /// The RasterLayout fills the content rect (C++ emRasterGroup base handles
-    /// this automatically since emListBox IS a RasterGroup).
+    /// The emRasterLayout fills the content rect (C++ emRasterGroup base handles
+    /// this automatically since emListBox IS a emRasterGroup).
     pub fn layout_item_children(&self, ctx: &mut PanelCtx, w: f64, h: f64) {
         let children = ctx.children();
         if children.is_empty() {
             return;
         }
 
-        // The single child is the RasterLayout grid.
+        // The single child is the emRasterLayout grid.
         let cr = self.border.content_rect_unobscured(w, h, &self.look);
         ctx.layout_child(children[0], cr.x, cr.y, cr.w, cr.h);
 
@@ -996,7 +996,7 @@ impl ListBox {
 
     // ── Paint ───────────────────────────────────────────────────────
 
-    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64) {
         self.last_w = w;
         self.last_h = h;
         self.border
@@ -1133,7 +1133,7 @@ impl ListBox {
         super::widget_utils::check_mouse_round_rect(mx, my, &rect, r)
     }
 
-    pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
+    pub fn input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -1260,7 +1260,7 @@ impl ListBox {
         let max_w = self
             .items
             .iter()
-            .map(|it| Painter::measure_text_width(&it.text, ROW_HEIGHT - 2.0))
+            .map(|it| emPainter::measure_text_width(&it.text, ROW_HEIGHT - 2.0))
             .fold(0.0f64, f64::max);
         let h = self.items.len() as f64 * ROW_HEIGHT;
         self.border.preferred_size_for_content(max_w + 4.0, h)
@@ -1398,7 +1398,7 @@ impl ListBox {
     }
 
     /// Type-to-search (keywalk). Returns `true` if the event was consumed.
-    fn keywalk(&mut self, event: &InputEvent) -> bool {
+    fn keywalk(&mut self, event: &emInputEvent) -> bool {
         if event.chars.is_empty() {
             return false;
         }
@@ -1566,8 +1566,8 @@ const HOWTO_SINGLE_SELECTION: &str = "\n\n\
     SINGLE-SELECTION\n\n\
     This is a single-selection list box. You can select only one item.\n\n\
     Mouse control:\n\n\
-      Left-Button-Click            - Select the clicked item.\n\n\
-      Left-Button-Double-Click     - Trigger the clicked item (application-defined\n\
+      Left-emButton-Click            - Select the clicked item.\n\n\
+      Left-emButton-Double-Click     - Trigger the clicked item (application-defined\n\
                                      function).\n\n\
     Keyboard control:\n\n\
       Space                        - Select the focused item.\n\n\
@@ -1581,13 +1581,13 @@ const HOWTO_MULTI_SELECTION: &str = "\n\n\
     MULTI-SELECTION\n\n\
     This list box supports multi-selection. You can select one or more items.\n\n\
     Mouse control:\n\n\
-      Left-Button-Click            - Select the clicked item.\n\n\
-      Shift+Left-Button-Click      - Select the range of items from the previously\n\
+      Left-emButton-Click            - Select the clicked item.\n\n\
+      Shift+Left-emButton-Click      - Select the range of items from the previously\n\
                                      clicked item to this clicked item.\n\n\
-      Ctrl+Left-Button-Click       - Invert the selection of the clicked item.\n\n\
-      Shift+Ctrl+Left-Button-Click - Invert the selection of a range of items or\n\
+      Ctrl+Left-emButton-Click       - Invert the selection of the clicked item.\n\n\
+      Shift+Ctrl+Left-emButton-Click - Invert the selection of a range of items or\n\
                                      select an additional range.\n\n\
-      Left-Button-Double-Click     - Trigger the clicked item (application-defined\n\
+      Left-emButton-Double-Click     - Trigger the clicked item (application-defined\n\
                                      function).\n\n\
     Keyboard control:\n\n\
       Space                        - Select the focused item.\n\n\
@@ -1609,11 +1609,11 @@ const HOWTO_TOGGLE_SELECTION: &str = "\n\n\
     This is a toggle-selection list box. You can select or deselect\n\
     individual items independently from other items.\n\n\
     Mouse control:\n\n\
-      Left-Button-Click            - Invert the selection of the clicked item.\n\n\
-      Shift+Left-Button-Click      - Invert the selection of the range of items from\n\
+      Left-emButton-Click            - Invert the selection of the clicked item.\n\n\
+      Shift+Left-emButton-Click      - Invert the selection of the range of items from\n\
                                      the previously clicked item to this clicked\n\
                                      item.\n\n\
-      Left-Button-Double-Click     - Trigger the clicked item (application-defined\n\
+      Left-emButton-Double-Click     - Trigger the clicked item (application-defined\n\
                                      function).\n\n\
     Keyboard control:\n\n\
       Space                        - Invert the selection of the focused item.\n\n\
@@ -1652,8 +1652,8 @@ mod tests {
         }
     }
 
-    fn default_input_state() -> InputState {
-        InputState::new()
+    fn default_input_state() -> emInputState {
+        emInputState::new()
     }
 
     fn make_items(texts: &[&str]) -> Vec<String> {
@@ -1662,73 +1662,73 @@ mod tests {
 
     #[test]
     fn single_selection_arrow_keys() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         let ps = default_panel_state();
         let is = default_input_state();
         lb.set_items(make_items(&["A", "B", "C"]));
 
         assert_eq!(lb.focus_index(), 0);
 
-        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 1);
         assert_eq!(lb.selected(), &[1]);
 
-        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 2);
         assert_eq!(lb.selected(), &[2]);
 
         // Won't go past end
-        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 2);
 
-        lb.input(&InputEvent::press(InputKey::ArrowUp), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::ArrowUp), &ps, &is);
         assert_eq!(lb.focus_index(), 1);
         assert_eq!(lb.selected(), &[1]);
     }
 
     #[test]
     fn multi_selection_toggle() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         let ps = default_panel_state();
         let is = default_input_state();
         lb.set_selection_mode(SelectionMode::Multi);
         lb.set_items(make_items(&["X", "Y", "Z"]));
 
         // In multi mode, ArrowDown doesn't auto-select
-        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 1);
         assert!(lb.selected().is_empty());
 
         // Space toggles selection (via select_by_input with no modifiers -> select solely)
         // In Multi mode without modifiers, space selects solely
-        lb.input(&InputEvent::press(InputKey::Space), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::Space), &ps, &is);
         assert_eq!(lb.selected(), &[1]);
 
-        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         // Space without ctrl in multi mode selects solely (replaces)
-        lb.input(&InputEvent::press(InputKey::Space), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::Space), &ps, &is);
         assert_eq!(lb.selected(), &[2]);
 
         // With ctrl, toggle
         lb.focus_index = 1;
-        lb.input(&InputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
         assert!(lb.selected().contains(&1));
         assert!(lb.selected().contains(&2));
 
         // Toggle off with ctrl
-        lb.input(&InputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
         assert_eq!(lb.selected(), &[2]);
     }
 
     #[test]
     fn trigger_callback() {
-        let look = Look::new();
+        let look = emLook::new();
         let triggered = Rc::new(RefCell::new(None));
         let trig_clone = triggered.clone();
 
-        let mut lb = ListBox::new(look);
+        let mut lb = emListBox::new(look);
         let ps = default_panel_state();
         let is = default_input_state();
         lb.set_items(make_items(&["A", "B"]));
@@ -1736,18 +1736,18 @@ mod tests {
             *trig_clone.borrow_mut() = Some(idx);
         }));
 
-        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
-        lb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*triggered.borrow(), Some(1));
     }
 
     #[test]
     fn selection_callback() {
-        let look = Look::new();
+        let look = emLook::new();
         let selections = Rc::new(RefCell::new(Vec::new()));
         let sel_clone = selections.clone();
 
-        let mut lb = ListBox::new(look);
+        let mut lb = emListBox::new(look);
         let ps = default_panel_state();
         let is = default_input_state();
         lb.set_items(make_items(&["A", "B", "C"]));
@@ -1757,13 +1757,13 @@ mod tests {
 
         // First ArrowDown: selects item 1 solely. No prior selection to deselect.
         // Fires 1 callback (select).
-        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(selections.borrow().len(), 1);
         assert_eq!(selections.borrow()[0], vec![1]);
 
         // Second ArrowDown: selects item 2 solely. Deselects item 1 first (1 cb),
         // then selects item 2 (1 cb). Total: 3 callbacks.
-        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(selections.borrow().len(), 3);
         // Last callback should have item 2 selected.
         assert_eq!(selections.borrow()[2], vec![2]);
@@ -1773,8 +1773,8 @@ mod tests {
 
     #[test]
     fn add_and_insert_items() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
 
         lb.add_item("a".into(), "Alpha".into());
         lb.add_item("b".into(), "Beta".into());
@@ -1795,8 +1795,8 @@ mod tests {
 
     #[test]
     fn remove_item_adjusts_selection() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.add_item("a".into(), "A".into());
         lb.add_item("b".into(), "B".into());
         lb.add_item("c".into(), "C".into());
@@ -1814,8 +1814,8 @@ mod tests {
 
     #[test]
     fn move_item_reorders() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.add_item("a".into(), "A".into());
         lb.add_item("b".into(), "B".into());
         lb.add_item("c".into(), "C".into());
@@ -1831,8 +1831,8 @@ mod tests {
 
     #[test]
     fn sort_items_reorders() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.add_item("c".into(), "Cherry".into());
         lb.add_item("a".into(), "Apple".into());
         lb.add_item("b".into(), "Banana".into());
@@ -1851,8 +1851,8 @@ mod tests {
 
     #[test]
     fn clear_items_resets_all() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.add_item("a".into(), "A".into());
         lb.select(0, true);
         assert_eq!(lb.selected(), &[0]);
@@ -1864,8 +1864,8 @@ mod tests {
 
     #[test]
     fn selection_apis() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.set_selection_mode(SelectionMode::Multi);
         lb.add_item("a".into(), "A".into());
         lb.add_item("b".into(), "B".into());
@@ -1896,8 +1896,8 @@ mod tests {
 
     #[test]
     fn set_item_text_clears_keywalk() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.add_item("a".into(), "Alpha".into());
         lb.keywalk_chars = "al".into();
 
@@ -1908,8 +1908,8 @@ mod tests {
 
     #[test]
     fn read_only_mode_no_selection() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         let ps = default_panel_state();
         let is = default_input_state();
         lb.set_selection_mode(SelectionMode::ReadOnly);
@@ -1917,15 +1917,15 @@ mod tests {
         lb.add_item("b".into(), "B".into());
 
         // Mouse click: select_by_input is called, but ReadOnly blocks selection.
-        let ev = InputEvent::press(InputKey::MouseLeft).with_mouse(0.0, 5.0);
+        let ev = emInputEvent::press(InputKey::MouseLeft).with_mouse(0.0, 5.0);
         lb.input(&ev, &ps, &is);
         assert!(lb.selected().is_empty());
     }
 
     #[test]
     fn toggle_mode_selection() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         let ps = default_panel_state();
         let is = default_input_state();
         lb.set_selection_mode(SelectionMode::Toggle);
@@ -1933,17 +1933,17 @@ mod tests {
         lb.add_item("b".into(), "B".into());
 
         // Space toggles
-        lb.input(&InputEvent::press(InputKey::Space), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::Space), &ps, &is);
         assert_eq!(lb.selected(), &[0]);
 
-        lb.input(&InputEvent::press(InputKey::Space), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::Space), &ps, &is);
         assert!(lb.selected().is_empty());
     }
 
     #[test]
     fn ctrl_a_selects_all_in_multi_mode() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         let ps = default_panel_state();
         let is = default_input_state();
         lb.set_selection_mode(SelectionMode::Multi);
@@ -1952,21 +1952,21 @@ mod tests {
         lb.add_item("c".into(), "C".into());
 
         // Ctrl+A selects all
-        lb.input(&InputEvent::press(InputKey::Key('a')).with_ctrl(), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::Key('a')).with_ctrl(), &ps, &is);
         assert_eq!(lb.selected_indices(), &[0, 1, 2]);
 
         // Shift+Ctrl+A clears
-        lb.input(&InputEvent::press(InputKey::Key('a')).with_shift_ctrl(), &ps, &is);
+        lb.input(&emInputEvent::press(InputKey::Key('a')).with_shift_ctrl(), &ps, &is);
         assert!(lb.selected_indices().is_empty());
     }
 
     #[test]
     fn trigger_item_fires_callback() {
-        let look = Look::new();
+        let look = emLook::new();
         let triggered = Rc::new(RefCell::new(Vec::new()));
         let trig_clone = triggered.clone();
 
-        let mut lb = ListBox::new(look);
+        let mut lb = emListBox::new(look);
         lb.add_item("a".into(), "A".into());
         lb.add_item("b".into(), "B".into());
         lb.on_trigger = Some(Box::new(move |idx| {
@@ -1980,8 +1980,8 @@ mod tests {
 
     #[test]
     fn insert_adjusts_selected_indices() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.add_item("a".into(), "A".into());
         lb.add_item("b".into(), "B".into());
 
@@ -1998,44 +1998,44 @@ mod tests {
 
     #[test]
     fn keywalk_prefix_match() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         let ps = default_panel_state();
         let is = default_input_state();
         lb.add_item("a".into(), "Apple".into());
         lb.add_item("b".into(), "Banana".into());
         lb.add_item("c".into(), "Cherry".into());
 
-        let ev = InputEvent::press(InputKey::Key('b')).with_chars("b");
+        let ev = emInputEvent::press(InputKey::Key('b')).with_chars("b");
         lb.input(&ev, &ps, &is);
         assert_eq!(lb.selected_index(), Some(1));
     }
 
     #[test]
     fn keywalk_substring_search() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         let ps = default_panel_state();
         let is = default_input_state();
         lb.add_item("a".into(), "Apple".into());
         lb.add_item("b".into(), "Banana".into());
 
         // Type '*nan' to do substring search — "nan" is unique to "Banana".
-        let ev1 = InputEvent::press(InputKey::Key('*')).with_chars("*");
+        let ev1 = emInputEvent::press(InputKey::Key('*')).with_chars("*");
         lb.input(&ev1, &ps, &is);
-        let ev2 = InputEvent::press(InputKey::Key('n')).with_chars("n");
+        let ev2 = emInputEvent::press(InputKey::Key('n')).with_chars("n");
         lb.input(&ev2, &ps, &is);
-        let ev3 = InputEvent::press(InputKey::Key('a')).with_chars("a");
+        let ev3 = emInputEvent::press(InputKey::Key('a')).with_chars("a");
         lb.input(&ev3, &ps, &is);
-        let ev4 = InputEvent::press(InputKey::Key('n')).with_chars("n");
+        let ev4 = emInputEvent::press(InputKey::Key('n')).with_chars("n");
         lb.input(&ev4, &ps, &is);
         assert_eq!(lb.selected_index(), Some(1)); // "Banana" contains "nan"
     }
 
     #[test]
     fn keywalk_fuzzy_match() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         let ps = default_panel_state();
         let is = default_input_state();
         lb.add_item("a".into(), "Red-Apple".into());
@@ -2043,17 +2043,17 @@ mod tests {
 
         // Type "ra" — fuzzy matches "Red-Apple" (skips '-')
         // 'r' -> 'R' match, 'a' -> skip '-', match 'A'
-        let ev = InputEvent::press(InputKey::Key('r')).with_chars("r");
+        let ev = emInputEvent::press(InputKey::Key('r')).with_chars("r");
         lb.input(&ev, &ps, &is);
-        let ev2 = InputEvent::press(InputKey::Key('a')).with_chars("a");
+        let ev2 = emInputEvent::press(InputKey::Key('a')).with_chars("a");
         lb.input(&ev2, &ps, &is);
         assert_eq!(lb.selected_index(), Some(0));
     }
 
     #[test]
     fn out_of_range_operations_are_noop() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.add_item("a".into(), "A".into());
 
         // Out of range accessors return defaults.
@@ -2072,16 +2072,16 @@ mod tests {
     #[test]
     #[should_panic(expected = "not unique")]
     fn duplicate_name_panics() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.add_item("a".into(), "A".into());
         lb.add_item("a".into(), "Also A".into());
     }
 
     #[test]
     fn item_data_round_trip() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.add_item("a".into(), "A".into());
 
         lb.set_item_data(0, Some(Box::new(42_i32)));
@@ -2091,8 +2091,8 @@ mod tests {
 
     #[test]
     fn select_solely_out_of_range_clears() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.add_item("a".into(), "A".into());
         lb.add_item("b".into(), "B".into());
         lb.select(0, false);
@@ -2106,8 +2106,8 @@ mod tests {
 
     #[test]
     fn multi_shift_range_selection() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.set_selection_mode(SelectionMode::Multi);
         for i in 0..5 {
             lb.add_item(format!("{}", i), format!("Item {}", i));
@@ -2126,8 +2126,8 @@ mod tests {
 
     #[test]
     fn toggle_mode_shift_range() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         lb.set_selection_mode(SelectionMode::Toggle);
         for i in 0..5 {
             lb.add_item(format!("{}", i), format!("Item {}", i));
@@ -2146,8 +2146,8 @@ mod tests {
 
     #[test]
     fn move_item_preserves_selection() {
-        let look = Look::new();
-        let mut lb = ListBox::new(look);
+        let look = emLook::new();
+        let mut lb = emListBox::new(look);
         for i in 0..4 {
             lb.add_item(format!("{}", i), format!("Item {}", i));
         }

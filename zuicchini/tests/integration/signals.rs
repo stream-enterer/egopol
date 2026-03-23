@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emEngine::{Engine, EngineCtx, Priority};
+use zuicchini::emCore::emEngine::{emEngine, EngineCtx, Priority};
 use zuicchini::emCore::emSignal::SignalId;
 
 use crate::support::TestHarness;
 
-/// Engine that fires a signal on first cycle and logs its label.
+/// emEngine that fires a signal on first cycle and logs its label.
 struct SignalFiringEngine {
     label: &'static str,
     log: Rc<RefCell<Vec<String>>>,
@@ -14,7 +14,7 @@ struct SignalFiringEngine {
     fired: bool,
 }
 
-impl Engine for SignalFiringEngine {
+impl emEngine for SignalFiringEngine {
     fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
         self.log.borrow_mut().push(format!("cycle:{}", self.label));
         if !self.fired {
@@ -27,13 +27,13 @@ impl Engine for SignalFiringEngine {
     }
 }
 
-/// Engine that modifies a shared counter when it runs.
+/// emEngine that modifies a shared counter when it runs.
 struct CounterEngine {
     counter: Rc<RefCell<i32>>,
     delta: i32,
 }
 
-impl Engine for CounterEngine {
+impl emEngine for CounterEngine {
     fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
         *self.counter.borrow_mut() += self.delta;
         false
@@ -47,7 +47,7 @@ fn engine_modifies_panel_on_signal() {
 
     let sig = h.scheduler.create_signal();
 
-    // Engine increments counter when signal fires
+    // emEngine increments counter when signal fires
     let eng = h.scheduler.register_engine(
         Priority::Medium,
         Box::new(CounterEngine {
@@ -101,7 +101,7 @@ struct FlagEngine {
     flag: Rc<RefCell<bool>>,
 }
 
-impl Engine for FlagEngine {
+impl emEngine for FlagEngine {
     fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
         *self.flag.borrow_mut() = true;
         false
@@ -128,7 +128,7 @@ fn signal_removal_while_pending() {
     h.scheduler.abort(sig);
     h.tick();
 
-    // Engine should NOT have run (signal was aborted)
+    // emEngine should NOT have run (signal was aborted)
     assert_eq!(*counter.borrow(), 0);
     h.scheduler.remove_engine(eng);
 }
@@ -140,7 +140,7 @@ fn engine_fires_signal_waking_sibling() {
 
     let sig = h.scheduler.create_signal();
 
-    // Engine A: high priority, fires signal on first cycle
+    // emEngine A: high priority, fires signal on first cycle
     let _eng_a = h.scheduler.register_engine(
         Priority::High,
         Box::new(SignalFiringEngine {
@@ -152,7 +152,7 @@ fn engine_fires_signal_waking_sibling() {
     );
     h.scheduler.wake_up(_eng_a);
 
-    // Engine B: low priority, woken by signal
+    // emEngine B: low priority, woken by signal
     let eng_b = h.scheduler.register_engine(
         Priority::Low,
         Box::new(SignalFiringEngine {

@@ -1,17 +1,17 @@
 use std::rc::Rc;
 
-use crate::emCore::emColor::Color;
-use crate::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
-use crate::emCore::emRasterLayout::RasterLayout;
+use crate::emCore::emColor::emColor;
+use crate::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use crate::emCore::emInputState::emInputState;
+use crate::emCore::emRasterLayout::emRasterLayout;
 use crate::emCore::emTiling::{AlignmentH, AlignmentV, Spacing};
 use crate::emCore::emPanel::PanelState;
 use crate::emCore::emPanelCtx::PanelCtx;
-use crate::emCore::emPainter::{Painter, TextAlignment, VAlign};
+use crate::emCore::emPainter::{emPainter, TextAlignment, VAlign};
 
-use super::emBorder::{Border, InnerBorderType, OuterBorderType};
+use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 use super::emColorFieldFieldPanel::{ScalarFieldPanel, TextFieldPanel};
-use crate::emCore::emLook::Look;
+use crate::emCore::emLook::emLook;
 
 /// Expansion child panels for color editing.
 ///
@@ -35,7 +35,7 @@ pub struct Expansion {
     pub sf_sat: i64,
     /// Value/brightness (0–10000 maps to 0.0–1.0).
     pub sf_val: i64,
-    /// Color name or hex string.
+    /// emColor name or hex string.
     pub tf_name: String,
 
     // Cached output values for change detection (C++ RedOut, GreenOut, etc.).
@@ -73,33 +73,33 @@ impl Expansion {
 }
 
 /// RGBA color editor widget.
-pub struct ColorField {
-    border: Border,
-    look: Rc<Look>,
+pub struct emColorField {
+    border: emBorder,
+    look: Rc<emLook>,
     last_w: f64,
     last_h: f64,
-    color: Color,
+    color: emColor,
     editable: bool,
     alpha_enabled: bool,
     expanded: bool,
     /// Expansion child data, created during auto-expand.
     /// Port of C++ `emOwnPtr<Expansion> Exp`.
     expansion: Option<Box<Expansion>>,
-    pub on_color: Option<Box<dyn FnMut(Color)>>,
+    pub on_color: Option<Box<dyn FnMut(emColor)>>,
 }
 
 const SWATCH_SIZE: f64 = 20.0;
 
-impl ColorField {
-    pub fn new(look: Rc<Look>) -> Self {
+impl emColorField {
+    pub fn new(look: Rc<emLook>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::Instrument)
+            border: emBorder::new(OuterBorderType::Instrument)
                 .with_inner(InnerBorderType::OutputField)
                 .with_how_to(true),
             look,
             last_w: 0.0,
             last_h: 0.0,
-            color: Color::BLACK,
+            color: emColor::BLACK,
             editable: false,
             alpha_enabled: false,
             expanded: false,
@@ -112,11 +112,11 @@ impl ColorField {
         self.border.caption = caption.to_string();
     }
 
-    pub fn color(&self) -> Color {
+    pub fn color(&self) -> emColor {
         self.color
     }
 
-    pub fn set_color(&mut self, color: Color) {
+    pub fn set_color(&mut self, color: emColor) {
         if self.color != color {
             self.color = color;
             // Sync expansion if present.
@@ -256,16 +256,16 @@ impl ColorField {
             let g = ((exp.sf_green * 255 + 5000) / 10000).clamp(0, 255) as u8;
             let b = ((exp.sf_blue * 255 + 5000) / 10000).clamp(0, 255) as u8;
             let a = ((exp.sf_alpha * 255 + 5000) / 10000).clamp(0, 255) as u8;
-            self.color = Color::rgba(r, g, b, a);
+            self.color = emColor::rgba(r, g, b, a);
         }
         if hsv_changed {
             let h = exp.sf_hue as f32 / 100.0;
             let s = (exp.sf_sat as f32 / 10000.0).clamp(0.0, 1.0);
             let v = (exp.sf_val as f32 / 10000.0).clamp(0.0, 1.0);
-            self.color = Color::from_hsv(h, s, v).with_alpha(self.color.a());
+            self.color = emColor::from_hsv(h, s, v).with_alpha(self.color.a());
         }
         if text_changed {
-            if let Some(parsed) = Color::try_parse(&exp.tf_name) {
+            if let Some(parsed) = emColor::try_parse(&exp.tf_name) {
                 self.color = parsed;
             }
         }
@@ -288,7 +288,7 @@ impl ColorField {
         true
     }
 
-    /// Read current values from child ScalarField/TextField panels in the tree
+    /// Read current values from child emScalarField/emTextField panels in the tree
     /// and update the Expansion's `sf_*` / `tf_name` fields.
     ///
     /// This mirrors the C++ `emColorField::Cycle()` pattern where each child
@@ -300,7 +300,7 @@ impl ColorField {
             return;
         }
 
-        // The tree structure is: self -> RasterLayout -> {r, g, b, a, h, s, v, n}.
+        // The tree structure is: self -> emRasterLayout -> {r, g, b, a, h, s, v, n}.
         let children: Vec<_> = ctx.tree.children(ctx.id).collect();
         if children.is_empty() {
             return;
@@ -308,7 +308,7 @@ impl ColorField {
         let layout_id = children[0];
         let grandchildren: Vec<_> = ctx.tree.children(layout_id).collect();
 
-        // Map child names to their ScalarField values or TextField text.
+        // Map child names to their emScalarField values or emTextField text.
         for &child_id in &grandchildren {
             let name = ctx.tree.name(child_id).unwrap_or("").to_string();
             if let Some(behavior) = ctx.tree.take_behavior(child_id) {
@@ -392,7 +392,7 @@ impl ColorField {
     /// Paint using C++ emColorField::PaintContent (emColorField.cpp:371-404).
     ///
     /// Gets content round rect, insets by d=min(w,h)*0.1, paints color rect + outline.
-    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64) {
         self.last_w = w;
         self.last_h = h;
         self.border
@@ -433,7 +433,7 @@ impl ColorField {
                 true,
                 0.0,
             );
-            canvas_color = Color::rgba(0, 0, 0, 0);
+            canvas_color = emColor::rgba(0, 0, 0, 0);
         }
 
         // Paint color rect.
@@ -448,13 +448,13 @@ impl ColorField {
             let t2 = thickness * 0.5;
             let oc = self.look.input_fg_color;
             // Top
-            painter.paint_rect(rx - t2, ry - t2, rw + thickness, thickness, oc, Color::TRANSPARENT);
+            painter.paint_rect(rx - t2, ry - t2, rw + thickness, thickness, oc, emColor::TRANSPARENT);
             // Bottom
-            painter.paint_rect(rx - t2, ry + rh - t2, rw + thickness, thickness, oc, Color::TRANSPARENT);
+            painter.paint_rect(rx - t2, ry + rh - t2, rw + thickness, thickness, oc, emColor::TRANSPARENT);
             // Left
-            painter.paint_rect(rx - t2, ry + t2, thickness, (rh - thickness).max(0.0), oc, Color::TRANSPARENT);
+            painter.paint_rect(rx - t2, ry + t2, thickness, (rh - thickness).max(0.0), oc, emColor::TRANSPARENT);
             // Right
-            painter.paint_rect(rx + rw - t2, ry + t2, thickness, (rh - thickness).max(0.0), oc, Color::TRANSPARENT);
+            painter.paint_rect(rx + rw - t2, ry + t2, thickness, (rh - thickness).max(0.0), oc, emColor::TRANSPARENT);
         }
 
         // C++ paints content, THEN overlays the IO field border image.
@@ -470,7 +470,7 @@ impl ColorField {
         super::widget_utils::check_mouse_round_rect(mx, my, &rect, r)
     }
 
-    pub fn input(&mut self, event: &InputEvent, _state: &PanelState, _input_state: &InputState) -> bool {
+    pub fn input(&mut self, event: &emInputEvent, _state: &PanelState, _input_state: &emInputState) -> bool {
         match event.key {
             InputKey::MouseLeft if event.variant == InputVariant::Release => {
                 if !self.hit_test(event.mouse_x, event.mouse_y) {
@@ -485,10 +485,10 @@ impl ColorField {
 
     /// Create expansion child panels matching C++ `emColorField::AutoExpand()`.
     ///
-    /// Creates a `RasterLayout` child ("emColorField::InnerStuff") with
+    /// Creates a `emRasterLayout` child ("emColorField::InnerStuff") with
     /// `fixed_columns=2`, `preferred_child_tallness=0.2`, `alignment=End`,
-    /// and `spacing=(0.08, 0.2, 0.04, 0.1)`. Under it, 7 ScalarField panels
-    /// (r, g, b, a, h, s, v) and 1 TextField panel (n).
+    /// and `spacing=(0.08, 0.2, 0.04, 0.1)`. Under it, 7 emScalarField panels
+    /// (r, g, b, a, h, s, v) and 1 emTextField panel (n).
     pub fn create_expansion_children(&mut self, ctx: &mut PanelCtx) {
         if !self.expanded {
             self.auto_expand();
@@ -496,8 +496,8 @@ impl ColorField {
         }
         let exp = self.expansion.as_ref().expect("expansion must exist");
 
-        // Create the RasterLayout child panel.
-        let mut layout = RasterLayout::new();
+        // Create the emRasterLayout child panel.
+        let mut layout = emRasterLayout::new();
         layout.fixed_columns = Some(2);
         layout.preferred_child_tallness = 0.2;
         // C++ SetChildTallness(0.2) sets PrefCT=MinCT=MaxCT=0.2, locking cell
@@ -537,11 +537,11 @@ impl ColorField {
         let editable = self.editable;
 
         // C++ emColorField sets scale mark intervals and percent-value
-        // formatters on each ScalarField child (emColorField.cpp:234-309).
+        // formatters on each emScalarField child (emColorField.cpp:234-309).
         let pct_intervals: &[u64] = &[2500, 500, 100];
         let hue_intervals: &[u64] = &[6000, 1500, 500, 100];
 
-        // Helper: create a percent-valued ScalarField child.
+        // Helper: create a percent-valued emScalarField child.
         let create_pct_sf = |tree: &mut crate::emCore::emPanelTree::PanelTree,
                              parent: crate::emCore::emPanelTree::PanelId,
                              name: &str,
@@ -628,7 +628,7 @@ impl ColorField {
         create_pct_sf(ctx.tree, layout_id, "s", "Saturation", exp.sf_sat);
         create_pct_sf(ctx.tree, layout_id, "v", "Value (brightness)", exp.sf_val);
 
-        // TextField child for color name/hex.
+        // emTextField child for color name/hex.
         // C++ description: "Here you can enter a color name like 'powder blue',\n
         //                    or a hexadecimal RGB value like '#c88' or '#73c81D'."
         let tf_child = ctx.tree.create_child(layout_id, "n");
@@ -642,12 +642,12 @@ impl ColorField {
 
     /// Layout children matching C++ `emColorField::LayoutChildren()`.
     ///
-    /// Positions the RasterLayout child in the right half of the content rect,
+    /// Positions the emRasterLayout child in the right half of the content rect,
     /// inset by `d = min(w,h) * 0.05`.
     ///
     /// When the panel is auto-expanded but has no children yet, this method
     /// creates them via `create_expansion_children`, matching the pattern
-    /// used by other widgets (e.g. `CoreConfigPanel`).
+    /// used by other widgets (e.g. `emCoreConfigPanel`).
     pub fn layout_children(&mut self, ctx: &mut PanelCtx, w: f64, h: f64) {
         if ctx.tree.is_auto_expanded(ctx.id) && ctx.child_count() == 0 {
             self.create_expansion_children(ctx);
@@ -669,7 +669,7 @@ impl ColorField {
         let cw = (cr.w - 2.0 * d).max(0.0);
         let ch = (cr.h - 2.0 * d).max(0.0);
 
-        // Position the RasterLayout child in the right half.
+        // Position the emRasterLayout child in the right half.
         let layout_id = children[0];
         ctx.layout_child(layout_id, x + cw * 0.5, y, cw * 0.5, ch);
 
@@ -728,8 +728,8 @@ mod tests {
 
     #[test]
     fn toggle_expanded() {
-        let look = Look::new();
-        let mut cf = ColorField::new(look);
+        let look = emLook::new();
+        let mut cf = emColorField::new(look);
         assert!(!cf.is_expanded());
 
         // Use programmatic toggle since mouse needs paint for hit test
@@ -742,16 +742,16 @@ mod tests {
 
     #[test]
     fn set_and_get_color() {
-        let look = Look::new();
-        let mut cf = ColorField::new(look);
-        cf.set_color(Color::RED);
-        assert_eq!(cf.color(), Color::RED);
+        let look = emLook::new();
+        let mut cf = emColorField::new(look);
+        cf.set_color(emColor::RED);
+        assert_eq!(cf.color(), emColor::RED);
     }
 
     #[test]
     fn expansion_created_on_expand() {
-        let look = Look::new();
-        let mut cf = ColorField::new(look);
+        let look = emLook::new();
+        let mut cf = emColorField::new(look);
         assert!(cf.expansion().is_none());
         cf.set_expanded(true);
         assert!(cf.expansion().is_some());
@@ -759,8 +759,8 @@ mod tests {
 
     #[test]
     fn expansion_destroyed_on_shrink() {
-        let look = Look::new();
-        let mut cf = ColorField::new(look);
+        let look = emLook::new();
+        let mut cf = emColorField::new(look);
         cf.set_expanded(true);
         cf.set_expanded(false);
         assert!(cf.expansion().is_none());
@@ -768,9 +768,9 @@ mod tests {
 
     #[test]
     fn expansion_rgba_values_match_color() {
-        let look = Look::new();
-        let mut cf = ColorField::new(look);
-        cf.set_color(Color::rgba(100, 150, 200, 255));
+        let look = emLook::new();
+        let mut cf = emColorField::new(look);
+        cf.set_color(emColor::rgba(100, 150, 200, 255));
         cf.set_expanded(true);
         let exp = cf.expansion().expect("expanded");
         // r=100 → (100 * 10000 + 127) / 255 = 3922
@@ -782,23 +782,23 @@ mod tests {
 
     #[test]
     fn cycle_rgba_change() {
-        let look = Look::new();
-        let mut cf = ColorField::new(look);
-        cf.set_color(Color::BLACK);
+        let look = emLook::new();
+        let mut cf = emColorField::new(look);
+        cf.set_color(emColor::BLACK);
         cf.set_expanded(true);
         // Modify red via expansion
         cf.expansion_mut().unwrap().sf_red = 5000; // ~50% = 127
         assert!(cf.cycle());
-        // Color should have updated red channel
+        // emColor should have updated red channel
         let r = cf.color().r();
         assert!((r as i64 - 127).abs() <= 1, "expected ~127, got {}", r);
     }
 
     #[test]
     fn cycle_hsv_change() {
-        let look = Look::new();
-        let mut cf = ColorField::new(look);
-        cf.set_color(Color::BLACK);
+        let look = emLook::new();
+        let mut cf = emColorField::new(look);
+        cf.set_color(emColor::BLACK);
         cf.set_expanded(true);
         // Set via HSV: hue=0 (red), sat=100%, val=100%
         let exp = cf.expansion_mut().unwrap();
@@ -814,19 +814,19 @@ mod tests {
 
     #[test]
     fn cycle_text_change() {
-        let look = Look::new();
-        let mut cf = ColorField::new(look);
+        let look = emLook::new();
+        let mut cf = emColorField::new(look);
         cf.set_expanded(true);
         cf.expansion_mut().unwrap().tf_name = "#FF0000".to_string();
         assert!(cf.cycle());
-        assert_eq!(cf.color(), Color::rgba(255, 0, 0, 255));
+        assert_eq!(cf.color(), emColor::rgba(255, 0, 0, 255));
     }
 
     #[test]
     fn update_name_output_hex_format() {
-        let look = Look::new();
-        let mut cf = ColorField::new(look);
-        cf.set_color(Color::rgba(0xAB, 0xCD, 0xEF, 0xFF));
+        let look = emLook::new();
+        let mut cf = emColorField::new(look);
+        cf.set_color(emColor::rgba(0xAB, 0xCD, 0xEF, 0xFF));
         cf.set_expanded(true);
         let exp = cf.expansion().unwrap();
         assert_eq!(exp.tf_name, "#ABCDEF");
@@ -834,13 +834,13 @@ mod tests {
 
     #[test]
     fn update_hsv_preserves_hue_at_black() {
-        let look = Look::new();
-        let mut cf = ColorField::new(look);
-        cf.set_color(Color::rgba(255, 0, 0, 255)); // Red
+        let look = emLook::new();
+        let mut cf = emColorField::new(look);
+        cf.set_color(emColor::rgba(255, 0, 0, 255)); // Red
         cf.set_expanded(true);
         let hue_before = cf.expansion().unwrap().sf_hue;
         // Now set to black via RGBA
-        cf.set_color(Color::BLACK);
+        cf.set_color(emColor::BLACK);
         // Hue should be preserved (not reset to 0) because v=0
         let hue_after = cf.expansion().unwrap().sf_hue;
         assert_eq!(hue_before, hue_after);

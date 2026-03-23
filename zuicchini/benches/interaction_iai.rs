@@ -2,19 +2,19 @@
 mod common;
 
 use gungraun::{library_benchmark, library_benchmark_group, main};
-use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emImage::emImage;
 use zuicchini::emCore::emPanelTree::PanelTree;
 
-use zuicchini::emCore::emView::View;
+use zuicchini::emCore::emView::emView;
 use zuicchini::emCore::emViewRendererTileCache::TileCache;
 
 use common::{run_one_frame, setup_tree_and_view, DEFAULT_VH, DEFAULT_VW, SCENARIOS};
 
-type ScenarioState = (PanelTree, View, Image, TileCache, f64, f64, usize);
+type ScenarioState = (PanelTree, emView, emImage, TileCache, f64, f64, usize);
 
 fn setup_scenario(idx: usize) -> ScenarioState {
     let (mut tree, mut view, _) = setup_tree_and_view(DEFAULT_VW, DEFAULT_VH);
-    let mut buf = Image::new(DEFAULT_VW, DEFAULT_VH, 4);
+    let mut buf = emImage::new(DEFAULT_VW, DEFAULT_VH, 4);
     let mut tc = TileCache::new(DEFAULT_VW, DEFAULT_VH, 256);
     let fx = DEFAULT_VW as f64 / 2.0;
     let fy = DEFAULT_VH as f64 / 2.0;

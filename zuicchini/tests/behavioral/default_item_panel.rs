@@ -1,5 +1,5 @@
-use zuicchini::emCore::emListBox::{DefaultItemPanel, ItemPanelInterface, ListBox};
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emListBox::{DefaultItemPanel, ItemPanelInterface, emListBox};
+use zuicchini::emCore::emLook::emLook;
 
 struct CustomPanel {
     index: usize,
@@ -86,16 +86,16 @@ fn default_item_panel_set_index() {
 
 #[test]
 fn get_item_panel_none_before_expand() {
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.add_item("a".to_string(), "Item A".to_string());
     assert!(lb.get_item_panel(0).is_none());
 }
 
 #[test]
 fn get_item_panel_some_after_expand() {
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.add_item("a".to_string(), "Item A".to_string());
     lb.auto_expand_items();
     assert!(lb.get_item_panel(0).is_some());
@@ -104,8 +104,8 @@ fn get_item_panel_some_after_expand() {
 
 #[test]
 fn get_item_panel_out_of_range() {
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.add_item("a".to_string(), "Item A".to_string());
     lb.auto_expand_items();
     assert!(lb.get_item_panel(99).is_none());
@@ -113,8 +113,8 @@ fn get_item_panel_out_of_range() {
 
 #[test]
 fn get_item_panel_interface_after_expand() {
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.add_item("x".to_string(), "X".to_string());
     lb.auto_expand_items();
     let iface = lb.get_item_panel_interface(0).unwrap();
@@ -123,8 +123,8 @@ fn get_item_panel_interface_after_expand() {
 
 #[test]
 fn get_item_panel_interface_text_sync() {
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.add_item("x".to_string(), "Original".to_string());
     lb.auto_expand_items();
     lb.set_item_text(0, "Changed".to_string());
@@ -134,8 +134,8 @@ fn get_item_panel_interface_text_sync() {
 
 #[test]
 fn custom_factory_creates_custom_panels() {
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_item_panel_factory(|index, text, selected| {
         Box::new(CustomPanel {
             index,
@@ -151,8 +151,8 @@ fn custom_factory_creates_custom_panels() {
 
 #[test]
 fn default_factory_creates_default_panels() {
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.add_item("a".to_string(), "Alpha".to_string());
     lb.auto_expand_items();
     let panel = lb.get_item_panel(0).unwrap();

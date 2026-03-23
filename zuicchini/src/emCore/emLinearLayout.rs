@@ -14,7 +14,7 @@ use super::emTiling::{
 ///
 /// Implements the C++ emLinearLayout spacing model with absolute spacing units
 /// and per-axis alignment (D-LAYOUT-01 through D-LAYOUT-04).
-pub struct LinearLayout {
+pub struct emLinearLayout {
     pub orientation: Orientation,
     pub alignment_h: AlignmentH,
     pub alignment_v: AlignmentV,
@@ -25,7 +25,7 @@ pub struct LinearLayout {
     pub min_cell_count: usize,
 }
 
-impl LinearLayout {
+impl emLinearLayout {
     pub fn horizontal() -> Self {
         Self {
             orientation: Orientation::Horizontal,
@@ -481,7 +481,7 @@ impl LinearLayout {
     }
 }
 
-impl PanelBehavior for LinearLayout {
+impl PanelBehavior for emLinearLayout {
     fn layout_children(&mut self, ctx: &mut PanelCtx) {
         self.do_layout(ctx);
     }
@@ -512,7 +512,7 @@ mod tests {
         // 4 children in 600x200, no spacing. Normalized: w=1.0, h=1/3.
         // Each child 0.25 x 1/3 in normalized coords.
         let (mut tree, root, children) = setup_tree(4);
-        let mut layout = LinearLayout::horizontal();
+        let mut layout = emLinearLayout::horizontal();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for (i, child) in children.iter().enumerate() {
@@ -534,7 +534,7 @@ mod tests {
         // Each child 1.0 x 2/3 in normalized coords.
         let (mut tree, root, children) = setup_tree(2);
         tree.set_layout_rect(root, 0.0, 0.0, 300.0, 400.0);
-        let mut layout = LinearLayout::vertical();
+        let mut layout = emLinearLayout::vertical();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for (i, child) in children.iter().enumerate() {
@@ -555,7 +555,7 @@ mod tests {
         // total_weight=4. Widths: 0.25, 0.5, 0.25 in normalized coords.
         let (mut tree, root, children) = setup_tree(3);
         tree.set_layout_rect(root, 0.0, 0.0, 300.0, 100.0);
-        let mut layout = LinearLayout::horizontal();
+        let mut layout = emLinearLayout::horizontal();
         layout.set_child_constraint(
             children[0],
             ChildConstraint {
@@ -593,7 +593,7 @@ mod tests {
         // Normalized: w=1.0, h=0.5. All positions in normalized coords.
         let (mut tree, root, children) = setup_tree(2);
         tree.set_layout_rect(root, 0.0, 0.0, 200.0, 100.0);
-        let mut layout = LinearLayout::horizontal().with_spacing(Spacing {
+        let mut layout = emLinearLayout::horizontal().with_spacing(Spacing {
             inner_h: 1.0,
             inner_v: 0.0,
             margin_left: 0.5,
@@ -618,7 +618,7 @@ mod tests {
         // Child 0 min_tallness=0.5 compresses to w=1/3. Child 1 gets remaining 2/3.
         let (mut tree, root, children) = setup_tree(2);
         tree.set_layout_rect(root, 0.0, 0.0, 600.0, 100.0);
-        let mut layout = LinearLayout::horizontal();
+        let mut layout = emLinearLayout::horizontal();
         layout.set_child_constraint(
             children[0],
             ChildConstraint {
@@ -643,7 +643,7 @@ mod tests {
         // D-LAYOUT-04 conflict resolution. Result: 2/9, 5/9, 2/9 in normalized coords.
         let (mut tree, root, children) = setup_tree(3);
         tree.set_layout_rect(root, 0.0, 0.0, 900.0, 100.0);
-        let mut layout = LinearLayout::horizontal();
+        let mut layout = emLinearLayout::horizontal();
         layout.set_child_constraint(
             children[0],
             ChildConstraint {

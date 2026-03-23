@@ -1,25 +1,25 @@
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emImage::Image;
-use zuicchini::emCore::emPainter::{Painter, TextAlignment, VAlign};
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emImage::emImage;
+use zuicchini::emCore::emPainter::{emPainter, TextAlignment, VAlign};
 
-use zuicchini::emCore::emStroke::{DashType, LineCap, LineJoin, Stroke};
+use zuicchini::emCore::emStroke::{DashType, LineCap, LineJoin, emStroke};
 
-use zuicchini::emCore::emStrokeEnd::{StrokeEnd, StrokeEndType};
+use zuicchini::emCore::emStrokeEnd::{emStrokeEnd, StrokeEndType};
 
 use super::common::*;
 
-fn white_canvas(w: u32, h: u32) -> Image {
-    let mut img = Image::new(w, h, 4);
-    img.fill(Color::WHITE);
+fn white_canvas(w: u32, h: u32) -> emImage {
+    let mut img = emImage::new(w, h, 4);
+    img.fill(emColor::WHITE);
     img
 }
 
-/// Create a Painter with TRANSPARENT canvas (standard alpha blending).
+/// Create a emPainter with TRANSPARENT canvas (standard alpha blending).
 /// In C++ emPainter, canvasColor defaults to 0 (non-opaque) per call, which
 /// uses standard alpha blending. Match that behavior here.
-fn white_painter(img: &mut Image) -> Painter<'_> {
-    let mut p = Painter::new(img);
-    p.set_canvas_color(Color::TRANSPARENT);
+fn white_painter(img: &mut emImage) -> emPainter<'_> {
+    let mut p = emPainter::new(img);
+    p.set_canvas_color(emColor::TRANSPARENT);
     p
 }
 
@@ -41,7 +41,7 @@ fn painter_rect_solid() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        p.paint_rect(20.0, 20.0, 100.0, 80.0, Color::RED, Color::TRANSPARENT);
+        p.paint_rect(20.0, 20.0, 100.0, 80.0, emColor::RED, emColor::TRANSPARENT);
     }
     compare_images("rect_solid", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
@@ -59,8 +59,8 @@ fn painter_rect_alpha() {
             20.0,
             100.0,
             80.0,
-            Color::rgba(255, 0, 0, 128),
-            Color::TRANSPARENT,
+            emColor::rgba(255, 0, 0, 128),
+            emColor::TRANSPARENT,
         );
     }
     compare_images("rect_alpha", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
@@ -74,14 +74,14 @@ fn painter_rect_overlap() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        p.paint_rect(20.0, 20.0, 100.0, 80.0, Color::RED, Color::TRANSPARENT);
+        p.paint_rect(20.0, 20.0, 100.0, 80.0, emColor::RED, emColor::TRANSPARENT);
         p.paint_rect(
             60.0,
             40.0,
             100.0,
             80.0,
-            Color::rgba(0, 0, 255, 128),
-            Color::TRANSPARENT,
+            emColor::rgba(0, 0, 255, 128),
+            emColor::TRANSPARENT,
         );
     }
     compare_images("rect_overlap", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
@@ -96,7 +96,7 @@ fn painter_ellipse_basic() {
     {
         let mut p = white_painter(&mut img);
         // C++ PaintEllipse(28,28,200,150) → cx=128 cy=103 rx=100 ry=75
-        p.paint_ellipse(128.0, 103.0, 100.0, 75.0, Color::GREEN, Color::TRANSPARENT);
+        p.paint_ellipse(128.0, 103.0, 100.0, 75.0, emColor::GREEN, emColor::TRANSPARENT);
     }
     compare_images("ellipse_basic", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
@@ -110,7 +110,7 @@ fn painter_ellipse_small() {
     {
         let mut p = white_painter(&mut img);
         // C++ PaintEllipse(118,118,20,20) → cx=128 cy=128 rx=10 ry=10
-        p.paint_ellipse(128.0, 128.0, 10.0, 10.0, Color::BLUE, Color::TRANSPARENT);
+        p.paint_ellipse(128.0, 128.0, 10.0, 10.0, emColor::BLUE, emColor::TRANSPARENT);
     }
     compare_images("ellipse_small", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
@@ -125,8 +125,8 @@ fn painter_polygon_tri() {
         let mut p = white_painter(&mut img);
         p.paint_polygon(
             &[(128.0, 20.0), (20.0, 230.0), (236.0, 230.0)],
-            Color::RED,
-            Color::TRANSPARENT,
+            emColor::RED,
+            emColor::TRANSPARENT,
         );
     }
     compare_images("polygon_tri", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
@@ -154,7 +154,7 @@ fn painter_polygon_star() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        p.paint_polygon(&star_vertices(), Color::MAGENTA, Color::TRANSPARENT);
+        p.paint_polygon(&star_vertices(), emColor::MAGENTA, emColor::TRANSPARENT);
     }
     compare_images("polygon_star", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
@@ -184,7 +184,7 @@ fn painter_polygon_complex() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        p.paint_polygon(&convex_polygon_20(), Color::CYAN, Color::TRANSPARENT);
+        p.paint_polygon(&convex_polygon_20(), emColor::CYAN, emColor::TRANSPARENT);
     }
     compare_images("polygon_complex", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
@@ -197,7 +197,7 @@ fn painter_round_rect() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        p.paint_round_rect(20.0, 20.0, 200.0, 150.0, 20.0, Color::BLUE);
+        p.paint_round_rect(20.0, 20.0, 200.0, 150.0, 20.0, emColor::BLUE);
     }
     compare_images("round_rect", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
@@ -215,10 +215,10 @@ fn painter_gradient_h() {
             0.0,
             256.0,
             256.0,
-            Color::RED,
-            Color::BLUE,
+            emColor::RED,
+            emColor::BLUE,
             true,
-            Color::TRANSPARENT,
+            emColor::TRANSPARENT,
         );
     }
     compare_images("gradient_h", img.data(), &expected, ew, eh, 0, 1.0).unwrap();
@@ -237,10 +237,10 @@ fn painter_gradient_v() {
             0.0,
             256.0,
             256.0,
-            Color::GREEN,
-            Color::YELLOW,
+            emColor::GREEN,
+            emColor::YELLOW,
             false,
-            Color::TRANSPARENT,
+            emColor::TRANSPARENT,
         );
     }
     compare_images("gradient_v", img.data(), &expected, ew, eh, 0, 1.0).unwrap();
@@ -259,9 +259,9 @@ fn painter_gradient_radial() {
             128.0,
             128.0,
             128.0,
-            Color::WHITE,
-            Color::BLACK,
-            Color::TRANSPARENT,
+            emColor::WHITE,
+            emColor::BLACK,
+            emColor::TRANSPARENT,
         );
     }
     // Residual: C++ uses integer sqrt lookup table for gradient; Rust uses f64 sqrt.
@@ -284,8 +284,8 @@ fn painter_line_basic() {
             10.0,
             240.0,
             200.0,
-            &Stroke::new(Color::BLACK, 3.0),
-            Color::TRANSPARENT,
+            &emStroke::new(emColor::BLACK, 3.0),
+            emColor::TRANSPARENT,
         );
     }
     compare_images("line_basic", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
@@ -299,14 +299,14 @@ fn painter_line_thick() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        let stroke = Stroke {
-            color: Color::BLUE,
+        let stroke = emStroke {
+            color: emColor::BLUE,
             width: 8.0,
             join: LineJoin::Round,
             cap: LineCap::Round,
             ..Default::default()
         };
-        p.paint_line_stroked(10.0, 128.0, 240.0, 128.0, &stroke, Color::TRANSPARENT);
+        p.paint_line_stroked(10.0, 128.0, 240.0, 128.0, &stroke, emColor::TRANSPARENT);
     }
     compare_images("line_thick", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
@@ -330,7 +330,7 @@ fn all_stroke_end_types() -> Vec<StrokeEndType> {
         StrokeEndType::Diamond,
         StrokeEndType::ContourDiamond,
         StrokeEndType::HalfDiamond,
-        StrokeEndType::Stroke,
+        StrokeEndType::emStroke,
     ]
 }
 
@@ -345,11 +345,11 @@ fn painter_line_ends_all() {
         let spacing = 240.0 / types.len() as f64;
         for (i, end_type) in types.iter().enumerate() {
             let y = 8.0 + spacing * i as f64;
-            let mut stroke = Stroke::new(Color::BLACK, 4.0);
+            let mut stroke = emStroke::new(emColor::BLACK, 4.0);
             stroke.cap = LineCap::Round;
             stroke.join = LineJoin::Round;
-            stroke.finish_end = StrokeEnd::new(*end_type).with_inner_color(Color::WHITE);
-            p.paint_line_stroked(30.0, y, 226.0, y, &stroke, Color::TRANSPARENT);
+            stroke.finish_end = emStrokeEnd::new(*end_type).with_inner_color(emColor::WHITE);
+            p.paint_line_stroked(30.0, y, 226.0, y, &stroke, emColor::TRANSPARENT);
         }
     }
     compare_images("line_ends_all", img.data(), &expected, ew, eh, 1, 1.0).unwrap();
@@ -364,16 +364,16 @@ fn painter_line_dashed() {
     {
         let mut p = white_painter(&mut img);
         // Dashed line: C++ emDashedStroke(BLACK, 3.0, 3.0)
-        let mut stroke_dash = Stroke::new(Color::BLACK, 3.0);
+        let mut stroke_dash = emStroke::new(emColor::BLACK, 3.0);
         stroke_dash.dash_type = DashType::Dashed;
         stroke_dash.dash_length_factor = 3.0;
         stroke_dash.gap_length_factor = 3.0;
-        p.paint_line_stroked(10.0, 64.0, 240.0, 64.0, &stroke_dash, Color::TRANSPARENT);
+        p.paint_line_stroked(10.0, 64.0, 240.0, 64.0, &stroke_dash, emColor::TRANSPARENT);
         // Dotted line: C++ emDottedStroke(BLACK, 3.0)
-        let mut stroke_dot = Stroke::new(Color::BLACK, 3.0);
+        let mut stroke_dot = emStroke::new(emColor::BLACK, 3.0);
         stroke_dot.dash_type = DashType::Dotted;
         stroke_dot.gap_length_factor = 3.0;
-        p.paint_line_stroked(10.0, 128.0, 240.0, 128.0, &stroke_dot, Color::TRANSPARENT);
+        p.paint_line_stroked(10.0, 128.0, 240.0, 128.0, &stroke_dot, emColor::TRANSPARENT);
     }
     compare_images("line_dashed", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
@@ -391,8 +391,8 @@ fn painter_outline_rect() {
             20.0,
             200.0,
             150.0,
-            &Stroke::new(Color::BLACK, 3.0),
-            Color::TRANSPARENT,
+            &emStroke::new(emColor::BLACK, 3.0),
+            emColor::TRANSPARENT,
         );
     }
     compare_images("outline_rect", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
@@ -412,8 +412,8 @@ fn painter_outline_ellipse() {
             103.0,
             100.0,
             75.0,
-            &Stroke::new(Color::BLACK, 2.0),
-            Color::TRANSPARENT,
+            &emStroke::new(emColor::BLACK, 2.0),
+            emColor::TRANSPARENT,
         );
     }
     compare_images("outline_ellipse", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
@@ -439,7 +439,7 @@ fn painter_outline_polygon() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        p.paint_polygon_outlined(&pentagon_vertices(), Color::BLACK, 3.0, Color::TRANSPARENT);
+        p.paint_polygon_outlined(&pentagon_vertices(), emColor::BLACK, 3.0, emColor::TRANSPARENT);
     }
     compare_images("outline_polygon", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
@@ -458,7 +458,7 @@ fn painter_outline_round_rect() {
             200.0,
             150.0,
             20.0,
-            &Stroke::new(Color::BLACK, 3.0),
+            &emStroke::new(emColor::BLACK, 3.0),
         );
     }
     // Residual: arc approximation segment count differs slightly from C++.
@@ -479,7 +479,7 @@ fn painter_bezier_filled() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        p.paint_bezier(&bezier_points(), Color::RED, Color::TRANSPARENT);
+        p.paint_bezier(&bezier_points(), emColor::RED, emColor::TRANSPARENT);
     }
     compare_images("bezier_filled", img.data(), &expected, ew, eh, 1, 0.1).unwrap();
 }
@@ -492,12 +492,12 @@ fn painter_bezier_stroked() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        let mut stroke = Stroke::new(Color::BLACK, 3.0);
+        let mut stroke = emStroke::new(emColor::BLACK, 3.0);
         stroke.cap = LineCap::Round;
         stroke.join = LineJoin::Round;
-        stroke.start_end = StrokeEnd::new(StrokeEndType::Arrow).with_inner_color(Color::WHITE);
-        stroke.finish_end = StrokeEnd::new(StrokeEndType::Arrow).with_inner_color(Color::WHITE);
-        p.paint_bezier_line(&bezier_points(), &stroke, Color::TRANSPARENT);
+        stroke.start_end = emStrokeEnd::new(StrokeEndType::Arrow).with_inner_color(emColor::WHITE);
+        stroke.finish_end = emStrokeEnd::new(StrokeEndType::Arrow).with_inner_color(emColor::WHITE);
+        p.paint_bezier_line(&bezier_points(), &stroke, emColor::TRANSPARENT);
     }
     compare_images("bezier_stroked", img.data(), &expected, ew, eh, 1, 1.0).unwrap();
 }
@@ -514,8 +514,8 @@ fn painter_clip_basic() {
         // Paint full-canvas polygon — only center rect should appear
         p.paint_polygon(
             &[(128.0, 10.0), (10.0, 246.0), (246.0, 246.0)],
-            Color::RED,
-            Color::TRANSPARENT,
+            emColor::RED,
+            emColor::TRANSPARENT,
         );
     }
     compare_images("clip_basic", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
@@ -526,26 +526,26 @@ fn painter_clip_basic() {
 fn painter_canvas_color() {
     require_golden!();
     let (ew, eh, expected) = load_painter_golden("canvas_color");
-    let mut img = Image::new(ew, eh, 4);
-    img.fill(Color::grey(200));
+    let mut img = emImage::new(ew, eh, 4);
+    img.fill(emColor::grey(200));
     {
         let mut p = white_painter(&mut img);
-        p.set_canvas_color(Color::grey(200));
+        p.set_canvas_color(emColor::grey(200));
         p.paint_rect(
             20.0,
             20.0,
             100.0,
             80.0,
-            Color::rgba(255, 0, 0, 128),
-            Color::TRANSPARENT,
+            emColor::rgba(255, 0, 0, 128),
+            emColor::TRANSPARENT,
         );
     }
     compare_images("canvas_color", img.data(), &expected, ew, eh, 0, 0.5).unwrap();
 }
 
 // ─── Test 25: image_paint ───────────────────────────────────────
-fn procedural_image(w: u32, h: u32) -> Image {
-    let mut img = Image::new(w, h, 4);
+fn procedural_image(w: u32, h: u32) -> emImage {
+    let mut img = emImage::new(w, h, 4);
     for y in 0..h {
         for x in 0..w {
             let r = (x * 255 / w) as u8;
@@ -569,7 +569,7 @@ fn painter_image_paint() {
     let src = procedural_image(64, 64);
     {
         let mut p = white_painter(&mut img);
-        p.paint_image_full(50.0, 50.0, 64.0, 64.0, &src, 255, Color::TRANSPARENT);
+        p.paint_image_full(50.0, 50.0, 64.0, 64.0, &src, 255, emColor::TRANSPARENT);
     }
     compare_images("image_paint", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
@@ -583,7 +583,7 @@ fn painter_image_scaled() {
     let src = procedural_image(64, 64);
     {
         let mut p = white_painter(&mut img);
-        p.paint_image_full(28.0, 28.0, 200.0, 200.0, &src, 255, Color::TRANSPARENT);
+        p.paint_image_full(28.0, 28.0, 200.0, 200.0, &src, 255, emColor::TRANSPARENT);
     }
     // Adaptive interpolation matches C++ UQ_ADAPTIVE; remaining ±1 diffs from
     // FP rounding in Hermite factor table computation.
@@ -604,21 +604,21 @@ fn painter_multi_compose() {
             10.0,
             120.0,
             120.0,
-            Color::rgba(255, 0, 0, 180),
-            Color::TRANSPARENT,
+            emColor::rgba(255, 0, 0, 180),
+            emColor::TRANSPARENT,
         );
         p.paint_ellipse(
             100.0,
             60.0,
             80.0,
             80.0,
-            Color::rgba(0, 255, 0, 150),
-            Color::TRANSPARENT,
+            emColor::rgba(0, 255, 0, 150),
+            emColor::TRANSPARENT,
         );
         p.paint_polygon(
             &[(128.0, 10.0), (60.0, 200.0), (200.0, 200.0)],
-            Color::rgba(0, 0, 255, 120),
-            Color::TRANSPARENT,
+            emColor::rgba(0, 0, 255, 120),
+            emColor::TRANSPARENT,
         );
         p.paint_round_rect(
             140.0,
@@ -626,15 +626,15 @@ fn painter_multi_compose() {
             100.0,
             100.0,
             15.0,
-            Color::rgba(255, 255, 0, 100),
+            emColor::rgba(255, 255, 0, 100),
         );
         p.paint_rect(
             30.0,
             150.0,
             200.0,
             80.0,
-            Color::rgba(128, 0, 128, 90),
-            Color::TRANSPARENT,
+            emColor::rgba(128, 0, 128, 90),
+            emColor::TRANSPARENT,
         );
     }
     compare_images("multi_compose", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
@@ -648,15 +648,15 @@ fn painter_polyline() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        let stroke = Stroke {
-            color: Color::BLACK,
+        let stroke = emStroke {
+            color: emColor::BLACK,
             width: 4.0,
             join: LineJoin::Round,
             cap: LineCap::Round,
             ..Default::default()
         };
         let verts = [(20.0, 200.0), (80.0, 40.0), (160.0, 200.0), (240.0, 40.0)];
-        p.paint_solid_polyline(&verts, &stroke, false, Color::TRANSPARENT);
+        p.paint_solid_polyline(&verts, &stroke, false, emColor::TRANSPARENT);
     }
     compare_images("polyline", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
 }
@@ -671,7 +671,7 @@ fn painter_transform_translate() {
         let mut p = white_painter(&mut img);
         p.push_state();
         p.translate(50.0, 30.0);
-        p.paint_rect(0.0, 0.0, 80.0, 60.0, Color::RED, Color::TRANSPARENT);
+        p.paint_rect(0.0, 0.0, 80.0, 60.0, emColor::RED, emColor::TRANSPARENT);
         p.pop_state();
     }
     compare_images("transform_translate", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
@@ -687,7 +687,7 @@ fn painter_transform_fractional() {
         let mut p = white_painter(&mut img);
         p.push_state();
         p.translate(0.3, 0.7);
-        p.paint_rect(20.0, 20.0, 100.0, 80.0, Color::RED, Color::TRANSPARENT);
+        p.paint_rect(20.0, 20.0, 100.0, 80.0, emColor::RED, emColor::TRANSPARENT);
         p.pop_state();
     }
     compare_images(
@@ -713,7 +713,7 @@ fn painter_transform_identity_roundtrip() {
         p.push_state();
         p.scale(2.0, 2.0);
         p.scale(0.5, 0.5);
-        p.paint_rect(20.0, 20.0, 100.0, 80.0, Color::RED, Color::TRANSPARENT);
+        p.paint_rect(20.0, 20.0, 100.0, 80.0, emColor::RED, emColor::TRANSPARENT);
         p.pop_state();
     }
     compare_images(
@@ -739,7 +739,7 @@ fn painter_transform_ellipse_scaled() {
         p.push_state();
         p.scale(2.0, 1.0);
         // C++ PaintEllipse(10,50,60,60) → bbox center (40,80), radius (30,30) in user space
-        p.paint_ellipse(40.0, 80.0, 30.0, 30.0, Color::GREEN, Color::TRANSPARENT);
+        p.paint_ellipse(40.0, 80.0, 30.0, 30.0, emColor::GREEN, emColor::TRANSPARENT);
         p.pop_state();
     }
     compare_images(
@@ -768,8 +768,8 @@ fn painter_text_basic() {
             "Hello",
             40.0,
             1.0,
-            Color::BLACK,
-            Color::TRANSPARENT,
+            emColor::BLACK,
+            emColor::TRANSPARENT,
         );
     }
     compare_images("text_basic", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
@@ -789,8 +789,8 @@ fn painter_text_scaled() {
             "Test",
             40.0,
             1.5,
-            Color::RED,
-            Color::TRANSPARENT,
+            emColor::RED,
+            emColor::TRANSPARENT,
         );
     }
     compare_images("text_scaled", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
@@ -811,8 +811,8 @@ fn painter_text_fitted() {
             80.0,
             "Fitted",
             100.0,
-            Color::BLACK,
-            Color::TRANSPARENT,
+            emColor::BLACK,
+            emColor::TRANSPARENT,
             TextAlignment::Center,
             VAlign::Center,
             TextAlignment::Left,
@@ -840,8 +840,8 @@ fn painter_text_alignment() {
             80.0,
             "Left",
             50.0,
-            Color::BLACK,
-            Color::TRANSPARENT,
+            emColor::BLACK,
+            emColor::TRANSPARENT,
             TextAlignment::Left,
             VAlign::Top,
             TextAlignment::Left,
@@ -857,8 +857,8 @@ fn painter_text_alignment() {
             80.0,
             "Center",
             50.0,
-            Color::BLACK,
-            Color::TRANSPARENT,
+            emColor::BLACK,
+            emColor::TRANSPARENT,
             TextAlignment::Center,
             VAlign::Center,
             TextAlignment::Center,
@@ -874,8 +874,8 @@ fn painter_text_alignment() {
             80.0,
             "Right",
             50.0,
-            Color::BLACK,
-            Color::TRANSPARENT,
+            emColor::BLACK,
+            emColor::TRANSPARENT,
             TextAlignment::Right,
             VAlign::Bottom,
             TextAlignment::Right,
@@ -903,8 +903,8 @@ fn painter_text_clipped() {
             "Clipped!",
             40.0,
             1.0,
-            Color::BLACK,
-            Color::TRANSPARENT,
+            emColor::BLACK,
+            emColor::TRANSPARENT,
         );
         p.pop_state();
     }
@@ -925,8 +925,8 @@ fn painter_text_below_threshold() {
             "tiny text here",
             1.0,
             1.0,
-            Color::BLACK,
-            Color::TRANSPARENT,
+            emColor::BLACK,
+            emColor::TRANSPARENT,
         );
     }
     compare_images(
@@ -952,7 +952,7 @@ fn painter_transform_clip_interaction() {
         p.push_state();
         p.clip_rect(64.0, 64.0, 128.0, 128.0);
         p.translate(160.0, 100.0);
-        p.paint_rect(0.0, 0.0, 80.0, 60.0, Color::RED, Color::TRANSPARENT);
+        p.paint_rect(0.0, 0.0, 80.0, 60.0, emColor::RED, emColor::TRANSPARENT);
         p.pop_state();
     }
     compare_images(
@@ -980,7 +980,7 @@ fn painter_transform_nested() {
         p.translate(50.0, 50.0);
         p.push_state();
         p.scale(2.0, 2.0);
-        p.paint_rect(0.0, 0.0, 30.0, 30.0, Color::RED, Color::TRANSPARENT);
+        p.paint_rect(0.0, 0.0, 30.0, 30.0, emColor::RED, emColor::TRANSPARENT);
         p.pop_state();
         // Outer: translate(50,50) only, paint blue rect
         p.paint_rect(
@@ -988,8 +988,8 @@ fn painter_transform_nested() {
             0.0,
             50.0,
             50.0,
-            Color::rgba(0, 0, 255, 128),
-            Color::TRANSPARENT,
+            emColor::rgba(0, 0, 255, 128),
+            emColor::TRANSPARENT,
         );
         p.pop_state();
     }
@@ -1006,7 +1006,7 @@ fn painter_transform_scale() {
         let mut p = white_painter(&mut img);
         p.push_state();
         p.scale(2.0, 2.0);
-        p.paint_rect(10.0, 10.0, 50.0, 40.0, Color::RED, Color::TRANSPARENT);
+        p.paint_rect(10.0, 10.0, 50.0, 40.0, emColor::RED, emColor::TRANSPARENT);
         p.pop_state();
     }
     compare_images("transform_scale", img.data(), &expected, ew, eh, 1, 0.5).unwrap();
@@ -1029,8 +1029,8 @@ fn painter_ellipse_sector() {
             100.0,
             0.0,
             90.0,
-            Color::RED,
-            Color::TRANSPARENT,
+            emColor::RED,
+            emColor::TRANSPARENT,
         );
     }
     compare_images("ellipse_sector", img.data(), &expected, ew, eh, 1, 0.5).unwrap();

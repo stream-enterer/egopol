@@ -7,11 +7,11 @@ use crate::dlog;
 /// Port of C++ `emRenderThreadPool`. Manages a configurable number of
 /// worker threads for rendering tiles concurrently. Uses `std::thread::scope`
 /// for zero-cost thread lifetime management.
-pub struct RenderThreadPool {
+pub struct emRenderThreadPool {
     thread_count: usize,
 }
 
-impl RenderThreadPool {
+impl emRenderThreadPool {
     /// Create a new pool with the given maximum thread count.
     ///
     /// The actual thread count is `min(max_threads, hardware_concurrency)`,

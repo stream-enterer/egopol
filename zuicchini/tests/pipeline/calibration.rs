@@ -7,45 +7,45 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::InputEvent;
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::emInputEvent;
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use zuicchini::emCore::emPanelCtx::PanelCtx;
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emButton::Button;
-use zuicchini::emCore::emColorField::ColorField;
-use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
-use zuicchini::emCore::emLook::Look;
-use zuicchini::emCore::emScalarField::ScalarField;
+use zuicchini::emCore::emButton::emButton;
+use zuicchini::emCore::emColorField::emColorField;
+use zuicchini::emCore::emListBox::{emListBox, SelectionMode};
+use zuicchini::emCore::emLook::emLook;
+use zuicchini::emCore::emScalarField::emScalarField;
 
 use super::support::pipeline::PipelineTestHarness;
 
-/// PanelBehavior wrapper for ScalarField so it can be installed into the
+/// PanelBehavior wrapper for emScalarField so it can be installed into the
 /// panel tree. Delegates paint/input to the underlying widget.
 struct ScalarFieldBehavior {
-    sf: ScalarField,
+    sf: emScalarField,
     /// Shared handle so the test can read the value after interaction.
     value: Rc<RefCell<f64>>,
 }
 
 impl ScalarFieldBehavior {
-    fn new(sf: ScalarField, value: Rc<RefCell<f64>>) -> Self {
+    fn new(sf: emScalarField, value: Rc<RefCell<f64>>) -> Self {
         Self { sf, value }
     }
 }
 
 impl PanelBehavior for ScalarFieldBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.sf.paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         let consumed = self.sf.input(event, state, input_state);
         // Sync the shared value so the test can observe it.
@@ -53,7 +53,7 @@ impl PanelBehavior for ScalarFieldBehavior {
         consumed
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.sf.get_cursor()
     }
 
@@ -62,14 +62,14 @@ impl PanelBehavior for ScalarFieldBehavior {
     }
 }
 
-/// Dragging on a ScalarField should change its value. This test fails because
+/// Dragging on a emScalarField should change its value. This test fails because
 /// of a known bug where `check_mouse` passes the wrong height to
 /// `content_round_rect`, causing mouse hit-testing to reject all drag
 /// positions and leaving the value unchanged.
 #[test]
 fn scalarfield_drag_changes_value() {
-    let look = Look::new();
-    let mut sf = ScalarField::new(0.0, 100.0, look);
+    let look = emLook::new();
+    let mut sf = emScalarField::new(0.0, 100.0, look);
     sf.set_value(50.0);
     sf.set_editable(true);
 
@@ -82,7 +82,7 @@ fn scalarfield_drag_changes_value() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    // Add the ScalarField as a child panel filling the entire root.
+    // Add the emScalarField as a child panel filling the entire root.
     let _panel_id = h.add_panel_with(root, "scalar_field", Box::new(behavior));
     // Default layout from add_panel_with is (0,0,1,1) which fills root.
 
@@ -90,16 +90,16 @@ fn scalarfield_drag_changes_value() {
     h.tick_n(5);
 
     // Render once via SoftwareCompositor so that paint() is called on the
-    // ScalarField, populating its cached last_w / last_h dimensions which
+    // emScalarField, populating its cached last_w / last_h dimensions which
     // are required for mouse hit-testing in check_mouse().
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
 
-    // At 1x zoom, the panel fills the 800x600 viewport. The ScalarField's
+    // At 1x zoom, the panel fills the 800x600 viewport. The emScalarField's
     // scale area is within the content rect (after border insets). We drag
     // from the center (50% value) to a point 80% across horizontally.
     //
-    // View-space coordinates: the panel maps to the full viewport.
+    // emView-space coordinates: the panel maps to the full viewport.
     let center_x = 400.0; // 50% of 800
     let center_y = 300.0; // 50% of 600
     let target_x = 640.0; // 80% of 800
@@ -111,31 +111,31 @@ fn scalarfield_drag_changes_value() {
     let final_value = *value_read.borrow();
     assert!(
         (final_value - 50.0).abs() > 1.0,
-        "ScalarField value should have changed from 50.0 after drag, but it is still {final_value:.1}. \
+        "emScalarField value should have changed from 50.0 after drag, but it is still {final_value:.1}. \
          This is a known bug: check_mouse passes height=0.0 to content_round_rect, \
          causing all mouse positions to fall outside the scale area."
     );
 }
 
 // ---------------------------------------------------------------------------
-// ColorFieldBehavior -- minimal PanelBehavior wrapper for ColorField
+// ColorFieldBehavior -- minimal PanelBehavior wrapper for emColorField
 //
-// In the production code there is NO PanelBehavior impl wrapping ColorField.
+// In the production code there is NO PanelBehavior impl wrapping emColorField.
 // This test-only wrapper reproduces the pattern used by every other widget
 // panel (ScalarFieldPanel, TextFieldPanel, etc.) so that we can exercise
 // the auto-expansion -> layout_children path through the real panel tree.
 //
-// The wrapper delegates layout_children to ColorField::layout_children,
+// The wrapper delegates layout_children to emColorField::layout_children,
 // which only POSITIONS existing children. The bug: create_expansion_children
 // is never called during auto-expansion, so no child panels are created.
 // ---------------------------------------------------------------------------
 struct ColorFieldBehavior {
-    color_field: ColorField,
+    color_field: emColorField,
 }
 
 impl ColorFieldBehavior {
-    fn new(look: Rc<Look>) -> Self {
-        let mut cf = ColorField::new(look);
+    fn new(look: Rc<emLook>) -> Self {
+        let mut cf = emColorField::new(look);
         cf.set_editable(true);
         cf.set_alpha_enabled(true);
         Self { color_field: cf }
@@ -143,21 +143,21 @@ impl ColorFieldBehavior {
 }
 
 impl PanelBehavior for ColorFieldBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.color_field.paint(painter, w, h);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         self.color_field.input(event, state, input_state)
     }
 
-    fn get_cursor(&self) -> Cursor {
-        Cursor::Normal
+    fn get_cursor(&self) -> emCursor {
+        emCursor::Normal
     }
 
     fn layout_children(&mut self, ctx: &mut PanelCtx) {
@@ -170,19 +170,19 @@ impl PanelBehavior for ColorFieldBehavior {
 }
 
 /// **Calibration test for known bug:**
-/// ColorField expanded state is missing RGB sliders -- auto-expansion doesn't
-/// create the expected child ScalarField panels.
+/// emColorField expanded state is missing RGB sliders -- auto-expansion doesn't
+/// create the expected child emScalarField panels.
 ///
-/// When the panel tree's auto-expansion mechanism fires for a ColorField
-/// panel, it calls `behavior.layout_children()`. The ColorField's
+/// When the panel tree's auto-expansion mechanism fires for a emColorField
+/// panel, it calls `behavior.layout_children()`. The emColorField's
 /// `layout_children` method positions existing children but never calls
-/// `create_expansion_children` to actually CREATE the ScalarField/TextField
-/// child panels. As a result, the expanded ColorField has zero children
+/// `create_expansion_children` to actually CREATE the emScalarField/emTextField
+/// child panels. As a result, the expanded emColorField has zero children
 /// instead of the expected 8 (R, G, B, A, H, S, V, Name -- inside a
-/// RasterLayout container).
+/// emRasterLayout container).
 ///
-/// Expected: after expansion, the ColorField panel should have at least 1
-/// child (the RasterLayout container "emColorField::InnerStuff"), which
+/// Expected: after expansion, the emColorField panel should have at least 1
+/// child (the emRasterLayout container "emColorField::InnerStuff"), which
 /// itself should contain >= 3 children (at minimum R, G, B sliders).
 ///
 /// Actual: the panel has 0 children because create_expansion_children is
@@ -192,8 +192,8 @@ fn colorfield_expansion_creates_child_sliders() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    // Create a ColorField panel with behavior.
-    let look = Look::new();
+    // Create a emColorField panel with behavior.
+    let look = emLook::new();
     let behavior = ColorFieldBehavior::new(look);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
@@ -214,21 +214,21 @@ fn colorfield_expansion_creates_child_sliders() {
     // BUG: after auto-expansion, layout_children was called but
     // create_expansion_children was NOT called, so no child panels exist.
     //
-    // Count children: the expanded ColorField should have at least 1 child
-    // (the RasterLayout "emColorField::InnerStuff" container), which itself
-    // should contain the R/G/B/A/H/S/V ScalarField children + Name TextField.
+    // Count children: the expanded emColorField should have at least 1 child
+    // (the emRasterLayout "emColorField::InnerStuff" container), which itself
+    // should contain the R/G/B/A/H/S/V emScalarField children + Name emTextField.
     let child_count = h.tree.child_count(panel_id);
 
     assert!(
         child_count >= 1,
-        "Expanded ColorField should have child panels (RasterLayout container \
-         with ScalarField sliders), but found {child_count} children. \
+        "Expanded emColorField should have child panels (emRasterLayout container \
+         with emScalarField sliders), but found {child_count} children. \
          Bug: create_expansion_children() is never called during auto-expansion."
     );
 }
 
 /// **Calibration test for known bug:**
-/// Button click has no effect after zoom -- `check_mouse` coordinate space
+/// emButton click has no effect after zoom -- `check_mouse` coordinate space
 /// divergence from C++.
 ///
 /// ## Root cause
@@ -238,13 +238,13 @@ fn colorfield_expansion_creates_child_sliders() {
 /// panel-local geometry. Both sides are in the same normalized space, so the
 /// hit test works at every zoom level.
 ///
-/// Rust `Button::check_mouse` calls `content_round_rect(self.last_w,
+/// Rust `emButton::check_mouse` calls `content_round_rect(self.last_w,
 /// self.last_h)` which returns PIXEL-space geometry. It then tests the
 /// caller's coordinates against pixel-space face geometry. This means
 /// `check_mouse` only works when passed pixel coordinates that match the
 /// current `last_w`/`last_h` from the most recent paint.
 ///
-/// The internal `hit_test` method (used by `Button::input()`) correctly
+/// The internal `hit_test` method (used by `emButton::input()`) correctly
 /// normalizes to (1.0, tallness) space and is NOT affected. Through the
 /// input pipeline, button clicks work at all zoom levels.
 ///
@@ -270,15 +270,15 @@ fn colorfield_expansion_creates_child_sliders() {
 #[test]
 fn button_click_works_after_zoom() {
     use std::cell::Cell;
-    use zuicchini::emCore::emImage::Image;
+    use zuicchini::emCore::emImage::emImage;
 
-    let look = Look::new();
-    let mut btn = Button::new("Zoom Test", look.clone());
+    let look = emLook::new();
+    let mut btn = emButton::new("Zoom Test", look.clone());
 
     // ── Step 1: Paint at 1x dimensions (last_w = last_h = 600) ──────
     {
-        let mut img = Image::new(600, 600, 4);
-        let mut p = Painter::new(&mut img);
+        let mut img = emImage::new(600, 600, 4);
+        let mut p = emPainter::new(&mut img);
         btn.paint(&mut p, 600.0, 600.0, true);
     }
 
@@ -316,8 +316,8 @@ fn button_click_works_after_zoom() {
 
     // ── Step 2: Paint at 2x dimensions (last_w = last_h = 1200) ─────
     {
-        let mut img = Image::new(1200, 1200, 4);
-        let mut p = Painter::new(&mut img);
+        let mut img = emImage::new(1200, 1200, 4);
+        let mut p = emPainter::new(&mut img);
         btn.paint(&mut p, 1200.0, 1200.0, true);
     }
 
@@ -344,28 +344,28 @@ fn button_click_works_after_zoom() {
     let clicked = Rc::new(Cell::new(false));
     let clicked_clone = clicked.clone();
 
-    let mut btn2 = Button::new("Pipeline Test", look);
+    let mut btn2 = emButton::new("Pipeline Test", look);
     btn2.on_click = Some(Box::new(move || {
         clicked_clone.set(true);
     }));
 
     struct BtnPanel {
-        widget: Button,
+        widget: emButton,
     }
     impl PanelBehavior for BtnPanel {
-        fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+        fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
             self.widget.paint(painter, w, h, state.enabled);
         }
         fn input(
             &mut self,
-            event: &InputEvent,
+            event: &emInputEvent,
             state: &PanelState,
-            input_state: &InputState,
+            input_state: &emInputState,
         ) -> bool {
             self.widget.input(event, state, input_state)
         }
-        fn get_cursor(&self) -> Cursor {
-            Cursor::Normal
+        fn get_cursor(&self) -> emCursor {
+            emCursor::Normal
         }
         fn is_opaque(&self) -> bool {
             true
@@ -377,7 +377,7 @@ fn button_click_works_after_zoom() {
     let _panel_id = h.add_panel_with(root, "button", Box::new(BtnPanel { widget: btn2 }));
     h.tick_n(5);
 
-    // Render at 1x so Button::paint() caches last_w/last_h.
+    // Render at 1x so emButton::paint() caches last_w/last_h.
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
 
@@ -407,27 +407,27 @@ fn button_click_works_after_zoom() {
 }
 
 // ---------------------------------------------------------------------------
-// SharedListBoxPanel -- minimal PanelBehavior wrapper for ListBox
+// SharedListBoxPanel -- minimal PanelBehavior wrapper for emListBox
 // ---------------------------------------------------------------------------
 
-/// PanelBehavior wrapper for ListBox, allowing shared access via Rc<RefCell>.
+/// PanelBehavior wrapper for emListBox, allowing shared access via Rc<RefCell>.
 ///
-/// The ListBox is stored behind Rc<RefCell> so the test can inspect widget
+/// The emListBox is stored behind Rc<RefCell> so the test can inspect widget
 /// state (selected_index, etc.) after input dispatch.
 struct SharedListBoxPanel {
-    inner: Rc<RefCell<ListBox>>,
+    inner: Rc<RefCell<emListBox>>,
 }
 
 impl PanelBehavior for SharedListBoxPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.inner.borrow_mut().paint(painter, w, h);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         self.inner.borrow_mut().input(event, state, input_state)
     }
@@ -447,15 +447,15 @@ impl PanelBehavior for SharedListBoxPanel {
         true
     }
 
-    fn get_cursor(&self) -> Cursor {
-        Cursor::Normal
+    fn get_cursor(&self) -> emCursor {
+        emCursor::Normal
     }
 }
 
-/// Calibration test for known bug: ListBox mouse click always selects item 0
+/// Calibration test for known bug: emListBox mouse click always selects item 0
 /// regardless of where the user clicks.
 ///
-/// Root cause: `ListBox::input()` computes content_rect from the pixel-space
+/// Root cause: `emListBox::input()` computes content_rect from the pixel-space
 /// dimensions (last_w, last_h set during paint), but receives mouse
 /// coordinates in normalized panel-local space (0..1 x 0..tallness) from the
 /// view-to-panel transform. The content_rect's `cy` (in pixels, e.g. ~80) is
@@ -466,9 +466,9 @@ fn listbox_click_selects_correct_item() {
     // ── 1. Build pipeline harness (800x600 viewport) ─────────────
     let mut harness = super::support::pipeline::PipelineTestHarness::new();
 
-    // ── 2. Create a ListBox with 5 items ─────────────────────────
-    let look = Look::new();
-    let mut lb = ListBox::new(look);
+    // ── 2. Create a emListBox with 5 items ─────────────────────────
+    let look = emLook::new();
+    let mut lb = emListBox::new(look);
     lb.set_selection_mode(SelectionMode::Single);
     lb.add_item("item0".to_string(), "Alpha".to_string());
     lb.add_item("item1".to_string(), "Beta".to_string());
@@ -495,8 +495,8 @@ fn listbox_click_selects_correct_item() {
     harness.set_zoom(1.0);
     harness.tick_n(5);
 
-    // ── 6. Render to trigger paint() on the ListBox ──────────────
-    // The ListBox needs paint() to have been called so that last_w,
+    // ── 6. Render to trigger paint() on the emListBox ──────────────
+    // The emListBox needs paint() to have been called so that last_w,
     // last_h, and visible_height are set (hit_test requires last_w > 0).
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut harness.tree, &harness.view);
@@ -531,7 +531,7 @@ fn listbox_click_selects_correct_item() {
         selected,
         Some(2),
         "Expected clicking on item 2 to select it, but got {:?}. \
-         This is the known bug: ListBox click always selects the first \
+         This is the known bug: emListBox click always selects the first \
          item because content_rect is computed in pixel space while mouse \
          coordinates arrive in normalized panel-local space.",
         selected

@@ -1,8 +1,8 @@
 use std::sync::OnceLock;
 
 use crate::emCore::emTexture::ImageExtension;
-use crate::emCore::emColor::Color;
-use crate::emCore::emImage::Image;
+use crate::emCore::emColor::emColor;
+use crate::emCore::emImage::emImage;
 
 /// Interpolation quality for image sampling.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -16,7 +16,7 @@ pub(crate) enum InterpolationQuality {
 }
 
 /// Sample a pixel from an image with extension mode handling.
-fn sample_pixel(image: &Image, ix: i32, iy: i32, ext: ImageExtension) -> [u8; 4] {
+fn sample_pixel(image: &emImage, ix: i32, iy: i32, ext: ImageExtension) -> [u8; 4] {
     let w = image.width() as i32;
     let h = image.height() as i32;
 
@@ -52,7 +52,7 @@ fn sample_pixel(image: &Image, ix: i32, iy: i32, ext: ImageExtension) -> [u8; 4]
 /// `ix`, `iy` are relative to the section origin; `sec.ox`, `sec.oy` offset
 /// into the image.
 pub(crate) fn sample_section_pixel(
-    image: &Image,
+    image: &emImage,
     ix: i32,
     iy: i32,
     sec: &SectionBounds,
@@ -86,15 +86,15 @@ pub(crate) fn sample_section_pixel(
 }
 
 /// Nearest-neighbor sampling.
-pub(crate) fn sample_nearest(image: &Image, x: f64, y: f64, ext: ImageExtension) -> Color {
+pub(crate) fn sample_nearest(image: &emImage, x: f64, y: f64, ext: ImageExtension) -> emColor {
     let ix = x.floor() as i32;
     let iy = y.floor() as i32;
     let p = sample_pixel(image, ix, iy, ext);
-    Color::rgba(p[0], p[1], p[2], p[3])
+    emColor::rgba(p[0], p[1], p[2], p[3])
 }
 
 /// Bilinear interpolation (2x2 kernel).
-pub(crate) fn sample_bilinear(image: &Image, x: f64, y: f64, ext: ImageExtension) -> Color {
+pub(crate) fn sample_bilinear(image: &emImage, x: f64, y: f64, ext: ImageExtension) -> emColor {
     let fx = x.floor();
     let fy = y.floor();
     let ix = fx as i32;
@@ -115,7 +115,7 @@ pub(crate) fn sample_bilinear(image: &Image, x: f64, y: f64, ext: ImageExtension
         let bot = p01[c] as u32 * itx + p11[c] as u32 * tx;
         result[c] = ((top * ity + bot * ty + 0x7FFF) >> 16) as u8;
     }
-    Color::rgba(result[0], result[1], result[2], result[3])
+    emColor::rgba(result[0], result[1], result[2], result[3])
 }
 
 /// Pre-computed Y-axis weights for area sampling column accumulation.
@@ -189,7 +189,7 @@ pub(crate) struct SectionBounds {
 /// Sample a pixel with extension mode scoped to a section sub-region.
 /// `ix`, `iy`: coordinates relative to the section origin (can be negative / out of bounds).
 fn sample_pixel_section(
-    image: &Image,
+    image: &emImage,
     ix: i32,
     iy: i32,
     sec: &SectionBounds,
@@ -235,7 +235,7 @@ fn rational_inv(span: i64) -> u32 {
 /// Read a pixel from the image at reduced-grid coordinates with section offset.
 /// Coordinates are clamped to section bounds (pixel-level EXTEND_EDGE).
 fn read_area_pixel<'a>(
-    image: &'a Image,
+    image: &'a emImage,
     sec: &SectionBounds,
     col: i32,
     row: i32,
@@ -253,19 +253,19 @@ fn read_area_pixel<'a>(
 /// - CHANNELS=4: RGB division `(x + 0x7F7F) / 0xFF00`, alpha shift `(x + 0x7F) >> 8`
 /// - CHANNELS=1/3: shift `(x + 0x7F) >> 8` for all channels
 ///
-/// Returns straight-alpha Color (premul->straight conversion done internally for 4-ch).
+/// Returns straight-alpha emColor (premul->straight conversion done internally for 4-ch).
 ///
 /// Note: production code uses `interpolate_scanline_area_sampled` which hoists Y setup
 /// and adds pCy column-reuse. This per-pixel version is retained as a test reference.
 #[cfg(test)]
 pub(crate) fn sample_area_fp(
-    image: &Image,
+    image: &emImage,
     dest_x: i32,
     dest_y: i32,
     xfm: &AreaSampleTransform,
     sec: &SectionBounds,
     ext: ImageExtension,
-) -> Color {
+) -> emColor {
     let ch = image.channel_count();
 
     // --- Y setup (C++ emPainter_ScTlIntImg.cpp lines 686-725) ---
@@ -278,7 +278,7 @@ pub(crate) fn sample_area_fp(
     if ty1 < 0 {
         if ty2 <= 0 {
             if ext == ImageExtension::Zero {
-                return Color::TRANSPARENT;
+                return emColor::TRANSPARENT;
             }
             ty2 = 1 << 24; // EXTEND_EDGE: clamp to first row
         } else if ty2 > ty_end {
@@ -289,7 +289,7 @@ pub(crate) fn sample_area_fp(
     } else if ty2 > ty_end {
         if ty1 >= ty_end {
             if ext == ImageExtension::Zero {
-                return Color::TRANSPARENT;
+                return emColor::TRANSPARENT;
             }
             ty1 = ty_end - (1 << 24); // EXTEND_EDGE: clamp to last row
         }
@@ -321,7 +321,7 @@ pub(crate) fn sample_area_fp(
         tx1 = 0;
         if tx2 <= 0 {
             if ext == ImageExtension::Zero {
-                return Color::TRANSPARENT;
+                return emColor::TRANSPARENT;
             }
             tx2 = 1 << 24; // EXTEND_EDGE
         } else if tx2 > tx_end {
@@ -331,7 +331,7 @@ pub(crate) fn sample_area_fp(
     } else if tx2 > tx_end {
         if tx1 >= tx_end {
             if ext == ImageExtension::Zero {
-                return Color::TRANSPARENT;
+                return emColor::TRANSPARENT;
             }
             tx1 = tx_end - (1 << 24); // EXTEND_EDGE
         }
@@ -391,19 +391,19 @@ pub(crate) fn sample_area_fp(
             let out_a = (cyx_a >> 24) as u8;
             // Premul -> straight alpha conversion.
             if out_a == 0 {
-                Color::TRANSPARENT
+                emColor::TRANSPARENT
             } else if out_a == 255 {
-                Color::rgba(out_r, out_g, out_b, 255)
+                emColor::rgba(out_r, out_g, out_b, 255)
             } else {
                 let a16 = out_a as u16;
                 let sr = ((out_r as u16 * 255 + a16 / 2) / a16).min(255) as u8;
                 let sg = ((out_g as u16 * 255 + a16 / 2) / a16).min(255) as u8;
                 let sb = ((out_b as u16 * 255 + a16 / 2) / a16).min(255) as u8;
-                Color::rgba(sr, sg, sb, out_a)
+                emColor::rgba(sr, sg, sb, out_a)
             }
         }
-        3 => Color::rgba(out_r, out_g, out_b, 255),
-        _ => Color::rgba(out_r, out_r, out_r, 255), // 1-ch gray
+        3 => emColor::rgba(out_r, out_g, out_b, 255),
+        _ => emColor::rgba(out_r, out_r, out_r, 255), // 1-ch gray
     }
 }
 
@@ -411,7 +411,7 @@ pub(crate) fn sample_area_fp(
 /// Returns (cy_r, cy_g, cy_b, cy_a) after FINPREMUL_SHR_COLOR(cy, 8).
 #[cfg(test)]
 fn y_accumulate(
-    image: &Image,
+    image: &emImage,
     sec: &SectionBounds,
     ch: u8,
     col: i32,
@@ -431,7 +431,7 @@ fn y_accumulate(
 /// READ_PREMUL_MUL_COLOR: cy_a = p[3]*oy1; cy_r = p[0]*cy_a
 /// FINPREMUL_SHR_COLOR(cy,8): RGB = (x + 0x7F7F) / 0xFF00; A = (x + 0x7F) >> 8
 fn y_accumulate_4ch(
-    image: &Image,
+    image: &emImage,
     sec: &SectionBounds,
     col: i32,
     yw: &YWeights,
@@ -495,7 +495,7 @@ fn y_accumulate_4ch(
 /// READ_PREMUL_MUL_COLOR: cy_r = p[0]*oy1 (direct multiply, no alpha)
 /// FINPREMUL_SHR_COLOR(cy,8): all channels use shift (x + 0x7F) >> 8
 fn y_accumulate_3ch(
-    image: &Image,
+    image: &emImage,
     sec: &SectionBounds,
     col: i32,
     yw: &YWeights,
@@ -541,7 +541,7 @@ fn y_accumulate_3ch(
 /// CHANNELS=1: single gray channel, no premultiplication.
 /// FINPREMUL_SHR_COLOR(cy,8): shift (x + 0x7F) >> 8
 fn y_accumulate_1ch(
-    image: &Image,
+    image: &emImage,
     sec: &SectionBounds,
     col: i32,
     yw: &YWeights,
@@ -585,12 +585,12 @@ pub(crate) struct ScaleContext {
 /// Area sampling (box filter) for downscaling.
 /// `x` and `y` are in source image coordinates.
 pub(crate) fn sample_area(
-    image: &Image,
+    image: &emImage,
     x: f64,
     y: f64,
     ctx: &ScaleContext,
     ext: ImageExtension,
-) -> Color {
+) -> emColor {
     let scale_x = ctx.src_w / ctx.dest_w;
     let scale_y = ctx.src_h / ctx.dest_h;
 
@@ -635,14 +635,14 @@ pub(crate) fn sample_area(
     }
 
     if weight_total == 0 {
-        return Color::TRANSPARENT;
+        return emColor::TRANSPARENT;
     }
 
     let mut result = [0u8; 4];
     for c in 0..4 {
         result[c] = ((accum[c] + weight_total / 2) / weight_total) as u8;
     }
-    Color::rgba(result[0], result[1], result[2], result[3])
+    emColor::rgba(result[0], result[1], result[2], result[3])
 }
 
 /// Bicubic Catmull-Rom factor table (257 entries for fractional position 0..256).
@@ -813,7 +813,7 @@ fn interpolate_four_values_adaptive(v0: i32, mut v1: i32, mut v2: i32, v3: i32, 
 /// Same separable structure as bicubic: Y-interpolate 4 columns, then X-interpolate.
 /// But uses anti-ringing adaptive interpolation instead of fixed Catmull-Rom weights.
 pub(crate) fn sample_adaptive_premul_fp(
-    image: &Image,
+    image: &emImage,
     tx: i64,
     ty: i64,
     ext: ImageExtension,
@@ -887,7 +887,7 @@ pub(crate) fn sample_adaptive_premul_fp(
 /// Same as `sample_adaptive_premul_fp` but respects section bounds via
 /// `sample_pixel_section` instead of `sample_pixel`.
 pub(crate) fn sample_adaptive_premul_fp_section(
-    image: &Image,
+    image: &emImage,
     tx: i64,
     ty: i64,
     sec: &SectionBounds,
@@ -958,7 +958,7 @@ pub(crate) fn sample_adaptive_premul_fp_section(
 /// origin (before the -1.5 offset that C++ applies for the 4x4 kernel).
 /// Returns the interpolated luminance as u8.
 pub(crate) fn sample_adaptive_lum_section(
-    image: &Image,
+    image: &emImage,
     ix: i32,
     iy: i32,
     ox: u32,
@@ -992,7 +992,7 @@ pub(crate) fn sample_adaptive_lum_section(
 }
 
 /// Bicubic (Catmull-Rom) sampling with 4x4 kernel.
-pub(crate) fn sample_bicubic(image: &Image, x: f64, y: f64, ext: ImageExtension) -> Color {
+pub(crate) fn sample_bicubic(image: &emImage, x: f64, y: f64, ext: ImageExtension) -> emColor {
     let fx = x.floor();
     let fy = y.floor();
     let ix = fx as i32;
@@ -1022,7 +1022,7 @@ pub(crate) fn sample_bicubic(image: &Image, x: f64, y: f64, ext: ImageExtension)
     for c in 0..4 {
         result[c] = (accum[c] >> 8).clamp(0, 255) as u8;
     }
-    Color::rgba(result[0], result[1], result[2], result[3])
+    emColor::rgba(result[0], result[1], result[2], result[3])
 }
 
 /// Lanczos factor table (257 entries).
@@ -1064,7 +1064,7 @@ fn lanczos_sinc(x: f64, a: f64) -> f64 {
 }
 
 /// Lanczos sampling with 4-tap windowed sinc.
-pub(crate) fn sample_lanczos(image: &Image, x: f64, y: f64, ext: ImageExtension) -> Color {
+pub(crate) fn sample_lanczos(image: &emImage, x: f64, y: f64, ext: ImageExtension) -> emColor {
     let fx = x.floor();
     let fy = y.floor();
     let ix = fx as i32;
@@ -1094,11 +1094,11 @@ pub(crate) fn sample_lanczos(image: &Image, x: f64, y: f64, ext: ImageExtension)
     for c in 0..4 {
         result[c] = (accum[c] >> 8).clamp(0, 255) as u8;
     }
-    Color::rgba(result[0], result[1], result[2], result[3])
+    emColor::rgba(result[0], result[1], result[2], result[3])
 }
 
 /// Adaptive edge-sensitive sampling: bilinear near edges, bicubic in smooth areas.
-pub(crate) fn sample_adaptive(image: &Image, x: f64, y: f64, ext: ImageExtension) -> Color {
+pub(crate) fn sample_adaptive(image: &emImage, x: f64, y: f64, ext: ImageExtension) -> emColor {
     let fx = x.floor();
     let fy = y.floor();
     let ix = fx as i32;
@@ -1132,13 +1132,13 @@ fn channel_diff(a: &[u8; 4], b: &[u8; 4]) -> u8 {
 
 /// Sample using the specified quality.
 pub(crate) fn sample(
-    image: &Image,
+    image: &emImage,
     x: f64,
     y: f64,
     quality: InterpolationQuality,
     ext: ImageExtension,
     ctx: &ScaleContext,
-) -> Color {
+) -> emColor {
     match quality {
         InterpolationQuality::Nearest => sample_nearest(image, x, y, ext),
         InterpolationQuality::Bilinear => sample_bilinear(image, x, y, ext),
@@ -1153,10 +1153,10 @@ pub(crate) fn sample(
 pub(crate) fn sample_linear_gradient(
     start: (f64, f64),
     end: (f64, f64),
-    c0: Color,
-    c1: Color,
+    c0: emColor,
+    c1: emColor,
     point: (f64, f64),
-) -> Color {
+) -> emColor {
     let dx = end.0 - start.0;
     let dy = end.1 - start.1;
     let len_sq = dx * dx + dy * dy;
@@ -1180,7 +1180,7 @@ pub(crate) fn sample_linear_gradient(
 /// Output format matches `sample_area_fp`: straight-alpha RGBA in `buf`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn interpolate_scanline_area_sampled(
-    image: &Image,
+    image: &emImage,
     dest_x_start: i32,
     dest_y: i32,
     count: usize,
@@ -1202,7 +1202,7 @@ pub(crate) fn interpolate_scanline_area_sampled(
 /// dead branches in y_accumulate dispatch and output conversion.
 #[allow(clippy::too_many_arguments)]
 fn interpolate_scanline_area_inner<const CH: usize>(
-    image: &Image,
+    image: &emImage,
     dest_x_start: i32,
     dest_y: i32,
     count: usize,
@@ -1404,7 +1404,7 @@ fn interpolate_scanline_area_inner<const CH: usize>(
 /// output pixels of premultiplied RGBA.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn interpolate_scanline_adaptive_premul(
-    image: &Image,
+    image: &emImage,
     px: i32,
     py: i32,
     dest_x_start: i32,
@@ -1427,7 +1427,7 @@ pub(crate) fn interpolate_scanline_adaptive_premul(
 /// Scanline adaptive premul interpolation with section bounds (for 9-slice).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn interpolate_scanline_adaptive_premul_section(
-    image: &Image,
+    image: &emImage,
     px: i32,
     py: i32,
     dest_x_start: i32,
@@ -1451,7 +1451,7 @@ pub(crate) fn interpolate_scanline_adaptive_premul_section(
 /// Scanline nearest-neighbor interpolation.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn interpolate_scanline_nearest(
-    image: &Image,
+    image: &emImage,
     px: i32,
     py: i32,
     dest_x_start: i32,
@@ -1477,8 +1477,8 @@ pub(crate) fn interpolate_scanline_nearest(
 mod tests {
     use super::*;
 
-    fn make_test_image() -> Image {
-        let mut img = Image::new(4, 4, 4);
+    fn make_test_image() -> emImage {
+        let mut img = emImage::new(4, 4, 4);
         for y in 0..4u32 {
             for x in 0..4u32 {
                 let v = (x * 64 + y * 16) as u8;
@@ -1532,16 +1532,16 @@ mod tests {
         let c0 = sample_linear_gradient(
             (0.0, 0.0),
             (100.0, 0.0),
-            Color::WHITE,
-            Color::BLACK,
+            emColor::WHITE,
+            emColor::BLACK,
             (0.0, 0.0),
         );
         assert_eq!(c0.r(), 255);
         let c1 = sample_linear_gradient(
             (0.0, 0.0),
             (100.0, 0.0),
-            Color::WHITE,
-            Color::BLACK,
+            emColor::WHITE,
+            emColor::BLACK,
             (100.0, 0.0),
         );
         assert_eq!(c1.r(), 0);
@@ -1612,7 +1612,7 @@ mod tests {
     #[test]
     fn area_sample_fp_solid_4ch() {
         // 4x4 RGBA, all pixels solid red — uniform input must give uniform output.
-        let mut img = Image::new(4, 4, 4);
+        let mut img = emImage::new(4, 4, 4);
         for y in 0..4u32 {
             for x in 0..4u32 {
                 let p = img.pixel_mut(x, y);
@@ -1623,14 +1623,14 @@ mod tests {
         let xfm = make_area_xfm(4, 4, 2.0, 2.0);
         let sec = full_sec(4, 4);
         let c = sample_area_fp(&img, 0, 0, &xfm, &sec, ImageExtension::Clamp);
-        assert_eq!(c, Color::rgba(255, 0, 0, 255));
+        assert_eq!(c, emColor::rgba(255, 0, 0, 255));
     }
 
     #[test]
     fn area_sample_fp_gradient_4ch() {
         // 4x2 RGBA: left half (128,0,0,255), right half (0,128,0,255).
         // 4:1 X downscale, 2:1 Y → 1 dest pixel covers entire image.
-        let mut img = Image::new(4, 2, 4);
+        let mut img = emImage::new(4, 2, 4);
         for y in 0..2u32 {
             for x in 0..4u32 {
                 let p = img.pixel_mut(x, y);
@@ -1656,7 +1656,7 @@ mod tests {
     fn area_sample_fp_alpha_4ch() {
         // 2x2 RGBA: (0,0)=(255,0,0,128), rest=(0,0,0,0).
         // Covers premul accumulation with mixed alpha.
-        let mut img = Image::new(2, 2, 4);
+        let mut img = emImage::new(2, 2, 4);
         let p = img.pixel_mut(0, 0);
         p[0] = 255;
         p[3] = 128;
@@ -1675,7 +1675,7 @@ mod tests {
     fn area_sample_fp_extend_edge() {
         // 2x2 solid image, dest pixel maps fully outside bounds.
         // EXTEND_EDGE must clamp to edge pixel.
-        let mut img = Image::new(2, 2, 4);
+        let mut img = emImage::new(2, 2, 4);
         for y in 0..2u32 {
             for x in 0..2u32 {
                 let p = img.pixel_mut(x, y);
@@ -1703,13 +1703,13 @@ mod tests {
         };
         let sec = full_sec(2, 2);
         let c = sample_area_fp(&img, 0, 0, &xfm, &sec, ImageExtension::Clamp);
-        assert_eq!(c, Color::rgba(200, 100, 50, 255));
+        assert_eq!(c, emColor::rgba(200, 100, 50, 255));
     }
 
     #[test]
     fn area_sample_fp_extend_zero() {
         // Same setup as extend_edge but with EXTEND_ZERO → transparent.
-        let mut img = Image::new(2, 2, 4);
+        let mut img = emImage::new(2, 2, 4);
         for y in 0..2u32 {
             for x in 0..2u32 {
                 let p = img.pixel_mut(x, y);
@@ -1737,13 +1737,13 @@ mod tests {
         };
         let sec = full_sec(2, 2);
         let c = sample_area_fp(&img, 0, 0, &xfm, &sec, ImageExtension::Zero);
-        assert_eq!(c, Color::TRANSPARENT);
+        assert_eq!(c, emColor::TRANSPARENT);
     }
 
     #[test]
     fn area_sample_fp_1ch() {
         // 4x4 grayscale with gradient values.
-        let mut img = Image::new(4, 4, 1);
+        let mut img = emImage::new(4, 4, 1);
         for y in 0..4u32 {
             for x in 0..4u32 {
                 img.pixel_mut(x, y)[0] = (x * 60 + y * 20) as u8;
@@ -1768,7 +1768,7 @@ mod tests {
     #[test]
     fn area_sample_fp_3ch() {
         // 4x4 RGB, uniform (100,150,200) → exact roundtrip.
-        let mut img = Image::new(4, 4, 3);
+        let mut img = emImage::new(4, 4, 3);
         for y in 0..4u32 {
             for x in 0..4u32 {
                 let p = img.pixel_mut(x, y);
@@ -1780,7 +1780,7 @@ mod tests {
         let xfm = make_area_xfm(4, 4, 2.0, 2.0);
         let sec = full_sec(4, 4);
         let c = sample_area_fp(&img, 0, 0, &xfm, &sec, ImageExtension::Clamp);
-        assert_eq!(c, Color::rgba(100, 150, 200, 255));
+        assert_eq!(c, emColor::rgba(100, 150, 200, 255));
     }
 
     // ── Scanline vs per-pixel equivalence tests ─────────────────────
@@ -1788,7 +1788,7 @@ mod tests {
     #[test]
     fn scanline_area_matches_perpixel_4ch() {
         // 8x8 RGBA gradient, 2:1 downscale to 4x4 dest.
-        let mut img = Image::new(8, 8, 4);
+        let mut img = emImage::new(8, 8, 4);
         for y in 0..8u32 {
             for x in 0..8u32 {
                 let p = img.pixel_mut(x, y);
@@ -1826,7 +1826,7 @@ mod tests {
 
     #[test]
     fn scanline_area_matches_perpixel_1ch() {
-        let mut img = Image::new(6, 6, 1);
+        let mut img = emImage::new(6, 6, 1);
         for y in 0..6u32 {
             for x in 0..6u32 {
                 img.pixel_mut(x, y)[0] = (x * 40 + y * 20) as u8;
@@ -1858,7 +1858,7 @@ mod tests {
 
     #[test]
     fn scanline_area_matches_perpixel_3ch() {
-        let mut img = Image::new(6, 6, 3);
+        let mut img = emImage::new(6, 6, 3);
         for y in 0..6u32 {
             for x in 0..6u32 {
                 let p = img.pixel_mut(x, y);
@@ -1894,7 +1894,7 @@ mod tests {
     #[test]
     fn scanline_area_extend_zero_oob() {
         // Test that out-of-bounds pixels return transparent with EXTEND_ZERO.
-        let mut img = Image::new(2, 2, 4);
+        let mut img = emImage::new(2, 2, 4);
         for y in 0..2u32 {
             for x in 0..2u32 {
                 let p = img.pixel_mut(x, y);
@@ -1924,7 +1924,7 @@ mod tests {
 
         // Per-pixel reference
         let c = sample_area_fp(&img, 0, 0, &xfm, &sec, ImageExtension::Zero);
-        assert_eq!(c, Color::TRANSPARENT);
+        assert_eq!(c, emColor::TRANSPARENT);
 
         // Scanline version
         let mut buf = crate::emCore::emPainterScanlineTool::InterpolationBuffer::new(4);

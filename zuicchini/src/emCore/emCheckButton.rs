@@ -1,22 +1,22 @@
 use std::rc::Rc;
 
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::rect::Rect;
-use crate::emCore::emCursor::Cursor;
-use crate::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
+use crate::emCore::emCursor::emCursor;
+use crate::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use crate::emCore::emInputState::emInputState;
 use crate::emCore::emPanel::PanelState;
-use crate::emCore::emPainter::{Painter, BORDER_EDGES_ONLY};
+use crate::emCore::emPainter::{emPainter, BORDER_EDGES_ONLY};
 
-use super::emBorder::{Border, OuterBorderType};
+use super::emBorder::{emBorder, OuterBorderType};
 use crate::emCore::emButton::HOWTO_BUTTON;
-use crate::emCore::emLook::Look;
+use crate::emCore::emLook::emLook;
 use crate::emCore::toolkit_images::with_toolkit_images;
 
 /// Toggle button widget — visually depressed when checked.
-pub struct CheckButton {
-    border: Border,
-    look: Rc<Look>,
+pub struct emCheckButton {
+    border: emBorder,
+    look: Rc<emLook>,
     checked: bool,
     pressed: bool,
     /// Cached enabled state from the last paint call. Gates input handling.
@@ -26,10 +26,10 @@ pub struct CheckButton {
     pub on_check: Option<Box<dyn FnMut(bool)>>,
 }
 
-impl CheckButton {
-    pub fn new(caption: &str, look: Rc<Look>) -> Self {
+impl emCheckButton {
+    pub fn new(caption: &str, look: Rc<emLook>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::InstrumentMoreRound)
+            border: emBorder::new(OuterBorderType::InstrumentMoreRound)
                 .with_caption(caption)
                 .with_label_in_border(false)
                 .with_how_to(true),
@@ -58,10 +58,10 @@ impl CheckButton {
 
     /// Paint using the non-boxed C++ DoButton path (emButton.cpp:343-421).
     ///
-    /// CheckButton renders as a normal button face with centered label.
+    /// emCheckButton renders as a normal button face with centered label.
     /// When checked (ShownChecked=true), the label is slightly shrunk and
-    /// a ButtonChecked overlay is painted instead of the normal Button overlay.
-    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
+    /// a ButtonChecked overlay is painted instead of the normal emButton overlay.
+    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -85,7 +85,7 @@ impl CheckButton {
         painter.paint_round_rect(fx, fy, fw, fh, fr, face_color);
         painter.set_canvas_color(face_color);
 
-        // Label inside face with padding (C++ lines 370-391).
+        // emLabel inside face with padding (C++ lines 370-391).
         let d_min = fw.min(fh) * 0.1;
         let dx = (r * 0.7).max(d_min);
         let dy = (r * 0.4).max(d_min);
@@ -117,8 +117,8 @@ impl CheckButton {
             true,
         );
 
-        // Button overlay image (C++ lines 393-421).
-        // Priority: Pressed → ButtonPressed, ShownChecked → ButtonChecked, else → Button.
+        // emButton overlay image (C++ lines 393-421).
+        // Priority: Pressed → ButtonPressed, ShownChecked → ButtonChecked, else → emButton.
         with_toolkit_images(|img| {
             if self.pressed {
                 // Pressed: ButtonPressed overlay (C++ lines 393-401).
@@ -137,7 +137,7 @@ impl CheckButton {
                     264,
                     264,
                     255,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     BORDER_EDGES_ONLY,
                 );
             } else if self.checked {
@@ -157,11 +157,11 @@ impl CheckButton {
                     264,
                     264,
                     255,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     BORDER_EDGES_ONLY,
                 );
             } else {
-                // Normal: Button overlay (C++ lines 411-420).
+                // Normal: emButton overlay (C++ lines 411-420).
                 let extra = (658.0 - 648.0) / 264.0 * r;
                 painter.paint_border_image(
                     cr.x,
@@ -178,7 +178,7 @@ impl CheckButton {
                     278,
                     278,
                     255,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     BORDER_EDGES_ONLY,
                 );
             }
@@ -201,7 +201,7 @@ impl CheckButton {
         super::widget_utils::check_mouse_round_rect(mx, my, &face, fr)
     }
 
-    pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
+    pub fn input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -271,13 +271,13 @@ impl CheckButton {
         }
     }
 
-    pub fn get_cursor(&self) -> Cursor {
-        Cursor::Normal
+    pub fn get_cursor(&self) -> emCursor {
+        emCursor::Normal
     }
 
     pub fn preferred_size(&self) -> (f64, f64) {
         let th = 13.0;
-        let tw = Painter::measure_text_width(&self.border.caption, th);
+        let tw = emPainter::measure_text_width(&self.border.caption, th);
         self.border.preferred_size_for_content(tw + 8.0, th + 4.0)
     }
 
@@ -352,44 +352,44 @@ mod tests {
         }
     }
 
-    fn default_input_state() -> InputState {
-        InputState::new()
+    fn default_input_state() -> emInputState {
+        emInputState::new()
     }
 
     #[test]
     fn toggle_state() {
-        let look = Look::new();
-        let mut btn = CheckButton::new("Toggle", look);
+        let look = emLook::new();
+        let mut btn = emCheckButton::new("Toggle", look);
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!btn.is_checked());
         // Enter is instant: toggles on press, no release needed.
-        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(btn.is_checked()); // Toggled immediately on press
-        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!btn.is_checked());
     }
 
     #[test]
     fn pressed_state_tracks_press_release() {
         // Enter is instant — no visual press state. Verify pressed stays false.
-        let look = Look::new();
-        let mut btn = CheckButton::new("CB", look);
+        let look = emLook::new();
+        let mut btn = emCheckButton::new("CB", look);
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!btn.pressed);
-        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!btn.pressed); // Enter toggles instantly, no press state
         assert!(btn.is_checked()); // But the toggle did happen
     }
 
     #[test]
     fn callback_receives_state() {
-        let look = Look::new();
+        let look = emLook::new();
         let states = Rc::new(RefCell::new(Vec::new()));
         let states_clone = states.clone();
 
-        let mut btn = CheckButton::new("CB", look);
+        let mut btn = emCheckButton::new("CB", look);
         btn.on_check = Some(Box::new(move |checked| {
             states_clone.borrow_mut().push(checked);
         }));
@@ -397,8 +397,8 @@ mod tests {
         let is = default_input_state();
 
         // Enter is instant: each press fires the callback immediately.
-        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
-        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*states.borrow(), vec![true, false]);
     }
 }

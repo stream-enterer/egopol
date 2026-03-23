@@ -1,6 +1,6 @@
 use zuicchini::emCore::emInput::InputKey;
 use zuicchini::emCore::emInputHotkey::Hotkey;
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emInputState::emInputState;
 
 #[test]
 fn hotkey_parse_ctrl_c() {
@@ -46,18 +46,18 @@ fn hotkey_parse_invalid() {
 fn hotkey_matches() {
     let hk = Hotkey::parse("Ctrl+C").unwrap();
 
-    let mut state = InputState::new();
+    let mut state = emInputState::new();
     state.press(InputKey::Ctrl);
     assert!(hk.matches(InputKey::Key('c'), &state));
 
     // Without Ctrl held, should not match
-    let state2 = InputState::new();
+    let state2 = emInputState::new();
     assert!(!hk.matches(InputKey::Key('c'), &state2));
 }
 
 #[test]
 fn input_state_modifiers() {
-    let mut state = InputState::new();
+    let mut state = emInputState::new();
     assert!(!state.shift());
     assert!(!state.ctrl());
     assert!(!state.alt());
@@ -76,7 +76,7 @@ fn input_state_modifiers() {
 
 #[test]
 fn input_state_mouse() {
-    let mut state = InputState::new();
+    let mut state = emInputState::new();
     assert_eq!(state.mouse_x, 0.0);
     state.set_mouse(100.0, 200.0);
     assert_eq!(state.mouse_x, 100.0);
@@ -85,7 +85,7 @@ fn input_state_mouse() {
 
 #[test]
 fn input_state_key_tracking() {
-    let mut state = InputState::new();
+    let mut state = emInputState::new();
     state.press(InputKey::Key('a'));
     assert!(state.is_pressed(InputKey::Key('a')));
     assert!(!state.is_pressed(InputKey::Key('b')));
@@ -96,7 +96,7 @@ fn input_state_key_tracking() {
 
 #[test]
 fn input_state_touches() {
-    let mut state = InputState::new();
+    let mut state = emInputState::new();
     state.set_touch(1, 100.0, 200.0);
     state.set_touch(2, 300.0, 400.0);
     assert_eq!(state.touches().len(), 2);

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use zuicchini::emCore::emFileModel::{FileModel, FileModelOps, FileState};
+use zuicchini::emCore::emFileModel::{emFileModel, FileModelOps, FileState};
 use zuicchini::emCore::emScheduler::EngineScheduler;
 
 fn make_signals() -> (
@@ -14,14 +14,14 @@ fn make_signals() -> (
 #[test]
 fn get_memory_need_default_zero() {
     let (change, update) = make_signals();
-    let m: FileModel<Vec<u8>> = FileModel::new(PathBuf::from("test.dat"), change, update);
+    let m: emFileModel<Vec<u8>> = emFileModel::new(PathBuf::from("test.dat"), change, update);
     assert_eq!(m.get_memory_need(), 0);
 }
 
 #[test]
 fn get_memory_need_after_update() {
     let (change, update) = make_signals();
-    let mut m: FileModel<Vec<u8>> = FileModel::new(PathBuf::from("test.dat"), change, update);
+    let mut m: emFileModel<Vec<u8>> = emFileModel::new(PathBuf::from("test.dat"), change, update);
     m.update_memory_need(1024);
     assert_eq!(m.get_memory_need(), 1024);
 }
@@ -29,7 +29,7 @@ fn get_memory_need_after_update() {
 #[test]
 fn update_retries_load_error() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.request_load();
     m.fail_load("network error".to_string());
     assert!(matches!(m.state(), FileState::LoadError(_)));
@@ -40,7 +40,7 @@ fn update_retries_load_error() {
 #[test]
 fn update_retries_too_costly() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.mark_too_costly();
     m.update();
     assert!(matches!(m.state(), &FileState::Waiting));
@@ -49,7 +49,7 @@ fn update_retries_too_costly() {
 #[test]
 fn update_unloads_out_of_date() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.request_load();
     m.complete_load("data".to_string());
     m.set_file_date(1000, 512);
@@ -62,7 +62,7 @@ fn update_unloads_out_of_date() {
 #[test]
 fn update_keeps_loaded_if_fresh() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.request_load();
     m.complete_load("data".to_string());
     m.set_file_date(1000, 512);
@@ -75,7 +75,7 @@ fn update_keeps_loaded_if_fresh() {
 #[test]
 fn reset_data_clears_everything() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.request_load();
     m.complete_load("data".to_string());
     m.update_memory_need(500);
@@ -327,7 +327,7 @@ fn calc_file_progress_complete() {
 #[test]
 fn file_date_same_is_not_out_of_date() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.set_file_date(1000, 512);
     assert!(!m.check_out_of_date(1000, 512));
 }
@@ -335,7 +335,7 @@ fn file_date_same_is_not_out_of_date() {
 #[test]
 fn file_date_different_mtime_is_out_of_date() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.set_file_date(1000, 512);
     assert!(m.check_out_of_date(2000, 512));
 }
@@ -343,7 +343,7 @@ fn file_date_different_mtime_is_out_of_date() {
 #[test]
 fn file_date_different_size_is_out_of_date() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.set_file_date(1000, 512);
     assert!(m.check_out_of_date(1000, 1024));
 }
@@ -351,7 +351,7 @@ fn file_date_different_size_is_out_of_date() {
 #[test]
 fn file_date_both_different_is_out_of_date() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.set_file_date(1000, 512);
     assert!(m.check_out_of_date(2000, 1024));
 }
@@ -361,7 +361,7 @@ fn update_signal_returned() {
     let mut sched = EngineScheduler::new();
     let change = sched.create_signal();
     let update = sched.create_signal();
-    let m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     assert_eq!(m.update_signal(), update);
 }
 
@@ -370,21 +370,21 @@ fn update_signal_differs_from_change() {
     let mut sched = EngineScheduler::new();
     let change = sched.create_signal();
     let update = sched.create_signal();
-    let m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     assert_ne!(m.change_signal(), m.update_signal());
 }
 
 #[test]
 fn ignore_update_signal_default_false() {
     let (change, update) = make_signals();
-    let m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     assert!(!m.ignore_update_signal());
 }
 
 #[test]
 fn set_ignore_update_signal_true() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.set_ignore_update_signal(true);
     assert!(m.ignore_update_signal());
 }
@@ -392,7 +392,7 @@ fn set_ignore_update_signal_true() {
 #[test]
 fn set_ignore_update_signal_toggle() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.set_ignore_update_signal(true);
     assert!(m.ignore_update_signal());
     m.set_ignore_update_signal(false);
@@ -402,7 +402,7 @@ fn set_ignore_update_signal_toggle() {
 #[test]
 fn clear_save_error_transitions_to_unsaved() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.request_load();
     m.complete_load("data".to_string());
     m.mark_unsaved();
@@ -416,7 +416,7 @@ fn clear_save_error_transitions_to_unsaved() {
 #[test]
 fn clear_save_error_noop_in_waiting() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.clear_save_error();
     assert!(matches!(m.state(), &FileState::Waiting));
 }
@@ -424,7 +424,7 @@ fn clear_save_error_noop_in_waiting() {
 #[test]
 fn clear_save_error_noop_in_loaded() {
     let (change, update) = make_signals();
-    let mut m: FileModel<String> = FileModel::new(PathBuf::from("t.dat"), change, update);
+    let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.request_load();
     m.complete_load("data".to_string());
     m.clear_save_error();

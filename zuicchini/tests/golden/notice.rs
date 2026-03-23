@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use zuicchini::emCore::emPanel::NoticeFlags;
 use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
-use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emView::{emView, ViewFlags};
 
 use super::common::*;
 use super::support::NoticeBehavior;
@@ -31,7 +31,7 @@ fn reset(acc: &Rc<RefCell<NoticeFlags>>) {
 }
 
 /// Settle: deliver notices and update viewing, matching C++ scheduler behavior.
-fn settle(tree: &mut PanelTree, view: &mut View) {
+fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
         tree.deliver_notices(view.window_focused(), view.pixel_tallness());
         view.update_viewing(tree);
@@ -54,8 +54,8 @@ fn notice_active_changed() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    // C++ emView starts unfocused; Rust View::new starts focused.
-    let mut view = View::new(root, 800.0, 600.0);
+    // C++ emView starts unfocused; Rust emView::new starts focused.
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -106,7 +106,7 @@ fn notice_focus_changed() {
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
     // Start unfocused to match C++
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -155,7 +155,7 @@ fn notice_layout_changed() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -202,7 +202,7 @@ fn notice_children_changed() {
     let child1 = tree.create_child(root, "child1");
     tree.set_layout_rect(child1, 0.0, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -253,7 +253,7 @@ fn notice_window_focus_gained() {
     tree.set_layout_rect(child1, 0.0, 0.0, 0.5, 1.0);
 
     // Start unfocused
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -279,7 +279,7 @@ fn notice_window_focus_gained() {
 }
 
 // ─── Test 6: notice_window_focus_lost ───────────────────────────
-// View focused → set_window_focused(false) → same flags as gained.
+// emView focused → set_window_focused(false) → same flags as gained.
 
 #[test]
 fn notice_window_focus_lost() {
@@ -293,7 +293,7 @@ fn notice_window_focus_lost() {
     tree.set_layout_rect(child1, 0.0, 0.0, 0.5, 1.0);
 
     // Start unfocused, then gain focus to match C++ setup
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -335,7 +335,7 @@ fn notice_window_resize() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.set_window_focused(&mut tree, false);
 
@@ -387,7 +387,7 @@ fn notice_recursive_enable() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -438,7 +438,7 @@ fn notice_re_enable() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -497,7 +497,7 @@ fn notice_remove_child() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -532,7 +532,7 @@ fn notice_focus_and_layout() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -578,7 +578,7 @@ fn notice_add_and_activate() {
     let child1 = tree.create_child(root, "child1");
     tree.set_layout_rect(child1, 0.0, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -626,7 +626,7 @@ fn notice_enable_changed() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.set_window_focused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);

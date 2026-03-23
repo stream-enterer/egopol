@@ -676,7 +676,7 @@ static X11_COLORS: &[(&str, [u8; 3])] = &[
     ("yellowgreen", [154, 205, 50]),
 ];
 
-/// Look up an X11 color name (case-insensitive) and return its RGB triple.
+/// emLook up an X11 color name (case-insensitive) and return its RGB triple.
 ///
 /// The input name should have no spaces (e.g. "darkslategray" not "dark slate gray").
 /// Returns `None` if the name is not found.

@@ -1,7 +1,7 @@
 use zuicchini::emCore::rect::Rect;
-use zuicchini::emCore::emLinearLayout::LinearLayout;
-use zuicchini::emCore::emPackLayout::PackLayout;
-use zuicchini::emCore::emRasterLayout::RasterLayout;
+use zuicchini::emCore::emLinearLayout::emLinearLayout;
+use zuicchini::emCore::emPackLayout::emPackLayout;
+use zuicchini::emCore::emRasterLayout::emRasterLayout;
 use zuicchini::emCore::emTiling::{AlignmentH, AlignmentV, ChildConstraint, Spacing};
 use zuicchini::emCore::emPanel::PanelBehavior;
 use zuicchini::emCore::emPanelCtx::PanelCtx;
@@ -58,7 +58,7 @@ fn run_layout(
         .collect()
 }
 
-/// Like run_layout but allows setting per-child constraints on LinearLayout
+/// Like run_layout but allows setting per-child constraints on emLinearLayout
 /// before attaching to tree.
 fn run_linear_layout(
     orientation_horizontal: bool,
@@ -78,9 +78,9 @@ fn run_linear_layout(
     );
 
     let mut layout = if orientation_horizontal {
-        LinearLayout::horizontal()
+        emLinearLayout::horizontal()
     } else {
-        LinearLayout::vertical()
+        emLinearLayout::vertical()
     };
 
     let child_ids: Vec<PanelId> = (0..n)
@@ -204,7 +204,7 @@ fn layout_linear_v_tallness() {
 fn layout_raster_3col() {
     require_golden!();
     let mut expected = load_layout_golden("raster_3col");
-    let layout = RasterLayout::new().with_columns(3);
+    let layout = emRasterLayout::new().with_columns(3);
     let actual = run_layout(Box::new(layout), 8, PARENT);
     scale_golden_rects(&mut expected, PARENT_WIDTH);
     compare_rects(&actual, &expected, 1e-6).unwrap();
@@ -216,7 +216,7 @@ fn layout_raster_3col() {
 fn layout_raster_2row() {
     require_golden!();
     let mut expected = load_layout_golden("raster_2row");
-    let layout = RasterLayout::new().with_rows(2);
+    let layout = emRasterLayout::new().with_rows(2);
     let actual = run_layout(Box::new(layout), 6, PARENT);
     scale_golden_rects(&mut expected, PARENT_WIDTH);
     compare_rects(&actual, &expected, 1e-6).unwrap();
@@ -229,7 +229,7 @@ fn layout_raster_strict() {
     require_golden!();
     let mut expected = load_layout_golden("raster_strict");
     // C++ SetChildTallness(1.0) sets both min and max to 1.0 (fixed aspect ratio).
-    let mut layout = RasterLayout::new()
+    let mut layout = emRasterLayout::new()
         .with_columns(3)
         .with_strict_raster(true)
         .with_preferred_tallness(1.0);
@@ -246,7 +246,7 @@ fn layout_raster_strict() {
 fn layout_raster_pref_tall() {
     require_golden!();
     let mut expected = load_layout_golden("raster_pref_tall");
-    let layout = RasterLayout::new()
+    let layout = emRasterLayout::new()
         .with_columns(3)
         .with_preferred_tallness(2.0);
     let actual = run_layout(Box::new(layout), 6, PARENT);
@@ -260,7 +260,7 @@ fn layout_raster_pref_tall() {
 fn layout_pack_equal() {
     require_golden!();
     let mut expected = load_layout_golden("pack_equal");
-    let mut layout = PackLayout::new();
+    let mut layout = emPackLayout::new();
     layout.set_default_weight(1.0);
     layout.set_default_preferred_tallness(1.0);
     let actual = run_layout(Box::new(layout), 10, PARENT);
@@ -279,7 +279,7 @@ fn layout_pack_weighted() {
     let root = tree.create_root("root");
     tree.set_layout_rect(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
 
-    let mut layout = PackLayout::new();
+    let mut layout = emPackLayout::new();
 
     // Deterministic weights and pct values
     let weights: Vec<f64> = (1..=10).map(|i| i as f64).collect();
@@ -341,7 +341,7 @@ fn layout_pack_extreme() {
     let root = tree.create_root("root");
     tree.set_layout_rect(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
 
-    let mut layout = PackLayout::new();
+    let mut layout = emPackLayout::new();
     let tallnesses = [0.01, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 100.0];
 
     let child_ids: Vec<PanelId> = (0..8)
@@ -524,7 +524,7 @@ fn layout_linear_min_cell_count() {
     let root = tree.create_root("root");
     tree.set_layout_rect(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
 
-    let mut layout = LinearLayout::horizontal();
+    let mut layout = emLinearLayout::horizontal();
     layout.min_cell_count = 6;
 
     let child_ids: Vec<PanelId> = (0..3)
@@ -574,7 +574,7 @@ fn layout_linear_min_max_tallness() {
     let root = tree.create_root("root");
     tree.set_layout_rect(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
 
-    let mut layout = LinearLayout::horizontal();
+    let mut layout = emLinearLayout::horizontal();
 
     let child_ids: Vec<PanelId> = (0..4)
         .map(|i| tree.create_child(root, &format!("c{i}")))
@@ -657,7 +657,7 @@ fn layout_linear_mixed_weights() {
 fn layout_raster_alignment_br() {
     require_golden!();
     let mut expected = load_layout_golden("raster_alignment_br");
-    let mut layout = RasterLayout::new().with_columns(2);
+    let mut layout = emRasterLayout::new().with_columns(2);
     // C++ EM_ALIGN_BOTTOM_RIGHT
     layout.alignment_h = AlignmentH::Right;
     layout.alignment_v = AlignmentV::Bottom;
@@ -675,7 +675,7 @@ fn layout_raster_alignment_br() {
 fn layout_raster_alignment_center() {
     require_golden!();
     let mut expected = load_layout_golden("raster_alignment_center");
-    let mut layout = RasterLayout::new().with_columns(2);
+    let mut layout = emRasterLayout::new().with_columns(2);
     layout.alignment_h = AlignmentH::Center;
     layout.alignment_v = AlignmentV::Center;
     layout.min_child_tallness = 2.0;
@@ -692,7 +692,7 @@ fn layout_raster_alignment_center() {
 fn layout_raster_spacing() {
     require_golden!();
     let mut expected = load_layout_golden("raster_spacing");
-    let mut layout = RasterLayout::new().with_columns(3);
+    let mut layout = emRasterLayout::new().with_columns(3);
     layout.spacing = Spacing {
         margin_left: 0.5,
         margin_top: 0.3,
@@ -712,7 +712,7 @@ fn layout_raster_spacing() {
 fn layout_raster_min_cell_count() {
     require_golden!();
     let mut expected = load_layout_golden("raster_min_cell_count");
-    let layout = RasterLayout::new().with_columns(3).with_min_cell_count(9);
+    let layout = emRasterLayout::new().with_columns(3).with_min_cell_count(9);
     let actual = run_layout(Box::new(layout), 5, PARENT);
     scale_golden_rects(&mut expected, PARENT_WIDTH);
     compare_rects(&actual, &expected, 1e-6).unwrap();
@@ -724,7 +724,7 @@ fn layout_raster_min_cell_count() {
 fn layout_raster_min_max_tallness() {
     require_golden!();
     let mut expected = load_layout_golden("raster_min_max_tallness");
-    let mut layout = RasterLayout::new()
+    let mut layout = emRasterLayout::new()
         .with_columns(3)
         .with_preferred_tallness(3.0); // pref exceeds max → clamped
     layout.min_child_tallness = 0.5;
@@ -741,7 +741,7 @@ fn layout_raster_min_max_tallness() {
 fn layout_raster_auto_cols() {
     require_golden!();
     let mut expected = load_layout_golden("raster_auto_cols");
-    let layout = RasterLayout::new().with_preferred_tallness(1.0);
+    let layout = emRasterLayout::new().with_preferred_tallness(1.0);
     let actual = run_layout(Box::new(layout), 12, PARENT);
     scale_golden_rects(&mut expected, PARENT_WIDTH);
     compare_rects(&actual, &expected, 1e-6).unwrap();
@@ -758,7 +758,7 @@ fn layout_pack_min_cell_count() {
     let root = tree.create_root("root");
     tree.set_layout_rect(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
 
-    let mut layout = PackLayout::new().with_min_cell_count(8);
+    let mut layout = emPackLayout::new().with_min_cell_count(8);
 
     let child_ids: Vec<PanelId> = (0..4)
         .map(|i| {
@@ -809,7 +809,7 @@ fn layout_pack_single() {
     let root = tree.create_root("root");
     tree.set_layout_rect(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
 
-    let mut layout = PackLayout::new();
+    let mut layout = emPackLayout::new();
     let id = tree.create_child(root, "c0");
     layout.set_child_constraint(
         id,
@@ -861,9 +861,9 @@ fn run_linear_layout_with_spacing(
     );
 
     let mut layout = if orientation_horizontal {
-        LinearLayout::horizontal().with_spacing(spacing)
+        emLinearLayout::horizontal().with_spacing(spacing)
     } else {
-        LinearLayout::vertical().with_spacing(spacing)
+        emLinearLayout::vertical().with_spacing(spacing)
     };
 
     let child_ids: Vec<PanelId> = (0..n)
@@ -928,11 +928,11 @@ fn run_linear_layout_aligned(
     );
 
     let mut layout = if orientation_horizontal {
-        LinearLayout::horizontal()
+        emLinearLayout::horizontal()
             .with_alignment_h(align_h)
             .with_alignment_v(align_v)
     } else {
-        LinearLayout::vertical()
+        emLinearLayout::vertical()
             .with_alignment_h(align_h)
             .with_alignment_v(align_v)
     };
@@ -995,7 +995,7 @@ fn run_linear_layout_adaptive(
         parent_rect.3,
     );
 
-    let mut layout = LinearLayout::adaptive(threshold);
+    let mut layout = emLinearLayout::adaptive(threshold);
 
     let child_ids: Vec<PanelId> = (0..n)
         .map(|i| tree.create_child(root, &format!("c{i}")))

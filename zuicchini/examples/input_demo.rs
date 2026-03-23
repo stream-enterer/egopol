@@ -3,12 +3,12 @@
 //! Logs keyboard and mouse events to an on-screen list, demonstrating
 //! modifier matching, key press/release tracking, and mouse position.
 
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 use zuicchini::emCore::emView::ViewFlags;
-use zuicchini::emCore::emPainter::{Painter, TextAlignment, VAlign};
+use zuicchini::emCore::emPainter::{emPainter, TextAlignment, VAlign};
 use zuicchini::emCore::emGUIFramework::App;
 use zuicchini::emCore::emWindow::WindowFlags;
 
@@ -46,7 +46,7 @@ impl PanelBehavior for InputPanel {
         true
     }
 
-    fn input(&mut self, event: &InputEvent, _state: &PanelState, input_state: &InputState) -> bool {
+    fn input(&mut self, event: &emInputEvent, _state: &PanelState, input_state: &emInputState) -> bool {
         // E with no modifiers
         if event.key == InputKey::Key('e')
             && event.variant == InputVariant::Press
@@ -130,8 +130,8 @@ impl PanelBehavior for InputPanel {
         false
     }
 
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _state: &PanelState) {
-        p.paint_rect(0.0, 0.0, w, h, Color::WHITE, Color::TRANSPARENT);
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
+        p.paint_rect(0.0, 0.0, w, h, emColor::WHITE, emColor::TRANSPARENT);
 
         // Title
         p.paint_text_boxed(
@@ -141,8 +141,8 @@ impl PanelBehavior for InputPanel {
             h * 0.08,
             "Input Demo — press keys, click mouse",
             h * 0.05,
-            Color::BLACK,
-            Color::TRANSPARENT,
+            emColor::BLACK,
+            emColor::TRANSPARENT,
             TextAlignment::Center,
             VAlign::Center,
             TextAlignment::Center,
@@ -159,8 +159,8 @@ impl PanelBehavior for InputPanel {
                 entry,
                 h * 0.03,
                 1.0,
-                Color::BLACK,
-                Color::TRANSPARENT,
+                emColor::BLACK,
+                emColor::TRANSPARENT,
             );
         }
 
@@ -172,8 +172,8 @@ impl PanelBehavior for InputPanel {
                 self.last_my - sz,
                 sz * 2.0,
                 sz * 2.0,
-                Color::rgba(255, 0, 0, 180),
-                Color::TRANSPARENT,
+                emColor::rgba(255, 0, 0, 180),
+                emColor::TRANSPARENT,
             );
         }
     }

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::emCore::emRec::{parse_rec, parse_rec_with_format, write_rec, write_rec_with_format, RecError, RecStruct, RecValue};
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::emTiling::Alignment;
 
 // ---- RecListener ----
@@ -61,19 +61,19 @@ impl RecListenerList {
     }
 }
 
-// ---- AlignmentRec ----
+// ---- emAlignmentRec ----
 
 /// A record wrapping an `Alignment` enum value.
 ///
 /// Port of C++ `emAlignmentRec`. Stores a current value and a default value,
 /// and can be serialized to/from emRec format as an identifier.
 #[derive(Clone, Debug)]
-pub struct AlignmentRec {
+pub struct emAlignmentRec {
     value: Alignment,
     default_value: Alignment,
 }
 
-impl AlignmentRec {
+impl emAlignmentRec {
     pub fn new(default_value: Alignment) -> Self {
         Self {
             value: default_value,
@@ -133,31 +133,31 @@ impl AlignmentRec {
     }
 }
 
-impl Default for AlignmentRec {
+impl Default for emAlignmentRec {
     fn default() -> Self {
         Self::new(Alignment::Center)
     }
 }
 
-// ---- ColorRec ----
+// ---- emColorRec ----
 
-/// A record wrapping a `Color` value.
+/// A record wrapping a `emColor` value.
 ///
 /// Port of C++ `emColorRec`. Stores a current value, a default value, and
 /// whether the alpha channel should be serialized.
 #[derive(Clone, Debug)]
-pub struct ColorRec {
-    value: Color,
-    default_value: Color,
+pub struct emColorRec {
+    value: emColor,
+    default_value: emColor,
     have_alpha: bool,
 }
 
-impl ColorRec {
-    pub fn new(default_value: Color, have_alpha: bool) -> Self {
+impl emColorRec {
+    pub fn new(default_value: emColor, have_alpha: bool) -> Self {
         let value = if have_alpha {
             default_value
         } else {
-            Color::rgba(default_value.r(), default_value.g(), default_value.b(), 255)
+            emColor::rgba(default_value.r(), default_value.g(), default_value.b(), 255)
         };
         Self {
             value,
@@ -166,15 +166,15 @@ impl ColorRec {
         }
     }
 
-    pub fn get(&self) -> Color {
+    pub fn get(&self) -> emColor {
         self.value
     }
 
-    pub fn set(&mut self, value: Color) {
+    pub fn set(&mut self, value: emColor) {
         if self.have_alpha {
             self.value = value;
         } else {
-            self.value = Color::rgba(value.r(), value.g(), value.b(), 255);
+            self.value = emColor::rgba(value.r(), value.g(), value.b(), 255);
         }
     }
 
@@ -194,7 +194,7 @@ impl ColorRec {
     ///
     /// Expects a struct with fields `r`, `g`, `b`, and optionally `a`,
     /// each an integer 0..255.
-    pub fn from_rec_struct(rec: &RecStruct, have_alpha: bool) -> Result<Color, RecError> {
+    pub fn from_rec_struct(rec: &RecStruct, have_alpha: bool) -> Result<emColor, RecError> {
         let r = rec
             .get_int("r")
             .ok_or_else(|| RecError::MissingField("r".into()))? as u8;
@@ -209,11 +209,11 @@ impl ColorRec {
         } else {
             255
         };
-        Ok(Color::rgba(r, g, b, a))
+        Ok(emColor::rgba(r, g, b, a))
     }
 
     /// Write a color to a `RecStruct`.
-    pub fn to_rec_struct(color: Color, have_alpha: bool) -> RecStruct {
+    pub fn to_rec_struct(color: emColor, have_alpha: bool) -> RecStruct {
         let mut s = RecStruct::new();
         s.set_int("r", color.r() as i32);
         s.set_int("g", color.g() as i32);
@@ -225,21 +225,21 @@ impl ColorRec {
     }
 }
 
-impl Default for ColorRec {
+impl Default for emColorRec {
     fn default() -> Self {
-        Self::new(Color::BLACK, false)
+        Self::new(emColor::BLACK, false)
     }
 }
 
-// ---- RecFileReader / RecFileWriter ----
+// ---- emRecFileReader / emRecFileWriter ----
 
 /// Convenience wrapper for reading an emRec tree from a file.
 ///
 /// Port of C++ `emRecFileReader`. Provides a simpler API than the C++ version
 /// since Rust does not need the incremental read/continue/quit protocol.
-pub struct RecFileReader;
+pub struct emRecFileReader;
 
-impl RecFileReader {
+impl emRecFileReader {
     /// Read an emRec file and parse it into a `RecStruct`.
     pub fn read(path: &Path) -> Result<RecStruct, RecError> {
         let content = std::fs::read_to_string(path).map_err(RecError::Io)?;
@@ -257,9 +257,9 @@ impl RecFileReader {
 ///
 /// Port of C++ `emRecFileWriter`. Provides a simpler API than the C++ version
 /// since Rust does not need the incremental write/continue/quit protocol.
-pub struct RecFileWriter;
+pub struct emRecFileWriter;
 
-impl RecFileWriter {
+impl emRecFileWriter {
     /// Write a `RecStruct` to a file (no format header).
     pub fn write(path: &Path, rec: &RecStruct) -> Result<(), RecError> {
         let content = write_rec(rec);
@@ -305,14 +305,14 @@ mod tests {
 
     #[test]
     fn alignment_rec_default() {
-        let rec = AlignmentRec::default();
+        let rec = emAlignmentRec::default();
         assert_eq!(rec.get(), Alignment::Center);
         assert!(rec.is_default());
     }
 
     #[test]
     fn alignment_rec_set_get() {
-        let mut rec = AlignmentRec::new(Alignment::Start);
+        let mut rec = emAlignmentRec::new(Alignment::Start);
         assert_eq!(rec.get(), Alignment::Start);
         rec.set(Alignment::End);
         assert_eq!(rec.get(), Alignment::End);
@@ -329,26 +329,26 @@ mod tests {
             Alignment::End,
             Alignment::Stretch,
         ] {
-            let val = AlignmentRec::to_rec_value(align);
-            let parsed = AlignmentRec::from_rec_value(&val).unwrap();
+            let val = emAlignmentRec::to_rec_value(align);
+            let parsed = emAlignmentRec::from_rec_value(&val).unwrap();
             assert_eq!(parsed, align);
         }
     }
 
     #[test]
     fn color_rec_default() {
-        let rec = ColorRec::default();
-        assert_eq!(rec.get(), Color::BLACK);
+        let rec = emColorRec::default();
+        assert_eq!(rec.get(), emColor::BLACK);
         assert!(!rec.have_alpha());
         assert!(rec.is_default());
     }
 
     #[test]
     fn color_rec_set_get() {
-        let mut rec = ColorRec::new(Color::RED, false);
-        assert_eq!(rec.get(), Color::RED);
-        rec.set(Color::BLUE);
-        assert_eq!(rec.get(), Color::BLUE);
+        let mut rec = emColorRec::new(emColor::RED, false);
+        assert_eq!(rec.get(), emColor::RED);
+        rec.set(emColor::BLUE);
+        assert_eq!(rec.get(), emColor::BLUE);
         assert!(!rec.is_default());
         rec.set_to_default();
         assert!(rec.is_default());
@@ -356,31 +356,31 @@ mod tests {
 
     #[test]
     fn color_rec_opaque_forces_alpha_255() {
-        let mut rec = ColorRec::new(Color::BLACK, false);
-        rec.set(Color::rgba(100, 200, 50, 128));
+        let mut rec = emColorRec::new(emColor::BLACK, false);
+        rec.set(emColor::rgba(100, 200, 50, 128));
         assert_eq!(rec.get().a(), 255);
     }
 
     #[test]
     fn color_rec_with_alpha() {
-        let mut rec = ColorRec::new(Color::TRANSPARENT, true);
-        rec.set(Color::rgba(100, 200, 50, 128));
+        let mut rec = emColorRec::new(emColor::TRANSPARENT, true);
+        rec.set(emColor::rgba(100, 200, 50, 128));
         assert_eq!(rec.get().a(), 128);
     }
 
     #[test]
     fn color_rec_struct_round_trip() {
-        let color = Color::rgba(10, 20, 30, 255);
-        let s = ColorRec::to_rec_struct(color, false);
-        let parsed = ColorRec::from_rec_struct(&s, false).unwrap();
+        let color = emColor::rgba(10, 20, 30, 255);
+        let s = emColorRec::to_rec_struct(color, false);
+        let parsed = emColorRec::from_rec_struct(&s, false).unwrap();
         assert_eq!(parsed, color);
     }
 
     #[test]
     fn color_rec_struct_with_alpha_round_trip() {
-        let color = Color::rgba(10, 20, 30, 128);
-        let s = ColorRec::to_rec_struct(color, true);
-        let parsed = ColorRec::from_rec_struct(&s, true).unwrap();
+        let color = emColor::rgba(10, 20, 30, 128);
+        let s = emColorRec::to_rec_struct(color, true);
+        let parsed = emColorRec::from_rec_struct(&s, true).unwrap();
         assert_eq!(parsed, color);
     }
 }

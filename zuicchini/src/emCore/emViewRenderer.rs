@@ -1,44 +1,44 @@
-use crate::emCore::emColor::Color;
-use crate::emCore::emImage::Image;
+use crate::emCore::emColor::emColor;
+use crate::emCore::emImage::emImage;
 use crate::emCore::emPanelTree::PanelTree;
-use crate::emCore::emView::View;
+use crate::emCore::emView::emView;
 
 use crate::emCore::emPainterDrawList::DrawList;
-use crate::emCore::emRenderThreadPool::RenderThreadPool;
-use super::emPainter::Painter;
+use crate::emCore::emRenderThreadPool::emRenderThreadPool;
+use super::emPainter::emPainter;
 
 pub struct SoftwareCompositor {
-    framebuffer: Image,
+    framebuffer: emImage,
 }
 
 impl SoftwareCompositor {
     pub fn new(width: u32, height: u32) -> Self {
         Self {
-            framebuffer: Image::new(width, height, 4),
+            framebuffer: emImage::new(width, height, 4),
         }
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.framebuffer = Image::new(width, height, 4);
+        self.framebuffer = emImage::new(width, height, 4);
     }
 
-    pub fn render(&mut self, tree: &mut PanelTree, view: &View) {
-        self.framebuffer.fill(Color::BLACK);
-        let mut painter = Painter::new(&mut self.framebuffer);
+    pub fn render(&mut self, tree: &mut PanelTree, view: &emView) {
+        self.framebuffer.fill(emColor::BLACK);
+        let mut painter = emPainter::new(&mut self.framebuffer);
         view.paint(tree, &mut painter);
     }
 
     /// Render using the display-list + parallel-replay pipeline.
     ///
-    /// 1. Record all draw operations via a recording `Painter`.
+    /// 1. Record all draw operations via a recording `emPainter`.
     /// 2. Split the framebuffer into tiles of `tile_size × tile_size`.
     /// 3. Replay the draw list into each tile in parallel using `pool`.
     /// 4. Composite tile results back into the framebuffer.
     pub fn render_parallel(
         &mut self,
         tree: &mut PanelTree,
-        view: &View,
-        pool: &RenderThreadPool,
+        view: &emView,
+        pool: &emRenderThreadPool,
         tile_size: u32,
     ) {
         let w = self.framebuffer.width();
@@ -47,7 +47,7 @@ impl SoftwareCompositor {
         // Phase 1: record.
         let mut draw_list = DrawList::new();
         {
-            let mut rec = Painter::new_recording(w, h, draw_list.ops_mut());
+            let mut rec = emPainter::new_recording(w, h, draw_list.ops_mut());
             view.paint(tree, &mut rec);
         }
 
@@ -57,8 +57,8 @@ impl SoftwareCompositor {
         let tile_count = (cols * rows) as usize;
         let ts = tile_size as f64;
 
-        let results: Vec<std::sync::Mutex<Option<Image>>> = (0..tile_count)
-            .map(|_| std::sync::Mutex::new(None::<Image>))
+        let results: Vec<std::sync::Mutex<Option<emImage>>> = (0..tile_count)
+            .map(|_| std::sync::Mutex::new(None::<emImage>))
             .collect();
         let results_ref = &results;
         let draw_list_ref = &draw_list;
@@ -69,10 +69,10 @@ impl SoftwareCompositor {
                 let row = (idx as u32) / cols;
                 let tw = tile_size.min(w - col * tile_size);
                 let th = tile_size.min(h - row * tile_size);
-                let mut buf = Image::new(tw, th, 4);
-                buf.fill(Color::BLACK);
+                let mut buf = emImage::new(tw, th, 4);
+                buf.fill(emColor::BLACK);
                 {
-                    let mut p = Painter::new(&mut buf);
+                    let mut p = emPainter::new(&mut buf);
                     draw_list_ref.replay(&mut p, (col as f64 * ts, row as f64 * ts));
                 }
                 *results_ref[idx].lock().expect("poisoned") = Some(buf);
@@ -81,7 +81,7 @@ impl SoftwareCompositor {
         );
 
         // Phase 3: composite tiles into framebuffer.
-        self.framebuffer.fill(Color::BLACK);
+        self.framebuffer.fill(emColor::BLACK);
         for (idx, result) in results.iter().enumerate() {
             let col = (idx as u32) % cols;
             let row = (idx as u32) / cols;
@@ -96,7 +96,7 @@ impl SoftwareCompositor {
         }
     }
 
-    pub fn framebuffer(&self) -> &Image {
+    pub fn framebuffer(&self) -> &emImage {
         &self.framebuffer
     }
 }

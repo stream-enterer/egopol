@@ -8,18 +8,18 @@ use std::rc::Rc;
 
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 use zuicchini::emCore::emPanelTree::PanelTree;
-use zuicchini::emCore::emView::{View, ViewFlags};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emView::{emView, ViewFlags};
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
+use zuicchini::emCore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 
-use zuicchini::emCore::emCheckBox::CheckBox;
+use zuicchini::emCore::emCheckBox::emCheckBox;
 
-use zuicchini::emCore::emLabel::Label;
+use zuicchini::emCore::emLabel::emLabel;
 
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emLook::emLook;
 
-use zuicchini::emCore::emScalarField::ScalarField;
+use zuicchini::emCore::emScalarField::emScalarField;
 
 use super::common::*;
 
@@ -33,7 +33,7 @@ macro_rules! require_golden {
     };
 }
 
-fn settle(tree: &mut PanelTree, view: &mut View) {
+fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
         tree.deliver_notices(view.window_focused(), view.pixel_tallness());
         view.update_viewing(tree);
@@ -61,18 +61,18 @@ fn assert_parallel_identical(
     let root = tree.create_root("test");
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
     tree.set_behavior(root, behavior);
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
     // Single-threaded tiled render (baseline).
-    let pool_1 = zuicchini::emCore::emRenderThreadPool::RenderThreadPool::new(1);
+    let pool_1 = zuicchini::emCore::emRenderThreadPool::emRenderThreadPool::new(1);
     let mut single = SoftwareCompositor::new(w, h);
     single.render_parallel(&mut tree, &view, &pool_1, tile_size);
     let single_data = single.framebuffer().data().to_vec();
 
     // Multi-threaded tiled render.
-    let pool_n = zuicchini::emCore::emRenderThreadPool::RenderThreadPool::new(thread_count);
+    let pool_n = zuicchini::emCore::emRenderThreadPool::emRenderThreadPool::new(thread_count);
     let mut multi = SoftwareCompositor::new(w, h);
     multi.render_parallel(&mut tree, &view, &pool_n, tile_size);
     let multi_data = multi.framebuffer().data().to_vec();
@@ -118,43 +118,43 @@ fn assert_parallel_identical(
 // ── PanelBehavior wrappers ───────────────────────────────────────
 
 struct BorderBehavior {
-    border: Border,
-    look: Rc<Look>,
+    border: emBorder,
+    look: Rc<emLook>,
 }
 
 impl PanelBehavior for BorderBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.border
             .paint_border(painter, w, h, &self.look, false, true, 1.0);
     }
 }
 
 struct LabelBehavior {
-    label: Label,
+    label: emLabel,
 }
 
 impl PanelBehavior for LabelBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.label.paint(painter, w, h, _state.enabled);
     }
 }
 
 struct CheckBoxBehavior {
-    check_box: CheckBox,
+    check_box: emCheckBox,
 }
 
 impl PanelBehavior for CheckBoxBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.check_box.paint(painter, w, h, _state.enabled);
     }
 }
 
 struct ScalarFieldBehavior {
-    scalar_field: ScalarField,
+    scalar_field: emScalarField,
 }
 
 impl PanelBehavior for ScalarFieldBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.scalar_field.paint(painter, w, h, state.enabled);
     }
 }
@@ -165,11 +165,11 @@ impl PanelBehavior for ScalarFieldBehavior {
 #[test]
 fn parallel_border_1_thread() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     assert_parallel_identical(
         "widget_border_rect",
         Box::new(BorderBehavior {
-            border: Border::new(OuterBorderType::Rect)
+            border: emBorder::new(OuterBorderType::Rect)
                 .with_inner(InnerBorderType::None)
                 .with_caption("Test"),
             look,
@@ -183,11 +183,11 @@ fn parallel_border_1_thread() {
 #[test]
 fn parallel_border_2_threads() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     assert_parallel_identical(
         "widget_border_rect",
         Box::new(BorderBehavior {
-            border: Border::new(OuterBorderType::Rect)
+            border: emBorder::new(OuterBorderType::Rect)
                 .with_inner(InnerBorderType::None)
                 .with_caption("Test"),
             look,
@@ -201,11 +201,11 @@ fn parallel_border_2_threads() {
 #[test]
 fn parallel_border_4_threads() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     assert_parallel_identical(
         "widget_border_rect",
         Box::new(BorderBehavior {
-            border: Border::new(OuterBorderType::Rect)
+            border: emBorder::new(OuterBorderType::Rect)
                 .with_inner(InnerBorderType::None)
                 .with_caption("Test"),
             look,
@@ -219,11 +219,11 @@ fn parallel_border_4_threads() {
 #[test]
 fn parallel_border_small_tiles() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     assert_parallel_identical(
         "widget_border_rect",
         Box::new(BorderBehavior {
-            border: Border::new(OuterBorderType::Rect)
+            border: emBorder::new(OuterBorderType::Rect)
                 .with_inner(InnerBorderType::None)
                 .with_caption("Test"),
             look,
@@ -237,8 +237,8 @@ fn parallel_border_small_tiles() {
 #[test]
 fn parallel_checkbox() {
     require_golden!();
-    let look = Look::new();
-    let mut cb = CheckBox::new("Check Option", look);
+    let look = emLook::new();
+    let mut cb = emCheckBox::new("Check Option", look);
     cb.set_checked(true);
     assert_parallel_identical(
         "widget_checkbox_checked",
@@ -252,8 +252,8 @@ fn parallel_checkbox() {
 #[test]
 fn parallel_scalarfield() {
     require_golden!();
-    let look = Look::new();
-    let mut sf = ScalarField::new(0.0, 100.0, look);
+    let look = emLook::new();
+    let mut sf = emScalarField::new(0.0, 100.0, look);
     sf.set_caption("Value");
     sf.set_editable(true);
     sf.set_value(50.0);
@@ -269,11 +269,11 @@ fn parallel_scalarfield() {
 #[test]
 fn parallel_label() {
     require_golden!();
-    let look = Look::new();
+    let look = emLook::new();
     assert_parallel_identical(
         "widget_label",
         Box::new(LabelBehavior {
-            label: Label::new("Hello World", look),
+            label: emLabel::new("Hello World", look),
         }),
         4,
         64,
@@ -289,7 +289,7 @@ fn parallel_benchmark() {
     require_golden!();
 
     let iterations = 100;
-    let look = Look::new();
+    let look = emLook::new();
 
     // Single-threaded timing.
     let single_elapsed = {
@@ -299,13 +299,13 @@ fn parallel_benchmark() {
         tree.set_behavior(
             root,
             Box::new(BorderBehavior {
-                border: Border::new(OuterBorderType::Group)
+                border: emBorder::new(OuterBorderType::Group)
                     .with_inner(InnerBorderType::None)
                     .with_caption("Benchmark"),
                 look: Rc::clone(&look),
             }),
         );
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
         settle(&mut tree, &mut view);
 
@@ -325,17 +325,17 @@ fn parallel_benchmark() {
         tree.set_behavior(
             root,
             Box::new(BorderBehavior {
-                border: Border::new(OuterBorderType::Group)
+                border: emBorder::new(OuterBorderType::Group)
                     .with_inner(InnerBorderType::None)
                     .with_caption("Benchmark"),
                 look: Rc::clone(&look),
             }),
         );
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
         settle(&mut tree, &mut view);
 
-        let pool = zuicchini::emCore::emRenderThreadPool::RenderThreadPool::new(4);
+        let pool = zuicchini::emCore::emRenderThreadPool::emRenderThreadPool::new(4);
         let mut comp = SoftwareCompositor::new(800, 600);
         let start = std::time::Instant::now();
         for _ in 0..iterations {
@@ -365,13 +365,13 @@ fn parallel_benchmark() {
         tree.set_behavior(
             root,
             Box::new(BorderBehavior {
-                border: Border::new(OuterBorderType::Group)
+                border: emBorder::new(OuterBorderType::Group)
                     .with_inner(InnerBorderType::None)
                     .with_caption("Benchmark"),
                 look: Rc::clone(&look),
             }),
         );
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
         settle(&mut tree, &mut view);
         let mut comp = SoftwareCompositor::new(800, 600);
@@ -385,16 +385,16 @@ fn parallel_benchmark() {
         tree.set_behavior(
             root,
             Box::new(BorderBehavior {
-                border: Border::new(OuterBorderType::Group)
+                border: emBorder::new(OuterBorderType::Group)
                     .with_inner(InnerBorderType::None)
                     .with_caption("Benchmark"),
                 look,
             }),
         );
-        let mut view = View::new(root, 800.0, 600.0);
+        let mut view = emView::new(root, 800.0, 600.0);
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
         settle(&mut tree, &mut view);
-        let pool = zuicchini::emCore::emRenderThreadPool::RenderThreadPool::new(4);
+        let pool = zuicchini::emCore::emRenderThreadPool::emRenderThreadPool::new(4);
         let mut comp = SoftwareCompositor::new(800, 600);
         comp.render_parallel(&mut tree, &view, &pool, 128);
         comp.framebuffer().data().to_vec()

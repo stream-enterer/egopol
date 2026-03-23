@@ -1,35 +1,35 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use crate::emCore::emLinearLayout::LinearLayout;
-use crate::emCore::emRasterLayout::RasterLayout;
+use crate::emCore::emLinearLayout::emLinearLayout;
+use crate::emCore::emRasterLayout::emRasterLayout;
 use crate::emCore::emTiling::{AlignmentH, AlignmentV, ChildConstraint, Spacing};
-use crate::emCore::emConfigModel::ConfigModel;
-use crate::emCore::emCoreConfig::CoreConfig;
+use crate::emCore::emConfigModel::emConfigModel;
+use crate::emCore::emCoreConfig::emCoreConfig;
 use crate::emCore::emPanel::{PanelBehavior, PanelState};
 use crate::emCore::emPanelCtx::PanelCtx;
-use crate::emCore::emPainter::Painter;
+use crate::emCore::emPainter::emPainter;
 
-use super::emBorder::{Border, InnerBorderType, OuterBorderType};
-use crate::emCore::emButton::Button;
-use crate::emCore::emCheckBox::CheckBox;
+use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use crate::emCore::emButton::emButton;
+use crate::emCore::emCheckBox::emCheckBox;
 use super::emColorFieldFieldPanel::{ButtonPanel, CheckBoxPanel, LabelPanel, ScalarFieldPanel};
-use crate::emCore::emLabel::Label;
-use crate::emCore::emLook::Look;
-use crate::emCore::emScalarField::ScalarField;
-use crate::emCore::emTunnel::Tunnel;
+use crate::emCore::emLabel::emLabel;
+use crate::emCore::emLook::emLook;
+use crate::emCore::emScalarField::emScalarField;
+use crate::emCore::emTunnel::emTunnel;
 
 // ---------------------------------------------------------------------------
 // Pure conversion functions (C++ emCoreConfigPanel.cpp factor field logic)
 // ---------------------------------------------------------------------------
 
-/// ScalarField value (-200..+200) to config domain value.
+/// emScalarField value (-200..+200) to config domain value.
 fn factor_val_to_cfg(value: f64, cfg_min: f64, cfg_max: f64) -> f64 {
     let m = if value >= 0.0 { cfg_max } else { 1.0 / cfg_min };
     m.sqrt().powf(value / 100.0)
 }
 
-/// Config domain value to ScalarField value (-200..+200), rounded.
+/// Config domain value to emScalarField value (-200..+200), rounded.
 fn factor_cfg_to_val(d: f64, cfg_min: f64, cfg_max: f64) -> f64 {
     let m = if d >= 1.0 { cfg_max } else { 1.0 / cfg_min };
     let v = d.ln() / m.sqrt().ln() * 100.0;
@@ -71,12 +71,12 @@ fn factor_text_of_value(
     }
 }
 
-/// Memory MB to ScalarField value (log2 space).
+/// Memory MB to emScalarField value (log2 space).
 fn mem_cfg_to_val(mb: i32) -> f64 {
     (mb as f64).ln() / 2.0_f64.ln() * 100.0
 }
 
-/// ScalarField value to memory MB (log2 space).
+/// emScalarField value to memory MB (log2 space).
 fn mem_val_to_cfg(val: f64) -> i32 {
     (2.0_f64.powf(val / 100.0) + 0.5) as i32
 }
@@ -121,13 +121,13 @@ fn upscale_text(value: i64, _mark_interval: u64) -> String {
 fn make_factor_field(
     caption: &str,
     description: &str,
-    look: Rc<Look>,
+    look: Rc<emLook>,
     cfg_min: f64,
     cfg_max: f64,
     cfg_value: f64,
     minimum_means_disabled: bool,
 ) -> ScalarFieldPanel {
-    let mut sf = ScalarField::new(-200.0, 200.0, look);
+    let mut sf = emScalarField::new(-200.0, 200.0, look);
     sf.set_caption(caption);
     sf.border_mut().description = description.to_string();
     sf.set_value(factor_cfg_to_val(cfg_value, cfg_min, cfg_max));
@@ -147,18 +147,18 @@ fn make_factor_field(
 
 /// Keyboard control group — 2 factor fields.
 struct KBGroup {
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
-    border: Border,
-    layout: RasterLayout,
+    border: emBorder,
+    layout: emRasterLayout,
 }
 
 impl KBGroup {
     fn new(
-        config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-        look: Rc<Look>,
+        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
         let gen = generation.get();
@@ -167,10 +167,10 @@ impl KBGroup {
             look,
             generation,
             last_generation: gen,
-            border: Border::new(OuterBorderType::Group)
+            border: emBorder::new(OuterBorderType::Group)
                 .with_inner(InnerBorderType::Group)
                 .with_caption("Keyboard Control"),
-            layout: RasterLayout::new()
+            layout: emRasterLayout::new()
                 .with_preferred_tallness(0.2)
                 .with_spacing(Spacing {
                     margin_left: 0.05,
@@ -195,7 +195,7 @@ impl KBGroup {
             c.keyboard_zoom_speed,
             false,
         );
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         zoom.scalar_field.on_value = Some(Box::new(move |val| {
             let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
             let mut cm = config.borrow_mut();
@@ -213,7 +213,7 @@ impl KBGroup {
             c.keyboard_scroll_speed,
             false,
         );
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         scroll.scalar_field.on_value = Some(Box::new(move |val| {
             let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
             let mut cm = config.borrow_mut();
@@ -225,7 +225,7 @@ impl KBGroup {
 }
 
 impl PanelBehavior for KBGroup {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.border
             .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
@@ -264,19 +264,19 @@ impl PanelBehavior for KBGroup {
 
 /// Miscellaneous mouse settings group — 3 checkboxes.
 struct MouseMiscGroup {
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
     stick_possible: bool,
-    border: Border,
-    layout: RasterLayout,
+    border: emBorder,
+    layout: emRasterLayout,
 }
 
 impl MouseMiscGroup {
     fn new(
-        config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-        look: Rc<Look>,
+        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
         stick_possible: bool,
     ) -> Self {
@@ -287,10 +287,10 @@ impl MouseMiscGroup {
             generation,
             last_generation: gen,
             stick_possible,
-            border: Border::new(OuterBorderType::Group)
+            border: emBorder::new(OuterBorderType::Group)
                 .with_inner(InnerBorderType::Group)
                 .with_caption("Miscellaneous mouse settings"),
-            layout: RasterLayout::new().with_preferred_tallness(0.04),
+            layout: emRasterLayout::new().with_preferred_tallness(0.04),
         }
     }
 
@@ -300,9 +300,9 @@ impl MouseMiscGroup {
 
         // C++ emCoreConfigPanel.cpp:295: StickBox->SetEnableSwitch(StickPossible)
         // Disabled when the screen cannot move the mouse pointer.
-        let mut stick = CheckBox::new("Stick mouse\nwhen navigating", self.look.clone());
+        let mut stick = emCheckBox::new("Stick mouse\nwhen navigating", self.look.clone());
         stick.set_checked(c.stick_mouse_when_navigating);
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         stick.on_check = Some(Box::new(move |checked| {
             let mut cm = config.borrow_mut();
             cm.modify(|c| c.stick_mouse_when_navigating = checked);
@@ -313,9 +313,9 @@ impl MouseMiscGroup {
             ctx.tree.set_enable_switch(stick_id, false);
         }
 
-        let mut emu = CheckBox::new("Emulate\nmiddle button", self.look.clone());
+        let mut emu = emCheckBox::new("Emulate\nmiddle button", self.look.clone());
         emu.set_checked(c.emulate_middle_button);
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         emu.on_check = Some(Box::new(move |checked| {
             let mut cm = config.borrow_mut();
             cm.modify(|c| c.emulate_middle_button = checked);
@@ -323,9 +323,9 @@ impl MouseMiscGroup {
         }));
         ctx.create_child_with("emu", Box::new(CheckBoxPanel { check_box: emu }));
 
-        let mut pan = CheckBox::new("Pan\nfunction", self.look.clone());
+        let mut pan = emCheckBox::new("Pan\nfunction", self.look.clone());
         pan.set_checked(c.pan_function);
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         pan.on_check = Some(Box::new(move |checked| {
             let mut cm = config.borrow_mut();
             cm.modify(|c| c.pan_function = checked);
@@ -336,7 +336,7 @@ impl MouseMiscGroup {
 }
 
 impl PanelBehavior for MouseMiscGroup {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.border
             .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
@@ -375,18 +375,18 @@ impl PanelBehavior for MouseMiscGroup {
 
 /// Kinetic effects group — 4 factor fields.
 struct KineticGroup {
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
-    border: Border,
-    layout: RasterLayout,
+    border: emBorder,
+    layout: emRasterLayout,
 }
 
 impl KineticGroup {
     fn new(
-        config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-        look: Rc<Look>,
+        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
         let gen = generation.get();
@@ -395,10 +395,10 @@ impl KineticGroup {
             look,
             generation,
             last_generation: gen,
-            border: Border::new(OuterBorderType::Group)
+            border: emBorder::new(OuterBorderType::Group)
                 .with_inner(InnerBorderType::Group)
                 .with_caption("Kinetic Effects"),
-            layout: RasterLayout::new()
+            layout: emRasterLayout::new()
                 .with_preferred_tallness(0.2)
                 .with_spacing(Spacing {
                     margin_left: 0.05,
@@ -424,7 +424,7 @@ impl KineticGroup {
             c.kinetic_zooming_and_scrolling,
             true,
         );
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         kinetic.scalar_field.on_value = Some(Box::new(move |val| {
             let cfg_val = factor_val_to_cfg(val, 0.25, 2.0);
             let mut cm = config.borrow_mut();
@@ -443,7 +443,7 @@ impl KineticGroup {
             c.magnetism_radius,
             true,
         );
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         mag_radius.scalar_field.on_value = Some(Box::new(move |val| {
             let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
             let mut cm = config.borrow_mut();
@@ -462,7 +462,7 @@ impl KineticGroup {
             c.magnetism_speed,
             false,
         );
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         mag_speed.scalar_field.on_value = Some(Box::new(move |val| {
             let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
             let mut cm = config.borrow_mut();
@@ -481,7 +481,7 @@ impl KineticGroup {
             c.visit_speed,
             false,
         );
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         visit.scalar_field.on_value = Some(Box::new(move |val| {
             let cfg_val = factor_val_to_cfg(val, 0.1, 10.0);
             let mut cm = config.borrow_mut();
@@ -493,7 +493,7 @@ impl KineticGroup {
 }
 
 impl PanelBehavior for KineticGroup {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.border
             .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
@@ -532,18 +532,18 @@ impl PanelBehavior for KineticGroup {
 
 /// Max megabytes per view group — label + scalar field.
 struct MaxMemGroup {
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
-    border: Border,
-    layout: LinearLayout,
+    border: emBorder,
+    layout: emLinearLayout,
 }
 
 impl MaxMemGroup {
     fn new(
-        config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-        look: Rc<Look>,
+        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
         let gen = generation.get();
@@ -552,10 +552,10 @@ impl MaxMemGroup {
             look,
             generation,
             last_generation: gen,
-            border: Border::new(OuterBorderType::Group)
+            border: emBorder::new(OuterBorderType::Group)
                 .with_inner(InnerBorderType::Group)
                 .with_caption("Max Megabytes Per View"),
-            layout: LinearLayout::vertical(),
+            layout: emLinearLayout::vertical(),
         }
     }
 
@@ -581,7 +581,7 @@ impl MaxMemGroup {
             \n\
             NOTE: After changing the value, you may have to restart the program for the\n\
             change to take effect. Or zoom out from all panels once.";
-        let label = Label::new(label_text, self.look.clone());
+        let label = emLabel::new(label_text, self.look.clone());
         let label_id = ctx.create_child_with("label", Box::new(LabelPanel { label }));
         self.layout.set_child_constraint(
             label_id,
@@ -609,7 +609,7 @@ impl MaxMemGroup {
 }
 
 impl PanelBehavior for MaxMemGroup {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.border
             .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
@@ -646,19 +646,19 @@ impl PanelBehavior for MaxMemGroup {
     }
 }
 
-/// Bare LinearLayout wrapping the memory ScalarField.
+/// Bare emLinearLayout wrapping the memory emScalarField.
 struct MemFieldLayoutPanel {
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
-    layout: LinearLayout,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
+    layout: emLinearLayout,
 }
 
 impl MemFieldLayoutPanel {
-    fn new(config: Rc<RefCell<ConfigModel<CoreConfig>>>, look: Rc<Look>) -> Self {
+    fn new(config: Rc<RefCell<emConfigModel<emCoreConfig>>>, look: Rc<emLook>) -> Self {
         Self {
             config,
             look,
-            layout: LinearLayout::horizontal().with_spacing(Spacing {
+            layout: emLinearLayout::horizontal().with_spacing(Spacing {
                 margin_left: 0.02,
                 margin_top: 0.05,
                 margin_right: 0.05,
@@ -675,14 +675,14 @@ impl MemFieldLayoutPanel {
         // Memory field: log2 space, range 8..16384 → ~300..1400 in val space
         let min_val = mem_cfg_to_val(8);
         let max_val = mem_cfg_to_val(16384);
-        let mut sf = ScalarField::new(min_val, max_val, self.look.clone());
+        let mut sf = emScalarField::new(min_val, max_val, self.look.clone());
         sf.set_caption("Max megabytes per view");
         sf.set_value(mem_cfg_to_val(c.max_megabytes_per_view));
         sf.set_scale_mark_intervals(&[100, 10]);
         sf.set_text_box_tallness(0.3);
         sf.border_mut().set_border_scaling(1.5);
         sf.set_text_of_value_fn(Box::new(mem_text_of_value));
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         sf.on_value = Some(Box::new(move |val| {
             let mb = mem_val_to_cfg(val);
             let mut cm = config.borrow_mut();
@@ -694,7 +694,7 @@ impl MemFieldLayoutPanel {
 }
 
 impl PanelBehavior for MemFieldLayoutPanel {
-    fn paint(&mut self, _painter: &mut Painter, _w: f64, _h: f64, _state: &PanelState) {}
+    fn paint(&mut self, _painter: &mut emPainter, _w: f64, _h: f64, _state: &PanelState) {}
 
     fn auto_expand(&self) -> bool {
         true
@@ -719,19 +719,19 @@ impl PanelBehavior for MemFieldLayoutPanel {
 
 /// Inner tunnel wrapping MaxMemGroup (child_tallness=0.7).
 struct MaxMemInnerTunnelPanel {
-    tunnel: Tunnel,
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+    tunnel: emTunnel,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
 }
 
 impl MaxMemInnerTunnelPanel {
     fn new(
-        config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-        look: Rc<Look>,
+        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
-        let mut tunnel = Tunnel::new(look.clone())
+        let mut tunnel = emTunnel::new(look.clone())
             .with_caption("Please read all text\nbefore changing this setting!");
         tunnel.set_child_tallness(0.7);
         Self {
@@ -744,7 +744,7 @@ impl MaxMemInnerTunnelPanel {
 }
 
 impl PanelBehavior for MaxMemInnerTunnelPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.tunnel.paint_tunnel(painter, w, h);
     }
 
@@ -779,19 +779,19 @@ impl PanelBehavior for MaxMemInnerTunnelPanel {
 
 /// Outer tunnel wrapping MaxMemInnerTunnelPanel (child_tallness=0.3, border_scaling=1.5).
 struct MaxMemTunnelPanel {
-    tunnel: Tunnel,
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+    tunnel: emTunnel,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
 }
 
 impl MaxMemTunnelPanel {
     fn new(
-        config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-        look: Rc<Look>,
+        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
-        let mut tunnel = Tunnel::new(look.clone());
+        let mut tunnel = emTunnel::new(look.clone());
         tunnel.set_child_tallness(0.3);
         tunnel.border_mut().set_border_scaling(1.5);
         Self {
@@ -804,7 +804,7 @@ impl MaxMemTunnelPanel {
 }
 
 impl PanelBehavior for MaxMemTunnelPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.tunnel.paint_tunnel(painter, w, h);
     }
 
@@ -839,22 +839,22 @@ impl PanelBehavior for MaxMemTunnelPanel {
 
 /// CPU group — MaxRenderThreads scalar field + AllowSIMD checkbox.
 struct CpuGroup {
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
-    border: Border,
-    layout: LinearLayout,
+    border: emBorder,
+    layout: emLinearLayout,
 }
 
 impl CpuGroup {
     fn new(
-        config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-        look: Rc<Look>,
+        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
         let gen = generation.get();
-        let mut border = Border::new(OuterBorderType::Instrument)
+        let mut border = emBorder::new(OuterBorderType::Instrument)
             .with_inner(InnerBorderType::Group)
             .with_caption("CPU");
         border.set_border_scaling(1.5);
@@ -864,7 +864,7 @@ impl CpuGroup {
             generation,
             last_generation: gen,
             border,
-            layout: LinearLayout::vertical().with_spacing(Spacing {
+            layout: emLinearLayout::vertical().with_spacing(Spacing {
                 inner_v: 0.1,
                 ..Default::default()
             }),
@@ -876,14 +876,14 @@ impl CpuGroup {
         let c = cfg.get();
 
         // MaxRenderThreads: range 1-32
-        let mut sf = ScalarField::new(1.0, 32.0, self.look.clone());
+        let mut sf = emScalarField::new(1.0, 32.0, self.look.clone());
         sf.set_caption("Max render threads");
         sf.set_value(c.max_render_threads as f64);
         sf.set_scale_mark_intervals(&[1]);
         sf.border_mut().outer = OuterBorderType::None;
         sf.border_mut().inner = InnerBorderType::InputField;
         sf.border_mut().set_border_scaling(1.5);
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         sf.on_value = Some(Box::new(move |val| {
             let threads = (val + 0.5) as i32;
             let mut cm = config.borrow_mut();
@@ -903,9 +903,9 @@ impl CpuGroup {
         );
 
         // AllowSIMD checkbox
-        let mut cb = CheckBox::new("Allow SIMD", self.look.clone());
+        let mut cb = emCheckBox::new("Allow SIMD", self.look.clone());
         cb.set_checked(c.allow_simd);
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         cb.on_check = Some(Box::new(move |checked| {
             let mut cm = config.borrow_mut();
             cm.modify(|c| c.allow_simd = checked);
@@ -916,7 +916,7 @@ impl CpuGroup {
 }
 
 impl PanelBehavior for CpuGroup {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.border
             .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
@@ -955,18 +955,18 @@ impl PanelBehavior for CpuGroup {
 
 /// Performance group — tunnel, CPU group, 2 quality scalar fields.
 struct PerformanceGroup {
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
-    border: Border,
-    layout: RasterLayout,
+    border: emBorder,
+    layout: emRasterLayout,
 }
 
 impl PerformanceGroup {
     fn new(
-        config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-        look: Rc<Look>,
+        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
         let gen = generation.get();
@@ -975,10 +975,10 @@ impl PerformanceGroup {
             look,
             generation,
             last_generation: gen,
-            border: Border::new(OuterBorderType::Group)
+            border: emBorder::new(OuterBorderType::Group)
                 .with_inner(InnerBorderType::Group)
                 .with_caption("Graphics Performance vs. Quality"),
-            layout: RasterLayout::new()
+            layout: emRasterLayout::new()
                 .with_preferred_tallness(0.2)
                 .with_spacing(Spacing {
                     margin_left: 0.05,
@@ -1015,7 +1015,7 @@ impl PerformanceGroup {
         );
 
         // DownscaleQuality: range 2-6
-        let mut ds_sf = ScalarField::new(2.0, 6.0, self.look.clone());
+        let mut ds_sf = emScalarField::new(2.0, 6.0, self.look.clone());
         ds_sf.set_caption("Downscale quality");
         ds_sf.border_mut().description =
             "Quality of image downscaling (antialiasing filter size)".to_string();
@@ -1024,7 +1024,7 @@ impl PerformanceGroup {
         ds_sf.set_text_box_tallness(0.3);
         ds_sf.border_mut().set_border_scaling(1.5);
         ds_sf.set_text_of_value_fn(Box::new(downscale_text));
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         ds_sf.on_value = Some(Box::new(move |val| {
             let q = (val + 0.5) as i32;
             let mut cm = config.borrow_mut();
@@ -1039,7 +1039,7 @@ impl PerformanceGroup {
         );
 
         // UpscaleQuality: range 0-5 (0 = Nearest Pixel)
-        let mut us_sf = ScalarField::new(0.0, 5.0, self.look.clone());
+        let mut us_sf = emScalarField::new(0.0, 5.0, self.look.clone());
         us_sf.set_caption("Upscale quality");
         us_sf.border_mut().description = "Quality of image upscaling (interpolation)".to_string();
         us_sf.set_value(c.upscale_quality as f64);
@@ -1047,7 +1047,7 @@ impl PerformanceGroup {
         us_sf.set_text_box_tallness(0.3);
         us_sf.border_mut().set_border_scaling(1.5);
         us_sf.set_text_of_value_fn(Box::new(upscale_text));
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         us_sf.on_value = Some(Box::new(move |val| {
             let q = (val + 0.5) as i32;
             let mut cm = config.borrow_mut();
@@ -1064,7 +1064,7 @@ impl PerformanceGroup {
 }
 
 impl PanelBehavior for PerformanceGroup {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.border
             .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
@@ -1103,19 +1103,19 @@ impl PanelBehavior for PerformanceGroup {
 
 /// Mouse control group — 4 factor fields + MouseMiscGroup.
 struct MouseGroup {
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
     stick_possible: bool,
-    border: Border,
-    layout: RasterLayout,
+    border: emBorder,
+    layout: emRasterLayout,
 }
 
 impl MouseGroup {
     fn new(
-        config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-        look: Rc<Look>,
+        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
         stick_possible: bool,
     ) -> Self {
@@ -1126,10 +1126,10 @@ impl MouseGroup {
             generation,
             last_generation: gen,
             stick_possible,
-            border: Border::new(OuterBorderType::Group)
+            border: emBorder::new(OuterBorderType::Group)
                 .with_inner(InnerBorderType::Group)
                 .with_caption("Mouse Control"),
-            layout: RasterLayout::new()
+            layout: emRasterLayout::new()
                 .with_preferred_tallness(0.2)
                 .with_spacing(Spacing {
                     margin_left: 0.05,
@@ -1155,7 +1155,7 @@ impl MouseGroup {
             c.mouse_wheel_zoom_speed,
             false,
         );
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         wz.scalar_field.on_value = Some(Box::new(move |val| {
             let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
             let mut cm = config.borrow_mut();
@@ -1174,7 +1174,7 @@ impl MouseGroup {
             c.mouse_wheel_zoom_acceleration,
             true,
         );
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         wa.scalar_field.on_value = Some(Box::new(move |val| {
             let cfg_val = factor_val_to_cfg(val, 0.25, 2.0);
             let mut cm = config.borrow_mut();
@@ -1193,7 +1193,7 @@ impl MouseGroup {
             c.mouse_zoom_speed,
             false,
         );
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         zoom.scalar_field.on_value = Some(Box::new(move |val| {
             let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
             let mut cm = config.borrow_mut();
@@ -1212,7 +1212,7 @@ impl MouseGroup {
             c.mouse_scroll_speed,
             false,
         );
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         scroll.scalar_field.on_value = Some(Box::new(move |val| {
             let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
             let mut cm = config.borrow_mut();
@@ -1235,7 +1235,7 @@ impl MouseGroup {
 }
 
 impl PanelBehavior for MouseGroup {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.border
             .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
@@ -1278,31 +1278,31 @@ impl PanelBehavior for MouseGroup {
 
 /// Buttons panel — Reset To Defaults button.
 struct ButtonsPanel {
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
-    layout: LinearLayout,
+    layout: emLinearLayout,
 }
 
 impl ButtonsPanel {
     fn new(
-        config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-        look: Rc<Look>,
+        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
         Self {
             config,
             look,
             generation,
-            layout: LinearLayout::horizontal()
+            layout: emLinearLayout::horizontal()
                 .with_alignment_h(AlignmentH::Right)
                 .with_alignment_v(AlignmentV::Bottom),
         }
     }
 
     fn create_children(&self, ctx: &mut PanelCtx) {
-        let mut btn = Button::new("Reset To Defaults", self.look.clone());
-        let config: Rc<RefCell<ConfigModel<CoreConfig>>> = Rc::clone(&self.config);
+        let mut btn = emButton::new("Reset To Defaults", self.look.clone());
+        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         let generation = Rc::clone(&self.generation);
         btn.on_click = Some(Box::new(move || {
             let mut cm = config.borrow_mut();
@@ -1315,7 +1315,7 @@ impl ButtonsPanel {
 }
 
 impl PanelBehavior for ButtonsPanel {
-    fn paint(&mut self, _painter: &mut Painter, _w: f64, _h: f64, _state: &PanelState) {}
+    fn paint(&mut self, _painter: &mut emPainter, _w: f64, _h: f64, _state: &PanelState) {}
 
     fn auto_expand(&self) -> bool {
         true
@@ -1336,17 +1336,17 @@ impl PanelBehavior for ButtonsPanel {
 
 /// Content panel — 4 groups in a raster layout.
 struct ContentPanel {
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     stick_possible: bool,
-    layout: RasterLayout,
+    layout: emRasterLayout,
 }
 
 impl ContentPanel {
     fn new(
-        config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-        look: Rc<Look>,
+        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
         stick_possible: bool,
     ) -> Self {
@@ -1355,7 +1355,7 @@ impl ContentPanel {
             look,
             generation,
             stick_possible,
-            layout: RasterLayout::new()
+            layout: emRasterLayout::new()
                 .with_preferred_tallness(0.5)
                 .with_spacing(Spacing {
                     inner_h: 0.1,
@@ -1406,7 +1406,7 @@ impl ContentPanel {
 }
 
 impl PanelBehavior for ContentPanel {
-    fn paint(&mut self, _painter: &mut Painter, _w: f64, _h: f64, _state: &PanelState) {}
+    fn paint(&mut self, _painter: &mut emPainter, _w: f64, _h: f64, _state: &PanelState) {}
 
     fn auto_expand(&self) -> bool {
         true
@@ -1426,27 +1426,27 @@ impl PanelBehavior for ContentPanel {
 }
 
 // ---------------------------------------------------------------------------
-// CoreConfigPanel — top-level panel
+// emCoreConfigPanel — top-level panel
 // ---------------------------------------------------------------------------
 
 /// Settings UI panel for emCore configuration.
 ///
 /// Port of C++ `emCoreConfigPanel`. Provides bidirectional binding between
-/// UI controls and `CoreConfig` settings via `ConfigModel`.
-pub struct CoreConfigPanel {
-    config: Rc<RefCell<ConfigModel<CoreConfig>>>,
-    look: Rc<Look>,
+/// UI controls and `emCoreConfig` settings via `emConfigModel`.
+pub struct emCoreConfigPanel {
+    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     /// Whether the screen can move the mouse pointer (C++ StickPossible).
     /// Controls whether the "Stick mouse when navigating" checkbox is enabled.
     stick_possible: bool,
-    border: Border,
-    layout: LinearLayout,
+    border: emBorder,
+    layout: emLinearLayout,
 }
 
-impl CoreConfigPanel {
-    pub fn new(config: Rc<RefCell<ConfigModel<CoreConfig>>>, look: Rc<Look>) -> Self {
-        let mut border = Border::new(OuterBorderType::Group)
+impl emCoreConfigPanel {
+    pub fn new(config: Rc<RefCell<emConfigModel<emCoreConfig>>>, look: Rc<emLook>) -> Self {
+        let mut border = emBorder::new(OuterBorderType::Group)
             .with_inner(InnerBorderType::Group)
             .with_caption("General Preferences");
         border.description = "This panel provides general user settings.".to_string();
@@ -1456,7 +1456,7 @@ impl CoreConfigPanel {
             generation: Rc::new(Cell::new(0)),
             stick_possible: true,
             border,
-            layout: LinearLayout::vertical().with_spacing(Spacing {
+            layout: emLinearLayout::vertical().with_spacing(Spacing {
                 margin_left: 0.01,
                 margin_top: 0.1,
                 margin_right: 0.01,
@@ -1512,8 +1512,8 @@ impl CoreConfigPanel {
     }
 }
 
-impl PanelBehavior for CoreConfigPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+impl PanelBehavior for emCoreConfigPanel {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.border
             .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }

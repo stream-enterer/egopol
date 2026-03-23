@@ -1,21 +1,21 @@
 use std::rc::Rc;
 
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::rect::Rect;
-use crate::emCore::emCursor::Cursor;
-use crate::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
+use crate::emCore::emCursor::emCursor;
+use crate::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use crate::emCore::emInputState::emInputState;
 use crate::emCore::emPanel::PanelState;
-use crate::emCore::emPainter::{Painter, BORDER_EDGES_ONLY};
+use crate::emCore::emPainter::{emPainter, BORDER_EDGES_ONLY};
 
-use super::emBorder::{Border, OuterBorderType};
-use crate::emCore::emLook::Look;
+use super::emBorder::{emBorder, OuterBorderType};
+use crate::emCore::emLook::emLook;
 use crate::emCore::toolkit_images::with_toolkit_images;
 
 /// Clickable button widget.
-pub struct Button {
-    border: Border,
-    look: Rc<Look>,
+pub struct emButton {
+    border: emBorder,
+    look: Rc<emLook>,
     pressed: bool,
     /// When true, clicking this button does not send an End-of-Interaction
     /// signal. Matches C++ `emButton::NoEOI`.
@@ -34,10 +34,10 @@ pub struct Button {
     pub on_press_state: Option<Box<dyn FnMut(bool)>>,
 }
 
-impl Button {
-    pub fn new(caption: &str, look: Rc<Look>) -> Self {
+impl emButton {
+    pub fn new(caption: &str, look: Rc<emLook>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::InstrumentMoreRound)
+            border: emBorder::new(OuterBorderType::InstrumentMoreRound)
                 .with_caption(caption)
                 .with_label_in_border(false)
                 .with_how_to(true),
@@ -154,7 +154,7 @@ impl Button {
         text
     }
 
-    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
+    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -211,7 +211,7 @@ impl Button {
         );
 
         // C++ DoButton paints button image overlay on top of the face.
-        // Priority: Pressed → ButtonPressed, ShownChecked → ButtonChecked, else → Button.
+        // Priority: Pressed → ButtonPressed, ShownChecked → ButtonChecked, else → emButton.
         with_toolkit_images(|img| {
             if self.pressed {
                 painter.paint_border_image(
@@ -229,7 +229,7 @@ impl Button {
                     264,
                     264,
                     255,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     BORDER_EDGES_ONLY,
                 );
             } else if self.shown_checked {
@@ -249,7 +249,7 @@ impl Button {
                     264,
                     264,
                     255,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     BORDER_EDGES_ONLY,
                 );
             } else {
@@ -270,7 +270,7 @@ impl Button {
                     278,
                     278,
                     255,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     BORDER_EDGES_ONLY,
                 );
             }
@@ -294,7 +294,7 @@ impl Button {
         super::widget_utils::check_mouse_round_rect(mx, my, &face, fr)
     }
 
-    pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
+    pub fn input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -400,14 +400,14 @@ impl Button {
         }
     }
 
-    pub fn get_cursor(&self) -> Cursor {
+    pub fn get_cursor(&self) -> emCursor {
         // C++ emButton doesn't override GetCursor — uses default panel cursor.
-        Cursor::Normal
+        emCursor::Normal
     }
 
     pub fn preferred_size(&self) -> (f64, f64) {
         let th = 13.0;
-        let tw = Painter::measure_text_width(&self.border.caption, th);
+        let tw = emPainter::measure_text_width(&self.border.caption, th);
         self.border.preferred_size_for_content(tw + 8.0, th + 4.0)
     }
 }
@@ -456,17 +456,17 @@ mod tests {
         }
     }
 
-    fn default_input_state() -> InputState {
-        InputState::new()
+    fn default_input_state() -> emInputState {
+        emInputState::new()
     }
 
     #[test]
     fn button_press_release_fires_callback() {
-        let look = Look::new();
+        let look = emLook::new();
         let fired = Rc::new(RefCell::new(false));
         let fired_clone = fired.clone();
 
-        let mut btn = Button::new("Click", look);
+        let mut btn = emButton::new("Click", look);
         btn.on_click = Some(Box::new(move || {
             *fired_clone.borrow_mut() = true;
         }));
@@ -474,17 +474,17 @@ mod tests {
         let is = default_input_state();
 
         // C++ Enter: instant Click() on press, no visual press state.
-        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(*fired.borrow());
     }
 
     #[test]
     fn button_keyboard_activation() {
-        let look = Look::new();
+        let look = emLook::new();
         let count = Rc::new(RefCell::new(0u32));
         let count_clone = count.clone();
 
-        let mut btn = Button::new("OK", look);
+        let mut btn = emButton::new("OK", look);
         btn.on_click = Some(Box::new(move || {
             *count_clone.borrow_mut() += 1;
         }));
@@ -492,27 +492,27 @@ mod tests {
         let is = default_input_state();
 
         // C++: only Enter activates, instant on press. Space is not handled.
-        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*count.borrow(), 1);
         // Space should NOT activate
-        btn.input(&InputEvent::press(InputKey::Space), &ps, &is);
+        btn.input(&emInputEvent::press(InputKey::Space), &ps, &is);
         assert_eq!(*count.borrow(), 1);
     }
 
     #[test]
     fn button_cursor_is_hand() {
-        let look = Look::new();
-        let btn = Button::new("X", look);
-        assert_eq!(btn.get_cursor(), Cursor::Normal);
+        let look = emLook::new();
+        let btn = emButton::new("X", look);
+        assert_eq!(btn.get_cursor(), emCursor::Normal);
     }
 
     #[test]
     fn click_fires_callback() {
-        let look = Look::new();
+        let look = emLook::new();
         let count = Rc::new(RefCell::new(0u32));
         let count_clone = count.clone();
 
-        let mut btn = Button::new("Go", look);
+        let mut btn = emButton::new("Go", look);
         btn.on_click = Some(Box::new(move || {
             *count_clone.borrow_mut() += 1;
         }));
@@ -524,22 +524,22 @@ mod tests {
 
     #[test]
     fn click_without_callback_is_noop() {
-        let look = Look::new();
-        let mut btn = Button::new("Go", look);
+        let look = emLook::new();
+        let mut btn = emButton::new("Go", look);
         btn.click(); // should not panic
     }
 
     #[test]
     fn no_eoi_default_false() {
-        let look = Look::new();
-        let btn = Button::new("Test", look);
+        let look = emLook::new();
+        let btn = emButton::new("Test", look);
         assert!(!btn.is_no_eoi());
     }
 
     #[test]
     fn set_no_eoi() {
-        let look = Look::new();
-        let mut btn = Button::new("Test", look);
+        let look = emLook::new();
+        let mut btn = emButton::new("Test", look);
         btn.set_no_eoi(true);
         assert!(btn.is_no_eoi());
         btn.set_no_eoi(false);
@@ -548,15 +548,15 @@ mod tests {
 
     #[test]
     fn has_howto_always_true() {
-        let look = Look::new();
-        let btn = Button::new("OK", look);
+        let look = emLook::new();
+        let btn = emButton::new("OK", look);
         assert!(btn.has_how_to());
     }
 
     #[test]
     fn howto_includes_eoi_by_default() {
-        let look = Look::new();
-        let btn = Button::new("OK", look);
+        let look = emLook::new();
+        let btn = emButton::new("OK", look);
         let text = btn.get_how_to(true, true);
         assert!(text.contains("BUTTON"));
         assert!(text.contains("EOI BUTTON"));
@@ -567,8 +567,8 @@ mod tests {
 
     #[test]
     fn howto_excludes_eoi_when_no_eoi() {
-        let look = Look::new();
-        let mut btn = Button::new("OK", look);
+        let look = emLook::new();
+        let mut btn = emButton::new("OK", look);
         btn.set_no_eoi(true);
         let text = btn.get_how_to(true, true);
         assert!(text.contains("BUTTON"));
@@ -577,8 +577,8 @@ mod tests {
 
     #[test]
     fn howto_includes_disabled_when_not_enabled() {
-        let look = Look::new();
-        let btn = Button::new("OK", look);
+        let look = emLook::new();
+        let btn = emButton::new("OK", look);
         let text = btn.get_how_to(false, false);
         assert!(text.contains("DISABLED"));
         assert!(!text.contains("FOCUS"));
@@ -586,19 +586,19 @@ mod tests {
 
     #[test]
     fn check_mouse_zero_size_returns_false() {
-        let look = Look::new();
-        let btn = Button::new("X", look);
+        let look = emLook::new();
+        let btn = emButton::new("X", look);
         assert!(!btn.check_mouse(0.0, 0.0));
     }
 
     #[test]
     fn check_mouse_center_returns_true() {
-        use crate::emCore::emImage::Image;
-        let look = Look::new();
-        let mut btn = Button::new("X", look);
+        use crate::emCore::emImage::emImage;
+        let look = emLook::new();
+        let mut btn = emButton::new("X", look);
         // Simulate paint to cache dimensions
-        let mut img = Image::new(200, 100, 4);
-        let mut painter = Painter::new(&mut img);
+        let mut img = emImage::new(200, 100, 4);
+        let mut painter = emPainter::new(&mut img);
         btn.paint(&mut painter, 200.0, 100.0, true);
         // Center of the button should hit
         assert!(btn.check_mouse(100.0, 50.0));
@@ -606,11 +606,11 @@ mod tests {
 
     #[test]
     fn check_mouse_outside_returns_false() {
-        use crate::emCore::emImage::Image;
-        let look = Look::new();
-        let mut btn = Button::new("X", look);
-        let mut img = Image::new(200, 100, 4);
-        let mut painter = Painter::new(&mut img);
+        use crate::emCore::emImage::emImage;
+        let look = emLook::new();
+        let mut btn = emButton::new("X", look);
+        let mut img = emImage::new(200, 100, 4);
+        let mut painter = emPainter::new(&mut img);
         btn.paint(&mut painter, 200.0, 100.0, true);
         // Well outside the button bounds
         assert!(!btn.check_mouse(-50.0, -50.0));

@@ -1,4 +1,4 @@
-use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emColor::emColor;
 use zuicchini::emCore::rect::Rect;
 use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 
@@ -6,9 +6,9 @@ use zuicchini::emCore::emPanelCtx::PanelCtx;
 
 use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
 
-use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emView::{emView, ViewFlags};
 
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 
 struct TestBehavior {
     paint_count: u32,
@@ -25,7 +25,7 @@ impl TestBehavior {
 }
 
 impl PanelBehavior for TestBehavior {
-    fn paint(&mut self, _painter: &mut Painter, _w: f64, _h: f64, _state: &PanelState) {
+    fn paint(&mut self, _painter: &mut emPainter, _w: f64, _h: f64, _state: &PanelState) {
         self.paint_count += 1;
     }
 
@@ -146,7 +146,7 @@ fn view_visit_and_navigation() {
     let child = tree.create_child(root, "child");
     tree.set_layout_rect(child, 0.0, 0.0, 100.0, 100.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     assert_eq!(view.root(), root);
     assert_eq!(view.current_visit().panel, root);
 
@@ -169,7 +169,7 @@ fn view_zoom_and_scroll() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
 
     // scroll(dx, dy) normalizes by viewport: rel_x += dx / vw
     view.scroll(10.0, 20.0);
@@ -187,7 +187,7 @@ fn view_flags_disable_zoom() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.flags = ViewFlags::NO_ZOOM;
 
     view.zoom(2.0, 400.0, 300.0);
@@ -201,13 +201,13 @@ fn layout_rect_and_canvas_color() {
     let root = tree.create_root("root");
 
     tree.set_layout_rect(root, 10.0, 20.0, 300.0, 200.0);
-    tree.set_canvas_color(root, Color::rgb(128, 128, 128));
+    tree.set_canvas_color(root, emColor::rgb(128, 128, 128));
 
     assert_eq!(
         tree.layout_rect(root).unwrap(),
         Rect::new(10.0, 20.0, 300.0, 200.0)
     );
-    assert_eq!(tree.canvas_color(root).unwrap(), Color::rgb(128, 128, 128));
+    assert_eq!(tree.canvas_color(root).unwrap(), emColor::rgb(128, 128, 128));
     assert!(tree
         .pending_notices(root)
         .contains(NoticeFlags::LAYOUT_CHANGED));

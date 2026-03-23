@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::emEngine::{Engine, EngineCtx, EngineId, Priority};
+use super::emEngine::{emEngine, EngineCtx, EngineId, Priority};
 use super::emScheduler::EngineScheduler;
 
 /// Unique identifier for a priority-scheduled agent within a `PriSchedModel`.
@@ -36,7 +36,7 @@ struct PriSchedEngine {
     inner: Rc<RefCell<PriSchedModelInner>>,
 }
 
-impl Engine for PriSchedEngine {
+impl emEngine for PriSchedEngine {
     fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
         let mut model = self.inner.borrow_mut();
 

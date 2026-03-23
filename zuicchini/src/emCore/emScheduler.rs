@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use slotmap::SlotMap;
 
-use super::emEngine::{Engine, EngineCtx, EngineCtxInner, EngineData, EngineId, Priority};
+use super::emEngine::{emEngine, EngineCtx, EngineCtxInner, EngineData, EngineId, Priority};
 use super::emSignal::{SignalConnection, SignalData, SignalId};
 use super::emTimer::{TimerCentral, TimerId};
 
@@ -130,10 +130,10 @@ impl EngineScheduler {
             .unwrap_or(0)
     }
 
-    // ── Engine API ──────────────────────────────────────────────────
+    // ── emEngine API ──────────────────────────────────────────────────
 
     /// Register an engine with the given priority and behavior. Starts sleeping.
-    pub fn register_engine(&mut self, priority: Priority, behavior: Box<dyn Engine>) -> EngineId {
+    pub fn register_engine(&mut self, priority: Priority, behavior: Box<dyn emEngine>) -> EngineId {
         self.inner.engines.insert(EngineData {
             priority,
             awake_state: -1, // sleeping
@@ -256,9 +256,9 @@ impl EngineScheduler {
     /// Execute one time slice: process signals, run timers, then run engines.
     ///
     /// This implements the C++ `emScheduler::DoTimeSlice()` algorithm:
-    /// 1. Process pending signals (wake connected engines)
+    /// 1. emProcess pending signals (wake connected engines)
     /// 2. Check timers and fire their signals
-    /// 3. Process timer-fired signals
+    /// 3. emProcess timer-fired signals
     /// 4. Run engines from highest to lowest priority
     /// 5. After each engine, process any signals it fired (instant chaining)
     /// 6. Priority re-ascent: higher-priority engines woken mid-slice run in the same slice
@@ -326,7 +326,7 @@ impl EngineScheduler {
             if let Some(eng) = self.inner.engines.get_mut(engine_id) {
                 eng.awake_state = -1;
             } else {
-                continue; // Engine was removed
+                continue; // emEngine was removed
             }
 
             // Extract behavior to avoid borrow conflict
@@ -353,7 +353,7 @@ impl EngineScheduler {
                 eng.clock = self.inner.clock;
 
                 if stay_awake && eng.awake_state < 0 {
-                    // Engine wants to stay awake and wasn't re-woken during cycle.
+                    // emEngine wants to stay awake and wasn't re-woken during cycle.
                     // Queue for next time slice (not current, to prevent infinite loop).
                     eng.awake_state = next_parity;
                     let queue_idx = (eng.priority as usize) * 2 + (next_parity as usize);
@@ -452,7 +452,7 @@ mod tests {
         count: Rc<RefCell<u32>>,
     }
 
-    impl Engine for CountingEngine {
+    impl emEngine for CountingEngine {
         fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
             *self.count.borrow_mut() += 1;
             false // sleep after one cycle
@@ -464,7 +464,7 @@ mod tests {
         count: Rc<RefCell<u32>>,
     }
 
-    impl Engine for PollingEngine {
+    impl emEngine for PollingEngine {
         fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
             *self.count.borrow_mut() += 1;
             self.remaining -= 1;
@@ -485,7 +485,7 @@ mod tests {
         sched.wake_up(id);
         sched.do_time_slice();
         assert_eq!(*count.borrow(), 1);
-        // Engine returned false, should not run again
+        // emEngine returned false, should not run again
         sched.do_time_slice();
         assert_eq!(*count.borrow(), 1);
         sched.remove_engine(id);
@@ -525,7 +525,7 @@ mod tests {
             }),
         );
         sched.connect(sig, eng);
-        // Engine is sleeping, nothing should run
+        // emEngine is sleeping, nothing should run
         sched.do_time_slice();
         assert_eq!(*count.borrow(), 0);
         // Fire signal and run
@@ -563,7 +563,7 @@ mod tests {
             label: &'static str,
             order: Rc<RefCell<Vec<&'static str>>>,
         }
-        impl Engine for OrderEngine {
+        impl emEngine for OrderEngine {
             fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
                 self.order.borrow_mut().push(self.label);
                 false
@@ -597,7 +597,7 @@ mod tests {
 
     #[test]
     fn is_signaled_distinguishes_signals() {
-        // Engine connected to two signals should be able to distinguish which fired.
+        // emEngine connected to two signals should be able to distinguish which fired.
         let mut sched = EngineScheduler::new();
         let sig_a = sched.create_signal();
         let sig_b = sched.create_signal();
@@ -608,7 +608,7 @@ mod tests {
             a_fired: Rc<RefCell<bool>>,
             b_fired: Rc<RefCell<bool>>,
         }
-        impl Engine for CheckSignalEngine {
+        impl emEngine for CheckSignalEngine {
             fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
                 *self.a_fired.borrow_mut() = ctx.is_signaled(self.sig_a);
                 *self.b_fired.borrow_mut() = ctx.is_signaled(self.sig_b);
@@ -673,7 +673,7 @@ mod tests {
             label: &'static str,
             order: Rc<RefCell<Vec<&'static str>>>,
         }
-        impl Engine for OrderEngine {
+        impl emEngine for OrderEngine {
             fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
                 self.order.borrow_mut().push(self.label);
                 false
@@ -711,8 +711,8 @@ mod tests {
 
     #[test]
     fn instant_signal_chaining() {
-        // Engine A fires a signal during its cycle that wakes Engine B.
-        // Engine B should run in the SAME time slice.
+        // emEngine A fires a signal during its cycle that wakes emEngine B.
+        // emEngine B should run in the SAME time slice.
         let mut sched = EngineScheduler::new();
         let sig = sched.create_signal();
         let log = Rc::new(RefCell::new(Vec::<&str>::new()));
@@ -721,7 +721,7 @@ mod tests {
             sig: SignalId,
             log: Rc<RefCell<Vec<&'static str>>>,
         }
-        impl Engine for FiringEngine {
+        impl emEngine for FiringEngine {
             fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
                 self.log.borrow_mut().push("A");
                 ctx.fire(self.sig);
@@ -732,7 +732,7 @@ mod tests {
         struct ReceivingEngine {
             log: Rc<RefCell<Vec<&'static str>>>,
         }
-        impl Engine for ReceivingEngine {
+        impl emEngine for ReceivingEngine {
             fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
                 self.log.borrow_mut().push("B");
                 false
@@ -777,7 +777,7 @@ mod tests {
             sig: SignalId,
             log: Rc<RefCell<Vec<&'static str>>>,
         }
-        impl Engine for FiringEngine {
+        impl emEngine for FiringEngine {
             fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
                 self.log.borrow_mut().push("low_fires");
                 ctx.fire(self.sig);
@@ -788,7 +788,7 @@ mod tests {
         struct HighEngine {
             log: Rc<RefCell<Vec<&'static str>>>,
         }
-        impl Engine for HighEngine {
+        impl emEngine for HighEngine {
             fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
                 self.log.borrow_mut().push("high_runs");
                 false

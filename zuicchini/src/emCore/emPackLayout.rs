@@ -9,7 +9,7 @@ use super::emTiling::{get_constraint, ChildConstraint, Spacing};
 
 /// Pack layout: recursive binary space partition that minimizes deviation from
 /// preferred tallness. Port of C++ emPackLayout.
-pub struct PackLayout {
+pub struct emPackLayout {
     pub spacing: Spacing,
     pub child_constraints: HashMap<PanelId, ChildConstraint>,
     pub default_constraint: ChildConstraint,
@@ -17,7 +17,7 @@ pub struct PackLayout {
     pub min_cell_count: usize,
 }
 
-impl PackLayout {
+impl emPackLayout {
     pub fn new() -> Self {
         Self {
             spacing: Spacing::default(),
@@ -161,13 +161,13 @@ impl PackLayout {
     }
 }
 
-impl Default for PackLayout {
+impl Default for emPackLayout {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl PanelBehavior for PackLayout {
+impl PanelBehavior for emPackLayout {
     fn layout_children(&mut self, ctx: &mut PanelCtx) {
         self.do_layout(ctx);
     }
@@ -604,7 +604,7 @@ mod tests {
     #[test]
     fn single_child_fills_rect() {
         let (mut tree, root, children) = setup(1, 400.0, 300.0);
-        let mut layout = PackLayout::new();
+        let mut layout = emPackLayout::new();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         let r = tree.get(children[0]).unwrap().layout_rect;
@@ -617,7 +617,7 @@ mod tests {
     #[test]
     fn two_children_split() {
         let (mut tree, root, children) = setup(2, 400.0, 200.0);
-        let mut layout = PackLayout::new();
+        let mut layout = emPackLayout::new();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         // Both children should cover the full area
@@ -633,7 +633,7 @@ mod tests {
         // Normalized rect is (0,0,1.0,0.75). sx=1.0/2=0.5, sy=0.75/2=0.375
         // actual_ml=0.25, actual_mt=0.1875, content_w=0.5, content_h=0.375
         let (mut tree, root, children) = setup(1, 400.0, 300.0);
-        let mut layout = PackLayout::new().with_spacing(crate::emCore::emTiling::Spacing::uniform(0.5, 0.0));
+        let mut layout = emPackLayout::new().with_spacing(crate::emCore::emTiling::Spacing::uniform(0.5, 0.0));
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         let r = tree.get(children[0]).unwrap().layout_rect;
@@ -646,7 +646,7 @@ mod tests {
     #[test]
     fn multiple_children() {
         let (mut tree, root, children) = setup(5, 500.0, 500.0);
-        let mut layout = PackLayout::new();
+        let mut layout = emPackLayout::new();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         // All children should have positive dimensions
@@ -660,7 +660,7 @@ mod tests {
     #[test]
     fn seven_children_brute_force() {
         let (mut tree, root, children) = setup(7, 700.0, 400.0);
-        let mut layout = PackLayout::new();
+        let mut layout = emPackLayout::new();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for child in &children {
@@ -673,11 +673,11 @@ mod tests {
     #[test]
     fn min_cell_count_pads_with_empty() {
         let (mut tree_no_pad, root_no_pad, children_no_pad) = setup(2, 400.0, 200.0);
-        let mut layout_no_pad = PackLayout::new();
+        let mut layout_no_pad = emPackLayout::new();
         layout_no_pad.do_layout(&mut PanelCtx::new(&mut tree_no_pad, root_no_pad));
 
         let (mut tree_pad, root_pad, children_pad) = setup(2, 400.0, 200.0);
-        let mut layout_pad = PackLayout::new().with_min_cell_count(4);
+        let mut layout_pad = emPackLayout::new().with_min_cell_count(4);
         layout_pad.do_layout(&mut PanelCtx::new(&mut tree_pad, root_pad));
 
         let area_no_pad: f64 = children_no_pad
@@ -706,7 +706,7 @@ mod tests {
     fn large_count_uses_multipoint_search() {
         // 15 children: exercises the n=3 multipoint search path
         let (mut tree, root, children) = setup(15, 800.0, 600.0);
-        let mut layout = PackLayout::new();
+        let mut layout = emPackLayout::new();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for (i, child) in children.iter().enumerate() {
@@ -720,7 +720,7 @@ mod tests {
     fn very_large_count() {
         // 25 children: exercises the n=1 path (>20 items)
         let (mut tree, root, children) = setup(25, 1000.0, 800.0);
-        let mut layout = PackLayout::new();
+        let mut layout = emPackLayout::new();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for (i, child) in children.iter().enumerate() {
@@ -733,7 +733,7 @@ mod tests {
     #[test]
     fn set_default_weight_clears_overrides() {
         let (mut tree, root, children) = setup(3, 300.0, 300.0);
-        let mut layout = PackLayout::new();
+        let mut layout = emPackLayout::new();
         layout.set_child_constraint(
             children[0],
             ChildConstraint {
@@ -757,7 +757,7 @@ mod tests {
     #[test]
     fn set_default_preferred_tallness_clears_overrides() {
         let (mut tree, root, children) = setup(3, 300.0, 300.0);
-        let mut layout = PackLayout::new();
+        let mut layout = emPackLayout::new();
         layout.set_child_constraint(
             children[0],
             ChildConstraint {
@@ -793,7 +793,7 @@ mod tests {
     fn total_area_preserved() {
         // Verify the pack algorithm preserves total area (no gaps)
         let (mut tree, root, children) = setup(6, 600.0, 400.0);
-        let mut layout = PackLayout::new();
+        let mut layout = emPackLayout::new();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         let total_area: f64 = children
@@ -814,7 +814,7 @@ mod tests {
     fn eight_children_multipoint() {
         // 8 children: n=11 split points
         let (mut tree, root, children) = setup(8, 800.0, 500.0);
-        let mut layout = PackLayout::new();
+        let mut layout = emPackLayout::new();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for (i, child) in children.iter().enumerate() {

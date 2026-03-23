@@ -1,36 +1,36 @@
 use crate::emCore::emPanel::{PanelBehavior, PanelState};
 use crate::emCore::emPanelCtx::PanelCtx;
-use crate::emCore::emPainter::Painter;
-use crate::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
-use crate::emCore::emLook::Look;
+use crate::emCore::emPainter::emPainter;
+use crate::emCore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use crate::emCore::emLook::emLook;
 
-use crate::emCore::emRasterLayout::RasterLayout;
+use crate::emCore::emRasterLayout::emRasterLayout;
 
-/// RasterGroup wraps RasterLayout with border painting and focusable support.
-pub struct RasterGroup {
-    pub layout: RasterLayout,
-    pub border: Border,
-    pub look: Look,
+/// emRasterGroup wraps emRasterLayout with border painting and focusable support.
+pub struct emRasterGroup {
+    pub layout: emRasterLayout,
+    pub border: emBorder,
+    pub look: emLook,
 }
 
-impl RasterGroup {
+impl emRasterGroup {
     pub fn new() -> Self {
         Self {
-            layout: RasterLayout::new(),
-            border: Border::new(OuterBorderType::Group).with_inner(InnerBorderType::Group),
-            look: Look::default(),
+            layout: emRasterLayout::new(),
+            border: emBorder::new(OuterBorderType::Group).with_inner(InnerBorderType::Group),
+            look: emLook::default(),
         }
     }
 }
 
-impl Default for RasterGroup {
+impl Default for emRasterGroup {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl PanelBehavior for RasterGroup {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+impl PanelBehavior for emRasterGroup {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.border
             .paint_border(painter, w, h, &self.look, state.is_focused(), state.enabled, pixel_scale);

@@ -1,48 +1,48 @@
-//! Systematic interaction test for Splitter at 1x and 2x zoom, driven through
+//! Systematic interaction test for emSplitter at 1x and 2x zoom, driven through
 //! the full input dispatch pipeline (PipelineTestHarness).
 //!
-//! Verifies Splitter drag behavior when dispatched through the coordinate-
+//! Verifies emSplitter drag behavior when dispatched through the coordinate-
 //! transform pipeline at different zoom levels.
 
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::{InputEvent, InputKey};
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey};
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emTiling::Orientation;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emLook::Look;
-use zuicchini::emCore::emSplitter::Splitter;
+use zuicchini::emCore::emLook::emLook;
+use zuicchini::emCore::emSplitter::emSplitter;
 
 use super::support::pipeline::PipelineTestHarness;
 
 // ---------------------------------------------------------------------------
-// PanelBehavior wrapper for Splitter (shared via Rc<RefCell>)
+// PanelBehavior wrapper for emSplitter (shared via Rc<RefCell>)
 // ---------------------------------------------------------------------------
 
 struct SharedSplitterPanel {
-    inner: Rc<RefCell<Splitter>>,
+    inner: Rc<RefCell<emSplitter>>,
 }
 
 impl PanelBehavior for SharedSplitterPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.inner.borrow_mut().paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         self.inner.borrow_mut().input(event, state, input_state)
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.inner.borrow().get_cursor()
     }
 
@@ -52,18 +52,18 @@ impl PanelBehavior for SharedSplitterPanel {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: create a harness with a shared Splitter at a given position.
+// Helper: create a harness with a shared emSplitter at a given position.
 // ---------------------------------------------------------------------------
 
 fn setup_splitter(
     orientation: Orientation,
     initial_pos: f64,
-) -> (PipelineTestHarness, Rc<RefCell<Splitter>>, SoftwareCompositor) {
+) -> (PipelineTestHarness, Rc<RefCell<emSplitter>>, SoftwareCompositor) {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let mut sp = Splitter::new(orientation, look);
+    let look = emLook::new();
+    let mut sp = emSplitter::new(orientation, look);
     sp.set_position(initial_pos);
     let sp_ref = Rc::new(RefCell::new(sp));
 
@@ -82,12 +82,12 @@ fn setup_splitter(
 }
 
 // ---------------------------------------------------------------------------
-// Test: Horizontal Splitter drag at 1x and 2x zoom
+// Test: Horizontal emSplitter drag at 1x and 2x zoom
 // ---------------------------------------------------------------------------
 
-/// Horizontal Splitter drag through the full pipeline at 1x and 2x zoom.
+/// Horizontal emSplitter drag through the full pipeline at 1x and 2x zoom.
 ///
-/// The Splitter's `input()` method computes grip geometry in normalized
+/// The emSplitter's `input()` method computes grip geometry in normalized
 /// `(1.0, tallness)` panel-local space, matching the coordinate system
 /// used by the pipeline for mouse coordinates.
 #[test]
@@ -137,12 +137,12 @@ fn splitter_drag_horizontal_1x_and_2x() {
 }
 
 // ---------------------------------------------------------------------------
-// Test: Vertical Splitter drag at 1x and 2x zoom
+// Test: Vertical emSplitter drag at 1x and 2x zoom
 // ---------------------------------------------------------------------------
 
-/// Vertical Splitter drag through the full pipeline at 1x and 2x zoom.
+/// Vertical emSplitter drag through the full pipeline at 1x and 2x zoom.
 ///
-/// The Splitter's `input()` method computes grip geometry in normalized
+/// The emSplitter's `input()` method computes grip geometry in normalized
 /// `(1.0, tallness)` panel-local space, matching the coordinate system
 /// used by the pipeline for mouse coordinates.
 #[test]
@@ -194,7 +194,7 @@ fn splitter_drag_vertical_1x_and_2x() {
 }
 
 // ---------------------------------------------------------------------------
-// Test: Splitter position() and set_position() are coherent across zoom
+// Test: emSplitter position() and set_position() are coherent across zoom
 // ---------------------------------------------------------------------------
 
 /// Verify that programmatic position changes are preserved across zoom changes.
@@ -239,7 +239,7 @@ fn splitter_position_stable_across_zoom() {
 }
 
 // ---------------------------------------------------------------------------
-// Test: Splitter clamping with limits
+// Test: emSplitter clamping with limits
 // ---------------------------------------------------------------------------
 
 /// Verify that set_position respects min/max limits at both zoom levels.
@@ -300,19 +300,19 @@ fn splitter_limits_respected_across_zoom() {
 }
 
 // ---------------------------------------------------------------------------
-// BP-11: Splitter drag behavioral parity tests
+// BP-11: emSplitter drag behavioral parity tests
 // ---------------------------------------------------------------------------
 
 // Helper that also returns the panel id (needed for enable_switch tests).
 fn setup_splitter_with_id(
     orientation: Orientation,
     initial_pos: f64,
-) -> (PipelineTestHarness, Rc<RefCell<Splitter>>, SoftwareCompositor, zuicchini::emCore::emPanelTree::PanelId) {
+) -> (PipelineTestHarness, Rc<RefCell<emSplitter>>, SoftwareCompositor, zuicchini::emCore::emPanelTree::PanelId) {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let mut sp = Splitter::new(orientation, look);
+    let look = emLook::new();
+    let mut sp = emSplitter::new(orientation, look);
     sp.set_position(initial_pos);
     let sp_ref = Rc::new(RefCell::new(sp));
 
@@ -340,7 +340,7 @@ fn splitter_press_on_grip_starts_drag() {
 
     // Press at grip center (view x=400 at 1x maps to panel x≈0.5 which hits
     // the grip centered at 0.5).
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
 
     assert!(
@@ -356,12 +356,12 @@ fn splitter_move_during_drag_updates_position() {
     let (mut h, sp_ref, _compositor) = setup_splitter(Orientation::Horizontal, 0.5);
 
     // Press at grip center.
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
     assert!(sp_ref.borrow().is_dragging());
 
     // Move to ~60% of viewport width (480px).
-    let move1 = InputEvent::mouse_move(InputKey::MouseLeft, 480.0, 300.0);
+    let move1 = emInputEvent::mouse_move(InputKey::MouseLeft, 480.0, 300.0);
     h.dispatch(&move1);
     let pos1 = sp_ref.borrow().position();
     assert!(
@@ -370,7 +370,7 @@ fn splitter_move_during_drag_updates_position() {
     );
 
     // Move again to ~80% (640px).
-    let move2 = InputEvent::mouse_move(InputKey::MouseLeft, 640.0, 300.0);
+    let move2 = emInputEvent::mouse_move(InputKey::MouseLeft, 640.0, 300.0);
     h.dispatch(&move2);
     let pos2 = sp_ref.borrow().position();
     assert!(
@@ -392,12 +392,12 @@ fn splitter_release_ends_drag() {
     let (mut h, sp_ref, _compositor) = setup_splitter(Orientation::Horizontal, 0.5);
 
     // Press at grip center.
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
     assert!(sp_ref.borrow().is_dragging());
 
     // Release.
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&release);
     assert!(
         !sp_ref.borrow().is_dragging(),
@@ -413,7 +413,7 @@ fn splitter_press_outside_grip_no_drag() {
 
     // Press far from the grip (x=100, which is ~12.5% of viewport — well away
     // from grip at ~50%).
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(100.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(100.0, 300.0);
     h.dispatch(&press);
 
     assert!(
@@ -435,11 +435,11 @@ fn splitter_drag_clamp_to_max() {
     let (mut h, sp_ref, _compositor) = setup_splitter(Orientation::Horizontal, 0.5);
 
     // Press at grip center.
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
 
     // Drag far to the right (beyond the viewport).
-    let move_ev = InputEvent::mouse_move(InputKey::MouseLeft, 900.0, 300.0);
+    let move_ev = emInputEvent::mouse_move(InputKey::MouseLeft, 900.0, 300.0);
     h.dispatch(&move_ev);
 
     assert!(
@@ -456,11 +456,11 @@ fn splitter_drag_clamp_to_min() {
     let (mut h, sp_ref, _compositor) = setup_splitter(Orientation::Horizontal, 0.5);
 
     // Press at grip center.
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
 
     // Drag far to the left (beyond the viewport).
-    let move_ev = InputEvent::mouse_move(InputKey::MouseLeft, -100.0, 300.0);
+    let move_ev = emInputEvent::mouse_move(InputKey::MouseLeft, -100.0, 300.0);
     h.dispatch(&move_ev);
 
     assert!(
@@ -479,11 +479,11 @@ fn splitter_drag_with_custom_limits() {
     sp_ref.borrow_mut().set_limits(0.2, 0.8);
 
     // Press at grip center.
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
 
     // Drag far right — should clamp to 0.8.
-    let move_right = InputEvent::mouse_move(InputKey::MouseLeft, 900.0, 300.0);
+    let move_right = emInputEvent::mouse_move(InputKey::MouseLeft, 900.0, 300.0);
     h.dispatch(&move_right);
     assert!(
         (sp_ref.borrow().position() - 0.8).abs() < 0.001,
@@ -492,7 +492,7 @@ fn splitter_drag_with_custom_limits() {
     );
 
     // Release and re-press at the new grip position (~80% = 640px).
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(900.0, 300.0);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(900.0, 300.0);
     h.dispatch(&release);
 
     // Reset to middle of range.
@@ -503,11 +503,11 @@ fn splitter_drag_with_custom_limits() {
     compositor.render(&mut h.tree, &h.view);
 
     // Press at new grip center (~50% = 400px).
-    let press2 = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press2 = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press2);
 
     // Drag far left — should clamp to 0.2.
-    let move_left = InputEvent::mouse_move(InputKey::MouseLeft, -100.0, 300.0);
+    let move_left = emInputEvent::mouse_move(InputKey::MouseLeft, -100.0, 300.0);
     h.dispatch(&move_left);
     assert!(
         (sp_ref.borrow().position() - 0.2).abs() < 0.001,
@@ -529,11 +529,11 @@ fn splitter_on_position_callback_fires_during_drag() {
     }));
 
     // Press at grip center.
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
 
     // Move to a new position.
-    let move_ev = InputEvent::mouse_move(InputKey::MouseLeft, 560.0, 300.0);
+    let move_ev = emInputEvent::mouse_move(InputKey::MouseLeft, 560.0, 300.0);
     h.dispatch(&move_ev);
 
     let recorded = positions.borrow();
@@ -560,11 +560,11 @@ fn splitter_disabled_rejects_input() {
     // Disable the panel via the tree.
     h.tree.set_enable_switch(panel_id, false);
     h.tick_n(3);
-    // Re-render so the Splitter caches enabled=false from the paint call.
+    // Re-render so the emSplitter caches enabled=false from the paint call.
     compositor.render(&mut h.tree, &h.view);
 
     // Press at grip center.
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
 
     assert!(
@@ -595,7 +595,7 @@ fn splitter_vertical_drag_states() {
     // Grip center at panel_y ≈ 0.5 → vy = 0.5*800 = 400.
 
     // Press at grip center.
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 400.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 400.0);
     h.dispatch(&press);
     assert!(
         sp_ref.borrow().is_dragging(),
@@ -603,7 +603,7 @@ fn splitter_vertical_drag_states() {
     );
 
     // Drag upward to ~30%: panel_y = 0.3 → vy = 0.3 * 800 = 240.
-    let move_ev = InputEvent::mouse_move(InputKey::MouseLeft, 400.0, 240.0);
+    let move_ev = emInputEvent::mouse_move(InputKey::MouseLeft, 400.0, 240.0);
     h.dispatch(&move_ev);
     let pos = sp_ref.borrow().position();
     assert!(
@@ -612,7 +612,7 @@ fn splitter_vertical_drag_states() {
     );
 
     // Release.
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 240.0);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 240.0);
     h.dispatch(&release);
     assert!(
         !sp_ref.borrow().is_dragging(),

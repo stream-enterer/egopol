@@ -1,40 +1,40 @@
 use crate::emCore::emPanel::{PanelBehavior, PanelState};
 use crate::emCore::emPanelCtx::PanelCtx;
-use crate::emCore::emPainter::Painter;
-use crate::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
-use crate::emCore::emLook::Look;
+use crate::emCore::emPainter::emPainter;
+use crate::emCore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use crate::emCore::emLook::emLook;
 
-use crate::emCore::emLinearLayout::LinearLayout;
+use crate::emCore::emLinearLayout::emLinearLayout;
 
-/// LinearGroup: a LinearLayout that also paints a border and is focusable.
+/// emLinearGroup: a emLinearLayout that also paints a border and is focusable.
 /// Replicates C++ emLinearGroup which inherits from emLinearLayout (which
 /// inherits from emBorder).
-pub struct LinearGroup {
-    pub layout: LinearLayout,
-    pub border: Border,
-    pub look: Look,
+pub struct emLinearGroup {
+    pub layout: emLinearLayout,
+    pub border: emBorder,
+    pub look: emLook,
 }
 
-impl LinearGroup {
+impl emLinearGroup {
     pub fn horizontal() -> Self {
         Self {
-            layout: LinearLayout::horizontal(),
-            border: Border::new(OuterBorderType::Group).with_inner(InnerBorderType::Group),
-            look: Look::default(),
+            layout: emLinearLayout::horizontal(),
+            border: emBorder::new(OuterBorderType::Group).with_inner(InnerBorderType::Group),
+            look: emLook::default(),
         }
     }
 
     pub fn vertical() -> Self {
         Self {
-            layout: LinearLayout::vertical(),
-            border: Border::new(OuterBorderType::Group).with_inner(InnerBorderType::Group),
-            look: Look::default(),
+            layout: emLinearLayout::vertical(),
+            border: emBorder::new(OuterBorderType::Group).with_inner(InnerBorderType::Group),
+            look: emLook::default(),
         }
     }
 }
 
-impl PanelBehavior for LinearGroup {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+impl PanelBehavior for emLinearGroup {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.border
             .paint_border(painter, w, h, &self.look, state.is_focused(), state.enabled, pixel_scale);

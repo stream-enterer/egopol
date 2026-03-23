@@ -1,4 +1,4 @@
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emLook::emLook;
 
 fn main() {
     // Load several goldens and map their layouts
@@ -117,8 +117,8 @@ fn main() {
         println!();
     }
 
-    // Also print our known Rust Look colors for comparison
-    let look = Look::new();
+    // Also print our known Rust emLook colors for comparison
+    let look = emLook::new();
     println!("Rust Look colors:");
     println!(
         "  bg_color:        ({},{},{},{})",

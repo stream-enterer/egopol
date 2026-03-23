@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emClipboard::{lookup_clipboard, Clipboard, PrivateClipboard};
-use zuicchini::emCore::emContext::Context;
+use zuicchini::emCore::emClipboard::{lookup_clipboard, emClipboard, emPrivateClipboard};
+use zuicchini::emCore::emContext::emContext;
 
 #[test]
 fn clipboard_trait_exists_and_is_object_safe() {
-    let cb: Rc<RefCell<dyn Clipboard>> = Rc::new(RefCell::new(PrivateClipboard::new()));
+    let cb: Rc<RefCell<dyn emClipboard>> = Rc::new(RefCell::new(emPrivateClipboard::new()));
     // Verify trait object works
     cb.borrow_mut().put_text("test", false);
     assert_eq!(cb.borrow().get_text(false), "test");
@@ -14,11 +14,11 @@ fn clipboard_trait_exists_and_is_object_safe() {
 
 #[test]
 fn lookup_inherited_walks_parent_chain() {
-    let root = Context::new_root();
-    PrivateClipboard::install(&root);
+    let root = emContext::new_root();
+    emPrivateClipboard::install(&root);
 
-    let child = Context::new_child(&root);
-    let grandchild = Context::new_child(&child);
+    let child = emContext::new_child(&root);
+    let grandchild = emContext::new_child(&child);
 
     // LookupInherited from grandchild should find root's clipboard
     let cb = lookup_clipboard(&grandchild).expect("should find clipboard");
@@ -28,7 +28,7 @@ fn lookup_inherited_walks_parent_chain() {
 
 #[test]
 fn put_text_clipboard() {
-    let mut cb = PrivateClipboard::new();
+    let mut cb = emPrivateClipboard::new();
     let id = cb.put_text("hello", false);
     assert_eq!(id, 0); // clipboard always returns 0
     assert_eq!(cb.get_text(false), "hello");
@@ -36,7 +36,7 @@ fn put_text_clipboard() {
 
 #[test]
 fn put_text_selection() {
-    let mut cb = PrivateClipboard::new();
+    let mut cb = emPrivateClipboard::new();
     let id1 = cb.put_text("sel1", true);
     assert!(id1 > 0);
     let id2 = cb.put_text("sel2", true);
@@ -46,7 +46,7 @@ fn put_text_selection() {
 
 #[test]
 fn clear_clipboard() {
-    let mut cb = PrivateClipboard::new();
+    let mut cb = emPrivateClipboard::new();
     cb.put_text("data", false);
     cb.clear(false, 0);
     assert_eq!(cb.get_text(false), "");
@@ -54,7 +54,7 @@ fn clear_clipboard() {
 
 #[test]
 fn clear_selection_matching_id() {
-    let mut cb = PrivateClipboard::new();
+    let mut cb = emPrivateClipboard::new();
     let id = cb.put_text("sel", true);
     cb.clear(true, id);
     assert_eq!(cb.get_text(true), "");
@@ -62,7 +62,7 @@ fn clear_selection_matching_id() {
 
 #[test]
 fn clear_selection_wrong_id_is_noop() {
-    let mut cb = PrivateClipboard::new();
+    let mut cb = emPrivateClipboard::new();
     let id = cb.put_text("sel", true);
     cb.clear(true, id - 1); // wrong ID
     assert_eq!(cb.get_text(true), "sel"); // still there
@@ -70,14 +70,14 @@ fn clear_selection_wrong_id_is_noop() {
 
 #[test]
 fn get_text_empty_clipboard() {
-    let cb = PrivateClipboard::new();
+    let cb = emPrivateClipboard::new();
     assert_eq!(cb.get_text(false), "");
     assert_eq!(cb.get_text(true), "");
 }
 
 #[test]
 fn get_text_independent_buffers() {
-    let mut cb = PrivateClipboard::new();
+    let mut cb = emPrivateClipboard::new();
     cb.put_text("clip", false);
     cb.put_text("sel", true);
     assert_eq!(cb.get_text(false), "clip");
@@ -86,22 +86,22 @@ fn get_text_independent_buffers() {
 
 #[test]
 fn install_registers_clipboard_in_context() {
-    let ctx = Context::new_root();
+    let ctx = emContext::new_root();
     assert!(lookup_clipboard(&ctx).is_none());
-    PrivateClipboard::install(&ctx);
+    emPrivateClipboard::install(&ctx);
     assert!(lookup_clipboard(&ctx).is_some());
 }
 
 #[test]
 fn private_clipboard_default() {
-    let cb = PrivateClipboard::default();
+    let cb = emPrivateClipboard::default();
     assert_eq!(cb.get_text(false), "");
     assert_eq!(cb.get_text(true), "");
 }
 
 #[test]
 fn private_clipboard_separate_buffers() {
-    let mut cb = PrivateClipboard::new();
+    let mut cb = emPrivateClipboard::new();
     cb.put_text("clipboard_data", false);
     assert_eq!(cb.get_text(false), "clipboard_data");
     assert_eq!(cb.get_text(true), ""); // selection is independent
@@ -109,13 +109,13 @@ fn private_clipboard_separate_buffers() {
 
 #[test]
 fn private_clipboard_install_idempotent() {
-    let ctx = Context::new_root();
-    PrivateClipboard::install(&ctx);
+    let ctx = emContext::new_root();
+    emPrivateClipboard::install(&ctx);
     let cb1 = lookup_clipboard(&ctx).unwrap();
     cb1.borrow_mut().put_text("test", false);
 
     // Re-install replaces (matching C++ behavior where re-install overwrites)
-    PrivateClipboard::install(&ctx);
+    emPrivateClipboard::install(&ctx);
     let cb2 = lookup_clipboard(&ctx).unwrap();
     // New clipboard has empty state
     assert_eq!(cb2.borrow().get_text(false), "");
@@ -123,7 +123,7 @@ fn private_clipboard_install_idempotent() {
 
 #[test]
 fn full_clipboard_lifecycle() {
-    let mut cb = PrivateClipboard::new();
+    let mut cb = emPrivateClipboard::new();
 
     // Put and get clipboard
     cb.put_text("clip1", false);
@@ -137,7 +137,7 @@ fn full_clipboard_lifecycle() {
     cb.clear(true, sel_id);
     assert_eq!(cb.get_text(true), "");
 
-    // Clipboard unaffected
+    // emClipboard unaffected
     assert_eq!(cb.get_text(false), "clip1");
 
     // Clear clipboard
@@ -147,7 +147,7 @@ fn full_clipboard_lifecycle() {
 
 #[test]
 fn selection_id_increments_on_clear() {
-    let mut cb = PrivateClipboard::new();
+    let mut cb = emPrivateClipboard::new();
     let id1 = cb.put_text("s1", true);
     cb.clear(true, id1); // clears and increments sel_id
     let id2 = cb.put_text("s2", true);

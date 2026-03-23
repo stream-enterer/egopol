@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emInput::{InputEvent, InputKey};
+use zuicchini::emCore::emInput::{emInputEvent, InputKey};
 
 use crate::support::{RecordingBehavior, TestHarness};
 
@@ -21,7 +21,7 @@ fn mouse_click_activates_correct_panel() {
     h.tick();
 
     // Click in right half (panel B territory) — 600px is 75% of 800px viewport
-    let click = InputEvent::press(InputKey::MouseLeft).with_mouse(600.0, 300.0);
+    let click = emInputEvent::press(InputKey::MouseLeft).with_mouse(600.0, 300.0);
     h.inject_input(&click);
 
     assert_eq!(
@@ -48,9 +48,9 @@ fn vif_consumes_prevents_behavior() {
     h.view.set_active_panel(&mut h.tree, _child, false);
     h.view.update_viewing(&mut h.tree);
 
-    // Alt+ArrowUp should be consumed by KeyboardZoomScrollVIF (zoom/scroll)
+    // Alt+ArrowUp should be consumed by emKeyboardZoomScrollVIF (zoom/scroll)
     h.input_state.press(InputKey::Alt);
-    let event = InputEvent::press(InputKey::ArrowUp)
+    let event = emInputEvent::press(InputKey::ArrowUp)
         .with_mouse(400.0, 300.0)
         .with_alt();
 
@@ -93,7 +93,7 @@ fn focus_change_routes_keyboard() {
     // Activate A and type a key
     h.view.set_active_panel(&mut h.tree, a, false);
     h.view.update_viewing(&mut h.tree);
-    let key_x = InputEvent::press(InputKey::Key('x'));
+    let key_x = emInputEvent::press(InputKey::Key('x'));
     h.inject_input(&key_x);
 
     // C++ broadcasts Input() to all viewed panels — both A and B receive the event.
@@ -110,10 +110,10 @@ fn focus_change_routes_keyboard() {
     log_a.borrow_mut().clear();
     log_b.borrow_mut().clear();
 
-    let click_b = InputEvent::press(InputKey::MouseLeft).with_mouse(600.0, 300.0);
+    let click_b = emInputEvent::press(InputKey::MouseLeft).with_mouse(600.0, 300.0);
     h.inject_input(&click_b);
 
-    let key_y = InputEvent::press(InputKey::Key('y'));
+    let key_y = emInputEvent::press(InputKey::Key('y'));
     h.inject_input(&key_y);
 
     assert!(
@@ -135,17 +135,17 @@ fn input_without_update_returns_none() {
     tree.set_layout_rect(child, 0.0, 0.0, 1.0, 1.0);
 
     // Create view but do NOT call update_viewing
-    let view = zuicchini::emCore::emView::View::new(root, 800.0, 600.0);
+    let view = zuicchini::emCore::emView::emView::new(root, 800.0, 600.0);
 
     // Hit-test should return None since SVP is not computed
     // (SVP is set during update_viewing)
     let hit = view.get_focusable_panel_at(&tree, 400.0, 300.0);
-    // Note: View::new sets initial visit_stack with root, which may or may not
+    // Note: emView::new sets initial visit_stack with root, which may or may not
     // compute SVP. This test documents the behavior either way.
     // If SVP is set during new(), hit may succeed for root.
     // The key point: without update_viewing, child panels won't be hit-testable.
     if hit.is_some() {
-        // SVP was set during View::new — acceptable
+        // SVP was set during emView::new — acceptable
         assert_eq!(
             hit,
             Some(root),

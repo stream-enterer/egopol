@@ -123,7 +123,7 @@ impl TimerCentral {
     }
 }
 
-// TimerCentral is no longer used as an Engine trait object.
+// TimerCentral is no longer used as an emEngine trait object.
 // It is called directly by the scheduler. This avoids the dead
 // timer_engine_id pattern.
 

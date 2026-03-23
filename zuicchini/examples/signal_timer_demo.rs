@@ -3,23 +3,23 @@
 //! Demonstrates the scheduler's signal and timer system:
 //! - A button panel fires a signal on each left-click.
 //! - A periodic timer fires every second.
-//! - An Engine watches both signals and increments counters.
+//! - An emEngine watches both signals and increments counters.
 //! - A display panel paints the counter values.
 //!
 //! The key architectural difference from C++ (which used `Cycle()` on panels)
-//! is that Rust routes signals through `Engine::cycle()` on the scheduler.
+//! is that Rust routes signals through `emEngine::cycle()` on the scheduler.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 use zuicchini::emCore::emPanelCtx::PanelCtx;
 use zuicchini::emCore::emView::ViewFlags;
-use zuicchini::emCore::emPainter::{Painter, TextAlignment, VAlign};
-use zuicchini::emCore::emEngine::{Engine, EngineCtx, Priority};
+use zuicchini::emCore::emPainter::{emPainter, TextAlignment, VAlign};
+use zuicchini::emCore::emEngine::{emEngine, EngineCtx, Priority};
 use zuicchini::emCore::emSignal::SignalId;
 use zuicchini::emCore::emGUIFramework::App;
 use zuicchini::emCore::emWindow::WindowFlags;
@@ -31,7 +31,7 @@ struct SharedState {
     timer_count: u32,
 }
 
-// ── Engine that watches signals ──
+// ── emEngine that watches signals ──
 
 struct CounterEngine {
     state: Rc<RefCell<SharedState>>,
@@ -39,7 +39,7 @@ struct CounterEngine {
     timer_signal: SignalId,
 }
 
-impl Engine for CounterEngine {
+impl emEngine for CounterEngine {
     fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
         let mut s = self.state.borrow_mut();
         if ctx.is_signaled(self.button_signal) {
@@ -63,14 +63,14 @@ impl PanelBehavior for CounterPanel {
         true
     }
 
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _ps: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _ps: &PanelState) {
         p.paint_rect(
             0.0,
             0.0,
             w,
             h,
-            Color::rgba(0xC0, 0xC0, 0xC0, 0xFF),
-            Color::TRANSPARENT,
+            emColor::rgba(0xC0, 0xC0, 0xC0, 0xFF),
+            emColor::TRANSPARENT,
         );
         let s = self.state.borrow();
         let text = format!(
@@ -84,8 +84,8 @@ impl PanelBehavior for CounterPanel {
             h * 0.6,
             &text,
             h * 0.1,
-            Color::rgba(0xFF, 0xFF, 0x80, 0xFF),
-            Color::TRANSPARENT,
+            emColor::rgba(0xFF, 0xFF, 0x80, 0xFF),
+            emColor::TRANSPARENT,
             TextAlignment::Center,
             VAlign::Top,
             TextAlignment::Center,
@@ -102,11 +102,11 @@ impl PanelBehavior for CounterPanel {
         if !children.is_empty() {
             ctx.layout_child(children[0], 0.1, 0.1 * h, 0.8, 0.15 * h);
         }
-        // Button child is created by main — just layout if it exists.
+        // emButton child is created by main — just layout if it exists.
     }
 }
 
-// ── Button panel: fires a signal on left-click ──
+// ── emButton panel: fires a signal on left-click ──
 
 struct ClickPanel {
     pressed: bool,
@@ -117,13 +117,13 @@ impl PanelBehavior for ClickPanel {
         true
     }
 
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         let bg = if self.pressed {
-            Color::rgba(0x80, 0xA0, 0x80, 0xFF)
+            emColor::rgba(0x80, 0xA0, 0x80, 0xFF)
         } else {
-            Color::rgba(0xA0, 0xC0, 0xA0, 0xFF)
+            emColor::rgba(0xA0, 0xC0, 0xA0, 0xFF)
         };
-        p.paint_rect(0.0, 0.0, w, h, bg, Color::TRANSPARENT);
+        p.paint_rect(0.0, 0.0, w, h, bg, emColor::TRANSPARENT);
         p.paint_text_boxed(
             0.0,
             0.0,
@@ -131,8 +131,8 @@ impl PanelBehavior for ClickPanel {
             h,
             "Click Me",
             h * 0.6,
-            Color::rgba(0x00, 0x80, 0x00, 0xFF),
-            Color::TRANSPARENT,
+            emColor::rgba(0x00, 0x80, 0x00, 0xFF),
+            emColor::TRANSPARENT,
             TextAlignment::Center,
             VAlign::Center,
             TextAlignment::Center,
@@ -142,7 +142,7 @@ impl PanelBehavior for ClickPanel {
         );
     }
 
-    fn input(&mut self, event: &InputEvent, _state: &PanelState, input_state: &InputState) -> bool {
+    fn input(&mut self, event: &emInputEvent, _state: &PanelState, input_state: &emInputState) -> bool {
         if event.key == InputKey::MouseLeft && event.variant == InputVariant::Press {
             self.pressed = true;
             // Signal is fired by the App scheduler — we store the signal ID

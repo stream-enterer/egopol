@@ -1,15 +1,15 @@
 use std::rc::Rc;
 
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::rect::Rect;
-use crate::emCore::emCursor::Cursor;
-use crate::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
+use crate::emCore::emCursor::emCursor;
+use crate::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use crate::emCore::emInputState::emInputState;
 use crate::emCore::emPanel::PanelState;
-use crate::emCore::emPainter::{Painter, TextAlignment, VAlign};
+use crate::emCore::emPainter::{emPainter, TextAlignment, VAlign};
 
-use super::emBorder::{Border, InnerBorderType, OuterBorderType};
-use crate::emCore::emLook::Look;
+use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use crate::emCore::emLook::emLook;
 
 /// Default text formatter: decimal representation of the value.
 /// The `mark_interval` parameter is ignored by the default.
@@ -87,9 +87,9 @@ const HOWTO_READ_ONLY: &str = concat!(
 ///
 /// Values are stored as `f64` but keyboard stepping logic uses integer
 /// arithmetic internally to match the C++ emScalarField behaviour.
-pub struct ScalarField {
-    border: Border,
-    look: Rc<Look>,
+pub struct emScalarField {
+    border: emBorder,
+    look: Rc<emLook>,
     value: f64,
     min: f64,
     max: f64,
@@ -112,12 +112,12 @@ pub struct ScalarField {
     pub on_value: Option<Box<dyn FnMut(f64)>>,
 }
 
-impl ScalarField {
-    pub fn new(min: f64, max: f64, look: Rc<Look>) -> Self {
+impl emScalarField {
+    pub fn new(min: f64, max: f64, look: Rc<emLook>) -> Self {
         let clamped_max = if max < min { min } else { max };
         let value = min;
         Self {
-            border: Border::new(OuterBorderType::Instrument)
+            border: emBorder::new(OuterBorderType::Instrument)
                 .with_inner(InnerBorderType::InputField)
                 .with_how_to(true),
             look,
@@ -143,7 +143,7 @@ impl ScalarField {
         self.border.caption = caption.to_string();
     }
 
-    pub(crate) fn border_mut(&mut self) -> &mut Border {
+    pub(crate) fn border_mut(&mut self) -> &mut emBorder {
         &mut self.border
     }
 
@@ -292,7 +292,7 @@ impl ScalarField {
 
     // --- Paint ---
 
-    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
+    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -425,7 +425,7 @@ impl ScalarField {
             (tx, ay + ah),
             (tx - e, ay + ah - e),
         ];
-        painter.paint_polygon(&arrow, fg_col, Color::TRANSPARENT);
+        painter.paint_polygon(&arrow, fg_col, emColor::TRANSPARENT);
 
         // Scale marks with text labels and small arrows.
         // C++ emScalarField.cpp lines 438-473.
@@ -476,7 +476,7 @@ impl ScalarField {
                         &label,
                         h4,
                         mark_col,
-                        Color::TRANSPARENT,
+                        emColor::TRANSPARENT,
                         TextAlignment::Center,
                         VAlign::Center,
                         TextAlignment::Center,
@@ -491,7 +491,7 @@ impl ScalarField {
                         (mark_tx + h5 * 0.5, mark_ty + h4),
                         (mark_tx, mark_ty + h4 + h5),
                     ];
-                    painter.paint_polygon(&mini_arrow, mark_col, Color::TRANSPARENT);
+                    painter.paint_polygon(&mini_arrow, mark_col, emColor::TRANSPARENT);
 
                     k += 1;
                 }
@@ -505,7 +505,7 @@ impl ScalarField {
 
     // --- Input ---
 
-    pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
+    pub fn input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         // C++ emScalarField.cpp:246-268: gates on IsEditable() && IsEnabled().
         if !self.editable || !self.enabled {
             return false;
@@ -568,9 +568,9 @@ impl ScalarField {
         }
     }
 
-    pub fn get_cursor(&self) -> Cursor {
+    pub fn get_cursor(&self) -> emCursor {
         // C++ emScalarField doesn't override GetCursor — uses default panel cursor.
-        Cursor::Normal
+        emCursor::Normal
     }
 
     /// Whether this scalar field provides how-to help text.
@@ -765,14 +765,14 @@ mod tests {
         }
     }
 
-    fn default_input_state() -> InputState {
-        InputState::new()
+    fn default_input_state() -> emInputState {
+        emInputState::new()
     }
 
     #[test]
     fn value_clamping() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
 
         sf.set_value(50.0);
         assert!((sf.value() - 50.0).abs() < 0.001);
@@ -786,30 +786,30 @@ mod tests {
 
     #[test]
     fn arrow_key_stepping() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
         sf.set_value(50.0);
 
         // Cache dimensions (paint would do this in real usage)
         sf.last_w = 200.0;
         sf.last_h = 40.0;
 
-        // ScalarField uses '+' and '-' keys (not arrow keys).
-        sf.input(&InputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        // emScalarField uses '+' and '-' keys (not arrow keys).
+        sf.input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!(sf.value() > 50.0);
 
-        sf.input(&InputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
+        sf.input(&emInputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
         // Should be roughly back to 50
         assert!((sf.value() - 50.0).abs() < 2.0);
     }
 
     #[test]
     fn callback_on_change() {
-        let look = Look::new();
+        let look = emLook::new();
         let values = Rc::new(RefCell::new(Vec::new()));
         let val_clone = values.clone();
 
-        let mut sf = ScalarField::new(0.0, 10.0, look);
+        let mut sf = emScalarField::new(0.0, 10.0, look);
         sf.set_value(5.0);
         sf.last_w = 200.0;
         sf.last_h = 40.0;
@@ -817,15 +817,15 @@ mod tests {
             val_clone.borrow_mut().push(v);
         }));
 
-        sf.input(&InputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        sf.input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert_eq!(values.borrow().len(), 1);
         assert!(values.borrow()[0] > 5.0);
     }
 
     #[test]
     fn editable_toggle() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
 
         assert!(sf.is_editable());
         assert_eq!(sf.border.inner, InnerBorderType::InputField);
@@ -838,7 +838,7 @@ mod tests {
         sf.set_value(50.0);
         sf.last_w = 200.0;
         sf.last_h = 40.0;
-        let handled = sf.input(&InputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        let handled = sf.input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!(!handled);
         assert!((sf.value() - 50.0).abs() < 0.001);
 
@@ -849,8 +849,8 @@ mod tests {
 
     #[test]
     fn min_max_getters_setters() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
 
         assert!((sf.min_value() - 0.0).abs() < f64::EPSILON);
         assert!((sf.max_value() - 100.0).abs() < f64::EPSILON);
@@ -874,8 +874,8 @@ mod tests {
 
     #[test]
     fn constructor_clamps_max() {
-        let look = Look::new();
-        let sf = ScalarField::new(50.0, 10.0, look);
+        let look = emLook::new();
+        let sf = emScalarField::new(50.0, 10.0, look);
         // max < min => max clamped to min
         assert!((sf.max_value() - 50.0).abs() < f64::EPSILON);
         assert!((sf.min_value() - 50.0).abs() < f64::EPSILON);
@@ -883,8 +883,8 @@ mod tests {
 
     #[test]
     fn scale_mark_intervals() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
 
         // Default is [1]
         assert_eq!(sf.scale_mark_intervals(), &[1]);
@@ -896,31 +896,31 @@ mod tests {
     #[test]
     #[should_panic(expected = "strictly descending")]
     fn scale_mark_intervals_rejects_non_descending() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
         sf.set_scale_mark_intervals(&[10, 50]); // ascending — invalid
     }
 
     #[test]
     #[should_panic(expected = "must be > 0")]
     fn scale_mark_intervals_rejects_zero() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
         sf.set_scale_mark_intervals(&[0]);
     }
 
     #[test]
     fn scale_mark_intervals_empty_is_ok() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
         sf.set_scale_mark_intervals(&[]);
         assert_eq!(sf.scale_mark_intervals(), &[] as &[u64]);
     }
 
     #[test]
     fn never_hide_marks() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
         assert!(!sf.is_never_hiding_marks());
         sf.set_never_hide_marks(true);
         assert!(sf.is_never_hiding_marks());
@@ -928,8 +928,8 @@ mod tests {
 
     #[test]
     fn text_box_tallness() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
         assert!((sf.text_box_tallness() - 0.5).abs() < f64::EPSILON);
         sf.set_text_box_tallness(0.75);
         assert!((sf.text_box_tallness() - 0.75).abs() < f64::EPSILON);
@@ -937,8 +937,8 @@ mod tests {
 
     #[test]
     fn keyboard_interval() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
         assert_eq!(sf.keyboard_interval(), 0);
         sf.set_keyboard_interval(5);
         assert_eq!(sf.keyboard_interval(), 5);
@@ -946,24 +946,24 @@ mod tests {
 
     #[test]
     fn step_by_keyboard_with_explicit_interval() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
         sf.set_keyboard_interval(10);
         sf.set_value(50.0);
         sf.last_w = 200.0;
         sf.last_h = 40.0;
 
-        sf.input(&InputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        sf.input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!((sf.value() - 60.0).abs() < 1.0);
 
-        sf.input(&InputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
+        sf.input(&emInputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
         assert!((sf.value() - 50.0).abs() < 1.0);
     }
 
     #[test]
     fn custom_text_of_value() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
         sf.set_text_of_value_fn(Box::new(|val, _iv| format!("{}%", val)));
         // The function is stored and usable
         let text = (sf.text_of_value_fn)(50, 1);
@@ -972,13 +972,13 @@ mod tests {
 
     #[test]
     fn plus_minus_keys_work() {
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
         sf.set_value(50.0);
         sf.last_w = 200.0;
         sf.last_h = 40.0;
 
-        let handled = sf.input(&InputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        let handled = sf.input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!(handled);
         assert!(sf.value() > 50.0);
     }
@@ -986,19 +986,19 @@ mod tests {
     #[test]
     fn cursor_is_always_normal() {
         // C++ doesn't override GetCursor — always default panel cursor.
-        let look = Look::new();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
-        assert_eq!(sf.get_cursor(), Cursor::Normal);
+        let look = emLook::new();
+        let mut sf = emScalarField::new(0.0, 100.0, look);
+        assert_eq!(sf.get_cursor(), emCursor::Normal);
         sf.set_editable(false);
-        assert_eq!(sf.get_cursor(), Cursor::Normal);
+        assert_eq!(sf.get_cursor(), emCursor::Normal);
     }
 
     #[test]
     fn set_value_fires_callback() {
-        let look = Look::new();
+        let look = emLook::new();
         let count = Rc::new(RefCell::new(0u32));
         let count_clone = count.clone();
-        let mut sf = ScalarField::new(0.0, 100.0, look);
+        let mut sf = emScalarField::new(0.0, 100.0, look);
         sf.on_value = Some(Box::new(move |_v| {
             *count_clone.borrow_mut() += 1;
         }));

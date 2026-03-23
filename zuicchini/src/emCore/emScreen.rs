@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::emCore::emContext::Context;
+use crate::emCore::emContext::emContext;
 use crate::emCore::emSignal::SignalId;
 
 /// Information about a physical monitor.
@@ -17,9 +17,9 @@ pub struct MonitorInfo {
 /// Tracks available monitors and virtual desktop bounds.
 ///
 /// Matches C++ emScreen: a model that provides monitor geometry, DPI, and
-/// the list of open windows. Installed into a `Context` so panels can
+/// the list of open windows. Installed into a `emContext` so panels can
 /// find it via `lookup_inherited`.
-pub struct Screen {
+pub struct emScreen {
     monitors: Vec<MonitorInfo>,
     /// Virtual desktop bounding box (x, y, w, h).
     pub virtual_bounds: (i32, i32, u32, u32),
@@ -31,7 +31,7 @@ pub struct Screen {
     can_warp: bool,
 }
 
-impl Screen {
+impl emScreen {
     /// Populate from winit's available monitors.
     ///
     /// `geometry_signal` and `windows_signal` should be freshly allocated
@@ -158,12 +158,12 @@ impl Screen {
         best_idx
     }
 
-    /// Look up the screen installed in the given context or an ancestor.
+    /// emLook up the screen installed in the given context or an ancestor.
     ///
     /// Matches C++ emScreen::LookupInherited. The screen is registered
-    /// under the type `Screen` with name `""`.
-    pub fn lookup_inherited(context: &Context) -> Option<Rc<RefCell<Screen>>> {
-        context.lookup_inherited::<Screen>("")
+    /// under the type `emScreen` with name `""`.
+    pub fn lookup_inherited(context: &emContext) -> Option<Rc<RefCell<emScreen>>> {
+        context.lookup_inherited::<emScreen>("")
     }
 
     /// Signal fired when monitor geometry (bounds, DPI, count) changes.
@@ -180,13 +180,13 @@ impl Screen {
         self.windows_signal
     }
 
-    /// Register this screen in a `Context` so it can be found via
+    /// Register this screen in a `emContext` so it can be found via
     /// `lookup_inherited`.
     ///
     /// Matches C++ emScreen::Install (protected). Should be called once
     /// on the root context at startup.
-    pub fn install(screen: Rc<RefCell<Screen>>, context: &Context) {
-        context.register_model::<Screen>("", screen);
+    pub fn install(screen: Rc<RefCell<emScreen>>, context: &emContext) {
+        context.register_model::<emScreen>("", screen);
     }
 
     /// Fire the geometry-changed signal.
@@ -229,13 +229,13 @@ impl Screen {
 mod tests {
     use super::*;
 
-    fn make_screen(monitors: Vec<MonitorInfo>) -> Screen {
+    fn make_screen(monitors: Vec<MonitorInfo>) -> emScreen {
         use slotmap::SlotMap;
         // Create dummy signal IDs for tests.
         let mut signals: SlotMap<SignalId, ()> = SlotMap::with_key();
         let gs = signals.insert(());
         let ws = signals.insert(());
-        Screen {
+        emScreen {
             monitors,
             virtual_bounds: (0, 0, 3840, 1080),
             geometry_signal: gs,

@@ -1,4 +1,4 @@
-//! Systematic interaction test for ScalarField at 1x and 2x zoom, driven
+//! Systematic interaction test for emScalarField at 1x and 2x zoom, driven
 //! through the full input dispatch pipeline (PipelineTestHarness).
 //!
 //! Verifies that click and drag interactions correctly update the widget's
@@ -9,49 +9,49 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::{InputEvent, InputKey};
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey};
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emLook::Look;
-use zuicchini::emCore::emScalarField::ScalarField;
+use zuicchini::emCore::emLook::emLook;
+use zuicchini::emCore::emScalarField::emScalarField;
 
 use super::support::pipeline::PipelineTestHarness;
 
-/// PanelBehavior wrapper for ScalarField so it can be installed into the
+/// PanelBehavior wrapper for emScalarField so it can be installed into the
 /// panel tree. Delegates paint/input to the underlying widget and syncs
 /// the value to a shared handle after every input event.
 struct ScalarFieldPanel {
-    sf: ScalarField,
+    sf: emScalarField,
     /// Shared handle so the test can read the value after interaction.
     value: Rc<RefCell<f64>>,
 }
 
 impl ScalarFieldPanel {
-    fn new(sf: ScalarField, value: Rc<RefCell<f64>>) -> Self {
+    fn new(sf: emScalarField, value: Rc<RefCell<f64>>) -> Self {
         Self { sf, value }
     }
 }
 
 impl PanelBehavior for ScalarFieldPanel {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.sf.paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         let consumed = self.sf.input(event, state, input_state);
         *self.value.borrow_mut() = self.sf.value();
         consumed
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.sf.get_cursor()
     }
 
@@ -74,9 +74,9 @@ fn scalarfield_click_and_drag_1x_and_2x() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    // 2. Create ScalarField (range 0-100, value 50, editable).
-    let look = Look::new();
-    let mut sf = ScalarField::new(0.0, 100.0, look);
+    // 2. Create emScalarField (range 0-100, value 50, editable).
+    let look = emLook::new();
+    let mut sf = emScalarField::new(0.0, 100.0, look);
     sf.set_value(50.0);
     sf.set_editable(true);
 
@@ -98,7 +98,7 @@ fn scalarfield_click_and_drag_1x_and_2x() {
 
     // ── 5. At 1x zoom ──────────────────────────────────────────────────
     //
-    // The ScalarField has an Instrument outer border, InputField inner
+    // The emScalarField has an Instrument outer border, InputField inner
     // border, and HowTo space on the left. These insets eat into the
     // usable scale area, so viewport percentages do not map linearly to
     // value percentages. We click at positions well inside the scale
@@ -175,7 +175,7 @@ fn scalarfield_click_and_drag_1x_and_2x() {
 
 // ── BP-8 behavioral parity tests ──────────────────────────────────────
 
-/// Helper: set up a ScalarField in a PipelineTestHarness, render once to
+/// Helper: set up a emScalarField in a PipelineTestHarness, render once to
 /// populate `last_w`/`last_h`, and click at center to activate the panel
 /// for keyboard input. Returns (harness, value_handle, panel_id).
 fn setup_sf(
@@ -189,8 +189,8 @@ fn setup_sf(
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let mut sf = ScalarField::new(min, max, look);
+    let look = emLook::new();
+    let mut sf = emScalarField::new(min, max, look);
     sf.set_value(initial);
     sf.set_editable(editable);
     if !mark_intervals.is_empty() {
@@ -248,12 +248,12 @@ fn scalarfield_drag_continuous_update() {
     let (mut h, value, _pid) = setup_sf(0.0, 100.0, 50.0, true, &[], 0);
 
     // Multi-step drag: press, move to several positions, release.
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&press);
     let v0 = *value.borrow();
 
     // Move to a position further right.
-    let move1 = InputEvent::mouse_move(InputKey::MouseLeft, 500.0, 300.0);
+    let move1 = emInputEvent::mouse_move(InputKey::MouseLeft, 500.0, 300.0);
     h.dispatch(&move1);
     let v1 = *value.borrow();
     assert!(
@@ -262,7 +262,7 @@ fn scalarfield_drag_continuous_update() {
     );
 
     // Move further right again.
-    let move2 = InputEvent::mouse_move(InputKey::MouseLeft, 600.0, 300.0);
+    let move2 = emInputEvent::mouse_move(InputKey::MouseLeft, 600.0, 300.0);
     h.dispatch(&move2);
     let v2 = *value.borrow();
     assert!(
@@ -271,7 +271,7 @@ fn scalarfield_drag_continuous_update() {
     );
 
     // Move back left — value should decrease.
-    let move3 = InputEvent::mouse_move(InputKey::MouseLeft, 350.0, 300.0);
+    let move3 = emInputEvent::mouse_move(InputKey::MouseLeft, 350.0, 300.0);
     h.dispatch(&move3);
     let v3 = *value.borrow();
     assert!(
@@ -280,7 +280,7 @@ fn scalarfield_drag_continuous_update() {
     );
 
     // Release.
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(350.0, 300.0);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(350.0, 300.0);
     h.dispatch(&release);
 }
 
@@ -422,7 +422,7 @@ fn scalarfield_keyboard_clamp_at_min() {
     assert_approx(still_min, 0.0, 1.0, "clamp at min: stays at 0");
 }
 
-/// BP-8j: Non-editable ScalarField rejects all input.
+/// BP-8j: Non-editable emScalarField rejects all input.
 /// C++ ref: emScalarField.cpp:251,261,268 — gates on IsEditable().
 #[test]
 fn scalarfield_non_editable_rejects_input() {
@@ -443,7 +443,7 @@ fn scalarfield_non_editable_rejects_input() {
     assert_approx(after_minus, 50.0, 0.01, "non-editable: '-' rejected");
 }
 
-/// BP-8k: Disabled ScalarField rejects all input.
+/// BP-8k: Disabled emScalarField rejects all input.
 /// C++ ref: emScalarField.cpp:246,251,261,268 — gates on IsEnabled().
 #[test]
 fn scalarfield_disabled_rejects_input() {
@@ -500,7 +500,7 @@ fn scalarfield_drag_release_stops_update() {
     let val_after_drag = *value.borrow();
 
     // Now just move the mouse (no button held) — value should not change.
-    let move_ev = InputEvent::mouse_move(InputKey::MouseLeft, 200.0, 300.0);
+    let move_ev = emInputEvent::mouse_move(InputKey::MouseLeft, 200.0, 300.0);
     h.dispatch(&move_ev);
     let val_after_move = *value.borrow();
     assert_approx(

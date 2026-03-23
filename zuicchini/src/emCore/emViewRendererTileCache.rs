@@ -1,4 +1,4 @@
-use crate::emCore::emImage::Image;
+use crate::emCore::emImage::emImage;
 
 /// Size of each tile in pixels.
 pub const TILE_SIZE: u32 = 256;
@@ -7,7 +7,7 @@ pub const TILE_SIZE: u32 = 256;
 #[derive(Clone)]
 pub struct Tile {
     /// The image data for this tile.
-    pub image: Image,
+    pub image: emImage,
     /// Whether this tile's content needs to be re-rendered.
     pub dirty: bool,
     /// LRU counter — higher means more recently used.
@@ -17,7 +17,7 @@ pub struct Tile {
 impl Tile {
     pub fn new() -> Self {
         Self {
-            image: Image::new(TILE_SIZE, TILE_SIZE, 4),
+            image: emImage::new(TILE_SIZE, TILE_SIZE, 4),
             dirty: true,
             last_used: 0,
         }

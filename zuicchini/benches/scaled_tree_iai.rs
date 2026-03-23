@@ -2,13 +2,13 @@
 mod common;
 
 use gungraun::{library_benchmark, library_benchmark_group, main};
-use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emColor::emColor;
 
-use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emImage::emImage;
 use zuicchini::emCore::emPanelTree::PanelTree;
 
-use zuicchini::emCore::emView::View;
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emView::emView;
+use zuicchini::emCore::emPainter::emPainter;
 
 use common::scaled::{build_scaled_tree, run_one_scaled_frame};
 use common::{DEFAULT_VH, DEFAULT_VW};
@@ -17,11 +17,11 @@ use common::{DEFAULT_VH, DEFAULT_VW};
 // Setup helpers
 // ---------------------------------------------------------------------------
 
-type FrameState = (PanelTree, View, Image);
+type FrameState = (PanelTree, emView, emImage);
 
 fn setup_pan_zoom(count: usize) -> FrameState {
     let (mut tree, mut view, _) = build_scaled_tree(count);
-    let mut buf = Image::new(DEFAULT_VW, DEFAULT_VH, 4);
+    let mut buf = emImage::new(DEFAULT_VW, DEFAULT_VH, 4);
     // Warmup
     run_one_scaled_frame(&mut tree, &mut view, &mut buf, 3.0, 0.0, 0.015);
     (tree, view, buf)
@@ -29,11 +29,11 @@ fn setup_pan_zoom(count: usize) -> FrameState {
 
 fn setup_paint(count: usize) -> FrameState {
     let (tree, view, _) = build_scaled_tree(count);
-    let buf = Image::new(DEFAULT_VW, DEFAULT_VH, 4);
+    let buf = emImage::new(DEFAULT_VW, DEFAULT_VH, 4);
     (tree, view, buf)
 }
 
-fn setup_update(count: usize) -> (PanelTree, View) {
+fn setup_update(count: usize) -> (PanelTree, emView) {
     let (tree, view, _) = build_scaled_tree(count);
     (tree, view)
 }
@@ -71,8 +71,8 @@ fn pan_zoom_200(state: FrameState) {
 #[bench::run(args = (10), setup = setup_paint)]
 fn paint_10(state: FrameState) {
     let (mut tree, view, mut buf) = state;
-    buf.fill(Color::BLACK);
-    let mut painter = Painter::new(&mut buf);
+    buf.fill(emColor::BLACK);
+    let mut painter = emPainter::new(&mut buf);
     view.paint(&mut tree, &mut painter);
 }
 
@@ -80,8 +80,8 @@ fn paint_10(state: FrameState) {
 #[bench::run(args = (50), setup = setup_paint)]
 fn paint_50(state: FrameState) {
     let (mut tree, view, mut buf) = state;
-    buf.fill(Color::BLACK);
-    let mut painter = Painter::new(&mut buf);
+    buf.fill(emColor::BLACK);
+    let mut painter = emPainter::new(&mut buf);
     view.paint(&mut tree, &mut painter);
 }
 
@@ -89,8 +89,8 @@ fn paint_50(state: FrameState) {
 #[bench::run(args = (200), setup = setup_paint)]
 fn paint_200(state: FrameState) {
     let (mut tree, view, mut buf) = state;
-    buf.fill(Color::BLACK);
-    let mut painter = Painter::new(&mut buf);
+    buf.fill(emColor::BLACK);
+    let mut painter = emPainter::new(&mut buf);
     view.paint(&mut tree, &mut painter);
 }
 
@@ -100,7 +100,7 @@ fn paint_200(state: FrameState) {
 
 #[library_benchmark]
 #[bench::run(args = (10), setup = setup_update)]
-fn update_10(state: (PanelTree, View)) {
+fn update_10(state: (PanelTree, emView)) {
     let (mut tree, mut view) = state;
     tree.deliver_notices(true, 1.0);
     view.update(&mut tree);
@@ -108,7 +108,7 @@ fn update_10(state: (PanelTree, View)) {
 
 #[library_benchmark]
 #[bench::run(args = (50), setup = setup_update)]
-fn update_50(state: (PanelTree, View)) {
+fn update_50(state: (PanelTree, emView)) {
     let (mut tree, mut view) = state;
     tree.deliver_notices(true, 1.0);
     view.update(&mut tree);
@@ -116,7 +116,7 @@ fn update_50(state: (PanelTree, View)) {
 
 #[library_benchmark]
 #[bench::run(args = (200), setup = setup_update)]
-fn update_200(state: (PanelTree, View)) {
+fn update_200(state: (PanelTree, emView)) {
     let (mut tree, mut view) = state;
     tree.deliver_notices(true, 1.0);
     view.update(&mut tree);

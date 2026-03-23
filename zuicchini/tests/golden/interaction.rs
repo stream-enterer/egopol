@@ -1,5 +1,5 @@
 use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
-use zuicchini::emCore::emView::View;
+use zuicchini::emCore::emView::emView;
 
 use super::common::*;
 
@@ -20,7 +20,7 @@ fn panel_state(tree: &PanelTree, id: PanelId) -> (bool, bool) {
 }
 
 /// Create a standard 3-panel tree (root → child1, child2) with layout rects.
-fn three_panel_tree() -> (PanelTree, View, PanelId, PanelId, PanelId) {
+fn three_panel_tree() -> (PanelTree, emView, PanelId, PanelId, PanelId) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
@@ -29,7 +29,7 @@ fn three_panel_tree() -> (PanelTree, View, PanelId, PanelId, PanelId) {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 100.0, 100.0);
+    let mut view = emView::new(root, 100.0, 100.0);
     view.update_viewing(&mut tree);
 
     (tree, view, root, child1, child2)
@@ -68,7 +68,7 @@ fn interaction_activate_path() {
     let gc = tree.create_child(child1, "gc");
     tree.set_layout_rect(gc, 0.0, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 100.0, 100.0);
+    let mut view = emView::new(root, 100.0, 100.0);
     view.update_viewing(&mut tree);
     view.set_active_panel(&mut tree, gc, false);
 
@@ -203,7 +203,7 @@ fn interaction_focus_unfocusable_skip() {
     let child3 = tree.create_child(root, "child3");
     tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
 
-    let mut view = View::new(root, 100.0, 100.0);
+    let mut view = emView::new(root, 100.0, 100.0);
     view.update_viewing(&mut tree);
 
     tree.set_focusable(child2, false);
@@ -236,7 +236,7 @@ fn interaction_focus_nested() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 100.0, 100.0);
+    let mut view = emView::new(root, 100.0, 100.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);
@@ -268,7 +268,7 @@ fn interaction_focus_visit_out() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 100.0, 100.0);
+    let mut view = emView::new(root, 100.0, 100.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);
@@ -319,7 +319,7 @@ fn interaction_focus_visit_first() {
     let child3 = tree.create_child(root, "child3");
     tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
 
-    let mut view = View::new(root, 100.0, 100.0);
+    let mut view = emView::new(root, 100.0, 100.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);
@@ -351,7 +351,7 @@ fn interaction_focus_visit_last() {
     let child3 = tree.create_child(root, "child3");
     tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
 
-    let mut view = View::new(root, 100.0, 100.0);
+    let mut view = emView::new(root, 100.0, 100.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);
@@ -383,7 +383,7 @@ fn interaction_focus_visit_left() {
     let child3 = tree.create_child(root, "child3");
     tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);
@@ -415,7 +415,7 @@ fn interaction_focus_visit_right() {
     let child3 = tree.create_child(root, "child3");
     tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);
@@ -447,7 +447,7 @@ fn interaction_focus_visit_down() {
     let child3 = tree.create_child(root, "child3");
     tree.set_layout_rect(child3, 0.0, 0.66, 1.0, 0.34);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);
@@ -479,7 +479,7 @@ fn interaction_focus_visit_up() {
     let child3 = tree.create_child(root, "child3");
     tree.set_layout_rect(child3, 0.0, 0.66, 1.0, 0.34);
 
-    let mut view = View::new(root, 800.0, 600.0);
+    let mut view = emView::new(root, 800.0, 600.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);
@@ -530,7 +530,7 @@ fn interaction_activate_remove_middle() {
     let child3 = tree.create_child(root, "child3");
     tree.set_layout_rect(child3, 0.66, 0.0, 0.34, 1.0);
 
-    let mut view = View::new(root, 100.0, 100.0);
+    let mut view = emView::new(root, 100.0, 100.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);
@@ -561,7 +561,7 @@ fn interaction_activate_remove_in_path() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 100.0, 100.0);
+    let mut view = emView::new(root, 100.0, 100.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);
@@ -590,7 +590,7 @@ fn interaction_focus_tab_deep() {
     let child2 = tree.create_child(root, "child2");
     tree.set_layout_rect(child2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 100.0, 100.0);
+    let mut view = emView::new(root, 100.0, 100.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);
@@ -628,7 +628,7 @@ fn interaction_focus_tab_ascend() {
     let gc2 = tree.create_child(child1, "gc2");
     tree.set_layout_rect(gc2, 0.5, 0.0, 0.5, 1.0);
 
-    let mut view = View::new(root, 100.0, 100.0);
+    let mut view = emView::new(root, 100.0, 100.0);
     view.update_viewing(&mut tree);
 
     view.set_window_focused(&mut tree, true);

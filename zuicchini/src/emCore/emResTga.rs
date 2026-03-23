@@ -1,4 +1,4 @@
-use super::emImage::Image;
+use super::emImage::emImage;
 use std::fmt;
 
 #[derive(Debug)]
@@ -26,7 +26,7 @@ impl std::error::Error for TgaError {}
 /// - Type 10: RLE true-color (32-bit BGRA → RGBA)
 /// - Type 11: RLE grayscale (8-bit → 1-channel)
 /// - Top-origin only (all toolkit TGAs are top-origin)
-pub fn load_tga(data: &[u8]) -> Result<Image, TgaError> {
+pub fn load_tga(data: &[u8]) -> Result<emImage, TgaError> {
     if data.len() < 18 {
         return Err(TgaError::TooShort);
     }
@@ -78,7 +78,7 @@ pub fn load_tga(data: &[u8]) -> Result<Image, TgaError> {
         }
     }
 
-    Ok(Image::from_raw(width, height, channels, pixels))
+    Ok(emImage::from_raw(width, height, channels, pixels))
 }
 
 #[inline]

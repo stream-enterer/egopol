@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::emCore::emRec::RecStruct;
-use crate::emCore::emConfigModel::ConfigModel;
+use crate::emCore::emConfigModel::emConfigModel;
 use crate::emCore::emRec::RecError;
 use crate::emCore::emRecRecord::Record;
 use crate::emCore::emSignal::SignalId;
@@ -70,9 +70,9 @@ impl Record for WindowGeometry {
     }
 }
 
-/// Saves and restores window geometry via a ConfigModel.
-pub struct WindowStateSaver {
-    model: ConfigModel<WindowGeometry>,
+/// Saves and restores window geometry via a emConfigModel.
+pub struct emWindowStateSaver {
+    model: emConfigModel<WindowGeometry>,
     /// Cached normal-mode geometry, preserved when maximized/fullscreen.
     /// Matches C++ OwnNormalX/Y/W/H.
     normal_x: i32,
@@ -81,7 +81,7 @@ pub struct WindowStateSaver {
     normal_h: u32,
 }
 
-impl WindowStateSaver {
+impl emWindowStateSaver {
     pub fn new(path: PathBuf, signal_id: SignalId) -> Self {
         let defaults = WindowGeometry::default();
         Self {
@@ -89,7 +89,7 @@ impl WindowStateSaver {
             normal_y: defaults.y,
             normal_w: defaults.width,
             normal_h: defaults.height,
-            model: ConfigModel::new(defaults, path, signal_id),
+            model: emConfigModel::new(defaults, path, signal_id),
         }
     }
 
@@ -166,7 +166,7 @@ impl WindowStateSaver {
         }
     }
 
-    pub fn model(&self) -> &ConfigModel<WindowGeometry> {
+    pub fn model(&self) -> &emConfigModel<WindowGeometry> {
         &self.model
     }
 }

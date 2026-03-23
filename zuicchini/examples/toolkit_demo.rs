@@ -7,31 +7,31 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::InputEvent;
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::emInputEvent;
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use zuicchini::emCore::emPanelCtx::PanelCtx;
 use zuicchini::emCore::emView::ViewFlags;
-use zuicchini::emCore::emPainter::{Painter, TextAlignment, VAlign};
-use zuicchini::emCore::emButton::Button;
+use zuicchini::emCore::emPainter::{emPainter, TextAlignment, VAlign};
+use zuicchini::emCore::emButton::emButton;
 
-use zuicchini::emCore::emCheckBox::CheckBox;
+use zuicchini::emCore::emCheckBox::emCheckBox;
 
-use zuicchini::emCore::emCheckButton::CheckButton;
+use zuicchini::emCore::emCheckButton::emCheckButton;
 
-use zuicchini::emCore::emColorField::ColorField;
+use zuicchini::emCore::emColorField::emColorField;
 
-use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
+use zuicchini::emCore::emListBox::{emListBox, SelectionMode};
 
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emLook::emLook;
 
-use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+use zuicchini::emCore::emRadioButton::{emRadioButton, RadioGroup};
 
-use zuicchini::emCore::emScalarField::ScalarField;
+use zuicchini::emCore::emScalarField::emScalarField;
 
-use zuicchini::emCore::emTextField::TextField;
+use zuicchini::emCore::emTextField::emTextField;
 use zuicchini::emCore::emGUIFramework::App;
 use zuicchini::emCore::emWindow::WindowFlags;
 
@@ -39,16 +39,16 @@ use zuicchini::emCore::emWindow::WindowFlags;
 // Each widget needs a PanelBehavior wrapper to participate in the panel tree.
 
 struct ButtonPanel {
-    button: Button,
+    button: emButton,
 }
 impl PanelBehavior for ButtonPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.button.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.button.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.button.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -57,16 +57,16 @@ impl PanelBehavior for ButtonPanel {
 }
 
 struct CheckButtonPanel {
-    widget: CheckButton,
+    widget: emCheckButton,
 }
 impl PanelBehavior for CheckButtonPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -75,16 +75,16 @@ impl PanelBehavior for CheckButtonPanel {
 }
 
 struct CheckBoxPanel {
-    widget: CheckBox,
+    widget: emCheckBox,
 }
 impl PanelBehavior for CheckBoxPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -93,16 +93,16 @@ impl PanelBehavior for CheckBoxPanel {
 }
 
 struct RadioButtonPanel {
-    widget: RadioButton,
+    widget: emRadioButton,
 }
 impl PanelBehavior for RadioButtonPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -111,17 +111,17 @@ impl PanelBehavior for RadioButtonPanel {
 }
 
 struct TextFieldPanel {
-    widget: TextField,
+    widget: emTextField,
 }
 impl PanelBehavior for TextFieldPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.cycle_blink(_s.in_focused_path());
         self.widget.paint(p, w, h, _s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -135,16 +135,16 @@ impl PanelBehavior for TextFieldPanel {
 }
 
 struct ScalarFieldPanel {
-    widget: ScalarField,
+    widget: emScalarField,
 }
 impl PanelBehavior for ScalarFieldPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
         self.widget.paint(p, w, h, s.enabled);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
     fn is_opaque(&self) -> bool {
@@ -153,13 +153,13 @@ impl PanelBehavior for ScalarFieldPanel {
 }
 
 struct ColorFieldPanel {
-    widget: ColorField,
+    widget: emColorField,
 }
 impl PanelBehavior for ColorFieldPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
     fn is_opaque(&self) -> bool {
@@ -168,13 +168,13 @@ impl PanelBehavior for ColorFieldPanel {
 }
 
 struct ListBoxPanel {
-    widget: ListBox,
+    widget: emListBox,
 }
 impl PanelBehavior for ListBoxPanel {
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
         self.widget.paint(p, w, h);
     }
-    fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
+    fn input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.input(e, _s, _is)
     }
     fn is_opaque(&self) -> bool {
@@ -186,7 +186,7 @@ impl PanelBehavior for ListBoxPanel {
 
 struct ToolkitRoot {
     msg: Rc<RefCell<String>>,
-    look: Rc<Look>,
+    look: Rc<emLook>,
 }
 
 impl PanelBehavior for ToolkitRoot {
@@ -194,14 +194,14 @@ impl PanelBehavior for ToolkitRoot {
         true
     }
 
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, p: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         p.paint_rect(
             0.0,
             0.0,
             w,
             h,
-            Color::rgba(0x20, 0x30, 0x40, 0xFF),
-            Color::TRANSPARENT,
+            emColor::rgba(0x20, 0x30, 0x40, 0xFF),
+            emColor::TRANSPARENT,
         );
 
         p.paint_text_boxed(
@@ -211,8 +211,8 @@ impl PanelBehavior for ToolkitRoot {
             h * 0.05,
             "Toolkit Demo",
             h * 0.04,
-            Color::WHITE,
-            Color::TRANSPARENT,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
             TextAlignment::Center,
             VAlign::Center,
             TextAlignment::Center,
@@ -254,21 +254,21 @@ impl PanelBehavior for ToolkitRoot {
         let look = self.look.clone();
 
         // 1. Message label (read-only text field)
-        let mut tf_msg = TextField::new(look.clone());
+        let mut tf_msg = emTextField::new(look.clone());
         tf_msg.set_text("Click a widget to see its callback here");
         let msg_id = ctx.create_child_with("msg", Box::new(TextFieldPanel { widget: tf_msg }));
 
-        // 2. Button
+        // 2. emButton
         let msg_c = msg.clone();
-        let mut button = Button::new("Button", look.clone());
+        let mut button = emButton::new("Button", look.clone());
         button.on_click = Some(Box::new(move || {
             *msg_c.borrow_mut() = "Button clicked".into();
         }));
         let _b = ctx.create_child_with("button", Box::new(ButtonPanel { button }));
 
-        // 3. Check Button
+        // 3. Check emButton
         let msg_c = msg.clone();
-        let mut cb = CheckButton::new("Check Button", look.clone());
+        let mut cb = emCheckButton::new("Check Button", look.clone());
         cb.on_check = Some(Box::new(move |checked| {
             *msg_c.borrow_mut() = format!(
                 "Check Button switched {}",
@@ -279,7 +279,7 @@ impl PanelBehavior for ToolkitRoot {
 
         // 4. Check Box
         let msg_c = msg.clone();
-        let mut cbx = CheckBox::new("Check Box", look.clone());
+        let mut cbx = emCheckBox::new("Check Box", look.clone());
         cbx.on_check = Some(Box::new(move |checked| {
             *msg_c.borrow_mut() =
                 format!("Check Box switched {}", if checked { "on" } else { "off" });
@@ -295,13 +295,13 @@ impl PanelBehavior for ToolkitRoot {
             }
         }));
         for i in 0..3 {
-            let rb = RadioButton::new(&format!("Radio {}", i + 1), look.clone(), rg.clone(), i);
+            let rb = emRadioButton::new(&format!("Radio {}", i + 1), look.clone(), rg.clone(), i);
             ctx.create_child_with(&format!("rb{i}"), Box::new(RadioButtonPanel { widget: rb }));
         }
 
         // 8. Editable text field
         let msg_c = msg.clone();
-        let mut tf = TextField::new(look.clone());
+        let mut tf = emTextField::new(look.clone());
         tf.set_editable(true);
         tf.set_multi_line(true);
         tf.set_text("Edit me\nsecond line");
@@ -313,7 +313,7 @@ impl PanelBehavior for ToolkitRoot {
 
         // 9. Scalar Field
         let msg_c = msg.clone();
-        let mut sf = ScalarField::new(0.0, 100.0, look.clone());
+        let mut sf = emScalarField::new(0.0, 100.0, look.clone());
         sf.set_editable(true);
         sf.set_scale_mark_intervals(&[50, 10, 5, 1]);
         sf.on_value = Some(Box::new(move |val| {
@@ -321,11 +321,11 @@ impl PanelBehavior for ToolkitRoot {
         }));
         ctx.create_child_with("sf", Box::new(ScalarFieldPanel { widget: sf }));
 
-        // 10. Color Field
+        // 10. emColor Field
         let msg_c = msg.clone();
-        let mut cf = ColorField::new(look.clone());
+        let mut cf = emColorField::new(look.clone());
         cf.set_editable(true);
-        cf.set_color(Color::rgba(0x22, 0xBB, 0x22, 0xFF));
+        cf.set_color(emColor::rgba(0x22, 0xBB, 0x22, 0xFF));
         cf.on_color = Some(Box::new(move |color| {
             *msg_c.borrow_mut() = format!(
                 "Color: #{:02X}{:02X}{:02X}",
@@ -338,7 +338,7 @@ impl PanelBehavior for ToolkitRoot {
 
         // 11. List Box
         let msg_c = msg.clone();
-        let mut lb = ListBox::new(look.clone());
+        let mut lb = emListBox::new(look.clone());
         lb.set_selection_mode(SelectionMode::Single);
         lb.set_items((1..=7).map(|i| format!("Item {i}")).collect());
         lb.on_selection = Some(Box::new(move |sel| {
@@ -359,7 +359,7 @@ impl PanelBehavior for ToolkitRoot {
         }
 
         // Store msg panel id to update text from the message Rc in paint
-        // We can't update the TextField from paint, so the message display
+        // We can't update the emTextField from paint, so the message display
         // relies on the Rc<RefCell<String>> shared state.
         let _ = msg_id;
     }
@@ -368,7 +368,7 @@ impl PanelBehavior for ToolkitRoot {
 fn main() {
     let app = App::new(Box::new(|app, event_loop| {
         let msg = Rc::new(RefCell::new(String::new()));
-        let look = Look::new();
+        let look = emLook::new();
 
         let root = app.tree.create_root("root");
         app.tree.set_behavior(

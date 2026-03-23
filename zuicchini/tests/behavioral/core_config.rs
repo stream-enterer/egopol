@@ -1,11 +1,11 @@
 use zuicchini::emCore::emRec::RecStruct;
-use zuicchini::emCore::emContext::Context;
-use zuicchini::emCore::emCoreConfig::CoreConfig;
+use zuicchini::emCore::emContext::emContext;
+use zuicchini::emCore::emCoreConfig::emCoreConfig;
 use zuicchini::emCore::emRecRecord::Record;
 
 #[test]
 fn defaults_match_cpp() {
-    let cfg = CoreConfig::default();
+    let cfg = emCoreConfig::default();
     assert!(!cfg.stick_mouse_when_navigating);
     assert!(!cfg.emulate_middle_button);
     assert!(!cfg.pan_function);
@@ -28,7 +28,7 @@ fn defaults_match_cpp() {
 
 #[test]
 fn round_trip_all_fields() {
-    let cfg = CoreConfig {
+    let cfg = emCoreConfig {
         stick_mouse_when_navigating: true,
         emulate_middle_button: true,
         pan_function: true,
@@ -50,7 +50,7 @@ fn round_trip_all_fields() {
     };
 
     let rec = cfg.to_rec();
-    let restored = CoreConfig::from_rec(&rec).unwrap();
+    let restored = emCoreConfig::from_rec(&rec).unwrap();
     assert_eq!(cfg, restored);
 }
 
@@ -64,7 +64,7 @@ fn clamping_double_fields() {
     rec.set_double("VisitSpeed", 0.001); // min 0.1
     rec.set_double("KineticZoomingAndScrolling", 99.0); // max 2.0
 
-    let cfg = CoreConfig::from_rec(&rec).unwrap();
+    let cfg = emCoreConfig::from_rec(&rec).unwrap();
     assert_eq!(cfg.mouse_zoom_speed, 4.0);
     assert_eq!(cfg.mouse_scroll_speed, 0.25);
     assert_eq!(cfg.mouse_wheel_zoom_acceleration, 2.0);
@@ -80,7 +80,7 @@ fn clamping_int_fields() {
     rec.set_int("DownscaleQuality", 0); // min 2 (DQ_2X2)
     rec.set_int("UpscaleQuality", 99); // max 5 (UQ_ADAPTIVE)
 
-    let cfg = CoreConfig::from_rec(&rec).unwrap();
+    let cfg = emCoreConfig::from_rec(&rec).unwrap();
     assert_eq!(cfg.max_megabytes_per_view, 8);
     assert_eq!(cfg.max_render_threads, 32);
     assert_eq!(cfg.downscale_quality, 2);
@@ -90,28 +90,28 @@ fn clamping_int_fields() {
 #[test]
 fn missing_fields_use_defaults() {
     let rec = RecStruct::new();
-    let cfg = CoreConfig::from_rec(&rec).unwrap();
-    assert_eq!(cfg, CoreConfig::default());
+    let cfg = emCoreConfig::from_rec(&rec).unwrap();
+    assert_eq!(cfg, emCoreConfig::default());
 }
 
 #[test]
 fn acquire_returns_singleton() {
-    let ctx = Context::new_root();
-    let m1 = CoreConfig::acquire(&ctx);
-    let m2 = CoreConfig::acquire(&ctx);
+    let ctx = emContext::new_root();
+    let m1 = emCoreConfig::acquire(&ctx);
+    let m2 = emCoreConfig::acquire(&ctx);
     assert!(std::rc::Rc::ptr_eq(&m1, &m2));
 }
 
 #[test]
 fn set_to_default_restores_defaults() {
-    let mut cfg = CoreConfig {
+    let mut cfg = emCoreConfig {
         mouse_zoom_speed: 3.5,
         max_render_threads: 1,
         allow_simd: false,
-        ..CoreConfig::default()
+        ..emCoreConfig::default()
     };
     assert!(!cfg.is_default());
     cfg.set_to_default();
     assert!(cfg.is_default());
-    assert_eq!(cfg, CoreConfig::default());
+    assert_eq!(cfg, emCoreConfig::default());
 }

@@ -1,27 +1,27 @@
 use std::cell::OnceCell;
 
-use crate::emCore::emImage::Image;
+use crate::emCore::emImage::emImage;
 use crate::emCore::emResTga::load_tga;
 
 pub(crate) struct ToolkitImages {
-    pub group_border: Image,
-    pub button_border: Image,
-    pub popup_border: Image,
-    pub group_inner_border: Image,
-    pub io_field: Image,
-    pub custom_rect_border: Image,
-    pub button: Image,
-    pub button_pressed: Image,
-    pub button_checked: Image,
-    pub splitter: Image,
-    pub splitter_pressed: Image,
-    pub check_box: Image,
-    pub check_box_pressed: Image,
-    pub radio_box: Image,
-    pub radio_box_pressed: Image,
+    pub group_border: emImage,
+    pub button_border: emImage,
+    pub popup_border: emImage,
+    pub group_inner_border: emImage,
+    pub io_field: emImage,
+    pub custom_rect_border: emImage,
+    pub button: emImage,
+    pub button_pressed: emImage,
+    pub button_checked: emImage,
+    pub splitter: emImage,
+    pub splitter_pressed: emImage,
+    pub check_box: emImage,
+    pub check_box_pressed: emImage,
+    pub radio_box: emImage,
+    pub radio_box_pressed: emImage,
 }
 
-fn decode(data: &[u8], name: &str, expected_w: u32, expected_h: u32) -> Image {
+fn decode(data: &[u8], name: &str, expected_w: u32, expected_h: u32) -> emImage {
     let img = load_tga(data).unwrap_or_else(|e| panic!("failed to decode {name}: {e}"));
     assert_eq!(
         (img.width(), img.height()),

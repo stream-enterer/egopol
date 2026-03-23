@@ -3,19 +3,19 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use crate::dlog;
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::emPanel::{PanelBehavior, PanelState};
 use crate::emCore::emPanelCtx::PanelCtx;
 use crate::emCore::emPanelTree::PanelId;
-use crate::emCore::emPainter::Painter;
-use crate::emCore::emStroke::Stroke;
+use crate::emCore::emPainter::emPainter;
+use crate::emCore::emStroke::emStroke;
 
-use super::emBorder::{Border, InnerBorderType, OuterBorderType};
-use crate::emCore::emCheckBox::CheckBox;
+use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use crate::emCore::emCheckBox::emCheckBox;
 use super::emColorFieldFieldPanel::{CheckBoxPanel, ListBoxPanel, TextFieldPanel};
-use super::emListBox::{ListBox, SelectionMode};
-use crate::emCore::emLook::Look;
-use crate::emCore::emTextField::TextField;
+use super::emListBox::{emListBox, SelectionMode};
+use crate::emCore::emLook::emLook;
+use crate::emCore::emTextField::emTextField;
 
 /// Data associated with each file entry in the listing.
 #[derive(Clone, Debug)]
@@ -39,7 +39,7 @@ struct FileItemPanelBehavior {
     is_directory: bool,
     is_readable: bool,
     is_selected: bool,
-    look: Rc<Look>,
+    look: Rc<emLook>,
     selection_mode: SelectionMode,
     enabled: bool,
 }
@@ -50,7 +50,7 @@ impl FileItemPanelBehavior {
         is_directory: bool,
         is_readable: bool,
         is_selected: bool,
-        look: Rc<Look>,
+        look: Rc<emLook>,
         selection_mode: SelectionMode,
         enabled: bool,
     ) -> Self {
@@ -67,7 +67,7 @@ impl FileItemPanelBehavior {
 }
 
 impl PanelBehavior for FileItemPanelBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         // C++ emFileSelectionBox::FileItemPanel::Paint (lines 958-1062).
         // Panel coordinates: (0,0)-(w,h) where w is normalized to 1.0 in C++.
         // Here w and h are the actual panel dimensions.
@@ -75,7 +75,7 @@ impl PanelBehavior for FileItemPanelBehavior {
         let panel_h = h / w.max(1e-100); // normalized height (C++ GetHeight())
         let nh = panel_h.max(1e-3);
 
-        // Color setup matching C++ GetFgColor/GetBgColor via Look.
+        // emColor setup matching C++ GetFgColor/GetBgColor via emLook.
         let (bg, fg, hl) = if self.selection_mode == SelectionMode::ReadOnly {
             (
                 self.look.output_bg_color,
@@ -201,7 +201,7 @@ impl PanelBehavior for FileItemPanelBehavior {
                     "Parent Directory",
                     fh * w,
                     pd_color,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     crate::emCore::emPainter::TextAlignment::Center,
                     crate::emCore::emPainter::VAlign::Center,
                     crate::emCore::emPainter::TextAlignment::Center,
@@ -219,12 +219,12 @@ impl PanelBehavior for FileItemPanelBehavior {
                 let rw = r * w;
 
                 // Circle outline via ellipse outlined.
-                let stroke = Stroke::new(fg_color, rw * 0.26);
+                let stroke = emStroke::new(fg_color, rw * 0.26);
                 painter.paint_ellipse_outlined(cx, cy, rw, rw, &stroke, canvas_color);
 
                 // Diagonal line.
                 let t = rw * std::f64::consts::FRAC_1_SQRT_2;
-                let line_stroke = Stroke::new(fg_color, rw * 0.22);
+                let line_stroke = emStroke::new(fg_color, rw * 0.22);
                 painter.paint_line_stroked(
                     cx - t,
                     cy - t,
@@ -237,7 +237,7 @@ impl PanelBehavior for FileItemPanelBehavior {
         }
     }
 
-    fn canvas_color(&self) -> Color {
+    fn canvas_color(&self) -> emColor {
         if self.selection_mode == SelectionMode::ReadOnly {
             self.look.output_bg_color
         } else {
@@ -269,9 +269,9 @@ struct FsbEvents {
 /// - A list of files/directories in the current directory
 /// - A text field for entering/editing the file name
 /// - A filter list for file type filtering
-pub struct FileSelectionBox {
-    border: Border,
-    look: Rc<Look>,
+pub struct emFileSelectionBox {
+    border: emBorder,
+    look: Rc<emLook>,
     multi_selection_enabled: bool,
     parent_dir: PathBuf,
     selected_names: Vec<String>,
@@ -303,14 +303,14 @@ pub struct FileSelectionBox {
     pub on_trigger: Option<FileTriggerCb>,
 }
 
-impl FileSelectionBox {
+impl emFileSelectionBox {
     pub fn new(caption: &str) -> Self {
         let parent_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
         Self {
-            border: Border::new(OuterBorderType::Group)
+            border: emBorder::new(OuterBorderType::Group)
                 .with_inner(InnerBorderType::Group)
                 .with_caption(caption),
-            look: Look::new(),
+            look: emLook::new(),
             multi_selection_enabled: false,
             parent_dir,
             selected_names: Vec::new(),
@@ -627,11 +627,11 @@ impl FileSelectionBox {
         self.listing_invalid = true;
     }
 
-    pub fn border(&self) -> &Border {
+    pub fn border(&self) -> &emBorder {
         &self.border
     }
 
-    pub fn border_mut(&mut self) -> &mut Border {
+    pub fn border_mut(&mut self) -> &mut emBorder {
         &mut self.border
     }
 
@@ -652,7 +652,7 @@ impl FileSelectionBox {
 
         // 1. ParentDirField
         if !self.parent_dir_field_hidden {
-            let mut tf = TextField::new(self.look.clone());
+            let mut tf = emTextField::new(self.look.clone());
             tf.set_caption("Directory");
             tf.set_editable(true);
             tf.set_text(&self.parent_dir.to_string_lossy());
@@ -670,7 +670,7 @@ impl FileSelectionBox {
 
         // 2. HiddenCheckBox
         if !self.hidden_check_box_hidden {
-            let mut cb = CheckBox::new("Show\nHidden\nFiles", self.look.clone());
+            let mut cb = emCheckBox::new("Show\nHidden\nFiles", self.look.clone());
             cb.set_checked(self.hidden_files_shown);
             let events = self.events.clone();
             cb.on_check = Some(Box::new(move |checked: bool| {
@@ -684,7 +684,7 @@ impl FileSelectionBox {
 
         // 3. FilesLB (always created)
         {
-            let mut lb = ListBox::new(self.look.clone());
+            let mut lb = emListBox::new(self.look.clone());
             lb.set_caption("Files");
             lb.set_selection_mode(if self.multi_selection_enabled {
                 SelectionMode::Multi
@@ -731,7 +731,7 @@ impl FileSelectionBox {
 
         // 4. NameField
         if !self.name_field_hidden {
-            let mut tf = TextField::new(self.look.clone());
+            let mut tf = emTextField::new(self.look.clone());
             tf.set_caption("Name");
             tf.set_editable(true);
             if let Some(name) = self.selected_names.first() {
@@ -751,7 +751,7 @@ impl FileSelectionBox {
 
         // 5. FiltersLB
         if !self.filter_hidden {
-            let mut lb = ListBox::new(self.look.clone());
+            let mut lb = emListBox::new(self.look.clone());
             lb.set_caption("Filter");
             for (i, filter) in self.filters.iter().enumerate() {
                 lb.add_item(format!("{}", i), filter.clone());
@@ -772,7 +772,7 @@ impl FileSelectionBox {
         ctx.tree.request_cycle(ctx.id);
     }
 
-    /// Sync FSB internal selection state FROM ListBox selection indices.
+    /// Sync FSB internal selection state FROM emListBox selection indices.
     fn selection_from_list_box(&mut self, indices: &[usize]) {
         let names: Vec<String> = indices
             .iter()
@@ -781,7 +781,7 @@ impl FileSelectionBox {
         self.selected_names = names;
     }
 
-    /// Sync FSB selection state TO the ListBox widget after a listing reload.
+    /// Sync FSB selection state TO the emListBox widget after a listing reload.
     fn selection_to_list_box(&self, ctx: &mut PanelCtx) {
         if let Some(lb_id) = self.files_lb_id {
             // Build item data outside the tree borrow.
@@ -890,8 +890,8 @@ fn match_pattern_recursive(fname: &[u8], pattern: &[u8]) -> bool {
     match_pattern_recursive(&fname[1..], &pattern[1..])
 }
 
-impl PanelBehavior for FileSelectionBox {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+impl PanelBehavior for emFileSelectionBox {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.border
             .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
@@ -997,11 +997,11 @@ impl PanelBehavior for FileSelectionBox {
         // Step 5 (C++): Reload listing if invalid.
         if self.listing_invalid && self.files_lb_id.is_some() {
             self.reload_listing();
-            // Sync selection TO ListBox after reload.
+            // Sync selection TO emListBox after reload.
             self.selection_to_list_box(ctx);
         }
 
-        // Step 6 (C++): ListBox selection changed -> update FSB state.
+        // Step 6 (C++): emListBox selection changed -> update FSB state.
         if events.selection_changed && !self.listing_invalid {
             self.selection_from_list_box(&events.selection_indices);
             // Update name field.
@@ -1011,7 +1011,7 @@ impl PanelBehavior for FileSelectionBox {
             }
         }
 
-        // Step 7 (C++): ListBox trigger (double-click).
+        // Step 7 (C++): emListBox trigger (double-click).
         if let Some(index) = events.triggered_index {
             if !self.listing_invalid {
                 // First sync selection.
@@ -1117,7 +1117,7 @@ mod tests {
 
     #[test]
     fn new_file_selection_box() {
-        let fsb = FileSelectionBox::new("Files");
+        let fsb = emFileSelectionBox::new("Files");
         assert!(!fsb.is_multi_selection_enabled());
         assert!(fsb.selected_names().is_empty());
         assert_eq!(fsb.selected_filter_index(), -1);
@@ -1126,7 +1126,7 @@ mod tests {
 
     #[test]
     fn set_selected_name() {
-        let mut fsb = FileSelectionBox::new("Files");
+        let mut fsb = emFileSelectionBox::new("Files");
         fsb.set_selected_name("test.txt");
         assert_eq!(fsb.selected_name(), Some("test.txt"));
 
@@ -1136,7 +1136,7 @@ mod tests {
 
     #[test]
     fn set_filters() {
-        let mut fsb = FileSelectionBox::new("Files");
+        let mut fsb = emFileSelectionBox::new("Files");
         fsb.set_filters(&[
             "All files (*)".to_string(),
             "Images (*.png *.jpg)".to_string(),
@@ -1147,7 +1147,7 @@ mod tests {
 
     #[test]
     fn enter_parent_dir() {
-        let mut fsb = FileSelectionBox::new("Files");
+        let mut fsb = emFileSelectionBox::new("Files");
         fsb.set_parent_directory(Path::new("/tmp"));
         fsb.set_selected_name("foo");
         fsb.enter_sub_dir("..");
@@ -1156,7 +1156,7 @@ mod tests {
 
     #[test]
     fn visibility_toggles() {
-        let mut fsb = FileSelectionBox::new("Files");
+        let mut fsb = emFileSelectionBox::new("Files");
         assert!(!fsb.is_parent_dir_field_hidden());
         fsb.set_parent_dir_field_hidden(true);
         assert!(fsb.is_parent_dir_field_hidden());

@@ -1,6 +1,6 @@
 use crate::emCore::emPanel::PanelBehavior;
 use super::emPanelTree::{PanelId, PanelTree};
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::rect::Rect;
 
 /// Panel context — provides a scoped API for a panel to interact with the tree.
@@ -60,7 +60,7 @@ impl<'a> PanelCtx<'a> {
         y: f64,
         w: f64,
         h: f64,
-        canvas_color: Color,
+        canvas_color: emColor,
     ) {
         self.tree.set_layout_rect(child, x, y, w, h);
         self.tree.set_canvas_color(child, canvas_color);
@@ -105,7 +105,7 @@ impl<'a> PanelCtx<'a> {
     }
 
     /// Set the canvas color.
-    pub fn set_canvas_color(&mut self, color: Color) {
+    pub fn set_canvas_color(&mut self, color: emColor) {
         self.tree.set_canvas_color(self.id, color);
     }
 
@@ -163,11 +163,11 @@ impl<'a> PanelCtx<'a> {
     }
 
     /// Get the canvas color of the current panel.
-    pub fn canvas_color(&self) -> Color {
+    pub fn canvas_color(&self) -> emColor {
         self.tree
             .get(self.id)
             .map(|p| p.canvas_color)
-            .unwrap_or(Color::TRANSPARENT)
+            .unwrap_or(emColor::TRANSPARENT)
     }
 
     /// Get whether the panel is enabled.
@@ -188,7 +188,7 @@ impl<'a> PanelCtx<'a> {
     /// Set canvas color on a child panel.
     ///
     /// C++ equivalent: the canvasColor argument of `child->Layout()`.
-    pub fn set_child_canvas_color(&mut self, child: PanelId, color: Color) {
+    pub fn set_child_canvas_color(&mut self, child: PanelId, color: emColor) {
         self.tree.set_canvas_color(child, color);
     }
 
@@ -196,7 +196,7 @@ impl<'a> PanelCtx<'a> {
     ///
     /// Used after layout_children to propagate the content area's background
     /// color to all child panels, matching C++ LayoutChildren behavior.
-    pub fn set_all_children_canvas_color(&mut self, color: Color) {
+    pub fn set_all_children_canvas_color(&mut self, color: emColor) {
         let children: Vec<PanelId> = self.tree.children(self.id).collect();
         for child in children {
             self.tree.set_canvas_color(child, color);

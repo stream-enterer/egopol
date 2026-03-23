@@ -1,36 +1,36 @@
 use crate::emCore::emPanel::{PanelBehavior, PanelState};
 use crate::emCore::emPanelCtx::PanelCtx;
-use crate::emCore::emPainter::Painter;
-use crate::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
-use crate::emCore::emLook::Look;
+use crate::emCore::emPainter::emPainter;
+use crate::emCore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use crate::emCore::emLook::emLook;
 
-use crate::emCore::emPackLayout::PackLayout;
+use crate::emCore::emPackLayout::emPackLayout;
 
-/// PackGroup wraps PackLayout with border painting and focusable support.
-pub struct PackGroup {
-    pub layout: PackLayout,
-    pub border: Border,
-    pub look: Look,
+/// emPackGroup wraps emPackLayout with border painting and focusable support.
+pub struct emPackGroup {
+    pub layout: emPackLayout,
+    pub border: emBorder,
+    pub look: emLook,
 }
 
-impl PackGroup {
+impl emPackGroup {
     pub fn new() -> Self {
         Self {
-            layout: PackLayout::new(),
-            border: Border::new(OuterBorderType::Group).with_inner(InnerBorderType::Group),
-            look: Look::default(),
+            layout: emPackLayout::new(),
+            border: emBorder::new(OuterBorderType::Group).with_inner(InnerBorderType::Group),
+            look: emLook::default(),
         }
     }
 }
 
-impl Default for PackGroup {
+impl Default for emPackGroup {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl PanelBehavior for PackGroup {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+impl PanelBehavior for emPackGroup {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.border
             .paint_border(painter, w, h, &self.look, state.is_focused(), state.enabled, pixel_scale);

@@ -1,27 +1,27 @@
 use std::rc::Rc;
 
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::rect::Rect;
-use crate::emCore::emCursor::Cursor;
-use crate::emCore::emInput::{InputEvent, InputKey, InputVariant};
-use crate::emCore::emInputState::InputState;
+use crate::emCore::emCursor::emCursor;
+use crate::emCore::emInput::{emInputEvent, InputKey, InputVariant};
+use crate::emCore::emInputState::emInputState;
 use crate::emCore::emPanel::PanelState;
-use crate::emCore::emPainter::{Painter, BORDER_EDGES_ONLY};
-use crate::emCore::emStroke::{LineCap, LineJoin, Stroke};
+use crate::emCore::emPainter::{emPainter, BORDER_EDGES_ONLY};
+use crate::emCore::emStroke::{LineCap, LineJoin, emStroke};
 
-use super::emBorder::{Border, OuterBorderType};
-use crate::emCore::emLook::Look;
+use super::emBorder::{emBorder, OuterBorderType};
+use crate::emCore::emLook::emLook;
 use crate::emCore::toolkit_images::with_toolkit_images;
 
-/// CheckBox widget — Margin border with ShownBoxed paint path.
+/// emCheckBox widget — Margin border with ShownBoxed paint path.
 /// Matches C++ `emCheckBox` (which extends `emCheckButton` extends `emButton`).
 ///
 /// C++ constructor chain:
 ///   emButton: OBT_INSTRUMENT_MORE_ROUND, LabelInBorder=false, ALIGN_CENTER
 ///   emCheckBox overrides: OBT_MARGIN, ALIGN_LEFT, ShownBoxed=true
-pub struct CheckBox {
-    border: Border,
-    look: Rc<Look>,
+pub struct emCheckBox {
+    border: emBorder,
+    look: Rc<emLook>,
     checked: bool,
     pressed: bool,
     box_pressed: bool,
@@ -32,10 +32,10 @@ pub struct CheckBox {
     pub on_check: Option<Box<dyn FnMut(bool)>>,
 }
 
-impl CheckBox {
-    pub fn new(label: &str, look: Rc<Look>) -> Self {
+impl emCheckBox {
+    pub fn new(label: &str, look: Rc<emLook>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::Margin)
+            border: emBorder::new(OuterBorderType::Margin)
                 .with_caption(label)
                 .with_label_in_border(false)
                 .with_label_alignment(crate::emCore::emPainter::TextAlignment::Left)
@@ -98,8 +98,8 @@ impl CheckBox {
     /// Paint using the C++ ShownBoxed path (emButton.cpp:233-341).
     ///
     /// Layout: small checkbox box on the left, label text on the right.
-    /// The box contains: InputBgColor face → checkmark symbol → CheckBox image overlay.
-    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
+    /// The box contains: InputBgColor face → checkmark symbol → emCheckBox image overlay.
+    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -156,21 +156,21 @@ impl CheckBox {
                 (fx + fw * 0.4, fy + fh * 0.8),
                 (fx + fw * 0.8, fy + fh * 0.2),
             ];
-            let mut stroke = Stroke::new(check_color, fw * 0.16);
+            let mut stroke = emStroke::new(check_color, fw * 0.16);
             stroke.join = LineJoin::Round;
             stroke.cap = LineCap::Round;
-            painter.paint_solid_polyline(&verts, &stroke, false, Color::TRANSPARENT);
+            painter.paint_solid_polyline(&verts, &stroke, false, emColor::TRANSPARENT);
         }
 
         // Paint checkbox image overlay (C++ lines 318-331).
-        // BoxPressed → CheckBoxPressed image, else → CheckBox image.
+        // BoxPressed → CheckBoxPressed image, else → emCheckBox image.
         with_toolkit_images(|img| {
             let box_img = if self.box_pressed {
                 &img.check_box_pressed
             } else {
                 &img.check_box
             };
-            painter.paint_image_full(bx, by, bw, bh, box_img, 255, Color::TRANSPARENT);
+            painter.paint_image_full(bx, by, bw, bh, box_img, 255, emColor::TRANSPARENT);
         });
 
         // C++ lines 333-340: Pressed && !BoxPressed → GroupInnerBorder overlay.
@@ -193,7 +193,7 @@ impl CheckBox {
                     225,
                     225,
                     255,
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     BORDER_EDGES_ONLY,
                 );
             });
@@ -202,7 +202,7 @@ impl CheckBox {
         // C++ DoButton: disabled gray overlay for boxed path.
         // PaintRoundRect(fx, fy, fw, fh, fr, fr, 0x888888E0).
         if !enabled {
-            painter.paint_round_rect(fx, fy, fw, fh, fr, Color::rgba(0x88, 0x88, 0x88, 0xE0));
+            painter.paint_round_rect(fx, fy, fw, fh, fr, emColor::rgba(0x88, 0x88, 0x88, 0xE0));
         }
     }
 
@@ -250,7 +250,7 @@ impl CheckBox {
         dx * dx + dy * dy <= fr * fr
     }
 
-    pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
+    pub fn input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -324,13 +324,13 @@ impl CheckBox {
         }
     }
 
-    pub fn get_cursor(&self) -> Cursor {
-        Cursor::Normal
+    pub fn get_cursor(&self) -> emCursor {
+        emCursor::Normal
     }
 
     pub fn preferred_size(&self) -> (f64, f64) {
         let th = 13.0;
-        let tw = Painter::measure_text_width(&self.border.caption, th);
+        let tw = emPainter::measure_text_width(&self.border.caption, th);
         self.border.preferred_size_for_content(tw + 8.0, th + 4.0)
     }
 
@@ -366,41 +366,41 @@ mod tests {
         }
     }
 
-    fn default_input_state() -> InputState {
-        InputState::new()
+    fn default_input_state() -> emInputState {
+        emInputState::new()
     }
 
     #[test]
     fn checkbox_toggle() {
-        let look = Look::new();
-        let mut cb = CheckBox::new("Enable", look);
+        let look = emLook::new();
+        let mut cb = emCheckBox::new("Enable", look);
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!cb.is_checked());
         // Enter is instant: toggles on press, no release needed.
-        cb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        cb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(cb.is_checked()); // Toggled immediately on press
-        cb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        cb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!cb.is_checked());
     }
 
     #[test]
     fn pressed_state_tracks_press_release() {
         // Enter is instant — no visual press state. Verify pressed stays false.
-        let look = Look::new();
-        let mut cb = CheckBox::new("Enable", look);
+        let look = emLook::new();
+        let mut cb = emCheckBox::new("Enable", look);
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!cb.pressed);
-        cb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        cb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!cb.pressed); // Enter toggles instantly, no press state
         assert!(cb.is_checked()); // But the toggle did happen
     }
 
     #[test]
     fn checkbox_preferred_size() {
-        let look = Look::new();
-        let cb = CheckBox::new("Hi", look);
+        let look = emLook::new();
+        let cb = emCheckBox::new("Hi", look);
         let (w, h) = cb.preferred_size();
         assert!(w > 0.0, "Should have positive width");
         assert!(h > 0.0, "Should have positive height");

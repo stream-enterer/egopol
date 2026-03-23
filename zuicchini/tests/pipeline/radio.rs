@@ -1,4 +1,4 @@
-//! Systematic interaction test for RadioButton at 1x and 2x zoom, driven
+//! Systematic interaction test for emRadioButton at 1x and 2x zoom, driven
 //! through the full input dispatch pipeline (PipelineTestHarness).
 //!
 //! Three radio buttons share a group, each installed in its own child panel
@@ -9,47 +9,47 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::{InputEvent, InputKey};
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::{emInputEvent, InputKey};
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 use zuicchini::emCore::emPanelTree::PanelId;
-use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emPainter::emPainter;
 use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
-use zuicchini::emCore::emLook::Look;
-use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+use zuicchini::emCore::emLook::emLook;
+use zuicchini::emCore::emRadioButton::{emRadioButton, RadioGroup};
 
 use super::support::pipeline::PipelineTestHarness;
 
 // ---------------------------------------------------------------------------
-// RadioButtonBehavior -- minimal PanelBehavior wrapper for RadioButton
+// RadioButtonBehavior -- minimal PanelBehavior wrapper for emRadioButton
 // ---------------------------------------------------------------------------
 
 struct RadioButtonBehavior {
-    widget: RadioButton,
+    widget: emRadioButton,
 }
 
 impl RadioButtonBehavior {
-    fn new(widget: RadioButton) -> Self {
+    fn new(widget: emRadioButton) -> Self {
         Self { widget }
     }
 }
 
 impl PanelBehavior for RadioButtonBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.widget.paint(painter, w, h, state.enabled);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         self.widget.input(event, state, input_state)
     }
 
-    fn get_cursor(&self) -> Cursor {
+    fn get_cursor(&self) -> emCursor {
         self.widget.get_cursor()
     }
 
@@ -62,13 +62,13 @@ impl PanelBehavior for RadioButtonBehavior {
 /// verifying the group selection state after each click.
 #[test]
 fn radiobutton_select_1x_and_2x() {
-    let look = Look::new();
+    let look = emLook::new();
     let group: Rc<RefCell<RadioGroup>> = RadioGroup::new();
 
     // Create 3 RadioButtons sharing the same group.
-    let rb0 = RadioButton::new("Option A", look.clone(), group.clone(), 0);
-    let rb1 = RadioButton::new("Option B", look.clone(), group.clone(), 1);
-    let rb2 = RadioButton::new("Option C", look.clone(), group.clone(), 2);
+    let rb0 = emRadioButton::new("Option A", look.clone(), group.clone(), 0);
+    let rb1 = emRadioButton::new("Option B", look.clone(), group.clone(), 1);
+    let rb2 = emRadioButton::new("Option C", look.clone(), group.clone(), 2);
 
     assert_eq!(group.borrow().count(), 3);
     assert_eq!(group.borrow().selected(), None);
@@ -96,7 +96,7 @@ fn radiobutton_select_1x_and_2x() {
     // Settle layout and viewing geometry.
     h.tick_n(5);
 
-    // Render so that RadioButton::paint() caches last_w/last_h (required
+    // Render so that emRadioButton::paint() caches last_w/last_h (required
     // for hit_test to function).
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
@@ -176,7 +176,7 @@ fn radiobutton_select_1x_and_2x() {
 }
 
 // ---------------------------------------------------------------------------
-// BP-13 RadioButton exclusion tests -- shared harness
+// BP-13 emRadioButton exclusion tests -- shared harness
 // ---------------------------------------------------------------------------
 
 struct RadioButtonHarness {
@@ -188,12 +188,12 @@ struct RadioButtonHarness {
 
 impl RadioButtonHarness {
     fn new() -> Self {
-        let look = Look::new();
+        let look = emLook::new();
         let group: Rc<RefCell<RadioGroup>> = RadioGroup::new();
 
-        let rb0 = RadioButton::new("Option A", look.clone(), group.clone(), 0);
-        let rb1 = RadioButton::new("Option B", look.clone(), group.clone(), 1);
-        let rb2 = RadioButton::new("Option C", look.clone(), group.clone(), 2);
+        let rb0 = emRadioButton::new("Option A", look.clone(), group.clone(), 0);
+        let rb1 = emRadioButton::new("Option B", look.clone(), group.clone(), 1);
+        let rb2 = emRadioButton::new("Option C", look.clone(), group.clone(), 2);
 
         assert_eq!(group.borrow().count(), 3);
         assert_eq!(group.borrow().selected(), None);
@@ -385,7 +385,7 @@ fn bp13_programmatic_set_check_index_same_value_no_callback() {
 }
 
 // ---------------------------------------------------------------------------
-// BP-13: Enter key selects radio button (inherited from Button)
+// BP-13: Enter key selects radio button (inherited from emButton)
 // ---------------------------------------------------------------------------
 
 /// Enter key press on a radio button selects it, matching C++ emButton.cpp:113-119.
@@ -418,7 +418,7 @@ fn bp13_enter_key_selects_radio_button() {
 // BP-13: Modifier gating -- Ctrl/Alt/Meta rejected, Shift accepted
 // ---------------------------------------------------------------------------
 
-/// Mouse click with Ctrl modifier is rejected by RadioButton input handler.
+/// Mouse click with Ctrl modifier is rejected by emRadioButton input handler.
 /// C++ ref: emButton.cpp:82 — (state.IsNoMod() || state.IsShiftMod()).
 #[test]
 fn bp13_ctrl_click_rejected() {
@@ -428,8 +428,8 @@ fn bp13_ctrl_click_rejected() {
     t.h.input_state.press(InputKey::Ctrl);
 
     let (cx, cy) = t.panel_center(0);
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(cx, cy);
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(cx, cy);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(cx, cy);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(cx, cy);
     t.h.dispatch(&press);
     t.h.dispatch(&release);
 
@@ -451,8 +451,8 @@ fn bp13_alt_click_rejected() {
     t.h.input_state.press(InputKey::Alt);
 
     let (cx, cy) = t.panel_center(0);
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(cx, cy);
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(cx, cy);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(cx, cy);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(cx, cy);
     t.h.dispatch(&press);
     t.h.dispatch(&release);
 
@@ -474,8 +474,8 @@ fn bp13_meta_click_rejected() {
     t.h.input_state.press(InputKey::Meta);
 
     let (cx, cy) = t.panel_center(0);
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(cx, cy);
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(cx, cy);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(cx, cy);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(cx, cy);
     t.h.dispatch(&press);
     t.h.dispatch(&release);
 
@@ -497,8 +497,8 @@ fn bp13_shift_click_accepted() {
     t.h.input_state.press(InputKey::Shift);
 
     let (cx, cy) = t.panel_center(0);
-    let press = InputEvent::press(InputKey::MouseLeft).with_mouse(cx, cy);
-    let release = InputEvent::release(InputKey::MouseLeft).with_mouse(cx, cy);
+    let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(cx, cy);
+    let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(cx, cy);
     t.h.dispatch(&press);
     t.h.dispatch(&release);
 

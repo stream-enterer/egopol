@@ -1,31 +1,31 @@
 //! Pack layout test derived from C++ `emTestPackLayout.cpp`.
 //!
 //! Creates N panels (default 20, configurable via CLI arg) with random weights
-//! and preferred tallnesses, arranged by a `PackLayout`. Each panel paints a
-//! colored `Border` with its tallness value as caption.
+//! and preferred tallnesses, arranged by a `emPackLayout`. Each panel paints a
+//! colored `emBorder` with its tallness value as caption.
 
 use rand::Rng;
 
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emPackLayout::PackLayout;
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emPackLayout::emPackLayout;
 use zuicchini::emCore::emTiling::ChildConstraint;
 use zuicchini::emCore::emPanel::PanelBehavior;
 use zuicchini::emCore::emView::ViewFlags;
-use zuicchini::emCore::emPainter::Painter;
-use zuicchini::emCore::emBorder::{Border, OuterBorderType};
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emPainter::emPainter;
+use zuicchini::emCore::emBorder::{emBorder, OuterBorderType};
+use zuicchini::emCore::emLook::emLook;
 use zuicchini::emCore::emGUIFramework::App;
 use zuicchini::emCore::emWindow::WindowFlags;
 
 struct BorderPanel {
-    border: Border,
-    look: Look,
+    border: emBorder,
+    look: emLook,
 }
 
 impl PanelBehavior for BorderPanel {
     fn paint(
         &mut self,
-        painter: &mut Painter,
+        painter: &mut emPainter,
         w: f64,
         h: f64,
         _state: &zuicchini::emCore::emPanel::PanelState,
@@ -47,7 +47,7 @@ fn main() {
 
     let app = App::new(Box::new(move |app, event_loop| {
         let root = app.tree.create_root("root");
-        let mut layout = PackLayout::new();
+        let mut layout = emPackLayout::new();
         let mut rng = rand::rng();
 
         for i in 0..panel_count {
@@ -55,15 +55,15 @@ fn main() {
             let pct: f64 = rng.random_range(-2.5_f64..2.5).exp();
             let hue: u32 = rng.random_range(0..360);
 
-            let color = Color::from_hsv(hue as f32, 0.5, 0.5);
+            let color = emColor::from_hsv(hue as f32, 0.5, 0.5);
 
-            let look = Look {
+            let look = emLook {
                 bg_color: color,
-                ..Look::default()
+                ..emLook::default()
             };
 
             let caption = format!("{pct:.4}");
-            let border = Border::new(OuterBorderType::Filled).with_caption(&caption);
+            let border = emBorder::new(OuterBorderType::Filled).with_caption(&caption);
 
             let child = app.tree.create_child(root, &format!("{i:06}"));
             app.tree

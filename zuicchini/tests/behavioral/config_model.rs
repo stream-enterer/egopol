@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use zuicchini::emCore::emRec::{parse_rec, write_rec, RecStruct};
-use zuicchini::emCore::emConfigModel::ConfigModel;
+use zuicchini::emCore::emConfigModel::emConfigModel;
 use zuicchini::emCore::emRec::RecError;
 use zuicchini::emCore::emRecRecord::Record;
 use zuicchini::emCore::emScheduler::EngineScheduler;
@@ -81,12 +81,12 @@ fn config_model_round_trip_save_load() {
     };
 
     // Save
-    let mut model = ConfigModel::new(original.clone(), path.clone(), sig);
+    let mut model = emConfigModel::new(original.clone(), path.clone(), sig);
     model.save().expect("save should succeed");
     assert!(!model.is_dirty());
 
     // Load into a fresh model
-    let mut model2 = ConfigModel::new(TestConfig::default(), path.clone(), sig);
+    let mut model2 = emConfigModel::new(TestConfig::default(), path.clone(), sig);
     model2.load().expect("load should succeed");
     assert_eq!(model2.get(), &original);
     assert!(!model2.is_dirty());
@@ -102,7 +102,7 @@ fn config_model_load_or_install_creates_default() {
     let mut sched = EngineScheduler::new();
     let sig = sched.create_signal();
 
-    let mut model = ConfigModel::new(TestConfig::default(), path.clone(), sig);
+    let mut model = emConfigModel::new(TestConfig::default(), path.clone(), sig);
     model
         .load_or_install()
         .expect("load_or_install should succeed");
@@ -126,11 +126,11 @@ fn config_model_load_or_install_reads_existing() {
         ratio: 2.718,
         enabled: true,
     };
-    let mut writer = ConfigModel::new(custom.clone(), path.clone(), sig);
+    let mut writer = emConfigModel::new(custom.clone(), path.clone(), sig);
     writer.save().expect("save");
 
     // load_or_install should read existing, not overwrite
-    let mut model = ConfigModel::new(TestConfig::default(), path.clone(), sig);
+    let mut model = emConfigModel::new(TestConfig::default(), path.clone(), sig);
     model.load_or_install().expect("load_or_install");
     assert_eq!(model.get(), &custom);
 
@@ -144,7 +144,7 @@ fn config_model_set_marks_dirty() {
     let mut sched = EngineScheduler::new();
     let sig = sched.create_signal();
 
-    let mut model = ConfigModel::new(TestConfig::default(), path, sig);
+    let mut model = emConfigModel::new(TestConfig::default(), path, sig);
     assert!(!model.is_dirty());
     model.set(TestConfig {
         name: "changed".to_string(),
@@ -159,7 +159,7 @@ fn config_model_modify_marks_dirty() {
     let mut sched = EngineScheduler::new();
     let sig = sched.create_signal();
 
-    let mut model = ConfigModel::new(TestConfig::default(), path, sig);
+    let mut model = emConfigModel::new(TestConfig::default(), path, sig);
     model.modify(|c| c.count = 7);
     assert!(model.is_dirty());
     assert_eq!(model.get().count, 7);
@@ -177,7 +177,7 @@ fn config_model_reset_to_default() {
         ratio: 9.9,
         enabled: true,
     };
-    let mut model = ConfigModel::new(custom, path, sig);
+    let mut model = emConfigModel::new(custom, path, sig);
     model.reset_to_default();
     assert!(model.is_dirty());
     assert_eq!(model.get(), &TestConfig::default());

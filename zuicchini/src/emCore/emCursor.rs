@@ -2,7 +2,7 @@ use std::fmt;
 
 /// Mouse cursor appearance.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Cursor {
+pub enum emCursor {
     Normal,
     Invisible,
     Wait,
@@ -24,34 +24,34 @@ pub enum Cursor {
     Move,
 }
 
-impl Cursor {
+impl emCursor {
     /// Display name for this cursor type.
     pub fn as_str(self) -> &'static str {
         match self {
-            Cursor::Normal => "Normal",
-            Cursor::Invisible => "Invisible",
-            Cursor::Wait => "Wait",
-            Cursor::Crosshair => "Crosshair",
-            Cursor::Text => "Text",
-            Cursor::Hand => "Hand",
-            Cursor::ArrowN => "ArrowN",
-            Cursor::ArrowS => "ArrowS",
-            Cursor::ArrowE => "ArrowE",
-            Cursor::ArrowW => "ArrowW",
-            Cursor::ArrowNE => "ArrowNE",
-            Cursor::ArrowNW => "ArrowNW",
-            Cursor::ArrowSE => "ArrowSE",
-            Cursor::ArrowSW => "ArrowSW",
-            Cursor::ResizeNS => "ResizeNS",
-            Cursor::ResizeEW => "ResizeEW",
-            Cursor::ResizeNESW => "ResizeNESW",
-            Cursor::ResizeNWSE => "ResizeNWSE",
-            Cursor::Move => "Move",
+            emCursor::Normal => "Normal",
+            emCursor::Invisible => "Invisible",
+            emCursor::Wait => "Wait",
+            emCursor::Crosshair => "Crosshair",
+            emCursor::Text => "Text",
+            emCursor::Hand => "Hand",
+            emCursor::ArrowN => "ArrowN",
+            emCursor::ArrowS => "ArrowS",
+            emCursor::ArrowE => "ArrowE",
+            emCursor::ArrowW => "ArrowW",
+            emCursor::ArrowNE => "ArrowNE",
+            emCursor::ArrowNW => "ArrowNW",
+            emCursor::ArrowSE => "ArrowSE",
+            emCursor::ArrowSW => "ArrowSW",
+            emCursor::ResizeNS => "ResizeNS",
+            emCursor::ResizeEW => "ResizeEW",
+            emCursor::ResizeNESW => "ResizeNESW",
+            emCursor::ResizeNWSE => "ResizeNWSE",
+            emCursor::Move => "Move",
         }
     }
 }
 
-impl fmt::Display for Cursor {
+impl fmt::Display for emCursor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }

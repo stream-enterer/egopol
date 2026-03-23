@@ -25,7 +25,7 @@ pub fn golden_available() -> bool {
     golden_dir().is_dir()
 }
 
-// ────────────────────── Painter golden files ──────────────────────
+// ────────────────────── emPainter golden files ──────────────────────
 
 /// Load a painter golden file. Returns (width, height, rgba_bytes).
 pub fn load_painter_golden(name: &str) -> (u32, u32, Vec<u8>) {
@@ -69,7 +69,7 @@ pub fn load_compositor_golden(name: &str) -> (u32, u32, Vec<u8>) {
     (width, height, data[8..].to_vec())
 }
 
-// ────────────────────── Image comparison ──────────────────────
+// ────────────────────── emImage comparison ──────────────────────
 
 /// Compare two RGBA images pixel-by-pixel on RGB channels only.
 ///
@@ -156,7 +156,7 @@ pub fn compare_images(
     }
     if fail_pct > max_failure_pct {
         let mut msg = format!(
-            "Image mismatch: {fail_count}/{total} pixels ({fail_pct:.2}%) exceed tolerance \
+            "emImage mismatch: {fail_count}/{total} pixels ({fail_pct:.2}%) exceed tolerance \
              {channel_tolerance}, max_diff={max_diff}\n"
         );
         for &(x, y, off) in &first_failures {
@@ -176,7 +176,7 @@ pub fn compare_images(
     }
 }
 
-// ────────────────────── Image dump helpers ────────────────────────
+// ────────────────────── emImage dump helpers ────────────────────────
 
 /// Write RGBA data as PPM (P6 binary) file, dropping the alpha channel.
 pub fn dump_ppm(path: &str, data: &[u8], w: u32, h: u32) {

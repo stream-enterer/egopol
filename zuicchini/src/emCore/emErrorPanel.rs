@@ -1,19 +1,19 @@
-use crate::emCore::emColor::Color;
+use crate::emCore::emColor::emColor;
 use crate::emCore::emPanel::{PanelBehavior, PanelState};
-use crate::emCore::emPainter::{Painter, TextAlignment, VAlign};
+use crate::emCore::emPainter::{emPainter, TextAlignment, VAlign};
 
 /// A red panel that displays an error message with yellow text.
 ///
 /// Port of C++ `emErrorPanel`. Used to show error conditions with a
 /// distinctive visual style (dark red background, yellow text).
-pub struct ErrorPanel {
+pub struct emErrorPanel {
     error_message: String,
 }
 
-const BG_COLOR: Color = Color::rgb(128, 0, 0);
-const FG_COLOR: Color = Color::rgb(255, 255, 0);
+const BG_COLOR: emColor = emColor::rgb(128, 0, 0);
+const FG_COLOR: emColor = emColor::rgb(255, 255, 0);
 
-impl ErrorPanel {
+impl emErrorPanel {
     pub fn new(error_message: &str) -> Self {
         Self {
             error_message: error_message.to_string(),
@@ -29,16 +29,16 @@ impl ErrorPanel {
     }
 }
 
-impl PanelBehavior for ErrorPanel {
+impl PanelBehavior for emErrorPanel {
     fn is_opaque(&self) -> bool {
         true
     }
 
-    fn canvas_color(&self) -> Color {
+    fn canvas_color(&self) -> emColor {
         BG_COLOR
     }
 
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         let canvas_color = painter.canvas_color();
 
         painter.paint_rect(0.0, 0.0, w, h, BG_COLOR, canvas_color);
@@ -72,7 +72,7 @@ mod tests {
 
     #[test]
     fn error_panel_message() {
-        let mut panel = ErrorPanel::new("Something went wrong");
+        let mut panel = emErrorPanel::new("Something went wrong");
         assert_eq!(panel.error_message(), "Something went wrong");
         panel.set_error_message("New error");
         assert_eq!(panel.error_message(), "New error");
@@ -80,13 +80,13 @@ mod tests {
 
     #[test]
     fn error_panel_is_opaque() {
-        let panel = ErrorPanel::new("error");
+        let panel = emErrorPanel::new("error");
         assert!(panel.is_opaque());
     }
 
     #[test]
     fn error_panel_canvas_color() {
-        let panel = ErrorPanel::new("error");
+        let panel = emErrorPanel::new("error");
         assert_eq!(panel.canvas_color(), BG_COLOR);
     }
 }

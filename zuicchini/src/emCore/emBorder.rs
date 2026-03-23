@@ -1,10 +1,10 @@
-use crate::emCore::emColor::Color;
-use crate::emCore::emImage::Image;
+use crate::emCore::emColor::emColor;
+use crate::emCore::emImage::emImage;
 use crate::emCore::rect::Rect;
-use crate::emCore::emPainter::{Painter, TextAlignment, VAlign, BORDER_EDGES_ONLY};
-use crate::emCore::emStroke::Stroke;
+use crate::emCore::emPainter::{emPainter, TextAlignment, VAlign, BORDER_EDGES_ONLY};
+use crate::emCore::emStroke::emStroke;
 
-use crate::emCore::emLook::Look;
+use crate::emCore::emLook::emLook;
 
 /// Minimum font size in pixels — below this the text is too small to read.
 const MIN_FONT_SIZE: f64 = 4.0;
@@ -44,8 +44,8 @@ struct LabelLayout {
     _description_font_size: f64,
 }
 
-/// Border chrome helper. Embedded in widgets to draw surrounding decoration.
-pub struct Border {
+/// emBorder chrome helper. Embedded in widgets to draw surrounding decoration.
+pub struct emBorder {
     pub outer: OuterBorderType,
     pub inner: InnerBorderType,
     pub caption: String,
@@ -54,7 +54,7 @@ pub struct Border {
     pub label_alignment: TextAlignment,
     pub caption_alignment: Option<TextAlignment>,
     pub description_alignment: Option<TextAlignment>,
-    pub icon: Option<Image>,
+    pub icon: Option<emImage>,
     pub icon_above_caption: bool,
     pub max_icon_area_tallness: f64,
     /// When `true` (default), the label is rendered inside the border and
@@ -79,7 +79,7 @@ pub struct Border {
     pub how_to_text: String,
 }
 
-impl Border {
+impl emBorder {
     pub fn new(outer: OuterBorderType) -> Self {
         Self {
             outer,
@@ -169,19 +169,19 @@ impl Border {
         self.description_alignment = a;
     }
 
-    pub fn with_icon(mut self, icon: Image) -> Self {
+    pub fn with_icon(mut self, icon: emImage) -> Self {
         self.icon = Some(icon);
         self
     }
 
-    pub fn set_icon(&mut self, icon: Option<Image>) {
+    pub fn set_icon(&mut self, icon: Option<emImage>) {
         self.icon = icon;
     }
 
     /// Set caption, description, and icon in a single call.
     ///
     /// Port of C++ `emBorder::SetLabel(caption, description, icon)`.
-    pub fn set_label(&mut self, caption: &str, description: &str, icon: Option<Image>) {
+    pub fn set_label(&mut self, caption: &str, description: &str, icon: Option<emImage>) {
         self.caption = caption.to_string();
         self.description = description.to_string();
         self.icon = icon;
@@ -280,7 +280,7 @@ impl Border {
     /// Return whether an auxiliary panel is configured.
     ///
     /// In C++ `GetAuxPanel` returned a panel pointer by walking the child tree
-    /// and caching the result. Rust `Border` is not a panel, so this method
+    /// and caching the result. Rust `emBorder` is not a panel, so this method
     /// returns whether aux data exists. The caller can use
     /// [`get_aux_panel_name`](Self::get_aux_panel_name) to resolve the panel by
     /// name in the widget tree.
@@ -310,7 +310,7 @@ impl Border {
         let rnd_h = (h - oh).max(0.0);
 
         if self.label_in_border && self.has_label() {
-            // Label path: aux is placed at the right of the label text area.
+            // emLabel path: aux is placed at the right of the label text area.
             let label_area_w = rnd_w;
             let lch = self.label_content_height(label_area_w, rnd_h);
             let layout = self.label_layout(rnd_x, rnd_y, label_area_w, lch);
@@ -377,7 +377,7 @@ impl Border {
 
         // Step 1: caption
         let (cap_w, cap_h) = if has_cap {
-            let w = Painter::measure_text_width(&self.caption, 1.0);
+            let w = emPainter::measure_text_width(&self.caption, 1.0);
             (w, 1.0_f64)
         } else {
             (0.0, 0.0)
@@ -424,7 +424,7 @@ impl Border {
 
         // Step 3: description
         if has_desc {
-            let desc_w_raw = Painter::measure_text_width(&self.description, 1.0);
+            let desc_w_raw = emPainter::measure_text_width(&self.description, 1.0);
             let desc_h_raw = 1.0_f64;
             if has_icon || has_cap {
                 let f = if has_cap {
@@ -652,12 +652,12 @@ impl Border {
             // then scaled by f = area_h / totalH.  When f*totalW <= area_w,
             // the rect is narrowed and positioned using LabelAlignment.
             let total_w = {
-                use crate::emCore::emPainter::Painter;
+                use crate::emCore::emPainter::emPainter;
                 let cap_tw = if has_cap {
-                    let (tw, _) = Painter::get_text_size(&self.caption, 1.0, true, 0.0);
+                    let (tw, _) = emPainter::get_text_size(&self.caption, 1.0, true, 0.0);
                     tw
                 } else if has_desc {
-                    let (tw, _) = Painter::get_text_size(&self.description, 1.0, true, 0.0);
+                    let (tw, _) = emPainter::get_text_size(&self.description, 1.0, true, 0.0);
                     tw
                 } else {
                     1.0
@@ -906,7 +906,7 @@ How to move or set the focus:\n\
     ///
     /// Returns the preface, optionally appending the disabled and/or focus
     /// sections based on the panel state flags passed in. Callers (widget
-    /// behaviors) supply the state because `Border` itself is not a panel.
+    /// behaviors) supply the state because `emBorder` itself is not a panel.
     ///
     /// C++ equivalent: `emBorder::GetHowTo`.
     pub(crate) fn get_howto(&self, enabled: bool, focusable: bool) -> String {
@@ -925,7 +925,7 @@ How to move or set the focus:\n\
     /// entire panel area qualify, and only when the background color is opaque.
     ///
     /// C++ equivalent: `emBorder::IsOpaque`.
-    pub fn is_opaque(&self, look: &Look) -> bool {
+    pub fn is_opaque(&self, look: &emLook) -> bool {
         match self.outer {
             OuterBorderType::Filled
             | OuterBorderType::MarginFilled
@@ -1078,7 +1078,7 @@ How to move or set the focus:\n\
     ///
     /// C++ equivalent: `emBorder::GetContentRoundRect`
     /// (via `DoBorder(BORDER_FUNC_CONTENT_ROUND_RECT)`).
-    pub fn content_round_rect(&self, w: f64, h: f64, _look: &Look) -> (Rect, f64) {
+    pub fn content_round_rect(&self, w: f64, h: f64, _look: &emLook) -> (Rect, f64) {
         let (ox, oy, ow, oh) = self.outer_insets(w, h);
         let mut rnd_x = ox;
         let mut label_area_w = (w - ow).max(0.0);
@@ -1220,7 +1220,7 @@ How to move or set the focus:\n\
     ///
     /// C++ equivalent: `emBorder::GetContentRectUnobscured`
     /// (via `DoBorder(BORDER_FUNC_CONTENT_RECT_UNOBSCURED)`).
-    pub fn content_rect_unobscured(&self, w: f64, h: f64, look: &Look) -> Rect {
+    pub fn content_rect_unobscured(&self, w: f64, h: f64, look: &emLook) -> Rect {
         match self.inner {
             InnerBorderType::InputField | InnerBorderType::OutputField => {
                 // C++ emBorder.cpp lines 1121-1128: compute from the round-rect
@@ -1285,7 +1285,7 @@ How to move or set the focus:\n\
     }
 
     /// Compute the content area after border and label insets.
-    pub fn content_rect(&self, w: f64, h: f64, _look: &Look) -> Rect {
+    pub fn content_rect(&self, w: f64, h: f64, _look: &emLook) -> Rect {
         let (ox, oy, ow, oh) = self.outer_insets(w, h);
         let mut rnd_x = ox;
         let mut rnd_y = oy;
@@ -1458,13 +1458,13 @@ How to move or set the focus:\n\
     /// canvasColor tracking.
     ///
     /// In C++, `DoBorder()` tracks `canvasColor` through outer and inner border
-    /// painting. After the outer border paints its fill (using `Look.GetBgColor()`),
+    /// painting. After the outer border paints its fill (using `emLook.GetBgColor()`),
     /// `canvasColor` becomes `bg_color`. After the inner border paints its fill
-    /// (e.g., `InputField` uses `Look.GetInputBgColor()`), `canvasColor` is
+    /// (e.g., `InputField` uses `emLook.GetInputBgColor()`), `canvasColor` is
     /// updated again. The final value is what child panels receive via `Layout()`.
     ///
     /// This method replicates that logic without needing a painter.
-    pub fn content_canvas_color(&self, parent_canvas: Color, look: &Look, enabled: bool) -> Color {
+    pub fn content_canvas_color(&self, parent_canvas: emColor, look: &emLook, enabled: bool) -> emColor {
         let mut canvas = parent_canvas;
 
         // Outer border: if the border type paints a fill with bg_color,
@@ -1536,8 +1536,8 @@ How to move or set the focus:\n\
     /// position and dimensions for the label area.
     ///
     /// C++ equivalent: `emBorder::PaintLabel`.
-    pub fn paint_label(&self, painter: &mut Painter, area: Rect, look: &Look, enabled: bool) {
-        let dim_color = |c: Color| -> Color {
+    pub fn paint_label(&self, painter: &mut emPainter, area: Rect, look: &emLook, enabled: bool) {
+        let dim_color = |c: emColor| -> emColor {
             if enabled {
                 c
             } else {
@@ -1547,16 +1547,16 @@ How to move or set the focus:\n\
         self.paint_label_impl(painter, area, look, &dim_color);
     }
 
-    /// Paint the label with a custom text color (used by Button for button_fg_color).
+    /// Paint the label with a custom text color (used by emButton for button_fg_color).
     pub fn paint_label_colored(
         &self,
-        painter: &mut Painter,
+        painter: &mut emPainter,
         area: Rect,
-        look: &Look,
-        color: Color,
+        look: &emLook,
+        color: emColor,
         enabled: bool,
     ) {
-        let dim_color = move |_c: Color| -> Color {
+        let dim_color = move |_c: emColor| -> emColor {
             if enabled {
                 color
             } else {
@@ -1570,10 +1570,10 @@ How to move or set the focus:\n\
     /// description) into the given area.
     fn paint_label_impl(
         &self,
-        painter: &mut Painter,
+        painter: &mut emPainter,
         area: Rect,
-        look: &Look,
-        dim_color: &dyn Fn(Color) -> Color,
+        look: &emLook,
+        dim_color: &dyn Fn(emColor) -> emColor,
     ) {
         let label = self.label_layout(area.x, area.y, area.w, area.h);
 
@@ -1595,9 +1595,9 @@ How to move or set the focus:\n\
                             0,
                             img.width(),
                             img.height(),
-                            Color::TRANSPARENT,
+                            emColor::TRANSPARENT,
                             dim_color(look.fg_color),
-                            Color::TRANSPARENT,
+                            emColor::TRANSPARENT,
                             crate::emCore::emTexture::ImageExtension::EdgeOrZero,
                         );
                     } else {
@@ -1618,7 +1618,7 @@ How to move or set the focus:\n\
         // Caption — C++ DoLabel proportional scaling: compute a uniform scale
         // factor `f` that fits both width and height, maintaining aspect ratio.
         if let Some(ref cr) = label.caption_rect {
-            let (natural_tw, natural_th) = Painter::get_text_size(&self.caption, 1.0, false, 0.0);
+            let (natural_tw, natural_th) = emPainter::get_text_size(&self.caption, 1.0, false, 0.0);
             let cap_font = if natural_tw > 0.0 && natural_th > 0.0 {
                 let mut f = cr.h / natural_th;
                 let w2 = f * natural_tw;
@@ -1643,7 +1643,7 @@ How to move or set the focus:\n\
                 &self.caption,
                 cap_font,
                 dim_color(look.fg_color),
-                Color::TRANSPARENT,
+                emColor::TRANSPARENT,
                 TextAlignment::Center,
                 VAlign::Center,
                 cap_align,
@@ -1664,7 +1664,7 @@ How to move or set the focus:\n\
                 &self.description,
                 label._description_font_size,
                 dim_color(look.fg_color),
-                Color::TRANSPARENT,
+                emColor::TRANSPARENT,
                 TextAlignment::Center,
                 VAlign::Center,
                 desc_align,
@@ -1679,16 +1679,16 @@ How to move or set the focus:\n\
     #[allow(clippy::too_many_arguments)]
     pub fn paint_border(
         &self,
-        painter: &mut Painter,
+        painter: &mut emPainter,
         w: f64,
         h: f64,
-        look: &Look,
+        look: &emLook,
         _focused: bool,
         enabled: bool,
         pixel_scale: f64,
     ) {
         // Dimming for disabled state: C++ "GetTransparented(75.0)" = alpha * 0.25 + 0.5, truncate.
-        let dim_color = |c: crate::emCore::emColor::Color| -> crate::emCore::emColor::Color {
+        let dim_color = |c: crate::emCore::emColor::emColor| -> crate::emCore::emColor::emColor {
             if enabled {
                 c
             } else {
@@ -1700,7 +1700,7 @@ How to move or set the focus:\n\
         match self.outer {
             OuterBorderType::None => {}
             OuterBorderType::Filled => {
-                painter.paint_rect(0.0, 0.0, w, h, look.bg_color, Color::TRANSPARENT);
+                painter.paint_rect(0.0, 0.0, w, h, look.bg_color, emColor::TRANSPARENT);
                 // C++ DoBorder: canvasColor=color after fill.
                 if !look.bg_color.is_transparent() {
                     painter.set_canvas_color(look.bg_color);
@@ -1710,7 +1710,7 @@ How to move or set the focus:\n\
             OuterBorderType::MarginFilled => {
                 // C++ DoBorder: Clear fills the ENTIRE panel, not the inset rect.
                 if !look.bg_color.is_transparent() {
-                    painter.paint_rect(0.0, 0.0, w, h, look.bg_color, Color::TRANSPARENT);
+                    painter.paint_rect(0.0, 0.0, w, h, look.bg_color, emColor::TRANSPARENT);
                     painter.set_canvas_color(look.bg_color);
                 }
             }
@@ -1726,7 +1726,7 @@ How to move or set the focus:\n\
                         w - 2.0 * d,
                         h - 2.0 * d,
                         look.bg_color,
-                        Color::TRANSPARENT,
+                        emColor::TRANSPARENT,
                     );
                     // C++ updates canvasColor to bg_color after fill.
                     painter.set_canvas_color(look.bg_color);
@@ -1738,8 +1738,8 @@ How to move or set the focus:\n\
                     sd,
                     w - 2.0 * sd,
                     h - 2.0 * sd,
-                    &Stroke::new(color, e),
-                    Color::TRANSPARENT,
+                    &emStroke::new(color, e),
+                    emColor::TRANSPARENT,
                 );
             }
             OuterBorderType::RoundRect => {
@@ -1761,7 +1761,7 @@ How to move or set the focus:\n\
                     w - 2.0 * sd,
                     h - 2.0 * sd,
                     sr,
-                    &Stroke::new(color, e),
+                    &emStroke::new(color, e),
                 );
             }
             OuterBorderType::Group => {
@@ -1785,7 +1785,7 @@ How to move or set the focus:\n\
                         r,
                         color,
                     );
-                    color2 = Color::TRANSPARENT;
+                    color2 = emColor::TRANSPARENT;
                 }
                 let r = rnd_r * (286.0 / 209.0);
                 let e = r - rnd_r;
@@ -1834,7 +1834,7 @@ How to move or set the focus:\n\
                         r,
                         color,
                     );
-                    color2 = Color::TRANSPARENT;
+                    color2 = emColor::TRANSPARENT;
                 }
                 let r = rnd_r * (286.0 / 209.0);
                 let e = r - rnd_r;
@@ -1883,7 +1883,7 @@ How to move or set the focus:\n\
                         r,
                         color,
                     );
-                    color2 = Color::TRANSPARENT;
+                    color2 = emColor::TRANSPARENT;
                 }
                 let r = rnd_r * (340.0 / 293.4);
                 let e = r - rnd_r;
@@ -1917,7 +1917,7 @@ How to move or set the focus:\n\
                 let color = look.bg_color;
                 let canvas = painter.canvas_color();
                 if !color.is_transparent() {
-                    painter.paint_rect(0.0, 0.0, w, h, color, Color::TRANSPARENT);
+                    painter.paint_rect(0.0, 0.0, w, h, color, emColor::TRANSPARENT);
                     painter.set_canvas_color(color);
                 }
                 let r = d; // C++ ratio 159.0/159.0 = 1.0
@@ -1949,7 +1949,7 @@ How to move or set the focus:\n\
             }
         }
 
-        // Label area — only painted when label_in_border is true.
+        // emLabel area — only painted when label_in_border is true.
         let (ox, oy, ow, oh) = self.outer_insets(w, h);
         let mut rnd_x = ox;
         let mut rnd_w = (w - ow).max(0.0);
@@ -1991,7 +1991,7 @@ How to move or set the focus:\n\
                     &self.how_to_text,
                     th,
                     look.fg_color.with_alpha(text_alpha),
-                    Color::TRANSPARENT,
+                    emColor::TRANSPARENT,
                     TextAlignment::Left,
                     VAlign::Top,
                     TextAlignment::Left,
@@ -2180,7 +2180,7 @@ How to move or set the focus:\n\
     /// content to match this paint order.
     ///
     /// For other inner border types this is a no-op.
-    pub fn paint_inner_overlay(&self, painter: &mut Painter, w: f64, h: f64, _look: &Look) {
+    pub fn paint_inner_overlay(&self, painter: &mut emPainter, w: f64, h: f64, _look: &emLook) {
         if self.inner != InnerBorderType::InputField && self.inner != InnerBorderType::OutputField {
             return;
         }
@@ -2238,7 +2238,7 @@ How to move or set the focus:\n\
                 216,
                 216,
                 255,
-                Color::TRANSPARENT,
+                emColor::TRANSPARENT,
                 BORDER_EDGES_ONLY,
             );
         });
@@ -2249,13 +2249,13 @@ How to move or set the focus:\n\
 mod tests {
     use super::*;
 
-    fn test_look() -> Look {
-        Look::default()
+    fn test_look() -> emLook {
+        emLook::default()
     }
 
     #[test]
     fn content_rect_none_border() {
-        let border = Border::new(OuterBorderType::None);
+        let border = emBorder::new(OuterBorderType::None);
         let Rect { x, y, w: cw, h: ch } = border.content_rect(100.0, 50.0, &test_look());
         assert!((x - 0.0).abs() < 0.01);
         assert!((y - 0.0).abs() < 0.01);
@@ -2265,7 +2265,7 @@ mod tests {
 
     #[test]
     fn content_rect_rect_border() {
-        let border = Border::new(OuterBorderType::Rect);
+        let border = emBorder::new(OuterBorderType::Rect);
         let Rect { x, y, w: cw, h: ch } = border.content_rect(100.0, 50.0, &test_look());
         // s = 50 * 1.0 = 50
         // outer_inset d = s * (0.023 + 0.02) = s * 0.043 = 2.15
@@ -2283,7 +2283,7 @@ mod tests {
 
     #[test]
     fn content_rect_with_caption() {
-        let border = Border::new(OuterBorderType::Rect).with_caption("Test");
+        let border = emBorder::new(OuterBorderType::Rect).with_caption("Test");
         let Rect { x, y, w: cw, h: ch } = border.content_rect(100.0, 50.0, &test_look());
         let d = 50.0 * 0.043;
         let rnd_w = 100.0 - 2.0 * d;
@@ -2301,7 +2301,7 @@ mod tests {
 
     #[test]
     fn content_rect_with_inner_input_field() {
-        let border = Border::new(OuterBorderType::None).with_inner(InnerBorderType::InputField);
+        let border = emBorder::new(OuterBorderType::None).with_inner(InnerBorderType::InputField);
         let Rect { x, y, w: cw, h: ch } = border.content_rect(100.0, 50.0, &test_look());
         // OBT_NONE: outer_inset=0, minSpace=0, rndR=0
         // No-label: all ms=0, rndR=0-0=0, so rec = rndX/rndW (no inscribed rect)
@@ -2318,7 +2318,7 @@ mod tests {
 
     #[test]
     fn content_rect_instrument_with_caption_and_inner() {
-        let border = Border::new(OuterBorderType::Instrument)
+        let border = emBorder::new(OuterBorderType::Instrument)
             .with_caption("Cap")
             .with_inner(InnerBorderType::InputField);
         let r = border.content_rect(100.0, 80.0, &test_look());
@@ -2333,7 +2333,7 @@ mod tests {
 
     #[test]
     fn preferred_size_round_trips() {
-        let border = Border::new(OuterBorderType::RoundRect)
+        let border = emBorder::new(OuterBorderType::RoundRect)
             .with_caption("Title")
             .with_inner(InnerBorderType::Group);
         let (pw, ph) = border.preferred_size_for_content(50.0, 30.0);
@@ -2347,8 +2347,8 @@ mod tests {
 
     #[test]
     fn border_scaling_doubles_insets() {
-        let border1 = Border::new(OuterBorderType::Rect);
-        let border2 = Border::new(OuterBorderType::Rect).with_border_scaling(2.0);
+        let border1 = emBorder::new(OuterBorderType::Rect);
+        let border2 = emBorder::new(OuterBorderType::Rect).with_border_scaling(2.0);
         let (ox1, _, _, _) = border1.outer_insets(100.0, 100.0);
         let (ox2, _, _, _) = border2.outer_insets(100.0, 100.0);
         assert!((ox2 - 2.0 * ox1).abs() < 0.01);
@@ -2356,7 +2356,7 @@ mod tests {
 
     #[test]
     fn zero_size_clamping() {
-        let border = Border::new(OuterBorderType::Instrument)
+        let border = emBorder::new(OuterBorderType::Instrument)
             .with_caption("Cap")
             .with_inner(InnerBorderType::InputField);
         let r = border.content_rect(1.0, 1.0, &test_look());
@@ -2366,8 +2366,8 @@ mod tests {
 
     #[test]
     fn disabled_dimming_alpha() {
-        use crate::emCore::emColor::Color;
-        let c = Color::rgba(100, 150, 200, 255);
+        use crate::emCore::emColor::emColor;
+        let c = emColor::rgba(100, 150, 200, 255);
         // C++ GetTransparented(75.0): alpha * 0.25 + 0.5, truncate
         let dimmed = c.with_alpha((c.a() as f64 * 0.25 + 0.5) as u8);
         // 255 * 0.25 + 0.5 = 64.25, truncated = 64
@@ -2377,8 +2377,8 @@ mod tests {
 
     #[test]
     fn with_alpha_preserves_rgb() {
-        use crate::emCore::emColor::Color;
-        let c = Color::rgb(10, 20, 30);
+        use crate::emCore::emColor::emColor;
+        let c = emColor::rgb(10, 20, 30);
         let c2 = c.with_alpha(128);
         assert_eq!(c2.r(), 10);
         assert_eq!(c2.g(), 20);
@@ -2388,15 +2388,15 @@ mod tests {
 
     #[test]
     fn has_label_with_icon_only() {
-        let img = Image::new(16, 16, 4);
-        let border = Border::new(OuterBorderType::None).with_icon(img);
+        let img = emImage::new(16, 16, 4);
+        let border = emBorder::new(OuterBorderType::None).with_icon(img);
         assert!(border.has_label());
     }
 
     #[test]
     fn label_height_icon_above() {
-        let img = Image::new(16, 16, 4);
-        let mut border = Border::new(OuterBorderType::None)
+        let img = emImage::new(16, 16, 4);
+        let mut border = emBorder::new(OuterBorderType::None)
             .with_caption("Cap")
             .with_icon(img);
         border.set_icon_above_caption(true);
@@ -2411,8 +2411,8 @@ mod tests {
 
     #[test]
     fn content_rect_accounts_for_icon_height() {
-        let img = Image::new(16, 16, 4);
-        let mut border = Border::new(OuterBorderType::None)
+        let img = emImage::new(16, 16, 4);
+        let mut border = emBorder::new(OuterBorderType::None)
             .with_caption("Cap")
             .with_icon(img);
         border.set_icon_above_caption(true);
@@ -2425,9 +2425,9 @@ mod tests {
 
     #[test]
     fn image_is_empty() {
-        let empty = Image::new(0, 0, 1);
+        let empty = emImage::new(0, 0, 1);
         assert!(empty.is_empty());
-        let nonempty = Image::new(1, 1, 1);
+        let nonempty = emImage::new(1, 1, 1);
         assert!(!nonempty.is_empty());
     }
 
@@ -2440,19 +2440,19 @@ mod tests {
             look.bg_color.is_opaque(),
             "default look bg should be opaque"
         );
-        let border = Border::new(OuterBorderType::Filled);
+        let border = emBorder::new(OuterBorderType::Filled);
         assert!(border.is_opaque(&look));
     }
 
     #[test]
     fn is_opaque_margin_filled() {
-        let border = Border::new(OuterBorderType::MarginFilled);
+        let border = emBorder::new(OuterBorderType::MarginFilled);
         assert!(border.is_opaque(&test_look()));
     }
 
     #[test]
     fn is_opaque_popup_root() {
-        let border = Border::new(OuterBorderType::PopupRoot);
+        let border = emBorder::new(OuterBorderType::PopupRoot);
         assert!(border.is_opaque(&test_look()));
     }
 
@@ -2468,17 +2468,17 @@ mod tests {
             OuterBorderType::Instrument,
             OuterBorderType::InstrumentMoreRound,
         ] {
-            let border = Border::new(outer);
+            let border = emBorder::new(outer);
             assert!(!border.is_opaque(&look), "expected false for {outer:?}");
         }
     }
 
     #[test]
     fn is_opaque_transparent_bg() {
-        use crate::emCore::emColor::Color;
+        use crate::emCore::emColor::emColor;
         let mut look = test_look();
-        look.bg_color = Color::rgba(100, 100, 100, 128);
-        let border = Border::new(OuterBorderType::Filled);
+        look.bg_color = emColor::rgba(100, 100, 100, 128);
+        let border = emBorder::new(OuterBorderType::Filled);
         assert!(!border.is_opaque(&look));
     }
 
@@ -2486,7 +2486,7 @@ mod tests {
 
     #[test]
     fn substance_none_is_full_rect() {
-        let border = Border::new(OuterBorderType::None);
+        let border = emBorder::new(OuterBorderType::None);
         let (rect, r) = border.substance_round_rect(200.0, 100.0);
         assert!(rect.x.abs() < 0.001);
         assert!(rect.y.abs() < 0.001);
@@ -2497,7 +2497,7 @@ mod tests {
 
     #[test]
     fn substance_filled_is_full_rect() {
-        let border = Border::new(OuterBorderType::Filled);
+        let border = emBorder::new(OuterBorderType::Filled);
         let (rect, r) = border.substance_round_rect(200.0, 100.0);
         assert!((rect.w - 200.0).abs() < 0.001);
         assert!((rect.h - 100.0).abs() < 0.001);
@@ -2506,7 +2506,7 @@ mod tests {
 
     #[test]
     fn substance_margin_is_inset() {
-        let border = Border::new(OuterBorderType::Margin);
+        let border = emBorder::new(OuterBorderType::Margin);
         let (rect, r) = border.substance_round_rect(100.0, 100.0);
         let d = 100.0 * 0.04;
         assert!((rect.x - d).abs() < 0.01);
@@ -2518,7 +2518,7 @@ mod tests {
 
     #[test]
     fn substance_round_rect_has_radius() {
-        let border = Border::new(OuterBorderType::RoundRect);
+        let border = emBorder::new(OuterBorderType::RoundRect);
         let (rect, r) = border.substance_round_rect(200.0, 100.0);
         assert!(r > 0.0, "round rect substance should have positive radius");
         assert!(rect.w < 200.0, "should be inset from full width");
@@ -2526,7 +2526,7 @@ mod tests {
 
     #[test]
     fn substance_group_expanded_from_rnd() {
-        let border = Border::new(OuterBorderType::Group);
+        let border = emBorder::new(OuterBorderType::Group);
         let (rect, r) = border.substance_round_rect(200.0, 100.0);
         let s = 100.0; // min(200,100) * 1.0
         let d = s * 0.0104; // outer inset
@@ -2539,7 +2539,7 @@ mod tests {
 
     #[test]
     fn substance_popup_root_is_full_rect() {
-        let border = Border::new(OuterBorderType::PopupRoot);
+        let border = emBorder::new(OuterBorderType::PopupRoot);
         let (rect, r) = border.substance_round_rect(200.0, 100.0);
         assert!(rect.x.abs() < 0.001);
         assert!((rect.w - 200.0).abs() < 0.001);
@@ -2550,7 +2550,7 @@ mod tests {
 
     #[test]
     fn content_round_rect_none_border() {
-        let border = Border::new(OuterBorderType::None);
+        let border = emBorder::new(OuterBorderType::None);
         let look = test_look();
         let (rect, r) = border.content_round_rect(100.0, 50.0, &look);
         assert!(rect.x.abs() < 0.01);
@@ -2562,7 +2562,7 @@ mod tests {
 
     #[test]
     fn content_round_rect_with_inner_input_field() {
-        let border = Border::new(OuterBorderType::None).with_inner(InnerBorderType::InputField);
+        let border = emBorder::new(OuterBorderType::None).with_inner(InnerBorderType::InputField);
         let look = test_look();
         let (rect, r) = border.content_round_rect(100.0, 50.0, &look);
         // OBT_NONE: outer_inset=0, minSpace=0
@@ -2578,7 +2578,7 @@ mod tests {
         // content_rect is the inscribed axis-aligned rect inside
         // the round rect returned by content_round_rect.
         // So content_rect should be inset by ~radius*0.5 from the round rect.
-        let border = Border::new(OuterBorderType::Rect).with_inner(InnerBorderType::Group);
+        let border = emBorder::new(OuterBorderType::Rect).with_inner(InnerBorderType::Group);
         let look = test_look();
         let (rr, radius) = border.content_round_rect(100.0, 60.0, &look);
         let cr = border.content_rect(100.0, 60.0, &look);
@@ -2594,7 +2594,7 @@ mod tests {
 
     #[test]
     fn content_rect_unobscured_equals_content_rect_for_none() {
-        let border = Border::new(OuterBorderType::Rect);
+        let border = emBorder::new(OuterBorderType::Rect);
         let look = test_look();
         let cr = border.content_rect(100.0, 50.0, &look);
         let cu = border.content_rect_unobscured(100.0, 50.0, &look);
@@ -2606,7 +2606,7 @@ mod tests {
 
     #[test]
     fn content_rect_unobscured_smaller_for_input_field() {
-        let border = Border::new(OuterBorderType::None).with_inner(InnerBorderType::InputField);
+        let border = emBorder::new(OuterBorderType::None).with_inner(InnerBorderType::InputField);
         let look = test_look();
         let cr = border.content_rect(200.0, 100.0, &look);
         let cu = border.content_rect_unobscured(200.0, 100.0, &look);
@@ -2639,7 +2639,7 @@ mod tests {
 
     #[test]
     fn content_rect_unobscured_equals_content_rect_for_group_inner() {
-        let border = Border::new(OuterBorderType::None).with_inner(InnerBorderType::Group);
+        let border = emBorder::new(OuterBorderType::None).with_inner(InnerBorderType::Group);
         let look = test_look();
         let cr = border.content_rect(200.0, 100.0, &look);
         let cu = border.content_rect_unobscured(200.0, 100.0, &look);
@@ -2651,7 +2651,7 @@ mod tests {
 
     #[test]
     fn aux_defaults_absent() {
-        let border = Border::new(OuterBorderType::None);
+        let border = emBorder::new(OuterBorderType::None);
         assert_eq!(border.get_aux_panel_name(), "");
         assert!((border.get_aux_tallness() - 1.0).abs() < f64::EPSILON);
         assert!(!border.has_aux_panel());
@@ -2660,7 +2660,7 @@ mod tests {
 
     #[test]
     fn have_aux_creates_aux() {
-        let mut border = Border::new(OuterBorderType::None);
+        let mut border = emBorder::new(OuterBorderType::None);
         border.have_aux("my_panel", 2.0);
         assert_eq!(border.get_aux_panel_name(), "my_panel");
         assert!((border.get_aux_tallness() - 2.0).abs() < f64::EPSILON);
@@ -2669,7 +2669,7 @@ mod tests {
 
     #[test]
     fn have_aux_updates_name() {
-        let mut border = Border::new(OuterBorderType::None);
+        let mut border = emBorder::new(OuterBorderType::None);
         border.have_aux("p1", 1.0);
         border.have_aux("p2", 1.0);
         assert_eq!(border.get_aux_panel_name(), "p2");
@@ -2677,7 +2677,7 @@ mod tests {
 
     #[test]
     fn have_aux_updates_tallness() {
-        let mut border = Border::new(OuterBorderType::None);
+        let mut border = emBorder::new(OuterBorderType::None);
         border.have_aux("p1", 1.0);
         border.have_aux("p1", 3.5);
         assert!((border.get_aux_tallness() - 3.5).abs() < f64::EPSILON);
@@ -2685,7 +2685,7 @@ mod tests {
 
     #[test]
     fn remove_aux_clears() {
-        let mut border = Border::new(OuterBorderType::None);
+        let mut border = emBorder::new(OuterBorderType::None);
         border.have_aux("p1", 2.0);
         border.remove_aux();
         assert_eq!(border.get_aux_panel_name(), "");
@@ -2696,14 +2696,14 @@ mod tests {
 
     #[test]
     fn remove_aux_noop_when_absent() {
-        let mut border = Border::new(OuterBorderType::None);
+        let mut border = emBorder::new(OuterBorderType::None);
         border.remove_aux(); // should not panic
         assert!(!border.has_aux_panel());
     }
 
     #[test]
     fn aux_rect_no_label_positive_dimensions() {
-        let mut border = Border::new(OuterBorderType::Rect);
+        let mut border = emBorder::new(OuterBorderType::Rect);
         border.have_aux("aux", 1.0);
         let rect = border
             .get_aux_rect(200.0, 100.0)
@@ -2721,7 +2721,7 @@ mod tests {
 
     #[test]
     fn aux_rect_with_label_positive_dimensions() {
-        let mut border = Border::new(OuterBorderType::Rect).with_caption("Caption");
+        let mut border = emBorder::new(OuterBorderType::Rect).with_caption("Caption");
         border.have_aux("aux", 1.5);
         let rect = border
             .get_aux_rect(200.0, 100.0)
@@ -2737,11 +2737,11 @@ mod tests {
 
     #[test]
     fn aux_rect_tallness_affects_shape() {
-        let mut b1 = Border::new(OuterBorderType::None);
+        let mut b1 = emBorder::new(OuterBorderType::None);
         b1.have_aux("aux", 1.0);
         let r1 = b1.get_aux_rect(200.0, 200.0).unwrap();
 
-        let mut b2 = Border::new(OuterBorderType::None);
+        let mut b2 = emBorder::new(OuterBorderType::None);
         b2.have_aux("aux", 2.0);
         let r2 = b2.get_aux_rect(200.0, 200.0).unwrap();
 
@@ -2760,7 +2760,7 @@ mod tests {
     /// `d` on each side.
     #[test]
     fn substance_round_rect_rect_uses_correct_coefficient() {
-        let border = Border::new(OuterBorderType::Rect);
+        let border = emBorder::new(OuterBorderType::Rect);
         let w = 1000.0_f64;
         let h = 100.0_f64;
         let (rect, radius) = border.substance_round_rect(w, h);
@@ -2810,7 +2810,7 @@ mod tests {
 
     #[test]
     fn substance_round_rect_roundrect_uses_correct_coefficient() {
-        let border = Border::new(OuterBorderType::RoundRect);
+        let border = emBorder::new(OuterBorderType::RoundRect);
         let w = 1000.0_f64;
         let h = 100.0_f64;
         let (rect, radius) = border.substance_round_rect(w, h);
@@ -2866,7 +2866,7 @@ mod tests {
 
     #[test]
     fn best_label_tallness_no_icon() {
-        let border = Border::new(OuterBorderType::None)
+        let border = emBorder::new(OuterBorderType::None)
             .with_caption("Hi")
             .with_description("A short description");
         let t = border.best_label_tallness();
@@ -2878,13 +2878,13 @@ mod tests {
         // With icon_above_caption=true the icon stacks vertically above the
         // caption, adding 3*cap_h + gap to total_h. This must produce a
         // strictly greater tallness than the same label without an icon.
-        let no_icon = Border::new(OuterBorderType::None)
+        let no_icon = emBorder::new(OuterBorderType::None)
             .with_caption("Hi")
             .with_description("A short description");
         let t_no_icon = no_icon.best_label_tallness();
 
-        let icon = Image::new(16, 16, 4);
-        let mut with_icon = Border::new(OuterBorderType::None)
+        let icon = emImage::new(16, 16, 4);
+        let mut with_icon = emBorder::new(OuterBorderType::None)
             .with_caption("Hi")
             .with_description("A short description")
             .with_icon(icon);
@@ -2901,13 +2901,13 @@ mod tests {
     fn best_label_tallness_with_icon_beside_changes_tallness() {
         // With icon_above_caption=false (default), the icon is placed beside
         // the caption, widening total_w. The tallness must differ from no-icon.
-        let no_icon = Border::new(OuterBorderType::None)
+        let no_icon = emBorder::new(OuterBorderType::None)
             .with_caption("Hi")
             .with_description("A short description");
         let t_no_icon = no_icon.best_label_tallness();
 
-        let icon = Image::new(32, 32, 4);
-        let with_icon = Border::new(OuterBorderType::None)
+        let icon = emImage::new(32, 32, 4);
+        let with_icon = emBorder::new(OuterBorderType::None)
             .with_caption("Hi")
             .with_description("A short description")
             .with_icon(icon);
@@ -2926,16 +2926,16 @@ mod tests {
 
     #[test]
     fn best_label_tallness_icon_above_vs_beside() {
-        let icon = Image::new(16, 64, 4);
-        let mut above = Border::new(OuterBorderType::None)
+        let icon = emImage::new(16, 64, 4);
+        let mut above = emBorder::new(OuterBorderType::None)
             .with_caption("Hi")
             .with_description("A short description")
             .with_icon(icon);
         above.set_icon_above_caption(true);
         let t_above = above.best_label_tallness();
 
-        let icon2 = Image::new(16, 64, 4);
-        let mut beside = Border::new(OuterBorderType::None)
+        let icon2 = emImage::new(16, 64, 4);
+        let mut beside = emBorder::new(OuterBorderType::None)
             .with_caption("Hi")
             .with_description("A short description")
             .with_icon(icon2);
@@ -2957,18 +2957,18 @@ mod tests {
     fn best_label_tallness_icon_only_no_caption() {
         // Icon without caption: tallness should reflect the icon's own aspect ratio
         // (clamped by max_icon_area_tallness).
-        let icon = Image::new(16, 64, 4);
-        let with_icon = Border::new(OuterBorderType::None).with_icon(icon);
+        let icon = emImage::new(16, 64, 4);
+        let with_icon = emBorder::new(OuterBorderType::None).with_icon(icon);
         let t = with_icon.best_label_tallness();
 
-        let no_label = Border::new(OuterBorderType::None);
+        let no_label = emBorder::new(OuterBorderType::None);
         let t_empty = no_label.best_label_tallness();
 
         // The icon (16x64 → raw tallness 4.0, clamped to max_icon_area_tallness=1.0)
         // should still produce tallness = 1.0, same as the no-label default.
         // But with a wider icon the tallness should differ from default.
-        let wide_icon = Image::new(64, 16, 4);
-        let with_wide = Border::new(OuterBorderType::None).with_icon(wide_icon);
+        let wide_icon = emImage::new(64, 16, 4);
+        let with_wide = emBorder::new(OuterBorderType::None).with_icon(wide_icon);
         let t_wide = with_wide.best_label_tallness();
 
         // wide icon (64x16) → tallness = 16/64 = 0.25, less than default 1.0
@@ -2984,7 +2984,7 @@ mod tests {
     /// Helper: compute the expected label_h for a given panel size using the
     /// pre-HowTo `s = min(rnd_w, rnd_h) * border_scaling`, which is the correct
     /// value per C++ emBorder.cpp line 901/937.
-    fn expected_label_h_pre_howto(border: &Border, w: f64, h: f64) -> f64 {
+    fn expected_label_h_pre_howto(border: &emBorder, w: f64, h: f64) -> f64 {
         let (_, _, ow, oh) = border.outer_insets(w, h);
         let rnd_w = (w - ow).max(0.0);
         let rnd_h = (h - oh).max(0.0);
@@ -2995,7 +2995,7 @@ mod tests {
 
     /// If the bug were present (label_space called with post-HowTo width),
     /// this is the wrong value that would be computed.
-    fn buggy_label_h_post_howto(border: &Border, w: f64, h: f64) -> f64 {
+    fn buggy_label_h_post_howto(border: &emBorder, w: f64, h: f64) -> f64 {
         let (_, _, ow, oh) = border.outer_insets(w, h);
         let rnd_w = (w - ow).max(0.0);
         let rnd_h = (h - oh).max(0.0);
@@ -3024,7 +3024,7 @@ mod tests {
         // OuterBorderType::None has zero outer insets AND min_space_factor=0,
         // so how_to_space_factor (0.023) > min_space_factor (0.0) — the HowTo
         // shift is the full howToSpace amount.
-        let border_howto = Border::new(OuterBorderType::None)
+        let border_howto = emBorder::new(OuterBorderType::None)
             .with_caption("Test")
             .with_how_to(true);
 
@@ -3047,7 +3047,7 @@ mod tests {
 
         // Without HowTo, same caption — label_h should be identical because
         // both use s = min(rnd_w, rnd_h) before any HowTo shift.
-        let border_no_howto = Border::new(OuterBorderType::None)
+        let border_no_howto = emBorder::new(OuterBorderType::None)
             .with_caption("Test");
         let r_no_howto = border_no_howto.content_rect(w, h, &look);
 
@@ -3074,10 +3074,10 @@ mod tests {
     #[test]
     fn label_space_uses_pre_howto_s_in_content_round_rect() {
         // Same setup as above but exercising content_round_rect.
-        let border_howto = Border::new(OuterBorderType::None)
+        let border_howto = emBorder::new(OuterBorderType::None)
             .with_caption("Test")
             .with_how_to(true);
-        let border_no_howto = Border::new(OuterBorderType::None)
+        let border_no_howto = emBorder::new(OuterBorderType::None)
             .with_caption("Test");
 
         let w = 100.0;
@@ -3104,11 +3104,11 @@ mod tests {
         // (legitimately). To isolate the label_h contribution, compare a
         // captioned vs non-captioned border, both with HowTo + InputField.
         // The y difference should equal the pre-HowTo label_h = s * 0.17.
-        let border_cap = Border::new(OuterBorderType::None)
+        let border_cap = emBorder::new(OuterBorderType::None)
             .with_caption("Test")
             .with_how_to(true)
             .with_inner(InnerBorderType::InputField);
-        let border_nocap = Border::new(OuterBorderType::None)
+        let border_nocap = emBorder::new(OuterBorderType::None)
             .with_how_to(true)
             .with_inner(InnerBorderType::InputField);
 
@@ -3150,10 +3150,10 @@ mod tests {
     #[test]
     fn label_space_factor_is_accessible() {
         // Verify label_space_factor returns the expected values per border type.
-        let group = Border::new(OuterBorderType::Group);
+        let group = emBorder::new(OuterBorderType::Group);
         assert!((group.label_space_factor() - 0.05).abs() < 1e-10);
 
-        let rect = Border::new(OuterBorderType::Rect);
+        let rect = emBorder::new(OuterBorderType::Rect);
         assert!((rect.label_space_factor() - 0.17).abs() < 1e-10);
     }
 
@@ -3165,21 +3165,21 @@ mod tests {
     /// C++ `emBorder.cpp:628` which calls `painter->Clear(color, canvasColor)`.
     #[test]
     fn margin_filled_paints_full_panel_including_corners() {
-        let bg = Color::rgba(200, 100, 50, 255); // distinctive color
-        let canvas = Color::rgba(0, 0, 0, 255); // black canvas
+        let bg = emColor::rgba(200, 100, 50, 255); // distinctive color
+        let canvas = emColor::rgba(0, 0, 0, 255); // black canvas
 
         let mut look = test_look();
         look.bg_color = bg;
 
-        let border = Border::new(OuterBorderType::MarginFilled);
+        let border = emBorder::new(OuterBorderType::MarginFilled);
 
         // For a 100x100 image, the margin inset d = s * 0.04 = 100 * 0.04 = 4.
         // Old buggy code: paint_rect(4, 4, 92, 92) — corners at (0,0) untouched.
         // Fixed code: paint_rect(0, 0, 100, 100) — entire panel filled.
-        let mut img = Image::new(100, 100, 4);
+        let mut img = emImage::new(100, 100, 4);
         // Fill the image with canvas color so unfilled pixels are distinguishable.
         img.fill(canvas);
-        let mut painter = Painter::new(&mut img);
+        let mut painter = emPainter::new(&mut img);
 
         border.paint_border(&mut painter, 100.0, 100.0, &look, false, true, 1.0);
         drop(painter);
@@ -3216,7 +3216,7 @@ mod tests {
         // total_w from the actual description text width, not fall back to 1.0.
         // With a wide area and short text, the label rect should be narrower
         // than the full area width — proving the text measurement is used.
-        let border = Border::new(OuterBorderType::None).with_description("X");
+        let border = emBorder::new(OuterBorderType::None).with_description("X");
         let area_w = 1000.0;
         let area_h = 100.0;
         let layout = border.label_layout(0.0, 0.0, area_w, area_h);
@@ -3253,8 +3253,8 @@ mod tests {
     fn desc_only_longer_text_wider_layout() {
         // Longer description text should produce a wider label rect
         // than shorter text, proving total_w depends on text width.
-        let short = Border::new(OuterBorderType::None).with_description("Hi");
-        let long = Border::new(OuterBorderType::None)
+        let short = emBorder::new(OuterBorderType::None).with_description("Hi");
+        let long = emBorder::new(OuterBorderType::None)
             .with_description("This is a much longer description text");
         let area_w = 5000.0; // very wide so labels don't clamp to area_w
         let area_h = 100.0;
@@ -3292,26 +3292,26 @@ mod tests {
         let img_w = 300_u32;
         let img_h = 300_u32;
 
-        let mut border = Border::new(OuterBorderType::None).with_how_to(true);
+        let mut border = emBorder::new(OuterBorderType::None).with_how_to(true);
         border.set_how_to_text("Zoom".to_string());
 
         let mut look = test_look();
         // Ensure fg_color is fully opaque so the text actually writes pixels.
-        look.fg_color = Color::rgba(255, 255, 255, 255);
+        look.fg_color = emColor::rgba(255, 255, 255, 255);
 
         // Render with large pixel_scale (HowTo text should appear).
-        let mut img_large = Image::new(img_w, img_h, 4);
-        img_large.fill(Color::rgba(0, 0, 0, 0));
+        let mut img_large = emImage::new(img_w, img_h, 4);
+        img_large.fill(emColor::rgba(0, 0, 0, 0));
         {
-            let mut painter = Painter::new(&mut img_large);
+            let mut painter = emPainter::new(&mut img_large);
             border.paint_border(&mut painter, w, h, &look, false, true, 100.0);
         }
 
         // Render with tiny pixel_scale (HowTo text should be hidden).
-        let mut img_small = Image::new(img_w, img_h, 4);
-        img_small.fill(Color::rgba(0, 0, 0, 0));
+        let mut img_small = emImage::new(img_w, img_h, 4);
+        img_small.fill(emColor::rgba(0, 0, 0, 0));
         {
-            let mut painter = Painter::new(&mut img_small);
+            let mut painter = emPainter::new(&mut img_small);
             border.paint_border(&mut painter, w, h, &look, false, true, 0.01);
         }
 

@@ -1,62 +1,62 @@
-//! Systematic interaction test for ColorField in expanded state at 1x zoom,
+//! Systematic interaction test for emColorField in expanded state at 1x zoom,
 //! driven through the full input dispatch pipeline (PipelineTestHarness).
 //!
 //! Verifies that auto-expansion creates the expected child panel structure
-//! (RasterLayout container with ScalarField sliders for R, G, B, A, H, S, V
-//! and a TextField for color name/hex), and that the expansion data is
+//! (emRasterLayout container with emScalarField sliders for R, G, B, A, H, S, V
+//! and a emTextField for color name/hex), and that the expansion data is
 //! correctly initialized from the widget's color.
 
 
 use std::rc::Rc;
 
-use zuicchini::emCore::emColor::Color;
-use zuicchini::emCore::emCursor::Cursor;
-use zuicchini::emCore::emInput::InputEvent;
-use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emColor::emColor;
+use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emInput::emInputEvent;
+use zuicchini::emCore::emInputState::emInputState;
 use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
 use zuicchini::emCore::emPanelCtx::PanelCtx;
-use zuicchini::emCore::emPainter::Painter;
-use zuicchini::emCore::emColorField::ColorField;
-use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emPainter::emPainter;
+use zuicchini::emCore::emColorField::emColorField;
+use zuicchini::emCore::emLook::emLook;
 
 use super::support::pipeline::PipelineTestHarness;
 
-/// PanelBehavior wrapper for ColorField so it can be installed into the
+/// PanelBehavior wrapper for emColorField so it can be installed into the
 /// panel tree. Delegates paint/input/layout_children to the underlying widget.
 struct ColorFieldBehavior {
-    color_field: ColorField,
+    color_field: emColorField,
 }
 
 impl ColorFieldBehavior {
-    fn new(look: Rc<Look>) -> Self {
-        let mut cf = ColorField::new(look);
+    fn new(look: Rc<emLook>) -> Self {
+        let mut cf = emColorField::new(look);
         cf.set_editable(true);
         cf.set_alpha_enabled(true);
         Self { color_field: cf }
     }
 
-    fn with_color(mut self, color: Color) -> Self {
+    fn with_color(mut self, color: emColor) -> Self {
         self.color_field.set_color(color);
         self
     }
 }
 
 impl PanelBehavior for ColorFieldBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+    fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.color_field.paint(painter, w, h);
     }
 
     fn input(
         &mut self,
-        event: &InputEvent,
+        event: &emInputEvent,
         state: &PanelState,
-        input_state: &InputState,
+        input_state: &emInputState,
     ) -> bool {
         self.color_field.input(event, state, input_state)
     }
 
-    fn get_cursor(&self) -> Cursor {
-        Cursor::Normal
+    fn get_cursor(&self) -> emCursor {
+        emCursor::Normal
     }
 
     fn layout_children(&mut self, ctx: &mut PanelCtx) {
@@ -84,27 +84,27 @@ fn child_names(h: &PipelineTestHarness, parent: zuicchini::emCore::emPanelTree::
 // Test: expansion structure at 1x zoom
 // ---------------------------------------------------------------------------
 
-/// Verify that expanding a ColorField at 16x zoom creates the expected child
+/// Verify that expanding a emColorField at 16x zoom creates the expected child
 /// panel hierarchy:
 ///
 /// ```text
 /// color_field
-///   emColorField::InnerStuff  (RasterLayout container)
-///     r   (ScalarField - Red)
-///     g   (ScalarField - Green)
-///     b   (ScalarField - Blue)
-///     a   (ScalarField - Alpha)
-///     h   (ScalarField - Hue)
-///     s   (ScalarField - Saturation)
-///     v   (ScalarField - Value/brightness)
-///     n   (TextField   - Name/hex)
+///   emColorField::InnerStuff  (emRasterLayout container)
+///     r   (emScalarField - Red)
+///     g   (emScalarField - Green)
+///     b   (emScalarField - Blue)
+///     a   (emScalarField - Alpha)
+///     h   (emScalarField - Hue)
+///     s   (emScalarField - Saturation)
+///     v   (emScalarField - Value/brightness)
+///     n   (emTextField   - Name/hex)
 /// ```
 #[test]
 fn colorfield_expanded_has_correct_child_structure() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
+    let look = emLook::new();
     let behavior = ColorFieldBehavior::new(look);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
@@ -120,12 +120,12 @@ fn colorfield_expanded_has_correct_child_structure() {
         "ColorField panel should be auto-expanded at 16x zoom"
     );
 
-    // The ColorField should have exactly 1 direct child: the RasterLayout container.
+    // The emColorField should have exactly 1 direct child: the emRasterLayout container.
     let direct_children = child_names(&h, panel_id);
     assert_eq!(
         direct_children.len(),
         1,
-        "Expanded ColorField should have 1 direct child (RasterLayout container), \
+        "Expanded emColorField should have 1 direct child (emRasterLayout container), \
          but found {}: {:?}",
         direct_children.len(),
         direct_children
@@ -135,7 +135,7 @@ fn colorfield_expanded_has_correct_child_structure() {
         "Direct child should be the RasterLayout container 'emColorField::InnerStuff'"
     );
 
-    // Find the RasterLayout container and verify its children.
+    // Find the emRasterLayout container and verify its children.
     let layout_id = h
         .tree
         .children(panel_id)
@@ -146,7 +146,7 @@ fn colorfield_expanded_has_correct_child_structure() {
     assert_eq!(
         slider_names,
         vec!["r", "g", "b", "a", "h", "s", "v", "n"],
-        "RasterLayout container should have 8 children: \
+        "emRasterLayout container should have 8 children: \
          r, g, b, a (RGBA), h, s, v (HSV), n (Name). Got: {:?}",
         slider_names
     );
@@ -163,8 +163,8 @@ fn colorfield_expanded_data_matches_initial_color() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let color = Color::rgba(100, 150, 200, 180);
+    let look = emLook::new();
+    let color = emColor::rgba(100, 150, 200, 180);
     let behavior = ColorFieldBehavior::new(look).with_color(color);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
@@ -229,10 +229,10 @@ fn colorfield_expanded_data_matches_initial_color() {
 /// (black, white, pure red, transparent).
 #[test]
 fn colorfield_expanded_various_colors() {
-    let test_cases: Vec<(&str, Color, Box<dyn Fn(i64, i64, i64, i64)>)> = vec![
+    let test_cases: Vec<(&str, emColor, Box<dyn Fn(i64, i64, i64, i64)>)> = vec![
         (
             "black",
-            Color::BLACK,
+            emColor::BLACK,
             Box::new(|r, g, b, _a| {
                 assert_eq!(r, 0, "Black: red should be 0");
                 assert_eq!(g, 0, "Black: green should be 0");
@@ -241,7 +241,7 @@ fn colorfield_expanded_various_colors() {
         ),
         (
             "white",
-            Color::WHITE,
+            emColor::WHITE,
             Box::new(|r, g, b, _a| {
                 assert_eq!(r, 10000, "White: red should be 10000");
                 assert_eq!(g, 10000, "White: green should be 10000");
@@ -250,7 +250,7 @@ fn colorfield_expanded_various_colors() {
         ),
         (
             "pure_red",
-            Color::RED,
+            emColor::RED,
             Box::new(|r, g, b, _a| {
                 assert_eq!(r, 10000, "Red: red should be 10000");
                 assert_eq!(g, 0, "Red: green should be 0");
@@ -259,7 +259,7 @@ fn colorfield_expanded_various_colors() {
         ),
         (
             "transparent",
-            Color::TRANSPARENT,
+            emColor::TRANSPARENT,
             Box::new(|_r, _g, _b, a| {
                 assert_eq!(a, 0, "Transparent: alpha should be 0");
             }),
@@ -270,7 +270,7 @@ fn colorfield_expanded_various_colors() {
         let mut h = PipelineTestHarness::new();
         let root = h.root();
 
-        let look = Look::new();
+        let look = emLook::new();
         let behavior = ColorFieldBehavior::new(look).with_color(*color);
         let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
@@ -318,7 +318,7 @@ fn colorfield_expanded_various_colors() {
 // Test: child count before vs after expansion
 // ---------------------------------------------------------------------------
 
-/// Verify that the ColorField has no children when below the expansion
+/// Verify that the emColorField has no children when below the expansion
 /// threshold, and gains children once expanded.
 ///
 /// The default auto-expansion threshold is 150 (area). At 1x zoom the panel
@@ -332,7 +332,7 @@ fn colorfield_no_children_before_expansion() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
+    let look = emLook::new();
     let behavior = ColorFieldBehavior::new(look);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
@@ -377,8 +377,8 @@ fn colorfield_expanded_name_field_initialized() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let color = Color::rgba(0xAB, 0xCD, 0xEF, 0xFF);
+    let look = emLook::new();
+    let color = emColor::rgba(0xAB, 0xCD, 0xEF, 0xFF);
     let behavior = ColorFieldBehavior::new(look).with_color(color);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
@@ -409,13 +409,13 @@ fn colorfield_expanded_name_field_initialized() {
 // ===========================================================================
 //
 // The C++ emColorField::Cycle() polls sub-widget signals each frame:
-// - SfRed/SfGreen/SfBlue/SfAlpha ScalarField value changes → update Color via
+// - SfRed/SfGreen/SfBlue/SfAlpha emScalarField value changes → update emColor via
 //   RGBA, then sync HSV + Name outputs.
-// - SfHue/SfSat/SfVal ScalarField value changes → update Color via HSV, then
+// - SfHue/SfSat/SfVal emScalarField value changes → update emColor via HSV, then
 //   sync RGBA + Name outputs.
-// - TfName TextField text change → parse hex/name, update Color, then sync
+// - TfName emTextField text change → parse hex/name, update emColor, then sync
 //   RGBA + HSV outputs.
-// - If Color changed: fire ColorSignal (Rust: on_color callback).
+// - If emColor changed: fire ColorSignal (Rust: on_color callback).
 //
 // The Rust port stores the sub-widget values in Expansion (sf_red, red_out,
 // etc.) and cycle() detects divergence. ColorFieldBehavior::cycle() calls
@@ -432,14 +432,14 @@ fn colorfield_expanded_name_field_initialized() {
 /// Verify the color's red channel updates and HSV/name fields are synced.
 ///
 /// This tests the Cycle() contract from C++ emColorField.cpp:116-122:
-/// if sf_red != red_out, update Color.SetRed and mark rgbaChanged.
+/// if sf_red != red_out, update emColor.SetRed and mark rgbaChanged.
 #[test]
 fn colorfield_cycle_red_slider_updates_color_and_syncs() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let behavior = ColorFieldBehavior::new(look).with_color(Color::BLACK);
+    let look = emLook::new();
+    let behavior = ColorFieldBehavior::new(look).with_color(emColor::BLACK);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
     h.tick();
@@ -494,8 +494,8 @@ fn colorfield_cycle_green_slider_updates_color() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let behavior = ColorFieldBehavior::new(look).with_color(Color::BLACK);
+    let look = emLook::new();
+    let behavior = ColorFieldBehavior::new(look).with_color(emColor::BLACK);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
     h.tick();
@@ -533,8 +533,8 @@ fn colorfield_cycle_blue_slider_updates_color() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let behavior = ColorFieldBehavior::new(look).with_color(Color::BLACK);
+    let look = emLook::new();
+    let behavior = ColorFieldBehavior::new(look).with_color(emColor::BLACK);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
     h.tick();
@@ -573,8 +573,8 @@ fn colorfield_cycle_hex_text_updates_color() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let behavior = ColorFieldBehavior::new(look).with_color(Color::BLACK);
+    let look = emLook::new();
+    let behavior = ColorFieldBehavior::new(look).with_color(emColor::BLACK);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
     h.tick();
@@ -631,9 +631,9 @@ fn colorfield_cycle_hsv_change_syncs_rgb_fields() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
+    let look = emLook::new();
     // Start with black so any HSV change is detectable.
-    let behavior = ColorFieldBehavior::new(look).with_color(Color::BLACK);
+    let behavior = ColorFieldBehavior::new(look).with_color(emColor::BLACK);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
     h.tick();
@@ -697,8 +697,8 @@ fn colorfield_cycle_rgb_change_syncs_hsv_fields() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let behavior = ColorFieldBehavior::new(look).with_color(Color::BLACK);
+    let look = emLook::new();
+    let behavior = ColorFieldBehavior::new(look).with_color(emColor::BLACK);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
     h.tick();
@@ -756,8 +756,8 @@ fn colorfield_cycle_fires_on_color_callback() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let behavior = ColorFieldBehavior::new(look).with_color(Color::BLACK);
+    let look = emLook::new();
+    let behavior = ColorFieldBehavior::new(look).with_color(emColor::BLACK);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
     h.tick();
@@ -770,7 +770,7 @@ fn colorfield_cycle_fires_on_color_callback() {
         .expect("should be ColorFieldBehavior");
 
     // Install a callback that records the received color.
-    let received = Rc::new(std::cell::RefCell::new(None::<Color>));
+    let received = Rc::new(std::cell::RefCell::new(None::<emColor>));
     let received_clone = received.clone();
     cfb.color_field.on_color = Some(Box::new(move |c| {
         *received_clone.borrow_mut() = Some(c);
@@ -806,8 +806,8 @@ fn colorfield_cycle_no_change_returns_false() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let color = Color::rgba(100, 150, 200, 255);
+    let look = emLook::new();
+    let color = emColor::rgba(100, 150, 200, 255);
     let behavior = ColorFieldBehavior::new(look).with_color(color);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
@@ -846,8 +846,8 @@ fn colorfield_cycle_invalid_hex_preserves_color() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 
-    let look = Look::new();
-    let original = Color::rgba(100, 150, 200, 255);
+    let look = emLook::new();
+    let original = emColor::rgba(100, 150, 200, 255);
     let behavior = ColorFieldBehavior::new(look).with_color(original);
     let panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
 
@@ -864,7 +864,7 @@ fn colorfield_cycle_invalid_hex_preserves_color() {
     cfb.color_field.expansion_mut().unwrap().tf_name = "not-a-color".to_string();
     cfb.color_field.cycle();
 
-    // Color should remain unchanged since parsing failed.
+    // emColor should remain unchanged since parsing failed.
     // The Rust code only updates color if try_parse succeeds, so invalid text
     // leaves the color at whatever it was before.
     let c = cfb.color_field.color();
@@ -891,13 +891,13 @@ fn colorfield_cycle_invalid_hex_preserves_color() {
 // BLOCKED: end-to-end pipeline dispatch tests
 // ---------------------------------------------------------------------------
 // The following tests require the ScalarFieldPanel/TextFieldPanel sub-widgets
-// to wire their on_value/on_text callbacks back to the ColorField's Expansion
+// to wire their on_value/on_text callbacks back to the emColorField's Expansion
 // data, AND for ColorFieldBehavior to implement PanelBehavior::cycle() so that
 // the scheduler drives change detection. Until that wiring exists, these tests
 // cannot exercise the full input->dispatch->cycle->color-update pipeline.
 
-/// Click on the Red ScalarField sub-widget at its slider position and verify
-/// the ColorField's color red channel changes.
+/// Click on the Red emScalarField sub-widget at its slider position and verify
+/// the emColorField's color red channel changes.
 ///
 /// BLOCKED: needs ScalarFieldPanel.on_value wired to Expansion.sf_red, and
 /// ColorFieldBehavior::cycle() implemented. C++ ref: emColorField.cpp:116-122.
@@ -905,19 +905,19 @@ fn colorfield_cycle_invalid_hex_preserves_color() {
 fn colorfield_click_red_slider_updates_color_e2e() {
     // BLOCKED: needs sub-widget on_value callback wiring to Expansion.sf_red,
     // and ColorFieldBehavior::cycle() to propagate changes.
-    // C++ ref: emColorField.cpp:116-122 (SfRed signal -> Color.SetRed).
+    // C++ ref: emColorField.cpp:116-122 (SfRed signal -> emColor.SetRed).
     let mut h = PipelineTestHarness::new();
     let root = h.root();
-    let look = Look::new();
-    let behavior = ColorFieldBehavior::new(look).with_color(Color::BLACK);
+    let look = emLook::new();
+    let behavior = ColorFieldBehavior::new(look).with_color(emColor::BLACK);
     let _panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
     h.tick();
     h.expand_to(16.0);
     // Would need: find red slider view-space bounds, click/drag, tick, verify color.
 }
 
-/// Type a hex value into the Name TextField sub-widget and verify the
-/// ColorField's color updates.
+/// Type a hex value into the Name emTextField sub-widget and verify the
+/// emColorField's color updates.
 ///
 /// BLOCKED: needs TextFieldPanel.on_text wired to Expansion.tf_name, and
 /// ColorFieldBehavior::cycle() implemented. C++ ref: emColorField.cpp:187-200.
@@ -925,18 +925,18 @@ fn colorfield_click_red_slider_updates_color_e2e() {
 fn colorfield_type_hex_in_text_field_updates_color_e2e() {
     // BLOCKED: needs sub-widget on_text callback wiring to Expansion.tf_name,
     // and ColorFieldBehavior::cycle() to propagate changes.
-    // C++ ref: emColorField.cpp:187-200 (TfName signal -> Color.TryParse).
+    // C++ ref: emColorField.cpp:187-200 (TfName signal -> emColor.TryParse).
     let mut h = PipelineTestHarness::new();
     let root = h.root();
-    let look = Look::new();
-    let behavior = ColorFieldBehavior::new(look).with_color(Color::BLACK);
+    let look = emLook::new();
+    let behavior = ColorFieldBehavior::new(look).with_color(emColor::BLACK);
     let _panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
     h.tick();
     h.expand_to(16.0);
     // Would need: focus text field, type "#FF0000", tick, verify color.
 }
 
-/// Drag the Hue ScalarField slider and verify that RGB expansion fields
+/// Drag the Hue emScalarField slider and verify that RGB expansion fields
 /// and the color update accordingly.
 ///
 /// BLOCKED: needs ScalarFieldPanel.on_value wired to Expansion.sf_hue, and
@@ -945,11 +945,11 @@ fn colorfield_type_hex_in_text_field_updates_color_e2e() {
 fn colorfield_drag_hue_slider_updates_rgb_e2e() {
     // BLOCKED: needs sub-widget on_value callback wiring to Expansion.sf_hue,
     // and ColorFieldBehavior::cycle() to propagate changes.
-    // C++ ref: emColorField.cpp:148-159 (SfHue signal -> Color.SetHSVA).
+    // C++ ref: emColorField.cpp:148-159 (SfHue signal -> emColor.SetHSVA).
     let mut h = PipelineTestHarness::new();
     let root = h.root();
-    let look = Look::new();
-    let behavior = ColorFieldBehavior::new(look).with_color(Color::rgba(255, 0, 0, 255));
+    let look = emLook::new();
+    let behavior = ColorFieldBehavior::new(look).with_color(emColor::rgba(255, 0, 0, 255));
     let _panel_id = h.add_panel_with(root, "color_field", Box::new(behavior));
     h.tick();
     h.expand_to(16.0);
