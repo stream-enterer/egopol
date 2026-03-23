@@ -77,7 +77,7 @@ impl emStrokeEnd {
 
     /// Whether this end type draws a decoration (everything except Butt and Cap).
     /// Matches C++ `emStrokeEnd::IsDecorated()` which returns `Type >= ARROW`.
-    pub fn is_decorated(&self) -> bool {
+    pub fn IsDecorated(&self) -> bool {
         !matches!(self.end_type, StrokeEndType::Butt | StrokeEndType::Cap)
     }
 }

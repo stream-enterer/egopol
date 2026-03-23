@@ -3571,8 +3571,8 @@ impl<'a> emPainter<'a> {
         if vertices.len() < 2 {
             return;
         }
-        let has_start_arrow = !closed && stroke.start_end.is_decorated();
-        let has_end_arrow = !closed && stroke.finish_end.is_decorated();
+        let has_start_arrow = !closed && stroke.start_end.IsDecorated();
+        let has_end_arrow = !closed && stroke.finish_end.IsDecorated();
 
         if !has_start_arrow && !has_end_arrow {
             self.paint_polyline_without_arrows(vertices, stroke, closed, canvas_color);
@@ -4173,8 +4173,8 @@ impl<'a> emPainter<'a> {
     ) {
         // For width=1 with no decorations and no rounding, simple line.
         if stroke.width <= 1.0
-            && !stroke.start_end.is_decorated()
-            && !stroke.finish_end.is_decorated()
+            && !stroke.start_end.IsDecorated()
+            && !stroke.finish_end.IsDecorated()
             && stroke.join != super::emStroke::LineJoin::Round
         {
             self.paint_line(x0, y0, x1, y1, stroke.color, canvas_color);
@@ -4201,12 +4201,12 @@ impl<'a> emPainter<'a> {
         if stroke.join != super::emStroke::LineJoin::Round {
             r *= MAX_MITER.max(1.415);
         }
-        if stroke_start.is_decorated() {
+        if stroke_start.IsDecorated() {
             let w = thickness * ARROW_BASE_SIZE * 0.5 * stroke_start.width_factor;
             let l = thickness * ARROW_BASE_SIZE * stroke_start.length_factor;
             r = r.max((w * w + l * l).sqrt());
         }
-        if stroke_end.is_decorated() {
+        if stroke_end.IsDecorated() {
             let w = thickness * ARROW_BASE_SIZE * 0.5 * stroke_end.width_factor;
             let l = thickness * ARROW_BASE_SIZE * stroke_end.length_factor;
             r = r.max((w * w + l * l).sqrt());
