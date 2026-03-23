@@ -122,7 +122,7 @@ impl emFpPlugin {
     /// emLook up a plugin property by name.
     ///
     /// Port of C++ `emFpPlugin::GetProperty`. Returns `None` if not found.
-    pub fn get_property(&self, name: &str) -> Option<&FpPluginProperty> {
+    pub fn GetProperty(&self, name: &str) -> Option<&FpPluginProperty> {
         self.properties.iter().rev().find(|p| p.name == name)
     }
 
@@ -175,7 +175,7 @@ impl emFpPlugin {
     /// Check if this plugin matches the given criteria.
     ///
     /// Port of C++ `emFpPluginList::IsMatchingPlugin`.
-    pub fn is_matching(
+    pub fn IsMatchingPlugin(
         &self,
         model_class_name: Option<&str>,
         file_name: Option<&str>,
@@ -442,7 +442,7 @@ impl emFpPluginList {
     /// Acquire the plugin list from the root context (create if absent).
     ///
     /// Port of C++ `emFpPluginList::Acquire(rootContext)`.
-    pub fn acquire(root_context: &Rc<emContext>) -> Rc<RefCell<Self>> {
+    pub fn Acquire(root_context: &Rc<emContext>) -> Rc<RefCell<Self>> {
         root_context.acquire::<Self>("", Self::load_plugins)
     }
 
@@ -509,7 +509,7 @@ impl emFpPluginList {
     ///   `model_able_to_save == true` are considered.
     /// - `alternative` — selects the Nth match (0 = highest priority).
     /// - `stat_mode` — whether the file is a regular file or directory.
-    pub fn search_plugin(
+    pub fn SearchPlugin(
         &self,
         model_class_name: Option<&str>,
         file_path: Option<&str>,
@@ -521,7 +521,7 @@ impl emFpPluginList {
 
         let mut skip = alternative;
         for plugin in &self.plugins {
-            if plugin.is_matching(model_class_name, file_name, require_able_to_save, stat_mode) {
+            if plugin.IsMatchingPlugin(model_class_name, file_name, require_able_to_save, stat_mode) {
                 if skip == 0 {
                     return Some(plugin);
                 }
@@ -535,7 +535,7 @@ impl emFpPluginList {
     /// Search for all matching plugins, sorted by descending priority.
     ///
     /// Port of C++ `emFpPluginList::SearchPlugins`.
-    pub fn search_plugins(
+    pub fn SearchPlugins(
         &self,
         model_class_name: Option<&str>,
         file_path: Option<&str>,
@@ -547,7 +547,7 @@ impl emFpPluginList {
         self.plugins
             .iter()
             .filter(|plugin| {
-                plugin.is_matching(model_class_name, file_name, require_able_to_save, stat_mode)
+                plugin.IsMatchingPlugin(model_class_name, file_name, require_able_to_save, stat_mode)
             })
             .collect()
     }
