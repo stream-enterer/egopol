@@ -55,65 +55,65 @@ impl emButton {
         }
     }
 
-    pub fn set_caption(&mut self, text: &str) {
+    pub fn SetCaption(&mut self, text: &str) {
         self.border.caption = text.to_string();
     }
 
     /// Whether clicking this button is not an "End Of Interaction".
     /// If false (the default), an EOI signal would be sent on every click.
     /// Matches C++ `emButton::IsNoEOI`.
-    pub fn is_no_eoi(&self) -> bool {
+    pub fn IsNoEOI(&self) -> bool {
         self.no_eoi
     }
 
     /// Set whether clicking this button triggers an End-of-Interaction.
     /// Matches C++ `emButton::SetNoEOI`.
-    pub fn set_no_eoi(&mut self, no_eoi: bool) {
+    pub fn SetNoEOI(&mut self, no_eoi: bool) {
         self.no_eoi = no_eoi;
     }
 
     /// Set the border description text. Matches C++ `emButton::SetDescription`.
-    pub fn set_description(&mut self, desc: &str) {
+    pub fn SetDescription(&mut self, desc: &str) {
         self.border.description = desc.to_string();
     }
 
     /// Whether the button is visually shown as checked.
     /// Matches C++ `emButton::IsShownChecked`.
-    pub fn is_shown_checked(&self) -> bool {
+    pub fn IsShownChecked(&self) -> bool {
         self.shown_checked
     }
 
     /// Set whether the button is visually shown as checked.
     /// Matches C++ `emButton::SetShownChecked`.
-    pub fn set_shown_checked(&mut self, checked: bool) {
+    pub fn SetShownChecked(&mut self, checked: bool) {
         self.shown_checked = checked;
     }
 
     /// Whether the button is visually shown with a checkbox-style box.
     /// Matches C++ `emButton::IsShownBoxed`.
-    pub fn is_shown_boxed(&self) -> bool {
+    pub fn IsShownBoxed(&self) -> bool {
         self.shown_boxed
     }
 
     /// Set whether the button is visually shown with a checkbox-style box.
     /// Matches C++ `emButton::SetShownBoxed`.
-    pub fn set_shown_boxed(&mut self, boxed: bool) {
+    pub fn SetShownBoxed(&mut self, boxed: bool) {
         self.shown_boxed = boxed;
     }
 
     /// Whether the button is visually shown as a radio button.
     /// Matches C++ `emButton::IsShownRadioed`.
-    pub fn is_shown_radioed(&self) -> bool {
+    pub fn IsShownRadioed(&self) -> bool {
         self.shown_radioed
     }
 
     /// Set whether the button is visually shown as a radio button.
     /// Matches C++ `emButton::SetShownRadioed`.
-    pub fn set_shown_radioed(&mut self, radioed: bool) {
+    pub fn SetShownRadioed(&mut self, radioed: bool) {
         self.shown_radioed = radioed;
     }
 
-    pub fn is_pressed(&self) -> bool {
+    pub fn IsPressed(&self) -> bool {
         self.pressed
     }
 
@@ -123,7 +123,7 @@ impl emButton {
     /// Matches C++ `emButton::CheckMouse` for the non-boxed path: coordinates
     /// and face geometry are both computed in normalized `(1.0, tallness)`
     /// panel-local space, making the result zoom-invariant.
-    pub fn check_mouse(&self, mx: f64, my: f64) -> bool {
+    pub fn CheckMouse(&self, mx: f64, my: f64) -> bool {
         if self.last_w <= 0.0 || self.last_h <= 0.0 {
             return false;
         }
@@ -137,7 +137,7 @@ impl emButton {
 
     /// Whether this button provides how-to help text.
     /// Matches C++ `emButton::HasHowTo` (always returns true).
-    pub fn has_how_to(&self) -> bool {
+    pub fn HasHowTo(&self) -> bool {
         true
     }
 
@@ -145,7 +145,7 @@ impl emButton {
     ///
     /// Chains the border's base how-to (preface + disabled/focus) with the
     /// button-specific sections. Matches C++ `emButton::GetHowTo`.
-    pub fn get_how_to(&self, enabled: bool, focusable: bool) -> String {
+    pub fn GetHowTo(&self, enabled: bool, focusable: bool) -> String {
         let mut text = self.border.get_howto(enabled, focusable);
         text.push_str(HOWTO_BUTTON);
         if !self.no_eoi {
@@ -391,7 +391,7 @@ impl emButton {
     ///
     /// Matches C++ `emButton::Click(shift)`: gates on IsEnabled(),
     /// fires ClickSignal, calls Clicked(). EOI signal not implemented.
-    pub fn click(&mut self) {
+    pub fn Click(&mut self) {
         if !self.enabled {
             return;
         }
@@ -537,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn set_no_eoi() {
+    fn SetNoEOI() {
         let look = emLook::new();
         let mut btn = emButton::new("Test", look);
         btn.set_no_eoi(true);
