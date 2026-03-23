@@ -313,7 +313,7 @@ impl emScalarField {
             .paint_border(painter, w, h, &self.look, false, enabled, 1.0);
         let canvas_color = painter.canvas_color();
 
-        let (content, radius) = self.border.content_round_rect(w, h, &self.look);
+        let (content, radius) = self.border.GetContentRoundRect(w, h, &self.look);
         let Rect { x, y, w: cw, h: ch } = content;
         let r = radius;
         let v_range = self.max - self.min;
@@ -584,7 +584,7 @@ impl emScalarField {
     /// Chains the border's base how-to with scalar-field-specific sections.
     /// Matches C++ `emScalarField::GetHowTo`.
     pub fn get_how_to(&self, enabled: bool, focusable: bool) -> String {
-        let mut text = self.border.get_howto(enabled, focusable);
+        let mut text = self.border.GetHowTo(enabled, focusable);
         text.push_str(HOWTO_SCALAR_FIELD);
         if !self.editable {
             text.push_str(HOWTO_READ_ONLY);
@@ -606,7 +606,7 @@ impl emScalarField {
         // Mouse coordinates are in panel-local space (0..1 for x, 0..tallness
         // for y). Compute layout in the same coordinate system.
         let tallness = self.last_h / self.last_w;
-        let (content, radius) = self.border.content_round_rect(1.0, tallness, &self.look);
+        let (content, radius) = self.border.GetContentRoundRect(1.0, tallness, &self.look);
         let Rect { x, y, w: cw, h: ch } = content;
         let r = radius;
         let v_range = self.max - self.min;
@@ -674,7 +674,7 @@ impl emScalarField {
     pub fn preferred_size(&self) -> (f64, f64) {
         // C++ emScalarField inherits emBorder::GetBestTallness which uses
         // the label tallness. Compute content size from tallness-based ratio.
-        let tallness = self.border.best_label_tallness().max(0.1);
+        let tallness = self.border.GetBestLabelTallness().max(0.1);
         let cw = 100.0;
         let ch = cw * tallness;
         self.border.preferred_size_for_content(cw, ch)

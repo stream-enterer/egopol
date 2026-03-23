@@ -984,7 +984,7 @@ impl emListBox {
         }
 
         // The single child is the emRasterLayout grid.
-        let cr = self.border.content_rect_unobscured(w, h, &self.look);
+        let cr = self.border.GetContentRectUnobscured(w, h, &self.look);
         ctx.layout_child(children[0], cr.x, cr.y, cr.w, cr.h);
 
         // Propagate content canvas color to children.
@@ -1014,7 +1014,7 @@ impl emListBox {
             y: cy,
             w: cw,
             h: ch,
-        } = self.border.content_rect_unobscured(w, h, &self.look);
+        } = self.border.GetContentRectUnobscured(w, h, &self.look);
 
         // Store visible height for scroll_to_index
         self.visible_height = ch;
@@ -1129,7 +1129,7 @@ impl emListBox {
             return false;
         }
         let tallness = self.last_h / self.last_w * pixel_tallness;
-        let (rect, r) = self.border.content_round_rect(1.0, tallness, &self.look);
+        let (rect, r) = self.border.GetContentRoundRect(1.0, tallness, &self.look);
         super::widget_utils::check_mouse_round_rect(mx, my, &rect, r)
     }
 
@@ -1191,7 +1191,7 @@ impl emListBox {
                 };
                 let cr = self
                     .border
-                    .content_rect_unobscured(1.0, tallness, &self.look);
+                    .GetContentRectUnobscured(1.0, tallness, &self.look);
                 let row_h = if self.items.is_empty() {
                     cr.h
                 } else {
@@ -1277,7 +1277,7 @@ impl emListBox {
     /// Chains the border's base how-to with list-box-specific sections.
     /// Matches C++ `emListBox::GetHowTo`.
     pub fn get_how_to(&self, enabled: bool, focusable: bool) -> String {
-        let mut text = self.border.get_howto(enabled, focusable);
+        let mut text = self.border.GetHowTo(enabled, focusable);
         text.push_str(HOWTO_LIST_BOX);
         match self.selection_mode {
             SelectionMode::ReadOnly => text.push_str(HOWTO_READ_ONLY_SELECTION),

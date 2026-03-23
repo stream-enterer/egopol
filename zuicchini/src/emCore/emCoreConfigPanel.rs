@@ -133,7 +133,7 @@ fn make_factor_field(
     sf.SetValue(factor_cfg_to_val(cfg_value, cfg_min, cfg_max));
     sf.SetScaleMarkIntervals(&[100, 10]);
     sf.SetTextBoxTallness(0.3);
-    sf.border_mut().set_border_scaling(1.5);
+    sf.border_mut().SetBorderScaling(1.5);
     let (min, max, dis) = (cfg_min, cfg_max, minimum_means_disabled);
     sf.SetTextOfValueFunc(Box::new(move |v, mi| {
         factor_text_of_value(v, mi, dis, min, max)
@@ -253,7 +253,7 @@ impl PanelBehavior for KBGroup {
 
         let aux_id = crate::emCore::emTiling::position_aux_panel(ctx, &self.border);
         let r = ctx.layout_rect();
-        let cr = self.border.content_rect_unobscured(r.w, r.h, &self.look);
+        let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
@@ -364,7 +364,7 @@ impl PanelBehavior for MouseMiscGroup {
 
         let aux_id = crate::emCore::emTiling::position_aux_panel(ctx, &self.border);
         let r = ctx.layout_rect();
-        let cr = self.border.content_rect_unobscured(r.w, r.h, &self.look);
+        let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
@@ -521,7 +521,7 @@ impl PanelBehavior for KineticGroup {
 
         let aux_id = crate::emCore::emTiling::position_aux_panel(ctx, &self.border);
         let r = ctx.layout_rect();
-        let cr = self.border.content_rect_unobscured(r.w, r.h, &self.look);
+        let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
@@ -637,7 +637,7 @@ impl PanelBehavior for MaxMemGroup {
 
         let aux_id = crate::emCore::emTiling::position_aux_panel(ctx, &self.border);
         let r = ctx.layout_rect();
-        let cr = self.border.content_rect_unobscured(r.w, r.h, &self.look);
+        let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
@@ -680,7 +680,7 @@ impl MemFieldLayoutPanel {
         sf.SetValue(mem_cfg_to_val(c.max_megabytes_per_view));
         sf.SetScaleMarkIntervals(&[100, 10]);
         sf.SetTextBoxTallness(0.3);
-        sf.border_mut().set_border_scaling(1.5);
+        sf.border_mut().SetBorderScaling(1.5);
         sf.SetTextOfValueFunc(Box::new(mem_text_of_value));
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         sf.on_value = Some(Box::new(move |val| {
@@ -793,7 +793,7 @@ impl MaxMemTunnelPanel {
     ) -> Self {
         let mut tunnel = emTunnel::new(look.clone());
         tunnel.SetChildTallness(0.3);
-        tunnel.border_mut().set_border_scaling(1.5);
+        tunnel.border_mut().SetBorderScaling(1.5);
         Self {
             tunnel,
             config,
@@ -857,7 +857,7 @@ impl CpuGroup {
         let mut border = emBorder::new(OuterBorderType::Instrument)
             .with_inner(InnerBorderType::Group)
             .with_caption("CPU");
-        border.set_border_scaling(1.5);
+        border.SetBorderScaling(1.5);
         Self {
             config,
             look,
@@ -882,7 +882,7 @@ impl CpuGroup {
         sf.SetScaleMarkIntervals(&[1]);
         sf.border_mut().outer = OuterBorderType::None;
         sf.border_mut().inner = InnerBorderType::InputField;
-        sf.border_mut().set_border_scaling(1.5);
+        sf.border_mut().SetBorderScaling(1.5);
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         sf.on_value = Some(Box::new(move |val| {
             let threads = (val + 0.5) as i32;
@@ -944,7 +944,7 @@ impl PanelBehavior for CpuGroup {
 
         let aux_id = crate::emCore::emTiling::position_aux_panel(ctx, &self.border);
         let r = ctx.layout_rect();
-        let cr = self.border.content_rect_unobscured(r.w, r.h, &self.look);
+        let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
@@ -1022,7 +1022,7 @@ impl PerformanceGroup {
         ds_sf.SetValue(c.downscale_quality as f64);
         ds_sf.SetScaleMarkIntervals(&[1]);
         ds_sf.SetTextBoxTallness(0.3);
-        ds_sf.border_mut().set_border_scaling(1.5);
+        ds_sf.border_mut().SetBorderScaling(1.5);
         ds_sf.SetTextOfValueFunc(Box::new(downscale_text));
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         ds_sf.on_value = Some(Box::new(move |val| {
@@ -1045,7 +1045,7 @@ impl PerformanceGroup {
         us_sf.SetValue(c.upscale_quality as f64);
         us_sf.SetScaleMarkIntervals(&[1]);
         us_sf.SetTextBoxTallness(0.3);
-        us_sf.border_mut().set_border_scaling(1.5);
+        us_sf.border_mut().SetBorderScaling(1.5);
         us_sf.SetTextOfValueFunc(Box::new(upscale_text));
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         us_sf.on_value = Some(Box::new(move |val| {
@@ -1092,7 +1092,7 @@ impl PanelBehavior for PerformanceGroup {
 
         let aux_id = crate::emCore::emTiling::position_aux_panel(ctx, &self.border);
         let r = ctx.layout_rect();
-        let cr = self.border.content_rect_unobscured(r.w, r.h, &self.look);
+        let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
@@ -1263,7 +1263,7 @@ impl PanelBehavior for MouseGroup {
 
         let aux_id = crate::emCore::emTiling::position_aux_panel(ctx, &self.border);
         let r = ctx.layout_rect();
-        let cr = self.border.content_rect_unobscured(r.w, r.h, &self.look);
+        let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
@@ -1533,7 +1533,7 @@ impl PanelBehavior for emCoreConfigPanel {
 
         let aux_id = crate::emCore::emTiling::position_aux_panel(ctx, &self.border);
         let r = ctx.layout_rect();
-        let cr = self.border.content_rect_unobscured(r.w, r.h, &self.look);
+        let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border

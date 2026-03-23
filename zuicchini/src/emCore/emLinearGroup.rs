@@ -44,7 +44,7 @@ impl PanelBehavior for emLinearGroup {
         // C++ base-call: position aux panel first, then layout remaining children
         let aux_id = super::emTiling::position_aux_panel(ctx, &self.border);
         let r = ctx.layout_rect();
-        let cr = self.border.content_rect(r.w, r.h, &self.look);
+        let cr = self.border.GetContentRect(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border

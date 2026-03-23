@@ -946,7 +946,7 @@ impl emTextField {
         // so we only need to subtract tx and add scroll_x.
         let tx = if self.last_w > 0.0 && self.last_h > 0.0 {
             let (content, radius) =
-                self.border.content_round_rect(self.last_w, self.last_h, &self.look);
+                self.border.GetContentRoundRect(self.last_w, self.last_h, &self.look);
             let d = content.h.min(content.w) * 0.1 + radius * 0.5;
             content.x + d
         } else {
@@ -1105,7 +1105,7 @@ impl emTextField {
 
         self.border
             .paint_border(painter, w, h, &self.look, false, enabled, 1.0);
-        let (content, radius) = self.border.content_round_rect(w, h, &self.look);
+        let (content, radius) = self.border.GetContentRoundRect(w, h, &self.look);
         let Rect {
             x: cx,
             y: cy,
@@ -1714,7 +1714,7 @@ impl emTextField {
 
         let content = self
             .border
-            .content_rect(self.last_w, self.last_h, &self.look);
+            .GetContentRect(self.last_w, self.last_h, &self.look);
 
         let (col, row) = self.index_to_col_row(self.cursor);
 
@@ -2088,7 +2088,7 @@ impl emTextField {
             return false;
         }
         let tallness = self.last_h / self.last_w;
-        let (rect, r) = self.border.content_round_rect(1.0, tallness, &self.look);
+        let (rect, r) = self.border.GetContentRoundRect(1.0, tallness, &self.look);
         super::widget_utils::check_mouse_round_rect(mx, my, &rect, r)
     }
 
@@ -2407,7 +2407,7 @@ impl emTextField {
     /// Chains the border's base how-to with text-field-specific sections.
     /// Matches C++ `emTextField::GetHowTo`.
     pub fn get_how_to(&self, enabled: bool, focusable: bool) -> String {
-        let mut text = self.border.get_howto(enabled, focusable);
+        let mut text = self.border.GetHowTo(enabled, focusable);
         text.push_str(HOWTO_TEXT_FIELD);
         if self.multi_line {
             text.push_str(HOWTO_MULTI_LINE_ON);
@@ -2621,7 +2621,7 @@ impl emTextField {
     /// Returns `(index, hit)` where `hit` is true if within content area.
     /// Matches C++ `CheckMouse`.
     pub fn check_mouse(&self, mx: f64, my: f64, w: f64, h: f64) -> (usize, bool) {
-        let content = self.border.content_rect(w, h, &self.look);
+        let content = self.border.GetContentRect(w, h, &self.look);
         let hit = mx >= content.x
             && mx <= content.x + content.w
             && my >= content.y

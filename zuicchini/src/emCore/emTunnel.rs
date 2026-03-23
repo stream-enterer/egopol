@@ -242,7 +242,7 @@ impl emTunnel {
 
     /// Content round rect from the border.
     fn content_round_rect(&self, w: f64, h: f64) -> (Rect, f64) {
-        self.border.content_round_rect(w, h, &self.look)
+        self.border.GetContentRoundRect(w, h, &self.look)
     }
 
     /// Compute the inner rectangle of the tunnel (before inset for child).

@@ -66,7 +66,7 @@ impl emLabel {
     }
 
     pub fn set_icon(&mut self, icon: Option<emImage>) {
-        self.border.set_icon(icon);
+        self.border.SetIcon(icon);
     }
 
     /// Set horizontal alignment of the label block within content area.
@@ -78,13 +78,13 @@ impl emLabel {
     /// Set text line alignment for the caption.
     /// Matches C++ `emBorder::SetCaptionAlignment`.
     pub fn set_caption_alignment(&mut self, a: TextAlignment) {
-        self.border.set_caption_alignment(Some(a));
+        self.border.SetCaptionAlignment(Some(a));
     }
 
     /// Set text line alignment for the description.
     /// Matches C++ `emBorder::SetDescriptionAlignment`.
     pub fn set_description_alignment(&mut self, a: TextAlignment) {
-        self.border.set_description_alignment(Some(a));
+        self.border.SetDescriptionAlignment(Some(a));
     }
 
     /// Paint the label.
@@ -97,7 +97,7 @@ impl emLabel {
         self.border
             .paint_border(painter, w, h, &self.look, false, enabled, 1.0);
 
-        let cr = self.border.content_rect(w, h, &self.look);
+        let cr = self.border.GetContentRect(w, h, &self.look);
         if cr.w <= 0.0 || cr.h <= 0.0 {
             return;
         }

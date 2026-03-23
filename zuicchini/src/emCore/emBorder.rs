@@ -106,7 +106,7 @@ impl emBorder {
         self
     }
 
-    pub fn set_caption(&mut self, caption: &str) {
+    pub fn SetCaption(&mut self, caption: &str) {
         self.caption = caption.to_string();
     }
 
@@ -120,15 +120,15 @@ impl emBorder {
         self
     }
 
-    pub fn set_outer_border_type(&mut self, obt: OuterBorderType) {
+    pub fn SetOuterBorderType(&mut self, obt: OuterBorderType) {
         self.outer = obt;
     }
 
-    pub fn set_inner_border_type(&mut self, ibt: InnerBorderType) {
+    pub fn SetInnerBorderType(&mut self, ibt: InnerBorderType) {
         self.inner = ibt;
     }
 
-    pub fn set_border_type(&mut self, obt: OuterBorderType, ibt: InnerBorderType) {
+    pub fn SetBorderType(&mut self, obt: OuterBorderType, ibt: InnerBorderType) {
         self.outer = obt;
         self.inner = ibt;
     }
@@ -138,7 +138,7 @@ impl emBorder {
         self
     }
 
-    pub fn set_border_scaling(&mut self, s: f64) {
+    pub fn SetBorderScaling(&mut self, s: f64) {
         self.border_scaling = s.max(1e-10);
     }
 
@@ -147,7 +147,7 @@ impl emBorder {
         self
     }
 
-    pub fn set_label_alignment(&mut self, a: TextAlignment) {
+    pub fn SetLabelAlignment(&mut self, a: TextAlignment) {
         self.label_alignment = a;
     }
 
@@ -156,7 +156,7 @@ impl emBorder {
         self
     }
 
-    pub fn set_caption_alignment(&mut self, a: Option<TextAlignment>) {
+    pub fn SetCaptionAlignment(&mut self, a: Option<TextAlignment>) {
         self.caption_alignment = a;
     }
 
@@ -165,7 +165,7 @@ impl emBorder {
         self
     }
 
-    pub fn set_description_alignment(&mut self, a: Option<TextAlignment>) {
+    pub fn SetDescriptionAlignment(&mut self, a: Option<TextAlignment>) {
         self.description_alignment = a;
     }
 
@@ -174,24 +174,24 @@ impl emBorder {
         self
     }
 
-    pub fn set_icon(&mut self, icon: Option<emImage>) {
+    pub fn SetIcon(&mut self, icon: Option<emImage>) {
         self.icon = icon;
     }
 
     /// Set caption, description, and icon in a single call.
     ///
     /// Port of C++ `emBorder::SetLabel(caption, description, icon)`.
-    pub fn set_label(&mut self, caption: &str, description: &str, icon: Option<emImage>) {
+    pub fn SetLabel(&mut self, caption: &str, description: &str, icon: Option<emImage>) {
         self.caption = caption.to_string();
         self.description = description.to_string();
         self.icon = icon;
     }
 
-    pub fn set_icon_above_caption(&mut self, above: bool) {
+    pub fn SetIconAboveCaption(&mut self, above: bool) {
         self.icon_above_caption = above;
     }
 
-    pub fn set_max_icon_area_tallness(&mut self, t: f64) {
+    pub fn SetMaxIconAreaTallness(&mut self, t: f64) {
         self.max_icon_area_tallness = t.max(1e-10);
     }
 
@@ -220,7 +220,7 @@ impl emBorder {
     /// Set whether the label is rendered inside the border.
     ///
     /// C++ equivalent: `emBorder::SetLabelInBorder`.
-    pub fn set_label_in_border(&mut self, in_border: bool) {
+    pub fn SetLabelInBorder(&mut self, in_border: bool) {
         self.label_in_border = in_border;
     }
 
@@ -231,7 +231,7 @@ impl emBorder {
     /// differ from the current values.
     ///
     /// C++ equivalent: `emBorder::HaveAux`.
-    pub fn have_aux(&mut self, panel_name: &str, tallness: f64) {
+    pub fn HaveAux(&mut self, panel_name: &str, tallness: f64) {
         match self.aux_panel_name {
             None => {
                 self.aux_panel_name = Some(panel_name.to_string());
@@ -251,7 +251,7 @@ impl emBorder {
     /// Remove the auxiliary panel area if present. No-op if already absent.
     ///
     /// C++ equivalent: `emBorder::RemoveAux`.
-    pub fn remove_aux(&mut self) {
+    pub fn RemoveAux(&mut self) {
         self.aux_panel_name = None;
         self.aux_tallness = 1.0;
     }
@@ -259,7 +259,7 @@ impl emBorder {
     /// Return the auxiliary panel name, or an empty string if no aux data.
     ///
     /// C++ equivalent: `emBorder::GetAuxPanelName`.
-    pub fn get_aux_panel_name(&self) -> &str {
+    pub fn GetAuxPanelName(&self) -> &str {
         match self.aux_panel_name {
             Some(ref name) => name.as_str(),
             None => "",
@@ -269,7 +269,7 @@ impl emBorder {
     /// Return the auxiliary area tallness, or `1.0` if no aux data.
     ///
     /// C++ equivalent: `emBorder::GetAuxTallness`.
-    pub fn get_aux_tallness(&self) -> f64 {
+    pub fn GetAuxTallness(&self) -> f64 {
         if self.aux_panel_name.is_some() {
             self.aux_tallness
         } else {
@@ -286,7 +286,7 @@ impl emBorder {
     /// name in the widget tree.
     ///
     /// C++ equivalent: `emBorder::GetAuxPanel` (structural adaptation).
-    pub fn has_aux_panel(&self) -> bool {
+    pub fn HasAux(&self) -> bool {
         self.aux_panel_name.is_some()
     }
 
@@ -300,7 +300,7 @@ impl emBorder {
     ///
     /// C++ equivalent: `emBorder::GetAuxRect`
     /// (via `DoBorder(BORDER_FUNC_AUX_RECT)`).
-    pub fn get_aux_rect(&self, w: f64, h: f64) -> Option<Rect> {
+    pub fn GetAuxRect(&self, w: f64, h: f64) -> Option<Rect> {
         self.aux_panel_name.as_ref()?;
 
         let (ox, oy, ow, oh) = self.outer_insets(w, h);
@@ -309,7 +309,7 @@ impl emBorder {
         let rnd_w = (w - ow).max(0.0);
         let rnd_h = (h - oh).max(0.0);
 
-        if self.label_in_border && self.has_label() {
+        if self.label_in_border && self.HasLabel() {
             // emLabel path: aux is placed at the right of the label text area.
             let label_area_w = rnd_w;
             let lch = self.label_content_height(label_area_w, rnd_h);
@@ -363,14 +363,14 @@ impl emBorder {
         }
     }
 
-    pub(crate) fn has_label(&self) -> bool {
+    pub(crate) fn HasLabel(&self) -> bool {
         !self.caption.is_empty() || !self.description.is_empty() || self.icon.is_some()
     }
 
     /// Best (natural) height-to-width ratio of the label.
     ///
     /// C++ equivalent: `emBorder::DoLabel(LABEL_FUNC_GET_BEST_TALLNESS)`.
-    pub(crate) fn best_label_tallness(&self) -> f64 {
+    pub(crate) fn GetBestLabelTallness(&self) -> f64 {
         let has_cap = !self.caption.is_empty();
         let has_icon = self.icon.is_some();
         let has_desc = !self.description.is_empty();
@@ -909,7 +909,7 @@ How to move or set the focus:\n\
     /// behaviors) supply the state because `emBorder` itself is not a panel.
     ///
     /// C++ equivalent: `emBorder::GetHowTo`.
-    pub(crate) fn get_howto(&self, enabled: bool, focusable: bool) -> String {
+    pub(crate) fn GetHowTo(&self, enabled: bool, focusable: bool) -> String {
         let mut text = String::from(Self::HOWTO_PREFACE);
         if !enabled {
             text.push_str(Self::HOWTO_DISABLED);
@@ -925,7 +925,7 @@ How to move or set the focus:\n\
     /// entire panel area qualify, and only when the background color is opaque.
     ///
     /// C++ equivalent: `emBorder::IsOpaque`.
-    pub fn is_opaque(&self, look: &emLook) -> bool {
+    pub fn IsOpaque(&self, look: &emLook) -> bool {
         match self.outer {
             OuterBorderType::Filled
             | OuterBorderType::MarginFilled
@@ -945,7 +945,7 @@ How to move or set the focus:\n\
     ///
     /// C++ equivalent: `emBorder::GetSubstanceRect`
     /// (via `DoBorder(BORDER_FUNC_SUBSTANCE_ROUND_RECT)`).
-    pub fn substance_round_rect(&self, w: f64, h: f64) -> (Rect, f64) {
+    pub fn GetSubstanceRect(&self, w: f64, h: f64) -> (Rect, f64) {
         let s = self.base_unit(w, h);
         match self.outer {
             OuterBorderType::None | OuterBorderType::Filled => (
@@ -1060,7 +1060,7 @@ How to move or set the focus:\n\
     ///
     /// Port of C++ `emBorder::GetSubstanceRect` (scalar rect variant).
     pub fn substance_rect(&self, panel_rect: Rect) -> Rect {
-        let (r, _radius) = self.substance_round_rect(panel_rect.w, panel_rect.h);
+        let (r, _radius) = self.GetSubstanceRect(panel_rect.w, panel_rect.h);
         Rect {
             x: panel_rect.x + r.x,
             y: panel_rect.y + r.y,
@@ -1078,7 +1078,7 @@ How to move or set the focus:\n\
     ///
     /// C++ equivalent: `emBorder::GetContentRoundRect`
     /// (via `DoBorder(BORDER_FUNC_CONTENT_ROUND_RECT)`).
-    pub fn content_round_rect(&self, w: f64, h: f64, _look: &emLook) -> (Rect, f64) {
+    pub fn GetContentRoundRect(&self, w: f64, h: f64, _look: &emLook) -> (Rect, f64) {
         let (ox, oy, ow, oh) = self.outer_insets(w, h);
         let mut rnd_x = ox;
         let mut label_area_w = (w - ow).max(0.0);
@@ -1098,7 +1098,7 @@ How to move or set the focus:\n\
             }
         }
 
-        let label_h = if self.label_in_border && self.has_label() {
+        let label_h = if self.label_in_border && self.HasLabel() {
             s * self.label_space_factor()
         } else {
             0.0
@@ -1220,7 +1220,7 @@ How to move or set the focus:\n\
     ///
     /// C++ equivalent: `emBorder::GetContentRectUnobscured`
     /// (via `DoBorder(BORDER_FUNC_CONTENT_RECT_UNOBSCURED)`).
-    pub fn content_rect_unobscured(&self, w: f64, h: f64, look: &emLook) -> Rect {
+    pub fn GetContentRectUnobscured(&self, w: f64, h: f64, look: &emLook) -> Rect {
         match self.inner {
             InnerBorderType::InputField | InnerBorderType::OutputField => {
                 // C++ emBorder.cpp lines 1121-1128: compute from the round-rect
@@ -1243,7 +1243,7 @@ How to move or set the focus:\n\
                     }
                 }
 
-                let label_h = if self.label_in_border && self.has_label() {
+                let label_h = if self.label_in_border && self.HasLabel() {
                     s * self.label_space_factor()
                 } else {
                     0.0
@@ -1280,12 +1280,12 @@ How to move or set the focus:\n\
                     h: (rnd_h - 2.0 * d).max(0.0),
                 }
             }
-            _ => self.content_rect(w, h, look),
+            _ => self.GetContentRect(w, h, look),
         }
     }
 
     /// Compute the content area after border and label insets.
-    pub fn content_rect(&self, w: f64, h: f64, _look: &emLook) -> Rect {
+    pub fn GetContentRect(&self, w: f64, h: f64, _look: &emLook) -> Rect {
         let (ox, oy, ow, oh) = self.outer_insets(w, h);
         let mut rnd_x = ox;
         let mut rnd_y = oy;
@@ -1307,7 +1307,7 @@ How to move or set the focus:\n\
             }
         }
 
-        let label_h = if self.label_in_border && self.has_label() {
+        let label_h = if self.label_in_border && self.HasLabel() {
             s * self.label_space_factor()
         } else {
             0.0
@@ -1515,7 +1515,7 @@ How to move or set the focus:\n\
         let (_, _, ow, oh) = self.outer_insets(cw, ch);
         let label_area_w = cw;
         let rnd_h = (ch - oh).max(0.0);
-        let label_h = if self.label_in_border && self.has_label() {
+        let label_h = if self.label_in_border && self.HasLabel() {
             self.label_space(label_area_w, rnd_h)
         } else {
             0.0
@@ -2008,7 +2008,7 @@ How to move or set the focus:\n\
         }
 
         let label_area_w = rnd_w;
-        let ls = if self.label_in_border && self.has_label() {
+        let ls = if self.label_in_border && self.HasLabel() {
             self.label_space(label_area_w, rnd_h)
         } else {
             0.0
@@ -2203,7 +2203,7 @@ How to move or set the focus:\n\
             }
         }
 
-        let ls = if self.label_in_border && self.has_label() {
+        let ls = if self.label_in_border && self.HasLabel() {
             self.label_space(rnd_w2, rnd_h)
         } else {
             0.0

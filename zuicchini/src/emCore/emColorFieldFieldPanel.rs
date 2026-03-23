@@ -35,7 +35,7 @@ impl ScalarFieldPanel {
         sf.SetEditable(editable);
         sf.border_mut().outer = OuterBorderType::Rect;
         sf.border_mut().inner = InnerBorderType::CustomRect;
-        sf.border_mut().set_border_scaling(2.0);
+        sf.border_mut().SetBorderScaling(2.0);
         Self { scalar_field: sf }
     }
 }
@@ -72,7 +72,7 @@ impl TextFieldPanel {
         tf.set_editable(editable);
         tf.border_mut().outer = OuterBorderType::Rect;
         tf.border_mut().inner = InnerBorderType::CustomRect;
-        tf.border_mut().set_border_scaling(2.0);
+        tf.border_mut().SetBorderScaling(2.0);
         Self { text_field: tf }
     }
 }

@@ -146,7 +146,7 @@ impl emButton {
     /// Chains the border's base how-to (preface + disabled/focus) with the
     /// button-specific sections. Matches C++ `emButton::GetHowTo`.
     pub fn GetHowTo(&self, enabled: bool, focusable: bool) -> String {
-        let mut text = self.border.get_howto(enabled, focusable);
+        let mut text = self.border.GetHowTo(enabled, focusable);
         text.push_str(HOWTO_BUTTON);
         if !self.no_eoi {
             text.push_str(HOWTO_EOI_BUTTON);
@@ -169,7 +169,7 @@ impl emButton {
 
         // C++ emButton::DoButton gets content round rect, then insets the face
         // by d = (1 - 250/264) * r = (14/264) * r.
-        let (cr, r) = self.border.content_round_rect(w, h, &self.look);
+        let (cr, r) = self.border.GetContentRoundRect(w, h, &self.look);
         let r = r.max(cr.w.min(cr.h) * self.border.border_scaling * 0.223);
         let d = (14.0 / 264.0) * r;
         let fx = cr.x + d;
@@ -285,7 +285,7 @@ impl emButton {
             return false;
         }
         let tallness = self.last_h / self.last_w;
-        let (cr, r) = self.border.content_round_rect(1.0, tallness, &self.look);
+        let (cr, r) = self.border.GetContentRoundRect(1.0, tallness, &self.look);
         let r = r.max(cr.w.min(cr.h) * self.border.border_scaling * 0.223);
         // Face inset: d = (14/264) * r (C++ emButton.cpp:348)
         let d = (14.0 / 264.0) * r;

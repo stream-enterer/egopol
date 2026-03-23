@@ -642,7 +642,7 @@ impl emFileSelectionBox {
         let rect = ctx.layout_rect();
         let cr = self
             .border
-            .content_rect_unobscured(rect.w, rect.h, &self.look);
+            .GetContentRectUnobscured(rect.w, rect.h, &self.look);
         let hs = (cr.w * 0.05).min(cr.h * 0.15);
         let has_top = !self.parent_dir_field_hidden || !self.hidden_check_box_hidden;
         let has_bottom = !self.name_field_hidden || !self.filter_hidden;
@@ -692,7 +692,7 @@ impl emFileSelectionBox {
                 SelectionMode::Single
             });
             if h2 > 1e-100 {
-                lb.border_mut().set_border_scaling(hs / h2);
+                lb.border_mut().SetBorderScaling(hs / h2);
             }
             let events = self.events.clone();
             lb.on_selection = Some(Box::new(move |indices: &[usize]| {
@@ -924,7 +924,7 @@ impl PanelBehavior for emFileSelectionBox {
         let rect = ctx.layout_rect();
         let (w, h) = (rect.w, rect.h);
 
-        let cr = self.border.content_rect_unobscured(w, h, &self.look);
+        let cr = self.border.GetContentRectUnobscured(w, h, &self.look);
         let (x, y, cw, ch) = (cr.x, cr.y, cr.w, cr.h);
 
         let cc = self

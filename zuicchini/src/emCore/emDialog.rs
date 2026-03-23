@@ -55,7 +55,7 @@ impl emDialog {
 
     /// Update the dialog title (border caption).
     pub fn SetRootTitle(&mut self, title: &str) {
-        self.border.set_caption(title);
+        self.border.SetCaption(title);
     }
 
     /// Update the label of the first button whose result matches `result`.
@@ -93,7 +93,7 @@ impl emDialog {
             y: cy,
             w: cw,
             h: ch,
-        } = self.border.content_rect(w, h, &self.look);
+        } = self.border.GetContentRect(w, h, &self.look);
         let children = ctx.children();
 
         if children.is_empty() {

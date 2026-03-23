@@ -256,14 +256,14 @@ pub(crate) fn position_aux_panel(
     ctx: &mut crate::emCore::emPanelCtx::PanelCtx,
     border: &crate::emCore::emBorder::emBorder,
 ) -> Option<PanelId> {
-    let aux_name = border.get_aux_panel_name();
+    let aux_name = border.GetAuxPanelName();
     if aux_name.is_empty() {
         return None;
     }
 
     let aux_id = ctx.find_child_by_name(aux_name)?;
     let r = ctx.layout_rect();
-    let aux_rect = border.get_aux_rect(r.w, r.h)?;
+    let aux_rect = border.GetAuxRect(r.w, r.h)?;
     ctx.layout_child(aux_id, aux_rect.x, aux_rect.y, aux_rect.w, aux_rect.h);
     Some(aux_id)
 }

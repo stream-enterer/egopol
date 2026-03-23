@@ -399,7 +399,7 @@ impl emColorField {
             .paint_border(painter, w, h, &self.look, false, true, 1.0);
 
         // C++ PaintContent: GetContentRoundRect, then inset by d.
-        let (cr, _r) = self.border.content_round_rect(w, h, &self.look);
+        let (cr, _r) = self.border.GetContentRoundRect(w, h, &self.look);
         let d = cr.w.min(cr.h) * 0.1;
 
         let rx = cr.x + d;
@@ -466,7 +466,7 @@ impl emColorField {
             return false;
         }
         let tallness = self.last_h / self.last_w;
-        let (rect, r) = self.border.content_round_rect(1.0, tallness, &self.look);
+        let (rect, r) = self.border.GetContentRoundRect(1.0, tallness, &self.look);
         super::widget_utils::check_mouse_round_rect(mx, my, &rect, r)
     }
 
@@ -662,7 +662,7 @@ impl emColorField {
         }
 
         // C++ GetContentRectUnobscured then inset by d
-        let cr = self.border.content_rect_unobscured(w, h, &self.look);
+        let cr = self.border.GetContentRectUnobscured(w, h, &self.look);
         let d = cr.w.min(cr.h) * 0.05;
         let x = cr.x + d;
         let y = cr.y + d;
@@ -692,7 +692,7 @@ impl emColorField {
     /// Chains the border's base how-to with color-field-specific sections.
     /// Matches C++ `emColorField::GetHowTo`.
     pub fn GetHowTo(&self, enabled: bool, focusable: bool) -> String {
-        let mut text = self.border.get_howto(enabled, focusable);
+        let mut text = self.border.GetHowTo(enabled, focusable);
         text.push_str(HOWTO_COLOR_FIELD);
         if !self.editable {
             text.push_str(HOWTO_READ_ONLY);

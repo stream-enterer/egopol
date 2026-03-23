@@ -81,9 +81,9 @@ impl emRadioBox {
         &self,
         cr: &Rect,
     ) -> (f64, f64, f64, f64, f64, f64, f64) {
-        let has_label = self.border.has_label();
-        if has_label {
-            let label_tallness = self.border.best_label_tallness().max(0.2);
+        let HasLabel = self.border.HasLabel();
+        if HasLabel {
+            let label_tallness = self.border.GetBestLabelTallness().max(0.2);
             let mut box_w = label_tallness;
             let mut d = box_w * 0.1;
             let f = (cr.w / (box_w + d + 1.0)).min(cr.h / label_tallness);
@@ -113,7 +113,7 @@ impl emRadioBox {
         self.border
             .paint_border(painter, w, h, &self.look, false, true, 1.0);
 
-        let cr = self.border.content_rect(w, h, &self.look);
+        let cr = self.border.GetContentRect(w, h, &self.look);
         let (bx0, by0, bw0, mut lx, mut ly, mut lw, mut lh) =
             self.box_label_geometry(&cr);
 
@@ -144,7 +144,7 @@ impl emRadioBox {
         }
 
         // Paint label to the right of the box.
-        if self.border.has_label() {
+        if self.border.HasLabel() {
             self.border
                 .paint_label(painter, Rect::new(lx, ly, lw, lh), &self.look, enabled);
         }
@@ -221,7 +221,7 @@ impl emRadioBox {
             return false;
         }
         let tallness = self.last_h / self.last_w;
-        let rect = self.border.content_rect(1.0, tallness, &self.look);
+        let rect = self.border.GetContentRect(1.0, tallness, &self.look);
         let r = rect.h * 0.2;
         super::widget_utils::check_mouse_round_rect(mx, my, &rect, r)
     }
@@ -233,7 +233,7 @@ impl emRadioBox {
             return false;
         }
         let tallness = self.last_h / self.last_w;
-        let cr = self.border.content_rect(1.0, tallness, &self.look);
+        let cr = self.border.GetContentRect(1.0, tallness, &self.look);
         let (_bx0, _by0, bw0, _lx, _ly, _lw, _lh) = self.box_label_geometry(&cr);
 
         let d = bw0 * 0.13;
