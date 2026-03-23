@@ -7,7 +7,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::foundation::Color;
+use zuicchini::emCore::emColor::Color;
 use zuicchini::input::{Cursor, InputEvent, InputState};
 use zuicchini::panel::{NoticeFlags, PanelBehavior, PanelCtx, PanelState, ViewFlags};
 use zuicchini::render::{Painter, TextAlignment, VAlign};
@@ -364,7 +364,7 @@ fn main() {
 
         let close_sig = app.scheduler.create_signal();
         let flags_sig = app.scheduler.create_signal();
-        let win = zuicchini::window::ZuiWindow::create(
+        let win = zuicchini::emCore::emWindow::ZuiWindow::create(
             event_loop,
             app.gpu(),
             root,

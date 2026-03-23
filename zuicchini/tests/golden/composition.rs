@@ -5,9 +5,9 @@
 
 use std::rc::Rc;
 
-use zuicchini::foundation::Color;
+use zuicchini::emCore::emColor::Color;
 use zuicchini::input::{Cursor, InputEvent, InputState};
-use zuicchini::layout::raster::{RasterGroup, RasterLayout};
+use zuicchini::emCore::emRasterLayout::{RasterGroup, RasterLayout};
 use zuicchini::panel::{
     NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelState, PanelTree, View,
     ViewConditionType, ViewFlags,

@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use zuicchini::foundation::{Color, Image};
 use zuicchini::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
-use zuicchini::layout::raster::RasterGroup;
+use zuicchini::emCore::emRasterLayout::RasterGroup;
 use zuicchini::panel::{
     NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelState, ViewConditionType, ViewFlags,
 };
@@ -1354,7 +1354,7 @@ fn main() {
 
         let close_sig = app.scheduler.create_signal();
         let flags_sig = app.scheduler.create_signal();
-        let win = zuicchini::window::ZuiWindow::create(
+        let win = zuicchini::emCore::emWindow::ZuiWindow::create(
             event_loop,
             app.gpu(),
             root,

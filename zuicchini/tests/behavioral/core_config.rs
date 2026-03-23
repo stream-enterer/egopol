@@ -1,4 +1,4 @@
-use zuicchini::foundation::RecStruct;
+use zuicchini::emCore::emRec::RecStruct;
 use zuicchini::model::{Context, CoreConfig, Record};
 
 #[test]

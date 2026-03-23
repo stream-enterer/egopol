@@ -1,4 +1,4 @@
-use zuicchini::widget::Look;
+use zuicchini::emCore::emLook::Look;
 
 fn main() {
     // Load several goldens and map their layouts

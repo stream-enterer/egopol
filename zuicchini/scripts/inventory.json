@@ -1,13 +1,13 @@
 {
   "summary": {
     "methods": {
-      "matched": 589,
-      "missing": 1026,
+      "matched": 574,
+      "missing": 1075,
       "diverged": 0,
       "std_equivalent": 74,
       "missing_by_category": {
-        "needs_review": 541,
-        "enum_restructuring": 439,
+        "needs_review": 555,
+        "enum_restructuring": 474,
         "getter_setter_needs_decision": 46
       }
     },
@@ -19,9 +19,9 @@
       "modules_rule": 27,
       "needs_justification": 5
     },
-    "extractions_needed": 6,
+    "extractions_needed": 0,
     "provenance_warnings": 15,
-    "no_type_data": 17
+    "no_type_data": 19
   },
   "methods": [
     {
@@ -6622,9 +6622,10 @@
       "kind": "method",
       "header": "emModel.h",
       "cpp_name": "Acquire",
-      "rust_name": "acquire",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'acquire' or add DIVERGED with reason"
     },
     {
       "id": "method:emModel.h:GetRootContext",
@@ -6671,27 +6672,30 @@
       "kind": "method",
       "header": "emModel.h",
       "cpp_name": "IsRegistered",
-      "rust_name": "is_registered",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'is_registered' or add DIVERGED with reason"
     },
     {
       "id": "method:emModel.h:GetMinCommonLifetime",
       "kind": "method",
       "header": "emModel.h",
       "cpp_name": "GetMinCommonLifetime",
-      "rust_name": "get_min_common_lifetime",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'get_min_common_lifetime' or add DIVERGED with reason"
     },
     {
       "id": "method:emModel.h:SetMinCommonLifetime",
       "kind": "method",
       "header": "emModel.h",
       "cpp_name": "SetMinCommonLifetime",
-      "rust_name": "set_min_common_lifetime",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'set_min_common_lifetime' or add DIVERGED with reason"
     },
     {
       "id": "method:emModel.h:Register",
@@ -6708,9 +6712,10 @@
       "kind": "method",
       "header": "emModel.h",
       "cpp_name": "Unregister",
-      "rust_name": "unregister",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'unregister' or add DIVERGED with reason"
     },
     {
       "id": "method:emModel.h:GetContext",
@@ -13689,6 +13694,346 @@
       "note": "class hierarchy replaced by enum variants"
     },
     {
+      "id": "method:emTiling.h:GetAlignment",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetAlignment",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetAlignment",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetAlignment",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetFixedColumnCount",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetFixedColumnCount",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetFixedColumnCount",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetFixedColumnCount",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetFixedRowCount",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetFixedRowCount",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetFixedRowCount",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetFixedRowCount",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetMinCellCount",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetMinCellCount",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetMinCellCount",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetMinCellCount",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetPrefChildTallness",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetPrefChildTallness",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetPrefChildTallness",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetPrefChildTallness",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetChildTallness",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetChildTallness",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:IsRowByRow",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "IsRowByRow",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetRowByRow",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetRowByRow",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetSpaceH",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetSpaceH",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetSpaceH",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetSpaceH",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetSpaceV",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetSpaceV",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetSpaceV",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetSpaceV",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetSpaceB",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetSpaceB",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetSpaceB",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetSpaceB",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetSpaceL",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetSpaceL",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetSpaceL",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetSpaceL",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetSpaceR",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetSpaceR",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetSpaceR",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetSpaceR",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetSpaceT",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetSpaceT",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetSpaceT",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetSpaceT",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetForcedChildTallnessColumn",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetForcedChildTallnessColumn",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:GetForcedChildTallnessRow",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "GetForcedChildTallnessRow",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetForcedChildTallnessColumn",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetForcedChildTallnessColumn",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetForcedChildTallnessRow",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetForcedChildTallnessRow",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetOuterSpace",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetOuterSpace",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetSpace",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetSpace",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetInnerSpace",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetInnerSpace",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:SetChildTallnessForced",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "SetChildTallnessForced",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
+      "id": "method:emTiling.h:LayoutChildren",
+      "kind": "method",
+      "header": "emTiling.h",
+      "cpp_name": "LayoutChildren",
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
+    },
+    {
       "id": "method:emTimer.h:Start",
       "kind": "method",
       "header": "emTimer.h",
@@ -13926,18 +14271,20 @@
       "kind": "method",
       "header": "emVarSigModel.h",
       "cpp_name": "Set",
-      "rust_name": "set",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'set' or add DIVERGED with reason"
     },
     {
       "id": "method:emVarSigModel.h:Get",
       "kind": "method",
       "header": "emVarSigModel.h",
       "cpp_name": "Get",
-      "rust_name": "get",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'get' or add DIVERGED with reason"
     },
     {
       "id": "method:emVarSigModel.h:Var",
@@ -14340,9 +14687,10 @@
       "kind": "method",
       "header": "emView.h",
       "cpp_name": "Input",
-      "rust_name": "input",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "enum_restructuring",
+      "note": "class hierarchy replaced by enum variants"
     },
     {
       "id": "method:emView.h:GetCursor",
@@ -15051,9 +15399,10 @@
       "kind": "method",
       "header": "emViewAnimator.h",
       "cpp_name": "Input",
-      "rust_name": "input",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'input' or add DIVERGED with reason"
     },
     {
       "id": "method:emViewAnimator.h:Paint",
@@ -15581,9 +15930,10 @@
       "kind": "method",
       "header": "emViewAnimator.h",
       "cpp_name": "Input",
-      "rust_name": "input",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'input' or add DIVERGED with reason"
     },
     {
       "id": "method:emViewAnimator.h:Paint",
@@ -15650,9 +16000,10 @@
       "kind": "method",
       "header": "emViewInputFilter.h",
       "cpp_name": "Input",
-      "rust_name": "input",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'input' or add DIVERGED with reason"
     },
     {
       "id": "method:emViewInputFilter.h:Cycle",
@@ -15689,9 +16040,10 @@
       "kind": "method",
       "header": "emViewInputFilter.h",
       "cpp_name": "Input",
-      "rust_name": "input",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'input' or add DIVERGED with reason"
     },
     {
       "id": "method:emViewInputFilter.h:Cycle",
@@ -15708,18 +16060,20 @@
       "kind": "method",
       "header": "emViewInputFilter.h",
       "cpp_name": "Input",
-      "rust_name": "input",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'input' or add DIVERGED with reason"
     },
     {
       "id": "method:emViewInputFilter.h:Input",
       "kind": "method",
       "header": "emViewInputFilter.h",
       "cpp_name": "Input",
-      "rust_name": "input",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'input' or add DIVERGED with reason"
     },
     {
       "id": "method:emViewInputFilter.h:GetTouchEventPriority",
@@ -15736,9 +16090,10 @@
       "kind": "method",
       "header": "emViewInputFilter.h",
       "cpp_name": "Input",
-      "rust_name": "input",
-      "status": "matched",
-      "category": "matched"
+      "rust_name": null,
+      "status": "missing",
+      "category": "needs_review",
+      "note": "rename to 'input' or add DIVERGED with reason"
     },
     {
       "id": "method:emViewInputFilter.h:Cycle",
@@ -16261,9 +16616,9 @@
       "current_rust_type": "Border",
       "target_rust_type": "emBorder",
       "defining_files": [
-        "widget/border.rs"
+        "emCore/emBorder.rs"
       ],
-      "reference_count": 22,
+      "reference_count": 21,
       "status": "pending"
     },
     {
@@ -16274,9 +16629,9 @@
       "current_rust_type": "Button",
       "target_rust_type": "emButton",
       "defining_files": [
-        "widget/button.rs"
+        "emCore/emButton.rs"
       ],
-      "reference_count": 11,
+      "reference_count": 10,
       "status": "pending"
     },
     {
@@ -16287,9 +16642,9 @@
       "current_rust_type": "CheckBox",
       "target_rust_type": "emCheckBox",
       "defining_files": [
-        "widget/check_box.rs"
+        "emCore/emCheckBox.rs"
       ],
-      "reference_count": 6,
+      "reference_count": 5,
       "status": "pending"
     },
     {
@@ -16300,9 +16655,9 @@
       "current_rust_type": "CheckButton",
       "target_rust_type": "emCheckButton",
       "defining_files": [
-        "widget/check_button.rs"
+        "emCore/emCheckButton.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -16313,9 +16668,9 @@
       "current_rust_type": "Clipboard",
       "target_rust_type": "emClipboard",
       "defining_files": [
-        "model/clipboard.rs"
+        "emCore/emClipboard.rs"
       ],
-      "reference_count": 4,
+      "reference_count": 3,
       "status": "pending"
     },
     {
@@ -16326,9 +16681,9 @@
       "current_rust_type": "PrivateClipboard",
       "target_rust_type": "emPrivateClipboard",
       "defining_files": [
-        "model/clipboard.rs"
+        "emCore/emClipboard.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16339,7 +16694,7 @@
       "current_rust_type": "Color",
       "target_rust_type": "emColor",
       "defining_files": [
-        "foundation/color.rs"
+        "emCore/emColor.rs"
       ],
       "reference_count": 34,
       "status": "pending"
@@ -16352,9 +16707,9 @@
       "current_rust_type": "ColorField",
       "target_rust_type": "emColorField",
       "defining_files": [
-        "widget/color_field.rs"
+        "emCore/emColorField.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -16365,9 +16720,9 @@
       "current_rust_type": "ConfigModel",
       "target_rust_type": "emConfigModel",
       "defining_files": [
-        "model/config_model.rs"
+        "emCore/emConfigModel.rs"
       ],
-      "reference_count": 5,
+      "reference_count": 4,
       "status": "pending"
     },
     {
@@ -16378,7 +16733,7 @@
       "current_rust_type": "Context",
       "target_rust_type": "emContext",
       "defining_files": [
-        "model/context.rs"
+        "emCore/emContext.rs"
       ],
       "reference_count": 7,
       "status": "pending"
@@ -16391,9 +16746,9 @@
       "current_rust_type": "CoreConfig",
       "target_rust_type": "emCoreConfig",
       "defining_files": [
-        "model/core_config.rs"
+        "emCore/emCoreConfig.rs"
       ],
-      "reference_count": 7,
+      "reference_count": 6,
       "status": "pending"
     },
     {
@@ -16404,9 +16759,9 @@
       "current_rust_type": "CoreConfigPanel",
       "target_rust_type": "emCoreConfigPanel",
       "defining_files": [
-        "widget/core_config_panel.rs"
+        "emCore/emCoreConfigPanel.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -16417,9 +16772,9 @@
       "current_rust_type": "Cursor",
       "target_rust_type": "emCursor",
       "defining_files": [
-        "input/cursor.rs"
+        "emCore/emCursor.rs"
       ],
-      "reference_count": 15,
+      "reference_count": 14,
       "status": "pending"
     },
     {
@@ -16430,9 +16785,9 @@
       "current_rust_type": "Dialog",
       "target_rust_type": "emDialog",
       "defining_files": [
-        "widget/dialog.rs"
+        "emCore/emDialog.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -16443,9 +16798,9 @@
       "current_rust_type": "Engine",
       "target_rust_type": "emEngine",
       "defining_files": [
-        "scheduler/engine.rs"
+        "emCore/emEngine.rs"
       ],
-      "reference_count": 6,
+      "reference_count": 5,
       "status": "pending"
     },
     {
@@ -16456,9 +16811,9 @@
       "current_rust_type": "ErrorPanel",
       "target_rust_type": "emErrorPanel",
       "defining_files": [
-        "widget/error_panel.rs"
+        "emCore/emErrorPanel.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16469,9 +16824,9 @@
       "current_rust_type": "FileDialog",
       "target_rust_type": "emFileDialog",
       "defining_files": [
-        "widget/file_dialog.rs"
+        "emCore/emFileDialog.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16482,9 +16837,9 @@
       "current_rust_type": "FileModel",
       "target_rust_type": "emFileModel",
       "defining_files": [
-        "model/file_model.rs"
+        "emCore/emFileModel.rs"
       ],
-      "reference_count": 4,
+      "reference_count": 3,
       "status": "pending"
     },
     {
@@ -16495,9 +16850,9 @@
       "current_rust_type": "FilePanel",
       "target_rust_type": "emFilePanel",
       "defining_files": [
-        "widget/file_panel.rs"
+        "emCore/emFilePanel.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -16508,9 +16863,9 @@
       "current_rust_type": "FileSelectionBox",
       "target_rust_type": "emFileSelectionBox",
       "defining_files": [
-        "widget/file_selection_box.rs"
+        "emCore/emFileSelectionBox.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -16521,9 +16876,9 @@
       "current_rust_type": "FpPlugin",
       "target_rust_type": "emFpPlugin",
       "defining_files": [
-        "model/fp_plugin.rs"
+        "emCore/emFpPlugin.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16534,9 +16889,9 @@
       "current_rust_type": "FpPluginList",
       "target_rust_type": "emFpPluginList",
       "defining_files": [
-        "model/fp_plugin.rs"
+        "emCore/emFpPlugin.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16547,9 +16902,9 @@
       "current_rust_type": "Image",
       "target_rust_type": "emImage",
       "defining_files": [
-        "foundation/image.rs"
+        "emCore/emImage.rs"
       ],
-      "reference_count": 21,
+      "reference_count": 20,
       "status": "pending"
     },
     {
@@ -16560,9 +16915,9 @@
       "current_rust_type": "Painter",
       "target_rust_type": "emPainter",
       "defining_files": [
-        "render/painter.rs"
+        "emCore/emPainter.rs"
       ],
-      "reference_count": 34,
+      "reference_count": 33,
       "status": "pending"
     },
     {
@@ -16573,9 +16928,9 @@
       "current_rust_type": "ImageFileModel",
       "target_rust_type": "emImageFileModel",
       "defining_files": [
-        "model/image_file_model.rs"
+        "emCore/emImageFile.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16586,9 +16941,9 @@
       "current_rust_type": "ImageFilePanel",
       "target_rust_type": "emImageFilePanel",
       "defining_files": [
-        "widget/image_file_panel.rs"
+        "emCore/emImageFileImageFilePanel.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16599,9 +16954,9 @@
       "current_rust_type": "InputEvent",
       "target_rust_type": "emInputEvent",
       "defining_files": [
-        "input/event.rs"
+        "emCore/emInput.rs"
       ],
-      "reference_count": 20,
+      "reference_count": 19,
       "status": "pending"
     },
     {
@@ -16612,9 +16967,9 @@
       "current_rust_type": "InputState",
       "target_rust_type": "emInputState",
       "defining_files": [
-        "input/state.rs"
+        "emCore/emInputState.rs"
       ],
-      "reference_count": 22,
+      "reference_count": 21,
       "status": "pending"
     },
     {
@@ -16625,7 +16980,7 @@
       "current_rust_type": "Context",
       "target_rust_type": "emContext",
       "defining_files": [
-        "model/context.rs"
+        "emCore/emContext.rs"
       ],
       "reference_count": 7,
       "status": "pending"
@@ -16638,9 +16993,9 @@
       "current_rust_type": "Job",
       "target_rust_type": "emJob",
       "defining_files": [
-        "scheduler/job.rs"
+        "emCore/emJob.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16651,9 +17006,9 @@
       "current_rust_type": "JobQueue",
       "target_rust_type": "emJobQueue",
       "defining_files": [
-        "scheduler/job.rs"
+        "emCore/emJob.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16664,9 +17019,9 @@
       "current_rust_type": "Label",
       "target_rust_type": "emLabel",
       "defining_files": [
-        "widget/label.rs"
+        "emCore/emLabel.rs"
       ],
-      "reference_count": 7,
+      "reference_count": 6,
       "status": "pending"
     },
     {
@@ -16677,7 +17032,7 @@
       "current_rust_type": "LinearGroup",
       "target_rust_type": "emLinearGroup",
       "defining_files": [
-        "layout/linear.rs"
+        "emCore/emLinearGroup.rs"
       ],
       "reference_count": 1,
       "status": "pending"
@@ -16690,9 +17045,9 @@
       "current_rust_type": "LinearLayout",
       "target_rust_type": "emLinearLayout",
       "defining_files": [
-        "layout/linear.rs"
+        "emCore/emLinearLayout.rs"
       ],
-      "reference_count": 4,
+      "reference_count": 5,
       "status": "pending"
     },
     {
@@ -16703,9 +17058,9 @@
       "current_rust_type": "ListBox",
       "target_rust_type": "emListBox",
       "defining_files": [
-        "widget/list_box.rs"
+        "emCore/emListBox.rs"
       ],
-      "reference_count": 4,
+      "reference_count": 3,
       "status": "pending"
     },
     {
@@ -16716,9 +17071,9 @@
       "current_rust_type": "Look",
       "target_rust_type": "emLook",
       "defining_files": [
-        "widget/look.rs"
+        "emCore/emLook.rs"
       ],
-      "reference_count": 31,
+      "reference_count": 30,
       "status": "pending"
     },
     {
@@ -16729,9 +17084,9 @@
       "current_rust_type": "MiniIpcClient",
       "target_rust_type": "emMiniIpcClient",
       "defining_files": [
-        "foundation/mini_ipc.rs"
+        "emCore/emMiniIpc.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16742,9 +17097,9 @@
       "current_rust_type": "MiniIpcServer",
       "target_rust_type": "emMiniIpcServer",
       "defining_files": [
-        "foundation/mini_ipc.rs"
+        "emCore/emMiniIpc.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16755,7 +17110,7 @@
       "current_rust_type": "PackGroup",
       "target_rust_type": "emPackGroup",
       "defining_files": [
-        "layout/pack.rs"
+        "emCore/emPackGroup.rs"
       ],
       "reference_count": 1,
       "status": "pending"
@@ -16768,9 +17123,9 @@
       "current_rust_type": "PackLayout",
       "target_rust_type": "emPackLayout",
       "defining_files": [
-        "layout/pack.rs"
+        "emCore/emPackLayout.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 3,
       "status": "pending"
     },
     {
@@ -16781,9 +17136,9 @@
       "current_rust_type": "CoreConfig",
       "target_rust_type": "emCoreConfig",
       "defining_files": [
-        "model/core_config.rs"
+        "emCore/emCoreConfig.rs"
       ],
-      "reference_count": 7,
+      "reference_count": 6,
       "status": "pending"
     },
     {
@@ -16794,9 +17149,9 @@
       "current_rust_type": "Painter",
       "target_rust_type": "emPainter",
       "defining_files": [
-        "render/painter.rs"
+        "emCore/emPainter.rs"
       ],
-      "reference_count": 34,
+      "reference_count": 33,
       "status": "pending"
     },
     {
@@ -16807,9 +17162,9 @@
       "current_rust_type": "Process",
       "target_rust_type": "emProcess",
       "defining_files": [
-        "foundation/process.rs"
+        "emCore/emProcess.rs"
       ],
-      "reference_count": 6,
+      "reference_count": 5,
       "status": "pending"
     },
     {
@@ -16820,9 +17175,9 @@
       "current_rust_type": "RadioBox",
       "target_rust_type": "emRadioBox",
       "defining_files": [
-        "widget/radio_box.rs"
+        "emCore/emRadioBox.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -16833,9 +17188,9 @@
       "current_rust_type": "RadioButton",
       "target_rust_type": "emRadioButton",
       "defining_files": [
-        "widget/radio_button.rs"
+        "emCore/emRadioButton.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16846,7 +17201,7 @@
       "current_rust_type": "RasterGroup",
       "target_rust_type": "emRasterGroup",
       "defining_files": [
-        "layout/raster.rs"
+        "emCore/emRasterGroup.rs"
       ],
       "reference_count": 2,
       "status": "pending"
@@ -16859,9 +17214,9 @@
       "current_rust_type": "RasterLayout",
       "target_rust_type": "emRasterLayout",
       "defining_files": [
-        "layout/raster.rs"
+        "emCore/emRasterLayout.rs"
       ],
-      "reference_count": 6,
+      "reference_count": 7,
       "status": "pending"
     },
     {
@@ -16872,9 +17227,9 @@
       "current_rust_type": "AlignmentRec",
       "target_rust_type": "emAlignmentRec",
       "defining_files": [
-        "model/rec_types.rs"
+        "emCore/emRecRecTypes.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16885,9 +17240,9 @@
       "current_rust_type": "ColorRec",
       "target_rust_type": "emColorRec",
       "defining_files": [
-        "model/rec_types.rs"
+        "emCore/emRecRecTypes.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16898,9 +17253,9 @@
       "current_rust_type": "RecFileReader",
       "target_rust_type": "emRecFileReader",
       "defining_files": [
-        "model/rec_types.rs"
+        "emCore/emRecRecTypes.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -16911,9 +17266,9 @@
       "current_rust_type": "RecFileWriter",
       "target_rust_type": "emRecFileWriter",
       "defining_files": [
-        "model/rec_types.rs"
+        "emCore/emRecRecTypes.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16924,9 +17279,9 @@
       "current_rust_type": "RecFileModel",
       "target_rust_type": "emRecFileModel",
       "defining_files": [
-        "model/rec_file_model.rs"
+        "emCore/emRecFileModel.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -16937,7 +17292,7 @@
       "current_rust_type": "RenderThreadPool",
       "target_rust_type": "emRenderThreadPool",
       "defining_files": [
-        "render/thread_pool.rs"
+        "emCore/emRenderThreadPool.rs"
       ],
       "reference_count": 4,
       "status": "pending"
@@ -16950,9 +17305,9 @@
       "current_rust_type": "ScalarField",
       "target_rust_type": "emScalarField",
       "defining_files": [
-        "widget/scalar_field.rs"
+        "emCore/emScalarField.rs"
       ],
-      "reference_count": 5,
+      "reference_count": 4,
       "status": "pending"
     },
     {
@@ -16963,9 +17318,9 @@
       "current_rust_type": "Engine",
       "target_rust_type": "emEngine",
       "defining_files": [
-        "scheduler/engine.rs"
+        "emCore/emEngine.rs"
       ],
-      "reference_count": 6,
+      "reference_count": 5,
       "status": "pending"
     },
     {
@@ -16976,9 +17331,9 @@
       "current_rust_type": "Screen",
       "target_rust_type": "emScreen",
       "defining_files": [
-        "window/screen.rs"
+        "emCore/emScreen.rs"
       ],
-      "reference_count": 6,
+      "reference_count": 5,
       "status": "pending"
     },
     {
@@ -16989,9 +17344,9 @@
       "current_rust_type": "Splitter",
       "target_rust_type": "emSplitter",
       "defining_files": [
-        "widget/splitter.rs"
+        "emCore/emSplitter.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17002,7 +17357,7 @@
       "current_rust_type": "Stroke",
       "target_rust_type": "emStroke",
       "defining_files": [
-        "render/stroke.rs"
+        "emCore/emStroke.rs"
       ],
       "reference_count": 7,
       "status": "pending"
@@ -17015,7 +17370,7 @@
       "current_rust_type": "StrokeEnd",
       "target_rust_type": "emStrokeEnd",
       "defining_files": [
-        "render/stroke.rs"
+        "emCore/emStrokeEnd.rs"
       ],
       "reference_count": 3,
       "status": "pending"
@@ -17028,9 +17383,9 @@
       "current_rust_type": "SubViewPanel",
       "target_rust_type": "emSubViewPanel",
       "defining_files": [
-        "panel/sub_view_panel.rs"
+        "emCore/emSubViewPanel.rs"
       ],
-      "reference_count": 4,
+      "reference_count": 3,
       "status": "pending"
     },
     {
@@ -17041,9 +17396,9 @@
       "current_rust_type": "TextField",
       "target_rust_type": "emTextField",
       "defining_files": [
-        "widget/text_field.rs"
+        "emCore/emTextField.rs"
       ],
-      "reference_count": 5,
+      "reference_count": 4,
       "status": "pending"
     },
     {
@@ -17054,9 +17409,9 @@
       "current_rust_type": "Texture",
       "target_rust_type": "emTexture",
       "defining_files": [
-        "render/texture.rs"
+        "emCore/emTexture.rs"
       ],
-      "reference_count": 4,
+      "reference_count": 3,
       "status": "pending"
     },
     {
@@ -17067,9 +17422,9 @@
       "current_rust_type": "Tunnel",
       "target_rust_type": "emTunnel",
       "defining_files": [
-        "widget/tunnel.rs"
+        "emCore/emTunnel.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17080,9 +17435,9 @@
       "current_rust_type": "CheatVIF",
       "target_rust_type": "emCheatVIF",
       "defining_files": [
-        "panel/input_filter.rs"
+        "emCore/emViewInputFilter.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17093,9 +17448,9 @@
       "current_rust_type": "MagneticViewAnimator",
       "target_rust_type": "emMagneticViewAnimator",
       "defining_files": [
-        "panel/animator.rs"
+        "emCore/emViewAnimator.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17106,9 +17461,9 @@
       "current_rust_type": "Screen",
       "target_rust_type": "emScreen",
       "defining_files": [
-        "window/screen.rs"
+        "emCore/emScreen.rs"
       ],
-      "reference_count": 6,
+      "reference_count": 5,
       "status": "pending"
     },
     {
@@ -17119,9 +17474,9 @@
       "current_rust_type": "View",
       "target_rust_type": "emView",
       "defining_files": [
-        "panel/view.rs"
+        "emCore/emView.rs"
       ],
-      "reference_count": 12,
+      "reference_count": 11,
       "status": "pending"
     },
     {
@@ -17132,9 +17487,9 @@
       "current_rust_type": "ViewAnimator",
       "target_rust_type": "emViewAnimator",
       "defining_files": [
-        "panel/animator.rs"
+        "emCore/emViewAnimator.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17145,9 +17500,9 @@
       "current_rust_type": "ViewInputFilter",
       "target_rust_type": "emViewInputFilter",
       "defining_files": [
-        "panel/input_filter.rs"
+        "emCore/emViewInputFilter.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17158,9 +17513,9 @@
       "current_rust_type": "VisitingViewAnimator",
       "target_rust_type": "emVisitingViewAnimator",
       "defining_files": [
-        "panel/animator.rs"
+        "emCore/emViewAnimator.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17171,9 +17526,9 @@
       "current_rust_type": "KineticViewAnimator",
       "target_rust_type": "emKineticViewAnimator",
       "defining_files": [
-        "panel/animator.rs"
+        "emCore/emViewAnimator.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17184,9 +17539,9 @@
       "current_rust_type": "MagneticViewAnimator",
       "target_rust_type": "emMagneticViewAnimator",
       "defining_files": [
-        "panel/animator.rs"
+        "emCore/emViewAnimator.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17197,9 +17552,9 @@
       "current_rust_type": "SpeedingViewAnimator",
       "target_rust_type": "emSpeedingViewAnimator",
       "defining_files": [
-        "panel/animator.rs"
+        "emCore/emViewAnimator.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17210,9 +17565,9 @@
       "current_rust_type": "SwipingViewAnimator",
       "target_rust_type": "emSwipingViewAnimator",
       "defining_files": [
-        "panel/animator.rs"
+        "emCore/emViewAnimator.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17223,9 +17578,9 @@
       "current_rust_type": "ViewAnimator",
       "target_rust_type": "emViewAnimator",
       "defining_files": [
-        "panel/animator.rs"
+        "emCore/emViewAnimator.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17236,9 +17591,9 @@
       "current_rust_type": "VisitingViewAnimator",
       "target_rust_type": "emVisitingViewAnimator",
       "defining_files": [
-        "panel/animator.rs"
+        "emCore/emViewAnimator.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17249,9 +17604,9 @@
       "current_rust_type": "CheatVIF",
       "target_rust_type": "emCheatVIF",
       "defining_files": [
-        "panel/input_filter.rs"
+        "emCore/emViewInputFilter.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17262,9 +17617,9 @@
       "current_rust_type": "DefaultTouchVIF",
       "target_rust_type": "emDefaultTouchVIF",
       "defining_files": [
-        "panel/input_filter.rs"
+        "emCore/emViewInputFilter.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     },
     {
@@ -17275,9 +17630,9 @@
       "current_rust_type": "KeyboardZoomScrollVIF",
       "target_rust_type": "emKeyboardZoomScrollVIF",
       "defining_files": [
-        "panel/input_filter.rs"
+        "emCore/emViewInputFilter.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17288,9 +17643,9 @@
       "current_rust_type": "MouseZoomScrollVIF",
       "target_rust_type": "emMouseZoomScrollVIF",
       "defining_files": [
-        "panel/input_filter.rs"
+        "emCore/emViewInputFilter.rs"
       ],
-      "reference_count": 4,
+      "reference_count": 3,
       "status": "pending"
     },
     {
@@ -17301,9 +17656,9 @@
       "current_rust_type": "ViewInputFilter",
       "target_rust_type": "emViewInputFilter",
       "defining_files": [
-        "panel/input_filter.rs"
+        "emCore/emViewInputFilter.rs"
       ],
-      "reference_count": 3,
+      "reference_count": 2,
       "status": "pending"
     },
     {
@@ -17314,18 +17669,18 @@
       "current_rust_type": "WindowStateSaver",
       "target_rust_type": "emWindowStateSaver",
       "defining_files": [
-        "window/state_saver.rs"
+        "emCore/emWindowStateSaver.rs"
       ],
-      "reference_count": 2,
+      "reference_count": 1,
       "status": "pending"
     }
   ],
   "split_justifications": [
     {
-      "id": "split_justification:emBorder.h:src/widget/border.rs",
+      "id": "split_justification:emBorder.h:src/emCore/emBorder.rs",
       "kind": "split_justification",
       "header": "emBorder.h",
-      "file": "src/widget/border.rs",
+      "file": "src/emCore/emBorder.rs",
       "has_primary_type": true,
       "types": [
         "OuterBorderType",
@@ -17335,10 +17690,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emBorder.h:src/foundation/alignment.rs",
+      "id": "split_justification:emBorder.h:src/emCore/emBorderAlignment.rs",
       "kind": "split_justification",
       "header": "emBorder.h",
-      "file": "src/foundation/alignment.rs",
+      "file": "src/emCore/emBorderAlignment.rs",
       "has_primary_type": true,
       "types": [
         "ContentAlignment"
@@ -17346,10 +17701,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emColor.h:src/foundation/color.rs",
+      "id": "split_justification:emColor.h:src/emCore/emColor.rs",
       "kind": "split_justification",
       "header": "emColor.h",
-      "file": "src/foundation/color.rs",
+      "file": "src/emCore/emColor.rs",
       "has_primary_type": true,
       "types": [
         "ColorParseError",
@@ -17358,19 +17713,19 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emColor.h:src/foundation/x11_colors.rs",
+      "id": "split_justification:emColor.h:src/emCore/emColorX11Colors.rs",
       "kind": "split_justification",
       "header": "emColor.h",
-      "file": "src/foundation/x11_colors.rs",
+      "file": "src/emCore/emColorX11Colors.rs",
       "has_primary_type": false,
       "types": [],
       "status": "needs_justification"
     },
     {
-      "id": "split_justification:emColorField.h:src/widget/color_field.rs",
+      "id": "split_justification:emColorField.h:src/emCore/emColorField.rs",
       "kind": "split_justification",
       "header": "emColorField.h",
-      "file": "src/widget/color_field.rs",
+      "file": "src/emCore/emColorField.rs",
       "has_primary_type": true,
       "types": [
         "Expansion",
@@ -17379,10 +17734,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emColorField.h:src/widget/field_panel.rs",
+      "id": "split_justification:emColorField.h:src/emCore/emColorFieldFieldPanel.rs",
       "kind": "split_justification",
       "header": "emColorField.h",
-      "file": "src/widget/field_panel.rs",
+      "file": "src/emCore/emColorFieldFieldPanel.rs",
       "has_primary_type": true,
       "types": [
         "ScalarFieldPanel",
@@ -17395,28 +17750,28 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emFontCache.h:src/render/em_font.rs",
+      "id": "split_justification:emFontCache.h:src/emCore/emFontCache.rs",
       "kind": "split_justification",
       "header": "emFontCache.h",
-      "file": "src/render/em_font.rs",
+      "file": "src/emCore/emFontCache.rs",
       "has_primary_type": false,
       "types": [],
       "status": "needs_justification"
     },
     {
-      "id": "split_justification:emFontCache.h:src/render/bitmap_font.rs",
+      "id": "split_justification:emFontCache.h:src/emCore/emFontCacheBitmapFont.rs",
       "kind": "split_justification",
       "header": "emFontCache.h",
-      "file": "src/render/bitmap_font.rs",
+      "file": "src/emCore/emFontCacheBitmapFont.rs",
       "has_primary_type": false,
       "types": [],
       "status": "needs_justification"
     },
     {
-      "id": "split_justification:emImageFile.h:src/model/image_file_model.rs",
+      "id": "split_justification:emImageFile.h:src/emCore/emImageFile.rs",
       "kind": "split_justification",
       "header": "emImageFile.h",
-      "file": "src/model/image_file_model.rs",
+      "file": "src/emCore/emImageFile.rs",
       "has_primary_type": true,
       "types": [
         "ImageFileData",
@@ -17425,10 +17780,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emImageFile.h:src/widget/image_file_panel.rs",
+      "id": "split_justification:emImageFile.h:src/emCore/emImageFileImageFilePanel.rs",
       "kind": "split_justification",
       "header": "emImageFile.h",
-      "file": "src/widget/image_file_panel.rs",
+      "file": "src/emCore/emImageFileImageFilePanel.rs",
       "has_primary_type": true,
       "types": [
         "ImageFilePanel"
@@ -17436,10 +17791,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emInput.h:src/input/event.rs",
+      "id": "split_justification:emInput.h:src/emCore/emInput.rs",
       "kind": "split_justification",
       "header": "emInput.h",
-      "file": "src/input/event.rs",
+      "file": "src/emCore/emInput.rs",
       "has_primary_type": true,
       "types": [
         "InputKey",
@@ -17449,10 +17804,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emInput.h:src/input/state.rs",
+      "id": "split_justification:emInput.h:src/emCore/emInputState.rs",
       "kind": "split_justification",
       "header": "emInput.h",
-      "file": "src/input/state.rs",
+      "file": "src/emCore/emInputState.rs",
       "has_primary_type": true,
       "types": [
         "InputState"
@@ -17460,10 +17815,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emInput.h:src/input/hotkey.rs",
+      "id": "split_justification:emInput.h:src/emCore/emInputHotkey.rs",
       "kind": "split_justification",
       "header": "emInput.h",
-      "file": "src/input/hotkey.rs",
+      "file": "src/emCore/emInputHotkey.rs",
       "has_primary_type": true,
       "types": [
         "Hotkey"
@@ -17471,10 +17826,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emPainter.h:src/render/painter.rs",
+      "id": "split_justification:emPainter.h:src/emCore/emPainter.rs",
       "kind": "split_justification",
       "header": "emPainter.h",
-      "file": "src/render/painter.rs",
+      "file": "src/emCore/emPainter.rs",
       "has_primary_type": true,
       "types": [
         "TextAlignment",
@@ -17485,10 +17840,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emPainter.h:src/render/interpolation.rs",
+      "id": "split_justification:emPainter.h:src/emCore/emPainterInterpolation.rs",
       "kind": "split_justification",
       "header": "emPainter.h",
-      "file": "src/render/interpolation.rs",
+      "file": "src/emCore/emPainterInterpolation.rs",
       "has_primary_type": true,
       "types": [
         "InterpolationQuality",
@@ -17500,10 +17855,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emPainter.h:src/render/scanline.rs",
+      "id": "split_justification:emPainter.h:src/emCore/emPainterScanline.rs",
       "kind": "split_justification",
       "header": "emPainter.h",
-      "file": "src/render/scanline.rs",
+      "file": "src/emCore/emPainterScanline.rs",
       "has_primary_type": true,
       "types": [
         "WindingRule",
@@ -17513,19 +17868,19 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emPainter.h:src/render/scanline_avx2.rs",
+      "id": "split_justification:emPainter.h:src/emCore/emPainterScanlineAvx2.rs",
       "kind": "split_justification",
       "header": "emPainter.h",
-      "file": "src/render/scanline_avx2.rs",
+      "file": "src/emCore/emPainterScanlineAvx2.rs",
       "has_primary_type": false,
       "types": [],
       "status": "needs_justification"
     },
     {
-      "id": "split_justification:emPainter.h:src/render/scanline_tool.rs",
+      "id": "split_justification:emPainter.h:src/emCore/emPainterScanlineTool.rs",
       "kind": "split_justification",
       "header": "emPainter.h",
-      "file": "src/render/scanline_tool.rs",
+      "file": "src/emCore/emPainterScanlineTool.rs",
       "has_primary_type": true,
       "types": [
         "InterpolationBuffer",
@@ -17534,10 +17889,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emPainter.h:src/render/draw_list.rs",
+      "id": "split_justification:emPainter.h:src/emCore/emPainterDrawList.rs",
       "kind": "split_justification",
       "header": "emPainter.h",
-      "file": "src/render/draw_list.rs",
+      "file": "src/emCore/emPainterDrawList.rs",
       "has_primary_type": true,
       "types": [
         "DrawOp",
@@ -17546,10 +17901,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emPanel.h:src/panel/behavior.rs",
+      "id": "split_justification:emPanel.h:src/emCore/emPanel.rs",
       "kind": "split_justification",
       "header": "emPanel.h",
-      "file": "src/panel/behavior.rs",
+      "file": "src/emCore/emPanel.rs",
       "has_primary_type": true,
       "types": [
         "ParentInvalidation",
@@ -17561,10 +17916,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emPanel.h:src/panel/ctx.rs",
+      "id": "split_justification:emPanel.h:src/emCore/emPanelCtx.rs",
       "kind": "split_justification",
       "header": "emPanel.h",
-      "file": "src/panel/ctx.rs",
+      "file": "src/emCore/emPanelCtx.rs",
       "has_primary_type": true,
       "types": [
         "PanelCtx"
@@ -17572,10 +17927,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emPanel.h:src/panel/tree.rs",
+      "id": "split_justification:emPanel.h:src/emCore/emPanelTree.rs",
       "kind": "split_justification",
       "header": "emPanel.h",
-      "file": "src/panel/tree.rs",
+      "file": "src/emCore/emPanelTree.rs",
       "has_primary_type": true,
       "types": [
         "AutoplayHandlingFlags",
@@ -17590,10 +17945,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emRec.h:src/foundation/em_rec.rs",
+      "id": "split_justification:emRec.h:src/emCore/emRec.rs",
       "kind": "split_justification",
       "header": "emRec.h",
-      "file": "src/foundation/em_rec.rs",
+      "file": "src/emCore/emRec.rs",
       "has_primary_type": true,
       "types": [
         "RecError",
@@ -17603,10 +17958,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emRec.h:src/model/rec_types.rs",
+      "id": "split_justification:emRec.h:src/emCore/emRecRecTypes.rs",
       "kind": "split_justification",
       "header": "emRec.h",
-      "file": "src/model/rec_types.rs",
+      "file": "src/emCore/emRecRecTypes.rs",
       "has_primary_type": true,
       "types": [
         "RecListenerId",
@@ -17619,10 +17974,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emRec.h:src/model/record.rs",
+      "id": "split_justification:emRec.h:src/emCore/emRecRecord.rs",
       "kind": "split_justification",
       "header": "emRec.h",
-      "file": "src/model/record.rs",
+      "file": "src/emCore/emRecRecord.rs",
       "has_primary_type": true,
       "types": [
         "Record",
@@ -17631,10 +17986,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emRes.h:src/model/resource_cache.rs",
+      "id": "split_justification:emRes.h:src/emCore/emRes.rs",
       "kind": "split_justification",
       "header": "emRes.h",
-      "file": "src/model/resource_cache.rs",
+      "file": "src/emCore/emRes.rs",
       "has_primary_type": true,
       "types": [
         "ResourceCache"
@@ -17642,10 +17997,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emRes.h:src/foundation/tga.rs",
+      "id": "split_justification:emRes.h:src/emCore/emResTga.rs",
       "kind": "split_justification",
       "header": "emRes.h",
-      "file": "src/foundation/tga.rs",
+      "file": "src/emCore/emResTga.rs",
       "has_primary_type": true,
       "types": [
         "TgaError"
@@ -17653,10 +18008,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emViewRenderer.h:src/render/software_compositor.rs",
+      "id": "split_justification:emViewRenderer.h:src/emCore/emViewRenderer.rs",
       "kind": "split_justification",
       "header": "emViewRenderer.h",
-      "file": "src/render/software_compositor.rs",
+      "file": "src/emCore/emViewRenderer.rs",
       "has_primary_type": true,
       "types": [
         "SoftwareCompositor"
@@ -17664,10 +18019,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emViewRenderer.h:src/render/compositor.rs",
+      "id": "split_justification:emViewRenderer.h:src/emCore/emViewRendererCompositor.rs",
       "kind": "split_justification",
       "header": "emViewRenderer.h",
-      "file": "src/render/compositor.rs",
+      "file": "src/emCore/emViewRendererCompositor.rs",
       "has_primary_type": true,
       "types": [
         "WgpuCompositor"
@@ -17675,10 +18030,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emViewRenderer.h:src/render/tile_cache.rs",
+      "id": "split_justification:emViewRenderer.h:src/emCore/emViewRendererTileCache.rs",
       "kind": "split_justification",
       "header": "emViewRenderer.h",
-      "file": "src/render/tile_cache.rs",
+      "file": "src/emCore/emViewRendererTileCache.rs",
       "has_primary_type": true,
       "types": [
         "Tile",
@@ -17687,10 +18042,10 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emWindow.h:src/window/zui_window.rs",
+      "id": "split_justification:emWindow.h:src/emCore/emWindow.rs",
       "kind": "split_justification",
       "header": "emWindow.h",
-      "file": "src/window/zui_window.rs",
+      "file": "src/emCore/emWindow.rs",
       "has_primary_type": true,
       "types": [
         "WindowFlags",
@@ -17699,192 +18054,105 @@
       "status": "modules_rule"
     },
     {
-      "id": "split_justification:emWindow.h:src/window/platform.rs",
+      "id": "split_justification:emWindow.h:src/emCore/emWindowPlatform.rs",
       "kind": "split_justification",
       "header": "emWindow.h",
-      "file": "src/window/platform.rs",
+      "file": "src/emCore/emWindowPlatform.rs",
       "has_primary_type": false,
       "types": [],
       "status": "needs_justification"
     }
   ],
-  "extractions_needed": [
-    {
-      "id": "extraction:model/context.rs",
-      "kind": "extraction_needed",
-      "source_file": "model/context.rs",
-      "headers": [
-        "emContext.h",
-        "emModel.h"
-      ],
-      "targets": [
-        "src/emCore/emContext.rs",
-        "src/emCore/emModel.rs"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "extraction:layout/linear.rs",
-      "kind": "extraction_needed",
-      "source_file": "layout/linear.rs",
-      "headers": [
-        "emLinearGroup.h",
-        "emLinearLayout.h"
-      ],
-      "targets": [
-        "src/emCore/emLinearGroup.rs",
-        "src/emCore/emLinearLayout.rs"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "extraction:layout/pack.rs",
-      "kind": "extraction_needed",
-      "source_file": "layout/pack.rs",
-      "headers": [
-        "emPackGroup.h",
-        "emPackLayout.h"
-      ],
-      "targets": [
-        "src/emCore/emPackGroup.rs",
-        "src/emCore/emPackLayout.rs"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "extraction:layout/raster.rs",
-      "kind": "extraction_needed",
-      "source_file": "layout/raster.rs",
-      "headers": [
-        "emRasterGroup.h",
-        "emRasterLayout.h"
-      ],
-      "targets": [
-        "src/emCore/emRasterGroup.rs",
-        "src/emCore/emRasterLayout.rs"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "extraction:model/watched_var.rs",
-      "kind": "extraction_needed",
-      "source_file": "model/watched_var.rs",
-      "headers": [
-        "emSigModel.h",
-        "emVarModel.h",
-        "emVarSigModel.h"
-      ],
-      "targets": [
-        "src/emCore/emSigModel.rs",
-        "src/emCore/emVarModel.rs",
-        "src/emCore/emVarSigModel.rs"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "extraction:render/stroke.rs",
-      "kind": "extraction_needed",
-      "source_file": "render/stroke.rs",
-      "headers": [
-        "emStroke.h",
-        "emStrokeEnd.h"
-      ],
-      "targets": [
-        "src/emCore/emStroke.rs",
-        "src/emCore/emStrokeEnd.rs"
-      ],
-      "status": "pending"
-    }
-  ],
+  "extractions_needed": [],
   "provenance_warnings": [
     {
-      "id": "provenance:emBorder.h:src/foundation/alignment.rs",
+      "id": "provenance:emBorder.h:src/emCore/emBorderAlignment.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emBorder.h split file 'src/foundation/alignment.rs' has 0/56 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emBorder.h split file 'src/emCore/emBorderAlignment.rs' has 0/56 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emColor.h:src/foundation/x11_colors.rs",
+      "id": "provenance:emColor.h:src/emCore/emColorX11Colors.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emColor.h split file 'src/foundation/x11_colors.rs' has 0/36 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emColor.h split file 'src/emCore/emColorX11Colors.rs' has 0/36 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emFontCache.h:src/render/em_font.rs",
+      "id": "provenance:emFontCache.h:src/emCore/emFontCache.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emFontCache.h split file 'src/render/em_font.rs' has 0/3 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emFontCache.h split file 'src/emCore/emFontCache.rs' has 0/3 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emFontCache.h:src/render/bitmap_font.rs",
+      "id": "provenance:emFontCache.h:src/emCore/emFontCacheBitmapFont.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emFontCache.h split file 'src/render/bitmap_font.rs' has 0/3 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emFontCache.h split file 'src/emCore/emFontCacheBitmapFont.rs' has 0/3 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emPainter.h:src/render/interpolation.rs",
+      "id": "provenance:emPainter.h:src/emCore/emPainterInterpolation.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emPainter.h split file 'src/render/interpolation.rs' has 0/54 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emPainter.h split file 'src/emCore/emPainterInterpolation.rs' has 0/54 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emPainter.h:src/render/scanline.rs",
+      "id": "provenance:emPainter.h:src/emCore/emPainterScanline.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emPainter.h split file 'src/render/scanline.rs' has 0/54 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emPainter.h split file 'src/emCore/emPainterScanline.rs' has 0/54 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emPainter.h:src/render/scanline_avx2.rs",
+      "id": "provenance:emPainter.h:src/emCore/emPainterScanlineAvx2.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emPainter.h split file 'src/render/scanline_avx2.rs' has 0/54 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emPainter.h split file 'src/emCore/emPainterScanlineAvx2.rs' has 0/54 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emPainter.h:src/render/scanline_tool.rs",
+      "id": "provenance:emPainter.h:src/emCore/emPainterScanlineTool.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emPainter.h split file 'src/render/scanline_tool.rs' has 0/54 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emPainter.h split file 'src/emCore/emPainterScanlineTool.rs' has 0/54 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emRes.h:src/model/resource_cache.rs",
+      "id": "provenance:emRes.h:src/emCore/emRes.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emRes.h split file 'src/model/resource_cache.rs' has 0/9 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emRes.h split file 'src/emCore/emRes.rs' has 0/9 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emRes.h:src/foundation/tga.rs",
+      "id": "provenance:emRes.h:src/emCore/emResTga.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emRes.h split file 'src/foundation/tga.rs' has 0/9 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emRes.h split file 'src/emCore/emResTga.rs' has 0/9 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emStd1.h:src/foundation/dlog.rs",
+      "id": "provenance:emStd1.h:src/emCore/emStd1.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emStd1.h split file 'src/foundation/dlog.rs' has 0/1 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emStd1.h split file 'src/emCore/emStd1.rs' has 0/1 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emStd2.h:src/foundation/checksum.rs",
+      "id": "provenance:emStd2.h:src/emCore/emStd2.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emStd2.h split file 'src/foundation/checksum.rs' has 0/2 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emStd2.h split file 'src/emCore/emStd2.rs' has 0/2 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emViewRenderer.h:src/render/software_compositor.rs",
+      "id": "provenance:emViewRenderer.h:src/emCore/emViewRenderer.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emViewRenderer.h split file 'src/render/software_compositor.rs' has 0/4 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emViewRenderer.h split file 'src/emCore/emViewRenderer.rs' has 0/4 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emViewRenderer.h:src/render/compositor.rs",
+      "id": "provenance:emViewRenderer.h:src/emCore/emViewRendererCompositor.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emViewRenderer.h split file 'src/render/compositor.rs' has 0/4 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emViewRenderer.h split file 'src/emCore/emViewRendererCompositor.rs' has 0/4 method matches \u2014 possible false provenance",
       "status": "advisory"
     },
     {
-      "id": "provenance:emViewRenderer.h:src/render/tile_cache.rs",
+      "id": "provenance:emViewRenderer.h:src/emCore/emViewRendererTileCache.rs",
       "kind": "provenance_warning",
-      "message": "SUSPICIOUS: emViewRenderer.h split file 'src/render/tile_cache.rs' has 0/4 method matches \u2014 possible false provenance",
+      "message": "SUSPICIOUS: emViewRenderer.h split file 'src/emCore/emViewRendererTileCache.rs' has 0/4 method matches \u2014 possible false provenance",
       "status": "advisory"
     }
   ],
@@ -17895,7 +18163,7 @@
       "header": "emATMatrix.h",
       "expected_rust_type": "ATMatrix",
       "source_files": [
-        "src/foundation/at_matrix.rs"
+        "src/emCore/emATMatrix.rs"
       ],
       "status": "unconfirmed"
     },
@@ -17905,7 +18173,7 @@
       "header": "emClipRects.h",
       "expected_rust_type": "ClipRects",
       "source_files": [
-        "src/foundation/clip_rects.rs"
+        "src/emCore/emClipRects.rs"
       ],
       "status": "unconfirmed"
     },
@@ -17915,8 +18183,8 @@
       "header": "emFontCache.h",
       "expected_rust_type": "FontCache",
       "source_files": [
-        "src/render/em_font.rs",
-        "src/render/bitmap_font.rs"
+        "src/emCore/emFontCache.rs",
+        "src/emCore/emFontCacheBitmapFont.rs"
       ],
       "status": "unconfirmed"
     },
@@ -17926,7 +18194,17 @@
       "header": "emGUIFramework.h",
       "expected_rust_type": "GUIFramework",
       "source_files": [
-        "src/window/app.rs"
+        "src/emCore/emGUIFramework.rs"
+      ],
+      "status": "unconfirmed"
+    },
+    {
+      "id": "no_type_data:emGroup.h:Group",
+      "kind": "no_type_data",
+      "header": "emGroup.h",
+      "expected_rust_type": "Group",
+      "source_files": [
+        "src/emCore/emGroup.rs"
       ],
       "status": "unconfirmed"
     },
@@ -17936,7 +18214,7 @@
       "header": "emModel.h",
       "expected_rust_type": "Model",
       "source_files": [
-        "src/model/context.rs"
+        "src/emCore/emModel.rs"
       ],
       "status": "unconfirmed"
     },
@@ -17946,9 +18224,9 @@
       "header": "emPanel.h",
       "expected_rust_type": "Panel",
       "source_files": [
-        "src/panel/behavior.rs",
-        "src/panel/ctx.rs",
-        "src/panel/tree.rs"
+        "src/emCore/emPanel.rs",
+        "src/emCore/emPanelCtx.rs",
+        "src/emCore/emPanelTree.rs"
       ],
       "status": "unconfirmed"
     },
@@ -17958,7 +18236,7 @@
       "header": "emPriSchedAgent.h",
       "expected_rust_type": "PriSchedAgent",
       "source_files": [
-        "src/scheduler/pri_sched_agent.rs"
+        "src/emCore/emPriSchedAgent.rs"
       ],
       "status": "unconfirmed"
     },
@@ -17968,8 +18246,8 @@
       "header": "emRes.h",
       "expected_rust_type": "Res",
       "source_files": [
-        "src/model/resource_cache.rs",
-        "src/foundation/tga.rs"
+        "src/emCore/emRes.rs",
+        "src/emCore/emResTga.rs"
       ],
       "status": "unconfirmed"
     },
@@ -17979,7 +18257,7 @@
       "header": "emSigModel.h",
       "expected_rust_type": "SigModel",
       "source_files": [
-        "src/model/watched_var.rs"
+        "src/emCore/emSigModel.rs"
       ],
       "status": "unconfirmed"
     },
@@ -17989,7 +18267,7 @@
       "header": "emSignal.h",
       "expected_rust_type": "Signal",
       "source_files": [
-        "src/scheduler/signal.rs"
+        "src/emCore/emSignal.rs"
       ],
       "status": "unconfirmed"
     },
@@ -17999,7 +18277,7 @@
       "header": "emStd1.h",
       "expected_rust_type": "Std1",
       "source_files": [
-        "src/foundation/dlog.rs"
+        "src/emCore/emStd1.rs"
       ],
       "status": "unconfirmed"
     },
@@ -18009,7 +18287,17 @@
       "header": "emStd2.h",
       "expected_rust_type": "Std2",
       "source_files": [
-        "src/foundation/checksum.rs"
+        "src/emCore/emStd2.rs"
+      ],
+      "status": "unconfirmed"
+    },
+    {
+      "id": "no_type_data:emTiling.h:Tiling",
+      "kind": "no_type_data",
+      "header": "emTiling.h",
+      "expected_rust_type": "Tiling",
+      "source_files": [
+        "src/emCore/emTiling.rs"
       ],
       "status": "unconfirmed"
     },
@@ -18019,7 +18307,7 @@
       "header": "emTimer.h",
       "expected_rust_type": "Timer",
       "source_files": [
-        "src/scheduler/timer.rs"
+        "src/emCore/emTimer.rs"
       ],
       "status": "unconfirmed"
     },
@@ -18029,7 +18317,7 @@
       "header": "emVarModel.h",
       "expected_rust_type": "VarModel",
       "source_files": [
-        "src/model/watched_var.rs"
+        "src/emCore/emVarModel.rs"
       ],
       "status": "unconfirmed"
     },
@@ -18039,7 +18327,7 @@
       "header": "emVarSigModel.h",
       "expected_rust_type": "VarSigModel",
       "source_files": [
-        "src/model/watched_var.rs"
+        "src/emCore/emVarSigModel.rs"
       ],
       "status": "unconfirmed"
     },
@@ -18049,9 +18337,9 @@
       "header": "emViewRenderer.h",
       "expected_rust_type": "ViewRenderer",
       "source_files": [
-        "src/render/software_compositor.rs",
-        "src/render/compositor.rs",
-        "src/render/tile_cache.rs"
+        "src/emCore/emViewRenderer.rs",
+        "src/emCore/emViewRendererCompositor.rs",
+        "src/emCore/emViewRendererTileCache.rs"
       ],
       "status": "unconfirmed"
     },
@@ -18061,8 +18349,8 @@
       "header": "emWindow.h",
       "expected_rust_type": "Window",
       "source_files": [
-        "src/window/zui_window.rs",
-        "src/window/platform.rs"
+        "src/emCore/emWindow.rs",
+        "src/emCore/emWindowPlatform.rs"
       ],
       "status": "unconfirmed"
     }

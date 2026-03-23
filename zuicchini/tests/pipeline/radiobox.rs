@@ -60,8 +60,8 @@ impl PanelBehavior for RadioBoxBehavior {
 
 struct RadioBoxHarness {
     h: PipelineTestHarness,
-    group: Rc<RefCell<zuicchini::widget::RadioGroup>>,
-    panels: [zuicchini::panel::PanelId; 3],
+    group: Rc<RefCell<zuicchini::emCore::emRadioButton::RadioGroup>>,
+    panels: [zuicchini::emCore::emPanelTree::PanelId; 3],
     compositor: SoftwareCompositor,
 }
 

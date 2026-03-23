@@ -57,13 +57,13 @@ fn assert_parallel_identical(
     settle(&mut tree, &mut view);
 
     // Single-threaded tiled render (baseline).
-    let pool_1 = zuicchini::render::thread_pool::RenderThreadPool::new(1);
+    let pool_1 = zuicchini::emCore::emRenderThreadPool::RenderThreadPool::new(1);
     let mut single = SoftwareCompositor::new(w, h);
     single.render_parallel(&mut tree, &view, &pool_1, tile_size);
     let single_data = single.framebuffer().data().to_vec();
 
     // Multi-threaded tiled render.
-    let pool_n = zuicchini::render::thread_pool::RenderThreadPool::new(thread_count);
+    let pool_n = zuicchini::emCore::emRenderThreadPool::RenderThreadPool::new(thread_count);
     let mut multi = SoftwareCompositor::new(w, h);
     multi.render_parallel(&mut tree, &view, &pool_n, tile_size);
     let multi_data = multi.framebuffer().data().to_vec();
@@ -326,7 +326,7 @@ fn parallel_benchmark() {
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
         settle(&mut tree, &mut view);
 
-        let pool = zuicchini::render::thread_pool::RenderThreadPool::new(4);
+        let pool = zuicchini::emCore::emRenderThreadPool::RenderThreadPool::new(4);
         let mut comp = SoftwareCompositor::new(800, 600);
         let start = std::time::Instant::now();
         for _ in 0..iterations {
@@ -385,7 +385,7 @@ fn parallel_benchmark() {
         let mut view = View::new(root, 800.0, 600.0);
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
         settle(&mut tree, &mut view);
-        let pool = zuicchini::render::thread_pool::RenderThreadPool::new(4);
+        let pool = zuicchini::emCore::emRenderThreadPool::RenderThreadPool::new(4);
         let mut comp = SoftwareCompositor::new(800, 600);
         comp.render_parallel(&mut tree, &view, &pool, 128);
         comp.framebuffer().data().to_vec()

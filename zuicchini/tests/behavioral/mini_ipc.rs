@@ -89,7 +89,7 @@ mod linux {
     use std::rc::Rc;
 
     use zuicchini::foundation::{MiniIpcClient, MiniIpcServer};
-    use zuicchini::scheduler::EngineScheduler;
+    use zuicchini::emCore::emScheduler::EngineScheduler;
 
     #[test]
     fn server_not_found() {

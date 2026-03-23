@@ -1,4 +1,4 @@
-use zuicchini::foundation::Color;
+use zuicchini::emCore::emColor::Color;
 use zuicchini::panel::{PanelBehavior, PanelState, PanelTree, View, ViewFlags};
 use zuicchini::render::{Painter, SoftwareCompositor};
 

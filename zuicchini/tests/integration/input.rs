@@ -125,7 +125,7 @@ fn focus_change_routes_keyboard() {
 #[test]
 fn input_without_update_returns_none() {
     // Document: hit-test requires update_viewing to set SVP.
-    let mut tree = zuicchini::panel::PanelTree::new();
+    let mut tree = zuicchini::emCore::emPanelTree::PanelTree::new();
     let root = tree.create_root("root");
     tree.set_focusable(root, true);
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
@@ -135,7 +135,7 @@ fn input_without_update_returns_none() {
     tree.set_layout_rect(child, 0.0, 0.0, 1.0, 1.0);
 
     // Create view but do NOT call update_viewing
-    let view = zuicchini::panel::View::new(root, 800.0, 600.0);
+    let view = zuicchini::emCore::emView::View::new(root, 800.0, 600.0);
 
     // Hit-test should return None since SVP is not computed
     // (SVP is set during update_viewing)

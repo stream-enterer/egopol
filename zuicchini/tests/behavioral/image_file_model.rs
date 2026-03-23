@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
-use zuicchini::foundation::Image;
+use zuicchini::emCore::emFontCache::Image;
 use zuicchini::model::{FileState, ImageFileData, ImageFileModel};
-use zuicchini::scheduler::EngineScheduler;
-use zuicchini::widget::ImageFilePanel;
+use zuicchini::emCore::emScheduler::EngineScheduler;
+use zuicchini::emCore::emImageFileImageFilePanel::ImageFilePanel;
 
 fn make_model() -> ImageFileModel {
     let mut sched = EngineScheduler::new();

@@ -1,6 +1,6 @@
 use std::rc::Rc;
-use zuicchini::foundation::Color;
-use zuicchini::widget::Look;
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emLook::Look;
 
 /// emLook::Apply — apply look to target, optionally recursive.
 #[test]

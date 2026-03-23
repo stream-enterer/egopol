@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
 use zuicchini::model::{FileModel, FileModelOps, FileState};
-use zuicchini::scheduler::EngineScheduler;
+use zuicchini::emCore::emScheduler::EngineScheduler;
 
 fn make_signals() -> (
-    zuicchini::scheduler::SignalId,
-    zuicchini::scheduler::SignalId,
+    zuicchini::emCore::emSignal::SignalId,
+    zuicchini::emCore::emSignal::SignalId,
 ) {
     let mut sched = EngineScheduler::new();
     (sched.create_signal(), sched.create_signal())

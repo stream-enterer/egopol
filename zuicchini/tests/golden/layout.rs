@@ -1,7 +1,7 @@
-use zuicchini::foundation::Rect;
-use zuicchini::layout::linear::LinearLayout;
-use zuicchini::layout::pack::PackLayout;
-use zuicchini::layout::raster::RasterLayout;
+use zuicchini::emCore::rect::Rect;
+use zuicchini::emCore::emLinearLayout::LinearLayout;
+use zuicchini::emCore::emPackLayout::PackLayout;
+use zuicchini::emCore::emRasterLayout::RasterLayout;
 use zuicchini::layout::{AlignmentH, AlignmentV, ChildConstraint, Spacing};
 use zuicchini::panel::{PanelBehavior, PanelCtx, PanelId, PanelTree};
 

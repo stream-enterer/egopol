@@ -217,7 +217,7 @@ fn checkbox_toggle_1x_and_2x() {
 fn setup_checkbutton_harness() -> (
     PipelineTestHarness,
     Rc<RefCell<CheckButton>>,
-    zuicchini::panel::PanelId,
+    zuicchini::emCore::emPanelTree::PanelId,
 ) {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
@@ -241,7 +241,7 @@ fn setup_checkbutton_with_recorder() -> (
     PipelineTestHarness,
     Rc<RefCell<CheckButton>>,
     Rc<RefCell<Vec<bool>>>,
-    zuicchini::panel::PanelId,
+    zuicchini::emCore::emPanelTree::PanelId,
 ) {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
@@ -380,7 +380,7 @@ fn checkbutton_enter_key_toggles() {
     states.borrow_mut().clear();
 
     // Now Enter should toggle checked -> unchecked
-    h.press_key(zuicchini::input::InputKey::Enter);
+    h.press_key(zuicchini::emCore::emInput::InputKey::Enter);
     assert!(
         !cb_ref.borrow().is_checked(),
         "Enter should toggle checked -> unchecked"
@@ -388,7 +388,7 @@ fn checkbutton_enter_key_toggles() {
     assert_eq!(*states.borrow(), vec![false]);
 
     // Enter again toggles back
-    h.press_key(zuicchini::input::InputKey::Enter);
+    h.press_key(zuicchini::emCore::emInput::InputKey::Enter);
     assert!(
         cb_ref.borrow().is_checked(),
         "Second Enter should toggle unchecked -> checked"
@@ -406,9 +406,9 @@ fn checkbutton_shift_click_accepted() {
     let (mut h, cb_ref, _panel_id) = setup_checkbutton_harness();
 
     // Set Shift in InputState so dispatch's with_modifiers stamps it onto events
-    h.input_state.press(zuicchini::input::InputKey::Shift);
+    h.input_state.press(zuicchini::emCore::emInput::InputKey::Shift);
     h.click(400.0, 300.0);
-    h.input_state.release(zuicchini::input::InputKey::Shift);
+    h.input_state.release(zuicchini::emCore::emInput::InputKey::Shift);
 
     assert!(
         cb_ref.borrow().is_checked(),
@@ -430,9 +430,9 @@ fn checkbutton_shift_enter_accepted() {
     assert!(cb_ref.borrow().is_checked());
 
     // Now Shift+Enter should toggle back
-    h.input_state.press(zuicchini::input::InputKey::Shift);
-    h.press_key(zuicchini::input::InputKey::Enter);
-    h.input_state.release(zuicchini::input::InputKey::Shift);
+    h.input_state.press(zuicchini::emCore::emInput::InputKey::Shift);
+    h.press_key(zuicchini::emCore::emInput::InputKey::Enter);
+    h.input_state.release(zuicchini::emCore::emInput::InputKey::Shift);
 
     assert!(
         !cb_ref.borrow().is_checked(),
@@ -449,9 +449,9 @@ fn checkbutton_shift_enter_accepted() {
 fn checkbutton_ctrl_click_rejected() {
     let (mut h, cb_ref, _panel_id) = setup_checkbutton_harness();
 
-    h.input_state.press(zuicchini::input::InputKey::Ctrl);
+    h.input_state.press(zuicchini::emCore::emInput::InputKey::Ctrl);
     h.click(400.0, 300.0);
-    h.input_state.release(zuicchini::input::InputKey::Ctrl);
+    h.input_state.release(zuicchini::emCore::emInput::InputKey::Ctrl);
 
     assert!(
         !cb_ref.borrow().is_checked(),
@@ -468,9 +468,9 @@ fn checkbutton_ctrl_click_rejected() {
 fn checkbutton_alt_click_rejected() {
     let (mut h, cb_ref, _panel_id) = setup_checkbutton_harness();
 
-    h.input_state.press(zuicchini::input::InputKey::Alt);
+    h.input_state.press(zuicchini::emCore::emInput::InputKey::Alt);
     h.click(400.0, 300.0);
-    h.input_state.release(zuicchini::input::InputKey::Alt);
+    h.input_state.release(zuicchini::emCore::emInput::InputKey::Alt);
 
     assert!(
         !cb_ref.borrow().is_checked(),
@@ -487,9 +487,9 @@ fn checkbutton_alt_click_rejected() {
 fn checkbutton_meta_click_rejected() {
     let (mut h, cb_ref, _panel_id) = setup_checkbutton_harness();
 
-    h.input_state.press(zuicchini::input::InputKey::Meta);
+    h.input_state.press(zuicchini::emCore::emInput::InputKey::Meta);
     h.click(400.0, 300.0);
-    h.input_state.release(zuicchini::input::InputKey::Meta);
+    h.input_state.release(zuicchini::emCore::emInput::InputKey::Meta);
 
     assert!(
         !cb_ref.borrow().is_checked(),
@@ -510,9 +510,9 @@ fn checkbutton_ctrl_enter_rejected() {
     h.click(400.0, 300.0);
     assert!(cb_ref.borrow().is_checked());
 
-    h.input_state.press(zuicchini::input::InputKey::Ctrl);
-    h.press_key(zuicchini::input::InputKey::Enter);
-    h.input_state.release(zuicchini::input::InputKey::Ctrl);
+    h.input_state.press(zuicchini::emCore::emInput::InputKey::Ctrl);
+    h.press_key(zuicchini::emCore::emInput::InputKey::Enter);
+    h.input_state.release(zuicchini::emCore::emInput::InputKey::Ctrl);
 
     assert!(
         cb_ref.borrow().is_checked(),
@@ -533,9 +533,9 @@ fn checkbutton_alt_enter_rejected() {
     h.click(400.0, 300.0);
     assert!(cb_ref.borrow().is_checked());
 
-    h.input_state.press(zuicchini::input::InputKey::Alt);
-    h.press_key(zuicchini::input::InputKey::Enter);
-    h.input_state.release(zuicchini::input::InputKey::Alt);
+    h.input_state.press(zuicchini::emCore::emInput::InputKey::Alt);
+    h.press_key(zuicchini::emCore::emInput::InputKey::Enter);
+    h.input_state.release(zuicchini::emCore::emInput::InputKey::Alt);
 
     assert!(
         cb_ref.borrow().is_checked(),
@@ -581,7 +581,7 @@ fn checkbutton_disabled_rejects_enter() {
     let mut compositor = SoftwareCompositor::new(800, 600);
     compositor.render(&mut h.tree, &h.view);
 
-    h.press_key(zuicchini::input::InputKey::Enter);
+    h.press_key(zuicchini::emCore::emInput::InputKey::Enter);
     assert!(
         !cb_ref.borrow().is_checked(),
         "Disabled CheckButton should reject Enter"

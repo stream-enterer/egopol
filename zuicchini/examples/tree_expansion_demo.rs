@@ -4,9 +4,9 @@
 //! creates four children whose color is the inverse of the parent's.
 //! Zooming into any panel reveals the next level.
 
-use zuicchini::foundation::Color;
+use zuicchini::emCore::emColor::Color;
 use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState, ViewFlags};
-use zuicchini::render::Painter;
+use zuicchini::emCore::emPainter::Painter;
 use zuicchini::window::{App, WindowFlags};
 
 struct MyPanel {
@@ -68,7 +68,7 @@ fn main() {
 
         let close_sig = app.scheduler.create_signal();
         let flags_sig = app.scheduler.create_signal();
-        let win = zuicchini::window::ZuiWindow::create(
+        let win = zuicchini::emCore::emWindow::ZuiWindow::create(
             event_loop,
             app.gpu(),
             root,

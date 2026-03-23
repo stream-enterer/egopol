@@ -1,0 +1,283 @@
+//! Benchmark paint cost at various zoom depths.
+//!
+//! Pre-zooms to several levels, then measures paint cost at each.
+//! Tests whether clipping effectively limits work when most of the
+//! panel is off-screen.
+//!
+//! Run: cargo run --release --example bench_zoom_depth
+
+use std::time::Instant;
+
+use zuicchini::foundation::{Color, Image};
+use zuicchini::panel::{PanelBehavior, PanelState, PanelTree, View, ViewFlags};
+use zuicchini::emCore::emPainter::Painter;
+
+// Reuse the same TestPanel from bench_interaction
+struct TestPanel {
+    test_image: Image,
+}
+
+impl TestPanel {
+    fn new() -> Self {
+        let mut img = Image::new(64, 64, 4);
+        for y in 0..64u32 {
+            for x in 0..64u32 {
+                img.set_pixel_channel(x, y, 0, (x * 4) as u8);
+                img.set_pixel_channel(x, y, 1, (y * 4) as u8);
+                img.set_pixel_channel(x, y, 2, 128);
+                img.set_pixel_channel(x, y, 3, 255);
+            }
+        }
+        Self { test_image: img }
+    }
+}
+
+impl PanelBehavior for TestPanel {
+    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+        use std::f64::consts::PI;
+        use zuicchini::emCore::emStroke::Stroke;
+
+        if state.viewed_rect.w < 25.0 {
+            return;
+        }
+
+        painter.push_state();
+        painter.scale(w, w);
+        let h = h / w;
+
+        let fg = Color::grey(136);
+        let bg = Color::rgba(0x00, 0x1C, 0x38, 0xFF);
+
+        painter.paint_rect(0.0, 0.0, 1.0, h, bg, Color::TRANSPARENT);
+        painter.paint_rect_outlined(
+            0.01, 0.01, 1.0 - 0.02, h - 0.02,
+            &Stroke::new(fg, 0.02), Color::TRANSPARENT,
+        );
+
+        painter.paint_rect(0.25, 0.8, 0.05, 0.05, Color::rgba(255, 0, 0, 32), Color::TRANSPARENT);
+
+        painter.paint_polygon(
+            &[(0.7, 0.6), (0.6, 0.7), (0.8, 0.8)],
+            fg, Color::TRANSPARENT,
+        );
+
+        let circle: Vec<_> = (0..64)
+            .map(|i| {
+                let a = PI * i as f64 / 32.0;
+                (a.sin() * 0.05 + 0.65, a.cos() * 0.05 + 0.85)
+            })
+            .collect();
+        painter.paint_polygon(&circle, Color::rgba(255, 255, 0, 255), Color::TRANSPARENT);
+
+        painter.paint_ellipse(0.055, 0.805, 0.005, 0.005, Color::WHITE, Color::TRANSPARENT);
+        painter.paint_ellipse(0.07, 0.805, 0.01, 0.005, Color::WHITE, Color::TRANSPARENT);
+
+        painter.paint_round_rect(0.05, 0.84, 0.01, 0.01, 0.001, Color::WHITE);
+        painter.paint_round_rect(0.07, 0.84, 0.02, 0.01, 0.002, Color::WHITE);
+
+        painter.paint_ellipse_outlined(
+            0.055, 0.865, 0.005, 0.005,
+            &Stroke::new(Color::WHITE, 0.003), Color::TRANSPARENT,
+        );
+
+        painter.paint_round_rect_outlined(
+            0.05, 0.88, 0.01, 0.01, 0.001,
+            &Stroke::new(Color::WHITE, 0.001),
+        );
+
+        painter.paint_image_scaled(
+            0.26, 0.94, 0.02, 0.01,
+            &self.test_image,
+            zuicchini::emCore::emTexture::ImageQuality::Bilinear,
+            zuicchini::emCore::emTexture::ImageExtension::Clamp,
+        );
+
+        painter.pop_state();
+    }
+
+    fn is_opaque(&self) -> bool {
+        true
+    }
+}
+
+const VW: u32 = 1920;
+const VH: u32 = 1080;
+const FRAMES: usize = 60;
+
+fn measure_at_zoom(zoom_factor: f64) -> (f64, f64, f64) {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("bench_root");
+    tree.set_behavior(root, Box::new(TestPanel::new()));
+    let tallness = VH as f64 / VW as f64;
+    tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
+    tree.set_focusable(root, true);
+
+    let mut view = View::new(root, VW as f64, VH as f64);
+    view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
+    tree.deliver_notices(true, 1.0);
+    view.update(&mut tree);
+
+    // Zoom in by the specified factor, centered on viewport center
+    let cx = VW as f64 / 2.0;
+    let cy = VH as f64 / 2.0;
+    // Apply zoom in steps to avoid numerical issues
+    let steps = 100;
+    let per_step = zoom_factor.powf(1.0 / steps as f64);
+    for _ in 0..steps {
+        view.zoom(per_step, cx, cy);
+    }
+    tree.deliver_notices(true, 1.0);
+    view.update(&mut tree);
+    view.clear_viewport_changed();
+
+    let mut buf = Image::new(VW, VH, 4);
+
+    // Warmup
+    buf.fill(Color::BLACK);
+    {
+        let mut painter = Painter::new(&mut buf);
+        view.paint(&mut tree, &mut painter);
+    }
+
+    // Measure
+    let mut times = Vec::with_capacity(FRAMES);
+    for _ in 0..FRAMES {
+        buf.fill(Color::BLACK);
+        let t = Instant::now();
+        {
+            let mut painter = Painter::new(&mut buf);
+            view.paint(&mut tree, &mut painter);
+        }
+        times.push(t.elapsed().as_micros() as f64);
+    }
+
+    times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let median = times[times.len() / 2];
+    let p99 = times[(times.len() as f64 * 0.99) as usize];
+    let max = *times.last().unwrap();
+    (median, p99, max)
+}
+
+fn measure_nested_at_zoom(panel_count: usize, zoom_factor: f64) -> (f64, f64, f64) {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+    let tallness = VH as f64 / VW as f64;
+    tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
+    tree.set_behavior(root, Box::new(TestPanel::new()));
+    tree.set_focusable(root, true);
+
+    // Build nested children: each child fills most of the parent,
+    // like Eagle Mode's recursive zoom structure
+    if panel_count > 1 {
+        let mut parents = vec![root];
+        let mut created = 1usize;
+        let branching = 4usize;
+
+        while created < panel_count {
+            let mut next_parents = Vec::new();
+            for &parent in &parents {
+                for child_idx in 0..branching {
+                    if created >= panel_count {
+                        break;
+                    }
+                    let child = tree.create_child(parent, &format!("p{created}"));
+                    let siblings = branching.min(panel_count - created + child_idx);
+                    let x = child_idx as f64 / siblings as f64;
+                    let w = 1.0 / siblings as f64;
+                    tree.set_layout_rect(child, x, 0.0, w, 1.0);
+                    tree.set_behavior(child, Box::new(TestPanel::new()));
+                    next_parents.push(child);
+                    created += 1;
+                }
+            }
+            parents = next_parents;
+        }
+    }
+
+    let mut view = View::new(root, VW as f64, VH as f64);
+    view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
+    tree.deliver_notices(true, 1.0);
+    view.update(&mut tree);
+
+    // Zoom in
+    let cx = VW as f64 / 2.0;
+    let cy = VH as f64 / 2.0;
+    let steps = 100;
+    let per_step = zoom_factor.powf(1.0 / steps as f64);
+    for _ in 0..steps {
+        view.zoom(per_step, cx, cy);
+    }
+    tree.deliver_notices(true, 1.0);
+    view.update(&mut tree);
+    view.clear_viewport_changed();
+
+    let mut buf = Image::new(VW, VH, 4);
+
+    // Warmup
+    buf.fill(Color::BLACK);
+    {
+        let mut painter = Painter::new(&mut buf);
+        view.paint(&mut tree, &mut painter);
+    }
+
+    // Measure
+    let mut times = Vec::with_capacity(FRAMES);
+    for _ in 0..FRAMES {
+        buf.fill(Color::BLACK);
+        let t = Instant::now();
+        {
+            let mut painter = Painter::new(&mut buf);
+            view.paint(&mut tree, &mut painter);
+        }
+        times.push(t.elapsed().as_micros() as f64);
+    }
+
+    times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let median = times[times.len() / 2];
+    let p99 = times[(times.len() as f64 * 0.99) as usize];
+    let max = *times.last().unwrap();
+    (median, p99, max)
+}
+
+fn main() {
+    println!("=== bench_zoom_depth ({VW}x{VH}, {FRAMES} frames/level) ===");
+    println!();
+
+    // Single panel at various zoom levels
+    println!("--- Single Panel ---");
+    println!("{:<12} {:>10} {:>10} {:>10}", "Zoom", "Median", "p99", "Max");
+    println!("{:<12} {:>10} {:>10} {:>10}", "----", "------", "---", "---");
+    for &zoom in &[1.0, 2.0, 5.0, 10.0, 50.0, 100.0, 1000.0] {
+        let (median, p99, max) = measure_at_zoom(zoom);
+        println!(
+            "{:<12} {:>9.0}us {:>9.0}us {:>9.0}us",
+            format!("{zoom}x"), median, p99, max,
+        );
+    }
+
+    // Nested panels (50 panels) at various zoom levels
+    println!();
+    println!("--- 50 Nested Panels ---");
+    println!("{:<12} {:>10} {:>10} {:>10}", "Zoom", "Median", "p99", "Max");
+    println!("{:<12} {:>10} {:>10} {:>10}", "----", "------", "---", "---");
+    for &zoom in &[1.0, 2.0, 5.0, 10.0, 50.0, 100.0, 1000.0] {
+        let (median, p99, max) = measure_nested_at_zoom(50, zoom);
+        println!(
+            "{:<12} {:>9.0}us {:>9.0}us {:>9.0}us",
+            format!("{zoom}x"), median, p99, max,
+        );
+    }
+
+    // 200 panels at various zoom levels
+    println!();
+    println!("--- 200 Nested Panels ---");
+    println!("{:<12} {:>10} {:>10} {:>10}", "Zoom", "Median", "p99", "Max");
+    println!("{:<12} {:>10} {:>10} {:>10}", "----", "------", "---", "---");
+    for &zoom in &[1.0, 2.0, 5.0, 10.0, 50.0, 100.0, 1000.0] {
+        let (median, p99, max) = measure_nested_at_zoom(200, zoom);
+        println!(
+            "{:<12} {:>9.0}us {:>9.0}us {:>9.0}us",
+            format!("{zoom}x"), median, p99, max,
+        );
+    }
+}

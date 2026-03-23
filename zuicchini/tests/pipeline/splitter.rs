@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use zuicchini::input::{Cursor, InputEvent, InputKey, InputState};
-use zuicchini::layout::Orientation;
+use zuicchini::emCore::emTiling::Orientation;
 use zuicchini::panel::{PanelBehavior, PanelState};
 use zuicchini::render::{Painter, SoftwareCompositor};
 use zuicchini::widget::{Look, Splitter};
@@ -303,7 +303,7 @@ fn splitter_limits_respected_across_zoom() {
 fn setup_splitter_with_id(
     orientation: Orientation,
     initial_pos: f64,
-) -> (PipelineTestHarness, Rc<RefCell<Splitter>>, SoftwareCompositor, zuicchini::panel::PanelId) {
+) -> (PipelineTestHarness, Rc<RefCell<Splitter>>, SoftwareCompositor, zuicchini::emCore::emPanelTree::PanelId) {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 

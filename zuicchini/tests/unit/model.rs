@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
-use zuicchini::foundation::RecStruct;
+use zuicchini::emCore::emRec::RecStruct;
 use zuicchini::model::{
     Context, FileModel, FileModelOps, FileState, RecError, RecFileModel, Record, ResourceCache,
     WatchedVar,
 };
-use zuicchini::scheduler::EngineScheduler;
+use zuicchini::emCore::emScheduler::EngineScheduler;
 
 // ── Shared test record ──────────────────────────────────────────────────────
 
@@ -43,14 +43,14 @@ fn write_test_rec(path: &std::path::Path, name: &str, count: i32) {
     let mut r = RecStruct::new();
     r.set_str("name", name);
     r.set_int("count", count);
-    let content = zuicchini::foundation::write_rec(&r);
+    let content = zuicchini::emCore::emRec::write_rec(&r);
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(path, content).unwrap();
 }
 
 // ── RecFileModel tests ───────────────────────────────────────────────────────
 
-fn make_signal() -> zuicchini::scheduler::SignalId {
+fn make_signal() -> zuicchini::emCore::emSignal::SignalId {
     let mut sched = EngineScheduler::new();
     sched.create_signal()
 }
@@ -169,7 +169,7 @@ fn file_model_too_costly() {
 
 #[test]
 fn rec_round_trip() {
-    use zuicchini::model::RecError;
+    use zuicchini::emCore::emRec::RecError;
 
     let missing = RecError::MissingField("test".into());
     assert!(format!("{missing}").contains("test"));

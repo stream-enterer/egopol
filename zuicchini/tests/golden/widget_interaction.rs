@@ -1,10 +1,10 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use zuicchini::foundation::Rect;
+use zuicchini::emCore::rect::Rect;
 use zuicchini::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
-use zuicchini::layout::linear::LinearGroup;
-use zuicchini::layout::Orientation;
+use zuicchini::emCore::emLinearLayout::LinearGroup;
+use zuicchini::emCore::emTiling::Orientation;
 use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState, PanelTree, View, ViewFlags};
 use zuicchini::render::{Painter, SoftwareCompositor};
 use zuicchini::widget::{

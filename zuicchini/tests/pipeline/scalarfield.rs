@@ -181,7 +181,7 @@ fn setup_sf(
     editable: bool,
     mark_intervals: &[u64],
     kb_interval: u64,
-) -> (PipelineTestHarness, Rc<RefCell<f64>>, zuicchini::panel::PanelId) {
+) -> (PipelineTestHarness, Rc<RefCell<f64>>, zuicchini::emCore::emPanelTree::PanelId) {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
 

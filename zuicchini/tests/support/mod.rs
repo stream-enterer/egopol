@@ -10,7 +10,7 @@ use zuicchini::panel::{
     KeyboardZoomScrollVIF, MouseZoomScrollVIF, NoticeFlags, PanelBehavior, PanelCtx, PanelId,
     PanelState, PanelTree, View, ViewInputFilter,
 };
-use zuicchini::scheduler::EngineScheduler;
+use zuicchini::emCore::emScheduler::EngineScheduler;
 
 /// Headless test harness that wires together PanelTree, EngineScheduler, and View
 /// without needing wgpu/winit.

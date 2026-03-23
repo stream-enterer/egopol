@@ -16,8 +16,8 @@ use std::rc::Rc;
 
 use zuicchini::foundation::{load_tga, Color, Image};
 use zuicchini::input::{Cursor, InputEvent, InputState};
-use zuicchini::layout::linear::{LinearGroup, LinearLayout};
-use zuicchini::layout::raster::{RasterGroup, RasterLayout};
+use zuicchini::emCore::emLinearLayout::{LinearGroup, LinearLayout};
+use zuicchini::emCore::emRasterLayout::{RasterGroup, RasterLayout};
 use zuicchini::layout::{ChildConstraint, Orientation};
 use zuicchini::panel::{
     NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelState, PanelTree, View, ViewConditionType,

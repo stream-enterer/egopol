@@ -98,7 +98,7 @@ fn button_click_1x_and_2x() {
 /// `[true, false]` means one full press-release cycle.
 fn make_button_harness() -> (
     PipelineTestHarness,
-    zuicchini::panel::PanelId,
+    zuicchini::emCore::emPanelTree::PanelId,
     Rc<Cell<u32>>,
     Rc<std::cell::RefCell<Vec<bool>>>,
 ) {

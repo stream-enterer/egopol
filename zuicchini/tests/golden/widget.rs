@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
-use zuicchini::layout::linear::LinearGroup;
-use zuicchini::layout::Orientation;
+use zuicchini::emCore::emLinearLayout::LinearGroup;
+use zuicchini::emCore::emTiling::Orientation;
 use zuicchini::panel::{
     PanelBehavior, PanelCtx, PanelState, PanelTree, View, ViewConditionType, ViewFlags,
 };
@@ -409,7 +409,7 @@ fn widget_colorfield() {
     let look = Look::new();
     let mut cf = ColorField::new(look);
     cf.set_caption("Color");
-    cf.set_color(zuicchini::foundation::Color::rgba(255, 0, 0, 255));
+    cf.set_color(zuicchini::emCore::emColor::Color::rgba(255, 0, 0, 255));
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -555,7 +555,7 @@ fn colorfield_expanded() {
     cf.set_caption("Color");
     cf.set_editable(true);
     cf.set_alpha_enabled(true);
-    cf.set_color(zuicchini::foundation::Color::rgba(0xBB, 0x22, 0x22, 0xFF));
+    cf.set_color(zuicchini::emCore::emColor::Color::rgba(0xBB, 0x22, 0x22, 0xFF));
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -625,7 +625,7 @@ fn listbox_expanded() {
     let look = Look::new();
     let mut lb = ListBox::new(look);
     lb.set_caption("Items");
-    lb.set_selection_mode(zuicchini::widget::SelectionMode::Multi);
+    lb.set_selection_mode(zuicchini::emCore::emListBox::SelectionMode::Multi);
     lb.set_items(
         ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta"]
             .iter()
@@ -1604,7 +1604,7 @@ fn golden_widget_colorfield_alpha_zero() {
     let look = Look::new();
     let mut cf = ColorField::new(look);
     cf.set_caption("Color");
-    cf.set_color(zuicchini::foundation::Color::rgba(255, 0, 0, 0));
+    cf.set_color(zuicchini::emCore::emColor::Color::rgba(255, 0, 0, 0));
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -1653,7 +1653,7 @@ fn golden_widget_colorfield_alpha_opaque() {
     let look = Look::new();
     let mut cf = ColorField::new(look);
     cf.set_caption("Color");
-    cf.set_color(zuicchini::foundation::Color::rgba(255, 0, 0, 255));
+    cf.set_color(zuicchini::emCore::emColor::Color::rgba(255, 0, 0, 255));
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -1702,7 +1702,7 @@ fn golden_widget_colorfield_alpha_near() {
     let look = Look::new();
     let mut cf = ColorField::new(look);
     cf.set_caption("Color");
-    cf.set_color(zuicchini::foundation::Color::rgba(255, 0, 0, 1));
+    cf.set_color(zuicchini::emCore::emColor::Color::rgba(255, 0, 0, 1));
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");

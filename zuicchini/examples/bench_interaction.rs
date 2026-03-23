@@ -677,7 +677,7 @@ const SCENARIOS: &[Scenario] = &[
 
 const FRAMES_PER_SCENARIO: usize = 120;
 
-fn setup_tree_and_view(vw: u32, vh: u32) -> (PanelTree, View, zuicchini::panel::PanelId) {
+fn setup_tree_and_view(vw: u32, vh: u32) -> (PanelTree, View, zuicchini::emCore::emPanelTree::PanelId) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("bench_root");
     tree.set_behavior(root, Box::new(TestPanel::new()));

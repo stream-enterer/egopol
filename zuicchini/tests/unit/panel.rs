@@ -3,7 +3,7 @@ use zuicchini::panel::{
     NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelState, PanelTree, View, ViewFlags,
 };
 
-use zuicchini::render::Painter;
+use zuicchini::emCore::emPainter::Painter;
 
 struct TestBehavior {
     paint_count: u32,

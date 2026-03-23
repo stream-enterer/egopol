@@ -5,7 +5,7 @@ use zuicchini::panel::{
     KeyboardZoomScrollVIF, MouseZoomScrollVIF, PanelBehavior, PanelId, PanelTree, View,
     ViewInputFilter,
 };
-use zuicchini::scheduler::EngineScheduler;
+use zuicchini::emCore::emScheduler::EngineScheduler;
 
 /// Test harness that dispatches input through the FULL coordinate transform
 /// pipeline (VIF chain, hit test, view_to_panel_x/y transform), matching

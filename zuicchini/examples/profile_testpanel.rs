@@ -6,8 +6,8 @@
 
 use std::time::Instant;
 
-use zuicchini::foundation::Color;
-use zuicchini::foundation::Image;
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emFontCache::Image;
 use zuicchini::panel::{PanelBehavior, PanelState, PanelTree, ViewFlags};
 use zuicchini::render::{
     ImageExtension, ImageQuality, LineCap, LineJoin, Painter, Stroke, StrokeEnd, StrokeEndType,
@@ -659,7 +659,7 @@ fn main() {
     tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
     tree.set_focusable(root, true);
 
-    let mut view = zuicchini::panel::View::new(root, vw as f64, vh as f64);
+    let mut view = zuicchini::emCore::emView::View::new(root, vw as f64, vh as f64);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
     tree.deliver_notices(true, 1.0);
     view.update(&mut tree);

@@ -3,7 +3,7 @@
 //! Logs keyboard and mouse events to an on-screen list, demonstrating
 //! modifier matching, key press/release tracking, and mouse position.
 
-use zuicchini::foundation::Color;
+use zuicchini::emCore::emColor::Color;
 use zuicchini::input::{InputEvent, InputKey, InputState, InputVariant};
 use zuicchini::panel::{PanelBehavior, PanelState, ViewFlags};
 use zuicchini::render::{Painter, TextAlignment, VAlign};
@@ -184,7 +184,7 @@ fn main() {
 
         let close_sig = app.scheduler.create_signal();
         let flags_sig = app.scheduler.create_signal();
-        let win = zuicchini::window::ZuiWindow::create(
+        let win = zuicchini::emCore::emWindow::ZuiWindow::create(
             event_loop,
             app.gpu(),
             root,

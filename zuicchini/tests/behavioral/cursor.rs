@@ -1,4 +1,4 @@
-use zuicchini::input::Cursor;
+use zuicchini::emCore::emCursor::Cursor;
 
 #[test]
 fn all_19_variants_exist() {

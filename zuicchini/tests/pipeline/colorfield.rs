@@ -9,10 +9,10 @@
 
 use std::rc::Rc;
 
-use zuicchini::foundation::Color;
+use zuicchini::emCore::emColor::Color;
 use zuicchini::input::{Cursor, InputEvent, InputState};
 use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState};
-use zuicchini::render::Painter;
+use zuicchini::emCore::emPainter::Painter;
 use zuicchini::widget::{ColorField, Look};
 
 use super::support::pipeline::PipelineTestHarness;
@@ -69,7 +69,7 @@ impl PanelBehavior for ColorFieldBehavior {
 // ---------------------------------------------------------------------------
 // Helper: collect child panel names under a given parent
 // ---------------------------------------------------------------------------
-fn child_names(h: &PipelineTestHarness, parent: zuicchini::panel::PanelId) -> Vec<String> {
+fn child_names(h: &PipelineTestHarness, parent: zuicchini::emCore::emPanelTree::PanelId) -> Vec<String> {
     h.tree
         .children(parent)
         .filter_map(|id| h.tree.name(id).map(|n| n.to_string()))
@@ -323,7 +323,7 @@ fn colorfield_expanded_various_colors() {
 /// does NOT trigger expansion, then lower it (or zoom in) to trigger it.
 #[test]
 fn colorfield_no_children_before_expansion() {
-    use zuicchini::panel::ViewConditionType;
+    use zuicchini::emCore::emPanelTree::ViewConditionType;
 
     let mut h = PipelineTestHarness::new();
     let root = h.root();

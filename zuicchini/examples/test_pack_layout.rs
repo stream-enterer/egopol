@@ -6,11 +6,11 @@
 
 use rand::Rng;
 
-use zuicchini::foundation::Color;
-use zuicchini::layout::pack::PackLayout;
-use zuicchini::layout::ChildConstraint;
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emPackLayout::PackLayout;
+use zuicchini::emCore::emTiling::ChildConstraint;
 use zuicchini::panel::{PanelBehavior, ViewFlags};
-use zuicchini::render::Painter;
+use zuicchini::emCore::emPainter::Painter;
 use zuicchini::widget::{Border, Look, OuterBorderType};
 use zuicchini::window::{App, WindowFlags};
 
@@ -25,7 +25,7 @@ impl PanelBehavior for BorderPanel {
         painter: &mut Painter,
         w: f64,
         h: f64,
-        _state: &zuicchini::panel::PanelState,
+        _state: &zuicchini::emCore::emPanel::PanelState,
     ) {
         self.border
             .paint_border(painter, w, h, &self.look, false, true, 1.0);
@@ -81,7 +81,7 @@ fn main() {
 
         let close_sig = app.scheduler.create_signal();
         let flags_sig = app.scheduler.create_signal();
-        let win = zuicchini::window::ZuiWindow::create(
+        let win = zuicchini::emCore::emWindow::ZuiWindow::create(
             event_loop,
             app.gpu(),
             root,

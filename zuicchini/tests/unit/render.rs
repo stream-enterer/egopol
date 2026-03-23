@@ -183,7 +183,7 @@ fn paint_image_colored_basic() {
             Color::TRANSPARENT,
             Color::RED,
             Color::TRANSPARENT,
-            zuicchini::render::ImageExtension::EdgeOrZero,
+            zuicchini::emCore::emTexture::ImageExtension::EdgeOrZero,
         );
     }
     // Top-left pixel: full red (alpha=255 from mask)

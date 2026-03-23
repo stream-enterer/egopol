@@ -1,6 +1,6 @@
 use zuicchini::foundation::{parse_rec, write_rec, RecStruct};
 use zuicchini::model::{RecError, Record};
-use zuicchini::window::WindowGeometry;
+use zuicchini::emCore::emWindowStateSaver::WindowGeometry;
 
 #[test]
 fn window_geometry_default_values() {

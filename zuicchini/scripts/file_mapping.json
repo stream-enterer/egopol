@@ -4,9 +4,109 @@
     "mapped_headers": 75,
     "no_rust_equivalent": 15,
     "unmapped_needs_review": 0,
-    "total_rust_files": 90,
+    "total_rust_files": 100,
     "accounted_rust_files": 90,
-    "unaccounted_rust_files": []
+    "unaccounted_rust_files": [
+      "emCore/emATMatrix.rs",
+      "emCore/emBorder.rs",
+      "emCore/emBorderAlignment.rs",
+      "emCore/emButton.rs",
+      "emCore/emCheckBox.rs",
+      "emCore/emCheckButton.rs",
+      "emCore/emClipRects.rs",
+      "emCore/emClipboard.rs",
+      "emCore/emColor.rs",
+      "emCore/emColorField.rs",
+      "emCore/emColorFieldFieldPanel.rs",
+      "emCore/emColorX11Colors.rs",
+      "emCore/emConfigModel.rs",
+      "emCore/emContext.rs",
+      "emCore/emCoreConfig.rs",
+      "emCore/emCoreConfigPanel.rs",
+      "emCore/emCursor.rs",
+      "emCore/emDialog.rs",
+      "emCore/emEngine.rs",
+      "emCore/emErrorPanel.rs",
+      "emCore/emFileDialog.rs",
+      "emCore/emFileModel.rs",
+      "emCore/emFilePanel.rs",
+      "emCore/emFileSelectionBox.rs",
+      "emCore/emFontCache.rs",
+      "emCore/emFontCacheBitmapFont.rs",
+      "emCore/emFpPlugin.rs",
+      "emCore/emGUIFramework.rs",
+      "emCore/emGroup.rs",
+      "emCore/emImage.rs",
+      "emCore/emImageFile.rs",
+      "emCore/emImageFileImageFilePanel.rs",
+      "emCore/emInput.rs",
+      "emCore/emInputHotkey.rs",
+      "emCore/emInputState.rs",
+      "emCore/emInstallInfo.rs",
+      "emCore/emJob.rs",
+      "emCore/emLabel.rs",
+      "emCore/emLinearGroup.rs",
+      "emCore/emLinearLayout.rs",
+      "emCore/emListBox.rs",
+      "emCore/emLook.rs",
+      "emCore/emMiniIpc.rs",
+      "emCore/emModel.rs",
+      "emCore/emPackGroup.rs",
+      "emCore/emPackLayout.rs",
+      "emCore/emPainter.rs",
+      "emCore/emPainterDrawList.rs",
+      "emCore/emPainterInterpolation.rs",
+      "emCore/emPainterScanline.rs",
+      "emCore/emPainterScanlineAvx2.rs",
+      "emCore/emPainterScanlineTool.rs",
+      "emCore/emPanel.rs",
+      "emCore/emPanelCtx.rs",
+      "emCore/emPanelTree.rs",
+      "emCore/emPriSchedAgent.rs",
+      "emCore/emProcess.rs",
+      "emCore/emRadioBox.rs",
+      "emCore/emRadioButton.rs",
+      "emCore/emRasterGroup.rs",
+      "emCore/emRasterLayout.rs",
+      "emCore/emRec.rs",
+      "emCore/emRecFileModel.rs",
+      "emCore/emRecRecTypes.rs",
+      "emCore/emRecRecord.rs",
+      "emCore/emRenderThreadPool.rs",
+      "emCore/emRes.rs",
+      "emCore/emResTga.rs",
+      "emCore/emScalarField.rs",
+      "emCore/emScheduler.rs",
+      "emCore/emScreen.rs",
+      "emCore/emSigModel.rs",
+      "emCore/emSignal.rs",
+      "emCore/emSplitter.rs",
+      "emCore/emStd1.rs",
+      "emCore/emStd2.rs",
+      "emCore/emStroke.rs",
+      "emCore/emStrokeEnd.rs",
+      "emCore/emSubViewPanel.rs",
+      "emCore/emTextField.rs",
+      "emCore/emTexture.rs",
+      "emCore/emTiling.rs",
+      "emCore/emTimer.rs",
+      "emCore/emTunnel.rs",
+      "emCore/emVarModel.rs",
+      "emCore/emVarSigModel.rs",
+      "emCore/emView.rs",
+      "emCore/emViewAnimator.rs",
+      "emCore/emViewInputFilter.rs",
+      "emCore/emViewRenderer.rs",
+      "emCore/emViewRendererCompositor.rs",
+      "emCore/emViewRendererTileCache.rs",
+      "emCore/emWindow.rs",
+      "emCore/emWindowPlatform.rs",
+      "emCore/emWindowStateSaver.rs",
+      "emCore/fixed.rs",
+      "emCore/rect.rs",
+      "emCore/toolkit_images.rs",
+      "emCore/widget_utils.rs"
+    ]
   },
   "rust_only": {
     "debug/input_trace.rs": {
@@ -14,27 +114,32 @@
       "target_rs": null,
       "marker_file": null
     },
-    "foundation/rect.rs": {
+    "emCore/rect.rs": {
       "reason": "Rust-specific Rect/PixelRect newtypes; C++ passes loose (x,y,w,h) doubles",
       "target_rs": "src/emCore/rect.rs",
       "marker_file": "src/emCore/rect.rust_only"
     },
-    "foundation/fixed.rs": {
+    "emCore/fixed.rs": {
       "reason": "Rust-specific Fixed12 newtype for sub-pixel math; C++ uses inline integer arithmetic",
       "target_rs": "src/emCore/fixed.rs",
       "marker_file": "src/emCore/fixed.rust_only"
     },
-    "widget/toolkit_images.rs": {
+    "emCore/toolkit_images.rs": {
       "reason": "Rust-specific TGA resource loader; C++ loads toolkit images via emGetInsResImage at point of use",
       "target_rs": "src/emCore/toolkit_images.rs",
       "marker_file": "src/emCore/toolkit_images.rust_only"
+    },
+    "emCore/widget_utils.rs": {
+      "reason": "Rust-only widget utility functions (trace_input_enabled, check_mouse_round_rect)",
+      "target_rs": "src/emCore/widget_utils.rs",
+      "marker_file": "src/emCore/widget_utils.rust_only"
     }
   },
   "mappings": {
     "emATMatrix.h": {
       "target_rs": "src/emCore/emATMatrix.rs",
       "source_files": [
-        "src/foundation/at_matrix.rs"
+        "src/emCore/emATMatrix.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -134,8 +239,8 @@
     "emBorder.h": {
       "target_rs": "src/emCore/emBorder.rs",
       "source_files": [
-        "src/widget/border.rs",
-        "src/foundation/alignment.rs"
+        "src/emCore/emBorder.rs",
+        "src/emCore/emBorderAlignment.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -200,7 +305,7 @@
     "emButton.h": {
       "target_rs": "src/emCore/emButton.rs",
       "source_files": [
-        "src/widget/button.rs"
+        "src/emCore/emButton.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -231,7 +336,7 @@
     "emCheckBox.h": {
       "target_rs": "src/emCore/emCheckBox.rs",
       "source_files": [
-        "src/widget/check_box.rs"
+        "src/emCore/emCheckBox.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -244,7 +349,7 @@
     "emCheckButton.h": {
       "target_rs": "src/emCore/emCheckButton.rs",
       "source_files": [
-        "src/widget/check_button.rs"
+        "src/emCore/emCheckButton.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -263,7 +368,7 @@
     "emClipRects.h": {
       "target_rs": "src/emCore/emClipRects.rs",
       "source_files": [
-        "src/foundation/clip_rects.rs"
+        "src/emCore/emClipRects.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -312,7 +417,7 @@
     "emClipboard.h": {
       "target_rs": "src/emCore/emClipboard.rs",
       "source_files": [
-        "src/model/clipboard.rs"
+        "src/emCore/emClipboard.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -328,8 +433,8 @@
     "emColor.h": {
       "target_rs": "src/emCore/emColor.rs",
       "source_files": [
-        "src/foundation/color.rs",
-        "src/foundation/x11_colors.rs"
+        "src/emCore/emColor.rs",
+        "src/emCore/emColorX11Colors.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -385,8 +490,8 @@
     "emColorField.h": {
       "target_rs": "src/emCore/emColorField.rs",
       "source_files": [
-        "src/widget/color_field.rs",
-        "src/widget/field_panel.rs"
+        "src/emCore/emColorField.rs",
+        "src/emCore/emColorFieldFieldPanel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -413,7 +518,7 @@
     "emConfigModel.h": {
       "target_rs": "src/emCore/emConfigModel.rs",
       "source_files": [
-        "src/model/config_model.rs"
+        "src/emCore/emConfigModel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -439,7 +544,7 @@
     "emContext.h": {
       "target_rs": "src/emCore/emContext.rs",
       "source_files": [
-        "src/model/context.rs"
+        "src/emCore/emContext.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -451,7 +556,7 @@
     "emCoreConfig.h": {
       "target_rs": "src/emCore/emCoreConfig.rs",
       "source_files": [
-        "src/model/core_config.rs"
+        "src/emCore/emCoreConfig.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -461,7 +566,7 @@
     "emCoreConfigPanel.h": {
       "target_rs": "src/emCore/emCoreConfigPanel.rs",
       "source_files": [
-        "src/widget/core_config_panel.rs"
+        "src/emCore/emCoreConfigPanel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -490,7 +595,7 @@
     "emCursor.h": {
       "target_rs": "src/emCore/emCursor.rs",
       "source_files": [
-        "src/input/cursor.rs"
+        "src/emCore/emCursor.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -512,7 +617,7 @@
     "emDialog.h": {
       "target_rs": "src/emCore/emDialog.rs",
       "source_files": [
-        "src/widget/dialog.rs"
+        "src/emCore/emDialog.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -551,7 +656,7 @@
     "emEngine.h": {
       "target_rs": "src/emCore/emEngine.rs",
       "source_files": [
-        "src/scheduler/engine.rs"
+        "src/emCore/emEngine.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -578,7 +683,7 @@
     "emErrorPanel.h": {
       "target_rs": "src/emCore/emErrorPanel.rs",
       "source_files": [
-        "src/widget/error_panel.rs"
+        "src/emCore/emErrorPanel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -593,7 +698,7 @@
     "emFileDialog.h": {
       "target_rs": "src/emCore/emFileDialog.rs",
       "source_files": [
-        "src/widget/file_dialog.rs"
+        "src/emCore/emFileDialog.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -631,7 +736,7 @@
     "emFileModel.h": {
       "target_rs": "src/emCore/emFileModel.rs",
       "source_files": [
-        "src/model/file_model.rs"
+        "src/emCore/emFileModel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -679,7 +784,7 @@
     "emFilePanel.h": {
       "target_rs": "src/emCore/emFilePanel.rs",
       "source_files": [
-        "src/widget/file_panel.rs"
+        "src/emCore/emFilePanel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -704,7 +809,7 @@
     "emFileSelectionBox.h": {
       "target_rs": "src/emCore/emFileSelectionBox.rs",
       "source_files": [
-        "src/widget/file_selection_box.rs"
+        "src/emCore/emFileSelectionBox.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -788,8 +893,8 @@
     "emFontCache.h": {
       "target_rs": "src/emCore/emFontCache.rs",
       "source_files": [
-        "src/render/em_font.rs",
-        "src/render/bitmap_font.rs"
+        "src/emCore/emFontCache.rs",
+        "src/emCore/emFontCacheBitmapFont.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -803,7 +908,7 @@
     "emFpPlugin.h": {
       "target_rs": "src/emCore/emFpPlugin.rs",
       "source_files": [
-        "src/model/fp_plugin.rs"
+        "src/emCore/emFpPlugin.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -816,7 +921,7 @@
     "emGUIFramework.h": {
       "target_rs": "src/emCore/emGUIFramework.rs",
       "source_files": [
-        "src/window/app.rs"
+        "src/emCore/emGUIFramework.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -828,8 +933,10 @@
     },
     "emGroup.h": {
       "target_rs": "src/emCore/emGroup.rs",
-      "source_files": [],
-      "mod_rs_code": "layout/mod.rs (emGroup extends emTiling \u2014 deprecated thin wrapper)",
+      "source_files": [
+        "src/emCore/emGroup.rs"
+      ],
+      "mod_rs_code": "src/emCore/emGroup.rs",
       "pattern": "extract",
       "note": "Deprecated C++ class; extract to own file",
       "cpp_symbols": [
@@ -840,7 +947,7 @@
     "emImage.h": {
       "target_rs": "src/emCore/emImage.rs",
       "source_files": [
-        "src/foundation/image.rs"
+        "src/emCore/emImage.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -892,8 +999,8 @@
     "emImageFile.h": {
       "target_rs": "src/emCore/emImageFile.rs",
       "source_files": [
-        "src/model/image_file_model.rs",
-        "src/widget/image_file_panel.rs"
+        "src/emCore/emImageFile.rs",
+        "src/emCore/emImageFileImageFilePanel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -903,9 +1010,9 @@
     "emInput.h": {
       "target_rs": "src/emCore/emInput.rs",
       "source_files": [
-        "src/input/event.rs",
-        "src/input/state.rs",
-        "src/input/hotkey.rs"
+        "src/emCore/emInput.rs",
+        "src/emCore/emInputState.rs",
+        "src/emCore/emInputHotkey.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -915,7 +1022,7 @@
     "emInstallInfo.h": {
       "target_rs": "src/emCore/emInstallInfo.rs",
       "source_files": [
-        "src/foundation/install_info.rs"
+        "src/emCore/emInstallInfo.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -925,7 +1032,7 @@
     "emJob.h": {
       "target_rs": "src/emCore/emJob.rs",
       "source_files": [
-        "src/scheduler/job.rs"
+        "src/emCore/emJob.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -946,7 +1053,7 @@
     "emLabel.h": {
       "target_rs": "src/emCore/emLabel.rs",
       "source_files": [
-        "src/widget/label.rs"
+        "src/emCore/emLabel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -959,7 +1066,7 @@
     "emLinearGroup.h": {
       "target_rs": "src/emCore/emLinearGroup.rs",
       "source_files": [
-        "src/layout/linear.rs"
+        "src/emCore/emLinearGroup.rs"
       ],
       "mod_rs_code": null,
       "pattern": "extract",
@@ -972,7 +1079,7 @@
     "emLinearLayout.h": {
       "target_rs": "src/emCore/emLinearLayout.rs",
       "source_files": [
-        "src/layout/linear.rs"
+        "src/emCore/emLinearLayout.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1047,7 +1154,7 @@
     "emListBox.h": {
       "target_rs": "src/emCore/emListBox.rs",
       "source_files": [
-        "src/widget/list_box.rs"
+        "src/emCore/emListBox.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1101,7 +1208,7 @@
     "emLook.h": {
       "target_rs": "src/emCore/emLook.rs",
       "source_files": [
-        "src/widget/look.rs"
+        "src/emCore/emLook.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1137,7 +1244,7 @@
     "emMiniIpc.h": {
       "target_rs": "src/emCore/emMiniIpc.rs",
       "source_files": [
-        "src/foundation/mini_ipc.rs"
+        "src/emCore/emMiniIpc.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1147,7 +1254,7 @@
     "emModel.h": {
       "target_rs": "src/emCore/emModel.rs",
       "source_files": [
-        "src/model/context.rs"
+        "src/emCore/emModel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "extract",
@@ -1194,7 +1301,7 @@
     "emPackGroup.h": {
       "target_rs": "src/emCore/emPackGroup.rs",
       "source_files": [
-        "src/layout/pack.rs"
+        "src/emCore/emPackGroup.rs"
       ],
       "mod_rs_code": null,
       "pattern": "extract",
@@ -1207,7 +1314,7 @@
     "emPackLayout.h": {
       "target_rs": "src/emCore/emPackLayout.rs",
       "source_files": [
-        "src/layout/pack.rs"
+        "src/emCore/emPackLayout.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1242,12 +1349,12 @@
     "emPainter.h": {
       "target_rs": "src/emCore/emPainter.rs",
       "source_files": [
-        "src/render/painter.rs",
-        "src/render/interpolation.rs",
-        "src/render/scanline.rs",
-        "src/render/scanline_avx2.rs",
-        "src/render/scanline_tool.rs",
-        "src/render/draw_list.rs"
+        "src/emCore/emPainter.rs",
+        "src/emCore/emPainterInterpolation.rs",
+        "src/emCore/emPainterScanline.rs",
+        "src/emCore/emPainterScanlineAvx2.rs",
+        "src/emCore/emPainterScanlineTool.rs",
+        "src/emCore/emPainterDrawList.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -1314,9 +1421,9 @@
     "emPanel.h": {
       "target_rs": "src/emCore/emPanel.rs",
       "source_files": [
-        "src/panel/behavior.rs",
-        "src/panel/ctx.rs",
-        "src/panel/tree.rs"
+        "src/emCore/emPanel.rs",
+        "src/emCore/emPanelCtx.rs",
+        "src/emCore/emPanelTree.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -1402,7 +1509,7 @@
     "emPriSchedAgent.h": {
       "target_rs": "src/emCore/emPriSchedAgent.rs",
       "source_files": [
-        "src/scheduler/pri_sched_agent.rs"
+        "src/emCore/emPriSchedAgent.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1422,7 +1529,7 @@
     "emProcess.h": {
       "target_rs": "src/emCore/emProcess.rs",
       "source_files": [
-        "src/foundation/process.rs"
+        "src/emCore/emProcess.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1454,7 +1561,7 @@
     "emRadioBox.h": {
       "target_rs": "src/emCore/emRadioBox.rs",
       "source_files": [
-        "src/widget/radio_box.rs"
+        "src/emCore/emRadioBox.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1467,7 +1574,7 @@
     "emRadioButton.h": {
       "target_rs": "src/emCore/emRadioButton.rs",
       "source_files": [
-        "src/widget/radio_button.rs"
+        "src/emCore/emRadioButton.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1504,7 +1611,7 @@
     "emRasterGroup.h": {
       "target_rs": "src/emCore/emRasterGroup.rs",
       "source_files": [
-        "src/layout/raster.rs"
+        "src/emCore/emRasterGroup.rs"
       ],
       "mod_rs_code": null,
       "pattern": "extract",
@@ -1517,7 +1624,7 @@
     "emRasterLayout.h": {
       "target_rs": "src/emCore/emRasterLayout.rs",
       "source_files": [
-        "src/layout/raster.rs"
+        "src/emCore/emRasterLayout.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1567,9 +1674,9 @@
     "emRec.h": {
       "target_rs": "src/emCore/emRec.rs",
       "source_files": [
-        "src/foundation/em_rec.rs",
-        "src/model/rec_types.rs",
-        "src/model/record.rs"
+        "src/emCore/emRec.rs",
+        "src/emCore/emRecRecTypes.rs",
+        "src/emCore/emRecRecord.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -1581,7 +1688,7 @@
     "emRecFileModel.h": {
       "target_rs": "src/emCore/emRecFileModel.rs",
       "source_files": [
-        "src/model/rec_file_model.rs"
+        "src/emCore/emRecFileModel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1617,7 +1724,7 @@
     "emRenderThreadPool.h": {
       "target_rs": "src/emCore/emRenderThreadPool.rs",
       "source_files": [
-        "src/render/thread_pool.rs"
+        "src/emCore/emRenderThreadPool.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1627,8 +1734,8 @@
     "emRes.h": {
       "target_rs": "src/emCore/emRes.rs",
       "source_files": [
-        "src/model/resource_cache.rs",
-        "src/foundation/tga.rs"
+        "src/emCore/emRes.rs",
+        "src/emCore/emResTga.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -1638,7 +1745,7 @@
     "emScalarField.h": {
       "target_rs": "src/emCore/emScalarField.rs",
       "source_files": [
-        "src/widget/scalar_field.rs"
+        "src/emCore/emScalarField.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1678,7 +1785,7 @@
     "emScheduler.h": {
       "target_rs": "src/emCore/emScheduler.rs",
       "source_files": [
-        "src/scheduler/core.rs"
+        "src/emCore/emScheduler.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1696,7 +1803,7 @@
     "emScreen.h": {
       "target_rs": "src/emCore/emScreen.rs",
       "source_files": [
-        "src/window/screen.rs"
+        "src/emCore/emScreen.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1724,7 +1831,7 @@
     "emSigModel.h": {
       "target_rs": "src/emCore/emSigModel.rs",
       "source_files": [
-        "src/model/watched_var.rs"
+        "src/emCore/emSigModel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "extract",
@@ -1740,7 +1847,7 @@
     "emSignal.h": {
       "target_rs": "src/emCore/emSignal.rs",
       "source_files": [
-        "src/scheduler/signal.rs"
+        "src/emCore/emSignal.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1756,7 +1863,7 @@
     "emSplitter.h": {
       "target_rs": "src/emCore/emSplitter.rs",
       "source_files": [
-        "src/widget/splitter.rs"
+        "src/emCore/emSplitter.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1780,9 +1887,9 @@
     "emStd1.h": {
       "target_rs": "src/emCore/emStd1.rs",
       "source_files": [
-        "src/foundation/dlog.rs"
+        "src/emCore/emStd1.rs"
       ],
-      "mod_rs_code": "foundation/mod.rs (set_fatal_error_graphical, is_fatal_error_graphical)",
+      "mod_rs_code": "src/emCore/emStd1.rs",
       "pattern": "split",
       "note": "Most of emStd1.h is Rust std prelude; emDLog\u2192dlog.rs, emFatalError/emSetFatalErrorGraphical\u2192mod.rs functions",
       "cpp_symbols": []
@@ -1790,7 +1897,7 @@
     "emStd2.h": {
       "target_rs": "src/emCore/emStd2.rs",
       "source_files": [
-        "src/foundation/checksum.rs"
+        "src/emCore/emStd2.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -1822,7 +1929,7 @@
     "emStroke.h": {
       "target_rs": "src/emCore/emStroke.rs",
       "source_files": [
-        "src/render/stroke.rs"
+        "src/emCore/emStroke.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1847,7 +1954,7 @@
     "emStrokeEnd.h": {
       "target_rs": "src/emCore/emStrokeEnd.rs",
       "source_files": [
-        "src/render/stroke.rs"
+        "src/emCore/emStrokeEnd.rs"
       ],
       "mod_rs_code": null,
       "pattern": "extract",
@@ -1870,7 +1977,7 @@
     "emSubViewPanel.h": {
       "target_rs": "src/emCore/emSubViewPanel.rs",
       "source_files": [
-        "src/panel/sub_view_panel.rs"
+        "src/emCore/emSubViewPanel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1890,7 +1997,7 @@
     "emTextField.h": {
       "target_rs": "src/emCore/emTextField.rs",
       "source_files": [
-        "src/widget/text_field.rs"
+        "src/emCore/emTextField.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1946,7 +2053,7 @@
     "emTexture.h": {
       "target_rs": "src/emCore/emTexture.rs",
       "source_files": [
-        "src/render/texture.rs"
+        "src/emCore/emTexture.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -1985,8 +2092,10 @@
     },
     "emTiling.h": {
       "target_rs": "src/emCore/emTiling.rs",
-      "source_files": [],
-      "mod_rs_code": "layout/mod.rs (Orientation, Alignment, Spacing, ChildConstraint)",
+      "source_files": [
+        "src/emCore/emTiling.rs"
+      ],
+      "mod_rs_code": "src/emCore/emTiling.rs",
       "pattern": "rename",
       "note": "emTiling layout types moved to layout module-level code",
       "cpp_symbols": [
@@ -2033,7 +2142,7 @@
     "emTimer.h": {
       "target_rs": "src/emCore/emTimer.rs",
       "source_files": [
-        "src/scheduler/timer.rs"
+        "src/emCore/emTimer.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -2085,7 +2194,7 @@
     "emTunnel.h": {
       "target_rs": "src/emCore/emTunnel.rs",
       "source_files": [
-        "src/widget/tunnel.rs"
+        "src/emCore/emTunnel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -2103,7 +2212,7 @@
     "emVarModel.h": {
       "target_rs": "src/emCore/emVarModel.rs",
       "source_files": [
-        "src/model/watched_var.rs"
+        "src/emCore/emVarModel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -2123,7 +2232,7 @@
     "emVarSigModel.h": {
       "target_rs": "src/emCore/emVarSigModel.rs",
       "source_files": [
-        "src/model/watched_var.rs"
+        "src/emCore/emVarSigModel.rs"
       ],
       "mod_rs_code": null,
       "pattern": "extract",
@@ -2144,7 +2253,7 @@
     "emView.h": {
       "target_rs": "src/emCore/emView.rs",
       "source_files": [
-        "src/panel/view.rs"
+        "src/emCore/emView.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -2194,7 +2303,7 @@
     "emViewAnimator.h": {
       "target_rs": "src/emCore/emViewAnimator.rs",
       "source_files": [
-        "src/panel/animator.rs"
+        "src/emCore/emViewAnimator.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -2204,7 +2313,7 @@
     "emViewInputFilter.h": {
       "target_rs": "src/emCore/emViewInputFilter.rs",
       "source_files": [
-        "src/panel/input_filter.rs"
+        "src/emCore/emViewInputFilter.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",
@@ -2214,9 +2323,9 @@
     "emViewRenderer.h": {
       "target_rs": "src/emCore/emViewRenderer.rs",
       "source_files": [
-        "src/render/software_compositor.rs",
-        "src/render/compositor.rs",
-        "src/render/tile_cache.rs"
+        "src/emCore/emViewRenderer.rs",
+        "src/emCore/emViewRendererCompositor.rs",
+        "src/emCore/emViewRendererTileCache.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -2226,8 +2335,8 @@
     "emWindow.h": {
       "target_rs": "src/emCore/emWindow.rs",
       "source_files": [
-        "src/window/zui_window.rs",
-        "src/window/platform.rs"
+        "src/emCore/emWindow.rs",
+        "src/emCore/emWindowPlatform.rs"
       ],
       "mod_rs_code": null,
       "pattern": "split",
@@ -2270,7 +2379,7 @@
     "emWindowStateSaver.h": {
       "target_rs": "src/emCore/emWindowStateSaver.rs",
       "source_files": [
-        "src/window/state_saver.rs"
+        "src/emCore/emWindowStateSaver.rs"
       ],
       "mod_rs_code": null,
       "pattern": "rename",

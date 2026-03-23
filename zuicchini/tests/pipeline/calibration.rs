@@ -262,7 +262,7 @@ fn colorfield_expansion_creates_child_sliders() {
 #[test]
 fn button_click_works_after_zoom() {
     use std::cell::Cell;
-    use zuicchini::foundation::Image;
+    use zuicchini::emCore::emFontCache::Image;
 
     let look = Look::new();
     let mut btn = Button::new("Zoom Test", look.clone());

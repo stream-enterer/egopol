@@ -9,7 +9,7 @@
 //! BP-19: Arrow key navigation — arrow key handlers call
 //! `visit_left/right/up/down` for sibling navigation.
 
-use zuicchini::input::InputKey;
+use zuicchini::emCore::emInput::InputKey;
 use zuicchini::panel::{PanelId, PanelTree};
 
 use super::support::pipeline::PipelineTestHarness;
