@@ -45,7 +45,7 @@ pub struct emContext {
 }
 
 impl emContext {
-    pub fn new_root() -> Rc<Self> {
+    pub fn NewRoot() -> Rc<Self> {
         Rc::new(Self {
             parent: None,
             children: RefCell::new(Vec::new()),
@@ -54,7 +54,7 @@ impl emContext {
         })
     }
 
-    pub fn new_child(parent: &Rc<emContext>) -> Rc<Self> {
+    pub fn NewChild(parent: &Rc<emContext>) -> Rc<Self> {
         let child = Rc::new(Self {
             parent: Some(Rc::downgrade(parent)),
             children: RefCell::new(Vec::new()),
@@ -65,7 +65,7 @@ impl emContext {
         child
     }
 
-    pub fn parent(&self) -> Option<Rc<emContext>> {
+    pub fn GetParentContext(&self) -> Option<Rc<emContext>> {
         self.parent.as_ref().and_then(|w| w.upgrade())
     }
 
@@ -94,8 +94,8 @@ impl emContext {
         if let Some(cb) = self.clipboard.borrow().as_ref() {
             return Some(Rc::clone(cb));
         }
-        if let Some(parent) = self.parent() {
-            return parent.lookup_clipboard();
+        if let Some(GetParentContext) = self.GetParentContext() {
+            return GetParentContext.lookup_clipboard();
         }
         None
     }
@@ -162,7 +162,7 @@ impl emContext {
     ///
     /// Port of C++ `emContext::Lookup(typeid(T), name)`.
     /// Returns `None` if not found.
-    pub fn lookup<T: 'static>(&self, name: &str) -> Option<Rc<RefCell<T>>> {
+    pub fn Lookup<T: 'static>(&self, name: &str) -> Option<Rc<RefCell<T>>> {
         let key = ModelKey {
             type_id: TypeId::of::<T>(),
             name: name.to_string(),
@@ -178,12 +178,12 @@ impl emContext {
     /// emLook up a registered model by walking up the parent chain.
     ///
     /// Port of C++ `emContext::LookupInherited`.
-    pub fn lookup_inherited<T: 'static>(&self, name: &str) -> Option<Rc<RefCell<T>>> {
-        if let Some(m) = self.lookup::<T>(name) {
+    pub fn LookupInherited<T: 'static>(&self, name: &str) -> Option<Rc<RefCell<T>>> {
+        if let Some(m) = self.Lookup::<T>(name) {
             return Some(m);
         }
-        if let Some(parent) = self.parent() {
-            return parent.lookup_inherited::<T>(name);
+        if let Some(GetParentContext) = self.GetParentContext() {
+            return GetParentContext.LookupInherited::<T>(name);
         }
         None
     }
@@ -193,7 +193,7 @@ impl emContext {
     /// Port of C++ `EM_IMPL_ACQUIRE_COMMON` macro. The `create` closure is
     /// called only when the model is not already registered.
     pub fn acquire<T: 'static>(&self, name: &str, create: impl FnOnce() -> T) -> Rc<RefCell<T>> {
-        if let Some(existing) = self.lookup::<T>(name) {
+        if let Some(existing) = self.Lookup::<T>(name) {
             return existing;
         }
         let model = Rc::new(RefCell::new(create()));
@@ -236,7 +236,7 @@ impl emContext {
 
     /// Return a list of `(type_name, model_name)` for all registered models.
     /// Intended for debugging, similar to C++ `emContext::GetListing`.
-    pub fn listing(&self) -> Vec<(String, String)> {
+    pub fn GetListing(&self) -> Vec<(String, String)> {
         self.registry
             .borrow()
             .keys()

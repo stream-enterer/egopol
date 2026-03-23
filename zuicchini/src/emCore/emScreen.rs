@@ -163,7 +163,7 @@ impl emScreen {
     /// Matches C++ emScreen::LookupInherited. The screen is registered
     /// under the type `emScreen` with name `""`.
     pub fn lookup_inherited(context: &emContext) -> Option<Rc<RefCell<emScreen>>> {
-        context.lookup_inherited::<emScreen>("")
+        context.LookupInherited::<emScreen>("")
     }
 
     /// Signal fired when monitor geometry (bounds, DPI, count) changes.
