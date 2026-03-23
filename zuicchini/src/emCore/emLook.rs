@@ -35,7 +35,7 @@ impl emLook {
 
     /// Disabled foreground: fg blended 50% toward bg.
     pub fn disabled_fg(&self) -> emColor {
-        self.fg_color.lerp(self.bg_color, 0.5)
+        self.fg_color.GetBlended(self.bg_color, 0.5)
     }
 
     /// emButton hover: button_bg lightened ~15%.
@@ -121,9 +121,9 @@ mod tests {
         let look = emLook::default();
         // border_tint should be darker than bg
         let bt = look.border_tint();
-        assert!(bt.r() < look.bg_color.r());
+        assert!(bt.GetRed() < look.bg_color.GetRed());
         // button_hover should be lighter than button_bg
         let bh = look.button_hover();
-        assert!(bh.r() > look.button_bg_color.r());
+        assert!(bh.GetRed() > look.button_bg_color.GetRed());
     }
 }

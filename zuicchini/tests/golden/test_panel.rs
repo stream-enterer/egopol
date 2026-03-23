@@ -840,7 +840,7 @@ impl TestPanel {
 
 impl PanelBehavior for TestPanel {
     fn is_opaque(&self) -> bool {
-        self.bg_color().is_opaque()
+        self.bg_color().IsOpaque()
     }
 
     fn auto_expand(&self) -> bool {

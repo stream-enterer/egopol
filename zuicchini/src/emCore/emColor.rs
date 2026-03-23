@@ -15,6 +15,9 @@ impl fmt::Display for ColorParseError {
 
 impl std::error::Error for ColorParseError {}
 
+// DIVERGED: Get — renamed to GetPacked because Rust has no implicit u32 conversion operator
+// DIVERGED: Set (all overloads) — not ported (emColor is Copy; use constructors rgba/rgb/SetAlpha instead of mutation)
+
 /// RGBA color packed into a `u32` with layout R[31:24] G[23:16] B[15:8] A[7:0].
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct emColor(u32);
@@ -42,32 +45,35 @@ impl emColor {
     }
 
     #[inline]
-    pub const fn r(self) -> u8 {
+    pub const fn GetRed(self) -> u8 {
         (self.0 >> 24) as u8
     }
 
     #[inline]
-    pub const fn g(self) -> u8 {
+    pub const fn GetGreen(self) -> u8 {
         (self.0 >> 16) as u8
     }
 
     #[inline]
-    pub const fn b(self) -> u8 {
+    pub const fn GetBlue(self) -> u8 {
         (self.0 >> 8) as u8
     }
 
     #[inline]
-    pub const fn a(self) -> u8 {
+    pub const fn GetAlpha(self) -> u8 {
         self.0 as u8
     }
 
+    // DIVERGED: Get — renamed to GetPacked because Rust has no implicit u32 conversion operator
     #[inline]
-    pub const fn as_u32(self) -> u32 {
+    pub const fn GetPacked(self) -> u32 {
         self.0
     }
 
+    // DIVERGED: SetHSVA — renamed to SetHSVA constructor (not mutator); alpha omitted
+    // (use .SetAlpha() to set it); s/v take [0,1] not [0,100] percent
     /// Create a color from HSV values. `h` in [0, 360), `s` and `v` in [0, 1].
-    pub fn from_hsv(h: f32, s: f32, v: f32) -> Self {
+    pub fn SetHSVA(h: f32, s: f32, v: f32) -> Self {
         let s = s.clamp(0.0, 1.0);
         let v = v.clamp(0.0, 1.0);
         let h = ((h % 360.0) + 360.0) % 360.0;
@@ -93,11 +99,13 @@ impl emColor {
         )
     }
 
+    // DIVERGED: GetHue/GetSat/GetVal — combined into GetHSV returning (h, s, v) tuple;
+    // s/v return [0,1] not [0,100] percent
     /// Convert to HSV. Returns `(h, s, v)` with h in [0, 360), s and v in [0, 1].
-    pub fn to_hsv(self) -> (f32, f32, f32) {
-        let r = self.r() as f32 / 255.0;
-        let g = self.g() as f32 / 255.0;
-        let b = self.b() as f32 / 255.0;
+    pub fn GetHSV(self) -> (f32, f32, f32) {
+        let r = self.GetRed() as f32 / 255.0;
+        let g = self.GetGreen() as f32 / 255.0;
+        let b = self.GetBlue() as f32 / 255.0;
 
         let max = r.max(g).max(b);
         let min = r.min(g).min(b);
@@ -118,14 +126,17 @@ impl emColor {
         (h, s, max)
     }
 
+    // DIVERGED: GetLighted — split into lighten (positive) and darken (negative);
+    // amount is [0,1] not [-100,100]
     /// Lighten the color by mixing with white. `amount` in [0.0, 1.0].
     pub fn lighten(self, amount: f64) -> emColor {
-        self.lerp(emColor::WHITE, amount)
+        self.GetBlended(emColor::WHITE, amount)
     }
 
+    // DIVERGED: GetLighted (negative range) — see lighten; darken covers the negative half
     /// Darken the color by mixing with black. `amount` in [0.0, 1.0].
     pub fn darken(self, amount: f64) -> emColor {
-        self.lerp(emColor::BLACK, amount)
+        self.GetBlended(emColor::BLACK, amount)
     }
 
     /// Standard alpha blend: `self` over `other` using `alpha` (0–255).
@@ -134,17 +145,18 @@ impl emColor {
     pub fn blend(self, other: emColor, alpha: u8) -> emColor {
         let a = alpha as u16;
         let inv_a = 256 - a;
-        let r = (self.r() as u16 * a + other.r() as u16 * inv_a) >> 8;
-        let g = (self.g() as u16 * a + other.g() as u16 * inv_a) >> 8;
-        let b = (self.b() as u16 * a + other.b() as u16 * inv_a) >> 8;
-        let out_a = (self.a() as u16 * a + other.a() as u16 * inv_a) >> 8;
+        let r = (self.GetRed() as u16 * a + other.GetRed() as u16 * inv_a) >> 8;
+        let g = (self.GetGreen() as u16 * a + other.GetGreen() as u16 * inv_a) >> 8;
+        let b = (self.GetBlue() as u16 * a + other.GetBlue() as u16 * inv_a) >> 8;
+        let out_a = (self.GetAlpha() as u16 * a + other.GetAlpha() as u16 * inv_a) >> 8;
         emColor::rgba(r as u8, g as u8, b as u8, out_a as u8)
     }
 
+    // DIVERGED: SetAlpha — returns new value instead of mutating (emColor is Copy)
     /// Return a copy with the alpha channel replaced.
     #[inline]
-    pub const fn with_alpha(self, a: u8) -> emColor {
-        emColor::rgba(self.r(), self.g(), self.b(), a)
+    pub const fn SetAlpha(self, a: u8) -> emColor {
+        emColor::rgba(self.GetRed(), self.GetGreen(), self.GetBlue(), a)
     }
 
     /// Linearly interpolate between `self` and `other` by factor `t` (0.0–1.0).
@@ -152,16 +164,17 @@ impl emColor {
     /// Matches C++ `emColor::GetBlended(color, weight)` with 16-bit precision:
     /// `w2 = (int)(weight * 655.36 + 0.5)`, `result = (a*w1 + b*w2 + 32768) >> 16`.
     /// C++ weight is 0–100; our `t` is 0.0–1.0, so `t * 100.0 * 655.36 = t * 65536.0`.
-    pub fn lerp(self, other: emColor, t: f64) -> emColor {
+    // DIVERGED: GetBlended — t is [0,1] not [0,100] percent
+    pub fn GetBlended(self, other: emColor, t: f64) -> emColor {
         let t = t.clamp(0.0, 1.0);
         let w2 = (t * 65536.0 + 0.5) as i32;
         let w1 = 65536 - w2;
         let mix = |a: i32, b: i32| -> u8 { ((a * w1 + b * w2 + 32768) >> 16) as u8 };
         emColor::rgba(
-            mix(self.r() as i32, other.r() as i32),
-            mix(self.g() as i32, other.g() as i32),
-            mix(self.b() as i32, other.b() as i32),
-            mix(self.a() as i32, other.a() as i32),
+            mix(self.GetRed() as i32, other.GetRed() as i32),
+            mix(self.GetGreen() as i32, other.GetGreen() as i32),
+            mix(self.GetBlue() as i32, other.GetBlue() as i32),
+            mix(self.GetAlpha() as i32, other.GetAlpha() as i32),
         )
     }
 
@@ -178,77 +191,84 @@ impl emColor {
             (target as i32 + src_term - cvs_term).clamp(0, 255) as u8
         };
         emColor::rgba(
-            blend_ch(self.r(), source.r(), canvas.r()),
-            blend_ch(self.g(), source.g(), canvas.g()),
-            blend_ch(self.b(), source.b(), canvas.b()),
-            blend_ch(self.a(), source.a(), canvas.a()),
+            blend_ch(self.GetRed(), source.GetRed(), canvas.GetRed()),
+            blend_ch(self.GetGreen(), source.GetGreen(), canvas.GetGreen()),
+            blend_ch(self.GetBlue(), source.GetBlue(), canvas.GetBlue()),
+            blend_ch(self.GetAlpha(), source.GetAlpha(), canvas.GetAlpha()),
         )
     }
 
+    // DIVERGED: SetRed — returns new value instead of mutating (emColor is Copy)
     /// Return a copy with the red channel replaced.
     #[inline]
-    pub const fn with_red(self, r: u8) -> emColor {
-        emColor::rgba(r, self.g(), self.b(), self.a())
+    pub const fn SetRed(self, r: u8) -> emColor {
+        emColor::rgba(r, self.GetGreen(), self.GetBlue(), self.GetAlpha())
     }
 
+    // DIVERGED: SetGreen — returns new value instead of mutating (emColor is Copy)
     /// Return a copy with the green channel replaced.
     #[inline]
-    pub const fn with_green(self, g: u8) -> emColor {
-        emColor::rgba(self.r(), g, self.b(), self.a())
+    pub const fn SetGreen(self, g: u8) -> emColor {
+        emColor::rgba(self.GetRed(), g, self.GetBlue(), self.GetAlpha())
     }
 
+    // DIVERGED: SetBlue — returns new value instead of mutating (emColor is Copy)
     /// Return a copy with the blue channel replaced.
     #[inline]
-    pub const fn with_blue(self, b: u8) -> emColor {
-        emColor::rgba(self.r(), self.g(), b, self.a())
+    pub const fn SetBlue(self, b: u8) -> emColor {
+        emColor::rgba(self.GetRed(), self.GetGreen(), b, self.GetAlpha())
     }
 
     /// Returns `true` if the alpha channel is zero.
     #[inline]
-    pub const fn is_transparent(self) -> bool {
-        self.a() == 0
+    pub const fn IsTotallyTransparent(self) -> bool {
+        self.GetAlpha() == 0
     }
 
     /// Returns `true` if the alpha channel is 255.
     #[inline]
-    pub const fn is_opaque(self) -> bool {
-        self.a() == 255
+    pub const fn IsOpaque(self) -> bool {
+        self.GetAlpha() == 255
     }
 
     /// Returns `true` if all RGB channels are equal.
     #[inline]
-    pub const fn is_grey(self) -> bool {
-        self.r() == self.g() && self.g() == self.b()
+    pub const fn IsGrey(self) -> bool {
+        self.GetRed() == self.GetGreen() && self.GetGreen() == self.GetBlue()
     }
 
     /// Average of RGB channels as a grey value.
     /// Uses C++ `GetGrey` rounding: `(r + g + b + 1) / 3`.
-    pub fn to_grey(self) -> u8 {
-        ((self.r() as u16 + self.g() as u16 + self.b() as u16 + 1) / 3) as u8
+    pub fn GetGrey(self) -> u8 {
+        ((self.GetRed() as u16 + self.GetGreen() as u16 + self.GetBlue() as u16 + 1) / 3) as u8
     }
 
+    // DIVERGED: SetGrey — constructor instead of mutator; alpha param omitted (use .SetAlpha())
     /// Construct a grey color with `a=255`.
     #[inline]
-    pub const fn grey(val: u8) -> emColor {
+    pub const fn SetGrey(val: u8) -> emColor {
         emColor::rgba(val, val, val, 255)
     }
 
+    // DIVERGED: SetHue — returns new value instead of mutating (emColor is Copy)
     /// Return a copy with the HSV hue replaced, preserving saturation, value, and alpha.
-    pub fn with_hue(self, h: f32) -> emColor {
-        let (_old_h, s, v) = self.to_hsv();
-        emColor::from_hsv(h, s, v).with_alpha(self.a())
+    pub fn SetHue(self, h: f32) -> emColor {
+        let (_old_h, s, v) = self.GetHSV();
+        emColor::SetHSVA(h, s, v).SetAlpha(self.GetAlpha())
     }
 
+    // DIVERGED: SetSat — returns new value instead of mutating (emColor is Copy)
     /// Return a copy with the HSV saturation replaced, preserving hue, value, and alpha.
-    pub fn with_saturation(self, s: f32) -> emColor {
-        let (h, _old_s, v) = self.to_hsv();
-        emColor::from_hsv(h, s, v).with_alpha(self.a())
+    pub fn SetSat(self, s: f32) -> emColor {
+        let (h, _old_s, v) = self.GetHSV();
+        emColor::SetHSVA(h, s, v).SetAlpha(self.GetAlpha())
     }
 
+    // DIVERGED: SetVal — returns new value instead of mutating (emColor is Copy)
     /// Return a copy with the HSV value replaced, preserving hue, saturation, and alpha.
-    pub fn with_value(self, v: f32) -> emColor {
-        let (h, s, _old_v) = self.to_hsv();
-        emColor::from_hsv(h, s, v).with_alpha(self.a())
+    pub fn SetVal(self, v: f32) -> emColor {
+        let (h, s, _old_v) = self.GetHSV();
+        emColor::SetHSVA(h, s, v).SetAlpha(self.GetAlpha())
     }
 
     /// Parse a color string supporting hex formats and X11 named colors.
@@ -263,7 +283,7 @@ impl emColor {
     /// - `#RRRRGGGGBBBBAAAA` (16-char hex)
     /// - `"none"` → transparent grey `rgba(128, 128, 128, 0)`
     /// - X11 named colors (case-insensitive, no spaces)
-    pub fn try_parse(s: &str) -> Option<emColor> {
+    pub fn TryParse(s: &str) -> Option<emColor> {
         let s = s.trim();
         if s.eq_ignore_ascii_case("none") {
             return Some(emColor::rgba(128, 128, 128, 0));
@@ -348,30 +368,37 @@ impl emColor {
 
     /// Scale alpha by `amount` in \[-100, 100\].
     /// Positive values make more transparent, negative values make more opaque.
-    pub fn transparented(self, amount: f64) -> emColor {
+    pub fn GetTransparented(self, amount: f64) -> emColor {
         let amount = amount.clamp(-100.0, 100.0);
-        let a = self.a() as f64;
+        let a = self.GetAlpha() as f64;
         let new_a = if amount >= 0.0 {
             a * (1.0 - amount / 100.0)
         } else {
             a + (255.0 - a) * (-amount / 100.0)
         };
-        self.with_alpha((new_a + 0.5) as u8)
+        self.SetAlpha((new_a + 0.5) as u8)
     }
 }
 
+// DIVERGED: ToString — implemented as fmt::Display trait (Rust convention)
 impl fmt::Display for emColor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.is_opaque() {
-            write!(f, "#{:02X}{:02X}{:02X}", self.r(), self.g(), self.b())
+        if self.IsOpaque() {
+            write!(
+                f,
+                "#{:02X}{:02X}{:02X}",
+                self.GetRed(),
+                self.GetGreen(),
+                self.GetBlue()
+            )
         } else {
             write!(
                 f,
                 "#{:02X}{:02X}{:02X}{:02X}",
-                self.r(),
-                self.g(),
-                self.b(),
-                self.a()
+                self.GetRed(),
+                self.GetGreen(),
+                self.GetBlue(),
+                self.GetAlpha()
             )
         }
     }
@@ -412,23 +439,23 @@ mod tests {
     #[test]
     fn component_access() {
         let c = emColor::rgba(10, 20, 30, 40);
-        assert_eq!(c.r(), 10);
-        assert_eq!(c.g(), 20);
-        assert_eq!(c.b(), 30);
-        assert_eq!(c.a(), 40);
+        assert_eq!(c.GetRed(), 10);
+        assert_eq!(c.GetGreen(), 20);
+        assert_eq!(c.GetBlue(), 30);
+        assert_eq!(c.GetAlpha(), 40);
     }
 
     #[test]
     fn rgb_sets_alpha_255() {
         let c = emColor::rgb(1, 2, 3);
-        assert_eq!(c.a(), 255);
+        assert_eq!(c.GetAlpha(), 255);
     }
 
     #[test]
     fn named_constants() {
         assert_eq!(emColor::BLACK, emColor::rgb(0, 0, 0));
         assert_eq!(emColor::WHITE, emColor::rgb(255, 255, 255));
-        assert_eq!(emColor::TRANSPARENT.a(), 0);
+        assert_eq!(emColor::TRANSPARENT.GetAlpha(), 0);
     }
 
     #[test]
@@ -437,8 +464,8 @@ mod tests {
         let b = emColor::rgb(0, 0, 255);
         // Full alpha -> nearly source (C++ /256 precision: 255*255/256 = 254)
         let full = a.blend(b, 255);
-        assert!((full.r() as i16 - a.r() as i16).abs() <= 1);
-        assert!((full.b() as i16 - a.b() as i16).abs() <= 1);
+        assert!((full.GetRed() as i16 - a.GetRed() as i16).abs() <= 1);
+        assert!((full.GetBlue() as i16 - a.GetBlue() as i16).abs() <= 1);
         // Zero alpha -> dest
         assert_eq!(a.blend(b, 0), b);
     }
@@ -448,94 +475,94 @@ mod tests {
         let target = emColor::rgb(100, 100, 100);
         // source == canvas -> no change
         let result = target.canvas_blend(emColor::rgb(50, 50, 50), emColor::rgb(50, 50, 50), 255);
-        assert_eq!(result.r(), 100);
-        assert_eq!(result.g(), 100);
-        assert_eq!(result.b(), 100);
+        assert_eq!(result.GetRed(), 100);
+        assert_eq!(result.GetGreen(), 100);
+        assert_eq!(result.GetBlue(), 100);
     }
 
     #[test]
     fn hsv_round_trip() {
         let original = emColor::rgb(200, 100, 50);
-        let (h, s, v) = original.to_hsv();
-        let reconstructed = emColor::from_hsv(h, s, v);
+        let (h, s, v) = original.GetHSV();
+        let reconstructed = emColor::SetHSVA(h, s, v);
         // Allow ±1 due to rounding
-        assert!((original.r() as i16 - reconstructed.r() as i16).abs() <= 1);
-        assert!((original.g() as i16 - reconstructed.g() as i16).abs() <= 1);
-        assert!((original.b() as i16 - reconstructed.b() as i16).abs() <= 1);
+        assert!((original.GetRed() as i16 - reconstructed.GetRed() as i16).abs() <= 1);
+        assert!((original.GetGreen() as i16 - reconstructed.GetGreen() as i16).abs() <= 1);
+        assert!((original.GetBlue() as i16 - reconstructed.GetBlue() as i16).abs() <= 1);
     }
 
     #[test]
     fn hsv_pure_colors() {
-        let (h, s, v) = emColor::RED.to_hsv();
+        let (h, s, v) = emColor::RED.GetHSV();
         assert!((h - 0.0).abs() < 1.0);
         assert!((s - 1.0).abs() < 0.01);
         assert!((v - 1.0).abs() < 0.01);
 
-        let (h, _, _) = emColor::GREEN.to_hsv();
+        let (h, _, _) = emColor::GREEN.GetHSV();
         assert!((h - 120.0).abs() < 1.0);
 
-        let (h, _, _) = emColor::BLUE.to_hsv();
+        let (h, _, _) = emColor::BLUE.GetHSV();
         assert!((h - 240.0).abs() < 1.0);
     }
 
     #[test]
     fn with_red_preserves_other_channels() {
-        let c = emColor::rgba(10, 20, 30, 40).with_red(99);
-        assert_eq!(c.r(), 99);
-        assert_eq!(c.g(), 20);
-        assert_eq!(c.b(), 30);
-        assert_eq!(c.a(), 40);
+        let c = emColor::rgba(10, 20, 30, 40).SetRed(99);
+        assert_eq!(c.GetRed(), 99);
+        assert_eq!(c.GetGreen(), 20);
+        assert_eq!(c.GetBlue(), 30);
+        assert_eq!(c.GetAlpha(), 40);
     }
 
     #[test]
     fn with_green_preserves_other_channels() {
-        let c = emColor::rgba(10, 20, 30, 40).with_green(99);
-        assert_eq!(c.r(), 10);
-        assert_eq!(c.g(), 99);
-        assert_eq!(c.b(), 30);
-        assert_eq!(c.a(), 40);
+        let c = emColor::rgba(10, 20, 30, 40).SetGreen(99);
+        assert_eq!(c.GetRed(), 10);
+        assert_eq!(c.GetGreen(), 99);
+        assert_eq!(c.GetBlue(), 30);
+        assert_eq!(c.GetAlpha(), 40);
     }
 
     #[test]
     fn with_blue_preserves_other_channels() {
-        let c = emColor::rgba(10, 20, 30, 40).with_blue(99);
-        assert_eq!(c.r(), 10);
-        assert_eq!(c.g(), 20);
-        assert_eq!(c.b(), 99);
-        assert_eq!(c.a(), 40);
+        let c = emColor::rgba(10, 20, 30, 40).SetBlue(99);
+        assert_eq!(c.GetRed(), 10);
+        assert_eq!(c.GetGreen(), 20);
+        assert_eq!(c.GetBlue(), 99);
+        assert_eq!(c.GetAlpha(), 40);
     }
 
     #[test]
     fn query_methods() {
-        assert!(emColor::TRANSPARENT.is_transparent());
-        assert!(!emColor::BLACK.is_transparent());
-        assert!(emColor::WHITE.is_opaque());
-        assert!(!emColor::rgba(0, 0, 0, 128).is_opaque());
-        assert!(emColor::grey(128).is_grey());
-        assert!(!emColor::RED.is_grey());
+        assert!(emColor::TRANSPARENT.IsTotallyTransparent());
+        assert!(!emColor::BLACK.IsTotallyTransparent());
+        assert!(emColor::WHITE.IsOpaque());
+        assert!(!emColor::rgba(0, 0, 0, 128).IsOpaque());
+        assert!(emColor::SetGrey(128).IsGrey());
+        assert!(!emColor::RED.IsGrey());
     }
 
     #[test]
     fn grey_round_trip() {
-        let g = emColor::grey(128);
-        assert_eq!(g.r(), 128);
-        assert_eq!(g.g(), 128);
-        assert_eq!(g.b(), 128);
-        assert_eq!(g.a(), 255);
-        assert_eq!(g.to_grey(), 128);
+        let g = emColor::SetGrey(128);
+        assert_eq!(g.GetRed(), 128);
+        assert_eq!(g.GetGreen(), 128);
+        assert_eq!(g.GetBlue(), 128);
+        assert_eq!(g.GetAlpha(), 255);
+        assert_eq!(g.GetGrey(), 128);
     }
 
     #[test]
     fn to_grey_averages() {
         let c = emColor::rgb(10, 20, 30);
-        assert_eq!(c.to_grey(), 20); // (10+20+30)/3 = 20
+        assert_eq!(c.GetGrey(), 20); // (10+20+30)/3 = 20
     }
 
     #[test]
     fn with_hue_preserves_sv() {
-        let c = emColor::from_hsv(120.0, 0.8, 0.6);
-        let shifted = c.with_hue(240.0);
-        let (h, s, v) = shifted.to_hsv();
+        let c = emColor::SetHSVA(120.0, 0.8, 0.6);
+        let shifted = c.SetHue(240.0);
+        let (h, s, v) = shifted.GetHSV();
         assert!((h - 240.0).abs() < 2.0);
         assert!((s - 0.8).abs() < 0.02);
         assert!((v - 0.6).abs() < 0.02);
@@ -543,9 +570,9 @@ mod tests {
 
     #[test]
     fn with_saturation_preserves_hv() {
-        let c = emColor::from_hsv(120.0, 0.8, 0.6);
-        let changed = c.with_saturation(0.3);
-        let (h, s, v) = changed.to_hsv();
+        let c = emColor::SetHSVA(120.0, 0.8, 0.6);
+        let changed = c.SetSat(0.3);
+        let (h, s, v) = changed.GetHSV();
         assert!((h - 120.0).abs() < 2.0);
         assert!((s - 0.3).abs() < 0.02);
         assert!((v - 0.6).abs() < 0.02);
@@ -553,9 +580,9 @@ mod tests {
 
     #[test]
     fn with_value_preserves_hs() {
-        let c = emColor::from_hsv(120.0, 0.8, 0.6);
-        let changed = c.with_value(0.9);
-        let (h, s, v) = changed.to_hsv();
+        let c = emColor::SetHSVA(120.0, 0.8, 0.6);
+        let changed = c.SetVal(0.9);
+        let (h, s, v) = changed.GetHSV();
         assert!((h - 120.0).abs() < 2.0);
         assert!((s - 0.8).abs() < 0.02);
         assert!((v - 0.9).abs() < 0.02);
@@ -564,19 +591,19 @@ mod tests {
     #[test]
     fn with_hue_preserves_alpha() {
         let c = emColor::rgba(100, 50, 50, 128);
-        let shifted = c.with_hue(180.0);
-        assert_eq!(shifted.a(), 128);
+        let shifted = c.SetHue(180.0);
+        assert_eq!(shifted.GetAlpha(), 128);
     }
 
     #[test]
     fn transparented_extremes() {
         let c = emColor::rgba(100, 100, 100, 200);
-        let fully = c.transparented(100.0);
-        assert_eq!(fully.a(), 0);
-        let none = c.transparented(0.0);
-        assert_eq!(none.a(), 200);
-        let opaque = emColor::rgba(100, 100, 100, 0).transparented(-100.0);
-        assert_eq!(opaque.a(), 255);
+        let fully = c.GetTransparented(100.0);
+        assert_eq!(fully.GetAlpha(), 0);
+        let none = c.GetTransparented(0.0);
+        assert_eq!(none.GetAlpha(), 200);
+        let opaque = emColor::rgba(100, 100, 100, 0).GetTransparented(-100.0);
+        assert_eq!(opaque.GetAlpha(), 255);
     }
 
     #[test]
@@ -613,16 +640,16 @@ mod tests {
         // Expected: out_ch = (self_ch * 128 + other_ch * (256-128)) >> 8
         let expected_a = ((200u16 * 128 + 50u16 * 128) >> 8) as u8;
         assert_eq!(
-            result.a(),
+            result.GetAlpha(),
             expected_a,
             "blend alpha: got {} expected {}",
-            result.a(),
+            result.GetAlpha(),
             expected_a
         );
 
         // Verify RGB uses the same formula (sanity)
         let expected_r = ((100u16 * 128 + 200u16 * 128) >> 8) as u8;
-        assert_eq!(result.r(), expected_r);
+        assert_eq!(result.GetRed(), expected_r);
     }
 
     #[test]
@@ -630,27 +657,27 @@ mod tests {
         // lerp RGBA(0,0,0,0) -> RGBA(255,255,255,255) at t=0.5
         let a = emColor::rgba(0, 0, 0, 0);
         let b = emColor::rgba(255, 255, 255, 255);
-        let result = a.lerp(b, 0.5);
+        let result = a.GetBlended(b, 0.5);
 
         // C++ formula: w2 = (0.5 * 65536 + 0.5) as i32 = 32768
         // mix(0, 255) = (0 * (65536-32768) + 255 * 32768 + 32768) >> 16
         //             = (8355840 + 32768) >> 16 = 8388608 >> 16 = 128
         assert_eq!(
-            result.a(),
+            result.GetAlpha(),
             128,
             "lerp alpha at t=0.5: got {} expected 128",
-            result.a()
+            result.GetAlpha()
         );
         // RGB should match alpha since inputs are symmetric
-        assert_eq!(result.r(), result.a());
-        assert_eq!(result.g(), result.a());
-        assert_eq!(result.b(), result.a());
+        assert_eq!(result.GetRed(), result.GetAlpha());
+        assert_eq!(result.GetGreen(), result.GetAlpha());
+        assert_eq!(result.GetBlue(), result.GetAlpha());
 
         // Verify endpoints
-        let at_zero = a.lerp(b, 0.0);
-        assert_eq!(at_zero.a(), 0, "lerp alpha at t=0.0 should be 0");
-        let at_one = a.lerp(b, 1.0);
-        assert_eq!(at_one.a(), 255, "lerp alpha at t=1.0 should be 255");
+        let at_zero = a.GetBlended(b, 0.0);
+        assert_eq!(at_zero.GetAlpha(), 0, "lerp alpha at t=0.0 should be 0");
+        let at_one = a.GetBlended(b, 1.0);
+        assert_eq!(at_one.GetAlpha(), 255, "lerp alpha at t=1.0 should be 255");
     }
 
     #[test]
@@ -669,15 +696,15 @@ mod tests {
         let expected_a = (200i32 + src_term - cvs_term).clamp(0, 255) as u8; // 200 + 90 - 128 = 162
 
         assert_eq!(
-            result.a(),
+            result.GetAlpha(),
             expected_a,
             "canvas_blend alpha: got {} expected {}",
-            result.a(),
+            result.GetAlpha(),
             expected_a
         );
 
         // Verify it's different from input (the blend did modify alpha)
-        assert_ne!(result.a(), target.a(), "canvas_blend should modify alpha channel");
+        assert_ne!(result.GetAlpha(), target.GetAlpha(), "canvas_blend should modify alpha channel");
     }
 
     #[test]

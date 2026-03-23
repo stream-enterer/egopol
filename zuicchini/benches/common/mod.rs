@@ -106,7 +106,7 @@ impl PanelBehavior for TestPanel {
         painter.scale(w, w);
         let h = h / w;
 
-        let fg = emColor::grey(136);
+        let fg = emColor::SetGrey(136);
         let bg = emColor::rgba(0x00, 0x1C, 0x38, 0xFF);
 
         painter.paint_rect(0.0, 0.0, 1.0, h, bg, emColor::TRANSPARENT);

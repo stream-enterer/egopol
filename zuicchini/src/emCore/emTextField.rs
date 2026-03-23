@@ -1209,13 +1209,13 @@ impl emTextField {
         // C++ emTextField.cpp:967-971: disabled state blends colors toward BgColor.
         let (fg, bg, hl_color) = if !self.enabled {
             let base = self.look.bg_color;
-            (fg.lerp(base, 0.8), bg.lerp(base, 0.8), hl_color.lerp(base, 0.8))
+            (fg.GetBlended(base, 0.8), bg.GetBlended(base, 0.8), hl_color.GetBlended(base, 0.8))
         } else {
             (fg, bg, hl_color)
         };
 
         // When not focused, dim selection: bgColor.GetBlended(fgColor,40) (C++ line 977-978)
-        let sel_color = if self.focused { hl_color } else { bg.lerp(fg, 0.4) };
+        let sel_color = if self.focused { hl_color } else { bg.GetBlended(fg, 0.4) };
 
         // Compute selection pixel extents (C++ DoTextField col/row→xy mapping)
         let sel_info = if let Some(anchor) = self.selection_anchor {
@@ -1345,10 +1345,10 @@ impl emTextField {
         // Compute cursor color with transparency (C++ emTextField.cpp:1056-1059)
         let cur_color = if !self.editable {
             // GetTransparented(75) = 75% transparent = 25% opaque
-            fg.with_alpha((fg.a() as f64 * 0.25) as u8)
+            fg.SetAlpha((fg.GetAlpha() as f64 * 0.25) as u8)
         } else if !self.cursor_blink_on {
             // GetTransparented(88) = 88% transparent = 12% opaque
-            fg.with_alpha((fg.a() as f64 * 0.12) as u8)
+            fg.SetAlpha((fg.GetAlpha() as f64 * 0.12) as u8)
         } else {
             fg
         };
@@ -1473,13 +1473,13 @@ impl emTextField {
         // C++ emTextField.cpp:967-971: disabled state blends colors toward BgColor.
         let (fg, bg, hl_color) = if !self.enabled {
             let base = self.look.bg_color;
-            (fg.lerp(base, 0.8), bg.lerp(base, 0.8), hl_color.lerp(base, 0.8))
+            (fg.GetBlended(base, 0.8), bg.GetBlended(base, 0.8), hl_color.GetBlended(base, 0.8))
         } else {
             (fg, bg, hl_color)
         };
 
         // When not focused, dim selection: bgColor.GetBlended(fgColor,40) (C++ line 977-978)
-        let sel_color = if self.focused { hl_color } else { bg.lerp(fg, 0.4) };
+        let sel_color = if self.focused { hl_color } else { bg.GetBlended(fg, 0.4) };
 
         let rows: Vec<&str> = self.text.split('\n').collect();
 
@@ -1651,9 +1651,9 @@ impl emTextField {
 
         // Compute cursor color with transparency (C++ emTextField.cpp:1056-1059)
         let cur_color = if !self.editable {
-            fg.with_alpha((fg.a() as f64 * 0.25) as u8)
+            fg.SetAlpha((fg.GetAlpha() as f64 * 0.25) as u8)
         } else if !self.cursor_blink_on {
-            fg.with_alpha((fg.a() as f64 * 0.12) as u8)
+            fg.SetAlpha((fg.GetAlpha() as f64 * 0.12) as u8)
         } else {
             fg
         };

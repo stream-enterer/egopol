@@ -95,7 +95,7 @@ pub(crate) enum BlendMode {
 impl BlendMode {
     /// Construct from current painter state (after canvas/alpha overrides).
     pub(crate) fn from_state(canvas_color: emColor, alpha: u8) -> Self {
-        if canvas_color.is_opaque() {
+        if canvas_color.IsOpaque() {
             BlendMode::CanvasBlend {
                 canvas: canvas_color,
                 painter_alpha: alpha,
@@ -177,9 +177,9 @@ fn blend_scanline_canvas(
         let existing = emColor::rgba(dest[off], dest[off + 1], dest[off + 2], dest[off + 3]);
         let src_color = emColor::rgba(src[0], src[1], src[2], adjusted_a);
         let result = existing.canvas_blend(src_color, canvas, combined_alpha);
-        dest[off] = result.r();
-        dest[off + 1] = result.g();
-        dest[off + 2] = result.b();
+        dest[off] = result.GetRed();
+        dest[off + 1] = result.GetGreen();
+        dest[off + 2] = result.GetBlue();
         // Canvas blend: dest alpha unchanged
     }
 }
@@ -323,9 +323,9 @@ fn blend_scanline_premul_canvas(
 
         let off = i * 4;
         // Canvas path: (cv * a + 127) / 255 rounding
-        let cr = (canvas.r() as u32 * a + 127) / 255;
-        let cg = (canvas.g() as u32 * a + 127) / 255;
-        let cb = (canvas.b() as u32 * a + 127) / 255;
+        let cr = (canvas.GetRed() as u32 * a + 127) / 255;
+        let cg = (canvas.GetGreen() as u32 * a + 127) / 255;
+        let cb = (canvas.GetBlue() as u32 * a + 127) / 255;
         dest[off] = (dest[off] as i32 + pm[0] as i32 - cr as i32).clamp(0, 255) as u8;
         dest[off + 1] = (dest[off + 1] as i32 + pm[1] as i32 - cg as i32).clamp(0, 255) as u8;
         dest[off + 2] = (dest[off + 2] as i32 + pm[2] as i32 - cb as i32).clamp(0, 255) as u8;
@@ -415,17 +415,17 @@ mod tests {
     fn make_dest(width: u32, height: u32, fill: emColor) -> Vec<u8> {
         let mut data = vec![0u8; (width * height * 4) as usize];
         for chunk in data.chunks_exact_mut(4) {
-            chunk[0] = fill.r();
-            chunk[1] = fill.g();
-            chunk[2] = fill.b();
-            chunk[3] = fill.a();
+            chunk[0] = fill.GetRed();
+            chunk[1] = fill.GetGreen();
+            chunk[2] = fill.GetBlue();
+            chunk[3] = fill.GetAlpha();
         }
         data
     }
 
     /// Reference per-pixel blend matching blend_pixel_unchecked (source-over).
     fn ref_blend_source_over(dest: &mut [u8], color: emColor, painter_alpha: u8) {
-        let ca = color.a() as u16;
+        let ca = color.GetAlpha() as u16;
         let ea = if painter_alpha == 255 {
             ca
         } else {
@@ -435,20 +435,20 @@ mod tests {
             return;
         }
         if ea >= 255 {
-            dest[0] = color.r();
-            dest[1] = color.g();
-            dest[2] = color.b();
+            dest[0] = color.GetRed();
+            dest[1] = color.GetGreen();
+            dest[2] = color.GetBlue();
             dest[3] = 255;
             return;
         }
         let alpha = ea as u32;
         let t = (255 - alpha) * 257;
         dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16)
-            + ((color.r() as u32 * alpha * 257 + 0x8073) >> 16)) as u8;
+            + ((color.GetRed() as u32 * alpha * 257 + 0x8073) >> 16)) as u8;
         dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16)
-            + ((color.g() as u32 * alpha * 257 + 0x8073) >> 16)) as u8;
+            + ((color.GetGreen() as u32 * alpha * 257 + 0x8073) >> 16)) as u8;
         dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16)
-            + ((color.b() as u32 * alpha * 257 + 0x8073) >> 16)) as u8;
+            + ((color.GetBlue() as u32 * alpha * 257 + 0x8073) >> 16)) as u8;
         dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16)
             + ((255u32 * alpha * 257 + 0x8073) >> 16)) as u8;
     }
@@ -456,18 +456,18 @@ mod tests {
     /// Reference per-pixel blend matching blend_pixel_unchecked (canvas).
     fn ref_blend_canvas(dest: &mut [u8], color: emColor, canvas: emColor, painter_alpha: u8) {
         let combined_alpha = if painter_alpha == 255 {
-            color.a()
+            color.GetAlpha()
         } else {
-            ((color.a() as u32 * painter_alpha as u32 + 127) / 255) as u8
+            ((color.GetAlpha() as u32 * painter_alpha as u32 + 127) / 255) as u8
         };
         if combined_alpha == 0 {
             return;
         }
         let existing = emColor::rgba(dest[0], dest[1], dest[2], dest[3]);
         let result = existing.canvas_blend(color, canvas, combined_alpha);
-        dest[0] = result.r();
-        dest[1] = result.g();
-        dest[2] = result.b();
+        dest[0] = result.GetRed();
+        dest[1] = result.GetGreen();
+        dest[2] = result.GetBlue();
     }
 
     /// Reference premul blend matching blend_pixel_premul_unchecked (source-over).
@@ -496,9 +496,9 @@ mod tests {
         if a == 0 {
             return;
         }
-        let cr = (canvas.r() as u32 * a + 127) / 255;
-        let cg = (canvas.g() as u32 * a + 127) / 255;
-        let cb = (canvas.b() as u32 * a + 127) / 255;
+        let cr = (canvas.GetRed() as u32 * a + 127) / 255;
+        let cg = (canvas.GetGreen() as u32 * a + 127) / 255;
+        let cb = (canvas.GetBlue() as u32 * a + 127) / 255;
         dest[0] = (dest[0] as i32 + pm[0] as i32 - cr as i32).clamp(0, 255) as u8;
         dest[1] = (dest[1] as i32 + pm[1] as i32 - cg as i32).clamp(0, 255) as u8;
         dest[2] = (dest[2] as i32 + pm[2] as i32 - cb as i32).clamp(0, 255) as u8;
@@ -518,7 +518,7 @@ mod tests {
         // Fill buffer
         let mut buf = InterpolationBuffer::new(4);
         for (i, c) in colors.iter().enumerate() {
-            buf.set_pixel(i, [c.r(), c.g(), c.b(), c.a()]);
+            buf.set_pixel(i, [c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha()]);
         }
         buf.set_len(colors.len());
 
@@ -550,7 +550,7 @@ mod tests {
 
         let mut buf = InterpolationBuffer::new(4);
         for (i, c) in colors.iter().enumerate() {
-            buf.set_pixel(i, [c.r(), c.g(), c.b(), c.a()]);
+            buf.set_pixel(i, [c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha()]);
         }
         buf.set_len(colors.len());
 
@@ -582,7 +582,7 @@ mod tests {
 
         let mut buf = InterpolationBuffer::new(4);
         for (i, c) in colors.iter().enumerate() {
-            buf.set_pixel(i, [c.r(), c.g(), c.b(), c.a()]);
+            buf.set_pixel(i, [c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha()]);
         }
         buf.set_len(colors.len());
 
@@ -601,11 +601,11 @@ mod tests {
         for (i, c) in colors.iter().enumerate() {
             let cov = coverages[i];
             let adjusted_a = if cov >= 0x1000 {
-                c.a()
+                c.GetAlpha()
             } else {
-                ((c.a() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8
+                ((c.GetAlpha() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8
             };
-            let adjusted = emColor::rgba(c.r(), c.g(), c.b(), adjusted_a);
+            let adjusted = emColor::rgba(c.GetRed(), c.GetGreen(), c.GetBlue(), adjusted_a);
             ref_blend_source_over(&mut dest_ref[i * 4..(i + 1) * 4], adjusted, painter_alpha);
         }
 
@@ -761,7 +761,7 @@ mod tests {
         let dst = emColor::rgba(50, 75, 100, 200);
 
         let mut buf = InterpolationBuffer::new(4);
-        buf.set_pixel(0, [src.r(), src.g(), src.b(), src.a()]);
+        buf.set_pixel(0, [src.GetRed(), src.GetGreen(), src.GetBlue(), src.GetAlpha()]);
         buf.set_len(1);
 
         let mut dest = make_dest(1, 1, dst);
@@ -821,7 +821,7 @@ mod tests {
         let canvas = emColor::rgba(80, 80, 80, 255);
 
         let mut buf = InterpolationBuffer::new(4);
-        buf.set_pixel(0, [src.r(), src.g(), src.b(), src.a()]);
+        buf.set_pixel(0, [src.GetRed(), src.GetGreen(), src.GetBlue(), src.GetAlpha()]);
         buf.set_len(1);
 
         let mut dest = make_dest(1, 1, dst);

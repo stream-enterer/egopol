@@ -92,9 +92,9 @@ impl PanelBehavior for FileItemPanelBehavior {
         let (bg, fg, hl) = if !self.enabled {
             let base = self.look.bg_color;
             (
-                bg.lerp(base, 0.80),
-                fg.lerp(base, 0.80),
-                hl.lerp(base, 0.80),
+                bg.GetBlended(base, 0.80),
+                fg.GetBlended(base, 0.80),
+                hl.GetBlended(base, 0.80),
             )
         } else {
             (bg, fg, hl)
@@ -170,7 +170,7 @@ impl PanelBehavior for FileItemPanelBehavior {
 
             // Draw a simple folder icon as a colored rectangle with a tab.
             let icon_color = if self.is_selected { bg } else { fg_color };
-            let icon_alpha = icon_color.with_alpha(180);
+            let icon_alpha = icon_color.SetAlpha(180);
 
             // Folder body
             let bx = fx * w;
@@ -188,7 +188,7 @@ impl PanelBehavior for FileItemPanelBehavior {
 
             // 4. "Parent Directory" overlay for ".." (C++ lines 1031-1044).
             if self.name == ".." {
-                let pd_color = fg_color.transparented(40.0);
+                let pd_color = fg_color.GetTransparented(40.0);
                 let pdx = (fx + fw * 115.0 / 310.0) * w;
                 let pdy = (fy + fh * 168.0 / 216.0) * w;
                 let pdw = (fw * 150.0 / 310.0) * w;

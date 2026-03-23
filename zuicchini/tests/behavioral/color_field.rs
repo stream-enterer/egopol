@@ -79,7 +79,7 @@ fn cycle_detects_rgba_change() {
     // Modify red channel
     cf.expansion_mut().unwrap().sf_red = 10000; // max = 255
     assert!(cf.cycle());
-    assert_eq!(cf.color().r(), 255);
+    assert_eq!(cf.color().GetRed(), 255);
 }
 
 #[test]
@@ -96,7 +96,7 @@ fn cycle_detects_hsv_change() {
     assert!(cf.cycle());
 
     // Should be green
-    assert!(cf.color().g() > 200);
+    assert!(cf.color().GetGreen() > 200);
 }
 
 #[test]

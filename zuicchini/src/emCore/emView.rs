@@ -2280,7 +2280,7 @@ impl emView {
             255
         };
 
-        let color = emColor::rgba(base_color.r(), base_color.g(), base_color.b(), alpha);
+        let color = emColor::rgba(base_color.GetRed(), base_color.GetGreen(), base_color.GetBlue(), alpha);
 
         // Shadow color: black with alpha 192 normally, alpha/3 when unfocused
         let shadow_alpha =
@@ -2430,7 +2430,7 @@ impl emView {
         // C++ canvasColor inheritance: if a panel has no explicit canvas
         // color (TRANSPARENT), inherit from the parent. The root's parent
         // is the view background.
-        let effective_canvas = if canvas_color.a() > 0 {
+        let effective_canvas = if canvas_color.GetAlpha() > 0 {
             canvas_color
         } else {
             parent_canvas

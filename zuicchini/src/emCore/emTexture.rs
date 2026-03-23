@@ -26,7 +26,7 @@ impl ImageExtension {
     pub(crate) fn resolve_for_colored(self, color1: emColor, color2: emColor) -> Self {
         match self {
             Self::EdgeOrZero => {
-                if color1.a() == 0 || color2.a() == 0 {
+                if color1.GetAlpha() == 0 || color2.GetAlpha() == 0 {
                     Self::Zero
                 } else {
                     Self::Clamp

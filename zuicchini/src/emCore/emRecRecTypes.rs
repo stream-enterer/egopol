@@ -157,7 +157,7 @@ impl emColorRec {
         let value = if have_alpha {
             default_value
         } else {
-            emColor::rgba(default_value.r(), default_value.g(), default_value.b(), 255)
+            emColor::rgba(default_value.GetRed(), default_value.GetGreen(), default_value.GetBlue(), 255)
         };
         Self {
             value,
@@ -174,7 +174,7 @@ impl emColorRec {
         if self.have_alpha {
             self.value = value;
         } else {
-            self.value = emColor::rgba(value.r(), value.g(), value.b(), 255);
+            self.value = emColor::rgba(value.GetRed(), value.GetGreen(), value.GetBlue(), 255);
         }
     }
 
@@ -215,11 +215,11 @@ impl emColorRec {
     /// Write a color to a `RecStruct`.
     pub fn to_rec_struct(color: emColor, have_alpha: bool) -> RecStruct {
         let mut s = RecStruct::new();
-        s.set_int("r", color.r() as i32);
-        s.set_int("g", color.g() as i32);
-        s.set_int("b", color.b() as i32);
+        s.set_int("r", color.GetRed() as i32);
+        s.set_int("g", color.GetGreen() as i32);
+        s.set_int("b", color.GetBlue() as i32);
         if have_alpha {
-            s.set_int("a", color.a() as i32);
+            s.set_int("a", color.GetAlpha() as i32);
         }
         s
     }
@@ -358,14 +358,14 @@ mod tests {
     fn color_rec_opaque_forces_alpha_255() {
         let mut rec = emColorRec::new(emColor::BLACK, false);
         rec.set(emColor::rgba(100, 200, 50, 128));
-        assert_eq!(rec.get().a(), 255);
+        assert_eq!(rec.get().GetAlpha(), 255);
     }
 
     #[test]
     fn color_rec_with_alpha() {
         let mut rec = emColorRec::new(emColor::TRANSPARENT, true);
         rec.set(emColor::rgba(100, 200, 50, 128));
-        assert_eq!(rec.get().a(), 128);
+        assert_eq!(rec.get().GetAlpha(), 128);
     }
 
     #[test]

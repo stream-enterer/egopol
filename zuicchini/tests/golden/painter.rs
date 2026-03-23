@@ -527,10 +527,10 @@ fn painter_canvas_color() {
     require_golden!();
     let (ew, eh, expected) = load_painter_golden("canvas_color");
     let mut img = emImage::new(ew, eh, 4);
-    img.fill(emColor::grey(200));
+    img.fill(emColor::SetGrey(200));
     {
         let mut p = white_painter(&mut img);
-        p.set_canvas_color(emColor::grey(200));
+        p.set_canvas_color(emColor::SetGrey(200));
         p.paint_rect(
             20.0,
             20.0,

@@ -50,7 +50,7 @@ impl PanelBehavior for GamePanel {
         let h = h / w;
 
         let bg = emColor::rgba(0x00, 0x1C, 0x38, 0xFF);
-        let fg = emColor::grey(136);
+        let fg = emColor::SetGrey(136);
 
         painter.paint_rect(0.0, 0.0, 1.0, h, bg, emColor::TRANSPARENT);
         painter.paint_rect_outlined(

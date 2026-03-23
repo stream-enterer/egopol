@@ -22,7 +22,7 @@ fn parse_xpm_color(s: &str) -> Option<emColor> {
     for key in &["c", "g", "g4", "m", "s"] {
         for i in 0..tokens.len() {
             if tokens[i].eq_ignore_ascii_case(key) && i + 1 < tokens.len() {
-                return emColor::try_parse(tokens[i + 1]);
+                return emColor::TryParse(tokens[i + 1]);
             }
         }
     }
@@ -228,23 +228,23 @@ impl emImage {
     pub fn fill(&mut self, color: emColor) {
         match self.channel_count {
             1 => {
-                let g = color.to_grey();
+                let g = color.GetGrey();
                 self.data.fill(g);
             }
             2 => {
-                let bytes = [color.to_grey(), color.a()];
+                let bytes = [color.GetGrey(), color.GetAlpha()];
                 for chunk in self.data.chunks_exact_mut(2) {
                     chunk.copy_from_slice(&bytes);
                 }
             }
             3 => {
-                let bytes = [color.r(), color.g(), color.b()];
+                let bytes = [color.GetRed(), color.GetGreen(), color.GetBlue()];
                 for chunk in self.data.chunks_exact_mut(3) {
                     chunk.copy_from_slice(&bytes);
                 }
             }
             4 => {
-                let bytes = [color.r(), color.g(), color.b(), color.a()];
+                let bytes = [color.GetRed(), color.GetGreen(), color.GetBlue(), color.GetAlpha()];
                 for chunk in self.data.chunks_exact_mut(4) {
                     chunk.copy_from_slice(&bytes);
                 }
@@ -296,7 +296,7 @@ impl emImage {
         let stride = self.width as usize * cc;
         match self.channel_count {
             1 => {
-                let g = color.to_grey();
+                let g = color.GetGrey();
                 for row in y1..y2 {
                     let row_start = row as usize * stride + x1 as usize;
                     for col in 0..(x2 - x1) as usize {
@@ -305,7 +305,7 @@ impl emImage {
                 }
             }
             2 => {
-                let bytes = [color.to_grey(), color.a()];
+                let bytes = [color.GetGrey(), color.GetAlpha()];
                 for row in y1..y2 {
                     let row_start = row as usize * stride + x1 as usize * 2;
                     for col in 0..(x2 - x1) as usize {
@@ -315,7 +315,7 @@ impl emImage {
                 }
             }
             3 => {
-                let bytes = [color.r(), color.g(), color.b()];
+                let bytes = [color.GetRed(), color.GetGreen(), color.GetBlue()];
                 for row in y1..y2 {
                     let row_start = row as usize * stride + x1 as usize * 3;
                     for col in 0..(x2 - x1) as usize {
@@ -325,7 +325,7 @@ impl emImage {
                 }
             }
             4 => {
-                let bytes = [color.r(), color.g(), color.b(), color.a()];
+                let bytes = [color.GetRed(), color.GetGreen(), color.GetBlue(), color.GetAlpha()];
                 for row in y1..y2 {
                     let row_start = row as usize * stride + x1 as usize * 4;
                     for col in 0..(x2 - x1) as usize {
@@ -601,10 +601,10 @@ impl emImage {
     /// Port of C++ `emImage::CalcMinMaxRect`. Handles all channel counts.
     pub fn calc_min_max_rect(&self, bg: emColor) -> Option<(u32, u32, u32, u32)> {
         let bg_bytes: &[u8] = match self.channel_count {
-            1 => &[bg.to_grey()],
-            2 => &[bg.to_grey(), bg.a()],
-            3 => &[bg.r(), bg.g(), bg.b()],
-            4 => &[bg.r(), bg.g(), bg.b(), bg.a()],
+            1 => &[bg.GetGrey()],
+            2 => &[bg.GetGrey(), bg.GetAlpha()],
+            3 => &[bg.GetRed(), bg.GetGreen(), bg.GetBlue()],
+            4 => &[bg.GetRed(), bg.GetGreen(), bg.GetBlue(), bg.GetAlpha()],
             _ => unreachable!(),
         };
         let mut min_x = self.width;
@@ -716,10 +716,10 @@ impl emImage {
         let cc = self.channel_count as usize;
         let img_w = self.width as i32;
         let img_h = self.height as i32;
-        let bg_r = bg.r() as i32;
-        let bg_g = bg.g() as i32;
-        let bg_b = bg.b() as i32;
-        let bg_a = bg.a() as i32;
+        let bg_r = bg.GetRed() as i32;
+        let bg_g = bg.GetGreen() as i32;
+        let bg_b = bg.GetBlue() as i32;
+        let bg_a = bg.GetAlpha() as i32;
 
         let mut ym = y.floor() as i32;
         let mut yn = ym + 1;
@@ -863,7 +863,7 @@ impl emImage {
         let det = a * e - b * d;
         if det.abs() < 1e-15 {
             // Degenerate (singular) matrix — fill with bg.
-            let bg_bytes = [bg_color.r(), bg_color.g(), bg_color.b(), bg_color.a()];
+            let bg_bytes = [bg_color.GetRed(), bg_color.GetGreen(), bg_color.GetBlue(), bg_color.GetAlpha()];
             for py in y..y + h {
                 for px in x..x + w {
                     if px >= 0 && py >= 0 && (px as u32) < self.width && (py as u32) < self.height {
@@ -946,21 +946,21 @@ impl emImage {
                 // Write per destination channel count
                 let dst = self.pixel_mut(px as u32, py as u32);
                 match dcc {
-                    1 => dst[0] = color.to_grey(),
+                    1 => dst[0] = color.GetGrey(),
                     2 => {
-                        dst[0] = color.to_grey();
-                        dst[1] = color.a();
+                        dst[0] = color.GetGrey();
+                        dst[1] = color.GetAlpha();
                     }
                     3 => {
-                        dst[0] = color.r();
-                        dst[1] = color.g();
-                        dst[2] = color.b();
+                        dst[0] = color.GetRed();
+                        dst[1] = color.GetGreen();
+                        dst[2] = color.GetBlue();
                     }
                     4 => {
-                        dst[0] = color.r();
-                        dst[1] = color.g();
-                        dst[2] = color.b();
-                        dst[3] = color.a();
+                        dst[0] = color.GetRed();
+                        dst[1] = color.GetGreen();
+                        dst[2] = color.GetBlue();
+                        dst[3] = color.GetAlpha();
                     }
                     _ => unreachable!(),
                 }
@@ -1146,10 +1146,10 @@ impl emImage {
         let cc = out_cc.unwrap_or_else(|| {
             let mut cc: u8 = 1;
             for &(_, color) in &color_table {
-                if !color.is_grey() {
+                if !color.IsGrey() {
                     cc = cc.max(3);
                 }
-                if color.a() != 255 {
+                if color.GetAlpha() != 255 {
                     cc = if cc >= 3 { 4 } else { 2 };
                 }
             }
@@ -1174,21 +1174,21 @@ impl emImage {
                 };
                 let dst = img.pixel_mut(x, y);
                 match cc {
-                    1 => dst[0] = color.to_grey(),
+                    1 => dst[0] = color.GetGrey(),
                     2 => {
-                        dst[0] = color.to_grey();
-                        dst[1] = color.a();
+                        dst[0] = color.GetGrey();
+                        dst[1] = color.GetAlpha();
                     }
                     3 => {
-                        dst[0] = color.r();
-                        dst[1] = color.g();
-                        dst[2] = color.b();
+                        dst[0] = color.GetRed();
+                        dst[1] = color.GetGreen();
+                        dst[2] = color.GetBlue();
                     }
                     4 => {
-                        dst[0] = color.r();
-                        dst[1] = color.g();
-                        dst[2] = color.b();
-                        dst[3] = color.a();
+                        dst[0] = color.GetRed();
+                        dst[1] = color.GetGreen();
+                        dst[2] = color.GetBlue();
+                        dst[3] = color.GetAlpha();
                     }
                     _ => unreachable!(),
                 }
@@ -1532,9 +1532,9 @@ mod tests {
         let mut img = emImage::new(2, 2, 4);
         img.fill(emColor::RED);
         let c = img.get_pixel_interpolated(0.0, 0.0, 1.0, 1.0, emColor::BLUE);
-        assert_eq!(c.r(), 255);
-        assert_eq!(c.g(), 0);
-        assert_eq!(c.b(), 0);
+        assert_eq!(c.GetRed(), 255);
+        assert_eq!(c.GetGreen(), 0);
+        assert_eq!(c.GetBlue(), 0);
     }
 
     #[test]

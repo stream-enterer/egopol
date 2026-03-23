@@ -929,7 +929,7 @@ How to move or set the focus:\n\
         match self.outer {
             OuterBorderType::Filled
             | OuterBorderType::MarginFilled
-            | OuterBorderType::PopupRoot => look.bg_color.is_opaque(),
+            | OuterBorderType::PopupRoot => look.bg_color.IsOpaque(),
             _ => false,
         }
     }
@@ -1479,7 +1479,7 @@ How to move or set the focus:\n\
             | OuterBorderType::Instrument
             | OuterBorderType::InstrumentMoreRound
             | OuterBorderType::PopupRoot => {
-                if !look.bg_color.is_transparent() {
+                if !look.bg_color.IsTotallyTransparent() {
                     canvas = look.bg_color;
                 }
             }
@@ -1493,7 +1493,7 @@ How to move or set the focus:\n\
                 let bg = if enabled {
                     look.input_bg_color
                 } else {
-                    look.input_bg_color.lerp(look.bg_color, 0.80)
+                    look.input_bg_color.GetBlended(look.bg_color, 0.80)
                 };
                 canvas = bg;
             }
@@ -1501,7 +1501,7 @@ How to move or set the focus:\n\
                 let bg = if enabled {
                     look.output_bg_color
                 } else {
-                    look.output_bg_color.lerp(look.bg_color, 0.80)
+                    look.output_bg_color.GetBlended(look.bg_color, 0.80)
                 };
                 canvas = bg;
             }
@@ -1541,7 +1541,7 @@ How to move or set the focus:\n\
             if enabled {
                 c
             } else {
-                c.with_alpha((c.a() as f64 * 0.25 + 0.5) as u8)
+                c.SetAlpha((c.GetAlpha() as f64 * 0.25 + 0.5) as u8)
             }
         };
         self.paint_label_impl(painter, area, look, &dim_color);
@@ -1560,7 +1560,7 @@ How to move or set the focus:\n\
             if enabled {
                 color
             } else {
-                color.with_alpha((color.a() as f64 * 0.25 + 0.5) as u8)
+                color.SetAlpha((color.GetAlpha() as f64 * 0.25 + 0.5) as u8)
             }
         };
         self.paint_label_impl(painter, area, look, &dim_color);
@@ -1692,7 +1692,7 @@ How to move or set the focus:\n\
             if enabled {
                 c
             } else {
-                c.with_alpha((c.a() as f64 * 0.25 + 0.5) as u8)
+                c.SetAlpha((c.GetAlpha() as f64 * 0.25 + 0.5) as u8)
             }
         };
 
@@ -1702,14 +1702,14 @@ How to move or set the focus:\n\
             OuterBorderType::Filled => {
                 painter.paint_rect(0.0, 0.0, w, h, look.bg_color, emColor::TRANSPARENT);
                 // C++ DoBorder: canvasColor=color after fill.
-                if !look.bg_color.is_transparent() {
+                if !look.bg_color.IsTotallyTransparent() {
                     painter.set_canvas_color(look.bg_color);
                 }
             }
             OuterBorderType::Margin => {}
             OuterBorderType::MarginFilled => {
                 // C++ DoBorder: Clear fills the ENTIRE panel, not the inset rect.
-                if !look.bg_color.is_transparent() {
+                if !look.bg_color.IsTotallyTransparent() {
                     painter.paint_rect(0.0, 0.0, w, h, look.bg_color, emColor::TRANSPARENT);
                     painter.set_canvas_color(look.bg_color);
                 }
@@ -1719,7 +1719,7 @@ How to move or set the focus:\n\
                 let s = self.base_unit(w, h);
                 let d = s * 0.023;
                 let e = s * 0.02;
-                if !look.bg_color.is_transparent() {
+                if !look.bg_color.IsTotallyTransparent() {
                     painter.paint_rect(
                         d,
                         d,
@@ -1748,7 +1748,7 @@ How to move or set the focus:\n\
                 let d = s * 0.023;
                 let e = s * 0.02;
                 let r = s * 0.22;
-                if !look.bg_color.is_transparent() {
+                if !look.bg_color.IsTotallyTransparent() {
                     painter.paint_round_rect(d, d, w - 2.0 * d, h - 2.0 * d, r, look.bg_color);
                     painter.set_canvas_color(look.bg_color);
                 }
@@ -1774,7 +1774,7 @@ How to move or set the focus:\n\
                 let rnd_h = h - 2.0 * d;
                 let color = look.bg_color;
                 let mut color2 = painter.canvas_color();
-                if !color.is_transparent() && (!color2.is_opaque() || color2 != color) {
+                if !color.IsTotallyTransparent() && (!color2.IsOpaque() || color2 != color) {
                     let r = rnd_r * (280.0 / 209.0);
                     let e = r - rnd_r;
                     painter.paint_round_rect(
@@ -1809,7 +1809,7 @@ How to move or set the focus:\n\
                         BORDER_EDGES_ONLY,
                     );
                 });
-                if !color.is_transparent() {
+                if !color.IsTotallyTransparent() {
                     painter.set_canvas_color(color);
                 }
             }
@@ -1823,7 +1823,7 @@ How to move or set the focus:\n\
                 let rnd_h = h - 2.0 * d;
                 let color = look.bg_color;
                 let mut color2 = painter.canvas_color();
-                if !color.is_transparent() && (!color2.is_opaque() || color2 != color) {
+                if !color.IsTotallyTransparent() && (!color2.IsOpaque() || color2 != color) {
                     let r = rnd_r * (280.0 / 209.0);
                     let e = r - rnd_r;
                     painter.paint_round_rect(
@@ -1858,7 +1858,7 @@ How to move or set the focus:\n\
                         BORDER_EDGES_ONLY,
                     );
                 });
-                if !color.is_transparent() {
+                if !color.IsTotallyTransparent() {
                     painter.set_canvas_color(color);
                 }
             }
@@ -1872,7 +1872,7 @@ How to move or set the focus:\n\
                 let rnd_h = h - 2.0 * d;
                 let color = look.bg_color;
                 let mut color2 = painter.canvas_color();
-                if !color.is_transparent() && (!color2.is_opaque() || color2 != color) {
+                if !color.IsTotallyTransparent() && (!color2.IsOpaque() || color2 != color) {
                     let r = rnd_r * (336.0 / 293.4);
                     let e = r - rnd_r;
                     painter.paint_round_rect(
@@ -1907,7 +1907,7 @@ How to move or set the focus:\n\
                         BORDER_EDGES_ONLY,
                     );
                 });
-                if !color.is_transparent() {
+                if !color.IsTotallyTransparent() {
                     painter.set_canvas_color(color);
                 }
             }
@@ -1916,12 +1916,12 @@ How to move or set the focus:\n\
                 let d = s * 0.006;
                 let color = look.bg_color;
                 let canvas = painter.canvas_color();
-                if !color.is_transparent() {
+                if !color.IsTotallyTransparent() {
                     painter.paint_rect(0.0, 0.0, w, h, color, emColor::TRANSPARENT);
                     painter.set_canvas_color(color);
                 }
                 let r = d; // C++ ratio 159.0/159.0 = 1.0
-                let cc = if !color.is_transparent() {
+                let cc = if !color.IsTotallyTransparent() {
                     color
                 } else {
                     canvas
@@ -1975,14 +1975,14 @@ How to move or set the focus:\n\
                 tw,
                 th,
                 tw * 0.01,
-                look.fg_color.with_alpha((255.0 * 0.10 + 0.5) as u8),
+                look.fg_color.SetAlpha((255.0 * 0.10 + 0.5) as u8),
             );
 
             // C++ emBorder.cpp:916-927: paint text inside the pill when large enough.
             if tw * th * pixel_scale > 100.0 && !self.how_to_text.is_empty() {
                 let d = tw * 0.01;
                 // C++ GetTransparented(35) = alpha * 0.65 + 0.5
-                let text_alpha = (look.fg_color.a() as f64 * 0.65 + 0.5) as u8;
+                let text_alpha = (look.fg_color.GetAlpha() as f64 * 0.65 + 0.5) as u8;
                 painter.paint_text_boxed(
                     tx + d,
                     ty + d,
@@ -1990,7 +1990,7 @@ How to move or set the focus:\n\
                     th - d * 2.0,
                     &self.how_to_text,
                     th,
-                    look.fg_color.with_alpha(text_alpha),
+                    look.fg_color.SetAlpha(text_alpha),
                     emColor::TRANSPARENT,
                     TextAlignment::Left,
                     VAlign::Top,
@@ -2092,7 +2092,7 @@ How to move or set the focus:\n\
                 let bg = if enabled {
                     look.input_bg_color
                 } else {
-                    look.input_bg_color.lerp(look.bg_color, 0.80)
+                    look.input_bg_color.GetBlended(look.bg_color, 0.80)
                 };
                 // C++ insets the round rect by d = (16/216)*rndR, but paints the
                 // border image at the full substance rect (rndX,rndY,rndW,rndH).
@@ -2115,7 +2115,7 @@ How to move or set the focus:\n\
                 let bg = if enabled {
                     look.output_bg_color
                 } else {
-                    look.output_bg_color.lerp(look.bg_color, 0.80)
+                    look.output_bg_color.GetBlended(look.bg_color, 0.80)
                 };
                 let d = (16.0 / 216.0) * inner_r;
                 let tr = inner_r - d;
@@ -2369,21 +2369,21 @@ mod tests {
         use crate::emCore::emColor::emColor;
         let c = emColor::rgba(100, 150, 200, 255);
         // C++ GetTransparented(75.0): alpha * 0.25 + 0.5, truncate
-        let dimmed = c.with_alpha((c.a() as f64 * 0.25 + 0.5) as u8);
+        let dimmed = c.SetAlpha((c.GetAlpha() as f64 * 0.25 + 0.5) as u8);
         // 255 * 0.25 + 0.5 = 64.25, truncated = 64
-        assert_eq!(dimmed.a(), 64);
-        assert_eq!(dimmed.r(), 100);
+        assert_eq!(dimmed.GetAlpha(), 64);
+        assert_eq!(dimmed.GetRed(), 100);
     }
 
     #[test]
     fn with_alpha_preserves_rgb() {
         use crate::emCore::emColor::emColor;
         let c = emColor::rgb(10, 20, 30);
-        let c2 = c.with_alpha(128);
-        assert_eq!(c2.r(), 10);
-        assert_eq!(c2.g(), 20);
-        assert_eq!(c2.b(), 30);
-        assert_eq!(c2.a(), 128);
+        let c2 = c.SetAlpha(128);
+        assert_eq!(c2.GetRed(), 10);
+        assert_eq!(c2.GetGreen(), 20);
+        assert_eq!(c2.GetBlue(), 30);
+        assert_eq!(c2.GetAlpha(), 128);
     }
 
     #[test]
@@ -2437,7 +2437,7 @@ mod tests {
     fn is_opaque_filled_opaque_bg() {
         let look = test_look();
         assert!(
-            look.bg_color.is_opaque(),
+            look.bg_color.IsOpaque(),
             "default look bg should be opaque"
         );
         let border = emBorder::new(OuterBorderType::Filled);
@@ -3188,14 +3188,14 @@ mod tests {
         let tl = img.pixel(0, 0);
         assert_eq!(
             [tl[0], tl[1], tl[2], tl[3]],
-            [bg.r(), bg.g(), bg.b(), bg.a()],
+            [bg.GetRed(), bg.GetGreen(), bg.GetBlue(), bg.GetAlpha()],
             "top-left corner (0,0) should be bg_color, not canvas"
         );
 
         let br = img.pixel(99, 99);
         assert_eq!(
             [br[0], br[1], br[2], br[3]],
-            [bg.r(), bg.g(), bg.b(), bg.a()],
+            [bg.GetRed(), bg.GetGreen(), bg.GetBlue(), bg.GetAlpha()],
             "bottom-right corner (99,99) should be bg_color, not canvas"
         );
 
@@ -3203,7 +3203,7 @@ mod tests {
         let mid = img.pixel(50, 50);
         assert_eq!(
             [mid[0], mid[1], mid[2], mid[3]],
-            [bg.r(), bg.g(), bg.b(), bg.a()],
+            [bg.GetRed(), bg.GetGreen(), bg.GetBlue(), bg.GetAlpha()],
             "center pixel should be bg_color"
         );
     }

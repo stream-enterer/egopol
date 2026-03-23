@@ -329,9 +329,9 @@ impl PanelBehavior for ToolkitRoot {
         cf.on_color = Some(Box::new(move |color| {
             *msg_c.borrow_mut() = format!(
                 "Color: #{:02X}{:02X}{:02X}",
-                color.r(),
-                color.g(),
-                color.b()
+                color.GetRed(),
+                color.GetGreen(),
+                color.GetBlue()
             );
         }));
         ctx.create_child_with("cf", Box::new(ColorFieldPanel { widget: cf }));

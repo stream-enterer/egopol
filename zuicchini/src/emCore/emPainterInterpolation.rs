@@ -1164,7 +1164,7 @@ pub(crate) fn sample_linear_gradient(
         return c0;
     }
     let t = ((point.0 - start.0) * dx + (point.1 - start.1) * dy) / len_sq;
-    c0.lerp(c1, t.clamp(0.0, 1.0))
+    c0.GetBlended(c1, t.clamp(0.0, 1.0))
 }
 
 /// Scanline area-sampled interpolation: fills `buf` with `count` consecutive
@@ -1468,7 +1468,7 @@ pub(crate) fn interpolate_scanline_nearest(
         let col = dest_x_start + i as i32;
         let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x;
         let c = sample_nearest(image, (tx >> 24) as f64, src_y, ext);
-        buf.set_pixel(i, [c.r(), c.g(), c.b(), c.a()]);
+        buf.set_pixel(i, [c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha()]);
     }
     buf.set_len(count);
 }
@@ -1496,35 +1496,35 @@ mod tests {
     fn nearest_center() {
         let img = make_test_image();
         let c = sample_nearest(&img, 1.0, 1.0, ImageExtension::Clamp);
-        assert_eq!(c.r(), 80);
+        assert_eq!(c.GetRed(), 80);
     }
 
     #[test]
     fn bilinear_center() {
         let img = make_test_image();
         let c = sample_bilinear(&img, 0.5, 0.5, ImageExtension::Clamp);
-        assert!((c.r() as i32 - 40).abs() <= 1);
+        assert!((c.GetRed() as i32 - 40).abs() <= 1);
     }
 
     #[test]
     fn bilinear_at_pixel() {
         let img = make_test_image();
         let c = sample_bilinear(&img, 0.0, 0.0, ImageExtension::Clamp);
-        assert_eq!(c.r(), 0);
+        assert_eq!(c.GetRed(), 0);
     }
 
     #[test]
     fn bicubic_at_pixel() {
         let img = make_test_image();
         let c = sample_bicubic(&img, 1.0, 1.0, ImageExtension::Clamp);
-        assert!((c.r() as i32 - 80).abs() <= 5);
+        assert!((c.GetRed() as i32 - 80).abs() <= 5);
     }
 
     #[test]
     fn lanczos_at_pixel() {
         let img = make_test_image();
         let c = sample_lanczos(&img, 1.0, 1.0, ImageExtension::Clamp);
-        assert!((c.r() as i32 - 80).abs() <= 5);
+        assert!((c.GetRed() as i32 - 80).abs() <= 5);
     }
 
     #[test]
@@ -1536,7 +1536,7 @@ mod tests {
             emColor::BLACK,
             (0.0, 0.0),
         );
-        assert_eq!(c0.r(), 255);
+        assert_eq!(c0.GetRed(), 255);
         let c1 = sample_linear_gradient(
             (0.0, 0.0),
             (100.0, 0.0),
@@ -1544,14 +1544,14 @@ mod tests {
             emColor::BLACK,
             (100.0, 0.0),
         );
-        assert_eq!(c1.r(), 0);
+        assert_eq!(c1.GetRed(), 0);
     }
 
     #[test]
     fn extension_zero() {
         let img = make_test_image();
         let c = sample_nearest(&img, -1.0, -1.0, ImageExtension::Zero);
-        assert_eq!(c.a(), 0);
+        assert_eq!(c.GetAlpha(), 0);
     }
 
     #[test]
@@ -1572,7 +1572,7 @@ mod tests {
             dest_h: 4.0,
         };
         let c = sample_area(&img, 1.0, 1.0, &ctx, ImageExtension::Clamp);
-        assert!((c.r() as i32 - 80).abs() <= 2);
+        assert!((c.GetRed() as i32 - 80).abs() <= 2);
     }
 
     // ── 24fp area sampling unit tests ──────────────────────────────
@@ -1646,10 +1646,10 @@ mod tests {
         let sec = full_sec(4, 2);
         let c = sample_area_fp(&img, 0, 0, &xfm, &sec, ImageExtension::Clamp);
         // Equal-weight average: (64, 64, 0, 255) ± 1 for integer rounding.
-        assert!((c.r() as i32 - 64).abs() <= 1, "r={} expected ~64", c.r());
-        assert!((c.g() as i32 - 64).abs() <= 1, "g={} expected ~64", c.g());
-        assert_eq!(c.b(), 0);
-        assert_eq!(c.a(), 255);
+        assert!((c.GetRed() as i32 - 64).abs() <= 1, "r={} expected ~64", c.GetRed());
+        assert!((c.GetGreen() as i32 - 64).abs() <= 1, "g={} expected ~64", c.GetGreen());
+        assert_eq!(c.GetBlue(), 0);
+        assert_eq!(c.GetAlpha(), 255);
     }
 
     #[test]
@@ -1665,10 +1665,10 @@ mod tests {
         let sec = full_sec(2, 2);
         let c = sample_area_fp(&img, 0, 0, &xfm, &sec, ImageExtension::Clamp);
         // 1 of 4 pixels has alpha=128 → low alpha, non-zero red.
-        assert!(c.a() > 0, "alpha should be non-zero, got {}", c.a());
-        assert!(c.r() > 0, "red should be non-zero, got {}", c.r());
-        assert_eq!(c.g(), 0);
-        assert_eq!(c.b(), 0);
+        assert!(c.GetAlpha() > 0, "alpha should be non-zero, got {}", c.GetAlpha());
+        assert!(c.GetRed() > 0, "red should be non-zero, got {}", c.GetRed());
+        assert_eq!(c.GetGreen(), 0);
+        assert_eq!(c.GetBlue(), 0);
     }
 
     #[test]
@@ -1755,14 +1755,14 @@ mod tests {
         let c = sample_area_fp(&img, 0, 0, &xfm, &sec, ImageExtension::Clamp);
         // Average = (0+60+20+80)/4 = 40 ± 1.
         assert!(
-            (c.r() as i32 - 40).abs() <= 1,
+            (c.GetRed() as i32 - 40).abs() <= 1,
             "gray={} expected ~40",
-            c.r()
+            c.GetRed()
         );
         // 1-ch: all channels equal, alpha=255.
-        assert_eq!(c.r(), c.g());
-        assert_eq!(c.r(), c.b());
-        assert_eq!(c.a(), 255);
+        assert_eq!(c.GetRed(), c.GetGreen());
+        assert_eq!(c.GetRed(), c.GetBlue());
+        assert_eq!(c.GetAlpha(), 255);
     }
 
     #[test]
@@ -1807,7 +1807,7 @@ mod tests {
         for dest_y in 0..4 {
             for dest_x in 0..4 {
                 let c = sample_area_fp(&img, dest_x, dest_y, &xfm, &sec, ext);
-                ref_pixels.push([c.r(), c.g(), c.b(), c.a()]);
+                ref_pixels.push([c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha()]);
             }
         }
 
@@ -1840,7 +1840,7 @@ mod tests {
         for dest_y in 0..3 {
             for dest_x in 0..3 {
                 let c = sample_area_fp(&img, dest_x, dest_y, &xfm, &sec, ext);
-                ref_pixels.push([c.r(), c.g(), c.b(), c.a()]);
+                ref_pixels.push([c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha()]);
             }
         }
 
@@ -1875,7 +1875,7 @@ mod tests {
         for dest_y in 0..3 {
             for dest_x in 0..3 {
                 let c = sample_area_fp(&img, dest_x, dest_y, &xfm, &sec, ext);
-                ref_pixels.push([c.r(), c.g(), c.b(), c.a()]);
+                ref_pixels.push([c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha()]);
             }
         }
 

@@ -122,30 +122,30 @@ fn main() {
     println!("Rust Look colors:");
     println!(
         "  bg_color:        ({},{},{},{})",
-        look.bg_color.r(),
-        look.bg_color.g(),
-        look.bg_color.b(),
-        look.bg_color.a()
+        look.bg_color.GetRed(),
+        look.bg_color.GetGreen(),
+        look.bg_color.GetBlue(),
+        look.bg_color.GetAlpha()
     );
     println!(
         "  fg_color:        ({},{},{},{})",
-        look.fg_color.r(),
-        look.fg_color.g(),
-        look.fg_color.b(),
-        look.fg_color.a()
+        look.fg_color.GetRed(),
+        look.fg_color.GetGreen(),
+        look.fg_color.GetBlue(),
+        look.fg_color.GetAlpha()
     );
     println!(
         "  button_bg_color: ({},{},{},{})",
-        look.button_bg_color.r(),
-        look.button_bg_color.g(),
-        look.button_bg_color.b(),
-        look.button_bg_color.a()
+        look.button_bg_color.GetRed(),
+        look.button_bg_color.GetGreen(),
+        look.button_bg_color.GetBlue(),
+        look.button_bg_color.GetAlpha()
     );
     println!(
         "  button_fg_color: ({},{},{},{})",
-        look.button_fg_color.r(),
-        look.button_fg_color.g(),
-        look.button_fg_color.b(),
-        look.button_fg_color.a()
+        look.button_fg_color.GetRed(),
+        look.button_fg_color.GetGreen(),
+        look.button_fg_color.GetBlue(),
+        look.button_fg_color.GetAlpha()
     );
 }

@@ -50,7 +50,7 @@ fn build_tree(panel_count: usize) -> (PanelTree, zuicchini::emCore::emPanelTree:
         let weight: f64 = rng.random_range(1.0..100.0);
         let pct: f64 = rng.random_range(-2.5_f64..2.5).exp();
         let hue: u32 = rng.random_range(0..360);
-        let color = emColor::from_hsv(hue as f32, 0.5, 0.5);
+        let color = emColor::SetHSVA(hue as f32, 0.5, 0.5);
         let look = emLook {
             bg_color: color,
             ..emLook::default()

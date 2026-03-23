@@ -155,8 +155,8 @@ impl emColorField {
     pub fn set_alpha_enabled(&mut self, alpha_enabled: bool) {
         if self.alpha_enabled != alpha_enabled {
             self.alpha_enabled = alpha_enabled;
-            if !alpha_enabled && self.color.a() != 255 {
-                self.color = self.color.with_alpha(255);
+            if !alpha_enabled && self.color.GetAlpha() != 255 {
+                self.color = self.color.SetAlpha(255);
                 if let Some(cb) = &mut self.on_color {
                     cb(self.color);
                 }
@@ -194,16 +194,16 @@ impl emColorField {
 
         // Initialize from current color.
         let c = self.color;
-        exp.red_out = (c.r() as i64 * 10000 + 127) / 255;
+        exp.red_out = (c.GetRed() as i64 * 10000 + 127) / 255;
         exp.sf_red = exp.red_out;
-        exp.green_out = (c.g() as i64 * 10000 + 127) / 255;
+        exp.green_out = (c.GetGreen() as i64 * 10000 + 127) / 255;
         exp.sf_green = exp.green_out;
-        exp.blue_out = (c.b() as i64 * 10000 + 127) / 255;
+        exp.blue_out = (c.GetBlue() as i64 * 10000 + 127) / 255;
         exp.sf_blue = exp.blue_out;
-        exp.alpha_out = (c.a() as i64 * 10000 + 127) / 255;
+        exp.alpha_out = (c.GetAlpha() as i64 * 10000 + 127) / 255;
         exp.sf_alpha = exp.alpha_out;
 
-        let (h, s, v) = c.to_hsv();
+        let (h, s, v) = c.GetHSV();
         exp.hue_out = (h * 100.0 + 0.5) as i64;
         exp.sf_hue = exp.hue_out;
         // C++ GetSat/GetVal return [0,100]; Rust to_hsv returns [0,1].
@@ -262,10 +262,10 @@ impl emColorField {
             let h = exp.sf_hue as f32 / 100.0;
             let s = (exp.sf_sat as f32 / 10000.0).clamp(0.0, 1.0);
             let v = (exp.sf_val as f32 / 10000.0).clamp(0.0, 1.0);
-            self.color = emColor::from_hsv(h, s, v).with_alpha(self.color.a());
+            self.color = emColor::SetHSVA(h, s, v).SetAlpha(self.color.GetAlpha());
         }
         if text_changed {
-            if let Some(parsed) = emColor::try_parse(&exp.tf_name) {
+            if let Some(parsed) = emColor::TryParse(&exp.tf_name) {
                 self.color = parsed;
             }
         }
@@ -344,13 +344,13 @@ impl emColorField {
             None => return,
         };
         let c = self.color;
-        exp.red_out = (c.r() as i64 * 10000 + 127) / 255;
+        exp.red_out = (c.GetRed() as i64 * 10000 + 127) / 255;
         exp.sf_red = exp.red_out;
-        exp.green_out = (c.g() as i64 * 10000 + 127) / 255;
+        exp.green_out = (c.GetGreen() as i64 * 10000 + 127) / 255;
         exp.sf_green = exp.green_out;
-        exp.blue_out = (c.b() as i64 * 10000 + 127) / 255;
+        exp.blue_out = (c.GetBlue() as i64 * 10000 + 127) / 255;
         exp.sf_blue = exp.blue_out;
-        exp.alpha_out = (c.a() as i64 * 10000 + 127) / 255;
+        exp.alpha_out = (c.GetAlpha() as i64 * 10000 + 127) / 255;
         exp.sf_alpha = exp.alpha_out;
     }
 
@@ -365,7 +365,7 @@ impl emColorField {
             Some(exp) => exp,
             None => return,
         };
-        let (h, s, v) = self.color.to_hsv();
+        let (h, s, v) = self.color.GetHSV();
         if v > 0.0 || initial {
             if s > 0.0 || initial {
                 exp.hue_out = (h * 100.0 + 0.5) as i64;
@@ -414,7 +414,7 @@ impl emColorField {
         // NOT opaque, canvasColor is reset to 0 after painting the "transparent"
         // text (see C++ line 393).
         let mut canvas_color = painter.canvas_color();
-        if !self.color.is_opaque() {
+        if !self.color.IsOpaque() {
             let text_color = if self.editable {
                 self.look.input_fg_color
             } else {
@@ -790,7 +790,7 @@ mod tests {
         cf.expansion_mut().unwrap().sf_red = 5000; // ~50% = 127
         assert!(cf.cycle());
         // emColor should have updated red channel
-        let r = cf.color().r();
+        let r = cf.color().GetRed();
         assert!((r as i64 - 127).abs() <= 1, "expected ~127, got {}", r);
     }
 
@@ -807,9 +807,9 @@ mod tests {
         exp.sf_val = 10000;
         assert!(cf.cycle());
         // Should be red
-        assert_eq!(cf.color().r(), 255);
-        assert!(cf.color().g() < 5);
-        assert!(cf.color().b() < 5);
+        assert_eq!(cf.color().GetRed(), 255);
+        assert!(cf.color().GetGreen() < 5);
+        assert!(cf.color().GetBlue() < 5);
     }
 
     #[test]

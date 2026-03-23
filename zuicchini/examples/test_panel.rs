@@ -671,7 +671,7 @@ impl TestPanel {
 
 impl PanelBehavior for TestPanel {
     fn is_opaque(&self) -> bool {
-        self.bg_color().is_opaque()
+        self.bg_color().IsOpaque()
     }
 
     fn auto_expand(&self) -> bool {
@@ -869,7 +869,7 @@ impl PanelBehavior for TestPanel {
         let bg = self.bg_color();
         let text = format!(
             "This is just a test\n\nPanel Identity: {identity}\nBgColor: 0x{:08X}",
-            bg.as_u32()
+            bg.GetPacked()
         );
         let label = emLabel::new(&text, emLook::new());
         Some(ctx.create_child_with(name, Box::new(LabelPanel { widget: label })))

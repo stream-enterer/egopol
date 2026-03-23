@@ -458,7 +458,7 @@ fn colorfield_cycle_red_slider_updates_color_and_syncs() {
     assert!(changed, "cycle() should return true when red slider changes");
 
     // Red channel: (5000 * 255 + 5000) / 10000 = 127 or 128
-    let r = cfb.color_field.color().r();
+    let r = cfb.color_field.color().GetRed();
     assert!(
         (r as i64 - 127).abs() <= 1,
         "Red channel should be ~127 after setting sf_red=5000, got {}",
@@ -512,7 +512,7 @@ fn colorfield_cycle_green_slider_updates_color() {
     assert!(changed, "cycle() should return true when green slider changes");
 
     // Green channel: (7500 * 255 + 5000) / 10000 = 191
-    let g = cfb.color_field.color().g();
+    let g = cfb.color_field.color().GetGreen();
     assert!(
         (g as i64 - 191).abs() <= 1,
         "Green channel should be ~191 after setting sf_green=7500, got {}",
@@ -551,7 +551,7 @@ fn colorfield_cycle_blue_slider_updates_color() {
     assert!(changed, "cycle() should return true when blue slider changes");
 
     // Blue channel: (2500 * 255 + 5000) / 10000 = 64
-    let b = cfb.color_field.color().b();
+    let b = cfb.color_field.color().GetBlue();
     assert!(
         (b as i64 - 64).abs() <= 1,
         "Blue channel should be ~64 after setting sf_blue=2500, got {}",
@@ -591,9 +591,9 @@ fn colorfield_cycle_hex_text_updates_color() {
     assert!(changed, "cycle() should return true when text changes");
 
     let c = cfb.color_field.color();
-    assert_eq!(c.r(), 0x00, "Red should be 0x00 for #00FF80");
-    assert_eq!(c.g(), 0xFF, "Green should be 0xFF for #00FF80");
-    assert_eq!(c.b(), 0x80, "Blue should be 0x80 for #00FF80");
+    assert_eq!(c.GetRed(), 0x00, "Red should be 0x00 for #00FF80");
+    assert_eq!(c.GetGreen(), 0xFF, "Green should be 0xFF for #00FF80");
+    assert_eq!(c.GetBlue(), 0x80, "Blue should be 0x80 for #00FF80");
 
     // RGBA expansion fields should be synced (textChanged → UpdateRGBAOutput).
     let exp = cfb.color_field.expansion().unwrap();
@@ -785,10 +785,10 @@ fn colorfield_cycle_fires_on_color_callback() {
         "on_color callback should have fired after cycle() detects a change",
     );
     assert_eq!(
-        cb_color.g(),
+        cb_color.GetGreen(),
         255,
         "Callback should receive color with green=255, got {}",
-        cb_color.g()
+        cb_color.GetGreen()
     );
 
     h.tree.put_behavior(panel_id, behavior);
@@ -869,18 +869,18 @@ fn colorfield_cycle_invalid_hex_preserves_color() {
     // leaves the color at whatever it was before.
     let c = cfb.color_field.color();
     assert_eq!(
-        c.r(),
-        original.r(),
+        c.GetRed(),
+        original.GetRed(),
         "Red should be preserved after invalid hex"
     );
     assert_eq!(
-        c.g(),
-        original.g(),
+        c.GetGreen(),
+        original.GetGreen(),
         "Green should be preserved after invalid hex"
     );
     assert_eq!(
-        c.b(),
-        original.b(),
+        c.GetBlue(),
+        original.GetBlue(),
         "Blue should be preserved after invalid hex"
     );
 

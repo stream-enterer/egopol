@@ -536,7 +536,7 @@ impl<'a> emPainter<'a> {
         color: emColor,
         canvas_color: emColor,
     ) {
-        if w <= 0.0 || h <= 0.0 || color.a() == 0 {
+        if w <= 0.0 || h <= 0.0 || color.GetAlpha() == 0 {
             return;
         }
         if self.record(DrawOp::PaintRect {
@@ -786,7 +786,7 @@ impl<'a> emPainter<'a> {
                         color_b,
                         (c as f64 + 0.5, row as f64 + 0.5),
                     );
-                    ibuf.set_pixel(i, [color.r(), color.g(), color.b(), color.a()]);
+                    ibuf.set_pixel(i, [color.GetRed(), color.GetGreen(), color.GetBlue(), color.GetAlpha()]);
                 }
                 ibuf.set_len(batch);
                 let dest_offset = (row as usize * tw + col as usize) * 4;
@@ -1315,16 +1315,16 @@ impl<'a> emPainter<'a> {
 
         // Helper: lum -> color mapping (shared between downscaling and non-downscaling paths).
         let lum_to_color = |lum: u8| -> emColor {
-            if color1.is_transparent() {
-                let a = (lum as u32 * color2.a() as u32 + 127) / 255;
-                emColor::rgba(color2.r(), color2.g(), color2.b(), a as u8)
-            } else if color2.is_transparent() {
+            if color1.IsTotallyTransparent() {
+                let a = (lum as u32 * color2.GetAlpha() as u32 + 127) / 255;
+                emColor::rgba(color2.GetRed(), color2.GetGreen(), color2.GetBlue(), a as u8)
+            } else if color2.IsTotallyTransparent() {
                 let inv = 255 - lum;
-                let a = (inv as u32 * color1.a() as u32 + 127) / 255;
-                emColor::rgba(color1.r(), color1.g(), color1.b(), a as u8)
+                let a = (inv as u32 * color1.GetAlpha() as u32 + 127) / 255;
+                emColor::rgba(color1.GetRed(), color1.GetGreen(), color1.GetBlue(), a as u8)
             } else {
                 let t = lum as f64 / 255.0;
-                color1.lerp(color2, t)
+                color1.GetBlended(color2, t)
             }
         };
 
@@ -1386,7 +1386,7 @@ impl<'a> emPainter<'a> {
                                 as u8
                         };
                         let c = lum_to_color(lum);
-                        ibuf.set_pixel(i, [c.r(), c.g(), c.b(), c.a()]);
+                        ibuf.set_pixel(i, [c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha()]);
                     }
                     let all_full =
                         sp.batch_coverages(row, col, &mut coverages[..batch]);
@@ -1437,7 +1437,7 @@ impl<'a> emPainter<'a> {
                             image, src_ix, src_iy, ox, oy, &sec, ext,
                         );
                         let mapped = lum_to_color(lum);
-                        ibuf.set_pixel(i, [mapped.r(), mapped.g(), mapped.b(), mapped.a()]);
+                        ibuf.set_pixel(i, [mapped.GetRed(), mapped.GetGreen(), mapped.GetBlue(), mapped.GetAlpha()]);
                     }
                     ibuf.set_len(batch);
                     let all_full =
@@ -1503,7 +1503,7 @@ impl<'a> emPainter<'a> {
         color: emColor,
         canvas_color: emColor,
     ) {
-        if text.is_empty() || char_height <= 0.0 || color.a() == 0 {
+        if text.is_empty() || char_height <= 0.0 || color.GetAlpha() == 0 {
             return;
         }
         if self.record(DrawOp::PaintText {
@@ -1551,7 +1551,7 @@ impl<'a> emPainter<'a> {
         let y_offset = (char_height - show_height) * 0.5;
 
         let saved_canvas = self.state.canvas_color;
-        if canvas_color.is_opaque() {
+        if canvas_color.IsOpaque() {
             self.state.canvas_color = canvas_color;
         }
 
@@ -1604,8 +1604,8 @@ impl<'a> emPainter<'a> {
         color: emColor,
         canvas_color: emColor,
     ) {
-        let reduced_alpha = (color.a() as u32).div_ceil(3) as u8;
-        let rc = color.with_alpha(reduced_alpha);
+        let reduced_alpha = (color.GetAlpha() as u32).div_ceil(3) as u8;
+        let rc = color.SetAlpha(reduced_alpha);
         let mut cx = x;
         let mut run_start: Option<f64> = None;
 
@@ -1899,7 +1899,7 @@ impl<'a> emPainter<'a> {
                         extension,
                         &ctx,
                     );
-                    ibuf.set_pixel(i, [color.r(), color.g(), color.b(), color.a()]);
+                    ibuf.set_pixel(i, [color.GetRed(), color.GetGreen(), color.GetBlue(), color.GetAlpha()]);
                 }
                 ibuf.set_len(batch);
                 let dest_offset = (row as usize * tw + col as usize) * 4;
@@ -2072,7 +2072,7 @@ impl<'a> emPainter<'a> {
         let mut b = b.min(h / 2.0);
 
         // R-6: pixel-round inset boundaries when canvas_color is not opaque.
-        if !canvas_color.is_opaque() {
+        if !canvas_color.IsOpaque() {
             let f = self.round_x(x + l) - x;
             if f > 0.0 && f < w - r {
                 l = f;
@@ -2291,7 +2291,7 @@ impl<'a> emPainter<'a> {
         let mut t = t.min(h / 2.0);
         let mut b = b.min(h / 2.0);
 
-        if !canvas_color.is_opaque() {
+        if !canvas_color.IsOpaque() {
             let f = self.round_x(x + l) - x;
             if f > 0.0 && f < w - r {
                 l = f;
@@ -2963,7 +2963,7 @@ impl<'a> emPainter<'a> {
             std::mem::swap(&mut color1, &mut color2);
         }
 
-        if color1.a() == 0 || color2.a() == 0 {
+        if color1.GetAlpha() == 0 || color2.GetAlpha() == 0 {
             return;
         }
 
@@ -3072,11 +3072,11 @@ impl<'a> emPainter<'a> {
                             let w1 = a1 / total_a;
                             let w2 = a2 / total_a;
                             let cr =
-                                (color1.r() as f64 * w1 + color2.r() as f64 * w2).round() as u8;
+                                (color1.GetRed() as f64 * w1 + color2.GetRed() as f64 * w2).round() as u8;
                             let cg =
-                                (color1.g() as f64 * w1 + color2.g() as f64 * w2).round() as u8;
+                                (color1.GetGreen() as f64 * w1 + color2.GetGreen() as f64 * w2).round() as u8;
                             let cb =
-                                (color1.b() as f64 * w1 + color2.b() as f64 * w2).round() as u8;
+                                (color1.GetBlue() as f64 * w1 + color2.GetBlue() as f64 * w2).round() as u8;
                             let ca = alpha3.min(255) as u8;
                             let correction = emColor::rgba(cr, cg, cb, ca);
                             self.blend_pixel(sx, sy, correction);
@@ -3387,8 +3387,8 @@ impl<'a> emPainter<'a> {
             let mut solid_stroke = stroke.clone();
             solid_stroke.dash_type = DashType::Solid;
             solid_stroke.dash_pattern.clear();
-            let a = (stroke.color.a() as f64 * t_solid + 0.5) as u8;
-            solid_stroke.color = solid_stroke.color.with_alpha(a);
+            let a = (stroke.color.GetAlpha() as f64 * t_solid + 0.5) as u8;
+            solid_stroke.color = solid_stroke.color.SetAlpha(a);
             self.paint_solid_polyline(vertices, &solid_stroke, closed, self.state.canvas_color);
             return;
         }
@@ -5043,8 +5043,8 @@ impl<'a> emPainter<'a> {
             } else if span.opacity_mid > 0 {
                 // Uniform partial coverage: pre-compute alpha-adjusted color once.
                 let alpha =
-                    ((color.a() as i32 * span.opacity_mid + 0x800) >> 12).clamp(0, 255) as u8;
-                let blended = emColor::rgba(color.r(), color.g(), color.b(), alpha);
+                    ((color.GetAlpha() as i32 * span.opacity_mid + 0x800) >> 12).clamp(0, 255) as u8;
+                let blended = emColor::rgba(color.GetRed(), color.GetGreen(), color.GetBlue(), alpha);
                 self.fill_span_blended(y, ix1, ix2, blended);
             }
         }
@@ -5063,8 +5063,8 @@ impl<'a> emPainter<'a> {
             self.blend_pixel(x, y, color);
         } else if cov > 0 {
             // C++ single-step: alpha = (color_alpha * opacity_12bit + 0x800) >> 12
-            let alpha = ((color.a() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8;
-            let blended = emColor::rgba(color.r(), color.g(), color.b(), alpha);
+            let alpha = ((color.GetAlpha() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8;
+            let blended = emColor::rgba(color.GetRed(), color.GetGreen(), color.GetBlue(), alpha);
             self.blend_pixel(x, y, blended);
         }
     }
@@ -5075,17 +5075,17 @@ impl<'a> emPainter<'a> {
     fn blend_pixel_unchecked(&mut self, x: i32, y: i32, color: emColor) {
         let xu = x as u32;
         let yu = y as u32;
-        if color.is_opaque() && self.state.alpha == 255 {
+        if color.IsOpaque() && self.state.alpha == 255 {
             let out = self.image().pixel_mut(xu, yu);
-            out[0] = color.r();
-            out[1] = color.g();
-            out[2] = color.b();
+            out[0] = color.GetRed();
+            out[1] = color.GetGreen();
+            out[2] = color.GetBlue();
             out[3] = 255;
-        } else if self.state.canvas_color.is_opaque() {
+        } else if self.state.canvas_color.IsOpaque() {
             let combined_alpha = if self.state.alpha == 255 {
-                color.a()
+                color.GetAlpha()
             } else {
-                ((color.a() as u16 * self.state.alpha as u16 + 128) >> 8) as u8
+                ((color.GetAlpha() as u16 * self.state.alpha as u16 + 128) >> 8) as u8
             };
             if combined_alpha == 0 {
                 return;
@@ -5094,11 +5094,11 @@ impl<'a> emPainter<'a> {
             let existing = emColor::rgba(px[0], px[1], px[2], px[3]);
             let result = existing.canvas_blend(color, self.state.canvas_color, combined_alpha);
             let out = self.image().pixel_mut(xu, yu);
-            out[0] = result.r();
-            out[1] = result.g();
-            out[2] = result.b();
+            out[0] = result.GetRed();
+            out[1] = result.GetGreen();
+            out[2] = result.GetBlue();
         } else {
-            let ca = color.a() as u16;
+            let ca = color.GetAlpha() as u16;
             let ea = if self.state.alpha == 255 {
                 ca
             } else {
@@ -5109,9 +5109,9 @@ impl<'a> emPainter<'a> {
             }
             if ea >= 255 {
                 let out = self.image().pixel_mut(xu, yu);
-                out[0] = color.r();
-                out[1] = color.g();
-                out[2] = color.b();
+                out[0] = color.GetRed();
+                out[1] = color.GetGreen();
+                out[2] = color.GetBlue();
                 out[3] = 255;
                 return;
             }
@@ -5119,11 +5119,11 @@ impl<'a> emPainter<'a> {
             let alpha = ea as u32;
             let t = (255 - alpha) * 257;
             let r = ((bg[0] as u32 * t + 0x8073) >> 16)
-                + ((color.r() as u32 * alpha * 257 + 0x8073) >> 16);
+                + ((color.GetRed() as u32 * alpha * 257 + 0x8073) >> 16);
             let g = ((bg[1] as u32 * t + 0x8073) >> 16)
-                + ((color.g() as u32 * alpha * 257 + 0x8073) >> 16);
+                + ((color.GetGreen() as u32 * alpha * 257 + 0x8073) >> 16);
             let b = ((bg[2] as u32 * t + 0x8073) >> 16)
-                + ((color.b() as u32 * alpha * 257 + 0x8073) >> 16);
+                + ((color.GetBlue() as u32 * alpha * 257 + 0x8073) >> 16);
             let a =
                 ((bg[3] as u32 * t + 0x8073) >> 16) + ((255u32 * alpha * 257 + 0x8073) >> 16);
             let out = self.image().pixel_mut(xu, yu);
@@ -5140,8 +5140,8 @@ impl<'a> emPainter<'a> {
         if cov >= 0x1000 {
             self.blend_pixel_unchecked(x, y, color);
         } else if cov > 0 {
-            let alpha = ((color.a() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8;
-            let blended = emColor::rgba(color.r(), color.g(), color.b(), alpha);
+            let alpha = ((color.GetAlpha() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8;
+            let blended = emColor::rgba(color.GetRed(), color.GetGreen(), color.GetBlue(), alpha);
             self.blend_pixel_unchecked(x, y, blended);
         }
     }
@@ -5271,7 +5271,7 @@ impl<'a> emPainter<'a> {
                     return *color_a;
                 }
                 let t = ((px - start.0) * dx + (py - start.1) * dy) / len_sq;
-                color_a.lerp(*color_b, t.clamp(0.0, 1.0))
+                color_a.GetBlended(*color_b, t.clamp(0.0, 1.0))
             }
             PixelTexture::RadialGradient {
                 color_inner,
@@ -5291,7 +5291,7 @@ impl<'a> emPainter<'a> {
                 // Equivalent: -0xFF_0000_00 <= tx < 0xFF_0000_00 (and same for ty).
                 const LIMIT: i64 = 0xFF << 23; // 255 * 2^23
                 if tx.unsigned_abs() >= LIMIT as u64 || ty.unsigned_abs() >= LIMIT as u64 {
-                    return color_outer.lerp(*color_inner, 0.0);
+                    return color_outer.GetBlended(*color_inner, 0.0);
                 }
                 let tyty = ty * ty + ((1i64 << 45) - 1);
                 let t_idx = ((tx * tx + tyty) >> 46) as usize;
@@ -5302,7 +5302,7 @@ impl<'a> emPainter<'a> {
                     255
                 };
                 // factor is 0–255: 0=center (inner), 255=edge (outer).
-                color_inner.lerp(*color_outer, factor as f64 / 255.0)
+                color_inner.GetBlended(*color_outer, factor as f64 / 255.0)
             }
             PixelTexture::emImage {
                 image,
@@ -5331,10 +5331,10 @@ impl<'a> emPainter<'a> {
                 let ly = (py - offset_y) * inv_scale_y;
                 let sampled = Self::sample_image_at(image, lx, ly, *extension, *quality);
                 emColor::rgba(
-                    ((sampled.r() as u32 * color.r() as u32 + 128) >> 8) as u8,
-                    ((sampled.g() as u32 * color.g() as u32 + 128) >> 8) as u8,
-                    ((sampled.b() as u32 * color.b() as u32 + 128) >> 8) as u8,
-                    ((sampled.a() as u32 * color.a() as u32 + 128) >> 8) as u8,
+                    ((sampled.GetRed() as u32 * color.GetRed() as u32 + 128) >> 8) as u8,
+                    ((sampled.GetGreen() as u32 * color.GetGreen() as u32 + 128) >> 8) as u8,
+                    ((sampled.GetBlue() as u32 * color.GetBlue() as u32 + 128) >> 8) as u8,
+                    ((sampled.GetAlpha() as u32 * color.GetAlpha() as u32 + 128) >> 8) as u8,
                 )
             }
         }
@@ -5559,14 +5559,14 @@ impl<'a> emPainter<'a> {
             return;
         }
 
-        if color.is_opaque() && self.state.alpha == 255 {
+        if color.IsOpaque() && self.state.alpha == 255 {
             // Fully opaque: direct write, no blending needed.
             let out = self.image().pixel_mut(x as u32, y as u32);
-            out[0] = color.r();
-            out[1] = color.g();
-            out[2] = color.b();
+            out[0] = color.GetRed();
+            out[1] = color.GetGreen();
+            out[2] = color.GetBlue();
             out[3] = 255;
-        } else if self.state.canvas_color.is_opaque() {
+        } else if self.state.canvas_color.IsOpaque() {
             // Canvas blend: target += (source - canvas) * alpha / 256
             // Used when the background color is known (opaque canvas), giving
             // better anti-aliasing at shape edges. Matches Eagle Mode's emPainter.
@@ -5577,9 +5577,9 @@ impl<'a> emPainter<'a> {
             // The hash tables hcR/hcG/hcB only cover RGB, and `*p += pix`
             // leaves the alpha channel untouched.
             let combined_alpha = if self.state.alpha == 255 {
-                color.a()
+                color.GetAlpha()
             } else {
-                ((color.a() as u16 * self.state.alpha as u16 + 128) >> 8) as u8
+                ((color.GetAlpha() as u16 * self.state.alpha as u16 + 128) >> 8) as u8
             };
             if combined_alpha == 0 {
                 return;
@@ -5588,15 +5588,15 @@ impl<'a> emPainter<'a> {
             let existing = emColor::rgba(px[0], px[1], px[2], px[3]);
             let result = existing.canvas_blend(color, self.state.canvas_color, combined_alpha);
             let out = self.image().pixel_mut(x as u32, y as u32);
-            out[0] = result.r();
-            out[1] = result.g();
-            out[2] = result.b();
+            out[0] = result.GetRed();
+            out[1] = result.GetGreen();
+            out[2] = result.GetBlue();
             // out[3] unchanged — C++ HAVE_CVC never modifies destination alpha.
         } else {
             // Standard source-over alpha compositing when canvas color is
             // unknown (non-opaque). Avoids the additive artifacts that
             // canvas_blend produces with TRANSPARENT canvas.
-            let ca = color.a() as u16;
+            let ca = color.GetAlpha() as u16;
             let ea = if self.state.alpha == 255 {
                 ca
             } else {
@@ -5608,9 +5608,9 @@ impl<'a> emPainter<'a> {
             let bg = self.read_pixel(x as u32, y as u32);
             if ea >= 255 {
                 let out = self.image().pixel_mut(x as u32, y as u32);
-                out[0] = color.r();
-                out[1] = color.g();
-                out[2] = color.b();
+                out[0] = color.GetRed();
+                out[1] = color.GetGreen();
+                out[2] = color.GetBlue();
                 out[3] = 255;
             } else {
                 // C++ emPainter non-CVC blend: per-channel round(x/255) via
@@ -5620,11 +5620,11 @@ impl<'a> emPainter<'a> {
                 let inv = 255 - alpha;
                 let t = inv * 257; // background attenuation factor
                 let r = ((bg[0] as u32 * t + 0x8073) >> 16)
-                    + ((color.r() as u32 * alpha * 257 + 0x8073) >> 16);
+                    + ((color.GetRed() as u32 * alpha * 257 + 0x8073) >> 16);
                 let g = ((bg[1] as u32 * t + 0x8073) >> 16)
-                    + ((color.g() as u32 * alpha * 257 + 0x8073) >> 16);
+                    + ((color.GetGreen() as u32 * alpha * 257 + 0x8073) >> 16);
                 let b = ((bg[2] as u32 * t + 0x8073) >> 16)
-                    + ((color.b() as u32 * alpha * 257 + 0x8073) >> 16);
+                    + ((color.GetBlue() as u32 * alpha * 257 + 0x8073) >> 16);
                 let a =
                     ((bg[3] as u32 * t + 0x8073) >> 16) + ((255u32 * alpha * 257 + 0x8073) >> 16);
                 let out = self.image().pixel_mut(x as u32, y as u32);
@@ -5648,30 +5648,30 @@ impl<'a> emPainter<'a> {
         let tw = self.target_width as usize;
         let row_base = y as usize * tw * 4;
 
-        if color.is_opaque() && self.state.alpha == 255 {
-            let pixel = [color.r(), color.g(), color.b(), 255u8];
+        if color.IsOpaque() && self.state.alpha == 255 {
+            let pixel = [color.GetRed(), color.GetGreen(), color.GetBlue(), 255u8];
             let data = self.image().data_mut();
             for col in x1..x2 {
                 let off = row_base + col as usize * 4;
                 data[off..off + 4].copy_from_slice(&pixel);
             }
-        } else if self.state.canvas_color.is_opaque() {
+        } else if self.state.canvas_color.IsOpaque() {
             let combined_alpha = if self.state.alpha == 255 {
-                color.a()
+                color.GetAlpha()
             } else {
-                ((color.a() as u16 * self.state.alpha as u16 + 128) >> 8) as u8
+                ((color.GetAlpha() as u16 * self.state.alpha as u16 + 128) >> 8) as u8
             };
             if combined_alpha == 0 {
                 return;
             }
             let cv = self.state.canvas_color;
             let a = combined_alpha as u32;
-            let cr = (cv.r() as u32 * a + 127) / 255;
-            let cg = (cv.g() as u32 * a + 127) / 255;
-            let cb = (cv.b() as u32 * a + 127) / 255;
-            let pm_r = ((color.r() as u32 * a * 257 + 0x8073) >> 16) as i32;
-            let pm_g = ((color.g() as u32 * a * 257 + 0x8073) >> 16) as i32;
-            let pm_b = ((color.b() as u32 * a * 257 + 0x8073) >> 16) as i32;
+            let cr = (cv.GetRed() as u32 * a + 127) / 255;
+            let cg = (cv.GetGreen() as u32 * a + 127) / 255;
+            let cb = (cv.GetBlue() as u32 * a + 127) / 255;
+            let pm_r = ((color.GetRed() as u32 * a * 257 + 0x8073) >> 16) as i32;
+            let pm_g = ((color.GetGreen() as u32 * a * 257 + 0x8073) >> 16) as i32;
+            let pm_b = ((color.GetBlue() as u32 * a * 257 + 0x8073) >> 16) as i32;
             let delta_r = pm_r - cr as i32;
             let delta_g = pm_g - cg as i32;
             let delta_b = pm_b - cb as i32;
@@ -5683,7 +5683,7 @@ impl<'a> emPainter<'a> {
                 data[off + 2] = (data[off + 2] as i32 + delta_b).clamp(0, 255) as u8;
             }
         } else {
-            let ca = color.a() as u16;
+            let ca = color.GetAlpha() as u16;
             let ea = if self.state.alpha == 255 {
                 ca
             } else {
@@ -5693,7 +5693,7 @@ impl<'a> emPainter<'a> {
                 return;
             }
             if ea >= 255 {
-                let pixel = [color.r(), color.g(), color.b(), 255u8];
+                let pixel = [color.GetRed(), color.GetGreen(), color.GetBlue(), 255u8];
                 let data = self.image().data_mut();
                 for col in x1..x2 {
                     let off = row_base + col as usize * 4;
@@ -5702,9 +5702,9 @@ impl<'a> emPainter<'a> {
             } else {
                 let alpha = ea as u32;
                 let t = (255 - alpha) * 257;
-                let sr = (color.r() as u32 * alpha * 257 + 0x8073) >> 16;
-                let sg = (color.g() as u32 * alpha * 257 + 0x8073) >> 16;
-                let sb = (color.b() as u32 * alpha * 257 + 0x8073) >> 16;
+                let sr = (color.GetRed() as u32 * alpha * 257 + 0x8073) >> 16;
+                let sg = (color.GetGreen() as u32 * alpha * 257 + 0x8073) >> 16;
+                let sb = (color.GetBlue() as u32 * alpha * 257 + 0x8073) >> 16;
                 let sa = (255u32 * alpha * 257 + 0x8073) >> 16;
                 let data = self.image().data_mut();
                 for col in x1..x2 {
@@ -5733,8 +5733,8 @@ impl<'a> emPainter<'a> {
         }
 
         // Fast path: fully opaque fill — bulk write rows directly.
-        if color.is_opaque() && self.state.alpha == 255 {
-            let pixel = [color.r(), color.g(), color.b(), 255u8];
+        if color.IsOpaque() && self.state.alpha == 255 {
+            let pixel = [color.GetRed(), color.GetGreen(), color.GetBlue(), 255u8];
             let tw = self.target_width as usize;
             let data = self.image().data_mut();
             for row in start_y..end_y {

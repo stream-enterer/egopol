@@ -18,7 +18,7 @@ struct MyPanel {
 
 impl PanelBehavior for MyPanel {
     fn is_opaque(&self) -> bool {
-        self.bg.is_opaque()
+        self.bg.IsOpaque()
     }
 
     fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
@@ -47,10 +47,10 @@ impl PanelBehavior for MyPanel {
 
         // Create four children with inverted color.
         let inv = emColor::rgba(
-            255 - self.bg.r(),
-            255 - self.bg.g(),
-            255 - self.bg.b(),
-            self.bg.a(),
+            255 - self.bg.GetRed(),
+            255 - self.bg.GetGreen(),
+            255 - self.bg.GetBlue(),
+            self.bg.GetAlpha(),
         );
         for i in 0..4u32 {
             let name = format!("{i}");
