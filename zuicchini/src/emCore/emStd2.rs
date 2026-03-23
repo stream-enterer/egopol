@@ -3,7 +3,7 @@
 /// Matches C++ emCalcAdler32. Produces the same output as zlib's adler32().
 /// The `start` parameter allows chaining: pass the previous result to
 /// continue computing over additional data.
-pub fn calc_adler32(data: &[u8], start: u32) -> u32 {
+pub fn emCalcAdler32(data: &[u8], start: u32) -> u32 {
     const MOD_ADLER: u32 = 65521;
     // C++ batches 5552 bytes to avoid overflow before taking mod.
     // 5552 is the largest n such that 255*n*(n+1)/2 + (n+1)*0xFFFF < 2^32.
@@ -53,7 +53,7 @@ const CRC32_TABLE: [u32; 256] = {
 /// Matches C++ emCalcCRC32. Uses the standard polynomial (0xEDB88320),
 /// compatible with zlib/PNG CRC-32. Pass a previous result as `start`
 /// to chain multiple calls.
-pub fn calc_crc32(data: &[u8], start: u32) -> u32 {
+pub fn emCalcCRC32(data: &[u8], start: u32) -> u32 {
     let mut r = start;
     if !data.is_empty() {
         r = !r;
@@ -91,7 +91,7 @@ const CRC64_TABLE: [u64; 256] = {
 ///
 /// Matches C++ emCalcCRC64. Pass a previous result as `start`
 /// to chain multiple calls.
-pub fn calc_crc64(data: &[u8], start: u64) -> u64 {
+pub fn emCalcCRC64(data: &[u8], start: u64) -> u64 {
     let mut r = start;
     if !data.is_empty() {
         r = !r;
@@ -108,7 +108,7 @@ pub fn calc_crc64(data: &[u8], start: u64) -> u64 {
 ///
 /// Matches C++ emCalcHashCode exactly: multiplier 335171, processes bytes
 /// until a zero byte or end of slice. Returns signed i32 like C++.
-pub fn calc_hash_code(data: &[u8], start: i32) -> i32 {
+pub fn emCalcHashCode(data: &[u8], start: i32) -> i32 {
     let mut r = start as u32;
     for &byte in data {
         if byte == 0 {
@@ -124,7 +124,7 @@ pub fn calc_hash_code(data: &[u8], start: i32) -> i32 {
 /// Matches C++ emCalcHashName exactly. The result is a string of letters
 /// and digits. Capitalization provides extra entropy but comparisons
 /// can safely ignore case.
-pub fn calc_hash_name(src: &[u8], hash_len: usize) -> String {
+pub fn emCalcHashName(src: &[u8], hash_len: usize) -> String {
     // Part 1: base-36 hash
     let mut hash = vec![0u8; hash_len];
 
@@ -160,9 +160,9 @@ pub fn calc_hash_name(src: &[u8], hash_len: usize) -> String {
     // Part 2: capitalization for extra entropy
     let letter_count = hash.iter().filter(|&&c| c.is_ascii_lowercase()).count();
     let b: u64 = if letter_count <= 32 {
-        calc_crc32(src, 0) as u64
+        emCalcCRC32(src, 0) as u64
     } else {
-        calc_crc64(src, 0)
+        emCalcCRC64(src, 0)
     };
     let mut bits = b;
     if letter_count <= 16 {

@@ -134,7 +134,7 @@ mod platform {
         data.push(0);
         data.extend_from_slice(server_name.as_bytes());
 
-        let hash = crate::emCore::emStd2::calc_hash_code(&data, 0);
+        let hash = crate::emCore::emStd2::emCalcHashCode(&data, 0);
         format!("{hash:08x}")
     }
 
