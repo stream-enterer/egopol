@@ -11,14 +11,14 @@ pub trait emClipboard {
     /// Put text into the clipboard or selection buffer.
     /// If `selection` is true, returns a selection ID (incrementing counter).
     /// If `selection` is false, returns 0.
-    fn put_text(&mut self, text: &str, selection: bool) -> i64;
+    fn PutText(&mut self, text: &str, selection: bool) -> i64;
 
     /// Clear the clipboard or selection buffer.
     /// For selections, only clears if `selection_id` matches the current ID.
-    fn clear(&mut self, selection: bool, selection_id: i64);
+    fn Clear(&mut self, selection: bool, selection_id: i64);
 
     /// Get the current text from the clipboard or selection buffer.
-    fn get_text(&self, selection: bool) -> String;
+    fn GetText(&self, selection: bool) -> String;
 }
 
 /// In-memory clipboard implementation matching C++ emPrivateClipboard.
@@ -41,7 +41,7 @@ impl emPrivateClipboard {
 
     /// Install this clipboard into the given context.
     /// Port of C++ emPrivateClipboard::Install(emContext&).
-    pub fn install(context: &Rc<emContext>) {
+    pub fn Install(context: &Rc<emContext>) {
         let clipboard: Rc<RefCell<dyn emClipboard>> = Rc::new(RefCell::new(Self::new()));
         context.set_clipboard(clipboard);
     }
@@ -54,7 +54,7 @@ impl Default for emPrivateClipboard {
 }
 
 impl emClipboard for emPrivateClipboard {
-    fn put_text(&mut self, text: &str, selection: bool) -> i64 {
+    fn PutText(&mut self, text: &str, selection: bool) -> i64 {
         if selection {
             self.sel_text = text.to_string();
             self.sel_id += 1;
@@ -65,7 +65,7 @@ impl emClipboard for emPrivateClipboard {
         }
     }
 
-    fn clear(&mut self, selection: bool, selection_id: i64) {
+    fn Clear(&mut self, selection: bool, selection_id: i64) {
         if selection {
             if selection_id == self.sel_id {
                 self.sel_text.clear();
@@ -76,7 +76,7 @@ impl emClipboard for emPrivateClipboard {
         }
     }
 
-    fn get_text(&self, selection: bool) -> String {
+    fn GetText(&self, selection: bool) -> String {
         if selection {
             self.sel_text.clone()
         } else {
@@ -87,6 +87,6 @@ impl emClipboard for emPrivateClipboard {
 
 /// emLook up the installed clipboard by walking the context hierarchy.
 /// Port of C++ emClipboard::LookupInherited(emContext&).
-pub fn lookup_clipboard(context: &Rc<emContext>) -> Option<Rc<RefCell<dyn emClipboard>>> {
+pub fn LookupInherited(context: &Rc<emContext>) -> Option<Rc<RefCell<dyn emClipboard>>> {
     context.lookup_clipboard()
 }
