@@ -97,7 +97,7 @@ impl emWindowStateSaver {
     ///
     /// When maximized or fullscreen, the last normal-mode geometry is
     /// preserved (matching C++ emWindowStateSaver::Save behavior).
-    pub fn save_from(&mut self, window: &super::emWindow::ZuiWindow) {
+    pub fn Save(&mut self, window: &super::emWindow::ZuiWindow) {
         use crate::emCore::emWindow::WindowFlags;
 
         let pos = window.winit_window.outer_position().unwrap_or_default();
@@ -124,11 +124,11 @@ impl emWindowStateSaver {
     }
 
     /// Get the stored geometry for restoring.
-    pub fn geometry(&self) -> &WindowGeometry {
+    pub fn Restore(&self) -> &WindowGeometry {
         self.model.get()
     }
 
-    pub fn cycle(&mut self, window: &super::emWindow::ZuiWindow, focused: bool) {
+    pub fn Cycle(&mut self, window: &super::emWindow::ZuiWindow, focused: bool) {
         use crate::emCore::emWindow::WindowFlags;
 
         let pos = window.winit_window.outer_position().unwrap_or_default();
@@ -162,7 +162,7 @@ impl emWindowStateSaver {
         };
 
         if focused && current != *self.model.get() {
-            self.save_from(window);
+            self.Save(window);
         }
     }
 
