@@ -63,14 +63,14 @@ impl emRadioBox {
         self.index_cell.set(index);
     }
 
-    pub fn is_selected(&self) -> bool {
+    pub fn IsSelected(&self) -> bool {
         self.group.borrow().GetChecked() == Some(self.index_cell.get())
     }
 
     pub fn set_checked(&mut self, checked: bool) {
         if checked {
             self.group.borrow_mut().SetChecked(self.index_cell.get());
-        } else if self.is_selected() {
+        } else if self.IsSelected() {
             self.group.borrow_mut().SetCheckIndex(None);
         }
     }
@@ -106,7 +106,7 @@ impl emRadioBox {
     }
 
     /// Paint using the C++ DoButton ShownBoxed=true, ShownRadioed=true path.
-    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -157,7 +157,7 @@ impl emRadioBox {
         // Paint radio dot if selected (C++ PaintBoxSymbol, lines 161-167).
         // C++ PaintEllipse takes bounding rect (x, y, w, h).
         // Rust paint_ellipse takes center + radii (cx, cy, rx, ry).
-        if self.is_selected() {
+        if self.IsSelected() {
             let dot_d = fw * 0.25;
             let dot_w = fw - 2.0 * dot_d;
             let dot_h = fh - 2.0 * dot_d;
@@ -255,7 +255,7 @@ impl emRadioBox {
         dx * dx + dy * dy <= fr * fr
     }
 
-    pub fn input(
+    pub fn Input(
         &mut self,
         event: &emInputEvent,
         state: &PanelState,
@@ -306,7 +306,7 @@ impl emRadioBox {
                     if trace {
                         eprintln!(
                             "    [RadioBox {:?}] Release mouse=({:.4},{:.4}) last=({:.4},{:.4}) hit={} pressed={} box_pressed={} selected_before={}",
-                            self.border.caption, event.mouse_x, event.mouse_y, self.last_w, self.last_h, hit, self.pressed, self.box_pressed, self.is_selected()
+                            self.border.caption, event.mouse_x, event.mouse_y, self.last_w, self.last_h, hit, self.pressed, self.box_pressed, self.IsSelected()
                         );
                     }
                     self.pressed = false;
@@ -334,7 +334,7 @@ impl emRadioBox {
         }
     }
 
-    pub fn get_cursor(&self) -> emCursor {
+    pub fn GetCursor(&self) -> emCursor {
         emCursor::Normal
     }
 
@@ -389,17 +389,17 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
 
-        assert!(!rb0.is_selected());
-        assert!(!rb1.is_selected());
+        assert!(!rb0.IsSelected());
+        assert!(!rb1.IsSelected());
 
         // Enter is instant: selects on press, no release needed.
-        rb0.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
-        assert!(rb0.is_selected()); // Selected immediately on press
-        assert!(!rb1.is_selected());
+        rb0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        assert!(rb0.IsSelected()); // Selected immediately on press
+        assert!(!rb1.IsSelected());
 
-        rb1.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
-        assert!(!rb0.is_selected());
-        assert!(rb1.is_selected());
+        rb1.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        assert!(!rb0.IsSelected());
+        assert!(rb1.IsSelected());
     }
 
     #[test]
@@ -411,8 +411,8 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!rb.pressed);
-        rb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        rb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!rb.pressed); // Enter selects instantly, no press state
-        assert!(rb.is_selected()); // But the selection did happen
+        assert!(rb.IsSelected()); // But the selection did happen
     }
 }

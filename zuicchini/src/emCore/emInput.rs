@@ -335,7 +335,7 @@ impl emInputEvent {
 
     /// Whether this event is empty (eaten or has no meaningful content).
     /// (C++ emInputEvent::IsEmpty parity.)
-    pub fn is_empty(&self) -> bool {
+    pub fn IsEmpty(&self) -> bool {
         self.eaten
     }
 

@@ -81,13 +81,13 @@ impl emDialog {
         }
     }
 
-    pub fn paint(&self, painter: &mut emPainter, w: f64, h: f64) {
+    pub fn Paint(&self, painter: &mut emPainter, w: f64, h: f64) {
         self.border
             .paint_border(painter, w, h, &self.look, false, true, 1.0);
     }
 
     /// Layout content area and button row at the bottom.
-    pub fn layout_children(&self, ctx: &mut PanelCtx, w: f64, h: f64) {
+    pub fn LayoutChildren(&self, ctx: &mut PanelCtx, w: f64, h: f64) {
         let Rect {
             x: cx,
             y: cy,
@@ -126,7 +126,7 @@ impl emDialog {
         // Propagate content canvas color to children.
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 
@@ -183,7 +183,7 @@ impl emDialog {
     /// Port of C++ `emDlg::DlgPanel::Input`:
     /// - Enter (no modifiers) → finish with `DialogResult::Ok`
     /// - Escape (no modifiers) → finish with `DialogResult::Cancel`
-    pub fn input(
+    pub fn Input(
         &mut self,
         event: &emInputEvent,
         _state: &PanelState,
@@ -293,7 +293,7 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
 
-        let consumed = dlg.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        let consumed = dlg.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(consumed);
         assert_eq!(dlg.GetResult(), Some(&DialogResult::Ok));
     }
@@ -305,7 +305,7 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
 
-        let consumed = dlg.input(&emInputEvent::press(InputKey::Escape), &ps, &is);
+        let consumed = dlg.Input(&emInputEvent::press(InputKey::Escape), &ps, &is);
         assert!(consumed);
         assert_eq!(dlg.GetResult(), Some(&DialogResult::Cancel));
     }
@@ -319,7 +319,7 @@ mod tests {
 
         let mut ev = emInputEvent::press(InputKey::Enter);
         ev.ctrl = true;
-        let consumed = dlg.input(&ev, &ps, &is);
+        let consumed = dlg.Input(&ev, &ps, &is);
         assert!(!consumed);
         assert!(dlg.GetResult().is_none());
     }
@@ -331,7 +331,7 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
 
-        let consumed = dlg.input(&emInputEvent::release(InputKey::Enter), &ps, &is);
+        let consumed = dlg.Input(&emInputEvent::release(InputKey::Enter), &ps, &is);
         assert!(!consumed);
         assert!(dlg.GetResult().is_none());
     }

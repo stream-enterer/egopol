@@ -56,7 +56,7 @@ impl emSubViewPanel {
     /// Get the root panel ID of the sub-view's panel tree.
     pub fn sub_root(&self) -> PanelId {
         self.sub_tree
-            .root()
+            .GetRootPanel()
             .expect("SubViewPanel sub-tree always has a root")
     }
 

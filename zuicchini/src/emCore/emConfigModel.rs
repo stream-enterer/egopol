@@ -33,7 +33,7 @@ impl<T: Record> emConfigModel<T> {
 
     /// Replace the value. Returns `true` if dirty flag was set (always, since
     /// Record types don't require PartialEq).
-    pub fn set(&mut self, new_value: T) -> bool {
+    pub fn Set(&mut self, new_value: T) -> bool {
         self.value = new_value;
         self.dirty = true;
         true

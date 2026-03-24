@@ -43,7 +43,7 @@ impl PanelBehavior for emPackGroup {
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 

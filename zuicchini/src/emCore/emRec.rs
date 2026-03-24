@@ -88,11 +88,11 @@ impl RecStruct {
         self.push(name, RecValue::Ident(val.to_ascii_lowercase()));
     }
 
-    pub fn set_value(&mut self, name: &str, val: RecValue) {
+    pub fn SetValue(&mut self, name: &str, val: RecValue) {
         self.push(name, val);
     }
 
-    fn get(&self, name: &str) -> Option<&RecValue> {
+    fn GetRec(&self, name: &str) -> Option<&RecValue> {
         self.fields
             .iter()
             .find(|(k, _)| k.eq_ignore_ascii_case(name))
@@ -100,7 +100,7 @@ impl RecStruct {
     }
 
     pub fn get_bool(&self, name: &str) -> Option<bool> {
-        match self.get(name)? {
+        match self.GetRec(name)? {
             RecValue::Bool(b) => Some(*b),
             RecValue::Int(0) => Some(false),
             RecValue::Int(1) => Some(true),
@@ -109,14 +109,14 @@ impl RecStruct {
     }
 
     pub fn get_int(&self, name: &str) -> Option<i32> {
-        match self.get(name)? {
+        match self.GetRec(name)? {
             RecValue::Int(n) => Some(*n),
             _ => None,
         }
     }
 
     pub fn get_double(&self, name: &str) -> Option<f64> {
-        match self.get(name)? {
+        match self.GetRec(name)? {
             RecValue::Double(d) => Some(*d),
             RecValue::Int(n) => Some(*n as f64),
             _ => None,
@@ -124,28 +124,28 @@ impl RecStruct {
     }
 
     pub fn get_str(&self, name: &str) -> Option<&str> {
-        match self.get(name)? {
+        match self.GetRec(name)? {
             RecValue::Str(s) => Some(s.as_str()),
             _ => None,
         }
     }
 
     pub fn get_struct(&self, name: &str) -> Option<&RecStruct> {
-        match self.get(name)? {
+        match self.GetRec(name)? {
             RecValue::Struct(s) => Some(s),
             _ => None,
         }
     }
 
     pub fn get_array(&self, name: &str) -> Option<&Vec<RecValue>> {
-        match self.get(name)? {
+        match self.GetRec(name)? {
             RecValue::Array(v) => Some(v),
             _ => None,
         }
     }
 
     pub fn get_ident(&self, name: &str) -> Option<&str> {
-        match self.get(name)? {
+        match self.GetRec(name)? {
             RecValue::Ident(s) => Some(s.as_str()),
             _ => None,
         }

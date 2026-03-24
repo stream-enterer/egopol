@@ -44,11 +44,11 @@ impl<T: Record + Default> emRecFileModel<T> {
         &self.state
     }
 
-    pub fn data(&self) -> &T {
+    pub fn GetMap(&self) -> &T {
         &self.data
     }
 
-    pub fn data_mut(&mut self) -> &mut T {
+    pub fn GetWritableMap(&mut self) -> &mut T {
         if self.protect_file_state == 0
             && matches!(
                 self.state,
@@ -68,15 +68,15 @@ impl<T: Record + Default> emRecFileModel<T> {
         self.path = path;
     }
 
-    pub fn error_text(&self) -> &str {
+    pub fn GetErrorText(&self) -> &str {
         &self.error_text
     }
 
-    pub fn memory_need(&self) -> u64 {
+    pub fn GetMemoryNeed(&self) -> u64 {
         self.memory_need
     }
 
-    pub fn memory_limit(&self) -> u64 {
+    pub fn GetMemoryLimit(&self) -> u64 {
         self.memory_limit
     }
 
@@ -85,7 +85,7 @@ impl<T: Record + Default> emRecFileModel<T> {
     }
 
     /// Synchronously load the file. Port of C++ `Load(true)`.
-    pub fn load(&mut self) {
+    pub fn TryLoad(&mut self) {
         if matches!(self.state, FileState::LoadError(_) | FileState::TooCostly) {
             self.state = FileState::Waiting;
             self.error_text.clear();
@@ -96,7 +96,7 @@ impl<T: Record + Default> emRecFileModel<T> {
     }
 
     /// Synchronously save the file. Port of C++ `Save(true)`.
-    pub fn save(&mut self) {
+    pub fn Save(&mut self) {
         if !matches!(self.state, FileState::Unsaved) {
             return;
         }

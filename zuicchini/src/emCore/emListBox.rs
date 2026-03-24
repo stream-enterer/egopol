@@ -328,7 +328,7 @@ impl emListBox {
         self.fixed_column_count = count;
     }
 
-    pub fn set_caption(&mut self, caption: &str) {
+    pub fn SetCaption(&mut self, caption: &str) {
         self.border.caption = caption.to_string();
     }
 
@@ -686,7 +686,7 @@ impl emListBox {
     }
 
     /// Get the sorted selected indices.
-    pub fn selected(&self) -> &[usize] {
+    pub fn GetChecked(&self) -> &[usize] {
         &self.selected_indices
     }
 
@@ -990,13 +990,13 @@ impl emListBox {
         // Propagate content canvas color to children.
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 
     // ── Paint ───────────────────────────────────────────────────────
 
-    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64) {
         self.last_w = w;
         self.last_h = h;
         self.border
@@ -1133,7 +1133,7 @@ impl emListBox {
         super::widget_utils::check_mouse_round_rect(mx, my, &rect, r)
     }
 
-    pub fn input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -1268,7 +1268,7 @@ impl emListBox {
 
     /// Whether this list box provides how-to help text.
     /// Matches C++ `emListBox::HasHowTo` (always true).
-    pub fn has_how_to(&self) -> bool {
+    pub fn HasHowTo(&self) -> bool {
         true
     }
 
@@ -1276,7 +1276,7 @@ impl emListBox {
     ///
     /// Chains the border's base how-to with list-box-specific sections.
     /// Matches C++ `emListBox::GetHowTo`.
-    pub fn get_how_to(&self, enabled: bool, focusable: bool) -> String {
+    pub fn GetHowTo(&self, enabled: bool, focusable: bool) -> String {
         let mut text = self.border.GetHowTo(enabled, focusable);
         text.push_str(HOWTO_LIST_BOX);
         match self.selection_mode {
@@ -1670,21 +1670,21 @@ mod tests {
 
         assert_eq!(lb.focus_index(), 0);
 
-        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 1);
-        assert_eq!(lb.selected(), &[1]);
+        assert_eq!(lb.GetChecked(), &[1]);
 
-        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 2);
-        assert_eq!(lb.selected(), &[2]);
+        assert_eq!(lb.GetChecked(), &[2]);
 
         // Won't go past end
-        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 2);
 
-        lb.input(&emInputEvent::press(InputKey::ArrowUp), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::ArrowUp), &ps, &is);
         assert_eq!(lb.focus_index(), 1);
-        assert_eq!(lb.selected(), &[1]);
+        assert_eq!(lb.GetChecked(), &[1]);
     }
 
     #[test]
@@ -1697,29 +1697,29 @@ mod tests {
         lb.set_items(make_items(&["X", "Y", "Z"]));
 
         // In multi mode, ArrowDown doesn't auto-select
-        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 1);
-        assert!(lb.selected().is_empty());
+        assert!(lb.GetChecked().is_empty());
 
         // Space toggles selection (via select_by_input with no modifiers -> select solely)
         // In Multi mode without modifiers, space selects solely
-        lb.input(&emInputEvent::press(InputKey::Space), &ps, &is);
-        assert_eq!(lb.selected(), &[1]);
+        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is);
+        assert_eq!(lb.GetChecked(), &[1]);
 
-        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         // Space without ctrl in multi mode selects solely (replaces)
-        lb.input(&emInputEvent::press(InputKey::Space), &ps, &is);
-        assert_eq!(lb.selected(), &[2]);
+        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is);
+        assert_eq!(lb.GetChecked(), &[2]);
 
         // With ctrl, toggle
         lb.focus_index = 1;
-        lb.input(&emInputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
-        assert!(lb.selected().contains(&1));
-        assert!(lb.selected().contains(&2));
+        lb.Input(&emInputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
+        assert!(lb.GetChecked().contains(&1));
+        assert!(lb.GetChecked().contains(&2));
 
         // Toggle off with ctrl
-        lb.input(&emInputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
-        assert_eq!(lb.selected(), &[2]);
+        lb.Input(&emInputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
+        assert_eq!(lb.GetChecked(), &[2]);
     }
 
     #[test]
@@ -1736,8 +1736,8 @@ mod tests {
             *trig_clone.borrow_mut() = Some(idx);
         }));
 
-        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
-        lb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*triggered.borrow(), Some(1));
     }
 
@@ -1757,13 +1757,13 @@ mod tests {
 
         // First ArrowDown: selects item 1 solely. No prior selection to deselect.
         // Fires 1 callback (select).
-        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(selections.borrow().len(), 1);
         assert_eq!(selections.borrow()[0], vec![1]);
 
         // Second ArrowDown: selects item 2 solely. Deselects item 1 first (1 cb),
         // then selects item 2 (1 cb). Total: 3 callbacks.
-        lb.input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(selections.borrow().len(), 3);
         // Last callback should have item 2 selected.
         assert_eq!(selections.borrow()[2], vec![2]);
@@ -1803,12 +1803,12 @@ mod tests {
 
         lb.Select(0, false);
         lb.Select(2, false);
-        assert_eq!(lb.selected(), &[0, 2]);
+        assert_eq!(lb.GetChecked(), &[0, 2]);
 
         // Remove item 1 ("B") — item 2 shifts to index 1.
         lb.RemoveItem(1);
         assert_eq!(lb.GetItemCount(), 2);
-        assert_eq!(lb.selected(), &[0, 1]);
+        assert_eq!(lb.GetChecked(), &[0, 1]);
         assert_eq!(lb.GetItemText(1), "C");
     }
 
@@ -1846,7 +1846,7 @@ mod tests {
         assert_eq!(lb.GetItemText(2), "Cherry");
 
         // Cherry moved from 0 to 2; selection should follow.
-        assert_eq!(lb.selected(), &[2]);
+        assert_eq!(lb.GetChecked(), &[2]);
     }
 
     #[test]
@@ -1855,11 +1855,11 @@ mod tests {
         let mut lb = emListBox::new(look);
         lb.AddItem("a".into(), "A".into());
         lb.Select(0, true);
-        assert_eq!(lb.selected(), &[0]);
+        assert_eq!(lb.GetChecked(), &[0]);
 
         lb.ClearItems();
         assert_eq!(lb.GetItemCount(), 0);
-        assert!(lb.selected().is_empty());
+        assert!(lb.GetChecked().is_empty());
     }
 
     #[test]
@@ -1918,8 +1918,8 @@ mod tests {
 
         // Mouse click: select_by_input is called, but ReadOnly blocks selection.
         let ev = emInputEvent::press(InputKey::MouseLeft).with_mouse(0.0, 5.0);
-        lb.input(&ev, &ps, &is);
-        assert!(lb.selected().is_empty());
+        lb.Input(&ev, &ps, &is);
+        assert!(lb.GetChecked().is_empty());
     }
 
     #[test]
@@ -1933,11 +1933,11 @@ mod tests {
         lb.AddItem("b".into(), "B".into());
 
         // Space toggles
-        lb.input(&emInputEvent::press(InputKey::Space), &ps, &is);
-        assert_eq!(lb.selected(), &[0]);
+        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is);
+        assert_eq!(lb.GetChecked(), &[0]);
 
-        lb.input(&emInputEvent::press(InputKey::Space), &ps, &is);
-        assert!(lb.selected().is_empty());
+        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is);
+        assert!(lb.GetChecked().is_empty());
     }
 
     #[test]
@@ -1952,11 +1952,11 @@ mod tests {
         lb.AddItem("c".into(), "C".into());
 
         // Ctrl+A selects all
-        lb.input(&emInputEvent::press(InputKey::Key('a')).with_ctrl(), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::Key('a')).with_ctrl(), &ps, &is);
         assert_eq!(lb.GetSelectedIndices(), &[0, 1, 2]);
 
         // Shift+Ctrl+A clears
-        lb.input(&emInputEvent::press(InputKey::Key('a')).with_shift_ctrl(), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::Key('a')).with_shift_ctrl(), &ps, &is);
         assert!(lb.GetSelectedIndices().is_empty());
     }
 
@@ -1986,12 +1986,12 @@ mod tests {
         lb.AddItem("b".into(), "B".into());
 
         lb.Select(1, true);
-        assert_eq!(lb.selected(), &[1]);
+        assert_eq!(lb.GetChecked(), &[1]);
 
         // Insert before the selected item.
         lb.InsertItem(0, "z".into(), "Z".into());
         // Selected index should have shifted from 1 to 2.
-        assert_eq!(lb.selected(), &[2]);
+        assert_eq!(lb.GetChecked(), &[2]);
         assert!(lb.IsSelected(2));
         assert_eq!(lb.GetItemText(2), "B");
     }
@@ -2007,7 +2007,7 @@ mod tests {
         lb.AddItem("c".into(), "Cherry".into());
 
         let ev = emInputEvent::press(InputKey::Key('b')).with_chars("b");
-        lb.input(&ev, &ps, &is);
+        lb.Input(&ev, &ps, &is);
         assert_eq!(lb.GetSelectedIndex(), Some(1));
     }
 
@@ -2022,13 +2022,13 @@ mod tests {
 
         // Type '*nan' to do substring search — "nan" is unique to "Banana".
         let ev1 = emInputEvent::press(InputKey::Key('*')).with_chars("*");
-        lb.input(&ev1, &ps, &is);
+        lb.Input(&ev1, &ps, &is);
         let ev2 = emInputEvent::press(InputKey::Key('n')).with_chars("n");
-        lb.input(&ev2, &ps, &is);
+        lb.Input(&ev2, &ps, &is);
         let ev3 = emInputEvent::press(InputKey::Key('a')).with_chars("a");
-        lb.input(&ev3, &ps, &is);
+        lb.Input(&ev3, &ps, &is);
         let ev4 = emInputEvent::press(InputKey::Key('n')).with_chars("n");
-        lb.input(&ev4, &ps, &is);
+        lb.Input(&ev4, &ps, &is);
         assert_eq!(lb.GetSelectedIndex(), Some(1)); // "Banana" contains "nan"
     }
 
@@ -2044,9 +2044,9 @@ mod tests {
         // Type "ra" — fuzzy matches "Red-Apple" (skips '-')
         // 'r' -> 'R' match, 'a' -> skip '-', match 'A'
         let ev = emInputEvent::press(InputKey::Key('r')).with_chars("r");
-        lb.input(&ev, &ps, &is);
+        lb.Input(&ev, &ps, &is);
         let ev2 = emInputEvent::press(InputKey::Key('a')).with_chars("a");
-        lb.input(&ev2, &ps, &is);
+        lb.Input(&ev2, &ps, &is);
         assert_eq!(lb.GetSelectedIndex(), Some(0));
     }
 
@@ -2097,11 +2097,11 @@ mod tests {
         lb.AddItem("b".into(), "B".into());
         lb.Select(0, false);
         lb.Select(1, false);
-        assert_eq!(lb.selected(), &[0, 1]);
+        assert_eq!(lb.GetChecked(), &[0, 1]);
 
         // Select out-of-range with solely=true should clear everything.
         lb.Select(99, true);
-        assert!(lb.selected().is_empty());
+        assert!(lb.GetChecked().is_empty());
     }
 
     #[test]
@@ -2115,7 +2115,7 @@ mod tests {
 
         // Click item 1 (sets prev_input_index)
         lb.select_by_input(1, false, false, false);
-        assert_eq!(lb.selected(), &[1]);
+        assert_eq!(lb.GetChecked(), &[1]);
 
         // Shift-click item 3 (range 2..=3 selected, keeping 1)
         lb.select_by_input(3, true, false, false);
@@ -2135,7 +2135,7 @@ mod tests {
 
         // Click item 1 (toggles on)
         lb.select_by_input(1, false, false, false);
-        assert_eq!(lb.selected(), &[1]);
+        assert_eq!(lb.GetChecked(), &[1]);
 
         // Shift-click item 3 (toggle range 2..=3)
         lb.select_by_input(3, true, false, false);

@@ -146,7 +146,7 @@ impl emJobQueue {
     }
 
     /// Get a reference to a job by its handle.
-    pub fn get(&self, id: JobId) -> Option<&emJob> {
+    pub fn GetRec(&self, id: JobId) -> Option<&emJob> {
         self.jobs.get(id.0).and_then(|slot| slot.as_ref())
     }
 
@@ -267,7 +267,7 @@ impl emJobQueue {
     }
 
     /// Remove all jobs. Running and waiting jobs are aborted.
-    pub fn clear(&mut self, scheduler: &mut EngineScheduler) {
+    pub fn Clear(&mut self, scheduler: &mut EngineScheduler) {
         let running_ids: Vec<JobId> = self.running.iter().map(|&idx| JobId(idx)).collect();
         for id in running_ids {
             self.AbortJob(id, scheduler);
@@ -366,14 +366,14 @@ mod tests {
         let sig = job.GetStateSignal();
         let id = queue.EnqueueJob(job, &mut sched);
 
-        assert_eq!(queue.get(id).unwrap().state(), JobState::Waiting);
+        assert_eq!(queue.GetRec(id).unwrap().state(), JobState::Waiting);
         assert!(!queue.IsEmpty());
 
         queue.StartJob(id, &mut sched);
-        assert_eq!(queue.get(id).unwrap().state(), JobState::Running);
+        assert_eq!(queue.GetRec(id).unwrap().state(), JobState::Running);
 
         queue.SucceedJob(id, &mut sched);
-        assert_eq!(queue.get(id).unwrap().state(), JobState::Success);
+        assert_eq!(queue.GetRec(id).unwrap().state(), JobState::Success);
         assert!(queue.IsEmpty());
 
         sched.remove_signal(sig);
@@ -395,8 +395,8 @@ mod tests {
         // start_next should pick the highest priority job.
         let started = queue.StartNextJob(&mut sched);
         assert_eq!(started, Some(id_high));
-        assert_eq!(queue.get(id_high).unwrap().state(), JobState::Running);
-        assert_eq!(queue.get(id_low).unwrap().state(), JobState::Waiting);
+        assert_eq!(queue.GetRec(id_high).unwrap().state(), JobState::Running);
+        assert_eq!(queue.GetRec(id_low).unwrap().state(), JobState::Waiting);
 
         queue.AbortJob(id_high, &mut sched);
         queue.AbortJob(id_low, &mut sched);
@@ -415,7 +415,7 @@ mod tests {
         queue.StartJob(id, &mut sched);
 
         queue.FailJob(id, "disk full".to_string(), &mut sched);
-        let j = queue.get(id).unwrap();
+        let j = queue.GetRec(id).unwrap();
         assert_eq!(j.state(), JobState::Error);
         assert_eq!(j.GetErrorText(), "disk full");
 
@@ -438,8 +438,8 @@ mod tests {
 
         queue.FailAllJobs("shutdown", &mut sched);
 
-        assert_eq!(queue.get(id1).unwrap().state(), JobState::Error);
-        assert_eq!(queue.get(id2).unwrap().state(), JobState::Error);
+        assert_eq!(queue.GetRec(id1).unwrap().state(), JobState::Error);
+        assert_eq!(queue.GetRec(id2).unwrap().state(), JobState::Error);
         assert!(queue.IsEmpty());
 
         sched.remove_signal(sig1);
@@ -456,7 +456,7 @@ mod tests {
         let id = queue.EnqueueJob(job, &mut sched);
         queue.AbortJob(id, &mut sched);
 
-        assert_eq!(queue.get(id).unwrap().state(), JobState::Aborted);
+        assert_eq!(queue.GetRec(id).unwrap().state(), JobState::Aborted);
         assert!(queue.IsEmpty());
 
         sched.remove_signal(sig);

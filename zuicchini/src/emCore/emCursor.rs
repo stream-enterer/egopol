@@ -28,7 +28,7 @@ impl emCursor {
     // DIVERGED: Get — not applicable; Rust enum variant is the identity (C++ returns int id)
     // DIVERGED: ToString — renamed to `as_str`; `ToString` conflicts with Rust std::string::ToString trait
     /// Display name for this cursor type.
-    pub fn as_str(self) -> &'static str {
+    pub fn emInputKeyToString(self) -> &'static str {
         match self {
             emCursor::Normal => "Normal",
             emCursor::Invisible => "Invisible",
@@ -55,6 +55,6 @@ impl emCursor {
 
 impl fmt::Display for emCursor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
+        f.write_str(self.emInputKeyToString())
     }
 }

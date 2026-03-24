@@ -607,7 +607,7 @@ mod tests {
         let mut layout = emPackLayout::new();
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
-        let r = tree.get(children[0]).unwrap().layout_rect;
+        let r = tree.GetRec(children[0]).unwrap().layout_rect;
         assert!((r.x - 0.0).abs() < 0.001);
         assert!((r.y - 0.0).abs() < 0.001);
         assert!((r.w - 1.0).abs() < 0.001);
@@ -621,8 +621,8 @@ mod tests {
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         // Both children should cover the full area
-        let r0 = tree.get(children[0]).unwrap().layout_rect;
-        let r1 = tree.get(children[1]).unwrap().layout_rect;
+        let r0 = tree.GetRec(children[0]).unwrap().layout_rect;
+        let r1 = tree.GetRec(children[1]).unwrap().layout_rect;
         let total_area = r0.w * r0.h + r1.w * r1.h;
         assert!((total_area - 1.0 * 0.5).abs() < 0.001);
     }
@@ -636,7 +636,7 @@ mod tests {
         let mut layout = emPackLayout::new().with_spacing(crate::emCore::emTiling::Spacing::uniform(0.5, 0.0));
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
-        let r = tree.get(children[0]).unwrap().layout_rect;
+        let r = tree.GetRec(children[0]).unwrap().layout_rect;
         assert!((r.x - 0.25).abs() < 0.001, "x: {}", r.x);
         assert!((r.y - 0.1875).abs() < 0.001, "y: {}", r.y);
         assert!((r.w - 0.5).abs() < 0.001, "w: {}", r.w);
@@ -651,7 +651,7 @@ mod tests {
 
         // All children should have positive dimensions
         for (i, child) in children.iter().enumerate() {
-            let r = tree.get(*child).unwrap().layout_rect;
+            let r = tree.GetRec(*child).unwrap().layout_rect;
             assert!(r.w > 0.0, "child {i} has zero width");
             assert!(r.h > 0.0, "child {i} has zero height");
         }
@@ -664,7 +664,7 @@ mod tests {
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for child in &children {
-            let r = tree.get(*child).unwrap().layout_rect;
+            let r = tree.GetRec(*child).unwrap().layout_rect;
             assert!(r.w > 0.0);
             assert!(r.h > 0.0);
         }
@@ -683,14 +683,14 @@ mod tests {
         let area_no_pad: f64 = children_no_pad
             .iter()
             .map(|c| {
-                let r = tree_no_pad.get(*c).unwrap().layout_rect;
+                let r = tree_no_pad.GetRec(*c).unwrap().layout_rect;
                 r.w * r.h
             })
             .sum();
         let area_pad: f64 = children_pad
             .iter()
             .map(|c| {
-                let r = tree_pad.get(*c).unwrap().layout_rect;
+                let r = tree_pad.GetRec(*c).unwrap().layout_rect;
                 r.w * r.h
             })
             .sum();
@@ -710,7 +710,7 @@ mod tests {
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for (i, child) in children.iter().enumerate() {
-            let r = tree.get(*child).unwrap().layout_rect;
+            let r = tree.GetRec(*child).unwrap().layout_rect;
             assert!(r.w > 0.0, "child {i} has zero width");
             assert!(r.h > 0.0, "child {i} has zero height");
         }
@@ -724,7 +724,7 @@ mod tests {
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for (i, child) in children.iter().enumerate() {
-            let r = tree.get(*child).unwrap().layout_rect;
+            let r = tree.GetRec(*child).unwrap().layout_rect;
             assert!(r.w > 0.0, "child {i} has zero width");
             assert!(r.h > 0.0, "child {i} has zero height");
         }
@@ -748,7 +748,7 @@ mod tests {
 
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
         for child in &children {
-            let r = tree.get(*child).unwrap().layout_rect;
+            let r = tree.GetRec(*child).unwrap().layout_rect;
             assert!(r.w > 0.0);
             assert!(r.h > 0.0);
         }
@@ -772,7 +772,7 @@ mod tests {
 
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
         for child in &children {
-            let r = tree.get(*child).unwrap().layout_rect;
+            let r = tree.GetRec(*child).unwrap().layout_rect;
             assert!(r.w > 0.0);
             assert!(r.h > 0.0);
         }
@@ -799,7 +799,7 @@ mod tests {
         let total_area: f64 = children
             .iter()
             .map(|c| {
-                let r = tree.get(*c).unwrap().layout_rect;
+                let r = tree.GetRec(*c).unwrap().layout_rect;
                 r.w * r.h
             })
             .sum();
@@ -818,7 +818,7 @@ mod tests {
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for (i, child) in children.iter().enumerate() {
-            let r = tree.get(*child).unwrap().layout_rect;
+            let r = tree.GetRec(*child).unwrap().layout_rect;
             assert!(r.w > 0.0, "child {i} has zero width");
             assert!(r.h > 0.0, "child {i} has zero height");
         }

@@ -30,7 +30,7 @@ impl ScalarFieldPanel {
         editable: bool,
     ) -> Self {
         let mut sf = emScalarField::new(min, max, look);
-        sf.set_caption(caption);
+        sf.SetCaption(caption);
         sf.SetValue(value);
         sf.SetEditable(editable);
         sf.border_mut().outer = OuterBorderType::Rect;
@@ -42,7 +42,7 @@ impl ScalarFieldPanel {
 
 impl PanelBehavior for ScalarFieldPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.scalar_field.paint(painter, w, h, state.enabled);
+        self.scalar_field.Paint(painter, w, h, state.enabled);
     }
 
     fn Input(
@@ -51,11 +51,11 @@ impl PanelBehavior for ScalarFieldPanel {
         _state: &PanelState,
         _input_state: &emInputState,
     ) -> bool {
-        self.scalar_field.input(event, _state, _input_state)
+        self.scalar_field.Input(event, _state, _input_state)
     }
 
     fn GetCursor(&self) -> emCursor {
-        self.scalar_field.get_cursor()
+        self.scalar_field.GetCursor()
     }
 }
 
@@ -67,7 +67,7 @@ pub(crate) struct TextFieldPanel {
 impl TextFieldPanel {
     pub fn new(caption: &str, text: &str, look: Rc<emLook>, editable: bool) -> Self {
         let mut tf = emTextField::new(look);
-        tf.set_caption(caption);
+        tf.SetCaption(caption);
         tf.SetText(text);
         tf.SetEditable(editable);
         tf.border_mut().outer = OuterBorderType::Rect;
@@ -80,7 +80,7 @@ impl TextFieldPanel {
 impl PanelBehavior for TextFieldPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         self.text_field.cycle_blink(state.in_focused_path());
-        self.text_field.paint(painter, w, h, state.enabled);
+        self.text_field.Paint(painter, w, h, state.enabled);
     }
 
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {
@@ -97,7 +97,7 @@ pub(crate) struct CheckBoxPanel {
 
 impl PanelBehavior for CheckBoxPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.check_box.paint(painter, w, h, state.enabled);
+        self.check_box.Paint(painter, w, h, state.enabled);
     }
 
     fn Input(
@@ -106,11 +106,11 @@ impl PanelBehavior for CheckBoxPanel {
         _state: &PanelState,
         _input_state: &emInputState,
     ) -> bool {
-        self.check_box.input(event, _state, _input_state)
+        self.check_box.Input(event, _state, _input_state)
     }
 
     fn GetCursor(&self) -> emCursor {
-        self.check_box.get_cursor()
+        self.check_box.GetCursor()
     }
 }
 
@@ -121,7 +121,7 @@ pub(crate) struct ListBoxPanel {
 
 impl PanelBehavior for ListBoxPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        self.list_box.paint(painter, w, h);
+        self.list_box.Paint(painter, w, h);
     }
 
     fn Input(
@@ -130,7 +130,7 @@ impl PanelBehavior for ListBoxPanel {
         _state: &PanelState,
         _input_state: &emInputState,
     ) -> bool {
-        self.list_box.input(event, _state, _input_state)
+        self.list_box.Input(event, _state, _input_state)
     }
 
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {
@@ -150,7 +150,7 @@ pub(crate) struct ButtonPanel {
 
 impl PanelBehavior for ButtonPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.button.paint(painter, w, h, state.enabled);
+        self.button.Paint(painter, w, h, state.enabled);
     }
 
     fn Input(
@@ -159,11 +159,11 @@ impl PanelBehavior for ButtonPanel {
         _state: &PanelState,
         _input_state: &emInputState,
     ) -> bool {
-        self.button.input(event, _state, _input_state)
+        self.button.Input(event, _state, _input_state)
     }
 
     fn GetCursor(&self) -> emCursor {
-        self.button.get_cursor()
+        self.button.GetCursor()
     }
 }
 

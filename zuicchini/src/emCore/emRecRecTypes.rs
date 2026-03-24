@@ -56,7 +56,7 @@ impl RecListenerList {
     }
 
     /// Returns `true` if there are no listeners registered.
-    pub fn is_empty(&self) -> bool {
+    pub fn IsEmpty(&self) -> bool {
         self.listeners.is_empty()
     }
 }
@@ -81,11 +81,11 @@ impl emAlignmentRec {
         }
     }
 
-    pub fn get(&self) -> Alignment {
+    pub fn GetRec(&self) -> Alignment {
         self.value
     }
 
-    pub fn set(&mut self, value: Alignment) {
+    pub fn Set(&mut self, value: Alignment) {
         self.value = value;
     }
 
@@ -166,11 +166,11 @@ impl emColorRec {
         }
     }
 
-    pub fn get(&self) -> emColor {
+    pub fn GetRec(&self) -> emColor {
         self.value
     }
 
-    pub fn set(&mut self, value: emColor) {
+    pub fn Set(&mut self, value: emColor) {
         if self.have_alpha {
             self.value = value;
         } else {

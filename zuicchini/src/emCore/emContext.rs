@@ -90,12 +90,12 @@ impl emContext {
 
     /// emLook up the installed clipboard by walking the parent chain.
     /// Port of C++ emClipboard::LookupInherited.
-    pub fn lookup_clipboard(&self) -> Option<Rc<RefCell<dyn emClipboard>>> {
+    pub fn LookupClipboard(&self) -> Option<Rc<RefCell<dyn emClipboard>>> {
         if let Some(cb) = self.clipboard.borrow().as_ref() {
             return Some(Rc::clone(cb));
         }
-        if let Some(GetParentContext) = self.GetParentContext() {
-            return GetParentContext.lookup_clipboard();
+        if let Some(parent) = self.GetParentContext() {
+            return parent.LookupClipboard();
         }
         None
     }
@@ -182,8 +182,8 @@ impl emContext {
         if let Some(m) = self.Lookup::<T>(name) {
             return Some(m);
         }
-        if let Some(GetParentContext) = self.GetParentContext() {
-            return GetParentContext.LookupInherited::<T>(name);
+        if let Some(parent) = self.GetParentContext() {
+            return parent.LookupInherited::<T>(name);
         }
         None
     }

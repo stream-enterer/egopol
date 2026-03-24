@@ -113,7 +113,7 @@ impl emWindowStateSaver {
             self.normal_h = size.height;
         }
 
-        self.model.set(WindowGeometry {
+        self.model.Set(WindowGeometry {
             x: self.normal_x,
             y: self.normal_y,
             width: self.normal_w,

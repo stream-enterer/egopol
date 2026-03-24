@@ -77,7 +77,7 @@ impl TileCache {
     }
 
     /// Get a tile if it exists.
-    pub fn get(&self, col: u32, row: u32) -> Option<&Tile> {
+    pub fn GetRec(&self, col: u32, row: u32) -> Option<&Tile> {
         let idx = self.tile_index(col, row);
         self.tiles[idx].as_ref()
     }

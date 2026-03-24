@@ -49,7 +49,7 @@ impl emLabel {
         Self { border, look }
     }
 
-    pub fn set_caption(&mut self, text: &str) {
+    pub fn SetCaption(&mut self, text: &str) {
         self.border.caption = text.to_string();
     }
 
@@ -57,7 +57,7 @@ impl emLabel {
         &self.border.caption
     }
 
-    pub fn set_description(&mut self, text: &str) {
+    pub fn SetDescription(&mut self, text: &str) {
         self.border.description = text.to_string();
     }
 
@@ -65,25 +65,25 @@ impl emLabel {
         &self.border.description
     }
 
-    pub fn set_icon(&mut self, icon: Option<emImage>) {
+    pub fn SetIcon(&mut self, icon: Option<emImage>) {
         self.border.SetIcon(icon);
     }
 
     /// Set horizontal alignment of the label block within content area.
     /// Matches C++ `emBorder::SetLabelAlignment`.
-    pub fn set_label_alignment(&mut self, a: TextAlignment) {
+    pub fn SetLabelAlignment(&mut self, a: TextAlignment) {
         self.border.label_alignment = a;
     }
 
     /// Set text line alignment for the caption.
     /// Matches C++ `emBorder::SetCaptionAlignment`.
-    pub fn set_caption_alignment(&mut self, a: TextAlignment) {
+    pub fn SetCaptionAlignment(&mut self, a: TextAlignment) {
         self.border.SetCaptionAlignment(Some(a));
     }
 
     /// Set text line alignment for the description.
     /// Matches C++ `emBorder::SetDescriptionAlignment`.
-    pub fn set_description_alignment(&mut self, a: TextAlignment) {
+    pub fn SetDescriptionAlignment(&mut self, a: TextAlignment) {
         self.border.SetDescriptionAlignment(Some(a));
     }
 
@@ -126,7 +126,7 @@ mod tests {
         let look = emLook::new();
         let mut label = emLabel::new("Hello", look);
         assert_eq!(label.caption(), "Hello");
-        label.set_caption("World");
+        label.SetCaption("World");
         assert_eq!(label.caption(), "World");
     }
 
@@ -152,7 +152,7 @@ mod tests {
         let look = emLook::new();
         let mut label = emLabel::new("Title", look);
         assert!(label.description().is_empty());
-        label.set_description("Desc");
+        label.SetDescription("Desc");
         assert_eq!(label.description(), "Desc");
     }
 }

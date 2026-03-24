@@ -613,7 +613,7 @@ impl emBorder {
     fn label_layout(&self, area_x: f64, area_y: f64, area_w: f64, area_h: f64) -> LabelLayout {
         let has_cap = !self.caption.is_empty();
         let has_desc = !self.description.is_empty();
-        let icon = self.icon.as_ref().filter(|img| !img.is_empty());
+        let icon = self.icon.as_ref().filter(|img| !img.IsEmpty());
 
         // Count "rows" to distribute height among: caption=1, description=0.15 relative.
         // Eagle Mode: description height = capH * 0.15.
@@ -1583,7 +1583,7 @@ How to move or set the focus:\n\
         // Icon
         if let Some(ref icon_rect) = label.icon_rect {
             if let Some(ref img) = self.icon {
-                if !img.is_empty() {
+                if !img.IsEmpty() {
                     if img.GetChannelCount() == 1 {
                         painter.PaintImageColored(
                             icon_rect.x,
@@ -2426,9 +2426,9 @@ mod tests {
     #[test]
     fn image_is_empty() {
         let empty = emImage::new(0, 0, 1);
-        assert!(empty.is_empty());
+        assert!(empty.IsEmpty());
         let nonempty = emImage::new(1, 1, 1);
-        assert!(!nonempty.is_empty());
+        assert!(!nonempty.IsEmpty());
     }
 
     // --- is_opaque tests ---

@@ -266,7 +266,7 @@ impl emRadioButton {
         self.index_cell.set(index);
     }
 
-    pub fn is_selected(&self) -> bool {
+    pub fn IsSelected(&self) -> bool {
         self.group.borrow().selected == Some(self.index_cell.get())
     }
 
@@ -281,7 +281,7 @@ impl emRadioButton {
     pub fn set_checked(&mut self, checked: bool) {
         if checked {
             self.group.borrow_mut().SetChecked(self.index_cell.get());
-        } else if self.is_selected() {
+        } else if self.IsSelected() {
             self.group.borrow_mut().SetCheckIndex(None);
         }
     }
@@ -291,7 +291,7 @@ impl emRadioButton {
     /// emRadioButton renders as a normal button (face + centered label).
     /// When checked (ShownChecked=true), the label is slightly shrunk and
     /// a ButtonChecked overlay is painted instead of the normal emButton overlay.
-    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -324,7 +324,7 @@ impl emRadioButton {
         let mut lw = fw - 2.0 * dx;
         let mut lh = fh - 2.0 * dy;
 
-        let checked = self.is_selected();
+        let checked = self.IsSelected();
         // C++ line 377-382: Pressed -> 0.98, ShownChecked -> 0.983.
         // Pressed takes priority.
         if self.pressed || checked {
@@ -432,7 +432,7 @@ impl emRadioButton {
         super::widget_utils::check_mouse_round_rect(mx, my, &face, fr)
     }
 
-    pub fn input(
+    pub fn Input(
         &mut self,
         event: &emInputEvent,
         state: &PanelState,
@@ -480,7 +480,7 @@ impl emRadioButton {
                     if trace {
                         eprintln!(
                             "    [RadioButton {:?}] Release mouse=({:.4},{:.4}) last=({:.4},{:.4}) hit={} pressed={} selected_before={}",
-                            self.border.caption, event.mouse_x, event.mouse_y, self.last_w, self.last_h, hit, self.pressed, self.is_selected()
+                            self.border.caption, event.mouse_x, event.mouse_y, self.last_w, self.last_h, hit, self.pressed, self.IsSelected()
                         );
                     }
                     self.pressed = false;
@@ -509,7 +509,7 @@ impl emRadioButton {
         }
     }
 
-    pub fn get_cursor(&self) -> emCursor {
+    pub fn GetCursor(&self) -> emCursor {
         emCursor::Normal
     }
 
@@ -526,7 +526,7 @@ impl emRadioButton {
     pub fn GetHowTo(&self, enabled: bool, focusable: bool) -> String {
         let mut text = self.border.GetHowTo(enabled, focusable);
         text.push_str(HOWTO_CHECK_BUTTON);
-        if self.is_selected() {
+        if self.IsSelected() {
             text.push_str(HOWTO_CHECKED);
         } else {
             text.push_str(HOWTO_NOT_CHECKED);
@@ -652,23 +652,23 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
 
-        assert!(!r0.is_selected());
-        assert!(!r1.is_selected());
-        assert!(!r2.is_selected());
+        assert!(!r0.IsSelected());
+        assert!(!r1.IsSelected());
+        assert!(!r2.IsSelected());
 
         // Enter is instant: selects on press, no release needed.
-        r0.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
-        assert!(r0.is_selected()); // Selected immediately on press
-        assert!(!r1.is_selected());
+        r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        assert!(r0.IsSelected()); // Selected immediately on press
+        assert!(!r1.IsSelected());
 
-        r2.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
-        assert!(!r0.is_selected());
-        assert!(r2.is_selected());
+        r2.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        assert!(!r0.IsSelected());
+        assert!(r2.IsSelected());
 
-        r1.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
-        assert!(!r0.is_selected());
-        assert!(r1.is_selected());
-        assert!(!r2.is_selected());
+        r1.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        assert!(!r0.IsSelected());
+        assert!(r1.IsSelected());
+        assert!(!r2.IsSelected());
     }
 
     #[test]
@@ -680,9 +680,9 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!r0.pressed);
-        r0.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!r0.pressed); // Enter selects instantly, no press state
-        assert!(r0.is_selected()); // But the selection did happen
+        assert!(r0.IsSelected()); // But the selection did happen
     }
 
     #[test]
@@ -701,8 +701,8 @@ mod tests {
         let is = default_input_state();
 
         // Enter is instant: each press fires the callback immediately.
-        r0.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
-        r1.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        r1.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*selections.borrow(), vec![Some(0), Some(1)]);
     }
 
@@ -710,19 +710,19 @@ mod tests {
     fn count_tracks_construction_and_drop() {
         let look = emLook::new();
         let group = RadioGroup::new();
-        assert_eq!(group.borrow().count(), 0);
+        assert_eq!(group.borrow().GetCount(), 0);
 
         let r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
-        assert_eq!(group.borrow().count(), 1);
+        assert_eq!(group.borrow().GetCount(), 1);
 
         let r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
-        assert_eq!(group.borrow().count(), 2);
+        assert_eq!(group.borrow().GetCount(), 2);
 
         drop(r0);
-        assert_eq!(group.borrow().count(), 1);
+        assert_eq!(group.borrow().GetCount(), 1);
 
         drop(r1);
-        assert_eq!(group.borrow().count(), 0);
+        assert_eq!(group.borrow().GetCount(), 0);
     }
 
     #[test]
@@ -746,20 +746,20 @@ mod tests {
 
         // set_checked(true) selects this button
         r0.set_checked(true);
-        assert!(r0.is_selected());
-        assert!(!r1.is_selected());
+        assert!(r0.IsSelected());
+        assert!(!r1.IsSelected());
         assert_eq!(group.borrow().GetChecked(), Some(0));
 
         // set_checked(true) on another button switches selection
         r1.set_checked(true);
-        assert!(!r0.is_selected());
-        assert!(r1.is_selected());
+        assert!(!r0.IsSelected());
+        assert!(r1.IsSelected());
         assert_eq!(group.borrow().GetChecked(), Some(1));
 
         // set_checked(false) on the selected button clears selection
         r1.set_checked(false);
-        assert!(!r0.is_selected());
-        assert!(!r1.is_selected());
+        assert!(!r0.IsSelected());
+        assert!(!r1.IsSelected());
         assert_eq!(group.borrow().GetChecked(), None);
     }
 
@@ -776,7 +776,7 @@ mod tests {
         // set_checked(false) on a non-selected button does nothing
         r1.set_checked(false);
         assert_eq!(group.borrow().GetChecked(), Some(0));
-        assert!(r0.is_selected());
+        assert!(r0.IsSelected());
     }
 
     #[test]
@@ -790,7 +790,7 @@ mod tests {
 
         // Remove the checked button
         group.borrow_mut().RemoveByIndex(1);
-        assert_eq!(group.borrow().count(), 2);
+        assert_eq!(group.borrow().GetCount(), 2);
         assert_eq!(group.borrow().GetChecked(), None);
     }
 
@@ -805,7 +805,7 @@ mod tests {
 
         // Remove button at index 1 (before the checked one)
         group.borrow_mut().RemoveByIndex(1);
-        assert_eq!(group.borrow().count(), 3);
+        assert_eq!(group.borrow().GetCount(), 3);
         // Checked index should have decremented from 3 to 2
         assert_eq!(group.borrow().GetChecked(), Some(2));
     }
@@ -821,7 +821,7 @@ mod tests {
 
         // Remove button at index 2 (after the checked one)
         group.borrow_mut().RemoveByIndex(2);
-        assert_eq!(group.borrow().count(), 3);
+        assert_eq!(group.borrow().GetCount(), 3);
         assert_eq!(group.borrow().GetChecked(), Some(0));
     }
 
@@ -834,7 +834,7 @@ mod tests {
             g.Select(0);
         }
         group.borrow_mut().RemoveByIndex(5);
-        assert_eq!(group.borrow().count(), 2);
+        assert_eq!(group.borrow().GetCount(), 2);
         assert_eq!(group.borrow().GetChecked(), Some(0));
     }
 
@@ -872,7 +872,7 @@ mod tests {
         }
 
         group.borrow_mut().RemoveAll();
-        assert_eq!(group.borrow().count(), 0);
+        assert_eq!(group.borrow().GetCount(), 0);
         assert_eq!(group.borrow().GetChecked(), None);
         assert_eq!(*signals.borrow(), vec![None]);
     }
@@ -892,7 +892,7 @@ mod tests {
         }
 
         group.borrow_mut().RemoveAll();
-        assert_eq!(group.borrow().count(), 0);
+        assert_eq!(group.borrow().GetCount(), 0);
         assert!(signals.borrow().is_empty());
     }
 
@@ -940,7 +940,7 @@ mod tests {
 
         // Select the last button
         group.borrow_mut().Select(2);
-        assert!(r2.is_selected());
+        assert!(r2.IsSelected());
         assert_eq!(r2.index(), 2);
 
         // Drop the middle button
@@ -948,11 +948,11 @@ mod tests {
 
         // r2's index should have been decremented
         assert_eq!(r2.index(), 1);
-        assert_eq!(group.borrow().count(), 2);
+        assert_eq!(group.borrow().GetCount(), 2);
         // Selection should have shifted from 2 to 1
         assert_eq!(group.borrow().GetChecked(), Some(1));
-        assert!(r2.is_selected());
-        assert!(!r0.is_selected());
+        assert!(r2.IsSelected());
+        assert!(!r0.IsSelected());
     }
 
     #[test]
@@ -965,14 +965,14 @@ mod tests {
         let r2 = emRadioButton::new("C", look, group.clone(), 2);
 
         group.borrow_mut().Select(1);
-        assert!(r1.is_selected());
+        assert!(r1.IsSelected());
 
         drop(r1);
 
-        assert_eq!(group.borrow().count(), 2);
+        assert_eq!(group.borrow().GetCount(), 2);
         assert_eq!(group.borrow().GetChecked(), None);
-        assert!(!r0.is_selected());
-        assert!(!r2.is_selected());
+        assert!(!r0.IsSelected());
+        assert!(!r2.IsSelected());
         // r2's index should have been decremented
         assert_eq!(r2.index(), 1);
     }

@@ -77,7 +77,7 @@ impl emSplitter {
 
     /// Set the border scaling factor. C++ `emSplitter` inherits
     /// `GetBorderScaling()` from `emBorder`; default is 1.0.
-    pub fn set_border_scaling(&mut self, s: f64) {
+    pub fn SetBorderScaling(&mut self, s: f64) {
         self.border_scaling = s.max(1e-10);
     }
 

@@ -88,5 +88,5 @@ impl emClipboard for emPrivateClipboard {
 /// emLook up the installed clipboard by walking the context hierarchy.
 /// Port of C++ emClipboard::LookupInherited(emContext&).
 pub fn LookupInherited(context: &Rc<emContext>) -> Option<Rc<RefCell<dyn emClipboard>>> {
-    context.lookup_clipboard()
+    context.LookupClipboard()
 }

@@ -117,8 +117,8 @@ impl emFileDialog {
         self.fsb.set_selected_names(names);
     }
 
-    pub fn clear_selection(&mut self) {
-        self.fsb.clear_selection();
+    pub fn ClearSelection(&mut self) {
+        self.fsb.ClearSelection();
     }
 
     pub fn GetSelectedPath(&self) -> PathBuf {
@@ -169,11 +169,11 @@ impl emFileDialog {
         &mut self.fsb
     }
 
-    pub fn finish(&mut self, result: DialogResult) {
+    pub fn Finish(&mut self, result: DialogResult) {
         self.dialog.Finish(result);
     }
 
-    pub fn result(&self) -> Option<&DialogResult> {
+    pub fn GetResult(&self) -> Option<&DialogResult> {
         self.dialog.GetResult()
     }
 
@@ -307,7 +307,7 @@ mod tests {
     #[test]
     fn dialog_open_no_selection_error() {
         let mut dlg = make_dialog(FileDialogMode::Open);
-        dlg.clear_selection();
+        dlg.ClearSelection();
         let result = dlg.CheckFinish(&DialogResult::Ok);
         assert!(matches!(result, FileDialogCheckResult::Error(_)));
     }

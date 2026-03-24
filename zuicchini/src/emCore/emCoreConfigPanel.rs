@@ -128,7 +128,7 @@ fn make_factor_field(
     minimum_means_disabled: bool,
 ) -> ScalarFieldPanel {
     let mut sf = emScalarField::new(-200.0, 200.0, look);
-    sf.set_caption(caption);
+    sf.SetCaption(caption);
     sf.border_mut().description = description.to_string();
     sf.SetValue(factor_cfg_to_val(cfg_value, cfg_min, cfg_max));
     sf.SetScaleMarkIntervals(&[100, 10]);
@@ -257,7 +257,7 @@ impl PanelBehavior for KBGroup {
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -368,7 +368,7 @@ impl PanelBehavior for MouseMiscGroup {
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -525,7 +525,7 @@ impl PanelBehavior for KineticGroup {
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -641,7 +641,7 @@ impl PanelBehavior for MaxMemGroup {
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -676,7 +676,7 @@ impl MemFieldLayoutPanel {
         let min_val = mem_cfg_to_val(8);
         let max_val = mem_cfg_to_val(16384);
         let mut sf = emScalarField::new(min_val, max_val, self.look.clone());
-        sf.set_caption("Max megabytes per view");
+        sf.SetCaption("Max megabytes per view");
         sf.SetValue(mem_cfg_to_val(c.max_megabytes_per_view));
         sf.SetScaleMarkIntervals(&[100, 10]);
         sf.SetTextBoxTallness(0.3);
@@ -769,10 +769,10 @@ impl PanelBehavior for MaxMemInnerTunnelPanel {
         }
 
         let rect = ctx.layout_rect();
-        let cr = self.tunnel.GetChildRect(rect.w, rect.h, ctx.canvas_color());
+        let cr = self.tunnel.GetChildRect(rect.w, rect.h, ctx.GetCanvasColor());
         if let Some(&child) = ctx.children().first() {
             ctx.layout_child(child, cr.x, cr.y, cr.w, cr.h);
-            ctx.tree.set_canvas_color(child, cr.canvas_color);
+            ctx.tree.SetCanvasColor(child, cr.canvas_color);
         }
     }
 }
@@ -829,10 +829,10 @@ impl PanelBehavior for MaxMemTunnelPanel {
         }
 
         let rect = ctx.layout_rect();
-        let cr = self.tunnel.GetChildRect(rect.w, rect.h, ctx.canvas_color());
+        let cr = self.tunnel.GetChildRect(rect.w, rect.h, ctx.GetCanvasColor());
         if let Some(&child) = ctx.children().first() {
             ctx.layout_child(child, cr.x, cr.y, cr.w, cr.h);
-            ctx.tree.set_canvas_color(child, cr.canvas_color);
+            ctx.tree.SetCanvasColor(child, cr.canvas_color);
         }
     }
 }
@@ -877,7 +877,7 @@ impl CpuGroup {
 
         // MaxRenderThreads: range 1-32
         let mut sf = emScalarField::new(1.0, 32.0, self.look.clone());
-        sf.set_caption("Max render threads");
+        sf.SetCaption("Max render threads");
         sf.SetValue(c.max_render_threads as f64);
         sf.SetScaleMarkIntervals(&[1]);
         sf.border_mut().outer = OuterBorderType::None;
@@ -948,7 +948,7 @@ impl PanelBehavior for CpuGroup {
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -1016,7 +1016,7 @@ impl PerformanceGroup {
 
         // DownscaleQuality: range 2-6
         let mut ds_sf = emScalarField::new(2.0, 6.0, self.look.clone());
-        ds_sf.set_caption("Downscale quality");
+        ds_sf.SetCaption("Downscale quality");
         ds_sf.border_mut().description =
             "Quality of image downscaling (antialiasing filter size)".to_string();
         ds_sf.SetValue(c.downscale_quality as f64);
@@ -1040,7 +1040,7 @@ impl PerformanceGroup {
 
         // UpscaleQuality: range 0-5 (0 = Nearest Pixel)
         let mut us_sf = emScalarField::new(0.0, 5.0, self.look.clone());
-        us_sf.set_caption("Upscale quality");
+        us_sf.SetCaption("Upscale quality");
         us_sf.border_mut().description = "Quality of image upscaling (interpolation)".to_string();
         us_sf.SetValue(c.upscale_quality as f64);
         us_sf.SetScaleMarkIntervals(&[1]);
@@ -1096,7 +1096,7 @@ impl PanelBehavior for PerformanceGroup {
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -1267,7 +1267,7 @@ impl PanelBehavior for MouseGroup {
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -1537,7 +1537,7 @@ impl PanelBehavior for emCoreConfigPanel {
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }

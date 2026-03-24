@@ -367,11 +367,11 @@ mod tests {
 
         // 3 cols, 2 rows in normalized space (w=1.0, h=2/3)
         // Each cell: 1/3 x 1/3
-        let r0 = tree.get(children[0]).unwrap().layout_rect;
+        let r0 = tree.GetRec(children[0]).unwrap().layout_rect;
         assert!((r0.w - 1.0 / 3.0).abs() < 0.001);
         assert!((r0.h - 1.0 / 3.0).abs() < 0.001);
         // Child 3 is at row 1, col 0
-        let r3 = tree.get(children[3]).unwrap().layout_rect;
+        let r3 = tree.GetRec(children[3]).unwrap().layout_rect;
         assert!((r3.x - 0.0).abs() < 0.001);
         assert!((r3.y - 1.0 / 3.0).abs() < 0.001);
     }
@@ -383,7 +383,7 @@ mod tests {
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         // 4 items in normalized 1.0x1.0 with tallness 1.0 -> 2x2 grid, each 0.5x0.5
-        let r0 = tree.get(children[0]).unwrap().layout_rect;
+        let r0 = tree.GetRec(children[0]).unwrap().layout_rect;
         assert!((r0.w - 0.5).abs() < 0.001);
         assert!((r0.h - 0.5).abs() < 0.001);
     }
@@ -403,8 +403,8 @@ mod tests {
         layout.max_child_tallness = 0.5;
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
-        let r0 = tree.get(children[0]).unwrap().layout_rect;
-        let r1 = tree.get(children[1]).unwrap().layout_rect;
+        let r0 = tree.GetRec(children[0]).unwrap().layout_rect;
+        let r1 = tree.GetRec(children[1]).unwrap().layout_rect;
         assert!((r0.y - 0.25).abs() < 0.001, "child 0 y: {}", r0.y);
         assert!((r0.h - 0.5).abs() < 0.001, "child 0 h: {}", r0.h);
         assert!((r1.y - 0.75).abs() < 0.001, "child 1 y: {}", r1.y);
@@ -419,10 +419,10 @@ mod tests {
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         // Column-major: child 0 at (0,0), child 1 at (0,0.5), child 2 at (0.5,0)
-        let r1 = tree.get(children[1]).unwrap().layout_rect;
+        let r1 = tree.GetRec(children[1]).unwrap().layout_rect;
         assert!((r1.x - 0.0).abs() < 0.001);
         assert!((r1.y - 0.5).abs() < 0.001);
-        let r2 = tree.get(children[2]).unwrap().layout_rect;
+        let r2 = tree.GetRec(children[2]).unwrap().layout_rect;
         assert!((r2.x - 0.5).abs() < 0.001);
         assert!((r2.y - 0.0).abs() < 0.001);
     }
@@ -436,8 +436,8 @@ mod tests {
         layout.row_major = true;
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
-        let r0 = tree.get(children[0]).unwrap().layout_rect;
-        let r1 = tree.get(children[1]).unwrap().layout_rect;
+        let r0 = tree.GetRec(children[0]).unwrap().layout_rect;
+        let r1 = tree.GetRec(children[1]).unwrap().layout_rect;
         // 6 cells in 3 cols -> 2 rows, each cell 1/3 x 1/3
         assert!((r0.w - 1.0 / 3.0).abs() < 0.001, "child 0 w: {}", r0.w);
         assert!((r0.h - 1.0 / 3.0).abs() < 0.001, "child 0 h: {}", r0.h);
@@ -461,7 +461,7 @@ mod tests {
 
         // All children should be laid out with positive sizes
         for child in &children {
-            let r = tree.get(*child).unwrap().layout_rect;
+            let r = tree.GetRec(*child).unwrap().layout_rect;
             assert!(r.w > 0.0);
             assert!(r.h > 0.0);
             // Cell tallness should be >= 2.0 (after clamping)

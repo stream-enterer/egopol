@@ -388,14 +388,14 @@ mod tests {
     fn empty_set() {
         let cr = ClipRects::new();
         assert!(cr.IsEmpty());
-        assert_eq!(cr.count(), 0);
+        assert_eq!(cr.GetCount(), 0);
         assert_eq!(cr.GetMinMax(), (0.0, 0.0, 0.0, 0.0));
     }
 
     #[test]
     fn single_rect() {
         let cr = ClipRects::from_rect(10.0, 20.0, 30.0, 40.0);
-        assert_eq!(cr.count(), 1);
+        assert_eq!(cr.GetCount(), 1);
         assert_eq!(cr.GetMinMax(), (10.0, 20.0, 30.0, 40.0));
     }
 
@@ -403,7 +403,7 @@ mod tests {
     fn unite_non_overlapping() {
         let mut cr = ClipRects::from_rect(0.0, 0.0, 10.0, 10.0);
         cr.unite_rect(20.0, 20.0, 30.0, 30.0);
-        assert_eq!(cr.count(), 2);
+        assert_eq!(cr.GetCount(), 2);
         assert_eq!(cr.GetMinMax(), (0.0, 0.0, 30.0, 30.0));
     }
 
@@ -422,14 +422,14 @@ mod tests {
     fn unite_containing() {
         let mut cr = ClipRects::from_rect(0.0, 0.0, 10.0, 10.0);
         cr.unite_rect(2.0, 2.0, 8.0, 8.0);
-        assert_eq!(cr.count(), 1);
+        assert_eq!(cr.GetCount(), 1);
     }
 
     #[test]
     fn unite_contained_by_existing() {
         let mut cr = ClipRects::from_rect(0.0, 0.0, 10.0, 10.0);
         cr.unite_rect(-1.0, -1.0, 11.0, 11.0);
-        assert_eq!(cr.count(), 1);
+        assert_eq!(cr.GetCount(), 1);
         let r = cr.iter().next().unwrap();
         assert_eq!((r.x1, r.y1, r.x2, r.y2), (-1.0, -1.0, 11.0, 11.0));
     }
@@ -438,7 +438,7 @@ mod tests {
     fn unite_same_x_merges_vertically() {
         let mut cr = ClipRects::from_rect(0.0, 0.0, 10.0, 5.0);
         cr.unite_rect(0.0, 5.0, 10.0, 10.0);
-        assert_eq!(cr.count(), 1);
+        assert_eq!(cr.GetCount(), 1);
         let r = cr.iter().next().unwrap();
         assert_eq!((r.x1, r.y1, r.x2, r.y2), (0.0, 0.0, 10.0, 10.0));
     }
@@ -447,7 +447,7 @@ mod tests {
     fn intersect_rect_clips() {
         let mut cr = ClipRects::from_rect(0.0, 0.0, 10.0, 10.0);
         cr.intersect_rect(5.0, 5.0, 15.0, 15.0);
-        assert_eq!(cr.count(), 1);
+        assert_eq!(cr.GetCount(), 1);
         let r = cr.iter().next().unwrap();
         assert_eq!((r.x1, r.y1, r.x2, r.y2), (5.0, 5.0, 10.0, 10.0));
     }
@@ -479,7 +479,7 @@ mod tests {
     fn subtract_no_overlap() {
         let mut cr = ClipRects::from_rect(0.0, 0.0, 5.0, 5.0);
         cr.subtract_rect(10.0, 10.0, 20.0, 20.0);
-        assert_eq!(cr.count(), 1);
+        assert_eq!(cr.GetCount(), 1);
     }
 
     #[test]
@@ -494,9 +494,9 @@ mod tests {
     fn set_to_min_max_collapses() {
         let mut cr = ClipRects::from_rect(0.0, 0.0, 5.0, 5.0);
         cr.unite_rect(10.0, 10.0, 15.0, 15.0);
-        assert_eq!(cr.count(), 2);
+        assert_eq!(cr.GetCount(), 2);
         cr.SetToMinMax();
-        assert_eq!(cr.count(), 1);
+        assert_eq!(cr.GetCount(), 1);
         let r = cr.iter().next().unwrap();
         assert_eq!((r.x1, r.y1, r.x2, r.y2), (0.0, 0.0, 15.0, 15.0));
     }
@@ -530,7 +530,7 @@ mod tests {
     fn unite_empty_rect_noop() {
         let mut cr = ClipRects::from_rect(0.0, 0.0, 10.0, 10.0);
         cr.unite_rect(5.0, 5.0, 5.0, 10.0);
-        assert_eq!(cr.count(), 1);
+        assert_eq!(cr.GetCount(), 1);
     }
 
     #[test]

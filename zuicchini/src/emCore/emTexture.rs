@@ -94,7 +94,7 @@ pub enum emTexture {
 
 impl emTexture {
     /// Create a solid color texture.
-    pub fn color(c: emColor) -> Self {
+    pub fn GetColor(c: emColor) -> Self {
         emTexture::SolidColor(c)
     }
 }

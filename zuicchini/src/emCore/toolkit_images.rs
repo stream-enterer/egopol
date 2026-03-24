@@ -34,7 +34,7 @@ fn decode(data: &[u8], name: &str, expected_w: u32, expected_h: u32) -> emImage 
 }
 
 impl ToolkitImages {
-    fn load() -> Self {
+    fn TryLoad() -> Self {
         Self {
             group_border: decode(
                 include_bytes!("../../res/toolkit/GroupBorder.tga"),
@@ -135,5 +135,5 @@ thread_local! {
 }
 
 pub(crate) fn with_toolkit_images<R>(f: impl FnOnce(&ToolkitImages) -> R) -> R {
-    TOOLKIT.with(|cell| f(cell.get_or_init(ToolkitImages::load)))
+    TOOLKIT.with(|cell| f(cell.get_or_init(ToolkitImages::TryLoad)))
 }

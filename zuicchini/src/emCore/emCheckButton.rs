@@ -63,7 +63,7 @@ impl emCheckButton {
     /// emCheckButton renders as a normal button face with centered label.
     /// When checked (ShownChecked=true), the label is slightly shrunk and
     /// a ButtonChecked overlay is painted instead of the normal emButton overlay.
-    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -203,7 +203,7 @@ impl emCheckButton {
         super::widget_utils::check_mouse_round_rect(mx, my, &face, fr)
     }
 
-    pub fn input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -273,7 +273,7 @@ impl emCheckButton {
         }
     }
 
-    pub fn get_cursor(&self) -> emCursor {
+    pub fn GetCursor(&self) -> emCursor {
         emCursor::Normal
     }
 
@@ -285,7 +285,7 @@ impl emCheckButton {
 
     /// Whether this check button provides how-to help text.
     /// Matches C++ `emCheckButton::HasHowTo` (inherited from emButton, always true).
-    pub fn has_how_to(&self) -> bool {
+    pub fn HasHowTo(&self) -> bool {
         true
     }
 
@@ -367,9 +367,9 @@ mod tests {
         let is = default_input_state();
         assert!(!btn.IsChecked());
         // Enter is instant: toggles on press, no release needed.
-        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(btn.IsChecked()); // Toggled immediately on press
-        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!btn.IsChecked());
     }
 
@@ -381,7 +381,7 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!btn.pressed);
-        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!btn.pressed); // Enter toggles instantly, no press state
         assert!(btn.IsChecked()); // But the toggle did happen
     }
@@ -400,8 +400,8 @@ mod tests {
         let is = default_input_state();
 
         // Enter is instant: each press fires the callback immediately.
-        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
-        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*states.borrow(), vec![true, false]);
     }
 }

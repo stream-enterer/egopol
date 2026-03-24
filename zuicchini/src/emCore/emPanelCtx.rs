@@ -33,7 +33,7 @@ impl<'a> PanelCtx<'a> {
     /// Remove a child panel.
     pub fn delete_child(&mut self, child: PanelId) {
         // Verify it's actually a child
-        if self.tree.parent(child) == Some(self.id) {
+        if self.tree.GetParentContext(child) == Some(self.id) {
             self.tree.remove(child);
         }
     }
@@ -63,12 +63,12 @@ impl<'a> PanelCtx<'a> {
         canvas_color: emColor,
     ) {
         self.tree.Layout(child, x, y, w, h);
-        self.tree.set_canvas_color(child, canvas_color);
+        self.tree.SetCanvasColor(child, canvas_color);
     }
 
     /// Get the parent panel ID.
-    pub fn parent(&self) -> Option<PanelId> {
-        self.tree.parent(self.id)
+    pub fn GetParentContext(&self) -> Option<PanelId> {
+        self.tree.GetParentContext(self.id)
     }
 
     /// Iterate over children of the current panel.
@@ -79,7 +79,7 @@ impl<'a> PanelCtx<'a> {
     /// Get the name of the current panel.
     pub fn name(&self) -> &str {
         self.tree
-            .get(self.id)
+            .GetRec(self.id)
             .map(|p| p.name.as_str())
             .unwrap_or("")
     }
@@ -92,7 +92,7 @@ impl<'a> PanelCtx<'a> {
     /// this normalized space.
     pub fn layout_rect(&self) -> Rect {
         self.tree
-            .get(self.id)
+            .GetRec(self.id)
             .map(|p| {
                 let tallness = if p.layout_rect.w > 1e-100 {
                     p.layout_rect.h / p.layout_rect.w
@@ -105,13 +105,13 @@ impl<'a> PanelCtx<'a> {
     }
 
     /// Set the canvas color.
-    pub fn set_canvas_color(&mut self, color: emColor) {
-        self.tree.set_canvas_color(self.id, color);
+    pub fn SetCanvasColor(&mut self, color: emColor) {
+        self.tree.SetCanvasColor(self.id, color);
     }
 
     /// Get whether the panel is visible.
     pub fn is_visible(&self) -> bool {
-        self.tree.get(self.id).map(|p| p.visible).unwrap_or(false)
+        self.tree.GetRec(self.id).map(|p| p.visible).unwrap_or(false)
     }
 
     /// Set visibility.
@@ -153,7 +153,7 @@ impl<'a> PanelCtx<'a> {
     }
 
     /// Remove all children of the current panel.
-    pub fn delete_all_children(&mut self) {
+    pub fn DeleteAllChildren(&mut self) {
         self.tree.DeleteAllChildren(self.id);
     }
 
@@ -163,20 +163,20 @@ impl<'a> PanelCtx<'a> {
     }
 
     /// Get the canvas color of the current panel.
-    pub fn canvas_color(&self) -> emColor {
+    pub fn GetCanvasColor(&self) -> emColor {
         self.tree
-            .get(self.id)
+            .GetRec(self.id)
             .map(|p| p.canvas_color)
             .unwrap_or(emColor::TRANSPARENT)
     }
 
     /// Get whether the panel is enabled.
     pub fn is_enabled(&self) -> bool {
-        self.tree.get(self.id).map(|p| p.enabled).unwrap_or(false)
+        self.tree.GetRec(self.id).map(|p| p.enabled).unwrap_or(false)
     }
 
     /// Set the enable switch for the current panel.
-    pub fn set_enable_switch(&mut self, enable: bool) {
+    pub fn SetEnableSwitch(&mut self, enable: bool) {
         self.tree.SetEnableSwitch(self.id, enable);
     }
 
@@ -189,7 +189,7 @@ impl<'a> PanelCtx<'a> {
     ///
     /// C++ equivalent: the canvasColor argument of `child->Layout()`.
     pub fn set_child_canvas_color(&mut self, child: PanelId, color: emColor) {
-        self.tree.set_canvas_color(child, color);
+        self.tree.SetCanvasColor(child, color);
     }
 
     /// Set canvas color on all children of the current panel.
@@ -199,7 +199,7 @@ impl<'a> PanelCtx<'a> {
     pub fn set_all_children_canvas_color(&mut self, color: emColor) {
         let children: Vec<PanelId> = self.tree.children(self.id).collect();
         for child in children {
-            self.tree.set_canvas_color(child, color);
+            self.tree.SetCanvasColor(child, color);
         }
     }
 }

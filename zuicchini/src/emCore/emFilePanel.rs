@@ -29,7 +29,7 @@ impl VirtualFileState {
     }
 
     /// Whether the panel should show a progress/waiting animation.
-    pub fn is_hope_for_seeking(&self) -> bool {
+    pub fn IsHopeForSeeking(&self) -> bool {
         matches!(self, Self::Waiting | Self::Loading { .. } | Self::Saving)
     }
 }
@@ -468,9 +468,9 @@ mod tests {
 
     #[test]
     fn hope_for_seeking() {
-        assert!(VirtualFileState::Waiting.is_hope_for_seeking());
-        assert!(VirtualFileState::Loading { progress: 50.0 }.is_hope_for_seeking());
-        assert!(VirtualFileState::Saving.is_hope_for_seeking());
-        assert!(!VirtualFileState::Loaded.is_hope_for_seeking());
+        assert!(VirtualFileState::Waiting.IsHopeForSeeking());
+        assert!(VirtualFileState::Loading { progress: 50.0 }.IsHopeForSeeking());
+        assert!(VirtualFileState::Saving.IsHopeForSeeking());
+        assert!(!VirtualFileState::Loaded.IsHopeForSeeking());
     }
 }

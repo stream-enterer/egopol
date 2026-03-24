@@ -950,7 +950,7 @@ impl emKeyboardZoomScrollVIF {
     }
 
     /// Set the acceleration rate (pixels/second^2).
-    pub fn set_acceleration(&mut self, accel: f64) {
+    pub fn SetAcceleration(&mut self, accel: f64) {
         self.acceleration = accel;
     }
 
@@ -1462,7 +1462,7 @@ impl TouchTracker {
 
     /// Remove touch at index, shifting remaining touches down.
     /// C++ RemoveTouch.
-    pub fn remove_touch(&mut self, index: usize) {
+    pub fn RemoveTouch(&mut self, index: usize) {
         if index >= self.touch_count {
             return;
         }
@@ -1589,7 +1589,7 @@ impl TouchTracker {
             GestureState::FirstDownUp => {
                 if self.touch_count > 1 {
                     // New touch arrived — remove old, transition to DoubleDown
-                    self.remove_touch(0);
+                    self.RemoveTouch(0);
                     self.gesture_state = GestureState::DoubleDown;
                 } else if self.touch_count > 0 && self.touches[0].ms_total > 250 {
                     // Single-tap timeout
@@ -1607,7 +1607,7 @@ impl TouchTracker {
 
             GestureState::DoubleDownUp => {
                 if self.touch_count > 1 {
-                    self.remove_touch(0);
+                    self.RemoveTouch(0);
                     self.gesture_state = GestureState::TripleDown;
                 } else if self.touch_count > 0 && self.touches[0].ms_total > 250 {
                     // Double-tap action: visit_fullsized(panel, animated=true, fill=false)
@@ -1630,7 +1630,7 @@ impl TouchTracker {
 
             GestureState::TripleDownUp => {
                 if self.touch_count > 1 {
-                    self.remove_touch(0);
+                    self.RemoveTouch(0);
                     self.gesture_state = GestureState::DoubleDown;
                 } else if self.touch_count > 0 && self.touches[0].ms_total > 250 {
                     // Triple-tap action: visit_fullsized(panel, animated=true, fill=true)
@@ -1859,7 +1859,7 @@ impl emDefaultTouchVIF {
     }
 
     /// Remove a touch point. Returns the removed touch if found.
-    fn remove_touch(&mut self, id: u64) -> Option<TouchPoint> {
+    fn RemoveTouch(&mut self, id: u64) -> Option<TouchPoint> {
         if let Some(slot) = self.find_touch(id) {
             let tp = self.touches[slot].take();
             if tp.is_some() {
@@ -2006,7 +2006,7 @@ impl emDefaultTouchVIF {
 
     /// Handle a touch end event. May trigger fling. Returns true if consumed.
     pub fn touch_end(&mut self, id: u64) -> bool {
-        let removed = self.remove_touch(id);
+        let removed = self.RemoveTouch(id);
         if removed.is_none() {
             return false;
         }
@@ -3553,7 +3553,7 @@ mod tests {
         tracker.touch_count = 3;
 
         // Remove middle touch (index 1, id=2)
-        tracker.remove_touch(1);
+        tracker.RemoveTouch(1);
         assert_eq!(tracker.touch_count, 2);
         assert_eq!(tracker.touches[0].id, 1);
         assert_eq!(tracker.touches[1].id, 3);

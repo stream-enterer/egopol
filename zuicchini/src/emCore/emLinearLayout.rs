@@ -516,7 +516,7 @@ mod tests {
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for (i, child) in children.iter().enumerate() {
-            let r = tree.get(*child).unwrap().layout_rect;
+            let r = tree.GetRec(*child).unwrap().layout_rect;
             assert!((r.w - 0.25).abs() < 1e-6, "child {i} width: {}", r.w);
             assert!((r.h - 1.0 / 3.0).abs() < 1e-6, "child {i} height: {}", r.h);
             assert!(
@@ -538,7 +538,7 @@ mod tests {
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         for (i, child) in children.iter().enumerate() {
-            let r = tree.get(*child).unwrap().layout_rect;
+            let r = tree.GetRec(*child).unwrap().layout_rect;
             assert!((r.w - 1.0).abs() < 1e-6, "child {i} width: {}", r.w);
             assert!((r.h - 2.0 / 3.0).abs() < 1e-6, "child {i} height: {}", r.h);
             assert!(
@@ -579,9 +579,9 @@ mod tests {
         );
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
-        let w0 = tree.get(children[0]).unwrap().layout_rect.w;
-        let w1 = tree.get(children[1]).unwrap().layout_rect.w;
-        let w2 = tree.get(children[2]).unwrap().layout_rect.w;
+        let w0 = tree.GetRec(children[0]).unwrap().layout_rect.w;
+        let w1 = tree.GetRec(children[1]).unwrap().layout_rect.w;
+        let w2 = tree.GetRec(children[2]).unwrap().layout_rect.w;
         assert!((w0 - 0.25).abs() < 1e-6, "w0={w0}");
         assert!((w1 - 0.5).abs() < 1e-6, "w1={w1}");
         assert!((w2 - 0.25).abs() < 1e-6, "w2={w2}");
@@ -603,8 +603,8 @@ mod tests {
         });
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
-        let r0 = tree.get(children[0]).unwrap().layout_rect;
-        let r1 = tree.get(children[1]).unwrap().layout_rect;
+        let r0 = tree.GetRec(children[0]).unwrap().layout_rect;
+        let r1 = tree.GetRec(children[1]).unwrap().layout_rect;
         assert!((r0.x - 0.125).abs() < 1e-6, "r0.x: {}", r0.x);
         assert!((r0.w - 0.25).abs() < 1e-6, "r0.w: {}", r0.w);
         assert!((r1.x - 0.625).abs() < 1e-6, "r1.x: {}", r1.x);
@@ -629,8 +629,8 @@ mod tests {
         );
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
-        let r0 = tree.get(children[0]).unwrap().layout_rect;
-        let r1 = tree.get(children[1]).unwrap().layout_rect;
+        let r0 = tree.GetRec(children[0]).unwrap().layout_rect;
+        let r1 = tree.GetRec(children[1]).unwrap().layout_rect;
         assert!((r0.w - 1.0 / 3.0).abs() < 1e-6, "r0.w: {}", r0.w);
         assert!((r0.h - 1.0 / 6.0).abs() < 1e-6, "r0.h: {}", r0.h);
         assert!((r1.w - 2.0 / 3.0).abs() < 1e-6, "r1.w: {}", r1.w);
@@ -662,9 +662,9 @@ mod tests {
         );
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
-        let r0 = tree.get(children[0]).unwrap().layout_rect;
-        let r1 = tree.get(children[1]).unwrap().layout_rect;
-        let r2 = tree.get(children[2]).unwrap().layout_rect;
+        let r0 = tree.GetRec(children[0]).unwrap().layout_rect;
+        let r1 = tree.GetRec(children[1]).unwrap().layout_rect;
+        let r2 = tree.GetRec(children[2]).unwrap().layout_rect;
         assert!((r0.w - 2.0 / 9.0).abs() < 1e-6, "r0.w: {}", r0.w);
         assert!((r1.w - 5.0 / 9.0).abs() < 1e-6, "r1.w: {}", r1.w);
         assert!((r2.w - 2.0 / 9.0).abs() < 1e-6, "r2.w: {}", r2.w);

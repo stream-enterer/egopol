@@ -101,7 +101,7 @@ impl emCheckBox {
     ///
     /// Layout: small checkbox box on the left, label text on the right.
     /// The box contains: InputBgColor face → checkmark symbol → emCheckBox image overlay.
-    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -252,7 +252,7 @@ impl emCheckBox {
         dx * dx + dy * dy <= fr * fr
     }
 
-    pub fn input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -326,7 +326,7 @@ impl emCheckBox {
         }
     }
 
-    pub fn get_cursor(&self) -> emCursor {
+    pub fn GetCursor(&self) -> emCursor {
         emCursor::Normal
     }
 
@@ -381,9 +381,9 @@ mod tests {
         let is = default_input_state();
         assert!(!cb.IsChecked());
         // Enter is instant: toggles on press, no release needed.
-        cb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(cb.IsChecked()); // Toggled immediately on press
-        cb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!cb.IsChecked());
     }
 
@@ -395,7 +395,7 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!cb.pressed);
-        cb.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!cb.pressed); // Enter toggles instantly, no press state
         assert!(cb.IsChecked()); // But the toggle did happen
     }

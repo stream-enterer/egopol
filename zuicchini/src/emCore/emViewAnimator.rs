@@ -94,7 +94,7 @@ impl AnimatorSlot {
     }
 
     /// Get the active animator, if any.
-    pub fn active(&self) -> Option<&dyn emViewAnimator> {
+    pub fn GetActivePanel(&self) -> Option<&dyn emViewAnimator> {
         self.active.as_deref()
     }
 
@@ -1779,7 +1779,7 @@ impl emVisitingViewAnimator {
         if self.names.is_empty() {
             return None;
         }
-        let root_name = tree.get(root).map(|p| p.name.as_str()).unwrap_or("");
+        let root_name = tree.GetRec(root).map(|p| p.name.as_str()).unwrap_or("");
         if self.names[0] != root_name {
             return None;
         }
@@ -1922,14 +1922,14 @@ impl emVisitingViewAnimator {
         // in_viewed_path and whose parent is NOT viewed (i.e., the SVP),
         // or until we reach the root.
         let mut b_id = panel;
-        while let Some(b_data) = tree.get(b_id) {
+        while let Some(b_data) = tree.GetRec(b_id) {
             let parent_id = match b_data.parent {
                 Some(p) => p,
                 None => break, // root reached
             };
             if b_data.in_viewed_path {
                 let parent_viewed = tree
-                    .get(parent_id)
+                    .GetRec(parent_id)
                     .map(|p| p.viewed)
                     .unwrap_or(false);
                 if !parent_viewed {
@@ -1947,7 +1947,7 @@ impl emVisitingViewAnimator {
         // Get SVP and rectangle "a" (current view position in SVP coords).
         let svp_id = view.GetSupremeViewedPanel().unwrap_or(view.GetRootPanel());
         let (svp_vx, svp_vy, svp_vw) = tree
-            .get(svp_id)
+            .GetRec(svp_id)
             .map(|p| (p.viewed_x, p.viewed_y, p.viewed_width))
             .unwrap_or((0.0, 0.0, 1.0));
 
@@ -1960,7 +1960,7 @@ impl emVisitingViewAnimator {
         // are in the same panel's coordinate system.
         let mut a_id = svp_id;
         while a_id != b_id {
-            let a_data = match tree.get(a_id) {
+            let a_data = match tree.GetRec(a_id) {
                 Some(d) => d,
                 None => break,
             };
@@ -2570,7 +2570,7 @@ impl emMagneticViewAnimator {
         // DFS walk from SVP
         let mut stack = vec![svp];
         while let Some(id) = stack.pop() {
-            let p = match tree.get(id) {
+            let p = match tree.GetRec(id) {
                 Some(p) if p.viewed => p,
                 _ => continue,
             };

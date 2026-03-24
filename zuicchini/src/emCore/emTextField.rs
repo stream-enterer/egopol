@@ -182,7 +182,7 @@ impl emTextField {
         }
     }
 
-    pub fn set_caption(&mut self, caption: &str) {
+    pub fn SetCaption(&mut self, caption: &str) {
         self.border.caption = caption.to_string();
     }
 
@@ -1098,7 +1098,7 @@ impl emTextField {
 
     // ── Paint ───────────────────────────────────────────────────────────
 
-    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -1762,7 +1762,7 @@ impl emTextField {
 
     // ── Input ───────────────────────────────────────────────────────────
 
-    pub fn input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         // C++ emTextField: GetViewCondition(VCT_MIN_EXT) >= 10.0
         let min_ext = state.viewed_rect.w.min(state.viewed_rect.h);
         if min_ext < 10.0 {
@@ -2420,7 +2420,7 @@ impl emTextField {
         text
     }
 
-    pub fn get_cursor(&self) -> emCursor {
+    pub fn GetCursor(&self) -> emCursor {
         // C++ emTextField doesn't override GetCursor — uses default panel cursor.
         emCursor::Normal
     }
@@ -2757,19 +2757,19 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
 
-        tf.input(&char_press('H'), &ps, &is);
-        tf.input(&char_press('i'), &ps, &is);
+        tf.Input(&char_press('H'), &ps, &is);
+        tf.Input(&char_press('i'), &ps, &is);
         assert_eq!(tf.GetText(), "Hi");
         assert_eq!(tf.GetCursorIndex(), 2);
 
-        tf.input(&key_press(InputKey::Backspace), &ps, &is);
+        tf.Input(&key_press(InputKey::Backspace), &ps, &is);
         assert_eq!(tf.GetText(), "H");
         assert_eq!(tf.GetCursorIndex(), 1);
 
-        tf.input(&key_press(InputKey::ArrowLeft), &ps, &is);
+        tf.Input(&key_press(InputKey::ArrowLeft), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 0);
 
-        tf.input(&key_press(InputKey::Delete), &ps, &is);
+        tf.Input(&key_press(InputKey::Delete), &ps, &is);
         assert_eq!(tf.GetText(), "");
     }
 
@@ -2782,16 +2782,16 @@ mod tests {
         tf.SetText("ABCD");
         assert_eq!(tf.GetCursorIndex(), 4);
 
-        tf.input(&key_press(InputKey::Home), &ps, &is);
+        tf.Input(&key_press(InputKey::Home), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 0);
 
-        tf.input(&key_press(InputKey::End), &ps, &is);
+        tf.Input(&key_press(InputKey::End), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 4);
 
-        tf.input(&key_press(InputKey::ArrowLeft), &ps, &is);
+        tf.Input(&key_press(InputKey::ArrowLeft), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 3);
 
-        tf.input(&key_press(InputKey::ArrowRight), &ps, &is);
+        tf.Input(&key_press(InputKey::ArrowRight), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 4);
     }
 
@@ -2803,10 +2803,10 @@ mod tests {
         let is = default_input_state();
         tf.set_max_length(3);
 
-        tf.input(&char_press('A'), &ps, &is);
-        tf.input(&char_press('B'), &ps, &is);
-        tf.input(&char_press('C'), &ps, &is);
-        tf.input(&char_press('D'), &ps, &is);
+        tf.Input(&char_press('A'), &ps, &is);
+        tf.Input(&char_press('B'), &ps, &is);
+        tf.Input(&char_press('C'), &ps, &is);
+        tf.Input(&char_press('D'), &ps, &is);
         assert_eq!(tf.GetText(), "ABC");
     }
 
@@ -2823,9 +2823,9 @@ mod tests {
             changes_clone.borrow_mut().push(text.to_string());
         }));
 
-        tf.input(&char_press('X'), &ps, &is);
-        tf.input(&char_press('Y'), &ps, &is);
-        tf.input(&key_press(InputKey::Backspace), &ps, &is);
+        tf.Input(&char_press('X'), &ps, &is);
+        tf.Input(&char_press('Y'), &ps, &is);
+        tf.Input(&key_press(InputKey::Backspace), &ps, &is);
         assert_eq!(*changes.borrow(), vec!["X", "XY", "X"]);
     }
 
@@ -2844,7 +2844,7 @@ mod tests {
         // C++ doesn't override GetCursor — always default panel cursor.
         let look = emLook::new();
         let tf = emTextField::new(look);
-        assert_eq!(tf.get_cursor(), emCursor::Normal);
+        assert_eq!(tf.GetCursor(), emCursor::Normal);
     }
 
     #[test]
@@ -2856,9 +2856,9 @@ mod tests {
 
         // D-WIDGET-03: Consecutive same-type edits merge into one undo entry.
         // Typing A, B, C (all AlphaNum) produces a single merged undo entry.
-        tf.input(&char_press('A'), &ps, &is);
-        tf.input(&char_press('B'), &ps, &is);
-        tf.input(&char_press('C'), &ps, &is);
+        tf.Input(&char_press('A'), &ps, &is);
+        tf.Input(&char_press('B'), &ps, &is);
+        tf.Input(&char_press('C'), &ps, &is);
         assert_eq!(tf.GetText(), "ABC");
 
         // Single undo reverts the entire merged group.
@@ -2871,7 +2871,7 @@ mod tests {
 
         // After redo, "ABC" is selected (MF_SELECT). Typing replaces selection.
         assert_eq!(tf.selected_text(), "ABC");
-        tf.input(&char_press('X'), &ps, &is);
+        tf.Input(&char_press('X'), &ps, &is);
         assert_eq!(tf.GetText(), "X"); // Selection replaced
         assert!(!tf.Redo()); // Redo stack cleared by new edit
     }
@@ -2884,11 +2884,11 @@ mod tests {
         let is = default_input_state();
 
         // Type alphanumeric then delete — different edit kinds, no merge.
-        tf.input(&char_press('A'), &ps, &is);
-        tf.input(&char_press('B'), &ps, &is);
+        tf.Input(&char_press('A'), &ps, &is);
+        tf.Input(&char_press('B'), &ps, &is);
         assert_eq!(tf.GetText(), "AB");
 
-        tf.input(&key_press(InputKey::Backspace), &ps, &is);
+        tf.Input(&key_press(InputKey::Backspace), &ps, &is);
         assert_eq!(tf.GetText(), "A");
 
         // Undo the backspace (separate entry).
@@ -2907,12 +2907,12 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
 
-        tf.input(&char_press('A'), &ps, &is);
-        tf.input(&char_press('B'), &ps, &is);
+        tf.Input(&char_press('A'), &ps, &is);
+        tf.Input(&char_press('B'), &ps, &is);
         // Move cursor (breaks merge chain).
-        tf.input(&key_press(InputKey::ArrowLeft), &ps, &is);
-        tf.input(&key_press(InputKey::End), &ps, &is);
-        tf.input(&char_press('C'), &ps, &is);
+        tf.Input(&key_press(InputKey::ArrowLeft), &ps, &is);
+        tf.Input(&key_press(InputKey::End), &ps, &is);
+        tf.Input(&char_press('C'), &ps, &is);
         assert_eq!(tf.GetText(), "ABC");
 
         // Undo only reverts the 'C' (separate entry after cursor move).
@@ -2978,7 +2978,7 @@ mod tests {
         assert!(!tf.IsEditable());
 
         tf.SetText("readonly");
-        tf.input(&char_press('X'), &ps, &is);
+        tf.Input(&char_press('X'), &ps, &is);
         assert_eq!(tf.GetText(), "readonly"); // no change
     }
 
@@ -2991,7 +2991,7 @@ mod tests {
         assert!(!tf.CanUndo());
         assert!(!tf.CanRedo());
 
-        tf.input(&char_press('A'), &ps, &is);
+        tf.Input(&char_press('A'), &ps, &is);
         assert!(tf.CanUndo());
         assert!(!tf.CanRedo());
 
@@ -3083,10 +3083,10 @@ mod tests {
         tf.SetText("hello world");
         tf.SetCursorIndex(0);
 
-        tf.input(&ctrl_key(InputKey::ArrowRight), &ps, &is);
+        tf.Input(&ctrl_key(InputKey::ArrowRight), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 6); // after "hello "
 
-        tf.input(&ctrl_key(InputKey::ArrowLeft), &ps, &is);
+        tf.Input(&ctrl_key(InputKey::ArrowLeft), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 0);
     }
 
@@ -3099,14 +3099,14 @@ mod tests {
         tf.SetText("ABCDEF");
         tf.SetCursorIndex(2);
 
-        tf.input(&shift_key(InputKey::ArrowRight), &ps, &is);
+        tf.Input(&shift_key(InputKey::ArrowRight), &ps, &is);
         assert_eq!(tf.selected_text(), "C");
 
-        tf.input(&shift_key(InputKey::ArrowRight), &ps, &is);
+        tf.Input(&shift_key(InputKey::ArrowRight), &ps, &is);
         assert_eq!(tf.selected_text(), "CD");
 
         // Without shift: clears selection
-        tf.input(&key_press(InputKey::ArrowRight), &ps, &is);
+        tf.Input(&key_press(InputKey::ArrowRight), &ps, &is);
         assert!(tf.IsSelectionEmpty());
     }
 
@@ -3119,7 +3119,7 @@ mod tests {
         tf.SetText("hello world");
         tf.SetCursorIndex(0);
 
-        tf.input(&shift_ctrl_key(InputKey::ArrowRight), &ps, &is);
+        tf.Input(&shift_ctrl_key(InputKey::ArrowRight), &ps, &is);
         assert_eq!(tf.selected_text(), "hello ");
     }
 
@@ -3133,17 +3133,17 @@ mod tests {
         tf.SetEditable(false);
 
         // Nav works
-        tf.input(&key_press(InputKey::Home), &ps, &is);
+        tf.Input(&key_press(InputKey::Home), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 0);
 
-        tf.input(&key_press(InputKey::End), &ps, &is);
+        tf.Input(&key_press(InputKey::End), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 4);
 
         // Edit blocked
-        tf.input(&key_press(InputKey::Backspace), &ps, &is);
+        tf.Input(&key_press(InputKey::Backspace), &ps, &is);
         assert_eq!(tf.GetText(), "test");
 
-        tf.input(&char_press('X'), &ps, &is);
+        tf.Input(&char_press('X'), &ps, &is);
         assert_eq!(tf.GetText(), "test");
     }
 
@@ -3157,11 +3157,11 @@ mod tests {
         tf.SetCursorIndex(0);
         tf.SetOverwriteMode(true);
 
-        tf.input(&char_press('X'), &ps, &is);
+        tf.Input(&char_press('X'), &ps, &is);
         assert_eq!(tf.GetText(), "XBC");
         assert_eq!(tf.GetCursorIndex(), 1);
 
-        tf.input(&char_press('Y'), &ps, &is);
+        tf.Input(&char_press('Y'), &ps, &is);
         assert_eq!(tf.GetText(), "XYC");
     }
 
@@ -3174,7 +3174,7 @@ mod tests {
         tf.SetText("hello world");
         tf.SetCursorIndex(11);
 
-        tf.input(&ctrl_key(InputKey::Backspace), &ps, &is);
+        tf.Input(&ctrl_key(InputKey::Backspace), &ps, &is);
         assert_eq!(tf.GetText(), "hello ");
     }
 
@@ -3187,7 +3187,7 @@ mod tests {
         tf.SetText("hello world");
         tf.SetCursorIndex(0);
 
-        tf.input(&ctrl_key(InputKey::Delete), &ps, &is);
+        tf.Input(&ctrl_key(InputKey::Delete), &ps, &is);
         assert_eq!(tf.GetText(), "world");
     }
 
@@ -3199,11 +3199,11 @@ mod tests {
         let is = default_input_state();
         tf.SetText("test");
 
-        tf.input(&ctrl_char('a'), &ps, &is);
+        tf.Input(&ctrl_char('a'), &ps, &is);
         assert_eq!(tf.selected_text(), "test");
 
         // Ctrl+Shift+A = deselect
-        tf.input(&emInputEvent::press(InputKey::Key('a')).with_shift_ctrl(), &ps, &is);
+        tf.Input(&emInputEvent::press(InputKey::Key('a')).with_shift_ctrl(), &ps, &is);
         assert!(tf.IsSelectionEmpty());
     }
 
@@ -3217,11 +3217,11 @@ mod tests {
         tf.on_validate = Some(Box::new(|text| text.chars().all(|c| c.is_ascii_digit())));
 
         // Numeric input accepted
-        tf.input(&char_press('4'), &ps, &is);
+        tf.Input(&char_press('4'), &ps, &is);
         assert_eq!(tf.GetText(), "1234");
 
         // Non-numeric rejected
-        tf.input(&char_press('x'), &ps, &is);
+        tf.Input(&char_press('x'), &ps, &is);
         assert_eq!(tf.GetText(), "1234");
     }
 
@@ -3237,11 +3237,11 @@ mod tests {
         tf.SetCursorIndex(5);
 
         // Down: col 5 but row 1 only has "fg" (len 2), so clamps to end of row 1 (idx 8)
-        tf.input(&key_press(InputKey::ArrowDown), &ps, &is);
+        tf.Input(&key_press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 8);
 
         // Down again: col 5 in row 2 "hijklm" → index 9+5=14
-        tf.input(&key_press(InputKey::ArrowDown), &ps, &is);
+        tf.Input(&key_press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 14);
     }
 
@@ -3255,7 +3255,7 @@ mod tests {
         tf.SetText("ab");
         tf.SetCursorIndex(1);
 
-        tf.input(&key_press(InputKey::Enter), &ps, &is);
+        tf.Input(&key_press(InputKey::Enter), &ps, &is);
         assert_eq!(tf.GetText(), "a\nb");
         assert_eq!(tf.GetCursorIndex(), 2);
     }
@@ -3269,7 +3269,7 @@ mod tests {
         tf.SetText("ab");
         tf.SetCursorIndex(1);
 
-        tf.input(&key_press(InputKey::Enter), &ps, &is);
+        tf.Input(&key_press(InputKey::Enter), &ps, &is);
         assert_eq!(tf.GetText(), "ab"); // unchanged
     }
 
@@ -3295,12 +3295,12 @@ mod tests {
         tf.Select(0, 5);
 
         // Copy
-        tf.input(&ctrl_char('c'), &ps, &is);
+        tf.Input(&ctrl_char('c'), &ps, &is);
         assert_eq!(*clipboard.borrow(), "Hello");
 
         // Move to end, paste
-        tf.input(&key_press(InputKey::End), &ps, &is);
-        tf.input(&ctrl_char('v'), &ps, &is);
+        tf.Input(&key_press(InputKey::End), &ps, &is);
+        tf.Input(&ctrl_char('v'), &ps, &is);
         assert_eq!(tf.GetText(), "Hello WorldHello");
     }
 
@@ -3320,7 +3320,7 @@ mod tests {
         tf.SetText("ABCDEF");
         tf.Select(2, 4);
 
-        tf.input(&ctrl_char('x'), &ps, &is);
+        tf.Input(&ctrl_char('x'), &ps, &is);
         assert_eq!(*clipboard.borrow(), "CD");
         assert_eq!(tf.GetText(), "ABEF");
     }
@@ -3337,7 +3337,7 @@ mod tests {
         let clip_r = clip.clone();
         tf.on_clipboard_paste = Some(Box::new(move || clip_r.borrow().clone()));
 
-        tf.input(&ctrl_char('v'), &ps, &is);
+        tf.Input(&ctrl_char('v'), &ps, &is);
         assert_eq!(tf.GetText(), "ABCDE");
     }
 
@@ -3427,10 +3427,10 @@ mod tests {
         let is = default_input_state();
         assert!(!tf.GetOverwriteMode());
 
-        tf.input(&key_press(InputKey::Insert), &ps, &is);
+        tf.Input(&key_press(InputKey::Insert), &ps, &is);
         assert!(tf.GetOverwriteMode());
 
-        tf.input(&key_press(InputKey::Insert), &ps, &is);
+        tf.Input(&key_press(InputKey::Insert), &ps, &is);
         assert!(!tf.GetOverwriteMode());
     }
 
@@ -3451,7 +3451,7 @@ mod tests {
         tf.SetText("hello world");
         tf.SetCursorIndex(7); // at "o" in "world"
 
-        tf.input(&shift_ctrl_key(InputKey::Backspace), &ps, &is);
+        tf.Input(&shift_ctrl_key(InputKey::Backspace), &ps, &is);
         assert_eq!(tf.GetText(), "orld");
     }
 
@@ -3464,7 +3464,7 @@ mod tests {
         tf.SetText("hello world");
         tf.SetCursorIndex(5);
 
-        tf.input(&shift_ctrl_key(InputKey::Delete), &ps, &is);
+        tf.Input(&shift_ctrl_key(InputKey::Delete), &ps, &is);
         assert_eq!(tf.GetText(), "hello");
     }
 
@@ -3479,19 +3479,19 @@ mod tests {
         tf.SetCursorIndex(5); // 'e' in row 1
 
         // Home goes to row start
-        tf.input(&key_press(InputKey::Home), &ps, &is);
+        tf.Input(&key_press(InputKey::Home), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 4); // start of "def"
 
         // End goes to row end
-        tf.input(&key_press(InputKey::End), &ps, &is);
+        tf.Input(&key_press(InputKey::End), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 7); // end of "def"
 
         // Ctrl+Home goes to text start
-        tf.input(&ctrl_key(InputKey::Home), &ps, &is);
+        tf.Input(&ctrl_key(InputKey::Home), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 0);
 
         // Ctrl+End goes to text end
-        tf.input(&ctrl_key(InputKey::End), &ps, &is);
+        tf.Input(&ctrl_key(InputKey::End), &ps, &is);
         assert_eq!(tf.GetCursorIndex(), 11);
     }
 
@@ -3648,7 +3648,7 @@ mod tests {
             states_c.borrow_mut().push((can_undo, can_redo));
         }));
         // Type a char -> undo becomes available
-        tf.input(&char_press('A'), &ps, &is);
+        tf.Input(&char_press('A'), &ps, &is);
         assert_eq!(states.borrow().last(), Some(&(true, false)));
         // Undo -> redo becomes available, undo gone
         tf.Undo();

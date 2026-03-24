@@ -25,7 +25,7 @@ impl<V> ResourceCache<V> {
             .clone()
     }
 
-    pub fn get(&self, name: &str) -> Option<Rc<V>> {
+    pub fn GetRec(&self, name: &str) -> Option<Rc<V>> {
         self.entries.get(name).cloned()
     }
 
@@ -42,8 +42,13 @@ impl<V> ResourceCache<V> {
         self.entries.len()
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub fn IsEmpty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    /// Alias for clippy `len_without_is_empty` lint.
+    pub fn is_empty(&self) -> bool {
+        self.IsEmpty()
     }
 }
 

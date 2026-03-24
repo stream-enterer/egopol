@@ -119,7 +119,7 @@ impl emTunnel {
     /// the child panel — matching how C++ `DoTunnel` passes `cc` from
     /// `GetContentRoundRect` into `pCanvasColor`.
     pub fn GetChildRect(&self, w: f64, h: f64, parent_canvas: emColor) -> TunnelChildRect {
-        let (rect, ar) = self.content_round_rect(w, h);
+        let (rect, ar) = self.GetContentRoundRect(w, h);
         let ax = rect.x;
         let ay = rect.y;
         let aw = rect.w;
@@ -146,7 +146,7 @@ impl emTunnel {
         self.border
             .paint_border(painter, w, h, &self.look, false, true, 1.0);
 
-        let (rect, ar) = self.content_round_rect(w, h);
+        let (rect, ar) = self.GetContentRoundRect(w, h);
         let ax = rect.x;
         let ay = rect.y;
         let aw = rect.w;
@@ -241,7 +241,7 @@ impl emTunnel {
     }
 
     /// Content round rect from the border.
-    fn content_round_rect(&self, w: f64, h: f64) -> (Rect, f64) {
+    fn GetContentRoundRect(&self, w: f64, h: f64) -> (Rect, f64) {
         self.border.GetContentRoundRect(w, h, &self.look)
     }
 
@@ -312,11 +312,11 @@ impl PanelBehavior for emTunnel {
         }
 
         let rect = ctx.layout_rect();
-        let cr = self.GetChildRect(rect.w, rect.h, ctx.canvas_color());
+        let cr = self.GetChildRect(rect.w, rect.h, ctx.GetCanvasColor());
 
         if let Some(&child) = ctx.children().first() {
             ctx.layout_child(child, cr.x, cr.y, cr.w, cr.h);
-            ctx.tree.set_canvas_color(child, cr.canvas_color);
+            ctx.tree.SetCanvasColor(child, cr.canvas_color);
         }
     }
 }

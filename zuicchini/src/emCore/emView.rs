@@ -394,7 +394,7 @@ impl emView {
     /// the tree and has the potential to create the sought child.
     pub fn IsHopeForSeeking(&self, tree: &PanelTree) -> bool {
         if let Some(id) = self.seek_pos_panel {
-            if let Some(panel) = tree.get(id) {
+            if let Some(panel) = tree.GetRec(id) {
                 if self.seek_pos_child_name.is_empty() {
                     return true;
                 }
@@ -732,7 +732,7 @@ impl emView {
 
         // Start from root — width normalized to 1.0, height preserves layout_rect aspect
         let root_lr = tree
-            .get(self.root)
+            .GetRec(self.root)
             .map(|p| p.layout_rect)
             .unwrap_or_default();
         let root_norm_h = if root_lr.w > MIN_DIMENSION {
@@ -745,7 +745,7 @@ impl emView {
 
         for i in 1..chain_rev.len() {
             let id = chain_rev[i];
-            let lr = tree.get(id).map(|p| p.layout_rect).unwrap_or_default();
+            let lr = tree.GetRec(id).map(|p| p.layout_rect).unwrap_or_default();
             let (px, py, pw, _ph) = rects[i - 1];
             // C++ scales ALL layout coordinates by ParentViewedWidth (pw)
             let x = px + lr.x * pw;
@@ -799,7 +799,7 @@ impl emView {
         chain_rev.reverse();
 
         let root_lr = tree
-            .get(self.root)
+            .GetRec(self.root)
             .map(|p| p.layout_rect)
             .unwrap_or_default();
         let root_norm_h = if root_lr.w > MIN_DIMENSION {
@@ -812,7 +812,7 @@ impl emView {
 
         for i in 1..chain_rev.len() {
             let id = chain_rev[i];
-            let lr = tree.get(id).map(|p| p.layout_rect).unwrap_or_default();
+            let lr = tree.GetRec(id).map(|p| p.layout_rect).unwrap_or_default();
             let (px, py, pw, _ph) = rects[i - 1];
             // C++ scales ALL layout coordinates by ParentViewedWidth (pw)
             rects.push((px + lr.x * pw, py + lr.y * pw, lr.w * pw, lr.h * pw));
@@ -880,7 +880,7 @@ impl emView {
 
     pub fn set_active_panel(&mut self, tree: &mut PanelTree, panel: PanelId, adherent: bool) {
         // Walk up to nearest focusable panel (self included, matching C++ SetActivePanel)
-        let target = if tree.get(panel).map(|p| p.focusable).unwrap_or(false) {
+        let target = if tree.GetRec(panel).map(|p| p.focusable).unwrap_or(false) {
             panel
         } else {
             tree.GetFocusableParent(panel).unwrap_or(panel)
@@ -956,7 +956,7 @@ impl emView {
             let children: Vec<PanelId> = tree.children_rev(best).collect();
             let mut found = None;
             for child in children {
-                let p = match tree.get(child) {
+                let p = match tree.GetRec(child) {
                     Some(p) if p.viewed && p.focusable => p,
                     _ => continue,
                 };
@@ -973,7 +973,7 @@ impl emView {
 
             match found {
                 Some(child) => {
-                    let p = tree.get(child).expect("child just found");
+                    let p = tree.GetRec(child).expect("child just found");
                     // Don't descend into panels smaller than thresholds
                     if p.clip_w < min_w && p.clip_h < min_h && (p.clip_w * p.clip_h) < min_a {
                         break;
@@ -985,7 +985,7 @@ impl emView {
         }
 
         // Ensure best is focusable (ascend if needed)
-        if !tree.get(best).map(|p| p.focusable).unwrap_or(false) {
+        if !tree.GetRec(best).map(|p| p.focusable).unwrap_or(false) {
             if let Some(anc) = tree.GetFocusableParent(best) {
                 best = anc;
             } else {
@@ -996,12 +996,12 @@ impl emView {
         // Adherent check: keep current active if still visible and best is ancestor
         if self.activation_adherent {
             if let Some(active_id) = self.active {
-                if let Some(active_panel) = tree.get(active_id) {
+                if let Some(active_panel) = tree.GetRec(active_id) {
                     if active_panel.viewed
                         && active_panel.viewed_width >= 4.0
                         && active_panel.viewed_height >= 4.0
                     {
-                        if let Some(best_panel) = tree.get(best) {
+                        if let Some(best_panel) = tree.GetRec(best) {
                             if best_panel.in_active_path {
                                 self.set_active_panel(tree, active_id, true);
                                 return;
@@ -1021,7 +1021,7 @@ impl emView {
     pub fn Update(&mut self, tree: &mut PanelTree) {
         tree.clear_viewing_flags();
 
-        let root = match tree.root() {
+        let root = match tree.GetRootPanel() {
             Some(r) => r,
             None => return,
         };
@@ -1067,7 +1067,7 @@ impl emView {
 
         // Compute each panel's normalized rect relative to root.
         // Root width is normalized to 1.0; height preserves the layout_rect aspect.
-        let root_lr = tree.get(root).map(|p| p.layout_rect).unwrap_or_default();
+        let root_lr = tree.GetRec(root).map(|p| p.layout_rect).unwrap_or_default();
         let root_norm_h = if root_lr.w > MIN_DIMENSION {
             (root_lr.h / root_lr.w).max(MIN_DIMENSION)
         } else {
@@ -1077,7 +1077,7 @@ impl emView {
         norm_rects.push((0.0, 0.0, 1.0, root_norm_h));
         for i in 1..chain_rev.len() {
             let id = chain_rev[i];
-            let lr = tree.get(id).map(|p| p.layout_rect).unwrap_or_default();
+            let lr = tree.GetRec(id).map(|p| p.layout_rect).unwrap_or_default();
             let (px, py, pw, _ph) = norm_rects[i - 1];
             // C++ scales ALL layout coordinates by ParentViewedWidth (pw)
             norm_rects.push((px + lr.x * pw, py + lr.y * pw, lr.w * pw, lr.h * pw));
@@ -1160,7 +1160,7 @@ impl emView {
         let ancestors = tree.ancestors(visited);
         self.svp = None;
         for &id in &ancestors {
-            if let Some(p) = tree.get(id) {
+            if let Some(p) = tree.GetRec(id) {
                 let area = p.viewed_width * p.viewed_height;
                 if area <= MAX_SVP_SIZE {
                     self.svp = Some(id);
@@ -1243,7 +1243,7 @@ impl emView {
         // Recurse into children
         let children: Vec<PanelId> = tree.children(id).collect();
         for child in children {
-            let lr = tree.get(child).map(|p| p.layout_rect).unwrap_or_default();
+            let lr = tree.GetRec(child).map(|p| p.layout_rect).unwrap_or_default();
             // C++ emPanel scales ALL layout coords by parent ViewedWidth
             // (not ViewedHeight), because layout coordinates are all in
             // parent-width units.
@@ -1265,7 +1265,7 @@ impl emView {
 
         for id in panel_ids {
             let (threshold_value, threshold_type, currently_expanded, decision_invalid) = {
-                let Some(panel) = tree.get(id) else {
+                let Some(panel) = tree.GetRec(id) else {
                     continue;
                 };
                 (
@@ -1349,7 +1349,7 @@ impl emView {
         // No next sibling: go to focusable parent's first focusable child
         let parent = tree
             .GetFocusableParent(active)
-            .unwrap_or_else(|| tree.root().unwrap_or(active));
+            .unwrap_or_else(|| tree.GetRootPanel().unwrap_or(active));
         if parent != active {
             if let Some(first) = tree.GetFocusableFirstChild(parent) {
                 self.animated_visit_panel(tree, first, false);
@@ -1379,7 +1379,7 @@ impl emView {
         // No previous sibling: go to focusable parent's last focusable child
         let parent = tree
             .GetFocusableParent(active)
-            .unwrap_or_else(|| tree.root().unwrap_or(active));
+            .unwrap_or_else(|| tree.GetRootPanel().unwrap_or(active));
         if parent != active {
             if let Some(last) = tree.GetFocusableLastChild(parent) {
                 self.animated_visit_panel(tree, last, false);
@@ -1398,12 +1398,12 @@ impl emView {
             Some(id) => id,
             None => return,
         };
-        let parent = match tree.parent(active) {
+        let parent = match tree.GetParentContext(active) {
             Some(p) => p,
             None => return,
         };
         for child in tree.children(parent) {
-            if tree.get(child).map(|p| p.focusable).unwrap_or(false) {
+            if tree.GetRec(child).map(|p| p.focusable).unwrap_or(false) {
                 self.animated_visit_panel(tree, child, false);
                 return;
             }
@@ -1421,12 +1421,12 @@ impl emView {
             Some(id) => id,
             None => return,
         };
-        let parent = match tree.parent(active) {
+        let parent = match tree.GetParentContext(active) {
             Some(p) => p,
             None => return,
         };
         for child in tree.children_rev(parent) {
-            if tree.get(child).map(|p| p.focusable).unwrap_or(false) {
+            if tree.GetRec(child).map(|p| p.focusable).unwrap_or(false) {
                 self.animated_visit_panel(tree, child, false);
                 return;
             }
@@ -1462,7 +1462,7 @@ impl emView {
         };
         // Find first focusable child
         for child in tree.children(active) {
-            if tree.get(child).map(|p| p.focusable).unwrap_or(false) {
+            if tree.GetRec(child).map(|p| p.focusable).unwrap_or(false) {
                 self.animated_visit_panel(tree, child, false);
                 return;
             }
@@ -1483,8 +1483,8 @@ impl emView {
             None => return,
         };
         // Go to focusable parent — check parent itself first, then walk up
-        if let Some(parent) = tree.parent(active) {
-            if tree.get(parent).map(|p| p.focusable).unwrap_or(false) {
+        if let Some(parent) = tree.GetParentContext(active) {
+            if tree.GetRec(parent).map(|p| p.focusable).unwrap_or(false) {
                 self.animated_visit_panel(tree, parent, false);
                 return;
             }
@@ -1508,12 +1508,12 @@ impl emView {
             Some(id) => id,
             None => return,
         };
-        let parent = match tree.parent(active) {
+        let parent = match tree.GetParentContext(active) {
             Some(p) => p,
             None => return,
         };
 
-        let active_panel = match tree.get(active) {
+        let active_panel = match tree.GetRec(active) {
             Some(p) => p,
             None => return,
         };
@@ -1531,7 +1531,7 @@ impl emView {
             if sib == active {
                 continue;
             }
-            let sp = match tree.get(sib) {
+            let sp = match tree.GetRec(sib) {
                 Some(p) if p.focusable && p.viewed => p,
                 _ => continue,
             };
@@ -1587,7 +1587,7 @@ impl emView {
         y: f64,
         focusable_only: bool,
     ) -> Option<PanelId> {
-        let panel = tree.get(id)?;
+        let panel = tree.GetRec(id)?;
         if !panel.viewed {
             return None;
         }
@@ -1617,8 +1617,8 @@ impl emView {
     /// Matches C++ `~emPanel` which calls `SetFocusable(false)` before unlinking,
     /// causing `emView.SetActivePanel(Parent, false)`.
     pub fn remove_panel(&mut self, tree: &mut PanelTree, id: PanelId) {
-        if tree.get(id).map(|p| p.in_active_path).unwrap_or(false) {
-            if let Some(parent) = tree.parent(id) {
+        if tree.GetRec(id).map(|p| p.in_active_path).unwrap_or(false) {
+            if let Some(parent) = tree.GetParentContext(id) {
                 self.set_active_panel(tree, parent, false);
             } else {
                 self.active = None;
@@ -1643,20 +1643,20 @@ impl emView {
     /// Whether a panel is focused: it is the active panel and the view's
     /// window is focused.
     pub fn is_panel_focused(&self, tree: &PanelTree, panel: PanelId) -> bool {
-        let is_active = tree.get(panel).map(|p| p.is_active).unwrap_or(false);
+        let is_active = tree.GetRec(panel).map(|p| p.is_active).unwrap_or(false);
         is_active && self.window_focused
     }
 
     /// Whether a panel is in the focused path: it is in the active path and
     /// the view's window is focused.
     pub fn is_panel_in_focused_path(&self, tree: &PanelTree, panel: PanelId) -> bool {
-        let in_active_path = tree.get(panel).map(|p| p.in_active_path).unwrap_or(false);
+        let in_active_path = tree.GetRec(panel).map(|p| p.in_active_path).unwrap_or(false);
         in_active_path && self.window_focused
     }
 
     /// Whether a panel's activation is adherent (indirect, via a descendant).
     pub fn is_panel_activated_adherent(&self, tree: &PanelTree, panel: PanelId) -> bool {
-        tree.get(panel).map(|p| p.is_active).unwrap_or(false) && self.activation_adherent
+        tree.GetRec(panel).map(|p| p.is_active).unwrap_or(false) && self.activation_adherent
     }
 
     /// Whether the view's window is focused (panel-level delegate).
@@ -1694,7 +1694,7 @@ impl emView {
     ///
     /// Corresponds to `emPanel::InvalidateTitle`.
     pub fn InvalidateTitle(&mut self, tree: &PanelTree, panel: PanelId) {
-        let in_active_path = tree.get(panel).map(|p| p.in_active_path).unwrap_or(false);
+        let in_active_path = tree.GetRec(panel).map(|p| p.in_active_path).unwrap_or(false);
         if in_active_path {
             self.title_invalid = true;
         }
@@ -1705,7 +1705,7 @@ impl emView {
     ///
     /// Corresponds to `emPanel::InvalidateCursor`.
     pub fn InvalidateCursor(&mut self, tree: &PanelTree, panel: PanelId) {
-        let in_viewed_path = tree.get(panel).map(|p| p.in_viewed_path).unwrap_or(false);
+        let in_viewed_path = tree.GetRec(panel).map(|p| p.in_viewed_path).unwrap_or(false);
         if in_viewed_path {
             self.cursor_invalid = true;
         }
@@ -1715,7 +1715,7 @@ impl emView {
     ///
     /// Corresponds to `emPanel::InvalidatePainting()` (no-arg overload).
     pub fn InvalidatePainting(&mut self, tree: &PanelTree, panel: PanelId) {
-        let p = match tree.get(panel) {
+        let p = match tree.GetRec(panel) {
             Some(p) if p.viewed => p,
             _ => return,
         };
@@ -1737,7 +1737,7 @@ impl emView {
         w: f64,
         h: f64,
     ) {
-        let p = match tree.get(panel) {
+        let p = match tree.GetRec(panel) {
             Some(p) if p.viewed => p,
             _ => return,
         };
@@ -1777,7 +1777,7 @@ impl emView {
     ///
     /// Corresponds to `emPanel::InvalidateControlPanel`.
     pub fn InvalidateControlPanel(&mut self, tree: &PanelTree, panel: PanelId) {
-        let in_active_path = tree.get(panel).map(|p| p.in_active_path).unwrap_or(false);
+        let in_active_path = tree.GetRec(panel).map(|p| p.in_active_path).unwrap_or(false);
         if in_active_path {
             self.control_panel_invalid = true;
         }
@@ -1992,7 +1992,7 @@ impl emView {
         panel: PanelId,
         rect: (f64, f64, f64, f64),
     ) {
-        let p = match tree.get(panel) {
+        let p = match tree.GetRec(panel) {
             Some(p) if p.viewed => p,
             _ => return,
         };
@@ -2047,7 +2047,7 @@ impl emView {
     }
 
     /// Set the view title directly. Marks the title as valid.
-    pub fn set_title(&mut self, title: &str) {
+    pub fn SetRootTitle(&mut self, title: &str) {
         self.title = title.to_string();
         self.title_invalid = false;
     }
@@ -2156,7 +2156,7 @@ impl emView {
         // (C++ calls SetActivePanelBestPossible after Scroll/Zoom)
         let need_reselect = match self.active {
             None => true,
-            Some(id) => !tree.contains(id) || !tree.get(id).map(|p| p.focusable).unwrap_or(false),
+            Some(id) => !tree.contains(id) || !tree.GetRec(id).map(|p| p.focusable).unwrap_or(false),
         };
         if need_reselect || self.viewport_changed {
             self.SetActivePanelBestPossible(tree);
@@ -2244,7 +2244,7 @@ impl emView {
             None => return,
         };
 
-        let panel = match tree.get(active_id) {
+        let panel = match tree.GetRec(active_id) {
             Some(p) if p.viewed => p,
             _ => return,
         };
@@ -2396,7 +2396,7 @@ impl emView {
         parent_canvas: emColor,
     ) {
         let (vx, vy, vw, vh, clip_x, clip_y, clip_w, clip_h, canvas_color, layout_rect) = {
-            match tree.get(id) {
+            match tree.GetRec(id) {
                 Some(p) if p.viewed && p.visible => (
                     p.viewed_x,
                     p.viewed_y,
@@ -2499,8 +2499,8 @@ impl emView {
         let panels_rec = self.dump_panel_recursive(tree, self.root);
 
         let mut root_rec = RecStruct::new();
-        root_rec.set_value("view", RecValue::Struct(view_rec));
-        root_rec.set_value("panels", panels_rec);
+        root_rec.SetValue("view", RecValue::Struct(view_rec));
+        root_rec.SetValue("panels", panels_rec);
 
         let text = write_rec_with_format(&root_rec, "emTreeDump");
         if let Err(e) = std::fs::write(&path, &text) {
@@ -2527,7 +2527,7 @@ impl emView {
         // Panel fields
         let height = tree.get_height(id);
         let is_focused = self.focused == Some(id);
-        if let Some(p) = tree.get(id) {
+        if let Some(p) = tree.GetRec(id) {
             let mut text = String::new();
             text.push_str(&format!("name = {}\n", p.name));
             text.push_str(&format!(
@@ -2551,7 +2551,7 @@ impl emView {
                 .into_iter()
                 .map(|child| self.dump_panel_recursive(tree, child))
                 .collect();
-            rec.set_value("children", RecValue::Array(child_recs));
+            rec.SetValue("children", RecValue::Array(child_recs));
         }
 
         RecValue::Struct(rec)
@@ -2771,14 +2771,14 @@ mod tests {
         view.Update(&mut tree);
 
         // Root should be viewed
-        let rp = tree.get(root).unwrap();
+        let rp = tree.GetRec(root).unwrap();
         assert!(rp.viewed);
         assert!(rp.viewed_width > 0.0);
         assert!(rp.viewed_height > 0.0);
 
         // Children should be viewed
-        assert!(tree.get(child1).unwrap().viewed);
-        assert!(tree.get(child2).unwrap().viewed);
+        assert!(tree.GetRec(child1).unwrap().viewed);
+        assert!(tree.GetRec(child2).unwrap().viewed);
     }
 
     #[test]
@@ -2803,7 +2803,7 @@ mod tests {
         let mut view = emView::new(root, 100.0, 100.0);
         view.Update(&mut tree);
 
-        assert!(!tree.get(offscreen).unwrap().viewed);
+        assert!(!tree.GetRec(offscreen).unwrap().viewed);
     }
 
     #[test]
@@ -2813,9 +2813,9 @@ mod tests {
         view.set_active_panel(&mut tree, child1, false);
         view.Update(&mut tree);
 
-        assert!(tree.get(child1).unwrap().is_active);
-        assert!(tree.get(child1).unwrap().in_active_path);
-        assert!(tree.get(root).unwrap().in_active_path);
+        assert!(tree.GetRec(child1).unwrap().is_active);
+        assert!(tree.GetRec(child1).unwrap().in_active_path);
+        assert!(tree.GetRec(root).unwrap().in_active_path);
     }
 
     #[test]
@@ -2955,7 +2955,7 @@ mod tests {
         let rects = view.take_dirty_rects();
         assert_eq!(rects.len(), 1);
         // The dirty rect should be the child's clip rect
-        let p = tree.get(child1).unwrap();
+        let p = tree.GetRec(child1).unwrap();
         assert!((rects[0].x - p.clip_x).abs() < 1e-6);
         assert!((rects[0].y - p.clip_y).abs() < 1e-6);
     }
@@ -3107,7 +3107,7 @@ mod tests {
         view.set_active_panel(&mut tree, child, false);
         view.Update(&mut tree);
 
-        let panel = tree.get(child).unwrap();
+        let panel = tree.GetRec(child).unwrap();
         assert!(panel.viewed, "child should be viewed");
         // For a non-square child, viewed_width and viewed_height differ
         assert!(

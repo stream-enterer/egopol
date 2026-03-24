@@ -43,10 +43,10 @@ mod tests {
     }
     impl PanelBehavior for ButtonPanel {
         fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
-            self.widget.paint(p, w, h, _s.enabled);
+            self.widget.Paint(p, w, h, _s.enabled);
         }
         fn Input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
-            self.widget.input(e, _s, _is)
+            self.widget.Input(e, _s, _is)
         }
         fn IsOpaque(&self) -> bool {
             true
@@ -58,10 +58,10 @@ mod tests {
     }
     impl PanelBehavior for CheckButtonPanel {
         fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
-            self.widget.paint(p, w, h, _s.enabled);
+            self.widget.Paint(p, w, h, _s.enabled);
         }
         fn Input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
-            self.widget.input(e, _s, _is)
+            self.widget.Input(e, _s, _is)
         }
         fn IsOpaque(&self) -> bool {
             true
@@ -140,7 +140,7 @@ mod tests {
         // Paint to set last_w/last_h
         let mut img = crate::emCore::emImage::emImage::new(100, 40, 4);
         let mut painter = emPainter::new(&mut img);
-        btn.paint(&mut painter, 1.0, 0.4, true);
+        btn.Paint(&mut painter, 1.0, 0.4, true);
 
         // Test content_round_rect directly
         let border =
@@ -165,11 +165,11 @@ mod tests {
         let ps = default_panel_state();
         let is = emInputState::new();
         let press_center = emInputEvent::press(InputKey::MouseLeft).with_mouse(0.5, 0.2);
-        let consumed = btn.input(&press_center, &ps, &is);
+        let consumed = btn.Input(&press_center, &ps, &is);
         eprintln!("  btn.input(press at center): consumed={}", consumed);
 
         let press_origin = emInputEvent::press(InputKey::MouseLeft).with_mouse(0.0, 0.0);
-        let consumed2 = btn.input(&press_origin, &ps, &is);
+        let consumed2 = btn.Input(&press_origin, &ps, &is);
         eprintln!("  btn.input(press at origin): consumed={}", consumed2);
     }
 
@@ -192,12 +192,12 @@ mod tests {
         let viewed = tree.viewed_panels_dfs();
         eprintln!("\n=== PANEL TREE ({} panels) ===", viewed.len());
         for &pid in &viewed {
-            let name = tree.get(pid).map(|p| p.name.clone()).unwrap_or_default();
-            let lr = tree.get(pid).map(|p| p.layout_rect).unwrap();
-            let vx = tree.get(pid).map(|p| p.viewed_x).unwrap_or(0.0);
-            let vy = tree.get(pid).map(|p| p.viewed_y).unwrap_or(0.0);
-            let vw = tree.get(pid).map(|p| p.viewed_width).unwrap_or(0.0);
-            let vh = tree.get(pid).map(|p| p.viewed_height).unwrap_or(0.0);
+            let name = tree.GetRec(pid).map(|p| p.name.clone()).unwrap_or_default();
+            let lr = tree.GetRec(pid).map(|p| p.layout_rect).unwrap();
+            let vx = tree.GetRec(pid).map(|p| p.viewed_x).unwrap_or(0.0);
+            let vy = tree.GetRec(pid).map(|p| p.viewed_y).unwrap_or(0.0);
+            let vw = tree.GetRec(pid).map(|p| p.viewed_width).unwrap_or(0.0);
+            let vh = tree.GetRec(pid).map(|p| p.viewed_height).unwrap_or(0.0);
             eprintln!(
                 "  {:?} layout=({:.4},{:.4},{:.4},{:.4}) viewed=({:.1},{:.1},{:.1},{:.1})",
                 name, lr.x, lr.y, lr.w, lr.h, vx, vy, vw, vh
@@ -209,7 +209,7 @@ mod tests {
             let mut img = crate::emCore::emImage::emImage::new(800, 600, 4);
             for &pid in &viewed {
                 if let Some(mut beh) = tree.take_behavior(pid) {
-                    let lr = tree.get(pid).unwrap().layout_rect;
+                    let lr = tree.GetRec(pid).unwrap().layout_rect;
                     let tallness = if lr.w > 1e-100 { lr.h / lr.w } else { 1.0 };
                     let state = tree.build_panel_state(pid, true, view.GetCurrentPixelTallness());
                     let mut painter = emPainter::new(&mut img);
@@ -224,7 +224,7 @@ mod tests {
         let targets: Vec<_> = viewed
             .iter()
             .filter_map(|&pid| {
-                let name = tree.get(pid)?.name.clone();
+                let name = tree.GetRec(pid)?.name.clone();
                 if name == "root" {
                     None
                 } else {
@@ -234,10 +234,10 @@ mod tests {
             .collect();
 
         for (target_pid, target_name) in &targets {
-            let vx = tree.get(*target_pid).unwrap().viewed_x;
-            let vy = tree.get(*target_pid).unwrap().viewed_y;
-            let vw = tree.get(*target_pid).unwrap().viewed_width;
-            let vh = tree.get(*target_pid).unwrap().viewed_height;
+            let vx = tree.GetRec(*target_pid).unwrap().viewed_x;
+            let vy = tree.GetRec(*target_pid).unwrap().viewed_y;
+            let vw = tree.GetRec(*target_pid).unwrap().viewed_width;
+            let vh = tree.GetRec(*target_pid).unwrap().viewed_height;
             let cx = vx + vw / 2.0;
             let cy = vy + vh / 2.0;
 
@@ -248,7 +248,7 @@ mod tests {
 
             let order = tree.viewed_panels_dfs();
             for &dpid in &order {
-                let dname = tree.get(dpid).map(|p| p.name.clone()).unwrap_or_default();
+                let dname = tree.GetRec(dpid).map(|p| p.name.clone()).unwrap_or_default();
                 let lx = tree.ViewToPanelX(dpid, cx);
                 let ly = tree.ViewToPanelY(dpid, cy, view.GetCurrentPixelTallness());
                 let ev = emInputEvent::press(InputKey::MouseLeft).with_mouse(lx, ly);

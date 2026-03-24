@@ -139,7 +139,7 @@ impl emScalarField {
         }
     }
 
-    pub fn set_caption(&mut self, caption: &str) {
+    pub fn SetCaption(&mut self, caption: &str) {
         self.border.caption = caption.to_string();
     }
 
@@ -292,7 +292,7 @@ impl emScalarField {
 
     // --- Paint ---
 
-    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -505,7 +505,7 @@ impl emScalarField {
 
     // --- Input ---
 
-    pub fn input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         // C++ emScalarField.cpp:246-268: gates on IsEditable() && IsEnabled().
         if !self.editable || !self.enabled {
             return false;
@@ -568,14 +568,14 @@ impl emScalarField {
         }
     }
 
-    pub fn get_cursor(&self) -> emCursor {
+    pub fn GetCursor(&self) -> emCursor {
         // C++ emScalarField doesn't override GetCursor — uses default panel cursor.
         emCursor::Normal
     }
 
     /// Whether this scalar field provides how-to help text.
     /// Matches C++ `emScalarField::HasHowTo` (always true).
-    pub fn has_how_to(&self) -> bool {
+    pub fn HasHowTo(&self) -> bool {
         true
     }
 
@@ -583,7 +583,7 @@ impl emScalarField {
     ///
     /// Chains the border's base how-to with scalar-field-specific sections.
     /// Matches C++ `emScalarField::GetHowTo`.
-    pub fn get_how_to(&self, enabled: bool, focusable: bool) -> String {
+    pub fn GetHowTo(&self, enabled: bool, focusable: bool) -> String {
         let mut text = self.border.GetHowTo(enabled, focusable);
         text.push_str(HOWTO_SCALAR_FIELD);
         if !self.editable {
@@ -795,10 +795,10 @@ mod tests {
         sf.last_h = 40.0;
 
         // emScalarField uses '+' and '-' keys (not arrow keys).
-        sf.input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        sf.Input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!(sf.GetValue() > 50.0);
 
-        sf.input(&emInputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
+        sf.Input(&emInputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
         // Should be roughly back to 50
         assert!((sf.GetValue() - 50.0).abs() < 2.0);
     }
@@ -817,7 +817,7 @@ mod tests {
             val_clone.borrow_mut().push(v);
         }));
 
-        sf.input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        sf.Input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert_eq!(values.borrow().len(), 1);
         assert!(values.borrow()[0] > 5.0);
     }
@@ -838,7 +838,7 @@ mod tests {
         sf.SetValue(50.0);
         sf.last_w = 200.0;
         sf.last_h = 40.0;
-        let handled = sf.input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        let handled = sf.Input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!(!handled);
         assert!((sf.GetValue() - 50.0).abs() < 0.001);
 
@@ -953,10 +953,10 @@ mod tests {
         sf.last_w = 200.0;
         sf.last_h = 40.0;
 
-        sf.input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        sf.Input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!((sf.GetValue() - 60.0).abs() < 1.0);
 
-        sf.input(&emInputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
+        sf.Input(&emInputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
         assert!((sf.GetValue() - 50.0).abs() < 1.0);
     }
 
@@ -978,7 +978,7 @@ mod tests {
         sf.last_w = 200.0;
         sf.last_h = 40.0;
 
-        let handled = sf.input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        let handled = sf.Input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!(handled);
         assert!(sf.GetValue() > 50.0);
     }
@@ -988,9 +988,9 @@ mod tests {
         // C++ doesn't override GetCursor — always default panel cursor.
         let look = emLook::new();
         let mut sf = emScalarField::new(0.0, 100.0, look);
-        assert_eq!(sf.get_cursor(), emCursor::Normal);
+        assert_eq!(sf.GetCursor(), emCursor::Normal);
         sf.SetEditable(false);
-        assert_eq!(sf.get_cursor(), emCursor::Normal);
+        assert_eq!(sf.GetCursor(), emCursor::Normal);
     }
 
     #[test]

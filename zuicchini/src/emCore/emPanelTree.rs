@@ -385,7 +385,7 @@ impl PanelTree {
     }
 
     /// Get the root panel ID.
-    pub fn root(&self) -> Option<PanelId> {
+    pub fn GetRootPanel(&self) -> Option<PanelId> {
         self.root
     }
 
@@ -395,7 +395,7 @@ impl PanelTree {
     }
 
     /// Get a panel's data (crate-internal).
-    pub(crate) fn get(&self, id: PanelId) -> Option<&PanelData> {
+    pub(crate) fn GetRec(&self, id: PanelId) -> Option<&PanelData> {
         self.panels.get(id)
     }
 
@@ -430,7 +430,7 @@ impl PanelTree {
     }
 
     /// Get the canvas color.
-    pub fn canvas_color(&self, id: PanelId) -> Option<emColor> {
+    pub fn GetCanvasColor(&self, id: PanelId) -> Option<emColor> {
         self.panels.get(id).map(|p| p.canvas_color)
     }
 
@@ -505,8 +505,13 @@ impl PanelTree {
     }
 
     /// Check if the tree is empty.
-    pub fn is_empty(&self) -> bool {
+    pub fn IsEmpty(&self) -> bool {
         self.panels.is_empty()
+    }
+
+    /// Alias for clippy `len_without_is_empty` lint.
+    pub fn is_empty(&self) -> bool {
+        self.IsEmpty()
     }
 
     /// Iterate over children of a panel.
@@ -524,7 +529,7 @@ impl PanelTree {
     }
 
     /// Get the parent of a panel.
-    pub fn parent(&self, id: PanelId) -> Option<PanelId> {
+    pub fn GetParentContext(&self, id: PanelId) -> Option<PanelId> {
         self.panels.get(id).and_then(|p| p.parent)
     }
 
@@ -913,7 +918,7 @@ impl PanelTree {
     }
 
     /// Set the canvas color for a panel.
-    pub fn set_canvas_color(&mut self, id: PanelId, color: emColor) {
+    pub fn SetCanvasColor(&mut self, id: PanelId, color: emColor) {
         if let Some(panel) = self.panels.get_mut(id) {
             panel.canvas_color = color;
             panel.pending_notices.insert(NoticeFlags::CANVAS_CHANGED);
@@ -2291,7 +2296,7 @@ mod tests {
             .expect("create_control_panel should succeed when root has ControlCreator");
         assert_eq!(t.name(ctrl_id), Some("ctrl"));
         // The control panel is created as a child of root (parent_arg).
-        assert_eq!(t.parent(ctrl_id), Some(root));
+        assert_eq!(t.GetParentContext(ctrl_id), Some(root));
     }
 
     #[test]
@@ -2327,12 +2332,12 @@ mod tests {
         assert_eq!(t.GetAutoExpansionThresholdValue(root), 100.0);
 
         // Mark AE decision invalid on change
-        assert!(t.get(root).unwrap().ae_decision_invalid);
+        assert!(t.GetRec(root).unwrap().ae_decision_invalid);
 
         // No-op when values unchanged
         t.get_mut(root).unwrap().ae_decision_invalid = false;
         t.SetAutoExpansionThreshold(root, 100.0, ViewConditionType::Width);
-        assert!(!t.get(root).unwrap().ae_decision_invalid);
+        assert!(!t.GetRec(root).unwrap().ae_decision_invalid);
     }
 
     #[test]
@@ -2342,16 +2347,16 @@ mod tests {
 
         // Not expanded => no effect
         t.InvalidateAutoExpansion(root);
-        assert!(!t.get(root).unwrap().ae_invalid);
+        assert!(!t.GetRec(root).unwrap().ae_invalid);
 
         // Expanded => marks invalid
         t.get_mut(root).unwrap().ae_expanded = true;
         t.InvalidateAutoExpansion(root);
-        assert!(t.get(root).unwrap().ae_invalid);
+        assert!(t.GetRec(root).unwrap().ae_invalid);
 
         // Already invalid => still invalid (idempotent)
         t.InvalidateAutoExpansion(root);
-        assert!(t.get(root).unwrap().ae_invalid);
+        assert!(t.GetRec(root).unwrap().ae_invalid);
     }
 
     // ── emView condition tests ─────────────────────────────────────────

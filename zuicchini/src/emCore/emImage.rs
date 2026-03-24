@@ -190,7 +190,7 @@ impl emImage {
 
     /// Returns `true` if either dimension is zero.
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub fn IsEmpty(&self) -> bool {
         self.width == 0 || self.height == 0
     }
 
@@ -265,7 +265,7 @@ impl emImage {
     }
 
     /// Reset to 0×0 empty image.
-    pub fn clear(&mut self) {
+    pub fn Clear(&mut self) {
         self.width = 0;
         self.height = 0;
         self.data.clear();
@@ -683,7 +683,7 @@ impl emImage {
         mut h: f64,
         bg: emColor,
     ) -> emColor {
-        if self.is_empty() {
+        if self.IsEmpty() {
             return bg;
         }
 
@@ -842,7 +842,7 @@ impl emImage {
     ) {
         let (x, y, w, h) = clip;
 
-        if w <= 0 || h <= 0 || self.is_empty() {
+        if w <= 0 || h <= 0 || self.IsEmpty() {
             return;
         }
 
@@ -994,7 +994,7 @@ impl emImage {
         channel_count: Option<u8>,
     ) -> emImage {
         let out_cc = channel_count.unwrap_or(self.channel_count);
-        if self.is_empty() {
+        if self.IsEmpty() {
             return emImage::new(0, 0, out_cc);
         }
 
@@ -1345,10 +1345,10 @@ mod tests {
         assert_eq!(img.GetChannelCount(), 1);
         assert!(img.GetMap().iter().all(|&b| b == 0));
 
-        img.clear();
+        img.Clear();
         assert_eq!(img.GetWidth(), 0);
         assert_eq!(img.GetHeight(), 0);
-        assert!(img.is_empty());
+        assert!(img.IsEmpty());
     }
 
     #[test]

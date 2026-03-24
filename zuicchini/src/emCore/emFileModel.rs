@@ -109,11 +109,11 @@ impl<T> emFileModel<T> {
         &self.state
     }
 
-    pub fn data(&self) -> Option<&T> {
+    pub fn GetMap(&self) -> Option<&T> {
         self.data.as_ref()
     }
 
-    pub fn data_mut(&mut self) -> Option<&mut T> {
+    pub fn GetWritableMap(&mut self) -> Option<&mut T> {
         self.data.as_mut()
     }
 
@@ -129,7 +129,7 @@ impl<T> emFileModel<T> {
         self.memory_limit = limit;
     }
 
-    pub fn memory_limit(&self) -> usize {
+    pub fn GetMemoryLimit(&self) -> usize {
         self.memory_limit
     }
 

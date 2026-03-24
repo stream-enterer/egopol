@@ -300,7 +300,7 @@ impl Record for emFpPlugin {
             .iter()
             .map(|t| RecValue::Str(t.clone()))
             .collect();
-        s.set_value("FileTypes", RecValue::Array(ft_vals));
+        s.SetValue("FileTypes", RecValue::Array(ft_vals));
 
         s.set_str("FileFormatName", &self.file_format_name);
         s.set_double("Priority", self.priority);
@@ -313,7 +313,7 @@ impl Record for emFpPlugin {
             .iter()
             .map(|c| RecValue::Str(c.clone()))
             .collect();
-        s.set_value("ModelClasses", RecValue::Array(mc_vals));
+        s.SetValue("ModelClasses", RecValue::Array(mc_vals));
 
         s.set_bool("ModelAbleToSave", self.model_able_to_save);
 
@@ -322,7 +322,7 @@ impl Record for emFpPlugin {
             .iter()
             .map(|p| RecValue::Struct(p.to_rec()))
             .collect();
-        s.set_value("Properties", RecValue::Array(prop_vals));
+        s.SetValue("Properties", RecValue::Array(prop_vals));
 
         s
     }

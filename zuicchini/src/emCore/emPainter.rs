@@ -121,7 +121,7 @@ struct ClipRect {
 }
 
 impl ClipRect {
-    fn is_empty(&self) -> bool {
+    fn IsEmpty(&self) -> bool {
         self.x1 >= self.x2 || self.y1 >= self.y2
     }
 
@@ -318,7 +318,7 @@ impl<'a> emPainter<'a> {
 
     /// Get a mutable reference to the target image.
     /// Panics if in recording mode — callers must check `is_recording()` first.
-    fn image(&mut self) -> &mut emImage {
+    fn GetImage(&mut self) -> &mut emImage {
         match &mut self.target {
             PaintTarget::emImage(img) => img,
             PaintTarget::DrawList(_) => unreachable!("pixel access in recording mode"),
@@ -442,7 +442,7 @@ impl<'a> emPainter<'a> {
 
     /// Returns true if the current clip region has zero area.
     pub fn GetClipX1(&self) -> bool {
-        self.state.clip.is_empty()
+        self.state.clip.IsEmpty()
     }
 
     /// Set origin (absolute offset, replaces current offset).
@@ -790,7 +790,7 @@ impl<'a> emPainter<'a> {
                 }
                 ibuf.set_len(batch);
                 let dest_offset = (row as usize * tw + col as usize) * 4;
-                let data = self.image().GetWritableMap();
+                let data = self.GetImage().GetWritableMap();
                 let dest = &mut data[dest_offset..];
                 blend_scanline(dest, &ibuf, batch, None, &mode);
                 col += batch as i32;
@@ -1166,7 +1166,7 @@ impl<'a> emPainter<'a> {
                     let all_full =
                         sp.batch_coverages(row, col, &mut coverages[..batch]);
                     let dest_offset = (row as usize * tw + col as usize) * 4;
-                    let data = self.image().GetWritableMap();
+                    let data = self.GetImage().GetWritableMap();
                     let dest = &mut data[dest_offset..];
                     if all_full {
                         blend_scanline(dest, &ibuf, batch, None, &mode);
@@ -1189,7 +1189,7 @@ impl<'a> emPainter<'a> {
                         let all_full =
                             sp.batch_coverages(row, col, &mut coverages[..batch]);
                         let dest_offset = (row as usize * tw + col as usize) * 4;
-                        let data = self.image().GetWritableMap();
+                        let data = self.GetImage().GetWritableMap();
                         let dest = &mut data[dest_offset..];
                         if all_full {
                             blend_scanline_premul(dest, &ibuf, batch, None, &mode);
@@ -1209,7 +1209,7 @@ impl<'a> emPainter<'a> {
                         let all_full =
                             sp.batch_coverages(row, col, &mut coverages[..batch]);
                         let dest_offset = (row as usize * tw + col as usize) * 4;
-                        let data = self.image().GetWritableMap();
+                        let data = self.GetImage().GetWritableMap();
                         let dest = &mut data[dest_offset..];
                         if all_full {
                             blend_scanline(dest, &ibuf, batch, None, &mode);
@@ -1391,7 +1391,7 @@ impl<'a> emPainter<'a> {
                     let all_full =
                         sp.batch_coverages(row, col, &mut coverages[..batch]);
                     let dest_offset = (row as usize * tw + col as usize) * 4;
-                    let data = self.image().GetWritableMap();
+                    let data = self.GetImage().GetWritableMap();
                     let dest = &mut data[dest_offset..];
                     if all_full {
                         blend_scanline(dest, &ibuf, batch, None, &mode);
@@ -1443,7 +1443,7 @@ impl<'a> emPainter<'a> {
                     let all_full =
                         sp.batch_coverages(row, col, &mut coverages[..batch]);
                     let dest_offset = (row as usize * tw + col as usize) * 4;
-                    let data = self.image().GetWritableMap();
+                    let data = self.GetImage().GetWritableMap();
                     let dest = &mut data[dest_offset..];
                     if all_full {
                         blend_scanline(dest, &ibuf, batch, None, &mode);
@@ -1903,7 +1903,7 @@ impl<'a> emPainter<'a> {
                 }
                 ibuf.set_len(batch);
                 let dest_offset = (row as usize * tw + col as usize) * 4;
-                let data = self.image().GetWritableMap();
+                let data = self.GetImage().GetWritableMap();
                 let dest = &mut data[dest_offset..];
                 blend_scanline(dest, &ibuf, batch, None, &mode);
                 col += batch as i32;
@@ -2608,7 +2608,7 @@ impl<'a> emPainter<'a> {
                     let all_full =
                         sp.batch_coverages(row, col, &mut coverages[..batch]);
                     let dest_offset = (row as usize * tw + col as usize) * 4;
-                    let data = self.image().GetWritableMap();
+                    let data = self.GetImage().GetWritableMap();
                     let dest = &mut data[dest_offset..];
                     if all_full {
                         blend_scanline(dest, &ibuf, batch, None, &mode);
@@ -2638,7 +2638,7 @@ impl<'a> emPainter<'a> {
                     let all_full =
                         sp.batch_coverages(row, col, &mut coverages[..batch]);
                     let dest_offset = (row as usize * tw + col as usize) * 4;
-                    let data = self.image().GetWritableMap();
+                    let data = self.GetImage().GetWritableMap();
                     let dest = &mut data[dest_offset..];
                     if all_full {
                         blend_scanline_premul(dest, &ibuf, batch, None, &mode);
@@ -5076,7 +5076,7 @@ impl<'a> emPainter<'a> {
         let xu = x as u32;
         let yu = y as u32;
         if color.IsOpaque() && self.state.alpha == 255 {
-            let out = self.image().SetPixel(xu, yu);
+            let out = self.GetImage().SetPixel(xu, yu);
             out[0] = color.GetRed();
             out[1] = color.GetGreen();
             out[2] = color.GetBlue();
@@ -5093,7 +5093,7 @@ impl<'a> emPainter<'a> {
             let px = self.read_pixel(xu, yu);
             let existing = emColor::rgba(px[0], px[1], px[2], px[3]);
             let result = existing.canvas_blend(color, self.state.canvas_color, combined_alpha);
-            let out = self.image().SetPixel(xu, yu);
+            let out = self.GetImage().SetPixel(xu, yu);
             out[0] = result.GetRed();
             out[1] = result.GetGreen();
             out[2] = result.GetBlue();
@@ -5108,7 +5108,7 @@ impl<'a> emPainter<'a> {
                 return;
             }
             if ea >= 255 {
-                let out = self.image().SetPixel(xu, yu);
+                let out = self.GetImage().SetPixel(xu, yu);
                 out[0] = color.GetRed();
                 out[1] = color.GetGreen();
                 out[2] = color.GetBlue();
@@ -5126,7 +5126,7 @@ impl<'a> emPainter<'a> {
                 + ((color.GetBlue() as u32 * alpha * 257 + 0x8073) >> 16);
             let a =
                 ((bg[3] as u32 * t + 0x8073) >> 16) + ((255u32 * alpha * 257 + 0x8073) >> 16);
-            let out = self.image().SetPixel(xu, yu);
+            let out = self.GetImage().SetPixel(xu, yu);
             out[0] = r as u8;
             out[1] = g as u8;
             out[2] = b as u8;
@@ -5561,7 +5561,7 @@ impl<'a> emPainter<'a> {
 
         if color.IsOpaque() && self.state.alpha == 255 {
             // Fully opaque: direct write, no blending needed.
-            let out = self.image().SetPixel(x as u32, y as u32);
+            let out = self.GetImage().SetPixel(x as u32, y as u32);
             out[0] = color.GetRed();
             out[1] = color.GetGreen();
             out[2] = color.GetBlue();
@@ -5587,7 +5587,7 @@ impl<'a> emPainter<'a> {
             let px = self.read_pixel(x as u32, y as u32);
             let existing = emColor::rgba(px[0], px[1], px[2], px[3]);
             let result = existing.canvas_blend(color, self.state.canvas_color, combined_alpha);
-            let out = self.image().SetPixel(x as u32, y as u32);
+            let out = self.GetImage().SetPixel(x as u32, y as u32);
             out[0] = result.GetRed();
             out[1] = result.GetGreen();
             out[2] = result.GetBlue();
@@ -5607,7 +5607,7 @@ impl<'a> emPainter<'a> {
             }
             let bg = self.read_pixel(x as u32, y as u32);
             if ea >= 255 {
-                let out = self.image().SetPixel(x as u32, y as u32);
+                let out = self.GetImage().SetPixel(x as u32, y as u32);
                 out[0] = color.GetRed();
                 out[1] = color.GetGreen();
                 out[2] = color.GetBlue();
@@ -5627,7 +5627,7 @@ impl<'a> emPainter<'a> {
                     + ((color.GetBlue() as u32 * alpha * 257 + 0x8073) >> 16);
                 let a =
                     ((bg[3] as u32 * t + 0x8073) >> 16) + ((255u32 * alpha * 257 + 0x8073) >> 16);
-                let out = self.image().SetPixel(x as u32, y as u32);
+                let out = self.GetImage().SetPixel(x as u32, y as u32);
                 out[0] = r as u8;
                 out[1] = g as u8;
                 out[2] = b as u8;
@@ -5650,7 +5650,7 @@ impl<'a> emPainter<'a> {
 
         if color.IsOpaque() && self.state.alpha == 255 {
             let pixel = [color.GetRed(), color.GetGreen(), color.GetBlue(), 255u8];
-            let data = self.image().GetWritableMap();
+            let data = self.GetImage().GetWritableMap();
             for col in x1..x2 {
                 let off = row_base + col as usize * 4;
                 data[off..off + 4].copy_from_slice(&pixel);
@@ -5675,7 +5675,7 @@ impl<'a> emPainter<'a> {
             let delta_r = pm_r - cr as i32;
             let delta_g = pm_g - cg as i32;
             let delta_b = pm_b - cb as i32;
-            let data = self.image().GetWritableMap();
+            let data = self.GetImage().GetWritableMap();
             for col in x1..x2 {
                 let off = row_base + col as usize * 4;
                 data[off] = (data[off] as i32 + delta_r).clamp(0, 255) as u8;
@@ -5694,7 +5694,7 @@ impl<'a> emPainter<'a> {
             }
             if ea >= 255 {
                 let pixel = [color.GetRed(), color.GetGreen(), color.GetBlue(), 255u8];
-                let data = self.image().GetWritableMap();
+                let data = self.GetImage().GetWritableMap();
                 for col in x1..x2 {
                     let off = row_base + col as usize * 4;
                     data[off..off + 4].copy_from_slice(&pixel);
@@ -5706,7 +5706,7 @@ impl<'a> emPainter<'a> {
                 let sg = (color.GetGreen() as u32 * alpha * 257 + 0x8073) >> 16;
                 let sb = (color.GetBlue() as u32 * alpha * 257 + 0x8073) >> 16;
                 let sa = (255u32 * alpha * 257 + 0x8073) >> 16;
-                let data = self.image().GetWritableMap();
+                let data = self.GetImage().GetWritableMap();
                 for col in x1..x2 {
                     let off = row_base + col as usize * 4;
                     data[off] = (((data[off] as u32 * t + 0x8073) >> 16) + sr) as u8;
@@ -5736,7 +5736,7 @@ impl<'a> emPainter<'a> {
         if color.IsOpaque() && self.state.alpha == 255 {
             let pixel = [color.GetRed(), color.GetGreen(), color.GetBlue(), 255u8];
             let tw = self.target_width as usize;
-            let data = self.image().GetWritableMap();
+            let data = self.GetImage().GetWritableMap();
             for row in start_y..end_y {
                 let row_base = row as usize * tw * 4;
                 for col in start_x..end_x {

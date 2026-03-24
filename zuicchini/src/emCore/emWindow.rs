@@ -297,7 +297,7 @@ impl ZuiWindow {
                             (col * tile_size, row * tile_size, tile_size, tile_size),
                         );
                         tile.dirty = false;
-                        let tile_ref = self.tile_cache.get(col, row).unwrap();
+                        let tile_ref = self.tile_cache.GetRec(col, row).unwrap();
                         self.compositor
                             .upload_tile(&gpu.device, &gpu.queue, col, row, tile_ref);
                     }
@@ -335,7 +335,7 @@ impl ZuiWindow {
                             }
                         }
                         tile.dirty = false;
-                        let tile_ref = self.tile_cache.get(col, row).unwrap();
+                        let tile_ref = self.tile_cache.GetRec(col, row).unwrap();
                         self.compositor
                             .upload_tile(&gpu.device, &gpu.queue, col, row, tile_ref);
                     }
@@ -450,7 +450,7 @@ impl ZuiWindow {
                 let tile = self.tile_cache.get_or_create(*col, *row);
                 tile.image = buffer;
                 tile.dirty = false;
-                let tile_ref = self.tile_cache.get(*col, *row).unwrap();
+                let tile_ref = self.tile_cache.GetRec(*col, *row).unwrap();
                 self.compositor
                     .upload_tile(&gpu.device, &gpu.queue, *col, *row, tile_ref);
             }
@@ -715,7 +715,7 @@ impl ZuiWindow {
         {
             let (wx, wy) = mouse_vif.drain_pending_warp();
             if wx.abs() > 0.1 || wy.abs() > 0.1 {
-                self.move_mouse_pointer(wx, wy);
+                self.MoveMousePointer(wx, wy);
                 // Adjust emInputState to match new cursor position
                 state.mouse_x += wx;
                 state.mouse_y += wy;
@@ -821,7 +821,7 @@ impl ZuiWindow {
                 }
                 consumed = behavior.Input(&panel_ev, &panel_state, state);
                 if trace && is_press_release {
-                    let name = tree.get(panel_id).map(|p| p.name.as_str()).unwrap_or("?");
+                    let name = tree.GetRec(panel_id).map(|p| p.name.as_str()).unwrap_or("?");
                     eprintln!(
                         "  {:?} {:?} local=({:.4},{:.4}) consumed={}",
                         panel_id, name, panel_ev.mouse_x, panel_ev.mouse_y, consumed
@@ -834,7 +834,7 @@ impl ZuiWindow {
                 tree.put_behavior(panel_id, behavior);
                 if consumed {
                     if trace && is_press_release {
-                        let name = tree.get(panel_id).map(|p| p.name.as_str()).unwrap_or("?");
+                        let name = tree.GetRec(panel_id).map(|p| p.name.as_str()).unwrap_or("?");
                         eprintln!("  >>> CONSUMED by {:?}", name);
                     }
                     self.view.InvalidatePainting(tree, panel_id);
@@ -986,7 +986,7 @@ impl ZuiWindow {
     }
 
     /// Set the window title.
-    pub fn set_title(&self, title: &str) {
+    pub fn SetRootTitle(&self, title: &str) {
         self.winit_window.set_title(title);
     }
 
@@ -1171,7 +1171,7 @@ impl ZuiWindow {
     pub fn SetWindowIcon(&mut self, icon: &emImage) {
         self.window_icon = Some(icon.clone());
 
-        if icon.is_empty() {
+        if icon.IsEmpty() {
             self.winit_window.set_window_icon(None);
             return;
         }
@@ -1208,7 +1208,7 @@ impl ZuiWindow {
     pub fn InhibitScreensaver(&mut self) {
         self.screensaver_inhibit_count += 1;
         if self.screensaver_inhibit_count == 1 {
-            self.screensaver_cookie = super::emWindowPlatform::inhibit_screensaver();
+            self.screensaver_cookie = super::emWindowPlatform::InhibitScreensaver();
         }
         log::debug!(
             "screensaver inhibited (count={})",
@@ -1244,7 +1244,7 @@ impl ZuiWindow {
     /// which works on X11. On Wayland, set_cursor_position returns NotSupported
     /// and the error is logged at debug level. Callers should check
     /// emScreen::can_move_mouse_pointer() before calling.
-    pub fn move_mouse_pointer(&self, dx: f64, dy: f64) {
+    pub fn MoveMousePointer(&self, dx: f64, dy: f64) {
         let target_x = self.last_mouse_pos.0 + dx;
         let target_y = self.last_mouse_pos.1 + dy;
         if let Err(e) = self
@@ -1258,7 +1258,7 @@ impl ZuiWindow {
     /// Emit an acoustic warning beep via libcanberra (Linux) or no-op (other).
     ///
     /// Matches C++ emScreen::Beep.
-    pub fn beep(&self) {
+    pub fn Beep(&self) {
         super::emWindowPlatform::system_beep();
     }
 }

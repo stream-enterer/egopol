@@ -154,7 +154,7 @@ impl emButton {
         text
     }
 
-    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -294,7 +294,7 @@ impl emButton {
         super::widget_utils::check_mouse_round_rect(mx, my, &face, fr)
     }
 
-    pub fn input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -400,7 +400,7 @@ impl emButton {
         }
     }
 
-    pub fn get_cursor(&self) -> emCursor {
+    pub fn GetCursor(&self) -> emCursor {
         // C++ emButton doesn't override GetCursor — uses default panel cursor.
         emCursor::Normal
     }
@@ -474,7 +474,7 @@ mod tests {
         let is = default_input_state();
 
         // C++ Enter: instant Click() on press, no visual press state.
-        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert!(*fired.borrow());
     }
 
@@ -492,10 +492,10 @@ mod tests {
         let is = default_input_state();
 
         // C++: only Enter activates, instant on press. Space is not handled.
-        btn.input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*count.borrow(), 1);
         // Space should NOT activate
-        btn.input(&emInputEvent::press(InputKey::Space), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Space), &ps, &is);
         assert_eq!(*count.borrow(), 1);
     }
 
@@ -503,7 +503,7 @@ mod tests {
     fn button_cursor_is_hand() {
         let look = emLook::new();
         let btn = emButton::new("X", look);
-        assert_eq!(btn.get_cursor(), emCursor::Normal);
+        assert_eq!(btn.GetCursor(), emCursor::Normal);
     }
 
     #[test]
@@ -599,7 +599,7 @@ mod tests {
         // Simulate paint to cache dimensions
         let mut img = emImage::new(200, 100, 4);
         let mut painter = emPainter::new(&mut img);
-        btn.paint(&mut painter, 200.0, 100.0, true);
+        btn.Paint(&mut painter, 200.0, 100.0, true);
         // Center of the button should hit
         assert!(btn.CheckMouse(100.0, 50.0));
     }
@@ -611,7 +611,7 @@ mod tests {
         let mut btn = emButton::new("X", look);
         let mut img = emImage::new(200, 100, 4);
         let mut painter = emPainter::new(&mut img);
-        btn.paint(&mut painter, 200.0, 100.0, true);
+        btn.Paint(&mut painter, 200.0, 100.0, true);
         // Well outside the button bounds
         assert!(!btn.CheckMouse(-50.0, -50.0));
         assert!(!btn.CheckMouse(300.0, 200.0));

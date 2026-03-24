@@ -229,7 +229,7 @@ impl emColorField {
     /// Port of C++ `emColorField::Cycle()`.
     ///
     /// Returns `true` if the color changed.
-    pub fn cycle(&mut self) -> bool {
+    pub fn Cycle(&mut self) -> bool {
         let exp = match &mut self.expansion {
             Some(exp) => exp,
             None => return false,
@@ -392,7 +392,7 @@ impl emColorField {
     /// Paint using C++ emColorField::PaintContent (emColorField.cpp:371-404).
     ///
     /// Gets content round rect, insets by d=min(w,h)*0.1, paints color rect + outline.
-    pub fn paint(&mut self, painter: &mut emPainter, w: f64, h: f64) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64) {
         self.last_w = w;
         self.last_h = h;
         self.border
@@ -470,7 +470,7 @@ impl emColorField {
         super::widget_utils::check_mouse_round_rect(mx, my, &rect, r)
     }
 
-    pub fn input(&mut self, event: &emInputEvent, _state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(&mut self, event: &emInputEvent, _state: &PanelState, _input_state: &emInputState) -> bool {
         match event.key {
             InputKey::MouseLeft if event.variant == InputVariant::Release => {
                 if !self.hit_test(event.mouse_x, event.mouse_y) {
@@ -648,7 +648,7 @@ impl emColorField {
     /// When the panel is auto-expanded but has no children yet, this method
     /// creates them via `create_expansion_children`, matching the pattern
     /// used by other widgets (e.g. `emCoreConfigPanel`).
-    pub fn layout_children(&mut self, ctx: &mut PanelCtx, w: f64, h: f64) {
+    pub fn LayoutChildren(&mut self, ctx: &mut PanelCtx, w: f64, h: f64) {
         if ctx.tree.IsAutoExpanded(ctx.id) && ctx.child_count() == 0 {
             self.create_expansion_children(ctx);
         }
@@ -677,7 +677,7 @@ impl emColorField {
         // The content area canvas color is determined by the border painting.
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 
@@ -788,7 +788,7 @@ mod tests {
         cf.set_expanded(true);
         // Modify red via expansion
         cf.expansion_mut().unwrap().sf_red = 5000; // ~50% = 127
-        assert!(cf.cycle());
+        assert!(cf.Cycle());
         // emColor should have updated red channel
         let r = cf.GetColor().GetRed();
         assert!((r as i64 - 127).abs() <= 1, "expected ~127, got {}", r);
@@ -805,7 +805,7 @@ mod tests {
         exp.sf_hue = 0;
         exp.sf_sat = 10000;
         exp.sf_val = 10000;
-        assert!(cf.cycle());
+        assert!(cf.Cycle());
         // Should be red
         assert_eq!(cf.GetColor().GetRed(), 255);
         assert!(cf.GetColor().GetGreen() < 5);
@@ -818,7 +818,7 @@ mod tests {
         let mut cf = emColorField::new(look);
         cf.set_expanded(true);
         cf.expansion_mut().unwrap().tf_name = "#FF0000".to_string();
-        assert!(cf.cycle());
+        assert!(cf.Cycle());
         assert_eq!(cf.GetColor(), emColor::rgba(255, 0, 0, 255));
     }
 

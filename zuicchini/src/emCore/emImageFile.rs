@@ -70,15 +70,15 @@ impl emImageFileModel {
     }
 
     pub fn GetImage(&self) -> Option<&emImage> {
-        self.file_model.data().map(|d| &d.image)
+        self.file_model.GetMap().map(|d| &d.image)
     }
 
     pub fn GetComment(&self) -> Option<&str> {
-        self.file_model.data().map(|d| d.comment.as_str())
+        self.file_model.GetMap().map(|d| d.comment.as_str())
     }
 
     pub fn GetFileFormatInfo(&self) -> Option<&str> {
-        self.file_model.data().map(|d| d.format_info.as_str())
+        self.file_model.GetMap().map(|d| d.format_info.as_str())
     }
 
     pub fn GetSavingQuality(&self) -> u32 {
@@ -92,12 +92,12 @@ impl emImageFileModel {
     /// Set the image. Returns `true` if the image changed (and the model was
     /// marked unsaved). Returns `false` if the value was identical.
     pub fn set_image(&mut self, image: emImage) -> bool {
-        if let Some(data) = self.file_model.data() {
+        if let Some(data) = self.file_model.GetMap() {
             if data.image == image {
                 return false;
             }
         }
-        if let Some(data) = self.file_model.data_mut() {
+        if let Some(data) = self.file_model.GetWritableMap() {
             data.image = image;
             self.file_model.SetUnsavedState();
             true
@@ -108,12 +108,12 @@ impl emImageFileModel {
 
     /// Set the comment. Returns `true` if the comment changed.
     pub fn set_comment(&mut self, comment: String) -> bool {
-        if let Some(data) = self.file_model.data() {
+        if let Some(data) = self.file_model.GetMap() {
             if data.comment == comment {
                 return false;
             }
         }
-        if let Some(data) = self.file_model.data_mut() {
+        if let Some(data) = self.file_model.GetWritableMap() {
             data.comment = comment;
             self.file_model.SetUnsavedState();
             true
@@ -124,12 +124,12 @@ impl emImageFileModel {
 
     /// Set the format info. Returns `true` if the format info changed.
     pub fn SetFileFormatInfo(&mut self, info: String) -> bool {
-        if let Some(data) = self.file_model.data() {
+        if let Some(data) = self.file_model.GetMap() {
             if data.format_info == info {
                 return false;
             }
         }
-        if let Some(data) = self.file_model.data_mut() {
+        if let Some(data) = self.file_model.GetWritableMap() {
             data.format_info = info;
             self.file_model.SetUnsavedState();
             true

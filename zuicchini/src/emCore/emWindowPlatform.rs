@@ -94,7 +94,7 @@ mod inner {
         });
     }
 
-    pub(crate) fn inhibit_screensaver() -> Option<u32> {
+    pub(crate) fn InhibitScreensaver() -> Option<u32> {
         let conn = match zbus::blocking::Connection::session() {
             Ok(c) => c,
             Err(e) => {
@@ -150,12 +150,12 @@ mod inner {
 #[cfg(not(target_os = "linux"))]
 mod inner {
     pub(crate) fn system_beep() {}
-    pub(crate) fn inhibit_screensaver() -> Option<u32> {
+    pub(crate) fn InhibitScreensaver() -> Option<u32> {
         None
     }
     pub(crate) fn uninhibit_screensaver(_cookie: u32) {}
 }
 
-pub(crate) use inner::inhibit_screensaver;
+pub(crate) use inner::InhibitScreensaver;
 pub(crate) use inner::system_beep;
 pub(crate) use inner::uninhibit_screensaver;

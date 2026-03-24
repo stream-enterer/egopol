@@ -398,7 +398,7 @@ impl emFileSelectionBox {
         }
     }
 
-    pub fn clear_selection(&mut self) {
+    pub fn ClearSelection(&mut self) {
         self.set_selected_name("");
     }
 
@@ -419,7 +419,7 @@ impl emFileSelectionBox {
 
         if abs_path.is_dir() {
             self.set_parent_directory(&abs_path);
-            self.clear_selection();
+            self.ClearSelection();
         } else {
             if let Some(parent) = abs_path.parent() {
                 self.set_parent_directory(parent);
@@ -492,12 +492,12 @@ impl emFileSelectionBox {
         let path = self.parent_dir.join(name);
         if name == ".." {
             self.set_parent_directory(&path);
-            self.clear_selection();
+            self.ClearSelection();
         } else if path.is_dir() {
             // Check readability by attempting to read the directory.
             if std::fs::read_dir(&path).is_ok() {
                 self.set_parent_directory(&path);
-                self.clear_selection();
+                self.ClearSelection();
             }
         }
     }
@@ -614,7 +614,7 @@ impl emFileSelectionBox {
     }
 
     /// Get the current directory listing.
-    pub fn listing(&self) -> &[(String, FileItemData)] {
+    pub fn GetListing(&self) -> &[(String, FileItemData)] {
         &self.listing
     }
 
@@ -653,7 +653,7 @@ impl emFileSelectionBox {
         // 1. ParentDirField
         if !self.parent_dir_field_hidden {
             let mut tf = emTextField::new(self.look.clone());
-            tf.set_caption("Directory");
+            tf.SetCaption("Directory");
             tf.SetEditable(true);
             tf.SetText(&self.parent_dir.to_string_lossy());
             let events = self.events.clone();
@@ -685,7 +685,7 @@ impl emFileSelectionBox {
         // 3. FilesLB (always created)
         {
             let mut lb = emListBox::new(self.look.clone());
-            lb.set_caption("Files");
+            lb.SetCaption("Files");
             lb.SetSelectionType(if self.multi_selection_enabled {
                 SelectionMode::Multi
             } else {
@@ -732,7 +732,7 @@ impl emFileSelectionBox {
         // 4. NameField
         if !self.name_field_hidden {
             let mut tf = emTextField::new(self.look.clone());
-            tf.set_caption("Name");
+            tf.SetCaption("Name");
             tf.SetEditable(true);
             if let Some(name) = self.selected_names.first() {
                 tf.SetText(name);
@@ -752,7 +752,7 @@ impl emFileSelectionBox {
         // 5. FiltersLB
         if !self.filter_hidden {
             let mut lb = emListBox::new(self.look.clone());
-            lb.set_caption("Filter");
+            lb.SetCaption("Filter");
             for (i, filter) in self.filters.iter().enumerate() {
                 lb.AddItem(format!("{}", i), filter.clone());
             }
@@ -908,7 +908,7 @@ impl PanelBehavior for emFileSelectionBox {
         // If state that affects child structure changed after initial creation,
         // tear down and rebuild all children.
         if self.children_dirty && ctx.child_count() > 0 {
-            ctx.delete_all_children();
+            ctx.DeleteAllChildren();
             self.dir_field_id = None;
             self.hidden_cb_id = None;
             self.files_lb_id = None;
@@ -929,7 +929,7 @@ impl PanelBehavior for emFileSelectionBox {
 
         let cc = self
             .border
-            .content_canvas_color(ctx.canvas_color(), &self.look, ctx.is_enabled());
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
 
         // 3-zone geometry matching C++ LayoutChildren
         let hs = (cw * 0.05).min(ch * 0.15);

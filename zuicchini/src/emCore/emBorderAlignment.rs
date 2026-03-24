@@ -20,7 +20,7 @@ impl ContentAlignment {
     /// Convert to a static string representation.
     ///
     /// Matches C++ emAlignmentToString.
-    pub fn as_str(self) -> &'static str {
+    pub fn emInputKeyToString(self) -> &'static str {
         match self {
             Self::TopLeft => "TopLeft",
             Self::Top => "Top",
@@ -73,7 +73,7 @@ impl ContentAlignment {
 
 impl std::fmt::Display for ContentAlignment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
+        f.write_str(self.emInputKeyToString())
     }
 }
 

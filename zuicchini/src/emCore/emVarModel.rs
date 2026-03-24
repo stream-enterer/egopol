@@ -14,12 +14,12 @@ impl<T: PartialEq> WatchedVar<T> {
         Self { value, signal_id }
     }
 
-    pub fn get(&self) -> &T {
+    pub fn GetRec(&self) -> &T {
         &self.value
     }
 
     /// Replace the value. Returns `true` if it actually changed.
-    pub fn set(&mut self, new_value: T) -> bool {
+    pub fn Set(&mut self, new_value: T) -> bool {
         if self.value == new_value {
             return false;
         }

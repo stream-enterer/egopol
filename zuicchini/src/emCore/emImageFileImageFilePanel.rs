@@ -52,7 +52,7 @@ impl emImageFilePanel {
     ///
     /// Port of C++ `emImageFilePanel::GetEssenceRect`. The image is centered
     /// within panel width 1.0 and proportional height.
-    pub fn get_essence_rect(&self, panel_w: f64, panel_h: f64) -> Option<(f64, f64, f64, f64)> {
+    pub fn GetEssenceRect(&self, panel_w: f64, panel_h: f64) -> Option<(f64, f64, f64, f64)> {
         let image = self.current_image.as_ref()?;
         let iw = image.GetWidth() as f64;
         let ih = image.GetHeight() as f64;
@@ -101,7 +101,7 @@ impl PanelBehavior for emImageFilePanel {
         }
 
         if let Some(ref image) = self.current_image {
-            if let Some((ix, iy, iw, ih)) = self.get_essence_rect(w, h) {
+            if let Some((ix, iy, iw, ih)) = self.GetEssenceRect(w, h) {
                 let canvas_color = painter.GetCanvasColor();
                 painter.paint_image_full(ix, iy, iw, ih, image, 255, canvas_color);
             }
