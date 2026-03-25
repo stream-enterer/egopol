@@ -582,6 +582,7 @@ fn colorfield_expanded() {
     let look = emLook::new();
     let mut cf = emColorField::new(look);
     cf.SetCaption("Color");
+    cf.SetDescription("Test color field");
     cf.SetEditable(true);
     cf.SetAlphaEnabled(true);
     cf.SetColor(zuicchini::emCore::emColor::emColor::rgba(0xBB, 0x22, 0x22, 0xFF));

@@ -2098,9 +2098,55 @@ impl<'a> emPainter<'a> {
         if !closed && !verts.is_empty() {
             verts.push(points[n - 1]);
         }
-        if verts.len() >= 2 {
-            self.PaintPolylineWithArrows(&verts, stroke, closed, canvas_color);
+        if verts.len() < 2 {
+            return;
         }
+
+        // C++ PaintBezierLine (emPainter.cpp:1444-1479): compute arrow direction
+        // vectors from the ORIGINAL control points, not from tessellated vertices.
+        // Then replace the first/last tessellated segment direction to match.
+        if !closed {
+            let nv = verts.len();
+            // Start direction: first control point → next non-coincident control point
+            if stroke.start_end.IsDecorated() {
+                for j in 1..n {
+                    let dx = points[j].0 - points[0].0;
+                    let dy = points[j].1 - points[0].1;
+                    let ll = dx * dx + dy * dy;
+                    if ll > 1e-280 {
+                        let l = ll.sqrt();
+                        let nx = dx / l;
+                        let ny = dy / l;
+                        // Replace verts[1] so the first segment has the correct direction.
+                        // Use a tiny offset from verts[0] along (nx, ny) to preserve
+                        // the segment while encoding the control-point direction.
+                        let eps = 1e-10;
+                        verts[1] = (verts[0].0 + nx * eps, verts[0].1 + ny * eps);
+                        break;
+                    }
+                }
+            }
+            // End direction: last control point ← prev non-coincident control point
+            if stroke.finish_end.IsDecorated() {
+                let last = points[n - 1];
+                for j in (0..n - 1).rev() {
+                    let dx = points[j].0 - last.0;
+                    let dy = points[j].1 - last.1;
+                    let ll = dx * dx + dy * dy;
+                    if ll > 1e-280 {
+                        let l = ll.sqrt();
+                        let nx = dx / l;
+                        let ny = dy / l;
+                        // Replace verts[nv-2] so the last segment has the correct direction.
+                        let eps = 1e-10;
+                        verts[nv - 2] = (last.0 + nx * eps, last.1 + ny * eps);
+                        break;
+                    }
+                }
+            }
+        }
+
+        self.PaintPolylineWithArrows(&verts, stroke, closed, canvas_color);
     }
 
     // --- 9-slice border images ---

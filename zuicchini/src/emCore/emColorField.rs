@@ -112,6 +112,10 @@ impl emColorField {
         self.border.caption = caption.to_string();
     }
 
+    pub fn SetDescription(&mut self, desc: &str) {
+        self.border.description = desc.to_string();
+    }
+
     pub fn GetColor(&self) -> emColor {
         self.color
     }
@@ -438,23 +442,14 @@ impl emColorField {
         // Paint color rect.
         painter.PaintRect(rx, ry, rw, rh, self.color, canvas_color);
 
-        // Paint rect outline (C++ PaintRectOutline defaults to canvasColor=0).
-        // C++ PaintRectOutline uses a 10-vertex polygon (outer + bridge + inner).
-        // Use paint_rect for each outline side — the polygon rasterizer produces
-        // different sub-pixel edge coverage than C++ for this non-convex shape,
-        // while axis-aligned PaintRect matches more closely in practice.
+        // Paint rect outline (C++ PaintRectOutline, emColorField.cpp:400-403).
         let thickness = d * 0.08;
         if thickness > 0.0 {
-            let t2 = thickness * 0.5;
-            let oc = self.look.input_fg_color;
-            // Top
-            painter.PaintRect(rx - t2, ry - t2, rw + thickness, thickness, oc, emColor::TRANSPARENT);
-            // Bottom
-            painter.PaintRect(rx - t2, ry + rh - t2, rw + thickness, thickness, oc, emColor::TRANSPARENT);
-            // Left
-            painter.PaintRect(rx - t2, ry + t2, thickness, (rh - thickness).max(0.0), oc, emColor::TRANSPARENT);
-            // Right
-            painter.PaintRect(rx + rw - t2, ry + t2, thickness, (rh - thickness).max(0.0), oc, emColor::TRANSPARENT);
+            let stroke = crate::emCore::emStroke::emStroke::new(
+                self.look.input_fg_color,
+                thickness,
+            );
+            painter.PaintRectOutline(rx, ry, rw, rh, &stroke, emColor::TRANSPARENT);
         }
 
         // C++ paints content, THEN overlays the IO field border image.

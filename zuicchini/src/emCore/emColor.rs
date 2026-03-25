@@ -83,13 +83,11 @@ impl emColor {
         let v = v.clamp(0.0, 100.0);
         let h = if h < 0.0 { (h % 360.0) + 360.0 } else if h >= 360.0 { h % 360.0 } else { h };
 
-        // Exact C++ expression order and types. s/v are already [0,100].
-        let v_pct = v as f64;
-        let s_pct = s as f64;
-        let cmax = (v_pct * 2.55 + 0.5) as i32;
-        let cmin = cmax - (cmax as f64 * s_pct * 0.01 + 0.5) as i32;
+        // Exact C++ expression order and types (float = f32). s/v are already [0,100].
+        let cmax = (v * 2.55_f32 + 0.5_f32) as i32;
+        let cmin = cmax - (cmax as f32 * s * 0.01_f32 + 0.5_f32) as i32;
         let cunit = cmax - cmin;
-        let chue = (cunit as f64 * h as f64 * (1.0 / 60.0) + 0.5) as i32;
+        let chue = (cunit as f32 * h * (1.0_f32 / 60.0_f32) + 0.5_f32) as i32;
 
         let (r, g, b) = if chue <= cunit * 3 {
             if chue <= cunit {
@@ -113,29 +111,58 @@ impl emColor {
     // DIVERGED: GetHue/GetSat/GetVal — combined into GetHSV returning (h, s, v) tuple
     /// Convert to HSV. Returns `(h, s, v)` with h in [0, 360), s and v in [0, 100].
     ///
-    /// Matches C++ GetHue/GetSat/GetVal scale: s = (cmax-cmin)*100/cmax, v = cmax*100/255.
+    /// Port of C++ GetHue/GetSat/GetVal integer algorithm (emColor.cpp:793-864).
     pub fn GetHSV(self) -> (f32, f32, f32) {
-        let r = self.GetRed() as f32 / 255.0;
-        let g = self.GetGreen() as f32 / 255.0;
-        let b = self.GetBlue() as f32 / 255.0;
+        let r = self.GetRed() as i32;
+        let g = self.GetGreen() as i32;
+        let b = self.GetBlue() as i32;
 
-        let max = r.max(g).max(b);
-        let min = r.min(g).min(b);
-        let delta = max - min;
-
-        let h = if delta == 0.0 {
-            0.0
-        } else if max == r {
-            60.0 * (((g - b) / delta) % 6.0 + 6.0) % 360.0
-        } else if max == g {
-            60.0 * ((b - r) / delta + 2.0)
+        // C++ GetHue (emColor.cpp:793-825): integer sextant dispatch
+        let (u, hh) = if r >= g {
+            if g >= b {
+                let u = r - b;
+                if u == 0 {
+                    (1, 0) // u=1 placeholder, hue=0
+                } else {
+                    (u, g - b)
+                }
+            } else if r >= b {
+                let u = r - g;
+                (u, u * 6 - b + g)
+            } else {
+                let u = b - g;
+                (u, u * 4 + r - g)
+            }
+        } else if r >= b {
+            let u = g - b;
+            (u, u * 2 - r + b)
+        } else if g >= b {
+            let u = g - r;
+            (u, u * 2 + b - r)
         } else {
-            60.0 * ((r - g) / delta + 4.0)
+            let u = b - r;
+            (u, u * 4 - g + r)
         };
 
-        let s = if max == 0.0 { 0.0 } else { (delta / max) * 100.0 };
+        let hue = if r >= g && g >= b && r == b {
+            0.0_f32
+        } else {
+            ((hh * 60) as f32) / u as f32
+        };
 
-        (h, s, max * 100.0)
+        // C++ GetSat (emColor.cpp:828-854): integer cmax/cmin
+        let cmax = r.max(g).max(b);
+        let cmin = r.min(g).min(b);
+        let sat = if cmax == 0 {
+            0.0_f32
+        } else {
+            ((cmax - cmin) * 100) as f32 / cmax as f32
+        };
+
+        // C++ GetVal (emColor.cpp:857-865): max * (100/255)
+        let val = cmax as f32 * (100.0_f32 / 255.0_f32);
+
+        (hue, sat, val)
     }
 
     // DIVERGED: GetLighted — split into lighten (positive) and darken (negative);
