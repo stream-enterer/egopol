@@ -103,12 +103,16 @@ fn make_poly_span(x: i32, w: i32, alpha: i32, alpha2: i32, alpha3: i32) -> Span 
             opacity_end: alpha,
         }
     } else if w == 2 {
+        // C++ PaintScanline(sct,sx0,sy,2,alpha,0,alpha2) maps to:
+        // beg=alpha, mid=0 (unused for w=2), end=alpha2.
+        // Caller passes make_poly_span(sx0, 2, alpha, 0, alpha2) where
+        // the caller's alpha2 lands in our alpha3 parameter.
         Span {
             x_start: x,
             x_end: x.saturating_add(2),
             opacity_beg: alpha,
             opacity_mid: alpha,
-            opacity_end: alpha2,
+            opacity_end: alpha3,
         }
     } else {
         Span {
@@ -926,6 +930,47 @@ mod tests {
             .map(|s| s.x_end - s.x_start)
             .sum();
         assert!(last_width > first_width);
+    }
+
+    /// Verify polygon_tri top vertex produces correct coverage.
+    /// C++ golden shows partial red coverage at (128,20). The vertex is
+    /// at exactly (128.0, 20.0) — integer coordinates.
+    #[test]
+    fn polygon_tri_top_vertex_coverage() {
+        let verts = vec![(128.0, 20.0), (20.0, 230.0), (236.0, 230.0)];
+        let clip = ClipBounds {
+            x1: 0.0,
+            y1: 0.0,
+            x2: 256.0,
+            y2: 256.0,
+        };
+        let rows = rasterize_polynomial(&verts, clip);
+        let row20 = rows.iter().find(|(y, _)| *y == 20);
+        assert!(row20.is_some(), "Row 20 must have spans");
+        let spans = &row20.unwrap().1;
+        // Pixel 128 should have non-zero coverage (C++ produces rgb(255,189,189)).
+        let cov_at_128 = spans
+            .iter()
+            .find_map(|s| {
+                if s.x_start <= 128 && s.x_end > 128 {
+                    // Determine which opacity applies to x=128.
+                    if 128 == s.x_start {
+                        Some(s.opacity_beg)
+                    } else if 128 == s.x_end - 1 {
+                        Some(s.opacity_end)
+                    } else {
+                        Some(s.opacity_mid)
+                    }
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
+        assert!(
+            cov_at_128 > 0,
+            "Pixel (128,20) must have non-zero coverage, got 0 (span: {:?})",
+            spans
+        );
     }
 }
 
