@@ -1047,22 +1047,45 @@ impl emListBox {
             (bg, fg, hl)
         };
 
-        // C++ emListBox lays out items as child panels that fill the content
-        // area.  Compute row height dynamically so items scale with the widget.
-        let row_h = if self.items.is_empty() {
-            ROW_HEIGHT
+        // C++ emListBox inherits from emRasterGroup (PrefChildTallness=0.2).
+        // Compute grid dimensions matching emRasterLayout::auto_grid_clamped.
+        let n = self.items.len();
+        let pref_ct = 0.2_f64; // emRasterGroup default
+        let (cols, rows) = if n == 0 || cw <= 0.0 || ch <= 0.0 {
+            (1usize, n.max(1))
         } else {
-            ch / self.items.len() as f64
+            let mut rows_best = 1usize;
+            let mut err_best = 0.0_f64;
+            let mut r = 1usize;
+            loop {
+                let c = n.div_ceil(r);
+                let ct = ch * c as f64 / (cw * r as f64);
+                let err = (pref_ct / ct).ln().abs();
+                if r == 1 || err < err_best {
+                    rows_best = r;
+                    err_best = err;
+                }
+                if c == 1 {
+                    break;
+                }
+                r = (n + c - 2) / (c - 1);
+            }
+            (n.div_ceil(rows_best), rows_best)
         };
+        let cell_w = cw / cols as f64;
+        let cell_h = ch / rows as f64;
 
         for (i, item) in self.items.iter().enumerate() {
-            let iy = cy + i as f64 * row_h - self.scroll_y;
-            if iy + row_h < cy || iy > cy + ch {
+            let col = i % cols;
+            let row = i / cols;
+            let ix = cx + col as f64 * cell_w;
+            let iy = cy + row as f64 * cell_h - self.scroll_y;
+            if iy + cell_h < cy || iy > cy + ch {
                 continue;
             }
 
-            let item_w = cw;
-            let item_h = row_h;
+            let item_w = cell_w;
+            let item_h = cell_h;
             let s = item_w.min(item_h);
 
             // C++ DefaultItemPanel::Paint: canvasColor starts as parent canvas
@@ -1075,7 +1098,7 @@ impl emListBox {
                 let rdy = s * 0.015;
                 let r = s * 0.15;
                 painter.PaintRoundRect(
-                    cx + rdx,
+                    ix + rdx,
                     iy + rdy,
                     item_w - 2.0 * rdx,
                     item_h - 2.0 * rdy,
@@ -1089,7 +1112,7 @@ impl emListBox {
             let dy = s * 0.03;
             let text_color = if item.selected { bg } else { fg };
             painter.PaintTextBoxed(
-                cx + dx,
+                ix + dx,
                 iy + dy,
                 (item_w - 2.0 * dx).max(0.0),
                 (item_h - 2.0 * dy).max(0.0),
