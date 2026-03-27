@@ -45,7 +45,7 @@ fi
 # ── Phase 3: Divergence measurement ──────────────────────────────────────────
 
 phase 3 "Divergence measurement"
-.harness/harness_divergence_run.sh "$OUTDIR" 2>&1 | tee "$OUTDIR/divergence_run.log"
+.harness/harness_divergence_run.sh "$OUTDIR" 2>&1 | tee "$OUTDIR/divergence_run.log" || true
 echo "Phase 3 complete."
 
 # ── Phase 4: Classification and regression ───────────────────────────────────

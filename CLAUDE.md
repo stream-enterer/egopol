@@ -61,7 +61,8 @@ eaglemode-rs is a port of Eagle Mode's emCore. Golden tests compare Rust pixel o
 
 ## Golden Tests
 
-- Run: `MEASURE_DIVERGENCE=1 cargo test --test golden -- --test-threads=1`
+- Run: `cargo test --test golden -- --test-threads=1`
+- Divergence log: `target/golden-divergence/divergence.jsonl` (auto-generated, tol=0)
 - Diff images: `DUMP_GOLDEN=1 cargo test --test golden <name>`
 - Generator: `make -C tests/golden/gen && make -C tests/golden/gen run`
 - Comparison functions in `tests/golden/common.rs`: pixel (ch_tol + max_fail_pct), rect (f64 eps), behavioral/notice/input (exact), trajectory (f64 tol).

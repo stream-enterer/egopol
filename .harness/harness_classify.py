@@ -66,34 +66,44 @@ def main():
             extra_names.append(name)
             continue
 
-        passed = rec.get("pass", False)
+        case = case_by_name[name]
+        tol = case.get("tolerance", {})
+        ch_tol = tol.get("channel_tolerance", 0)
+        max_fail_pct = tol.get("max_failure_pct", 0.0)
+
+        # Pixel records have tol=0 metrics; determine pass from contract thresholds.
+        # Non-pixel records (behavioral, notice, etc.) still have a "pass" field.
+        if "pass" in rec:
+            passed = rec["pass"]
+        else:
+            # Pixel test: recompute pass/fail from tol=0 metrics vs contract.
+            # The JSONL "fail" count is at tol=0.  We need to check max_diff
+            # against the contract's channel_tolerance.
+            max_diff = rec.get("max_diff", 0)
+            pct = rec.get("pct", 0.0)
+            passed = max_diff <= ch_tol or pct <= max_fail_pct
 
         if passed:
             pass_count += 1
 
             # Check for suspicious (approaching thresholds)
-            case = case_by_name.get(name)
-            if case:
-                tol = case.get("tolerance", {})
-                reasons = []
+            reasons = []
+            pct = rec.get("pct", 0)
+            max_diff = rec.get("max_diff", 0)
 
-                max_fail = tol.get("max_failure_pct")
-                pct = rec.get("pct", 0)
-                if max_fail and max_fail > 0 and pct > max_fail * 0.5:
-                    reasons.append(f"fail_pct={pct:.4f} approaching threshold {max_fail}")
+            if max_fail_pct and max_fail_pct > 0 and pct > max_fail_pct * 0.5:
+                reasons.append(f"fail_pct={pct:.4f} approaching threshold {max_fail_pct}")
 
-                ch_tol = tol.get("channel_tolerance")
-                max_diff = rec.get("max_diff", 0)
-                if ch_tol and ch_tol > 0 and max_diff > ch_tol * 0.75:
-                    reasons.append(f"max_diff={max_diff} approaching ch_tol {ch_tol}")
+            if ch_tol and ch_tol > 0 and max_diff > ch_tol * 0.75:
+                reasons.append(f"max_diff={max_diff} approaching ch_tol {ch_tol}")
 
-                if reasons:
-                    suspicious_cases.append({
-                        "test": name,
-                        "reason": "; ".join(reasons),
-                        "pct": pct,
-                        "max_diff": max_diff,
-                    })
+            if reasons:
+                suspicious_cases.append({
+                    "test": name,
+                    "reason": "; ".join(reasons),
+                    "pct": pct,
+                    "max_diff": max_diff,
+                })
         else:
             fail_count += 1
 

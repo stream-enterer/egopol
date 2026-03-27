@@ -9,8 +9,6 @@ fn divergence_log_path() -> &'static PathBuf {
     static PATH: OnceLock<PathBuf> = OnceLock::new();
     PATH.get_or_init(|| {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
             .join("target")
             .join("golden-divergence");
         let _ = std::fs::create_dir_all(&dir);
@@ -111,7 +109,7 @@ pub fn load_compositor_golden(name: &str) -> (u32, u32, Vec<u8>) {
 /// the Rust painter stores standard alpha.  The visual output (RGB) is what
 /// matters for parity.
 ///
-/// `name`: stable test identifier emitted in JSONL output (see `MEASURE_DIVERGENCE`).
+/// `name`: stable test identifier emitted in the divergence JSONL log.
 /// `channel_tolerance`: max per-channel absolute diff allowed per pixel.
 /// `max_failure_pct`: max percentage of pixels that may exceed tolerance.
 ///
