@@ -1,0 +1,14 @@
+C++ emOwnPtr.h: unique-ownership smart pointer (pre-C++11 unique_ptr).
+
+Superseded by Rust's ownership model:
+  emOwnPtr<T>      -> Option<Box<T>>
+  emOwnArrayPtr<T> -> Vec<T>
+  Set/Reset         -> = Some(...) / = None (Drop runs automatically)
+  Release           -> .take()
+  Get               -> .as_ref()
+
+The deleter infrastructure (emOwnPtrBase, emOwnPtrDeleter, emOwnArrayPtrDeleter)
+has no Rust equivalent because Drop handles deallocation natively.
+
+17 files outside emCore use this type. All map to the same Option<Box<T>>
+pattern — no app-specific concerns.
