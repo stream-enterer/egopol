@@ -1,9 +1,52 @@
-C++ emThread.h: portable threading primitives (threads, mutexes, semaphores, RW locks) wrapping pthreads/Win32.
+C++ emThread.h: portable threading primitives wrapping pthreads/Win32.
 
-Superseded by Rust's std::thread and std::sync, which serve the same role natively.
+19 files outside emCore use this type.
 
-The Rust port also changed the threading model. C++ runs user paint code
-on worker threads with a userSpaceMutex for synchronization. Rust records
-paint ops single-threaded then replays in parallel (see emPainterDrawList),
-because Rc-based panel state is not Send. Consequence: apps that use
-emThread primitives directly need rethinking, not mechanical translation.
+C++ defines these types:
+  emThread                  — managed thread with start/join/exit status
+  emThreadMiniMutex         — lightweight non-recursive mutex
+  emThreadMutex             — reader/writer mutex with timeout
+  emThreadRecursiveMutex    — recursive mutex
+  emThreadEvent             — counting semaphore
+  emThreadMutexLocker<T>    — RAII lock guard
+  emThreadId                — thread identifier typedef
+
+Rust equivalents used in the codebase (verified by grep):
+  emThread             -> std::thread::scope() in emRenderThreadPool.rs
+  emThreadMiniMutex    -> std::sync::Mutex in emViewRenderer.rs, emPainter.rs, emWindow.rs
+                          AtomicUsize in emRenderThreadPool.rs
+  emThreadEvent        -> std::thread::scope auto-join (no explicit signaling)
+  GetHardwareThreadCount -> std::thread::available_parallelism()
+
+No Rust equivalent exists for:
+  emThread::StartUnmanaged     — detached thread spawning
+  emThread::ExitCurrentThread  — terminate current thread
+  emThread::WaitForTermination with timeout
+  emThread::GetExitStatus      — integer exit code from thread
+  emThreadMutex                — reader/writer lock with timeout
+  emThreadRecursiveMutex       — recursive mutex
+  emThreadEvent full API       — counting semaphore send/receive with timeout
+  emPainter userSpaceMutex parameter — mutex passed into painter for
+    thread-safe paint callbacks
+
+Architectural difference in the rendering pipeline:
+  C++ emViewRenderer runs user paint code on worker threads. Each thread
+  holds a userSpaceMutex (emThreadMiniMutex) that user code can
+  unlock/relock during painting. This requires emThread primitives.
+
+  Rust emViewRenderer records paint ops single-threaded (emPainterDrawList),
+  then replays them in parallel. User paint code never runs on worker
+  threads. The userSpaceMutex pattern does not exist in Rust.
+  This change was made because Rc (used for panel state) is not Send.
+
+NOT VERIFIED: whether any of the 19 outside-emCore files use emThread
+  primitives in ways that are not covered by std::thread / std::sync.
+  Specific files that may have non-trivial threading patterns:
+    include/emAv/emAvImageConverter.h
+    include/emFractal/emFractalFilePanel.h
+    include/emWnds/emWndsViewRenderer.h
+    include/emX11/emX11ViewRenderer.h
+    include/SilChess/SilChessPanel.h
+    src/emAv/emAvServerModel.cpp
+    src/emSvg/emSvgServerModel.cpp
+    src/emTiff/emTiffImageFileModel.cpp

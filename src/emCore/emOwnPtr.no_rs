@@ -1,14 +1,53 @@
 C++ emOwnPtr.h: unique-ownership smart pointer (pre-C++11 unique_ptr).
 
-Superseded by Rust's ownership model:
-  emOwnPtr<T>      -> Option<Box<T>>
-  emOwnArrayPtr<T> -> Vec<T>
-  Set/Reset         -> = Some(...) / = None (Drop runs automatically)
-  Release           -> .take()
-  Get               -> .as_ref()
+17 files outside emCore use this type.
 
-The deleter infrastructure (emOwnPtrBase, emOwnPtrDeleter, emOwnArrayPtrDeleter)
-has no Rust equivalent because Drop handles deallocation natively.
+C++ defines these types:
+  emOwnPtrBase<OBJ, DELETER>  — base class with ownership transfer
+  emOwnPtr<OBJ>               — single-object ownership (delete)
+  emOwnArrayPtr<OBJ>          — array ownership (delete[])
+  emOwnPtrDeleter<OBJ>        — single-object deleter functor
+  emOwnArrayPtrDeleter<OBJ>   — array deleter functor
 
-17 files outside emCore use this type. All map to the same Option<Box<T>>
-pattern — no app-specific concerns.
+Method mapping (verified — identical functionality, different names):
+  constructor(ptr)  -> Some(Box::new(value))
+  Set(ptr) / op=    -> field = Some(Box::new(value))
+  Reset()           -> field = None
+  Release()         -> field.take()
+  Get() / op->      -> field.as_ref() / field.as_deref()
+  op OBJECT*()      -> implicit deref via Deref trait or .as_ref()
+
+No Rust equivalent exists for:
+  emOwnPtrBase / emOwnPtrDeleter / emOwnArrayPtrDeleter — Rust's Drop
+    trait handles deallocation. No explicit deleter types exist.
+  emOwnArrayPtr<OBJ> as a distinct type — Rust uses Vec<T> for owned
+    arrays. The delete[] vs delete distinction does not exist in Rust.
+
+Rust equivalents used in the codebase (verified by grep):
+  emOwnPtr<T>         -> Option<Box<T>>
+    emColorField.rs:87      — Option<Box<Expansion>>
+    emEngine.rs:41          — Option<Box<dyn emEngine>>
+    emViewAnimator.rs:30-31 — Option<Box<dyn emViewAnimator>>
+    emWindow.rs:54          — Option<Box<dyn emViewAnimator>>
+  emOwnArrayPtr<T>    -> Vec<T>
+    (emFileStream.h:110 uses emOwnArrayPtr<emByte> — equivalent is Vec<u8>)
+
+NOT VERIFIED: whether all 17 outside-emCore files use emOwnPtr in ways
+  that map cleanly to Option<Box<T>>. Specific files not checked:
+    include/emAv/emAvClient.h
+    include/emBmp/emBmpImageFileModel.h
+    include/emClock/emTimeZonesModel.h
+    include/emFileMan/emFileManModel.h
+    include/emFileMan/emFileManViewConfig.h
+    include/emGif/emGifFileModel.h
+    include/emGif/emGifImageFileModel.h
+    include/emJpeg/emJpegImageFileModel.h
+    include/emJson/emJsonKeyMap.h
+    include/emMain/emMainWindow.h
+    include/emOsm/emOsmTileCache.h
+    include/emPnm/emPnmImageFileModel.h
+    include/emTga/emTgaImageFileModel.h
+    include/emTmpConv/emTmpConvModel.h
+    include/emWnds/emWndsScreen.h
+    include/emX11/emX11Screen.h
+    include/emXpm/emXpmImageFileModel.h

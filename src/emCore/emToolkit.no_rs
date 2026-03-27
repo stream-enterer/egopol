@@ -1,9 +1,20 @@
-C++ emToolkit.h: pure convenience aggregation header (zero code).
+C++ emToolkit.h: aggregation header containing no code.
 
-Includes 25 widget headers (emLook, emBorder, emLabel, emDialog, etc.)
-so C++ app code can write one #include instead of 25. All 25 headers
-have corresponding .rs files. Rust has no equivalent because mod.rs
-re-exports everything and each file imports what it needs.
+37 files outside emCore include this header.
 
-37 files outside emCore include this header, all as a convenience shortcut.
-Porters of those apps just import the specific widget types they need.
+The header consists entirely of #include directives for these widget headers:
+  emLook.h             emBorder.h            emLabel.h
+  emTiling.h           emGroup.h             emLinearLayout.h
+  emLinearGroup.h      emRasterLayout.h      emRasterGroup.h
+  emPackLayout.h       emPackGroup.h         emTunnel.h
+  emButton.h           emCheckButton.h       emRadioButton.h
+  emCheckBox.h         emRadioBox.h          emTextField.h
+  emScalarField.h      emColorField.h        emListBox.h
+  emFileSelectionBox.h emSplitter.h          emDialog.h
+  emFileDialog.h
+
+All of these have corresponding .rs files in src/emCore/.
+
+Rust has no aggregation equivalent. Each Rust file imports specific
+types via use statements. C++ code that includes emToolkit.h does so
+to access one or more of the widget types listed above.
