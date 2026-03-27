@@ -1236,6 +1236,9 @@ impl<'a> emPainter<'a> {
             xfm.stride_y = stride_y;
             xfm.off_x = off_x;
             xfm.off_y = off_y;
+            // Carry origin: un-clipped left edge of the image in pixel space.
+            // C++ starts carry (pCy=NULL, ox=0) at the first rendered pixel.
+            xfm.carry_origin_x = px;
             let sec = emPainterInterpolation::SectionBounds {
                 ox: 0,
                 oy: 0,
@@ -1448,6 +1451,7 @@ impl<'a> emPainter<'a> {
             xfm.stride_y = stride_y;
             xfm.off_x = off_x;
             xfm.off_y = off_y;
+            xfm.carry_origin_x = px;
             let sec = emPainterInterpolation::SectionBounds {
                 ox: src_x as i32,
                 oy: src_y as i32,
@@ -2744,6 +2748,7 @@ impl<'a> emPainter<'a> {
             xfm.stride_y = stride_y;
             xfm.off_x = off_x;
             xfm.off_y = off_y;
+            xfm.carry_origin_x = px;
             let sec = emPainterInterpolation::SectionBounds {
                 ox: sx as i32,
                 oy: sy as i32,
@@ -5774,6 +5779,8 @@ impl<'a> emPainter<'a> {
             stride_y: 1,
             off_x: 0,
             off_y: 0,
+            // Set by caller to the un-clipped start_x of the paint operation.
+            carry_origin_x: 0,
         }
     }
 
