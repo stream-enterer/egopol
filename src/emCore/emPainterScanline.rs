@@ -1,5 +1,5 @@
 // SPLIT: Split from emPainter.h — scanline rendering extracted
-use crate::emCore::fixed::Fixed12;
+use crate::emCore::emPainter::Fixed12;
 
 /// Winding rule for polygon fill.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -981,8 +981,8 @@ mod kani_private_proofs {
 
     #[kani::proof]
     fn kani_private_make_edge_span() {
-        let mut p_x_enter = crate::emCore::fixed::Fixed12::from_raw(kani::any());
-        let mut p_x_exit = crate::emCore::fixed::Fixed12::from_raw(kani::any());
+        let mut p_x_enter = crate::emCore::emPainter::Fixed12::from_raw(kani::any());
+        let mut p_x_exit = crate::emCore::emPainter::Fixed12::from_raw(kani::any());
         let mut p_clip_x_start: i32 = kani::any::<i32>();
         let mut p_clip_x_end: i32 = kani::any::<i32>();
         let _r = make_edge_span(p_x_enter, p_x_exit, p_clip_x_start, p_clip_x_end);

@@ -10,7 +10,7 @@
 
 use eaglemode_rs::emCore::emColor::emColor;
 use eaglemode_rs::emCore::emATMatrix::AffineMatrix;
-use eaglemode_rs::emCore::fixed::Fixed12;
+use eaglemode_rs::emCore::emPainter::Fixed12;
 use eaglemode_rs::emCore::rect::{Rect, PixelRect};
 
 // ═══════════════════════════════════════════════════════════════════

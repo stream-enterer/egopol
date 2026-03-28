@@ -931,13 +931,13 @@ fn kani_emWindowPlatform_uninhibit_screensaver_157() {
 #[kani::proof]
 fn kani_fixed_Fixed12_from_raw() {
     let mut p_raw: i32 = kani::any::<i32>();
-    let _result = eaglemode_rs::emCore::fixed::Fixed12::from_raw(p_raw);
+    let _result = eaglemode_rs::emCore::emPainter::Fixed12::from_raw(p_raw);
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_fixed_Fixed12_raw() {
-    let mut self_val = eaglemode_rs::emCore::fixed::Fixed12::from_raw(kani::any());
+    let mut self_val = eaglemode_rs::emCore::emPainter::Fixed12::from_raw(kani::any());
     let _result = self_val.raw();
 }
 
@@ -946,20 +946,20 @@ fn kani_fixed_Fixed12_raw() {
 fn kani_fixed_Fixed12_from_f64() {
     let mut p_v: f64 = kani::any::<f64>();
     kani::assume(p_v.is_finite());
-    let _result = eaglemode_rs::emCore::fixed::Fixed12::from_f64(p_v);
+    let _result = eaglemode_rs::emCore::emPainter::Fixed12::from_f64(p_v);
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_fixed_Fixed12_from_i32() {
     let mut p_v: i32 = kani::any::<i32>();
-    let _result = eaglemode_rs::emCore::fixed::Fixed12::from_i32(p_v);
+    let _result = eaglemode_rs::emCore::emPainter::Fixed12::from_i32(p_v);
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_fixed_Fixed12_to_f64() {
-    let mut self_val = eaglemode_rs::emCore::fixed::Fixed12::from_raw(kani::any());
+    let mut self_val = eaglemode_rs::emCore::emPainter::Fixed12::from_raw(kani::any());
     let _result = self_val.to_f64();
     // Layer 2: finite output from finite inputs
     assert!(_result.is_finite(), "non-finite result");
@@ -968,35 +968,35 @@ fn kani_fixed_Fixed12_to_f64() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_fixed_Fixed12_to_i32() {
-    let mut self_val = eaglemode_rs::emCore::fixed::Fixed12::from_raw(kani::any());
+    let mut self_val = eaglemode_rs::emCore::emPainter::Fixed12::from_raw(kani::any());
     let _result = self_val.to_i32();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_fixed_Fixed12_frac() {
-    let mut self_val = eaglemode_rs::emCore::fixed::Fixed12::from_raw(kani::any());
+    let mut self_val = eaglemode_rs::emCore::emPainter::Fixed12::from_raw(kani::any());
     let _result = self_val.frac();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_fixed_Fixed12_floor() {
-    let mut self_val = eaglemode_rs::emCore::fixed::Fixed12::from_raw(kani::any());
+    let mut self_val = eaglemode_rs::emCore::emPainter::Fixed12::from_raw(kani::any());
     let _result = self_val.floor();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_fixed_Fixed12_ceil() {
-    let mut self_val = eaglemode_rs::emCore::fixed::Fixed12::from_raw(kani::any());
+    let mut self_val = eaglemode_rs::emCore::emPainter::Fixed12::from_raw(kani::any());
     let _result = self_val.ceil();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_fixed_Fixed12_round() {
-    let mut self_val = eaglemode_rs::emCore::fixed::Fixed12::from_raw(kani::any());
+    let mut self_val = eaglemode_rs::emCore::emPainter::Fixed12::from_raw(kani::any());
     let _result = self_val.round();
 }
 
