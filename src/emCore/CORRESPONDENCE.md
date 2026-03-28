@@ -7,6 +7,35 @@ step, you will make errors that look plausible but are wrong.
 
 ---
 
+## Porting rules
+
+The end state: every C++ header in include/emCore/ has either a
+corresponding .rs file in src/emCore/, or a .no_rs file. Every
+difference between the C++ and Rust codebases has been found,
+documented, and reviewed by a human. A .no_rs file that still
+contains unreviewed claims or NOT VERIFIED items is not done —
+it is work in progress.
+
+1. Everything gets ported unless it's a C++ concept that Rust's type
+   system or stdlib replaces (emArray→Vec, emRef→Rc, emThread→std::thread).
+   These don't need .rs files because the Rust language already provides them.
+
+2. "Rust replaces it" is not sufficient justification if the replacement
+   changes behavior. COW, stable iterators, BreakCrossPtrs timing — these
+   are behavioral differences that may matter. They need to be documented
+   even if there's no .rs file.
+
+3. Zero emCore consumers does not mean zero consumers. Outside-emCore
+   usage determines whether a type needs to exist in the Rust port.
+
+4. Workarounds are not solutions. emResTga working around missing
+   emFileStream doesn't close the gap.
+
+5. The porting unit is the C++ header, not the individual method. If a
+   header is ported, all its public API should be accounted for.
+
+---
+
 Patterns that span multiple marker files and are not visible by reading
 any single file in isolation. Each pattern names the concern and lists
 the files where evidence is documented.
