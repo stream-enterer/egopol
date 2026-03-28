@@ -27,30 +27,48 @@ significant investigation to surface.
 
 ## Porting rules
 
-The end state: every C++ header in include/emCore/ has either a
-corresponding .rs file in src/emCore/, or a .no_rs file. Every
-difference between the C++ and Rust codebases has been found,
-documented, and reviewed by a human. A .no_rs file that still
-contains unreviewed claims or NOT VERIFIED items is not done —
-it is work in progress.
+The highest priority is scope and parity with each C++ header. Every
+C++ header in include/emCore/ should have a corresponding .rs file in
+src/emCore/ that covers the same public API surface. Every difference
+between the C++ and Rust codebases has been found, documented, and
+reviewed by a human. A .no_rs file that still contains unreviewed
+claims or NOT VERIFIED items is not done — it is work in progress.
 
-1. Everything gets ported unless it's a C++ concept that Rust's type
-   system or stdlib replaces (emArray→Vec, emRef→Rc, emThread→std::thread).
-   These don't need .rs files because the Rust language already provides them.
+### .rs files (the goal)
 
-2. "Rust replaces it" is not sufficient justification if the replacement
+1. The porting unit is the C++ header, not the individual method. If a
+   header is ported, all its public API should be accounted for.
+
+2. A .rs file that covers only part of its C++ header's API surface is
+   an incomplete port, not a finished one.
+
+### .no_rs files (justified absence)
+
+3. A .no_rs file is acceptable only when the C++ type is fully replaced
+   by Rust's type system or stdlib (emArray→Vec, emRef→Rc,
+   emThread→std::thread) and the replacement covers the same use cases.
+
+4. "Rust replaces it" is not sufficient justification if the replacement
    changes behavior. COW, stable iterators, BreakCrossPtrs timing — these
    are behavioral differences that may matter. They need to be documented
    even if there's no .rs file.
 
-3. Zero emCore consumers does not mean zero consumers. Outside-emCore
+5. Zero emCore consumers does not mean zero consumers. Outside-emCore
    usage determines whether a type needs to exist in the Rust port.
 
-4. Workarounds are not solutions. emResTga working around missing
+6. Workarounds are not solutions. emResTga working around missing
    emFileStream doesn't close the gap.
 
-5. The porting unit is the C++ header, not the individual method. If a
-   header is ported, all its public API should be accounted for.
+### .rust_only files (to be eliminated or justified)
+
+7. A .rust_only file means Rust has code with no C++ header counterpart.
+   The goal is to eliminate these where possible: fold the code into an
+   existing .rs file that corresponds to a C++ header, or restructure to
+   match the C++ file organization.
+
+8. A .rust_only file that remains must document what C++ code it
+   corresponds to (even if scattered across multiple C++ files) and why
+   it cannot be folded into the corresponding .rs file.
 
 ---
 
