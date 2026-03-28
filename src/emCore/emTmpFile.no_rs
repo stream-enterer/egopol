@@ -77,3 +77,39 @@ C++ usage outside emCore (2 files):
 REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
 ================================================================================
 
+C++ emTmpFile.h: temporary file path management with IPC-based dead
+directory cleanup.
+
+Zero emCore consumers. 2 files outside emCore use this type —
+emTmpConvModel.h and emTestContainers.cpp.
+
+Entire class is unported. No Rust equivalent exists.
+
+C++ provides two classes:
+  emTmpFile        — creates a temp file path via emTmpFileMaster,
+                     auto-deletes on destruction.
+  emTmpFileMaster  — per-process temp directory under a common path.
+                     Runs an emMiniIpcServer to respond to liveness
+                     pings. Dead directories from crashed processes
+                     are cleaned up by pinging their IPC servers.
+
+Rust has no consumer of this functionality. The tempfile crate is
+in Cargo.lock (test dependencies only). tests/behavioral/file_selection.rs
+has a custom TempDir struct (lines 7-26) used only in tests.
+
+Open question 1: "Will emTmpConv need the full IPC cleanup mechanism?"
+  Cannot be answered without knowing emTmpConv's requirements. The
+  tempfile crate auto-deletes on Drop, which handles the normal case.
+  The IPC dead-directory cleanup handles the crash case (process dies
+  without running destructors). Whether emTmpConv needs crash resilience
+  is a design decision.
+
+Open question 2: "Does Rust emMiniIpc support the liveness-ping pattern?"
+  Rust emMiniIpc (emMiniIpc.rs) provides:
+    emMiniIpcServer — StartServing, StopServing, IsServing, GetServerName
+    emMiniIpcClient::TrySend — send message to a named server
+  These are the same building blocks C++ uses. The protocol logic
+  (ping a server, if no response then delete its directory) would
+  need to be implemented on top of these.
+  NOT VERIFIED: whether the Rust emMiniIpcServer handles concurrent
+  pings correctly or has the same timeout behavior as the C++ version.
