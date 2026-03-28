@@ -215,14 +215,43 @@ Architectural difference in the rendering pipeline:
   This change was made because Rc (used for panel state, e.g.
   emLook.rs:22) is not Send.
 
-NOT VERIFIED: whether any of the 19 outside-emCore files use emThread
-  primitives in ways that are not covered by std::thread / std::sync.
-  Specific files that may have non-trivial threading patterns:
-    include/emAv/emAvImageConverter.h
-    include/emFractal/emFractalFilePanel.h
-    include/emWnds/emWndsViewRenderer.h
-    include/emX11/emX11ViewRenderer.h
-    include/SilChess/SilChessPanel.h
-    src/emAv/emAvServerModel.cpp
-    src/emSvg/emSvgServerModel.cpp
-    src/emTiff/emTiffImageFileModel.cpp
+VERIFIED: All 19 outside-emCore files use emThread primitives in standard
+  patterns that map to std::thread / std::sync equivalents. No gap found.
+
+  Per-file breakdown:
+
+  emThreadMiniMutex (simple mutex) -> std::sync::Mutex:
+    emAvImageConverter.h:82          — Mutex member field
+    emFractalFilePanel.h:65          — Mutex member field
+    emX11Clipboard.h:73              — XMutex pointer field
+    emX11WindowPort.h:101            — XMutex reference field
+    emX11Screen.h:135,145,189        — DataMutex, XMutex, ErrorHandlerMutex fields
+    SilChessPanel.h:82               — Mutex member field
+    emAvServerModel.cpp:504,509      — static sharedCounterMutex + Locker
+    emSvgServerModel.cpp:547,552     — static sharedCounterMutex + Locker
+    emTiffImageFileModel.cpp:27,34   — static ErrorMutex + Locker
+    emWndsScheduler.h:76             — static InstanceListMutex
+    emWndsScheduler.cpp:46,88,157    — InstanceListMutex Locker
+    emWndsScreen.h:117               — static InstanceListMutex
+    emWndsScreen.cpp:126,195,255     — InstanceListMutex Locker
+    emX11ExtDynamic.cpp:66,128,190   — static library-load mutexes + Locker
+
+  emThreadMutex (reader/writer) -> std::sync::RwLock:
+    emWndsViewRenderer.h:79          — GdiMutex field, locked in .cpp:91
+    emX11ViewRenderer.h:94           — FlushMutex field
+    emWndsScreen.h:112               — WaitCursorThread::Mutex field
+    emWndsScreen.cpp:598,607,633,643 — Mutex Locker (exclusive only, no ReadOnly)
+
+  emThread subclass (spawn + join) -> std::thread::spawn:
+    emX11Screen.h:123                — WaitCursorThread : private emThread
+    emWndsScreen.h:101               — WaitCursorThread : private emThread
+
+  emThreadEvent (counting semaphore) -> std::sync::Condvar + Mutex:
+    emX11Screen.h:137                — WaitCursorThread::QuitEvent
+    emWndsScreen.h:111               — WaitCursorThread::QuitEvent
+
+  emThread::GetCurrentThreadId / emThreadId -> std::thread::current().id():
+    emTiffImageFileModel.cpp:28,35   — emThreadId field + GetCurrentThreadId()
+      for thread-local error routing through libtiff callbacks
+
+  emTestThreads.cpp — test file exercising all primitives (not a usage gap)
