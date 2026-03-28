@@ -59,3 +59,33 @@ OPEN QUESTIONS:
 ================================================================================
 REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
 ================================================================================
+
+Rust file: src/emCore/toolkit_images.rs
+
+Extracts C++ emBorder::TkResources (a nested struct) into a standalone
+module. Holds 15 widget TGA images loaded at compile time via
+include_bytes!(). Used by 7 widget files for overlay rendering.
+
+C++ equivalent: emBorder.h:321-341 (struct TkResources), loaded at
+runtime via emGetResImage() from res/emCore/toolkit/. C++ has 18
+images; Rust has 15.
+
+Structural differences from C++:
+  - C++: nested struct inside emBorder, runtime filesystem loading,
+    shared via emRootContext for deduplication.
+  - Rust: standalone module, compile-time embedding, thread_local OnceCell.
+
+Missing images (3 of 18):
+
+  ImgTunnel — C++ uses it in emTunnel.cpp:147 for tunnel rendering.
+    Tunnel.tga exists in res/toolkit/ but is not loaded by ToolkitImages.
+    Rust emTunnel.rs does not reference toolkit_images at all.
+    This is a concrete rendering gap.
+
+  ImgDir — C++ uses it in emFileSelectionBox.h:394 as directory icon.
+    No reference to Dir.tga anywhere in Rust codebase. Dir.tga does
+    not exist in res/toolkit/.
+
+  ImgDirUp — C++ uses it in emFileSelectionBox.h:399 as parent-directory
+    icon. No reference to DirUp.tga anywhere in Rust codebase. DirUp.tga
+    does not exist in res/toolkit/.
