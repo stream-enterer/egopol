@@ -59,3 +59,20 @@ OPEN QUESTIONS:
 ================================================================================
 REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
 ================================================================================
+
+Rust file: src/emCore/rect.rs
+
+Bundles the C++ pattern of passing 4 separate doubles (x, y, w, h)
+into a struct. C++ has no equivalent — every layout function takes
+four separate parameters. Created March 6 to "replace anonymous tuples."
+
+Rect is used by 22 files across the layout/panel/widget layer.
+
+PixelRect is dead code. Defined but never imported or used anywhere
+in the codebase (verified by grep, only hits are its own definition).
+
+Convention difference: Rust Rect uses (x, y, w, h). C++ emPainter
+uses (x1, y1, x2, y2) for clip bounds. Converting between them
+requires w = x2 - x1.
+NOT VERIFIED: whether all conversion points between these conventions
+are correct throughout the codebase.
