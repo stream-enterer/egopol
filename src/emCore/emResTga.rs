@@ -1,4 +1,10 @@
 // SPLIT: Split from emRes.h — TGA resource loader extracted
+//
+// DIVERGED: C++ emRes loads TGA files from disk via emFileStream and the
+// emImageFile plugin system. Rust embeds TGA data via include_bytes!() and
+// decodes directly from &[u8]. No emFileStream dependency — toolkit assets are
+// compiled into the binary as part of emBorder initialization.
+
 use super::emImage::emImage;
 use std::fmt;
 
