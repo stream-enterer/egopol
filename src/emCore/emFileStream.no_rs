@@ -126,3 +126,38 @@ C++ usage outside emCore (13 files):
 REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
 ================================================================================
 
+C++ emFileStream.h: buffered FILE* wrapper with endian-aware read/write.
+
+Zero emCore consumers. 13 files outside emCore use this type — all
+are image format loaders (BMP, GIF, ILBM, JPEG, PCX, PNM, RAS, RGB,
+TGA, XPM) plus emTest.
+
+Entire class is unported. No Rust equivalent exists.
+
+C++ provides: buffered file I/O with typed endian reads/writes
+  (TryReadInt16LE, TryReadUInt32BE, etc.), seek, tell, line reading.
+
+Rust stdlib equivalents for the individual capabilities:
+  File I/O         -> std::fs::File
+  Buffering        -> std::io::BufReader / BufWriter
+  Endian reads     -> i16::from_le_bytes(), u32::from_be_bytes(), etc.
+  Seek/Tell        -> std::io::Seek trait
+  Line reading     -> BufRead::read_line()
+
+Existing partial workaround:
+  emResTga.rs (commit 13486b8, 2026-03-05) decodes TGA from &[u8]
+  (in-memory bytes provided by include_bytes!()). It does not do file
+  I/O — it replaces only the TGA decode, not the file stream. Runtime
+  file loading would require std::fs::read() + load_tga().
+
+Open question: "Will porters need an emFileStream equivalent?"
+  The C++ image loaders inherit from emImageFileModel which provides
+  the emFileStream. A Rust port could either:
+  (a) port emFileStream as a struct wrapping BufReader with endian methods
+  (b) use std::fs::read() to load the entire file, then decode from &[u8]
+  Approach (b) is what emResTga already does. Which is appropriate
+  depends on whether any image format requires streaming (partial reads
+  with seek) vs whole-file loading.
+  NOT VERIFIED: whether any of the 9 unported image formats require
+  streaming I/O (seek-based partial reads) that whole-file loading
+  cannot replace.
