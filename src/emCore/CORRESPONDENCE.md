@@ -7,17 +7,41 @@ step, you will make errors that look plausible but are wrong.
 
 ## State of the port
 
-C++ emCore has 90 headers. The Rust port has 100 .rs files (some C++
+C++ emCore has 90 headers. The Rust port has 97 .rs files (some C++
 headers were split into multiple Rust files per the one-type-per-file
-rule). 15 C++ headers have no .rs file — these have .no_rs marker
-files. 5 Rust files have no C++ header — these have .rust_only marker
-files.
+rule). 14 C++ headers have no .rs file — these have .no_rs marker
+files. 1 Rust file has no C++ header — emPainterDrawList.rust_only
+(record-replay pattern; deferred to Phase 4).
 
-All 20 marker files contain evidence gathered by LLM agents and
+All 15 marker files contain evidence gathered by LLM agents and
 reviewed by a human-LLM pair. Each marker file has three sections:
 an unreviewed agent audit, a mechanically reproducible grep of
-outside-emCore usage, and a reviewed summary. All 20 have reviewed
+outside-emCore usage, and a reviewed summary. All 15 have reviewed
 summaries as of 2026-03-28.
+
+### Phase 1 changes (2026-03-28)
+
+Fold-backs completed — 4 .rust_only files eliminated:
+- toolkit_images.rs → folded into emBorder.rs (RUST_ONLY comment)
+- widget_utils.rs → inlined into 8+ callers (RUST_ONLY comments)
+- fixed.rs → folded into emPainter.rs (RUST_ONLY comment)
+- rect.rs → folded into emPanel.rs (RUST_ONLY comment, PixelRect dead code removed)
+
+New port — 1 .no_rs file eliminated:
+- emCrossPtr.rs created with emCrossPtr<T> and emCrossPtrList.
+  Uses shared Rc<Cell<bool>> invalidation flag (DIVERGED from C++
+  intrusive linked list). emCrossPtr.no_rs deleted.
+
+Rendering gaps closed:
+- ImgTunnel, ImgDir, ImgDirUp added to ToolkitImages in emBorder.rs.
+  Dir.tga and DirUp.tga copied from C++ source.
+- emTunnel.rs refactored to use shared ToolkitImages (no standalone loading).
+- OverwriteDialog implemented as Option<emDialog> in emFileDialog.rs
+  (DIVERGED from C++ emCrossPtr<emDialog> — no signal/cycle infrastructure).
+
+Architectural divergence resolved:
+- PanelPointerCache not implemented — Rust emBorder is a data struct,
+  not a panel. DIVERGED comments added to emBorder.rs.
 
 The evidence quality varies. Some reviewed summaries resolved their
 open questions with specific source references. Others could only
@@ -127,10 +151,12 @@ under a different name, without referencing the original type.
 C++ functionality with no Rust counterpart where the gap affects
 visible output or user-facing features.
 
-- toolkit_images.rust_only: ImgTunnel missing — emTunnel rendering gap
-- toolkit_images.rust_only: ImgDir/ImgDirUp missing — file selection icons
-- emCrossPtr.no_rs: emBorder PanelPointerCache has no Rust counterpart
-- emCrossPtr.no_rs: emFileDialog OverwriteDialog has no Rust counterpart
+- ~~toolkit_images.rust_only: ImgTunnel missing~~ RESOLVED: folded into emBorder.rs ToolkitImages
+- ~~toolkit_images.rust_only: ImgDir/ImgDirUp missing~~ RESOLVED: added to emBorder.rs ToolkitImages
+- ~~emCrossPtr.no_rs: emBorder PanelPointerCache~~ RESOLVED: architectural divergence (Rust emBorder is data struct, not panel; DIVERGED comments in emBorder.rs)
+- ~~emCrossPtr.no_rs: emFileDialog OverwriteDialog~~ RESOLVED: implemented as Option<emDialog> (DIVERGED comments in emFileDialog.rs)
+
+No remaining rendering/feature gaps in emCore.
 
 ## Encoding risk
 
@@ -153,11 +179,15 @@ was introduced.
 ## BreakCrossPtrs timing
 
 C++ invalidates cross pointers early in destructors (before cleanup).
-Rust Weak invalidates only when last Rc drops (after cleanup). Whether
-any code checks a cross pointer during the target's destruction is
+The Rust port (emCrossPtr.rs) uses a shared Rc<Cell<bool>> invalidation
+flag instead of C++ intrusive linked lists. Invalidation is explicit
+via invalidate() rather than implicit via destructor ordering. C++
+BreakCrossPtrs is called in destructors of emWindow, emView, emContext;
+Rust callers must call invalidate() at equivalent points. Whether any
+code checks a cross pointer during the target's destruction is
 NOT VERIFIED.
 
-- emCrossPtr.no_rs
+- emCrossPtr.rs (DIVERGED from C++ intrusive linked list)
 
 ## Reproducible queries
 
@@ -170,7 +200,7 @@ so the output is stable.
 For each .no_rs type, which other .no_rs types does its C++ header include:
 
 ```
-for type in emAnything emArray emAvlTree emAvlTreeMap emAvlTreeSet emCrossPtr emFileStream emList emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
+for type in emAnything emArray emAvlTree emAvlTreeMap emAvlTreeSet emFileStream emList emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
   includes=$(grep "#include.*emCore/" ~/git/eaglemode-0.96.4/include/emCore/${type}.h 2>/dev/null | sed 's/.*emCore\///' | sed 's/\.h.*//')
   for inc in $includes; do
     [ -f "src/emCore/${inc}.no_rs" ] && echo "  $type -> $inc"
@@ -190,7 +220,7 @@ As of 2026-03-28:
 For each .no_rs type, which app modules outside emCore reference it:
 
 ```
-for type in emAnything emArray emAvlTree emAvlTreeMap emAvlTreeSet emCrossPtr emFileStream emList emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
+for type in emAnything emArray emAvlTree emAvlTreeMap emAvlTreeSet emFileStream emList emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
   apps=$(grep -rl "$type" ~/git/eaglemode-0.96.4/include/ ~/git/eaglemode-0.96.4/src/ --include='*.h' --include='*.cpp' 2>/dev/null | grep -v "/emCore/" | sed 's|.*/include/||;s|.*/src/||' | sed 's|/.*||' | sort -u | tr '\n' ' ')
   [ -n "$apps" ] && echo "$type: $apps"
 done
@@ -204,7 +234,7 @@ Tells you: if you're porting emStocks, which marker types will you encounter?
 
 ```
 declare -A app_types
-for type in emAnything emArray emAvlTree emAvlTreeMap emAvlTreeSet emCrossPtr emFileStream emList emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
+for type in emAnything emArray emAvlTree emAvlTreeMap emAvlTreeSet emFileStream emList emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
   for app in $(grep -rl "$type" ~/git/eaglemode-0.96.4/include/ ~/git/eaglemode-0.96.4/src/ --include='*.h' --include='*.cpp' 2>/dev/null | grep -v "/emCore/" | sed 's|.*/include/||;s|.*/src/||' | sed 's|/.*||' | sort -u); do
     app_types[$app]="${app_types[$app]} $type"
   done
