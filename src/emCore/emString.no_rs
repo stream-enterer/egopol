@@ -142,3 +142,52 @@ C++ usage outside emCore (300 files):
 REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
 ================================================================================
 
+C++ emString.h: byte-oriented string (strlen-based, no encoding assumption).
+
+300 files outside emCore use this type — the most pervasive type in
+the entire eaglemode codebase.
+
+Rust equivalent: String (owned) and &str (borrowed).
+
+Method mapping (same functionality, different names):
+  emString()           -> String::new()
+  emString(const char*) -> String::from() / .to_string()
+  Get() / op const char* -> .as_str()
+  GetLen() / GetCount() -> .len()
+  operator[]          -> .as_bytes()[i]
+  Add / operator+=    -> String::push_str()
+  operator+           -> format!() or + operator
+  Insert              -> String::insert_str()
+  Replace             -> String::replace() / .replace_range()
+  GetSubString        -> &str slicing
+  Remove              -> String::drain() / .replace_range(range, "")
+  Clear               -> String::clear()
+  IsEmpty             -> .is_empty()
+  Comparison ops      -> PartialEq, PartialOrd, Ord (lexicographic)
+  Format / VFormat    -> format!() macro
+
+No Rust equivalent exists for:
+  COW copy semantics — String always deep copies on .clone().
+  GetDataRefCount / MakeNonShared — COW refcount.
+  Extract(index, len) — composable from slicing + drain.
+  SetLenGetWritable — raw buffer resize-then-write pattern.
+  GetWritable(index) -> char& — Rust String is UTF-8 and does not
+    support O(1) mutable byte access by index.
+
+Semantic difference — encoding:
+  C++ emString is byte-oriented (emString.h describes contents as
+  "bytes", uses strlen). No encoding assumption.
+  Rust String enforces UTF-8.
+  C++ uses emString for file paths (emStd2.h:155 emGetParentPath,
+  emStd2.h:164 emGetChildPath, emFileModel.h:72 GetFilePath). On Unix,
+  file paths can contain any byte sequence except NUL. A file with
+  non-UTF-8 bytes in its name (e.g., ISO-8859-1 filenames) would work
+  in C++ emString but would be rejected by Rust String::from().
+  NOT VERIFIED: whether any eaglemode code (inside or outside emCore)
+  encounters non-UTF-8 file paths in practice.
+
+Semantic difference — COW:
+  C++ "emString b = a" shares data (O(1)), mutation triggers deep copy.
+  Rust "let b = a.clone()" always deep copies.
+  NOT VERIFIED: whether any of the 300 outside-emCore files rely on
+  cheap copy semantics.
