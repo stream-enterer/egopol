@@ -101,3 +101,46 @@ C++ usage outside emCore (21 files):
 REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
 ================================================================================
 
+C++ emCrossPtr.h: weak pointer with explicit invalidation via linked list.
+
+21 files outside emCore use this type.
+
+C++ provides:
+  emCrossPtr<T>    — weak pointer that auto-nullifies when target calls
+                     BreakCrossPtrs(). Implemented as intrusive linked list.
+  emCrossPtrList   — list embedded in the target object. Destructor calls
+                     BreakCrossPtrs() to nullify all pointers to the target.
+
+Rust equivalent (verified):
+  emCrossPtr<T>    -> Weak<T> (std::rc::Weak)
+    emContext.rs:40  — parent: Option<Weak<emContext>>
+    emContext.rs:41  — children: RefCell<Vec<Weak<emContext>>>
+  emCrossPtrList   -> no equivalent. Weak doesn't need a list on the target
+                     side; Weak::upgrade() returns None after Rc drops.
+
+No Rust equivalent exists for:
+  BreakCrossPtrs() — explicit early invalidation.
+  LinkCrossPtr()   — explicit registration of pointer with target.
+
+Open question 1 investigated: "Is the BreakCrossPtrs timing difference significant?"
+  C++ calls BreakCrossPtrs() early in destructors, before other cleanup:
+    emContext.cpp:48  — before deleting child contexts
+    emView.cpp:107    — before deleting root panel and view input filters
+    emWindow.cpp:68   — before deleting child windows
+  This means cross pointers become NULL while the target is still
+  partially alive. In Rust, Weak::upgrade() returns None only after
+  the last Rc drops, which is after all cleanup.
+  If any code checks a cross pointer during the target's destruction
+  sequence (between BreakCrossPtrs and full destruction), the C++ code
+  sees NULL but Rust's Weak::upgrade() would still succeed.
+  NOT VERIFIED: whether any code actually does this.
+
+Open question 2 investigated: "Are PanelPointerCache and OverwriteDialog ported?"
+  emBorder.rs: no reference to PanelPointerCache, Weak, or Rc (verified
+    by grep). The C++ emBorder.h:410 member emCrossPtr<emPanel>
+    PanelPointerCache has no Rust counterpart.
+  emFileDialog.rs: no reference to OverwriteDialog or Weak (verified
+    by grep). The C++ emFileDialog.h:204 member emCrossPtr<emDialog>
+    OverwriteDialog has no Rust counterpart. emFileDialog.rs uses
+    Rc only for emLook (line 48).
+  Both are concrete gaps — C++ cross-pointer members with no Rust equivalent.
