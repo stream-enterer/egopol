@@ -97,5 +97,4 @@ pub mod emWindowPlatform;
 pub mod emWindowStateSaver;
 pub mod fixed;
 pub mod rect;
-pub mod toolkit_images;
 pub(crate) mod widget_utils;

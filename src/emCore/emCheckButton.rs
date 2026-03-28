@@ -11,7 +11,7 @@ use crate::emCore::emPainter::{emPainter, BORDER_EDGES_ONLY};
 use super::emBorder::{emBorder, OuterBorderType};
 use crate::emCore::emButton::HOWTO_BUTTON;
 use crate::emCore::emLook::emLook;
-use crate::emCore::toolkit_images::with_toolkit_images;
+use crate::emCore::emBorder::with_toolkit_images;
 
 /// Toggle button widget — visually depressed when checked.
 pub struct emCheckButton {

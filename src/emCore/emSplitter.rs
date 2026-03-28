@@ -7,7 +7,7 @@ use crate::emCore::emPanelCtx::PanelCtx;
 use crate::emCore::emPainter::{emPainter, BORDER_EDGES_ONLY};
 
 use crate::emCore::emLook::emLook;
-use crate::emCore::toolkit_images::with_toolkit_images;
+use crate::emCore::emBorder::with_toolkit_images;
 use std::rc::Rc;
 
 /// C++ emSplitter grip base fraction before borderScaling.

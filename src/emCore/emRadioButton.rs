@@ -13,7 +13,7 @@ use crate::emCore::emPainter::{emPainter, BORDER_EDGES_ONLY};
 
 use super::emBorder::{emBorder, OuterBorderType};
 use crate::emCore::emLook::emLook;
-use crate::emCore::toolkit_images::with_toolkit_images;
+use crate::emCore::emBorder::with_toolkit_images;
 
 /// Shared state for a group of radio buttons enforcing mutual exclusion.
 ///

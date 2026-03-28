@@ -12,7 +12,7 @@ use crate::emCore::emPainter::{emPainter, BORDER_EDGES_ONLY};
 use super::emBorder::{emBorder, OuterBorderType};
 use crate::emCore::emLook::emLook;
 use crate::emCore::emRadioButton::RadioGroup;
-use crate::emCore::toolkit_images::with_toolkit_images;
+use crate::emCore::emBorder::with_toolkit_images;
 
 /// Small radio box widget — box indicator with label text.
 ///

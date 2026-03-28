@@ -1,10 +1,12 @@
+use std::cell::OnceCell;
+
 use crate::emCore::emColor::emColor;
 use crate::emCore::emImage::emImage;
-use crate::emCore::rect::Rect;
-use crate::emCore::emPainter::{emPainter, TextAlignment, VAlign, BORDER_EDGES_ONLY};
-use crate::emCore::emStroke::emStroke;
-
 use crate::emCore::emLook::emLook;
+use crate::emCore::emPainter::{emPainter, TextAlignment, VAlign, BORDER_EDGES_ONLY};
+use crate::emCore::emResTga::load_tga;
+use crate::emCore::emStroke::emStroke;
+use crate::emCore::rect::Rect;
 
 /// Minimum font size in pixels — below this the text is too small to read.
 const MIN_FONT_SIZE: f64 = 4.0;
@@ -1795,7 +1797,7 @@ How to move or set the focus:\n\
                 }
                 let r = rnd_r * (286.0 / 209.0);
                 let e = r - rnd_r;
-                super::toolkit_images::with_toolkit_images(|img| {
+                with_toolkit_images(|img| {
                     painter.PaintBorderImage(
                         rnd_x - e,
                         rnd_y - e,
@@ -1844,7 +1846,7 @@ How to move or set the focus:\n\
                 }
                 let r = rnd_r * (286.0 / 209.0);
                 let e = r - rnd_r;
-                super::toolkit_images::with_toolkit_images(|img| {
+                with_toolkit_images(|img| {
                     painter.PaintBorderImage(
                         rnd_x - e,
                         rnd_y - e,
@@ -1893,7 +1895,7 @@ How to move or set the focus:\n\
                 }
                 let r = rnd_r * (340.0 / 293.4);
                 let e = r - rnd_r;
-                super::toolkit_images::with_toolkit_images(|img| {
+                with_toolkit_images(|img| {
                     painter.PaintBorderImage(
                         rnd_x - e,
                         rnd_y - e,
@@ -1932,7 +1934,7 @@ How to move or set the focus:\n\
                 } else {
                     canvas
                 };
-                super::toolkit_images::with_toolkit_images(|img| {
+                with_toolkit_images(|img| {
                     painter.PaintBorderImage(
                         0.0,
                         0.0,
@@ -2073,7 +2075,7 @@ How to move or set the focus:\n\
             InnerBorderType::None => {}
             InnerBorderType::Group => {
                 let canvas = painter.GetCanvasColor();
-                super::toolkit_images::with_toolkit_images(|img| {
+                with_toolkit_images(|img| {
                     painter.PaintBorderImage(
                         inner_x,
                         inner_y,
@@ -2155,7 +2157,7 @@ How to move or set the focus:\n\
                     cr_r = r;
                 }
                 let canvas = painter.GetCanvasColor();
-                super::toolkit_images::with_toolkit_images(|img| {
+                with_toolkit_images(|img| {
                     painter.PaintBorderImage(
                         cr_x,
                         cr_y,
@@ -2228,7 +2230,7 @@ How to move or set the focus:\n\
             inner_r = type_r;
         }
 
-        super::toolkit_images::with_toolkit_images(|img| {
+        with_toolkit_images(|img| {
             painter.PaintBorderImage(
                 inner_x,
                 inner_y,
@@ -2249,6 +2251,145 @@ How to move or set the focus:\n\
             );
         });
     }
+}
+
+// RUST_ONLY: toolkit_images.rs -- compile-time TGA atlas extracted from C++ emBorder::TkResources
+// (emBorder.h:321-341). C++ loads images at runtime via emGetResImage(); Rust embeds them via
+// include_bytes!().
+
+pub(crate) struct ToolkitImages {
+    pub group_border: emImage,
+    pub button_border: emImage,
+    pub popup_border: emImage,
+    pub group_inner_border: emImage,
+    pub io_field: emImage,
+    pub custom_rect_border: emImage,
+    pub button: emImage,
+    pub button_pressed: emImage,
+    pub button_checked: emImage,
+    pub splitter: emImage,
+    pub splitter_pressed: emImage,
+    pub check_box: emImage,
+    pub check_box_pressed: emImage,
+    pub radio_box: emImage,
+    pub radio_box_pressed: emImage,
+}
+
+fn decode_toolkit_image(data: &[u8], name: &str, expected_w: u32, expected_h: u32) -> emImage {
+    let img = load_tga(data).unwrap_or_else(|e| panic!("failed to decode {name}: {e}"));
+    assert_eq!(
+        (img.GetWidth(), img.GetHeight()),
+        (expected_w, expected_h),
+        "{name} dimensions mismatch: got {}x{}, expected {expected_w}x{expected_h}",
+        img.GetWidth(),
+        img.GetHeight(),
+    );
+    img
+}
+
+impl ToolkitImages {
+    fn TryLoad() -> Self {
+        Self {
+            group_border: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/GroupBorder.tga"),
+                "GroupBorder",
+                592,
+                592,
+            ),
+            button_border: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/ButtonBorder.tga"),
+                "ButtonBorder",
+                704,
+                704,
+            ),
+            popup_border: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/PopupBorder.tga"),
+                "PopupBorder",
+                320,
+                320,
+            ),
+            group_inner_border: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/GroupInnerBorder.tga"),
+                "GroupInnerBorder",
+                470,
+                470,
+            ),
+            io_field: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/IOField.tga"),
+                "IOField",
+                572,
+                572,
+            ),
+            custom_rect_border: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/CustomRectBorder.tga"),
+                "CustomRectBorder",
+                450,
+                450,
+            ),
+            button: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/Button.tga"),
+                "Button",
+                658,
+                658,
+            ),
+            button_pressed: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/ButtonPressed.tga"),
+                "ButtonPressed",
+                648,
+                648,
+            ),
+            button_checked: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/ButtonChecked.tga"),
+                "ButtonChecked",
+                648,
+                648,
+            ),
+            splitter: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/Splitter.tga"),
+                "Splitter",
+                300,
+                300,
+            ),
+            splitter_pressed: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/SplitterPressed.tga"),
+                "SplitterPressed",
+                300,
+                300,
+            ),
+            check_box: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/CheckBox.tga"),
+                "CheckBox",
+                380,
+                380,
+            ),
+            check_box_pressed: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/CheckBoxPressed.tga"),
+                "CheckBoxPressed",
+                380,
+                380,
+            ),
+            radio_box: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/RadioBox.tga"),
+                "RadioBox",
+                380,
+                380,
+            ),
+            radio_box_pressed: decode_toolkit_image(
+                include_bytes!("../../res/toolkit/RadioBoxPressed.tga"),
+                "RadioBoxPressed",
+                380,
+                380,
+            ),
+        }
+    }
+}
+
+thread_local! {
+    static TOOLKIT: OnceCell<ToolkitImages> = const { OnceCell::new() };
+}
+
+pub(crate) fn with_toolkit_images<R>(f: impl FnOnce(&ToolkitImages) -> R) -> R {
+    TOOLKIT.with(|cell| f(cell.get_or_init(ToolkitImages::TryLoad)))
 }
 
 #[cfg(test)]

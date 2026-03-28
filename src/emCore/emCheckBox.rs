@@ -11,7 +11,7 @@ use crate::emCore::emStroke::{LineCap, LineJoin, emStroke};
 
 use super::emBorder::{emBorder, OuterBorderType};
 use crate::emCore::emLook::emLook;
-use crate::emCore::toolkit_images::with_toolkit_images;
+use crate::emCore::emBorder::with_toolkit_images;
 
 /// emCheckBox widget — Margin border with ShownBoxed paint path.
 /// Matches C++ `emCheckBox` (which extends `emCheckButton` extends `emButton`).
