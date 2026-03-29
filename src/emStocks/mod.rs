@@ -2,6 +2,7 @@
 
 pub mod emStocksConfig;
 pub mod emStocksControlPanel;
+pub mod emStocksFetchPricesDialog;
 pub mod emStocksFileModel;
 pub mod emStocksItemChart;
 pub mod emStocksItemPanel;
