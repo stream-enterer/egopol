@@ -1,6 +1,10 @@
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
 
-use eaglemode_rs::emCore::emFileModel::{emFileModel, FileModelOps, FileState};
+use eaglemode_rs::emCore::emFileModel::{
+    emAbsoluteFileModelClient, emFileModel, FileModelOps, FileState,
+};
 use eaglemode_rs::emCore::emScheduler::EngineScheduler;
 
 fn make_signals() -> (
@@ -429,4 +433,39 @@ fn clear_save_error_noop_in_loaded() {
     m.complete_load("data".to_string());
     m.clear_save_error();
     assert!(matches!(m.GetFileState(), &FileState::Loaded));
+}
+
+#[test]
+fn absolute_file_model_client_empty() {
+    let client: emAbsoluteFileModelClient<Vec<u8>> = emAbsoluteFileModelClient::new();
+    assert!(client.GetModel().is_none());
+}
+
+#[test]
+fn absolute_file_model_client_set_and_get() {
+    let model = Rc::new(RefCell::new(vec![1u8, 2, 3]));
+    let mut client = emAbsoluteFileModelClient::new();
+    client.SetModel(&model);
+    assert!(client.GetModel().is_some());
+    assert_eq!(*client.GetModel().unwrap().borrow(), vec![1u8, 2, 3]);
+}
+
+#[test]
+fn absolute_file_model_client_tracks_drop() {
+    let model = Rc::new(RefCell::new(String::from("test")));
+    let mut client = emAbsoluteFileModelClient::new();
+    client.SetModel(&model);
+    assert!(client.GetModel().is_some());
+    drop(model);
+    assert!(client.GetModel().is_none());
+}
+
+#[test]
+fn absolute_file_model_client_clear() {
+    let model = Rc::new(RefCell::new(42u32));
+    let mut client = emAbsoluteFileModelClient::new();
+    client.SetModel(&model);
+    assert!(client.GetModel().is_some());
+    client.ClearModel();
+    assert!(client.GetModel().is_none());
 }

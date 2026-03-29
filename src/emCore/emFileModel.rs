@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
+use std::rc::{Rc, Weak};
 use std::time::SystemTime;
 
 use crate::emCore::emSignal::SignalId;
@@ -475,5 +477,42 @@ impl<T> emFileModel<T> {
             self.state = FileState::Unsaved;
             self.error_text.clear();
         }
+    }
+}
+
+/// Port of C++ emAbsoluteFileModelClient.
+/// DIVERGED: Uses Weak<RefCell<T>> instead of raw pointer + emRef.
+/// Rust has no emFileModelClient base class; this is a standalone
+/// wrapper that tracks a file model's lifetime via Weak reference.
+pub struct emAbsoluteFileModelClient<T> {
+    model: Option<Weak<RefCell<T>>>,
+}
+
+impl<T> emAbsoluteFileModelClient<T> {
+    /// Create an empty client with no model.
+    pub fn new() -> Self {
+        Self { model: None }
+    }
+
+    /// Set the tracked model. Port of C++ `SetModel`.
+    pub fn SetModel(&mut self, model: &Rc<RefCell<T>>) {
+        self.model = Some(Rc::downgrade(model));
+    }
+
+    /// Clear the tracked model. Port of C++ `ClearModel`.
+    pub fn ClearModel(&mut self) {
+        self.model = None;
+    }
+
+    /// Returns the model if still alive, None if dropped.
+    /// Port of C++ `GetModel`.
+    pub fn GetModel(&self) -> Option<Rc<RefCell<T>>> {
+        self.model.as_ref().and_then(|w| w.upgrade())
+    }
+}
+
+impl<T> Default for emAbsoluteFileModelClient<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
