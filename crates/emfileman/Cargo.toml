@@ -11,3 +11,4 @@ crate-type = ["cdylib", "rlib"]
 emcore = { path = "../emcore" }
 libc = { workspace = true }
 log = { workspace = true }
+slotmap = { workspace = true }

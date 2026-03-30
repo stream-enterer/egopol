@@ -1,5 +1,12 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use emcore::emConfigModel::emConfigModel;
+use emcore::emContext::emContext;
 use emcore::emRec::{RecError, RecStruct};
 use emcore::emRecRecord::Record;
+use emcore::emSignal::SignalId;
+use slotmap::Key as _;
 
 /// DIVERGED: C++ uses anonymous enum constants inside `emFileManConfig`.
 /// Rust uses a standalone enum for type safety.
@@ -145,6 +152,91 @@ impl Record for emFileManConfigData {
     }
 }
 
+/// Model wrapper for emFileManConfig.
+/// Port of C++ `emFileManConfig` (extends emConfigModel).
+pub struct emFileManConfig {
+    config_model: emConfigModel<emFileManConfigData>,
+}
+
+impl emFileManConfig {
+    pub fn Acquire(ctx: &Rc<emContext>) -> Rc<RefCell<Self>> {
+        ctx.acquire::<Self>("", || {
+            let signal_id = SignalId::null();
+            let path = std::path::PathBuf::from("");
+            Self {
+                config_model: emConfigModel::new(
+                    emFileManConfigData::default(),
+                    path,
+                    signal_id,
+                ),
+            }
+        })
+    }
+
+    pub fn GetFormatName(&self) -> &str {
+        "emFileManConfig"
+    }
+
+    pub fn GetChangeSignal(&self) -> SignalId {
+        self.config_model.GetChangeSignal()
+    }
+
+    pub fn GetSortCriterion(&self) -> SortCriterion {
+        self.config_model.GetRec().sort_criterion
+    }
+
+    pub fn SetSortCriterion(&mut self, sc: SortCriterion) {
+        self.config_model.modify(|d| d.sort_criterion = sc);
+    }
+
+    pub fn GetNameSortingStyle(&self) -> NameSortingStyle {
+        self.config_model.GetRec().name_sorting_style
+    }
+
+    pub fn SetNameSortingStyle(&mut self, nss: NameSortingStyle) {
+        self.config_model
+            .modify(|d| d.name_sorting_style = nss);
+    }
+
+    pub fn GetSortDirectoriesFirst(&self) -> bool {
+        self.config_model.GetRec().sort_directories_first
+    }
+
+    pub fn SetSortDirectoriesFirst(&mut self, b: bool) {
+        self.config_model
+            .modify(|d| d.sort_directories_first = b);
+    }
+
+    pub fn GetShowHiddenFiles(&self) -> bool {
+        self.config_model.GetRec().show_hidden_files
+    }
+
+    pub fn SetShowHiddenFiles(&mut self, b: bool) {
+        self.config_model.modify(|d| d.show_hidden_files = b);
+    }
+
+    pub fn GetThemeName(&self) -> &str {
+        &self.config_model.GetRec().theme_name
+    }
+
+    pub fn SetThemeName(&mut self, name: &str) {
+        self.config_model
+            .modify(|d| d.theme_name = name.to_string());
+    }
+
+    pub fn GetAutosave(&self) -> bool {
+        self.config_model.GetRec().autosave
+    }
+
+    pub fn SetAutosave(&mut self, b: bool) {
+        self.config_model.modify(|d| d.autosave = b);
+    }
+
+    pub fn IsUnsaved(&self) -> bool {
+        self.config_model.IsUnsaved()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,5 +281,48 @@ mod tests {
         assert_eq!(SortCriterion::ByVersion as i32, 3);
         assert_eq!(SortCriterion::ByDate as i32, 4);
         assert_eq!(SortCriterion::BySize as i32, 5);
+    }
+
+    #[test]
+    fn config_model_acquire_singleton() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let c1 = emFileManConfig::Acquire(&ctx);
+        let c2 = emFileManConfig::Acquire(&ctx);
+        assert!(Rc::ptr_eq(&c1, &c2));
+    }
+
+    #[test]
+    fn config_model_getters_match_defaults() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let cfg = emFileManConfig::Acquire(&ctx);
+        let cfg = cfg.borrow();
+        assert_eq!(cfg.GetSortCriterion(), SortCriterion::ByName);
+        assert_eq!(cfg.GetNameSortingStyle(), NameSortingStyle::PerLocale);
+        assert!(!cfg.GetSortDirectoriesFirst());
+        assert!(!cfg.GetShowHiddenFiles());
+        assert_eq!(cfg.GetThemeName(), "");
+        assert!(cfg.GetAutosave());
+    }
+
+    #[test]
+    fn config_model_setters_round_trip() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let cfg = emFileManConfig::Acquire(&ctx);
+        {
+            let mut cfg = cfg.borrow_mut();
+            cfg.SetSortCriterion(SortCriterion::BySize);
+            cfg.SetNameSortingStyle(NameSortingStyle::CaseInsensitive);
+            cfg.SetSortDirectoriesFirst(true);
+            cfg.SetShowHiddenFiles(true);
+            cfg.SetThemeName("Glass1");
+            cfg.SetAutosave(false);
+        }
+        let cfg = cfg.borrow();
+        assert_eq!(cfg.GetSortCriterion(), SortCriterion::BySize);
+        assert_eq!(cfg.GetNameSortingStyle(), NameSortingStyle::CaseInsensitive);
+        assert!(cfg.GetSortDirectoriesFirst());
+        assert!(cfg.GetShowHiddenFiles());
+        assert_eq!(cfg.GetThemeName(), "Glass1");
+        assert!(!cfg.GetAutosave());
     }
 }
