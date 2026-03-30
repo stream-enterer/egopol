@@ -36,6 +36,35 @@ pub trait FileModelClient {
     fn is_reload_annoying(&self) -> bool;
 }
 
+/// Read-only view of file model state, erasing the data type T.
+/// DIVERGED: C++ emFileModel base class — Rust uses trait for type erasure
+/// since emFileModel<T> is generic.
+pub trait FileModelState {
+    fn GetFileState(&self) -> &FileState;
+    fn GetFileProgress(&self) -> f64;
+    fn GetErrorText(&self) -> &str;
+    fn get_memory_need(&self) -> u64;
+    fn GetFileStateSignal(&self) -> SignalId;
+}
+
+impl<T> FileModelState for emFileModel<T> {
+    fn GetFileState(&self) -> &FileState {
+        &self.state
+    }
+    fn GetFileProgress(&self) -> f64 {
+        self.GetFileProgress()
+    }
+    fn GetErrorText(&self) -> &str {
+        &self.error_text
+    }
+    fn get_memory_need(&self) -> u64 {
+        self.memory_need
+    }
+    fn GetFileStateSignal(&self) -> SignalId {
+        self.change_signal
+    }
+}
+
 /// Trait for file model loading/saving operations.
 ///
 /// Port of C++ emFileModel's protected pure virtual methods. Derived models
@@ -807,6 +836,16 @@ mod tests {
     fn is_any_client_reload_annoying_no_clients() {
         let model = make_model();
         assert!(!model.IsAnyClientReloadAnnoying());
+    }
+
+    #[test]
+    fn file_model_state_trait_object() {
+        let model = make_model();
+        let state: &dyn FileModelState = &model;
+        assert_eq!(*state.GetFileState(), FileState::Waiting);
+        assert!((state.GetFileProgress() - 0.0).abs() < f64::EPSILON);
+        assert_eq!(state.GetErrorText(), "");
+        assert_eq!(state.get_memory_need(), 0);
     }
 
     #[test]
