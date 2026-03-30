@@ -1,5 +1,20 @@
 //! Port of C++ emFileLinkPanel content coordinate calculation and border constants.
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use emcore::emColor::emColor;
+use emcore::emContext::emContext;
+use emcore::emFilePanel::emFilePanel;
+
+use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use emcore::emPanelCtx::PanelCtx;
+use emcore::emPanelTree::PanelId;
+use emcore::emPainter::{emPainter, TextAlignment, VAlign};
+
+use crate::emFileManViewConfig::emFileManViewConfig;
+use crate::emFileLinkModel::emFileLinkModel;
+
 pub const BORDER_BG_COLOR: u32 = 0xBBBBBBFF;
 pub const BORDER_FG_COLOR: u32 = 0x444444FF;
 pub const MIN_VIEW_PERCENT: f64 = 60.0;
@@ -32,6 +47,150 @@ pub fn CalcContentCoords(
     (x.max(0.0), y.max(0.0), w.max(0.001), h.max(0.001))
 }
 
+/// File link panel.
+/// Port of C++ `emFileLinkPanel` (extends emFilePanel).
+///
+/// Displays a linked file by resolving the target path and creating either
+/// an emDirEntryPanel (if link has HaveDirEntry) or a plugin panel as child.
+pub struct emFileLinkPanel {
+    pub(crate) file_panel: emFilePanel,
+    config: Rc<RefCell<emFileManViewConfig>>,
+    pub(crate) model: Option<Rc<RefCell<emFileLinkModel>>>,
+    pub(crate) have_border: bool,
+    have_dir_entry_panel: bool,
+    full_path: String,
+    child_panel: Option<PanelId>,
+}
+
+impl emFileLinkPanel {
+    pub fn new(ctx: Rc<emContext>, have_border: bool) -> Self {
+        let config = emFileManViewConfig::Acquire(&ctx);
+        Self {
+            file_panel: emFilePanel::new(),
+            config,
+            model: None,
+            have_border,
+            have_dir_entry_panel: false,
+            full_path: String::new(),
+            child_panel: None,
+        }
+    }
+
+    pub fn set_link_model(&mut self, model: Rc<RefCell<emFileLinkModel>>) {
+        self.model = Some(model);
+    }
+
+    fn layout_child_panel(&self, ctx: &mut PanelCtx, panel_height: f64) {
+        if let Some(child) = self.child_panel {
+            let config = self.config.borrow();
+            let theme = config.GetTheme();
+            let theme_rec = theme.GetRec();
+            let (x, y, w, h) = CalcContentCoords(
+                panel_height,
+                self.have_border,
+                self.have_dir_entry_panel,
+                theme_rec.Height,
+                theme_rec.LnkPaddingL,
+                theme_rec.LnkPaddingT,
+                theme_rec.LnkPaddingR,
+                theme_rec.LnkPaddingB,
+            );
+            let canvas = if self.have_dir_entry_panel {
+                emColor::from_packed(theme_rec.DirContentColor)
+            } else if self.have_border {
+                emColor::from_packed(BORDER_BG_COLOR)
+            } else {
+                ctx.GetCanvasColor()
+            };
+            ctx.layout_child_canvas(child, x, y, w, h, canvas);
+        }
+    }
+}
+
+impl PanelBehavior for emFileLinkPanel {
+    fn Cycle(&mut self, _ctx: &mut PanelCtx) -> bool {
+        self.file_panel.refresh_vir_file_state();
+        false
+    }
+
+    fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState) {
+        // Child panel management deferred to LayoutChildren for borrow safety
+    }
+
+    fn IsOpaque(&self) -> bool {
+        if !self.file_panel.GetVirFileState().is_good() && self.child_panel.is_none() {
+            return false;
+        }
+        if self.have_border {
+            return (BORDER_BG_COLOR >> 24) == 0xFF;
+        }
+        false
+    }
+
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        if !self.file_panel.GetVirFileState().is_good() && self.child_panel.is_none() {
+            self.file_panel.paint_status(painter, w, h);
+            return;
+        }
+
+        if self.have_border {
+            let bg = emColor::from_packed(BORDER_BG_COLOR);
+            let fg = emColor::from_packed(BORDER_FG_COLOR);
+            painter.Clear(bg);
+
+            let config = self.config.borrow();
+            let theme = config.GetTheme();
+            let theme_rec = theme.GetRec();
+            let (cx, cy, cw, ch) = CalcContentCoords(
+                state.height, self.have_border, self.have_dir_entry_panel,
+                theme_rec.Height,
+                theme_rec.LnkPaddingL, theme_rec.LnkPaddingT,
+                theme_rec.LnkPaddingR, theme_rec.LnkPaddingB,
+            );
+
+            // Border outline
+            let d = cx.min(cy) * 0.15;
+            let t = cx.min(cy) * 0.03;
+            let stroke = emcore::emStroke::emStroke {
+                color: fg,
+                width: t,
+                ..Default::default()
+            };
+            painter.PaintRectOutline(
+                cx - d * 0.5, cy - d * 0.5,
+                cw + d, ch + d, &stroke, bg,
+            );
+
+            // Label
+            let label = format!("emFileLink to {}", self.full_path);
+            let ty = cx.min(cy) * 0.2;
+            painter.PaintTextBoxed(
+                ty, 0.0, 1.0 - ty * 2.0, cy - ty,
+                &label, (cy - ty) * 0.9,
+                fg, bg,
+                TextAlignment::Center, VAlign::Center,
+                TextAlignment::Left, 1.0, false, 1.0,
+            );
+
+            if self.have_dir_entry_panel {
+                painter.PaintRect(
+                    cx, cy, cw, ch,
+                    emColor::from_packed(theme_rec.DirContentColor), bg,
+                );
+            }
+        } else if self.have_dir_entry_panel {
+            let config = self.config.borrow();
+            let theme = config.GetTheme();
+            painter.Clear(emColor::from_packed(theme.GetRec().DirContentColor));
+        }
+    }
+
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        let rect = ctx.layout_rect();
+        self.layout_child_panel(ctx, rect.h);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -56,5 +215,23 @@ mod tests {
     fn border_colors() {
         assert_eq!(BORDER_BG_COLOR, 0xBBBBBBFF_u32);
         assert_eq!(BORDER_FG_COLOR, 0x444444FF_u32);
+    }
+
+    #[test]
+    fn panel_implements_panel_behavior() {
+        use emcore::emPanel::PanelBehavior;
+
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let panel = emFileLinkPanel::new(Rc::clone(&ctx), true);
+        let _: Box<dyn PanelBehavior> = Box::new(panel);
+    }
+
+    #[test]
+    fn panel_have_border_flag() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let panel = emFileLinkPanel::new(Rc::clone(&ctx), true);
+        assert!(panel.have_border);
+        let panel2 = emFileLinkPanel::new(Rc::clone(&ctx), false);
+        assert!(!panel2.have_border);
     }
 }
