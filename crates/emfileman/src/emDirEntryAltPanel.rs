@@ -2,9 +2,19 @@
 //!
 //! Port of C++ `emDirEntryAltPanel`. Creates content via
 //! `CreateFilePanel(..., alternative)` with incrementing alternative index.
-//! Full panel rendering deferred to panel integration phase.
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use emcore::emColor::emColor;
+use emcore::emContext::emContext;
+use emcore::emPanel::{PanelBehavior, PanelState};
+use emcore::emPanelCtx::PanelCtx;
+use emcore::emPanelTree::PanelId;
+use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 
 use crate::emDirEntry::emDirEntry;
+use crate::emFileManViewConfig::emFileManViewConfig;
 
 /// Data for an alternative content view panel.
 pub struct emDirEntryAltPanelData {
@@ -18,5 +28,174 @@ impl emDirEntryAltPanelData {
             dir_entry,
             alternative,
         }
+    }
+}
+
+/// Alternative content view panel.
+/// Port of C++ `emDirEntryAltPanel` (extends emPanel).
+pub struct emDirEntryAltPanel {
+    pub(crate) data: emDirEntryAltPanelData,
+    ctx: Rc<emContext>,
+    config: Rc<RefCell<emFileManViewConfig>>,
+    content_panel: Option<PanelId>,
+    alt_panel: Option<PanelId>,
+}
+
+impl emDirEntryAltPanel {
+    pub fn new(ctx: Rc<emContext>, dir_entry: emDirEntry, alternative: i32) -> Self {
+        let config = emFileManViewConfig::Acquire(&ctx);
+        Self {
+            data: emDirEntryAltPanelData::new(dir_entry, alternative),
+            ctx,
+            config,
+            content_panel: None,
+            alt_panel: None,
+        }
+    }
+
+    pub fn update_dir_entry(&mut self, dir_entry: emDirEntry) {
+        self.data.dir_entry = dir_entry;
+    }
+
+    fn update_content_panel(
+        &mut self,
+        ctx: &mut PanelCtx,
+        force_recreation: bool,
+    ) {
+        if force_recreation {
+            if let Some(child) = self.content_panel.take() {
+                ctx.delete_child(child);
+            }
+        }
+
+        let config = self.config.borrow();
+        let theme = config.GetTheme();
+        let theme_rec = theme.GetRec();
+
+        if self.content_panel.is_none() {
+            let fppl = emcore::emFpPlugin::emFpPluginList::Acquire(&self.ctx);
+            let fppl = fppl.borrow();
+            let parent_arg = emcore::emFpPlugin::PanelParentArg::new(Rc::clone(&self.ctx));
+            let behavior = fppl.CreateFilePanelWithStat(
+                &parent_arg,
+                crate::emDirEntryPanel::CONTENT_NAME,
+                self.data.dir_entry.GetPath(),
+                None,
+                if self.data.dir_entry.IsDirectory() {
+                    emcore::emFpPlugin::FileStatMode::Directory
+                } else {
+                    emcore::emFpPlugin::FileStatMode::Regular
+                },
+                self.data.alternative as usize,
+            );
+            let child_id = ctx.create_child_with(crate::emDirEntryPanel::CONTENT_NAME, behavior);
+            self.content_panel = Some(child_id);
+
+            let bg = emColor::from_packed(theme_rec.BackgroundColor);
+            ctx.layout_child_canvas(
+                child_id,
+                theme_rec.AltContentX, theme_rec.AltContentY,
+                theme_rec.AltContentW, theme_rec.AltContentH,
+                bg,
+            );
+        }
+    }
+
+    fn update_alt_panel(
+        &mut self,
+        ctx: &mut PanelCtx,
+        force_recreation: bool,
+    ) {
+        if force_recreation {
+            if let Some(child) = self.alt_panel.take() {
+                ctx.delete_child(child);
+            }
+        }
+
+        let config = self.config.borrow();
+        let theme = config.GetTheme();
+        let theme_rec = theme.GetRec();
+
+        if self.alt_panel.is_none() {
+            let next_alt = emDirEntryAltPanel::new(
+                Rc::clone(&self.ctx),
+                self.data.dir_entry.clone(),
+                self.data.alternative + 1,
+            );
+            let child_id = ctx.create_child_with(
+                crate::emDirEntryPanel::ALT_NAME,
+                Box::new(next_alt),
+            );
+            self.alt_panel = Some(child_id);
+
+            let canvas = ctx.GetCanvasColor();
+            ctx.layout_child_canvas(
+                child_id,
+                theme_rec.AltAltX, theme_rec.AltAltY,
+                theme_rec.AltAltW, theme_rec.AltAltH,
+                canvas,
+            );
+        }
+    }
+}
+
+impl PanelBehavior for emDirEntryAltPanel {
+    fn IsOpaque(&self) -> bool {
+        false
+    }
+
+    fn Paint(&mut self, painter: &mut emPainter, _w: f64, _h: f64, _state: &PanelState) {
+        let config = self.config.borrow();
+        let theme = config.GetTheme();
+        let theme_rec = theme.GetRec();
+
+        let label = format!("Alternative Content Panel #{}", self.data.alternative);
+        let label_color = emColor::from_packed(theme_rec.LabelColor);
+        let canvas = emColor::TRANSPARENT;
+
+        painter.PaintTextBoxed(
+            theme_rec.AltLabelX, theme_rec.AltLabelY,
+            theme_rec.AltLabelW, theme_rec.AltLabelH,
+            &label, theme_rec.AltLabelH,
+            label_color, canvas,
+            TextAlignment::Left, VAlign::Center,
+            TextAlignment::Left, 0.5, false, 1.0,
+        );
+
+        // Content background
+        let bg = emColor::from_packed(theme_rec.BackgroundColor);
+        painter.PaintRect(
+            theme_rec.AltContentX, theme_rec.AltContentY,
+            theme_rec.AltContentW, theme_rec.AltContentH,
+            bg, canvas,
+        );
+    }
+
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        self.update_content_panel(ctx, false);
+        self.update_alt_panel(ctx, false);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn panel_implements_panel_behavior() {
+        use emcore::emPanel::PanelBehavior;
+
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
+        let panel = emDirEntryAltPanel::new(Rc::clone(&ctx), entry, 1);
+        let _: Box<dyn PanelBehavior> = Box::new(panel);
+    }
+
+    #[test]
+    fn panel_has_correct_alternative_index() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
+        let panel = emDirEntryAltPanel::new(Rc::clone(&ctx), entry, 3);
+        assert_eq!(panel.data.alternative, 3);
     }
 }
