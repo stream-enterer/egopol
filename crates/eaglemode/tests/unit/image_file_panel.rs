@@ -1,4 +1,3 @@
-use emcore::emFileModel::FileState;
 use emcore::emImage::emImage;
 use emcore::emImageFileImageFilePanel::emImageFilePanel;
 
@@ -40,7 +39,20 @@ fn essence_rect_no_image() {
 
 #[test]
 fn file_panel_delegation() {
-    let mut panel = emImageFilePanel::with_model();
-    panel.file_panel_mut().set_file_state(FileState::Loaded);
-    assert!(matches!(panel.file_panel().GetFileState(), FileState::Loaded));
+    use emcore::emFileModel::{emFileModel, FileModelState};
+    use std::cell::RefCell;
+    use std::path::PathBuf;
+    use std::rc::Rc;
+
+    let model: Rc<RefCell<emFileModel<String>>> = Rc::new(RefCell::new(
+        emFileModel::new(PathBuf::from("/tmp/test"), Default::default(), Default::default()),
+    ));
+    model.borrow_mut().complete_load("data".to_string());
+
+    let mut panel = emImageFilePanel::new();
+    panel
+        .file_panel_mut()
+        .SetFileModel(Some(model as Rc<RefCell<dyn FileModelState>>));
+    panel.file_panel_mut().refresh_vir_file_state();
+    assert!(panel.file_panel().GetVirFileState().is_good());
 }

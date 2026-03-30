@@ -47,8 +47,6 @@ pub struct emFilePanel {
     custom_error: Option<String>,
     last_vir_file_state: VirtualFileState,
     pub(crate) cached_memory_limit: u64,
-    pub(crate) _cached_priority: f64,
-    pub(crate) _cached_in_active_path: bool,
 }
 
 impl Default for emFilePanel {
@@ -64,8 +62,6 @@ impl emFilePanel {
             custom_error: None,
             last_vir_file_state: VirtualFileState::NoFileModel,
             cached_memory_limit: u64::MAX,
-            _cached_priority: 0.0,
-            _cached_in_active_path: false,
         }
     }
 
