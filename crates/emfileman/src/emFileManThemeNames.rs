@@ -1,6 +1,11 @@
 // SPLIT: emFileManTheme.h — emFileManThemeNames split into separate file per one-type-per-file rule.
 
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+
+use crate::emFileManTheme::{GetThemesDirPath, THEME_FILE_ENDING};
 
 struct ThemeAR {
     name: String,
@@ -17,6 +22,9 @@ struct ThemeStyle {
 pub struct emFileManThemeNames {
     styles: Vec<ThemeStyle>,
     name_to_packed_index: BTreeMap<String, (usize, usize)>,
+    change_generation: Rc<Cell<u64>>,
+    theme_dir: PathBuf,
+    theme_dir_mtime: u64,
 }
 
 /// Port of C++ `emFileManThemeNames::HeightToAspectRatioString`.
@@ -37,6 +45,64 @@ pub fn HeightToAspectRatioString(height: f64) -> String {
         }
     }
     format!("{best_n}:{best_d}")
+}
+
+pub fn discover_themes_from_dir(dir: &Path) -> emFileManThemeNames {
+    let mut owned: Vec<(String, String, String, f64)> = Vec::new();
+    if let Ok(read_dir) = std::fs::read_dir(dir) {
+        for entry in read_dir.flatten() {
+            let file_name = entry.file_name();
+            let name_str = file_name.to_string_lossy();
+            if !name_str.ends_with(THEME_FILE_ENDING) {
+                continue;
+            }
+            let theme_name = name_str
+                .strip_suffix(THEME_FILE_ENDING)
+                .unwrap_or(&name_str)
+                .to_string();
+            let Ok(content) = std::fs::read_to_string(entry.path()) else {
+                continue;
+            };
+            let mut display_name = String::new();
+            let mut display_icon = String::new();
+            let mut height: f64 = 0.0;
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if let Some(val) = trimmed.strip_prefix("DisplayName") {
+                    if let Some(val) = val.trim_start().strip_prefix('=') {
+                        display_name = val.trim().trim_matches('"').to_string();
+                    }
+                } else if let Some(val) = trimmed.strip_prefix("DisplayIcon") {
+                    if let Some(val) = val.trim_start().strip_prefix('=') {
+                        display_icon = val.trim().trim_matches('"').to_string();
+                    }
+                } else if let Some(val) = trimmed.strip_prefix("Height") {
+                    if let Some(val) = val.trim_start().strip_prefix('=') {
+                        if let Ok(h) = val.trim().parse::<f64>() {
+                            height = h;
+                        }
+                    }
+                }
+            }
+            owned.push((theme_name, display_name, display_icon, height));
+        }
+    }
+    let refs: Vec<(&str, &str, &str, f64)> = owned
+        .iter()
+        .map(|(n, dn, di, h)| (n.as_str(), dn.as_str(), di.as_str(), *h))
+        .collect();
+    emFileManThemeNames::from_themes(&refs)
+}
+
+fn dir_mtime(path: &Path) -> u64 {
+    std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .and_then(|t| {
+            t.duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .map_err(|_| std::io::Error::other("time"))
+        })
+        .unwrap_or(0)
 }
 
 impl emFileManThemeNames {
@@ -96,6 +162,9 @@ impl emFileManThemeNames {
         Self {
             styles,
             name_to_packed_index,
+            change_generation: Rc::new(Cell::new(0)),
+            theme_dir: PathBuf::new(),
+            theme_dir_mtime: 0,
         }
     }
 
@@ -155,6 +224,35 @@ impl emFileManThemeNames {
 
     pub fn GetThemeAspectRatioIndex(&self, name: &str) -> Option<usize> {
         self.name_to_packed_index.get(name).map(|&(_, a)| a)
+    }
+
+    pub fn Acquire(ctx: &Rc<emcore::emContext::emContext>) -> Rc<RefCell<Self>> {
+        ctx.acquire::<Self>("", || {
+            let theme_dir = GetThemesDirPath().unwrap_or_default();
+            let mut catalog = discover_themes_from_dir(&theme_dir);
+            catalog.change_generation = Rc::new(Cell::new(0));
+            catalog.theme_dir_mtime = dir_mtime(&theme_dir);
+            catalog.theme_dir = theme_dir;
+            catalog
+        })
+    }
+
+    pub fn GetChangeGeneration(&self) -> u64 {
+        self.change_generation.get()
+    }
+
+    pub fn Cycle(&mut self) -> bool {
+        let current_mtime = dir_mtime(&self.theme_dir);
+        if current_mtime != self.theme_dir_mtime {
+            self.theme_dir_mtime = current_mtime;
+            let new_catalog = discover_themes_from_dir(&self.theme_dir);
+            self.styles = new_catalog.styles;
+            self.name_to_packed_index = new_catalog.name_to_packed_index;
+            self.change_generation
+                .set(self.change_generation.get() + 1);
+            return true;
+        }
+        false
     }
 }
 
@@ -221,5 +319,32 @@ mod tests {
             emFileManThemeNames::from_themes(&[("Glass1", "Glass Display", "icon.png", 1.0)]);
         assert_eq!(names.GetThemeStyleDisplayName(0), Some("Glass Display"));
         assert_eq!(names.GetThemeStyleDisplayIcon(0), Some("icon.png"));
+    }
+
+    #[test]
+    fn acquire_singleton() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let t1 = emFileManThemeNames::Acquire(&ctx);
+        let t2 = emFileManThemeNames::Acquire(&ctx);
+        assert!(Rc::ptr_eq(&t1, &t2));
+    }
+
+    #[test]
+    fn discover_from_directory() {
+        let dir = std::env::temp_dir().join("emcore_test_themes_disc");
+        let _ = std::fs::create_dir_all(&dir);
+        let content = "emFileManTheme\nDisplayName = \"TestStyle\"\nDisplayIcon = \"icon.tga\"\nHeight = 0.6\n";
+        std::fs::write(dir.join("Test1.emFileManTheme"), content).expect("write");
+        let names = discover_themes_from_dir(&dir);
+        assert_eq!(names.GetThemeStyleCount(), 1);
+        assert!(names.IsExistingThemeName("Test1"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn change_generation_starts_at_zero() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let names = emFileManThemeNames::Acquire(&ctx);
+        assert_eq!(names.borrow().GetChangeGeneration(), 0);
     }
 }
