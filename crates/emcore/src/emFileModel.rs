@@ -28,6 +28,14 @@ pub enum FileState {
     TooCostly,
 }
 
+/// Port of C++ emFileModelClient. Panels implement this to participate
+/// in model memory/priority decisions.
+pub trait FileModelClient {
+    fn get_memory_limit(&self) -> u64;
+    fn get_priority(&self) -> f64;
+    fn is_reload_annoying(&self) -> bool;
+}
+
 /// Trait for file model loading/saving operations.
 ///
 /// Port of C++ emFileModel's protected pure virtual methods. Derived models
@@ -86,6 +94,9 @@ pub struct emFileModel<T> {
     out_of_date: bool,
     ignore_update_signal: bool,
     update_signal: SignalId,
+    clients: Vec<Weak<RefCell<dyn FileModelClient>>>,
+    memory_limit_invalid: bool,
+    priority_invalid: bool,
 }
 
 impl<T> emFileModel<T> {
@@ -104,6 +115,9 @@ impl<T> emFileModel<T> {
             out_of_date: false,
             ignore_update_signal: false,
             update_signal,
+            clients: Vec::new(),
+            memory_limit_invalid: true,
+            priority_invalid: true,
         }
     }
 
@@ -478,6 +492,83 @@ impl<T> emFileModel<T> {
             self.error_text.clear();
         }
     }
+
+    /// Register a client to participate in memory/priority decisions.
+    /// Port of C++ `emFileModel::AddClient`.
+    pub fn AddClient(&mut self, client: &Rc<RefCell<dyn FileModelClient>>) {
+        self.clients.push(Rc::downgrade(client));
+        self.memory_limit_invalid = true;
+        self.priority_invalid = true;
+    }
+
+    /// Unregister a client. Port of C++ `emFileModel::RemoveClient`.
+    pub fn RemoveClient(&mut self, client: &Rc<RefCell<dyn FileModelClient>>) {
+        let ptr = Rc::as_ptr(client);
+        self.clients.retain(|w| {
+            w.upgrade()
+                .is_some_and(|rc| !std::ptr::eq(Rc::as_ptr(&rc), ptr))
+        });
+        self.memory_limit_invalid = true;
+        self.priority_invalid = true;
+    }
+
+    /// Number of live (non-dropped) clients.
+    pub fn client_count(&self) -> usize {
+        self.clients.iter().filter(|w| w.upgrade().is_some()).count()
+    }
+
+    /// Recompute memory limit as max across all clients.
+    /// Port of C++ `emFileModel::UpdateMemoryLimit`.
+    pub fn UpdateMemoryLimit(&mut self) {
+        self.clients.retain(|w| w.upgrade().is_some());
+        let new_limit = self
+            .clients
+            .iter()
+            .filter_map(|w| w.upgrade())
+            .map(|c| c.borrow().get_memory_limit())
+            .max()
+            .unwrap_or(0);
+        self.memory_limit = new_limit as usize;
+        self.memory_limit_invalid = false;
+    }
+
+    /// Recompute priority as max across all clients.
+    /// Port of C++ `emFileModel::UpdatePriority`.
+    pub fn UpdatePriority(&mut self) -> f64 {
+        self.clients.retain(|w| w.upgrade().is_some());
+        let max_pri = self
+            .clients
+            .iter()
+            .filter_map(|w| w.upgrade())
+            .map(|c| c.borrow().get_priority())
+            .fold(0.0_f64, f64::max);
+        self.priority_invalid = false;
+        max_pri
+    }
+
+    /// Port of C++ `emFileModel::IsAnyClientReloadAnnoying`.
+    pub fn IsAnyClientReloadAnnoying(&self) -> bool {
+        self.clients
+            .iter()
+            .filter_map(|w| w.upgrade())
+            .any(|c| c.borrow().is_reload_annoying())
+    }
+
+    pub fn is_memory_limit_invalid(&self) -> bool {
+        self.memory_limit_invalid
+    }
+
+    pub fn is_priority_invalid(&self) -> bool {
+        self.priority_invalid
+    }
+
+    pub fn InvalidateMemoryLimit(&mut self) {
+        self.memory_limit_invalid = true;
+    }
+
+    pub fn InvalidatePriority(&mut self) {
+        self.priority_invalid = true;
+    }
 }
 
 /// Port of C++ emAbsoluteFileModelClient.
@@ -514,5 +605,220 @@ impl<T> emAbsoluteFileModelClient<T> {
 impl<T> Default for emAbsoluteFileModelClient<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockClient {
+        memory_limit: u64,
+        priority: f64,
+        reload_annoying: bool,
+    }
+
+    impl MockClient {
+        fn new(memory_limit: u64, priority: f64, reload_annoying: bool) -> Self {
+            Self {
+                memory_limit,
+                priority,
+                reload_annoying,
+            }
+        }
+    }
+
+    impl FileModelClient for MockClient {
+        fn get_memory_limit(&self) -> u64 {
+            self.memory_limit
+        }
+        fn get_priority(&self) -> f64 {
+            self.priority
+        }
+        fn is_reload_annoying(&self) -> bool {
+            self.reload_annoying
+        }
+    }
+
+    fn make_model() -> emFileModel<()> {
+        emFileModel::new(
+            PathBuf::from("/tmp/test.dat"),
+            SignalId::default(),
+            SignalId::default(),
+        )
+    }
+
+    fn make_client(limit: u64, priority: f64, annoying: bool) -> Rc<RefCell<dyn FileModelClient>> {
+        Rc::new(RefCell::new(MockClient::new(limit, priority, annoying)))
+    }
+
+    #[test]
+    fn add_remove_client() {
+        let mut model = make_model();
+        let client = make_client(1024, 1.0, false);
+
+        model.AddClient(&client);
+        assert_eq!(model.client_count(), 1);
+
+        model.RemoveClient(&client);
+        assert_eq!(model.client_count(), 0);
+    }
+
+    #[test]
+    fn add_client_invalidates_flags() {
+        let mut model = make_model();
+        model.memory_limit_invalid = false;
+        model.priority_invalid = false;
+
+        let client = make_client(1024, 1.0, false);
+        model.AddClient(&client);
+
+        assert!(model.is_memory_limit_invalid());
+        assert!(model.is_priority_invalid());
+    }
+
+    #[test]
+    fn remove_client_invalidates_flags() {
+        let mut model = make_model();
+        let client = make_client(1024, 1.0, false);
+        model.AddClient(&client);
+        model.memory_limit_invalid = false;
+        model.priority_invalid = false;
+
+        model.RemoveClient(&client);
+        assert!(model.is_memory_limit_invalid());
+        assert!(model.is_priority_invalid());
+    }
+
+    #[test]
+    fn dead_client_cleaned_from_count() {
+        let mut model = make_model();
+        {
+            let client = make_client(1024, 1.0, false);
+            model.AddClient(&client);
+            assert_eq!(model.client_count(), 1);
+        }
+        // client dropped
+        assert_eq!(model.client_count(), 0);
+    }
+
+    #[test]
+    fn update_memory_limit_takes_max() {
+        let mut model = make_model();
+        let c1 = make_client(100, 0.0, false);
+        let c2 = make_client(500, 0.0, false);
+        let c3 = make_client(200, 0.0, false);
+        model.AddClient(&c1);
+        model.AddClient(&c2);
+        model.AddClient(&c3);
+
+        model.UpdateMemoryLimit();
+
+        assert_eq!(model.GetMemoryLimit(), 500);
+        assert!(!model.is_memory_limit_invalid());
+    }
+
+    #[test]
+    fn update_memory_limit_cleans_dead_refs() {
+        let mut model = make_model();
+        let c1 = make_client(100, 0.0, false);
+        model.AddClient(&c1);
+        {
+            let c2 = make_client(999, 0.0, false);
+            model.AddClient(&c2);
+        }
+        // c2 is dead now
+
+        model.UpdateMemoryLimit();
+
+        assert_eq!(model.GetMemoryLimit(), 100);
+        assert_eq!(model.client_count(), 1);
+    }
+
+    #[test]
+    fn update_memory_limit_no_clients() {
+        let mut model = make_model();
+        model.UpdateMemoryLimit();
+        assert_eq!(model.GetMemoryLimit(), 0);
+    }
+
+    #[test]
+    fn update_priority_takes_max() {
+        let mut model = make_model();
+        let c1 = make_client(0, 1.5, false);
+        let c2 = make_client(0, 3.7, false);
+        let c3 = make_client(0, 2.0, false);
+        model.AddClient(&c1);
+        model.AddClient(&c2);
+        model.AddClient(&c3);
+
+        let pri = model.UpdatePriority();
+
+        assert!((pri - 3.7).abs() < f64::EPSILON);
+        assert!(!model.is_priority_invalid());
+    }
+
+    #[test]
+    fn update_priority_cleans_dead_refs() {
+        let mut model = make_model();
+        let c1 = make_client(0, 1.0, false);
+        model.AddClient(&c1);
+        {
+            let c2 = make_client(0, 99.0, false);
+            model.AddClient(&c2);
+        }
+
+        let pri = model.UpdatePriority();
+
+        assert!((pri - 1.0).abs() < f64::EPSILON);
+        assert_eq!(model.client_count(), 1);
+    }
+
+    #[test]
+    fn update_priority_no_clients() {
+        let mut model = make_model();
+        let pri = model.UpdatePriority();
+        assert!((pri - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn is_any_client_reload_annoying_true() {
+        let mut model = make_model();
+        let c1 = make_client(0, 0.0, false);
+        let c2 = make_client(0, 0.0, true);
+        model.AddClient(&c1);
+        model.AddClient(&c2);
+
+        assert!(model.IsAnyClientReloadAnnoying());
+    }
+
+    #[test]
+    fn is_any_client_reload_annoying_false() {
+        let mut model = make_model();
+        let c1 = make_client(0, 0.0, false);
+        let c2 = make_client(0, 0.0, false);
+        model.AddClient(&c1);
+        model.AddClient(&c2);
+
+        assert!(!model.IsAnyClientReloadAnnoying());
+    }
+
+    #[test]
+    fn is_any_client_reload_annoying_no_clients() {
+        let model = make_model();
+        assert!(!model.IsAnyClientReloadAnnoying());
+    }
+
+    #[test]
+    fn invalidate_methods() {
+        let mut model = make_model();
+        model.memory_limit_invalid = false;
+        model.priority_invalid = false;
+
+        model.InvalidateMemoryLimit();
+        assert!(model.is_memory_limit_invalid());
+
+        model.InvalidatePriority();
+        assert!(model.is_priority_invalid());
     }
 }
