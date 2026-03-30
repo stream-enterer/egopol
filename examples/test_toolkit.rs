@@ -536,8 +536,8 @@ fn main() {
         app.tree
             .SetAutoExpansionThreshold(root, 900.0, ViewConditionType::Area);
 
-        let close_sig = app.scheduler.create_signal();
-        let flags_sig = app.scheduler.create_signal();
+        let close_sig = app.scheduler.borrow_mut().create_signal();
+        let flags_sig = app.scheduler.borrow_mut().create_signal();
         let win = eaglemode_rs::emCore::emWindow::ZuiWindow::create(
             event_loop,
             app.gpu(),

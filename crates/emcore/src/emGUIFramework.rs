@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::time::Instant;
 
 use winit::application::ApplicationHandler;
@@ -6,6 +8,7 @@ use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
+use crate::emContext::emContext;
 use crate::emInput::{InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPanelTree::PanelTree;
@@ -78,7 +81,8 @@ pub type SetupFn = Box<dyn FnOnce(&mut App, &ActiveEventLoop)>;
 pub struct App {
     pub gpu: Option<GpuContext>,
     pub screen: Option<emScreen>,
-    pub scheduler: EngineScheduler,
+    pub scheduler: Rc<RefCell<EngineScheduler>>,
+    pub context: Rc<emContext>,
     pub tree: PanelTree,
     pub windows: HashMap<WindowId, ZuiWindow>,
     pub input_state: emInputState,
@@ -89,10 +93,13 @@ pub struct App {
 
 impl App {
     pub fn new(setup: SetupFn) -> Self {
+        let scheduler = Rc::new(RefCell::new(EngineScheduler::new()));
+        let context = emContext::NewRootWithScheduler(Rc::clone(&scheduler));
         Self {
             gpu: None,
             screen: None,
-            scheduler: EngineScheduler::new(),
+            scheduler,
+            context,
             tree: PanelTree::new(),
             windows: HashMap::new(),
             input_state: emInputState::new(),
@@ -135,8 +142,8 @@ impl ApplicationHandler for App {
         self.gpu = Some(GpuContext::new());
 
         // Scan monitors — allocate signal IDs for geometry/window-list changes.
-        let geom_sig = self.scheduler.create_signal();
-        let win_sig = self.scheduler.create_signal();
+        let geom_sig = self.scheduler.borrow_mut().create_signal();
+        let win_sig = self.scheduler.borrow_mut().create_signal();
         self.screen = Some(emScreen::from_event_loop(event_loop, geom_sig, win_sig));
 
         // Call user setup
@@ -160,7 +167,7 @@ impl ApplicationHandler for App {
                     .unwrap_or(true);
 
                 if let Some(win) = self.windows.get(&window_id) {
-                    self.scheduler.fire(win.close_signal);
+                    self.scheduler.borrow_mut().fire(win.close_signal);
                 }
 
                 if auto_delete {
@@ -241,11 +248,11 @@ impl ApplicationHandler for App {
             })
             .collect();
         for sig in flags_signals {
-            self.scheduler.fire(sig);
+            self.scheduler.borrow_mut().fire(sig);
         }
 
         // Run one scheduler time slice
-        self.scheduler.DoTimeSlice();
+        self.scheduler.borrow_mut().DoTimeSlice();
 
         // Run per-frame panel cycles
         self.tree.run_panel_cycles();

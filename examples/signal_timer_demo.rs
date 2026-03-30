@@ -168,15 +168,15 @@ fn main() {
         }));
 
         // Create signals
-        let button_sig = app.scheduler.create_signal();
-        let timer_sig = app.scheduler.create_signal();
+        let button_sig = app.scheduler.borrow_mut().create_signal();
+        let timer_sig = app.scheduler.borrow_mut().create_signal();
 
         // Create and start a periodic timer (1000ms)
-        let timer = app.scheduler.create_timer(timer_sig);
-        app.scheduler.start_timer(timer, 1000, true);
+        let timer = app.scheduler.borrow_mut().create_timer(timer_sig);
+        app.scheduler.borrow_mut().start_timer(timer, 1000, true);
 
         // Register the engine
-        let engine_id = app.scheduler.register_engine(
+        let engine_id = app.scheduler.borrow_mut().register_engine(
             Priority::Medium,
             Box::new(CounterEngine {
                 state: state.clone(),
@@ -184,8 +184,8 @@ fn main() {
                 timer_signal: timer_sig,
             }),
         );
-        app.scheduler.connect(button_sig, engine_id);
-        app.scheduler.connect(timer_sig, engine_id);
+        app.scheduler.borrow_mut().connect(button_sig, engine_id);
+        app.scheduler.borrow_mut().connect(timer_sig, engine_id);
 
         // Build panel tree
         let root = app.tree.create_root("root");
@@ -202,8 +202,8 @@ fn main() {
         app.tree
             .set_behavior(button, Box::new(ClickPanel { pressed: false }));
 
-        let close_sig = app.scheduler.create_signal();
-        let flags_sig = app.scheduler.create_signal();
+        let close_sig = app.scheduler.borrow_mut().create_signal();
+        let flags_sig = app.scheduler.borrow_mut().create_signal();
         let win = eaglemode_rs::emCore::emWindow::ZuiWindow::create(
             event_loop,
             app.gpu(),

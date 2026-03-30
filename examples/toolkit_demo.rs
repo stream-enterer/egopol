@@ -380,8 +380,8 @@ fn main() {
         );
         app.tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
 
-        let close_sig = app.scheduler.create_signal();
-        let flags_sig = app.scheduler.create_signal();
+        let close_sig = app.scheduler.borrow_mut().create_signal();
+        let flags_sig = app.scheduler.borrow_mut().create_signal();
         let win = eaglemode_rs::emCore::emWindow::ZuiWindow::create(
             event_loop,
             app.gpu(),
