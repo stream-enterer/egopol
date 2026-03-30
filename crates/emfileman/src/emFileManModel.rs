@@ -1,7 +1,12 @@
 // Selection subsystem and command tree of emFileManModel.
 
+use std::path::{Path, PathBuf};
+
+use emcore::emColor::emColor;
+use emcore::emImage::emImage;
+use emcore::emImageFile::load_image_from_file;
+use emcore::emLook::emLook;
 use emcore::emStd2::emCalcHashCode;
-use std::path::Path;
 
 // ---------------------------------------------------------------------------
 // Command tree
@@ -24,6 +29,8 @@ pub struct CommandNode {
     pub default_for: String,
     pub caption: String,
     pub description: String,
+    pub icon: Option<emImage>,
+    pub look: emLook,
     pub hotkey: String,
     pub border_scaling: f64,
     pub pref_child_tallness: f64,
@@ -42,6 +49,8 @@ impl Default for CommandNode {
             default_for: String::new(),
             caption: String::new(),
             description: String::new(),
+            icon: None,
+            look: emLook::default(),
             hotkey: String::new(),
             border_scaling: 0.0,
             pref_child_tallness: 0.0,
@@ -146,8 +155,37 @@ pub fn parse_command_properties(content: &str, cmd_path: &str) -> Result<Command
                     .parse::<f64>()
                     .map_err(|e| format!("Bad PrefChildTallness value: {e}"))?;
             }
-            // Store color/icon properties as-is (unused for now)
-            "BgColor" | "FgColor" | "ButtonBgColor" | "ButtonFgColor" | "Icon" => {}
+            "BgColor" => {
+                if let Some(color) = emColor::TryParse(value) {
+                    node.look.bg_color = color;
+                }
+            }
+            "FgColor" => {
+                if let Some(color) = emColor::TryParse(value) {
+                    node.look.fg_color = color;
+                }
+            }
+            "ButtonBgColor" => {
+                if let Some(color) = emColor::TryParse(value) {
+                    node.look.button_bg_color = color;
+                }
+            }
+            "ButtonFgColor" => {
+                if let Some(color) = emColor::TryParse(value) {
+                    node.look.button_fg_color = color;
+                }
+            }
+            "Icon" => {
+                let icon_path = if Path::new(value).is_absolute() {
+                    PathBuf::from(value)
+                } else {
+                    Path::new(cmd_path)
+                        .parent()
+                        .unwrap_or(Path::new(""))
+                        .join(value)
+                };
+                node.icon = load_image_from_file(&icon_path);
+            }
             _ => {}
         }
     }
@@ -686,6 +724,58 @@ mod command_tests {
             # [[END PROPERTIES]]\n";
         let cmd = super::parse_command_properties(content, "/test/cmd.sh").unwrap();
         assert_eq!(cmd.caption, "Line 1\nLine 2");
+    }
+
+    #[test]
+    fn command_node_has_icon_and_look_fields() {
+        let node = CommandNode::default();
+        assert!(node.icon.is_none());
+        assert_eq!(node.look, emcore::emLook::emLook::default());
+    }
+
+    #[test]
+    fn parse_command_properties_with_colors() {
+        let content = "#!/bin/bash\n\
+            # [[BEGIN PROPERTIES]]\n\
+            # Type = Command\n\
+            # Caption = Test\n\
+            # BgColor = #FF0000FF\n\
+            # FgColor = #00FF00FF\n\
+            # ButtonBgColor = #0000FFFF\n\
+            # ButtonFgColor = #FFFFFFFF\n\
+            # [[END PROPERTIES]]\n";
+        let cmd = super::parse_command_properties(content, "/test.sh").unwrap();
+        assert_eq!(cmd.look.bg_color, emcore::emColor::emColor::rgba(0xFF, 0x00, 0x00, 0xFF));
+        assert_eq!(cmd.look.fg_color, emcore::emColor::emColor::rgba(0x00, 0xFF, 0x00, 0xFF));
+        assert_eq!(
+            cmd.look.button_bg_color,
+            emcore::emColor::emColor::rgba(0x00, 0x00, 0xFF, 0xFF)
+        );
+        assert_eq!(
+            cmd.look.button_fg_color,
+            emcore::emColor::emColor::rgba(0xFF, 0xFF, 0xFF, 0xFF)
+        );
+    }
+
+    #[test]
+    fn parse_command_properties_with_6_digit_color() {
+        let content = "# [[BEGIN PROPERTIES]]\n\
+            # Type = Command\n\
+            # BgColor = #FF0000\n\
+            # [[END PROPERTIES]]\n";
+        let cmd = super::parse_command_properties(content, "/test.sh").unwrap();
+        assert_eq!(cmd.look.bg_color, emcore::emColor::emColor::rgba(0xFF, 0x00, 0x00, 0xFF));
+    }
+
+    #[test]
+    fn parse_command_properties_icon_nonexistent() {
+        let content = "# [[BEGIN PROPERTIES]]\n\
+            # Type = Command\n\
+            # Icon = nonexistent.tga\n\
+            # [[END PROPERTIES]]\n";
+        let cmd = super::parse_command_properties(content, "/test/cmd.sh").unwrap();
+        // Icon file doesn't exist, so icon should be None
+        assert!(cmd.icon.is_none());
     }
 }
 
