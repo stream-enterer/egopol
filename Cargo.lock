@@ -704,12 +704,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 
 [[package]]
-name = "eaglemode-rs"
+name = "eaglemode"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "emcore",
+ "gungraun",
+ "rand",
+]
+
+[[package]]
+name = "either"
+version = "1.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
+
+[[package]]
+name = "emcore"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.11.0",
  "bytemuck",
- "criterion",
  "gungraun",
  "libc",
  "libloading 0.9.0",
@@ -724,10 +739,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "either"
-version = "1.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
+name = "emstocks"
+version = "0.1.0"
+dependencies = [
+ "emcore",
+ "gungraun",
+]
 
 [[package]]
 name = "endi"
