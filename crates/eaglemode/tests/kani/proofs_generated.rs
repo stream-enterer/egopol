@@ -207,20 +207,11 @@ fn kani_emColor_emColor_GetHSV() {
 
 #[cfg(kani)]
 #[kani::proof]
-fn kani_emColor_emColor_lighten() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
-    let mut p_amount: f64 = kani::any::<f64>();
-    kani::assume(p_amount.is_finite());
-    let _result = self_val.lighten(p_amount);
-}
-
-#[cfg(kani)]
-#[kani::proof]
-fn kani_emColor_emColor_darken() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
-    let mut p_amount: f64 = kani::any::<f64>();
-    kani::assume(p_amount.is_finite());
-    let _result = self_val.darken(p_amount);
+fn kani_emColor_emColor_GetLighted() {
+    let self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let p_light: f32 = kani::any::<f32>();
+    kani::assume(p_light.is_finite());
+    let _result = self_val.GetLighted(p_light);
 }
 
 #[cfg(kani)]

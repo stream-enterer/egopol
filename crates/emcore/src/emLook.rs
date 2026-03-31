@@ -25,7 +25,7 @@ impl emLook {
 
     /// emBorder tint: bg_color darkened ~20%.
     pub fn border_tint(&self) -> emColor {
-        self.bg_color.darken(0.20)
+        self.bg_color.GetLighted(-20.0)
     }
 
     /// Focus tint: same as input highlight color.
@@ -40,12 +40,12 @@ impl emLook {
 
     /// emButton hover: button_bg lightened ~15%.
     pub fn button_hover(&self) -> emColor {
-        self.button_bg_color.lighten(0.15)
+        self.button_bg_color.GetLighted(15.0)
     }
 
     /// emButton pressed: button_bg darkened ~15%.
     pub fn button_pressed(&self) -> emColor {
-        self.button_bg_color.darken(0.15)
+        self.button_bg_color.GetLighted(-15.0)
     }
 
     /// Apply this look to a target look reference, optionally for recursive use.

@@ -464,15 +464,12 @@ fn l3_Rect_default() {
 //   if light <= 0: return GetBlended(emColor(0,0,0,GetAlpha()), -light)
 //   else:          return GetBlended(emColor(255,255,255,GetAlpha()), light)
 //
-// Rust darken(amount) = GetBlended(BLACK, amount)
-// Rust lighten(amount) = GetBlended(WHITE, amount)
-//
-// These are structurally identical since BLACK = (0,0,0,255) and
-// WHITE = (255,255,255,255), and GetBlended preserves alpha from self.
+// GetLighted(positive) blends toward white with self's alpha.
+// GetLighted(negative) blends toward black with self's alpha.
 
 #[cfg(kani)]
 #[kani::proof]
-fn l3_emColor_darken_is_GetBlended_BLACK() {
+fn l3_emColor_GetLighted_negative_is_GetBlended_black() {
     let r: u8 = kani::any();
     let g: u8 = kani::any();
     let b: u8 = kani::any();
@@ -480,16 +477,15 @@ fn l3_emColor_darken_is_GetBlended_BLACK() {
     let amount: u8 = kani::any();
     kani::assume(amount <= 100);
     let c = emColor::rgba(r, g, b, a);
-    let t = amount as f64 / 100.0;
     assert_eq!(
-        c.darken(t).GetPacked(),
-        c.GetBlended(emColor::BLACK, amount as f64).GetPacked()
+        c.GetLighted(-(amount as f32)).GetPacked(),
+        c.GetBlended(emColor::rgba(0, 0, 0, a), amount as f64).GetPacked()
     );
 }
 
 #[cfg(kani)]
 #[kani::proof]
-fn l3_emColor_lighten_is_GetBlended_WHITE() {
+fn l3_emColor_GetLighted_positive_is_GetBlended_white() {
     let r: u8 = kani::any();
     let g: u8 = kani::any();
     let b: u8 = kani::any();
@@ -497,10 +493,9 @@ fn l3_emColor_lighten_is_GetBlended_WHITE() {
     let amount: u8 = kani::any();
     kani::assume(amount <= 100);
     let c = emColor::rgba(r, g, b, a);
-    let t = amount as f64 / 100.0;
     assert_eq!(
-        c.lighten(t).GetPacked(),
-        c.GetBlended(emColor::WHITE, amount as f64).GetPacked()
+        c.GetLighted(amount as f32).GetPacked(),
+        c.GetBlended(emColor::rgba(255, 255, 255, a), amount as f64).GetPacked()
     );
 }
 

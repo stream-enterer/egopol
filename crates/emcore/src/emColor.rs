@@ -217,17 +217,18 @@ impl emColor {
         (hue, sat, val)
     }
 
-    // DIVERGED: GetLighted — split into lighten (positive) and darken (negative);
-    // amount is [0,1] not [-100,100]
-    /// Lighten the color by mixing with white. `amount` in [0.0, 1.0].
-    pub fn lighten(self, amount: f64) -> emColor {
-        self.GetBlended(emColor::WHITE, amount * 100.0)
-    }
-
-    // DIVERGED: GetLighted (negative range) — see lighten; darken covers the negative half
-    /// Darken the color by mixing with black. `amount` in [0.0, 1.0].
-    pub fn darken(self, amount: f64) -> emColor {
-        self.GetBlended(emColor::BLACK, amount * 100.0)
+    /// Lighten or darken the color.
+    /// `light` in [-100.0, 100.0]: positive blends toward white, negative toward black.
+    /// Matches C++ `emColor::GetLighted(float light)`.
+    pub fn GetLighted(self, light: f32) -> emColor {
+        if light <= 0.0 {
+            self.GetBlended(emColor::rgba(0, 0, 0, self.GetAlpha()), (-light) as f64)
+        } else {
+            self.GetBlended(
+                emColor::rgba(255, 255, 255, self.GetAlpha()),
+                light as f64,
+            )
+        }
     }
 
     /// Standard alpha blend: `self` over `other` using `alpha` (0–255).
@@ -810,5 +811,25 @@ mod tests {
         assert!("#12345".parse::<emColor>().is_err());
         assert!("#123456789".parse::<emColor>().is_err());
         assert!("".parse::<emColor>().is_err());
+    }
+
+    #[test]
+    fn test_get_lighted() {
+        let c = emColor::rgb(100, 100, 100);
+
+        // Positive = lighten (blend toward white)
+        let lighter = c.GetLighted(50.0);
+        // GetLighted(50) = GetBlended(WHITE, 50.0)
+        let expected = c.GetBlended(emColor::WHITE.SetAlpha(c.GetAlpha()), 50.0);
+        assert_eq!(lighter.GetPacked(), expected.GetPacked());
+
+        // Negative = darken (blend toward black)
+        let darker = c.GetLighted(-50.0);
+        let expected = c.GetBlended(emColor::rgba(0, 0, 0, c.GetAlpha()), 50.0);
+        assert_eq!(darker.GetPacked(), expected.GetPacked());
+
+        // Zero = no change
+        let same = c.GetLighted(0.0);
+        assert_eq!(same.GetPacked(), c.GetPacked());
     }
 }
