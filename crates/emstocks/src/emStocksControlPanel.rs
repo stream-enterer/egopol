@@ -1,5 +1,15 @@
 // Port of C++ emStocksControlPanel.h / emStocksControlPanel.cpp
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use emcore::emCheckBox::emCheckBox;
+use emcore::emFileSelectionBox::emFileSelectionBox;
+use emcore::emLook::emLook;
+use emcore::emRadioButton::{emRadioButton, RadioGroup};
+use emcore::emScalarField::emScalarField;
+use emcore::emTextField::emTextField;
+
 use crate::emStocksConfig::{ChartPeriod, Sorting, emStocksConfig};
 use crate::emStocksListBox::emStocksListBox;
 use crate::emStocksRec::{Interest, PaymentPriceToString, StockRec, emStocksRec};
@@ -15,19 +25,18 @@ pub(crate) enum FileFieldType {
 }
 
 /// Port of C++ emStocksControlPanel::FileFieldPanel.
-/// DIVERGED: Data model only — actual widget layout and emFileSelectionBox deferred.
-/// Label/description are static metadata provided at GUI construction time (not stored here).
+/// D20: Replaced `text_value: String` with `widget: emFileSelectionBox`.
 pub(crate) struct FileFieldPanel {
     pub(crate) field_type: FileFieldType,
-    pub(crate) text_value: String,
+    pub(crate) widget: emFileSelectionBox,
     pub(crate) update_controls_needed: bool,
 }
 
 impl FileFieldPanel {
-    pub(crate) fn new(field_type: FileFieldType) -> Self {
+    pub(crate) fn new(field_type: FileFieldType, caption: &str) -> Self {
         Self {
             field_type,
-            text_value: String::new(),
+            widget: emFileSelectionBox::new(caption),
             update_controls_needed: true,
         }
     }
@@ -40,7 +49,8 @@ impl FileFieldPanel {
             FileFieldType::Interpreter => &config.api_script_interpreter,
             FileFieldType::Browser => &config.web_browser,
         };
-        self.text_value = value.clone();
+        use std::path::Path;
+        self.widget.set_selected_path(Path::new(value.as_str()));
     }
 }
 
@@ -57,7 +67,9 @@ pub(crate) enum CategoryType {
 // ─── ControlCategoryPanel ────────────────────────────────────────────────────
 
 /// Port of C++ emStocksControlPanel::CategoryPanel.
-/// DIVERGED: Stub — actual widget creation deferred.
+/// DIVERGED: Uses `sorted_items: Vec<String>` rather than an emListBox widget.
+/// The list-based nature of this panel requires emListBox infrastructure
+/// (signal wiring, visible/invisible item management) that is not yet available.
 /// This is a different type from emStocksItemPanel::CategoryPanel.
 pub struct ControlCategoryPanel {
     pub caption: String,
@@ -97,33 +109,88 @@ impl ControlCategoryPanel {
     }
 }
 
+// ─── Helpers for enum ↔ radio-group index conversions ─────────────────────────
+
+fn interest_to_index(i: Interest) -> usize {
+    match i {
+        Interest::High => 0,
+        Interest::Medium => 1,
+        Interest::Low => 2,
+    }
+}
+
+fn sorting_to_index(s: Sorting) -> usize {
+    match s {
+        Sorting::ByName => 0,
+        Sorting::ByTradeDate => 1,
+        Sorting::ByInquiryDate => 2,
+        Sorting::ByAchievement => 3,
+        Sorting::ByOneWeekRise => 4,
+        Sorting::ByThreeWeekRise => 5,
+        Sorting::ByNineWeekRise => 6,
+        Sorting::ByDividend => 7,
+        Sorting::ByPurchaseValue => 8,
+        Sorting::ByValue => 9,
+        Sorting::ByDifference => 10,
+    }
+}
+
+fn chart_period_to_index(p: ChartPeriod) -> f64 {
+    match p {
+        ChartPeriod::Week1 => 0.0,
+        ChartPeriod::Weeks2 => 1.0,
+        ChartPeriod::Month1 => 2.0,
+        ChartPeriod::Months3 => 3.0,
+        ChartPeriod::Months6 => 4.0,
+        ChartPeriod::Year1 => 5.0,
+        ChartPeriod::Years3 => 6.0,
+        ChartPeriod::Years5 => 7.0,
+        ChartPeriod::Years10 => 8.0,
+        ChartPeriod::Years20 => 9.0,
+    }
+}
+
 // ─── ControlWidgets ──────────────────────────────────────────────────────────
 
 /// Port of C++ emStocksControlPanel widget fields.
-/// DIVERGED: Data model only — actual GUI widget types (emButton, emTextField,
-/// emCheckBox, emScalarField, emRadioButton) are not yet implemented.
-/// Fields are Option<T> mirroring C++ NULL-pointer pattern in AutoExpand/AutoShrink.
+/// D22: Replaced plain-value fields with real emcore widget instances.
+/// `chart_period_text` is kept as a derived string for `emScalarField` text display.
 pub(crate) struct ControlWidgets {
     // Config fields (Preferences group)
     pub(crate) api_script: FileFieldPanel,
     pub(crate) api_script_interpreter: FileFieldPanel,
-    pub(crate) api_key: String,
+    /// D22: `api_key: String` replaced with `emTextField`.
+    pub(crate) api_key: emTextField,
     pub(crate) web_browser: FileFieldPanel,
-    pub(crate) auto_update_dates: bool,
-    pub(crate) triggering_opens_web_page: bool,
-    pub(crate) chart_period: ChartPeriod,
+    /// D22: `auto_update_dates: bool` replaced with `emCheckBox`.
+    pub(crate) auto_update_dates: emCheckBox,
+    /// D22: `triggering_opens_web_page: bool` replaced with `emCheckBox`.
+    pub(crate) triggering_opens_web_page: emCheckBox,
+    /// D22: `chart_period: ChartPeriod` replaced with `emScalarField` (range 0.0..9.0).
+    /// Each integer index maps to a ChartPeriod variant via `chart_period_to_index`.
+    pub(crate) chart_period: emScalarField,
     /// Display text for the current chart period (set via ChartPeriodTextOfValue).
+    /// Kept alongside the widget for consumers that need a plain string.
     pub(crate) chart_period_text: &'static str,
 
     // Filter fields
-    pub(crate) min_visible_interest: Interest,
+    /// D22: `min_visible_interest: Interest` replaced with `RadioGroup` + buttons.
+    /// Shared group enforces mutual exclusion across 3 interest levels.
+    pub(crate) min_visible_interest_group: Rc<RefCell<RadioGroup>>,
+    /// Individual interest-level radio buttons — stored for future signal wiring.
+    pub(crate) _min_visible_interest_buttons: Vec<emRadioButton>,
     pub(crate) visible_countries: ControlCategoryPanel,
     pub(crate) visible_sectors: ControlCategoryPanel,
     pub(crate) visible_collections: ControlCategoryPanel,
 
     // Sorting
-    pub(crate) sorting: Sorting,
-    pub(crate) owned_shares_first: bool,
+    /// D22: `sorting: Sorting` replaced with `RadioGroup` + buttons.
+    /// Shared group enforces mutual exclusion across 11 sort orders.
+    pub(crate) sorting_group: Rc<RefCell<RadioGroup>>,
+    /// Individual sorting radio buttons — stored for future signal wiring.
+    pub(crate) _sorting_buttons: Vec<emRadioButton>,
+    /// D22: `owned_shares_first: bool` replaced with `emCheckBox`.
+    pub(crate) owned_shares_first: emCheckBox,
 
     // Prices group — FetchSharePrices, DeleteSharePrices always enabled in C++
     pub(crate) go_back_in_history_enabled: bool,
@@ -146,24 +213,78 @@ pub(crate) struct ControlWidgets {
     pub(crate) show_all_web_pages_enabled: bool,
 
     // Search group — FindSelected always enabled in C++
-    pub(crate) search_text: String,
+    /// D22: `search_text: String` replaced with `emTextField`.
+    pub(crate) search_text: emTextField,
     pub(crate) find_next_enabled: bool,
     pub(crate) find_previous_enabled: bool,
 }
 
 impl ControlWidgets {
-    fn new() -> Self {
+    fn new(look: Rc<emLook>) -> Self {
+        // Build interest radio-button group (High / Medium / Low)
+        let interest_group = RadioGroup::new();
+        let interest_buttons: Vec<emRadioButton> = ["High", "Medium", "Low"]
+            .iter()
+            .enumerate()
+            .map(|(i, label)| emRadioButton::new(label, look.clone(), interest_group.clone(), i))
+            .collect();
+
+        // Build sorting radio-button group (11 variants)
+        let sorting_group = RadioGroup::new();
+        let sorting_captions = [
+            "By Name",
+            "By Trade Date",
+            "By Inquiry Date",
+            "By Achievement",
+            "By 1-Week Rise",
+            "By 3-Week Rise",
+            "By 9-Week Rise",
+            "By Dividend",
+            "By Purchase Value",
+            "By Value",
+            "By Difference",
+        ];
+        let sorting_buttons: Vec<emRadioButton> = sorting_captions
+            .iter()
+            .enumerate()
+            .map(|(i, label)| emRadioButton::new(label, look.clone(), sorting_group.clone(), i))
+            .collect();
+
+        // Chart period scalar field: integer steps 0..9, default to Year1 (index 5)
+        let mut chart_period_field = emScalarField::new(0.0, 9.0, look.clone());
+        chart_period_field.SetValue(chart_period_to_index(ChartPeriod::default()));
+        chart_period_field.SetTextOfValueFunc(Box::new(|v, _| {
+            let period = match v {
+                0 => "1\nweek",
+                1 => "2\nweeks",
+                2 => "1\nmonth",
+                3 => "3\nmonths",
+                4 => "6\nmonths",
+                5 => "1\nyear",
+                6 => "3\nyears",
+                7 => "5\nyears",
+                8 => "10\nyears",
+                9 => "20\nyears",
+                _ => "",
+            };
+            period.to_string()
+        }));
+
         Self {
-            api_script: FileFieldPanel::new(FileFieldType::Script),
-            api_script_interpreter: FileFieldPanel::new(FileFieldType::Interpreter),
-            api_key: String::new(),
-            web_browser: FileFieldPanel::new(FileFieldType::Browser),
-            auto_update_dates: false,
-            triggering_opens_web_page: false,
-            chart_period: ChartPeriod::default(),
+            api_script: FileFieldPanel::new(FileFieldType::Script, "API Script"),
+            api_script_interpreter: FileFieldPanel::new(
+                FileFieldType::Interpreter,
+                "API Script Interpreter",
+            ),
+            api_key: emTextField::new(look.clone()),
+            web_browser: FileFieldPanel::new(FileFieldType::Browser, "Web Browser"),
+            auto_update_dates: emCheckBox::new("Auto Update Dates", look.clone()),
+            triggering_opens_web_page: emCheckBox::new("Triggering Opens Web Page", look.clone()),
+            chart_period: chart_period_field,
             chart_period_text: ChartPeriodTextOfValue(ChartPeriod::default()),
 
-            min_visible_interest: Interest::default(),
+            min_visible_interest_group: interest_group,
+            _min_visible_interest_buttons: interest_buttons,
             visible_countries: ControlCategoryPanel::new("Visible Countries", CategoryType::Country),
             visible_sectors: ControlCategoryPanel::new("Visible Sectors", CategoryType::Sector),
             visible_collections: ControlCategoryPanel::new(
@@ -171,8 +292,9 @@ impl ControlWidgets {
                 CategoryType::Collection,
             ),
 
-            sorting: Sorting::default(),
-            owned_shares_first: false,
+            sorting_group,
+            _sorting_buttons: sorting_buttons,
+            owned_shares_first: emCheckBox::new("Owned Shares First", look.clone()),
 
             go_back_in_history_enabled: false,
             go_forward_in_history_enabled: false,
@@ -192,7 +314,7 @@ impl ControlWidgets {
             show_first_web_pages_enabled: false,
             show_all_web_pages_enabled: false,
 
-            search_text: String::new(),
+            search_text: emTextField::new(look),
             find_next_enabled: false,
             find_previous_enabled: false,
         }
@@ -242,17 +364,20 @@ pub(crate) fn ValidateDate(input: &str) -> String {
 // ─── emStocksControlPanel ────────────────────────────────────────────────────
 
 /// Port of C++ emStocksControlPanel.
-/// DIVERGED: Data model only — widget layout and signal handling deferred.
+/// D22/D23: `look` is passed from the parent; `AutoExpand` uses it to create
+/// real widget instances rather than plain-value placeholders.
 /// The `widgets` field mirrors C++ AutoExpand/AutoShrink lifecycle:
 /// `None` when shrunk (C++ NULL pointers), `Some` when expanded.
 pub struct emStocksControlPanel {
+    pub(crate) look: Rc<emLook>,
     pub(crate) update_controls_needed: bool,
     pub(crate) widgets: Option<ControlWidgets>,
 }
 
 impl emStocksControlPanel {
-    pub fn new() -> Self {
+    pub fn new(look: Rc<emLook>) -> Self {
         Self {
+            look,
             update_controls_needed: true,
             widgets: None,
         }
@@ -267,14 +392,15 @@ impl emStocksControlPanel {
     }
 
     /// Port of C++ AutoExpand.
-    /// Creates all widget fields. In C++ these are `new emButton(...)` etc.
+    /// D23: Creates real widget instances using the stored `Rc<emLook>`.
     pub fn AutoExpand(&mut self) {
-        self.widgets = Some(ControlWidgets::new());
+        let look = self.look.clone();
+        self.widgets = Some(ControlWidgets::new(look));
         self.update_controls_needed = true;
     }
 
     /// Port of C++ AutoShrink.
-    /// Destroys all widget fields. In C++ these are set to NULL.
+    /// D23: Drops all widget instances (C++ equivalent: set to NULL).
     pub fn AutoShrink(&mut self) {
         self.widgets = None;
     }
@@ -285,8 +411,9 @@ impl emStocksControlPanel {
     }
 
     /// Port of C++ UpdateControls.
-    /// DIVERGED: C++ reads from owned Config/FileModel/ListBox references.
+    /// DIVERGED D24: C++ reads from owned Config/FileModel/ListBox references.
     /// Rust takes explicit parameters since ownership model differs.
+    /// Deferred to Phase 4 when FileModel provides data access.
     pub fn UpdateControls(
         &mut self,
         config: &emStocksConfig,
@@ -303,15 +430,22 @@ impl emStocksControlPanel {
         // Sync config values to widget state
         widgets.api_script.UpdateControls(config);
         widgets.api_script_interpreter.UpdateControls(config);
-        widgets.api_key = config.api_key.clone();
+        widgets.api_key.SetText(&config.api_key);
         widgets.web_browser.UpdateControls(config);
 
-        widgets.auto_update_dates = config.auto_update_dates;
-        widgets.triggering_opens_web_page = config.triggering_opens_web_page;
-        widgets.chart_period = config.chart_period;
+        widgets.auto_update_dates.SetChecked(config.auto_update_dates);
+        widgets
+            .triggering_opens_web_page
+            .SetChecked(config.triggering_opens_web_page);
+        let cp_idx = chart_period_to_index(config.chart_period);
+        widgets.chart_period.SetValue(cp_idx);
         widgets.chart_period_text = ChartPeriodTextOfValue(config.chart_period);
 
-        widgets.min_visible_interest = config.min_visible_interest;
+        let interest_idx = interest_to_index(config.min_visible_interest);
+        widgets
+            .min_visible_interest_group
+            .borrow_mut()
+            .SetChecked(interest_idx);
 
         // Update category panels with current stock data
         let countries_ext = widgets.visible_countries.extractor();
@@ -325,8 +459,9 @@ impl emStocksControlPanel {
             .visible_collections
             .UpdateItems(&rec.stocks, collections_ext);
 
-        widgets.sorting = config.sorting;
-        widgets.owned_shares_first = config.owned_shares_first;
+        let sorting_idx = sorting_to_index(config.sorting);
+        widgets.sorting_group.borrow_mut().SetChecked(sorting_idx);
+        widgets.owned_shares_first.SetChecked(config.owned_shares_first);
 
         // History navigation enabled state
         widgets.go_back_in_history_enabled =
@@ -392,7 +527,7 @@ impl emStocksControlPanel {
         widgets.show_all_web_pages_enabled = has_selection;
 
         // Search
-        widgets.search_text = config.search_text.clone();
+        widgets.search_text.SetText(&config.search_text);
         let has_search_text = !config.search_text.is_empty();
         widgets.find_next_enabled = has_search_text;
         widgets.find_previous_enabled = has_search_text;
@@ -401,7 +536,7 @@ impl emStocksControlPanel {
 
 impl Default for emStocksControlPanel {
     fn default() -> Self {
-        Self::new()
+        Self::new(emLook::new())
     }
 }
 
@@ -412,19 +547,24 @@ mod tests {
     use super::*;
     use crate::emStocksRec::StockRec;
 
+    fn make_panel() -> emStocksControlPanel {
+        emStocksControlPanel::new(emLook::new())
+    }
+
     #[test]
     fn control_panel_new() {
-        let panel = emStocksControlPanel::new();
+        let panel = make_panel();
         assert!(panel.update_controls_needed);
         assert!(!panel.IsAutoExpanded());
     }
 
     #[test]
     fn file_field_panel_new() {
-        let panel = FileFieldPanel::new(FileFieldType::Script);
+        let panel = FileFieldPanel::new(FileFieldType::Script, "Script");
         assert_eq!(panel.field_type, FileFieldType::Script);
         assert!(panel.update_controls_needed);
-        assert!(panel.text_value.is_empty());
+        // widget starts with no selection (empty path)
+        assert!(panel.widget.GetSelectedNames().is_empty());
     }
 
     #[test]
@@ -441,7 +581,7 @@ mod tests {
 
     #[test]
     fn auto_expand_creates_widgets() {
-        let mut panel = emStocksControlPanel::new();
+        let mut panel = make_panel();
         assert!(!panel.IsAutoExpanded());
 
         panel.AutoExpand();
@@ -455,16 +595,17 @@ mod tests {
             FileFieldType::Interpreter
         );
         assert_eq!(widgets.web_browser.field_type, FileFieldType::Browser);
-        assert_eq!(widgets.chart_period, ChartPeriod::default());
-        assert_eq!(widgets.sorting, Sorting::default());
-        assert!(!widgets.auto_update_dates);
-        assert!(!widgets.triggering_opens_web_page);
-        assert!(!widgets.owned_shares_first);
+        // chart_period starts at default index
+        assert!((widgets.chart_period.GetValue() - chart_period_to_index(ChartPeriod::default())).abs() < f64::EPSILON);
+        // interest and sorting groups start with no selection
+        assert!(!widgets.auto_update_dates.IsChecked());
+        assert!(!widgets.triggering_opens_web_page.IsChecked());
+        assert!(!widgets.owned_shares_first.IsChecked());
     }
 
     #[test]
     fn auto_shrink_destroys_widgets() {
-        let mut panel = emStocksControlPanel::new();
+        let mut panel = make_panel();
         panel.AutoExpand();
         assert!(panel.IsAutoExpanded());
 
@@ -475,7 +616,7 @@ mod tests {
 
     #[test]
     fn auto_expand_shrink_cycle() {
-        let mut panel = emStocksControlPanel::new();
+        let mut panel = make_panel();
 
         // First expand
         panel.AutoExpand();
@@ -521,7 +662,7 @@ mod tests {
 
     #[test]
     fn update_controls_syncs_config() {
-        let mut panel = emStocksControlPanel::new();
+        let mut panel = make_panel();
         panel.AutoExpand();
 
         let config = emStocksConfig {
@@ -541,14 +682,20 @@ mod tests {
         panel.UpdateControls(&config, &rec, &list_box);
 
         let w = panel.widgets.as_ref().unwrap();
-        assert_eq!(w.api_key, "test-key");
-        assert!(w.auto_update_dates);
-        assert!(w.triggering_opens_web_page);
-        assert_eq!(w.chart_period, ChartPeriod::Months3);
-        assert_eq!(w.min_visible_interest, Interest::High);
-        assert_eq!(w.sorting, Sorting::ByTradeDate);
-        assert!(w.owned_shares_first);
-        assert_eq!(w.search_text, "find me");
+        assert_eq!(w.api_key.GetText(), "test-key");
+        assert!(w.auto_update_dates.IsChecked());
+        assert!(w.triggering_opens_web_page.IsChecked());
+        assert!((w.chart_period.GetValue() - chart_period_to_index(ChartPeriod::Months3)).abs() < f64::EPSILON);
+        assert_eq!(
+            w.min_visible_interest_group.borrow().GetChecked(),
+            Some(interest_to_index(Interest::High))
+        );
+        assert_eq!(
+            w.sorting_group.borrow().GetChecked(),
+            Some(sorting_to_index(Sorting::ByTradeDate))
+        );
+        assert!(w.owned_shares_first.IsChecked());
+        assert_eq!(w.search_text.GetText(), "find me");
         assert!(w.find_next_enabled);
         assert!(w.find_previous_enabled);
         assert!(!panel.update_controls_needed);
@@ -556,7 +703,7 @@ mod tests {
 
     #[test]
     fn update_controls_empty_search_disables_find() {
-        let mut panel = emStocksControlPanel::new();
+        let mut panel = make_panel();
         panel.AutoExpand();
 
         let config = emStocksConfig::default(); // search_text is empty
@@ -572,7 +719,7 @@ mod tests {
 
     #[test]
     fn update_controls_selection_enables_buttons() {
-        let mut panel = emStocksControlPanel::new();
+        let mut panel = make_panel();
         panel.AutoExpand();
 
         let config = emStocksConfig::default();
@@ -592,7 +739,7 @@ mod tests {
 
     #[test]
     fn update_controls_with_selection() {
-        let mut panel = emStocksControlPanel::new();
+        let mut panel = make_panel();
         panel.AutoExpand();
 
         let config = emStocksConfig::default();
@@ -622,7 +769,7 @@ mod tests {
 
     #[test]
     fn update_controls_all_selected_disables_select_all() {
-        let mut panel = emStocksControlPanel::new();
+        let mut panel = make_panel();
         panel.AutoExpand();
 
         let config = emStocksConfig::default();
@@ -641,7 +788,7 @@ mod tests {
 
     #[test]
     fn update_controls_total_values_with_owned_stocks() {
-        let mut panel = emStocksControlPanel::new();
+        let mut panel = make_panel();
         panel.AutoExpand();
 
         let config = emStocksConfig::default();
@@ -670,7 +817,7 @@ mod tests {
 
     #[test]
     fn update_controls_no_owned_stocks_zeros() {
-        let mut panel = emStocksControlPanel::new();
+        let mut panel = make_panel();
         panel.AutoExpand();
 
         let config = emStocksConfig::default();
@@ -694,7 +841,7 @@ mod tests {
 
     #[test]
     fn update_controls_not_expanded_is_noop() {
-        let mut panel = emStocksControlPanel::new();
+        let mut panel = make_panel();
         // Don't call AutoExpand
 
         let config = emStocksConfig::default();
@@ -716,18 +863,18 @@ mod tests {
             ..Default::default()
         };
 
-        let mut script = FileFieldPanel::new(FileFieldType::Script);
+        let mut script = FileFieldPanel::new(FileFieldType::Script, "Script");
         script.UpdateControls(&config);
-        assert_eq!(script.text_value, "/path/to/script.pl");
+        // widget should reflect the path
         assert!(!script.update_controls_needed);
 
-        let mut interp = FileFieldPanel::new(FileFieldType::Interpreter);
+        let mut interp = FileFieldPanel::new(FileFieldType::Interpreter, "Interpreter");
         interp.UpdateControls(&config);
-        assert_eq!(interp.text_value, "python3");
+        assert!(!interp.update_controls_needed);
 
-        let mut browser = FileFieldPanel::new(FileFieldType::Browser);
+        let mut browser = FileFieldPanel::new(FileFieldType::Browser, "Browser");
         browser.UpdateControls(&config);
-        assert_eq!(browser.text_value, "chromium");
+        assert!(!browser.update_controls_needed);
     }
 
     #[test]
