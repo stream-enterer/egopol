@@ -130,6 +130,7 @@ pub struct emDirPanel {
     loading_done: bool,
     loading_error: Option<String>,
     key_walk_state: Option<KeyWalkState>,
+    scroll_target: Option<String>,
     last_config_gen: u64,
 }
 
@@ -150,6 +151,7 @@ impl emDirPanel {
             loading_done: false,
             loading_error: None,
             key_walk_state: None,
+            scroll_target: None,
             last_config_gen,
         }
     }
@@ -210,8 +212,7 @@ impl emDirPanel {
                     name_lower.starts_with(&pattern_lower)
                 };
                 if matches {
-                    // TODO: scroll to this entry via seek_child_by_name
-                    // when panel tree integration is available
+                    self.scroll_target = Some(name.to_string());
                     break;
                 }
             }
@@ -266,6 +267,19 @@ impl emDirPanel {
 
                 self.child_count = visible_count;
                 self.content_complete = true;
+
+                // Check for pending scroll target
+                // DIVERGED: C++ uses View.Visit() from Input handler. Rust stores the
+                // target and attempts lookup via find_child_by_name in update_children,
+                // but cannot trigger view navigation without view access from panels.
+                if let Some(target) = self.scroll_target.take() {
+                    if let Some(_child_id) = ctx.find_child_by_name(&target) {
+                        log::debug!(
+                            "scroll_to_entry: found child '{}', navigation pending",
+                            target
+                        );
+                    }
+                }
             }
         }
     }
@@ -373,6 +387,7 @@ impl PanelBehavior for emDirPanel {
                 self.file_panel.SetFileModel(None);
                 self.loading_done = false;
                 self.loading_error = None;
+                self.scroll_target = None;
             }
         }
     }
