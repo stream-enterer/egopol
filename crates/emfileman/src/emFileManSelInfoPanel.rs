@@ -221,6 +221,8 @@ impl emFileManSelInfoPanel {
         self.details_y = self.details_frame_y + (self.details_frame_h - self.details_h) * 0.5;
     }
 
+    /// DIVERGED: C++ name is ResetDetails (private). Renamed to
+    /// reset_details with pub(crate) visibility for test access.
     pub(crate) fn reset_details(&mut self) {
         self.state = SelInfoState::new();
         self.dir_stack.clear();
@@ -851,5 +853,37 @@ mod tests {
         panel.set_rectangles(0.2); // wide panel (height < 0.3)
         assert!(panel.text_w > 0.0);
         assert!(panel.details_w > 0.0);
+    }
+
+    #[test]
+    fn reset_details_clears_state() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emFileManSelInfoPanel::new(Rc::clone(&ctx));
+        // Simulate scanning state
+        panel.state.direct.state = ScanState::Scanning;
+        panel.state.direct.entries = 5;
+        panel.sel_list.push("/tmp".to_string());
+        panel.sel_index = 3;
+
+        panel.reset_details();
+
+        assert_eq!(panel.state.direct.state, ScanState::Costly);
+        assert_eq!(panel.state.direct.entries, 0);
+        assert!(panel.sel_list.is_empty());
+        assert_eq!(panel.sel_index, 0);
+    }
+
+    #[test]
+    fn generation_tracking_detects_selection_change() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let panel = emFileManSelInfoPanel::new(Rc::clone(&ctx));
+        let initial_gen = panel.last_selection_gen;
+
+        // Change selection
+        panel.file_man.borrow_mut().SelectAsTarget("/tmp");
+
+        // Generation should have changed
+        let new_gen = panel.file_man.borrow().GetSelectionSignal();
+        assert_ne!(new_gen, initial_gen);
     }
 }

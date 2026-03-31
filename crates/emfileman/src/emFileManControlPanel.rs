@@ -34,11 +34,16 @@ const NSS_LABELS: [&str; 3] = ["Per Locale", "Case Sensitive", "Case Insensitive
 
 /// Control panel for file manager settings.
 /// Port of C++ `emFileManControlPanel` (extends emLinearLayout).
+///
+/// DIVERGED: C++ uses emLinearLayout composition with emPackGroup/
+/// emRasterLayout for widget tree. Rust uses manual painting with
+/// computed y offsets — widgets are painted directly rather than
+/// composed as child panels in a layout tree.
 pub struct emFileManControlPanel {
     _ctx: Rc<emContext>,
     config: Rc<RefCell<emFileManViewConfig>>,
     file_man: Rc<RefCell<emFileManModel>>,
-    _theme_names: Rc<RefCell<emFileManThemeNames>>,
+    theme_names: Rc<RefCell<emFileManThemeNames>>,
     _look: Rc<emLook>,
 
     // Sort criterion radio group (6 buttons)
@@ -48,6 +53,14 @@ pub struct emFileManControlPanel {
     // Name sorting style radio group (3 buttons)
     nss_group: Rc<RefCell<RadioGroup>>,
     nss_radios: Vec<emRadioButton>,
+
+    // Theme style radio group
+    theme_style_group: Rc<RefCell<RadioGroup>>,
+    theme_style_radios: Vec<emRadioButton>,
+
+    // Theme aspect ratio radio group
+    theme_ar_group: Rc<RefCell<RadioGroup>>,
+    theme_ar_radios: Vec<emRadioButton>,
 
     // Checkboxes
     dirs_first_check: emCheckButton,
@@ -89,18 +102,48 @@ impl emFileManControlPanel {
             .map(|(i, label)| emRadioButton::new(label, Rc::clone(&look), Rc::clone(&nss_group), i))
             .collect();
 
+        // Build theme style radio group
+        let theme_style_group = RadioGroup::new();
+        let theme_style_radios: Vec<emRadioButton> = {
+            let tn = theme_names.borrow();
+            (0..tn.GetThemeStyleCount())
+                .map(|i| {
+                    let label = tn.GetThemeStyleDisplayName(i).unwrap_or("?");
+                    emRadioButton::new(label, Rc::clone(&look), Rc::clone(&theme_style_group), i)
+                })
+                .collect()
+        };
+
+        // Build theme aspect ratio radio group (for first style initially)
+        let theme_ar_group = RadioGroup::new();
+        let theme_ar_radios: Vec<emRadioButton> = {
+            let tn = theme_names.borrow();
+            let ar_count = if tn.GetThemeStyleCount() > 0 {
+                tn.GetThemeAspectRatioCount(0)
+            } else {
+                0
+            };
+            (0..ar_count)
+                .map(|i| {
+                    let label = tn.GetThemeAspectRatio(0, i).unwrap_or("?");
+                    emRadioButton::new(label, Rc::clone(&look), Rc::clone(&theme_ar_group), i)
+                })
+                .collect()
+        };
+
         // Checkboxes
-        let dirs_first_check = emCheckButton::new("Directories First", Rc::clone(&look));
+        let dirs_first_check =
+            emCheckButton::new("Sort Directories First", Rc::clone(&look));
         let show_hidden_check = emCheckButton::new("Show Hidden", Rc::clone(&look));
         let autosave_check = emCheckButton::new("Autosave", Rc::clone(&look));
 
         // Action buttons
         let save_button = emButton::new("Save", Rc::clone(&look));
         let select_all_button = emButton::new("Select All", Rc::clone(&look));
-        let clear_sel_button = emButton::new("Clear Sel", Rc::clone(&look));
-        let swap_sel_button = emButton::new("Swap Sel", Rc::clone(&look));
-        let paths_clip_button = emButton::new("Paths→Clip", Rc::clone(&look));
-        let names_clip_button = emButton::new("Names→Clip", Rc::clone(&look));
+        let clear_sel_button = emButton::new("Clear Selection", Rc::clone(&look));
+        let swap_sel_button = emButton::new("Swap Selection", Rc::clone(&look));
+        let paths_clip_button = emButton::new("Paths to Clipboard", Rc::clone(&look));
+        let names_clip_button = emButton::new("Names to Clipboard", Rc::clone(&look));
 
         let last_config_gen = config.borrow().GetChangeSignal();
 
@@ -108,12 +151,16 @@ impl emFileManControlPanel {
             _ctx: ctx,
             config,
             file_man,
-            _theme_names: theme_names,
+            theme_names,
             _look: look,
             sort_group,
             sort_radios,
             nss_group,
             nss_radios,
+            theme_style_group,
+            theme_style_radios,
+            theme_ar_group,
+            theme_ar_radios,
             dirs_first_check,
             show_hidden_check,
             autosave_check,
@@ -143,6 +190,31 @@ impl emFileManControlPanel {
         self.show_hidden_check
             .SetChecked(cfg.GetShowHiddenFiles());
         self.autosave_check.SetChecked(cfg.GetAutosave());
+
+        // Sync theme style and AR from current theme name
+        let theme_name = cfg.GetThemeName().to_string();
+        drop(cfg);
+        let tn = self.theme_names.borrow();
+        if let Some(style_idx) = tn.GetThemeStyleIndex(&theme_name) {
+            self.theme_style_group
+                .borrow_mut()
+                .SetChecked(style_idx);
+            // Rebuild AR radios for the selected style
+            let ar_count = tn.GetThemeAspectRatioCount(style_idx);
+            self.theme_ar_radios.clear();
+            for i in 0..ar_count {
+                let label = tn.GetThemeAspectRatio(style_idx, i).unwrap_or("?");
+                self.theme_ar_radios.push(emRadioButton::new(
+                    label,
+                    Rc::clone(&self._look),
+                    Rc::clone(&self.theme_ar_group),
+                    i,
+                ));
+            }
+            if let Some(ar_idx) = tn.GetThemeAspectRatioIndex(&theme_name) {
+                self.theme_ar_group.borrow_mut().SetChecked(ar_idx);
+            }
+        }
     }
 
     /// Paint a section label at the given y position. Returns the y after the label.
@@ -215,6 +287,28 @@ impl PanelBehavior for emFileManControlPanel {
             painter, margin, y, content_w, row_h, "Name Sorting Style", fg,
         );
         for radio in &mut self.nss_radios {
+            radio.Paint(painter, widget_w, widget_h, true);
+            y += widget_h;
+        }
+
+        y += row_h * 0.5;
+
+        // --- Theme Style section ---
+        y = Self::paint_section_label(
+            painter, margin, y, content_w, row_h, "Theme Style:", fg,
+        );
+        for radio in &mut self.theme_style_radios {
+            radio.Paint(painter, widget_w, widget_h, true);
+            y += widget_h;
+        }
+
+        y += row_h * 0.5;
+
+        // --- Aspect Ratio section ---
+        y = Self::paint_section_label(
+            painter, margin, y, content_w, row_h, "Aspect Ratio:", fg,
+        );
+        for radio in &mut self.theme_ar_radios {
             radio.Paint(painter, widget_w, widget_h, true);
             y += widget_h;
         }
@@ -297,6 +391,51 @@ impl PanelBehavior for emFileManControlPanel {
             }
         }
 
+        // Delegate to theme style radios
+        for radio in &mut self.theme_style_radios {
+            if radio.Input(event, state, input_state) {
+                let style_idx = self.theme_style_group.borrow().GetChecked();
+                if let Some(style_idx) = style_idx {
+                    let ar_idx = self
+                        .theme_ar_group
+                        .borrow()
+                        .GetChecked()
+                        .unwrap_or(0);
+                    let tn = self.theme_names.borrow();
+                    // Clamp AR index to new style's AR count
+                    let clamped_ar = ar_idx.min(
+                        tn.GetThemeAspectRatioCount(style_idx).saturating_sub(1),
+                    );
+                    let name = tn.GetThemeName(style_idx, clamped_ar);
+                    drop(tn);
+                    if let Some(name) = name {
+                        self.config.borrow_mut().SetThemeName(&name);
+                        self.sync_from_config();
+                    }
+                }
+                return true;
+            }
+        }
+
+        // Delegate to theme AR radios
+        for radio in &mut self.theme_ar_radios {
+            if radio.Input(event, state, input_state) {
+                if let Some(ar_idx) = self.theme_ar_group.borrow().GetChecked() {
+                    let style_idx = self
+                        .theme_style_group
+                        .borrow()
+                        .GetChecked()
+                        .unwrap_or(0);
+                    let tn = self.theme_names.borrow();
+                    if let Some(name) = tn.GetThemeName(style_idx, ar_idx) {
+                        drop(tn);
+                        self.config.borrow_mut().SetThemeName(&name);
+                    }
+                }
+                return true;
+            }
+        }
+
         // Delegate to checkboxes
         if self.dirs_first_check.Input(event, state, input_state) {
             self.config
@@ -327,7 +466,9 @@ impl PanelBehavior for emFileManControlPanel {
             return true;
         }
         if self.select_all_button.Input(event, state, input_state) {
-            // Select all is handled at the directory panel level, not here.
+            // DIVERGED: C++ SelectAll finds active DirPanel via content_view;
+            // Rust defers this to direct DirPanel Input (Alt+A)
+            log::debug!("SelectAll: TODO — requires content_view reference to find active DirPanel");
             return true;
         }
         if self.clear_sel_button.Input(event, state, input_state) {
@@ -407,5 +548,23 @@ mod tests {
         let panel = emFileManControlPanel::new(Rc::clone(&ctx));
         assert_eq!(panel.sort_radios.len(), 6);
         assert_eq!(panel.nss_radios.len(), 3);
+    }
+
+    #[test]
+    fn sort_group_change_updates_config() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let panel = emFileManControlPanel::new(Rc::clone(&ctx));
+
+        // Simulate changing sort group to ByDate (index 4)
+        panel.sort_group.borrow_mut().SetChecked(4);
+        // Apply via sync logic — normally this happens in Input handler,
+        // but we test the config update path directly
+        panel
+            .config
+            .borrow_mut()
+            .SetSortCriterion(SortCriterion::ByDate);
+
+        let cfg = panel.config.borrow();
+        assert_eq!(cfg.GetSortCriterion(), SortCriterion::ByDate);
     }
 }

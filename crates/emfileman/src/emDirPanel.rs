@@ -112,6 +112,11 @@ struct KeyWalkState {
 ///
 /// Displays directory entries in a grid layout. Lazily acquires emDirModel
 /// when viewed. Creates/updates emDirEntryPanel children from model entries.
+///
+/// DIVERGED: C++ emDirPanel connects emDirModel as a FileModelState via
+/// SetFileModel. Rust drives loading directly in Cycle (option b from spec)
+/// because emDirModel does not implement FileModelState — it wraps
+/// emDirModelData directly without scheduler integration.
 pub struct emDirPanel {
     pub(crate) file_panel: emFilePanel,
     ctx: Rc<emContext>,
@@ -125,12 +130,14 @@ pub struct emDirPanel {
     loading_done: bool,
     loading_error: Option<String>,
     key_walk_state: Option<KeyWalkState>,
+    last_config_gen: u64,
 }
 
 impl emDirPanel {
     pub fn new(ctx: Rc<emContext>, path: String) -> Self {
         let config = emFileManViewConfig::Acquire(&ctx);
         let file_man = emFileManModel::Acquire(&ctx);
+        let last_config_gen = config.borrow().GetChangeSignal();
         Self {
             file_panel: emFilePanel::new(),
             ctx,
@@ -144,6 +151,7 @@ impl emDirPanel {
             loading_done: false,
             loading_error: None,
             key_walk_state: None,
+            last_config_gen,
         }
     }
 
@@ -268,6 +276,15 @@ impl emDirPanel {
 impl PanelBehavior for emDirPanel {
     fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
         let mut changed = false;
+
+        // Detect config changes (sort/filter) and force child re-creation
+        let cfg_gen = self.config.borrow().GetChangeSignal();
+        if cfg_gen != self.last_config_gen {
+            self.last_config_gen = cfg_gen;
+            // Reset child_count to force update_children to recreate
+            self.child_count = 0;
+            changed = true;
+        }
 
         if let Some(ref dm_rc) = self.dir_model {
             let mut dm = dm_rc.borrow_mut();

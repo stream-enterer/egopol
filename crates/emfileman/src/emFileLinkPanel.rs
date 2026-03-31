@@ -64,6 +64,7 @@ pub struct emFileLinkPanel {
     full_path: String,
     child_panel: Option<PanelId>,
     needs_update: bool,
+    last_viewed: bool,
 }
 
 impl emFileLinkPanel {
@@ -79,6 +80,7 @@ impl emFileLinkPanel {
             full_path: String::new(),
             child_panel: None,
             needs_update: true,
+            last_viewed: false,
         }
     }
 
@@ -162,8 +164,9 @@ impl PanelBehavior for emFileLinkPanel {
         false
     }
 
-    fn notice(&mut self, flags: NoticeFlags, _state: &PanelState) {
+    fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {
         if flags.intersects(NoticeFlags::VIEW_CHANGED) {
+            self.last_viewed = state.viewed;
             self.needs_update = true;
         }
     }
@@ -236,10 +239,11 @@ impl PanelBehavior for emFileLinkPanel {
         }
     }
 
+    /// DIVERGED: C++ calls UpdateDataAndChildPanel from Cycle() and Notice().
+    /// Rust version defers to LayoutChildren() for borrow safety.
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         if self.needs_update {
-            let viewed = self.model.is_some();
-            self.update_data_and_child_panel(ctx, viewed);
+            self.update_data_and_child_panel(ctx, self.last_viewed);
             self.needs_update = false;
         }
         let rect = ctx.layout_rect();

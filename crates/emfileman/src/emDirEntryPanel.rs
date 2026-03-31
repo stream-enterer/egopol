@@ -70,6 +70,11 @@ pub fn compute_bg_color(
 /// The rendering workhorse of emFileMan. Draws themed background, name,
 /// info, borders, and content area. Creates content panels via the plugin
 /// system and alt panels for alternative views.
+///
+/// DIVERGED: C++ UpdateContentPanel/UpdateAltPanel are called from
+/// Notice()+Cycle() with full view state. Rust uses dirty flags set in
+/// notice() and defers creation/deletion to LayoutChildren() for borrow
+/// safety — LayoutChildren receives PanelCtx which allows child mutation.
 pub struct emDirEntryPanel {
     ctx: Rc<emContext>,
     file_man: Rc<RefCell<emFileManModel>>,
@@ -82,6 +87,7 @@ pub struct emDirEntryPanel {
     alt_dirty: bool,
     last_viewed: bool,
     last_in_active_path: bool,
+    last_viewed_width: f64,
 }
 
 impl emDirEntryPanel {
@@ -115,6 +121,7 @@ impl emDirEntryPanel {
             alt_dirty: true,
             last_viewed: false,
             last_in_active_path: false,
+            last_viewed_width: 0.0,
         }
     }
 
@@ -133,13 +140,29 @@ impl emDirEntryPanel {
         }
     }
 
+    /// DIVERGED: C++ UpdateContentPanel is called from Notice+Cycle with
+    /// full view state. Rust version uses cached dirty flags set in notice()
+    /// and is called from LayoutChildren() for borrow safety.
     fn update_content_panel(&mut self, ctx: &mut PanelCtx) {
         if !self.content_dirty {
             return;
         }
         self.content_dirty = false;
 
-        let should_create = self.last_viewed;
+        let (content_w, min_content_vw) = {
+            let cfg = self.config.borrow();
+            let theme = cfg.GetTheme();
+            let theme_rec = theme.GetRec();
+            let cw = if self.dir_entry.IsDirectory() {
+                theme_rec.DirContentW
+            } else {
+                theme_rec.FileContentW
+            };
+            (cw, theme_rec.MinContentVW)
+        };
+
+        let should_create = self.last_viewed
+            && self.last_viewed_width * content_w >= min_content_vw;
         let should_delete = !self.last_in_active_path && !self.last_viewed;
 
         if should_delete && self.content_panel.is_some() {
@@ -169,13 +192,23 @@ impl emDirEntryPanel {
         }
     }
 
+    /// DIVERGED: C++ UpdateAltPanel is called from Notice+Cycle.
+    /// Rust version uses cached dirty flags, called from LayoutChildren().
     fn update_alt_panel(&mut self, ctx: &mut PanelCtx) {
         if !self.alt_dirty {
             return;
         }
         self.alt_dirty = false;
 
-        let should_create = self.last_viewed;
+        let (alt_w, min_alt_vw) = {
+            let cfg = self.config.borrow();
+            let theme = cfg.GetTheme();
+            let theme_rec = theme.GetRec();
+            (theme_rec.AltW, theme_rec.MinAltVW)
+        };
+
+        let should_create = self.last_viewed
+            && self.last_viewed_width * alt_w >= min_alt_vw;
         let should_delete = !self.last_in_active_path && !self.last_viewed;
 
         if should_delete && self.alt_panel.is_some() {
@@ -208,6 +241,10 @@ impl emDirEntryPanel {
     }
 
     /// Port of C++ emDirEntryPanel::Select
+    /// DIVERGED: Shift-range selection is simplified — selects only the
+    /// current entry instead of walking sibling panels between
+    /// ShiftTgtSelPath and current. Full range selection requires panel
+    /// tree sibling enumeration not yet available.
     fn select(&mut self, shift: bool, ctrl: bool) {
         let path = self.dir_entry.GetPath().to_string();
         let mut fm = self.file_man.borrow_mut();
@@ -255,6 +292,7 @@ impl PanelBehavior for emDirEntryPanel {
             let active_changed = state.in_active_path != self.last_in_active_path;
             self.last_viewed = state.viewed;
             self.last_in_active_path = state.in_active_path;
+            self.last_viewed_width = state.viewed_rect.w;
             if viewed_changed || active_changed {
                 self.content_dirty = true;
                 self.alt_dirty = true;

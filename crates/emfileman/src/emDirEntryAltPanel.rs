@@ -104,20 +104,6 @@ impl emDirEntryAltPanel {
             let child_id = ctx.create_child_with(crate::emDirEntryPanel::CONTENT_NAME, behavior);
             self.content_panel = Some(child_id);
         }
-
-        // Layout content if present
-        if let Some(child_id) = self.content_panel {
-            let config = self.config.borrow();
-            let theme = config.GetTheme();
-            let theme_rec = theme.GetRec();
-            let bg = emColor::from_packed(theme_rec.BackgroundColor);
-            ctx.layout_child_canvas(
-                child_id,
-                theme_rec.AltContentX, theme_rec.AltContentY,
-                theme_rec.AltContentW, theme_rec.AltContentH,
-                bg,
-            );
-        }
     }
 
     fn update_alt_panel(&mut self, ctx: &mut PanelCtx) {
@@ -144,20 +130,6 @@ impl emDirEntryAltPanel {
                 Box::new(next_alt),
             );
             self.alt_panel = Some(child_id);
-        }
-
-        // Layout alt if present
-        if let Some(child_id) = self.alt_panel {
-            let config = self.config.borrow();
-            let theme = config.GetTheme();
-            let theme_rec = theme.GetRec();
-            let canvas = ctx.GetCanvasColor();
-            ctx.layout_child_canvas(
-                child_id,
-                theme_rec.AltAltX, theme_rec.AltAltY,
-                theme_rec.AltAltW, theme_rec.AltAltH,
-                canvas,
-            );
         }
     }
 }
@@ -238,6 +210,33 @@ impl PanelBehavior for emDirEntryAltPanel {
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         self.update_content_panel(ctx);
         self.update_alt_panel(ctx);
+
+        // Layout content panel
+        if let Some(child_id) = self.content_panel {
+            let config = self.config.borrow();
+            let theme = config.GetTheme();
+            let theme_rec = theme.GetRec();
+            let bg = emColor::from_packed(theme_rec.BackgroundColor);
+            ctx.layout_child_canvas(
+                child_id,
+                theme_rec.AltContentX, theme_rec.AltContentY,
+                theme_rec.AltContentW, theme_rec.AltContentH,
+                bg,
+            );
+        }
+        // Layout alt panel
+        if let Some(child_id) = self.alt_panel {
+            let config = self.config.borrow();
+            let theme = config.GetTheme();
+            let theme_rec = theme.GetRec();
+            let canvas = ctx.GetCanvasColor();
+            ctx.layout_child_canvas(
+                child_id,
+                theme_rec.AltAltX, theme_rec.AltAltY,
+                theme_rec.AltAltW, theme_rec.AltAltH,
+                canvas,
+            );
+        }
     }
 }
 
