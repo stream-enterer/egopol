@@ -1,8 +1,13 @@
 // Port of C++ emStocksItemChart.h / emStocksItemChart.cpp
 
+use emcore::emColor::emColor;
+use emcore::emPainter::emPainter;
+use emcore::emPainter::{TextAlignment, VAlign};
+
 use super::emStocksConfig::emStocksConfig;
 use super::emStocksRec::{
-    AddDaysToDate, GetCurrentDate, GetDateDifference, ParseDate, StockRec,
+    AddDaysToDate, AddDaysToDateParts, GetCurrentDate, GetDateDifference,
+    GetDateDifferenceParts, GetDaysOfMonth, ParseDate, SharePriceToString, StockRec,
 };
 
 /// Port of C++ emStocksItemChart::Price.
@@ -26,8 +31,8 @@ impl Price {
 }
 
 /// Port of C++ emStocksItemChart.
-/// DIVERGED: No emBorder/emPanel inheritance. Data model and update logic are
-/// ported; painting is stubbed (emStocks has no golden test infrastructure).
+/// DIVERGED: No emBorder/emPanel inheritance. Data model, update logic, and
+/// paint pipeline are ported. No golden test infrastructure for emStocks.
 pub struct emStocksItemChart {
     // Data state
     data_up_to_date: bool,
@@ -471,6 +476,861 @@ impl emStocksItemChart {
             self.upper_price = p2;
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Paint pipeline
+    // -----------------------------------------------------------------------
+
+    /// Port of C++ PaintContent. Orchestrator that calls all 7 sub-paint methods.
+    /// DIVERGED: C++ takes (painter, x, y, w, h, canvasColor) from emBorder override.
+    /// Rust accepts painter plus a `PaintParams` bundle that replaces the view/panel
+    /// context queries (ViewToPanelDeltaX/Y, PanelToViewDeltaY, GetClip*, GetMaxLabelHeight).
+    pub fn PaintContent(&self, painter: &mut emPainter, params: &PaintParams) {
+        self.PaintXScaleLines(painter, params);
+        self.PaintYScaleLines(painter, params);
+        self.PaintXScaleLabels(painter, params);
+        self.PaintYScaleLabels(painter, params);
+        self.PaintPriceBar(painter, params);
+        self.PaintDesiredPrice(painter, params);
+        self.PaintGraph(painter, params);
+    }
+
+    /// Port of C++ PaintXScaleLines. Draws vertical grid lines at day/month/year/decade intervals.
+    fn PaintXScaleLines(&self, painter: &mut emPainter, params: &PaintParams) {
+        let f = params.view_to_panel_delta_x(14.0) / self.x_factor;
+        let min_level: i32;
+        if f <= 1.0 {
+            min_level = 0; // days
+        } else if f <= 30.4 {
+            min_level = 1; // months
+        } else if f <= 365.25 {
+            min_level = 2; // years
+        } else if f <= 3652.5 {
+            min_level = 3; // 10 years
+        } else {
+            return;
+        }
+
+        let max_thickness = f64::min(0.002, params.view_to_panel_delta_x(2.6));
+
+        let f_day = f64::max(
+            0.0,
+            (painter.GetUserClipX1() - self.x_offset - max_thickness * 0.5) / self.x_factor,
+        );
+        let f_end_day = f64::min(
+            self.total_days as f64,
+            (painter.GetUserClipX2() - self.x_offset + max_thickness * 0.5) / self.x_factor,
+        );
+        if f_day > f_end_day {
+            return;
+        }
+        let mut day = f_day.ceil() as i32;
+        let end_day = f_end_day as i32;
+
+        let mut year = self.start_year;
+        let mut month = self.start_month;
+        let mut mday = self.start_day;
+        AddDaysToDateParts(day, &mut year, &mut month, &mut mday);
+
+        if min_level > 0 {
+            if mday > 1 {
+                day += GetDaysOfMonth(year, month) - mday + 1;
+                mday = 1;
+                month += 1;
+                if month > 12 {
+                    year += 1;
+                    month = 1;
+                }
+            }
+            if min_level > 1 {
+                if month > 1 {
+                    day += GetDateDifferenceParts(year, month, 1, year + 1, 1, 1);
+                    year += 1;
+                    month = 1;
+                }
+                if min_level > 2 && year % 10 != 0 {
+                    let y10 = year + 10 - year % 10;
+                    day += GetDateDifferenceParts(year, 1, 1, y10, 1, 1);
+                    year = y10;
+                }
+            }
+        }
+
+        let y = self.y_offset + self.y_factor * self.upper_price;
+        let h = self.y_factor * (self.lower_price - self.upper_price);
+        let c = emColor::rgb(128, 128, 128);
+
+        while day <= end_day {
+            let x = self.x_offset + self.x_factor * day as f64;
+
+            let mut t = 0.01;
+            if mday == 1 {
+                t = 0.01 * 30.4;
+                if month == 1 {
+                    t = 0.01 * 365.25;
+                    if year % 10 == 0 {
+                        t = 0.01 * 3652.5;
+                    }
+                }
+            }
+            t *= self.x_factor;
+            if t > max_thickness {
+                t = max_thickness;
+            }
+            painter.PaintRect(x - t * 0.5, y, t, h, c, emColor::TRANSPARENT);
+
+            if min_level == 0 {
+                day += 1;
+                mday += 1;
+                if mday > GetDaysOfMonth(year, month) {
+                    mday = 1;
+                    month += 1;
+                    if month > 12 {
+                        year += 1;
+                        month = 1;
+                    }
+                }
+            } else if min_level == 1 {
+                day += GetDaysOfMonth(year, month);
+                month += 1;
+                if month > 12 {
+                    year += 1;
+                    month = 1;
+                }
+            } else if min_level == 2 {
+                day += 365 - 28 + GetDaysOfMonth(year, 2);
+                year += 1;
+            } else {
+                day += GetDateDifferenceParts(year, 1, 1, year + 10, 1, 1);
+                year += 10;
+            }
+        }
+    }
+
+    /// Port of C++ PaintXScaleLabels. Draws date labels below the chart area.
+    fn PaintXScaleLabels(&self, painter: &mut emPainter, params: &PaintParams) {
+        const MONTH_TEXTS: [&str; 12] = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+        ];
+
+        let max_text_height = params.max_label_height;
+        let min_text_height = params.view_to_panel_delta_y(6.0);
+
+        let text_width: [f64; 4] = [
+            0.8 * self.x_factor,
+            27.0 * self.x_factor,
+            300.0 * self.x_factor,
+            3000.0 * self.x_factor,
+        ];
+        let text_height: [f64; 4] = [
+            f64::min(max_text_height, text_width[0] * 0.8),
+            f64::min(max_text_height, text_width[1] * 0.2),
+            f64::min(max_text_height, text_width[2] * 0.4),
+            f64::min(max_text_height, text_width[3] * 0.4),
+        ];
+
+        if text_height[3] < min_text_height {
+            return;
+        }
+
+        let f_start_day = f64::max(
+            0.0,
+            (painter.GetUserClipX1() - self.x_offset) / self.x_factor,
+        );
+        let f_end_day = f64::min(
+            self.total_days as f64,
+            (painter.GetUserClipX2() - self.x_offset) / self.x_factor,
+        );
+        if f_start_day >= f_end_day {
+            return;
+        }
+        let start_day = f_start_day as i32;
+        let end_day = f_end_day as i32;
+
+        // DIVERGED: C++ uses ViewToPanelY(GetClipY2()) for y positioning.
+        // We use the lower price line position directly.
+        let mut y = f64::max(
+            self.y_offset + self.y_factor * self.lower_price,
+            self.y_offset + self.y_factor * self.upper_price + 2.5 * max_text_height,
+        );
+        let c = emColor::rgba(170, 170, 170, 192);
+
+        let mut max_level: i32 = 3;
+        if text_height[2] >= 0.9 * text_height[3] {
+            max_level = 2;
+            if text_height[1] >= 0.9 * text_height[2]
+                && text_width[1] / text_height[1] > 12.0
+            {
+                max_level = 1;
+            }
+        }
+
+        let mut level = max_level;
+        while level >= 0 {
+            if text_height[level as usize] < min_text_height {
+                break;
+            }
+            y -= text_height[level as usize];
+
+            let mut year = self.start_year;
+            let mut month = self.start_month;
+            let mut mday = self.start_day;
+            AddDaysToDateParts(start_day, &mut year, &mut month, &mut mday);
+            let mut day = start_day;
+
+            if level > 0 {
+                if mday > 1 {
+                    day -= mday - 1;
+                    mday = 1;
+                }
+                if level > 1 {
+                    if month > 1 {
+                        day -= GetDateDifferenceParts(year, 1, 1, year, month, 1);
+                        month = 1;
+                    }
+                    if level > 2 && year % 10 != 0 {
+                        let y10 = year - year % 10;
+                        day -= GetDateDifferenceParts(y10, 1, 1, year, 1, 1);
+                        year = y10;
+                    }
+                }
+            }
+
+            while day <= end_day {
+                let x1 =
+                    self.x_offset + self.x_factor * f64::max(day as f64, f_start_day);
+
+                let label: String;
+                if level == 0 {
+                    label = format!("{}", mday);
+                    day += 1;
+                    mday += 1;
+                    if mday > GetDaysOfMonth(year, month) {
+                        mday = 1;
+                        month += 1;
+                        if month > 12 {
+                            year += 1;
+                            month = 1;
+                        }
+                    }
+                } else if level == 1 {
+                    if max_level == 1 {
+                        label = format!(
+                            "{} {}",
+                            MONTH_TEXTS[(month - 1) as usize],
+                            year
+                        );
+                    } else {
+                        label = MONTH_TEXTS[(month - 1) as usize].to_string();
+                    }
+                    day += GetDaysOfMonth(year, month);
+                    month += 1;
+                    if month > 12 {
+                        year += 1;
+                        month = 1;
+                    }
+                } else if level == 2 {
+                    label = format!("{}", year);
+                    day += 365 - 28 + GetDaysOfMonth(year, 2);
+                    year += 1;
+                } else {
+                    label = format!("{}x", year / 10);
+                    day += GetDateDifferenceParts(year, 1, 1, year + 10, 1, 1);
+                    year += 10;
+                }
+
+                let x2 = self.x_offset
+                    + self.x_factor * f64::min(day as f64, f_end_day);
+                if x1 < x2 {
+                    let th = text_height[level as usize];
+                    painter.PaintTextBoxed(
+                        x1,
+                        y,
+                        x2 - x1,
+                        th,
+                        &label,
+                        th,
+                        c,
+                        emColor::TRANSPARENT,
+                        TextAlignment::Left,
+                        VAlign::Top,
+                        TextAlignment::Left,
+                        0.0,
+                        false,
+                        0.0,
+                    );
+                }
+            }
+            level -= 1;
+        }
+    }
+
+    /// Port of C++ PaintYScaleLines. Draws horizontal grid lines at price levels.
+    fn PaintYScaleLines(&self, painter: &mut emPainter, params: &PaintParams) {
+        let (min_level, min_dist, max_level) = self.CalculateYScaleLevelRange(params);
+        if min_level > max_level {
+            return;
+        }
+
+        let max_thickness = f64::min(0.002, params.view_to_panel_delta_y(2.6));
+
+        let mut price = f64::max(
+            self.lower_price,
+            (painter.GetUserClipY2() - self.y_offset + max_thickness * 0.5) / self.y_factor,
+        );
+        let end_price = f64::min(
+            self.upper_price,
+            (painter.GetUserClipY1() - self.y_offset - max_thickness * 0.5) / self.y_factor,
+        );
+        if price > end_price {
+            return;
+        }
+
+        let f = price % min_dist;
+        if f > 0.0 {
+            price += min_dist - f;
+        } else if f < 0.0 {
+            price -= f;
+        }
+
+        let x = self.x_offset;
+        let w = self.x_factor * self.total_days as f64;
+        let c = emColor::rgb(128, 128, 128);
+
+        while price <= end_price {
+            let y = self.y_offset + self.y_factor * price;
+            let mut level = min_level;
+            let mut dist = min_dist;
+            while level < max_level {
+                let next_dist = dist * if level & 1 != 0 { 2.0 } else { 5.0 };
+                let f = price / next_dist;
+                if (f - f.round()).abs() > 0.001 {
+                    break;
+                }
+                dist = next_dist;
+                level += 1;
+            }
+            let mut t = dist * self.y_factor * (-0.01);
+            if level & 1 != 0 {
+                t *= 0.63;
+            }
+            if t > max_thickness {
+                t = max_thickness;
+            }
+            painter.PaintRect(x, y - t * 0.5, w, t, c, emColor::TRANSPARENT);
+            price += min_dist;
+        }
+    }
+
+    /// Port of C++ PaintYScaleLabels. Draws price labels on the left side.
+    fn PaintYScaleLabels(&self, painter: &mut emPainter, params: &PaintParams) {
+        let (min_level, min_dist, max_level) = self.CalculateYScaleLevelRange(params);
+        if min_level > max_level {
+            return;
+        }
+
+        let max_text_height = params.max_label_height;
+        let min_text_height = params.view_to_panel_delta_y(6.0);
+
+        let mut price = f64::max(
+            self.lower_price,
+            (painter.GetUserClipY2() - self.y_offset + max_text_height) / self.y_factor,
+        );
+        let end_price = f64::min(
+            self.upper_price,
+            (painter.GetUserClipY1() - self.y_offset) / self.y_factor,
+        );
+        if price > end_price {
+            return;
+        }
+
+        let f = price % min_dist;
+        if f > 0.0 {
+            price += min_dist - f;
+        } else if f < 0.0 {
+            price -= f;
+        }
+
+        let x = self.x_offset;
+        let w = self.x_factor * self.total_days as f64;
+        let c = emColor::rgba(170, 170, 170, 192);
+        // DIVERGED: C++ uses ViewToPanelX(GetClipX1()) for xt. We use x_offset.
+        let xt = x;
+
+        while price <= end_price {
+            let y = self.y_offset + self.y_factor * price;
+            let mut level = min_level;
+            let mut dist = min_dist;
+            while level < max_level {
+                let next_dist = dist * if level & 1 != 0 { 2.0 } else { 5.0 };
+                let f = price / next_dist;
+                if (f - f.round()).abs() > 0.001 {
+                    break;
+                }
+                dist = next_dist;
+                level += 1;
+            }
+            let mut t = dist * self.y_factor * (-0.16);
+            if level & 1 != 0 {
+                t *= 0.63;
+            }
+            if t < min_text_height {
+                price += min_dist;
+                continue;
+            }
+            if t > max_text_height {
+                t = max_text_height;
+            }
+            // Format with appropriate decimal places based on level
+            let decimals = if level >= 0 { 0 } else { ((1 - level) >> 1) as usize };
+            let label = format!("{:.prec$}", price, prec = decimals);
+            painter.PaintTextBoxed(
+                xt,
+                y - t,
+                x + w - xt,
+                t,
+                &label,
+                t,
+                c,
+                emColor::TRANSPARENT,
+                TextAlignment::Left,
+                VAlign::Top,
+                TextAlignment::Left,
+                0.0,
+                false,
+                0.0,
+            );
+            price += min_dist;
+        }
+    }
+
+    /// Port of C++ CalculateYScaleLevelRange. Computes price grid spacing
+    /// using 1-2-5 progression (logarithmic).
+    /// DIVERGED: C++ takes output pointers (pMinLevel, pMinDist, pMaxLevel).
+    /// Rust returns a tuple (min_level, min_dist, max_level).
+    /// C++ uses ViewToPanelDeltaY(14.0) for minimum distance; we take it from PaintParams.
+    pub(crate) fn CalculateYScaleLevelRange(&self, params: &PaintParams) -> (i32, f64, i32) {
+        let mut max_level: i32 = 0;
+        let mut max_dist: f64 = 1.0;
+
+        let f = (self.upper_price - self.lower_price) * 0.4;
+        while max_dist > f {
+            max_level -= 2;
+            max_dist *= 0.1;
+        }
+        while max_dist * 10.0 <= f {
+            max_level += 2;
+            max_dist *= 10.0;
+        }
+
+        let mut min_level = max_level;
+        let mut min_dist = max_dist;
+
+        if max_dist * 5.0 <= f {
+            max_level += 1;
+            max_dist *= 5.0;
+        }
+        let _ = max_dist; // not used beyond this point
+
+        let f = f64::max(
+            f64::max(self.lower_price.abs(), self.upper_price.abs()) * 0.0001,
+            params.view_to_panel_delta_y(14.0) / (-self.y_factor),
+        );
+
+        while min_dist < f {
+            min_level += 2;
+            min_dist *= 10.0;
+        }
+        while min_dist * 0.1 >= f {
+            min_level -= 2;
+            min_dist *= 0.1;
+        }
+
+        if min_dist * 0.5 >= f {
+            min_level -= 1;
+            min_dist *= 0.5;
+        }
+
+        (min_level, min_dist, max_level)
+    }
+
+    /// Port of C++ PaintPriceBar. Draws a colored rectangle between trade/desired price
+    /// and current price, with gradient coloring and text labels.
+    fn PaintPriceBar(&self, painter: &mut emPainter, params: &PaintParams) {
+        if !self.price_on_selected_date.valid
+            || (!self.trade_price.valid && !self.desired_price.valid)
+        {
+            return;
+        }
+
+        let text_height = (self.lower_price - self.upper_price) * self.y_factor * 0.012;
+        let x = self.x_offset;
+        let w = self.x_factor * self.total_days as f64;
+        let ref_price = if self.trade_price.valid {
+            self.trade_price.value
+        } else {
+            self.desired_price.value
+        };
+        let y1 = self.y_offset + self.y_factor * ref_price;
+        let y2 = self.y_offset + self.y_factor * self.price_on_selected_date.value;
+
+        let c2 = if self.owning_shares {
+            if y1 > y2 {
+                emColor::rgba(80, 255, 80, 224)
+            } else {
+                emColor::rgba(255, 80, 80, 224)
+            }
+        } else if y1 > y2 {
+            emColor::rgba(255, 80, 255, 224)
+        } else {
+            emColor::rgba(80, 255, 255, 224)
+        };
+        let c1 = c2.GetBlended(emColor::rgba(128, 128, 255, 224), 50.0);
+
+        // DIVERGED: C++ uses emLinearGradientTexture for gradient fill.
+        // We use a single blended color for the rect since Rust emPainter
+        // does not support gradient textures directly.
+        let bar_color = c1.GetBlended(c2, 50.0);
+        let bar_y = f64::min(y1, y2);
+        let bar_h = (y2 - y1).abs();
+        painter.PaintRect(x, bar_y, w, bar_h, bar_color, emColor::TRANSPARENT);
+
+        if params.panel_to_view_delta_y(text_height) < 4.0 {
+            return;
+        }
+
+        // Price dot and label
+        let xt_base = self.x_offset + self.x_factor * (self.total_days as f64 - 0.5);
+        let r = text_height * 0.12;
+        painter.PaintEllipse(xt_base, y2, r, r, c2, emColor::TRANSPARENT);
+
+        let (wt, _) =
+            emPainter::GetTextSize(&self.price_on_selected_date_text, text_height, false, 0.0);
+        let mut xt = xt_base - wt * 0.5;
+        let x_right = self.x_offset + self.x_factor * self.total_days as f64 - wt;
+        if xt > x_right {
+            xt = x_right;
+        }
+        let label_y = if y1 > y2 {
+            y2 - text_height
+        } else {
+            y2
+        };
+        painter.PaintTextBoxed(
+            xt,
+            label_y,
+            wt,
+            text_height,
+            &self.price_on_selected_date_text,
+            text_height,
+            c2,
+            emColor::TRANSPARENT,
+            TextAlignment::Left,
+            VAlign::Top,
+            TextAlignment::Left,
+            0.0,
+            false,
+            0.0,
+        );
+
+        if !self.trade_price.valid {
+            return;
+        }
+
+        // Trade price dot and label
+        let xt_trade: f64;
+        if self.trade_offset_days >= 0 {
+            xt_trade = self.x_offset + self.x_factor * (self.trade_offset_days as f64 + 0.5);
+            if self.trade_offset_days < self.total_days {
+                painter.PaintEllipse(xt_trade, y1, r, r, c1, emColor::TRANSPARENT);
+            }
+        } else if self.trade_offset_days > i32::MIN {
+            xt_trade = self.x_offset;
+        } else {
+            xt_trade = self.x_offset + self.x_factor * self.total_days as f64 * 0.5;
+        }
+
+        let (wt, _) =
+            emPainter::GetTextSize(&self.trade_price_text, text_height, false, 0.0);
+        let mut xt = xt_trade - wt * 0.5;
+        if xt < self.x_offset {
+            xt = self.x_offset;
+        }
+        let x_right = self.x_offset + self.x_factor * self.total_days as f64 - wt;
+        if xt > x_right {
+            xt = x_right;
+        }
+        let label_y = if y1 > y2 { y1 } else { y1 - text_height };
+        painter.PaintTextBoxed(
+            xt,
+            label_y,
+            wt,
+            text_height,
+            &self.trade_price_text,
+            text_height,
+            c1,
+            emColor::TRANSPARENT,
+            TextAlignment::Left,
+            VAlign::Top,
+            TextAlignment::Left,
+            0.0,
+            false,
+            0.0,
+        );
+    }
+
+    /// Port of C++ PaintDesiredPrice. Draws a horizontal yellow line at the desired price.
+    fn PaintDesiredPrice(&self, painter: &mut emPainter, params: &PaintParams) {
+        if !self.desired_price.valid {
+            return;
+        }
+
+        let thickness = f64::max(
+            params.view_to_panel_delta_y(1.5),
+            f64::min(
+                (self.lower_price - self.upper_price) * self.y_factor * 0.002,
+                self.x_factor * 0.5,
+            ),
+        );
+        let text_height = (self.lower_price - self.upper_price) * self.y_factor * 0.012;
+        let x = self.x_offset;
+        let w = self.x_factor * self.total_days as f64;
+        let y = self.y_offset + self.y_factor * self.desired_price.value - thickness * 0.5;
+        let c = emColor::rgba(255, 255, 0, 224);
+
+        painter.PaintRect(x, y, w, thickness, c, emColor::TRANSPARENT);
+
+        if params.panel_to_view_delta_y(text_height) < 4.0 {
+            return;
+        }
+
+        let v = self.desired_price.value;
+        let (mut v1, mut v2);
+        if self.price_on_selected_date.valid {
+            v1 = self.price_on_selected_date.value;
+            v2 = self.price_on_selected_date.value;
+            if self.trade_price.valid {
+                if self.trade_price.value < v2 {
+                    v1 = self.trade_price.value;
+                } else {
+                    v2 = self.trade_price.value;
+                }
+            }
+        } else {
+            v1 = v;
+            v2 = v;
+        }
+        let label_y = if v > v2 || (v >= v1 && v < (v1 + v2) * 0.5) {
+            y - text_height
+        } else {
+            y + thickness
+        };
+
+        painter.PaintTextBoxed(
+            x,
+            label_y,
+            w,
+            text_height,
+            &self.desired_price_text,
+            text_height,
+            c,
+            emColor::TRANSPARENT,
+            TextAlignment::Right,
+            VAlign::Top,
+            TextAlignment::Right,
+            0.0,
+            false,
+            0.0,
+        );
+    }
+
+    /// Port of C++ PaintGraph. Draws the price line graph with optional point markers
+    /// and date/price text labels at high zoom.
+    fn PaintGraph(&self, painter: &mut emPainter, params: &PaintParams) {
+        if self.prices.len() < 2 {
+            return;
+        }
+
+        let price_count = self.prices.len() as f64;
+        let x_off = self.x_offset + self.x_factor * 0.5;
+        let x_fac = self.x_factor * (self.total_days as f64 - 1.0) / (price_count - 1.0);
+
+        let f = (painter.GetUserClipX1() - x_off) / x_fac - 0.5;
+        if f >= price_count {
+            return;
+        }
+        let i1: usize = if f < 1.0 { 0 } else { f as usize };
+        let f = (painter.GetUserClipX2() - x_off) / x_fac + 0.5;
+        if f <= 0.0 {
+            return;
+        }
+        let i2: usize = if f > price_count - 2.0 {
+            self.prices.len() - 1
+        } else {
+            f.ceil() as usize
+        };
+        if i1 >= i2 {
+            return;
+        }
+
+        let thickness = f64::max(
+            params.view_to_panel_delta_y(1.5),
+            f64::min(
+                (self.lower_price - self.upper_price) * self.y_factor * 0.002,
+                self.x_factor * 0.1,
+            ),
+        );
+        let r = f64::min(0.002, self.x_factor * 0.1) * 3.0;
+        let have_points = self.days_per_price == 1 && r > params.view_to_panel_delta_y(1.2);
+        let have_texts = have_points && r > params.view_to_panel_delta_y(5.0);
+
+        let c1 = emColor::rgb(255, 255, 255);
+        let c2 = emColor::rgb(64, 64, 64);
+
+        // Find first valid price at or before i1
+        let mut i0 = i1;
+        while i0 > 0 && !self.prices[i0].valid {
+            i0 -= 1;
+        }
+        // Find last valid price at or after i2
+        let mut i3 = i2;
+        while i3 < self.prices.len() - 1 && !self.prices[i3].valid {
+            i3 += 1;
+        }
+
+        // DIVERGED: C++ uses PaintLine with emRoundedStroke and emStrokeEnd per segment.
+        // Rust PaintPolyline accepts thickness and draws connected segments.
+        let mut vertices: Vec<(f64, f64)> = Vec::new();
+        for i in i0..=i3 {
+            if !self.prices[i].valid {
+                continue;
+            }
+            let x2 = x_off + x_fac * i as f64;
+            let y2 = self.y_offset + self.y_factor * self.prices[i].value;
+            vertices.push((x2, y2));
+        }
+        if vertices.len() >= 2 {
+            painter.PaintPolyline(&vertices, c1, thickness, emColor::TRANSPARENT);
+        }
+
+        if !have_points {
+            return;
+        }
+
+        // Draw point markers
+        for i in i1..=i2 {
+            if !self.prices[i].valid {
+                continue;
+            }
+            let px = x_off + x_fac * i as f64;
+            let py = self.y_offset + self.y_factor * self.prices[i].value;
+            painter.PaintEllipse(px, py, r, r, c1, emColor::TRANSPARENT);
+        }
+
+        if !have_texts {
+            return;
+        }
+
+        // Draw date and price text labels at each point
+        let mut year = self.start_year;
+        let mut month = self.start_month;
+        let mut mday = self.start_day;
+        let mut day: i32 = 0;
+        for i in i1..=i2 {
+            if !self.prices[i].valid {
+                continue;
+            }
+            let px = x_off + x_fac * i as f64;
+            let py = self.y_offset + self.y_factor * self.prices[i].value;
+            AddDaysToDateParts(i as i32 - day, &mut year, &mut month, &mut mday);
+            day = i as i32;
+            let date_str = format!("{:04}-{:02}-{:02}", year, month, mday);
+            painter.PaintTextBoxed(
+                px - r * 0.8,
+                py - r * 0.6,
+                r * 0.8 * 2.0,
+                r * 0.4,
+                &date_str,
+                r,
+                c2,
+                c1,
+                TextAlignment::Center,
+                VAlign::Center,
+                TextAlignment::Center,
+                0.0,
+                false,
+                0.0,
+            );
+            let price_str = SharePriceToString(self.prices[i].value);
+            painter.PaintTextBoxed(
+                px - r * 0.8,
+                py - r * 0.2,
+                r * 0.8 * 2.0,
+                r * 0.9,
+                &price_str,
+                r,
+                c2,
+                emColor::TRANSPARENT,
+                TextAlignment::Center,
+                VAlign::Center,
+                TextAlignment::Center,
+                0.0,
+                false,
+                0.0,
+            );
+        }
+    }
+}
+
+/// Parameters that replace the C++ view/panel context queries.
+/// DIVERGED: C++ PaintContent and helpers query ViewToPanelDeltaX/Y, PanelToViewDeltaY,
+/// GetClipX1/Y1/X2/Y2, and GetMaxLabelHeight from the panel's view context.
+/// Rust has no view context, so these are provided explicitly.
+pub struct PaintParams {
+    /// Pixels per panel-unit in X direction (approximation of 1.0/ViewToPanelDeltaX(1.0)).
+    pub pixels_per_unit_x: f64,
+    /// Pixels per panel-unit in Y direction (approximation of 1.0/ViewToPanelDeltaY(1.0)).
+    pub pixels_per_unit_y: f64,
+    /// Maximum label height in panel coordinates.
+    pub max_label_height: f64,
+}
+
+impl Default for PaintParams {
+    fn default() -> Self {
+        Self {
+            pixels_per_unit_x: 800.0,
+            pixels_per_unit_y: 400.0,
+            max_label_height: 0.032,
+        }
+    }
+}
+
+impl PaintParams {
+    /// Simulates C++ ViewToPanelDeltaX(pixels): converts a pixel distance to panel units.
+    pub(crate) fn view_to_panel_delta_x(&self, pixels: f64) -> f64 {
+        pixels / self.pixels_per_unit_x
+    }
+
+    /// Simulates C++ ViewToPanelDeltaY(pixels): converts a pixel distance to panel units.
+    pub(crate) fn view_to_panel_delta_y(&self, pixels: f64) -> f64 {
+        pixels / self.pixels_per_unit_y
+    }
+
+    /// Simulates C++ PanelToViewDeltaY(panel_dist): converts panel units to pixel distance.
+    pub(crate) fn panel_to_view_delta_y(&self, panel_dist: f64) -> f64 {
+        panel_dist * self.pixels_per_unit_y
+    }
 }
 
 #[cfg(test)]
@@ -607,5 +1467,167 @@ mod tests {
         assert!(chart.data_up_to_date);
         chart.InvalidateData();
         assert!(!chart.data_up_to_date);
+    }
+
+    // ------------------------------------------------------------------
+    // Coordinate transform and helper tests
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn paint_params_view_to_panel_delta() {
+        let params = PaintParams {
+            pixels_per_unit_x: 800.0,
+            pixels_per_unit_y: 400.0,
+            max_label_height: 0.032,
+        };
+        assert!((params.view_to_panel_delta_x(14.0) - 14.0 / 800.0).abs() < 1e-12);
+        assert!((params.view_to_panel_delta_y(14.0) - 14.0 / 400.0).abs() < 1e-12);
+        assert!((params.panel_to_view_delta_y(0.01) - 0.01 * 400.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn calculate_y_scale_level_range_basic() {
+        let mut chart = emStocksItemChart::new();
+        // Set up a chart with price range 50..150
+        chart.lower_price = 50.0;
+        chart.upper_price = 150.0;
+        chart.y_factor = -0.01; // negative = price increases upward
+
+        let params = PaintParams::default();
+        let (min_level, min_dist, max_level) = chart.CalculateYScaleLevelRange(&params);
+
+        // With range 100, f = 100*0.4 = 40. maxDist starts at 1, grows to 10, then stops
+        // (100 > 40). So maxDist=10, maxLevel=2.
+        assert!(max_level >= min_level, "max_level({}) >= min_level({})", max_level, min_level);
+        assert!(min_dist > 0.0, "min_dist should be positive");
+    }
+
+    #[test]
+    fn calculate_y_scale_level_range_small_range() {
+        let mut chart = emStocksItemChart::new();
+        chart.lower_price = 99.0;
+        chart.upper_price = 101.0;
+        chart.y_factor = -0.5;
+
+        let params = PaintParams {
+            pixels_per_unit_x: 800.0,
+            pixels_per_unit_y: 4000.0, // high zoom
+            max_label_height: 0.032,
+        };
+        let (min_level, min_dist, max_level) = chart.CalculateYScaleLevelRange(&params);
+        assert!(max_level >= min_level);
+        // With small price range, min_dist should be small
+        assert!(min_dist <= 1.0, "min_dist={} should be <= 1.0 for small range", min_dist);
+    }
+
+    #[test]
+    fn paint_content_no_crash_empty() {
+        let chart = emStocksItemChart::new();
+        let mut img = emcore::emImage::emImage::new(100, 100, 4);
+        let mut painter = emPainter::new(&mut img);
+        let params = PaintParams::default();
+        // Should not panic with default (empty) chart
+        chart.PaintContent(&mut painter, &params);
+    }
+
+    #[test]
+    fn paint_content_no_crash_with_data() {
+        let mut chart = emStocksItemChart::new();
+        chart.selected_date = "2024-06-15".to_string();
+        let config = emStocksConfig {
+            chart_period: ChartPeriod::Week1,
+            ..Default::default()
+        };
+        let mut stock = StockRec::default();
+        stock.owning_shares = true;
+        stock.trade_price = "50.00".to_string();
+        stock.trade_date = "2024-06-12".to_string();
+        stock.desired_price = "60.00".to_string();
+        stock.AddPrice("2024-06-10", "48");
+        stock.AddPrice("2024-06-11", "49");
+        stock.AddPrice("2024-06-12", "50");
+        stock.AddPrice("2024-06-13", "52");
+        stock.AddPrice("2024-06-14", "54");
+        stock.AddPrice("2024-06-15", "55");
+
+        chart.UpdateData(Some(&stock), &config);
+
+        let mut img = emcore::emImage::emImage::new(200, 100, 4);
+        let mut painter = emPainter::new(&mut img);
+        let params = PaintParams::default();
+        // Should not panic
+        chart.PaintContent(&mut painter, &params);
+    }
+
+    #[test]
+    fn paint_desired_price_no_crash() {
+        let mut chart = emStocksItemChart::new();
+        chart.selected_date = "2024-06-15".to_string();
+        let config = emStocksConfig {
+            chart_period: ChartPeriod::Week1,
+            ..Default::default()
+        };
+        let mut stock = StockRec::default();
+        stock.desired_price = "100.00".to_string();
+        stock.AddPrice("2024-06-15", "95");
+        chart.UpdateData(Some(&stock), &config);
+
+        let mut img = emcore::emImage::emImage::new(200, 100, 4);
+        let mut painter = emPainter::new(&mut img);
+        let params = PaintParams::default();
+        chart.PaintDesiredPrice(&mut painter, &params);
+    }
+
+    #[test]
+    fn paint_graph_no_crash() {
+        let mut chart = emStocksItemChart::new();
+        chart.selected_date = "2024-06-15".to_string();
+        let config = emStocksConfig {
+            chart_period: ChartPeriod::Week1,
+            ..Default::default()
+        };
+        let mut stock = StockRec::default();
+        stock.AddPrice("2024-06-10", "100");
+        stock.AddPrice("2024-06-11", "102");
+        stock.AddPrice("2024-06-12", "101");
+        stock.AddPrice("2024-06-13", "105");
+        stock.AddPrice("2024-06-14", "103");
+        stock.AddPrice("2024-06-15", "107");
+        chart.UpdateData(Some(&stock), &config);
+
+        let mut img = emcore::emImage::emImage::new(200, 100, 4);
+        let mut painter = emPainter::new(&mut img);
+        let params = PaintParams::default();
+        chart.PaintGraph(&mut painter, &params);
+    }
+
+    #[test]
+    fn paint_price_bar_profit_and_loss() {
+        // Test both profit (owning + price up) and loss (owning + price down)
+        for (price_str, expected_profit) in &[("55", true), ("45", false)] {
+            let mut chart = emStocksItemChart::new();
+            chart.selected_date = "2024-06-15".to_string();
+            let config = emStocksConfig {
+                chart_period: ChartPeriod::Week1,
+                ..Default::default()
+            };
+            let mut stock = StockRec::default();
+            stock.owning_shares = true;
+            stock.trade_price = "50.00".to_string();
+            stock.trade_date = "2024-06-12".to_string();
+            stock.AddPrice("2024-06-15", price_str);
+            chart.UpdateData(Some(&stock), &config);
+
+            assert!(chart.price_on_selected_date.valid, "price should be valid");
+            let y1 = chart.y_offset + chart.y_factor * chart.trade_price.value;
+            let y2 = chart.y_offset + chart.y_factor * chart.price_on_selected_date.value;
+            // In the coordinate system y1 > y2 means profit (price went up)
+            assert_eq!(y1 > y2, *expected_profit, "profit check for price={}", price_str);
+
+            let mut img = emcore::emImage::emImage::new(200, 100, 4);
+            let mut painter = emPainter::new(&mut img);
+            let params = PaintParams::default();
+            chart.PaintPriceBar(&mut painter, &params);
+        }
     }
 }
