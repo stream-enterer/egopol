@@ -4,4 +4,5 @@
 pub mod emAutoplay;
 pub mod emBookmarks;
 pub mod emMainConfig;
+pub mod emVirtualCosmos;
 pub mod static_plugins;
