@@ -1,7 +1,10 @@
 // Port of C++ emStocksListBox.h / emStocksListBox.cpp
 
 use std::cmp::Ordering;
+use std::rc::Rc;
 
+use emcore::emListBox::emListBox;
+use emcore::emLook::emLook;
 use emcore::emRec::{parse_rec_with_format, write_rec_with_format};
 use emcore::emRecRecord::Record;
 
@@ -17,14 +20,16 @@ pub struct emStocksListBox {
     // Visible items: sorted stock indices into emStocksRec.stocks
     pub visible_items: Vec<usize>,
 
-    // Selected visible item indices (indices into visible_items)
-    /// DIVERGED: C++ uses emListBox selection API. Rust tracks selection locally
-    /// since emListBox widget is not yet integrated.
-    pub selected_indices: Vec<usize>,
+    /// Backing emListBox for selection state. Set by the parent panel when it
+    /// provides an emLook. When None, the local fallback fields below are used.
+    pub(crate) list_box: Option<emListBox>,
+
+    // Fallback selection state used when list_box is None.
+    // These are kept in sync with visible_items on mutation.
+    selected_indices: Vec<usize>,
 
     /// Current active item index (into visible_items) for find navigation.
-    /// DIVERGED: C++ uses panel active-path. Rust tracks locally.
-    pub active_index: Option<usize>,
+    active_index: Option<usize>,
 }
 
 impl Default for emStocksListBox {
@@ -38,44 +43,72 @@ impl emStocksListBox {
         Self {
             selected_date: String::new(),
             visible_items: Vec::new(),
+            list_box: None,
             selected_indices: Vec::new(),
             active_index: None,
         }
     }
 
+    /// Attach an emListBox backed by the given look.
+    /// After this call all selection operations delegate to it.
+    pub fn attach_list_box(&mut self, look: Rc<emLook>) {
+        self.list_box = Some(emListBox::new(look));
+        // Carry over any pre-existing local selection state is not attempted:
+        // the attached list box starts empty and callers re-select as needed.
+        self.selected_indices.clear();
+    }
+
     // ─── Selection helpers ──────────────────────────────────────────────
 
-    /// Number of currently selected items.
-    /// DIVERGED: C++ uses emListBox::GetSelectionCount(). Rust tracks locally.
+    /// Port of C++ emListBox::GetSelectionCount (via GetSelectedIndices().len()).
     pub fn GetSelectionCount(&self) -> usize {
-        self.selected_indices.len()
+        self.GetSelectedIndices().len()
     }
 
-    /// Whether the given visible-item index is selected.
-    /// DIVERGED: C++ uses emListBox::IsSelected(). Rust tracks locally.
+    /// Port of C++ emListBox::IsSelected.
     pub fn IsSelected(&self, visible_index: usize) -> bool {
-        self.selected_indices.contains(&visible_index)
+        if let Some(lb) = &self.list_box {
+            lb.IsSelected(visible_index)
+        } else {
+            self.selected_indices.contains(&visible_index)
+        }
     }
 
-    /// Select a visible-item index.
-    /// DIVERGED: C++ uses emListBox::Select(). Rust tracks locally.
+    /// Port of C++ emListBox::Select (solely=false: add to selection).
     pub fn Select(&mut self, visible_index: usize) {
-        if !self.selected_indices.contains(&visible_index) {
+        if let Some(lb) = &mut self.list_box {
+            lb.Select(visible_index, false);
+        } else if !self.selected_indices.contains(&visible_index) {
             self.selected_indices.push(visible_index);
         }
     }
 
-    /// Clear all selections.
-    /// DIVERGED: C++ uses emListBox::ClearSelection(). Rust tracks locally.
+    /// Port of C++ emListBox::ClearSelection.
     pub fn ClearSelection(&mut self) {
-        self.selected_indices.clear();
+        if let Some(lb) = &mut self.list_box {
+            lb.ClearSelection();
+        } else {
+            self.selected_indices.clear();
+        }
     }
 
-    /// Set a single item as selected (clears previous selection).
-    /// DIVERGED: C++ uses emListBox::SetSelectedIndex(). Rust tracks locally.
+    /// Port of C++ emListBox::SetSelectedIndex (solely=true: clears others).
     pub fn SetSelectedIndex(&mut self, visible_index: usize) {
-        self.selected_indices.clear();
-        self.selected_indices.push(visible_index);
+        if let Some(lb) = &mut self.list_box {
+            lb.Select(visible_index, true);
+        } else {
+            self.selected_indices.clear();
+            self.selected_indices.push(visible_index);
+        }
+    }
+
+    /// Port of C++ emListBox::GetSelectedIndices.
+    pub fn GetSelectedIndices(&self) -> &[usize] {
+        if let Some(lb) = &self.list_box {
+            lb.GetSelectedIndices()
+        } else {
+            &self.selected_indices
+        }
     }
 
     /// Get the stock record for a visible-item index.
@@ -378,7 +411,7 @@ impl emStocksListBox {
         }
 
         let mut stocks_rec = emStocksRec::default();
-        for &vis_idx in &self.selected_indices {
+        for &vis_idx in self.GetSelectedIndices() {
             if let Some(&stock_idx) = self.visible_items.get(vis_idx) {
                 if let Some(stock) = rec.stocks.get(stock_idx) {
                     stocks_rec.stocks.push(stock.clone());
@@ -403,7 +436,7 @@ impl emStocksListBox {
 
         // Collect rec-level stock indices to remove, sorted descending
         let mut indices_to_remove: Vec<usize> = self
-            .selected_indices
+            .GetSelectedIndices()
             .iter()
             .filter_map(|&vis_idx| self.visible_items.get(vis_idx).copied())
             .collect();
@@ -414,7 +447,7 @@ impl emStocksListBox {
             rec.stocks.remove(idx);
         }
 
-        self.selected_indices.clear();
+        self.ClearSelection();
     }
 
     /// Port of C++ CutStocks.
@@ -498,7 +531,7 @@ impl emStocksListBox {
         rec: &mut emStocksRec,
         interest: Interest,
     ) {
-        for &vis_idx in &self.selected_indices {
+        for &vis_idx in self.GetSelectedIndices() {
             if let Some(&stock_idx) = self.visible_items.get(vis_idx) {
                 if let Some(stock) = rec.stocks.get_mut(stock_idx) {
                     stock.interest = interest;
@@ -513,7 +546,7 @@ impl emStocksListBox {
     /// process launch is deferred.
     pub fn ShowFirstWebPages(&self, rec: &emStocksRec) -> Vec<String> {
         let mut pages = Vec::new();
-        for &vis_idx in &self.selected_indices {
+        for &vis_idx in self.GetSelectedIndices() {
             if let Some(stock) = self.GetStockByItemIndex(vis_idx, rec) {
                 if let Some(page) = stock.web_pages.first() {
                     if !page.is_empty() {
@@ -531,7 +564,7 @@ impl emStocksListBox {
     /// process launch is deferred.
     pub fn ShowAllWebPages(&self, rec: &emStocksRec) -> Vec<String> {
         let mut pages = Vec::new();
-        for &vis_idx in &self.selected_indices {
+        for &vis_idx in self.GetSelectedIndices() {
             if let Some(stock) = self.GetStockByItemIndex(vis_idx, rec) {
                 for page in &stock.web_pages {
                     if !page.is_empty() {
