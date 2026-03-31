@@ -60,13 +60,13 @@ impl ProgressBarPanel {
 
 /// Port of C++ emStocksFetchPricesDialog.
 pub struct emStocksFetchPricesDialog {
-    pub fetcher: emStocksPricesFetcher,
-    pub label_text: String,
-    pub progress_bar: ProgressBarPanel,
+    pub(crate) fetcher: emStocksPricesFetcher,
+    pub(crate) label_text: String,
+    pub(crate) progress_bar: ProgressBarPanel,
     /// Whether the dialog has finished (set by Cycle when fetcher completes).
-    pub finished: bool,
+    pub(crate) finished: bool,
     /// Error message from the fetcher, if any, after finishing.
-    pub finish_error: String,
+    pub(crate) finish_error: String,
 }
 
 impl emStocksFetchPricesDialog {
