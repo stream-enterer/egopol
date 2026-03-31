@@ -157,6 +157,16 @@ impl<T: Clone> emArray<T> {
         Rc::make_mut(&mut self.data)
     }
 
+    /// Log a cursor adjustment. Clears the log if no cursors are alive
+    /// (strong_count == 1 means only the array itself holds a reference).
+    fn log_adjustment(&self, delta: isize, at_index: usize) {
+        if Rc::strong_count(&self.adjustments) == 1 {
+            self.adjustments.borrow_mut().clear();
+        } else {
+            self.adjustments.borrow_mut().push((delta, at_index));
+        }
+    }
+
     // ---------------------------------------------------------------
     // Read-only methods
     // ---------------------------------------------------------------
@@ -216,7 +226,7 @@ impl<T: Clone> emArray<T> {
     pub fn Add_one(&mut self, obj: T) {
         let index = self.data.len();
         self.make_writable().push(obj);
-        self.adjustments.borrow_mut().push((1, index));
+        self.log_adjustment(1, index);
     }
 
     /// Append `count` copies of `obj`.
@@ -280,7 +290,7 @@ impl<T: Clone> emArray<T> {
     /// Insert a single element at `index`.
     pub fn Insert(&mut self, index: usize, obj: T) {
         self.make_writable().insert(index, obj);
-        self.adjustments.borrow_mut().push((1, index));
+        self.log_adjustment(1, index);
     }
 
     /// Insert `count` copies of `obj` at `index`.
@@ -331,7 +341,7 @@ impl<T: Clone> emArray<T> {
         v.splice(index..end, items);
         let delta = ins_count as isize - actual_rem as isize;
         if delta != 0 {
-            self.adjustments.borrow_mut().push((delta, index));
+            self.log_adjustment(delta, index);
         }
     }
 
@@ -343,7 +353,7 @@ impl<T: Clone> emArray<T> {
         v.splice(index..end, slice.iter().cloned());
         let delta = slice.len() as isize - actual_rem as isize;
         if delta != 0 {
-            self.adjustments.borrow_mut().push((delta, index));
+            self.log_adjustment(delta, index);
         }
     }
 
@@ -402,13 +412,13 @@ impl<T: Clone + Default> emArray<T> {
     pub fn AddNew(&mut self) {
         let index = self.data.len();
         self.make_writable().push(T::default());
-        self.adjustments.borrow_mut().push((1, index));
+        self.log_adjustment(1, index);
     }
 
     /// Insert a default-constructed element at `index`. C++ `InsertNew`.
     pub fn InsertNew(&mut self, index: usize) {
         self.make_writable().insert(index, T::default());
-        self.adjustments.borrow_mut().push((1, index));
+        self.log_adjustment(1, index);
     }
 
     /// Replace `count` elements starting at `index` with one default element.
@@ -419,7 +429,7 @@ impl<T: Clone + Default> emArray<T> {
         v.insert(index, T::default());
         let delta = 1isize - count as isize;
         if delta != 0 {
-            self.adjustments.borrow_mut().push((delta, index));
+            self.log_adjustment(delta, index);
         }
     }
 }
@@ -493,7 +503,7 @@ impl<T: Clone + Ord> emArray<T> {
             Ok(i) | Err(i) => i,
         };
         self.make_writable().insert(pos, obj);
-        self.adjustments.borrow_mut().push((1, pos));
+        self.log_adjustment(1, pos);
     }
 
     /// Insert `obj` only if no equal element exists. Returns `true` if inserted.
@@ -502,7 +512,7 @@ impl<T: Clone + Ord> emArray<T> {
             Ok(_) => false,
             Err(i) => {
                 self.make_writable().insert(i, obj);
-                self.adjustments.borrow_mut().push((1, i));
+                self.log_adjustment(1, i);
                 true
             }
         }
@@ -516,7 +526,7 @@ impl<T: Clone + Ord> emArray<T> {
             }
             Err(i) => {
                 self.make_writable().insert(i, obj);
-                self.adjustments.borrow_mut().push((1, i));
+                self.log_adjustment(1, i);
             }
         }
     }
@@ -526,7 +536,7 @@ impl<T: Clone + Ord> emArray<T> {
         match self.data.binary_search(obj) {
             Ok(i) => {
                 self.make_writable().remove(i);
-                self.adjustments.borrow_mut().push((-1, i));
+                self.log_adjustment(-1, i);
                 true
             }
             Err(_) => false,
@@ -564,7 +574,7 @@ impl<T: Clone> emArray<T> {
             Ok(i) | Err(i) => i,
         };
         self.make_writable().insert(pos, obj);
-        self.adjustments.borrow_mut().push((1, pos));
+        self.log_adjustment(1, pos);
     }
 
     /// Insert only if no equal element exists (per `compare`). Returns `true` if inserted.
@@ -577,7 +587,7 @@ impl<T: Clone> emArray<T> {
             Ok(_) => false,
             Err(i) => {
                 self.make_writable().insert(i, obj);
-                self.adjustments.borrow_mut().push((1, i));
+                self.log_adjustment(1, i);
                 true
             }
         }
@@ -595,7 +605,7 @@ impl<T: Clone> emArray<T> {
             }
             Err(i) => {
                 self.make_writable().insert(i, obj);
-                self.adjustments.borrow_mut().push((1, i));
+                self.log_adjustment(1, i);
             }
         }
     }
@@ -608,7 +618,7 @@ impl<T: Clone> emArray<T> {
         match self.data.binary_search_by(compare) {
             Ok(i) => {
                 self.make_writable().remove(i);
-                self.adjustments.borrow_mut().push((-1, i));
+                self.log_adjustment(-1, i);
                 true
             }
             Err(_) => false,
@@ -651,7 +661,7 @@ impl<T: Clone> emArray<T> {
         match self.data.binary_search_by(|probe| extract(probe).cmp(key)) {
             Ok(i) => {
                 self.make_writable().remove(i);
-                self.adjustments.borrow_mut().push((-1, i));
+                self.log_adjustment(-1, i);
                 true
             }
             Err(_) => false,
