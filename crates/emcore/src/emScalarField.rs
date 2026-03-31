@@ -329,8 +329,8 @@ impl emScalarField {
 
         // C++ emScalarField.cpp:413-416: dim colors when disabled.
         if !enabled {
-            bg_col = bg_col.GetBlended(self.look.bg_color, 0.80);
-            fg_col = fg_col.GetBlended(self.look.bg_color, 0.80);
+            bg_col = bg_col.GetBlended(self.look.bg_color, 80.0);
+            fg_col = fg_col.GetBlended(self.look.bg_color, 80.0);
         }
 
         // C++ DoScalarField layout matching emScalarField.cpp
@@ -401,7 +401,7 @@ impl emScalarField {
         aw -= 2.0 * d;
 
         // Side bars — C++: col = bgCol.GetBlended(fgCol, 25)
-        let side_col = bg_col.GetBlended(fg_col, 0.25);
+        let side_col = bg_col.GetBlended(fg_col, 25.0);
         if ax > rx {
             painter.PaintRect(rx, ry, ax - rx, rh, side_col, canvas_color);
         }
@@ -431,7 +431,7 @@ impl emScalarField {
         // C++ emScalarField.cpp lines 438-473.
         if ival_cnt > 0 && v_range > 0.0 {
             let f = aw / v_range;
-            let mark_col = bg_col.GetBlended(fg_col, 0.66);
+            let mark_col = bg_col.GetBlended(fg_col, 66.0);
             let (scale_x, _) = painter.scaling();
             let mut mark_ty = ay;
             for &ival in ivals.iter() {

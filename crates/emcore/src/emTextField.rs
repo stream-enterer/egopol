@@ -1209,13 +1209,13 @@ impl emTextField {
         // C++ emTextField.cpp:967-971: disabled state blends colors toward BgColor.
         let (fg, bg, hl_color) = if !self.enabled {
             let base = self.look.bg_color;
-            (fg.GetBlended(base, 0.8), bg.GetBlended(base, 0.8), hl_color.GetBlended(base, 0.8))
+            (fg.GetBlended(base, 80.0), bg.GetBlended(base, 80.0), hl_color.GetBlended(base, 80.0))
         } else {
             (fg, bg, hl_color)
         };
 
         // When not focused, dim selection: bgColor.GetBlended(fgColor,40) (C++ line 977-978)
-        let sel_color = if self.focused { hl_color } else { bg.GetBlended(fg, 0.4) };
+        let sel_color = if self.focused { hl_color } else { bg.GetBlended(fg, 40.0) };
 
         // Compute selection pixel extents (C++ DoTextField col/row→xy mapping)
         let sel_info = if let Some(anchor) = self.selection_anchor {
@@ -1473,13 +1473,13 @@ impl emTextField {
         // C++ emTextField.cpp:967-971: disabled state blends colors toward BgColor.
         let (fg, bg, hl_color) = if !self.enabled {
             let base = self.look.bg_color;
-            (fg.GetBlended(base, 0.8), bg.GetBlended(base, 0.8), hl_color.GetBlended(base, 0.8))
+            (fg.GetBlended(base, 80.0), bg.GetBlended(base, 80.0), hl_color.GetBlended(base, 80.0))
         } else {
             (fg, bg, hl_color)
         };
 
         // When not focused, dim selection: bgColor.GetBlended(fgColor,40) (C++ line 977-978)
-        let sel_color = if self.focused { hl_color } else { bg.GetBlended(fg, 0.4) };
+        let sel_color = if self.focused { hl_color } else { bg.GetBlended(fg, 40.0) };
 
         let rows: Vec<&str> = self.text.split('\n').collect();
 

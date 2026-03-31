@@ -35,7 +35,7 @@ impl emLook {
 
     /// Disabled foreground: fg blended 50% toward bg.
     pub fn disabled_fg(&self) -> emColor {
-        self.fg_color.GetBlended(self.bg_color, 0.5)
+        self.fg_color.GetBlended(self.bg_color, 50.0)
     }
 
     /// emButton hover: button_bg lightened ~15%.

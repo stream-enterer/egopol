@@ -223,10 +223,9 @@ fn l3_emColor_SetGrey() {
 //
 // C++: w2 = (int)(weight*655.36+0.5); w1=65536-w2;
 //      result = (a*w1 + b*w2 + 32768) >> 16
-// NOTE: C++ weight is in [0,100] percent. Rust uses [0.0, 1.0].
-// The Rust code: w2 = (t * 65536.0 + 0.5) as i32; w1 = 65536 - w2;
-// C++ code: w2 = (weight * 655.36 + 0.5) as i32;
-// So C++ weight=100 → w2=65536, Rust t=1.0 → w2=65536. They match when Rust t = C++ weight/100.
+// Both C++ and Rust use weight in [0, 100] percent.
+// Formula: w2 = (weight * 655.36 + 0.5) as i32; w1 = 65536 - w2;
+// weight=100 → w2=65536, weight=0 → w2=0.
 
 #[cfg(kani)]
 #[kani::proof]
@@ -256,9 +255,8 @@ fn l3_emColor_GetBlended() {
     let cpp_b = ((b1 as i32 * w1_cpp + b2 as i32 * w2_cpp + 32768) >> 16) as u8;
     let cpp_a = ((a1 as i32 * w1_cpp + a2 as i32 * w2_cpp + 32768) >> 16) as u8;
 
-    // Rust: t is in [0.0, 1.0]
-    let t = weight_pct as f64 / 100.0;
-    let result = c1.GetBlended(c2, t);
+    // Rust: weight is in [0.0, 100.0] (matches C++ scale)
+    let result = c1.GetBlended(c2, weight_pct as f64);
 
     assert_eq!(result.GetRed(), cpp_r, "red mismatch at weight={weight_pct}");
     assert_eq!(result.GetGreen(), cpp_g, "green mismatch at weight={weight_pct}");
@@ -485,7 +483,7 @@ fn l3_emColor_darken_is_GetBlended_BLACK() {
     let t = amount as f64 / 100.0;
     assert_eq!(
         c.darken(t).GetPacked(),
-        c.GetBlended(emColor::BLACK, t).GetPacked()
+        c.GetBlended(emColor::BLACK, amount as f64).GetPacked()
     );
 }
 
@@ -502,7 +500,7 @@ fn l3_emColor_lighten_is_GetBlended_WHITE() {
     let t = amount as f64 / 100.0;
     assert_eq!(
         c.lighten(t).GetPacked(),
-        c.GetBlended(emColor::WHITE, t).GetPacked()
+        c.GetBlended(emColor::WHITE, amount as f64).GetPacked()
     );
 }
 

@@ -1412,7 +1412,7 @@ impl<'a> emPainter<'a> {
                 emColor::rgba(color1.GetRed(), color1.GetGreen(), color1.GetBlue(), a as u8)
             } else {
                 let t = lum as f64 / 255.0;
-                color1.GetBlended(color2, t)
+                color1.GetBlended(color2, t * 100.0)
             }
         };
 
@@ -5516,7 +5516,7 @@ impl<'a> emPainter<'a> {
                     return *color_a;
                 }
                 let t = ((px - start.0) * dx + (py - start.1) * dy) / len_sq;
-                color_a.GetBlended(*color_b, t.clamp(0.0, 1.0))
+                color_a.GetBlended(*color_b, (t * 100.0).clamp(0.0, 100.0))
             }
             PixelTexture::RadialGradient {
                 color_inner,
@@ -5547,7 +5547,7 @@ impl<'a> emPainter<'a> {
                     255
                 };
                 // factor is 0–255: 0=center (inner), 255=edge (outer).
-                color_inner.GetBlended(*color_outer, factor as f64 / 255.0)
+                color_inner.GetBlended(*color_outer, factor as f64 * 100.0 / 255.0)
             }
             PixelTexture::emImage {
                 image,

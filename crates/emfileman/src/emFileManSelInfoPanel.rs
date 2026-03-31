@@ -467,7 +467,7 @@ impl emFileManSelInfoPanel {
                     (msg, emColor::from_packed(0xFF0000FF))
                 }
             };
-            let blended = color.GetBlended(blend_color, 0.5);
+            let blended = color.GetBlended(blend_color, 50.0);
             painter.PaintTextBoxed(
                 x,
                 y,

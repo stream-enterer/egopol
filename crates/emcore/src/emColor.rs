@@ -221,13 +221,13 @@ impl emColor {
     // amount is [0,1] not [-100,100]
     /// Lighten the color by mixing with white. `amount` in [0.0, 1.0].
     pub fn lighten(self, amount: f64) -> emColor {
-        self.GetBlended(emColor::WHITE, amount)
+        self.GetBlended(emColor::WHITE, amount * 100.0)
     }
 
     // DIVERGED: GetLighted (negative range) — see lighten; darken covers the negative half
     /// Darken the color by mixing with black. `amount` in [0.0, 1.0].
     pub fn darken(self, amount: f64) -> emColor {
-        self.GetBlended(emColor::BLACK, amount)
+        self.GetBlended(emColor::BLACK, amount * 100.0)
     }
 
     /// Standard alpha blend: `self` over `other` using `alpha` (0–255).
@@ -250,15 +250,18 @@ impl emColor {
         emColor::rgba(self.GetRed(), self.GetGreen(), self.GetBlue(), a)
     }
 
-    /// Linearly interpolate between `self` and `other` by factor `t` (0.0–1.0).
+    /// Linearly interpolate between `self` and `other` by weight `weight` (0.0–100.0).
     ///
     /// Matches C++ `emColor::GetBlended(color, weight)` with 16-bit precision:
     /// `w2 = (int)(weight * 655.36 + 0.5)`, `result = (a*w1 + b*w2 + 32768) >> 16`.
-    /// C++ weight is 0–100; our `t` is 0.0–1.0, so `t * 100.0 * 655.36 = t * 65536.0`.
-    // DIVERGED: GetBlended — t is [0,1] not [0,100] percent
-    pub fn GetBlended(self, other: emColor, t: f64) -> emColor {
-        let t = t.clamp(0.0, 1.0);
-        let w2 = (t * 65536.0 + 0.5) as i32;
+    pub fn GetBlended(self, other: emColor, weight: f64) -> emColor {
+        if weight <= 0.0 {
+            return self;
+        }
+        if weight >= 100.0 {
+            return other;
+        }
+        let w2 = (weight * 655.36 + 0.5) as i32;
         let w1 = 65536 - w2;
         let mix = |a: i32, b: i32| -> u8 { ((a * w1 + b * w2 + 32768) >> 16) as u8 };
         emColor::rgba(
@@ -754,30 +757,23 @@ mod tests {
 
     #[test]
     fn test_lerp_interpolates_alpha() {
-        // lerp RGBA(0,0,0,0) -> RGBA(255,255,255,255) at t=0.5
         let a = emColor::rgba(0, 0, 0, 0);
         let b = emColor::rgba(255, 255, 255, 255);
-        let result = a.GetBlended(b, 0.5);
+        let result = a.GetBlended(b, 50.0);
 
-        // C++ formula: w2 = (0.5 * 65536 + 0.5) as i32 = 32768
+        // C++ formula: w2 = (50.0 * 655.36 + 0.5) as i32 = 32768
         // mix(0, 255) = (0 * (65536-32768) + 255 * 32768 + 32768) >> 16
         //             = (8355840 + 32768) >> 16 = 8388608 >> 16 = 128
-        assert_eq!(
-            result.GetAlpha(),
-            128,
-            "lerp alpha at t=0.5: got {} expected 128",
-            result.GetAlpha()
-        );
-        // RGB should match alpha since inputs are symmetric
+        assert_eq!(result.GetAlpha(), 128, "lerp alpha at weight=50: got {} expected 128", result.GetAlpha());
         assert_eq!(result.GetRed(), result.GetAlpha());
         assert_eq!(result.GetGreen(), result.GetAlpha());
         assert_eq!(result.GetBlue(), result.GetAlpha());
 
         // Verify endpoints
         let at_zero = a.GetBlended(b, 0.0);
-        assert_eq!(at_zero.GetAlpha(), 0, "lerp alpha at t=0.0 should be 0");
-        let at_one = a.GetBlended(b, 1.0);
-        assert_eq!(at_one.GetAlpha(), 255, "lerp alpha at t=1.0 should be 255");
+        assert_eq!(at_zero.GetAlpha(), 0, "lerp alpha at weight=0 should be 0");
+        let at_hundred = a.GetBlended(b, 100.0);
+        assert_eq!(at_hundred.GetAlpha(), 255, "lerp alpha at weight=100 should be 255");
     }
 
     #[test]

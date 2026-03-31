@@ -1176,7 +1176,7 @@ pub(crate) fn sample_linear_gradient(
         return c0;
     }
     let t = ((point.0 - start.0) * dx + (point.1 - start.1) * dy) / len_sq;
-    c0.GetBlended(c1, t.clamp(0.0, 1.0))
+    c0.GetBlended(c1, (t * 100.0).clamp(0.0, 100.0))
 }
 
 /// Scanline area-sampled interpolation: fills `buf` with `count` consecutive

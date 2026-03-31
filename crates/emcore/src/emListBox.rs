@@ -176,9 +176,9 @@ impl PanelBehavior for DefaultItemPanelBehavior {
         let (bg, fg, hl) = if !self.enabled {
             let base = self.look.bg_color;
             (
-                bg.GetBlended(base, 0.80),
-                fg.GetBlended(base, 0.80),
-                hl.GetBlended(base, 0.80),
+                bg.GetBlended(base, 80.0),
+                fg.GetBlended(base, 80.0),
+                hl.GetBlended(base, 80.0),
             )
         } else {
             (bg, fg, hl)
@@ -1039,9 +1039,9 @@ impl emListBox {
         let (bg, fg, hl) = if !self.enabled {
             let base = self.look.bg_color;
             (
-                bg.GetBlended(base, 0.80),
-                fg.GetBlended(base, 0.80),
-                hl.GetBlended(base, 0.80),
+                bg.GetBlended(base, 80.0),
+                fg.GetBlended(base, 80.0),
+                hl.GetBlended(base, 80.0),
             )
         } else {
             (bg, fg, hl)

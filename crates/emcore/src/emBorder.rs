@@ -1500,7 +1500,7 @@ How to move or set the focus:\n\
                 let bg = if enabled {
                     look.input_bg_color
                 } else {
-                    look.input_bg_color.GetBlended(look.bg_color, 0.80)
+                    look.input_bg_color.GetBlended(look.bg_color, 80.0)
                 };
                 canvas = bg;
             }
@@ -1508,7 +1508,7 @@ How to move or set the focus:\n\
                 let bg = if enabled {
                     look.output_bg_color
                 } else {
-                    look.output_bg_color.GetBlended(look.bg_color, 0.80)
+                    look.output_bg_color.GetBlended(look.bg_color, 80.0)
                 };
                 canvas = bg;
             }
@@ -2105,7 +2105,7 @@ How to move or set the focus:\n\
                 let bg = if enabled {
                     look.input_bg_color
                 } else {
-                    look.input_bg_color.GetBlended(look.bg_color, 0.80)
+                    look.input_bg_color.GetBlended(look.bg_color, 80.0)
                 };
                 // C++ insets the round rect by d = (16/216)*rndR, but paints the
                 // border image at the full substance rect (rndX,rndY,rndW,rndH).
@@ -2128,7 +2128,7 @@ How to move or set the focus:\n\
                 let bg = if enabled {
                     look.output_bg_color
                 } else {
-                    look.output_bg_color.GetBlended(look.bg_color, 0.80)
+                    look.output_bg_color.GetBlended(look.bg_color, 80.0)
                 };
                 let d = (16.0 / 216.0) * inner_r;
                 let tr = inner_r - d;
