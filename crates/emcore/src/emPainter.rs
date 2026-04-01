@@ -2396,6 +2396,196 @@ impl<'a> emPainter<'a> {
         self.state.alpha = saved_alpha;
     }
 
+    /// Draw a 9-slice border image from a sub-rectangle of the source image.
+    ///
+    /// DIVERGED: C++ `PaintBorderImage` (overload with srcX,srcY,srcW,srcH).
+    /// Rust cannot overload, so this is a separate method.
+    ///
+    /// `src_x,src_y,src_w,src_h` select a sub-rectangle within `image`.
+    /// `src_l,src_t,src_r,src_b` are border margins within that sub-rectangle.
+    #[allow(clippy::too_many_arguments)]
+    pub fn PaintBorderImageSrcRect(
+        &mut self,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        l: f64,
+        t: f64,
+        r: f64,
+        b: f64,
+        image: &emImage,
+        src_x: i32,
+        src_y: i32,
+        src_w: i32,
+        src_h: i32,
+        src_l: i32,
+        src_t: i32,
+        src_r: i32,
+        src_b: i32,
+        alpha: u8,
+        canvas_color: emColor,
+        which_sub_rects: u16,
+    ) {
+        if alpha == 0 || w <= 0.0 || h <= 0.0 {
+            return;
+        }
+        // Record uses the short-form DrawOp (src_l/src_t/src_r/src_b only).
+        // This is acceptable because the draw list replay goes through the same
+        // painter methods and the recording is for debugging/testing only.
+        let Some(proof) = self.try_record(DrawOp::PaintBorderImage {
+            x,
+            y,
+            w,
+            h,
+            l,
+            t,
+            r,
+            b,
+            image_ptr: image as *const emImage,
+            src_l,
+            src_t,
+            src_r,
+            src_b,
+            alpha,
+            canvas_color,
+            which_sub_rects,
+        }) else { return; };
+
+        let quality = super::emTexture::ImageQuality::Bilinear;
+        let ext = super::emTexture::ImageExtension::Clamp;
+
+        // Source sub-rectangle origin and size (pixel coords).
+        let sx0 = src_x as f64;
+        let sy0 = src_y as f64;
+        let iw = src_w as f64;
+        let ih = src_h as f64;
+
+        // Target insets (logical).
+        let mut l = l.min(w / 2.0);
+        let mut r = r.min(w / 2.0);
+        let mut t = t.min(h / 2.0);
+        let mut b = b.min(h / 2.0);
+
+        // R-6: pixel-round inset boundaries when canvas_color is not opaque.
+        if !canvas_color.IsOpaque() {
+            let f = self.RoundX(x + l) - x;
+            if f > 0.0 && f < w - r {
+                l = f;
+            }
+            let f = x + w - self.RoundX(x + w - r);
+            if f > 0.0 && f < w - l {
+                r = f;
+            }
+            let f = self.RoundY(y + t) - y;
+            if f > 0.0 && f < h - b {
+                t = f;
+            }
+            let f = y + h - self.RoundY(y + h - b);
+            if f > 0.0 && f < h - t {
+                b = f;
+            }
+        }
+
+        // Source insets (pixel coords within sub-rect).
+        let sl = src_l as f64;
+        let st = src_t as f64;
+        let sr = src_r as f64;
+        let sb = src_b as f64;
+
+        // Source center region.
+        let src_cx = iw - sl - sr;
+        let src_cy = ih - st - sb;
+
+        // Destination center region.
+        let dst_cx = w - l - r;
+        let dst_cy = h - t - b;
+
+        let saved_alpha = self.state.alpha;
+        let saved_canvas = self.state.canvas_color;
+        self.state.canvas_color = canvas_color;
+        if alpha < 255 {
+            self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
+        }
+
+        // Bit layout (octal digit positions):
+        //  8=UL  5=U   2=UR
+        //  7=L   4=C   1=R
+        //  6=LL  3=B   0=LR
+
+        // Corners.
+        if which_sub_rects & (1 << 8) != 0 {
+            self.paint_9slice_section(proof, x, y, l, t, image, sx0, sy0, sl, st, quality, ext);
+        }
+        if which_sub_rects & (1 << 2) != 0 {
+            self.paint_9slice_section(proof,
+                x + w - r, y, r, t,
+                image, sx0 + iw - sr, sy0, sr, st,
+                quality, ext,
+            );
+        }
+        if which_sub_rects & (1 << 6) != 0 {
+            self.paint_9slice_section(proof,
+                x, y + h - b, l, b,
+                image, sx0, sy0 + ih - sb, sl, sb,
+                quality, ext,
+            );
+        }
+        if which_sub_rects & (1 << 0) != 0 {
+            self.paint_9slice_section(proof,
+                x + w - r, y + h - b, r, b,
+                image, sx0 + iw - sr, sy0 + ih - sb, sr, sb,
+                quality, ext,
+            );
+        }
+
+        // Edges.
+        if dst_cx > 0.0 {
+            if which_sub_rects & (1 << 5) != 0 {
+                self.paint_9slice_section(proof,
+                    x + l, y, dst_cx, t,
+                    image, sx0 + sl, sy0, src_cx, st,
+                    quality, ext,
+                );
+            }
+            if which_sub_rects & (1 << 3) != 0 {
+                self.paint_9slice_section(proof,
+                    x + l, y + h - b, dst_cx, b,
+                    image, sx0 + sl, sy0 + ih - sb, src_cx, sb,
+                    quality, ext,
+                );
+            }
+        }
+        if dst_cy > 0.0 {
+            if which_sub_rects & (1 << 7) != 0 {
+                self.paint_9slice_section(proof,
+                    x, y + t, l, dst_cy,
+                    image, sx0, sy0 + st, sl, src_cy,
+                    quality, ext,
+                );
+            }
+            if which_sub_rects & (1 << 1) != 0 {
+                self.paint_9slice_section(proof,
+                    x + w - r, y + t, r, dst_cy,
+                    image, sx0 + iw - sr, sy0 + st, sr, src_cy,
+                    quality, ext,
+                );
+            }
+        }
+
+        // Center.
+        if which_sub_rects & (1 << 4) != 0 && dst_cx > 0.0 && dst_cy > 0.0 {
+            self.paint_9slice_section(proof,
+                x + l, y + t, dst_cx, dst_cy,
+                image, sx0 + sl, sy0 + st, src_cx, src_cy,
+                quality, ext,
+            );
+        }
+
+        self.state.canvas_color = saved_canvas;
+        self.state.alpha = saved_alpha;
+    }
+
     /// Draw a 9-slice border image with two-color tinting.
     ///
     /// `l,t,r,b` are **target** insets (logical coordinates).

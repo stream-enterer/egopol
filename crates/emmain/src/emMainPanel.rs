@@ -298,17 +298,67 @@ impl PanelBehavior for emMainPanel {
         Some("Eagle Mode".to_string())
     }
 
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        // Paint the slider area background (black separator strip on the right).
-        let slider_strip_x = self.slider_x;
-        painter.PaintRect(
-            slider_strip_x,
-            0.0,
-            w - slider_strip_x,
-            h,
-            emColor::from_packed(0x000000FF),
-            emColor::TRANSPARENT,
-        );
+    fn Paint(&mut self, painter: &mut emPainter, _w: f64, _h: f64, _state: &PanelState) {
+        // Port of C++ emMainPanel::Paint (emMainPanel.cpp:167-222).
+
+        if self.content_y <= 1e-10 {
+            return;
+        }
+
+        let d = self.control_h * 0.007;
+        let x1 = 0.0;
+        let y1 = 0.0;
+        let w1 = self.control_x - d;
+        let h1 = self.control_h;
+        let x2 = self.control_x + self.control_w + d;
+        let y2 = 0.0;
+        let w2 = 1.0 - x2;
+        let h2 = self.control_h;
+
+        // Separator strip below control area.
+        let sx = 0.0;
+        let sy = painter.RoundDownY(self.control_h);
+        let sw = 1.0;
+        let sh = painter.RoundUpY(self.content_y) - sy;
+        painter.PaintRect(sx, sy, sw, sh, emColor::from_packed(0x000000FF), emColor::TRANSPARENT);
+
+        let d = self.control_h * 0.015;
+
+        // Left control edge.
+        if self.control_x > 1e-10 {
+            let bx = painter.RoundDownX(x1 + w1);
+            let by = 0.0;
+            let bw = painter.RoundUpX(self.control_x) - bx;
+            let bh = painter.RoundUpY(self.content_y);
+            painter.PaintRect(bx, by, bw, bh, emColor::from_packed(0x000000FF), emColor::TRANSPARENT);
+            painter.PaintRect(x1, y1, w1, h1, self.control_edges_color, self.control_edges_color);
+            painter.PaintBorderImageSrcRect(
+                x1, y1, w1, h1,
+                0.0, d, d, d,
+                &self.control_edges_image,
+                191, 0, 190, 11,
+                0, 5, 5, 5,
+                255, self.control_edges_color, 0o57,
+            );
+        }
+
+        // Right control edge.
+        if 1.0 - self.control_x - self.control_w > 1e-10 {
+            let bx = painter.RoundDownX(self.control_x + self.control_w);
+            let by = 0.0;
+            let bw = painter.RoundUpX(x2) - bx;
+            let bh = painter.RoundUpY(self.content_y);
+            painter.PaintRect(bx, by, bw, bh, emColor::from_packed(0x000000FF), emColor::TRANSPARENT);
+            painter.PaintRect(x2, y2, w2, h2, self.control_edges_color, self.control_edges_color);
+            painter.PaintBorderImageSrcRect(
+                x2, y2, w2, h2,
+                d, d, 0.0, d,
+                &self.control_edges_image,
+                0, 0, 190, 11,
+                5, 5, 0, 5,
+                255, self.control_edges_color, 0o750,
+            );
+        }
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
@@ -552,5 +602,13 @@ mod tests {
         let panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         assert!(panel.GetControlEdgesImage().GetWidth() > 0);
         assert!(panel.GetControlEdgesImage().GetHeight() > 0);
+    }
+
+    #[test]
+    fn test_paint_skips_when_content_at_top() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
+        panel.content_y = 0.0;
+        assert!(panel.content_y <= 1e-10);
     }
 }
