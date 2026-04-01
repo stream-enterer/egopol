@@ -1176,7 +1176,18 @@ pub(crate) fn sample_linear_gradient(
         return c0;
     }
     let t = ((point.0 - start.0) * dx + (point.1 - start.1) * dy) / len_sq;
-    c0.GetBlended(c1, (t * 100.0).clamp(0.0, 100.0))
+    // C++ gradient pipeline (emPainter_ScTlPSInt.cpp:297) uses the hash formula,
+    // NOT emColor::GetBlended. The hash formula: ((c1*(255-g) + c2*g) * 257 + 0x8073) >> 16.
+    let g = (t.clamp(0.0, 1.0) * 255.0 + 0.5) as i32;
+    let mix = |a: i32, b: i32| -> u8 {
+        (((a * (255 - g) + b * g) * 257 + 0x8073) >> 16) as u8
+    };
+    emColor::rgba(
+        mix(c0.GetRed() as i32, c1.GetRed() as i32),
+        mix(c0.GetGreen() as i32, c1.GetGreen() as i32),
+        mix(c0.GetBlue() as i32, c1.GetBlue() as i32),
+        mix(c0.GetAlpha() as i32, c1.GetAlpha() as i32),
+    )
 }
 
 /// Scanline area-sampled interpolation: fills `buf` with `count` consecutive

@@ -5706,7 +5706,16 @@ impl<'a> emPainter<'a> {
                     return *color_a;
                 }
                 let t = ((px - start.0) * dx + (py - start.1) * dy) / len_sq;
-                color_a.GetBlended(*color_b, (t * 100.0).clamp(0.0, 100.0))
+                let g = (t.clamp(0.0, 1.0) * 255.0 + 0.5) as i32;
+                let mix = |a: i32, b: i32| -> u8 {
+                    (((a * (255 - g) + b * g) * 257 + 0x8073) >> 16) as u8
+                };
+                emColor::rgba(
+                    mix(color_a.GetRed() as i32, color_b.GetRed() as i32),
+                    mix(color_a.GetGreen() as i32, color_b.GetGreen() as i32),
+                    mix(color_a.GetBlue() as i32, color_b.GetBlue() as i32),
+                    mix(color_a.GetAlpha() as i32, color_b.GetAlpha() as i32),
+                )
             }
             PixelTexture::RadialGradient {
                 color_inner,
@@ -5737,7 +5746,17 @@ impl<'a> emPainter<'a> {
                     255
                 };
                 // factor is 0–255: 0=center (inner), 255=edge (outer).
-                color_inner.GetBlended(*color_outer, factor as f64 * 100.0 / 255.0)
+                // C++ gradient pipeline uses hash formula, not GetBlended.
+                let g = factor as i32;
+                let mix = |a: i32, b: i32| -> u8 {
+                    (((a * (255 - g) + b * g) * 257 + 0x8073) >> 16) as u8
+                };
+                emColor::rgba(
+                    mix(color_inner.GetRed() as i32, color_outer.GetRed() as i32),
+                    mix(color_inner.GetGreen() as i32, color_outer.GetGreen() as i32),
+                    mix(color_inner.GetBlue() as i32, color_outer.GetBlue() as i32),
+                    mix(color_inner.GetAlpha() as i32, color_outer.GetAlpha() as i32),
+                )
             }
             PixelTexture::emImage {
                 image,
