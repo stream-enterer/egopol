@@ -46,7 +46,7 @@ fn main() {
     let setup = Box::new(
         move |app: &mut emcore::emGUIFramework::App,
               event_loop: &winit::event_loop::ActiveEventLoop| {
-            emMain::emMainWindow::create_main_window(app, event_loop, &config);
+            let _mw = emMain::emMainWindow::create_main_window(app, event_loop, config);
         },
     );
 
