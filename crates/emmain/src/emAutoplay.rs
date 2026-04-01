@@ -1,5 +1,7 @@
 use emcore::emConfigModel::emConfigModel;
 use emcore::emContext::emContext;
+use emcore::emInput::{emInputEvent, InputKey};
+use emcore::emInputState::emInputState;
 use emcore::emInstallInfo::{emGetInstallPath, InstallDirType};
 use emcore::emPanelTree::{AutoplayHandlingFlags, DecodeIdentity, EncodeIdentity, PanelId, PanelTree};
 use emcore::emRec::{RecError, RecStruct};
@@ -835,6 +837,10 @@ pub struct emAutoplayViewModel {
     pub(crate) ItemProgress: f64,
     pub(crate) PlayingItem: bool,
     pub(crate) PlaybackActive: bool,
+    pub(crate) ViewAnimator: emAutoplayViewAnimator,
+    pub(crate) ItemPlayStartTime: std::time::Instant,
+    pub(crate) ScreensaverInhibited: bool,
+    pub(crate) PlayedAnyInCurrentSession: bool,
 }
 
 impl emAutoplayViewModel {
@@ -850,6 +856,10 @@ impl emAutoplayViewModel {
             ItemProgress: 0.0,
             PlayingItem: false,
             PlaybackActive: false,
+            ViewAnimator: emAutoplayViewAnimator::new(),
+            ItemPlayStartTime: std::time::Instant::now(),
+            ScreensaverInhibited: false,
+            PlayedAnyInCurrentSession: false,
         }
     }
 
@@ -882,12 +892,29 @@ impl emAutoplayViewModel {
     }
 
     pub fn SetAutoplaying(&mut self, autoplaying: bool) {
+        if autoplaying == self.Autoplaying {
+            return;
+        }
         self.Autoplaying = autoplaying;
+        if autoplaying {
+            self.ViewAnimator.SetRecursive(self.Recursive);
+            self.ViewAnimator.SetLoop(self.Loop);
+            self.ScreensaverInhibited = true;
+            self.PlayedAnyInCurrentSession = false;
+        } else {
+            self.StopItemPlaying();
+            self.ViewAnimator.ClearGoal();
+            self.ScreensaverInhibited = false;
+        }
     }
 
     /// Returns the fractional progress through the current item (0.0..=1.0).
     pub fn GetItemProgress(&self) -> f64 {
         self.ItemProgress
+    }
+
+    pub fn SetItemProgress(&mut self, progress: f64) {
+        self.ItemProgress = progress.clamp(0.0, 1.0);
     }
 
     pub fn IsLastLocationValid(&self) -> bool {
@@ -912,6 +939,119 @@ impl emAutoplayViewModel {
 
     pub fn IsPlaybackActive(&self) -> bool {
         self.PlaybackActive
+    }
+
+    pub fn CanContinueLastAutoplay(&self) -> bool {
+        !self.Autoplaying && self.LastLocationValid
+    }
+
+    pub fn ContinueLastAutoplay(&mut self) {
+        if self.CanContinueLastAutoplay() {
+            let loc = self.LastLocation.clone();
+            self.ViewAnimator.SetGoalToItemAt(&loc);
+            self.SetAutoplaying(true);
+        }
+    }
+
+    fn StartItemPlaying(&mut self) {
+        self.StopItemPlaying();
+        self.PlayingItem = true;
+        self.PlaybackActive = false;
+        self.ItemPlayStartTime = std::time::Instant::now();
+        self.PlayedAnyInCurrentSession = true;
+    }
+
+    fn StopItemPlaying(&mut self) {
+        if self.PlayingItem {
+            self.PlayingItem = false;
+            self.PlaybackActive = false;
+            self.ItemProgress = 0.0;
+        }
+    }
+
+    fn UpdateItemPlaying(&mut self) {
+        if !self.PlayingItem || self.PlaybackActive {
+            return;
+        }
+        let elapsed = self.ItemPlayStartTime.elapsed().as_millis() as f64;
+        let duration = self.DurationMS as f64;
+        let progress = if duration > 0.0 {
+            (elapsed / duration).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        self.SetItemProgress(progress);
+        if progress >= 1.0 {
+            self.StopItemPlaying();
+            self.ViewAnimator.SkipToNextItem();
+        }
+    }
+
+    /// Port of C++ `emAutoplayViewModel::Cycle` (emAutoplay.cpp:870-901).
+    pub fn Cycle(&mut self, tree: &PanelTree) -> bool {
+        self.UpdateItemPlaying();
+
+        if self.Autoplaying {
+            self.ViewAnimator.LowPriCycle(tree);
+
+            if self.ViewAnimator.HasReachedGoal() {
+                let identity = self
+                    .ViewAnimator
+                    .GetCurrentPanelIdentity()
+                    .to_string();
+                self.StartItemPlaying();
+                self.SaveLocation(&identity);
+            } else if self.ViewAnimator.HasGivenUp() {
+                self.SetAutoplaying(false);
+            }
+        }
+
+        self.Autoplaying || self.ViewAnimator.HasGoal()
+    }
+
+    fn SaveLocation(&mut self, identity: &str) {
+        self.LastLocationValid = true;
+        self.LastLocation = identity.to_string();
+    }
+
+    pub fn SkipToPreviousItem(&mut self) {
+        if self.ViewAnimator.HasGoal() {
+            self.ViewAnimator.SkipToPreviousItem();
+        } else {
+            let loc = self.LastLocation.clone();
+            self.ViewAnimator.SetGoalToPreviousItemOf(&loc);
+        }
+    }
+
+    pub fn SkipToNextItem(&mut self) {
+        if self.ViewAnimator.HasGoal() {
+            self.ViewAnimator.SkipToNextItem();
+        } else {
+            let loc = self.LastLocation.clone();
+            self.ViewAnimator.SetGoalToNextItemOf(&loc);
+        }
+    }
+
+    pub fn Input(&mut self, event: &emInputEvent, input_state: &emInputState) -> bool {
+        match event.key {
+            InputKey::F12 if !input_state.GetShift() && input_state.GetCtrl() => {
+                self.SetAutoplaying(!self.Autoplaying);
+                true
+            }
+            InputKey::F12 if input_state.GetShift() && input_state.GetCtrl() => {
+                self.ContinueLastAutoplay();
+                true
+            }
+            InputKey::F12 if !input_state.GetShift() && !input_state.GetCtrl() => {
+                self.SkipToNextItem();
+                true
+            }
+            InputKey::F12 if input_state.GetShift() && !input_state.GetCtrl() => {
+                self.SkipToPreviousItem();
+                true
+            }
+            _ => false,
+        }
     }
 }
 
@@ -1559,5 +1699,59 @@ mod tests {
         let result = va.LowPriCycle(&tree);
         assert!(!result);
         assert_eq!(va.State, AutoplayState::GivenUp);
+    }
+
+    // ── emAutoplayViewModel Cycle tests ──────────────────────────────
+
+    #[test]
+    fn test_view_model_set_autoplaying_activates() {
+        let mut vm = emAutoplayViewModel::new();
+        vm.Recursive = true;
+        vm.Loop = true;
+        vm.SetAutoplaying(true);
+        assert!(vm.IsAutoplaying());
+        assert!(vm.ScreensaverInhibited);
+        assert!(!vm.PlayedAnyInCurrentSession);
+        assert!(vm.ViewAnimator.IsRecursive());
+        assert!(vm.ViewAnimator.IsLoop());
+    }
+
+    #[test]
+    fn test_view_model_set_autoplaying_deactivates() {
+        let mut vm = emAutoplayViewModel::new();
+        vm.SetAutoplaying(true);
+        vm.PlayingItem = true;
+        vm.ScreensaverInhibited = true;
+        vm.SetAutoplaying(false);
+        assert!(!vm.IsAutoplaying());
+        assert!(!vm.ScreensaverInhibited);
+        assert!(!vm.IsPlayingItem());
+    }
+
+    #[test]
+    fn test_view_model_can_continue_last() {
+        let mut vm = emAutoplayViewModel::new();
+        // Not autoplaying, no last location → cannot continue
+        assert!(!vm.CanContinueLastAutoplay());
+
+        vm.LastLocationValid = true;
+        vm.LastLocation = "root:a".to_string();
+        // Not autoplaying, has last location → can continue
+        assert!(vm.CanContinueLastAutoplay());
+
+        vm.SetAutoplaying(true);
+        // Currently autoplaying → cannot continue
+        assert!(!vm.CanContinueLastAutoplay());
+    }
+
+    #[test]
+    fn test_view_model_item_progress_clamped() {
+        let mut vm = emAutoplayViewModel::new();
+        vm.SetItemProgress(1.5);
+        assert!((vm.GetItemProgress() - 1.0).abs() < 1e-10);
+        vm.SetItemProgress(-0.5);
+        assert!(vm.GetItemProgress().abs() < 1e-10);
+        vm.SetItemProgress(0.5);
+        assert!((vm.GetItemProgress() - 0.5).abs() < 1e-10);
     }
 }
