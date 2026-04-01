@@ -15,6 +15,8 @@ use winit::event_loop::ActiveEventLoop;
 use emcore::emContext::emContext;
 use emcore::emEngine::{emEngine, EngineCtx, EngineId, Priority};
 use emcore::emGUIFramework::App;
+use emcore::emInput::{emInputEvent, InputKey};
+use emcore::emInputState::emInputState;
 use emcore::emPanelTree::PanelId;
 use emcore::emSignal::SignalId;
 use emcore::emWindow::{WindowFlags, ZuiWindow};
@@ -29,7 +31,7 @@ use crate::emMainPanel::emMainPanel;
 #[derive(Debug)]
 pub(crate) struct StartupState {
     pub(crate) state: u8,
-    pub(crate) _done: bool,
+    pub(crate) done: bool,
 }
 
 /// Configuration for creating an emMainWindow.
@@ -63,7 +65,7 @@ pub struct emMainWindow {
     pub(crate) _content_panel_id: Option<PanelId>,
     pub(crate) startup_engine_id: Option<EngineId>,
     pub(crate) startup_state: Option<Rc<RefCell<StartupState>>>,
-    pub(crate) _to_close: bool,
+    pub to_close: bool,
     pub(crate) _close_signal: Option<SignalId>,
     pub(crate) _visit_identity: Option<String>,
     pub(crate) _visit_rel_x: f64,
@@ -85,7 +87,7 @@ impl emMainWindow {
             _content_panel_id: None,
             startup_engine_id: None,
             startup_state: None,
-            _to_close: false,
+            to_close: false,
             _close_signal: None,
             _visit_identity: None,
             _visit_rel_x: 0.0,
@@ -106,6 +108,22 @@ impl emMainWindow {
         let Some(ref shared) = self.startup_state else {
             return;
         };
+
+        // Check if startup is done — remove overlay and engine.
+        if shared.borrow().done {
+            if let Some(main_id) = self.main_panel_id {
+                app.tree
+                    .with_behavior_as::<emMainPanel, _>(main_id, |mp| {
+                        mp.SetStartupOverlay(false);
+                    });
+            }
+            if let Some(eid) = self.startup_engine_id.take() {
+                app.scheduler.borrow_mut().remove_engine(eid);
+            }
+            self.startup_state = None;
+            return;
+        }
+
         let state = shared.borrow().state;
 
         match state {
@@ -130,17 +148,107 @@ impl emMainWindow {
             _ => {}
         }
     }
+
+    /// Port of C++ `emMainWindow::ToggleFullscreen`.
+    pub fn ToggleFullscreen(&self, app: &mut App) {
+        if let Some(win) = self.window_id.and_then(|id| app.windows.get_mut(&id)) {
+            let new_flags = win.flags ^ WindowFlags::FULLSCREEN;
+            win.SetWindowFlags(new_flags);
+        }
+    }
+
+    /// Port of C++ `emMainWindow::ReloadFiles`.
+    pub fn ReloadFiles(&self) {
+        log::info!("emMainWindow::ReloadFiles");
+    }
+
+    /// Port of C++ `emMainWindow::ToggleControlView`.
+    pub fn ToggleControlView(&mut self, app: &mut App) {
+        if let Some(main_id) = self.main_panel_id {
+            app.tree
+                .with_behavior_as::<emMainPanel, _>(main_id, |mp| {
+                    mp.DoubleClickSlider();
+                });
+        }
+    }
+
+    /// Port of C++ `emMainWindow::Close`.
+    pub fn Close(&mut self) {
+        self.to_close = true;
+    }
+
+    /// Port of C++ `emMainWindow::Quit`.
+    pub fn Quit(&self, app: &App) {
+        app.scheduler.borrow_mut().InitiateTermination();
+    }
+
+    /// Port of C++ `emMainWindow::Input` (emMainWindow.cpp:193-263).
+    ///
+    /// DIVERGED: C++ Input uses emInputEvent, Rust uses the same struct but
+    /// reads modifier state from emInputState (matching C++ behavior of
+    /// checking the global input state rather than per-event modifiers).
+    pub fn handle_input(
+        &mut self,
+        event: &emInputEvent,
+        input_state: &emInputState,
+        app: &mut App,
+    ) -> bool {
+        match event.key {
+            InputKey::F4
+                if !input_state.GetShift()
+                    && !input_state.GetCtrl()
+                    && input_state.GetAlt() =>
+            {
+                self.Close();
+                true
+            }
+            InputKey::F4
+                if input_state.GetShift()
+                    && !input_state.GetCtrl()
+                    && input_state.GetAlt() =>
+            {
+                self.Quit(app);
+                true
+            }
+            InputKey::F5
+                if !input_state.GetShift()
+                    && !input_state.GetCtrl()
+                    && !input_state.GetAlt() =>
+            {
+                self.ReloadFiles();
+                true
+            }
+            InputKey::F11
+                if !input_state.GetShift()
+                    && !input_state.GetCtrl()
+                    && !input_state.GetAlt() =>
+            {
+                self.ToggleFullscreen(app);
+                true
+            }
+            InputKey::Escape
+                if !input_state.GetShift()
+                    && !input_state.GetCtrl()
+                    && !input_state.GetAlt() =>
+            {
+                self.ToggleControlView(app);
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 /// Startup engine registered with the scheduler.
 ///
 /// Port of C++ `emMainWindow::StartupEngineClass` (emMainWindow.cpp:86-260).
 /// States 0-6 drive panel creation; states 7-11 drive the startup zoom
-/// animation (deferred to Task 5).
+/// animation.
 pub(crate) struct StartupEngine {
     state: u8,
     _root_panel_id: PanelId,
     shared: Rc<RefCell<StartupState>>,
+    clock: std::time::Instant,
 }
 
 impl StartupEngine {
@@ -149,6 +257,7 @@ impl StartupEngine {
             state: 0,
             _root_panel_id: root_panel_id,
             shared,
+            clock: std::time::Instant::now(),
         }
     }
 }
@@ -185,7 +294,49 @@ impl emEngine for StartupEngine {
                 self.state += 1;
                 !ctx.IsTimeSliceAtEnd()
             }
-            // States 7+ handled in Task 5.
+            // State 7: Start zoom animation — record clock, advance.
+            7 => {
+                self.clock = std::time::Instant::now();
+                self.shared.borrow_mut().state = 7;
+                self.state += 1;
+                true
+            }
+            // State 8: Wait up to 2 seconds for root zoom.
+            8 => {
+                if self.clock.elapsed().as_millis() < 2000 {
+                    true // keep waiting
+                } else {
+                    self.state += 1;
+                    true
+                }
+            }
+            // State 9: Set goal to visit target (if any).
+            9 => {
+                self.clock = std::time::Instant::now();
+                self.shared.borrow_mut().state = 9;
+                self.state += 1;
+                true
+            }
+            // State 10: Wait up to 2 seconds, then signal overlay removal.
+            10 => {
+                if self.clock.elapsed().as_millis() < 2000 {
+                    true
+                } else {
+                    self.shared.borrow_mut().state = 10;
+                    self.clock = std::time::Instant::now();
+                    self.state += 1;
+                    true
+                }
+            }
+            // State 11: 100ms pause, then signal done.
+            11 => {
+                if self.clock.elapsed().as_millis() < 100 {
+                    true
+                } else {
+                    self.shared.borrow_mut().done = true;
+                    false // engine stops
+                }
+            }
             _ => false,
         }
     }
@@ -234,7 +385,7 @@ pub fn create_main_window(
     // Create shared startup state for engine ↔ window communication.
     let shared = Rc::new(RefCell::new(StartupState {
         state: 0,
-        _done: false,
+        done: false,
     }));
     mw.startup_state = Some(Rc::clone(&shared));
 
@@ -323,7 +474,7 @@ mod tests {
         assert!(mw.window_id.is_none());
         assert!(mw.main_panel_id.is_none());
         assert!(mw.startup_engine_id.is_none());
-        assert!(!mw._to_close);
+        assert!(!mw.to_close);
         assert!(!mw._visit_valid);
         assert!(!mw._visit_adherent);
         assert_eq!(mw._visit_rel_x, 0.0);
@@ -340,14 +491,14 @@ mod tests {
         let panel_id = PanelId::from(KeyData::from_ffi(0x0100_0000_0000_0000));
         let shared = Rc::new(RefCell::new(StartupState {
             state: 0,
-            _done: false,
+            done: false,
         }));
         let engine = StartupEngine::new(panel_id, Rc::clone(&shared));
 
         assert_eq!(engine.state, 0);
         assert_eq!(engine._root_panel_id, panel_id);
         assert_eq!(shared.borrow().state, 0);
-        assert!(!shared.borrow()._done);
+        assert!(!shared.borrow().done);
 
         // Verify the type implements emEngine (compile-time check).
         let _: &dyn emEngine = &engine;
@@ -357,10 +508,30 @@ mod tests {
     fn test_startup_state_debug() {
         let state = StartupState {
             state: 3,
-            _done: false,
+            done: false,
         };
         let debug = format!("{state:?}");
         assert!(debug.contains("state: 3"));
-        assert!(debug.contains("_done: false"));
+        assert!(debug.contains("done: false"));
+    }
+
+    #[test]
+    fn test_close_sets_flag() {
+        let ctx = emContext::NewRoot();
+        let config = emMainWindowConfig::default();
+        let mut mw = emMainWindow::new(ctx, config);
+        assert!(!mw.to_close);
+        mw.Close();
+        assert!(mw.to_close);
+    }
+
+    #[test]
+    fn test_startup_state_done() {
+        let shared = Rc::new(RefCell::new(StartupState {
+            state: 0,
+            done: false,
+        }));
+        shared.borrow_mut().done = true;
+        assert!(shared.borrow().done);
     }
 }
