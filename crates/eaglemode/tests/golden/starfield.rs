@@ -41,7 +41,7 @@ fn starfield_small() {
     require_golden!();
     let (ew, eh, expected) = load_painter_golden("starfield_small");
     let img = render_starfield(3, 0x12345678, ew, eh);
-    compare_images("starfield_small", img.GetMap(), &expected, ew, eh, 69, 0.0)
+    compare_images("starfield_small", img.GetMap(), &expected, ew, eh, 0, 0.0)
         .expect("starfield_small golden mismatch");
 }
 
@@ -53,6 +53,6 @@ fn starfield_large() {
     require_golden!();
     let (ew, eh, expected) = load_painter_golden("starfield_large");
     let img = render_starfield(3, 0x12345678, ew, eh);
-    compare_images("starfield_large", img.GetMap(), &expected, ew, eh, 53, 0.0)
+    compare_images("starfield_large", img.GetMap(), &expected, ew, eh, 0, 0.0)
         .expect("starfield_large golden mismatch");
 }

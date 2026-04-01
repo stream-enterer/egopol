@@ -43,7 +43,7 @@ fn painter_rect_solid() {
         let mut p = white_painter(&mut img);
         p.PaintRect(20.0, 20.0, 100.0, 80.0, emColor::RED, emColor::TRANSPARENT);
     }
-    compare_images("rect_solid", img.GetMap(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("rect_solid", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 2: rect_alpha ─────────────────────────────────────────
@@ -63,7 +63,7 @@ fn painter_rect_alpha() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("rect_alpha", img.GetMap(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("rect_alpha", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 3: rect_overlap ───────────────────────────────────────
@@ -84,7 +84,7 @@ fn painter_rect_overlap() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("rect_overlap", img.GetMap(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("rect_overlap", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 4: ellipse_basic ──────────────────────────────────────
@@ -98,7 +98,7 @@ fn painter_ellipse_basic() {
         // C++ PaintEllipse(28,28,200,150) → cx=128 cy=103 rx=100 ry=75
         p.PaintEllipse(128.0, 103.0, 100.0, 75.0, emColor::GREEN, emColor::TRANSPARENT);
     }
-    compare_images("ellipse_basic", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("ellipse_basic", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 5: ellipse_small ──────────────────────────────────────
@@ -112,7 +112,7 @@ fn painter_ellipse_small() {
         // C++ PaintEllipse(118,118,20,20) → cx=128 cy=128 rx=10 ry=10
         p.PaintEllipse(128.0, 128.0, 10.0, 10.0, emColor::BLUE, emColor::TRANSPARENT);
     }
-    compare_images("ellipse_small", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("ellipse_small", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 6: polygon_tri ────────────────────────────────────────
@@ -129,7 +129,7 @@ fn painter_polygon_tri() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("polygon_tri", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("polygon_tri", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 7: polygon_star ───────────────────────────────────────
@@ -156,7 +156,7 @@ fn painter_polygon_star() {
         let mut p = white_painter(&mut img);
         p.PaintPolygon(&star_vertices(), emColor::MAGENTA, emColor::TRANSPARENT);
     }
-    compare_images("polygon_star", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("polygon_star", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 8: polygon_complex ────────────────────────────────────
@@ -186,7 +186,7 @@ fn painter_polygon_complex() {
         let mut p = white_painter(&mut img);
         p.PaintPolygon(&convex_polygon_20(), emColor::CYAN, emColor::TRANSPARENT);
     }
-    compare_images("polygon_complex", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("polygon_complex", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 9: round_rect ─────────────────────────────────────────
@@ -199,7 +199,7 @@ fn painter_round_rect() {
         let mut p = white_painter(&mut img);
         p.PaintRoundRect(20.0, 20.0, 200.0, 150.0, 20.0, emColor::BLUE);
     }
-    compare_images("round_rect", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("round_rect", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 10: gradient_h ────────────────────────────────────────
@@ -221,7 +221,7 @@ fn painter_gradient_h() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("gradient_h", img.GetMap(), &expected, ew, eh, 0, 1.0).unwrap();
+    compare_images("gradient_h", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 11: gradient_v ────────────────────────────────────────
@@ -243,7 +243,7 @@ fn painter_gradient_v() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("gradient_v", img.GetMap(), &expected, ew, eh, 0, 1.0).unwrap();
+    compare_images("gradient_v", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 12: gradient_radial ───────────────────────────────────
@@ -268,7 +268,7 @@ fn painter_gradient_radial() {
     // max_diff=50 at polygon boundary AA, 25.08% of pixels differ at ch_tol=1.
     // Gradient interior: pixel-perfect (integer sqrt table matching C++).
     // Residual: ellipse polygon boundary AA (~0.05% pixels, structural).
-    compare_images("gradient_radial", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("gradient_radial", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 13: line_basic ────────────────────────────────────────
@@ -288,7 +288,7 @@ fn painter_line_basic() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("line_basic", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("line_basic", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 14: line_thick ────────────────────────────────────────
@@ -308,7 +308,7 @@ fn painter_line_thick() {
         };
         p.paint_line_stroked(10.0, 128.0, 240.0, 128.0, &stroke, emColor::TRANSPARENT);
     }
-    compare_images("line_thick", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("line_thick", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 15: line_ends_all ─────────────────────────────────────
@@ -352,7 +352,7 @@ fn painter_line_ends_all() {
             p.paint_line_stroked(30.0, y, 226.0, y, &stroke, emColor::TRANSPARENT);
         }
     }
-    compare_images("line_ends_all", img.GetMap(), &expected, ew, eh, 1, 1.0).unwrap();
+    compare_images("line_ends_all", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 16: line_dashed ───────────────────────────────────────
@@ -375,7 +375,7 @@ fn painter_line_dashed() {
         stroke_dot.gap_length_factor = 3.0;
         p.paint_line_stroked(10.0, 128.0, 240.0, 128.0, &stroke_dot, emColor::TRANSPARENT);
     }
-    compare_images("line_dashed", img.GetMap(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("line_dashed", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 17: outline_rect ──────────────────────────────────────
@@ -395,7 +395,7 @@ fn painter_outline_rect() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("outline_rect", img.GetMap(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("outline_rect", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 18: outline_ellipse ───────────────────────────────────
@@ -416,7 +416,7 @@ fn painter_outline_ellipse() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("outline_ellipse", img.GetMap(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("outline_ellipse", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 19: outline_polygon ───────────────────────────────────
@@ -441,7 +441,7 @@ fn painter_outline_polygon() {
         let mut p = white_painter(&mut img);
         p.PaintPolygonOutline(&pentagon_vertices(), emColor::BLACK, 3.0, emColor::TRANSPARENT);
     }
-    compare_images("outline_polygon", img.GetMap(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("outline_polygon", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 20: outline_round_rect ────────────────────────────────
@@ -463,7 +463,7 @@ fn painter_outline_round_rect() {
     }
     // Residual: arc approximation segment GetCount differs slightly from C++.
     // max_diff=162, 0.21% of pixels differ at ch_tol=1.
-    compare_images("outline_round_rect", img.GetMap(), &expected, ew, eh, 2, 0.5).unwrap();
+    compare_images("outline_round_rect", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 21: bezier_filled ─────────────────────────────────────
@@ -481,7 +481,7 @@ fn painter_bezier_filled() {
         let mut p = white_painter(&mut img);
         p.PaintBezier(&bezier_points(), emColor::RED, emColor::TRANSPARENT);
     }
-    compare_images("bezier_filled", img.GetMap(), &expected, ew, eh, 1, 0.1).unwrap();
+    compare_images("bezier_filled", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 22: bezier_stroked ────────────────────────────────────
@@ -499,7 +499,7 @@ fn painter_bezier_stroked() {
         stroke.finish_end = emStrokeEnd::new(StrokeEndType::Arrow).with_inner_color(emColor::WHITE);
         p.PaintBezierLine(&bezier_points(), &stroke, emColor::TRANSPARENT);
     }
-    compare_images("bezier_stroked", img.GetMap(), &expected, ew, eh, 1, 1.0).unwrap();
+    compare_images("bezier_stroked", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 23: clip_basic ────────────────────────────────────────
@@ -518,7 +518,7 @@ fn painter_clip_basic() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("clip_basic", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("clip_basic", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 24: canvas_color ──────────────────────────────────────
@@ -540,7 +540,7 @@ fn painter_canvas_color() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("canvas_color", img.GetMap(), &expected, ew, eh, 0, 0.5).unwrap();
+    compare_images("canvas_color", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 25: image_paint ───────────────────────────────────────
@@ -571,7 +571,7 @@ fn painter_image_paint() {
         let mut p = white_painter(&mut img);
         p.paint_image_full(50.0, 50.0, 64.0, 64.0, &src, 255, emColor::TRANSPARENT);
     }
-    compare_images("image_paint", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("image_paint", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 26: image_scaled ──────────────────────────────────────
@@ -587,7 +587,7 @@ fn painter_image_scaled() {
     }
     // Adaptive interpolation Match C++ UQ_ADAPTIVE; remaining ±1 diffs from
     // FP rounding in Hermite factor table computation.
-    compare_images("image_scaled", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("image_scaled", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 27: multi_compose ─────────────────────────────────────
@@ -637,7 +637,7 @@ fn painter_multi_compose() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("multi_compose", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("multi_compose", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 28: polyline ──────────────────────────────────────────
@@ -658,7 +658,7 @@ fn painter_polyline() {
         let verts = [(20.0, 200.0), (80.0, 40.0), (160.0, 200.0), (240.0, 40.0)];
         p.PaintSolidPolyline(&verts, &stroke, false, emColor::TRANSPARENT);
     }
-    compare_images("polyline", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("polyline", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 30: transform_translate ───────────────────────────────
@@ -674,7 +674,7 @@ fn painter_transform_translate() {
         p.PaintRect(0.0, 0.0, 80.0, 60.0, emColor::RED, emColor::TRANSPARENT);
         p.pop_state();
     }
-    compare_images("transform_translate", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("transform_translate", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 35: transform_fractional ──────────────────────────────
@@ -696,8 +696,8 @@ fn painter_transform_fractional() {
         &expected,
         ew,
         eh,
-        1,
-        0.5,
+        0,
+        0.0,
     )
     .unwrap();
 }
@@ -722,8 +722,8 @@ fn painter_transform_identity_roundtrip() {
         &expected,
         ew,
         eh,
-        1,
-        0.5,
+        0,
+        0.0,
     )
     .unwrap();
 }
@@ -748,8 +748,8 @@ fn painter_transform_ellipse_scaled() {
         &expected,
         ew,
         eh,
-        1,
-        0.5,
+        0,
+        0.0,
     )
     .unwrap();
 }
@@ -772,7 +772,7 @@ fn painter_text_basic() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("text_basic", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("text_basic", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 38: text_scaled ───────────────────────────────────────
@@ -793,7 +793,7 @@ fn painter_text_scaled() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("text_scaled", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("text_scaled", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 39: text_fitted ───────────────────────────────────────
@@ -821,7 +821,7 @@ fn painter_text_fitted() {
             0.0,
         );
     }
-    compare_images("text_fitted", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("text_fitted", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 40: text_alignment ────────────────────────────────────
@@ -884,7 +884,7 @@ fn painter_text_alignment() {
             0.0,
         );
     }
-    compare_images("text_alignment", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("text_alignment", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 41: text_clipped ──────────────────────────────────────
@@ -908,7 +908,7 @@ fn painter_text_clipped() {
         );
         p.pop_state();
     }
-    compare_images("text_clipped", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("text_clipped", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 42: text_below_threshold ──────────────────────────────
@@ -935,8 +935,8 @@ fn painter_text_below_threshold() {
         &expected,
         ew,
         eh,
-        1,
-        0.5,
+        0,
+        0.0,
     )
     .unwrap();
 }
@@ -961,8 +961,8 @@ fn painter_transform_clip_interaction() {
         &expected,
         ew,
         eh,
-        1,
-        0.5,
+        0,
+        0.0,
     )
     .unwrap();
 }
@@ -993,7 +993,7 @@ fn painter_transform_nested() {
         );
         p.pop_state();
     }
-    compare_images("transform_nested", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("transform_nested", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 31: transform_scale ───────────────────────────────────
@@ -1009,7 +1009,7 @@ fn painter_transform_scale() {
         p.PaintRect(10.0, 10.0, 50.0, 40.0, emColor::RED, emColor::TRANSPARENT);
         p.pop_state();
     }
-    compare_images("transform_scale", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("transform_scale", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
 
 // ─── Test 29: ellipse_sector ────────────────────────────────────
@@ -1033,5 +1033,5 @@ fn painter_ellipse_sector() {
             emColor::TRANSPARENT,
         );
     }
-    compare_images("ellipse_sector", img.GetMap(), &expected, ew, eh, 1, 0.5).unwrap();
+    compare_images("ellipse_sector", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }

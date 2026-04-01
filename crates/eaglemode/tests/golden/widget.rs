@@ -147,7 +147,7 @@ impl PanelBehavior for ScalarFieldBehavior {
 /// Helper: render a single widget filling the entire 800x600 viewport and
 /// compare against a golden file.
 fn render_and_compare(name: &str, behavior: Box<dyn PanelBehavior>) {
-    render_and_compare_tol(name, behavior, 1, 0.5);
+    render_and_compare_tol(name, behavior, 0, 0.0);
 }
 
 fn render_and_compare_tol(
@@ -202,8 +202,8 @@ fn widget_border_rect() {
             "Test",
             look,
         )),
-        1,
-        2.0,
+        0,
+        0.0,
     );
 }
 
@@ -225,8 +225,8 @@ fn widget_border_round_rect() {
             )
             .with_description("Description text"),
         ),
-        1,
-        2.5,
+        0,
+        0.0,
     );
 }
 
@@ -245,8 +245,8 @@ fn widget_border_group() {
             "Group",
             look,
         )),
-        1,
-        4.0,
+        0,
+        0.0,
     );
 }
 
@@ -265,8 +265,8 @@ fn widget_border_instrument() {
             "Instrument",
             look,
         )),
-        1,
-        3.0,
+        0,
+        0.0,
     );
 }
 
@@ -296,8 +296,8 @@ fn widget_button_normal() {
         Box::new(ButtonBehavior {
             button: emButton::new("Click Me", look),
         }),
-        3,
-        1.5,
+        0,
+        0.0,
     );
 }
 
@@ -313,8 +313,8 @@ fn widget_checkbox_unchecked() {
         Box::new(CheckBoxBehavior {
             check_box: emCheckBox::new("Check Option", look),
         }),
-        1,
-        1.5,
+        0,
+        0.0,
     );
 }
 
@@ -330,8 +330,8 @@ fn widget_checkbox_checked() {
     render_and_compare_tol(
         "widget_checkbox_checked",
         Box::new(CheckBoxBehavior { check_box: cb }),
-        1,
-        1.5,
+        0,
+        0.0,
     );
 }
 
@@ -347,8 +347,8 @@ fn widget_textfield_empty() {
     render_and_compare_tol(
         "widget_textfield_empty",
         Box::new(TextFieldBehavior { text_field: tf }),
-        3,
-        1.5,
+        0,
+        0.0,
     );
 }
 
@@ -366,8 +366,8 @@ fn widget_textfield_content() {
     render_and_compare_tol(
         "widget_textfield_content",
         Box::new(TextFieldBehavior { text_field: tf }),
-        3,
-        1.5,
+        0,
+        0.0,
     );
 }
 
@@ -385,8 +385,8 @@ fn widget_scalarfield() {
     render_and_compare_tol(
         "widget_scalarfield",
         Box::new(ScalarFieldBehavior { scalar_field: sf }),
-        3,
-        1.5,
+        0,
+        0.0,
     );
 }
 
@@ -463,7 +463,7 @@ fn widget_colorfield() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images("widget_colorfield", actual, &expected, w, h, 3, 3.5);
+    let result = compare_images("widget_colorfield", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_colorfield", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 3);
@@ -484,8 +484,8 @@ fn widget_radiobutton() {
     render_and_compare_tol(
         "widget_radiobutton",
         Box::new(RadioButtonBehavior { radio_button: rb }),
-        3,
-        1.5,
+        0,
+        0.0,
     );
 }
 
@@ -507,8 +507,8 @@ fn widget_listbox() {
     render_and_compare_tol(
         "widget_listbox",
         Box::new(ListBoxBehavior { list_box: lb }),
-        3,
-        1.5,
+        0,
+        0.0,
     );
 }
 
@@ -523,8 +523,8 @@ fn widget_splitter_h() {
     render_and_compare_tol(
         "widget_splitter_h",
         Box::new(SplitterBehavior { splitter: sp }),
-        1,
-        1.0,
+        0,
+        0.0,
     );
 }
 
@@ -540,8 +540,8 @@ fn widget_splitter_v() {
     render_and_compare_tol(
         "widget_splitter_v",
         Box::new(SplitterBehavior { splitter: sp }),
-        1,
-        1.0,
+        0,
+        0.0,
     );
 }
 
@@ -611,7 +611,7 @@ fn colorfield_expanded() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images("colorfield_expanded", actual, &expected, w, h, 3, 4.0);
+    let result = compare_images("colorfield_expanded", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("colorfield_expanded", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 3);
@@ -686,7 +686,7 @@ fn listbox_expanded() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images("listbox_expanded", actual, &expected, w, h, 3, 2.0);
+    let result = compare_images("listbox_expanded", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("listbox_expanded", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 3);
@@ -728,8 +728,8 @@ fn golden_widget_border_rect_extreme_tall() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_border_rect_extreme_tall", actual, &expected, w, h);
@@ -772,8 +772,8 @@ fn golden_widget_border_rect_extreme_wide() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_border_rect_extreme_wide", actual, &expected, w, h);
@@ -816,8 +816,8 @@ fn golden_widget_border_roundrect_thin() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_border_roundrect_thin", actual, &expected, w, h);
@@ -861,8 +861,8 @@ fn golden_widget_border_instrument_cramped() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_border_instrument_cramped", actual, &expected, w, h);
@@ -900,8 +900,8 @@ fn golden_widget_label_single_char() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_label_single_char", actual, &expected, w, h);
@@ -939,8 +939,8 @@ fn golden_widget_label_empty() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_label_empty", actual, &expected, w, h);
@@ -981,8 +981,8 @@ fn golden_widget_label_long_narrow() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_label_long_narrow", actual, &expected, w, h);
@@ -1002,7 +1002,7 @@ fn widget_error_panel() {
     require_golden!();
     let panel = emErrorPanel::new("Test error: something went wrong");
 
-    render_and_compare_tol("widget_error_panel", Box::new(panel), 3, 3.0);
+    render_and_compare_tol("widget_error_panel", Box::new(panel), 0, 0.0);
 }
 
 // ─── CAP-0076: widget_tunnel ───────────────────────────────────
@@ -1041,7 +1041,7 @@ fn widget_tunnel() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images("widget_tunnel", actual, &expected, w, h, 3, 10.0);
+    let result = compare_images("widget_tunnel", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_tunnel", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 3);
@@ -1057,7 +1057,7 @@ fn widget_file_panel() {
     // Matches C++ gen: `new emFilePanel(view, "test", NULL, true)` — no file model.
     let panel = emFilePanel::new();
 
-    render_and_compare_tol("widget_file_panel", Box::new(panel), 3, 3.0);
+    render_and_compare_tol("widget_file_panel", Box::new(panel), 0, 0.0);
 }
 
 // ─── CAP-0027: widget_file_selection_box ───────────────────────
@@ -1083,7 +1083,7 @@ fn widget_file_selection_box() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images("widget_file_selection_box", actual, &expected, w, h, 3, 5.0);
+    let result = compare_images("widget_file_selection_box", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_file_selection_box", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 3);
@@ -1122,8 +1122,8 @@ fn golden_widget_textfield_empty_wide() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_textfield_empty_wide", actual, &expected, w, h);
@@ -1164,8 +1164,8 @@ fn golden_widget_textfield_single_char_square() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_textfield_single_char_square", actual, &expected, w, h);
@@ -1206,8 +1206,8 @@ fn golden_widget_scalarfield_min_value() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_scalarfield_min_value", actual, &expected, w, h);
@@ -1248,8 +1248,8 @@ fn golden_widget_scalarfield_max_value() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_scalarfield_max_value", actual, &expected, w, h);
@@ -1290,8 +1290,8 @@ fn golden_widget_scalarfield_zero_range() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_scalarfield_zero_range", actual, &expected, w, h);
@@ -1330,8 +1330,8 @@ fn golden_widget_listbox_empty() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_listbox_empty", actual, &expected, w, h);
@@ -1371,8 +1371,8 @@ fn golden_widget_listbox_single() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_listbox_single", actual, &expected, w, h);
@@ -1414,8 +1414,8 @@ fn golden_widget_listbox_extreme_wide() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_listbox_extreme_wide", actual, &expected, w, h);
@@ -1454,8 +1454,8 @@ fn golden_widget_splitter_h_pos0() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_splitter_h_pos0", actual, &expected, w, h);
@@ -1494,8 +1494,8 @@ fn golden_widget_splitter_h_pos1() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_splitter_h_pos1", actual, &expected, w, h);
@@ -1534,8 +1534,8 @@ fn golden_widget_splitter_v_extreme_tall() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_splitter_v_extreme_tall", actual, &expected, w, h);
@@ -1573,8 +1573,8 @@ fn golden_widget_checkbox_extreme_tall() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_checkbox_extreme_tall", actual, &expected, w, h);
@@ -1614,8 +1614,8 @@ fn golden_widget_tunnel_extreme_wide() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_tunnel_extreme_wide", actual, &expected, w, h);
@@ -1663,8 +1663,8 @@ fn golden_widget_colorfield_alpha_zero() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_colorfield_alpha_zero", actual, &expected, w, h);
@@ -1712,8 +1712,8 @@ fn golden_widget_colorfield_alpha_opaque() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_colorfield_alpha_opaque", actual, &expected, w, h);
@@ -1761,8 +1761,8 @@ fn golden_widget_colorfield_alpha_near() {
         &expected,
         w,
         h,
-        1,
-        0.5,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_colorfield_alpha_near", actual, &expected, w, h);
@@ -1862,8 +1862,8 @@ fn composition_border_nest() {
         &expected,
         w,
         h,
-        3,
-        3.0,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("composed_border_nest", actual, &expected, w, h);
@@ -1974,8 +1974,8 @@ fn composition_splitter_content() {
         &expected,
         w,
         h,
-        3,
-        5.0,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("composed_splitter_content", actual, &expected, w, h);
@@ -2043,8 +2043,8 @@ fn composition_scrolled_listbox_in_border() {
         &expected,
         w,
         h,
-        1,
-        2.0,
+        0,
+        0.0,
     );
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("composed_scrolled_listbox", actual, &expected, w, h);
@@ -2099,7 +2099,7 @@ fn composition_colorfield_expansion_wide() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images("composed_colorfield_wide", actual, &expected, w, h, 1, 2.0);
+    let result = compare_images("composed_colorfield_wide", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("composed_colorfield_wide", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 1);
@@ -2152,7 +2152,7 @@ fn composition_colorfield_expansion_tall() {
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images("composed_colorfield_tall", actual, &expected, w, h, 1, 2.0);
+    let result = compare_images("composed_colorfield_tall", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("composed_colorfield_tall", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 1);

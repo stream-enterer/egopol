@@ -810,7 +810,7 @@ fn composition_tktest_1x() {
     // After fixing captions, removing grid indirection, and using real emTunnel,
     // remaining ~11% (at tol=0) is from widget-level rendering differences
     // (border image interpolation, text positioning, scalar field arrows).
-    let result = compare_images("tktest_1x", actual, expected_data, w, h, 3, 12.0);
+    let result = compare_images("tktest_1x", actual, expected_data, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("tktest_1x", actual, expected_data, w, h);
         analyze_diff_distribution(actual, expected_data, w, h, 3);
@@ -856,7 +856,7 @@ fn composition_tktest_2x() {
 
     // TkTestPanel at 2x zoom amplifies layout GetPos differences.
     // Zoom shifts expose border-rounding rects that differ from C++ at sub-pixel level.
-    let result = compare_images("tktest_2x", actual, expected_data, w, h, 3, 75.0);
+    let result = compare_images("tktest_2x", actual, expected_data, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("tktest_2x", actual, expected_data, w, h);
         analyze_diff_distribution(actual, expected_data, w, h, 3);

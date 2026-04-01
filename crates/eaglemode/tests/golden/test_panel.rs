@@ -2120,8 +2120,8 @@ fn testpanel_root() {
         &mut tree,
         &mut view,
         &expected,
-        3,
-        12.0,
+        0,
+        0.0,
         30,
     );
 }
@@ -2153,8 +2153,8 @@ fn testpanel_expanded() {
         &mut tree,
         &mut view,
         &expected,
-        3,
-        10.5,
+        0,
+        0.0,
         200,
     );
 }
