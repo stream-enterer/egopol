@@ -22,12 +22,7 @@ fn main() {
         i += 1;
     }
 
-    // 2. Register static plugin resolver
-    emcore::emFpPlugin::set_static_plugin_resolver(
-        emMain::static_plugins::resolve_static_plugin,
-    );
-
-    // 3. Try IPC client (unless -noclient)
+    // 2. Try IPC client (unless -noclient)
     if !no_client {
         let server_name = emMain::emMain::CalcServerName();
         if emMain::emMain::try_ipc_client(&server_name, visit.as_deref()) {
@@ -36,7 +31,7 @@ fn main() {
         }
     }
 
-    // 4. Start GUI framework
+    // 3. Start GUI framework
     let config = emMain::emMainWindow::emMainWindowConfig {
         fullscreen,
         visit,

@@ -12,4 +12,3 @@ pub mod emMainPanel;
 pub mod emMainWindow;
 pub mod emStarFieldPanel;
 pub mod emVirtualCosmos;
-pub mod static_plugins;

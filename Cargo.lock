@@ -769,6 +769,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "emcore",
+ "emfileman",
  "emmain",
  "emstocks",
  "gungraun",
@@ -817,8 +818,6 @@ name = "emmain"
 version = "0.1.0"
 dependencies = [
  "emcore",
- "emfileman",
- "emstocks",
  "log",
  "slotmap",
  "winit",

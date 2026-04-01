@@ -10,26 +10,6 @@ use crate::emPanelTree::PanelId;
 use crate::emRec::{RecError, RecStruct, RecValue};
 use crate::emRecRecord::Record;
 
-// ── Static plugin resolver hook ─────────────────────────────────────
-// Allows the application (emmain) to register a compile-time plugin registry
-// so TryCreateFilePanel can resolve function pointers without dynamic loading.
-
-/// Type of the static plugin resolver callback.
-type StaticResolverFn = fn(&str) -> Option<emFpPluginFunc>;
-
-thread_local! {
-    static STATIC_RESOLVER: RefCell<Option<StaticResolverFn>> =
-        const { RefCell::new(None) };
-}
-
-/// Register a static plugin resolver.
-///
-/// When set, `TryCreateFilePanel` tries this resolver before falling back to
-/// dynamic symbol loading. Called once at application startup by emmain.
-pub fn set_static_plugin_resolver(resolver: fn(&str) -> Option<emFpPluginFunc>) {
-    STATIC_RESOLVER.with(|r| *r.borrow_mut() = Some(resolver));
-}
-
 // ── Plugin function types ───────────────────────────────────────────
 // Port of C++ emFpPluginFunc and emFpPluginModelFunc from emFpPlugin.h.
 // Uses Rust calling convention with #[no_mangle] for symbol lookup.
@@ -241,36 +221,26 @@ impl emFpPlugin {
                 return Err(FpPluginError::EmptyFunctionName);
             }
 
-            // Try static resolver first (statically linked plugins).
-            let static_func = STATIC_RESOLVER.with(|r| {
-                r.borrow().and_then(|resolver| resolver(&self.function))
-            });
-
-            if let Some(func) = static_func {
-                cached.func = Some(func);
-            } else {
-                // Fall back to dynamic symbol loading.
-                let ptr = unsafe {
-                    emTryResolveSymbol(&self.library, false, &self.function)
-                }
-                .map_err(|e| match e {
-                    LibError::LibraryLoad { library, message } => {
-                        FpPluginError::LibraryLoad { library, message }
-                    }
-                    LibError::SymbolResolve {
-                        library,
-                        symbol,
-                        message,
-                    } => FpPluginError::SymbolResolve {
-                        library,
-                        symbol,
-                        message,
-                    },
-                })?;
-
-                cached.func =
-                    Some(unsafe { std::mem::transmute::<*const (), emFpPluginFunc>(ptr) });
+            let ptr = unsafe {
+                emTryResolveSymbol(&self.library, false, &self.function)
             }
+            .map_err(|e| match e {
+                LibError::LibraryLoad { library, message } => {
+                    FpPluginError::LibraryLoad { library, message }
+                }
+                LibError::SymbolResolve {
+                    library,
+                    symbol,
+                    message,
+                } => FpPluginError::SymbolResolve {
+                    library,
+                    symbol,
+                    message,
+                },
+            })?;
+
+            cached.func =
+                Some(unsafe { std::mem::transmute::<*const (), emFpPluginFunc>(ptr) });
             cached.func_name = self.function.clone();
         }
 
