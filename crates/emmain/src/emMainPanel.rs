@@ -74,6 +74,9 @@ pub struct emMainPanel {
     slider_y: f64,
     slider_w: f64,
     slider_h: f64,
+    slider_min_y: f64,
+    slider_max_y: f64,
+    slider_pressed: bool,
     last_height: f64,
 }
 
@@ -106,6 +109,9 @@ impl emMainPanel {
             slider_y: 0.0,
             slider_w: 0.0,
             slider_h: 0.0,
+            slider_min_y: 0.0,
+            slider_max_y: 0.0,
+            slider_pressed: false,
             last_height: 1.0,
         }
     }
@@ -114,24 +120,53 @@ impl emMainPanel {
     ///
     /// Port of C++ `emMainPanel::UpdateCoordinates`.
     fn update_coordinates(&mut self, h: f64) {
-        let slider_min_y = 0.0_f64;
-        let slider_max_y = self.control_tallness.min(h * 0.5);
+        self.slider_min_y = 0.0;
+        self.slider_max_y = self.control_tallness.min(h * 0.5);
+        self.slider_y =
+            (self.slider_max_y - self.slider_min_y) * self.unified_slider_pos + self.slider_min_y;
         self.slider_w = (1.0_f64.min(h) * 0.1).min(1.0_f64.max(h) * 0.02);
         self.slider_h = self.slider_w * 1.2;
         self.slider_x = 1.0 - self.slider_w;
-        self.slider_y =
-            (slider_max_y - slider_min_y) * self.unified_slider_pos + slider_min_y;
 
         let space_fac = 1.015;
-        self.control_x = 0.0;
-        self.control_w = self.slider_x;
-        self.control_h = self.control_tallness * self.control_w;
-        self.control_y = self.slider_y + self.slider_h * 0.5 - self.control_h * 0.5;
+        let t = self.slider_h * 0.5;
+        if self.slider_y < t {
+            self.control_h = self.slider_y + self.slider_h * self.slider_y / t;
+        } else {
+            self.control_h = (self.slider_y + self.slider_h) / space_fac;
+        }
 
-        self.content_x = 0.0;
-        self.content_w = self.slider_x;
-        self.content_y = self.control_y + self.control_h * space_fac;
-        self.content_h = h - self.content_y;
+        if self.control_h < 1e-5 {
+            self.control_h = 1e-5;
+            self.control_w = self.control_h / self.control_tallness;
+            self.control_x = 0.5 * (1.0 - self.control_w);
+            self.control_y = 0.0;
+            self.content_x = 0.0;
+            self.content_y = 0.0;
+            self.content_w = 1.0;
+            self.content_h = h;
+        } else {
+            self.control_w = self.control_h / self.control_tallness;
+            self.control_x = ((1.0 - self.control_w) * 0.5).min(self.slider_x - self.control_w);
+            self.control_y = 0.0;
+            if self.control_x < 1e-5 {
+                // Do not hide, because otherwise popping up the control view
+                // by keyboard would not work properly.
+                self.control_w = 1.0 - self.slider_w;
+                self.control_x = 0.0;
+                self.control_h = self.control_w * self.control_tallness;
+                if self.control_h < self.slider_y {
+                    self.control_h = self.slider_y;
+                    self.control_w = self.control_h / self.control_tallness;
+                } else if !self.slider_pressed {
+                    self.slider_y = self.control_h * space_fac - self.slider_h;
+                }
+            }
+            self.content_y = self.control_y + self.control_h * space_fac;
+            self.content_x = 0.0;
+            self.content_w = 1.0;
+            self.content_h = h - self.content_y;
+        }
 
         self.last_height = h;
     }
@@ -289,5 +324,55 @@ mod tests {
         let ctx = emcore::emContext::emContext::NewRoot();
         let panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         let _: Box<dyn PanelBehavior> = Box::new(panel);
+    }
+
+    #[test]
+    fn test_update_coordinates_slider_near_top() {
+        // When SliderY < SliderH*0.5, C++ uses: ControlH = SliderY + SliderH * SliderY / t
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
+        panel.unified_slider_pos = 0.01; // very small → SliderY near 0
+        panel.update_coordinates(1.0);
+        assert!(panel.control_h > 1e-5);
+        assert!(panel.control_h < 0.1);
+    }
+
+    #[test]
+    fn test_update_coordinates_control_collapsed() {
+        // When ControlH < 1E-5, C++ sets ControlH=1E-5 and centers content
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
+        panel.unified_slider_pos = 0.0; // slider at very top
+        panel.update_coordinates(0.001); // very short panel
+        assert!(panel.content_h > 0.0);
+        assert!(panel.content_x == 0.0);
+        assert!(panel.content_w == 1.0);
+    }
+
+    #[test]
+    fn test_update_coordinates_width_limited() {
+        // When ControlX < 1E-5, the C++ branch sets control_w = 1 - slider_w
+        // and control_x = 0. To enter this branch we need control_w =
+        // control_h / control_tallness large enough that
+        // min((1-control_w)*0.5, slider_x - control_w) < 1e-5.
+        // control_tallness=0.1 makes control_w ≈ 1.02 (>> 1), guaranteeing entry.
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emMainPanel::new(Rc::clone(&ctx), 0.1);
+        panel.unified_slider_pos = 0.8; // slider pushed down
+        panel.update_coordinates(1.0);
+        // The branch must have been entered: control_x clamped to 0.
+        assert_eq!(panel.control_x, 0.0);
+        // And control_w set to 1 - slider_w by the branch formula.
+        assert!((panel.control_w - (1.0 - panel.slider_w)).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_update_coordinates_slider_min_max() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
+        panel.unified_slider_pos = 0.5;
+        panel.update_coordinates(1.0);
+        let expected_slider_y = 0.5 * 0.5; // (max-min)*pos + min = 0.5*0.5
+        assert!((panel.slider_y - expected_slider_y).abs() < 1e-10);
     }
 }
