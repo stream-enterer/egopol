@@ -6,6 +6,7 @@ pub mod emBookmarks;
 pub mod emMainConfig;
 pub mod emMainContentPanel;
 pub mod emMainControlPanel;
+pub mod emMainPanel;
 pub mod emStarFieldPanel;
 pub mod emVirtualCosmos;
 pub mod static_plugins;
