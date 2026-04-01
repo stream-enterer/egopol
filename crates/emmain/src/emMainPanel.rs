@@ -26,24 +26,209 @@ use crate::emMainControlPanel::emMainControlPanel;
 
 // ── SliderPanel ───────────────────────────────────────────────────────────────
 
-/// Thin divider panel between control and content sections.
+/// Draggable divider panel between control and content sections.
 ///
-/// DIVERGED: C++ `emMainPanel::SliderPanel` supports dragging to resize the
-/// split. Rust defers input/drag handling until slider interaction is wired.
-pub(crate) struct SliderPanel;
+/// Port of C++ `emMainPanel::SliderPanel` (emMainPanel.cpp:377-502).
+///
+/// DIVERGED: C++ SliderPanel holds a `MainPanel&` and calls
+/// `MainPanel.DragSlider(dy)` / `MainPanel.DoubleClickSlider()` directly.
+/// Rust cannot hold parent references in the panel tree. Instead, the parent
+/// (`emMainPanel`) reads this panel's state via `with_behavior_as` and calls
+/// its own `DragSlider` / `DoubleClickSlider`. The drag wiring is in Task 7.
+pub(crate) struct SliderPanel {
+    mouse_over: bool,
+    pressed: bool,
+    hidden: bool,
+    press_my: f64,
+    _press_slider_y: f64,
+    /// C++ reads MainPanel.SliderY/SliderMinY/SliderMaxY for arrow rendering.
+    /// Parent sets these before Paint via `set_parent_slider_state`.
+    parent_slider_y: f64,
+    parent_slider_min_y: f64,
+    parent_slider_max_y: f64,
+    slider_image: emImage,
+}
+
+impl SliderPanel {
+    pub(crate) fn new() -> Self {
+        let slider_image = load_tga(include_bytes!("../../../res/emMain/Slider.tga"))
+            .expect("failed to load Slider.tga");
+        Self {
+            mouse_over: false,
+            pressed: false,
+            hidden: false,
+            press_my: 0.0,
+            _press_slider_y: 0.0,
+            parent_slider_y: 0.0,
+            parent_slider_min_y: 0.0,
+            parent_slider_max_y: 0.0,
+            slider_image,
+        }
+    }
+
+    /// Port of C++ `emMainPanel::SliderPanel::SetHidden`.
+    /// Wired by `UpdateSliderHiding` in Task 8.
+    pub(crate) fn _SetHidden(&mut self, hidden: bool) {
+        if self.hidden != hidden {
+            self.hidden = hidden;
+        }
+    }
+
+    /// Whether the slider is currently being dragged.
+    /// Wired in Task 7 when parent reads slider state.
+    pub(crate) fn _is_pressed(&self) -> bool {
+        self.pressed
+    }
+
+    /// Mouse Y at press start (panel-local coordinates).
+    /// Wired in Task 7 when parent reads slider state.
+    pub(crate) fn _press_my(&self) -> f64 {
+        self.press_my
+    }
+
+    /// SliderY at press start (parent coordinates).
+    /// Wired in Task 7 when parent reads slider state.
+    pub(crate) fn _get_press_slider_y(&self) -> f64 {
+        self._press_slider_y
+    }
+
+    /// Whether the mouse is over the slider.
+    /// Wired in Task 7/8 for cursor and hiding logic.
+    pub(crate) fn _mouse_over(&self) -> bool {
+        self.mouse_over
+    }
+
+    /// Set the parent's slider state so Paint can draw arrows conditionally.
+    /// Called by the parent before layout/paint.
+    pub(crate) fn set_parent_slider_state(
+        &mut self,
+        slider_y: f64,
+        slider_min_y: f64,
+        slider_max_y: f64,
+    ) {
+        self.parent_slider_y = slider_y;
+        self.parent_slider_min_y = slider_min_y;
+        self.parent_slider_max_y = slider_max_y;
+    }
+
+    /// Called by parent to set press_slider_y to current SliderY on press.
+    /// Used in Task 7 when input wiring is connected.
+    pub(crate) fn _set_press_slider_y(&mut self, y: f64) {
+        self._press_slider_y = y;
+    }
+
+    /// Reset pressed state (called by parent after button release processing).
+    /// Used in Task 7 when input wiring is connected.
+    pub(crate) fn _set_pressed(&mut self, pressed: bool) {
+        self.pressed = pressed;
+    }
+}
 
 impl PanelBehavior for SliderPanel {
     fn IsOpaque(&self) -> bool {
-        true
+        false
     }
 
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        painter.PaintRect(
+    fn Input(
+        &mut self,
+        event: &emInputEvent,
+        _state: &PanelState,
+        input_state: &emInputState,
+    ) -> bool {
+        let mx = event.mouse_x;
+        let my = event.mouse_y;
+        let h = _state.height;
+
+        let mo = mx > 0.05 && my > 0.0 && mx < 1.0 && my < h - 0.05;
+        if self.mouse_over != mo {
+            self.mouse_over = mo;
+        }
+
+        if self.mouse_over && event.is_mouse_event() {
+            if event.is_left_button() {
+                if event.repeat == 0 && !self.pressed {
+                    self.pressed = true;
+                    self.press_my = my;
+                    // press_slider_y is set by parent via set_press_slider_y
+                    // before Input dispatch (or in LayoutChildren).
+                } else if event.repeat == 1 {
+                    // C++ unconditionally calls MainPanel.DoubleClickSlider()
+                    // here. In Rust, the parent reads slider state and
+                    // handles it (Task 7 wiring). Reset pressed if active.
+                    self.pressed = false;
+                }
+            }
+            return true; // eat event (C++: event.Eat())
+        }
+
+        // Release detection: if pressed but left button no longer held.
+        if self.pressed && !input_state.GetLeftButton() {
+            self.pressed = false;
+        }
+
+        false
+    }
+
+    fn Paint(&mut self, painter: &mut emPainter, _w: f64, h: f64, _state: &PanelState) {
+        if !self.mouse_over && self.hidden {
+            return;
+        }
+
+        // Background rounded rect.
+        // C++ PaintRoundRect(0,0,2,h, 6.0/64.0, 6.0/75.0*h, color).
+        // Rust PaintRoundRect takes single radius; use 6.0/64.0 (horizontal).
+        let color = if self.pressed {
+            emColor::from_packed(0x002244C0)
+        } else if self.mouse_over {
+            emColor::from_packed(0x006688A0)
+        } else {
+            emColor::from_packed(0x33445580)
+        };
+        painter.PaintRoundRect(0.0, 0.0, 2.0, h, 6.0 / 64.0, color);
+
+        // Arrow indicators (C++ emMainPanel.cpp:478-498).
+        if self.mouse_over || self.pressed {
+            let x1 = 0.2;
+            let x2 = 0.4;
+            let y1 = 0.1 * h;
+            let y2 = 0.3 * h;
+            let mut vertices: Vec<(f64, f64)> = Vec::new();
+
+            // Up arrow: only if slider not at minimum.
+            if self.parent_slider_y > self.parent_slider_min_y + 1e-5 {
+                vertices.push((x1, y2));
+                vertices.push((0.5, y1));
+                vertices.push((1.0 - x1, y2));
+            }
+            // Right side bar.
+            vertices.push((1.0 - x2, y2));
+            vertices.push((1.0 - x2, h - y2));
+            // Down arrow: only if slider not at maximum.
+            if self.parent_slider_y < self.parent_slider_max_y - 1e-5 {
+                vertices.push((1.0 - x1, h - y2));
+                vertices.push((0.5, h - y1));
+                vertices.push((x1, h - y2));
+            }
+            // Left side bar.
+            vertices.push((x2, h - y2));
+            vertices.push((x2, y2));
+
+            let poly_color = if self.pressed {
+                emColor::from_packed(0xEEDD99D0)
+            } else {
+                emColor::from_packed(0xEEDD9960)
+            };
+            painter.PaintPolygon(&vertices, poly_color, emColor::TRANSPARENT);
+        }
+
+        // Slider texture image (C++: PaintImage(0,0,1,h,SliderImage)).
+        painter.paint_image_full(
             0.0,
             0.0,
-            w,
+            1.0,
             h,
-            emColor::from_packed(0x333344FF),
+            &self.slider_image,
+            255,
             emColor::TRANSPARENT,
         );
     }
@@ -287,6 +472,44 @@ impl emMainPanel {
             self.control_edges_color = c;
         }
     }
+
+    /// Apply a slider drag delta in parent coordinate space.
+    ///
+    /// Port of C++ `emMainPanel::DragSlider` (emMainPanel.cpp:342-357).
+    pub(crate) fn _DragSlider(&mut self, delta_y: f64) {
+        let mut y = self.slider_y + delta_y;
+        if y <= self.slider_min_y {
+            y = self.slider_min_y;
+        } else if y > self.slider_max_y {
+            y = self.slider_max_y;
+        }
+        let range = self.slider_max_y - self.slider_min_y;
+        if range > 0.0 {
+            let n = (y - self.slider_min_y) / range;
+            if self.unified_slider_pos != n {
+                self.unified_slider_pos = n;
+                self.update_coordinates(self.last_height);
+                // UpdateSliderHiding(false) — deferred to Task 8.
+                self.config.borrow_mut().SetControlViewSize(self.unified_slider_pos);
+            }
+        }
+    }
+
+    /// Toggle the slider between open and closed on double-click.
+    ///
+    /// Port of C++ `emMainPanel::DoubleClickSlider` (emMainPanel.cpp:360-374).
+    pub(crate) fn _DoubleClickSlider(&mut self) {
+        if self.unified_slider_pos < 0.01 {
+            if self.config.borrow().GetControlViewSize() < 0.01 {
+                self.config.borrow_mut().SetControlViewSize(0.7);
+            }
+            self.unified_slider_pos = self.config.borrow().GetControlViewSize();
+        } else {
+            self.unified_slider_pos = 0.0;
+        }
+        self.update_coordinates(self.last_height);
+        // UpdateSliderHiding(false) — deferred to Task 8.
+    }
 }
 
 impl PanelBehavior for emMainPanel {
@@ -387,7 +610,7 @@ impl PanelBehavior for emMainPanel {
             self.content_view_panel = Some(content_id);
 
             // Create slider panel.
-            let slider_id = ctx.create_child_with("slider", Box::new(SliderPanel));
+            let slider_id = ctx.create_child_with("slider", Box::new(SliderPanel::new()));
             self.slider_panel = Some(slider_id);
 
             // Create startup overlay.
@@ -431,6 +654,17 @@ impl PanelBehavior for emMainPanel {
                     );
                     sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 1.0);
                     child_id
+                });
+        }
+
+        // Pass parent slider state to SliderPanel for conditional arrow rendering.
+        if let Some(slider) = self.slider_panel {
+            let sy = self.slider_y;
+            let smin = self.slider_min_y;
+            let smax = self.slider_max_y;
+            ctx.tree
+                .with_behavior_as::<SliderPanel, _>(slider, |sp| {
+                    sp.set_parent_slider_state(sy, smin, smax);
                 });
         }
 
@@ -610,5 +844,85 @@ mod tests {
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.content_y = 0.0;
         assert!(panel.content_y <= 1e-10);
+    }
+
+    // ── SliderPanel tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_slider_panel_not_opaque() {
+        let panel = SliderPanel::new();
+        assert!(!panel.IsOpaque());
+    }
+
+    #[test]
+    fn test_slider_panel_initial_state() {
+        let panel = SliderPanel::new();
+        assert!(!panel._is_pressed());
+        assert!(!panel._mouse_over());
+        assert!((panel._press_my() - 0.0).abs() < 1e-10);
+        assert!((panel._get_press_slider_y() - 0.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_slider_panel_image_loaded() {
+        let panel = SliderPanel::new();
+        assert!(panel.slider_image.GetWidth() > 0);
+        assert!(panel.slider_image.GetHeight() > 0);
+    }
+
+    #[test]
+    fn test_slider_panel_set_hidden() {
+        let mut panel = SliderPanel::new();
+        assert!(!panel.hidden);
+        panel._SetHidden(true);
+        assert!(panel.hidden);
+        panel._SetHidden(false);
+        assert!(!panel.hidden);
+    }
+
+    // ── DragSlider / DoubleClickSlider tests ─────────────────────────────
+
+    #[test]
+    fn test_drag_slider_clamps_to_min() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
+        panel.update_coordinates(1.0);
+        panel._DragSlider(-999.0);
+        assert!(panel.slider_y >= panel.slider_min_y);
+    }
+
+    #[test]
+    fn test_drag_slider_clamps_to_max() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
+        panel.update_coordinates(1.0);
+        panel._DragSlider(999.0);
+        assert!(panel.slider_y <= panel.slider_max_y);
+    }
+
+    #[test]
+    fn test_double_click_slider_toggle() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
+        panel.update_coordinates(1.0);
+        panel.unified_slider_pos = 0.5;
+        panel.update_coordinates(1.0);
+        panel._DoubleClickSlider();
+        assert!(panel.unified_slider_pos < 0.01);
+        panel._DoubleClickSlider();
+        assert!(panel.unified_slider_pos > 0.01);
+    }
+
+    #[test]
+    fn test_drag_slider_updates_config() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
+        panel.update_coordinates(1.0);
+        let old_pos = panel.unified_slider_pos;
+        panel._DragSlider(0.1);
+        // If range > 0, position should have changed.
+        if panel.slider_max_y > panel.slider_min_y {
+            assert!((panel.unified_slider_pos - old_pos).abs() > 1e-10);
+        }
     }
 }
