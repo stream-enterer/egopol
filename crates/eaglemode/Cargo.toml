@@ -13,6 +13,7 @@ emmain = { path = "../emmain" }
 winit = { workspace = true }
 
 [dev-dependencies]
+emfileman = { path = "../emfileman" }
 emstocks = { path = "../emstocks" }
 rand = { workspace = true }
 slotmap = { workspace = true }
