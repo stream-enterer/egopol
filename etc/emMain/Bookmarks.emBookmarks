@@ -1,0 +1,13 @@
+#%rec:emBookmarks%#
+
+{
+  Bookmark {
+    Name = "Home"
+    Description = "Your home directory"
+    Hotkey = "F5"
+    LocationIdentity = "::VcItem:Home:"
+    LocationRelX = 0.5
+    LocationRelY = 0.5
+    LocationRelA = 0.01
+  }
+}
