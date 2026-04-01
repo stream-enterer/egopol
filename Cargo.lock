@@ -769,10 +769,12 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "emcore",
+ "emmain",
  "emstocks",
  "gungraun",
  "rand",
  "slotmap",
+ "winit",
 ]
 
 [[package]]
@@ -808,6 +810,18 @@ dependencies = [
  "libc",
  "log",
  "slotmap",
+]
+
+[[package]]
+name = "emmain"
+version = "0.1.0"
+dependencies = [
+ "emcore",
+ "emfileman",
+ "emstocks",
+ "log",
+ "slotmap",
+ "winit",
 ]
 
 [[package]]

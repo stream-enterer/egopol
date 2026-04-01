@@ -9,6 +9,8 @@ workspace = true
 
 [dependencies]
 emcore = { workspace = true }
+emmain = { path = "../emmain" }
+winit = { workspace = true }
 
 [dev-dependencies]
 emstocks = { path = "../emstocks" }
