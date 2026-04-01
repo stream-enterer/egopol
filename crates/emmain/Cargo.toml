@@ -14,5 +14,6 @@ workspace = true
 emcore = { workspace = true }
 emstocks = { path = "../emstocks" }
 emfileman = { path = "../emfileman" }
+winit = { workspace = true }
 log = { workspace = true }
 slotmap = { workspace = true }
