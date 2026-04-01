@@ -58,7 +58,7 @@ impl PanelBehavior for SliderPanel {
 /// Eats all input events, shows "Loading..." text, and returns a wait cursor.
 /// `IsOpaque()` returns `false` — this is critical: otherwise the sub-view panels
 /// for content and control would get "non-viewed" state.
-pub struct StartupOverlayPanel;
+pub(crate) struct StartupOverlayPanel;
 
 impl PanelBehavior for StartupOverlayPanel {
     fn IsOpaque(&self) -> bool {
@@ -139,15 +139,11 @@ pub struct emMainPanel {
     slider_max_y: f64,
 
     // Child panel IDs (created inside sub-views)
-    control_panel_created: bool,
-    content_panel_created: bool,
+    control_panel_created: Option<PanelId>,
+    content_panel_created: Option<PanelId>,
 
     // State
     slider_pressed: bool,
-    _slider_hidden: bool,
-    _fullscreen_on: bool,
-    _old_mouse_x: f64,
-    _old_mouse_y: f64,
     children_created: bool,
     last_height: f64,
 }
@@ -173,13 +169,9 @@ impl emMainPanel {
             startup_overlay: None,
             control_edges_color: emColor::from_packed(0x515E84FF),
             control_edges_image,
-            control_panel_created: false,
-            content_panel_created: false,
+            control_panel_created: None,
+            content_panel_created: None,
             slider_pressed: false,
-            _slider_hidden: false,
-            _fullscreen_on: false,
-            _old_mouse_x: 0.0,
-            _old_mouse_y: 0.0,
             children_created: false,
             control_x: 0.0,
             control_y: 0.0,
@@ -358,41 +350,38 @@ impl PanelBehavior for emMainPanel {
 
         // Create control panel inside control sub-view.
         if let Some(ctrl_id) = self.control_view_panel
-            && !self.control_panel_created
+            && self.control_panel_created.is_none()
         {
-            if let Some(mut behavior) = ctx.tree.take_behavior(ctrl_id) {
-                if let Some(svp) = behavior.as_any_mut().downcast_mut::<emSubViewPanel>() {
+            let ctrl_ctx = Rc::clone(&self.ctx);
+            let tallness = self.control_tallness;
+            self.control_panel_created =
+                ctx.tree.with_behavior_as::<emSubViewPanel, _>(ctrl_id, |svp| {
                     let sub_tree = svp.sub_tree_mut();
                     let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
                     let child_id = sub_tree.create_child(sub_root, "ctrl");
-                    let ctrl_ctx = Rc::clone(&self.ctx);
                     sub_tree.set_behavior(child_id, Box::new(emMainControlPanel::new(ctrl_ctx)));
-                    sub_tree.Layout(child_id, 0.0, 0.0, 1.0, self.control_tallness);
-                }
-                ctx.tree.put_behavior(ctrl_id, behavior);
-            }
-            self.control_panel_created = true;
+                    sub_tree.Layout(child_id, 0.0, 0.0, 1.0, tallness);
+                    child_id
+                });
         }
 
         // Create content panel inside content sub-view.
         if let Some(content_id) = self.content_view_panel
-            && !self.content_panel_created
+            && self.content_panel_created.is_none()
         {
-            if let Some(mut behavior) = ctx.tree.take_behavior(content_id) {
-                if let Some(svp) = behavior.as_any_mut().downcast_mut::<emSubViewPanel>() {
+            let content_ctx = Rc::clone(&self.ctx);
+            self.content_panel_created =
+                ctx.tree.with_behavior_as::<emSubViewPanel, _>(content_id, |svp| {
                     let sub_tree = svp.sub_tree_mut();
                     let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
                     let child_id = sub_tree.create_child(sub_root, "");
-                    let content_ctx = Rc::clone(&self.ctx);
                     sub_tree.set_behavior(
                         child_id,
                         Box::new(emMainContentPanel::new(content_ctx)),
                     );
                     sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 1.0);
-                }
-                ctx.tree.put_behavior(content_id, behavior);
-            }
-            self.content_panel_created = true;
+                    child_id
+                });
         }
 
         // Position children.
