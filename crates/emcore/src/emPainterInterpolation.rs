@@ -990,7 +990,7 @@ pub(crate) fn sample_adaptive_premul_fp_section(
 /// Uses 24-bit fixed-point coordinates. `ix`, `iy` are relative to the section
 /// origin (before the -1.5 offset that C++ applies for the 4x4 kernel).
 /// Returns the interpolated luminance as u8.
-pub(crate) fn sample_adaptive_lum_section(
+pub fn sample_adaptive_lum_section(
     image: &emImage,
     ix: i32,
     iy: i32,

@@ -40,33 +40,49 @@ pub unsafe extern "C" fn rust_blend_source_over_simple(
     dest: *mut u8,
     src: *const u8,
     count: i32,
+    opacity: i32,
 ) {
     let count = count as usize;
     for i in 0..count {
         let s_off = i * 4;
         let d_off = i * 4;
-        let sr = *src.add(s_off);
-        let sg = *src.add(s_off + 1);
-        let sb = *src.add(s_off + 2);
-        let sa = *src.add(s_off + 3);
+        let mut sr = *src.add(s_off) as i32;
+        let mut sg = *src.add(s_off + 1) as i32;
+        let mut sb = *src.add(s_off + 2) as i32;
+        let mut sa = *src.add(s_off + 3) as i32;
+
+        // Apply opacity (Fixed12) — matches C++ PaintScanlineInt opacity scaling
+        if opacity < 0x1000 {
+            if opacity <= 0 { continue; }
+            sr = (sr * opacity + 0x800) >> 12;
+            sg = (sg * opacity + 0x800) >> 12;
+            sb = (sb * opacity + 0x800) >> 12;
+            sa = (sa * opacity + 0x800) >> 12;
+        }
+
         if sa == 0 { continue; }
         if sa >= 255 {
-            *dest.add(d_off) = sr;
-            *dest.add(d_off + 1) = sg;
-            *dest.add(d_off + 2) = sb;
+            *dest.add(d_off) = sr as u8;
+            *dest.add(d_off + 1) = sg as u8;
+            *dest.add(d_off + 2) = sb as u8;
             *dest.add(d_off + 3) = 255;
             continue;
         }
-        let alpha = sa;
-        let t = (255 - alpha as u32) * 257;
-        *dest.add(d_off) = (((*dest.add(d_off) as u32 * t + 0x8073) >> 16)
-            + blend_hash(sr, alpha) as u32) as u8;
-        *dest.add(d_off + 1) = (((*dest.add(d_off + 1) as u32 * t + 0x8073) >> 16)
-            + blend_hash(sg, alpha) as u32) as u8;
-        *dest.add(d_off + 2) = (((*dest.add(d_off + 2) as u32 * t + 0x8073) >> 16)
-            + blend_hash(sb, alpha) as u32) as u8;
-        *dest.add(d_off + 3) = (((*dest.add(d_off + 3) as u32 * t + 0x8073) >> 16)
-            + blend_hash(255, alpha) as u32) as u8;
+        // Source-over: dest = dest * (1-alpha)/255 + src_premul
+        // Matches blend_scanline_premul_source_over in emPainterScanlineTool.rs
+        // C++ does: *p = (blended_v) + pix, where pix = hR[r]+hG[g]+hB[b]
+        // and hR[v] = v (identity for range=255), so pix = r + (g<<8) + (b<<16)
+        // This is equivalent to adding the premul channels directly.
+        let a = sa as u32;
+        let t = (255 - a) * 257;
+        *dest.add(d_off) = ((((*dest.add(d_off) as u32) * t + 0x8073) >> 16)
+            + sr as u32) as u8;
+        *dest.add(d_off + 1) = ((((*dest.add(d_off + 1) as u32) * t + 0x8073) >> 16)
+            + sg as u32) as u8;
+        *dest.add(d_off + 2) = ((((*dest.add(d_off + 2) as u32) * t + 0x8073) >> 16)
+            + sb as u32) as u8;
+        // C++ does NOT write alpha (bits 24-31 are zeroed by the packed pixel math).
+        // Match that: don't update dest alpha.
     }
 }
 
@@ -225,4 +241,124 @@ pub extern "C" fn rust_get_coverage(
     if alpha_x <= 0 { return 0; }
 
     ((alpha_x as i64 * alpha_y as i64 + 0x7ff) >> 12) as i32
+}
+
+// ── Layer 6: Colored blend (IMAGE_COLORED / font glyph pipeline) ─
+
+use emcore::emPainterScanlineTool::{blend_colored_scanline, BlendMode};
+use emcore::emColor::emColor;
+use emcore::emPainterInterpolation::sample_adaptive_lum_section;
+
+/// C-compatible color struct (RGBA u8).
+#[repr(C)]
+pub struct CColor {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
+/// Run Rust blend_colored_scanline (G2 variant: color1=transparent, color2=given).
+/// `lums`: array of luminance values (count elements).
+/// `dest`: RGBA output buffer (count*4 bytes), pre-filled with background.
+/// `coverage`: Fixed12 coverage per pixel (count elements), or null for full coverage.
+#[no_mangle]
+pub unsafe extern "C" fn rust_blend_colored_g2(
+    dest: *mut u8,
+    lums: *const u8,
+    count: i32,
+    coverage: *const i32,
+    color2_r: u8,
+    color2_g: u8,
+    color2_b: u8,
+    color2_a: u8,
+    canvas_r: u8,
+    canvas_g: u8,
+    canvas_b: u8,
+    canvas_a: u8,
+) {
+    let count_u = count as usize;
+    let lum_slice = std::slice::from_raw_parts(lums, count_u);
+    let dest_slice = std::slice::from_raw_parts_mut(dest, count_u * 4);
+
+    let cov_slice: Option<&[i32]> = if coverage.is_null() {
+        None
+    } else {
+        Some(std::slice::from_raw_parts(coverage, count_u))
+    };
+
+    let color1 = emColor::TRANSPARENT;
+    let color2 = emColor::rgba(color2_r, color2_g, color2_b, color2_a);
+    let canvas = emColor::rgba(canvas_r, canvas_g, canvas_b, canvas_a);
+
+    let mode = if canvas.IsOpaque() {
+        BlendMode::CanvasBlend {
+            canvas,
+            painter_alpha: 255,
+        }
+    } else {
+        BlendMode::SourceOver {
+            painter_alpha: 255,
+        }
+    };
+
+    blend_colored_scanline(
+        dest_slice,
+        lum_slice,
+        count_u,
+        cov_slice,
+        color1,
+        color2,
+        &mode,
+    );
+}
+
+// ── Layer 7: Adaptive luminance interpolation (font glyph upscaling) ─
+
+/// Sample a single pixel from a 1-channel image using adaptive (bicubic)
+/// interpolation, matching C++ InterpolateImageAdaptive for CHANNELS=1.
+///
+/// `img_data`: raw 1-channel pixel data (img_w * img_h bytes)
+/// `ix`, `iy`: integer source coords (relative to section origin)
+/// `ox`, `oy`: sub-pixel offsets (0-255 range, 8-bit fixed point)
+/// `sec_ox`, `sec_oy`, `sec_w`, `sec_h`: section bounds in image space
+///
+/// Returns interpolated luminance (0-255).
+#[no_mangle]
+pub unsafe extern "C" fn rust_sample_adaptive_lum(
+    img_data: *const u8,
+    img_w: i32,
+    img_h: i32,
+    ix: i32,
+    iy: i32,
+    ox: u32,
+    oy: u32,
+    sec_ox: i32,
+    sec_oy: i32,
+    sec_w: i32,
+    sec_h: i32,
+) -> u8 {
+    let img_size = (img_w * img_h) as usize;
+    let img_slice = std::slice::from_raw_parts(img_data, img_size);
+    // 1-channel image
+    let mut image = emImage::new(img_w as u32, img_h as u32, 1);
+    let map = image.GetWritableMap();
+    map[..img_size].copy_from_slice(img_slice);
+
+    let sec = emcore::emPainterInterpolation::SectionBounds {
+        ox: sec_ox,
+        oy: sec_oy,
+        w: sec_w,
+        h: sec_h,
+    };
+
+    sample_adaptive_lum_section(
+        &image,
+        ix,
+        iy,
+        ox,
+        oy,
+        &sec,
+        ImageExtension::Zero,
+    )
 }
