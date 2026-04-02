@@ -411,6 +411,233 @@ fn blend_scanline_premul_source_over(
     }
 }
 
+/// Fused color-mapping + compositing for IMAGE_COLORED (font glyphs).
+///
+/// Literal port of C++ `PaintScanlineIntG1`, `PaintScanlineIntG2`,
+/// `PaintScanlineIntG1G2` for CHANNELS=1, PIXEL_SIZE=4.
+///
+/// Unlike `blend_scanline` (which takes premapped RGBA source pixels),
+/// this function takes raw grayscale luminance values and two gradient
+/// endpoint colors, fusing the color mapping and compositing into one
+/// step. This matches C++ integer rounding exactly.
+///
+/// # Parameters
+/// - `dest`: destination RGBA pixel buffer (4 bytes per pixel)
+/// - `lums`: grayscale values, one per pixel (from interpolation)
+/// - `count`: number of pixels to process
+/// - `coverages`: per-pixel coverage values in [0, 0x1000]; None = all full
+/// - `color1`: gradient color for luminance=0 (background color)
+/// - `color2`: gradient color for luminance=255 (foreground color)
+/// - `mode`: blend mode (canvas or source-over, with painter_alpha)
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn blend_colored_scanline(
+    dest: &mut [u8],
+    lums: &[u8],
+    count: usize,
+    coverages: Option<&[i32]>,
+    color1: emColor,
+    color2: emColor,
+    mode: &BlendMode,
+) {
+    use super::emColor::blend_hash_lookup;
+
+    let c1_transparent = color1.GetAlpha() == 0;
+    let c2_transparent = color2.GetAlpha() == 0;
+
+    // Extract painter_alpha and canvas from the blend mode
+    let (canvas_opt, painter_alpha) = match mode {
+        BlendMode::CanvasBlend {
+            canvas,
+            painter_alpha,
+        } => (Some(*canvas), *painter_alpha),
+        BlendMode::SourceOver { painter_alpha } => (None, *painter_alpha),
+    };
+
+    // Pre-extract color components for use in inner loop
+    let c1r = color1.GetRed();
+    let c1g = color1.GetGreen();
+    let c1b = color1.GetBlue();
+    let c2r = color2.GetRed();
+    let c2g = color2.GetGreen();
+    let c2b = color2.GetBlue();
+    let c1a = color1.GetAlpha();
+    let c2a = color2.GetAlpha();
+
+    for i in 0..count {
+        let cov = coverages.map_or(0x1000i32, |c| c[i]);
+        if cov <= 0 {
+            continue;
+        }
+
+        let g = lums[i] as u32;
+
+        // Compute effective opacity: apply painter_alpha to coverage
+        // In C++, HAVE_ALPHA is 0 for IMAGE_COLORED, so sct.Alpha is not used.
+        // But painter_alpha may be < 255 if the Rust painter state has it set.
+        let o = if painter_alpha < 255 {
+            (cov * painter_alpha as i32 + 127) / 255
+        } else {
+            cov
+        };
+
+        // Compute per-color opacity: o1 for color1, o2 for color2
+        let o1 = if !c1_transparent {
+            (o * c1a as i32 + 127) / 255
+        } else {
+            0
+        };
+        let o2 = if !c2_transparent {
+            (o * c2a as i32 + 127) / 255
+        } else {
+            0
+        };
+
+        // --- Variant dispatch: G1, G2, or G1G2 ---
+        // pix_r, pix_g, pix_b are the premultiplied hash-table-blended pixel values.
+        // `a` is the composite alpha for compositing.
+        let (pix_r, pix_g, pix_b, a): (u8, u8, u8, u32);
+
+        if c1_transparent && !c2_transparent {
+            // === G2 variant: color1 transparent ===
+            if o2 < 0x1000 {
+                // Partial opacity
+                let a_val = (g as i32 * o2 + 0x800) >> 12;
+                if a_val == 0 {
+                    continue;
+                }
+                let a8 = a_val as u8;
+                pix_r = blend_hash_lookup(c2r, a8);
+                pix_g = blend_hash_lookup(c2g, a8);
+                pix_b = blend_hash_lookup(c2b, a8);
+                a = a_val as u32;
+            } else {
+                // Full opacity (o2 >= 0x1000)
+                let a_val = g;
+                if a_val == 0 {
+                    continue;
+                }
+                pix_r = blend_hash_lookup(c2r, a_val as u8);
+                pix_g = blend_hash_lookup(c2g, a_val as u8);
+                pix_b = blend_hash_lookup(c2b, a_val as u8);
+                a = a_val;
+            }
+        } else if !c1_transparent && c2_transparent {
+            // === G1 variant: color2 transparent ===
+            if o1 < 0x1000 {
+                // Partial opacity
+                // In C++ for CHANNELS=1, a=255 (since no alpha channel in source)
+                let a_val = ((255 - g) as i32 * o1 + 0x800) >> 12;
+                if a_val == 0 {
+                    continue;
+                }
+                let a8 = a_val as u8;
+                pix_r = blend_hash_lookup(c1r, a8);
+                pix_g = blend_hash_lookup(c1g, a8);
+                pix_b = blend_hash_lookup(c1b, a8);
+                a = a_val as u32;
+            } else {
+                // Full opacity
+                let a_val = 255 - g;
+                if a_val == 0 {
+                    continue;
+                }
+                pix_r = blend_hash_lookup(c1r, a_val as u8);
+                pix_g = blend_hash_lookup(c1g, a_val as u8);
+                pix_b = blend_hash_lookup(c1b, a_val as u8);
+                a = a_val;
+            }
+        } else if !c1_transparent && !c2_transparent {
+            // === G1G2 variant: both colors present ===
+            if o1 < 0x1000 || o2 < 0x1000 {
+                // Partial opacity
+                let a1 = ((255 - g) as i32 * o1 + 0x800) >> 12;
+                let a2 = (g as i32 * o2 + 0x800) >> 12;
+                let a_val = (a1 + a2) as u32;
+                if a_val == 0 {
+                    continue;
+                }
+                // C++ uses blend_hash_lookup(255, blended_channel) for each channel
+                pix_r = blend_hash_lookup(
+                    255,
+                    (((c1r as u32 * a1 as u32 + c2r as u32 * a2 as u32) * 257 + 0x8073) >> 16)
+                        as u8,
+                );
+                pix_g = blend_hash_lookup(
+                    255,
+                    (((c1g as u32 * a1 as u32 + c2g as u32 * a2 as u32) * 257 + 0x8073) >> 16)
+                        as u8,
+                );
+                pix_b = blend_hash_lookup(
+                    255,
+                    (((c1b as u32 * a1 as u32 + c2b as u32 * a2 as u32) * 257 + 0x8073) >> 16)
+                        as u8,
+                );
+                a = a_val;
+            } else {
+                // Full opacity: both o1 >= 0x1000 and o2 >= 0x1000
+                // a=255 (for CHANNELS=1, a=255 in C++)
+                // C++ full path: g directly used
+                pix_r = blend_hash_lookup(
+                    255,
+                    (((c1r as u32 * (255 - g) + c2r as u32 * g) * 257 + 0x8073) >> 16) as u8,
+                );
+                pix_g = blend_hash_lookup(
+                    255,
+                    (((c1g as u32 * (255 - g) + c2g as u32 * g) * 257 + 0x8073) >> 16) as u8,
+                );
+                pix_b = blend_hash_lookup(
+                    255,
+                    (((c1b as u32 * (255 - g) + c2b as u32 * g) * 257 + 0x8073) >> 16) as u8,
+                );
+                a = 255;
+            }
+        } else {
+            // Both colors transparent — nothing to draw
+            continue;
+        }
+
+        // --- Compositing ---
+        let off = i * 4;
+
+        if a >= 255 {
+            // Opaque fast path
+            dest[off] = pix_r;
+            dest[off + 1] = pix_g;
+            dest[off + 2] = pix_b;
+            if canvas_opt.is_none() {
+                dest[off + 3] = 255;
+            }
+            // Canvas mode: dest alpha unchanged
+            continue;
+        }
+
+        let a8 = a as u8;
+
+        if let Some(canvas) = canvas_opt {
+            // Canvas blend (HAVE_CVC)
+            let cr = blend_hash_lookup(canvas.GetRed(), a8) as i32;
+            let cg = blend_hash_lookup(canvas.GetGreen(), a8) as i32;
+            let cb = blend_hash_lookup(canvas.GetBlue(), a8) as i32;
+            dest[off] = (dest[off] as i32 + pix_r as i32 - cr).clamp(0, 255) as u8;
+            dest[off + 1] = (dest[off + 1] as i32 + pix_g as i32 - cg).clamp(0, 255) as u8;
+            dest[off + 2] = (dest[off + 2] as i32 + pix_b as i32 - cb).clamp(0, 255) as u8;
+            // Canvas blend: dest alpha unchanged
+        } else {
+            // Source-over (no canvas)
+            let t = (255 - a) * 257;
+            dest[off] =
+                (((dest[off] as u32 * t + 0x8073) >> 16) + pix_r as u32) as u8;
+            dest[off + 1] =
+                (((dest[off + 1] as u32 * t + 0x8073) >> 16) + pix_g as u32) as u8;
+            dest[off + 2] =
+                (((dest[off + 2] as u32 * t + 0x8073) >> 16) + pix_b as u32) as u8;
+            dest[off + 3] =
+                (((dest[off + 3] as u32 * t + 0x8073) >> 16) + blend_hash_lookup(255, a8) as u32)
+                    as u8;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

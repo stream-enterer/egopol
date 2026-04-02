@@ -5,7 +5,7 @@ use crate::emPainterDrawList::DrawOp;
 use super::emFontCache;
 use super::emPainterInterpolation;
 use super::emPainterScanline::{self, WindingRule};
-use super::emPainterScanlineTool::{blend_scanline, blend_scanline_premul, BlendMode, InterpolationBuffer};
+use super::emPainterScanlineTool::{blend_colored_scanline, blend_scanline, blend_scanline_premul, BlendMode, InterpolationBuffer, MAX_INTERP_BYTES};
 use super::emStroke::{emStroke, emStrokeEnd, StrokeEndType};
 use super::emTexture::{ImageExtension, ImageQuality, emTexture};
 use crate::emColor::{blend_hash_lookup, emColor};
@@ -1401,27 +1401,14 @@ impl<'a> emPainter<'a> {
 
         let ext = extension.resolve_for_colored(color1, color2);
 
-        // Helper: lum -> color mapping (shared between downscaling and non-downscaling paths).
-        let lum_to_color = |lum: u8| -> emColor {
-            if color1.IsTotallyTransparent() {
-                let a = (lum as u32 * color2.GetAlpha() as u32 + 127) / 255;
-                emColor::rgba(color2.GetRed(), color2.GetGreen(), color2.GetBlue(), a as u8)
-            } else if color2.IsTotallyTransparent() {
-                let inv = 255 - lum;
-                let a = (inv as u32 * color1.GetAlpha() as u32 + 127) / 255;
-                emColor::rgba(color1.GetRed(), color1.GetGreen(), color1.GetBlue(), a as u8)
-            } else {
-                let t = lum as f64 / 255.0;
-                color1.GetBlended(color2, t * 100.0)
-            }
-        };
-
         // Scanline batch pipeline for colored images.
+        // Uses fused color-mapping + compositing (C++ PaintScanlineIntG1/G2/G1G2).
         let tw = self.target_width as usize;
         let mode = BlendMode::from_state(self.state.canvas_color, self.state.alpha);
-        let mut ibuf = InterpolationBuffer::new(4); // output is always RGBA after lum mapping
+        let mut ibuf = InterpolationBuffer::new(ch);
         let max_batch = ibuf.max_pixels();
         let mut coverages = vec![0i32; max_batch];
+        let mut lums = [0u8; MAX_INTERP_BYTES]; // max possible pixels when ch=1
 
         if downscaling {
             // 24fp area sampling matching C++ ScanlineTool InterpolateImageAreaSampled.
@@ -1462,36 +1449,38 @@ impl<'a> emPainter<'a> {
                 let mut col = start_x;
                 while col < end_x {
                     let batch = ((end_x - col) as usize).min(max_batch);
-                    // Interpolate, then apply lum->color mapping in-place
                     emPainterInterpolation::interpolate_scanline_area_sampled(
                         image, col, row, batch, &xfm, &sec, ext, &mut ibuf, &mut carry,
                     );
-                    for i in 0..batch {
+                    // Extract luminance from interpolated data
+                    for (i, lum) in lums[..batch].iter_mut().enumerate() {
                         let p = ibuf.pixel_rgba(i);
-                        let lum = if ch == 1 {
+                        *lum = if ch == 1 {
                             p[0]
                         } else {
                             ((p[0] as u32 * 77 + p[1] as u32 * 150 + p[2] as u32 * 29) >> 8)
                                 as u8
                         };
-                        let c = lum_to_color(lum);
-                        ibuf.set_pixel(i, [c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha()]);
                     }
                     let all_full =
                         sp.batch_coverages(row, col, &mut coverages[..batch]);
                     let dest_offset = (row as usize * tw + col as usize) * 4;
                     let data = self.GetImage(proof).GetWritableMap();
                     let dest = &mut data[dest_offset..];
-                    if all_full {
-                        blend_scanline(dest, &ibuf, batch, None, &mode);
-                    } else {
-                        blend_scanline(dest, &ibuf, batch, Some(&coverages[..batch]), &mode);
-                    }
+                    blend_colored_scanline(
+                        dest,
+                        &lums[..batch],
+                        batch,
+                        if all_full { None } else { Some(&coverages[..batch]) },
+                        color1,
+                        color2,
+                        &mode,
+                    );
                     col += batch as i32;
                 }
             }
         } else {
-            // Adaptive upscaling with lum mapping — matches C++ UQ_ADAPTIVE
+            // Adaptive upscaling with lum extraction — matches C++ UQ_ADAPTIVE
             // for font glyph rendering (PaintImageColored with upscaling).
             let sxfm =
                 self.scale_transform_24(src_w, src_h, x, y, w, h);
@@ -1505,10 +1494,8 @@ impl<'a> emPainter<'a> {
                 let mut col = start_x;
                 while col < end_x {
                     let batch = ((end_x - col) as usize).min(max_batch);
-                    for i in 0..batch {
+                    for (i, lum) in lums[..batch].iter_mut().enumerate() {
                         let c = col + i as i32;
-                        // Match interpolate_scanline_adaptive_premul_section
-                        // coordinate convention: (col - px) * tdx + base_x.
                         let tx64 = (c - px) as i64 * sxfm.tdx
                             + sxfm.base_x
                             - 0x180_0000;
@@ -1522,23 +1509,24 @@ impl<'a> emPainter<'a> {
                         let oy =
                             (((ty64 & 0xFF_FFFF) as u32).wrapping_add(0x7FFF)) >> 16;
 
-                        let lum = emPainterInterpolation::sample_adaptive_lum_section(
+                        *lum = emPainterInterpolation::sample_adaptive_lum_section(
                             image, src_ix, src_iy, ox, oy, &sec, ext,
                         );
-                        let mapped = lum_to_color(lum);
-                        ibuf.set_pixel(i, [mapped.GetRed(), mapped.GetGreen(), mapped.GetBlue(), mapped.GetAlpha()]);
                     }
-                    ibuf.set_len(batch);
                     let all_full =
                         sp.batch_coverages(row, col, &mut coverages[..batch]);
                     let dest_offset = (row as usize * tw + col as usize) * 4;
                     let data = self.GetImage(proof).GetWritableMap();
                     let dest = &mut data[dest_offset..];
-                    if all_full {
-                        blend_scanline(dest, &ibuf, batch, None, &mode);
-                    } else {
-                        blend_scanline(dest, &ibuf, batch, Some(&coverages[..batch]), &mode);
-                    }
+                    blend_colored_scanline(
+                        dest,
+                        &lums[..batch],
+                        batch,
+                        if all_full { None } else { Some(&coverages[..batch]) },
+                        color1,
+                        color2,
+                        &mode,
+                    );
                     col += batch as i32;
                 }
             }
