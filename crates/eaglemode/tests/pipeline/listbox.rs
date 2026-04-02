@@ -31,8 +31,9 @@ struct SharedListBoxPanel {
 }
 
 impl PanelBehavior for SharedListBoxPanel {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        self.inner.borrow_mut().Paint(painter, w, h);
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.inner.borrow_mut().Paint(painter, w, h, pixel_scale);
     }
 
     fn Input(

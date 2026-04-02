@@ -292,7 +292,7 @@ impl emScalarField {
 
     // --- Paint ---
 
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -310,7 +310,7 @@ impl emScalarField {
             self.border.how_to_text = text;
         }
         self.border
-            .paint_border(painter, w, h, &self.look, false, enabled, 1.0);
+            .paint_border(painter, w, h, &self.look, false, enabled, pixel_scale);
         let canvas_color = painter.GetCanvasColor();
 
         let (content, radius) = self.border.GetContentRoundRect(w, h, &self.look);

@@ -86,9 +86,9 @@ impl emDialog {
         }
     }
 
-    pub fn Paint(&self, painter: &mut emPainter, w: f64, h: f64) {
+    pub fn Paint(&self, painter: &mut emPainter, w: f64, h: f64, pixel_scale: f64) {
         self.border
-            .paint_border(painter, w, h, &self.look, false, true, 1.0);
+            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
     }
 
     /// Layout content area and button row at the bottom.

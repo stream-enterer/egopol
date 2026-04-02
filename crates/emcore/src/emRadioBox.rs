@@ -106,12 +106,12 @@ impl emRadioBox {
     }
 
     /// Paint using the C++ DoButton ShownBoxed=true, ShownRadioed=true path.
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
         self.border
-            .paint_border(painter, w, h, &self.look, false, true, 1.0);
+            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
 
         let cr = self.border.GetContentRect(w, h, &self.look);
         let (bx0, by0, bw0, mut lx, mut ly, mut lw, mut lh) =

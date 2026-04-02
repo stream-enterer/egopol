@@ -1210,8 +1210,10 @@ impl<'a> emPainter<'a> {
             // 24fp area sampling matching C++ ScanlineTool InterpolateImageAreaSampled.
             let iw = image.GetWidth();
             let ih = image.GetHeight();
-            let tdx_init = ((iw as i64) << 24) as f64 / pw as f64;
-            let tdy_init = ((ih as i64) << 24) as f64 / ph as f64;
+            // C++ uses float tw = texture.GetW() * ScaleX (not integer pixel width).
+            // Must match area_sample_transform_24 which also uses dw_px/dh_px.
+            let tdx_init = ((iw as i64) << 24) as f64 / dw_px;
+            let tdy_init = ((ih as i64) << 24) as f64 / dh_px;
             let tdx_i = tdx_init as i64;
             let tdy_i = tdy_init as i64;
             let stride_x = if tdx_i > 0xFFFF00 {

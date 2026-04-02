@@ -125,10 +125,10 @@ impl emTunnel {
     }
 
     /// Paint the tunnel decoration.
-    pub fn paint_tunnel(&self, painter: &mut emPainter, w: f64, h: f64) {
+    pub fn paint_tunnel(&self, painter: &mut emPainter, w: f64, h: f64, pixel_scale: f64) {
         // Paint the border chrome first.
         self.border
-            .paint_border(painter, w, h, &self.look, false, true, 1.0);
+            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
 
         let (rect, ar) = self.GetContentRoundRect(w, h);
         let ax = rect.x;
@@ -271,8 +271,9 @@ impl emTunnel {
 }
 
 impl PanelBehavior for emTunnel {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        self.paint_tunnel(painter, w, h);
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.paint_tunnel(painter, w, h, pixel_scale);
     }
 
     fn auto_expand(&self) -> bool {

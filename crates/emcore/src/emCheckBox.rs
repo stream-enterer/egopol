@@ -101,13 +101,13 @@ impl emCheckBox {
     ///
     /// Layout: small checkbox box on the left, label text on the right.
     /// The box contains: InputBgColor face → checkmark symbol → emCheckBox image overlay.
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
         // Paint outer border (Margin = transparent spacing only).
         self.border
-            .paint_border(painter, w, h, &self.look, false, true, 1.0);
+            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
 
         // C++ DoButton ShownBoxed: GetContentRect, then compute box + label geometry.
         let cr = self.border.GetContentRect(w, h, &self.look);

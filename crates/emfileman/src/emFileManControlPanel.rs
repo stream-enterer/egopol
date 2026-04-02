@@ -293,7 +293,8 @@ impl PanelBehavior for emFileManControlPanel {
         }
     }
 
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         let fg = emColor::from_packed(0xCCCCCCFF);
         let margin = 0.02;
         let content_w = w - 2.0 * margin;
@@ -306,7 +307,7 @@ impl PanelBehavior for emFileManControlPanel {
         macro_rules! paint_widget {
             ($widget:expr) => {
                 painter.translate(margin, y);
-                $widget.Paint(painter, widget_w, widget_h, true);
+                $widget.Paint(painter, widget_w, widget_h, true, pixel_scale);
                 painter.translate(-margin, -y);
                 y += widget_h;
             };

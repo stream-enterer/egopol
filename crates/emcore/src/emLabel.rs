@@ -93,9 +93,9 @@ impl emLabel {
     /// and fg_color (dimmed when disabled). The border's `paint_label`
     /// implements the full DoLabel layout including icon, caption, and
     /// description with configurable alignment.
-    pub fn PaintContent(&self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn PaintContent(&self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
         self.border
-            .paint_border(painter, w, h, &self.look, false, enabled, 1.0);
+            .paint_border(painter, w, h, &self.look, false, enabled, pixel_scale);
 
         let cr = self.border.GetContentRect(w, h, &self.look);
         if cr.w <= 0.0 || cr.h <= 0.0 {

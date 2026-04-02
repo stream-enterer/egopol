@@ -395,11 +395,11 @@ impl emColorField {
     /// Paint using C++ emColorField::PaintContent (emColorField.cpp:371-404).
     ///
     /// Gets content round rect, insets by d=min(w,h)*0.1, paints color rect + outline.
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, pixel_scale: f64) {
         self.last_w = w;
         self.last_h = h;
         self.border
-            .paint_border(painter, w, h, &self.look, false, true, 1.0);
+            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
 
         // C++ PaintContent: GetContentRoundRect, then inset by d.
         let (cr, _r) = self.border.GetContentRoundRect(w, h, &self.look);

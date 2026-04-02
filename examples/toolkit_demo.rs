@@ -42,8 +42,9 @@ struct ButtonPanel {
     button: emButton,
 }
 impl PanelBehavior for ButtonPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
-        self.button.Paint(p, w, h, _s.enabled);
+    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.button.Paint(p, w, h, s.enabled, pixel_scale);
     }
     fn Input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.button.Input(e, _s, _is)
@@ -60,8 +61,9 @@ struct CheckButtonPanel {
     widget: emCheckButton,
 }
 impl PanelBehavior for CheckButtonPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
-        self.widget.Paint(p, w, h, _s.enabled);
+    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
     }
     fn Input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.Input(e, _s, _is)
@@ -78,8 +80,9 @@ struct CheckBoxPanel {
     widget: emCheckBox,
 }
 impl PanelBehavior for CheckBoxPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
-        self.widget.Paint(p, w, h, _s.enabled);
+    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
     }
     fn Input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.Input(e, _s, _is)
@@ -96,8 +99,9 @@ struct RadioButtonPanel {
     widget: emRadioButton,
 }
 impl PanelBehavior for RadioButtonPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
-        self.widget.Paint(p, w, h, _s.enabled);
+    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
     }
     fn Input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.Input(e, _s, _is)
@@ -114,9 +118,10 @@ struct TextFieldPanel {
     widget: emTextField,
 }
 impl PanelBehavior for TextFieldPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
-        self.widget.cycle_blink(_s.in_focused_path());
-        self.widget.Paint(p, w, h, _s.enabled);
+    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.widget.cycle_blink(s.in_focused_path());
+        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
     }
     fn Input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.Input(e, _s, _is)
@@ -139,7 +144,8 @@ struct ScalarFieldPanel {
 }
 impl PanelBehavior for ScalarFieldPanel {
     fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
-        self.widget.Paint(p, w, h, s.enabled);
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
     }
     fn Input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.Input(e, _s, _is)
@@ -156,8 +162,9 @@ struct ColorFieldPanel {
     widget: emColorField,
 }
 impl PanelBehavior for ColorFieldPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
-        self.widget.Paint(p, w, h);
+    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.widget.Paint(p, w, h, pixel_scale);
     }
     fn Input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.Input(e, _s, _is)
@@ -171,8 +178,9 @@ struct ListBoxPanel {
     widget: emListBox,
 }
 impl PanelBehavior for ListBoxPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
-        self.widget.Paint(p, w, h);
+    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.widget.Paint(p, w, h, pixel_scale);
     }
     fn Input(&mut self, e: &emInputEvent, _s: &PanelState, _is: &emInputState) -> bool {
         self.widget.Input(e, _s, _is)

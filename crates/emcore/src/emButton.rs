@@ -162,7 +162,7 @@ impl emButton {
         text
     }
 
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -173,7 +173,7 @@ impl emButton {
         // C++ DoBorder paints the border first, then DoButton paints the face
         // inside the content round rect.
         self.border
-            .paint_border(painter, w, h, &self.look, false, true, 1.0);
+            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
 
         // C++ emButton::DoButton gets content round rect, then insets the face
         // by d = (1 - 250/264) * r = (14/264) * r.
@@ -657,7 +657,7 @@ mod tests {
         // Simulate paint to cache dimensions
         let mut img = emImage::new(200, 100, 4);
         let mut painter = emPainter::new(&mut img);
-        btn.Paint(&mut painter, 200.0, 100.0, true);
+        btn.Paint(&mut painter, 200.0, 100.0, true, 1.0);
         // Center of the button should hit
         assert!(btn.CheckMouse(100.0, 50.0));
     }
@@ -669,7 +669,7 @@ mod tests {
         let mut btn = emButton::new("X", look);
         let mut img = emImage::new(200, 100, 4);
         let mut painter = emPainter::new(&mut img);
-        btn.Paint(&mut painter, 200.0, 100.0, true);
+        btn.Paint(&mut painter, 200.0, 100.0, true, 1.0);
         // Well outside the button bounds
         assert!(!btn.CheckMouse(-50.0, -50.0));
         assert!(!btn.CheckMouse(300.0, 200.0));

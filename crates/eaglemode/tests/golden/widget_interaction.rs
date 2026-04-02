@@ -542,8 +542,8 @@ struct SplitterLayoutBehavior {
 }
 
 impl PanelBehavior for SplitterLayoutBehavior {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        self.splitter.PaintContent(painter, w, h, _state.enabled);
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        self.splitter.PaintContent(painter, w, h, state.enabled);
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
@@ -693,7 +693,8 @@ struct ClickableButtonPanel {
 
 impl PanelBehavior for ClickableButtonPanel {
     fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
-        self.widget.Paint(p, w, h, s.enabled);
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
     }
     fn Input(&mut self, e: &emInputEvent, s: &PanelState, is: &emInputState) -> bool {
         self.widget.Input(e, s, is)

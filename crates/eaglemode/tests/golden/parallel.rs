@@ -134,8 +134,9 @@ struct LabelBehavior {
 }
 
 impl PanelBehavior for LabelBehavior {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        self.label.PaintContent(painter, w, h, _state.enabled);
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.label.PaintContent(painter, w, h, state.enabled, pixel_scale);
     }
 }
 
@@ -144,8 +145,9 @@ struct CheckBoxBehavior {
 }
 
 impl PanelBehavior for CheckBoxBehavior {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        self.check_box.Paint(painter, w, h, _state.enabled);
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.check_box.Paint(painter, w, h, state.enabled, pixel_scale);
     }
 }
 
@@ -155,7 +157,8 @@ struct ScalarFieldBehavior {
 
 impl PanelBehavior for ScalarFieldBehavior {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.scalar_field.Paint(painter, w, h, state.enabled);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.scalar_field.Paint(painter, w, h, state.enabled, pixel_scale);
     }
 }
 

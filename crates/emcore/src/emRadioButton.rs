@@ -291,12 +291,12 @@ impl emRadioButton {
     /// emRadioButton renders as a normal button (face + centered label).
     /// When checked (ShownChecked=true), the label is slightly shrunk and
     /// a ButtonChecked overlay is painted instead of the normal emButton overlay.
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
         self.border
-            .paint_border(painter, w, h, &self.look, false, true, 1.0);
+            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
 
         // C++ DoButton non-boxed path: GetContentRoundRect, clamp r.
         let (cr, r) = self.border.GetContentRoundRect(w, h, &self.look);

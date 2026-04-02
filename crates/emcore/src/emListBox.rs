@@ -996,11 +996,11 @@ impl emListBox {
 
     // ── Paint ───────────────────────────────────────────────────────
 
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64) {
+    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, pixel_scale: f64) {
         self.last_w = w;
         self.last_h = h;
         self.border
-            .paint_border(painter, w, h, &self.look, false, true, 1.0);
+            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
 
         // When expanded with child panels, items are painted by their own
         // panel behaviors — skip inline painting (border only).

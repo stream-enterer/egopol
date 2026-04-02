@@ -38,7 +38,8 @@ impl ScalarFieldBehavior {
 
 impl PanelBehavior for ScalarFieldBehavior {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.sf.Paint(painter, w, h, state.enabled);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.sf.Paint(painter, w, h, state.enabled, pixel_scale);
     }
 
     fn Input(
@@ -143,8 +144,9 @@ impl ColorFieldBehavior {
 }
 
 impl PanelBehavior for ColorFieldBehavior {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        self.color_field.Paint(painter, w, h);
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.color_field.Paint(painter, w, h, pixel_scale);
     }
 
     fn Input(
@@ -279,7 +281,7 @@ fn button_click_works_after_zoom() {
     {
         let mut img = emImage::new(600, 600, 4);
         let mut p = emPainter::new(&mut img);
-        btn.Paint(&mut p, 600.0, 600.0, true);
+        btn.Paint(&mut p, 600.0, 600.0, true, 1.0);
     }
 
     // Calibration: pixel center (300, 300) passes at 1x.
@@ -318,7 +320,7 @@ fn button_click_works_after_zoom() {
     {
         let mut img = emImage::new(1200, 1200, 4);
         let mut p = emPainter::new(&mut img);
-        btn.Paint(&mut p, 1200.0, 1200.0, true);
+        btn.Paint(&mut p, 1200.0, 1200.0, true, 1.0);
     }
 
     // Calibration: pixel center at 2x (600, 600) passes.
@@ -354,7 +356,8 @@ fn button_click_works_after_zoom() {
     }
     impl PanelBehavior for BtnPanel {
         fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-            self.widget.Paint(painter, w, h, state.enabled);
+            let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+            self.widget.Paint(painter, w, h, state.enabled, pixel_scale);
         }
         fn Input(
             &mut self,
@@ -419,8 +422,9 @@ struct SharedListBoxPanel {
 }
 
 impl PanelBehavior for SharedListBoxPanel {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        self.inner.borrow_mut().Paint(painter, w, h);
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.inner.borrow_mut().Paint(painter, w, h, pixel_scale);
     }
 
     fn Input(
