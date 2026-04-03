@@ -573,89 +573,83 @@ impl<'a> emPainter<'a> {
             color,
             canvas_color,
         }) else { return; };
+        // Literal port of C++ emPainter::PaintRect (emPainter.cpp:339-397).
+        // Uses C++ ix/ixe/iy/iy2/ax1/ax2/ay1/ay2 formulas directly instead of
+        // SubPixelEdges, because C++ uses truncation for iy2 while SubPixelEdges
+        // uses ceil (and changing SubPixelEdges breaks 21 other tests).
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
-        let dx_px = x * self.state.scale_x + self.state.offset_x;
-        let dy_px = y * self.state.scale_y + self.state.offset_y;
-        let dw_px = w * self.state.scale_x;
-        let dh_px = h * self.state.scale_y;
-        let sp = SubPixelEdges::new(dx_px, dy_px, dw_px, dh_px);
 
-        let tw = self.target_width as i32;
-        let th = self.target_height as i32;
-        let cx1 = (self.state.clip.x1 as i32).max(0);
-        let cy1 = (self.state.clip.y1 as i32).max(0);
-        let cx2 = (self.state.clip.x2.ceil() as i32).min(tw);
-        let cy2 = (self.state.clip.y2.ceil() as i32).min(th);
+        let x2 = x + w;
+        let y2 = y + h;
+        let px1 = x * self.state.scale_x + self.state.offset_x;
+        let px2 = x2 * self.state.scale_x + self.state.offset_x;
+        let py1 = y * self.state.scale_y + self.state.offset_y;
+        let py2 = y2 * self.state.scale_y + self.state.offset_y;
 
-        let start_x = sp.ix1.max(cx1);
-        let start_y = sp.iy1.max(cy1);
-        let end_x = sp.ix2.min(cx2);
-        let end_y = sp.iy2.min(cy2);
-
-        if start_x >= end_x || start_y >= end_y {
+        // C++ clip (lines 343-351)
+        let clip_x1 = self.state.clip.x1;
+        let clip_y1 = self.state.clip.y1;
+        let clip_x2 = self.state.clip.x2;
+        let clip_y2 = self.state.clip.y2;
+        let px1 = px1.max(clip_x1);
+        let px2 = px2.min(clip_x2);
+        let py1 = py1.max(clip_y1);
+        let py2 = py2.min(clip_y2);
+        if px1 >= px2 || py1 >= py2 {
+            self.state.canvas_color = saved_canvas;
             return;
         }
 
-        // Interior pixels have full coverage — avoid per-pixel clip/bounds
-        // checks and coverage computation by splitting into edge and interior
-        // regions.  Edge pixels (on the sub-pixel boundary of the rect) still
-        // need per-pixel coverage; interior pixels can be bulk-written.
+        // C++ Fixed12 arithmetic (lines 358-379)
+        let ix_raw = (px1 * 4096.0) as i32;
+        let ixe_raw = (px2 * 4096.0) as i32 + 0xfff;
+        let mut ax1 = 0x1000 - (ix_raw & 0xfff);
+        let ax2 = (ixe_raw & 0xfff) + 1;
+        let ix = ix_raw >> 12;
+        let ixe = ixe_raw >> 12;
+        let iw = ixe - ix;
+        if iw <= 1 {
+            if iw <= 0 {
+                self.state.canvas_color = saved_canvas;
+                return;
+            }
+            ax1 += ax2 - 0x1000;
+        }
 
-        // Interior region: rows/cols that are fully inside the rect (full coverage).
-        let inner_x1 = if sp.frac_left < 0x1000 {
-            (sp.ix1 + 1).max(start_x)
-        } else {
-            start_x
-        };
-        let inner_x2 = if sp.frac_right > 0 && sp.frac_right < 0x1000 {
-            (sp.ix2 - 1).min(end_x)
-        } else {
-            end_x
-        };
-        let inner_y1 = if sp.frac_top < 0x1000 {
-            (sp.iy1 + 1).max(start_y)
-        } else {
-            start_y
-        };
-        let inner_y2 = if sp.frac_bottom > 0 && sp.frac_bottom < 0x1000 {
-            (sp.iy2 - 1).min(end_y)
-        } else {
-            end_y
-        };
-
-        // Top edge row (sub-pixel coverage in Y)
-        if start_y < inner_y1 {
-            for px in start_x..end_x {
-                self.blend_with_coverage(proof, px, start_y, color, sp.coverage(px, start_y));
+        let iy_raw = (py1 * 4096.0) as i32;
+        let iy2_raw = (py2 * 4096.0) as i32;
+        let mut ay1 = 0x1000 - (iy_raw & 0xfff);
+        let mut ay2 = iy2_raw & 0xfff;
+        let mut iy = iy_raw >> 12;
+        let iy2 = iy2_raw >> 12; // C++ TRUNCATES here (not ceil!)
+        if iy >= iy2 {
+            ay1 += ay2 - 0x1000;
+            ay2 = 0;
+            if ay1 <= 0 {
+                self.state.canvas_color = saved_canvas;
+                return;
             }
         }
 
-        // Middle rows
-        for py in inner_y1..inner_y2 {
-            // Left edge pixel (sub-pixel coverage in X)
-            if start_x < inner_x1 {
-                self.blend_with_coverage(proof, start_x, py, color, sp.coverage(start_x, py));
-            }
-
-            // Interior span: full coverage, no per-pixel clip/bounds checks.
-            if inner_x1 < inner_x2 {
-                self.fill_span_blended(proof, py, inner_x1, inner_x2, color);
-            }
-
-            // Right edge pixel (sub-pixel coverage in X)
-            if inner_x2 < end_x {
-                let rx = end_x - 1;
-                self.blend_with_coverage(proof, rx, py, color, sp.coverage(rx, py));
-            }
+        // Render using C++ PaintScanline pattern (lines 382-396):
+        // Top edge row (partial Y coverage)
+        if ay1 < 0x1000 {
+            let a1 = ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+            let a2 = ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+            self.paint_rect_scanline(proof, ix, iy, iw, a1, ay1, a2, color);
+            iy += 1;
         }
-
-        // Bottom edge row (sub-pixel coverage in Y)
-        if inner_y2 < end_y {
-            let by = end_y - 1;
-            for px in start_x..end_x {
-                self.blend_with_coverage(proof, px, by, color, sp.coverage(px, by));
-            }
+        // Interior rows (full Y coverage)
+        while iy < iy2 {
+            self.paint_rect_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, color);
+            iy += 1;
+        }
+        // Bottom edge row (partial Y coverage)
+        if ay2 > 0 {
+            let a1 = ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+            let a2 = ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+            self.paint_rect_scanline(proof, ix, iy, iw, a1, ay2, a2, color);
         }
 
         self.state.canvas_color = saved_canvas;
@@ -5575,6 +5569,37 @@ impl<'a> emPainter<'a> {
         }
     }
 
+    /// Paint a scanline span for PaintRect, matching C++ PaintScanlineCol.
+    /// `ix`: start pixel X, `iy`: pixel Y, `iw`: width in pixels.
+    /// `a1`: first pixel opacity, `a`: interior opacity, `a2`: last pixel opacity.
+    /// All opacities are Fixed12 (0..0x1000).
+    #[allow(clippy::too_many_arguments)]
+    fn paint_rect_scanline(
+        &mut self, proof: DirectProof,
+        ix: i32, iy: i32, iw: i32,
+        a1: i32, a: i32, a2: i32,
+        color: emColor,
+    ) {
+        // First pixel
+        self.blend_with_coverage(proof, ix, iy, color, a1);
+        // Interior pixels
+        if iw > 2 {
+            let combined_alpha = ((color.GetAlpha() as i32 * a + 0x800) >> 12).clamp(0, 255) as u8;
+            if combined_alpha > 0 {
+                let interior_color = color.SetAlpha(combined_alpha);
+                if combined_alpha >= 255 {
+                    self.fill_span_blended(proof, iy, ix + 1, ix + iw - 1, color);
+                } else {
+                    self.fill_span_blended(proof, iy, ix + 1, ix + iw - 1, interior_color);
+                }
+            }
+        }
+        // Last pixel (if width > 1)
+        if iw > 1 {
+            self.blend_with_coverage(proof, ix + iw - 1, iy, color, a2);
+        }
+    }
+
     /// Blend a sampled color with sub-pixel edge coverage (0..=0x1000).
     #[inline]
     fn blend_with_coverage(&mut self, proof: DirectProof, x: i32, y: i32, color: emColor, cov: i32) {
@@ -7122,5 +7147,75 @@ mod kani_private_proofs {
         let mut p_dh_px: f64 = kani::any::<f64>();
         kani::assume(p_dh_px.is_finite());
         let _r = SubPixelEdges::new(p_dx_px, p_dy_px, p_dw_px, p_dh_px);
+    }
+}
+
+#[cfg(test)]
+mod tiny_rect_tests {
+    use super::*;
+
+    /// Compare composed sub-pixel PaintRect output against C++ reference values.
+    /// C++ values generated by test_tiny_rect_compose.cpp with identical parameters.
+    #[test]
+    fn tiny_rect_compose_matches_cpp() {
+        let cw = 100u32;
+        let ch = 50u32;
+        let mut img = crate::emImage::emImage::new(cw, ch, 4);
+        let map = img.GetWritableMap();
+        for i in 0..(cw * ch) as usize {
+            map[i*4] = 128; map[i*4+1] = 128; map[i*4+2] = 128; map[i*4+3] = 255;
+        }
+
+        let text_color = crate::emColor::emColor::rgba(239, 240, 244, 56);
+        let base_y: f64 = 24.7;
+        let line_h: f64 = 0.275;
+        let rects: &[(f64,f64,f64,f64)] = &[
+            (10.0, base_y + 0.0*line_h, 5.2, line_h),
+            (10.0, base_y + 1.0*line_h, 4.9, line_h),
+            (10.0, base_y + 3.0*line_h, 10.4, line_h),
+            (10.0, base_y + 4.0*line_h, 10.8, line_h),
+            (10.0, base_y + 5.0*line_h, 10.4, line_h),
+            (10.0, base_y + 7.0*line_h, 0.7, line_h),
+            (10.0, base_y + 9.0*line_h, 10.9, line_h),
+            (10.0, base_y + 10.0*line_h, 11.1, line_h),
+        ];
+
+        {
+            let mut p = emPainter::new(&mut img);
+            p.SetCanvasColor(crate::emColor::emColor::TRANSPARENT);
+            for &(x, y, w, h) in rects {
+                p.PaintRect(x, y, w, h, text_color, crate::emColor::emColor::TRANSPARENT);
+            }
+        }
+
+        // C++ reference values at y=25, x=10..22 (from test_tiny_rect_compose.cpp)
+        let cpp_y25: [(u8,u8,u8); 13] = [
+            (144,144,145), (144,144,145), (144,144,145), (144,144,145),
+            (143,143,144), (138,138,139), (138,138,139), (138,138,139),
+            (138,138,139), (138,138,139), (134,134,135), (128,128,128), (128,128,128),
+        ];
+
+        let map = img.GetMap();
+        let mut mismatches = Vec::new();
+        for (i, &(er, eg, eb)) in cpp_y25.iter().enumerate() {
+            let x = 10 + i;
+            let off = (25 * cw as usize + x) * 4;
+            let (ar, ag, ab) = (map[off], map[off+1], map[off+2]);
+            let d = (ar as i16 - er as i16).unsigned_abs()
+                .max((ag as i16 - eg as i16).unsigned_abs())
+                .max((ab as i16 - eb as i16).unsigned_abs());
+            if d > 0 {
+                mismatches.push(format!(
+                    "({},25): rust=({},{},{}) cpp=({},{},{}) diff=({:+},{:+},{:+})",
+                    x, ar, ag, ab, er, eg, eb,
+                    ar as i16 - er as i16, ag as i16 - eg as i16, ab as i16 - eb as i16
+                ));
+            }
+        }
+
+        if !mismatches.is_empty() {
+            let max_diff = mismatches.len();
+            panic!("Tiny rect compose: {} mismatches vs C++:\n{}", max_diff, mismatches.join("\n"));
+        }
     }
 }
