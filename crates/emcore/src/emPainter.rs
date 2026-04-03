@@ -235,6 +235,39 @@ impl SubPixelEdges {
 
         ((alpha_x as i64 * alpha_y as i64 + 0x7ff) >> 12) as i32
     }
+
+    /// X-axis-only coverage (0..=0x1000).
+    #[inline]
+    fn coverage_x(&self, px: i32) -> i32 {
+        if px == self.ix1 && px == self.ix2 - 1 {
+            (self.frac_left + self.frac_right).min(0x1000) - 0x1000 + self.raw_w.min(0x1000)
+        } else if px == self.ix1 {
+            self.frac_left
+        } else if px == self.ix2 - 1 && self.frac_right != 0 {
+            self.frac_right
+        } else {
+            0x1000
+        }
+    }
+
+    /// Compute batch coverages using C++ PaintRect-style iy2=truncate Y formula
+    /// combined with SubPixelEdges X formula (which already matches C++ ixe=ceil).
+    #[allow(clippy::too_many_arguments)]
+    fn batch_coverages_cpp_y(
+        &self, row: i32, col_start: i32, out: &mut [i32],
+        cpp_iy1: i32, cpp_iy2: i32, cpp_ay1: i32, cpp_ay2: i32,
+    ) -> bool {
+        let ay = if row == cpp_iy1 && cpp_ay1 < 0x1000 { cpp_ay1 }
+                 else if row == cpp_iy2 && cpp_ay2 > 0 { cpp_ay2 }
+                 else { 0x1000 };
+        let mut all_full = true;
+        for (i, cov) in out.iter_mut().enumerate() {
+            let ax = self.coverage_x(col_start + i as i32);
+            *cov = ((ax as i64 * ay as i64 + 0x7ff) >> 12) as i32;
+            if *cov < 0x1000 { all_full = false; }
+        }
+        all_full
+    }
 }
 
 /// Paint target: either a real image or a draw list for recording.
@@ -1140,9 +1173,19 @@ impl<'a> emPainter<'a> {
         let px = sp.ix1;
         let py = sp.iy1;
         let pw = sp.ix2 - sp.ix1;
-        let ph = sp.iy2 - sp.iy1;
-        if pw <= 0 || ph <= 0 {
-            return;
+        if pw <= 0 { return; }
+
+        // C++ PaintRect-style iy2=truncate for Y coverage (matching PaintRect fix).
+        let iy_raw = (dy_px * 4096.0) as i32;
+        let iy2_raw = ((dy_px + dh_px) * 4096.0) as i32;
+        let mut cpp_ay1 = 0x1000 - (iy_raw & 0xfff);
+        let mut cpp_ay2 = iy2_raw & 0xfff;
+        let cpp_iy1 = iy_raw >> 12;
+        let cpp_iy2 = iy2_raw >> 12;
+        if cpp_iy1 >= cpp_iy2 {
+            cpp_ay1 += cpp_ay2 - 0x1000;
+            cpp_ay2 = 0;
+            if cpp_ay1 <= 0 { return; }
         }
 
         let src_w = image.GetWidth() as f64;
@@ -1153,9 +1196,11 @@ impl<'a> emPainter<'a> {
         let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
         let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
         let start_x = px.max(cx1);
-        let start_y = py.max(cy1);
+        let start_y = cpp_iy1.max(cy1);
         let end_x = sp.ix2.min(cx2);
-        let end_y = sp.iy2.min(cy2);
+        let end_y = if cpp_ay2 > 0 { (cpp_iy2 + 1).min(cy2) } else { cpp_iy2.min(cy2) };
+        let ph = end_y - start_y;
+        if pw <= 0 || ph <= 0 || start_x >= end_x || start_y >= end_y { return; }
 
         // Save and temporarily override canvas color and alpha if specified.
         let saved_canvas = self.state.canvas_color;
@@ -1237,7 +1282,7 @@ impl<'a> emPainter<'a> {
                         image, col, row, batch, &xfm, &sec, ext, &mut ibuf, &mut carry,
                     );
                     let all_full =
-                        sp.batch_coverages(row, col, &mut coverages[..batch]);
+                        sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
                     let dest_offset = (row as usize * tw + col as usize) * 4;
                     let data = self.GetImage(proof).GetWritableMap();
                     let dest = &mut data[dest_offset..];
@@ -1261,7 +1306,7 @@ impl<'a> emPainter<'a> {
                             image, px, py, col, row, batch, &sxfm, ext, &mut ibuf,
                         );
                         let all_full =
-                            sp.batch_coverages(row, col, &mut coverages[..batch]);
+                            sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
                         let dest_offset = (row as usize * tw + col as usize) * 4;
                         let data = self.GetImage(proof).GetWritableMap();
                         let dest = &mut data[dest_offset..];
@@ -1281,7 +1326,7 @@ impl<'a> emPainter<'a> {
                             image, px, py, col, row, batch, &sxfm, ext, &mut ibuf,
                         );
                         let all_full =
-                            sp.batch_coverages(row, col, &mut coverages[..batch]);
+                            sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
                         let dest_offset = (row as usize * tw + col as usize) * 4;
                         let data = self.GetImage(proof).GetWritableMap();
                         let dest = &mut data[dest_offset..];
