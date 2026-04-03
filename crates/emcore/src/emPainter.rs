@@ -1398,18 +1398,30 @@ impl<'a> emPainter<'a> {
         let px = sp.ix1;
         let py = sp.iy1;
         let px2 = sp.ix2;
-        let py2 = sp.iy2;
         let pw = px2 - px;
-        let ph = py2 - py;
+
+        // C++ PaintRect-style iy2=truncate for Y coverage.
+        let iy_raw = (dy * 4096.0) as i32;
+        let iy2_raw = ((dy + dh) * 4096.0) as i32;
+        let mut cpp_ay1 = 0x1000 - (iy_raw & 0xfff);
+        let mut cpp_ay2 = iy2_raw & 0xfff;
+        let cpp_iy1 = iy_raw >> 12;
+        let cpp_iy2 = iy2_raw >> 12;
+        if cpp_iy1 >= cpp_iy2 {
+            cpp_ay1 += cpp_ay2 - 0x1000;
+            cpp_ay2 = 0;
+            if cpp_ay1 <= 0 { return; }
+        }
 
         let cx1 = (self.state.clip.x1 as i32).max(0);
         let cy1 = (self.state.clip.y1 as i32).max(0);
         let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
         let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
         let start_x = px.max(cx1);
-        let start_y = py.max(cy1);
+        let start_y = cpp_iy1.max(cy1);
         let end_x = px2.min(cx2);
-        let end_y = py2.min(cy2);
+        let end_y = if cpp_ay2 > 0 { (cpp_iy2 + 1).min(cy2) } else { cpp_iy2.min(cy2) };
+        let ph = end_y - start_y;
 
         if pw <= 0 || ph <= 0 || src_w == 0 || src_h == 0 {
             return;
@@ -1492,7 +1504,7 @@ impl<'a> emPainter<'a> {
                         };
                     }
                     let all_full =
-                        sp.batch_coverages(row, col, &mut coverages[..batch]);
+                        sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
                     let dest_offset = (row as usize * tw + col as usize) * 4;
                     let data = self.GetImage(proof).GetWritableMap();
                     let dest = &mut data[dest_offset..];
@@ -1543,7 +1555,7 @@ impl<'a> emPainter<'a> {
                         );
                     }
                     let all_full =
-                        sp.batch_coverages(row, col, &mut coverages[..batch]);
+                        sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
                     let dest_offset = (row as usize * tw + col as usize) * 4;
                     let data = self.GetImage(proof).GetWritableMap();
                     let dest = &mut data[dest_offset..];
