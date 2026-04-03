@@ -890,10 +890,8 @@ fn interpolate_four_values_adaptive(v0: i32, mut v1: i32, mut v2: i32, v3: i32, 
 }
 
 /// Adaptive sampling with premultiplied alpha, 24-bit fixed-point coordinates.
-/// Matches C++ InterpolateImageAdaptive for CHANNELS==4, EXTEND_ZERO.
-///
-/// Same separable structure as bicubic: Y-interpolate 4 columns, then X-interpolate.
-/// But uses anti-ringing adaptive interpolation instead of fixed Catmull-Rom weights.
+/// Full-image adaptive sampling (no section bounds). Kept for harness tests.
+#[allow(dead_code)]
 pub(crate) fn sample_adaptive_premul_fp(
     image: &emImage,
     tx: i64,
@@ -1517,6 +1515,8 @@ fn interpolate_scanline_area_inner<const CH: usize>(
 
 /// Scanline adaptive premul interpolation: fills `buf` with `count` consecutive
 /// output pixels of premultiplied RGBA.
+/// Full-image adaptive scanline (no section bounds). Kept for harness tests.
+#[allow(dead_code)]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn interpolate_scanline_adaptive_premul(
     image: &emImage,

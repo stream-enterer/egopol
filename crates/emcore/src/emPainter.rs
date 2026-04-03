@@ -152,91 +152,35 @@ struct PainterState {
 
 /// Sub-pixel rectangle edges for 12-bit fractional coverage.
 /// Matches C++ emPainter PaintRect sub-pixel model (emPainter.cpp:334-397).
+/// Sub-pixel edge info for X boundaries. Y boundaries use C++ PaintRect
+/// iy2=truncate formula directly (computed inline in each paint function).
 struct SubPixelEdges {
     ix1: i32,
     iy1: i32,
     ix2: i32,
-    iy2: i32,
     frac_left: i32,
     frac_right: i32,
-    frac_top: i32,
-    frac_bottom: i32,
     raw_w: i32,
-    raw_h: i32,
 }
 
 impl SubPixelEdges {
-    /// Compute sub-pixel edges from pixel-space float coordinates.
-    // DIVERGED: C++ uses i32 subtraction for `fx2 - fx1`, `fy2 - fy1`, and
-    // `0x1000 - frac` which are signed overflow UB for coordinates that produce
-    // Fixed12 values spanning the full i32 range. Rust uses i64 promotion for
-    // the raw differences. In practice coordinates are bounded by viewport pixels.
-    fn new(dx_px: f64, dy_px: f64, dw_px: f64, dh_px: f64) -> Self {
+    /// Compute sub-pixel X edges from pixel-space float coordinates.
+    /// Y fields (iy1) are computed for interpolation origin only.
+    fn new(dx_px: f64, dy_px: f64, dw_px: f64, _dh_px: f64) -> Self {
         let fx1 = Fixed12::from_f64(dx_px);
         let fy1 = Fixed12::from_f64(dy_px);
         let fx2 = Fixed12::from_f64(dx_px + dw_px);
-        let fy2 = Fixed12::from_f64(dy_px + dh_px);
         Self {
             ix1: fx1.to_i32(),
             iy1: fy1.to_i32(),
             ix2: fx2.ceil().to_i32(),
-            iy2: fy2.ceil().to_i32(),
             frac_left: 0x1000i32.saturating_sub(fx1.frac()),
             frac_right: fx2.frac(),
-            frac_top: 0x1000i32.saturating_sub(fy1.frac()),
-            frac_bottom: fy2.frac(),
             raw_w: (fx2.raw() as i64 - fx1.raw() as i64) as i32,
-            raw_h: (fy2.raw() as i64 - fy1.raw() as i64) as i32,
         }
     }
 
-    /// Compute coverages for a batch of consecutive columns at `row`.
-    /// Returns `true` if all coverages are full (0x1000).
-    fn batch_coverages(&self, row: i32, col_start: i32, out: &mut [i32]) -> bool {
-        let mut all_full = true;
-        for (i, cov) in out.iter_mut().enumerate() {
-            *cov = self.coverage(col_start + i as i32, row);
-            if *cov < 0x1000 {
-                all_full = false;
-            }
-        }
-        all_full
-    }
-
-    /// Per-pixel combined coverage (0..=0x1000).
-    /// Mirrors paint_rect() lines 339-364 logic exactly.
-    #[inline]
-    fn coverage(&self, px: i32, py: i32) -> i32 {
-        let alpha_y = if py == self.iy1 && py == self.iy2 - 1 {
-            (self.frac_top + self.frac_bottom).min(0x1000) - 0x1000 + self.raw_h.min(0x1000)
-        } else if py == self.iy1 {
-            self.frac_top
-        } else if py == self.iy2 - 1 && self.frac_bottom != 0 {
-            self.frac_bottom
-        } else {
-            0x1000
-        };
-        if alpha_y <= 0 {
-            return 0;
-        }
-
-        let alpha_x = if px == self.ix1 && px == self.ix2 - 1 {
-            (self.frac_left + self.frac_right).min(0x1000) - 0x1000 + self.raw_w.min(0x1000)
-        } else if px == self.ix1 {
-            self.frac_left
-        } else if px == self.ix2 - 1 && self.frac_right != 0 {
-            self.frac_right
-        } else {
-            0x1000
-        };
-        if alpha_x <= 0 {
-            return 0;
-        }
-
-        ((alpha_x as i64 * alpha_y as i64 + 0x7ff) >> 12) as i32
-    }
-
-    /// X-axis-only coverage (0..=0x1000).
+    /// X-axis-only coverage (0..=0x1000). Matches C++ ixe=ceil formula.
     #[inline]
     fn coverage_x(&self, px: i32) -> i32 {
         if px == self.ix1 && px == self.ix2 - 1 {
@@ -250,8 +194,7 @@ impl SubPixelEdges {
         }
     }
 
-    /// Compute batch coverages using C++ PaintRect-style iy2=truncate Y formula
-    /// combined with SubPixelEdges X formula (which already matches C++ ixe=ceil).
+    /// Batch X coverage × C++ PaintRect iy2=truncate Y coverage.
     #[allow(clippy::too_many_arguments)]
     fn batch_coverages_cpp_y(
         &self, row: i32, col_start: i32, out: &mut [i32],
@@ -1165,17 +1108,70 @@ impl<'a> emPainter<'a> {
             canvas_color,
         }) else { return; };
 
+        // Save and temporarily override canvas color and alpha.
+        let saved_canvas = self.state.canvas_color;
+        let saved_alpha = self.state.alpha;
+        self.state.canvas_color = canvas_color;
+        if alpha < 255 {
+            self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
+        }
+
+        // C++ EXTEND_EDGE_OR_ZERO: even channel count → EXTEND_ZERO.
+        let ext = if image.GetChannelCount().is_multiple_of(2) {
+            super::emTexture::ImageExtension::Zero
+        } else {
+            super::emTexture::ImageExtension::Clamp
+        };
+
+        let iw = image.GetWidth() as i32;
+        let ih = image.GetHeight() as i32;
+        self.paint_image_rect(proof, x, y, w, h, image, 0, 0, iw, ih, ext);
+
+        self.state.canvas_color = saved_canvas;
+        self.state.alpha = saved_alpha;
+    }
+
+    /// Core image rendering matching C++ PaintRect + ScanlineTool pipeline.
+    ///
+    /// Maps source sub-rect `(src_x, src_y, src_w, src_h)` into destination
+    /// rect `(x, y, w, h)` using C++ PaintRect boundary formulas (iy2=truncate).
+    /// Caller must set `self.state.canvas_color` and `self.state.alpha` first.
+    ///
+    /// This is the SINGLE rendering path for all image painting — matching C++
+    /// where PaintImage is `inline PaintRect(x,y,w,h, emImageTexture(...), canvasColor)`.
+    #[allow(clippy::too_many_arguments)]
+    fn paint_image_rect(
+        &mut self,
+        proof: DirectProof,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        image: &emImage,
+        src_x: i32,
+        src_y: i32,
+        src_w: i32,
+        src_h: i32,
+        ext: super::emTexture::ImageExtension,
+    ) {
+        if w <= 0.0 || h <= 0.0 || src_w <= 0 || src_h <= 0 {
+            return;
+        }
+
+        // --- C++ PaintRect boundary computation (emPainter.cpp:342-380) ---
         let dx_px = x * self.state.scale_x + self.state.offset_x;
         let dy_px = y * self.state.scale_y + self.state.offset_y;
         let dw_px = w * self.state.scale_x;
         let dh_px = h * self.state.scale_y;
+
+        // X boundaries: ix with ceil for ixe (matching C++ ixe = ((int)(x2*0x1000))+0xfff)
         let sp = SubPixelEdges::new(dx_px, dy_px, dw_px, dh_px);
         let px = sp.ix1;
         let py = sp.iy1;
         let pw = sp.ix2 - sp.ix1;
         if pw <= 0 { return; }
 
-        // C++ PaintRect-style iy2=truncate for Y coverage (matching PaintRect fix).
+        // Y boundaries: C++ PaintRect iy2=TRUNCATE (NOT ceil)
         let iy_raw = (dy_px * 4096.0) as i32;
         let iy2_raw = ((dy_px + dh_px) * 4096.0) as i32;
         let mut cpp_ay1 = 0x1000 - (iy_raw & 0xfff);
@@ -1188,9 +1184,7 @@ impl<'a> emPainter<'a> {
             if cpp_ay1 <= 0 { return; }
         }
 
-        let src_w = image.GetWidth() as f64;
-        let src_h = image.GetHeight() as f64;
-
+        // Clip to viewport
         let cx1 = (self.state.clip.x1 as i32).max(0);
         let cy1 = (self.state.clip.y1 as i32).max(0);
         let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
@@ -1199,80 +1193,45 @@ impl<'a> emPainter<'a> {
         let start_y = cpp_iy1.max(cy1);
         let end_x = sp.ix2.min(cx2);
         let end_y = if cpp_ay2 > 0 { (cpp_iy2 + 1).min(cy2) } else { cpp_iy2.min(cy2) };
+        if start_x >= end_x || start_y >= end_y { return; }
+
+        let src_w_f = src_w as f64;
+        let src_h_f = src_h as f64;
         let ph = end_y - start_y;
-        if pw <= 0 || ph <= 0 || start_x >= end_x || start_y >= end_y { return; }
+        let upscaling = (pw as f64) > src_w_f || (ph as f64) > src_h_f;
+        let downscaling = (pw as f64) < src_w_f || (ph as f64) < src_h_f;
 
-        // Save and temporarily override canvas color and alpha if specified.
-        let saved_canvas = self.state.canvas_color;
-        let saved_alpha = self.state.alpha;
-        self.state.canvas_color = canvas_color;
-        if alpha < 255 {
-            self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
-        }
-
-        // Match C++ emPainter_ScTl coordinate and interpolation conventions:
-        // - EXTEND_EDGE_OR_ZERO: images with even channel count (incl. 4-ch RGBA)
-        //   use EXTEND_ZERO; odd channel count uses EXTEND_EDGE.
-        // - Upscaling uses adaptive (bicubic-like) with pixel-center offset (-0.5).
-        // - Area sampling for downscaling (no pixel-center offset).
-        // - 1:1 scale uses nearest-neighbor.
-        let upscaling = (pw as f64) > src_w || (ph as f64) > src_h;
-        let downscaling = (pw as f64) < src_w || (ph as f64) < src_h;
-
-        let ext = if image.GetChannelCount().is_multiple_of(2) {
-            super::emTexture::ImageExtension::Zero
-        } else {
-            super::emTexture::ImageExtension::Clamp
+        // --- C++ ScanlineTool::Init (emPainter_ScTl.cpp:228-378) ---
+        let sec = emPainterInterpolation::SectionBounds {
+            ox: src_x, oy: src_y, w: src_w, h: src_h,
         };
 
-        // 24-bit fixed-point scaling transform matching C++ emPainter_ScTl.
-        let sxfm = self.scale_transform_24(image.GetWidth(), image.GetHeight(), x, y, w, h);
-
-        // Scanline batch pipeline: interpolate into buffer, then blend.
-        // Borrow-split: extract state into locals before taking &mut data.
         let tw = self.target_width as usize;
         let mode = BlendMode::from_state(self.state.canvas_color, self.state.alpha);
         let mut ibuf = InterpolationBuffer::new(4);
         let max_batch = ibuf.max_pixels();
+        let mut coverages = vec![0i32; max_batch];
 
         if downscaling {
-            // 24fp area sampling matching C++ ScanlineTool InterpolateImageAreaSampled.
-            let iw = image.GetWidth();
-            let ih = image.GetHeight();
-            // C++ uses float tw = texture.GetW() * ScaleX (not integer pixel width).
-            // Must match area_sample_transform_24 which also uses dw_px/dh_px.
-            let tdx_init = ((iw as i64) << 24) as f64 / dw_px;
-            let tdy_init = ((ih as i64) << 24) as f64 / dh_px;
+            // C++ ScanlineTool downscale: pre-reduce + area sampling
+            let sw_u = src_w as u32;
+            let sh_u = src_h as u32;
+            let tdx_init = ((sw_u as i64) << 24) as f64 / dw_px;
+            let tdy_init = ((sh_u as i64) << 24) as f64 / dh_px;
             let tdx_i = tdx_init as i64;
             let tdy_i = tdy_init as i64;
-            let stride_x = if tdx_i > 0xFFFF00 {
-                ((tdx_i / 3 + 0xFFFFFF) >> 24) as u32
-            } else {
-                1
-            }
-            .max(1);
-            let stride_y = if tdy_i > 0xFFFF00 {
-                ((tdy_i / 3 + 0xFFFFFF) >> 24) as u32
-            } else {
-                1
-            }
-            .max(1);
-            let red_w = iw.div_ceil(stride_x);
-            let red_h = ih.div_ceil(stride_y);
-            let off_x = (iw as i32 - (red_w as i32 - 1) * stride_x as i32 - 1) / 2;
-            let off_y = (ih as i32 - (red_h as i32 - 1) * stride_y as i32 - 1) / 2;
+            let stride_x = if tdx_i > 0xFFFF00 { ((tdx_i / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+            let stride_y = if tdy_i > 0xFFFF00 { ((tdy_i / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+            let red_w = sw_u.div_ceil(stride_x);
+            let red_h = sh_u.div_ceil(stride_y);
+            let off_x = (sw_u as i32 - (red_w as i32 - 1) * stride_x as i32 - 1) / 2;
+            let off_y = (sh_u as i32 - (red_h as i32 - 1) * stride_y as i32 - 1) / 2;
             let mut xfm = self.area_sample_transform_24(red_w, red_h, x, y, w, h);
             xfm.stride_x = stride_x;
             xfm.stride_y = stride_y;
             xfm.off_x = off_x;
             xfm.off_y = off_y;
-            let sec = emPainterInterpolation::SectionBounds {
-                ox: 0,
-                oy: 0,
-                w: iw as i32,
-                h: ih as i32,
-            };
-            let mut coverages = vec![0i32; max_batch];
+
             for row in start_y..end_y {
                 let mut carry = emPainterInterpolation::AreaSampleCarryState::new();
                 let mut col = start_x;
@@ -1281,74 +1240,54 @@ impl<'a> emPainter<'a> {
                     emPainterInterpolation::interpolate_scanline_area_sampled(
                         image, col, row, batch, &xfm, &sec, ext, &mut ibuf, &mut carry,
                     );
-                    let all_full =
-                        sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
+                    let all_full = sp.batch_coverages_cpp_y(
+                        row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2,
+                    );
                     let dest_offset = (row as usize * tw + col as usize) * 4;
                     let data = self.GetImage(proof).GetWritableMap();
                     let dest = &mut data[dest_offset..];
-                    // Area sampling outputs premultiplied pixels (matching C++).
-                    if all_full {
-                        blend_scanline_premul(dest, &ibuf, batch, None, &mode);
-                    } else {
-                        blend_scanline_premul(dest, &ibuf, batch, Some(&coverages[..batch]), &mode);
-                    }
+                    if all_full { blend_scanline_premul(dest, &ibuf, batch, None, &mode); }
+                    else { blend_scanline_premul(dest, &ibuf, batch, Some(&coverages[..batch]), &mode); }
                     col += batch as i32;
                 }
             }
         } else {
-            let mut coverages = vec![0i32; max_batch];
+            // C++ ScanlineTool upscale: adaptive interpolation with -0.5 pixel center
+            let sxfm = self.scale_transform_24(src_w as u32, src_h as u32, x, y, w, h);
+
             for row in start_y..end_y {
                 let mut col = start_x;
                 while col < end_x {
                     let batch = ((end_x - col) as usize).min(max_batch);
                     if upscaling {
-                        emPainterInterpolation::interpolate_scanline_adaptive_premul(
-                            image, px, py, col, row, batch, &sxfm, ext, &mut ibuf,
+                        emPainterInterpolation::interpolate_scanline_adaptive_premul_section(
+                            image, px, py, col, row, batch, &sxfm, &sec, ext, &mut ibuf,
                         );
-                        let all_full =
-                            sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
+                        let all_full = sp.batch_coverages_cpp_y(
+                            row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2,
+                        );
                         let dest_offset = (row as usize * tw + col as usize) * 4;
                         let data = self.GetImage(proof).GetWritableMap();
                         let dest = &mut data[dest_offset..];
-                        if all_full {
-                            blend_scanline_premul(dest, &ibuf, batch, None, &mode);
-                        } else {
-                            blend_scanline_premul(
-                                dest,
-                                &ibuf,
-                                batch,
-                                Some(&coverages[..batch]),
-                                &mode,
-                            );
-                        }
+                        if all_full { blend_scanline_premul(dest, &ibuf, batch, None, &mode); }
+                        else { blend_scanline_premul(dest, &ibuf, batch, Some(&coverages[..batch]), &mode); }
                     } else {
                         emPainterInterpolation::interpolate_scanline_nearest(
                             image, px, py, col, row, batch, &sxfm, ext, &mut ibuf,
                         );
-                        let all_full =
-                            sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
+                        let all_full = sp.batch_coverages_cpp_y(
+                            row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2,
+                        );
                         let dest_offset = (row as usize * tw + col as usize) * 4;
                         let data = self.GetImage(proof).GetWritableMap();
                         let dest = &mut data[dest_offset..];
-                        if all_full {
-                            blend_scanline(dest, &ibuf, batch, None, &mode);
-                        } else {
-                            blend_scanline(
-                                dest,
-                                &ibuf,
-                                batch,
-                                Some(&coverages[..batch]),
-                                &mode,
-                            );
-                        }
+                        if all_full { blend_scanline(dest, &ibuf, batch, None, &mode); }
+                        else { blend_scanline(dest, &ibuf, batch, Some(&coverages[..batch]), &mode); }
                     }
                     col += batch as i32;
                 }
             }
         }
-
-        self.state.canvas_color = saved_canvas;
-        self.state.alpha = saved_alpha;
     }
 
     /// Draw an image with two-color mapping and canvas color support.
@@ -2322,48 +2261,31 @@ impl<'a> emPainter<'a> {
             canvas_color,
             which_sub_rects,
         }) else { return; };
-        let iw = image.GetWidth() as f64;
-        let ih = image.GetHeight() as f64;
-        let quality = super::emTexture::ImageQuality::Bilinear;
-        let ext = super::emTexture::ImageExtension::Clamp;
 
-        // Target insets (logical).
-        let mut l = l.min(w / 2.0);
-        let mut r = r.min(w / 2.0);
-        let mut t = t.min(h / 2.0);
-        let mut b = b.min(h / 2.0);
+        // C++ PaintBorderImage (emPainter.cpp:1892-1982):
+        // RoundX/RoundY adjustment, then 9 PaintImage calls (each = PaintRect).
+        let iw_i = image.GetWidth() as i32;
+        let ih_i = image.GetHeight() as i32;
 
-        // R-6: pixel-round inset boundaries when canvas_color is not opaque.
+        let mut l = l;
+        let mut r = r;
+        let mut t = t;
+        let mut b = b;
+
+        // C++ lines 1903-1908: pixel-round inset boundaries when not opaque.
         if !canvas_color.IsOpaque() {
             let f = self.RoundX(x + l) - x;
-            if f > 0.0 && f < w - r {
-                l = f;
-            }
+            if f > 0.0 && f < w - r { l = f; }
             let f = x + w - self.RoundX(x + w - r);
-            if f > 0.0 && f < w - l {
-                r = f;
-            }
+            if f > 0.0 && f < w - l { r = f; }
             let f = self.RoundY(y + t) - y;
-            if f > 0.0 && f < h - b {
-                t = f;
-            }
+            if f > 0.0 && f < h - b { t = f; }
             let f = y + h - self.RoundY(y + h - b);
-            if f > 0.0 && f < h - t {
-                b = f;
-            }
+            if f > 0.0 && f < h - t { b = f; }
         }
 
-        // Source insets (pixel coords).
-        let sl = src_l as f64;
-        let st = src_t as f64;
-        let sr = src_r as f64;
-        let sb = src_b as f64;
-
-        // Source center region.
-        let src_cx = iw - sl - sr;
-        let src_cy = ih - st - sb;
-
-        // Destination center region.
+        let src_cx = iw_i - src_l - src_r;
+        let src_cy = ih_i - src_t - src_b;
         let dst_cx = w - l - r;
         let dst_cy = h - t - b;
 
@@ -2374,144 +2296,37 @@ impl<'a> emPainter<'a> {
             self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
         }
 
-        // Bit layout (octal digit positions):
-        //  8=UL  5=U   2=UR
-        //  7=L   4=C   1=R
-        //  6=LL  3=B   0=LR
+        // C++ PaintBorderImage passes EXTEND_EDGE to each PaintImage call.
+        let ext = super::emTexture::ImageExtension::Clamp;
 
-        // Corners.
-        eprintln!("RUST_9SLICE_PARAMS: x={:.6} y={:.6} w={:.6} h={:.6} l={:.6} t={:.6} r={:.6} b={:.6} sl={} st={} sr={} sb={} scale_x={:.1} scale_y={:.1}",
-            x, y, w, h, l, t, r, b, src_l, src_t, src_r, src_b, self.state.scale_x, self.state.scale_y);
+        // C++ bit layout:  8=UL 5=U 2=UR / 7=L 4=C 1=R / 6=LL 3=B 0=LR
+        // C++ order: 8, 5, 2, 7, 4, 1, 6, 3, 0 (matching emPainter.cpp:1910-1981)
         if which_sub_rects & (1 << 8) != 0 {
-            self.paint_9slice_section(proof, x, y, l, t, image, 0.0, 0.0, sl, st, quality, ext);
+            self.paint_image_rect(proof, x, y, l, t, image, 0, 0, src_l, src_t, ext);
+        }
+        if which_sub_rects & (1 << 5) != 0 && dst_cx > 0.0 {
+            self.paint_image_rect(proof, x + l, y, dst_cx, t, image, src_l, 0, src_cx, src_t, ext);
         }
         if which_sub_rects & (1 << 2) != 0 {
-            self.paint_9slice_section(proof, 
-                x + w - r,
-                y,
-                r,
-                t,
-                image,
-                iw - sr,
-                0.0,
-                sr,
-                st,
-                quality,
-                ext,
-            );
+            self.paint_image_rect(proof, x + w - r, y, r, t, image, iw_i - src_r, 0, src_r, src_t, ext);
+        }
+        if which_sub_rects & (1 << 7) != 0 && dst_cy > 0.0 {
+            self.paint_image_rect(proof, x, y + t, l, dst_cy, image, 0, src_t, src_l, src_cy, ext);
+        }
+        if which_sub_rects & (1 << 4) != 0 && dst_cx > 0.0 && dst_cy > 0.0 {
+            self.paint_image_rect(proof, x + l, y + t, dst_cx, dst_cy, image, src_l, src_t, src_cx, src_cy, ext);
+        }
+        if which_sub_rects & (1 << 1) != 0 && dst_cy > 0.0 {
+            self.paint_image_rect(proof, x + w - r, y + t, r, dst_cy, image, iw_i - src_r, src_t, src_r, src_cy, ext);
         }
         if which_sub_rects & (1 << 6) != 0 {
-            self.paint_9slice_section(proof, 
-                x,
-                y + h - b,
-                l,
-                b,
-                image,
-                0.0,
-                ih - sb,
-                sl,
-                sb,
-                quality,
-                ext,
-            );
+            self.paint_image_rect(proof, x, y + h - b, l, b, image, 0, ih_i - src_b, src_l, src_b, ext);
+        }
+        if which_sub_rects & (1 << 3) != 0 && dst_cx > 0.0 {
+            self.paint_image_rect(proof, x + l, y + h - b, dst_cx, b, image, src_l, ih_i - src_b, src_cx, src_b, ext);
         }
         if which_sub_rects & (1 << 0) != 0 {
-            self.paint_9slice_section(proof, 
-                x + w - r,
-                y + h - b,
-                r,
-                b,
-                image,
-                iw - sr,
-                ih - sb,
-                sr,
-                sb,
-                quality,
-                ext,
-            );
-        }
-
-        // Edges.
-        if dst_cx > 0.0 {
-            if which_sub_rects & (1 << 5) != 0 {
-                self.paint_9slice_section(proof, 
-                    x + l,
-                    y,
-                    dst_cx,
-                    t,
-                    image,
-                    sl,
-                    0.0,
-                    src_cx,
-                    st,
-                    quality,
-                    ext,
-                );
-            }
-            if which_sub_rects & (1 << 3) != 0 {
-                self.paint_9slice_section(proof, 
-                    x + l,
-                    y + h - b,
-                    dst_cx,
-                    b,
-                    image,
-                    sl,
-                    ih - sb,
-                    src_cx,
-                    sb,
-                    quality,
-                    ext,
-                );
-            }
-        }
-        if dst_cy > 0.0 {
-            if which_sub_rects & (1 << 7) != 0 {
-                self.paint_9slice_section(proof, 
-                    x,
-                    y + t,
-                    l,
-                    dst_cy,
-                    image,
-                    0.0,
-                    st,
-                    sl,
-                    src_cy,
-                    quality,
-                    ext,
-                );
-            }
-            if which_sub_rects & (1 << 1) != 0 {
-                self.paint_9slice_section(proof, 
-                    x + w - r,
-                    y + t,
-                    r,
-                    dst_cy,
-                    image,
-                    iw - sr,
-                    st,
-                    sr,
-                    src_cy,
-                    quality,
-                    ext,
-                );
-            }
-        }
-
-        // Center.
-        if which_sub_rects & (1 << 4) != 0 && dst_cx > 0.0 && dst_cy > 0.0 {
-            self.paint_9slice_section(proof, 
-                x + l,
-                y + t,
-                dst_cx,
-                dst_cy,
-                image,
-                sl,
-                st,
-                src_cx,
-                src_cy,
-                quality,
-                ext,
-            );
+            self.paint_image_rect(proof, x + w - r, y + h - b, r, b, image, iw_i - src_r, ih_i - src_b, src_r, src_b, ext);
         }
 
         self.state.canvas_color = saved_canvas;
@@ -2574,52 +2389,24 @@ impl<'a> emPainter<'a> {
             which_sub_rects,
         }) else { return; };
 
-        let quality = super::emTexture::ImageQuality::Bilinear;
-        let ext = super::emTexture::ImageExtension::Clamp;
+        let mut l = l;
+        let mut r = r;
+        let mut t = t;
+        let mut b = b;
 
-        // Source sub-rectangle origin and size (pixel coords).
-        let sx0 = src_x as f64;
-        let sy0 = src_y as f64;
-        let iw = src_w as f64;
-        let ih = src_h as f64;
-
-        // Target insets (logical).
-        let mut l = l.min(w / 2.0);
-        let mut r = r.min(w / 2.0);
-        let mut t = t.min(h / 2.0);
-        let mut b = b.min(h / 2.0);
-
-        // R-6: pixel-round inset boundaries when canvas_color is not opaque.
         if !canvas_color.IsOpaque() {
             let f = self.RoundX(x + l) - x;
-            if f > 0.0 && f < w - r {
-                l = f;
-            }
+            if f > 0.0 && f < w - r { l = f; }
             let f = x + w - self.RoundX(x + w - r);
-            if f > 0.0 && f < w - l {
-                r = f;
-            }
+            if f > 0.0 && f < w - l { r = f; }
             let f = self.RoundY(y + t) - y;
-            if f > 0.0 && f < h - b {
-                t = f;
-            }
+            if f > 0.0 && f < h - b { t = f; }
             let f = y + h - self.RoundY(y + h - b);
-            if f > 0.0 && f < h - t {
-                b = f;
-            }
+            if f > 0.0 && f < h - t { b = f; }
         }
 
-        // Source insets (pixel coords within sub-rect).
-        let sl = src_l as f64;
-        let st = src_t as f64;
-        let sr = src_r as f64;
-        let sb = src_b as f64;
-
-        // Source center region.
-        let src_cx = iw - sl - sr;
-        let src_cy = ih - st - sb;
-
-        // Destination center region.
+        let src_cx = src_w - src_l - src_r;
+        let src_cy = src_h - src_t - src_b;
         let dst_cx = w - l - r;
         let dst_cy = h - t - b;
 
@@ -2630,78 +2417,34 @@ impl<'a> emPainter<'a> {
             self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
         }
 
-        // Bit layout (octal digit positions):
-        //  8=UL  5=U   2=UR
-        //  7=L   4=C   1=R
-        //  6=LL  3=B   0=LR
+        let ext = super::emTexture::ImageExtension::Clamp;
 
-        // Corners.
         if which_sub_rects & (1 << 8) != 0 {
-            self.paint_9slice_section(proof, x, y, l, t, image, sx0, sy0, sl, st, quality, ext);
+            self.paint_image_rect(proof, x, y, l, t, image, src_x, src_y, src_l, src_t, ext);
+        }
+        if which_sub_rects & (1 << 5) != 0 && dst_cx > 0.0 {
+            self.paint_image_rect(proof, x + l, y, dst_cx, t, image, src_x + src_l, src_y, src_cx, src_t, ext);
         }
         if which_sub_rects & (1 << 2) != 0 {
-            self.paint_9slice_section(proof,
-                x + w - r, y, r, t,
-                image, sx0 + iw - sr, sy0, sr, st,
-                quality, ext,
-            );
+            self.paint_image_rect(proof, x + w - r, y, r, t, image, src_x + src_w - src_r, src_y, src_r, src_t, ext);
+        }
+        if which_sub_rects & (1 << 7) != 0 && dst_cy > 0.0 {
+            self.paint_image_rect(proof, x, y + t, l, dst_cy, image, src_x, src_y + src_t, src_l, src_cy, ext);
+        }
+        if which_sub_rects & (1 << 4) != 0 && dst_cx > 0.0 && dst_cy > 0.0 {
+            self.paint_image_rect(proof, x + l, y + t, dst_cx, dst_cy, image, src_x + src_l, src_y + src_t, src_cx, src_cy, ext);
+        }
+        if which_sub_rects & (1 << 1) != 0 && dst_cy > 0.0 {
+            self.paint_image_rect(proof, x + w - r, y + t, r, dst_cy, image, src_x + src_w - src_r, src_y + src_t, src_r, src_cy, ext);
         }
         if which_sub_rects & (1 << 6) != 0 {
-            self.paint_9slice_section(proof,
-                x, y + h - b, l, b,
-                image, sx0, sy0 + ih - sb, sl, sb,
-                quality, ext,
-            );
+            self.paint_image_rect(proof, x, y + h - b, l, b, image, src_x, src_y + src_h - src_b, src_l, src_b, ext);
+        }
+        if which_sub_rects & (1 << 3) != 0 && dst_cx > 0.0 {
+            self.paint_image_rect(proof, x + l, y + h - b, dst_cx, b, image, src_x + src_l, src_y + src_h - src_b, src_cx, src_b, ext);
         }
         if which_sub_rects & (1 << 0) != 0 {
-            self.paint_9slice_section(proof,
-                x + w - r, y + h - b, r, b,
-                image, sx0 + iw - sr, sy0 + ih - sb, sr, sb,
-                quality, ext,
-            );
-        }
-
-        // Edges.
-        if dst_cx > 0.0 {
-            if which_sub_rects & (1 << 5) != 0 {
-                self.paint_9slice_section(proof,
-                    x + l, y, dst_cx, t,
-                    image, sx0 + sl, sy0, src_cx, st,
-                    quality, ext,
-                );
-            }
-            if which_sub_rects & (1 << 3) != 0 {
-                self.paint_9slice_section(proof,
-                    x + l, y + h - b, dst_cx, b,
-                    image, sx0 + sl, sy0 + ih - sb, src_cx, sb,
-                    quality, ext,
-                );
-            }
-        }
-        if dst_cy > 0.0 {
-            if which_sub_rects & (1 << 7) != 0 {
-                self.paint_9slice_section(proof,
-                    x, y + t, l, dst_cy,
-                    image, sx0, sy0 + st, sl, src_cy,
-                    quality, ext,
-                );
-            }
-            if which_sub_rects & (1 << 1) != 0 {
-                self.paint_9slice_section(proof,
-                    x + w - r, y + t, r, dst_cy,
-                    image, sx0 + iw - sr, sy0 + st, sr, src_cy,
-                    quality, ext,
-                );
-            }
-        }
-
-        // Center.
-        if which_sub_rects & (1 << 4) != 0 && dst_cx > 0.0 && dst_cy > 0.0 {
-            self.paint_9slice_section(proof,
-                x + l, y + t, dst_cx, dst_cy,
-                image, sx0 + sl, sy0 + st, src_cx, src_cy,
-                quality, ext,
-            );
+            self.paint_image_rect(proof, x + w - r, y + h - b, r, b, image, src_x + src_w - src_r, src_y + src_h - src_b, src_r, src_b, ext);
         }
 
         self.state.canvas_color = saved_canvas;
@@ -2965,175 +2708,6 @@ impl<'a> emPainter<'a> {
 
         self.state.canvas_color = saved_canvas;
         self.state.alpha = saved_alpha;
-    }
-
-    /// Helper for 9-slice: draw a sub-region of an image scaled to a destination rect.
-    #[allow(clippy::too_many_arguments)]
-    fn paint_9slice_section(
-        &mut self,
-        proof: DirectProof,
-        dx: f64,
-        dy: f64,
-        dw: f64,
-        dh: f64,
-        image: &emImage,
-        sx: f64,
-        sy: f64,
-        sw: f64,
-        sh: f64,
-        _quality: super::emTexture::ImageQuality,
-        extension: super::emTexture::ImageExtension,
-    ) {
-        if dw <= 0.0 || dh <= 0.0 || sw <= 0.0 || sh <= 0.0 {
-            return;
-        }
-
-        let dx_px = dx * self.state.scale_x + self.state.offset_x;
-        let dy_px = dy * self.state.scale_y + self.state.offset_y;
-        let dw_px = dw * self.state.scale_x;
-        let dh_px = dh * self.state.scale_y;
-        let sp = SubPixelEdges::new(dx_px, dy_px, dw_px, dh_px);
-        let px = sp.ix1;
-        let py = sp.iy1;
-        let px2 = sp.ix2;
-        let py2 = sp.iy2;
-        let pw = px2 - px;
-        let ph = py2 - py;
-        if pw <= 0 || ph <= 0 {
-            return;
-        }
-
-        let cx1 = (self.state.clip.x1 as i32).max(0);
-        let cy1 = (self.state.clip.y1 as i32).max(0);
-        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
-        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
-        let start_x = px.max(cx1);
-        let start_y = py.max(cy1);
-        let end_x = px2.min(cx2);
-        let end_y = py2.min(cy2);
-
-        // Match C++ emPainter scaling: pre-reduced area sampling for downscaling,
-        // adaptive for upscaling (UQ_ADAPTIVE default).
-        let ratio_x = sw / dw_px;
-        let ratio_y = sh / dh_px;
-        let downscaling = ratio_x > 1.0 || ratio_y > 1.0;
-
-        // Scanline batch pipeline for 9-slice sections.
-        let tw = self.target_width as usize;
-        let mode = BlendMode::from_state(self.state.canvas_color, self.state.alpha);
-        let mut ibuf = InterpolationBuffer::new(4);
-        let max_batch = ibuf.max_pixels();
-        let mut coverages = vec![0i32; max_batch];
-
-        if downscaling {
-            // 24-bit fixed-point area sampling matching C++ emPainter_ScTl + InterpolateImageAreaSampled.
-            let sw_u = sw as u32;
-            let sh_u = sh as u32;
-
-            let tdx_init = ((sw_u as i64) << 24) as f64 / dw_px;
-            let tdy_init = ((sh_u as i64) << 24) as f64 / dh_px;
-            let tdx_i = tdx_init as i64;
-            let tdy_i = tdy_init as i64;
-
-            let stride_x = if tdx_i > 0xFFFF00 {
-                ((tdx_i / 3 + 0xFFFFFF) >> 24) as u32
-            } else {
-                1
-            }
-            .max(1);
-            let stride_y = if tdy_i > 0xFFFF00 {
-                ((tdy_i / 3 + 0xFFFFFF) >> 24) as u32
-            } else {
-                1
-            }
-            .max(1);
-
-            let red_w = sw_u.div_ceil(stride_x);
-            let red_h = sh_u.div_ceil(stride_y);
-
-            let off_x = (sw_u as i32 - (red_w as i32 - 1) * stride_x as i32 - 1) / 2;
-            let off_y = (sh_u as i32 - (red_h as i32 - 1) * stride_y as i32 - 1) / 2;
-
-            let mut xfm = self.area_sample_transform_24(red_w, red_h, dx, dy, dw, dh);
-            xfm.stride_x = stride_x;
-            xfm.stride_y = stride_y;
-            xfm.off_x = off_x;
-            xfm.off_y = off_y;
-            let sec = emPainterInterpolation::SectionBounds {
-                ox: sx as i32,
-                oy: sy as i32,
-                w: sw as i32,
-                h: sh as i32,
-            };
-
-            for row in start_y..end_y {
-                let mut carry = emPainterInterpolation::AreaSampleCarryState::new();
-                let mut col = start_x;
-                while col < end_x {
-                    let batch = ((end_x - col) as usize).min(max_batch);
-                    emPainterInterpolation::interpolate_scanline_area_sampled(
-                        image,
-                        col,
-                        row,
-                        batch,
-                        &xfm,
-                        &sec,
-                        super::emTexture::ImageExtension::Clamp,
-                        &mut ibuf,
-                        &mut carry,
-                    );
-                    let all_full =
-                        sp.batch_coverages(row, col, &mut coverages[..batch]);
-                    let dest_offset = (row as usize * tw + col as usize) * 4;
-                    let data = self.GetImage(proof).GetWritableMap();
-                    let dest = &mut data[dest_offset..];
-                    // Area sampling outputs premultiplied pixels (matching C++
-                    // WRITE_NO_ROUND_SHR_COLOR). Blend via premul path.
-                    if all_full {
-                        blend_scanline_premul(dest, &ibuf, batch, None, &mode);
-                    } else {
-                        blend_scanline_premul(dest, &ibuf, batch, Some(&coverages[..batch]), &mode);
-                    }
-                    col += batch as i32;
-                }
-            }
-        } else {
-            // Upscaling or 1:1: adaptive interpolation matching C++ UQ_ADAPTIVE (default).
-            let sxfm = self.scale_transform_24(sw as u32, sh as u32, dx, dy, dw, dh);
-            let sec = emPainterInterpolation::SectionBounds {
-                ox: sx as i32,
-                oy: sy as i32,
-                w: sw as i32,
-                h: sh as i32,
-            };
-
-            for row in start_y..end_y {
-                let mut col = start_x;
-                while col < end_x {
-                    let batch = ((end_x - col) as usize).min(max_batch);
-                    emPainterInterpolation::interpolate_scanline_adaptive_premul_section(
-                        image, px, py, col, row, batch, &sxfm, &sec, extension, &mut ibuf,
-                    );
-                    let all_full =
-                        sp.batch_coverages(row, col, &mut coverages[..batch]);
-                    let dest_offset = (row as usize * tw + col as usize) * 4;
-                    let data = self.GetImage(proof).GetWritableMap();
-                    let dest = &mut data[dest_offset..];
-                    if all_full {
-                        blend_scanline_premul(dest, &ibuf, batch, None, &mode);
-                    } else {
-                        blend_scanline_premul(
-                            dest,
-                            &ibuf,
-                            batch,
-                            Some(&coverages[..batch]),
-                            &mode,
-                        );
-                    }
-                    col += batch as i32;
-                }
-            }
-        }
     }
 
     // --- Ellipse/sector outline utilities ---
