@@ -472,6 +472,22 @@ static void gen_ellipse_sector() {
     dump_painter("ellipse_sector", img);
 }
 
+static void gen_painter_howto_isolate() {
+    // Isolates the howto indicator PaintRoundRect that differs between C++ and Rust.
+    // Background: 515e84ff (border background at howto location in widget_button_normal)
+    // Howto rect: pixel coords, scale=1 (PreparePainter defaults)
+    emImage img(100, 100, 4);
+    img.Fill(emColor(0x51, 0x5e, 0x84, 0xff));
+    emPainter p = make_painter(img);
+    p.PaintRoundRect(
+        1.81824, 1.87168, 11.12832, 22.25664,
+        0.11128320000000001, 0.11128320000000001,
+        emColor(0xef, 0xf0, 0xf4, 0x1a),
+        emColor(0x51, 0x5e, 0x84, 0xff)
+    );
+    dump_painter("painter_howto_isolate", img);
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Transform golden generators
 // ═══════════════════════════════════════════════════════════════════
@@ -5226,6 +5242,7 @@ int main() {
     gen_multi_compose();
     gen_polyline();
     gen_ellipse_sector();
+    gen_painter_howto_isolate();
 
     printf("Generating transform golden files...\n");
     gen_transform_translate();

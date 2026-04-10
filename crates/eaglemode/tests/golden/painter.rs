@@ -1036,3 +1036,26 @@ fn painter_ellipse_sector() {
     }
     compare_images("ellipse_sector", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
+
+// ─── Howto isolate: PaintRoundRect on border background ─────────
+#[test]
+fn painter_howto_isolate() {
+    require_golden!();
+    let (ew, eh, expected) = load_painter_golden("painter_howto_isolate");
+    let mut img = emImage::new(ew, eh, 4);
+    img.fill(emColor::rgba(0x51, 0x5e, 0x84, 0xff));
+    {
+        let mut p = white_painter(&mut img);
+        p.SetCanvasColor(emColor::rgba(0x51, 0x5e, 0x84, 0xff));
+        p.PaintRoundRect(
+            1.81824,
+            1.87168,
+            11.12832,
+            22.25664,
+            0.11128320000000001,
+            emColor::rgba(0xef, 0xf0, 0xf4, 0x1a),
+            emColor::rgba(0x51, 0x5e, 0x84, 0xff),
+        );
+    }
+    compare_images("painter_howto_isolate", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
+}
