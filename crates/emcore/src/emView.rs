@@ -2415,7 +2415,7 @@ impl emView {
         base_offset: (f64, f64),
         parent_canvas: emColor,
     ) {
-        let (vx, vy, vw, vh, clip_x, clip_y, clip_w, clip_h, canvas_color, layout_rect) = {
+        let (vx, vy, vw, _vh, clip_x, clip_y, clip_w, clip_h, canvas_color, layout_rect) = {
             match tree.GetRec(id) {
                 Some(p) if p.viewed && p.visible => (
                     p.viewed_x,
@@ -2439,6 +2439,14 @@ impl emView {
         // from the base (tile) offset independently.
         painter.set_offset(base_offset.0 + vx, base_offset.1 + vy);
         painter.SetClipping(clip_x - vx, clip_y - vy, clip_w, clip_h);
+        // Match C++ emView::Paint: set painter transformation so widgets
+        // operate in panel-local coordinates (width=1.0, height=tallness).
+        painter.SetTransformation(
+            base_offset.0 + vx,
+            base_offset.1 + vy,
+            vw,
+            vw / self.pixel_tallness,
+        );
 
         // Skip this panel and its entire subtree if it doesn't intersect
         // the current tile's clip region.
@@ -2474,16 +2482,15 @@ impl emView {
                 DEFAULT_MEMORY_LIMIT,
                 self.seek_pos_panel,
             );
-            // In Eagle Mode, viewed_height is a scaling factor (parent-width
-            // units), not the panel's actual pixel height. The real pixel
-            // height = viewed_width * tallness, where tallness = layout_h / layout_w.
-            // For children this equals viewed_height, but for the root it differs.
-            let paint_h = if layout_rect.w > 0.0 {
-                vw * (layout_rect.h / layout_rect.w)
+            // Pass panel-local coordinates: w=1.0, h=tallness (ratio of
+            // layout height to layout width). The painter's transformation
+            // (set above) converts these back to pixel space.
+            let tallness = if layout_rect.w > 0.0 {
+                layout_rect.h / layout_rect.w
             } else {
-                vh
+                1.0
             };
-            behavior.Paint(painter, vw, paint_h, &state);
+            behavior.Paint(painter, 1.0, tallness, &state);
             tree.put_behavior(id, behavior);
         }
 
