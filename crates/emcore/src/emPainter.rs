@@ -1163,6 +1163,61 @@ impl<'a> emPainter<'a> {
         self.state.alpha = saved_alpha;
     }
 
+    /// Draw a sub-region of a source image into a destination rectangle.
+    /// Matches C++ `PaintImage(x, y, w, h, img, srcX, srcY, srcW, srcH, alpha, canvasColor, ext)`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn PaintImageSrcRect(
+        &mut self,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        image: &emImage,
+        src_x: i32,
+        src_y: i32,
+        src_w: i32,
+        src_h: i32,
+        alpha: u8,
+        canvas_color: emColor,
+        ext: super::emTexture::ImageExtension,
+    ) {
+        if image.GetChannelCount() != 4 || w <= 0.0 || h <= 0.0 || alpha == 0 {
+            return;
+        }
+        if src_w <= 0 || src_h <= 0 { return; }
+        let Some(proof) = self.try_record(DrawOp::PaintImageFull {
+            x, y, w, h,
+            image_ptr: image as *const emImage,
+            alpha,
+            canvas_color,
+        }) else { return; };
+
+        let saved_canvas = self.state.canvas_color;
+        let saved_alpha = self.state.alpha;
+        self.state.canvas_color = canvas_color;
+        if alpha < 255 {
+            self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
+        }
+
+        // Resolve EdgeOrZero: C++ EXTEND_EDGE_OR_ZERO resolves to EXTEND_ZERO
+        // for images with even channel count (alpha channel), EXTEND_EDGE otherwise.
+        let resolved_ext = match ext {
+            super::emTexture::ImageExtension::EdgeOrZero => {
+                if image.GetChannelCount().is_multiple_of(2) {
+                    super::emTexture::ImageExtension::Zero
+                } else {
+                    super::emTexture::ImageExtension::Clamp
+                }
+            },
+            other => other,
+        };
+
+        self.paint_image_rect(proof, x, y, w, h, image, src_x, src_y, src_w, src_h, resolved_ext);
+
+        self.state.canvas_color = saved_canvas;
+        self.state.alpha = saved_alpha;
+    }
+
     /// Core image rendering matching C++ PaintRect + ScanlineTool pipeline.
     ///
     /// Maps source sub-rect `(src_x, src_y, src_w, src_h)` into destination

@@ -674,3 +674,79 @@ pub unsafe extern "C" fn rust_interpolate_linear_gradient(
     grad.interpolate_scanline(scanline_x, scanline_y, buf);
     0
 }
+
+// ── Layer 12: Full paint_image_rect pipeline ────────────────────
+
+/// Paint an image sub-rect using the full Rust PaintImageSrcRect pipeline.
+///
+/// `img_data`: source image pixels (`img_w * img_h * img_ch` bytes).
+/// `canvas`: target framebuffer RGBA pixels (`canvas_w * canvas_h * 4` bytes), modified in place.
+/// `extension`: 0=TILED, 1=EDGE, 2=ZERO, 3=EDGE_OR_ZERO.
+///
+/// Returns 0 on success.
+///
+/// # Safety
+/// `img_data` must point to `img_w * img_h * img_ch` readable bytes.
+/// `canvas` must point to `canvas_w * canvas_h * 4` read/write bytes.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn rust_paint_image_rect(
+    canvas: *mut u8,
+    canvas_w: i32,
+    canvas_h: i32,
+    scale_x: f64,
+    scale_y: f64,
+    offset_x: f64,
+    offset_y: f64,
+    img_data: *const u8,
+    img_w: i32,
+    img_h: i32,
+    img_ch: i32,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    src_x: i32,
+    src_y: i32,
+    src_w: i32,
+    src_h: i32,
+    alpha: i32,
+    canvas_color: u32,
+    extension: i32,
+) -> i32 {
+    let fb_size = (canvas_w * canvas_h * 4) as usize;
+    let fb_slice = std::slice::from_raw_parts(canvas, fb_size);
+    let mut target = emImage::new(canvas_w as u32, canvas_h as u32, 4);
+    target.GetWritableMap()[..fb_size].copy_from_slice(fb_slice);
+
+    let img_size = (img_w * img_h * img_ch) as usize;
+    let img_slice = std::slice::from_raw_parts(img_data, img_size);
+    let mut source = emImage::new(img_w as u32, img_h as u32, img_ch as u8);
+    source.GetWritableMap()[..img_size].copy_from_slice(img_slice);
+
+    let mut painter = emPainter::new(&mut target);
+    painter.SetOrigin(offset_x, offset_y);
+    painter.SetScaling(scale_x, scale_y);
+
+    let cc = emColor::from_packed(canvas_color);
+
+    let ext = match extension {
+        0 => ImageExtension::Repeat,
+        1 => ImageExtension::Clamp,
+        2 => ImageExtension::Zero,
+        _ => ImageExtension::EdgeOrZero,
+    };
+
+    painter.PaintImageSrcRect(
+        x, y, w, h, &source,
+        src_x, src_y, src_w, src_h,
+        alpha as u8, cc, ext,
+    );
+
+    // Copy result back to caller's framebuffer.
+    let result = target.GetMap();
+    let out_slice = std::slice::from_raw_parts_mut(canvas, fb_size);
+    out_slice.copy_from_slice(&result[..fb_size]);
+
+    0
+}
