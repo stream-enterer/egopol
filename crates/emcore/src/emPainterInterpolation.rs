@@ -1236,7 +1236,7 @@ pub(crate) fn sample(
 }
 
 /// Sample a linear gradient.
-pub(crate) fn sample_linear_gradient(
+pub fn sample_linear_gradient(
     start: (f64, f64),
     end: (f64, f64),
     c0: emColor,

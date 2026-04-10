@@ -253,7 +253,7 @@ pub extern "C" fn rust_get_coverage(
 
 use emcore::emPainterScanlineTool::{blend_colored_scanline, BlendMode};
 use emcore::emColor::emColor;
-use emcore::emPainterInterpolation::sample_adaptive_lum_section;
+use emcore::emPainterInterpolation::{sample_adaptive_lum_section, sample_linear_gradient};
 
 /// C-compatible color struct (RGBA u8).
 #[repr(C)]
@@ -537,5 +537,48 @@ pub unsafe extern "C" fn rust_paint_border_image(
     let out_slice = std::slice::from_raw_parts_mut(fb_data, fb_size);
     out_slice.copy_from_slice(&result[..fb_size]);
 
+    0
+}
+
+// ── Layer 10: Linear gradient interpolation ─────────────────────
+
+#[repr(C)]
+pub struct CGradientParams {
+    pub x1: f64,
+    pub y1: f64,
+    pub x2: f64,
+    pub y2: f64,
+}
+
+/// Fill a buffer with linear gradient red-channel values (0-255).
+///
+/// Uses `sample_linear_gradient` with black→white colors so the red channel
+/// equals the gradient parameter value at each pixel center.
+///
+/// # Safety
+/// `params` must point to a valid `CGradientParams`.
+/// `out_buffer` must be at least `width` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn rust_interpolate_linear_gradient(
+    params: *const CGradientParams,
+    scanline_x: i32,
+    scanline_y: i32,
+    width: i32,
+    out_buffer: *mut u8,
+) -> i32 {
+    let p = &*params;
+    let buf = std::slice::from_raw_parts_mut(out_buffer, width as usize);
+
+    let start = (p.x1, p.y1);
+    let end = (p.x2, p.y2);
+    let c0 = emColor::rgba(0, 0, 0, 255);
+    let c1 = emColor::rgba(255, 255, 255, 255);
+
+    for (i, pixel) in buf.iter_mut().enumerate() {
+        let px = scanline_x as f64 + i as f64 + 0.5;
+        let py = scanline_y as f64 + 0.5;
+        let color = sample_linear_gradient(start, end, c0, c1, (px, py));
+        *pixel = color.GetRed();
+    }
     0
 }
