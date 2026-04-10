@@ -41,6 +41,7 @@ pub(crate) enum DrawOp {
         h: f64,
         radius: f64,
         color: emColor,
+        canvas_color: emColor,
     },
     PaintRectOutlined {
         x: f64,
@@ -367,9 +368,6 @@ impl DrawList {
         &mut self.ops
     }
 
-    pub fn ops(&self) -> &[DrawOp] {
-        &self.ops
-    }
 
     /// Replay all recorded operations into the given painter.
     ///
@@ -408,7 +406,8 @@ impl DrawList {
                     h,
                     radius,
                     color,
-                } => painter.PaintRoundRect(*x, *y, *w, *h, *radius, *color),
+                    canvas_color,
+                } => painter.PaintRoundRect(*x, *y, *w, *h, *radius, *color, *canvas_color),
 
                 DrawOp::PaintRectOutlined {
                     x,

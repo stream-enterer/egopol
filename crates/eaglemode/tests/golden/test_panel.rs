@@ -558,9 +558,9 @@ impl TestPanel {
 
         // Round rects
         p.SetCanvasColor(bg);
-        p.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
-        p.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
-        p.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE);
+        p.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE, emColor::TRANSPARENT);
+        p.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE, emColor::TRANSPARENT);
+        p.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE, emColor::TRANSPARENT);
 
         // Ellipse outlines
         p.PaintEllipseOutline(

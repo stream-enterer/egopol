@@ -921,7 +921,7 @@ pub unsafe extern "C" fn rust_paint_round_rect(
     painter.SetScaling(scale_x, scale_y);
 
     let c = emColor::from_packed(color);
-    painter.PaintRoundRect(x, y, w, h, radius, c);
+    painter.PaintRoundRect(x, y, w, h, radius, c, emColor::TRANSPARENT);
 
     let result = target.GetMap();
     let out_slice = std::slice::from_raw_parts_mut(canvas, fb_size);

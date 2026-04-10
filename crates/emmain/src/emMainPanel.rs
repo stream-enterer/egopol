@@ -175,7 +175,7 @@ impl PanelBehavior for SliderPanel {
         } else {
             emColor::from_packed(0x33445580)
         };
-        painter.PaintRoundRect(0.0, 0.0, 2.0, h, 6.0 / 64.0, color);
+        painter.PaintRoundRect(0.0, 0.0, 2.0, h, 6.0 / 64.0, color, emColor::TRANSPARENT);
 
         // Arrow indicators (C++ emMainPanel.cpp:478-498).
         if self.mouse_over || self.pressed {

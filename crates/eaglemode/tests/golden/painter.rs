@@ -197,7 +197,7 @@ fn painter_round_rect() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        p.PaintRoundRect(20.0, 20.0, 200.0, 150.0, 20.0, emColor::BLUE);
+        p.PaintRoundRect(20.0, 20.0, 200.0, 150.0, 20.0, emColor::BLUE, emColor::TRANSPARENT);
     }
     compare_images("round_rect", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
@@ -627,6 +627,7 @@ fn painter_multi_compose() {
             100.0,
             15.0,
             emColor::rgba(255, 255, 0, 100),
+            emColor::TRANSPARENT,
         );
         p.PaintRect(
             30.0,

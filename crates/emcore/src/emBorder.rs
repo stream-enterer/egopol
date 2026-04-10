@@ -1762,7 +1762,7 @@ How to move or set the focus:\n\
                 let e = s * 0.02;
                 let r = s * 0.22;
                 if !look.bg_color.IsTotallyTransparent() {
-                    painter.PaintRoundRect(d, d, w - 2.0 * d, h - 2.0 * d, r, look.bg_color);
+                    painter.PaintRoundRect(d, d, w - 2.0 * d, h - 2.0 * d, r, look.bg_color, painter.GetCanvasColor());
                     painter.SetCanvasColor(look.bg_color);
                 }
                 let color = dim_color(look.fg_color);
@@ -1797,6 +1797,7 @@ How to move or set the focus:\n\
                         rnd_h + 2.0 * e,
                         r,
                         color,
+                        painter.GetCanvasColor(),
                     );
                     color2 = emColor::TRANSPARENT;
                 }
@@ -1846,6 +1847,7 @@ How to move or set the focus:\n\
                         rnd_h + 2.0 * e,
                         r,
                         color,
+                        painter.GetCanvasColor(),
                     );
                     color2 = emColor::TRANSPARENT;
                 }
@@ -1895,6 +1897,7 @@ How to move or set the focus:\n\
                         rnd_h + 2.0 * e,
                         r,
                         color,
+                        painter.GetCanvasColor(),
                     );
                     color2 = emColor::TRANSPARENT;
                 }
@@ -1989,6 +1992,7 @@ How to move or set the focus:\n\
                 th,
                 tw * 0.01,
                 look.fg_color.SetAlpha((255.0 * 0.10 + 0.5) as u8),
+                painter.GetCanvasColor(),
             );
 
             // C++ emBorder.cpp:916-927: paint text inside the pill when large enough.
@@ -2118,6 +2122,7 @@ How to move or set the focus:\n\
                     inner_h - 2.0 * d,
                     tr,
                     bg,
+                    painter.GetCanvasColor(),
                 );
                 painter.SetCanvasColor(bg);
                 // C++ paints content HERE (PaintContent), then the IO field
@@ -2139,6 +2144,7 @@ How to move or set the focus:\n\
                     inner_h - 2.0 * d,
                     tr,
                     bg,
+                    painter.GetCanvasColor(),
                 );
                 painter.SetCanvasColor(bg);
                 // Overlay painted by paint_inner_overlay() after content.

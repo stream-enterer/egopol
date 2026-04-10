@@ -763,6 +763,7 @@ impl PanelBehavior for emFileManSelInfoPanel {
             s * 0.34,
             s * 0.03,
             bg2,
+            emColor::TRANSPARENT,
         );
 
         painter.PaintRoundRect(
@@ -772,6 +773,7 @@ impl PanelBehavior for emFileManSelInfoPanel {
             s * 0.16,
             s * 0.02,
             bg1,
+            emColor::TRANSPARENT,
         );
 
         Self::paint_details(

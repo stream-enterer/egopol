@@ -874,6 +874,7 @@ impl emVisitingViewAnimator {
             h,
             h * 0.2,
             crate::emColor::emColor::rgba(0, 0, 0, 160),
+            crate::emColor::emColor::TRANSPARENT,
         );
         painter.PaintRoundRect(
             x,
@@ -882,6 +883,7 @@ impl emVisitingViewAnimator {
             h,
             h * 0.2,
             crate::emColor::emColor::rgba(34, 102, 153, 208),
+            crate::emColor::emColor::TRANSPARENT,
         );
 
         let ch_size = h * 0.22;

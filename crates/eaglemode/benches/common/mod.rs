@@ -287,11 +287,11 @@ impl PanelBehavior for TestPanel {
             emColor::TRANSPARENT,
         );
 
-        painter.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
-        painter.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
-        painter.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE);
-        painter.PaintRoundRect(0.13, 0.84, 0.01, 0.01, 0.006, emColor::WHITE);
-        painter.PaintRoundRect(0.15, 0.84, 0.01, 0.01, 0.0, emColor::WHITE);
+        painter.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE, emColor::TRANSPARENT);
+        painter.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE, emColor::TRANSPARENT);
+        painter.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE, emColor::TRANSPARENT);
+        painter.PaintRoundRect(0.13, 0.84, 0.01, 0.01, 0.006, emColor::WHITE, emColor::TRANSPARENT);
+        painter.PaintRoundRect(0.15, 0.84, 0.01, 0.01, 0.0, emColor::WHITE, emColor::TRANSPARENT);
 
         painter.PaintEllipseOutline(
             0.055,

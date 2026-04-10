@@ -151,7 +151,7 @@ impl emRadioBox {
 
         // Paint face (InputBgColor) — circular for radio.
         let face_color = self.look.input_bg_color;
-        painter.PaintRoundRect(fx, fy, fw, fh, fr, face_color);
+        painter.PaintRoundRect(fx, fy, fw, fh, fr, face_color, emColor::TRANSPARENT);
         painter.SetCanvasColor(face_color);
 
         // Paint radio dot if selected (C++ PaintBoxSymbol, lines 161-167).
@@ -210,7 +210,7 @@ impl emRadioBox {
         // C++ DoButton: disabled gray overlay for boxed+radioed path.
         // PaintRoundRect(fx, fy, fw, fh, fr, fr, 0x888888E0).
         if !enabled {
-            painter.PaintRoundRect(fx, fy, fw, fh, fr, emColor::rgba(0x88, 0x88, 0x88, 0xE0));
+            painter.PaintRoundRect(fx, fy, fw, fh, fr, emColor::rgba(0x88, 0x88, 0x88, 0xE0), emColor::TRANSPARENT);
         }
     }
 

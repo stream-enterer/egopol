@@ -295,7 +295,7 @@ impl<'a> emPainter<'a> {
                     x2: w as f64,
                     y2: h as f64,
                 },
-                canvas_color: emColor::BLACK,
+                canvas_color: emColor::TRANSPARENT,
                 alpha: 255,
             },
             state_stack: Vec::new(),
@@ -324,7 +324,7 @@ impl<'a> emPainter<'a> {
                     x2: width as f64,
                     y2: height as f64,
                 },
-                canvas_color: emColor::BLACK,
+                canvas_color: emColor::TRANSPARENT,
                 alpha: 255,
             },
             state_stack: Vec::new(),
@@ -1084,8 +1084,18 @@ impl<'a> emPainter<'a> {
     }
 
     /// Fill a rounded rectangle using AA polygon approximation.
-    /// Reads canvas_color from painter state (set by caller).
-    pub fn PaintRoundRect(&mut self, x: f64, y: f64, w: f64, h: f64, radius: f64, color: emColor) {
+    /// Matches C++ `PaintRoundRect(x, y, w, h, rx, ry, texture, canvasColor)`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn PaintRoundRect(
+        &mut self,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        radius: f64,
+        color: emColor,
+        canvas_color: emColor,
+    ) {
         let Some(proof) = self.try_record(DrawOp::PaintRoundRect {
             x,
             y,
@@ -1093,12 +1103,16 @@ impl<'a> emPainter<'a> {
             h,
             radius,
             color,
+            canvas_color,
         }) else { return; };
         if w <= 0.0 || h <= 0.0 {
             return;
         }
+        let saved_canvas = self.state.canvas_color;
+        self.state.canvas_color = canvas_color;
         let verts = self.round_rect_polygon(x, y, w, h, radius);
         self.fill_polygon_aa(proof, &verts, color, WindingRule::NonZero);
+        self.state.canvas_color = saved_canvas;
     }
 
     /// Draw a source image at the given position (convenience wrapper).
@@ -2976,7 +2990,7 @@ impl<'a> emPainter<'a> {
 
         if rounded || stroke.is_dashed() {
             if (w <= sw || h <= sw) && !stroke.is_dashed() {
-                self.PaintRoundRect(x - t2, y - t2, w + sw, h + sw, t2, stroke.color);
+                self.PaintRoundRect(x - t2, y - t2, w + sw, h + sw, t2, stroke.color, canvas_color);
                 return;
             }
             let verts = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
@@ -3069,7 +3083,7 @@ impl<'a> emPainter<'a> {
         let or = radius + t2;
 
         if sw * 2.0 >= w || sw * 2.0 >= h {
-            self.PaintRoundRect(ox, oy, ow, oh, or, stroke.color);
+            self.PaintRoundRect(ox, oy, ow, oh, or, stroke.color, self.state.canvas_color);
             return;
         }
 
@@ -5811,7 +5825,10 @@ impl<'a> emPainter<'a> {
     /// Generate polygon vertices for a rounded rectangle.
     fn round_rect_polygon(&self, x: f64, y: f64, w: f64, h: f64, r: f64) -> Vec<(f64, f64)> {
         let r = r.min(w / 2.0).min(h / 2.0).max(0.0);
-        if r < 0.5 {
+        // C++: if (rx<=0.0 || ry<=0.0) { PaintRect(...); return; }
+        // Must match C++ threshold exactly — r is in user-space coordinates,
+        // not pixels, so any positive radius needs polygon vertices.
+        if r <= 0.0 {
             return vec![(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
         }
         // C++ PaintRoundRect: f = CQ * sqrt(rx*SX + ry*SY), clamp 256,

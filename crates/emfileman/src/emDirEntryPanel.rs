@@ -423,7 +423,7 @@ impl PanelBehavior for emDirEntryPanel {
         painter.PaintRoundRect(
             theme_rec.BackgroundX, theme_rec.BackgroundY,
             theme_rec.BackgroundW, theme_rec.BackgroundH,
-            r, bg,
+            r, bg, emColor::TRANSPARENT,
         );
 
         // Name color based on file type

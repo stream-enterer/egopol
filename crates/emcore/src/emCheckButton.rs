@@ -85,7 +85,7 @@ impl emCheckButton {
 
         // C++ emButton.cpp:361: always ButtonBgColor. Pressed visual from overlay.
         let face_color = self.look.button_bg_color;
-        painter.PaintRoundRect(fx, fy, fw, fh, fr, face_color);
+        painter.PaintRoundRect(fx, fy, fw, fh, fr, face_color, emColor::TRANSPARENT);
         painter.SetCanvasColor(face_color);
 
         // emLabel inside face with padding (C++ lines 370-391).
