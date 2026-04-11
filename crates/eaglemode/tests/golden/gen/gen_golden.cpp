@@ -681,6 +681,39 @@ static void dump_layout(const char* name, emPanel* layout) {
     printf("  layout/%s (%d children)\n", name, count);
 }
 
+// Recursive panel tree dump — writes one JSONL line per panel.
+static void dump_panel_tree_recursive(FILE* f, emPanel* panel, int depth) {
+    fprintf(f,
+        "{\"path\":\"%s\",\"depth\":%d,"
+        "\"lx\":%.17g,\"ly\":%.17g,\"lw\":%.17g,\"lh\":%.17g,"
+        "\"children\":%d,\"ae_expanded\":%d,\"viewed\":%d,"
+        "\"ae_thresh\":%.17g}\n",
+        panel->GetIdentity().Get(),
+        depth,
+        panel->GetLayoutX(), panel->GetLayoutY(),
+        panel->GetLayoutWidth(), panel->GetLayoutHeight(),
+        (int)[&]{int n=0; for(auto*c=panel->GetFirstChild();c;c=c->GetNext())n++; return n;}(),
+        panel->IsAutoExpanded() ? 1 : 0,
+        panel->IsViewed() ? 1 : 0,
+        panel->GetAutoExpansionThresholdValue()
+    );
+    for (emPanel* c = panel->GetFirstChild(); c; c = c->GetNext()) {
+        dump_panel_tree_recursive(f, c, depth + 1);
+    }
+}
+
+static void dump_panel_tree(const char* name, emPanel* root) {
+    char path[512];
+    snprintf(path, sizeof(path), "%s/%s.cpp_tree.jsonl",
+             getenv("GOLDEN_DIVERGENCE_DIR") ? getenv("GOLDEN_DIVERGENCE_DIR")
+                                              : "target/golden-divergence",
+             name);
+    FILE* f = fopen(path, "w");
+    dump_panel_tree_recursive(f, root, 0);
+    fclose(f);
+    printf("  tree/%s\n", name);
+}
+
 // Run a layout test: create a fresh scheduler+context+view, build the layout,
 // run scheduler to settle, dump child rects.
 //
@@ -4304,6 +4337,7 @@ static void gen_tktest_1x() {
     tk->Layout(0, 0, 800.0 / 600.0, 1.0);
 
     { TerminateEngine ctrl(sched, 200); sched.Run(); }
+    dump_panel_tree("tktest_1x", tk);
     render_and_dump_sized("tktest_1x", vp, ctx, 800, 600);
 }
 
