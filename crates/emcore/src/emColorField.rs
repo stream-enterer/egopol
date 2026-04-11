@@ -615,10 +615,10 @@ impl emColorField {
                         3 => "Cyan".to_string(),
                         4 => "Blue".to_string(),
                         5 => "Magenta".to_string(),
-                        _ => format!("{}\u{00B0}", val as f64 / 100.0),
+                        _ => format!("{}", val as f64 / 100.0),
                     }
                 } else {
-                    format!("{}\u{00B0}", val as f64 / 100.0)
+                    format!("{}", val as f64 / 100.0)
                 }
             }));
             ctx.tree.set_behavior(child, Box::new(panel));

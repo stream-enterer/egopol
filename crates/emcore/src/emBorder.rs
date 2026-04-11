@@ -1739,7 +1739,7 @@ How to move or set the focus:\n\
                         w - 2.0 * d,
                         h - 2.0 * d,
                         look.bg_color,
-                        emColor::TRANSPARENT,
+                        painter.GetCanvasColor(),
                     );
                     // C++ updates canvasColor to bg_color after fill.
                     painter.SetCanvasColor(look.bg_color);
