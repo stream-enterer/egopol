@@ -186,7 +186,7 @@ impl emButton {
         let fw = cr.w - 2.0 * d;
         let fh = cr.h - 2.0 * d;
         let fr = (r - d).max(0.0);
-        painter.PaintRoundRect(fx, fy, fw, fh, fr, face_color, emColor::TRANSPARENT);
+        painter.PaintRoundRect(fx, fy, fw, fh, fr, face_color, painter.GetCanvasColor());
         painter.SetCanvasColor(face_color);
 
         // C++ DoButton: PaintLabel inside the face area with padding.

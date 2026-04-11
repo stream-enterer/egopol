@@ -814,7 +814,8 @@ impl PanelBehavior for TestPanel {
         painter.scale(w, w);
         let panel_h = h / w;
 
-        painter.PaintRect(0.0, 0.0, 1.0, panel_h, bg, emColor::TRANSPARENT);
+        painter.PaintRect(0.0, 0.0, 1.0, panel_h, bg, painter.GetCanvasColor());
+        painter.SetCanvasColor(bg);
         painter.PaintRectOutline(
             0.01,
             0.01,
@@ -894,11 +895,12 @@ impl PanelBehavior for TestPanel {
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         let children = ctx.children();
+        let bg = self.bg_color();
 
         if !children.is_empty() {
             for &(name, x, y, cw, ch) in &CHILD_LAYOUT {
                 if let Some(child) = ctx.find_child_by_name(name) {
-                    ctx.layout_child(child, x, y, cw, ch);
+                    ctx.layout_child_canvas(child, x, y, cw, ch, bg);
                 }
             }
             return;
@@ -935,7 +937,7 @@ impl PanelBehavior for TestPanel {
 
         for &(name, x, y, cw, ch) in &CHILD_LAYOUT {
             if let Some(child) = ctx.find_child_by_name(name) {
-                ctx.layout_child(child, x, y, cw, ch);
+                ctx.layout_child_canvas(child, x, y, cw, ch, bg);
             }
         }
     }

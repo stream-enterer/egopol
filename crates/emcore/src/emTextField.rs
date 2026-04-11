@@ -130,7 +130,7 @@ impl emTextField {
     pub fn new(look: Rc<emLook>) -> Self {
         Self {
             border: emBorder::new(OuterBorderType::Instrument)
-                .with_inner(InnerBorderType::InputField)
+                .with_inner(InnerBorderType::OutputField)
                 .with_how_to(true),
             look,
             text: String::new(),
@@ -142,7 +142,7 @@ impl emTextField {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             on_text: None,
-            editable: true,
+            editable: false,
             enabled: true,
             multi_line: false,
             overwrite_mode: false,
@@ -2770,6 +2770,7 @@ mod tests {
     fn insert_and_delete() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
 
@@ -2815,6 +2816,7 @@ mod tests {
     fn max_length() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         tf.set_max_length(3);
@@ -2833,6 +2835,7 @@ mod tests {
         let changes_clone = changes.clone();
 
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         tf.on_text = Some(Box::new(move |text| {
@@ -2867,6 +2870,7 @@ mod tests {
     fn undo_redo() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
 
@@ -2896,6 +2900,7 @@ mod tests {
     fn undo_no_merge_across_types() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
 
@@ -2920,6 +2925,7 @@ mod tests {
     fn undo_merge_broken_by_cursor_move() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
 
@@ -2988,6 +2994,9 @@ mod tests {
         let mut tf = emTextField::new(look);
         let ps = default_panel_state();
         let is = default_input_state();
+        assert!(!tf.IsEditable());
+
+        tf.SetEditable(true);
         assert!(tf.IsEditable());
 
         tf.SetEditable(false);
@@ -3002,6 +3011,7 @@ mod tests {
     fn can_undo_redo() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!tf.CanUndo());
@@ -3167,6 +3177,7 @@ mod tests {
     fn overwrite_mode() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         tf.SetText("ABC");
@@ -3185,6 +3196,7 @@ mod tests {
     fn ctrl_backspace_delete_word() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         tf.SetText("hello world");
@@ -3198,6 +3210,7 @@ mod tests {
     fn ctrl_delete_word() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         tf.SetText("hello world");
@@ -3227,6 +3240,7 @@ mod tests {
     fn validation_rejects_change() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         tf.SetText("123");
@@ -3265,6 +3279,7 @@ mod tests {
     fn enter_multi_line() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         tf.SetMultiLineMode(true);
@@ -3280,6 +3295,7 @@ mod tests {
     fn enter_single_line_noop() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         tf.SetText("ab");
@@ -3295,6 +3311,7 @@ mod tests {
     fn clipboard_copy_paste() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         let clipboard = Rc::new(RefCell::new(String::new()));
@@ -3324,6 +3341,7 @@ mod tests {
     fn clipboard_cut() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         let clipboard = Rc::new(RefCell::new(String::new()));
@@ -3345,6 +3363,7 @@ mod tests {
     fn paste_respects_max_length() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         tf.set_max_length(5);
@@ -3462,6 +3481,7 @@ mod tests {
     fn ctrl_shift_backspace_delete_to_row_start() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         tf.SetText("hello world");
@@ -3475,6 +3495,7 @@ mod tests {
     fn ctrl_shift_delete_to_row_end() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         tf.SetText("hello world");
@@ -3656,6 +3677,7 @@ mod tests {
     fn can_undo_redo_signal_fires() {
         let look = emLook::new();
         let mut tf = emTextField::new(look);
+        tf.SetEditable(true);
         let ps = default_panel_state();
         let is = default_input_state();
         let states = Rc::new(RefCell::new(Vec::new()));

@@ -149,7 +149,7 @@ impl emCheckBox {
 
         // Paint face (InputBgColor).
         let face_color = self.look.input_bg_color;
-        painter.PaintRoundRect(fx, fy, fw, fh, fr, face_color, emColor::TRANSPARENT);
+        painter.PaintRoundRect(fx, fy, fw, fh, fr, face_color, painter.GetCanvasColor());
         painter.SetCanvasColor(face_color);
 
         // Paint check symbol if checked (C++ PaintBoxSymbol, emButton.cpp:160-184).

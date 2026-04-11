@@ -118,14 +118,14 @@ impl emScalarField {
         let value = min;
         Self {
             border: emBorder::new(OuterBorderType::Instrument)
-                .with_inner(InnerBorderType::InputField)
+                .with_inner(InnerBorderType::OutputField)
                 .with_how_to(true),
             look,
             value,
             min,
             max: clamped_max,
             precision: 2,
-            editable: true,
+            editable: false,
             enabled: true,
             dragging: false,
             last_w: 0.0,
@@ -788,6 +788,7 @@ mod tests {
     fn arrow_key_stepping() {
         let look = emLook::new();
         let mut sf = emScalarField::new(0.0, 100.0, look);
+        sf.SetEditable(true);
         sf.SetValue(50.0);
 
         // Cache dimensions (paint would do this in real usage)
@@ -810,6 +811,7 @@ mod tests {
         let val_clone = values.clone();
 
         let mut sf = emScalarField::new(0.0, 10.0, look);
+        sf.SetEditable(true);
         sf.SetValue(5.0);
         sf.last_w = 200.0;
         sf.last_h = 40.0;
@@ -827,6 +829,10 @@ mod tests {
         let look = emLook::new();
         let mut sf = emScalarField::new(0.0, 100.0, look);
 
+        assert!(!sf.IsEditable());
+        assert_eq!(sf.border.inner, InnerBorderType::OutputField);
+
+        sf.SetEditable(true);
         assert!(sf.IsEditable());
         assert_eq!(sf.border.inner, InnerBorderType::InputField);
 
@@ -948,6 +954,7 @@ mod tests {
     fn step_by_keyboard_with_explicit_interval() {
         let look = emLook::new();
         let mut sf = emScalarField::new(0.0, 100.0, look);
+        sf.SetEditable(true);
         sf.SetKeyboardInterval(10);
         sf.SetValue(50.0);
         sf.last_w = 200.0;
@@ -974,6 +981,7 @@ mod tests {
     fn plus_minus_keys_work() {
         let look = emLook::new();
         let mut sf = emScalarField::new(0.0, 100.0, look);
+        sf.SetEditable(true);
         sf.SetValue(50.0);
         sf.last_w = 200.0;
         sf.last_h = 40.0;

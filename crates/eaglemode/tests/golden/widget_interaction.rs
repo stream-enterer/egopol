@@ -355,6 +355,7 @@ fn widget_scalarfield_inc() {
 
     let look = emLook::new();
     let mut sf = emScalarField::new(0.0, 100.0, look);
+    sf.SetEditable(true);
     sf.SetValue(50.0);
     let ps = default_panel_state();
     let is = default_input_state();

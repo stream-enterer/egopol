@@ -2008,7 +2008,7 @@ How to move or set the focus:\n\
                     &self.how_to_text,
                     th,
                     look.fg_color.SetAlpha(text_alpha),
-                    emColor::TRANSPARENT,
+                    painter.GetCanvasColor(),
                     TextAlignment::Left,
                     VAlign::Top,
                     TextAlignment::Left,

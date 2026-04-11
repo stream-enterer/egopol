@@ -190,7 +190,7 @@ impl PanelBehavior for DefaultItemPanelBehavior {
             let rdx = s * 0.015;
             let rdy = s * 0.015;
             let r = s * 0.15;
-            painter.PaintRoundRect(rdx, rdy, w - 2.0 * rdx, h - 2.0 * rdy, r, hl, emColor::TRANSPARENT);
+            painter.PaintRoundRect(rdx, rdy, w - 2.0 * rdx, h - 2.0 * rdy, r, hl, painter.GetCanvasColor());
             item_canvas = hl;
         }
 
@@ -1105,7 +1105,7 @@ impl emListBox {
                     item_h - 2.0 * rdy,
                     r,
                     hl,
-                    emColor::TRANSPARENT,
+                    painter.GetCanvasColor(),
                 );
                 item_canvas = hl;
             }
