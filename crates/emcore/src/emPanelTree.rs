@@ -1360,6 +1360,13 @@ impl PanelTree {
             .unwrap_or(ViewConditionType::Area)
     }
 
+    /// Whether the panel is currently viewed (visible in the view).
+    ///
+    /// Corresponds to `emPanel::IsViewed`.
+    pub fn IsViewed(&self, id: PanelId) -> bool {
+        self.panels.get(id).map(|p| p.viewed).unwrap_or(false)
+    }
+
     /// Whether the panel is currently auto-expanded.
     ///
     /// Corresponds to `emPanel::IsAutoExpanded`.

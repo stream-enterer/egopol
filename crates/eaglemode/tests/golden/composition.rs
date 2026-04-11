@@ -69,6 +69,52 @@ fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     }
 }
 
+/// Returns true if DUMP_PANEL_TREE=1 is set in the environment.
+fn dump_panel_tree_enabled() -> bool {
+    std::env::var("DUMP_PANEL_TREE").as_deref() == Ok("1")
+}
+
+/// Dump the full panel tree as JSONL — one line per panel.
+fn dump_panel_tree(name: &str, tree: &PanelTree, root: PanelId) {
+    let dir = format!(
+        "{}/target/golden-divergence",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = format!("{dir}/{name}.rust_tree.jsonl");
+    let mut lines = Vec::new();
+    dump_panel_recursive(tree, root, 0, &mut lines);
+    std::fs::write(&path, lines.join("")).unwrap();
+    eprintln!("  tree/{name} ({} panels)", lines.len());
+}
+
+fn dump_panel_recursive(
+    tree: &PanelTree,
+    id: PanelId,
+    depth: usize,
+    out: &mut Vec<String>,
+) {
+    let path = tree.GetIdentity(id);
+    let lr = tree.layout_rect(id).unwrap();
+    let child_count = tree.child_count(id);
+    let ae_expanded = tree.IsAutoExpanded(id);
+    let viewed = tree.IsViewed(id);
+    let ae_thresh = tree.GetAutoExpansionThresholdValue(id);
+    out.push(format!(
+        "{{\"path\":\"{path}\",\"depth\":{depth},\
+         \"lx\":{:.17},\"ly\":{:.17},\"lw\":{:.17},\"lh\":{:.17},\
+         \"children\":{child_count},\"ae_expanded\":{},\"viewed\":{},\
+         \"ae_thresh\":{:.17}}}\n",
+        lr.x, lr.y, lr.w, lr.h,
+        ae_expanded as u8,
+        viewed as u8,
+        ae_thresh,
+    ));
+    for child in tree.children(id) {
+        dump_panel_recursive(tree, child, depth + 1, out);
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Widget wrapper panels (same as test_panel.rs — needed for TkTestPanel)
 // ═══════════════════════════════════════════════════════════════════
@@ -841,6 +887,10 @@ fn composition_tktest_1x() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     settle(&mut tree, &mut view, 200);
+
+    if dump_panel_tree_enabled() {
+        dump_panel_tree("tktest_1x", &tree, root);
+    }
 
     if dump_draw_ops_enabled() {
         let mut ops: Vec<DrawOp> = Vec::new();
