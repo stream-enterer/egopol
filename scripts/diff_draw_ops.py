@@ -16,6 +16,9 @@ SKIP_KEYS = {"seq", "_unserialized"}
 # State ops that may appear in one side but not the other.
 # C++ passes canvas_color per-call; Rust has explicit SetCanvasColor ops.
 STATE_OPS = {"SetCanvasColor", "SetAlpha", "PushState", "PopState", "SetOffset", "ClipRect", "SetTransformation"}
+# Keys embedded in C++ paint ops for state — exclude from parameter comparison.
+STATE_INLINE_KEYS = {"state_sx", "state_sy", "state_ox", "state_oy",
+                     "state_clip_x1", "state_clip_y1", "state_clip_x2", "state_clip_y2"}
 
 
 def load_ops(path):
@@ -118,7 +121,7 @@ def diff_ops(cpp_ops, rust_ops, name):
         rust = rust_ops[ri]
         matched += 1
 
-        all_keys = (set(cpp.keys()) | set(rust.keys())) - SKIP_KEYS
+        all_keys = (set(cpp.keys()) | set(rust.keys())) - SKIP_KEYS - STATE_INLINE_KEYS
         for key in sorted(all_keys):
             cv = cpp.get(key)
             rv = rust.get(key)
@@ -179,8 +182,22 @@ def track_state(ops):
         elif kind == "SetCanvasColor":
             state["canvas_color"] = op.get("color", "00000000")
         elif kind not in STATE_OPS:
-            # Paint op — snapshot current state
-            paint_ops.append((op, dict(state)))
+            # Paint op — use inline state if present (C++), else accumulated state (Rust)
+            if "state_sx" in op:
+                snap = {
+                    "offset_x": op.get("state_ox", 0.0),
+                    "offset_y": op.get("state_oy", 0.0),
+                    "scale_x": op.get("state_sx", 1.0),
+                    "scale_y": op.get("state_sy", 1.0),
+                    "clip_x": op.get("state_clip_x1"),
+                    "clip_y": op.get("state_clip_y1"),
+                    "clip_w": (op["state_clip_x2"] - op["state_clip_x1"]) if "state_clip_x1" in op else None,
+                    "clip_h": (op["state_clip_y2"] - op["state_clip_y1"]) if "state_clip_y1" in op else None,
+                    "canvas_color": op.get("canvas_color", "00000000"),
+                }
+                paint_ops.append((op, snap))
+            else:
+                paint_ops.append((op, dict(state)))
     return paint_ops
 
 
@@ -210,7 +227,7 @@ def diff_with_state(cpp_ops, rust_ops, name):
         matched += 1
 
         # Compare paint op parameters (same as before)
-        all_keys = (set(cpp_op.keys()) | set(rust_op.keys())) - SKIP_KEYS
+        all_keys = (set(cpp_op.keys()) | set(rust_op.keys())) - SKIP_KEYS - STATE_INLINE_KEYS
         for key in sorted(all_keys):
             cv = cpp_op.get(key)
             rv = rust_op.get(key)
