@@ -487,6 +487,7 @@ impl<'a> emPainter<'a> {
 
     /// Set scaling (absolute, replaces current scale).
     pub fn SetScaling(&mut self, sx: f64, sy: f64) {
+        self.record_state(DrawOp::SetScaling(sx, sy));
         self.state.scale_x = sx;
         self.state.scale_y = sy;
     }

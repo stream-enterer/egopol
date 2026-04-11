@@ -67,6 +67,9 @@ fn serialize_op(seq: usize, op: &DrawOp) -> String {
         DrawOp::SetOffset(dx, dy) => {
             format!(r#"{{"seq":{seq},"op":"SetOffset","dx":{dx},"dy":{dy}}}"#)
         }
+        DrawOp::SetScaling(sx, sy) => {
+            format!(r#"{{"seq":{seq},"op":"SetScaling","sx":{sx},"sy":{sy}}}"#)
+        }
         DrawOp::SetTransformation { ox, oy, sx, sy } => {
             format!(r#"{{"seq":{seq},"op":"SetTransformation","ox":{ox},"oy":{oy},"sx":{sx},"sy":{sy}}}"#)
         }
@@ -221,6 +224,7 @@ fn variant_name(op: &DrawOp) -> &'static str {
         DrawOp::PushState => "PushState",
         DrawOp::PopState => "PopState",
         DrawOp::SetOffset(..) => "SetOffset",
+        DrawOp::SetScaling(..) => "SetScaling",
         DrawOp::SetTransformation { .. } => "SetTransformation",
         DrawOp::ClipRect { .. } => "ClipRect",
         DrawOp::SetCanvasColor(..) => "SetCanvasColor",

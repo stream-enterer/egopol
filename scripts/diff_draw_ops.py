@@ -15,7 +15,7 @@ FLOAT_TOL = 1e-10
 SKIP_KEYS = {"seq", "_unserialized"}
 # State ops that may appear in one side but not the other.
 # C++ passes canvas_color per-call; Rust has explicit SetCanvasColor ops.
-STATE_OPS = {"SetCanvasColor", "SetAlpha", "PushState", "PopState", "SetOffset", "ClipRect", "SetTransformation"}
+STATE_OPS = {"SetCanvasColor", "SetAlpha", "PushState", "PopState", "SetOffset", "SetScaling", "ClipRect", "SetTransformation"}
 # Keys embedded in C++ paint ops for state — exclude from parameter comparison.
 STATE_INLINE_KEYS = {"state_sx", "state_sy", "state_ox", "state_oy",
                      "state_clip_x1", "state_clip_y1", "state_clip_x2", "state_clip_y2"}
@@ -169,6 +169,9 @@ def track_state(ops):
         elif kind == "SetOffset":
             state["offset_x"] = op.get("dx", 0.0)
             state["offset_y"] = op.get("dy", 0.0)
+        elif kind == "SetScaling":
+            state["scale_x"] = op.get("sx", 1.0)
+            state["scale_y"] = op.get("sy", 1.0)
         elif kind == "SetTransformation":
             state["offset_x"] = op.get("ox", 0.0)
             state["offset_y"] = op.get("oy", 0.0)
