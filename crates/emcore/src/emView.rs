@@ -2594,9 +2594,9 @@ impl emView {
         painter: &mut emPainter,
         root: PanelId,
         base_offset: (f64, f64),
-        background: emColor,
+        _background: emColor,
     ) {
-        self.paint_panel_recursive(tree, painter, root, base_offset, background);
+        self.paint_panel_recursive(tree, painter, root, base_offset);
     }
 
     fn paint_panel_recursive(
@@ -2605,11 +2605,10 @@ impl emView {
         painter: &mut emPainter,
         id: PanelId,
         base_offset: (f64, f64),
-        parent_canvas: emColor,
     ) {
         let (vx, vy, vw, _vh, clip_x, clip_y, clip_w, clip_h, canvas_color, layout_rect) = {
             match tree.GetRec(id) {
-                Some(p) if p.viewed && p.visible => (
+                Some(p) if p.viewed => (
                     p.viewed_x,
                     p.viewed_y,
                     p.viewed_width,
@@ -2626,44 +2625,19 @@ impl emView {
         };
 
         painter.push_state();
-        // Reset scale to 1.0 before SetClipping — inherited parent scale
-        // would corrupt the user-space → pixel conversion for clip coords.
-        // SetTransformation below sets the real scale for painting.
         painter.SetScaling(1.0, 1.0);
         painter.set_offset(base_offset.0 + vx, base_offset.1 + vy);
         painter.SetClipping(clip_x - vx, clip_y - vy, clip_w, clip_h);
-        // Match C++ emView::Paint: set painter transformation so widgets
-        // operate in panel-local coordinates (width=1.0, height=tallness).
-        // C++ uses ViewedWidth/CurrentPixelTallness for sy.  CurrentPixelTallness
-        // is the physical pixel aspect ratio (1.0 for square pixels), NOT the
-        // viewport tallness.  Rust pixel_tallness = viewport_h/viewport_w, which
-        // is the viewport aspect ratio — a different quantity.  For square pixels
-        // both sx and sy equal vw.
         painter.SetTransformation(base_offset.0 + vx, base_offset.1 + vy, vw, vw);
 
-        // Skip this panel and its entire subtree if it doesn't intersect
-        // the current tile's clip region.
         if painter.IsClipEmpty() {
             painter.pop_state();
             return;
         }
 
-        // C++ PaintView passes canvasColor differently for the supreme
-        // viewed panel vs all other panels:
-        //   SVP (line 1098):  p->Paint(pnt, canvasColor) where canvasColor
-        //       was resolved to BackgroundColor if p->CanvasColor is
-        //       non-opaque (lines 1080-1083).
-        //   Others (line 1118): p->Paint(pnt, p->CanvasColor) — raw stored
-        //       value, no inheritance from parent.
-        // Here parent_canvas carries BackgroundColor for the SVP call and
-        // TRANSPARENT for all descendants, so the fallback only fires at
-        // the SVP level.
-        let effective_canvas = if canvas_color.GetAlpha() > 0 {
-            canvas_color
-        } else {
-            parent_canvas
-        };
-        painter.SetCanvasColor(effective_canvas);
+        // C++ line 1118: p->Paint(pnt, p->CanvasColor) — each panel gets
+        // its own stored CanvasColor, no inheritance from parent.
+        painter.SetCanvasColor(canvas_color);
 
         if let Some(mut behavior) = tree.take_behavior(id) {
             let mut state = tree.build_panel_state(id, self.window_focused, self.pixel_tallness);
@@ -2673,7 +2647,6 @@ impl emView {
                 self.viewport_height,
                 self.window_focused,
             );
-            // C++ default: MaxMegabytesPerView = 2048 → 2048 * 1_000_000.
             const DEFAULT_MEMORY_LIMIT: u64 = 2_048_000_000;
             state.memory_limit = tree.GetMemoryLimit(
                 id,
@@ -2682,9 +2655,6 @@ impl emView {
                 DEFAULT_MEMORY_LIMIT,
                 self.seek_pos_panel,
             );
-            // Pass panel-local coordinates: w=1.0, h=tallness (ratio of
-            // layout height to layout width). The painter's transformation
-            // (set above) converts these back to pixel space.
             let tallness = if layout_rect.w > 0.0 {
                 layout_rect.h / layout_rect.w
             } else {
@@ -2696,17 +2666,7 @@ impl emView {
 
         let children: Vec<PanelId> = tree.children(id).collect();
         for child in children {
-            // C++ line 1118: p->Paint(pnt, p->CanvasColor) — children
-            // receive their own stored CanvasColor, not the parent's
-            // resolved value.  Pass TRANSPARENT so the fallback in
-            // effective_canvas never fires for non-SVP panels.
-            self.paint_panel_recursive(
-                tree,
-                painter,
-                child,
-                base_offset,
-                emColor::TRANSPARENT,
-            );
+            self.paint_panel_recursive(tree, painter, child, base_offset);
         }
 
         painter.pop_state();
