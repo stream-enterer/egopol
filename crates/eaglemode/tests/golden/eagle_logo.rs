@@ -3,11 +3,13 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emImage::emImage;
 use emcore::emPainter::emPainter;
+use emcore::emPainterDrawList::DrawOp;
 use emcore::emPanel::{PanelBehavior, PanelState};
 
 use emMain::emMainContentPanel::emMainContentPanel;
 
 use super::common::*;
+use super::draw_op_dump::{dump_draw_ops, dump_draw_ops_enabled};
 
 /// Skip test if golden data hasn't been generated yet.
 macro_rules! require_golden {
@@ -48,6 +50,18 @@ fn eagle_logo() {
         // Paint with panel dimensions w=1.0, h=0.75.
         let state = PanelState::default_for_test();
         panel.Paint(&mut p, 1.0, 0.75, &state);
+    }
+
+    if dump_draw_ops_enabled() {
+        let mut ops: Vec<DrawOp> = Vec::new();
+        {
+            let mut rec = emPainter::new_recording(800, 600, &mut ops);
+            rec.SetCanvasColor(emColor::TRANSPARENT);
+            rec.scale(800.0, 800.0);
+            let state = PanelState::default_for_test();
+            panel.Paint(&mut rec, 1.0, 0.75, &state);
+        }
+        dump_draw_ops("eagle_logo", &ops);
     }
 
     // ch_tol=2: Rust paint_linear_gradient uses GetBlended (16-bit fixed-point)

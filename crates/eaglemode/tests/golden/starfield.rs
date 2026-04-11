@@ -1,11 +1,13 @@
 use emcore::emColor::emColor;
 use emcore::emImage::emImage;
 use emcore::emPainter::emPainter;
+use emcore::emPainterDrawList::DrawOp;
 use emcore::emPanel::{PanelBehavior, PanelState};
 
 use emMain::emStarFieldPanel::emStarFieldPanel;
 
 use super::common::*;
+use super::draw_op_dump::{dump_draw_ops, dump_draw_ops_enabled};
 
 macro_rules! require_golden {
     () => {
@@ -41,6 +43,18 @@ fn starfield_small() {
     require_golden!();
     let (ew, eh, expected) = load_painter_golden("starfield_small");
     let img = render_starfield(3, 0x12345678, ew, eh);
+    if dump_draw_ops_enabled() {
+        let mut ops: Vec<DrawOp> = Vec::new();
+        {
+            let mut rec = emPainter::new_recording(ew, eh, &mut ops);
+            rec.scale(ew as f64, eh as f64);
+            rec.SetCanvasColor(emColor::TRANSPARENT);
+            let mut panel = emStarFieldPanel::new(3, 0x12345678);
+            let state = PanelState::default_for_test();
+            panel.Paint(&mut rec, 1.0, 1.0, &state);
+        }
+        dump_draw_ops("starfield_small", &ops);
+    }
     compare_images("starfield_small", img.GetMap(), &expected, ew, eh, 0, 0.0)
         .expect("starfield_small golden mismatch");
 }
@@ -53,6 +67,18 @@ fn starfield_large() {
     require_golden!();
     let (ew, eh, expected) = load_painter_golden("starfield_large");
     let img = render_starfield(3, 0x12345678, ew, eh);
+    if dump_draw_ops_enabled() {
+        let mut ops: Vec<DrawOp> = Vec::new();
+        {
+            let mut rec = emPainter::new_recording(ew, eh, &mut ops);
+            rec.scale(ew as f64, eh as f64);
+            rec.SetCanvasColor(emColor::TRANSPARENT);
+            let mut panel = emStarFieldPanel::new(3, 0x12345678);
+            let state = PanelState::default_for_test();
+            panel.Paint(&mut rec, 1.0, 1.0, &state);
+        }
+        dump_draw_ops("starfield_large", &ops);
+    }
     compare_images("starfield_large", img.GetMap(), &expected, ew, eh, 0, 0.0)
         .expect("starfield_large golden mismatch");
 }
