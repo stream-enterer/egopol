@@ -8,9 +8,6 @@ use crate::emResTga::load_tga;
 use crate::emStroke::emStroke;
 use crate::emPanel::Rect;
 
-/// Minimum font size in pixels — below this the text is too small to read.
-const MIN_FONT_SIZE: f64 = 4.0;
-
 /// Outer border style.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum OuterBorderType {
@@ -42,8 +39,6 @@ struct LabelLayout {
     caption_rect: Option<Rect>,
     description_rect: Option<Rect>,
     total_height: f64,
-    _caption_font_size: f64,
-    _description_font_size: f64,
 }
 
 /// emBorder chrome helper. Embedded in widgets to draw surrounding decoration.
@@ -463,20 +458,6 @@ impl emBorder {
         total_h / total_w.max(1e-100)
     }
 
-    /// Horizontal offset for positioning a block of width `block_w` within
-    /// an available width of `avail_w`, according to [`label_alignment`].
-    ///
-    /// C++ equivalent: horizontal shift in `DoLabel` after scaling, using
-    /// `LabelAlignment` to left-/center-/right-align the label block.
-    fn block_offset(&self, avail_w: f64, block_w: f64) -> f64 {
-        let slack = (avail_w - block_w).max(0.0);
-        match self.label_alignment {
-            TextAlignment::Left => 0.0,
-            TextAlignment::Center => slack * 0.5,
-            TextAlignment::Right => slack,
-        }
-    }
-
     /// Base scaling unit for outer geometry.
     fn base_unit(&self, w: f64, h: f64) -> f64 {
         w.min(h) * self.border_scaling
@@ -614,252 +595,171 @@ impl emBorder {
 
     /// Compute label layout within the given area.
     ///
-    /// Dimensions are computed proportionally from the available `area_h`,
-    /// matching Eagle Mode's DoLabel algorithm. The font size scales with the
-    /// available space rather than being hardcoded.
+    /// Literal port of C++ `DoLabel` geometry (emBorder.cpp:1194-1352).
+    /// Computes natural dimensions via GetTextSize, then applies a uniform
+    /// scaling factor `f = area_h / totalH` to all sub-elements.
     fn label_layout(&self, area_x: f64, area_y: f64, area_w: f64, area_h: f64) -> LabelLayout {
         let has_cap = !self.caption.is_empty();
         let has_desc = !self.description.is_empty();
         let icon = self.icon.as_ref().filter(|img| !img.IsEmpty());
+        let has_icon = icon.is_some();
 
-        // Count "rows" to distribute height among: caption=1, description=0.15 relative.
-        // Eagle Mode: description height = capH * 0.15.
-        let cap_units: f64 = if has_cap { 1.0 } else { 0.0 };
-        let desc_units: f64 = if has_desc { 0.15 } else { 0.0 };
+        // --- Step 1: natural dimensions at unit scale (C++ lines 1203-1281) ---
 
-        if icon.is_none() {
-            // Text-only layout: distribute area_h among caption + gap2 + description.
-            // C++ gap2 = descH * 0.05 when both caption and description exist.
-            let gap2_units: f64 = if has_cap && has_desc {
-                desc_units * 0.05
-            } else {
-                0.0
-            };
-            let total_units = cap_units + gap2_units + desc_units;
-            if total_units <= 0.0 {
-                return LabelLayout {
-                    icon_rect: None,
-                    caption_rect: None,
-                    description_rect: None,
-                    total_height: 0.0,
-                    _caption_font_size: 0.0,
-                    _description_font_size: 0.0,
-                };
+        let mut total_w = 1.0_f64;
+        let mut total_h = 1.0_f64;
+
+        let (cap_w, mut cap_h) = if has_cap {
+            let (w, h) = emPainter::GetTextSize(&self.caption, 1.0, true, 0.0);
+            total_w = w;
+            total_h = h;
+            (w, h)
+        } else {
+            (0.0, 0.0)
+        };
+
+        let (mut icon_w, mut icon_h) = (0.0_f64, 0.0_f64);
+        let mut gap1 = 0.0_f64;
+        if let Some(img) = icon {
+            icon_w = img.GetWidth().max(1) as f64;
+            icon_h = img.GetHeight().max(1) as f64;
+            if icon_h > icon_w * self.max_icon_area_tallness {
+                icon_h = icon_w * self.max_icon_area_tallness;
             }
-            let cap_h = area_h * cap_units / total_units;
-            let gap2 = area_h * gap2_units / total_units;
-            let desc_h = area_h * desc_units / total_units;
-            // C++ uses capH/descH directly as maxCharHeight — no 0.8 multiplier.
-            let cap_font = cap_h.max(MIN_FONT_SIZE);
-            let desc_font = desc_h.max(MIN_FONT_SIZE);
-
-            // C++ DoLabel computes totalW from GetTextSize and narrows the
-            // label rect when the text block is narrower than the area.
-            // totalW = capW (the natural text width at char_height=1.0),
-            // then scaled by f = area_h / totalH.  When f*totalW <= area_w,
-            // the rect is narrowed and positioned using LabelAlignment.
-            let total_w = {
-                use crate::emPainter::emPainter;
-                let cap_tw = if has_cap {
-                    let (tw, _) = emPainter::GetTextSize(&self.caption, 1.0, true, 0.0);
-                    tw
-                } else if has_desc {
-                    let (tw, _) = emPainter::GetTextSize(&self.description, 1.0, true, 0.0);
-                    tw
+            if has_cap {
+                if self.icon_above_caption {
+                    let s = cap_h * 3.0;
+                    icon_w *= s / icon_h;
+                    icon_h = s;
+                    gap1 = cap_h * 0.1;
+                    total_w = icon_w.max(cap_w);
+                    total_h = icon_h + gap1 + cap_h;
                 } else {
-                    1.0
-                };
-                // totalH at unit scale mirrors unit computation above
-                let total_h_unit = cap_units + gap2_units + desc_units;
-                if total_h_unit > 0.0 {
-                    cap_tw // no icon: totalW = capW
-                } else {
-                    1.0
+                    icon_w *= cap_h / icon_h;
+                    icon_h = cap_h;
+                    gap1 = cap_h * 0.1;
+                    total_w = icon_w + gap1 + cap_w;
+                    total_h = cap_h;
                 }
-            };
-            let f = area_h / (cap_units + gap2_units + desc_units);
-            let w2 = f * total_w;
-            let (label_x, label_w) = if w2 <= area_w {
-                let x_off = match self.label_alignment {
-                    TextAlignment::Left => 0.0,
-                    TextAlignment::Right => area_w - w2,
-                    TextAlignment::Center => (area_w - w2) * 0.5,
-                };
-                (area_x + x_off, w2)
             } else {
-                (area_x, area_w)
-            };
+                total_w = icon_w;
+                total_h = icon_h;
+            }
+        }
 
-            let cap_rect = if has_cap {
-                Some(Rect {
-                    x: label_x,
-                    y: area_y,
-                    w: label_w,
-                    h: cap_h,
-                })
+        let mut desc_h = 0.0_f64;
+        let mut gap2 = 0.0_f64;
+        if has_desc {
+            let (dw, dh) = emPainter::GetTextSize(&self.description, 1.0, true, 0.0);
+            if has_icon || has_cap {
+                let target = if has_cap { cap_h * 0.15 } else { icon_h * 0.05 };
+                let mut desc_w_nat = target / dh;
+                desc_h = target;
+                if desc_w_nat > total_w {
+                    desc_h *= total_w / desc_w_nat;
+                    desc_w_nat = total_w;
+                }
+                let _ = desc_w_nat;
+                gap2 = desc_h * 0.05;
+                total_h += gap2 + desc_h;
             } else {
-                None
-            };
-            let desc_rect = if has_desc {
-                Some(Rect {
-                    x: label_x,
-                    y: area_y + cap_h + gap2,
-                    w: label_w,
-                    h: desc_h,
-                })
-            } else {
-                None
-            };
+                total_w = dw;
+                total_h = dh;
+                desc_h = dh;
+            }
+        }
+
+        if total_h <= 0.0 || total_w <= 0.0 {
             return LabelLayout {
                 icon_rect: None,
-                caption_rect: cap_rect,
-                description_rect: desc_rect,
-                total_height: cap_h + gap2 + desc_h,
-                _caption_font_size: cap_font,
-                _description_font_size: desc_font,
+                caption_rect: None,
+                description_rect: None,
+                total_height: 0.0,
             };
         }
 
-        let img = icon.expect("checked above");
-        let img_w = img.GetWidth().max(1) as f64;
-        let img_h = img.GetHeight().max(1) as f64;
-        let icon_tallness = (img_h / img_w).min(self.max_icon_area_tallness);
+        // --- Step 2: scaling factor and alignment (C++ lines 1288-1329) ---
 
-        if self.icon_above_caption {
-            // Icon takes 3 "rows" worth, gap is 0.1 rows, caption 1 row, desc 0.15 rows.
-            // gap2 = descH * 0.05 between caption/icon and description.
-            let gap2_units: f64 = if has_desc { desc_units * 0.05 } else { 0.0 };
-            let total_units = 3.0 + 0.1 + cap_units + gap2_units + desc_units;
-            let unit = area_h / total_units;
-            let icon_h = 3.0 * unit;
-            let icon_w = icon_h / icon_tallness;
-            let gap = 0.1 * unit;
-            let cap_h = cap_units * unit;
-            let gap2 = gap2_units * unit;
-            let desc_h = desc_units * unit;
-            let cap_font = (cap_h * 0.8).max(MIN_FONT_SIZE);
-            let desc_font = (desc_h * 0.8).max(MIN_FONT_SIZE);
+        let min_ws = 0.5_f64;
+        let mut x = area_x;
+        let mut y = area_y;
+        let mut w = area_w;
 
-            // Block width is the widest element. Text spans area_w; icon may
-            // be narrower. Compute a block-level horizontal offset using
-            // label_alignment so the icon tracks the block position rather
-            // than always centering.
-            let block_w = area_w.max(icon_w);
-            let block_x = area_x + self.block_offset(area_w, block_w);
-
-            let icon_x = match self.label_alignment {
-                TextAlignment::Left => block_x,
-                TextAlignment::Center => block_x + (block_w - icon_w) / 2.0,
-                TextAlignment::Right => block_x + block_w - icon_w,
-            };
-            let icon_rect = Rect {
-                x: icon_x,
-                y: area_y,
-                w: icon_w,
-                h: icon_h,
-            };
-            let mut y = area_y + icon_h + gap;
-            let cap_rect = if has_cap {
-                let r = Rect {
-                    x: block_x,
-                    y,
-                    w: block_w,
-                    h: cap_h,
-                };
-                y += cap_h;
-                Some(r)
-            } else {
-                None
-            };
-            y += gap2;
-            let desc_rect = if has_desc {
-                Some(Rect {
-                    x: block_x,
-                    y,
-                    w: block_w,
-                    h: desc_h,
-                })
-            } else {
-                None
-            };
-            let total = icon_h + gap + cap_h + gap2 + desc_h;
-            LabelLayout {
-                icon_rect: Some(icon_rect),
-                caption_rect: cap_rect,
-                description_rect: desc_rect,
-                total_height: total,
-                _caption_font_size: cap_font,
-                _description_font_size: desc_font,
+        let mut f = area_h / total_h;
+        let w2 = f * total_w;
+        if w2 <= w {
+            match self.label_alignment {
+                TextAlignment::Left => {}
+                TextAlignment::Center => { x += (w - w2) * 0.5; }
+                TextAlignment::Right => { x += w - w2; }
             }
+            w = w2;
         } else {
-            // Icon beside caption: icon is 1 "row", gap 0.1 rows.
-            // gap2 = descH * 0.05 between caption/icon and description.
-            let gap2_units: f64 = if has_desc { desc_units * 0.05 } else { 0.0 };
-            let text_units = cap_units + gap2_units + desc_units;
-            let icon_h = area_h;
-            let icon_w = icon_h / icon_tallness;
-            let gap = area_h * 0.1 / (1.0 + 0.1);
-
-            // Block width = icon + gap + text region. May be narrower than
-            // area_w when the icon is small. Apply block-level alignment.
-            let block_w = icon_w + gap + (area_w - icon_w - gap).max(0.0);
-            let block_x = area_x + self.block_offset(area_w, block_w);
-
-            let text_x = block_x + icon_w + gap;
-            let text_w = (block_w - icon_w - gap).max(0.0);
-            let cap_h = if text_units > 0.0 {
-                area_h * cap_units / text_units
+            let min_total_w = if has_icon {
+                if self.icon_above_caption {
+                    icon_w
+                } else {
+                    icon_w + gap1 + cap_w * min_ws
+                }
             } else {
-                0.0
+                total_w * min_ws
             };
-            let gap2 = if text_units > 0.0 {
-                area_h * gap2_units / text_units
-            } else {
-                0.0
-            };
-            let desc_h = if text_units > 0.0 {
-                area_h * desc_units / text_units
-            } else {
-                0.0
-            };
-            let cap_font = (cap_h * 0.8).max(MIN_FONT_SIZE);
-            let desc_font = (desc_h * 0.8).max(MIN_FONT_SIZE);
-
-            let icon_rect = Rect {
-                x: block_x,
-                y: area_y,
-                w: icon_w,
-                h: icon_h,
-            };
-            let cap_rect = if has_cap {
-                Some(Rect {
-                    x: text_x,
-                    y: area_y,
-                    w: text_w,
-                    h: cap_h,
-                })
-            } else {
-                None
-            };
-            let desc_rect = if has_desc {
-                Some(Rect {
-                    x: text_x,
-                    y: area_y + cap_h + gap2,
-                    w: text_w,
-                    h: desc_h,
-                })
-            } else {
-                None
-            };
-            let total = icon_h.max(cap_h + gap2 + desc_h);
-            LabelLayout {
-                icon_rect: Some(icon_rect),
-                caption_rect: cap_rect,
-                description_rect: desc_rect,
-                total_height: total,
-                _caption_font_size: cap_font,
-                _description_font_size: desc_font,
+            let w2 = f * min_total_w;
+            if w2 > w {
+                f = w / min_total_w;
+                let h2 = f * total_h;
+                // C++ applies vertical alignment (TOP/BOTTOM/CENTER).
+                // Rust label_alignment is horizontal only; default to center.
+                y += (area_h - h2) * 0.5;
             }
+        }
+
+        // --- Step 3: scale and compute final rects (C++ lines 1331-1352) ---
+
+        icon_w *= f;
+        icon_h *= f;
+        gap1 *= f;
+        let icon_y = y;
+        cap_h *= f;
+        let (icon_x, cap_x, cap_y, cap_w_final);
+        if self.icon_above_caption {
+            icon_x = x + (w - icon_w) * 0.5;
+            cap_x = x;
+            cap_y = icon_y + icon_h + gap1;
+            cap_w_final = w;
+        } else {
+            icon_x = x;
+            cap_x = icon_x + icon_w + gap1;
+            cap_y = y;
+            cap_w_final = x + w - cap_x;
+        }
+        gap2 *= f;
+        let desc_x = x;
+        let desc_y = (icon_y + icon_h).max(cap_y + cap_h) + gap2;
+        let desc_w_final = w;
+        desc_h *= f;
+
+        let icon_rect = if has_icon {
+            Some(Rect { x: icon_x, y: icon_y, w: icon_w, h: icon_h })
+        } else {
+            None
+        };
+        let caption_rect = if has_cap {
+            Some(Rect { x: cap_x, y: cap_y, w: cap_w_final, h: cap_h })
+        } else {
+            None
+        };
+        let description_rect = if has_desc && desc_h > 0.0 {
+            Some(Rect { x: desc_x, y: desc_y, w: desc_w_final, h: desc_h })
+        } else {
+            None
+        };
+
+        LabelLayout {
+            icon_rect,
+            caption_rect,
+            description_rect,
+            total_height: f * total_h,
         }
     }
 
@@ -1626,26 +1526,9 @@ How to move or set the focus:\n\
             }
         }
 
-        // Caption — C++ DoLabel proportional scaling: compute a uniform scale
-        // factor `f` that fits both width and height, maintaining aspect ratio.
+        // Caption — C++ DoLabel passes capH (rect height) as maxCharHeight
+        // (emBorder.cpp:1384-1396).
         if let Some(ref cr) = label.caption_rect {
-            let (natural_tw, natural_th) = emPainter::GetTextSize(&self.caption, 1.0, false, 0.0);
-            let cap_font = if natural_tw > 0.0 && natural_th > 0.0 {
-                let mut f = cr.h / natural_th;
-                let w2 = f * natural_tw;
-                if w2 > cr.w {
-                    let min_ws = 0.5;
-                    let min_total_w = natural_tw * min_ws;
-                    if f * min_total_w > cr.w {
-                        f = cr.w / min_total_w;
-                    }
-                }
-                f.max(0.001)
-            } else {
-                label._caption_font_size
-            };
-            // C++ DoLabel passes EM_ALIGN_CENTER as boxAlignment and
-            // CaptionAlignment as textAlignment (emBorder.cpp:1393-1394).
             let label_canvas = painter.GetCanvasColor();
             painter.PaintTextBoxed(
                 cr.x,
@@ -1653,7 +1536,7 @@ How to move or set the focus:\n\
                 cr.w,
                 cr.h,
                 &self.caption,
-                cap_font,
+                cr.h,
                 dim_color(look.fg_color),
                 label_canvas,
                 TextAlignment::Center,
@@ -1665,8 +1548,8 @@ How to move or set the focus:\n\
             );
         }
 
-        // Description — C++ uses same `color` for both caption and description
-        // (emBorder.cpp:1406), and EM_ALIGN_CENTER as boxAlignment (line 1408).
+        // Description — C++ DoLabel passes descH (rect height) as maxCharHeight
+        // (emBorder.cpp:1398-1412).
         if let Some(ref dr) = label.description_rect {
             let label_canvas = painter.GetCanvasColor();
             painter.PaintTextBoxed(
@@ -1675,7 +1558,7 @@ How to move or set the focus:\n\
                 dr.w,
                 dr.h,
                 &self.description,
-                label._description_font_size,
+                dr.h,
                 dim_color(look.fg_color),
                 label_canvas,
                 TextAlignment::Center,
