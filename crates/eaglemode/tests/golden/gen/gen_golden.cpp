@@ -398,10 +398,12 @@ static void gen_bezier_filled() {
 static void gen_bezier_stroked() {
     emImage img = white_image();
     emPainter p = make_painter(img);
+    open_draw_op_log("painter_bezier_stroked");
     p.PaintBezierLine(bezier_pts, 4, 3.0,
                       emRoundedStroke(emColor::BLACK),
                       emStrokeEnd(emStrokeEnd::ARROW, emColor::WHITE),
                       emStrokeEnd(emStrokeEnd::ARROW, emColor::WHITE));
+    close_draw_op_log();
     dump_painter("bezier_stroked", img);
 }
 
@@ -5021,6 +5023,7 @@ static void gen_starfield(const char* name, int depth, emUInt32 seed, int w, int
     );
 
     // Clear to black background
+    open_draw_op_log(name);
     sp.Clear(BgColor, 0);
 
     // Paint stars (replicates PaintOverlay logic)
@@ -5069,6 +5072,7 @@ static void gen_starfield(const char* name, int depth, emUInt32 seed, int w, int
         }
     }
 
+    close_draw_op_log();
     dump_painter(name, img);
 }
 
