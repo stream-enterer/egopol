@@ -2169,7 +2169,7 @@ impl<'a> emPainter<'a> {
     /// segment i uses points[i*3], points[i*3+1], points[i*3+2], points[((i+1)*3) % n].
     /// The path is implicitly closed.
     pub fn PaintBezier(&mut self, points: &[(f64, f64)], color: emColor, canvas_color: emColor) {
-        let Some(proof) = self.try_record(DrawOp::PaintBezier {
+        let Some(_proof) = self.try_record(DrawOp::PaintBezier {
             points: points.to_vec(),
             color,
             canvas_color,
@@ -2177,8 +2177,6 @@ impl<'a> emPainter<'a> {
         if points.len() < 3 {
             return;
         }
-        let saved_canvas = self.state.canvas_color;
-        self.state.canvas_color = canvas_color;
         // C++ convention: n -= n%3; truncate to multiple of 3.
         let n = points.len() - points.len() % 3;
         let seg_count = n / 3;
@@ -2193,9 +2191,8 @@ impl<'a> emPainter<'a> {
             tessellate_cubic_cpp(&mut verts, p0, p1, p2, p3, s, 0.0);
         }
         if verts.len() >= 3 {
-            self.fill_polygon_aa(proof, &verts, color, WindingRule::NonZero);
+            self.PaintPolygon(&verts, color, canvas_color);
         }
-        self.state.canvas_color = saved_canvas;
     }
 
     /// emStroke a closed Bezier path outline (tessellated to polyline, then stroked).
