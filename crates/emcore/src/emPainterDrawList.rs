@@ -769,7 +769,7 @@ impl DrawList {
                     stroke,
                     closed,
                     canvas_color,
-                } => painter.PaintPolylineWithArrows(vertices, stroke, *closed, *canvas_color),
+                } => painter.PaintPolylineWithArrows(vertices, stroke, *closed, *canvas_color, None),
 
                 DrawOp::PaintDashedPolyline {
                     vertices,

@@ -699,6 +699,7 @@ impl TestPanel {
             &poly_s,
             false,
             bg,
+            None,
         );
 
         // Polygon outline

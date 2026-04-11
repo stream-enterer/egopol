@@ -591,6 +591,7 @@ impl TestPanel {
             &poly_s,
             false,
             emColor::TRANSPARENT,
+            None,
         );
 
         // Polygon outline

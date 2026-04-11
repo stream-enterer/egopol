@@ -2271,12 +2271,16 @@ impl<'a> emPainter<'a> {
             return;
         }
 
-        // C++ PaintBezierLine (emPainter.cpp:1444-1479): compute arrow direction
-        // vectors from the ORIGINAL control points, not from tessellated vertices.
-        // Then replace the first/last tessellated segment direction to match.
-        if !closed {
-            let nv = verts.len();
-            // Start direction: first control point → next non-coincident control point
+        // C++ PaintBezierLine (emPainter.cpp:1651-1684): compute arrow direction
+        // vectors from the ORIGINAL control points, then pass them explicitly to
+        // PaintPolylineWithArrows (matching C++ nx1,ny1,nx2,ny2 parameters).
+        let arrow_dirs = if !closed
+            && (stroke.start_end.IsDecorated() || stroke.finish_end.IsDecorated())
+        {
+            let mut nx1 = 1.0_f64;
+            let mut ny1 = 0.0_f64;
+            let mut nx2 = 1.0_f64;
+            let mut ny2 = 0.0_f64;
             if stroke.start_end.IsDecorated() {
                 for j in 1..n {
                     let dx = points[j].0 - points[0].0;
@@ -2284,18 +2288,12 @@ impl<'a> emPainter<'a> {
                     let ll = dx * dx + dy * dy;
                     if ll > 1e-280 {
                         let l = ll.sqrt();
-                        let nx = dx / l;
-                        let ny = dy / l;
-                        // Replace verts[1] so the first segment has the correct direction.
-                        // Use a tiny offset from verts[0] along (nx, ny) to preserve
-                        // the segment while encoding the control-point direction.
-                        let eps = 1e-10;
-                        verts[1] = (verts[0].0 + nx * eps, verts[0].1 + ny * eps);
+                        nx1 = dx / l;
+                        ny1 = dy / l;
                         break;
                     }
                 }
             }
-            // End direction: last control point ← prev non-coincident control point
             if stroke.finish_end.IsDecorated() {
                 let last = points[n - 1];
                 for j in (0..n - 1).rev() {
@@ -2304,18 +2302,18 @@ impl<'a> emPainter<'a> {
                     let ll = dx * dx + dy * dy;
                     if ll > 1e-280 {
                         let l = ll.sqrt();
-                        let nx = dx / l;
-                        let ny = dy / l;
-                        // Replace verts[nv-2] so the last segment has the correct direction.
-                        let eps = 1e-10;
-                        verts[nv - 2] = (last.0 + nx * eps, last.1 + ny * eps);
+                        nx2 = dx / l;
+                        ny2 = dy / l;
                         break;
                     }
                 }
             }
-        }
+            Some(((nx1, ny1), (nx2, ny2)))
+        } else {
+            None
+        };
 
-        self.PaintPolylineWithArrows(&verts, stroke, closed, canvas_color);
+        self.PaintPolylineWithArrows(&verts, stroke, closed, canvas_color, arrow_dirs);
     }
 
     // --- 9-slice border images ---
@@ -2446,7 +2444,7 @@ impl<'a> emPainter<'a> {
         if alpha == 0 || w <= 0.0 || h <= 0.0 {
             return;
         }
-        let Some(proof) = self.try_record(DrawOp::PaintBorderImage {
+        let Some(_proof) = self.try_record(DrawOp::PaintBorderImage {
             x,
             y,
             w,
@@ -2465,8 +2463,9 @@ impl<'a> emPainter<'a> {
             which_sub_rects,
         }) else { return; };
 
-        // C++ PaintBorderImage (emPainter.cpp:1892-1982):
+        // C++ PaintBorderImage (emPainter.cpp:2221-2338):
         // RoundX/RoundY adjustment, then 9 PaintImage calls (each = PaintRect).
+        // Each PaintImage call manages its own alpha/canvas_color state.
         let iw_i = image.GetWidth() as i32;
         let ih_i = image.GetHeight() as i32;
 
@@ -2477,38 +2476,24 @@ impl<'a> emPainter<'a> {
             canvas_color,
         ) else { return; };
 
-        let saved_alpha = self.state.alpha;
-        let saved_canvas = self.state.canvas_color;
-        self.state.canvas_color = canvas_color;
-        if alpha < 255 {
-            self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
-        }
-
         // C++ PaintBorderImage passes EXTEND_EDGE to each PaintImage call.
         let ext = super::emTexture::ImageExtension::Clamp;
 
         // C++ bit layout:  8=UL 5=U 2=UR / 7=L 4=C 1=R / 6=LL 3=B 0=LR
-        // C++ order: 8, 5, 2, 7, 4, 1, 6, 3, 0 (matching emPainter.cpp:1910-1981)
+        // C++ order: 8, 5, 2, 7, 4, 1, 6, 3, 0 (matching emPainter.cpp:2265-2336)
         const BIT_ORDER: [u16; 9] = [1 << 8, 1 << 5, 1 << 2, 1 << 7, 1 << 4, 1 << 1, 1 << 6, 1 << 3, 1 << 0];
-        // Map from C++ order to slice index: UL=0, U=1, UR=2, L=3, C=4, R=5, LL=6, B=7, LR=8
         const SLICE_ORDER: [usize; 9] = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
+        // C++ calls PaintImage for all 9 slices unconditionally (no zero-size
+        // filtering). PaintImageSrcRect handles w<=0/h<=0 internally.
         for i in 0..9 {
             let bit = BIT_ORDER[i];
             let si = SLICE_ORDER[i];
             if which_sub_rects & bit == 0 { continue; }
-            // Center-row slices need dst_cy > 0; center-col slices need dst_cx > 0.
-            let needs_cx = si == 1 || si == 4 || si == 7; // U, C, B
-            let needs_cy = si == 3 || si == 4 || si == 5; // L, C, R
-            if needs_cx && slices.dst_cx <= 0.0 { continue; }
-            if needs_cy && slices.dst_cy <= 0.0 { continue; }
             let (dx, dy, dw, dh) = slices.target_rects[si];
             let (sx, sy, sw, sh) = slices.source_rects[si];
-            self.paint_image_rect(proof, dx, dy, dw, dh, image, sx, sy, sw, sh, ext);
+            self.PaintImageSrcRect(dx, dy, dw, dh, image, sx, sy, sw, sh, alpha, canvas_color, ext);
         }
-
-        self.state.canvas_color = saved_canvas;
-        self.state.alpha = saved_alpha;
     }
 
     /// Draw a 9-slice border image from a sub-rectangle of the source image.
@@ -2548,7 +2533,7 @@ impl<'a> emPainter<'a> {
         // Record uses the short-form DrawOp (src_l/src_t/src_r/src_b only).
         // This is acceptable because the draw list replay goes through the same
         // painter methods and the recording is for debugging/testing only.
-        let Some(proof) = self.try_record(DrawOp::PaintBorderImage {
+        let Some(_proof) = self.try_record(DrawOp::PaintBorderImage {
             x,
             y,
             w,
@@ -2574,13 +2559,6 @@ impl<'a> emPainter<'a> {
             canvas_color,
         ) else { return; };
 
-        let saved_alpha = self.state.alpha;
-        let saved_canvas = self.state.canvas_color;
-        self.state.canvas_color = canvas_color;
-        if alpha < 255 {
-            self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
-        }
-
         let ext = super::emTexture::ImageExtension::Clamp;
 
         const BIT_ORDER: [u16; 9] = [1 << 8, 1 << 5, 1 << 2, 1 << 7, 1 << 4, 1 << 1, 1 << 6, 1 << 3, 1 << 0];
@@ -2590,17 +2568,10 @@ impl<'a> emPainter<'a> {
             let bit = BIT_ORDER[i];
             let si = SLICE_ORDER[i];
             if which_sub_rects & bit == 0 { continue; }
-            let needs_cx = si == 1 || si == 4 || si == 7;
-            let needs_cy = si == 3 || si == 4 || si == 5;
-            if needs_cx && slices.dst_cx <= 0.0 { continue; }
-            if needs_cy && slices.dst_cy <= 0.0 { continue; }
             let (dx, dy, dw, dh) = slices.target_rects[si];
             let (sx, sy, sw, sh) = slices.source_rects[si];
-            self.paint_image_rect(proof, dx, dy, dw, dh, image, sx, sy, sw, sh, ext);
+            self.PaintImageSrcRect(dx, dy, dw, dh, image, sx, sy, sw, sh, alpha, canvas_color, ext);
         }
-
-        self.state.canvas_color = saved_canvas;
-        self.state.alpha = saved_alpha;
     }
 
     /// Draw a 9-slice border image with two-color tinting.
@@ -3063,7 +3034,7 @@ impl<'a> emPainter<'a> {
         if w <= 0.0 || h <= 0.0 || stroke.width <= 0.0 {
             return;
         }
-        let Some(proof) = self.try_record(DrawOp::PaintRoundRectOutline {
+        let Some(_proof) = self.try_record(DrawOp::PaintRoundRectOutline {
             x,
             y,
             w,
@@ -3107,7 +3078,7 @@ impl<'a> emPainter<'a> {
         outer.push(outer[0]);
         outer.push(inner[0]);
         outer.extend(inner.iter().rev());
-        self.fill_polygon_aa(proof, &outer, stroke.color, WindingRule::NonZero);
+        self.PaintPolygon(&outer, stroke.color, self.state.canvas_color);
     }
 
     /// Draw an ellipse outline. emStroke is centered on the shape boundary.
@@ -3124,7 +3095,7 @@ impl<'a> emPainter<'a> {
         stroke: &emStroke,
         canvas_color: emColor,
     ) {
-        let Some(proof) = self.try_record(DrawOp::PaintEllipseOutline {
+        let Some(_proof) = self.try_record(DrawOp::PaintEllipseOutline {
             cx,
             cy,
             rx,
@@ -3167,7 +3138,7 @@ impl<'a> emPainter<'a> {
         outer.push(outer[0]);
         outer.push(inner[0]);
         outer.extend(inner.iter().rev());
-        self.fill_polygon_aa(proof, &outer, stroke.color, WindingRule::NonZero);
+        self.PaintPolygon(&outer, stroke.color, canvas_color);
     }
 
     /// Correct blending artifacts along a shared edge between two adjacent polygons.
@@ -3829,14 +3800,18 @@ impl<'a> emPainter<'a> {
     }
 
     /// Dispatch polyline rendering with arrow support.
-    /// Corresponds to C++ `PaintPolyline`: checks for arrow decorations,
-    /// computes direction vectors, shortens endpoints, then paints arrows.
+    /// Corresponds to C++ `PaintPolylineWithArrows`: uses pre-computed direction
+    /// vectors (nx1,ny1,nx2,ny2), shortens endpoints, then paints arrows.
+    ///
+    /// `arrow_dirs`: optional pre-computed direction vectors `((nx1,ny1),(nx2,ny2))`
+    /// matching C++ parameters. When `None`, directions are extracted from vertices.
     pub fn PaintPolylineWithArrows(
         &mut self,
         vertices: &[(f64, f64)],
         stroke: &emStroke,
         closed: bool,
         canvas_color: emColor,
+        arrow_dirs: Option<((f64, f64), (f64, f64))>,
     ) {
         let Some(_proof) = self.try_record(DrawOp::PaintPolylineWithArrows {
             vertices: vertices.to_vec(),
@@ -3857,42 +3832,14 @@ impl<'a> emPainter<'a> {
 
         let n = vertices.len();
 
-        // Find the first non-degenerate segment direction from the start.
-        let (start_dx, start_dy) = {
-            let mut dx = 0.0;
-            let mut dy = 0.0;
-            for i in 0..n - 1 {
-                dx = vertices[i + 1].0 - vertices[i].0;
-                dy = vertices[i + 1].1 - vertices[i].1;
-                if dx * dx + dy * dy > 1e-20 {
-                    break;
-                }
-            }
-            let len = (dx * dx + dy * dy).sqrt();
-            if len < 1e-10 {
-                (1.0, 0.0)
-            } else {
-                (dx / len, dy / len)
-            }
-        };
-
-        // Find the last non-degenerate segment direction from the end.
-        let (end_dx, end_dy) = {
-            let mut dx = 0.0;
-            let mut dy = 0.0;
-            for i in (0..n - 1).rev() {
-                dx = vertices[i + 1].0 - vertices[i].0;
-                dy = vertices[i + 1].1 - vertices[i].1;
-                if dx * dx + dy * dy > 1e-20 {
-                    break;
-                }
-            }
-            let len = (dx * dx + dy * dy).sqrt();
-            if len < 1e-10 {
-                (1.0, 0.0)
-            } else {
-                (dx / len, dy / len)
-            }
+        // C++ passes (nx1,ny1,nx2,ny2) as explicit parameters from the caller.
+        // Use provided directions when available, otherwise extract from vertices.
+        let (start_dx, start_dy, end_dx, end_dy) = if let Some(((nx1, ny1), (nx2, ny2))) = arrow_dirs {
+            (nx1, ny1, -nx2, -ny2)
+        } else {
+            let (sdx, sdy) = Self::extract_segment_dir(vertices, true);
+            let (edx, edy) = Self::extract_segment_dir(vertices, false);
+            (sdx, sdy, edx, edy)
         };
 
         let rounded = stroke.join == super::emStroke::LineJoin::Round
@@ -4465,8 +4412,23 @@ impl<'a> emPainter<'a> {
 
         // Route through the polyline system which handles caps, joins,
         // decorations, and dashes correctly — matching C++ PaintLine.
+        // C++ PaintLine computes direction (nx,ny) and passes ((nx,ny),(-nx,-ny)).
         let verts = [(x0, y0), (x1, y1)];
-        self.PaintPolylineWithArrows(&verts, stroke, false, canvas_color);
+        let arrow_dirs = if stroke.start_end.IsDecorated() || stroke.finish_end.IsDecorated() {
+            let dx = x1 - x0;
+            let dy = y1 - y0;
+            let ll = dx * dx + dy * dy;
+            let (nx, ny) = if ll > 1e-280 {
+                let l = ll.sqrt();
+                (dx / l, dy / l)
+            } else {
+                (1.0, 0.0)
+            };
+            Some(((nx, ny), (-nx, -ny)))
+        } else {
+            None
+        };
+        self.PaintPolylineWithArrows(&verts, stroke, false, canvas_color, arrow_dirs);
     }
 
     /// Calculate the maximum radius that a line point (including any arrow
@@ -4501,6 +4463,38 @@ impl<'a> emPainter<'a> {
     /// Exact port of C++ `emPainter::CutLineAtArrow`.
     ///
     /// Takes a line segment (x1,y1)→(x2,y2) in decoration-local coordinates
+    /// Extract a normalized direction from the first or last non-degenerate
+    /// segment of a vertex list. Used as fallback when callers don't provide
+    /// pre-computed arrow direction vectors.
+    fn extract_segment_dir(vertices: &[(f64, f64)], from_start: bool) -> (f64, f64) {
+        let n = vertices.len();
+        let mut dx = 0.0;
+        let mut dy = 0.0;
+        if from_start {
+            for i in 0..n - 1 {
+                dx = vertices[i + 1].0 - vertices[i].0;
+                dy = vertices[i + 1].1 - vertices[i].1;
+                if dx * dx + dy * dy > 1e-280 {
+                    break;
+                }
+            }
+        } else {
+            for i in (0..n - 1).rev() {
+                dx = vertices[i + 1].0 - vertices[i].0;
+                dy = vertices[i + 1].1 - vertices[i].1;
+                if dx * dx + dy * dy > 1e-280 {
+                    break;
+                }
+            }
+        }
+        let len = (dx * dx + dy * dy).sqrt();
+        if len < 1e-140 {
+            (1.0, 0.0)
+        } else {
+            (dx / len, dy / len)
+        }
+    }
+
     /// (x = along main direction, y = perpendicular). Returns parametric t
     /// (0.0–1.0) for where the segment exits the decoration shape. t >= 1.0
     /// means the entire segment is inside the decoration.
