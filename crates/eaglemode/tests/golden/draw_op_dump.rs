@@ -169,7 +169,7 @@ fn serialize_op(seq: usize, op: &DrawOp) -> String {
         DrawOp::PaintText { x, y, text, char_height, width_scale, color, canvas_color } => {
             let color = color_hex(*color);
             let canvas_color = color_hex(*canvas_color);
-            let text = text.replace('\\', "\\\\").replace('"', "\\\"");
+            let text = text.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n").replace('\r', "\\r").replace('\t', "\\t");
             let hf = hex_fields(&[("x", *x), ("y", *y), ("char_height", *char_height), ("width_scale", *width_scale)]);
             format!(r#"{{"seq":{seq},"op":"PaintText","x":{x},"y":{y},"text":"{text}","char_height":{char_height},"width_scale":{width_scale},"color":"{color}","canvas_color":"{canvas_color}",{hf}}}"#)
         }
@@ -179,7 +179,7 @@ fn serialize_op(seq: usize, op: &DrawOp) -> String {
         } => {
             let color = color_hex(*color);
             let canvas_color = color_hex(*canvas_color);
-            let text = text.replace('\\', "\\\\").replace('"', "\\\"");
+            let text = text.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n").replace('\r', "\\r").replace('\t', "\\t");
             let box_h_align = format!("{box_h_align:?}");
             let box_v_align = format!("{box_v_align:?}");
             let text_alignment = format!("{text_alignment:?}");

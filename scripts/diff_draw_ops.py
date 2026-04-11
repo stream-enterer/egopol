@@ -15,35 +15,20 @@ FLOAT_TOL = 1e-10
 SKIP_KEYS = {"seq", "_unserialized"}
 # State ops that may appear in one side but not the other.
 # C++ passes canvas_color per-call; Rust has explicit SetCanvasColor ops.
-STATE_OPS = {"SetCanvasColor", "SetAlpha", "PushState", "PopState", "SetOffset", "ClipRect"}
+STATE_OPS = {"SetCanvasColor", "SetAlpha", "PushState", "PopState", "SetOffset", "ClipRect", "SetTransformation"}
 
 
 def load_ops(path):
     ops = []
     with open(path) as f:
-        buf = ""
         for line in f:
-            buf += line.rstrip("\n")
-            # A complete JSONL line starts with { and ends with }
-            if buf.strip().startswith("{") and buf.strip().endswith("}"):
-                try:
-                    # Escape control chars in text fields (C++ doesn't escape newlines)
-                    cleaned = buf.replace("\t", "\\t")
-                    ops.append(json.loads(cleaned))
-                except json.JSONDecodeError:
-                    # Try escaping embedded newlines in string values
-                    import re
-                    cleaned = re.sub(r'(?<=:")[^"]*(?=")', lambda m: m.group().replace("\n", "\\n"), buf)
-                    try:
-                        ops.append(json.loads(cleaned))
-                    except json.JSONDecodeError:
-                        pass  # skip unparseable lines
-                buf = ""
-            elif buf.strip().startswith("{"):
-                # Incomplete line — append newline escape and continue
-                buf += "\\n"
-            else:
-                buf = ""
+            line = line.strip()
+            if not line or not line.startswith("{"):
+                continue
+            try:
+                ops.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass  # skip unparseable lines
     return ops
 
 
@@ -55,56 +40,110 @@ def fmt(v):
     return str(v)
 
 
+def lcs_alignment(a_types, b_types):
+    """LCS-based alignment of two op type sequences.
+    Returns list of (a_idx|None, b_idx|None) pairs."""
+    m, n = len(a_types), len(b_types)
+    # Build LCS table
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    for i in range(m):
+        for j in range(n):
+            if a_types[i] == b_types[j]:
+                dp[i + 1][j + 1] = dp[i][j] + 1
+            else:
+                dp[i + 1][j + 1] = max(dp[i][j + 1], dp[i + 1][j])
+
+    # Backtrack to find alignment
+    i, j = m, n
+    matched = []
+    while i > 0 and j > 0:
+        if a_types[i - 1] == b_types[j - 1]:
+            matched.append((i - 1, j - 1))
+            i -= 1
+            j -= 1
+        elif dp[i - 1][j] >= dp[i][j - 1]:
+            i -= 1
+        else:
+            j -= 1
+    matched.reverse()
+
+    # Build full alignment with unmatched entries
+    pairs = []
+    ai, bi = 0, 0
+    for ma, mb in matched:
+        while ai < ma:
+            pairs.append((ai, None))
+            ai += 1
+        while bi < mb:
+            pairs.append((None, bi))
+            bi += 1
+        pairs.append((ma, mb))
+        ai = ma + 1
+        bi = mb + 1
+    while ai < m:
+        pairs.append((ai, None))
+        ai += 1
+    while bi < n:
+        pairs.append((None, bi))
+        bi += 1
+    return pairs
+
+
 def diff_ops(cpp_ops, rust_ops, name):
     divergences = []
-    min_len = min(len(cpp_ops), len(rust_ops))
 
-    for i in range(min_len):
-        cpp = cpp_ops[i]
-        rust = rust_ops[i]
+    cpp_types = [o.get("op", "?") for o in cpp_ops]
+    rust_types = [o.get("op", "?") for o in rust_ops]
+    alignment = lcs_alignment(cpp_types, rust_types)
 
-        cpp_op = cpp.get("op", "?")
-        rust_op = rust.get("op", "?")
-
-        if cpp_op != rust_op:
+    matched = 0
+    structural = 0
+    for ci, ri in alignment:
+        if ci is None:
+            rust = rust_ops[ri]
             divergences.append(
-                (i, f"{cpp_op}/{rust_op}", "op", cpp_op, rust_op, "TYPE MISMATCH")
+                (f"-/{ri}", rust.get("op", "?"), "op", "(absent)", rust.get("op", "?"), "RUST ONLY")
             )
-            break
+            structural += 1
+            continue
+        if ri is None:
+            cpp = cpp_ops[ci]
+            divergences.append(
+                (f"{ci}/-", cpp.get("op", "?"), "op", cpp.get("op", "?"), "(absent)", "C++ ONLY")
+            )
+            structural += 1
+            continue
+
+        cpp = cpp_ops[ci]
+        rust = rust_ops[ri]
+        matched += 1
 
         all_keys = (set(cpp.keys()) | set(rust.keys())) - SKIP_KEYS
         for key in sorted(all_keys):
             cv = cpp.get(key)
             rv = rust.get(key)
             if cv is None:
-                divergences.append((i, cpp_op, key, "(missing)", fmt(rv), "RUST EXTRA"))
+                divergences.append((f"{ci}/{ri}", cpp.get("op", "?"), key, "(missing)", fmt(rv), "RUST EXTRA"))
                 continue
             if rv is None:
-                divergences.append((i, cpp_op, key, fmt(cv), "(missing)", "C++ EXTRA"))
+                divergences.append((f"{ci}/{ri}", cpp.get("op", "?"), key, fmt(cv), "(missing)", "C++ EXTRA"))
                 continue
             if isinstance(cv, float) and isinstance(rv, float):
                 d = abs(cv - rv)
                 if d > FLOAT_TOL:
-                    divergences.append((i, cpp_op, key, fmt(cv), fmt(rv), f"{d:.6e}"))
+                    divergences.append((f"{ci}/{ri}", cpp.get("op", "?"), key, fmt(cv), fmt(rv), f"{d:.6e}"))
             elif cv != rv:
-                divergences.append((i, cpp_op, key, fmt(cv), fmt(rv), "MISMATCH"))
+                divergences.append((f"{ci}/{ri}", cpp.get("op", "?"), key, fmt(cv), fmt(rv), "MISMATCH"))
 
-    if len(cpp_ops) != len(rust_ops):
-        divergences.append(
-            (min_len, "(count)", "op_count",
-             str(len(cpp_ops)), str(len(rust_ops)),
-             f"C++={len(cpp_ops)} Rust={len(rust_ops)}")
-        )
-
-    print(f"\n=== {name}: {len(divergences)} divergence(s) in {min_len} ops ===")
+    print(f"\n=== {name}: {matched} matched, {structural} structural, {len(divergences)} divergence(s) ===")
     if not divergences:
         print("  IDENTICAL")
         return 0
 
-    print(f"{'seq':>4}  {'op':<28} {'param':<20} {'C++':<24} {'Rust':<24} {'delta'}")
-    print(f"{'---':>4}  {'---':<28} {'---':<20} {'---':<24} {'---':<24} {'---'}")
+    print(f"{'seq':>7}  {'op':<28} {'param':<20} {'C++':<24} {'Rust':<24} {'delta'}")
+    print(f"{'---':>7}  {'---':<28} {'---':<20} {'---':<24} {'---':<24} {'---'}")
     for seq, op, param, cv, rv, delta in divergences:
-        print(f"{seq:>4}  {op:<28} {param:<20} {str(cv):<24} {str(rv):<24} {delta}")
+        print(f"{seq:>7}  {op:<28} {param:<20} {str(cv):<24} {str(rv):<24} {delta}")
 
     return len(divergences)
 
