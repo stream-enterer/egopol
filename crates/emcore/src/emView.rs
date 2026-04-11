@@ -2222,8 +2222,23 @@ impl emView {
 
     // --- Paint ---
 
-    pub fn Paint(&self, tree: &mut PanelTree, painter: &mut emPainter) {
-        // C++ line 1056: assert scale == 1.0
+    /// Port of C++ `emView::Paint(const emPainter & painter, emColor canvasColor)`.
+    ///
+    /// Structural correspondence to C++ emView.cpp lines 1048-1146:
+    ///
+    /// C++ uses `pnt=painter` (painter copy) — one copy made at line 1090,
+    /// reused for SVP paint (line 1098) and all children (line 1118) with
+    /// no per-child save/restore. Rust uses push_state once before SVP
+    /// paint and pop_state once after the entire child loop, matching the
+    /// C++ lifecycle where `pnt` is alive for the whole block and `painter`
+    /// (the original) is used for PaintHighlight.
+    pub fn Paint(
+        &self,
+        tree: &mut PanelTree,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+    ) {
+        // C++ line 1056
         debug_assert!(
             painter.GetScaleX() == 1.0 && painter.GetScaleY() == 1.0,
             "emView::Paint: Scaling not possible."
@@ -2231,12 +2246,12 @@ impl emView {
 
         // C++ lines 1060, 1145: EnterUserSpace/LeaveUserSpace — no-op (single-threaded)
 
+        // C++ line 1062
         let svp_id = match self.svp {
             Some(id) => id,
             None => {
-                // C++ line 1063: painter.Clear(BackgroundColor, canvasColor)
-                painter.ClearWithCanvas(self.background_color, emColor::TRANSPARENT);
-                // StressTest overlay
+                // C++ line 1063
+                painter.ClearWithCanvas(self.background_color, canvas_color);
                 if let Some(st) = &self.stress_test {
                     st.paint_info(painter, self.viewport_width, self.viewport_height);
                 }
@@ -2244,7 +2259,7 @@ impl emView {
             }
         };
 
-        // C++ lines 1066-1071: compute render region from painter clip/origin
+        // C++ lines 1066-1071
         let ox = painter.GetOriginX();
         let oy = painter.GetOriginY();
         let rx1 = painter.GetClipX1() - ox;
@@ -2252,192 +2267,181 @@ impl emView {
         let rx2 = painter.GetClipX2() - ox;
         let ry2 = painter.GetClipY2() - oy;
 
+        // Read SVP fields. Must happen before IsOpaque (which borrows tree mutably).
+        let svp = match tree.GetRec(svp_id) {
+            Some(p) => p,
+            None => return,
+        };
+        let svp_vx = svp.viewed_x;
+        let svp_vy = svp.viewed_y;
+        let svp_vw = svp.viewed_width;
+        let svp_vh = svp.viewed_height;
+        let svp_canvas = svp.canvas_color;
+        let svp_clip_x1 = svp.clip_x;
+        let svp_clip_y1 = svp.clip_y;
+        let svp_clip_x2 = svp.clip_x + svp.clip_w;
+        let svp_clip_y2 = svp.clip_y + svp.clip_h;
+        let svp_layout = svp.layout_rect;
+
         // C++ lines 1073-1084: conditional background clear
-        let mut canvas_color = emColor::TRANSPARENT;
+        let mut canvas_color = canvas_color;
+        if !tree.IsOpaque(svp_id)
+            || svp_vx > rx1
+            || svp_vx + svp_vw < rx2
+            || svp_vy > ry1
+            || svp_vy + svp_vh < ry2
         {
-            let svp = match tree.GetRec(svp_id) {
-                Some(p) => p,
-                None => return,
-            };
-            // Cache SVP fields before mutable borrow via IsOpaque
-            let svp_vx = svp.viewed_x;
-            let svp_vy = svp.viewed_y;
-            let svp_vw = svp.viewed_width;
-            let svp_vh = svp.viewed_height;
-            let svp_canvas = svp.canvas_color;
-            let svp_clip_x = svp.clip_x;
-            let svp_clip_y = svp.clip_y;
-            let svp_clip_w = svp.clip_w;
-            let svp_clip_h = svp.clip_h;
-            let svp_layout_rect = svp.layout_rect;
-
-            if !tree.IsOpaque(svp_id)
-                || svp_vx > rx1
-                || svp_vx + svp_vw < rx2
-                || svp_vy > ry1
-                || svp_vy + svp_vh < ry2
-            {
-                let mut ncc = svp_canvas;
-                if !ncc.IsOpaque() {
-                    ncc = self.background_color;
-                }
-                painter.ClearWithCanvas(ncc, canvas_color);
-                canvas_color = ncc;
+            let mut ncc = svp_canvas;
+            if !ncc.IsOpaque() {
+                ncc = self.background_color;
             }
+            painter.ClearWithCanvas(ncc, canvas_color);
+            canvas_color = ncc;
+        }
 
-            // C++ lines 1085-1088: clamp SVP clip to render region
-            let svp_clip_x2 = svp_clip_x + svp_clip_w;
-            let svp_clip_y2 = svp_clip_y + svp_clip_h;
-            let mut cx1 = svp_clip_x;
-            if cx1 < rx1 { cx1 = rx1; }
-            let mut cx2 = svp_clip_x2;
-            if cx2 > rx2 { cx2 = rx2; }
-            let mut cy1 = svp_clip_y;
-            if cy1 < ry1 { cy1 = ry1; }
-            let mut cy2 = svp_clip_y2;
-            if cy2 > ry2 { cy2 = ry2; }
+        // C++ lines 1085-1088: clamp SVP clip to render region
+        let mut cx1 = svp_clip_x1;
+        if cx1 < rx1 { cx1 = rx1; }
+        let mut cx2 = svp_clip_x2;
+        if cx2 > rx2 { cx2 = rx2; }
+        let mut cy1 = svp_clip_y1;
+        if cy1 < ry1 { cy1 = ry1; }
+        let mut cy2 = svp_clip_y2;
+        if cy2 > ry2 { cy2 = ry2; }
 
-            if cx1 < cx2 && cy1 < cy2 {
-                // C++ lines 1090-1098: set clip, transform, paint SVP
-                painter.push_state();
-                painter.SetClippingAbsolute(cx1 + ox, cy1 + oy, cx2 + ox, cy2 + oy);
-                painter.SetTransformation(svp_vx + ox, svp_vy + oy, svp_vw, svp_vw);
-                painter.SetCanvasColor(canvas_color);
+        // C++ line 1089
+        if cx1 < cx2 && cy1 < cy2 {
+            // C++ line 1090: pnt=painter — save original state for PaintHighlight.
+            // One push here, one pop after the entire child loop.
+            painter.push_state();
 
-                if let Some(mut behavior) = tree.take_behavior(svp_id) {
-                    let mut state =
-                        tree.build_panel_state(svp_id, self.window_focused, self.pixel_tallness);
-                    state.priority = tree.GetUpdatePriority(
-                        svp_id,
-                        self.viewport_width,
-                        self.viewport_height,
-                        self.window_focused,
-                    );
-                    const DEFAULT_MEMORY_LIMIT: u64 = 2_048_000_000;
-                    state.memory_limit = tree.GetMemoryLimit(
-                        svp_id,
-                        self.viewport_width,
-                        self.viewport_height,
-                        DEFAULT_MEMORY_LIMIT,
-                        self.seek_pos_panel,
-                    );
-                    let tallness = if svp_layout_rect.w > 0.0 {
-                        svp_layout_rect.h / svp_layout_rect.w
-                    } else {
-                        1.0
-                    };
-                    behavior.Paint(painter, 1.0, tallness, &state);
-                    tree.put_behavior(svp_id, behavior);
-                }
-                painter.pop_state();
+            // C++ lines 1091-1097: SVP clip + transform on `pnt`
+            painter.SetClippingAbsolute(cx1 + ox, cy1 + oy, cx2 + ox, cy2 + oy);
+            painter.SetTransformation(svp_vx + ox, svp_vy + oy, svp_vw, svp_vw);
 
-                // C++ lines 1099-1135: iterative DFS over children
-                if let Some(first_child) = tree.GetFirstChild(svp_id) {
-                    let mut p = first_child;
-                    while let Some(panel) = tree.GetRec(p) {
+            // C++ line 1098: p->Paint(pnt, canvasColor)
+            painter.SetCanvasColor(canvas_color);
+            self.paint_one_panel(tree, painter, svp_id, svp_layout);
 
-                        if panel.viewed {
-                            let p_clip_x2 = panel.clip_x + panel.clip_w;
-                            let p_clip_y2 = panel.clip_y + panel.clip_h;
-                            let mut cx1 = panel.clip_x;
-                            if cx1 < rx1 { cx1 = rx1; }
-                            let mut cx2 = p_clip_x2;
-                            if cx2 > rx2 { cx2 = rx2; }
-                            if cx1 < cx2 {
-                                let mut cy1 = panel.clip_y;
-                                if cy1 < ry1 { cy1 = ry1; }
-                                let mut cy2 = p_clip_y2;
-                                if cy2 > ry2 { cy2 = ry2; }
-                                if cy1 < cy2 {
-                                    let p_vx = panel.viewed_x;
-                                    let p_vy = panel.viewed_y;
-                                    let p_vw = panel.viewed_width;
-                                    let p_canvas = panel.canvas_color;
-                                    let p_layout = panel.layout_rect;
+            // C++ lines 1099-1135: iterative DFS over children.
+            // C++ does LeaveUserSpace (line 1099) then reuses `pnt` for all
+            // children — no per-child save/restore. Each child overwrites
+            // clip and transform on `pnt` via SetClipping + SetTransformation.
+            if let Some(first_child) = tree.GetFirstChild(svp_id) {
+                let mut p = first_child;
+                while let Some(panel) = tree.GetRec(p) {
+                    // C++ line 1103
+                    if panel.viewed {
+                        // C++ lines 1104-1108: clamp child clip to render region
+                        let mut cx1 = panel.clip_x;
+                        if cx1 < rx1 { cx1 = rx1; }
+                        let mut cx2 = panel.clip_x + panel.clip_w;
+                        if cx2 > rx2 { cx2 = rx2; }
+                        if cx1 < cx2 {
+                            let mut cy1 = panel.clip_y;
+                            if cy1 < ry1 { cy1 = ry1; }
+                            let mut cy2 = panel.clip_y + panel.clip_h;
+                            if cy2 > ry2 { cy2 = ry2; }
+                            if cy1 < cy2 {
+                                // C++ lines 1110-1115
+                                let p_vx = panel.viewed_x;
+                                let p_vy = panel.viewed_y;
+                                let p_vw = panel.viewed_width;
+                                let p_canvas = panel.canvas_color;
+                                let p_layout = panel.layout_rect;
 
-                                    painter.push_state();
-                                    painter.SetClippingAbsolute(
-                                        cx1 + ox, cy1 + oy, cx2 + ox, cy2 + oy,
-                                    );
-                                    painter.SetTransformation(
-                                        p_vx + ox, p_vy + oy, p_vw, p_vw,
-                                    );
-                                    painter.SetCanvasColor(p_canvas);
+                                painter.SetClippingAbsolute(
+                                    cx1 + ox, cy1 + oy, cx2 + ox, cy2 + oy,
+                                );
+                                painter.SetTransformation(
+                                    p_vx + ox, p_vy + oy, p_vw, p_vw,
+                                );
 
-                                    if let Some(mut behavior) = tree.take_behavior(p) {
-                                        let mut state = tree.build_panel_state(
-                                            p,
-                                            self.window_focused,
-                                            self.pixel_tallness,
-                                        );
-                                        state.priority = tree.GetUpdatePriority(
-                                            p,
-                                            self.viewport_width,
-                                            self.viewport_height,
-                                            self.window_focused,
-                                        );
-                                        const DEFAULT_MEMORY_LIMIT: u64 = 2_048_000_000;
-                                        state.memory_limit = tree.GetMemoryLimit(
-                                            p,
-                                            self.viewport_width,
-                                            self.viewport_height,
-                                            DEFAULT_MEMORY_LIMIT,
-                                            self.seek_pos_panel,
-                                        );
-                                        let tallness = if p_layout.w > 0.0 {
-                                            p_layout.h / p_layout.w
-                                        } else {
-                                            1.0
-                                        };
-                                        behavior.Paint(painter, 1.0, tallness, &state);
-                                        tree.put_behavior(p, behavior);
-                                    }
-                                    painter.pop_state();
+                                // C++ line 1118: p->Paint(pnt, p->CanvasColor)
+                                painter.SetCanvasColor(p_canvas);
+                                self.paint_one_panel(tree, painter, p, p_layout);
 
-                                    // C++ lines 1120-1123: descend to first child
-                                    if let Some(fc) = tree.GetFirstChild(p) {
-                                        p = fc;
-                                        continue;
-                                    }
+                                // C++ lines 1120-1123
+                                if let Some(fc) = tree.GetFirstChild(p) {
+                                    p = fc;
+                                    continue;
                                 }
                             }
                         }
+                    }
 
-                        // C++ lines 1127-1134: advance to next sibling or walk up
-                        if let Some(next) = tree.GetNext(p) {
-                            p = next;
-                        } else {
-                            loop {
-                                p = match tree.GetParentContext(p) {
-                                    Some(parent) => parent,
-                                    None => break,
-                                };
-                                if p == svp_id {
-                                    break;
-                                }
-                                if let Some(next) = tree.GetNext(p) {
-                                    p = next;
-                                    break;
-                                }
-                            }
-                            if p == svp_id || tree.GetParentContext(p).is_none() {
+                    // C++ lines 1127-1134: advance to next sibling or walk up
+                    if let Some(next) = tree.GetNext(p) {
+                        p = next;
+                    } else {
+                        loop {
+                            p = match tree.GetParentContext(p) {
+                                Some(parent) => parent,
+                                None => break,
+                            };
+                            if p == svp_id {
                                 break;
                             }
+                            if let Some(next) = tree.GetNext(p) {
+                                p = next;
+                                break;
+                            }
+                        }
+                        if p == svp_id || tree.GetParentContext(p).is_none() {
+                            break;
                         }
                     }
                 }
             }
+
+            // C++ line 1137: EnterUserSpace — restore original painter state
+            painter.pop_state();
         }
 
-        // C++ line 1139: PaintHighlight — only when SVP exists
+        // C++ line 1139: PaintHighlight — uses original `painter`, not `pnt`
         self.paint_highlight(tree, painter);
 
-        // C++ line 1142: ActiveAnimator paint
-        // TODO: ActiveAnimator not yet implemented
+        // C++ line 1142: ActiveAnimator — not yet implemented
+        // TODO: ActiveAnimator
 
-        // C++ line 1143: StressTest overlay
+        // C++ line 1143
         if let Some(st) = &self.stress_test {
             st.paint_info(painter, self.viewport_width, self.viewport_height);
+        }
+    }
+
+    /// Paint a single panel's behavior. Extracted to avoid duplicating the
+    /// take_behavior / build_panel_state / Paint / put_behavior sequence.
+    fn paint_one_panel(
+        &self,
+        tree: &mut PanelTree,
+        painter: &mut emPainter,
+        id: PanelId,
+        layout: Rect,
+    ) {
+        if let Some(mut behavior) = tree.take_behavior(id) {
+            let mut state = tree.build_panel_state(id, self.window_focused, self.pixel_tallness);
+            state.priority = tree.GetUpdatePriority(
+                id,
+                self.viewport_width,
+                self.viewport_height,
+                self.window_focused,
+            );
+            const DEFAULT_MEMORY_LIMIT: u64 = 2_048_000_000;
+            state.memory_limit = tree.GetMemoryLimit(
+                id,
+                self.viewport_width,
+                self.viewport_height,
+                DEFAULT_MEMORY_LIMIT,
+                self.seek_pos_panel,
+            );
+            let tallness = if layout.w > 0.0 {
+                layout.h / layout.w
+            } else {
+                1.0
+            };
+            behavior.Paint(painter, 1.0, tallness, &state);
+            tree.put_behavior(id, behavior);
         }
     }
 
@@ -3573,7 +3577,7 @@ mod tests {
         // Paint into a real image and verify the overlay renders without panic
         let mut img = emImage::new(800, 600, 4);
         let mut painter = emPainter::new(&mut img);
-        view.Paint(&mut tree, &mut painter);
+        view.Paint(&mut tree, &mut painter, emColor::TRANSPARENT);
 
         // Check that the top-left corner has non-zero (overlay painted) pixels.
         // The purple background (255,0,255,128) should have been blended there.

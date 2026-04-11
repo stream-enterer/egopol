@@ -43,7 +43,7 @@ fn bench_scaled_paint(c: &mut Criterion) {
             b.iter(|| {
                 buf.fill(emColor::BLACK);
                 let mut painter = emPainter::new(&mut buf);
-                view.Paint(&mut tree, &mut painter);
+                view.Paint(&mut tree, &mut painter, emColor::TRANSPARENT);
             });
         });
     }

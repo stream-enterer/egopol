@@ -104,7 +104,7 @@ pub fn run_one_scaled_frame(
     viewport_buf.fill(emColor::BLACK);
     {
         let mut painter = emPainter::new(viewport_buf);
-        view.Paint(tree, &mut painter);
+        view.Paint(tree, &mut painter, emColor::TRANSPARENT);
     }
 
     view.clear_viewport_changed();

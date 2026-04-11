@@ -277,7 +277,7 @@ impl ZuiWindow {
             let ctrl_bg = self.control_view.GetBackgroundColor();
             {
                 let mut painter = emPainter::new(&mut self.viewport_buffer);
-                self.view.Paint(tree, &mut painter);
+                self.view.Paint(tree, &mut painter, crate::emColor::emColor::TRANSPARENT);
                 if ctrl_height > 0 {
                     self.control_view.paint_sub_tree(
                         &mut self.control_tree,
@@ -321,7 +321,7 @@ impl ZuiWindow {
                             let mut painter = emPainter::new(&mut tile.image);
                             let ts = tile_size as f64;
                             painter.translate(-(col as f64 * ts), -(row as f64 * ts));
-                            self.view.Paint(tree, &mut painter);
+                            self.view.Paint(tree, &mut painter, crate::emColor::emColor::TRANSPARENT);
                             if self.control_strip_height > 0
                                 && row * tile_size + tile_size > content_h
                             {
@@ -392,7 +392,7 @@ impl ZuiWindow {
         let mut draw_list = DrawList::new();
         {
             let mut painter = emPainter::new_recording(vp_w, vp_h, draw_list.ops_mut());
-            self.view.Paint(tree, &mut painter);
+            self.view.Paint(tree, &mut painter, emColor::TRANSPARENT);
             if self.control_strip_height > 0 {
                 let content_h = self.content_height() as f64;
                 let control_root = self.control_view.GetRootPanel();

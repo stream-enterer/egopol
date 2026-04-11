@@ -73,7 +73,7 @@ fn paint_10(state: FrameState) {
     let (mut tree, view, mut buf) = state;
     buf.fill(emColor::BLACK);
     let mut painter = emPainter::new(&mut buf);
-    view.Paint(&mut tree, &mut painter);
+    view.Paint(&mut tree, &mut painter, emColor::TRANSPARENT);
 }
 
 #[library_benchmark]
@@ -82,7 +82,7 @@ fn paint_50(state: FrameState) {
     let (mut tree, view, mut buf) = state;
     buf.fill(emColor::BLACK);
     let mut painter = emPainter::new(&mut buf);
-    view.Paint(&mut tree, &mut painter);
+    view.Paint(&mut tree, &mut painter, emColor::TRANSPARENT);
 }
 
 #[library_benchmark]
@@ -91,7 +91,7 @@ fn paint_200(state: FrameState) {
     let (mut tree, view, mut buf) = state;
     buf.fill(emColor::BLACK);
     let mut painter = emPainter::new(&mut buf);
-    view.Paint(&mut tree, &mut painter);
+    view.Paint(&mut tree, &mut painter, emColor::TRANSPARENT);
 }
 
 // ---------------------------------------------------------------------------

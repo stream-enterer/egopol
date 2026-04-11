@@ -25,7 +25,7 @@ impl SoftwareCompositor {
     pub fn render(&mut self, tree: &mut PanelTree, view: &emView) {
         self.framebuffer.fill(emColor::BLACK);
         let mut painter = emPainter::new(&mut self.framebuffer);
-        view.Paint(tree, &mut painter);
+        view.Paint(tree, &mut painter, emColor::TRANSPARENT);
     }
 
     /// Render using the display-list + parallel-replay pipeline.
@@ -48,7 +48,7 @@ impl SoftwareCompositor {
         let mut draw_list = DrawList::new();
         {
             let mut rec = emPainter::new_recording(w, h, draw_list.ops_mut());
-            view.Paint(tree, &mut rec);
+            view.Paint(tree, &mut rec, emColor::TRANSPARENT);
         }
 
         // Phase 2: split into tiles and replay in parallel.

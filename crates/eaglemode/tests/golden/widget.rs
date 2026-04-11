@@ -17,6 +17,7 @@ use emcore::emButton::emButton;
 
 use emcore::emCheckBox::emCheckBox;
 
+use emcore::emColor::emColor;
 use emcore::emColorField::emColorField;
 
 use emcore::emErrorPanel::emErrorPanel;
@@ -72,7 +73,7 @@ fn maybe_record_draw_ops(name: &str, tree: &mut PanelTree, view: &emView, w: u32
     let mut ops: Vec<DrawOp> = Vec::new();
     {
         let mut rec = emPainter::new_recording(w, h, &mut ops);
-        view.Paint(tree, &mut rec);
+        view.Paint(tree, &mut rec, emColor::TRANSPARENT);
     }
     dump_draw_ops(name, &ops);
 }

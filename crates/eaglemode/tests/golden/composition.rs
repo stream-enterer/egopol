@@ -819,7 +819,7 @@ fn composition_tktest_1x() {
         let mut ops: Vec<DrawOp> = Vec::new();
         {
             let mut rec = emPainter::new_recording(w, h, &mut ops);
-            view.Paint(&mut tree, &mut rec);
+            view.Paint(&mut tree, &mut rec, emColor::TRANSPARENT);
         }
         dump_draw_ops("tktest_1x", &ops);
     }
@@ -872,7 +872,7 @@ fn composition_tktest_2x() {
         let mut ops: Vec<DrawOp> = Vec::new();
         {
             let mut rec = emPainter::new_recording(w, h, &mut ops);
-            view.Paint(&mut tree, &mut rec);
+            view.Paint(&mut tree, &mut rec, emColor::TRANSPARENT);
         }
         dump_draw_ops("tktest_2x", &ops);
     }

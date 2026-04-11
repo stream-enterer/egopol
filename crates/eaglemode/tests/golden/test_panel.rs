@@ -2089,7 +2089,7 @@ fn render_testpanel(
         let mut ops: Vec<DrawOp> = Vec::new();
         {
             let mut rec = emPainter::new_recording(w, h, &mut ops);
-            view.Paint(tree, &mut rec);
+            view.Paint(tree, &mut rec, emColor::TRANSPARENT);
         }
         dump_draw_ops(name, &ops);
     }
