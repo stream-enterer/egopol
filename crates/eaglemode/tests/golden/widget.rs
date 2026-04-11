@@ -485,6 +485,8 @@ fn widget_colorfield() {
         view.Update(&mut tree);
     }
 
+    maybe_record_draw_ops("widget_colorfield", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -634,6 +636,8 @@ fn colorfield_expanded() {
         view.Update(&mut tree);
     }
 
+    maybe_record_draw_ops("colorfield_expanded", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -710,6 +714,8 @@ fn listbox_expanded() {
         view.Update(&mut tree);
     }
 
+    maybe_record_draw_ops("listbox_expanded", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -745,6 +751,8 @@ fn golden_widget_border_rect_extreme_tall() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
+
+    maybe_record_draw_ops("widget_border_rect_extreme_tall", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -790,6 +798,8 @@ fn golden_widget_border_rect_extreme_wide() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
+    maybe_record_draw_ops("widget_border_rect_extreme_wide", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -833,6 +843,8 @@ fn golden_widget_border_roundrect_thin() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
+
+    maybe_record_draw_ops("widget_border_roundrect_thin", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -880,6 +892,8 @@ fn golden_widget_border_instrument_cramped() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
+    maybe_record_draw_ops("widget_border_instrument_cramped", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -919,6 +933,8 @@ fn golden_widget_label_single_char() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
+    maybe_record_draw_ops("widget_label_single_char", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -957,6 +973,8 @@ fn golden_widget_label_empty() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
+
+    maybe_record_draw_ops("widget_label_empty", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -1069,6 +1087,8 @@ fn widget_tunnel() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
+    maybe_record_draw_ops("widget_tunnel", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -1111,6 +1131,8 @@ fn widget_file_selection_box() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
+    maybe_record_draw_ops("widget_file_selection_box", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -1143,6 +1165,8 @@ fn golden_widget_textfield_empty_wide() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
+
+    maybe_record_draw_ops("widget_textfield_empty_wide", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -1186,6 +1210,8 @@ fn golden_widget_textfield_single_char_square() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
+    maybe_record_draw_ops("widget_textfield_single_char_square", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -1227,6 +1253,8 @@ fn golden_widget_scalarfield_min_value() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
+
+    maybe_record_draw_ops("widget_scalarfield_min_value", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -1270,6 +1298,8 @@ fn golden_widget_scalarfield_max_value() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
+    maybe_record_draw_ops("widget_scalarfield_max_value", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -1312,6 +1342,8 @@ fn golden_widget_scalarfield_zero_range() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
+    maybe_record_draw_ops("widget_scalarfield_zero_range", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -1351,6 +1383,8 @@ fn golden_widget_listbox_empty() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
+
+    maybe_record_draw_ops("widget_listbox_empty", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -1392,6 +1426,8 @@ fn golden_widget_listbox_single() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
+
+    maybe_record_draw_ops("widget_listbox_single", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -1436,6 +1472,8 @@ fn golden_widget_listbox_extreme_wide() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
+    maybe_record_draw_ops("widget_listbox_extreme_wide", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -1475,6 +1513,8 @@ fn golden_widget_splitter_h_pos0() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
+
+    maybe_record_draw_ops("widget_splitter_h_pos0", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -1516,6 +1556,8 @@ fn golden_widget_splitter_h_pos1() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
+    maybe_record_draw_ops("widget_splitter_h_pos1", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -1556,6 +1598,8 @@ fn golden_widget_splitter_v_extreme_tall() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
+    maybe_record_draw_ops("widget_splitter_v_extreme_tall", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -1594,6 +1638,8 @@ fn golden_widget_checkbox_extreme_tall() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
+
+    maybe_record_draw_ops("widget_checkbox_extreme_tall", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -1635,6 +1681,8 @@ fn golden_widget_tunnel_extreme_wide() {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
+
+    maybe_record_draw_ops("widget_tunnel_extreme_wide", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -1685,6 +1733,8 @@ fn golden_widget_colorfield_alpha_zero() {
         view.Update(&mut tree);
     }
 
+    maybe_record_draw_ops("widget_colorfield_alpha_zero", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -1734,6 +1784,8 @@ fn golden_widget_colorfield_alpha_opaque() {
         view.Update(&mut tree);
     }
 
+    maybe_record_draw_ops("widget_colorfield_alpha_opaque", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -1782,6 +1834,8 @@ fn golden_widget_colorfield_alpha_near() {
         tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
         view.Update(&mut tree);
     }
+
+    maybe_record_draw_ops("widget_colorfield_alpha_near", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -1879,6 +1933,8 @@ fn composition_border_nest() {
         tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
         view.Update(&mut tree);
     }
+
+    maybe_record_draw_ops("composed_border_nest", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
@@ -1996,6 +2052,8 @@ fn composition_splitter_content() {
         view.Update(&mut tree);
     }
 
+    maybe_record_draw_ops("composed_splitter_content", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -2065,6 +2123,8 @@ fn composition_scrolled_listbox_in_border() {
         view.Update(&mut tree);
     }
 
+    maybe_record_draw_ops("composed_scrolled_listbox", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -2127,6 +2187,8 @@ fn composition_colorfield_expansion_wide() {
         view.Update(&mut tree);
     }
 
+    maybe_record_draw_ops("composed_colorfield_wide", &mut tree, &view, w, h);
+
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
     let actual = compositor.framebuffer().GetMap();
@@ -2179,6 +2241,8 @@ fn composition_colorfield_expansion_tall() {
         tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
         view.Update(&mut tree);
     }
+
+    maybe_record_draw_ops("composed_colorfield_tall", &mut tree, &view, w, h);
 
     let mut compositor = SoftwareCompositor::new(w, h);
     compositor.render(&mut tree, &view);
