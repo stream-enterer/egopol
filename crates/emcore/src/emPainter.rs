@@ -475,8 +475,85 @@ impl<'a> emPainter<'a> {
     }
 
     /// Returns true if the current clip region has zero area.
-    pub fn GetClipX1(&self) -> bool {
+    pub fn IsClipEmpty(&self) -> bool {
         self.state.clip.IsEmpty()
+    }
+
+    /// Get clipping rectangle X1 in pixel coordinates.
+    /// Corresponds to C++ `emPainter::GetClipX1`.
+    pub fn GetClipX1(&self) -> f64 {
+        self.state.clip.x1
+    }
+
+    /// Get clipping rectangle Y1 in pixel coordinates.
+    /// Corresponds to C++ `emPainter::GetClipY1`.
+    pub fn GetClipY1(&self) -> f64 {
+        self.state.clip.y1
+    }
+
+    /// Get clipping rectangle X2 in pixel coordinates.
+    /// Corresponds to C++ `emPainter::GetClipX2`.
+    pub fn GetClipX2(&self) -> f64 {
+        self.state.clip.x2
+    }
+
+    /// Get clipping rectangle Y2 in pixel coordinates.
+    /// Corresponds to C++ `emPainter::GetClipY2`.
+    pub fn GetClipY2(&self) -> f64 {
+        self.state.clip.y2
+    }
+
+    /// Get origin X in pixel coordinates.
+    /// Corresponds to C++ `emPainter::GetOriginX`.
+    pub fn GetOriginX(&self) -> f64 {
+        self.state.offset_x
+    }
+
+    /// Get origin Y in pixel coordinates.
+    /// Corresponds to C++ `emPainter::GetOriginY`.
+    pub fn GetOriginY(&self) -> f64 {
+        self.state.offset_y
+    }
+
+    /// Get X scale factor.
+    /// Corresponds to C++ `emPainter::GetScaleX`.
+    pub fn GetScaleX(&self) -> f64 {
+        self.state.scale_x
+    }
+
+    /// Get Y scale factor.
+    /// Corresponds to C++ `emPainter::GetScaleY`.
+    pub fn GetScaleY(&self) -> f64 {
+        self.state.scale_y
+    }
+
+    /// Set clip rectangle directly in pixel coordinates, no intersection.
+    /// Matches C++ `emPainter::SetClipping(clipX1, clipY1, clipX2, clipY2)`.
+    pub fn SetClippingAbsolute(&mut self, x1: f64, y1: f64, x2: f64, y2: f64) {
+        // Record as user-space coords for DrawOp compatibility
+        let ux = (x1 - self.state.offset_x) / self.state.scale_x;
+        let uy = (y1 - self.state.offset_y) / self.state.scale_y;
+        let uw = (x2 - x1) / self.state.scale_x;
+        let uh = (y2 - y1) / self.state.scale_y;
+        self.record_state(DrawOp::ClipRect { x: ux, y: uy, w: uw, h: uh });
+        self.state.clip = ClipRect { x1, y1, x2, y2 };
+    }
+
+    /// Fill the entire clip region with a color, respecting canvas color for blending.
+    /// Corresponds to C++ `emPainter::Clear(texture, canvasColor)`.
+    pub fn ClearWithCanvas(&mut self, color: emColor, canvas_color: emColor) {
+        let sx = self.state.scale_x;
+        let sy = self.state.scale_y;
+        let ox = self.state.offset_x;
+        let oy = self.state.offset_y;
+        self.PaintRect(
+            (self.state.clip.x1 - ox) / sx,
+            (self.state.clip.y1 - oy) / sy,
+            (self.state.clip.x2 - self.state.clip.x1) / sx,
+            (self.state.clip.y2 - self.state.clip.y1) / sy,
+            color,
+            canvas_color,
+        );
     }
 
     /// Set origin (absolute offset, replaces current offset).

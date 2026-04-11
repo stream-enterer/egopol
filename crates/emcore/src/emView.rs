@@ -2451,7 +2451,7 @@ impl emView {
 
         // Skip this panel and its entire subtree if it doesn't intersect
         // the current tile's clip region.
-        if painter.GetClipX1() {
+        if painter.IsClipEmpty() {
             painter.pop_state();
             return;
         }
