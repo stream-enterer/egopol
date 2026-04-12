@@ -1185,6 +1185,7 @@ impl<'a> emPainter<'a> {
     /// Draw a polyline with full stroke support (joins, caps, dashes, arrows).
     /// Matches C++ `PaintPolyline(xy, n, thickness, stroke, strokeStart, strokeEnd, canvasColor)`.
     /// Records as a compound op: PaintPolyline at depth N, sub-ops at depth N+1.
+    // DIVERGED: PaintPolyline — takes &emStroke with start_end/finish_end fields and closed param; C++ takes separate thickness, strokeStart, strokeEnd args
     pub fn PaintPolyline(
         &mut self,
         vertices: &[(f64, f64)],
@@ -3963,7 +3964,7 @@ impl<'a> emPainter<'a> {
     ///
     /// `arrow_dirs`: optional pre-computed direction vectors `((nx1,ny1),(nx2,ny2))`
     /// matching C++ parameters. When `None`, directions are extracted from vertices.
-    pub fn PaintPolylineWithArrows(
+    pub(crate) fn PaintPolylineWithArrows(
         &mut self,
         vertices: &[(f64, f64)],
         stroke: &emStroke,

@@ -804,12 +804,11 @@ impl TestPanel {
         poly_s.join = LineJoin::Round;
         poly_s.start_end = emStrokeEnd::new(StrokeEndType::ContourArrow);
         poly_s.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
-        p.PaintPolylineWithArrows(
+        p.PaintPolyline(
             &[(0.13, 0.897), (0.14, 0.902), (0.13, 0.906), (0.137, 0.909)],
             &poly_s,
             false,
             bg,
-            None,
         );
 
         // Polygon outline

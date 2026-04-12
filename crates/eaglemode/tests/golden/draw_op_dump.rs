@@ -112,6 +112,14 @@ fn serialize_op(seq: usize, depth: u32, op: &DrawOp, state: &RecordedState) -> S
             let canvas_color = color_hex(*canvas_color);
             format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintPolygon","vertices":{verts},"color":"{color}","canvas_color":"{canvas_color}",{sf}}}"#)
         }
+        DrawOp::PaintPolyline { vertices, stroke, closed: _, canvas_color } => {
+            let n = vertices.len();
+            let thickness = stroke.width;
+            let color = color_hex(stroke.color);
+            let canvas_color = color_hex(*canvas_color);
+            let hf = hex_fields(&[("thickness", thickness)]);
+            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintPolyline","n":{n},"thickness":{thickness},"color":"{color}","canvas_color":"{canvas_color}",{hf},{sf}}}"#)
+        }
         DrawOp::PaintSolidPolyline { vertices, stroke, closed, canvas_color } => {
             let verts = vertices_json(vertices);
             let stroke_color = color_hex(stroke.color);
