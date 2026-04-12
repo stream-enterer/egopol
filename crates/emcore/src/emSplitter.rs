@@ -5,9 +5,10 @@ use crate::emTiling::{Orientation, ResolvedOrientation};
 use crate::emPanel::PanelState;
 use crate::emPanelCtx::PanelCtx;
 use crate::emPainter::{emPainter, BORDER_EDGES_ONLY};
+use crate::emPanelTree::PanelId;
 
 use crate::emLook::emLook;
-use crate::emBorder::with_toolkit_images;
+use crate::emBorder::{emBorder, with_toolkit_images};
 use std::rc::Rc;
 
 /// C++ emSplitter grip base fraction before borderScaling.
@@ -155,28 +156,48 @@ impl emSplitter {
     }
 
     /// Compute grip rectangle matching C++ emSplitter::CalcGripRect.
+    ///
+    /// Origin-based version: returns coordinates relative to (0,0).
+    /// Used by PaintContent and Input where the painter / coordinate system
+    /// is already translated to the content origin.
     fn calc_grip_rect(
         &self,
         w: f64,
         h: f64,
         resolved: ResolvedOrientation,
     ) -> (f64, f64, f64, f64) {
+        self.calc_grip_rect_abs(0.0, 0.0, w, h, resolved)
+    }
+
+    /// Compute grip rectangle matching C++ emSplitter::CalcGripRect
+    /// (emSplitter.cpp:247-271).
+    ///
+    /// Takes explicit content rect origin `(cx, cy)` and size `(cw, ch)`.
+    /// Used by LayoutChildren which computes child rects relative to the
+    /// content rect.
+    fn calc_grip_rect_abs(
+        &self,
+        cx: f64,
+        cy: f64,
+        cw: f64,
+        ch: f64,
+        resolved: ResolvedOrientation,
+    ) -> (f64, f64, f64, f64) {
+        let mut gs = GRIP_BASE * self.border_scaling;
         match resolved {
             ResolvedOrientation::Horizontal => {
-                let mut gs = GRIP_BASE * self.border_scaling * w;
-                if gs > w * 0.5 {
-                    gs = w * 0.5;
+                gs *= cw;
+                if gs > cw * 0.5 {
+                    gs = cw * 0.5;
                 }
-                let gx = self.position * (w - gs);
-                (gx, 0.0, gs, h)
+                (cx + self.position * (cw - gs), cy, gs, ch)
             }
             ResolvedOrientation::Vertical => {
-                let mut gs = GRIP_BASE * self.border_scaling * h;
-                if gs > h * 0.5 {
-                    gs = h * 0.5;
+                gs *= ch;
+                if gs > ch * 0.5 {
+                    gs = ch * 0.5;
                 }
-                let gy = self.position * (h - gs);
-                (0.0, gy, w, gs)
+                (cx, cy + self.position * (ch - gs), cw, gs)
             }
         }
     }
@@ -261,26 +282,96 @@ impl emSplitter {
         }
     }
 
-    /// Layout two child panels based on the splitter position.
-    pub fn LayoutChildren(&self, ctx: &mut PanelCtx, w: f64, h: f64) {
+    /// Layout two child panels around the grip.
+    ///
+    /// Ported from C++ `emSplitter::LayoutChildren()` (emSplitter.cpp:194-244).
+    ///
+    /// 1. Position the aux panel (C++ `emBorder::LayoutChildren()` base call).
+    /// 2. Iterate children, skipping aux, and layout the first two non-aux
+    ///    children: one before the grip, one after.
+    /// 3. Propagate canvas color to children.
+    ///
+    /// The caller provides `border` (for aux panel lookup / content rect)
+    /// and `canvas_color` (from `emBorder::content_canvas_color`).
+    ///
+    /// C++ uses `GetContentRectUnobscured()` for coordinates.  In Rust the
+    /// framework already translates to content-rect space, so `(cx,cy)=(0,0)`
+    /// and `(cw,ch)=(w,h)`.  No `.max(0.0)` clamps — C++ passes potentially
+    /// negative child sizes, matching layout exactly.
+    pub fn LayoutChildren(
+        &self,
+        ctx: &mut PanelCtx,
+        w: f64,
+        h: f64,
+        border: Option<&emBorder>,
+        canvas_color: crate::emColor::emColor,
+    ) {
+        // --- C++ line 200: emBorder::LayoutChildren() base call ---
+        let aux_id: Option<PanelId> = border.and_then(|b| {
+            crate::emTiling::position_aux_panel(ctx, b)
+        });
+
+        // --- C++ line 202: p = GetFirstChild(); if (!p) return; ---
         let children = ctx.children();
-        if children.len() < 2 {
+        if children.is_empty() {
             return;
         }
 
-        let resolved = self.orientation.resolve(w, h);
-        let (gx, gy, gw, gh) = self.calc_grip_rect(w, h, resolved);
+        // --- C++ lines 204-208: skip aux for first child ---
+        let mut iter = children.iter().copied();
+        let first = loop {
+            match iter.next() {
+                None => return,
+                Some(id) if aux_id == Some(id) => continue,
+                Some(id) => break id,
+            }
+        };
 
-        match resolved {
+        // --- C++ line 209: GetContentRectUnobscured(&cx,&cy,&cw,&ch,&canvasColor) ---
+        // In Rust, the painter is already translated to content origin, so
+        // cx=0, cy=0, cw=w, ch=h.  canvasColor is passed in by the caller.
+        let (cx, cy, cw, ch) = (0.0, 0.0, w, h);
+
+        // --- C++ line 210: CalcGripRect(cx,cy,cw,ch,...) ---
+        let resolved = self.orientation.resolve(cw, ch);
+        let (gx, gy, gw, gh) = self.calc_grip_rect_abs(cx, cy, cw, ch, resolved);
+
+        // --- C++ lines 211-222: first child layout ---
+        let (x1, y1, w1, h1) = match resolved {
+            ResolvedOrientation::Horizontal => (cx, cy, gx - cx, ch),
+            ResolvedOrientation::Vertical => (cx, cy, cw, gy - cy),
+        };
+        ctx.layout_child_canvas(first, x1, y1, w1, h1, canvas_color);
+
+        // --- C++ lines 225-230: skip aux for second child ---
+        let second = loop {
+            match iter.next() {
+                None => return,
+                Some(id) if aux_id == Some(id) => continue,
+                Some(id) => break id,
+            }
+        };
+
+        // --- C++ lines 231-243: second child layout ---
+        let (x2, y2, w2, h2) = match resolved {
             ResolvedOrientation::Horizontal => {
-                ctx.layout_child(children[0], 0.0, 0.0, gx.max(0.0), h);
-                ctx.layout_child(children[1], gx + gw, 0.0, (w - gx - gw).max(0.0), h);
+                let x = gx + gw;
+                (x, cy, cx + cw - x, ch)
             }
             ResolvedOrientation::Vertical => {
-                ctx.layout_child(children[0], 0.0, 0.0, w, gy.max(0.0));
-                ctx.layout_child(children[1], 0.0, gy + gh, w, (h - gy - gh).max(0.0));
+                let y = gy + gh;
+                (cx, y, cw, cy + ch - y)
             }
-        }
+        };
+        ctx.layout_child_canvas(second, x2, y2, w2, h2, canvas_color);
+    }
+
+    /// Convenience wrapper when there is no border / aux panel.
+    ///
+    /// Used by standalone tests and simple compositions where the splitter
+    /// is not embedded in an `emBorder` widget.
+    pub fn LayoutChildrenSimple(&self, ctx: &mut PanelCtx, w: f64, h: f64) {
+        self.LayoutChildren(ctx, w, h, None, crate::emColor::emColor::TRANSPARENT);
     }
 }
 

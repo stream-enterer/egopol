@@ -413,7 +413,7 @@ impl PanelBehavior for SplitterPanel {
     }
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         let rect = ctx.layout_rect();
-        self.widget.LayoutChildren(ctx, rect.w, rect.h);
+        self.widget.LayoutChildrenSimple(ctx, rect.w, rect.h);
     }
 }
 

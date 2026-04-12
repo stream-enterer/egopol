@@ -549,7 +549,7 @@ impl PanelBehavior for SplitterLayoutBehavior {
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         let rect = ctx.layout_rect();
-        self.splitter.LayoutChildren(ctx, rect.w, rect.h);
+        self.splitter.LayoutChildrenSimple(ctx, rect.w, rect.h);
     }
 }
 
