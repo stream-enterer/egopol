@@ -1821,7 +1821,7 @@ impl<'a> emPainter<'a> {
         if text.is_empty() || char_height <= 0.0 || color.GetAlpha() == 0 {
             return;
         }
-        let Some(_proof) = self.try_record(DrawOp::PaintText {
+        let is_recording = self.try_record(DrawOp::PaintText {
             x,
             y,
             text: text.to_string(),
@@ -1829,7 +1829,13 @@ impl<'a> emPainter<'a> {
             width_scale,
             color,
             canvas_color,
-        }) else { return; };
+        }).is_none();
+        if is_recording {
+            if !self.record_subops {
+                return;
+            }
+            self.record_depth += 1;
+        }
 
         let rcw = char_height / emFontCache::CHAR_BOX_TALLNESS;
         let char_width = rcw * width_scale;
@@ -1846,6 +1852,7 @@ impl<'a> emPainter<'a> {
                 color,
                 canvas_color,
             );
+            if is_recording { self.record_depth -= 1; }
             return;
         }
 
@@ -1855,6 +1862,7 @@ impl<'a> emPainter<'a> {
         let clip_y2 = self.GetUserClipY2();
 
         if y >= clip_y2 || y + char_height <= clip_y1 {
+            if is_recording { self.record_depth -= 1; }
             return;
         }
 
@@ -1902,6 +1910,7 @@ impl<'a> emPainter<'a> {
         }
 
         self.state.canvas_color = saved_canvas;
+        if is_recording { self.record_depth -= 1; }
     }
 
     /// Tiny-text fallback: at very small sizes, render non-space runs as
