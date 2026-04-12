@@ -560,47 +560,43 @@ impl emFileSelectionBox {
     pub fn reload_listing(&mut self) {
         let mut entries = Vec::new();
 
-        let dir_entries = match std::fs::read_dir(&self.parent_dir) {
-            Ok(rd) => rd,
-            Err(_) => {
-                self.listing = entries;
-                self.listing_invalid = false;
-                return;
+        // C++ catches the exception from emTryLoadDir, clears names, then falls
+        // through to the sort and ".." insertion.  Match that: on error, skip the
+        // directory iteration but continue to the sort + ".." logic below.
+        if let Ok(dir_entries) = std::fs::read_dir(&self.parent_dir) {
+            for entry in dir_entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                let path = entry.path();
+                let is_directory = path.is_dir();
+                let is_readable =
+                    std::fs::read_dir(&path).is_ok() || std::fs::File::open(&path).is_ok();
+                let is_hidden = name.starts_with('.');
+
+                let data = FileItemData {
+                    is_directory,
+                    is_readable,
+                    is_hidden,
+                };
+
+                // Filter hidden files.
+                if !self.hidden_files_shown && is_hidden {
+                    continue;
+                }
+
+                // Apply file type filter (directories pass through).
+                if self.selected_filter_index >= 0
+                    && (self.selected_filter_index as usize) < self.filters.len()
+                    && !is_directory
+                    && !match_file_name_filter(
+                        &name,
+                        &self.filters[self.selected_filter_index as usize],
+                    )
+                {
+                    continue;
+                }
+
+                entries.push((name, data));
             }
-        };
-
-        for entry in dir_entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            let path = entry.path();
-            let is_directory = path.is_dir();
-            let is_readable =
-                std::fs::read_dir(&path).is_ok() || std::fs::File::open(&path).is_ok();
-            let is_hidden = name.starts_with('.');
-
-            let data = FileItemData {
-                is_directory,
-                is_readable,
-                is_hidden,
-            };
-
-            // Filter hidden files.
-            if !self.hidden_files_shown && is_hidden {
-                continue;
-            }
-
-            // Apply file type filter (directories pass through).
-            if self.selected_filter_index >= 0
-                && (self.selected_filter_index as usize) < self.filters.len()
-                && !is_directory
-                && !match_file_name_filter(
-                    &name,
-                    &self.filters[self.selected_filter_index as usize],
-                )
-            {
-                continue;
-            }
-
-            entries.push((name, data));
         }
 
         // Sort: directories first, then by name (locale-aware, matching C++ strcoll).
