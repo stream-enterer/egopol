@@ -34,7 +34,7 @@ use emcore::emPanelTree::{PanelId, PanelTree, ViewConditionType};
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emView::{emView, ViewFlags};
 
-use emcore::emStroke::{emStroke, LineCap, LineJoin};
+use emcore::emStroke::{emStroke, DashType, LineCap, LineJoin};
 
 use emcore::emStrokeEnd::{emStrokeEnd, StrokeEndType};
 
@@ -650,6 +650,8 @@ impl TestPanel {
         // Ellipse sectors
         p.PaintEllipseSector(0.105, 0.805, 0.005, 0.005, 45.0, 350.0, emColor::WHITE, bg);
         p.PaintEllipseSector(0.12, 0.805, 0.01, 0.005, 45.0, -350.0, emColor::WHITE, bg);
+        p.PaintEllipseSector(0.1325, 0.805, 0.0025, 0.005, 245.0, 50.0, emColor::WHITE, bg);
+        p.PaintEllipseSector(0.145, 0.805, 0.005, 0.005, 245.0, -50.0, emColor::WHITE, bg);
 
         // Rect outlines
         p.PaintRectOutline(
@@ -660,6 +662,11 @@ impl TestPanel {
             &emStroke::new(emColor::WHITE, 0.001),
             bg,
         );
+        {
+            let mut dashed_s = emStroke::new(emColor::WHITE, 0.001);
+            dashed_s.dash_type = DashType::Dashed;
+            p.PaintRectOutline(0.07, 0.82, 0.02, 0.01, &dashed_s, bg);
+        }
         p.PaintRectOutline(
             0.10,
             0.82,
@@ -668,12 +675,22 @@ impl TestPanel {
             &emStroke::new(emColor::WHITE, 0.008),
             bg,
         );
+        p.PaintRectOutline(
+            0.13,
+            0.82,
+            0.01,
+            0.01,
+            &emStroke::new(emColor::WHITE, 0.011),
+            bg,
+        );
 
         // Round rects
         p.SetCanvasColor(bg);
         p.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE, bg);
         p.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE, bg);
         p.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE, bg);
+        p.PaintRoundRect(0.13, 0.84, 0.01, 0.01, 0.011, emColor::WHITE, bg);
+        p.PaintRoundRect(0.15, 0.84, 0.01, 0.01, 0.0, emColor::WHITE, bg);
 
         // Ellipse outlines
         p.PaintEllipseOutline(
@@ -692,6 +709,70 @@ impl TestPanel {
             &emStroke::new(emColor::WHITE, 0.001),
             bg,
         );
+        {
+            let mut rd_s = emStroke::new(emColor::WHITE, 0.00025);
+            rd_s.cap = LineCap::Round;
+            rd_s.join = LineJoin::Round;
+            rd_s.dash_type = DashType::Dotted;
+            p.PaintEllipseOutline(0.0925, 0.865, 0.0025, 0.005, &rd_s, bg);
+        }
+        p.PaintEllipseArc(
+            0.105,
+            0.865,
+            0.005,
+            0.005,
+            90.0_f64.to_radians(),
+            225.0_f64.to_radians(),
+            &emStroke::new(emColor::WHITE, 0.001),
+            bg,
+        );
+        p.PaintEllipseSectorOutline(
+            0.12,
+            0.865,
+            0.01,
+            0.005,
+            45.0,
+            -320.0,
+            &emStroke::new(emColor::WHITE, 0.0001),
+            bg,
+        );
+        p.PaintEllipseArc(
+            0.1325,
+            0.865,
+            0.0025,
+            0.005,
+            245.0_f64.to_radians(),
+            50.0_f64.to_radians(),
+            &emStroke::new(emColor::WHITE, 0.001),
+            bg,
+        );
+        p.PaintEllipseArc(
+            0.145,
+            0.865,
+            0.005,
+            0.005,
+            245.0_f64.to_radians(),
+            (-50.0_f64).to_radians(),
+            &emStroke::new(emColor::WHITE, 0.001),
+            bg,
+        );
+        {
+            let mut rounded_s = emStroke::new(emColor::WHITE, 0.0001);
+            rounded_s.cap = LineCap::Round;
+            rounded_s.join = LineJoin::Round;
+            rounded_s.start_end = emStrokeEnd::new(StrokeEndType::Cap);
+            rounded_s.finish_end = emStrokeEnd::new(StrokeEndType::LineArrow);
+            p.PaintEllipseArc(
+                0.155,
+                0.865,
+                0.005,
+                0.005,
+                0.0_f64.to_radians(),
+                (-145.0_f64).to_radians(),
+                &rounded_s,
+                bg,
+            );
+        }
 
         // Round rect outlines
         p.SetCanvasColor(bg);
@@ -709,6 +790,35 @@ impl TestPanel {
             0.02,
             0.01,
             0.002,
+            &emStroke::new(emColor::WHITE, 0.001),
+        );
+        p.PaintRoundRectOutline(
+            0.10,
+            0.88,
+            0.01,
+            0.01,
+            0.003,
+            &emStroke::new(emColor::WHITE, 0.003),
+        );
+        p.PaintRoundRectOutline(
+            0.12,
+            0.88,
+            0.01,
+            0.01,
+            0.011,
+            &emStroke::new(emColor::WHITE, 0.0001),
+        );
+        {
+            let mut dd_s = emStroke::new(emColor::WHITE, 0.00002);
+            dd_s.dash_type = DashType::DashDotted;
+            p.PaintRoundRectOutline(0.135, 0.88, 0.01, 0.01, 0.001, &dd_s);
+        }
+        p.PaintRoundRectOutline(
+            0.15,
+            0.88,
+            0.01,
+            0.01,
+            -0.0004,
             &emStroke::new(emColor::WHITE, 0.001),
         );
 
@@ -875,11 +985,12 @@ impl TestPanel {
             emColor::rgba(0, 0x55, 0, 0xFF),
             emColor::TRANSPARENT,
         );
-        p.PaintEllipse(
+        p.paint_radial_gradient(
             0.24,
             0.945,
             0.01,
             0.005,
+            emColor::rgba(0, 0, 0, 0),
             emColor::rgba(0, 0xCC, 0x88, 0xFF),
             emColor::TRANSPARENT,
         );
