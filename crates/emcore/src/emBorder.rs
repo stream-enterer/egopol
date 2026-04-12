@@ -1543,7 +1543,7 @@ How to move or set the focus:\n\
                 VAlign::Center,
                 cap_align,
                 0.5,
-                false,
+                true,
                 0.0,
             );
         }
@@ -1565,7 +1565,7 @@ How to move or set the focus:\n\
                 VAlign::Center,
                 desc_align,
                 0.5,
-                false,
+                true,
                 0.0,
             );
         }
