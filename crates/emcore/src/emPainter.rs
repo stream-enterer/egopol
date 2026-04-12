@@ -383,6 +383,7 @@ impl<'a> emPainter<'a> {
                     clip_y1: self.state.clip.y1,
                     clip_x2: self.state.clip.x2,
                     clip_y2: self.state.clip.y2,
+                    alpha: self.state.alpha,
                 },
             });
             None
@@ -417,6 +418,7 @@ impl<'a> emPainter<'a> {
                     clip_y1: self.state.clip.y1,
                     clip_x2: self.state.clip.x2,
                     clip_y2: self.state.clip.y2,
+                    alpha: self.state.alpha,
                 },
             });
         }

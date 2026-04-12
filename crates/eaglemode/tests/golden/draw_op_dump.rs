@@ -77,11 +77,12 @@ fn is_state_op(op: &DrawOp) -> bool {
 
 fn state_fields(state: &RecordedState) -> String {
     format!(
-        r#""state_sx":{},"state_sy":{},"state_ox":{},"state_oy":{},"state_clip_x1":{},"state_clip_y1":{},"state_clip_x2":{},"state_clip_y2":{}"#,
+        r#""state_sx":{},"state_sy":{},"state_ox":{},"state_oy":{},"state_clip_x1":{},"state_clip_y1":{},"state_clip_x2":{},"state_clip_y2":{},"state_alpha":{}"#,
         state.scale_x, state.scale_y,
         state.offset_x, state.offset_y,
         state.clip_x1, state.clip_y1,
         state.clip_x2, state.clip_y2,
+        state.alpha,
     )
 }
 

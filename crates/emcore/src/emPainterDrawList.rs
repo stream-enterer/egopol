@@ -355,9 +355,10 @@ pub struct RecordedState {
     pub clip_y1: f64,
     pub clip_x2: f64,
     pub clip_y2: f64,
+    pub alpha: u8,
 }
 
-// SAFETY: RecordedState is all f64 — trivially Send/Sync.
+// SAFETY: RecordedState is f64 + u8 — trivially Send/Sync.
 // Manual impls needed because RecordedOp has manual Send/Sync impls.
 unsafe impl Send for RecordedState {}
 unsafe impl Sync for RecordedState {}
