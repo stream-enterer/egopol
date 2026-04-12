@@ -598,13 +598,17 @@ impl TkTestPanel {
             None,
         );
         {
-            let mut sf1 = emScalarField::new(0.0, 100.0, look.clone());
+            // C++ default: emScalarField(grp, "sf1", "Read-Only")
+            // → minValue=0, maxValue=10 (C++ header defaults).
+            let mut sf1 = emScalarField::new(0.0, 10.0, look.clone());
             sf1.SetCaption("Read-Only");
             let id = ctx.tree.create_child(gid, "sf1");
             ctx.tree
                 .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf1 }));
 
-            let mut sf2 = emScalarField::new(0.0, 100.0, look.clone());
+            // C++ default: emScalarField(grp, "sf2", "Editable")
+            // → minValue=0, maxValue=10 (C++ header defaults).
+            let mut sf2 = emScalarField::new(0.0, 10.0, look.clone());
             sf2.SetCaption("Editable");
             sf2.SetEditable(true);
             let id = ctx.tree.create_child(gid, "sf2");
