@@ -117,6 +117,7 @@ impl PanelBehavior for FileItemPanelBehavior {
                 fw * w,
                 fh * w,
                 r * w,
+                r * w,
                 hl,
                 painter.GetCanvasColor(),
             );
@@ -178,14 +179,14 @@ impl PanelBehavior for FileItemPanelBehavior {
             let by = (fy + fh * 0.15) * w;
             let bw = fw * w;
             let bh = (fh * 0.85) * w;
-            painter.PaintRoundRect(bx, by, bw, bh, bw * 0.05, icon_alpha, canvas_color);
+            painter.PaintRoundRect(bx, by, bw, bh, bw * 0.05, bw * 0.05, icon_alpha, canvas_color);
 
             // Folder tab (top-left flap)
             let tx = fx * w;
             let ty = fy * w;
             let tw = fw * 0.4 * w;
             let th = fh * 0.2 * w;
-            painter.PaintRoundRect(tx, ty, tw, th, tw * 0.1, icon_alpha, canvas_color);
+            painter.PaintRoundRect(tx, ty, tw, th, tw * 0.1, tw * 0.1, icon_alpha, canvas_color);
 
             // 4. "Parent Directory" overlay for ".." (C++ lines 1031-1044).
             if self.name == ".." {

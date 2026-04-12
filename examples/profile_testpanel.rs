@@ -281,11 +281,11 @@ impl PanelBehavior for TestPanel {
         );
 
         // Round rects
-        painter.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
-        painter.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
-        painter.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE);
-        painter.PaintRoundRect(0.13, 0.84, 0.01, 0.01, 0.006, emColor::WHITE);
-        painter.PaintRoundRect(0.15, 0.84, 0.01, 0.01, 0.0, emColor::WHITE);
+        painter.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, 0.001, emColor::WHITE);
+        painter.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, 0.002, emColor::WHITE);
+        painter.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, 0.003, emColor::WHITE);
+        painter.PaintRoundRect(0.13, 0.84, 0.01, 0.01, 0.006, 0.006, emColor::WHITE);
+        painter.PaintRoundRect(0.15, 0.84, 0.01, 0.01, 0.0, 0.0, emColor::WHITE);
 
         // Ellipse outlines
         painter.PaintEllipseOutline(
@@ -374,6 +374,7 @@ impl PanelBehavior for TestPanel {
             0.01,
             0.01,
             0.001,
+            0.001,
             &emStroke::new(emColor::WHITE, 0.001),
         );
         painter.PaintRoundRectOutline(
@@ -381,6 +382,7 @@ impl PanelBehavior for TestPanel {
             0.88,
             0.02,
             0.01,
+            0.002,
             0.002,
             &emStroke::new(emColor::WHITE, 0.001),
         );
@@ -390,6 +392,7 @@ impl PanelBehavior for TestPanel {
             0.01,
             0.01,
             0.003,
+            0.003,
             &emStroke::new(emColor::WHITE, 0.003),
         );
         painter.PaintRoundRectOutline(
@@ -398,16 +401,18 @@ impl PanelBehavior for TestPanel {
             0.01,
             0.01,
             0.006,
+            0.006,
             &emStroke::new(emColor::WHITE, 0.0001),
         );
         let mut dds = emStroke::new(emColor::WHITE, 0.00002);
         dds.dash_pattern = vec![0.0001, 0.00005, 0.00003, 0.00005];
-        painter.PaintRoundRectOutline(0.135, 0.88, 0.01, 0.01, 0.001, &dds);
+        painter.PaintRoundRectOutline(0.135, 0.88, 0.01, 0.01, 0.001, 0.001, &dds);
         painter.PaintRoundRectOutline(
             0.15,
             0.88,
             0.01,
             0.01,
+            0.0,
             0.0,
             &emStroke::new(emColor::WHITE, 0.001),
         );

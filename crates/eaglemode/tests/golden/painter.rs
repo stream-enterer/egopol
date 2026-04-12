@@ -258,10 +258,10 @@ fn painter_round_rect() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        p.PaintRoundRect(20.0, 20.0, 200.0, 150.0, 20.0, emColor::BLUE, emColor::TRANSPARENT);
+        p.PaintRoundRect(20.0, 20.0, 200.0, 150.0, 20.0, 20.0, emColor::BLUE, emColor::TRANSPARENT);
     }
     record_painter_ops("round_rect", ew, eh, |p| {
-        p.PaintRoundRect(20.0, 20.0, 200.0, 150.0, 20.0, emColor::BLUE, emColor::TRANSPARENT);
+        p.PaintRoundRect(20.0, 20.0, 200.0, 150.0, 20.0, 20.0, emColor::BLUE, emColor::TRANSPARENT);
     });
     compare_images("round_rect", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
@@ -623,6 +623,7 @@ fn painter_outline_round_rect() {
             200.0,
             150.0,
             20.0,
+            20.0,
             &emStroke::new(emColor::BLACK, 3.0),
         );
     }
@@ -632,6 +633,7 @@ fn painter_outline_round_rect() {
             20.0,
             200.0,
             150.0,
+            20.0,
             20.0,
             &emStroke::new(emColor::BLACK, 3.0),
         );
@@ -839,6 +841,7 @@ fn painter_multi_compose() {
             100.0,
             100.0,
             15.0,
+            15.0,
             emColor::rgba(255, 255, 0, 100),
             emColor::TRANSPARENT,
         );
@@ -878,6 +881,7 @@ fn painter_multi_compose() {
             80.0,
             100.0,
             100.0,
+            15.0,
             15.0,
             emColor::rgba(255, 255, 0, 100),
             emColor::TRANSPARENT,
@@ -1499,6 +1503,7 @@ fn painter_howto_isolate() {
             11.12832,
             22.25664,
             0.11128320000000001,
+            0.11128320000000001,
             emColor::rgba(0xef, 0xf0, 0xf4, 0x1a),
             emColor::rgba(0x51, 0x5e, 0x84, 0xff),
         );
@@ -1510,6 +1515,7 @@ fn painter_howto_isolate() {
             1.87168,
             11.12832,
             22.25664,
+            0.11128320000000001,
             0.11128320000000001,
             emColor::rgba(0xef, 0xf0, 0xf4, 0x1a),
             emColor::rgba(0x51, 0x5e, 0x84, 0xff),

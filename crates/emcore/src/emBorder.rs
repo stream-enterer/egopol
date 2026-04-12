@@ -1645,7 +1645,7 @@ How to move or set the focus:\n\
                 let e = s * 0.02;
                 let r = s * 0.22;
                 if !look.bg_color.IsTotallyTransparent() {
-                    painter.PaintRoundRect(d, d, w - 2.0 * d, h - 2.0 * d, r, look.bg_color, painter.GetCanvasColor());
+                    painter.PaintRoundRect(d, d, w - 2.0 * d, h - 2.0 * d, r, r, look.bg_color, painter.GetCanvasColor());
                     painter.SetCanvasColor(look.bg_color);
                 }
                 let color = dim_color(look.fg_color);
@@ -1656,6 +1656,7 @@ How to move or set the focus:\n\
                     sd,
                     w - 2.0 * sd,
                     h - 2.0 * sd,
+                    sr,
                     sr,
                     &emStroke::new(color, e),
                 );
@@ -1678,6 +1679,7 @@ How to move or set the focus:\n\
                         rnd_y - e,
                         rnd_w + 2.0 * e,
                         rnd_h + 2.0 * e,
+                        r,
                         r,
                         color,
                         painter.GetCanvasColor(),
@@ -1729,6 +1731,7 @@ How to move or set the focus:\n\
                         rnd_w + 2.0 * e,
                         rnd_h + 2.0 * e,
                         r,
+                        r,
                         color,
                         painter.GetCanvasColor(),
                     );
@@ -1778,6 +1781,7 @@ How to move or set the focus:\n\
                         rnd_y - e,
                         rnd_w + 2.0 * e,
                         rnd_h + 2.0 * e,
+                        r,
                         r,
                         color,
                         painter.GetCanvasColor(),
@@ -1873,6 +1877,7 @@ How to move or set the focus:\n\
                 ty,
                 tw,
                 th,
+                tw * 0.01,
                 tw * 0.01,
                 look.fg_color.SetAlpha((255.0 * 0.10 + 0.5) as u8),
                 painter.GetCanvasColor(),
@@ -2004,6 +2009,7 @@ How to move or set the focus:\n\
                     inner_w - 2.0 * d,
                     inner_h - 2.0 * d,
                     tr,
+                    tr,
                     bg,
                     painter.GetCanvasColor(),
                 );
@@ -2025,6 +2031,7 @@ How to move or set the focus:\n\
                     inner_y + d,
                     inner_w - 2.0 * d,
                     inner_h - 2.0 * d,
+                    tr,
                     tr,
                     bg,
                     painter.GetCanvasColor(),

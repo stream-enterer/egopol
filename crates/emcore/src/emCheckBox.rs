@@ -149,7 +149,7 @@ impl emCheckBox {
 
         // Paint face (InputBgColor).
         let face_color = self.look.input_bg_color;
-        painter.PaintRoundRect(fx, fy, fw, fh, fr, face_color, painter.GetCanvasColor());
+        painter.PaintRoundRect(fx, fy, fw, fh, fr, fr, face_color, painter.GetCanvasColor());
         painter.SetCanvasColor(face_color);
 
         // Paint check symbol if checked (C++ PaintBoxSymbol, emButton.cpp:160-184).
@@ -207,7 +207,7 @@ impl emCheckBox {
         // C++ DoButton: disabled gray overlay for boxed path.
         // PaintRoundRect(fx, fy, fw, fh, fr, fr, 0x888888E0).
         if !enabled {
-            painter.PaintRoundRect(fx, fy, fw, fh, fr, emColor::rgba(0x88, 0x88, 0x88, 0xE0), emColor::TRANSPARENT);
+            painter.PaintRoundRect(fx, fy, fw, fh, fr, fr, emColor::rgba(0x88, 0x88, 0x88, 0xE0), emColor::TRANSPARENT);
         }
     }
 

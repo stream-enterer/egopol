@@ -1233,7 +1233,8 @@ impl<'a> emPainter<'a> {
         y: f64,
         w: f64,
         h: f64,
-        radius: f64,
+        rx: f64,
+        ry: f64,
         color: emColor,
         canvas_color: emColor,
     ) {
@@ -1242,14 +1243,15 @@ impl<'a> emPainter<'a> {
             y,
             w,
             h,
-            radius,
+            rx,
+            ry,
             color,
             canvas_color,
         }) else { return; };
         if w <= 0.0 || h <= 0.0 {
             return;
         }
-        let verts = self.round_rect_polygon(x, y, w, h, radius);
+        let verts = self.round_rect_polygon(x, y, w, h, rx, ry);
         self.PaintPolygon(&verts, color, canvas_color);
     }
 
@@ -3144,7 +3146,7 @@ impl<'a> emPainter<'a> {
 
         if rounded || stroke.is_dashed() {
             if (w <= sw || h <= sw) && !stroke.is_dashed() {
-                self.PaintRoundRect(x - t2, y - t2, w + sw, h + sw, t2, stroke.color, canvas_color);
+                self.PaintRoundRect(x - t2, y - t2, w + sw, h + sw, t2, t2, stroke.color, canvas_color);
                 return;
             }
             let verts = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
@@ -3200,13 +3202,15 @@ impl<'a> emPainter<'a> {
     /// inner round-rect polygons with a bridge for NonZero winding hole.
     /// For dashed, routes through polyline.
     /// Reads canvas_color from painter state (set by caller).
+    #[allow(clippy::too_many_arguments)]
     pub fn PaintRoundRectOutline(
         &mut self,
         x: f64,
         y: f64,
         w: f64,
         h: f64,
-        radius: f64,
+        rx: f64,
+        ry: f64,
         stroke: &emStroke,
     ) {
         if w <= 0.0 || h <= 0.0 || stroke.width <= 0.0 {
@@ -3217,14 +3221,15 @@ impl<'a> emPainter<'a> {
             y,
             w,
             h,
-            radius,
+            rx,
+            ry,
             stroke: stroke.clone(),
         }) else { return; };
         let sw = stroke.width;
         let t2 = sw * 0.5;
 
         if stroke.is_dashed() {
-            let verts = self.round_rect_polygon(x, y, w, h, radius);
+            let verts = self.round_rect_polygon(x, y, w, h, rx, ry);
             self.PaintPolylineWithoutArrows(&verts, stroke, true, self.state.canvas_color);
             return;
         }
@@ -3234,10 +3239,11 @@ impl<'a> emPainter<'a> {
         let oy = y - t2;
         let ow = w + sw;
         let oh = h + sw;
-        let or = radius + t2;
+        let orx = rx + t2;
+        let ory = ry + t2;
 
         if sw * 2.0 >= w || sw * 2.0 >= h {
-            self.PaintRoundRect(ox, oy, ow, oh, or, stroke.color, self.state.canvas_color);
+            self.PaintRoundRect(ox, oy, ow, oh, orx, ory, stroke.color, self.state.canvas_color);
             return;
         }
 
@@ -3246,10 +3252,11 @@ impl<'a> emPainter<'a> {
         let iy = oy + sw;
         let iw = ow - 2.0 * sw;
         let ih = oh - 2.0 * sw;
-        let ir = (or - sw).max(0.0);
+        let irx = (rx - t2).max(0.0);
+        let iry = (ry - t2).max(0.0);
 
-        let mut outer = self.round_rect_polygon(ox, oy, ow, oh, or);
-        let inner = self.round_rect_polygon(ix, iy, iw, ih, ir);
+        let mut outer = self.round_rect_polygon(ox, oy, ow, oh, orx, ory);
+        let inner = self.round_rect_polygon(ix, iy, iw, ih, irx, iry);
 
         // Bridge + reversed inner for NonZero winding hole.
         // C++ vertex order: outer[0..n-1], outer[0], inner[0], inner[m-1..1], inner[0]
@@ -5989,19 +5996,19 @@ impl<'a> emPainter<'a> {
         verts
     }
 
-    /// Generate polygon vertices for a rounded rectangle.
-    fn round_rect_polygon(&self, x: f64, y: f64, w: f64, h: f64, r: f64) -> Vec<(f64, f64)> {
-        let r = r.min(w / 2.0).min(h / 2.0).max(0.0);
+    /// Generate polygon vertices for a rounded rectangle with separate
+    /// horizontal (`rx`) and vertical (`ry`) corner radii.
+    fn round_rect_polygon(&self, x: f64, y: f64, w: f64, h: f64, rx: f64, ry: f64) -> Vec<(f64, f64)> {
+        let rx = rx.min(w * 0.5).max(0.0);
+        let ry = ry.min(h * 0.5).max(0.0);
         // C++: if (rx<=0.0 || ry<=0.0) { PaintRect(...); return; }
-        // Must match C++ threshold exactly — r is in user-space coordinates,
-        // not pixels, so any positive radius needs polygon vertices.
-        if r <= 0.0 {
+        if rx <= 0.0 || ry <= 0.0 {
             return vec![(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
         }
         // C++ PaintRoundRect: f = CQ * sqrt(rx*SX + ry*SY), clamp 256,
         // f *= 0.25, then n = round(f) clamped to [1, 64].
         // Must multiply by 0.25 BEFORE rounding (not round then divide by 4).
-        let mut f = CIRCLE_QUALITY * (r * self.state.scale_x + r * self.state.scale_y).sqrt();
+        let mut f = CIRCLE_QUALITY * (rx * self.state.scale_x + ry * self.state.scale_y).sqrt();
         if f > 256.0 {
             f = 256.0;
         }
@@ -6019,19 +6026,19 @@ impl<'a> emPainter<'a> {
         //   [2n+2..3n+2] = bottom-right, [3n+3..4n+3] = bottom-left.
         let n = corner_segments;
         let step = std::f64::consts::FRAC_PI_2 / n as f64;
-        let cx1 = x + r; // left corner centers
-        let cy1 = y + r; // top corner centers
-        let cx2 = x + w - r; // right corner centers
-        let cy2 = y + h - r; // bottom corner centers
+        let x = x + rx;
+        let y = y + ry;
+        let x2 = x + w - 2.0 * rx;
+        let y2 = y + h - 2.0 * ry;
         let total = 4 * (n + 1);
         let mut verts = vec![(0.0, 0.0); total];
         for i in 0..=n {
             let dx = (step * i as f64).cos();
             let dy = (step * i as f64).sin();
-            verts[i] = (cx1 - dx * r, cy1 - dy * r); // top-left
-            verts[n + 1 + i] = (cx2 + dy * r, cy1 - dx * r); // top-right
-            verts[2 * n + 2 + i] = (cx2 + dx * r, cy2 + dy * r); // bottom-right
-            verts[3 * n + 3 + i] = (cx1 - dy * r, cy2 + dx * r); // bottom-left
+            verts[i] = (x - dx * rx, y - dy * ry);                 // top-left
+            verts[n + 1 + i] = (x2 + dy * rx, y - dx * ry);       // top-right
+            verts[2 * n + 2 + i] = (x2 + dx * rx, y2 + dy * ry);  // bottom-right
+            verts[3 * n + 3 + i] = (x - dy * rx, y2 + dx * ry);   // bottom-left
         }
 
         verts

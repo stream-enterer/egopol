@@ -97,6 +97,7 @@ impl PanelBehavior for PaintPanel {
             0.15 * w,
             0.15 * h,
             0.02 * w,
+            0.02 * w,
             emColor::rgba(0x88, 0x44, 0xCC, 0xFF),
         );
 
@@ -132,7 +133,7 @@ impl PanelBehavior for PaintPanel {
             emColor::TRANSPARENT,
         );
 
-        p.PaintRoundRectOutline(0.25 * w, 0.55 * h, 0.15 * w, 0.15 * h, 0.02 * w, &outline);
+        p.PaintRoundRectOutline(0.25 * w, 0.55 * h, 0.15 * w, 0.15 * h, 0.02 * w, 0.02 * w, &outline);
 
         // ── Section 4: Text ──
         p.PaintTextBoxed(

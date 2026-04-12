@@ -873,6 +873,7 @@ impl emVisitingViewAnimator {
             w,
             h,
             h * 0.2,
+            h * 0.2,
             crate::emColor::emColor::rgba(0, 0, 0, 160),
             crate::emColor::emColor::TRANSPARENT,
         );
@@ -881,6 +882,7 @@ impl emVisitingViewAnimator {
             y,
             w,
             h,
+            h * 0.2,
             h * 0.2,
             crate::emColor::emColor::rgba(34, 102, 153, 208),
             crate::emColor::emColor::TRANSPARENT,

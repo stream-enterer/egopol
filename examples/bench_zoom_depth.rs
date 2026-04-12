@@ -75,8 +75,8 @@ impl PanelBehavior for TestPanel {
         painter.PaintEllipse(0.055, 0.805, 0.005, 0.005, emColor::WHITE, emColor::TRANSPARENT);
         painter.PaintEllipse(0.07, 0.805, 0.01, 0.005, emColor::WHITE, emColor::TRANSPARENT);
 
-        painter.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
-        painter.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
+        painter.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, 0.001, emColor::WHITE);
+        painter.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, 0.002, emColor::WHITE);
 
         painter.PaintEllipseOutline(
             0.055, 0.865, 0.005, 0.005,
@@ -84,7 +84,7 @@ impl PanelBehavior for TestPanel {
         );
 
         painter.PaintRoundRectOutline(
-            0.05, 0.88, 0.01, 0.01, 0.001,
+            0.05, 0.88, 0.01, 0.01, 0.001, 0.001,
             &emStroke::new(emColor::WHITE, 0.001),
         );
 

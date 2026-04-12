@@ -762,6 +762,7 @@ impl PanelBehavior for emFileManSelInfoPanel {
             s * 0.84,
             s * 0.34,
             s * 0.03,
+            s * 0.03,
             bg2,
             emColor::TRANSPARENT,
         );
@@ -771,6 +772,7 @@ impl PanelBehavior for emFileManSelInfoPanel {
             y + s * 0.22,
             s * 0.28,
             s * 0.16,
+            s * 0.02,
             s * 0.02,
             bg1,
             emColor::TRANSPARENT,

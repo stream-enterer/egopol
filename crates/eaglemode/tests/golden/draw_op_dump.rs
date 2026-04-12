@@ -95,11 +95,11 @@ fn serialize_op(seq: usize, depth: u32, op: &DrawOp, state: &RecordedState) -> S
             let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h)]);
             format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRect","x":{x},"y":{y},"w":{w},"h":{h},"color":"{color}","canvas_color":"{canvas_color}",{hf},{sf}}}"#)
         }
-        DrawOp::PaintRoundRect { x, y, w, h, radius, color, canvas_color } => {
+        DrawOp::PaintRoundRect { x, y, w, h, rx, ry, color, canvas_color } => {
             let color = color_hex(*color);
             let canvas_color = color_hex(*canvas_color);
-            let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h), ("radius", *radius)]);
-            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRoundRect","x":{x},"y":{y},"w":{w},"h":{h},"radius":{radius},"color":"{color}","canvas_color":"{canvas_color}",{hf},{sf}}}"#)
+            let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h), ("rx", *rx), ("ry", *ry)]);
+            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRoundRect","x":{x},"y":{y},"w":{w},"h":{h},"rx":{rx},"ry":{ry},"color":"{color}","canvas_color":"{canvas_color}",{hf},{sf}}}"#)
         }
         DrawOp::PaintEllipse { cx, cy, rx, ry, color, canvas_color } => {
             let color = color_hex(*color);
@@ -221,11 +221,11 @@ fn serialize_op(seq: usize, depth: u32, op: &DrawOp, state: &RecordedState) -> S
             format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRectOutline","x":{x},"y":{y},"w":{w},"h":{h},"thickness":{thickness},"color":"{color}","canvas_color":"{canvas_color}",{hf},{sf}}}"#)
         }
 
-        DrawOp::PaintRoundRectOutline { x, y, w, h, radius, stroke } => {
+        DrawOp::PaintRoundRectOutline { x, y, w, h, rx, ry, stroke } => {
             let color = color_hex(stroke.color);
             let thickness = stroke.width;
-            let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h), ("radius", *radius), ("thickness", thickness)]);
-            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRoundRectOutline","x":{x},"y":{y},"w":{w},"h":{h},"radius":{radius},"thickness":{thickness},"color":"{color}",{hf},{sf}}}"#)
+            let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h), ("rx", *rx), ("ry", *ry), ("thickness", thickness)]);
+            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRoundRectOutline","x":{x},"y":{y},"w":{w},"h":{h},"rx":{rx},"ry":{ry},"thickness":{thickness},"color":"{color}",{hf},{sf}}}"#)
         }
 
         DrawOp::PaintEllipseOutline { cx, cy, rx, ry, stroke, canvas_color } => {

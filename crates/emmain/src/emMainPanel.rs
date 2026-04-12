@@ -167,7 +167,6 @@ impl PanelBehavior for SliderPanel {
 
         // Background rounded rect.
         // C++ PaintRoundRect(0,0,2,h, 6.0/64.0, 6.0/75.0*h, color).
-        // Rust PaintRoundRect takes single radius; use 6.0/64.0 (horizontal).
         let color = if self.pressed {
             emColor::from_packed(0x002244C0)
         } else if self.mouse_over {
@@ -175,7 +174,7 @@ impl PanelBehavior for SliderPanel {
         } else {
             emColor::from_packed(0x33445580)
         };
-        painter.PaintRoundRect(0.0, 0.0, 2.0, h, 6.0 / 64.0, color, emColor::TRANSPARENT);
+        painter.PaintRoundRect(0.0, 0.0, 2.0, h, 6.0 / 64.0, 6.0 / 75.0 * h, color, emColor::TRANSPARENT);
 
         // Arrow indicators (C++ emMainPanel.cpp:478-498).
         if self.mouse_over || self.pressed {

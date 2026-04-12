@@ -472,9 +472,9 @@ impl TestPanel {
         p.PaintRectOutline(0.10, 0.82, 0.01, 0.01, &thick_stroke, emColor::TRANSPARENT);
 
         // Round rects
-        p.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE);
-        p.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE);
-        p.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE);
+        p.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, 0.001, emColor::WHITE);
+        p.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, 0.002, emColor::WHITE);
+        p.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, 0.003, emColor::WHITE);
 
         // Ellipse outlines
         let outline_stroke = emStroke::new(emColor::WHITE, 0.003);
@@ -491,8 +491,8 @@ impl TestPanel {
 
         // Round rect outlines
         let rr_stroke = emStroke::new(emColor::WHITE, 0.001);
-        p.PaintRoundRectOutline(0.05, 0.88, 0.01, 0.01, 0.001, &rr_stroke);
-        p.PaintRoundRectOutline(0.07, 0.88, 0.02, 0.01, 0.002, &rr_stroke);
+        p.PaintRoundRectOutline(0.05, 0.88, 0.01, 0.01, 0.001, 0.001, &rr_stroke);
+        p.PaintRoundRectOutline(0.07, 0.88, 0.02, 0.01, 0.002, 0.002, &rr_stroke);
 
         // Bezier curves
         p.PaintBezier(
