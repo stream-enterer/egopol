@@ -1431,7 +1431,13 @@ impl<'a> emPainter<'a> {
         let start_x = px.max(cx1);
         let start_y = cpp_iy1.max(cy1);
         let end_x = sp.ix2.min(cx2);
-        let end_y = if cpp_ay2 > 0 { (cpp_iy2 + 1).min(cy2) } else { cpp_iy2.min(cy2) };
+        // When cpp_iy1 >= cpp_iy2 the rect fits in one row; cpp_ay2 was zeroed
+        // by the collapse above but the row still needs painting (cpp_ay1 > 0).
+        let end_y = if cpp_ay2 > 0 || cpp_iy1 >= cpp_iy2 {
+            (cpp_iy2 + 1).min(cy2)
+        } else {
+            cpp_iy2.min(cy2)
+        };
         if start_x >= end_x || start_y >= end_y { return; }
 
         let src_w_f = src_w as f64;
@@ -1598,7 +1604,13 @@ impl<'a> emPainter<'a> {
         let start_x = px.max(cx1);
         let start_y = cpp_iy1.max(cy1);
         let end_x = px2.min(cx2);
-        let end_y = if cpp_ay2 > 0 { (cpp_iy2 + 1).min(cy2) } else { cpp_iy2.min(cy2) };
+        // When cpp_iy1 >= cpp_iy2 the rect fits in one row; cpp_ay2 was zeroed
+        // by the collapse above but the row still needs painting (cpp_ay1 > 0).
+        let end_y = if cpp_ay2 > 0 || cpp_iy1 >= cpp_iy2 {
+            (cpp_iy2 + 1).min(cy2)
+        } else {
+            cpp_iy2.min(cy2)
+        };
         let ph = end_y - start_y;
 
         if pw <= 0 || ph <= 0 || src_w == 0 || src_h == 0 {
