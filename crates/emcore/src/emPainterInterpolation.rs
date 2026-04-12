@@ -388,10 +388,10 @@ pub(crate) fn sample_area_fp(
     let col_bound = ((tx2 - 1).max(tx1) >> 24) as i32 + 1;
 
     // --- Column + row accumulation (C++ lines 790-825) ---
-    let mut cyx_r: u64 = 0x7F_FFFF;
-    let mut cyx_g: u64 = 0x7F_FFFF;
-    let mut cyx_b: u64 = 0x7F_FFFF;
-    let mut cyx_a: u64 = 0x7F_FFFF;
+    let mut cyx_r: u32 = 0x7F_FFFF;
+    let mut cyx_g: u32 = 0x7F_FFFF;
+    let mut cyx_b: u32 = 0x7F_FFFF;
+    let mut cyx_a: u32 = 0x7F_FFFF;
 
     let mut remaining = 0x10000u32;
     let mut col = col0;
@@ -407,10 +407,10 @@ pub(crate) fn sample_area_fp(
         // Y-accumulate for this column, then FINPREMUL.
         let (cy_r, cy_g, cy_b, cy_a) = y_accumulate(image, sec, ch, col, &yw, xfm);
 
-        cyx_r += cy_r * w as u64;
-        cyx_g += cy_g * w as u64;
-        cyx_b += cy_b * w as u64;
-        cyx_a += cy_a * w as u64;
+        cyx_r = cyx_r.wrapping_add(cy_r.wrapping_mul(w));
+        cyx_g = cyx_g.wrapping_add(cy_g.wrapping_mul(w));
+        cyx_b = cyx_b.wrapping_add(cy_b.wrapping_mul(w));
+        cyx_a = cyx_a.wrapping_add(cy_a.wrapping_mul(w));
 
         remaining -= w;
         col += 1;
