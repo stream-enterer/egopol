@@ -648,8 +648,8 @@ impl TestPanel {
         p.PaintEllipse(0.0925, 0.805, 0.0025, 0.005, emColor::WHITE, bg);
 
         // Ellipse sectors
-        p.PaintEllipseSector(0.105, 0.805, 0.005, 0.005, 45.0, 305.0, emColor::WHITE, bg);
-        p.PaintEllipseSector(0.12, 0.805, 0.01, 0.005, 45.0, -395.0, emColor::WHITE, bg);
+        p.PaintEllipseSector(0.105, 0.805, 0.005, 0.005, 45.0, 350.0, emColor::WHITE, bg);
+        p.PaintEllipseSector(0.12, 0.805, 0.01, 0.005, 45.0, -350.0, emColor::WHITE, bg);
 
         // Rect outlines
         p.PaintRectOutline(
@@ -671,9 +671,9 @@ impl TestPanel {
 
         // Round rects
         p.SetCanvasColor(bg);
-        p.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE, emColor::TRANSPARENT);
-        p.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE, emColor::TRANSPARENT);
-        p.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE, emColor::TRANSPARENT);
+        p.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, emColor::WHITE, bg);
+        p.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, emColor::WHITE, bg);
+        p.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, emColor::WHITE, bg);
 
         // Ellipse outlines
         p.PaintEllipseOutline(
@@ -950,7 +950,7 @@ impl PanelBehavior for TestPanel {
             TextAlignment::Left,
             0.5,
             true,
-            0.15,
+            0.0,
         );
 
         // State display
@@ -975,7 +975,7 @@ impl PanelBehavior for TestPanel {
             TextAlignment::Left,
             0.5,
             true,
-            0.15,
+            0.0,
         );
 
         // C++ emTestPanel.cpp:152 uses %f (6 decimal places) for GetPriority.
@@ -994,7 +994,7 @@ impl PanelBehavior for TestPanel {
             TextAlignment::Left,
             0.5,
             true,
-            0.15,
+            0.0,
         );
 
         // Paint primitives
