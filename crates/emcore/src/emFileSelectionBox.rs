@@ -245,6 +245,27 @@ impl PanelBehavior for FileItemPanelBehavior {
             self.look.input_bg_color
         }
     }
+
+    fn auto_expand(&self) -> bool {
+        // C++ FileItemPanel::AutoExpand: only non-directory, enabled files expand.
+        self.enabled && !self.is_directory
+    }
+
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        if ctx.children().is_empty() && self.enabled && !self.is_directory {
+            // C++ creates FilePanel("content") + FileOverlayPanel("overlay").
+            // DIVERGED: C++ uses emFpPluginList::CreateFilePanel for content;
+            // we create a stub panel (file viewer plugins not ported).
+            let _content_id = ctx.create_child("content");
+            let _overlay_id = ctx.create_child("overlay");
+        }
+        // C++ LayoutChildren positions content and overlay to fill the icon area.
+        let lr = ctx.layout_rect();
+        let children = ctx.children();
+        for &child in &children {
+            ctx.layout_child(child, 0.0, 0.0, lr.w, lr.h);
+        }
+    }
 }
 
 type SelectionChangedCb = Box<dyn FnMut()>;
