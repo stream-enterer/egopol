@@ -40,36 +40,26 @@ Goal: make `diff_draw_ops.py` output directly comparable between C++ and Rust by
 
 ### A1. Depth Tracking
 
-**Problem:** C++ records a `depth` field on every op via global `g_draw_op_depth`. Rust has no depth tracking. Sub-ops (PaintRect inside PaintBorderImage, PaintText inside PaintTextBoxed) appear flat in Rust but nested in C++.
+**Status: Infrastructure done (commits ba2179f, 4b9a608). Remaining: wire up other compound ops.**
 
-**Design:**
+The following infrastructure is already in place:
+- `RecordedOp { depth: u32, op: DrawOp }` wrapper in `emPainterDrawList.rs`
+- `record_depth: u32` counter on the painter struct
+- `record_subops: bool` flag — production recording keeps early return (safe for replay); diagnostic dumps set `true` so compound ops execute their body and sub-calls get recorded at depth+1
+- `try_record()` wraps ops in `RecordedOp` with current depth
+- `draw_op_dump.rs` serializes `depth` field on every op
+- All call sites updated from `Vec<DrawOp>` to `Vec<RecordedOp>`
+- Dump-only recording painters call `rec.set_record_subops(true)`
 
-Add a `record_depth: u32` field to the painter state in `emPainter.rs`. Compound ops increment before executing internal calls, decrement on exit (including early returns). The depth is embedded in each `DrawOp` variant at recording time.
+**Verified working:** PaintTextBoxed records at depth 0, its PaintText sub-calls at depth 1 (752 sub-ops in tktest_1x). Production replay unaffected (2383 pass, 14 fail unchanged).
 
-Compound ops that increment depth (matching C++ exactly):
-- `PaintBorderImage` — increments before calling PaintImageSrcRect for each slice
-- `PaintTextBoxed` — increments before calling PaintText for each line
+**Remaining work:** Add the same `is_recording` / `record_subops` / depth increment pattern to:
 - `PaintText` — increments before calling PaintImageColored for each character, or PaintRect for tiny text
+- `PaintBorderImage` — increments before calling PaintImageSrcRect for each slice
 - `PaintBezier` — increments before calling PaintPolygon
 - `PaintEllipse` — increments before calling PaintPolygon
 
-The depth counter lives on the painter struct, not the DrawOp enum. The serializer in `draw_op_dump.rs` reads it from each op's embedded depth value.
-
-**Implementation approach:**
-
-Option A: Add `depth: u32` to every `DrawOp` variant. Bloats the enum.
-
-Option B: Store depth as a separate `Vec<u32>` parallel to the ops `Vec<DrawOp>`. Accessed by index during serialization.
-
-Option C: Add depth to the painter, capture it in `try_record()`, store it in a wrapper struct `RecordedOp { depth: u32, op: DrawOp }`. Change the draw list from `Vec<DrawOp>` to `Vec<RecordedOp>`.
-
-**Recommended: Option C.** Clean separation, no enum bloat, depth captured at recording time.
-
-**Files:**
-- `crates/emcore/src/emPainterDrawList.rs` — add `RecordedOp` struct, change `Vec<DrawOp>` to `Vec<RecordedOp>`
-- `crates/emcore/src/emPainter.rs` — add `record_depth: u32` to painter, increment/decrement in compound ops, capture in `try_record()`
-- `crates/eaglemode/tests/golden/draw_op_dump.rs` — serialize `depth` field from `RecordedOp`
-- All call sites that create or consume `Vec<DrawOp>` — update to `Vec<RecordedOp>`
+Each follows the same pattern as PaintTextBoxed: record self, check `is_recording && !record_subops` → return, else increment depth, execute body, decrement depth.
 
 ### A2. Remove State Op Recording
 
