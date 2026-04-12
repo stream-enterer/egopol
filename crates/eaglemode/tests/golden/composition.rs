@@ -138,7 +138,7 @@ impl PanelBehavior for ButtonPanel {
         self.widget.GetCursor()
     }
     fn IsOpaque(&self) -> bool {
-        true
+        false
     }
 }
 
@@ -157,7 +157,7 @@ impl PanelBehavior for CheckButtonPanel {
         self.widget.GetCursor()
     }
     fn IsOpaque(&self) -> bool {
-        true
+        false
     }
 }
 
@@ -176,7 +176,7 @@ impl PanelBehavior for CheckBoxPanel {
         self.widget.GetCursor()
     }
     fn IsOpaque(&self) -> bool {
-        true
+        false
     }
 }
 
@@ -195,7 +195,7 @@ impl PanelBehavior for RadioButtonPanel {
         self.widget.GetCursor()
     }
     fn IsOpaque(&self) -> bool {
-        true
+        false
     }
 }
 
@@ -214,7 +214,7 @@ impl PanelBehavior for RadioBoxPanel {
         self.widget.GetCursor()
     }
     fn IsOpaque(&self) -> bool {
-        true
+        false
     }
 }
 
@@ -234,7 +234,7 @@ impl PanelBehavior for TextFieldPanel {
         self.widget.GetCursor()
     }
     fn IsOpaque(&self) -> bool {
-        true
+        false
     }
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {
         if flags.intersects(NoticeFlags::FOCUS_CHANGED) {
@@ -258,7 +258,7 @@ impl PanelBehavior for ScalarFieldPanel {
         self.widget.GetCursor()
     }
     fn IsOpaque(&self) -> bool {
-        true
+        false
     }
 }
 
@@ -274,7 +274,7 @@ impl PanelBehavior for ColorFieldPanel {
         self.widget.Input(e, _s, _is)
     }
     fn IsOpaque(&self) -> bool {
-        true
+        false
     }
     fn auto_expand(&self) -> bool {
         true
@@ -300,7 +300,7 @@ impl PanelBehavior for ListBoxPanel {
         self.widget.Input(e, _s, _is)
     }
     fn IsOpaque(&self) -> bool {
-        true
+        false
     }
     fn auto_expand(&self) -> bool {
         true
