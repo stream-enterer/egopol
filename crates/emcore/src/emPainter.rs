@@ -91,20 +91,33 @@ enum PixelTexture<'t> {
         alpha: u8,
         extension: ImageExtension,
         /// C++ ScanlineTool Alpha: (USP * texture_alpha + 127) / 255.
-        /// USP=4096 for default painter alpha.
         sct_alpha: u32,
         /// True if HAVE_ALPHA (texture alpha < 255).
         have_alpha: bool,
-        /// C++ ScanlineTool TDX (24fp step per dest pixel).
+        /// C++ ScanlineTool TDX (24fp, post-reduction).
         fp_tdx: i64,
-        /// C++ ScanlineTool TDY (24fp step per dest pixel).
+        /// C++ ScanlineTool TDY (24fp, post-reduction).
         fp_tdy: i64,
-        /// C++ ScanlineTool TX (24fp origin).
+        /// C++ ScanlineTool TX (24fp, post-reduction).
         fp_tx: i64,
-        /// C++ ScanlineTool TY (24fp origin).
+        /// C++ ScanlineTool TY (24fp, post-reduction).
         fp_ty: i64,
         /// True if using area sampling (downscale).
         is_area_sampled: bool,
+        /// Post-reduction image width.
+        img_w: i32,
+        /// Post-reduction image height.
+        img_h: i32,
+        /// C++ ImgDX: X byte stride (channels * stride_x).
+        img_dx: isize,
+        /// C++ ImgDY: Y byte stride (full_width * channels * stride_y).
+        img_dy: isize,
+        /// C++ ImgSX: img_w * img_dx (for tiling wrap).
+        img_sx: isize,
+        /// C++ ImgSY: img_h * img_dy (for tiling wrap).
+        img_sy: isize,
+        /// Byte offset into image map for pre-reduction centering.
+        img_map_offset: usize,
         // f64 fallback fields for sample_pixel_texture
         inv_scale_x: f64,
         inv_scale_y: f64,
@@ -6122,6 +6135,52 @@ impl<'a> emPainter<'a> {
                 // C++ downscale detection: TDX > 0xFFFF00 || TDY > 0xFFFF00
                 let is_area_sampled = fp_tdx > 0xFFFF00 || fp_tdy > 0xFFFF00;
 
+                // C++ pre-reduction (emPainter_ScTl.cpp:314-337)
+                let channels = image.GetChannelCount() as isize;
+                let mut img_w = iw as i32;
+                let mut img_h = ih as i32;
+                let mut img_dx = channels;
+                let mut img_dy = iw as isize * channels;
+                let mut fp_tdx = fp_tdx;
+                let mut fp_tdy = fp_tdy;
+                let mut tdx_f64 = tdx_f64;
+                let mut tdy_f64 = tdy_f64;
+                let mut img_map_offset: usize = 0;
+
+                if is_area_sampled {
+                    // C++ downscaleQuality defaults to 3
+                    let dq = 3i64;
+                    // X pre-reduction
+                    let n = ((fp_tdx / dq + 0xFFFFFF) >> 24) as i32;
+                    if n > 1 {
+                        let t = img_w;
+                        if n <= t {
+                            img_w = (t + n - 1) / n;
+                            let off = t - (img_w - 1) * n - 1;
+                            img_map_offset += (img_dx * (off as isize >> 1)) as usize;
+                            img_dx *= n as isize;
+                            tdx_f64 = (img_w as f64) * ((1i64 << 24) as f64) / tw;
+                            fp_tdx = tdx_f64 as i64;
+                        }
+                    }
+                    // Y pre-reduction
+                    let n = ((fp_tdy / dq + 0xFFFFFF) >> 24) as i32;
+                    if n > 1 {
+                        let t = img_h;
+                        if n <= t {
+                            img_h = (t + n - 1) / n;
+                            let off = t - (img_h - 1) * n - 1;
+                            img_map_offset += (img_dy * (off as isize >> 1)) as usize;
+                            img_dy *= n as isize;
+                            tdy_f64 = (img_h as f64) * ((1i64 << 24) as f64) / th;
+                            fp_tdy = tdy_f64 as i64;
+                        }
+                    }
+                }
+
+                let img_sx = img_w as isize * img_dx;
+                let img_sy = img_h as isize * img_dy;
+
                 // C++ area sampling origin: TX = (emInt64)(tx * tdx)
                 let fp_tx = if is_area_sampled {
                     (tx_px * tdx_f64) as i64
@@ -6149,6 +6208,13 @@ impl<'a> emPainter<'a> {
                     fp_tx,
                     fp_ty,
                     is_area_sampled,
+                    img_w,
+                    img_h,
+                    img_dx,
+                    img_dy,
+                    img_sx,
+                    img_sy,
+                    img_map_offset,
                     inv_scale_x: iw / tw,
                     inv_scale_y: ih / th,
                     offset_x: tx_px,
@@ -6359,12 +6425,16 @@ impl<'a> emPainter<'a> {
                 fp_tx,
                 fp_ty,
                 is_area_sampled,
+                img_w, img_h, img_dx, img_dy, img_sx, img_sy,
+                img_map_offset,
                 ..
             } if *is_area_sampled && *extension == ImageExtension::Repeat => {
                 self.blit_span_image_area_sampled_tiled(
                     proof, y, span, x_start, x_end,
                     image, *sct_alpha, *have_alpha,
                     *fp_tdx, *fp_tdy, *fp_tx, *fp_ty,
+                    *img_w, *img_h, *img_dx, *img_dy, *img_sx, *img_sy,
+                    *img_map_offset,
                 );
             }
             _ => {
@@ -6555,19 +6625,14 @@ impl<'a> emPainter<'a> {
         span: &emPainterScanline::Span, x_start: i32, x_end: i32,
         image: &emImage, sct_alpha: u32, have_alpha: bool,
         fp_tdx: i64, fp_tdy: i64, fp_tx: i64, fp_ty: i64,
+        img_w: i32, img_h: i32,
+        img_dx: isize, img_dy: isize, img_sx: isize, img_sy: isize,
+        img_map_offset: usize,
     ) {
         let channels = image.GetChannelCount() as usize;
-        let img_w = image.GetWidth() as i32;
-        let img_h = image.GetHeight() as i32;
         if img_w <= 0 || img_h <= 0 { return; }
 
-        let img_map = image.GetMap();
-        // C++ byte strides: ImgDX = channels, ImgDY = imgW * channels
-        // ImgSX = ImgW * ImgDX, ImgSY = ImgH * ImgDY
-        let img_dx = channels as isize;
-        let img_sx = img_w as isize * img_dx;
-        let img_dy = img_w as isize * channels as isize;
-        let img_sy = img_h as isize * img_dy;
+        let img_map = &image.GetMap()[img_map_offset..];
 
         // C++ ODX/ODY: rational inverse of TDX/TDY for weight computation.
         let odx: u32 = if fp_tdx <= 0x200 { 0x7FFF_FFFF } else { (((1i64 << 40) - 1) / fp_tdx + 1) as u32 };
