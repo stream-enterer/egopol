@@ -8,7 +8,5 @@ src/.rustc_info.json
 
 .worktrees/
 
-# Golden test debug/generated artifacts
-crates/target/golden-debug/
-crates/eaglemode/target/golden-divergence/*.cpp_ops.jsonl
-crates/eaglemode/target/golden-divergence/*.rust_ops.jsonl
+# Golden test generated artifacts
+crates/eaglemode/target/
