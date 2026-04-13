@@ -267,11 +267,27 @@ impl PanelBehavior for FileItemPanelBehavior {
             let _content_id = ctx.create_child("content");
             let _overlay_id = ctx.create_child("overlay");
         }
-        // C++ LayoutChildren positions content and overlay to fill the icon area.
+        // C++ FileItemPanel::LayoutChildren (emFileSelectionBox.cpp:1095-1112):
+        // Content panel is inset within the icon area; overlay fills the full panel.
         let lr = ctx.layout_rect();
+        let h = lr.h.max(1e-3);
         let children = ctx.children();
+        let bg = ctx.GetCanvasColor();
         for &child in &children {
-            ctx.layout_child(child, 0.0, 0.0, lr.w, lr.h);
+            let is_overlay = ctx.tree.name(child) == Some("overlay");
+            if is_overlay {
+                ctx.layout_child(child, 0.0, 0.0, 1.0, h);
+            } else {
+                // "content": C++ insets fx=0.06, fw=0.88, fy=h*0.1, fh=h*0.62,
+                // then clamps fw to fh*16/9 and re-centers.
+                let mut fx: f64 = 0.06;
+                let mut fw: f64 = 1.0 - 2.0 * fx;
+                let fy: f64 = h * 0.1;
+                let fh: f64 = h * 0.62;
+                fw = fw.min(fh * 16.0 / 9.0);
+                fx = (1.0 - fw) * 0.5;
+                ctx.layout_child_canvas(child, fx, fy, fw, fh, bg);
+            }
         }
     }
 }
