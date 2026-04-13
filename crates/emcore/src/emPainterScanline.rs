@@ -52,8 +52,10 @@ pub fn rasterize(
 }
 
 // ─── Polynomial coverage rasterizer (NonZero) ───────────────────────
+// Line-by-line port of C++ emPainter::PaintPolygon (emPainter.cpp ~460-800).
 
 /// Scan entry: quadratic polynomial coefficients at a pixel x position.
+/// C++ struct ScanEntry { double A0, A1, A2; ScanEntry *Next; int X; }
 #[derive(Clone, Debug)]
 struct ScanEntry {
     a0: f64,
@@ -63,24 +65,42 @@ struct ScanEntry {
 }
 
 /// Insert or accumulate a scan entry into the sorted entry list for a scanline.
-fn add_scan_entry(scanlines: &mut [Vec<ScanEntry>], row: i32, x: i32, a0: f64, a1: f64, a2: f64) {
+/// Port of C++ PP_ADD_SCAN_ENTRY macro (lines 547-577).
+///
+/// The C++ macro traverses a sorted linked list, accumulating into existing
+/// entries or inserting new ones. We use a Vec with linear scan for the same
+/// sorted-insert/accumulate behavior.
+fn add_scan_entry(
+    scanlines: &mut [Vec<ScanEntry>],
+    row: i32,
+    x: i32,
+    a0: f64,
+    a1: f64,
+    a2: f64,
+) {
     if row < 0 || row as usize >= scanlines.len() {
         return;
     }
     let entries = &mut scanlines[row as usize];
-    match entries.binary_search_by_key(&x, |e| e.x) {
-        Ok(idx) => {
-            entries[idx].a0 += a0;
-            entries[idx].a1 += a1;
-            entries[idx].a2 += a2;
-        }
-        Err(idx) => {
-            entries.insert(idx, ScanEntry { a0, a1, a2, x });
-        }
+    // C++ linked-list scan: walk forward while pse->X < x.
+    // With a Vec, find the insertion/accumulation point by linear scan
+    // (matching C++ traversal order, which starts from the head).
+    let mut pos = 0;
+    while pos < entries.len() && entries[pos].x < x {
+        pos += 1;
+    }
+    if pos < entries.len() && entries[pos].x == x {
+        entries[pos].a0 += a0;
+        entries[pos].a1 += a1;
+        entries[pos].a2 += a2;
+    } else {
+        entries.insert(pos, ScanEntry { a0, a1, a2, x });
     }
 }
 
 /// Round absolute value: `(int)(a0 >= 0 ? 0.5 + a0 : 0.5 - a0)`.
+/// Matches C++ lines 731, 735, 756, 767, 782.
+#[inline]
 fn round_abs(a: f64) -> i32 {
     if a >= 0.0 {
         (0.5 + a) as i32
@@ -89,92 +109,61 @@ fn round_abs(a: f64) -> i32 {
     }
 }
 
-/// Build a Span from polynomial coverage values (in 0-4096 scale).
-// DIVERGED: C++ uses `x + w` (signed i32 addition) which is overflow UB for
-// x near i32::MAX. Rust uses saturating_add so extreme coordinates clamp
-// instead of wrapping. In practice x and w are bounded by viewport pixels.
-fn make_poly_span(x: i32, w: i32, alpha: i32, alpha2: i32, alpha3: i32) -> Span {
-    if w == 1 {
-        Span {
-            x_start: x,
-            x_end: x.saturating_add(1),
-            opacity_beg: alpha,
-            opacity_mid: alpha,
-            opacity_end: alpha,
-        }
-    } else if w == 2 {
-        // C++ PaintScanline(sct,sx0,sy,2,alpha,0,alpha2) maps to:
-        // beg=alpha, mid=0 (unused for w=2), end=alpha2.
-        // Caller passes make_poly_span(sx0, 2, alpha, 0, alpha2) where
-        // the caller's alpha2 lands in our alpha3 parameter.
-        Span {
-            x_start: x,
-            x_end: x.saturating_add(2),
-            opacity_beg: alpha,
-            opacity_mid: alpha,
-            opacity_end: alpha3,
-        }
-    } else {
-        Span {
-            x_start: x,
-            x_end: x.saturating_add(w),
-            opacity_beg: alpha,
-            opacity_mid: alpha2,
-            opacity_end: alpha3,
-        }
-    }
-}
-
 /// Polynomial AA coverage rasterizer, ported from C++ emPainter::PaintPolygon.
+/// Lines 460-800 of emPainter.cpp.
+///
+/// Vertices are already in pixel space (the C++ ScaleX/ScaleY/OriginX/OriginY
+/// transforms are applied by the caller in fill_polygon_aa).
 fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, Vec<Span>)> {
     let n = vertices.len();
+    // C++ line 500: if (n<3) return;
     if n < 3 {
         return Vec::new();
     }
 
-    // Compute polygon bounding box (vertices are already in pixel space).
+    // C++ lines 502-511: Compute polygon bounding box.
+    // Vertices are already in pixel space, so no Scale/Origin transforms.
     let mut min_x = vertices[0].0;
     let mut max_x = vertices[0].0;
     let mut min_y = vertices[0].1;
     let mut max_y = vertices[0].1;
-    for &(x, y) in &vertices[1..] {
-        if x < min_x {
-            min_x = x;
-        } else if x > max_x {
-            max_x = x;
+    // C++ iterates pxy from last vertex down to vertex[1].
+    // We iterate forward from vertex[1] — same result (commutative min/max).
+    for &(vx, vy) in &vertices[1..] {
+        if max_x < vx {
+            max_x = vx;
+        } else if min_x > vx {
+            min_x = vx;
         }
-        if y < min_y {
-            min_y = y;
-        } else if y > max_y {
-            max_y = y;
+        if max_y < vy {
+            max_y = vy;
+        } else if min_y > vy {
+            min_y = vy;
         }
     }
 
-    // Intersect with clip bounds (f64, matching C++ emPainter).
-    let clip_x1 = clip.x1;
-    let clip_y1 = clip.y1;
-    let clip_x2 = clip.x2;
-    let clip_y2 = clip.y2;
-
-    if min_y < clip_y1 {
-        min_y = clip_y1;
+    // C++ lines 512-521: Intersect bounding box with clip bounds.
+    // (C++ applies Scale/Origin here; we skip since vertices are already pixel-space.)
+    if min_y < clip.y1 {
+        min_y = clip.y1;
     }
-    if max_y > clip_y2 {
-        max_y = clip_y2;
+    if max_y > clip.y2 {
+        max_y = clip.y2;
     }
     if min_y >= max_y {
         return Vec::new();
     }
-    if min_x < clip_x1 {
-        min_x = clip_x1;
+    if min_x < clip.x1 {
+        min_x = clip.x1;
     }
-    if max_x > clip_x2 - 0.0001 {
-        max_x = clip_x2 - 0.0001;
+    if max_x > clip.x2 - 0.0001 {
+        max_x = clip.x2 - 0.0001;
     }
     if min_x >= max_x {
         return Vec::new();
     }
 
+    // C++ lines 528-529: sly1=(int)minY; sly2=(int)ceil(maxY);
     let sly1 = min_y as i32;
     let sly2 = max_y.ceil() as i32;
     let num_scanlines = (sly2 - sly1) as usize;
@@ -182,38 +171,47 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
         return Vec::new();
     }
 
+    // C++ lines 531-545: Allocate scanline entry lists.
+    // We use Vec<Vec<ScanEntry>> indexed by (sy - sly1).
     let mut scanlines: Vec<Vec<ScanEntry>> = vec![Vec::new(); num_scanlines];
 
-    // emProcess edges in reverse order, matching C++ iteration.
+    // C++ lines 579-711: Process edges in reverse order.
+    // x0=xy[0]*ScaleX+OriginX; y0=xy[1]*ScaleY+OriginY;
     let mut x0 = vertices[0].0;
-    let mut y0_iter = vertices[0].1;
+    let mut y0 = vertices[0].1;
 
-    for i in (0..n).rev() {
-        let y1_prev = y0_iter;
-        y0_iter = vertices[i].1;
+    // C++ line 581: for (pxy=xy+n*2-2; pxy>=xy; pxy-=2)
+    // Iterates edges: 0→n-1, n-1→n-2, ..., 1→0
+    for idx in (0..n).rev() {
+        // C++ lines 582-596: Determine edge direction.
+        let y1_prev = y0;
+        y0 = vertices[idx].1;
 
         let (mut x1, mut y1, mut x2, mut y2, va);
-        if y1_prev > y0_iter {
-            y1 = y0_iter;
+        if y1_prev > y0 {
+            // C++ lines 584-589: edge goes downward in original order
             y2 = y1_prev;
+            y1 = y0;
             x2 = x0;
-            x1 = vertices[i].0;
+            x1 = vertices[idx].0;
             x0 = x1;
-            va = 4096.0_f64;
+            va = 0x1000 as f64; // 4096.0
         } else {
+            // C++ lines 591-596: edge goes upward in original order
+            y2 = y0;
             y1 = y1_prev;
-            y2 = y0_iter;
             x1 = x0;
-            x2 = vertices[i].0;
+            x2 = vertices[idx].0;
             x0 = x2;
-            va = -4096.0_f64;
+            va = -(0x1000 as f64); // -4096.0
         }
 
+        // C++ line 597: if (y1>=maxY || y2<=minY) continue;
         if y1 >= max_y || y2 <= min_y {
             continue;
         }
 
-        // Y-clip.
+        // C++ lines 598-605: Y-clip.
         if y1 < min_y {
             if y2 - y1 >= 0.0001 {
                 x1 += (min_y - y1) * (x2 - x1) / (y2 - y1);
@@ -227,14 +225,15 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
             y2 = max_y;
         }
 
-        // X-clip: may produce 0-2 extra vertical segments.
-        let mut extra_count = 0usize;
+        // C++ lines 606-658: X-clip (may produce 0-2 extra vertical segments).
+        let mut i = 0usize;
         let mut ex1 = [0.0_f64; 2];
         let mut ey1_arr = [0.0_f64; 2];
         let mut ex2 = [0.0_f64; 2];
         let mut ey2_arr = [0.0_f64; 2];
 
         if x1 < x2 {
+            // C++ lines 608-631
             if x1 < min_x {
                 if x2 > min_x && x2 - x1 >= 0.0001 {
                     ey1_arr[0] = y1;
@@ -243,7 +242,7 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
                     ex1[0] = min_x;
                     ex2[0] = min_x;
                     x1 = min_x;
-                    extra_count = 1;
+                    i = 1;
                 } else {
                     x1 = min_x;
                     x2 = min_x;
@@ -251,19 +250,20 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
             }
             if x2 > max_x {
                 if x1 < max_x && x2 - x1 >= 0.0001 {
-                    ey2_arr[extra_count] = y2;
+                    ey2_arr[i] = y2;
                     y2 += (max_x - x2) * (y2 - y1) / (x2 - x1);
-                    ey1_arr[extra_count] = y2;
-                    ex1[extra_count] = max_x;
-                    ex2[extra_count] = max_x;
+                    ey1_arr[i] = y2;
+                    ex1[i] = max_x;
+                    ex2[i] = max_x;
                     x2 = max_x;
-                    extra_count += 1;
+                    i += 1;
                 } else {
                     x1 = max_x;
                     x2 = max_x;
                 }
             }
         } else {
+            // C++ lines 633-658
             if x1 > max_x {
                 if x2 < max_x && x2 - x1 <= -0.0001 {
                     ey1_arr[0] = y1;
@@ -272,7 +272,7 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
                     ex1[0] = max_x;
                     ex2[0] = max_x;
                     x1 = max_x;
-                    extra_count = 1;
+                    i = 1;
                 } else {
                     x1 = max_x;
                     x2 = max_x;
@@ -280,13 +280,13 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
             }
             if x2 < min_x {
                 if x1 > min_x && x2 - x1 <= -0.0001 {
-                    ey2_arr[extra_count] = y2;
+                    ey2_arr[i] = y2;
                     y2 += (min_x - x2) * (y2 - y1) / (x2 - x1);
-                    ey1_arr[extra_count] = y2;
-                    ex1[extra_count] = min_x;
-                    ex2[extra_count] = min_x;
+                    ey1_arr[i] = y2;
+                    ex1[i] = min_x;
+                    ex2[i] = min_x;
                     x2 = min_x;
-                    extra_count += 1;
+                    i += 1;
                 } else {
                     x1 = min_x;
                     x2 = min_x;
@@ -294,9 +294,10 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
             }
         }
 
-        // emProcess main segment, then any extra vertical segments from x-clipping.
+        // C++ lines 659-710: Process main segment then extra vertical segments.
         loop {
             let dy = y2 - y1;
+            // C++ line 661: if (dy>=0.0001)
             if dy >= 0.0001 {
                 let mut sy = y1 as i32;
                 let sy2 = (y2.ceil() as i32) - 1;
@@ -306,13 +307,16 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
                 let dx = x2 - x1;
 
                 if dx >= 0.0001 || dx <= -0.0001 {
-                    // Non-vertical edge: quadratic polynomial.
+                    // C++ lines 669-688: Non-vertical edge (quadratic polynomial).
                     let a2 = va * dy / dx;
                     let mut a0 = t * t * 0.5 * a2;
                     let mut a1 = (t + 0.5) * a2;
+                    // C++ line 672: dx/=dy; (reuse dx as slope per scanline)
                     let dx_per_row = dx / dy;
+                    // C++ line 673: x1+=(sy+1-y1)*dx;
                     let mut x_cur = x1 + (sy as f64 + 1.0 - y1) * dx_per_row;
 
+                    // C++ lines 674-688: for(;;)
                     loop {
                         if sy >= sy2 {
                             if sy > sy2 {
@@ -320,18 +324,21 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
                             }
                             x_cur = x2;
                         }
+                        // C++ line 679: PP_ADD_SCAN_ENTRY(sx,sy,a0,a1,a2)
                         add_scan_entry(&mut scanlines, sy - sly1, sx, a0, a1, a2);
                         let ax2 = x_cur.floor();
                         sx = ax2 as i32;
                         t = ax2 + 1.0 - x_cur;
                         a0 = t * t * 0.5 * a2;
                         a1 = (t + 0.5) * a2;
+                        // C++ line 685: PP_ADD_SCAN_ENTRY(sx,sy,(-a0),(-a1),(-a2))
                         add_scan_entry(&mut scanlines, sy - sly1, sx, -a0, -a1, -a2);
+                        // C++ line 686: x1+=dx; (advance x for next scanline)
                         x_cur += dx_per_row;
                         sy += 1;
                     }
                 } else {
-                    // Near-vertical edge: linear polynomial.
+                    // C++ lines 690-701: Near-vertical edge (linear polynomial).
                     let mut a1 = va * (sy as f64 + 1.0 - y1);
                     loop {
                         if sy >= sy2 {
@@ -341,6 +348,7 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
                             a1 -= va * (sy2 as f64 + 1.0 - y2);
                         }
                         let a0 = t * a1;
+                        // C++ line 698: PP_ADD_SCAN_ENTRY(sx,sy,a0,a1,0.0)
                         add_scan_entry(&mut scanlines, sy - sly1, sx, a0, a1, 0.0);
                         a1 = va;
                         sy += 1;
@@ -348,27 +356,31 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
                 }
             }
 
-            if extra_count == 0 {
+            // C++ lines 704-710: Process extra segments from X-clipping.
+            if i == 0 {
                 break;
             }
-            extra_count -= 1;
-            x1 = ex1[extra_count];
-            y1 = ey1_arr[extra_count];
-            x2 = ex2[extra_count];
-            y2 = ey2_arr[extra_count];
+            i -= 1;
+            x1 = ex1[i];
+            y1 = ey1_arr[i];
+            x2 = ex2[i];
+            y2 = ey2_arr[i];
         }
     }
 
-    // Coverage inner loop: walk scan entries per scanline and emit spans.
+    // C++ lines 713-792: Walk scan entries per scanline and emit spans.
     let mut result: Vec<(i32, Vec<Span>)> = Vec::with_capacity(num_scanlines);
 
+    // C++ line 713: sy=sly1;
+    // C++ line 714-792: do { ... } while (sy<sly2);
     for (idx, entries) in scanlines.iter().enumerate() {
+        // C++ line 716: if (pse!=&seTerminator) { ... }
         if entries.is_empty() {
             continue;
         }
 
         let sy = sly1 + idx as i32;
-        let spans = compute_spans_polynomial(entries);
+        let spans = emit_scanline_spans(entries);
         if !spans.is_empty() {
             result.push((sy, spans));
         }
@@ -378,50 +390,72 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
 }
 
 /// Walk sorted scan entries for one scanline and emit coverage spans.
-/// Ported from C++ emPainter lines 637-716.
-fn compute_spans_polynomial(entries: &[ScanEntry]) -> Vec<Span> {
+/// Line-by-line port of C++ emPainter::PaintPolygon lines 717-789.
+///
+/// C++ uses a do { ... } while(pse!=&seTerminator) loop walking a linked list.
+/// We use a loop walking a sorted Vec with an index `ei`.
+fn emit_scanline_spans(entries: &[ScanEntry]) -> Vec<Span> {
     let mut spans = Vec::new();
+
+    // C++ lines 717-719: a1=0; a2=0; sx=pse->X;
     let mut a1 = 0.0_f64;
     let mut a2 = 0.0_f64;
-    let mut ei = 0;
+    let mut ei = 0usize;
     let mut sx = entries[0].x;
 
+    // C++ line 720: do { ... } while (pse!=&seTerminator);
     loop {
-        // Forward-difference step + accumulate entries at sx.
+        // C++ lines 721-728: Forward-difference step + accumulate entries at sx.
         let mut a0 = a1;
         a1 += a2;
+        // C++ uses `if (pse->X==sx)` — at most one entry per X due to
+        // add_scan_entry accumulation. We use while for defensive correctness.
         while ei < entries.len() && entries[ei].x == sx {
             a0 += entries[ei].a0;
             a1 += entries[ei].a1;
             a2 += entries[ei].a2;
             ei += 1;
         }
+
+        // C++ lines 729-731:
         let sx0 = sx;
         sx += 1;
         let alpha = round_abs(a0);
 
+        // C++ lines 732-742: alpha==0 path with skip optimization.
         if alpha == 0 {
-            // Skip optimization: predict polynomial at next entry's position.
+            // C++ lines 733-740: Skip optimization.
             if ei < entries.len() && entries[ei].x > sx {
                 let t = a1 + a2 * (entries[ei].x - 1 - sx) as f64;
                 let ta = round_abs(t);
+                // C++ line 736: if (alpha==ta) — alpha is 0 here.
                 if ta == 0 {
                     a1 = t + a2;
                     sx = entries[ei].x;
                 }
             }
+            // C++ line 741: continue; → jumps to while(pse!=&seTerminator)
+            // In Rust, check if we've consumed all entries (= terminator reached).
             if ei >= entries.len() {
                 break;
             }
             continue;
         }
 
+        // C++ lines 743-746: Last entry consumed → single pixel span.
         if ei >= entries.len() {
-            spans.push(make_poly_span(sx0, 1, alpha, 0, 0));
+            // C++ line 744: sct.PaintScanline(sct,sx0,sy,1,alpha,0,0);
+            spans.push(Span {
+                x_start: sx0,
+                x_end: sx0.saturating_add(1),
+                opacity_beg: alpha,
+                opacity_mid: 0,
+                opacity_end: 0,
+            });
             break;
         }
 
-        // Read second pixel.
+        // C++ lines 747-754: Read second pixel.
         a0 = a1;
         a1 += a2;
         while ei < entries.len() && entries[ei].x == sx {
@@ -431,22 +465,40 @@ fn compute_spans_polynomial(entries: &[ScanEntry]) -> Vec<Span> {
             ei += 1;
         }
         sx += 1;
+        // C++ line 756:
         let alpha2 = round_abs(a0);
 
+        // C++ lines 757-760: alpha2==0 → emit 1-pixel span.
         if alpha2 == 0 {
-            spans.push(make_poly_span(sx0, 1, alpha, 0, 0));
+            // C++ line 758: sct.PaintScanline(sct,sx0,sy,1,alpha,0,0);
+            spans.push(Span {
+                x_start: sx0,
+                x_end: sx0.saturating_add(1),
+                opacity_beg: alpha,
+                opacity_mid: 0,
+                opacity_end: 0,
+            });
+            // C++ line 759: continue; → while(pse!=&seTerminator)
             if ei >= entries.len() {
                 break;
             }
             continue;
         }
 
+        // C++ lines 761-764: Last entry consumed → 2-pixel span.
         if ei >= entries.len() {
-            spans.push(make_poly_span(sx0, 2, alpha, 0, alpha2));
+            // C++ line 762: sct.PaintScanline(sct,sx0,sy,2,alpha,0,alpha2);
+            spans.push(Span {
+                x_start: sx0,
+                x_end: sx0.saturating_add(2),
+                opacity_beg: alpha,
+                opacity_mid: 0,
+                opacity_end: alpha2,
+            });
             break;
         }
 
-        // Skip optimization: if alpha2 is constant until next entry, jump ahead.
+        // C++ lines 765-771: Skip optimization for constant alpha2 run.
         if entries[ei].x > sx {
             let t = a1 + a2 * (entries[ei].x - 1 - sx) as f64;
             let ta = round_abs(t);
@@ -456,7 +508,7 @@ fn compute_spans_polynomial(entries: &[ScanEntry]) -> Vec<Span> {
             }
         }
 
-        // Read third pixel.
+        // C++ lines 773-781: Read third pixel.
         a0 = a1;
         a1 += a2;
         while ei < entries.len() && entries[ei].x == sx {
@@ -466,14 +518,33 @@ fn compute_spans_polynomial(entries: &[ScanEntry]) -> Vec<Span> {
             ei += 1;
         }
         sx += 1;
+        // C++ line 782:
         let alpha3 = round_abs(a0);
 
+        // C++ lines 783-788: Emit multi-pixel span.
         if alpha3 == 0 {
-            spans.push(make_poly_span(sx0, sx - 1 - sx0, alpha, alpha2, alpha2));
+            // C++ line 784: sct.PaintScanline(sct,sx0,sy,sx-1-sx0,alpha,alpha2,alpha2);
+            let w = sx - 1 - sx0;
+            spans.push(Span {
+                x_start: sx0,
+                x_end: sx0.saturating_add(w),
+                opacity_beg: alpha,
+                opacity_mid: alpha2,
+                opacity_end: alpha2,
+            });
         } else {
-            spans.push(make_poly_span(sx0, sx - sx0, alpha, alpha2, alpha3));
+            // C++ line 787: sct.PaintScanline(sct,sx0,sy,sx-sx0,alpha,alpha2,alpha3);
+            let w = sx - sx0;
+            spans.push(Span {
+                x_start: sx0,
+                x_end: sx0.saturating_add(w),
+                opacity_beg: alpha,
+                opacity_mid: alpha2,
+                opacity_end: alpha3,
+            });
         }
 
+        // C++ line 789: } while (pse!=&seTerminator);
         if ei >= entries.len() {
             break;
         }
@@ -981,26 +1052,16 @@ mod kani_private_proofs {
 
     #[kani::proof]
     fn kani_private_make_edge_span() {
-        let mut p_x_enter = crate::emPainter::Fixed12::from_raw(kani::any());
-        let mut p_x_exit = crate::emPainter::Fixed12::from_raw(kani::any());
-        let mut p_clip_x_start: i32 = kani::any::<i32>();
-        let mut p_clip_x_end: i32 = kani::any::<i32>();
+        let p_x_enter = crate::emPainter::Fixed12::from_raw(kani::any());
+        let p_x_exit = crate::emPainter::Fixed12::from_raw(kani::any());
+        let p_clip_x_start: i32 = kani::any::<i32>();
+        let p_clip_x_end: i32 = kani::any::<i32>();
         let _r = make_edge_span(p_x_enter, p_x_exit, p_clip_x_start, p_clip_x_end);
     }
 
     #[kani::proof]
-    fn kani_private_make_poly_span() {
-        let mut p_x: i32 = kani::any::<i32>();
-        let mut p_w: i32 = kani::any::<i32>();
-        let mut p_alpha: i32 = kani::any::<i32>();
-        let mut p_alpha2: i32 = kani::any::<i32>();
-        let mut p_alpha3: i32 = kani::any::<i32>();
-        let _r = make_poly_span(p_x, p_w, p_alpha, p_alpha2, p_alpha3);
-    }
-
-    #[kani::proof]
     fn kani_private_round_abs() {
-        let mut p_a: f64 = kani::any::<f64>();
+        let p_a: f64 = kani::any::<f64>();
         kani::assume(p_a.is_finite());
         let _r = round_abs(p_a);
     }
