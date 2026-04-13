@@ -208,6 +208,10 @@ pub(crate) struct ScaleTransform24 {
     pub base_x: i64,
     /// Precomputed Y base: `py * tdy - ty_origin`.
     pub base_y: i64,
+    /// Pixel origin X (matches `px` used to compute `base_x`).
+    pub px: i32,
+    /// Pixel origin Y (matches `py` used to compute `base_y`).
+    pub py: i32,
 }
 
 /// Source section bounds for 9-slice sub-region sampling.
@@ -1631,27 +1635,28 @@ pub(crate) fn interpolate_scanline_adaptive_premul_section(
     buf.set_len(count);
 }
 
-/// Scanline nearest-neighbor interpolation.
+/// Scanline nearest-neighbor interpolation with section bounds.
+/// Like `interpolate_scanline_nearest` but samples within a sub-region of the image.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn interpolate_scanline_nearest(
+pub(crate) fn interpolate_scanline_nearest_section(
     image: &emImage,
-    px: i32,
-    py: i32,
     dest_x_start: i32,
     dest_y: i32,
     count: usize,
     sxfm: &ScaleTransform24,
+    sec: &SectionBounds,
     ext: ImageExtension,
     buf: &mut crate::emPainterScanlineTool::InterpolationBuffer,
 ) {
-    // ty is constant for the whole row
-    let ty = (dest_y - py) as i64 * sxfm.tdy + sxfm.base_y;
-    let src_y = (ty >> 24) as f64;
+    // Use same formula as interpolate_scanline_nearest: (col - px) * tdx + base_x
+    let ty = (dest_y - sxfm.py) as i64 * sxfm.tdy + sxfm.base_y;
+    let iy = (ty >> 24) as i32;
     for i in 0..count {
         let col = dest_x_start + i as i32;
-        let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x;
-        let c = sample_nearest(image, (tx >> 24) as f64, src_y, ext);
-        buf.set_pixel(i, [c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha()]);
+        let tx = (col - sxfm.px) as i64 * sxfm.tdx + sxfm.base_x;
+        let ix = (tx >> 24) as i32;
+        let p = sample_section_pixel(image, ix, iy, sec, ext);
+        buf.set_pixel(i, p);
     }
     buf.set_len(count);
 }

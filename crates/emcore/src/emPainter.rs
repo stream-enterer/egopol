@@ -1754,183 +1754,385 @@ impl<'a> emPainter<'a> {
             return;
         }
 
-        // --- C++ PaintRect boundary computation (emPainter.cpp:342-380) ---
-        // Clipping boundaries come from the paint rect.
-        let dx_px = rect_x * self.state.scale_x + self.state.offset_x;
-        let dy_px = rect_y * self.state.scale_y + self.state.offset_y;
-        let dw_px = rect_w * self.state.scale_x;
-        let dh_px = rect_h * self.state.scale_y;
+        // --- C++ PaintRect boundary computation (emPainter.cpp:395-441) ---
+        // Literal port: transform to pixel space, clip, THEN compute fixed-point
+        // boundaries. This matches PaintRect for color fills exactly.
+        let px1 = (rect_x * self.state.scale_x + self.state.offset_x)
+            .max(self.state.clip.x1).min(self.state.clip.x2);
+        let px2 = ((rect_x + rect_w) * self.state.scale_x + self.state.offset_x)
+            .max(self.state.clip.x1).min(self.state.clip.x2);
+        if px1 >= px2 { return; }
+        let py1 = (rect_y * self.state.scale_y + self.state.offset_y)
+            .max(self.state.clip.y1).min(self.state.clip.y2);
+        let py2 = ((rect_y + rect_h) * self.state.scale_y + self.state.offset_y)
+            .max(self.state.clip.y1).min(self.state.clip.y2);
+        if py1 >= py2 { return; }
 
-        // Texture dimensions in pixel space (for sampling transform).
-        let tw_px = tex_w * self.state.scale_x;
-        let th_px = tex_h * self.state.scale_y;
+        // C++ Fixed12 arithmetic (emPainter.cpp:412-430)
+        let ix_raw = (px1 * 4096.0) as i32;
+        let ixe_raw = (px2 * 4096.0) as i32 + 0xfff;
+        let mut ax1 = 0x1000 - (ix_raw & 0xfff);
+        let ax2 = (ixe_raw & 0xfff) + 1;
+        let ix = ix_raw >> 12;
+        let ixe = ixe_raw >> 12;
+        let iw = ixe - ix;
+        if iw <= 0 { return; }
+        if iw <= 1 { ax1 += ax2 - 0x1000; }
 
-        // X boundaries: ix with ceil for ixe (matching C++ ixe = ((int)(x2*0x1000))+0xfff)
-        let sp = SubPixelEdges::new(dx_px, dy_px, dw_px, dh_px);
-        let px = sp.ix1;
-        let py = sp.iy1;
-        let pw = sp.ix2 - sp.ix1;
-        if pw <= 0 { return; }
-
-        // Y boundaries: C++ PaintRect iy2=TRUNCATE (NOT ceil)
-        let iy_raw = (dy_px * 4096.0) as i32;
-        let iy2_raw = ((dy_px + dh_px) * 4096.0) as i32;
-        let mut cpp_ay1 = 0x1000 - (iy_raw & 0xfff);
-        let mut cpp_ay2 = iy2_raw & 0xfff;
-        let cpp_iy1 = iy_raw >> 12;
-        let cpp_iy2 = iy2_raw >> 12;
-        if cpp_iy1 >= cpp_iy2 {
-            cpp_ay1 += cpp_ay2 - 0x1000;
-            cpp_ay2 = 0;
-            if cpp_ay1 <= 0 { return; }
-        }
-
-        // Clip to viewport
-        let cx1 = (self.state.clip.x1 as i32).max(0);
-        let cy1 = (self.state.clip.y1 as i32).max(0);
-        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
-        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
-        let start_x = px.max(cx1);
-        let start_y = cpp_iy1.max(cy1);
-        let end_x = sp.ix2.min(cx2);
-        // When cpp_iy1 >= cpp_iy2 the rect fits in one row; cpp_ay2 was zeroed
-        // by the collapse above but the row still needs painting (cpp_ay1 > 0).
-        let end_y = if cpp_ay2 > 0 || cpp_iy1 >= cpp_iy2 {
-            (cpp_iy2 + 1).min(cy2)
+        let iy_raw = (py1 * 4096.0) as i32;
+        let iy2_raw = (py2 * 4096.0) as i32;
+        let ay1 = 0x1000 - (iy_raw & 0xfff);
+        let ay2 = iy2_raw & 0xfff;
+        let iy = iy_raw >> 12;
+        let iy2 = iy2_raw >> 12;
+        let (ay1, ay2) = if iy >= iy2 {
+            let collapsed = ay1 + ay2 - 0x1000;
+            if collapsed <= 0 { return; }
+            (collapsed, 0)
         } else {
-            cpp_iy2.min(cy2)
+            (ay1, ay2)
         };
-        if start_x >= end_x || start_y >= end_y { return; }
-
-        let src_w_f = src_w as f64;
-        let src_h_f = src_h as f64;
-        let ph = end_y - start_y;
-        // Upscale/downscale decision uses texture pixel dimensions, not rect.
-        let upscaling = (pw as f64) > src_w_f || (ph as f64) > src_h_f;
-        let downscaling = (pw as f64) < src_w_f || (ph as f64) < src_h_f;
 
         // --- C++ ScanlineTool::Init (emPainter_ScTl.cpp:228-378) ---
+        // Clamp source rect to image bounds
+        let iw_img = image.GetWidth() as i32;
+        let ih_img = image.GetHeight() as i32;
+        let csx = src_x.max(0);
+        let csx2 = (src_x + src_w).min(iw_img);
+        if csx >= csx2 { return; }
+        let csy = src_y.max(0);
+        let csy2 = (src_y + src_h).min(ih_img);
+        if csy >= csy2 { return; }
+        let img_w = csx2 - csx;
+        let img_h = csy2 - csy;
+
+        // Texture-to-image coordinate transform
+        let tw_px = tex_w * self.state.scale_x;
+        let th_px = tex_h * self.state.scale_y;
+        let tdx_f64 = ((img_w as i64) << 24) as f64 / tw_px;
+        let tdy_f64 = ((img_h as i64) << 24) as f64 / th_px;
+        if !(0.0..=2.8e14).contains(&tdx_f64) || !(0.0..=2.8e14).contains(&tdy_f64) { return; }
+        let tdx = tdx_f64 as i64;
+        let tdy = tdy_f64 as i64;
+        let tx_pixel = tex_x * self.state.scale_x + self.state.offset_x;
+        let ty_pixel = tex_y * self.state.scale_y + self.state.offset_y;
+
         let sec = emPainterInterpolation::SectionBounds {
-            ox: src_x, oy: src_y, w: src_w, h: src_h,
+            ox: csx, oy: csy, w: img_w, h: img_h,
         };
 
-        let tw = self.target_width as usize;
+        let tw_stride = self.target_width as usize;
         let mode = BlendMode::from_state(self.state.canvas_color, self.state.alpha);
         let mut ibuf = InterpolationBuffer::new(4);
         let max_batch = ibuf.max_pixels();
         let mut coverages = vec![0i32; max_batch];
 
-        if downscaling {
-            // C++ ScanlineTool downscale: pre-reduce + area sampling
-            // Transform uses texture coords (tex_x, tex_y, tex_w, tex_h),
-            // but TDX/TDY use tex pixel dimensions for sampling rate.
-            let sw_u = src_w as u32;
-            let sh_u = src_h as u32;
-            let tdx_init = ((sw_u as i64) << 24) as f64 / tw_px;
-            let tdy_init = ((sh_u as i64) << 24) as f64 / th_px;
-            let tdx_i = tdx_init as i64;
-            let tdy_i = tdy_init as i64;
+        // Interpolation method selection (C++ emPainter_ScTl.cpp:286-378)
+        let downscaling = tdx > 0xFFFF00 || tdy > 0xFFFF00;
 
+        if downscaling {
             // C++ emPainter_ScTl.cpp:296-311: near-1:1 pixel-aligned → NEAREST
-            let tx_pixel = tex_x * self.state.scale_x + self.state.offset_x;
-            let ty_pixel = tex_y * self.state.scale_y + self.state.offset_y;
-            let near_1_to_1 = tdx_i < 0x10000FF && tdy_i < 0x10000FF
-                && tdx_i > 0x0FFFF00 && tdy_i > 0x0FFFF00
-                && ((tx_pixel * tdx_init) as i64 + 0x800) & 0xFFF000 == 0
-                && ((ty_pixel * tdy_init) as i64 + 0x800) & 0xFFF000 == 0;
+            let near_1_to_1 = tdx < 0x10000FF && tdy < 0x10000FF
+                && tdx > 0x0FFFF00 && tdy > 0x0FFFF00
+                && ((tx_pixel * tdx_f64) as i64 + 0x800) & 0xFFF000 == 0
+                && ((ty_pixel * tdy_f64) as i64 + 0x800) & 0xFFF000 == 0;
 
             if near_1_to_1 {
-                // C++ uses NEAREST with (tx-0.5)*tdx offset (same as upscale path)
-                let sxfm = self.scale_transform_24(src_w as u32, src_h as u32, tex_x, tex_y, tex_w, tex_h);
-                for row in start_y..end_y {
-                    let mut col = start_x;
-                    while col < end_x {
-                        let batch = ((end_x - col) as usize).min(max_batch);
-                        emPainterInterpolation::interpolate_scanline_nearest(
-                            image, px, py, col, row, batch, &sxfm, ext, &mut ibuf,
-                        );
-                        let all_full = sp.batch_coverages_cpp_y(
-                            row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2,
-                        );
-                        let dest_offset = (row as usize * tw + col as usize) * 4;
-                        let data = self.GetImage(proof).GetWritableMap();
-                        let dest = &mut data[dest_offset..];
-                        if all_full { blend_scanline(dest, &ibuf, batch, None, &mode); }
-                        else { blend_scanline(dest, &ibuf, batch, Some(&coverages[..batch]), &mode); }
-                        col += batch as i32;
-                    }
-                }
+                let sxfm = self.scale_transform_24(img_w as u32, img_h as u32, tex_x, tex_y, tex_w, tex_h);
+                self.paint_image_scanlines_nearest(
+                    proof, image, &sxfm, &sec, ext,
+                    ix, iy, iy2, iw, ax1, ax2, ay1, ay2,
+                    &mode, &mut ibuf, max_batch, &mut coverages, tw_stride,
+                );
             } else {
-                let stride_x = if tdx_i > 0xFFFF00 { ((tdx_i / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
-                let stride_y = if tdy_i > 0xFFFF00 { ((tdy_i / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+                // Area sampling with pre-reduction (C++ emPainter_ScTl.cpp:312-343)
+                let sw_u = img_w as u32;
+                let sh_u = img_h as u32;
+                let stride_x = if tdx > 0xFFFF00 { ((tdx / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+                let stride_y = if tdy > 0xFFFF00 { ((tdy / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
                 let red_w = sw_u.div_ceil(stride_x);
                 let red_h = sh_u.div_ceil(stride_y);
                 let off_x = (sw_u as i32 - (red_w as i32 - 1) * stride_x as i32 - 1) / 2;
                 let off_y = (sh_u as i32 - (red_h as i32 - 1) * stride_y as i32 - 1) / 2;
-                // area_sample_transform_24 uses texture coords for the origin calculation.
                 let mut xfm = self.area_sample_transform_24(red_w, red_h, tex_x, tex_y, tex_w, tex_h);
                 xfm.stride_x = stride_x;
                 xfm.stride_y = stride_y;
                 xfm.off_x = off_x;
                 xfm.off_y = off_y;
 
-                for row in start_y..end_y {
-                    let mut carry = emPainterInterpolation::AreaSampleCarryState::new();
-                    let mut col = start_x;
-                    while col < end_x {
-                        let batch = ((end_x - col) as usize).min(max_batch);
-                        emPainterInterpolation::interpolate_scanline_area_sampled(
-                            image, col, row, batch, &xfm, &sec, ext, &mut ibuf, &mut carry,
-                        );
-                        let all_full = sp.batch_coverages_cpp_y(
-                            row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2,
-                        );
-                        let dest_offset = (row as usize * tw + col as usize) * 4;
-                        let data = self.GetImage(proof).GetWritableMap();
-                        let dest = &mut data[dest_offset..];
-                        if all_full { blend_scanline_premul(dest, &ibuf, batch, None, &mode); }
-                        else { blend_scanline_premul(dest, &ibuf, batch, Some(&coverages[..batch]), &mode); }
-                        col += batch as i32;
-                    }
-                }
+                self.paint_image_scanlines_area(
+                    proof, image, &xfm, &sec, ext,
+                    ix, iy, iy2, iw, ax1, ax2, ay1, ay2,
+                    &mode, &mut ibuf, max_batch, &mut coverages, tw_stride,
+                );
             }
         } else {
-            // C++ ScanlineTool upscale: adaptive interpolation with -0.5 pixel center
-            // Transform uses texture coords for origin.
-            let sxfm = self.scale_transform_24(src_w as u32, src_h as u32, tex_x, tex_y, tex_w, tex_h);
+            // Upscale or exact 1:1 (C++ emPainter_ScTl.cpp:345-378)
+            let sxfm = self.scale_transform_24(img_w as u32, img_h as u32, tex_x, tex_y, tex_w, tex_h);
+            let upscaling = tdx < 0x1000000 || tdy < 0x1000000;
 
-            for row in start_y..end_y {
-                let mut col = start_x;
-                while col < end_x {
-                    let batch = ((end_x - col) as usize).min(max_batch);
-                    if upscaling {
-                        emPainterInterpolation::interpolate_scanline_adaptive_premul_section(
-                            image, px, py, col, row, batch, &sxfm, &sec, ext, &mut ibuf,
-                        );
-                        let all_full = sp.batch_coverages_cpp_y(
-                            row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2,
-                        );
-                        let dest_offset = (row as usize * tw + col as usize) * 4;
-                        let data = self.GetImage(proof).GetWritableMap();
-                        let dest = &mut data[dest_offset..];
-                        if all_full { blend_scanline_premul(dest, &ibuf, batch, None, &mode); }
-                        else { blend_scanline_premul(dest, &ibuf, batch, Some(&coverages[..batch]), &mode); }
-                    } else {
-                        emPainterInterpolation::interpolate_scanline_nearest(
-                            image, px, py, col, row, batch, &sxfm, ext, &mut ibuf,
-                        );
-                        let all_full = sp.batch_coverages_cpp_y(
-                            row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2,
-                        );
-                        let dest_offset = (row as usize * tw + col as usize) * 4;
-                        let data = self.GetImage(proof).GetWritableMap();
-                        let dest = &mut data[dest_offset..];
-                        if all_full { blend_scanline(dest, &ibuf, batch, None, &mode); }
-                        else { blend_scanline(dest, &ibuf, batch, Some(&coverages[..batch]), &mode); }
-                    }
-                    col += batch as i32;
-                }
+            if upscaling {
+                self.paint_image_scanlines_adaptive(
+                    proof, image, &sxfm, &sec, ext,
+                    ix, iy, iy2, iw, ax1, ax2, ay1, ay2,
+                    &mode, &mut ibuf, max_batch, &mut coverages, tw_stride,
+                );
+            } else {
+                self.paint_image_scanlines_nearest(
+                    proof, image, &sxfm, &sec, ext,
+                    ix, iy, iy2, iw, ax1, ax2, ay1, ay2,
+                    &mode, &mut ibuf, max_batch, &mut coverages, tw_stride,
+                );
             }
+        }
+    }
+
+    /// Render image scanlines using nearest-neighbor interpolation.
+    /// Matches C++ PaintRect scanline loop (partial top, full, partial bottom).
+    #[allow(clippy::too_many_arguments)]
+    fn paint_image_scanlines_nearest(
+        &mut self,
+        proof: DirectProof,
+        image: &emImage,
+        sxfm: &emPainterInterpolation::ScaleTransform24,
+        sec: &emPainterInterpolation::SectionBounds,
+        ext: super::emTexture::ImageExtension,
+        ix: i32, mut iy: i32, iy2: i32, iw: i32,
+        ax1: i32, ax2: i32, ay1: i32, ay2: i32,
+        mode: &BlendMode,
+        ibuf: &mut InterpolationBuffer, max_batch: usize,
+        coverages: &mut [i32], tw_stride: usize,
+    ) {
+        // C++ PaintRect scanline loop (emPainter.cpp:432-441)
+        if ay1 < 0x1000 {
+            let a1 = ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+            let a2 = ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+            self.paint_image_scanline_nearest(
+                proof, image, sxfm, sec, ext,
+                ix, iy, iw, a1, ay1, a2,
+                mode, ibuf, max_batch, coverages, tw_stride,
+            );
+            iy += 1;
+        }
+        while iy < iy2 {
+            self.paint_image_scanline_nearest(
+                proof, image, sxfm, sec, ext,
+                ix, iy, iw, ax1, 0x1000, ax2,
+                mode, ibuf, max_batch, coverages, tw_stride,
+            );
+            iy += 1;
+        }
+        if ay2 > 0 {
+            let a1 = ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+            let a2 = ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+            self.paint_image_scanline_nearest(
+                proof, image, sxfm, sec, ext,
+                ix, iy, iw, a1, ay2, a2,
+                mode, ibuf, max_batch, coverages, tw_stride,
+            );
+        }
+    }
+
+    /// Render one image scanline with nearest-neighbor interpolation.
+    /// Coverage follows C++ PaintScanline pattern: first pixel (a1), middle (a), last (a2).
+    #[allow(clippy::too_many_arguments)]
+    fn paint_image_scanline_nearest(
+        &mut self,
+        proof: DirectProof,
+        image: &emImage,
+        sxfm: &emPainterInterpolation::ScaleTransform24,
+        sec: &emPainterInterpolation::SectionBounds,
+        ext: super::emTexture::ImageExtension,
+        ix: i32, iy: i32, iw: i32,
+        a1: i32, a: i32, a2: i32,
+        mode: &BlendMode,
+        ibuf: &mut InterpolationBuffer, max_batch: usize,
+        coverages: &mut [i32], tw_stride: usize,
+    ) {
+        let mut col = ix;
+        let end = ix + iw;
+        while col < end {
+            let batch = ((end - col) as usize).min(max_batch);
+            emPainterInterpolation::interpolate_scanline_nearest_section(
+                image, col, iy, batch, sxfm, sec, ext, ibuf,
+            );
+            // Build coverage array matching C++ PaintScanline three-part pattern
+            for (i, cov) in coverages[..batch].iter_mut().enumerate() {
+                let px = col + i as i32;
+                *cov = if px == ix { a1 }
+                    else if px == end - 1 { a2 }
+                    else { a };
+            }
+            let all_full = coverages[..batch].iter().all(|&c| c >= 0x1000);
+            let dest_offset = (iy as usize * tw_stride + col as usize) * 4;
+            let data = self.GetImage(proof).GetWritableMap();
+            let dest = &mut data[dest_offset..];
+            if all_full { blend_scanline(dest, ibuf, batch, None, mode); }
+            else { blend_scanline(dest, ibuf, batch, Some(&coverages[..batch]), mode); }
+            col += batch as i32;
+        }
+    }
+
+    /// Render image scanlines using area sampling.
+    #[allow(clippy::too_many_arguments)]
+    fn paint_image_scanlines_area(
+        &mut self,
+        proof: DirectProof,
+        image: &emImage,
+        xfm: &emPainterInterpolation::AreaSampleTransform,
+        sec: &emPainterInterpolation::SectionBounds,
+        ext: super::emTexture::ImageExtension,
+        ix: i32, mut iy: i32, iy2: i32, iw: i32,
+        ax1: i32, ax2: i32, ay1: i32, ay2: i32,
+        mode: &BlendMode,
+        ibuf: &mut InterpolationBuffer, max_batch: usize,
+        coverages: &mut [i32], tw_stride: usize,
+    ) {
+        if ay1 < 0x1000 {
+            let a1 = ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+            let a2 = ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+            self.paint_image_scanline_area(
+                proof, image, xfm, sec, ext,
+                ix, iy, iw, a1, ay1, a2,
+                mode, ibuf, max_batch, coverages, tw_stride,
+            );
+            iy += 1;
+        }
+        while iy < iy2 {
+            self.paint_image_scanline_area(
+                proof, image, xfm, sec, ext,
+                ix, iy, iw, ax1, 0x1000, ax2,
+                mode, ibuf, max_batch, coverages, tw_stride,
+            );
+            iy += 1;
+        }
+        if ay2 > 0 {
+            let a1 = ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+            let a2 = ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+            self.paint_image_scanline_area(
+                proof, image, xfm, sec, ext,
+                ix, iy, iw, a1, ay2, a2,
+                mode, ibuf, max_batch, coverages, tw_stride,
+            );
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn paint_image_scanline_area(
+        &mut self,
+        proof: DirectProof,
+        image: &emImage,
+        xfm: &emPainterInterpolation::AreaSampleTransform,
+        sec: &emPainterInterpolation::SectionBounds,
+        ext: super::emTexture::ImageExtension,
+        ix: i32, iy: i32, iw: i32,
+        a1: i32, a: i32, a2: i32,
+        mode: &BlendMode,
+        ibuf: &mut InterpolationBuffer, max_batch: usize,
+        coverages: &mut [i32], tw_stride: usize,
+    ) {
+        let end = ix + iw;
+        let mut carry = emPainterInterpolation::AreaSampleCarryState::new();
+        let mut col = ix;
+        while col < end {
+            let batch = ((end - col) as usize).min(max_batch);
+            emPainterInterpolation::interpolate_scanline_area_sampled(
+                image, col, iy, batch, xfm, sec, ext, ibuf, &mut carry,
+            );
+            for (i, cov) in coverages[..batch].iter_mut().enumerate() {
+                let px = col + i as i32;
+                *cov = if px == ix { a1 }
+                    else if px == end - 1 { a2 }
+                    else { a };
+            }
+            let all_full = coverages[..batch].iter().all(|&c| c >= 0x1000);
+            let dest_offset = (iy as usize * tw_stride + col as usize) * 4;
+            let data = self.GetImage(proof).GetWritableMap();
+            let dest = &mut data[dest_offset..];
+            if all_full { blend_scanline_premul(dest, ibuf, batch, None, mode); }
+            else { blend_scanline_premul(dest, ibuf, batch, Some(&coverages[..batch]), mode); }
+            col += batch as i32;
+        }
+    }
+
+    /// Render image scanlines using adaptive interpolation.
+    #[allow(clippy::too_many_arguments)]
+    fn paint_image_scanlines_adaptive(
+        &mut self,
+        proof: DirectProof,
+        image: &emImage,
+        sxfm: &emPainterInterpolation::ScaleTransform24,
+        sec: &emPainterInterpolation::SectionBounds,
+        ext: super::emTexture::ImageExtension,
+        ix: i32, mut iy: i32, iy2: i32, iw: i32,
+        ax1: i32, ax2: i32, ay1: i32, ay2: i32,
+        mode: &BlendMode,
+        ibuf: &mut InterpolationBuffer, max_batch: usize,
+        coverages: &mut [i32], tw_stride: usize,
+    ) {
+        if ay1 < 0x1000 {
+            let a1 = ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+            let a2 = ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+            self.paint_image_scanline_adaptive(
+                proof, image, sxfm, sec, ext,
+                ix, iy, iw, a1, ay1, a2,
+                mode, ibuf, max_batch, coverages, tw_stride,
+            );
+            iy += 1;
+        }
+        while iy < iy2 {
+            self.paint_image_scanline_adaptive(
+                proof, image, sxfm, sec, ext,
+                ix, iy, iw, ax1, 0x1000, ax2,
+                mode, ibuf, max_batch, coverages, tw_stride,
+            );
+            iy += 1;
+        }
+        if ay2 > 0 {
+            let a1 = ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+            let a2 = ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+            self.paint_image_scanline_adaptive(
+                proof, image, sxfm, sec, ext,
+                ix, iy, iw, a1, ay2, a2,
+                mode, ibuf, max_batch, coverages, tw_stride,
+            );
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn paint_image_scanline_adaptive(
+        &mut self,
+        proof: DirectProof,
+        image: &emImage,
+        sxfm: &emPainterInterpolation::ScaleTransform24,
+        sec: &emPainterInterpolation::SectionBounds,
+        ext: super::emTexture::ImageExtension,
+        ix: i32, iy: i32, iw: i32,
+        a1: i32, a: i32, a2: i32,
+        mode: &BlendMode,
+        ibuf: &mut InterpolationBuffer, max_batch: usize,
+        coverages: &mut [i32], tw_stride: usize,
+    ) {
+        let end = ix + iw;
+        let mut col = ix;
+        while col < end {
+            let batch = ((end - col) as usize).min(max_batch);
+            emPainterInterpolation::interpolate_scanline_adaptive_premul_section(
+                image, sxfm.px, sxfm.py, col, iy, batch, sxfm, sec, ext, ibuf,
+            );
+            for (i, cov) in coverages[..batch].iter_mut().enumerate() {
+                let px = col + i as i32;
+                *cov = if px == ix { a1 }
+                    else if px == end - 1 { a2 }
+                    else { a };
+            }
+            let all_full = coverages[..batch].iter().all(|&c| c >= 0x1000);
+            let dest_offset = (iy as usize * tw_stride + col as usize) * 4;
+            let data = self.GetImage(proof).GetWritableMap();
+            let dest = &mut data[dest_offset..];
+            if all_full { blend_scanline_premul(dest, ibuf, batch, None, mode); }
+            else { blend_scanline_premul(dest, ibuf, batch, Some(&coverages[..batch]), mode); }
+            col += batch as i32;
         }
     }
 
@@ -7118,6 +7320,8 @@ impl<'a> emPainter<'a> {
             tdy,
             base_x: px as i64 * tdx - tx_origin,
             base_y: py as i64 * tdy - ty_origin,
+            px,
+            py,
         }
     }
 
