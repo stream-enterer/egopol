@@ -91,6 +91,7 @@ enum PixelTexture<'t> {
         alpha: u8,
         extension: ImageExtension,
         /// C++ ScanlineTool Alpha: (USP * texture_alpha + 127) / 255.
+        /// USP=4096 for default painter alpha.
         sct_alpha: u32,
         /// True if HAVE_ALPHA (texture alpha < 255).
         have_alpha: bool,
@@ -6118,13 +6119,6 @@ impl<'a> emPainter<'a> {
                 let fp_tdx = tdx_f64 as i64;
                 let fp_tdy = tdy_f64 as i64;
 
-                // C++ ScanlineTool Alpha for IMAGE
-                let sct_alpha = if *alpha < 255 {
-                    (4096u32 * *alpha as u32 + 127) / 255
-                } else {
-                    4096
-                };
-
                 // C++ downscale detection: TDX > 0xFFFF00 || TDY > 0xFFFF00
                 let is_area_sampled = fp_tdx > 0xFFFF00 || fp_tdy > 0xFFFF00;
 
@@ -6144,7 +6138,11 @@ impl<'a> emPainter<'a> {
                     image,
                     alpha: *alpha,
                     extension: *extension,
-                    sct_alpha,
+                    sct_alpha: if *alpha < 255 {
+                        (4096u32 * *alpha as u32 + 127) / 255
+                    } else {
+                        4096
+                    },
                     have_alpha: *alpha < 255,
                     fp_tdx,
                     fp_tdy,
@@ -6351,6 +6349,24 @@ impl<'a> emPainter<'a> {
                     *color_inner, *color_outer, *fp_tx, *fp_ty, *fp_tdx, *fp_tdy,
                 );
             }
+            PixelTexture::emImage {
+                image,
+                sct_alpha,
+                extension,
+                have_alpha,
+                fp_tdx,
+                fp_tdy,
+                fp_tx,
+                fp_ty,
+                is_area_sampled,
+                ..
+            } if *is_area_sampled && *extension == ImageExtension::Repeat => {
+                self.blit_span_image_area_sampled_tiled(
+                    proof, y, span, x_start, x_end,
+                    image, *sct_alpha, *have_alpha,
+                    *fp_tdx, *fp_tdy, *fp_tx, *fp_ty,
+                );
+            }
             _ => {
                 // Fallback: per-pixel texture evaluation (used for other texture types).
                 let py = y as f64 + 0.5;
@@ -6523,6 +6539,416 @@ impl<'a> emPainter<'a> {
                 dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + pix_r) as u8;
                 dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + pix_g) as u8;
                 dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + pix_b) as u8;
+            }
+        }
+    }
+
+    /// Integer tiled area-sampled image span matching C++ InterpolateImageAreaSampled
+    /// (EXTEND_TILED) + PaintScanlineInt (no gradient, optional HAVE_ALPHA).
+    ///
+    /// C++ separates interpolation (into a buffer) from blending (PaintScanlineInt).
+    /// This fuses both steps: for each dest pixel, area-sample the tiled source image
+    /// using C++ integer math, then blend into the output using PaintScanlineInt logic.
+    #[allow(clippy::too_many_arguments)]
+    fn blit_span_image_area_sampled_tiled(
+        &mut self, proof: DirectProof, y: i32,
+        span: &emPainterScanline::Span, x_start: i32, x_end: i32,
+        image: &emImage, sct_alpha: u32, have_alpha: bool,
+        fp_tdx: i64, fp_tdy: i64, fp_tx: i64, fp_ty: i64,
+    ) {
+        let channels = image.GetChannelCount() as usize;
+        let img_w = image.GetWidth() as i32;
+        let img_h = image.GetHeight() as i32;
+        if img_w <= 0 || img_h <= 0 { return; }
+
+        let img_map = image.GetMap();
+        // C++ byte strides: ImgDX = channels, ImgDY = imgW * channels
+        // ImgSX = ImgW * ImgDX, ImgSY = ImgH * ImgDY
+        let img_dx = channels as isize;
+        let img_sx = img_w as isize * img_dx;
+        let img_dy = img_w as isize * channels as isize;
+        let img_sy = img_h as isize * img_dy;
+
+        // C++ ODX/ODY: rational inverse of TDX/TDY for weight computation.
+        let odx: u32 = if fp_tdx <= 0x200 { 0x7FFF_FFFF } else { (((1i64 << 40) - 1) / fp_tdx + 1) as u32 };
+        let ody: u32 = if fp_tdy <= 0x200 { 0x7FFF_FFFF } else { (((1i64 << 40) - 1) / fp_tdy + 1) as u32 };
+
+        // C++ tx = x * TDX - TX (for first pixel in span)
+        let tx = x_start as i64 * fp_tdx - fp_tx;
+
+        // C++ ox1 = ((0x1000000 - (tx & 0xffffff)) * (i64)odx + 0xffffff) >> 24
+        let mut ox1: u32 = (((0x100_0000i64 - (tx & 0xFF_FFFF)) * odx as i64 + 0xFF_FFFF) >> 24) as u32;
+        if odx == 0x7FFF_FFFF { ox1 = 0x7FFF_FFFF; }
+
+        // C++ DEFINE_AND_SET_IMAGE_X(imgX, tx>>24, imgDX, imgSX) for tiled:
+        //   imgX = ((tx>>24) * DX) % SX; if imgX < 0 { imgX += SX; }
+        let mut img_x = ((tx >> 24) * img_dx as i64).rem_euclid(img_sx as i64) as isize;
+
+        // C++ ty = y * TDY - TY
+        let ty = y as i64 * fp_tdy - fp_ty;
+
+        // C++ oy1 = ((0x1000000 - (ty & 0xffffff)) * (i64)ody + 0xffffff) >> 24
+        let mut oy1: u32 = (((0x100_0000i64 - (ty & 0xFF_FFFF)) * ody as i64 + 0xFF_FFFF) >> 24) as u32;
+        if oy1 >= 0x10000 || ody == 0x7FFF_FFFF { oy1 = 0x10000; }
+        let oy1n: u32 = 0x10000 - oy1;
+
+        // C++ DEFINE_AND_SET_IMAGE_Y(imgY1, ty>>24, imgDY, imgSY) for tiled:
+        let img_y1 = ((ty >> 24) * img_dy as i64).rem_euclid(img_sy as i64) as isize;
+
+        let tw = self.target_width as usize;
+
+        // C++ cy: column accumulator (accumulated Y samples for current source column).
+        // Represented as [r, g, b, a] u32 accumulators (up to 4 channels).
+        let mut cy = [0u32; 4];
+
+        // C++ ox: remaining fractional X weight from previous dest pixel.
+        let mut ox: u32 = 0;
+
+        for x in x_start..x_end {
+            let opacity = span_opacity_at(span, x, x_start, x_end);
+
+            // C++ cyx: row accumulator for this dest pixel, initialized with rounding.
+            let mut cyx = [0x7F_FFFFu32; 4];
+
+            // C++ oxs = 0x10000 (total X budget for this dest pixel)
+            let mut oxs: u32 = 0x10000;
+
+            while ox < oxs {
+                // ADD_MUL_COLOR(cyx, cy, ox): cyx += cy * ox
+                for ch in 0..channels {
+                    cyx[ch] = cyx[ch].wrapping_add(cy[ch].wrapping_mul(ox));
+                }
+                oxs -= ox;
+
+                // Compute cy for current source column (area-sample in Y direction).
+                let mut img_y = img_y1;
+
+                // Read first source row with oy1 weight.
+                // C++ READ_PREMUL_MUL_COLOR(cy, p, oy1)
+                let p_offset = (img_y + img_x) as usize;
+                Self::read_premul_mul_color(&mut cy, img_map, p_offset, channels, oy1);
+
+                // Add remaining source rows.
+                let mut oys = oy1n;
+                if oys > 0 {
+                    // INCREMENT_IMAGE_Y: imgY += imgDY; if imgY >= imgSY { imgY = 0; }
+                    img_y += img_dy;
+                    if img_y >= img_sy { img_y = 0; }
+
+                    if oys > ody {
+                        // Accumulate full rows.
+                        let mut ctmp = [0u32; 4];
+                        loop {
+                            let p_off = (img_y + img_x) as usize;
+                            Self::add_read_premul_color(&mut ctmp, img_map, p_off, channels);
+                            img_y += img_dy;
+                            if img_y >= img_sy { img_y = 0; }
+                            oys -= ody;
+                            if oys <= ody { break; }
+                        }
+                        // ADD_MUL_COLOR(cy, ctmp, ody)
+                        for ch in 0..channels {
+                            cy[ch] = cy[ch].wrapping_add(ctmp[ch].wrapping_mul(ody));
+                        }
+                    }
+
+                    // Add final partial row.
+                    // ADD_READ_PREMUL_MUL_COLOR(cy, p, oys)
+                    let p_off = (img_y + img_x) as usize;
+                    Self::add_read_premul_mul_color(&mut cy, img_map, p_off, channels, oys);
+                }
+
+                // FINPREMUL_SHR_COLOR(cy, 8)
+                Self::finpremul_shr_color(&mut cy, channels, 8);
+
+                // INCREMENT_IMAGE_X: imgX += imgDX; if imgX >= imgSX { imgX = 0; }
+                img_x += img_dx;
+                if img_x >= img_sx { img_x = 0; }
+
+                ox = ox1;
+                ox1 = odx;
+            }
+
+            // ADD_MUL_COLOR(cyx, cy, oxs)
+            for ch in 0..channels {
+                cyx[ch] = cyx[ch].wrapping_add(cy[ch].wrapping_mul(oxs));
+            }
+
+            // WRITE_NO_ROUND_SHR_COLOR: s[ch] = cyx[ch] >> 24
+            let mut s = [0u8; 4];
+            for ch in 0..channels {
+                s[ch] = (cyx[ch] >> 24) as u8;
+            }
+
+            ox -= oxs;
+
+            // Skip blend if zero opacity.
+            if opacity == 0 { continue; }
+
+            // --- PaintScanlineInt blend (no gradient) ---
+            // C++ HAVE_ALPHA: o = (opacity * sct.Alpha + 127) / 255
+            // sct_alpha = (USP * texture_alpha + 127) / 255 where USP=4096.
+            let o: u32 = if have_alpha {
+                (opacity as u32 * sct_alpha + 127) / 255
+            } else {
+                opacity as u32
+            };
+
+            let offset = (y as usize * tw + x as usize) * 4;
+            let data = self.GetImage(proof).GetWritableMap();
+            let dest = &mut data[offset..offset + 4];
+
+            match channels {
+                4 => {
+                    if o < 0x1000 {
+                        // Low opacity: scale channels.
+                        let a = (s[3] as u32 * o + 0x800) >> 12;
+                        if a == 0 { continue; }
+                        let pix_r = blend_hash_lookup(255, ((s[0] as u32 * o + 0x800) >> 12) as u8);
+                        let pix_g = blend_hash_lookup(255, ((s[1] as u32 * o + 0x800) >> 12) as u8);
+                        let pix_b = blend_hash_lookup(255, ((s[2] as u32 * o + 0x800) >> 12) as u8);
+                        if a >= 255 {
+                            dest[0] = pix_r;
+                            dest[1] = pix_g;
+                            dest[2] = pix_b;
+                            dest[3] = 255;
+                        } else {
+                            let t = (255 - a) * 257;
+                            dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + pix_r as u32) as u8;
+                            dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + pix_g as u32) as u8;
+                            dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + pix_b as u32) as u8;
+                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16) + blend_hash_lookup(255, a as u8) as u32) as u8;
+                        }
+                    } else {
+                        // High opacity: direct write or blend.
+                        let a = s[3] as u32;
+                        if a == 0 { continue; }
+                        let pix_r = blend_hash_lookup(255, s[0]);
+                        let pix_g = blend_hash_lookup(255, s[1]);
+                        let pix_b = blend_hash_lookup(255, s[2]);
+                        if a >= 255 {
+                            dest[0] = pix_r;
+                            dest[1] = pix_g;
+                            dest[2] = pix_b;
+                            dest[3] = 255;
+                        } else {
+                            let t = (255 - a) * 257;
+                            dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + pix_r as u32) as u8;
+                            dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + pix_g as u32) as u8;
+                            dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + pix_b as u32) as u8;
+                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16) + blend_hash_lookup(255, a as u8) as u32) as u8;
+                        }
+                    }
+                }
+                3 => {
+                    // 3-channel (RGB, no alpha channel in source).
+                    // C++ PaintScanlineInt !HAVE_GC1 && !HAVE_GC2, CHANNELS=3:
+                    // a = (255 * o + 0x800) >> 12
+                    let a = if o < 0x1000 {
+                        (255 * o + 0x800) >> 12
+                    } else {
+                        255
+                    };
+                    if a == 0 { continue; }
+                    let (pix_r, pix_g, pix_b) = if o < 0x1000 {
+                        (
+                            blend_hash_lookup(255, ((s[0] as u32 * o + 0x800) >> 12) as u8),
+                            blend_hash_lookup(255, ((s[1] as u32 * o + 0x800) >> 12) as u8),
+                            blend_hash_lookup(255, ((s[2] as u32 * o + 0x800) >> 12) as u8),
+                        )
+                    } else {
+                        (
+                            blend_hash_lookup(255, s[0]),
+                            blend_hash_lookup(255, s[1]),
+                            blend_hash_lookup(255, s[2]),
+                        )
+                    };
+                    if a >= 255 {
+                        dest[0] = pix_r;
+                        dest[1] = pix_g;
+                        dest[2] = pix_b;
+                    } else {
+                        let t = (255 - a) * 257;
+                        dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + pix_r as u32) as u8;
+                        dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + pix_g as u32) as u8;
+                        dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + pix_b as u32) as u8;
+                    }
+                }
+                2 => {
+                    // 2-channel (gray + alpha).
+                    if o < 0x1000 {
+                        let a = (s[1] as u32 * o + 0x800) >> 12;
+                        if a == 0 { continue; }
+                        let g_val = blend_hash_lookup(255, ((s[0] as u32 * o + 0x800) >> 12) as u8);
+                        if a >= 255 {
+                            dest[0] = g_val;
+                            dest[1] = g_val;
+                            dest[2] = g_val;
+                            dest[3] = 255;
+                        } else {
+                            let t = (255 - a) * 257;
+                            dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
+                            dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
+                            dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
+                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16) + blend_hash_lookup(255, a as u8) as u32) as u8;
+                        }
+                    } else {
+                        let a = s[1] as u32;
+                        if a == 0 { continue; }
+                        let g_val = blend_hash_lookup(255, s[0]);
+                        if a >= 255 {
+                            dest[0] = g_val;
+                            dest[1] = g_val;
+                            dest[2] = g_val;
+                            dest[3] = 255;
+                        } else {
+                            let t = (255 - a) * 257;
+                            dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
+                            dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
+                            dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
+                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16) + blend_hash_lookup(255, a as u8) as u32) as u8;
+                        }
+                    }
+                }
+                _ => {
+                    // 1-channel (grayscale, no alpha).
+                    let a = if o < 0x1000 {
+                        (255 * o + 0x800) >> 12
+                    } else {
+                        255
+                    };
+                    if a == 0 { continue; }
+                    let g_val = if o < 0x1000 {
+                        blend_hash_lookup(255, ((s[0] as u32 * o + 0x800) >> 12) as u8)
+                    } else {
+                        blend_hash_lookup(255, s[0])
+                    };
+                    if a >= 255 {
+                        dest[0] = g_val;
+                        dest[1] = g_val;
+                        dest[2] = g_val;
+                    } else {
+                        let t = (255 - a) * 257;
+                        dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
+                        dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
+                        dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
+                    }
+                }
+            }
+        }
+    }
+
+    /// C++ READ_PREMUL_MUL_COLOR: read pixel, premultiply (for 2/4ch), multiply by weight.
+    #[inline(always)]
+    fn read_premul_mul_color(cy: &mut [u32; 4], map: &[u8], offset: usize, channels: usize, weight: u32) {
+        match channels {
+            4 => {
+                let a = map[offset + 3] as u32 * weight;
+                cy[3] = a;
+                cy[0] = map[offset] as u32 * a;
+                cy[1] = map[offset + 1] as u32 * a;
+                cy[2] = map[offset + 2] as u32 * a;
+            }
+            3 => {
+                cy[0] = map[offset] as u32 * weight;
+                cy[1] = map[offset + 1] as u32 * weight;
+                cy[2] = map[offset + 2] as u32 * weight;
+            }
+            2 => {
+                let a = map[offset + 1] as u32 * weight;
+                cy[1] = a;
+                cy[0] = map[offset] as u32 * a;
+            }
+            _ => {
+                cy[0] = map[offset] as u32 * weight;
+            }
+        }
+    }
+
+    /// C++ ADD_READ_PREMUL_COLOR: read pixel, premultiply (for 2/4ch), add to accumulator.
+    #[inline(always)]
+    fn add_read_premul_color(acc: &mut [u32; 4], map: &[u8], offset: usize, channels: usize) {
+        match channels {
+            4 => {
+                let a = map[offset + 3] as u32;
+                acc[3] = acc[3].wrapping_add(a);
+                acc[0] = acc[0].wrapping_add(map[offset] as u32 * a);
+                acc[1] = acc[1].wrapping_add(map[offset + 1] as u32 * a);
+                acc[2] = acc[2].wrapping_add(map[offset + 2] as u32 * a);
+            }
+            3 => {
+                acc[0] = acc[0].wrapping_add(map[offset] as u32);
+                acc[1] = acc[1].wrapping_add(map[offset + 1] as u32);
+                acc[2] = acc[2].wrapping_add(map[offset + 2] as u32);
+            }
+            2 => {
+                let a = map[offset + 1] as u32;
+                acc[1] = acc[1].wrapping_add(a);
+                acc[0] = acc[0].wrapping_add(map[offset] as u32 * a);
+            }
+            _ => {
+                acc[0] = acc[0].wrapping_add(map[offset] as u32);
+            }
+        }
+    }
+
+    /// C++ ADD_READ_PREMUL_MUL_COLOR: read pixel, premultiply (for 2/4ch), multiply by weight, add.
+    #[inline(always)]
+    fn add_read_premul_mul_color(acc: &mut [u32; 4], map: &[u8], offset: usize, channels: usize, weight: u32) {
+        match channels {
+            4 => {
+                let a = map[offset + 3] as u32 * weight;
+                acc[3] = acc[3].wrapping_add(a);
+                acc[0] = acc[0].wrapping_add(map[offset] as u32 * a);
+                acc[1] = acc[1].wrapping_add(map[offset + 1] as u32 * a);
+                acc[2] = acc[2].wrapping_add(map[offset + 2] as u32 * a);
+            }
+            3 => {
+                acc[0] = acc[0].wrapping_add(map[offset] as u32 * weight);
+                acc[1] = acc[1].wrapping_add(map[offset + 1] as u32 * weight);
+                acc[2] = acc[2].wrapping_add(map[offset + 2] as u32 * weight);
+            }
+            2 => {
+                let a = map[offset + 1] as u32 * weight;
+                acc[1] = acc[1].wrapping_add(a);
+                acc[0] = acc[0].wrapping_add(map[offset] as u32 * a);
+            }
+            _ => {
+                acc[0] = acc[0].wrapping_add(map[offset] as u32 * weight);
+            }
+        }
+    }
+
+    /// C++ FINPREMUL_SHR_COLOR(C, S): finalize premultiplication with shift.
+    /// For 4ch: RGB = (x + 0x7F7F) / 0xFF00, A = (x + 0x7F) >> 8
+    /// For 3ch/1ch: all = (x + 0x7F) >> 8
+    /// For 2ch: G = (x + 0x7F7F) / 0xFF00, A = (x + 0x7F) >> 8
+    #[inline(always)]
+    fn finpremul_shr_color(cy: &mut [u32; 4], channels: usize, s: u32) {
+        // (((1<<S)>>1)-1) = (1 << (S-1)) - 1 = rounding bias
+        // For S=8: rounding = 0x7F
+        // (((0xff<<S)>>1)-1) = (0xFF << (S-1)) - 1 = 0x7F7F for S=8
+        let round = (1u32 << (s - 1)) - 1; // 0x7F for S=8
+        let round_premul = (0xFFu32 << (s - 1)) - 1; // 0x7F7F for S=8
+        let div_premul = 0xFFu32 << s; // 0xFF00 for S=8
+        match channels {
+            4 => {
+                cy[0] = (cy[0].wrapping_add(round_premul)) / div_premul;
+                cy[1] = (cy[1].wrapping_add(round_premul)) / div_premul;
+                cy[2] = (cy[2].wrapping_add(round_premul)) / div_premul;
+                cy[3] = (cy[3].wrapping_add(round)) >> s;
+            }
+            3 => {
+                cy[0] = (cy[0].wrapping_add(round)) >> s;
+                cy[1] = (cy[1].wrapping_add(round)) >> s;
+                cy[2] = (cy[2].wrapping_add(round)) >> s;
+            }
+            2 => {
+                cy[0] = (cy[0].wrapping_add(round_premul)) / div_premul;
+                cy[1] = (cy[1].wrapping_add(round)) >> s;
+            }
+            _ => {
+                cy[0] = (cy[0].wrapping_add(round)) >> s;
             }
         }
     }
