@@ -1401,6 +1401,14 @@ fn interpolate_scanline_area_inner<const CH: usize>(
 
     let mut y_oob = false;
 
+    // For Repeat extension, wrap Y into valid range before clamping.
+    // C++ handles tiling via a separate InterpolateImageAreaSampledTiled path;
+    // Rust wraps Y coordinates here to reuse the non-tiled path.
+    if ext == ImageExtension::Repeat && ty_end > 0 && (ty1 < 0 || ty1 >= ty_end) {
+        ty1 = ((ty1 % ty_end) + ty_end) % ty_end;
+        ty2 = ty1 + xfm.tdy;
+    }
+
     if ty1 < 0 {
         if ty2 <= 0 {
             if ext == ImageExtension::Zero {
@@ -1470,6 +1478,12 @@ fn interpolate_scanline_area_inner<const CH: usize>(
         let mut tx2 = tx + tdx;
         let odx: u32;
         let tx_stop: i64;
+
+        // Repeat extension: wrap X into valid range (same as Y wrapping above).
+        if ext == ImageExtension::Repeat && tx_end > 0 && (tx1 < 0 || tx1 >= tx_end) {
+            tx1 = ((tx1 % tx_end) + tx_end) % tx_end;
+            tx2 = tx1 + tdx;
+        }
 
         if tx1 < 0 {
             tx1 = 0;

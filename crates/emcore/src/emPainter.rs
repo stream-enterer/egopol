@@ -1880,6 +1880,24 @@ impl<'a> emPainter<'a> {
                                 as u8
                         };
                     }
+                    // DIAGNOSTIC
+                    if row == 945 && col == start_x {
+                        use std::io::Write;
+                        let mut f = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/diag_colored.txt").unwrap();
+                        writeln!(f, "row={} col={} batch={} lums={:?}", row, col, batch, &lums[..batch.min(5)]).ok();
+                        let p0 = ibuf.pixel_rgba(0);
+                        writeln!(f, "  pixel[0] rgba=({},{},{},{}) lum={}", p0[0], p0[1], p0[2], p0[3], lums[0]).ok();
+                        writeln!(f, "  stride=({},{}) red_w={} red_h={} sec=({},{},{},{}) ext={:?}",
+                            xfm.stride_x, xfm.stride_y, red_w, red_h, sec.ox, sec.oy, sec.w, sec.h, ext).ok();
+                        writeln!(f, "  tdx={} tdy={} ratio=({:.1},{:.1})", tdx_i, tdy_i, ratio_x, ratio_y).ok();
+                        writeln!(f, "  tex=({},{},{},{}) src=({},{})", tex_x, tex_y, tex_w, tex_h, src_w, src_h).ok();
+                        writeln!(f, "  img_ch={} img_size={}x{}", ch, iw, ih).ok();
+                        // Try direct pixel access
+                        let direct_p = image.GetPixel(0, 0);
+                        writeln!(f, "  direct image[0,0] = ({},{},{},{})", direct_p[0], direct_p[1], direct_p[2], if ch >= 4 { direct_p[3] } else { 255 }).ok();
+                        let map = image.GetMap();
+                        writeln!(f, "  image data ptr={:p} len={} first_bytes={:?}", map.as_ptr(), map.len(), &map[..16.min(map.len())]).ok();
+                    }
                     let all_full =
                         sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
                     let dest_offset = (row as usize * target_w + col as usize) * 4;
