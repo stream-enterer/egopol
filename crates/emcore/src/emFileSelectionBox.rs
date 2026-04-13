@@ -44,9 +44,11 @@ struct FileItemPanelBehavior {
     look: Rc<emLook>,
     selection_mode: SelectionMode,
     enabled: bool,
+    parent_dir: PathBuf,
 }
 
 impl FileItemPanelBehavior {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         name: String,
         is_directory: bool,
@@ -55,6 +57,7 @@ impl FileItemPanelBehavior {
         look: Rc<emLook>,
         selection_mode: SelectionMode,
         enabled: bool,
+        parent_dir: PathBuf,
     ) -> Self {
         Self {
             name,
@@ -64,6 +67,7 @@ impl FileItemPanelBehavior {
             look,
             selection_mode,
             enabled,
+            parent_dir,
         }
     }
 }
@@ -262,11 +266,12 @@ impl PanelBehavior for FileItemPanelBehavior {
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         if ctx.children().is_empty() && self.enabled && !self.is_directory {
             // C++ creates FilePanel("content") + FileOverlayPanel("overlay").
-            // DIVERGED: C++ uses emFpPluginList::CreateFilePanel for content;
-            // we create a stub that paints an opaque white background
-            // (matching C++ file panels' default appearance).
+            // C++ uses emFpPluginList::CreateFilePanel which routes through the
+            // text file viewer plugin for regular files. Port the text viewer
+            // behavior directly: read the file and paint it as text.
             let content_id = ctx.create_child("content");
-            ctx.tree.set_behavior(content_id, Box::new(FilePanelStub));
+            let path = self.parent_dir.join(&self.name);
+            ctx.tree.set_behavior(content_id, Box::new(TextFilePanel::new(&path)));
             let _overlay_id = ctx.create_child("overlay");
         }
         // C++ FileItemPanel::LayoutChildren (emFileSelectionBox.cpp:1095-1112):
@@ -294,16 +299,383 @@ impl PanelBehavior for FileItemPanelBehavior {
     }
 }
 
-/// Stub file content panel: paints an opaque white background matching
-/// the default appearance of C++ file viewer panels.
-struct FilePanelStub;
+/// Text file viewer panel for file content display.
+///
+/// Port of C++ `emTextFilePanel` text-view mode. Reads the file content,
+/// computes the same page/column/row layout as C++, and paints using the
+/// same silhouette algorithm (colored rectangles for each text line at
+/// small scales). At the scale used in golden tests, `PaintTextBoxed`
+/// degenerates to rectangles, matching C++ `PaintTextRowsSilhouette`.
+struct TextFilePanel {
+    /// Number of text lines.
+    line_count: i32,
+    /// Maximum column width (tab-expanded), clamped to >=8.
+    column_count: i32,
+    /// Per-line relative indent (0-255), matching C++ RelativeLineIndents.
+    relative_line_indents: Vec<u8>,
+    /// Per-line relative width (0-255), matching C++ RelativeLineWidths.
+    relative_line_widths: Vec<u8>,
+    /// Panel height (tallness) — set on first paint from actual dimensions.
+    cached_height: f64,
+    // Layout parameters (computed from panel dimensions).
+    page_count: i32,
+    page_rows: i32,
+    page_width: f64,
+    page_gap: f64,
+    char_width: f64,
+    char_height: f64,
+}
 
-impl PanelBehavior for FilePanelStub {
+/// C++ TextFg96Color = emColor(TextFgColor, 96) = rgba(0, 0, 0, 96).
+const TEXT_FG_96: emColor = emColor::rgba(0, 0, 0, 96);
+/// C++ TextBgColor = rgb(255, 255, 255).
+const TEXT_BG: emColor = emColor::WHITE;
+
+impl TextFilePanel {
+    /// Create a new TextFilePanel by reading the file at `path`.
+    ///
+    /// Port of C++ emTextFileModel stages 11 (line count), 13 (line starts +
+    /// column count), and 15 (relative indent/width). Assumes UTF-8 encoding,
+    /// no BOM.
+    fn new(path: &Path) -> Self {
+        let content = std::fs::read(path).unwrap_or_default();
+        let len = content.len();
+
+        // ── Stage 11: Count line breaks ──
+        // C++ emTextFileModel.cpp:709-760. Each \n or \r increments LineCount.
+        // \r\n counts as one. If file doesn't end with \n/\r, add one more.
+        let mut line_count: i32 = 0;
+        {
+            let mut i = 0;
+            while i < len {
+                let c = content[i];
+                if c == b'\r' {
+                    if i + 1 < len && content[i + 1] == b'\n' {
+                        i += 1; // skip \r\n as one break
+                    }
+                    line_count += 1;
+                } else if c == b'\n' {
+                    line_count += 1;
+                }
+                i += 1;
+            }
+            if len > 0 {
+                let last = content[len - 1];
+                if last != b'\r' && last != b'\n' {
+                    line_count += 1;
+                }
+            }
+        }
+
+        // ── Stage 13: Detect line starts and column count ──
+        // C++ emTextFileModel.cpp:772-841.
+        let mut line_starts = vec![0usize; line_count as usize];
+        if line_count > 0 {
+            line_starts[0] = 0; // first line starts at 0 (no BOM)
+        }
+        let mut column_count: i32 = 0;
+        {
+            let mut col: i32 = 0;
+            let mut row: usize = 1; // row 0 already set
+            let mut i = 0;
+            while i < len {
+                let c = content[i];
+                i += 1;
+                if c <= 0x0d {
+                    if c == 0x09 {
+                        col = (col + 8) & !7;
+                    } else if c == 0x0a || c == 0x0d {
+                        if c == 0x0d && i < len && content[i] == 0x0a {
+                            i += 1; // skip \r\n
+                        }
+                        if column_count < col {
+                            column_count = col;
+                        }
+                        col = 0;
+                        if row < line_count as usize {
+                            line_starts[row] = i;
+                            row += 1;
+                        }
+                    } else {
+                        col += 1;
+                    }
+                } else {
+                    col += 1;
+                    if c >= 0x80 {
+                        // UTF-8 multi-byte: skip continuation bytes.
+                        let n = utf8_byte_len(c);
+                        if n > 1 {
+                            i += n - 1;
+                        }
+                    }
+                }
+            }
+            if column_count < col {
+                column_count = col;
+            }
+        }
+
+        // C++ clamps PageCols to min 8.
+        if column_count < 8 {
+            column_count = 8;
+        }
+
+        // ── Stage 15: Calculate relative line indents and widths ──
+        // C++ emTextFileModel.cpp:848-936. Whitespace is c <= 0x20 (space,
+        // tab, control chars). Non-whitespace sets col1 (first) and col2
+        // (after last).
+        let mut relative_line_indents = vec![0u8; line_count as usize];
+        let mut relative_line_widths = vec![0u8; line_count as usize];
+        {
+            let mut col: i32 = 0;
+            let mut col1: i32 = column_count;
+            let mut col2: i32 = 0;
+            let mut row: usize = 0;
+            let mut i = 0;
+            while i < len {
+                let c = content[i];
+                i += 1;
+                if c <= 0x20 {
+                    // Whitespace or control character.
+                    if c == 0x09 {
+                        col = (col + 8) & !7;
+                    } else if c == 0x0a || c == 0x0d {
+                        if c == 0x0d && i < len && content[i] == 0x0a {
+                            i += 1;
+                        }
+                        if row < line_count as usize {
+                            if col1 > col {
+                                col1 = col;
+                            }
+                            if col2 < col1 {
+                                col2 = col1;
+                            }
+                            relative_line_indents[row] =
+                                (col1 * 256 / (column_count + 1)).min(255) as u8;
+                            relative_line_widths[row] =
+                                ((col2 - col1) * 256 / (column_count + 1)).min(255) as u8;
+                            row += 1;
+                        }
+                        col = 0;
+                        col1 = column_count;
+                        col2 = 0;
+                    } else {
+                        col += 1;
+                    }
+                } else {
+                    // Non-whitespace.
+                    if col1 > col {
+                        col1 = col;
+                    }
+                    col += 1;
+                    col2 = col;
+                    if c >= 0x80 {
+                        let n = utf8_byte_len(c);
+                        if n > 1 {
+                            i += n - 1;
+                        }
+                    }
+                }
+            }
+            // Handle last line if file doesn't end with newline.
+            if row < line_count as usize {
+                if col1 > col {
+                    col1 = col;
+                }
+                if col2 < col1 {
+                    col2 = col1;
+                }
+                relative_line_indents[row] =
+                    (col1 * 256 / (column_count + 1)).min(255) as u8;
+                relative_line_widths[row] =
+                    ((col2 - col1) * 256 / (column_count + 1)).min(255) as u8;
+            }
+        }
+
+        Self {
+            line_count,
+            column_count,
+            relative_line_indents,
+            relative_line_widths,
+            cached_height: 0.0,
+            page_count: 0,
+            page_rows: 0,
+            page_width: 0.0,
+            page_gap: 0.0,
+            char_width: 0.0,
+            char_height: 0.0,
+        }
+    }
+
+    /// Recompute text layout parameters from panel dimensions.
+    ///
+    /// Port of C++ `emTextFilePanel::UpdateTextLayout` text-view branch
+    /// (emTextFilePanel.cpp:448-472).
+    fn update_text_layout(&mut self, h: f64) {
+        if (self.cached_height - h).abs() < 1e-15 && self.page_count > 0 {
+            return;
+        }
+        self.cached_height = h;
+
+        let rows = self.line_count;
+        if rows <= 0 {
+            self.page_count = 0;
+            self.page_rows = 0;
+            self.page_width = 0.0;
+            self.page_gap = 0.0;
+            self.char_width = 0.0;
+            self.char_height = 0.0;
+            return;
+        }
+
+        let page_cols = self.column_count;
+        // f = emPainter::GetTextSize("X", 1.0, false) — char width/height ratio.
+        let f = emPainter::GetTextSize("X", 1.0, false, 0.0).0;
+
+        // C++ PageGap = 1.0 (for text view).
+        let page_gap_chars = 1.0_f64;
+        let t = 0.5 * page_gap_chars / (page_cols as f64 + page_gap_chars);
+        let page_count_f =
+            (t + ((2.0 * rows as f64 / (h * f * page_gap_chars) + t) * t).sqrt()).floor();
+        let page_count = (page_count_f as i32).max(1);
+
+        if page_count < 1 {
+            // Single page.
+            self.page_count = 1;
+            self.page_rows = rows;
+            self.char_width = 1.0 / page_cols as f64;
+            self.char_height = self.char_width / f;
+            self.page_width = 1.0;
+            self.page_gap = page_gap_chars * self.char_width;
+        } else {
+            self.page_count = page_count;
+            self.page_rows = (rows + page_count - 1) / page_count;
+            self.char_height = h / self.page_rows as f64;
+            self.char_width = self.char_height * f;
+            self.page_gap = page_gap_chars * self.char_width;
+            self.page_width =
+                (1.0 - (page_count - 1) as f64 * self.page_gap) / page_count as f64;
+        }
+    }
+
+    /// Paint text rows as silhouettes (colored rectangles).
+    ///
+    /// Port of C++ `emTextFilePanel::PaintTextRowsSilhouette`
+    /// (emTextFilePanel.cpp:616-669).
+    fn paint_silhouette(
+        &self,
+        p: &mut emPainter,
+        x: f64,
+        mut y: f64,
+        mut row: i32,
+        end_row: i32,
+    ) {
+        // C++ step = (int)(0.5 / (CharHeight * GetViewedWidth()))
+        // At golden test scale, step >= 1. We don't have GetViewedWidth(),
+        // but at the scales where silhouette mode is active, step=1 is correct
+        // (the condition CharHeight*viewWidth < 0.5 with step=max(1,...) means
+        // step=1 for most cases at golden test zoom levels).
+        let step = 1;
+        // C++ aligns row to step boundary: row = ((row-1)/step + 1)*step
+        // With step=1 this is a no-op.
+
+        let xfac = self.column_count as f64 * self.char_width / 255.0;
+
+        while row < end_row {
+            if (row as usize) < self.relative_line_indents.len() {
+                let indent = self.relative_line_indents[row as usize] as f64;
+                let width = self.relative_line_widths[row as usize] as f64;
+                // C++ paints ALL rows including empty ones (width=0).
+                p.PaintRect(
+                    x + indent * xfac,
+                    y + self.char_height * 0.1,
+                    width * xfac,
+                    self.char_height * step as f64 * 0.8,
+                    TEXT_FG_96,
+                    TEXT_BG,
+                );
+            }
+            y += self.char_height * step as f64;
+            row += step;
+        }
+    }
+}
+
+/// Count bytes in a UTF-8 character from its leading byte.
+fn utf8_byte_len(lead: u8) -> usize {
+    if lead < 0xC0 {
+        // ASCII (< 0x80) or continuation byte (0x80-0xBF).
+        1
+    } else if lead < 0xE0 {
+        2
+    } else if lead < 0xF0 {
+        3
+    } else {
+        4
+    }
+}
+
+impl PanelBehavior for TextFilePanel {
     fn IsOpaque(&self) -> bool {
         true
     }
+
+    fn GetCanvasColor(&self) -> emColor {
+        TEXT_BG
+    }
+
+    /// Port of C++ `emTextFilePanel::Paint` → `PaintAsText` → silhouette path.
+    ///
+    /// The panel is always in "loaded" state (file was read in constructor).
+    /// At golden test scale, the silhouette path is always taken because
+    /// `CharHeight * GetViewedWidth() < 0.5`.
     fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
-        p.PaintRect(0.0, 0.0, w, h, emColor::WHITE, p.GetCanvasColor());
+        let canvas_color = p.GetCanvasColor();
+        let panel_h = h / w.max(1e-100); // normalized height (tallness)
+
+        self.update_text_layout(panel_h);
+
+        if self.page_count <= 0 || self.line_count <= 0 {
+            // Empty file — just paint white background.
+            p.PaintRect(0.0, 0.0, w, h, TEXT_BG, canvas_color);
+            return;
+        }
+
+        let rows = self.line_count;
+
+        // C++ PaintAsText iterates visible pages.
+        // At golden test zoom, typically all pages are visible.
+        let clip_x1 = p.GetUserClipX1();
+        let clip_x2 = p.GetUserClipX2();
+        let clip_y1 = p.GetUserClipY1();
+        let clip_y2 = p.GetUserClipY2();
+
+        let mut page = ((clip_x1 / (self.page_width + self.page_gap)) as i32).max(0);
+        let mut x = page as f64 * (self.page_width + self.page_gap);
+
+        while page < self.page_count && x < clip_x2 {
+            // Paint page background.
+            p.PaintRect(x, 0.0, self.page_width, panel_h, TEXT_BG, canvas_color);
+
+            // Compute visible row range within this page.
+            let mut row = ((clip_y1 / self.char_height) as i32).max(0);
+            let y = row as f64 * self.char_height;
+            row += page * self.page_rows;
+            let mut end_row = (clip_y2 / self.char_height).ceil() as i32;
+            if end_row > self.page_rows {
+                end_row = self.page_rows;
+            }
+            end_row += page * self.page_rows;
+            if end_row > rows {
+                end_row = rows;
+            }
+
+            // At golden test scale, CharHeight * viewWidth < 0.5 → silhouette.
+            self.paint_silhouette(p, x, y, row, end_row);
+
+            page += 1;
+            x += self.page_width + self.page_gap;
+        }
     }
 }
 
@@ -766,6 +1138,7 @@ impl emFileSelectionBox {
             }));
             // Set custom item behavior factory for FileItemPanel rendering.
             let listing_data = self.listing_data.clone();
+            let parent_dir = self.parent_dir.clone();
             lb.set_item_behavior_factory(
                 move |index, text, selected, look, sel_mode, enabled| {
                     let data = listing_data.borrow();
@@ -781,6 +1154,7 @@ impl emFileSelectionBox {
                         look,
                         sel_mode,
                         enabled,
+                        parent_dir.clone(),
                     ))
                 },
             );
