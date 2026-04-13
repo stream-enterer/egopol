@@ -5426,15 +5426,8 @@ impl<'a> emPainter<'a> {
             stroke: stroke.clone(),
             canvas_color,
         }) else { return; };
-        // For width=1 with no decorations and no rounding, simple line.
-        if stroke.width <= 1.0
-            && !stroke.start_end.IsDecorated()
-            && !stroke.finish_end.IsDecorated()
-            && stroke.join != super::emStroke::LineJoin::Round
-        {
-            self.PaintLine(x0, y0, x1, y1, stroke.color, canvas_color);
-            return;
-        }
+        // C++ PaintLine always uses PaintSolidPolyline which respects thickness.
+        // No shortcut to simple PaintLine (which draws 1px regardless of thickness).
 
         // Route through the polyline system which handles caps, joins,
         // decorations, and dashes correctly — matching C++ PaintLine.
