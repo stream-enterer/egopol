@@ -824,6 +824,221 @@ impl<'a> emPainter<'a> {
         self.state.canvas_color = saved_canvas;
     }
 
+    /// Fill a rect with a gradient texture using PaintRect sub-pixel boundary
+    /// computation. Matches C++ `PaintRect(x,y,w,h, emGradientTexture, canvas)`.
+    ///
+    /// Uses the same Fixed12 boundary math as `PaintRect` (iy2=truncate), but
+    /// samples the gradient texture per pixel instead of using a single color.
+    /// Records as `PaintRect` in the draw-op stream.
+    #[allow(clippy::too_many_arguments)]
+    pub fn paint_rect_with_texture(
+        &mut self,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        texture: &super::emTexture::emTexture,
+        canvas_color: emColor,
+    ) {
+        // Record as PaintRect with the texture's representative color,
+        // matching C++ which records PaintRect(texture.GetColor()).
+        let repr_color = match texture {
+            super::emTexture::emTexture::LinearGradient { color_a, .. } => *color_a,
+            super::emTexture::emTexture::RadialGradient { color_inner, .. } => *color_inner,
+            super::emTexture::emTexture::SolidColor(c) => *c,
+            super::emTexture::emTexture::emImage { .. }
+            | super::emTexture::emTexture::ImageColored { .. } => emColor::TRANSPARENT,
+        };
+        let Some(proof) = self.try_record(DrawOp::PaintRect {
+            x, y, w, h, color: repr_color, canvas_color,
+        }) else { return; };
+
+        let saved_canvas = self.state.canvas_color;
+        self.state.canvas_color = canvas_color;
+
+        // --- PaintRect boundary computation (same as PaintRect solid) ---
+        let x2 = x + w;
+        let y2 = y + h;
+        let px1 = (x * self.state.scale_x + self.state.offset_x)
+            .max(self.state.clip.x1).min(self.state.clip.x2);
+        let px2 = (x2 * self.state.scale_x + self.state.offset_x)
+            .max(self.state.clip.x1).min(self.state.clip.x2);
+        let py1 = (y * self.state.scale_y + self.state.offset_y)
+            .max(self.state.clip.y1).min(self.state.clip.y2);
+        let py2 = (y2 * self.state.scale_y + self.state.offset_y)
+            .max(self.state.clip.y1).min(self.state.clip.y2);
+        if px1 >= px2 || py1 >= py2 {
+            self.state.canvas_color = saved_canvas;
+            return;
+        }
+
+        let ix_raw = (px1 * 4096.0) as i32;
+        let ixe_raw = (px2 * 4096.0) as i32 + 0xfff;
+        let mut ax1 = 0x1000 - (ix_raw & 0xfff);
+        let ax2 = (ixe_raw & 0xfff) + 1;
+        let ix = ix_raw >> 12;
+        let ixe = ixe_raw >> 12;
+        let iw = ixe - ix;
+        if iw <= 0 {
+            self.state.canvas_color = saved_canvas;
+            return;
+        }
+        if iw <= 1 { ax1 += ax2 - 0x1000; }
+
+        let iy_raw = (py1 * 4096.0) as i32;
+        let iy2_raw = (py2 * 4096.0) as i32;
+        let mut ay1 = 0x1000 - (iy_raw & 0xfff);
+        let mut ay2 = iy2_raw & 0xfff;
+        let mut iy = iy_raw >> 12;
+        let iy2 = iy2_raw >> 12;
+        if iy >= iy2 {
+            ay1 += ay2 - 0x1000;
+            ay2 = 0;
+            if ay1 <= 0 {
+                self.state.canvas_color = saved_canvas;
+                return;
+            }
+        }
+
+        // --- Per-pixel gradient rendering ---
+        // Prepare gradient interpolation parameters
+        match texture {
+            super::emTexture::emTexture::LinearGradient { color_a, color_b, start, end } => {
+                let pstart = (
+                    start.0 * self.state.scale_x + self.state.offset_x,
+                    start.1 * self.state.scale_y + self.state.offset_y,
+                );
+                let pend = (
+                    end.0 * self.state.scale_x + self.state.offset_x,
+                    end.1 * self.state.scale_y + self.state.offset_y,
+                );
+                let grad = emPainterInterpolation::LinearGradientParams::new(pstart, pend);
+                let mut gbuf = vec![0u8; iw as usize];
+                // Scanline loop matching PaintRect
+                if ay1 < 0x1000 {
+                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, ay1, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                    iy += 1;
+                }
+                while iy < iy2 {
+                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                    iy += 1;
+                }
+                if ay2 > 0 {
+                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, ay2, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                }
+            }
+            super::emTexture::emTexture::RadialGradient { color_inner, color_outer, center, radius_x, radius_y } => {
+                // Radial gradient: distance from center, normalized by radii
+                let pcx = center.0 * self.state.scale_x + self.state.offset_x;
+                let pcy = center.1 * self.state.scale_y + self.state.offset_y;
+                let prx = radius_x * self.state.scale_x;
+                let pry = radius_y * self.state.scale_y;
+                if ay1 < 0x1000 {
+                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, ay1, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                    iy += 1;
+                }
+                while iy < iy2 {
+                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                    iy += 1;
+                }
+                if ay2 > 0 {
+                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, ay2, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                }
+            }
+            super::emTexture::emTexture::SolidColor(c) => {
+                // Fallback to solid color PaintRect
+                if ay1 < 0x1000 {
+                    let a1 = ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+                    let a2 = ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+                    self.paint_rect_scanline(proof, ix, iy, iw, a1, ay1, a2, *c);
+                    iy += 1;
+                }
+                while iy < iy2 {
+                    self.paint_rect_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, *c);
+                    iy += 1;
+                }
+                if ay2 > 0 {
+                    let a1 = ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+                    let a2 = ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+                    self.paint_rect_scanline(proof, ix, iy, iw, a1, ay2, a2, *c);
+                }
+            }
+            _ => {} // Image textures not handled here
+        }
+
+        self.state.canvas_color = saved_canvas;
+    }
+
+    /// Render one PaintRect scanline with linear gradient per-pixel colors.
+    #[allow(clippy::too_many_arguments)]
+    fn paint_rect_gradient_scanline(
+        &mut self,
+        proof: DirectProof,
+        ix: i32, iy: i32, iw: i32,
+        ax1: i32, ay: i32, ax2: i32,
+        grad: &emPainterInterpolation::LinearGradientParams,
+        gbuf: &mut [u8],
+        color_a: emColor,
+        color_b: emColor,
+    ) {
+        // Interpolate gradient values for this scanline
+        grad.interpolate_scanline(ix, iy, &mut gbuf[..iw as usize]);
+
+        // First pixel
+        let a1 = ((ax1 as i64 * ay as i64 + 0x7ff) >> 12) as i32;
+        let c0 = emPainterInterpolation::blend_gradient_colors(gbuf[0], color_a, color_b);
+        self.blend_with_coverage(proof, ix, iy, c0, a1);
+
+        // Interior pixels
+        for (i, &g) in gbuf.iter().enumerate().take((iw as usize).saturating_sub(1)).skip(1) {
+            let c = emPainterInterpolation::blend_gradient_colors(g, color_a, color_b);
+            self.blend_with_coverage(proof, ix + i as i32, iy, c, ay);
+        }
+
+        // Last pixel (if width > 1)
+        if iw > 1 {
+            let a2 = ((ax2 as i64 * ay as i64 + 0x7ff) >> 12) as i32;
+            let c_last = emPainterInterpolation::blend_gradient_colors(gbuf[(iw - 1) as usize], color_a, color_b);
+            self.blend_with_coverage(proof, ix + iw - 1, iy, c_last, a2);
+        }
+    }
+
+    /// Render one PaintRect scanline with radial gradient per-pixel colors.
+    /// Uses the C++ radial gradient interpolation formula.
+    #[allow(clippy::too_many_arguments)]
+    fn paint_rect_radial_scanline(
+        &mut self,
+        proof: DirectProof,
+        ix: i32, iy: i32, iw: i32,
+        ax1: i32, ay: i32, ax2: i32,
+        pcx: f64, pcy: f64, prx: f64, pry: f64,
+        color_inner: emColor,
+        color_outer: emColor,
+    ) {
+        let a1 = ((ax1 as i64 * ay as i64 + 0x7ff) >> 12) as i32;
+        let a2_cov = ((ax2 as i64 * ay as i64 + 0x7ff) >> 12) as i32;
+
+        for i in 0..iw as usize {
+            let px = (ix + i as i32) as f64 + 0.5;
+            let py = iy as f64 + 0.5;
+            let dx = (px - pcx) / prx;
+            let dy = (py - pcy) / pry;
+            let dist_sq = dx * dx + dy * dy;
+            let dist = dist_sq.sqrt();
+            let g = (dist * 255.0).clamp(0.0, 255.0) as u8;
+            let c = emPainterInterpolation::blend_gradient_colors(g, color_inner, color_outer);
+
+            let cov = if i == 0 {
+                a1
+            } else if i == (iw - 1) as usize && iw > 1 {
+                a2_cov
+            } else {
+                ay
+            };
+            self.blend_with_coverage(proof, ix + i as i32, iy, c, cov);
+        }
+    }
+
     /// Fill an ellipse with a solid color using AA polygon approximation.
     pub fn PaintEllipse(
         &mut self,
@@ -853,6 +1068,47 @@ impl<'a> emPainter<'a> {
         }
         let verts = self.ellipse_polygon(cx, cy, rx, ry);
         self.PaintPolygon(&verts, color, canvas_color);
+        if is_recording { self.record_depth -= 1; }
+    }
+
+    /// Fill an ellipse with a gradient texture using AA polygon approximation.
+    /// Matches C++ `PaintEllipse(x,y,w,h, emGradientTexture, canvas)`.
+    /// Records as PaintEllipse in the draw-op stream.
+    ///
+    /// C++ PaintEllipse uses (x,y,w,h) bounding rect; this takes (cx,cy,rx,ry).
+    #[allow(clippy::too_many_arguments)]
+    pub fn paint_ellipse_with_texture(
+        &mut self,
+        cx: f64,
+        cy: f64,
+        rx: f64,
+        ry: f64,
+        texture: &super::emTexture::emTexture,
+        canvas_color: emColor,
+    ) {
+        if rx <= 0.0 || ry <= 0.0 {
+            return;
+        }
+        let repr_color = match texture {
+            super::emTexture::emTexture::RadialGradient { color_inner, .. } => *color_inner,
+            super::emTexture::emTexture::LinearGradient { color_a, .. } => *color_a,
+            super::emTexture::emTexture::SolidColor(c) => *c,
+            super::emTexture::emTexture::emImage { .. }
+            | super::emTexture::emTexture::ImageColored { .. } => emColor::TRANSPARENT,
+        };
+        let is_recording = self.try_record(DrawOp::PaintEllipse {
+            cx, cy, rx, ry,
+            color: repr_color,
+            canvas_color,
+        }).is_none();
+        if is_recording {
+            if !self.record_subops {
+                return;
+            }
+            self.record_depth += 1;
+        }
+        let verts = self.ellipse_polygon(cx, cy, rx, ry);
+        self.paint_polygon_textured(&verts, texture, canvas_color);
         if is_recording { self.record_depth -= 1; }
     }
 

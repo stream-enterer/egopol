@@ -790,7 +790,7 @@ impl TestPanel {
             0.88,
             0.02,
             0.01,
-            0.002,
+            0.001,
             0.002,
             &emStroke::new(emColor::WHITE, 0.001),
         );
@@ -800,7 +800,7 @@ impl TestPanel {
             0.01,
             0.01,
             0.003,
-            0.003,
+            0.002,
             &emStroke::new(emColor::WHITE, 0.003),
         );
         p.PaintRoundRectOutline(
@@ -808,7 +808,7 @@ impl TestPanel {
             0.88,
             0.01,
             0.01,
-            0.011,
+            0.001,
             0.011,
             &emStroke::new(emColor::WHITE, 0.0001),
         );
@@ -995,8 +995,8 @@ impl TestPanel {
         // Gradient rects — match C++ PaintRect(rect, emGradientTexture(...)):
         // C++ emLinearGradientTexture(0.207, 0.944, 0x00000080, 0.213, 0.946, 0x80808080)
         // Painted into rect (0.2, 0.94, 0.02, 0.01).
-        p.paint_polygon_textured(
-            &[(0.2, 0.94), (0.22, 0.94), (0.22, 0.95), (0.2, 0.95)],
+        p.paint_rect_with_texture(
+            0.2, 0.94, 0.02, 0.01,
             &emTexture::LinearGradient {
                 color_a: emColor::rgba(0, 0, 0, 0x80),
                 color_b: emColor::rgba(0x80, 0x80, 0x80, 0x80),
@@ -1008,8 +1008,8 @@ impl TestPanel {
         // C++ emRadialGradientTexture(0.223, 0.941, 0.004, 0.008, 0xFF8800FF, 0x005500FF)
         // center = (0.223+0.002, 0.941+0.004) = (0.225, 0.945), rx=0.002, ry=0.004
         // Painted into rect (0.221, 0.94, 0.008, 0.01).
-        p.paint_polygon_textured(
-            &[(0.221, 0.94), (0.229, 0.94), (0.229, 0.95), (0.221, 0.95)],
+        p.paint_rect_with_texture(
+            0.221, 0.94, 0.008, 0.01,
             &emTexture::RadialGradient {
                 color_inner: emColor::rgba(0xFF, 0x88, 0, 0xFF),
                 color_outer: emColor::rgba(0, 0x55, 0, 0xFF),
@@ -1021,13 +1021,9 @@ impl TestPanel {
         );
         // C++ PaintEllipse(0.23, 0.94, 0.02, 0.01,
         //     emRadialGradientTexture(0.23, 0.94, 0.02, 0.01, 0, 0x00CC88FF))
-        // center = (0.24, 0.945), rx=0.01, ry=0.005
-        // C++ PaintEllipse generates an elliptical polygon; we approximate with the
-        // same approach as the solid-color PaintEllipse by using a rect polygon.
-        // DIVERGED: C++ generates an elliptical polygon; Rust uses a rect polygon.
-        // This is acceptable since the gradient fills the full rect anyway.
-        p.paint_polygon_textured(
-            &[(0.23, 0.94), (0.25, 0.94), (0.25, 0.95), (0.23, 0.95)],
+        // C++ uses (x,y,w,h) bounding rect → center=(0.24, 0.945), rx=0.01, ry=0.005
+        p.paint_ellipse_with_texture(
+            0.24, 0.945, 0.01, 0.005,
             &emTexture::RadialGradient {
                 color_inner: emColor::rgba(0, 0, 0, 0),
                 color_outer: emColor::rgba(0, 0xCC, 0x88, 0xFF),
@@ -1151,6 +1147,12 @@ impl PanelBehavior for TestPanel {
             0.0,
         );
 
+        // C++ emTestPanel.cpp:143: skip detailed painting when too small.
+        if state.viewed_rect.w < 25.0 {
+            painter.pop_state();
+            return;
+        }
+
         // State display
         let mut status = "State:".to_string();
         if state.is_focused() {
@@ -1217,7 +1219,10 @@ impl PanelBehavior for TestPanel {
         // Create children — Match C++ AutoExpand()
         let bg_shared = self.bg_color_shared.clone();
 
-        ctx.create_child_with("tktest", Box::new(TkTestGrpPanel::new()));
+        let tktest_id = ctx.create_child_with("tktest", Box::new(TkTestGrpPanel::new()));
+        // C++ TkTestGrp constructor: SetAutoExpansionThreshold(900.0)
+        ctx.tree
+            .SetAutoExpansionThreshold(tktest_id, 900.0, ViewConditionType::Area);
 
         if self.depth < MAX_DEPTH {
             for i in 1..=4 {
