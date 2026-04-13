@@ -6181,17 +6181,31 @@ impl<'a> emPainter<'a> {
                 let img_sx = img_w as isize * img_dx;
                 let img_sy = img_h as isize * img_dy;
 
-                // C++ area sampling origin: TX = (emInt64)(tx * tdx)
-                let fp_tx = if is_area_sampled {
-                    (tx_px * tdx_f64) as i64
+                // C++ emPainter_ScTl.cpp:296-311: near-1:1 pixel-aligned → NEAREST
+                // After pre-reduction, re-check if the reduced TDX/TDY qualify
+                // for NEAREST sampling (like paint_image_rect_textured does).
+                let is_area_sampled = if is_area_sampled {
+                    let near_1_to_1 = fp_tdx < 0x10000FF && fp_tdy < 0x10000FF
+                        && fp_tdx > 0x0FFFF00 && fp_tdy > 0x0FFFF00
+                        && ((tx_px * tdx_f64) as i64 + 0x800) & 0xFFF000 == 0
+                        && ((ty_px * tdy_f64) as i64 + 0x800) & 0xFFF000 == 0;
+                    !near_1_to_1
                 } else {
-                    ((tx_px - 0.5) * tdx_f64) as i64
+                    false
                 };
-                let fp_ty = if is_area_sampled {
-                    (ty_px * tdy_f64) as i64
+
+                // C++ TX origin depends on sampling mode
+                let fp_tx;
+                let fp_ty;
+                if is_area_sampled {
+                    // Area sampling: TX = (emInt64)(tx * tdx)
+                    fp_tx = (tx_px * tdx_f64) as i64;
+                    fp_ty = (ty_px * tdy_f64) as i64;
                 } else {
-                    ((ty_px - 0.5) * tdy_f64) as i64
-                };
+                    // Nearest/bilinear: TX = (emInt64)((tx - 0.5) * tdx)
+                    fp_tx = ((tx_px - 0.5) * tdx_f64) as i64;
+                    fp_ty = ((ty_px - 0.5) * tdy_f64) as i64;
+                }
 
                 PixelTexture::emImage {
                     image,
@@ -6672,6 +6686,9 @@ impl<'a> emPainter<'a> {
         for x in x_start..x_end {
             let opacity = span_opacity_at(span, x, x_start, x_end);
 
+            #[allow(unused)]
+            let dbg = false;
+
             // C++ cyx: row accumulator for this dest pixel, initialized with rounding.
             let mut cyx = [0x7F_FFFFu32; 4];
 
@@ -6691,6 +6708,19 @@ impl<'a> emPainter<'a> {
                 // Read first source row with oy1 weight.
                 // C++ READ_PREMUL_MUL_COLOR(cy, p, oy1)
                 let p_offset = (img_y + img_x) as usize;
+                if dbg {
+                    let p = &img_map[p_offset..p_offset+channels];
+                    // Also read directly from image for comparison
+                    let abs_off = img_map_offset + p_offset;
+                    let full_map = image.GetMap();
+                    let img_w_orig = image.GetWidth() as usize;
+                    let row = abs_off / (img_w_orig * channels);
+                    let col = (abs_off - row * img_w_orig * channels) / channels;
+                    let direct = image.GetPixel(col as u32, row as u32);
+                    eprintln!("  col: img_x={img_x} img_y={img_y} p_off={p_offset} abs={abs_off} → orig({col},{row}) map=({},{},{},{}) direct=({},{},{},{})",
+                        p[0], p[1], p[2], if channels>3 {p[3]} else {255},
+                        direct[0], direct[1], direct[2], if channels>3 {direct[3]} else {255});
+                }
                 Self::read_premul_mul_color(&mut cy, img_map, p_offset, channels, oy1);
 
                 // Add remaining source rows.
@@ -6705,6 +6735,14 @@ impl<'a> emPainter<'a> {
                         let mut ctmp = [0u32; 4];
                         loop {
                             let p_off = (img_y + img_x) as usize;
+                            if dbg && img_x == 560 {
+                                let abs = img_map_offset + p_off;
+                                let orig_row = abs / (image.GetWidth() as usize * channels);
+                                let orig_col = (abs - orig_row * image.GetWidth() as usize * channels) / channels;
+                                let pp = &img_map[p_off..p_off+channels];
+                                eprintln!("    Y-row: img_y={img_y} p_off={p_off} abs={abs} orig({orig_col},{orig_row}) px=({},{},{},{})",
+                                    pp[0], pp[1], pp[2], pp[3]);
+                            }
                             Self::add_read_premul_color(&mut ctmp, img_map, p_off, channels);
                             img_y += img_dy;
                             if img_y >= img_sy { img_y = 0; }
@@ -6726,6 +6764,11 @@ impl<'a> emPainter<'a> {
                 // FINPREMUL_SHR_COLOR(cy, 8)
                 Self::finpremul_shr_color(&mut cy, channels, 8);
 
+                if dbg {
+                    eprintln!("  Y-acc col {}: cy=({},{},{},{}) img_x_before={img_x}",
+                        img_x / img_dx, cy[0], cy[1], cy[2], cy[3]);
+                }
+
                 // INCREMENT_IMAGE_X: imgX += imgDX; if imgX >= imgSX { imgX = 0; }
                 img_x += img_dx;
                 if img_x >= img_sx { img_x = 0; }
@@ -6743,6 +6786,10 @@ impl<'a> emPainter<'a> {
             let mut s = [0u8; 4];
             for ch in 0..channels {
                 s[ch] = (cyx[ch] >> 24) as u8;
+            }
+            if dbg {
+                eprintln!("DBG ({x},{y}): s=({},{},{},{}) cyx=({:08X},{:08X},{:08X},{:08X}) opacity={} ox_remain={}",
+                    s[0], s[1], s[2], s[3], cyx[0], cyx[1], cyx[2], cyx[3], opacity, ox);
             }
 
             ox -= oxs;

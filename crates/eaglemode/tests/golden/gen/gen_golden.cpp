@@ -4293,6 +4293,7 @@ static void render_and_dump_sized(const char* name, GoldenViewPort& vp,
     open_draw_op_log(name);
     vp.DoPaintView(p, 0);
     close_draw_op_log();
+    /* debug probes removed */
     dump_compositor(name, img);
 }
 
