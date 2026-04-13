@@ -6,6 +6,7 @@ use crate::dlog;
 use crate::emColor::emColor;
 use crate::emPanel::{PanelBehavior, PanelState};
 use crate::emPanelCtx::PanelCtx;
+use crate::emPanel::NoticeFlags;
 use crate::emPanelTree::PanelId;
 use crate::emPainter::emPainter;
 use crate::emStroke::emStroke;
@@ -606,15 +607,9 @@ impl emFileSelectionBox {
             }
         }
 
-        // Sort: directories first, then by name (locale-aware, matching C++ strcoll).
-        entries.sort_by(|(a_name, a_data), (b_name, b_data)| {
-            // Directories first (matching C++ behavior)
-            match (a_data.is_directory, b_data.is_directory) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => strcoll_compare(a_name, b_name),
-            }
-        });
+        // Sort by name only (locale-aware strcoll), matching C++ CompareNames.
+        // C++ does NOT sort directories first — pure alphabetical.
+        entries.sort_by(|(a_name, _), (b_name, _)| strcoll_compare(a_name, b_name));
 
         // Add ".." entry at the beginning if not at root.
         if self.parent_dir != Path::new("/") {
@@ -1002,9 +997,20 @@ impl PanelBehavior for emFileSelectionBox {
         if let Some(fl_id) = self.files_lb_id {
             ctx.layout_child_canvas(fl_id, x, y + h1, cw, h2, cc);
             if h2 > 1e-100 {
-                ctx.tree.with_behavior_as::<ListBoxPanel, _>(fl_id, |lbp| {
-                    lbp.list_box.border_mut().SetBorderScaling(hs / h2);
-                });
+                let new_bs = hs / h2;
+                let changed = ctx
+                    .tree
+                    .with_behavior_as::<ListBoxPanel, _>(fl_id, |lbp| {
+                        let old = lbp.list_box.border_mut().border_scaling;
+                        lbp.list_box.border_mut().SetBorderScaling(new_bs);
+                        (old - new_bs).abs() > 1e-12
+                    })
+                    .unwrap_or(false);
+                // Border scaling changes the content rect, so the list box
+                // must re-layout its children (C++ triggers InvalidateLayout).
+                if changed {
+                    ctx.tree.queue_notice(fl_id, NoticeFlags::LAYOUT_CHANGED);
+                }
             }
         }
 
