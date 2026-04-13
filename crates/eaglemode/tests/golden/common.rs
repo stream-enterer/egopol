@@ -240,8 +240,6 @@ pub fn dump_golden_enabled() -> bool {
 /// Dump actual, expected, and diff images for a test.
 pub fn dump_test_images(name: &str, actual: &[u8], expected: &[u8], w: u32, h: u32) {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
         .join("target")
         .join("golden-debug");
     std::fs::create_dir_all(&dir).expect("Cannot create target/golden-debug/");
