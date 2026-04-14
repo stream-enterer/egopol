@@ -84,7 +84,7 @@ impl emCheckButton {
         let fy = cr.y + d;
         let fw = cr.w - 2.0 * d;
         let fh = cr.h - 2.0 * d;
-        let fr = (r - d).max(0.0);
+        let fr = r - d;
 
         // C++ emButton.cpp:361: always ButtonBgColor. Pressed visual from overlay.
         let face_color = self.look.button_bg_color;
@@ -112,8 +112,7 @@ impl emCheckButton {
         let label_color = if enabled {
             self.look.button_fg_color
         } else {
-            let c = self.look.button_fg_color;
-            c.SetAlpha((c.GetAlpha() as f64 * 0.25 + 0.5) as u8)
+            self.look.button_fg_color.GetTransparented(75.0)
         };
         self.border.paint_label_colored(
             painter,
