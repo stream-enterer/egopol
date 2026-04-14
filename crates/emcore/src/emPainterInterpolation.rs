@@ -1235,19 +1235,25 @@ impl LinearGradientParams {
     }
 }
 
-/// Blend a gradient interpolation value with two colors using the C++ hash formula.
-/// Matches C++ emPainter_ScTlPSInt.cpp:334-336.
+/// Blend a gradient interpolation value with two colors.
+/// Matches C++ AVX2 emPainter_ScTlPSInt_AVX2.cpp gradient G1G2 path:
+/// each color contribution is div255-rounded independently, then summed.
 #[inline]
 pub fn blend_gradient_colors(g: u8, c0: emColor, c1: emColor) -> emColor {
-    let g = g as i32;
-    let mix = |a: i32, b: i32| -> u8 {
-        (((a * (255 - g) + b * g) * 257 + 0x8073) >> 16) as u8
+    let a1 = 255 - g as u32;
+    let a2 = g as u32;
+    let mix = |v0: u32, v1: u32| -> u8 {
+        let t0 = v0 * a1;
+        let t1 = v1 * a2;
+        let d0 = ((t0 + 128 + ((t0 + 128) >> 8)) >> 8) as u8;
+        let d1 = ((t1 + 128 + ((t1 + 128) >> 8)) >> 8) as u8;
+        d0.wrapping_add(d1)
     };
     emColor::rgba(
-        mix(c0.GetRed() as i32, c1.GetRed() as i32),
-        mix(c0.GetGreen() as i32, c1.GetGreen() as i32),
-        mix(c0.GetBlue() as i32, c1.GetBlue() as i32),
-        mix(c0.GetAlpha() as i32, c1.GetAlpha() as i32),
+        mix(c0.GetRed() as u32, c1.GetRed() as u32),
+        mix(c0.GetGreen() as u32, c1.GetGreen() as u32),
+        mix(c0.GetBlue() as u32, c1.GetBlue() as u32),
+        mix(c0.GetAlpha() as u32, c1.GetAlpha() as u32),
     )
 }
 

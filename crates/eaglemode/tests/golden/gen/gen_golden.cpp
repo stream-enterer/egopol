@@ -26,6 +26,7 @@
 #include <emCore/emStrokeEnd.h>
 #include <emCore/emTexture.h>
 #include <emCore/emView.h>
+#include <emCore/emCoreConfig.h>
 #include <emCore/emViewAnimator.h>
 #include <emCore/emViewInputFilter.h>
 
@@ -4722,7 +4723,7 @@ static void gen_eagle_logo() {
     const double panelH = 0.75;
 
     emImage img(W, H, 4);
-    img.Fill(emColor::WHITE);
+    img.Fill(emColor(0, 0, 0, 0));
 
     emPainter p;
     if (!img.PreparePainter(&p, *g_ctx,
@@ -4742,6 +4743,8 @@ static void gen_eagle_logo() {
         p.GetOriginX(), p.GetOriginY(),
         scaleX, scaleY
     );
+
+    open_draw_op_log("eagle_logo");
 
     // Gradient background: top blue(145,171,242) → bottom gold(225,221,183).
     sp.PaintRect(
@@ -4985,6 +4988,8 @@ static void gen_eagle_logo() {
     for (int i = 0; i < 14; i++) {
         ep.PaintPolygon(polys[i], polySizes[i], polyColors[i]);
     }
+
+    close_draw_op_log();
 
     dump_painter("eagle_logo", img);
 }
