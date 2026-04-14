@@ -409,6 +409,6 @@ fn animator_magnetic_approach() {
     let golden = load_trajectory_golden("animator_magnetic_approach");
     let actual = run_magnetic_trajectory(60);
 
-    compare_trajectory("animator_magnetic_approach", &actual, &golden, 1e-6)
+    compare_trajectory("animator_magnetic_approach", &actual, &golden, 0.0)
         .unwrap_or_else(|e| panic!("animator_magnetic_approach: {e}"));
 }
