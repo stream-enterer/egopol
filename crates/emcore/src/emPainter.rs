@@ -3658,10 +3658,8 @@ impl<'a> emPainter<'a> {
         if wsr & (1<<0) != 0 { self.PaintImageSrcRect(x+w-r,y+h-b,r,b, image, sx+sw-sr,sy+sh-sb,sr,sb, alpha,canvas_color,ext); }
     }
 
-    /// Draw a 9-slice border image with two-color tinting.
-    ///
-    /// `l,t,r,b` are **target** insets (logical coordinates).
-    /// `src_l,src_t,src_r,src_b` are **source** insets (image pixel coordinates).
+    /// 9-slice border image with two-color tinting.
+    /// Matches C++ PaintBorderImageColored (emPainter.cpp:2341-2461).
     #[allow(clippy::too_many_arguments)]
     pub fn PaintBorderImageColored(
         &mut self,
@@ -3669,11 +3667,15 @@ impl<'a> emPainter<'a> {
         y: f64,
         w: f64,
         h: f64,
-        l: f64,
-        t: f64,
-        r: f64,
-        b: f64,
+        mut l: f64,
+        mut t: f64,
+        mut r: f64,
+        mut b: f64,
         image: &emImage,
+        src_x: i32,
+        src_y: i32,
+        src_w: i32,
+        src_h: i32,
         src_l: i32,
         src_t: i32,
         src_r: i32,
@@ -3681,240 +3683,82 @@ impl<'a> emPainter<'a> {
         color1: emColor,
         color2: emColor,
         canvas_color: emColor,
-        which_sub_rects: u16,
-        alpha: u8,
+        which_sub_rects: i32,
     ) {
         let Some(_proof) = self.try_record(DrawOp::PaintBorderImageColored {
-            x,
-            y,
-            w,
-            h,
-            l,
-            t,
-            r,
-            b,
+            x, y, w, h, l, t, r, b,
             image_ptr: image as *const emImage,
-            src_l,
-            src_t,
-            src_r,
-            src_b,
-            color1,
-            color2,
-            canvas_color,
-            which_sub_rects,
-            alpha,
+            src_l, src_t, src_r, src_b,
+            color1, color2, canvas_color,
+            which_sub_rects: which_sub_rects as u16,
+            alpha: 255,
         }) else { return; };
-        if alpha == 0 || w <= 0.0 || h <= 0.0 {
-            return;
-        }
-        let iw = image.GetWidth() as f64;
-        let ih = image.GetHeight() as f64;
-
-        let mut l = l.min(w / 2.0);
-        let mut r = r.min(w / 2.0);
-        let mut t = t.min(h / 2.0);
-        let mut b = b.min(h / 2.0);
 
         if !canvas_color.IsOpaque() {
             let f = self.RoundX(x + l) - x;
-            if f > 0.0 && f < w - r {
-                l = f;
-            }
+            if f > 0.0 && f < w - r { l = f; }
             let f = x + w - self.RoundX(x + w - r);
-            if f > 0.0 && f < w - l {
-                r = f;
-            }
+            if f > 0.0 && f < w - l { r = f; }
             let f = self.RoundY(y + t) - y;
-            if f > 0.0 && f < h - b {
-                t = f;
-            }
+            if f > 0.0 && f < h - b { t = f; }
             let f = y + h - self.RoundY(y + h - b);
-            if f > 0.0 && f < h - t {
-                b = f;
-            }
+            if f > 0.0 && f < h - t { b = f; }
         }
 
-        let sl = src_l as f64;
-        let st = src_t as f64;
-        let sr = src_r as f64;
-        let sb = src_b as f64;
-        let src_cx = iw - sl - sr;
-        let src_cy = ih - st - sb;
-        let dst_cx = w - l - r;
-        let dst_cy = h - t - b;
+        let sx = src_x as u32;
+        let sy = src_y as u32;
+        let sw = src_w;
+        let sh = src_h;
+        let sl = src_l;
+        let st = src_t;
+        let sr = src_r;
+        let sb = src_b;
 
-        let saved_alpha = self.state.alpha;
-        let saved_canvas = self.state.canvas_color;
-        self.state.canvas_color = canvas_color;
-        if alpha < 255 {
-            self.state.alpha = ((self.state.alpha as u16 * alpha as u16 + 128) >> 8) as u8;
-        }
-
-        // Corners.
         if which_sub_rects & (1 << 8) != 0 {
-            self.PaintImageColored(
-                x,
-                y,
-                l,
-                t,
-                image,
-                0,
-                0,
-                sl as u32,
-                st as u32,
-                color1,
-                color2,
-                canvas_color,
-                ImageExtension::Clamp,
-            );
+            self.PaintImageColored(x, y, l, t, image,
+                sx, sy, sl as u32, st as u32,
+                color1, color2, canvas_color, ImageExtension::Clamp);
+        }
+        if which_sub_rects & (1 << 5) != 0 {
+            self.PaintImageColored(x + l, y, w - l - r, t, image,
+                sx + sl as u32, sy, (sw - sl - sr) as u32, st as u32,
+                color1, color2, canvas_color, ImageExtension::Clamp);
         }
         if which_sub_rects & (1 << 2) != 0 {
-            self.PaintImageColored(
-                x + w - r,
-                y,
-                r,
-                t,
-                image,
-                (iw - sr) as u32,
-                0,
-                sr as u32,
-                st as u32,
-                color1,
-                color2,
-                canvas_color,
-                ImageExtension::Clamp,
-            );
+            self.PaintImageColored(x + w - r, y, r, t, image,
+                sx + (sw - sr) as u32, sy, sr as u32, st as u32,
+                color1, color2, canvas_color, ImageExtension::Clamp);
+        }
+        if which_sub_rects & (1 << 7) != 0 {
+            self.PaintImageColored(x, y + t, l, h - t - b, image,
+                sx, sy + st as u32, sl as u32, (sh - st - sb) as u32,
+                color1, color2, canvas_color, ImageExtension::Clamp);
+        }
+        if which_sub_rects & (1 << 4) != 0 {
+            self.PaintImageColored(x + l, y + t, w - l - r, h - t - b, image,
+                sx + sl as u32, sy + st as u32, (sw - sl - sr) as u32, (sh - st - sb) as u32,
+                color1, color2, canvas_color, ImageExtension::Clamp);
+        }
+        if which_sub_rects & (1 << 1) != 0 {
+            self.PaintImageColored(x + w - r, y + t, r, h - t - b, image,
+                sx + (sw - sr) as u32, sy + st as u32, sr as u32, (sh - st - sb) as u32,
+                color1, color2, canvas_color, ImageExtension::Clamp);
         }
         if which_sub_rects & (1 << 6) != 0 {
-            self.PaintImageColored(
-                x,
-                y + h - b,
-                l,
-                b,
-                image,
-                0,
-                (ih - sb) as u32,
-                sl as u32,
-                sb as u32,
-                color1,
-                color2,
-                canvas_color,
-                ImageExtension::Clamp,
-            );
+            self.PaintImageColored(x, y + h - b, l, b, image,
+                sx, sy + (sh - sb) as u32, sl as u32, sb as u32,
+                color1, color2, canvas_color, ImageExtension::Clamp);
+        }
+        if which_sub_rects & (1 << 3) != 0 {
+            self.PaintImageColored(x + l, y + h - b, w - l - r, b, image,
+                sx + sl as u32, sy + (sh - sb) as u32, (sw - sl - sr) as u32, sb as u32,
+                color1, color2, canvas_color, ImageExtension::Clamp);
         }
         if which_sub_rects & (1 << 0) != 0 {
-            self.PaintImageColored(
-                x + w - r,
-                y + h - b,
-                r,
-                b,
-                image,
-                (iw - sr) as u32,
-                (ih - sb) as u32,
-                sr as u32,
-                sb as u32,
-                color1,
-                color2,
-                canvas_color,
-                ImageExtension::Clamp,
-            );
+            self.PaintImageColored(x + w - r, y + h - b, r, b, image,
+                sx + (sw - sr) as u32, sy + (sh - sb) as u32, sr as u32, sb as u32,
+                color1, color2, canvas_color, ImageExtension::Clamp);
         }
-
-        // Edges.
-        if dst_cx > 0.0 {
-            if which_sub_rects & (1 << 5) != 0 {
-                self.PaintImageColored(
-                    x + l,
-                    y,
-                    dst_cx,
-                    t,
-                    image,
-                    sl as u32,
-                    0,
-                    src_cx as u32,
-                    st as u32,
-                    color1,
-                    color2,
-                    canvas_color,
-                    ImageExtension::Clamp,
-                );
-            }
-            if which_sub_rects & (1 << 3) != 0 {
-                self.PaintImageColored(
-                    x + l,
-                    y + h - b,
-                    dst_cx,
-                    b,
-                    image,
-                    sl as u32,
-                    (ih - sb) as u32,
-                    src_cx as u32,
-                    sb as u32,
-                    color1,
-                    color2,
-                    canvas_color,
-                    ImageExtension::Clamp,
-                );
-            }
-        }
-        if dst_cy > 0.0 {
-            if which_sub_rects & (1 << 7) != 0 {
-                self.PaintImageColored(
-                    x,
-                    y + t,
-                    l,
-                    dst_cy,
-                    image,
-                    0,
-                    st as u32,
-                    sl as u32,
-                    src_cy as u32,
-                    color1,
-                    color2,
-                    canvas_color,
-                    ImageExtension::Clamp,
-                );
-            }
-            if which_sub_rects & (1 << 1) != 0 {
-                self.PaintImageColored(
-                    x + w - r,
-                    y + t,
-                    r,
-                    dst_cy,
-                    image,
-                    (iw - sr) as u32,
-                    st as u32,
-                    sr as u32,
-                    src_cy as u32,
-                    color1,
-                    color2,
-                    canvas_color,
-                    ImageExtension::Clamp,
-                );
-            }
-        }
-
-        // Center.
-        if which_sub_rects & (1 << 4) != 0 && dst_cx > 0.0 && dst_cy > 0.0 {
-            self.PaintImageColored(
-                x + l,
-                y + t,
-                dst_cx,
-                dst_cy,
-                image,
-                sl as u32,
-                st as u32,
-                src_cx as u32,
-                src_cy as u32,
-                color1,
-                color2,
-                canvas_color,
-                ImageExtension::Clamp,
-            );
-        }
-
-        self.state.canvas_color = saved_canvas;
-        self.state.alpha = saved_alpha;
     }
 
     // --- Ellipse/sector outline utilities ---

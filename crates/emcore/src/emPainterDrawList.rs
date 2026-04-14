@@ -903,28 +903,16 @@ impl DrawList {
                     color2,
                     canvas_color,
                     which_sub_rects,
-                    alpha,
+                    alpha: _,
                 } => {
                     let image = unsafe { &**image_ptr };
                     painter.PaintBorderImageColored(
-                        *x,
-                        *y,
-                        *w,
-                        *h,
-                        *l,
-                        *t,
-                        *r,
-                        *b,
+                        *x, *y, *w, *h, *l, *t, *r, *b,
                         image,
-                        *src_l,
-                        *src_t,
-                        *src_r,
-                        *src_b,
-                        *color1,
-                        *color2,
-                        *canvas_color,
-                        *which_sub_rects,
-                        *alpha,
+                        0, 0, image.GetWidth() as i32, image.GetHeight() as i32,
+                        *src_l, *src_t, *src_r, *src_b,
+                        *color1, *color2, *canvas_color,
+                        *which_sub_rects as i32,
                     );
                 }
 
