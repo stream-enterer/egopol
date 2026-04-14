@@ -1117,7 +1117,8 @@ impl<'a> emPainter<'a> {
         color: emColor,
         canvas_color: emColor,
     ) {
-        let Some(_proof) = self.try_record(DrawOp::PaintEllipseSector {
+        // C++: log + g_draw_op_depth++
+        let is_recording = self.try_record(DrawOp::PaintEllipseSector {
             cx,
             cy,
             rx,
@@ -1126,55 +1127,89 @@ impl<'a> emPainter<'a> {
             sweep_angle,
             color,
             canvas_color,
-        }) else { return; };
+        }).is_none();
+        if is_recording {
+            if !self.record_subops {
+                return;
+            }
+            self.record_depth += 1;
+        }
+
+        // C++: startAngle*=M_PI/180.0; rangeAngle*=M_PI/180.0;
+        let mut start_rad = start_angle * std::f64::consts::PI / 180.0;
+        let mut range_rad = sweep_angle * std::f64::consts::PI / 180.0;
+
+        // C++: if (rangeAngle<=0.0) { if (rangeAngle==0.0) return; startAngle+=rangeAngle; rangeAngle=-rangeAngle; }
+        if range_rad <= 0.0 {
+            if range_rad == 0.0 {
+                if is_recording { self.record_depth -= 1; }
+                return;
+            }
+            start_rad += range_rad;
+            range_rad = -range_rad;
+        }
+
+        // C++: if (rangeAngle>=2*M_PI) { PaintEllipse(...); return; }
+        if range_rad >= 2.0 * std::f64::consts::PI {
+            self.PaintEllipse(cx, cy, rx, ry, color, canvas_color);
+            if is_recording { self.record_depth -= 1; }
+            return;
+        }
+
+        // C++ clip checks using bounding box: x → cx-rx, x+w → cx+rx, y → cy-ry, y+h → cy+ry
+        if (cx - rx) * self.state.scale_x + self.state.offset_x >= self.state.clip.x2 {
+            if is_recording { self.record_depth -= 1; }
+            return;
+        }
+        if (cx + rx) * self.state.scale_x + self.state.offset_x <= self.state.clip.x1 {
+            if is_recording { self.record_depth -= 1; }
+            return;
+        }
+        if (cy - ry) * self.state.scale_y + self.state.offset_y >= self.state.clip.y2 {
+            if is_recording { self.record_depth -= 1; }
+            return;
+        }
+        if (cy + ry) * self.state.scale_y + self.state.offset_y <= self.state.clip.y1 {
+            if is_recording { self.record_depth -= 1; }
+            return;
+        }
+
+        // C++: if (w<=0.0 || h<=0.0) return;  →  rx/ry already represent half-dims
         if rx <= 0.0 || ry <= 0.0 {
+            if is_recording { self.record_depth -= 1; }
             return;
         }
-        if sweep_angle == 0.0 {
-            return;
-        }
-        // Normalize negative sweep.
-        if sweep_angle < 0.0 {
-            return self.PaintEllipseSector(
-                cx,
-                cy,
-                rx,
-                ry,
-                start_angle + sweep_angle,
-                -sweep_angle,
-                color,
-                canvas_color,
-            );
-        }
-        // Convert degrees to radians.
-        let start_rad = start_angle * std::f64::consts::PI / 180.0;
-        let sweep_rad = sweep_angle * std::f64::consts::PI / 180.0;
-        // Full circle or more — delegate to paint_ellipse.
-        if sweep_rad >= 2.0 * std::f64::consts::PI {
-            return self.PaintEllipse(cx, cy, rx, ry, color, canvas_color);
-        }
-        // Match C++ PaintEllipseSector: keep f as float through arc scaling,
-        // use round-to-nearest, minimum 3 arc segments, center vertex last.
+
+        // C++ UserSpaceLeaveGuard — not needed in Rust
+
+        // C++: f=CircleQuality*sqrt(rx*ScaleX+ry*ScaleY);
         let mut f = CIRCLE_QUALITY * (rx * self.state.scale_x + ry * self.state.scale_y).sqrt();
         if f > 256.0 {
             f = 256.0;
         }
-        f = f * sweep_rad / (2.0 * std::f64::consts::PI);
-        let arc_segments = if f <= 3.0 {
+        // C++: f=f*rangeAngle/(2*M_PI);
+        f = f * range_rad / (2.0 * std::f64::consts::PI);
+        // C++: if (f<=3.0) n=3; else if (f>=256.0) n=256; else n=(int)(f+0.5);
+        let n: usize = if f <= 3.0 {
             3
         } else if f >= 256.0 {
             256
         } else {
             (f + 0.5) as usize
         };
-        let step = sweep_rad / arc_segments as f64;
-        let mut verts = Vec::with_capacity(arc_segments + 2);
-        for i in 0..=arc_segments {
+        // C++: f=rangeAngle/n;
+        let step = range_rad / n as f64;
+        // C++: for (i=0; i<=n; i++) { xy[i*2]=cos(startAngle+f*i)*rx+x; xy[i*2+1]=sin(startAngle+f*i)*ry+y; }
+        let mut verts = Vec::with_capacity(n + 2);
+        for i in 0..=n {
             let angle = start_rad + step * i as f64;
-            verts.push((cx + rx * angle.cos(), cy + ry * angle.sin()));
+            verts.push((angle.cos() * rx + cx, angle.sin() * ry + cy));
         }
+        // C++: xy[(n+1)*2]=x; xy[(n+1)*2+1]=y;  (center vertex)
         verts.push((cx, cy));
+        // C++: PaintPolygon(xy,n+2,texture,canvasColor);
         self.PaintPolygon(&verts, color, canvas_color);
+        if is_recording { self.record_depth -= 1; }
     }
 
     /// Fill a rectangle with a linear gradient between two colors.
