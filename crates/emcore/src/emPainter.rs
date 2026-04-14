@@ -3080,105 +3080,28 @@ impl<'a> emPainter<'a> {
     /// Draw an image scaled to fill a destination rectangle.
     /// Auto-selects AreaSampled for downscaling.
     #[allow(clippy::too_many_arguments)]
+    /// C++ PaintImage = PaintRect(x,y,w,h, emImageTexture(...), canvasColor).
     pub fn paint_image_scaled(
         &mut self,
-        x: f64,
-        y: f64,
-        w: f64,
-        h: f64,
+        x: f64, y: f64, w: f64, h: f64,
         image: &emImage,
         quality: super::emTexture::ImageQuality,
         extension: super::emTexture::ImageExtension,
     ) {
-        if w <= 0.0 || h <= 0.0 {
-            return;
-        }
-        let Some(proof) = self.try_record(DrawOp::PaintImageScaled {
-            x,
-            y,
-            w,
-            h,
+        if w <= 0.0 || h <= 0.0 { return; }
+        let Some(_proof) = self.try_record(DrawOp::PaintImageScaled {
+            x, y, w, h,
             image_ptr: image as *const emImage,
-            quality,
-            extension,
+            quality, extension,
         }) else { return; };
 
-        let px = self.to_pixel_x(x);
-        let py = self.to_pixel_y(y);
-        let pw = (w * self.state.scale_x) as i32;
-        let ph = (h * self.state.scale_y) as i32;
-        if pw <= 0 || ph <= 0 {
-            return;
-        }
-
-        let src_w = image.GetWidth() as f64;
-        let src_h = image.GetHeight() as f64;
-
-        // Auto-select area sampling for downscaling.
-        let interp_quality = match quality {
-            super::emTexture::ImageQuality::Nearest => emPainterInterpolation::InterpolationQuality::Nearest,
-            super::emTexture::ImageQuality::Bilinear => {
-                if src_w > pw as f64 || src_h > ph as f64 {
-                    emPainterInterpolation::InterpolationQuality::AreaSampled
-                } else {
-                    emPainterInterpolation::InterpolationQuality::Bilinear
-                }
-            }
-            super::emTexture::ImageQuality::AreaSampled => {
-                emPainterInterpolation::InterpolationQuality::AreaSampled
-            }
-            super::emTexture::ImageQuality::Bicubic => emPainterInterpolation::InterpolationQuality::Bicubic,
-            super::emTexture::ImageQuality::Lanczos => emPainterInterpolation::InterpolationQuality::Lanczos,
-            super::emTexture::ImageQuality::Adaptive => emPainterInterpolation::InterpolationQuality::Adaptive,
+        let texture = super::emTexture::emTexture::emImage {
+            image: image.clone(),
+            x, y, w, h,
+            alpha: 255,
+            extension, quality,
         };
-
-        let cx1 = (self.state.clip.x1 as i32).max(0);
-        let cy1 = (self.state.clip.y1 as i32).max(0);
-        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
-        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
-        let start_x = px.max(cx1);
-        let start_y = py.max(cy1);
-        let end_x = (px + pw).min(cx2);
-        let end_y = (py + ph).min(cy2);
-
-        let ctx = emPainterInterpolation::ScaleContext {
-            src_w,
-            src_h,
-            dest_w: pw as f64,
-            dest_h: ph as f64,
-        };
-
-        let tw = self.target_width as usize;
-        let mode = BlendMode::from_state(self.state.canvas_color, self.state.alpha);
-        let mut ibuf = InterpolationBuffer::new(4);
-        let max_batch = ibuf.max_pixels();
-
-        for row in start_y..end_y {
-            let mut col = start_x;
-            while col < end_x {
-                let batch = ((end_x - col) as usize).min(max_batch);
-                for i in 0..batch {
-                    let c = col + i as i32;
-                    let src_x = (c - px) as f64 * src_w / pw as f64;
-                    let src_y = (row - py) as f64 * src_h / ph as f64;
-                    let color = emPainterInterpolation::sample(
-                        image,
-                        src_x,
-                        src_y,
-                        interp_quality,
-                        extension,
-                        &ctx,
-                    );
-                    ibuf.set_pixel(i, [color.GetRed(), color.GetGreen(), color.GetBlue(), color.GetAlpha()]);
-                }
-                ibuf.set_len(batch);
-                let dest_offset = (row as usize * tw + col as usize) * 4;
-                let data = self.GetImage(proof).GetWritableMap();
-                let dest = &mut data[dest_offset..];
-                blend_scanline(dest, &ibuf, batch, None, &mode);
-                col += batch as i32;
-            }
-        }
+        self.paint_rect_with_texture(x, y, w, h, &texture, self.state.canvas_color);
     }
 
     // --- Bezier curves ---
