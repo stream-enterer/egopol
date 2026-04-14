@@ -1514,31 +1514,72 @@ impl<'a> emPainter<'a> {
     /// Fill a rounded rectangle using AA polygon approximation.
     /// Matches C++ `PaintRoundRect(x, y, w, h, rx, ry, texture, canvasColor)`.
     #[allow(clippy::too_many_arguments)]
+    /// Literal port of C++ emPainter::PaintRoundRect (emPainter.cpp:1258-1329).
     pub fn PaintRoundRect(
         &mut self,
         x: f64,
         y: f64,
         w: f64,
         h: f64,
-        rx: f64,
-        ry: f64,
+        mut rx: f64,
+        mut ry: f64,
         color: emColor,
         canvas_color: emColor,
     ) {
         let Some(_proof) = self.try_record(DrawOp::PaintRoundRect {
-            x,
-            y,
-            w,
-            h,
-            rx,
-            ry,
-            color,
-            canvas_color,
+            x, y, w, h, rx, ry, color, canvas_color,
         }) else { return; };
-        if w <= 0.0 || h <= 0.0 {
+
+        if w <= 0.0 || h <= 0.0 { return; }
+
+        // C++ line 1299: degenerate to PaintRect when radius is non-positive.
+        if rx <= 0.0 || ry <= 0.0 {
+            self.PaintRect(x, y, w, h, color, canvas_color);
             return;
         }
-        let verts = self.round_rect_polygon(x, y, w, h, rx, ry);
+
+        // C++ lines 1305-1306: clamp radii.
+        if rx > w * 0.5 { rx = w * 0.5; }
+        if ry > h * 0.5 { ry = h * 0.5; }
+
+        // C++ lines 1307-1312: compute vertex count from CircleQuality.
+        let circle_quality = CIRCLE_QUALITY;
+        let f = circle_quality * (rx * self.state.scale_x + ry * self.state.scale_y).sqrt();
+        let f = f.min(256.0) * 0.25;
+        let n = if f <= 1.0 { 1 } else if f >= 64.0 { 64 } else { (f + 0.5) as usize };
+        let step = std::f64::consts::FRAC_PI_2 / n as f64;
+
+        // C++ lines 1314-1327: generate 4*(n+1) vertices.
+        let cx1 = x + rx;
+        let cy1 = y + ry;
+        let cx2 = x + w - rx;
+        let cy2 = y + h - ry;
+        let total = 4 * (n + 1);
+        let mut verts = Vec::with_capacity(total);
+        for i in 0..=n {
+            let a = step * i as f64;
+            let dx = a.cos();
+            let dy = a.sin();
+            verts.push((cx1 - dx * rx, cy1 - dy * ry));       // top-left
+        }
+        for i in 0..=n {
+            let a = step * i as f64;
+            let dx = a.cos();
+            let dy = a.sin();
+            verts.push((cx2 + dy * rx, cy1 - dx * ry));       // top-right
+        }
+        for i in 0..=n {
+            let a = step * i as f64;
+            let dx = a.cos();
+            let dy = a.sin();
+            verts.push((cx2 + dx * rx, cy2 + dy * ry));       // bottom-right
+        }
+        for i in 0..=n {
+            let a = step * i as f64;
+            let dx = a.cos();
+            let dy = a.sin();
+            verts.push((cx1 - dy * rx, cy2 + dx * ry));       // bottom-left
+        }
         self.PaintPolygon(&verts, color, canvas_color);
     }
 
