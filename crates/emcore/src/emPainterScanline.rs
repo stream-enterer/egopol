@@ -422,62 +422,67 @@ fn rasterize_polynomial(vertices: &[(f64, f64)], clip: ClipBounds) -> Vec<(i32, 
 /// Walk sorted scan entries for one scanline and emit coverage spans.
 /// Line-by-line port of C++ emPainter::PaintPolygon lines 717-789.
 ///
-/// C++ uses a do { ... } while(pse!=&seTerminator) loop walking a linked list.
-/// We use a loop walking a sorted Vec with an index `ei`.
+/// C++ uses a `do { ... } while(pse!=&seTerminator)` loop walking a linked list.
+/// We use a `loop` walking a sorted slice with index `ei`. `ei >= entries.len()`
+/// is equivalent to the C++ `pse == &seTerminator` sentinel check.
 fn emit_scanline_spans(entries: &[ScanEntry]) -> Vec<Span> {
     let mut spans = Vec::new();
 
-    // C++ lines 717-719: a1=0; a2=0; sx=pse->X;
-    let mut a1 = 0.0_f64;
-    let mut a2 = 0.0_f64;
-    let mut ei = 0usize;
-    let mut sx = entries[0].x;
+    // C++ line 717-719: a1=0; a2=0; sx=pse->X;
+    let mut a1: f64 = 0.0;
+    let mut a2: f64 = 0.0;
+    let mut ei: usize = 0;
+    let mut sx: i32 = entries[0].x;
 
     // C++ line 720: do { ... } while (pse!=&seTerminator);
     loop {
-        // C++ lines 721-728: Forward-difference step + accumulate entries at sx.
+        // C++ line 721-722: a0=a1; a1+=a2;
         let mut a0 = a1;
         a1 += a2;
-        // C++ uses `if (pse->X==sx)` — at most one entry per X due to
-        // add_scan_entry accumulation. We use while for defensive correctness.
-        while ei < entries.len() && entries[ei].x == sx {
+
+        // C++ line 723-728: if (pse->X==sx) { a0+=A0; a1+=A1; a2+=A2; pse=pse->Next; }
+        if ei < entries.len() && entries[ei].x == sx {
             a0 += entries[ei].a0;
             a1 += entries[ei].a1;
             a2 += entries[ei].a2;
             ei += 1;
         }
 
-        // C++ lines 729-731:
+        // C++ line 729-730: sx0=sx; sx++;
         let sx0 = sx;
         sx += 1;
+
+        // C++ line 731: alpha=(int)(a0>=0 ? 0.5+a0 : 0.5-a0);
         let alpha = round_abs(a0);
 
-        // C++ lines 732-742: alpha==0 path with skip optimization.
+        // C++ line 732: if (!alpha) {
         if alpha == 0 {
-            // C++ lines 733-740: Skip optimization.
+            // C++ line 733: if (pse->X>sx && pse!=&seTerminator) {
             if ei < entries.len() && entries[ei].x > sx {
+                // C++ line 734: t=a1+a2*(pse->X-1-sx);
                 let t = a1 + a2 * (entries[ei].x - 1 - sx) as f64;
+                // C++ line 735: ta=(int)(t>=0 ? 0.5+t : 0.5-t);
                 let ta = round_abs(t);
-                // C++ line 736: if (alpha==ta) — alpha is 0 here.
-                if ta == 0 {
+                // C++ line 736: if (alpha==ta) {
+                if alpha == ta {
+                    // C++ line 737-738: a1=t+a2; sx=pse->X;
                     a1 = t + a2;
                     sx = entries[ei].x;
                 }
             }
-            // C++ line 741: continue; → jumps to while(pse!=&seTerminator)
-            // In Rust, check if we've consumed all entries (= terminator reached).
+            // C++ line 741: continue; → evaluates do-while condition
             if ei >= entries.len() {
                 break;
             }
             continue;
         }
 
-        // C++ lines 743-746: Last entry consumed → single pixel span.
+        // C++ line 743: if (pse==&seTerminator) {
         if ei >= entries.len() {
             // C++ line 744: sct.PaintScanline(sct,sx0,sy,1,alpha,0,0);
             spans.push(Span {
                 x_start: sx0,
-                x_end: sx0.saturating_add(1),
+                x_end: sx0 + 1,
                 opacity_beg: alpha,
                 opacity_mid: 0,
                 opacity_end: 0,
@@ -485,42 +490,47 @@ fn emit_scanline_spans(entries: &[ScanEntry]) -> Vec<Span> {
             break;
         }
 
-        // C++ lines 747-754: Read second pixel.
+        // C++ line 747-748: a0=a1; a1+=a2;
         a0 = a1;
         a1 += a2;
-        while ei < entries.len() && entries[ei].x == sx {
+
+        // C++ line 749-753: if (pse->X==sx) { a0+=A0; a1+=A1; a2+=A2; pse=pse->Next; }
+        if ei < entries.len() && entries[ei].x == sx {
             a0 += entries[ei].a0;
             a1 += entries[ei].a1;
             a2 += entries[ei].a2;
             ei += 1;
         }
+
+        // C++ line 755: sx++;
         sx += 1;
-        // C++ line 756:
+
+        // C++ line 756: alpha2=(int)(a0>=0 ? 0.5+a0 : 0.5-a0);
         let alpha2 = round_abs(a0);
 
-        // C++ lines 757-760: alpha2==0 → emit 1-pixel span.
+        // C++ line 757: if (!alpha2) {
         if alpha2 == 0 {
             // C++ line 758: sct.PaintScanline(sct,sx0,sy,1,alpha,0,0);
             spans.push(Span {
                 x_start: sx0,
-                x_end: sx0.saturating_add(1),
+                x_end: sx0 + 1,
                 opacity_beg: alpha,
                 opacity_mid: 0,
                 opacity_end: 0,
             });
-            // C++ line 759: continue; → while(pse!=&seTerminator)
+            // C++ line 759: continue; → evaluates do-while condition
             if ei >= entries.len() {
                 break;
             }
             continue;
         }
 
-        // C++ lines 761-764: Last entry consumed → 2-pixel span.
+        // C++ line 761: if (pse==&seTerminator) {
         if ei >= entries.len() {
             // C++ line 762: sct.PaintScanline(sct,sx0,sy,2,alpha,0,alpha2);
             spans.push(Span {
                 x_start: sx0,
-                x_end: sx0.saturating_add(2),
+                x_end: sx0 + 2,
                 opacity_beg: alpha,
                 opacity_mid: 0,
                 opacity_end: alpha2,
@@ -528,46 +538,53 @@ fn emit_scanline_spans(entries: &[ScanEntry]) -> Vec<Span> {
             break;
         }
 
-        // C++ lines 765-771: Skip optimization for constant alpha2 run.
+        // C++ line 765: if (pse->X>sx) {
         if entries[ei].x > sx {
+            // C++ line 766: t=a1+a2*(pse->X-1-sx);
             let t = a1 + a2 * (entries[ei].x - 1 - sx) as f64;
+            // C++ line 767: ta=(int)(t>=0 ? 0.5+t : 0.5-t);
             let ta = round_abs(t);
+            // C++ line 768: if (alpha2==ta) {
             if alpha2 == ta {
+                // C++ line 769-770: a1=t+a2; sx=pse->X;
                 a1 = t + a2;
                 sx = entries[ei].x;
             }
         }
 
-        // C++ lines 773-781: Read third pixel.
+        // C++ line 773-774: a0=a1; a1+=a2;
         a0 = a1;
         a1 += a2;
-        while ei < entries.len() && entries[ei].x == sx {
+
+        // C++ line 775-779: if (pse->X==sx) { a0+=A0; a1+=A1; a2+=A2; pse=pse->Next; }
+        if ei < entries.len() && entries[ei].x == sx {
             a0 += entries[ei].a0;
             a1 += entries[ei].a1;
             a2 += entries[ei].a2;
             ei += 1;
         }
+
+        // C++ line 781: sx++;
         sx += 1;
-        // C++ line 782:
+
+        // C++ line 782: alpha3=(int)(a0>=0 ? 0.5+a0 : 0.5-a0);
         let alpha3 = round_abs(a0);
 
-        // C++ lines 783-788: Emit multi-pixel span.
+        // C++ line 783: if (!alpha3) {
         if alpha3 == 0 {
             // C++ line 784: sct.PaintScanline(sct,sx0,sy,sx-1-sx0,alpha,alpha2,alpha2);
-            let w = sx - 1 - sx0;
             spans.push(Span {
                 x_start: sx0,
-                x_end: sx0.saturating_add(w),
+                x_end: sx0 + (sx - 1 - sx0),
                 opacity_beg: alpha,
                 opacity_mid: alpha2,
                 opacity_end: alpha2,
             });
         } else {
             // C++ line 787: sct.PaintScanline(sct,sx0,sy,sx-sx0,alpha,alpha2,alpha3);
-            let w = sx - sx0;
             spans.push(Span {
                 x_start: sx0,
-                x_end: sx0.saturating_add(w),
+                x_end: sx0 + (sx - sx0),
                 opacity_beg: alpha,
                 opacity_mid: alpha2,
                 opacity_end: alpha3,
