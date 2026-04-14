@@ -4662,12 +4662,11 @@ impl<'a> emPainter<'a> {
         }
     }
 
-    /// Draw a stroked polyline with proper joins and caps.
+    /// Line-by-line port of C++ `emPainter::PaintSolidPolyline`.
     ///
-    /// Structural port of C++ `emPainter::PaintSolidPolyline`. Builds a Vertex
-    /// array with per-edge direction, per-vertex miter vectors, and edge-length
-    /// tracking, then walks forward (right side) and backward (left side) to
-    /// produce a single filled polygon.
+    /// Builds a Vertex array, computes miter/bevel/round join geometry,
+    /// then walks forward (right side) and backward (left side) to produce
+    /// a single filled polygon passed to `PaintPolygon`.
     pub fn PaintSolidPolyline(
         &mut self,
         vertices: &[(f64, f64)],
@@ -4675,374 +4674,436 @@ impl<'a> emPainter<'a> {
         closed: bool,
         canvas_color: emColor,
     ) {
-        if vertices.is_empty() || stroke.width <= 0.0 {
+        let n = vertices.len() as i32;
+        if n <= 0 {
             return;
         }
-        let Some(proof) = self.try_record(DrawOp::PaintSolidPolyline {
+        let Some(_proof) = self.try_record(DrawOp::PaintSolidPolyline {
             vertices: vertices.to_vec(),
             stroke: stroke.clone(),
             closed,
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
 
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
-        // --- C++ Vertex flags ---
+
+        // C++ Vertex flags
         const VTX_IS_START: u32 = 1 << 0;
         const VTX_IS_END: u32 = 1 << 1;
         const VTX_IS_NEAR_START_OR_END: u32 = 1 << 2;
         const VTX_DISALLOW_OUTER_MITER: u32 = 1 << 3;
 
-        struct Vtx {
-            dir: i32, // 0=right turn, 1=left turn, -1=start/end/collinear
-            flags: u32,
+        #[derive(Clone)]
+        struct Vertex {
+            dir: i32,     // 0=turn right, 1=turn left, -1=other
+            flags: u32,   // Combination of VTX_ flags
             x: f64,
             y: f64,
-            nx: f64,      // outgoing edge unit direction X
-            ny: f64,      // outgoing edge unit direction Y
-            el: [f64; 2], // remaining edge length: [0]=right side, [1]=left side
-            nn: f64,      // dot(prev_edge_dir, this_edge_dir)
-            mx: f64,      // miter vector X (points toward outer side of turn)
-            my: f64,      // miter vector Y
+            nx: f64,
+            ny: f64,      // Unit vector of outgoing edge
+            el: [f64; 2], // Remaining length of right and left outgoing edge
+            nn: f64,      // Scalar product of this NX,NY and previous NX,NY
+            mx: f64,
+            my: f64,      // Miter vector
         }
 
-        let n = vertices.len();
+        impl Default for Vertex {
+            fn default() -> Self {
+                Self {
+                    dir: 0,
+                    flags: 0,
+                    x: 0.0,
+                    y: 0.0,
+                    nx: 0.0,
+                    ny: 0.0,
+                    el: [0.0, 0.0],
+                    nn: 0.0,
+                    mx: 0.0,
+                    my: 0.0,
+                }
+            }
+        }
+
         let thickness = stroke.width;
-        let d = thickness * 0.5;
+        // DIVERGED: C++ stroke.Rounded is a single bool; Rust has separate join/cap enums.
         let rounded = stroke.join == super::emStroke::LineJoin::Round
             || stroke.cap == super::emStroke::LineCap::Round;
 
-        // ── Phase 1: Build vertex array with short-segment filtering ──
+        // Allocate vertex array (C++ uses stack or malloc)
+        let mut vtx: Vec<Vertex> = vec![Vertex::default(); n as usize + 1];
 
         let min_seg_len = MIN_REL_SEG_LEN * thickness * 1.01;
-        let mut vtx: Vec<Vtx> = Vec::with_capacity(n + 1);
-
-        let mut x1 = vertices[0].0;
-        let mut y1 = vertices[0].1;
-
-        for (i, &(x2, y2)) in vertices.iter().enumerate().skip(1) {
+        let mut pxy_idx: usize = 0;
+        let pxye = n as usize;
+        let mut v_last: usize = 0; // index into vtx (C++ vLast pointer offset from vtx)
+        let mut x1 = vertices[pxy_idx].0;
+        let mut y1 = vertices[pxy_idx].1;
+        pxy_idx += 1;
+        while pxy_idx < pxye {
+            let x2 = vertices[pxy_idx].0;
+            let y2 = vertices[pxy_idx].1;
+            pxy_idx += 1;
             let dx = x2 - x1;
             let dy = y2 - y1;
             let l = (dx * dx + dy * dy).sqrt();
-            // Keep segment if long enough, or if it's the only segment
-            // and either end is non-cap (not purely rounded-cap line).
             if l >= min_seg_len
                 || (l > 1e-140
-                    && vtx.is_empty()
-                    && i == n - 1
+                    && v_last == 0
+                    && pxy_idx == pxye
                     && (!rounded
                         || stroke.start_end.end_type != StrokeEndType::Cap
                         || stroke.finish_end.end_type != StrokeEndType::Cap))
             {
-                vtx.push(Vtx {
-                    dir: 0,
-                    flags: 0,
-                    x: x1,
-                    y: y1,
-                    nx: dx / l,
-                    ny: dy / l,
-                    el: [l, l],
-                    nn: 0.0,
-                    mx: 0.0,
-                    my: 0.0,
-                });
+                vtx[v_last].flags = 0;
+                vtx[v_last].x = x1;
+                vtx[v_last].y = y1;
+                vtx[v_last].nx = dx / l;
+                vtx[v_last].ny = dy / l;
+                vtx[v_last].el[0] = l;
+                vtx[v_last].el[1] = l;
+                v_last += 1;
                 x1 = x2;
                 y1 = y2;
             }
         }
+        vtx[v_last].flags = 0;
+        vtx[v_last].x = x1;
+        vtx[v_last].y = y1;
+        vtx[v_last].nx = 1.0;
+        vtx[v_last].ny = 0.0;
+        vtx[v_last].el[0] = 0.0;
+        vtx[v_last].el[1] = 0.0;
 
-        // Sentinel last vertex.
-        vtx.push(Vtx {
-            dir: 0,
-            flags: 0,
-            x: x1,
-            y: y1,
-            nx: 1.0,
-            ny: 0.0,
-            el: [0.0, 0.0],
-            nn: 0.0,
-            mx: 0.0,
-            my: 0.0,
-        });
-
-        if vtx.len() < 2 {
-            return;
-        }
-
-        let v_last = vtx.len() - 1;
-
-        // ── Phase 1b: Handle closed vs open, set up miter iteration ──
-
-        // miter_pairs: pairs (v1, v2) to process in the miter loop.
-        // v1 is the vertex with the incoming edge, v2 is the vertex getting the miter.
-        let mut miter_pairs: Vec<(usize, usize)> = Vec::new();
+        // C++ uses pointer v1, v2 for miter iteration range
+        let (v1_start, _v2_start): (usize, usize);
 
         if closed {
-            // Compute closing edge direction on vLast.
+            // strokeStart.Type==emStrokeEnd::NO_END path
             let x2 = vertices[0].0;
             let y2 = vertices[0].1;
-            let mut vi = v_last;
             loop {
-                let dx = x2 - vtx[vi].x;
-                let dy = y2 - vtx[vi].y;
+                let dx = x2 - x1;
+                let dy = y2 - y1;
                 let ll = dx * dx + dy * dy;
                 if ll > 1e-280 {
                     let l = ll.sqrt();
-                    vtx[vi].nx = dx / l;
-                    vtx[vi].ny = dy / l;
-                    vtx[vi].el = [l, l];
+                    vtx[v_last].nx = dx / l;
+                    vtx[v_last].ny = dy / l;
+                    vtx[v_last].el[0] = l;
+                    vtx[v_last].el[1] = l;
                     break;
                 }
-                if vi == 0 {
+                if v_last == 0 {
                     break;
                 }
-                vi -= 1;
-                // Effectively "vLast--" — shrink the active vertex range.
+                v_last -= 1;
+                x1 = vtx[v_last].x;
+                y1 = vtx[v_last].y;
             }
-            // For closed: miter loop starts at (vLast, 0) and goes backward
-            // to (0+1's predecessor, 0+1). C++ order: (vLast,0), (vLast-1,vLast), ..., (0,1).
-            miter_pairs.push((vi, 0));
-            let mut v1i = vi;
-            while v1i > 0 {
-                v1i -= 1;
-                let v2i = v1i + 1;
-                miter_pairs.push((v1i, v2i));
-            }
+            v1_start = v_last;
+            _v2_start = 0;
         } else {
-            // Open polyline.
             vtx[0].flags = VTX_IS_START;
-            vtx[0].dir = -1;
             vtx[v_last].flags |= VTX_IS_END;
+            vtx[0].dir = -1;
             vtx[v_last].dir = -1;
+            // C++: v1=vLast-2; v2=vLast-1;
             if v_last >= 2 {
+                v1_start = v_last - 2;
+                _v2_start = v_last - 1;
                 vtx[1].flags = VTX_IS_NEAR_START_OR_END;
                 vtx[v_last - 1].flags = VTX_IS_NEAR_START_OR_END;
-            }
-            // v1 = vLast-2, v2 = vLast-1 down to v1 = vtx[0].
-            if v_last >= 2 {
-                let mut v1i = v_last - 2;
-                loop {
-                    let v2i = v1i + 1;
-                    miter_pairs.push((v1i, v2i));
-                    if v1i == 0 {
-                        break;
-                    }
-                    v1i -= 1;
-                }
-            }
-        }
-
-        // ── Phase 2: Miter computation ──
-
-        let max_m = MAX_MITER * d;
-
-        for &(v1i, v2i) in &miter_pairs {
-            let mx_raw = vtx[v1i].nx - vtx[v2i].nx;
-            let my_raw = vtx[v1i].ny - vtx[v2i].ny;
-            let ll = mx_raw * mx_raw + my_raw * my_raw;
-            if ll <= 1e-280 {
-                vtx[v2i].dir = -1; // collinear
-                continue;
-            }
-            let l = ll.sqrt();
-            let mx_n = mx_raw / l;
-            let my_n = my_raw / l;
-            let nm_base = vtx[v1i].nx * mx_n + vtx[v1i].ny * my_n;
-            let m = d / (1.0 - nm_base * nm_base).max(1e-40).sqrt();
-            let nm = nm_base * m;
-            let mx = mx_n * m;
-            let my = my_n * m;
-            vtx[v2i].mx = mx;
-            vtx[v2i].my = my;
-            if m > max_m {
-                vtx[v2i].flags |= VTX_DISALLOW_OUTER_MITER;
-            }
-            let dir = if vtx[v1i].nx * vtx[v2i].ny - vtx[v1i].ny * vtx[v2i].nx < 0.0 {
-                1
             } else {
-                0
-            };
-            vtx[v2i].dir = dir;
-            let d_idx = dir as usize;
-            vtx[v1i].el[d_idx] -= nm;
-            let dot = vtx[v2i].nx * mx + vtx[v2i].ny * my;
-            vtx[v2i].el[d_idx] += dot;
-            vtx[v2i].nn = vtx[v1i].nx * vtx[v2i].nx + vtx[v1i].ny * vtx[v2i].ny;
+                v1_start = 0; // won't enter loop (v1_start < 0 equivalent)
+                _v2_start = 0;
+            }
         }
 
-        // ── Phase 3: Walk and emit polygon ──
+        let d = thickness * 0.5;
 
-        let scale_sum = self.state.scale_x + self.state.scale_y;
-        let mut outline: Vec<f64> = Vec::with_capacity(vtx.len() * 8);
+        // C++ miter loop: do { ... } while (v2=v1, v1--, v1>=vtx);
+        // v1 starts at v1_start, v2 = v1+1 (for open) or wraps (for closed)
+        if closed {
+            // For closed: v1=vLast, v2=vtx[0], then v1--, v2=v1+1, ..., v1=0
+            let max_m = MAX_MITER * d;
+            let mut c_v1 = v1_start; // starts at v_last (possibly adjusted)
+            let mut c_v2: usize = 0;
+            loop {
+                let mx_raw = vtx[c_v1].nx - vtx[c_v2].nx;
+                let my_raw = vtx[c_v1].ny - vtx[c_v2].ny;
+                let ll = mx_raw * mx_raw + my_raw * my_raw;
+                if ll <= 1e-280 {
+                    vtx[c_v2].dir = -1;
+                } else {
+                    let l = ll.sqrt();
+                    let mx_u = mx_raw / l;
+                    let my_u = my_raw / l;
+                    let nm = vtx[c_v1].nx * mx_u + vtx[c_v1].ny * my_u;
+                    let m = d / (1.0_f64 - nm * nm).max(1e-40).sqrt();
+                    let nm_scaled = nm * m;
+                    let mx = mx_u * m;
+                    let my = my_u * m;
+                    vtx[c_v2].mx = mx;
+                    vtx[c_v2].my = my;
+                    if m > max_m {
+                        vtx[c_v2].flags |= VTX_DISALLOW_OUTER_MITER;
+                    }
+                    let dir = if vtx[c_v1].nx * vtx[c_v2].ny - vtx[c_v1].ny * vtx[c_v2].nx < 0.0 {
+                        1
+                    } else {
+                        0
+                    };
+                    vtx[c_v2].dir = dir;
+                    let d_idx = dir as usize;
+                    vtx[c_v1].el[d_idx] -= nm_scaled;
+                    vtx[c_v2].el[d_idx] += vtx[c_v2].nx * mx + vtx[c_v2].ny * my;
+                    vtx[c_v2].nn = vtx[c_v1].nx * vtx[c_v2].nx + vtx[c_v1].ny * vtx[c_v2].ny;
+                }
+                // C++ do-while: v2=v1, v1--, v1>=vtx
+                c_v2 = c_v1;
+                if c_v1 == 0 {
+                    break;
+                }
+                c_v1 -= 1;
+            }
+        } else if v_last >= 2 {
+            // Open polyline miter loop: v1=vLast-2, v2=vLast-1
+            let max_m = MAX_MITER * d;
+            let mut c_v1 = v_last - 2;
+            let mut c_v2 = v_last - 1;
+            loop {
+                let mx_raw = vtx[c_v1].nx - vtx[c_v2].nx;
+                let my_raw = vtx[c_v1].ny - vtx[c_v2].ny;
+                let ll = mx_raw * mx_raw + my_raw * my_raw;
+                if ll <= 1e-280 {
+                    vtx[c_v2].dir = -1;
+                } else {
+                    let l = ll.sqrt();
+                    let mx_u = mx_raw / l;
+                    let my_u = my_raw / l;
+                    let nm = vtx[c_v1].nx * mx_u + vtx[c_v1].ny * my_u;
+                    let m = d / (1.0_f64 - nm * nm).max(1e-40).sqrt();
+                    let nm_scaled = nm * m;
+                    let mx = mx_u * m;
+                    let my = my_u * m;
+                    vtx[c_v2].mx = mx;
+                    vtx[c_v2].my = my;
+                    if m > max_m {
+                        vtx[c_v2].flags |= VTX_DISALLOW_OUTER_MITER;
+                    }
+                    let dir = if vtx[c_v1].nx * vtx[c_v2].ny - vtx[c_v1].ny * vtx[c_v2].nx < 0.0 {
+                        1
+                    } else {
+                        0
+                    };
+                    vtx[c_v2].dir = dir;
+                    let d_idx = dir as usize;
+                    vtx[c_v1].el[d_idx] -= nm_scaled;
+                    vtx[c_v2].el[d_idx] += vtx[c_v2].nx * mx + vtx[c_v2].ny * my;
+                    vtx[c_v2].nn = vtx[c_v1].nx * vtx[c_v2].nx + vtx[c_v1].ny * vtx[c_v2].ny;
+                }
+                // C++ do-while: v2=v1, v1--, v1>=vtx
+                c_v2 = c_v1;
+                if c_v1 == 0 {
+                    break;
+                }
+                c_v1 -= 1;
+            }
+        }
 
-        // State machine using indices. C++ uses pointers v1, e1, e2.
-        let mut dir: i32 = 0; // 0 = right side (forward), 1 = left side (backward)
-        let mut sd = d; // signed half-width: positive for right, negative for left
+        // ── Walk and emit polygon ──
+        let scale_x = self.state.scale_x;
+        let scale_y = self.state.scale_y;
+        let mut xy_out: Vec<f64> = Vec::with_capacity((v_last + 1) * 8);
+
+        let mut dir: i32 = 0;
+        let mut sd = d;
         let mut mid_out: usize = 0;
-
-        // e1 = previous edge vertex, e2 = next edge vertex, v1 = current vertex
         let mut v1i: usize = 0;
         let mut e1i: usize = v_last;
         let mut e2i: usize = 0;
 
+        // Using labels to match C++ goto structure exactly
         loop {
-            // Macro-like inline functions replaced by direct logic.
-            let v1_dir = vtx[v1i].dir;
-            let v1_flags = vtx[v1i].flags;
+            // Determine which label to jump to
+            enum Action {
+                InnerMiter,
+                Bevel,
+                Butt,
+                NrCap,
+                Round { k: i32, f_angle: f64 },
+                OuterMiter,
+                Next,
+            }
 
-            if v1_dir == dir {
-                // ── INNER side of turn ──
-                let el_e1 = vtx[e1i].el[dir as usize];
-                let el_e2 = vtx[e2i].el[dir as usize];
-                if el_e1 > 0.0 {
-                    if el_e2 > 0.0 {
-                        // INNER_MITER
-                        outline.push(vtx[v1i].x - vtx[v1i].mx);
-                        outline.push(vtx[v1i].y - vtx[v1i].my);
+            let action = if vtx[v1i].dir == dir {
+                // Inner side of turn
+                if vtx[e1i].el[dir as usize] > 0.0 {
+                    if vtx[e2i].el[dir as usize] > 0.0 {
+                        Action::InnerMiter
                     } else {
-                        // e1 ok, e2 consumed — check near-endpoint
-                        if (v1_flags & VTX_IS_NEAR_START_OR_END) != 0 && vtx[v1i].nn >= -0.5 {
-                            outline.push(vtx[v1i].x - vtx[v1i].mx);
-                            outline.push(vtx[v1i].y - vtx[v1i].my);
+                        // fall through to near-start-or-end check
+                        if (vtx[v1i].flags & VTX_IS_NEAR_START_OR_END) != 0
+                            && vtx[v1i].nn >= -0.5
+                        {
+                            Action::InnerMiter
                         } else {
-                            // BEVEL
-                            outline.push(vtx[v1i].x - sd * vtx[e1i].ny);
-                            outline.push(vtx[v1i].y + sd * vtx[e1i].nx);
-                            outline.push(vtx[v1i].x - sd * vtx[e2i].ny);
-                            outline.push(vtx[v1i].y + sd * vtx[e2i].nx);
+                            Action::Bevel
                         }
                     }
-                } else if el_e2 <= 0.0 {
-                    // Both edges consumed
+                } else if vtx[e2i].el[dir as usize] <= 0.0 {
                     if vtx[v1i].nn < 0.5 {
-                        // BEVEL
-                        outline.push(vtx[v1i].x - sd * vtx[e1i].ny);
-                        outline.push(vtx[v1i].y + sd * vtx[e1i].nx);
-                        outline.push(vtx[v1i].x - sd * vtx[e2i].ny);
-                        outline.push(vtx[v1i].y + sd * vtx[e2i].nx);
-                    }
-                    // else SKIP (nn >= 0.5 and both consumed)
-                } else {
-                    // e1 consumed, e2 ok — check near-endpoint
-                    if (v1_flags & VTX_IS_NEAR_START_OR_END) != 0 && vtx[v1i].nn >= -0.5 {
-                        outline.push(vtx[v1i].x - vtx[v1i].mx);
-                        outline.push(vtx[v1i].y - vtx[v1i].my);
+                        Action::Bevel
                     } else {
-                        // BEVEL
-                        outline.push(vtx[v1i].x - sd * vtx[e1i].ny);
-                        outline.push(vtx[v1i].y + sd * vtx[e1i].nx);
-                        outline.push(vtx[v1i].x - sd * vtx[e2i].ny);
-                        outline.push(vtx[v1i].y + sd * vtx[e2i].nx);
+                        Action::Next
+                    }
+                } else {
+                    // fall through to near-start-or-end check
+                    if (vtx[v1i].flags & VTX_IS_NEAR_START_OR_END) != 0 && vtx[v1i].nn >= -0.5 {
+                        Action::InnerMiter
+                    } else {
+                        Action::Bevel
                     }
                 }
-            } else if v1_dir < 0 {
-                // ── START, END, or COLLINEAR vertex ──
-                if (v1_flags & (VTX_IS_START | VTX_IS_END)) != 0 {
-                    let is_end_on_right = dir == 0 && (v1_flags & VTX_IS_END) != 0;
-                    let is_start_on_left = dir == 1 && (v1_flags & VTX_IS_START) != 0;
-                    if !is_end_on_right && !is_start_on_left {
-                        // SKIP — wrong cap for this walking direction
-                    } else {
-                        // Determine cap type from stroke end.
-                        let st = if dir == 0 {
-                            &stroke.finish_end
+            } else if vtx[v1i].dir < 0 {
+                if (vtx[v1i].flags & (VTX_IS_START | VTX_IS_END)) != 0 {
+                    if dir == 0 {
+                        if (vtx[v1i].flags & VTX_IS_END) == 0 {
+                            Action::Next
                         } else {
-                            &stroke.start_end
-                        };
-                        if st.end_type != StrokeEndType::Cap {
-                            // BUTT
-                            outline.push(vtx[v1i].x - sd * vtx[e1i].ny);
-                            outline.push(vtx[v1i].y + sd * vtx[e1i].nx);
-                            outline.push(vtx[v1i].x + sd * vtx[e1i].ny);
-                            outline.push(vtx[v1i].y - sd * vtx[e1i].nx);
-                        } else if !rounded {
-                            // NRCAP (non-rounded cap = square cap)
-                            outline.push(vtx[v1i].x + sd * (vtx[e1i].nx - vtx[e1i].ny));
-                            outline.push(vtx[v1i].y + sd * (vtx[e1i].ny + vtx[e1i].nx));
-                            outline.push(vtx[v1i].x + sd * (vtx[e1i].nx + vtx[e1i].ny));
-                            outline.push(vtx[v1i].y + sd * (vtx[e1i].ny - vtx[e1i].nx));
-                        } else {
-                            // ROUND cap
-                            let f = CIRCLE_QUALITY * (d * scale_sum).sqrt() * 0.5;
-                            if f < 1.5 {
-                                // Degrade to BUTT
-                                outline.push(vtx[v1i].x - sd * vtx[e1i].ny);
-                                outline.push(vtx[v1i].y + sd * vtx[e1i].nx);
-                                outline.push(vtx[v1i].x + sd * vtx[e1i].ny);
-                                outline.push(vtx[v1i].y - sd * vtx[e1i].nx);
+                            // st = strokeEnd.Type
+                            let st = &stroke.finish_end;
+                            if st.end_type != StrokeEndType::Cap {
+                                Action::Butt
+                            } else if !rounded {
+                                Action::NrCap
                             } else {
-                                let a = std::f64::consts::PI;
-                                let k = (f + 0.5) as usize;
-                                let k = k.clamp(1, 128);
-                                let step = a / k as f64;
-                                for j in 0..=k {
-                                    let c = (step * j as f64).cos();
-                                    let s = (step * j as f64).sin();
-                                    outline.push(
-                                        vtx[v1i].x + sd * (s * vtx[e1i].nx - c * vtx[e1i].ny),
-                                    );
-                                    outline.push(
-                                        vtx[v1i].y + sd * (s * vtx[e1i].ny + c * vtx[e1i].nx),
-                                    );
+                                let f = CIRCLE_QUALITY * (d * (scale_x + scale_y)).sqrt() * 0.5;
+                                if f < 1.5 {
+                                    Action::Butt
+                                } else {
+                                    let a = std::f64::consts::PI;
+                                    let k = if f <= 1.0 {
+                                        1
+                                    } else if f >= 128.0 {
+                                        128
+                                    } else {
+                                        (f + 0.5) as i32
+                                    };
+                                    Action::Round { k, f_angle: a }
+                                }
+                            }
+                        }
+                    } else {
+                        // dir == 1
+                        if (vtx[v1i].flags & VTX_IS_START) == 0 {
+                            Action::Next
+                        } else {
+                            // st = strokeStart.Type
+                            let st = &stroke.start_end;
+                            if st.end_type != StrokeEndType::Cap {
+                                Action::Butt
+                            } else if !rounded {
+                                Action::NrCap
+                            } else {
+                                let f = CIRCLE_QUALITY * (d * (scale_x + scale_y)).sqrt() * 0.5;
+                                if f < 1.5 {
+                                    Action::Butt
+                                } else {
+                                    let a = std::f64::consts::PI;
+                                    let k = if f <= 1.0 {
+                                        1
+                                    } else if f >= 128.0 {
+                                        128
+                                    } else {
+                                        (f + 0.5) as i32
+                                    };
+                                    Action::Round { k, f_angle: a }
                                 }
                             }
                         }
                     }
+                } else {
+                    Action::Next
                 }
-                // else: collinear, SKIP
             } else {
-                // ── OUTER side of turn ──
+                // Outer side of turn
                 if rounded && vtx[v1i].nn < 1.0 {
                     let a = if vtx[v1i].nn > -1.0 {
                         vtx[v1i].nn.acos()
                     } else {
                         std::f64::consts::PI
                     };
-                    let f =
-                        CIRCLE_QUALITY * (d * scale_sum).sqrt() * a / (2.0 * std::f64::consts::PI);
-                    if f >= 1.5 {
-                        // ROUND join
-                        let k = (f + 0.5) as usize;
-                        let k = k.clamp(1, 128);
-                        let step = a / k as f64;
-                        for j in 0..=k {
-                            let c = (step * j as f64).cos();
-                            let s = (step * j as f64).sin();
-                            outline.push(vtx[v1i].x + sd * (s * vtx[e1i].nx - c * vtx[e1i].ny));
-                            outline.push(vtx[v1i].y + sd * (s * vtx[e1i].ny + c * vtx[e1i].nx));
-                        }
-                    } else if f >= 0.5 {
-                        // BEVEL
-                        outline.push(vtx[v1i].x - sd * vtx[e1i].ny);
-                        outline.push(vtx[v1i].y + sd * vtx[e1i].nx);
-                        outline.push(vtx[v1i].x - sd * vtx[e2i].ny);
-                        outline.push(vtx[v1i].y + sd * vtx[e2i].nx);
-                    } else {
-                        // f < 0.5: fall through to miter/bevel below
-                        if (v1_flags & VTX_DISALLOW_OUTER_MITER) == 0 {
-                            outline.push(vtx[v1i].x + vtx[v1i].mx);
-                            outline.push(vtx[v1i].y + vtx[v1i].my);
+                    let f = CIRCLE_QUALITY * (d * (scale_x + scale_y)).sqrt() * a
+                        / (2.0 * std::f64::consts::PI);
+                    if f >= 0.5 {
+                        if f < 1.5 {
+                            Action::Bevel
                         } else {
-                            outline.push(vtx[v1i].x - sd * vtx[e1i].ny);
-                            outline.push(vtx[v1i].y + sd * vtx[e1i].nx);
-                            outline.push(vtx[v1i].x - sd * vtx[e2i].ny);
-                            outline.push(vtx[v1i].y + sd * vtx[e2i].nx);
+                            let k = if f <= 1.0 {
+                                1
+                            } else if f >= 128.0 {
+                                128
+                            } else {
+                                (f + 0.5) as i32
+                            };
+                            Action::Round { k, f_angle: a }
                         }
+                    } else if (vtx[v1i].flags & VTX_DISALLOW_OUTER_MITER) == 0 {
+                        Action::OuterMiter
+                    } else {
+                        Action::Bevel
                     }
-                } else if (v1_flags & VTX_DISALLOW_OUTER_MITER) == 0 {
-                    // OUTER_MITER
-                    outline.push(vtx[v1i].x + vtx[v1i].mx);
-                    outline.push(vtx[v1i].y + vtx[v1i].my);
+                } else if (vtx[v1i].flags & VTX_DISALLOW_OUTER_MITER) == 0 {
+                    Action::OuterMiter
                 } else {
-                    // BEVEL
-                    outline.push(vtx[v1i].x - sd * vtx[e1i].ny);
-                    outline.push(vtx[v1i].y + sd * vtx[e1i].nx);
-                    outline.push(vtx[v1i].x - sd * vtx[e2i].ny);
-                    outline.push(vtx[v1i].y + sd * vtx[e2i].nx);
+                    Action::Bevel
                 }
+            };
+
+            match action {
+                Action::Bevel => {
+                    xy_out.push(vtx[v1i].x - sd * vtx[e1i].ny);
+                    xy_out.push(vtx[v1i].y + sd * vtx[e1i].nx);
+                    xy_out.push(vtx[v1i].x - sd * vtx[e2i].ny);
+                    xy_out.push(vtx[v1i].y + sd * vtx[e2i].nx);
+                }
+                Action::Butt => {
+                    xy_out.push(vtx[v1i].x - sd * vtx[e1i].ny);
+                    xy_out.push(vtx[v1i].y + sd * vtx[e1i].nx);
+                    xy_out.push(vtx[v1i].x + sd * vtx[e1i].ny);
+                    xy_out.push(vtx[v1i].y - sd * vtx[e1i].nx);
+                }
+                Action::NrCap => {
+                    xy_out.push(vtx[v1i].x + sd * (vtx[e1i].nx - vtx[e1i].ny));
+                    xy_out.push(vtx[v1i].y + sd * (vtx[e1i].ny + vtx[e1i].nx));
+                    xy_out.push(vtx[v1i].x + sd * (vtx[e1i].nx + vtx[e1i].ny));
+                    xy_out.push(vtx[v1i].y + sd * (vtx[e1i].ny - vtx[e1i].nx));
+                }
+                Action::Round { k, f_angle: a } => {
+                    let step = a / k as f64;
+                    for i in 0..=k {
+                        let c = (step * i as f64).cos();
+                        let s = (step * i as f64).sin();
+                        xy_out.push(vtx[v1i].x + sd * (s * vtx[e1i].nx - c * vtx[e1i].ny));
+                        xy_out.push(vtx[v1i].y + sd * (s * vtx[e1i].ny + c * vtx[e1i].nx));
+                    }
+                }
+                Action::OuterMiter => {
+                    xy_out.push(vtx[v1i].x + vtx[v1i].mx);
+                    xy_out.push(vtx[v1i].y + vtx[v1i].my);
+                }
+                Action::InnerMiter => {
+                    xy_out.push(vtx[v1i].x - vtx[v1i].mx);
+                    xy_out.push(vtx[v1i].y - vtx[v1i].my);
+                }
+                Action::Next => {}
             }
 
-            // ── Advance pointers ──
+            // L_NEXT: advance pointers
             if dir == 0 {
                 e1i = e2i;
                 e2i += 1;
@@ -5050,20 +5111,20 @@ impl<'a> emPainter<'a> {
                 if e2i <= v_last {
                     continue;
                 }
-                // Switch to backward (left side) walk.
                 dir = 1;
                 sd = -sd;
-                mid_out = outline.len();
+                mid_out = xy_out.len();
                 v1i = v_last;
                 e1i = v_last;
                 e2i = v_last;
-                if v_last > 0 {
-                    e2i = v_last - 1;
+                if 0 < v_last {
+                    e2i -= 1;
                 }
             } else {
                 if v1i == 0 {
                     break;
                 }
+                // C++: v1=e1=e2; e2--;
                 v1i = e2i;
                 e1i = e2i;
                 if e2i == 0 {
@@ -5074,21 +5135,24 @@ impl<'a> emPainter<'a> {
             }
         }
 
-        // ── Closed-polygon stitching ──
-        if closed && mid_out > 0 && mid_out < outline.len() {
-            outline.push(outline[mid_out]);
-            outline.push(outline[mid_out + 1]);
-            outline.push(outline[mid_out - 2]);
-            outline.push(outline[mid_out - 1]);
+        // Closed-polygon stitching
+        if closed && mid_out > 0 && mid_out < xy_out.len() {
+            let a = xy_out[mid_out];
+            let b = xy_out[mid_out + 1];
+            let c = xy_out[mid_out - 2];
+            let dd = xy_out[mid_out - 1];
+            xy_out.push(a);
+            xy_out.push(b);
+            xy_out.push(c);
+            xy_out.push(dd);
         }
 
-        // Convert flat [x,y,x,y,...] to [(x,y),...] for fill_polygon_aa.
-        let n_out = outline.len() / 2;
+        let n_out = xy_out.len() / 2;
         let poly: Vec<(f64, f64)> = (0..n_out)
-            .map(|i| (outline[i * 2], outline[i * 2 + 1]))
+            .map(|i| (xy_out[i * 2], xy_out[i * 2 + 1]))
             .collect();
 
-        self.fill_polygon_aa(proof, &poly, stroke.color, WindingRule::NonZero);
+        self.PaintPolygon(&poly, stroke.color, canvas_color);
         self.state.canvas_color = saved_canvas;
     }
 
