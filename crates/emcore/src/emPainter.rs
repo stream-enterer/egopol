@@ -4616,16 +4616,13 @@ impl<'a> emPainter<'a> {
         
         self.PaintPolylineWithoutArrows(&work[p1..=p2], stroke, closed, canvas_color);
 
-        let rounded = stroke.cap == super::emStroke::LineCap::Round
-            || stroke.join == super::emStroke::LineJoin::Round;
-
         if has_start {
             let (x, y) = vertices[0];
-            self.paint_stroke_end(x, y, nx1, ny1, ny1, -nx1, stroke.width, stroke.color, &stroke.start_end, rounded);
+            self.paint_stroke_end(x, y, nx1, ny1, stroke.width, stroke, &stroke.start_end, emColor::TRANSPARENT);
         }
         if has_end {
             let (x, y) = vertices[n - 1];
-            self.paint_stroke_end(x, y, nx2, ny2, ny2, -nx2, stroke.width, stroke.color, &stroke.finish_end, rounded);
+            self.paint_stroke_end(x, y, nx2, ny2, stroke.width, stroke, &stroke.finish_end, emColor::TRANSPARENT);
         }
     }
 
@@ -5169,29 +5166,23 @@ impl<'a> emPainter<'a> {
     /// (0.0–1.0) for where the segment exits the decoration shape. t >= 1.0
     /// means the entire segment is inside the decoration.
     #[allow(clippy::excessive_precision, clippy::needless_return)]
+    /// C++ emPainter::CutLineAtArrow (emPainter.cpp:2934-3182).
+    /// Returns t in [0, 1]: fraction of line segment outside the arrow shape.
     fn cut_line_at_arrow(
-        x1: f64,
-        y1: f64,
-        x2: f64,
-        y2: f64,
-        thickness: f64,
-        stroke: &emStroke,
-        end: &emStrokeEnd,
+        x1: f64, y1: f64, x2: f64, y2: f64,
+        thickness: f64, stroke: &emStroke, stroke_end: &emStrokeEnd,
     ) -> f64 {
-        let mut r = (thickness * ARROW_BASE_SIZE * 0.5 * end.width_factor).abs();
-        if r <= 1e-140 {
-            return 0.0;
-        }
-        let mut l = thickness * ARROW_BASE_SIZE * end.length_factor;
-        if l <= 1e-140 {
-            return 0.0;
-        }
-        let rounded = stroke.join == super::emStroke::LineJoin::Round
-            || stroke.cap == super::emStroke::LineCap::Round;
+        let mut r = (thickness * ARROW_BASE_SIZE * 0.5 * stroke_end.width_factor).abs();
+        if r <= 1e-140 { return 0.0; }
+        let mut l = thickness * ARROW_BASE_SIZE * stroke_end.length_factor;
+        if l <= 1e-140 { return 0.0; }
 
-        let s;
-        match end.end_type {
-            StrokeEndType::Butt | StrokeEndType::Cap => return 0.0,
+        let rounded = stroke.cap == super::emStroke::LineCap::Round;
+        let mut s: f64;
+
+        match stroke_end.end_type {
+            StrokeEndType::Butt | StrokeEndType::Cap => 0.0,
+
             StrokeEndType::Arrow => {
                 let d = thickness * 0.5;
                 let b = l / r;
@@ -5201,38 +5192,27 @@ impl<'a> emPainter<'a> {
                 let l2 = l - (s + u) / (1.0 - ARROW_NOTCH);
                 r *= l2 / l;
                 l = l2;
-                return Self::cut_arrow(x1 - s, y1, x2 - s, y2, r, l);
+                Self::cut_shape_arrow(x1 - s, y1, x2 - s, y2, r, l)
             }
             StrokeEndType::ContourArrow => {
-                s = if rounded {
-                    thickness * 0.5
-                } else {
-                    let d = thickness * 0.5;
+                s = thickness * 0.5;
+                if !rounded {
                     let sin_a = r / (l * l + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 {
-                        d * sin_a
-                    } else {
-                        d / sin_a
-                    }
-                };
-                return Self::cut_arrow(x1 - s, y1, x2 - s, y2, r, l);
+                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                }
+                Self::cut_shape_arrow(x1 - s, y1, x2 - s, y2, r, l)
             }
             StrokeEndType::LineArrow => {
-                s = if rounded {
-                    thickness * 0.5
-                } else {
-                    let d = thickness * 0.5;
+                s = thickness * 0.5;
+                if !rounded {
                     let sin_a = r / (l * l + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 {
-                        d * sin_a
-                    } else {
-                        d / sin_a
-                    }
-                };
+                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                }
                 let l2 = s * 1.5;
                 r *= l2 / l;
                 l = l2;
-                return Self::cut_triangle(x1 - 0.0, y1, x2 - 0.0, y2, r, l);
+                s = 0.0;
+                Self::cut_shape_triangle(x1 - s, y1, x2 - s, y2, r, l)
             }
             StrokeEndType::Triangle => {
                 let d = thickness * 0.5;
@@ -5241,96 +5221,81 @@ impl<'a> emPainter<'a> {
                 let l2 = l - s - d;
                 r *= l2 / l;
                 l = l2;
-                return Self::cut_triangle(x1 - s, y1, x2 - s, y2, r, l);
+                Self::cut_shape_triangle(x1 - s, y1, x2 - s, y2, r, l)
             }
             StrokeEndType::ContourTriangle => {
-                s = if rounded {
-                    thickness * 0.5
-                } else {
-                    let d = thickness * 0.5;
+                s = thickness * 0.5;
+                if !rounded {
                     let sin_a = r / (l * l + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 {
-                        d * sin_a
-                    } else {
-                        d / sin_a
-                    }
-                };
-                return Self::cut_triangle(x1 - s, y1, x2 - s, y2, r, l);
+                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                }
+                Self::cut_shape_triangle(x1 - s, y1, x2 - s, y2, r, l)
             }
             StrokeEndType::Square => {
                 s = thickness * 0.5;
                 r = (r - s).max(0.0);
                 l = (l - thickness).max(0.0);
-                return Self::cut_square(x1 - s, y1, x2 - s, y2, r, l);
+                Self::cut_shape_square(x1 - s, y1, x2 - s, y2, r, l)
             }
             StrokeEndType::ContourSquare => {
                 s = thickness * 0.5;
-                return Self::cut_square(x1 - s, y1, x2 - s, y2, r, l);
+                Self::cut_shape_square(x1 - s, y1, x2 - s, y2, r, l)
             }
             StrokeEndType::HalfSquare => {
                 s = thickness * 0.5;
                 l = (l * 0.5 - s).max(thickness * 0.0001);
-                return Self::cut_square(x1 - s, y1, x2 - s, y2, r, l);
+                Self::cut_shape_square(x1 - s, y1, x2 - s, y2, r, l)
             }
             StrokeEndType::Circle => {
                 s = thickness * 0.5;
                 r = (r - s).max(0.0);
                 l = (l - thickness).max(0.0);
-                return Self::cut_circle(x1, y1, x2, y2, r, l, s, false);
+                Self::cut_shape_circle(x1, y1, x2, y2, r, l, s, false)
             }
             StrokeEndType::ContourCircle => {
                 s = thickness * 0.5;
-                return Self::cut_circle(x1, y1, x2, y2, r, l, s, false);
+                Self::cut_shape_circle(x1, y1, x2, y2, r, l, s, false)
             }
             StrokeEndType::HalfCircle => {
                 s = if rounded { thickness * 0.5 } else { 0.0 } - l * 0.5;
-                return Self::cut_circle(x1, y1, x2, y2, r, l, s, true);
+                Self::cut_shape_circle(x1, y1, x2, y2, r, l, s, true)
             }
             StrokeEndType::Diamond => {
                 s = (r * r + l * l * 0.25).sqrt() / r * thickness * 0.5;
                 let l2 = l - s - s;
                 r *= l2 / l;
                 l = l2;
-                return Self::cut_diamond(x1 - s, y1, x2 - s, y2, r, l, false);
+                Self::cut_shape_diamond(x1 - s, y1, x2 - s, y2, r, l, false)
             }
             StrokeEndType::ContourDiamond => {
-                s = if rounded {
-                    thickness * 0.5
-                } else {
-                    let d = thickness * 0.5;
+                s = thickness * 0.5;
+                if !rounded {
                     let sin_a = r / (l * l * 0.25 + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 {
-                        d * sin_a
-                    } else {
-                        d / sin_a
-                    }
-                };
-                return Self::cut_diamond(x1 - s, y1, x2 - s, y2, r, l, false);
+                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                }
+                Self::cut_shape_diamond(x1 - s, y1, x2 - s, y2, r, l, false)
             }
             StrokeEndType::HalfDiamond => {
-                let d = thickness * 0.5;
-                s = if rounded {
-                    d
-                } else {
+                s = thickness * 0.5;
+                if !rounded {
                     let sin_a = r / (l * l * 0.25 + r * r).sqrt();
-                    d * (sin_a + (1.0 - sin_a).sqrt())
-                } - l * 0.5;
-                return Self::cut_diamond(x1 - s, y1, x2 - s, y2, r, l, true);
+                    s *= sin_a + (1.0 - sin_a).sqrt();
+                }
+                s -= l * 0.5;
+                Self::cut_shape_diamond(x1 - s, y1, x2 - s, y2, r, l, true)
             }
             StrokeEndType::emStroke => {
-                l = thickness * (end.length_factor.abs() - 1.0);
-                if l < 0.0 {
-                    l = 0.0;
-                }
+                l = thickness * (stroke_end.length_factor.abs() - 1.0);
+                if l < 0.0 { l = 0.0; }
                 s = -l * 0.5;
-                return Self::cut_square(x1 - s, y1, x2 - s, y2, r, l);
+                Self::cut_shape_square(x1 - s, y1, x2 - s, y2, r, l)
             }
         }
     }
 
-    // --- CutLineAtArrow shape intersection helpers (C++ L_ARROW, L_TRIANGLE, etc.) ---
+    // --- CutLineAtArrow shape helpers (C++ L_ARROW, L_TRIANGLE, etc.) ---
 
-    fn cut_arrow(x1: f64, y1: f64, x2: f64, y2: f64, r: f64, l: f64) -> f64 {
+    fn cut_shape_arrow(x1: f64, y1: f64, x2: f64, y2: f64, r: f64, l: f64) -> f64 {
         let dx = x2 - x1;
         let dy = y2 - y1;
         let dr = r / l;
@@ -5338,113 +5303,69 @@ impl<'a> emPainter<'a> {
         let d2 = r / (l - l2);
         let mut t = 1.0;
         if dy - d2 * dx < -1e-140 {
-            if y1 <= d2 * (x1 - l2) {
-                t = 0.0;
-            } else if y2 < (x2 - l2) * d2 {
-                t = (d2 * (x1 - l2) - y1) / (dy - d2 * dx);
-            }
+            if y1 <= d2 * (x1 - l2) { t = 0.0; }
+            else if y2 < (x2 - l2) * d2 { t = (d2 * (x1 - l2) - y1) / (dy - d2 * dx); }
         }
         let mut u = 1.0;
         if dy + d2 * dx > 1e-140 {
-            if y1 >= -d2 * (x1 - l2) {
-                u = 0.0;
-            } else if y2 > -(x2 - l2) * d2 {
-                u = (-d2 * (x1 - l2) - y1) / (dy + d2 * dx);
-            }
+            if y1 >= -d2 * (x1 - l2) { u = 0.0; }
+            else if y2 > -(x2 - l2) * d2 { u = (-d2 * (x1 - l2) - y1) / (dy + d2 * dx); }
         }
-        if t < u {
-            t = u;
-        }
+        if t < u { t = u; }
         if dy - dr * dx > 1e-140 {
-            if y1 >= dr * x1 {
-                return 0.0;
-            }
-            if y2 > x2 * dr {
-                t = t.min((dr * x1 - y1) / (dy - dr * dx));
-            }
+            if y1 >= dr * x1 { return 0.0; }
+            if y2 > x2 * dr { t = t.min((dr * x1 - y1) / (dy - dr * dx)); }
         }
         if dy + dr * dx < -1e-140 {
-            if y1 <= -dr * x1 {
-                return 0.0;
-            }
-            if y2 < -x2 * dr {
-                t = t.min((-dr * x1 - y1) / (dy + dr * dx));
-            }
+            if y1 <= -dr * x1 { return 0.0; }
+            if y2 < -x2 * dr { t = t.min((-dr * x1 - y1) / (dy + dr * dx)); }
         }
         t
     }
 
-    fn cut_triangle(x1: f64, y1: f64, x2: f64, y2: f64, r: f64, l: f64) -> f64 {
+    fn cut_shape_triangle(x1: f64, y1: f64, x2: f64, y2: f64, r: f64, l: f64) -> f64 {
         let dx = x2 - x1;
         let dy = y2 - y1;
         let dr = r / l;
         let mut t = 1.0;
         if dx > 1e-140 {
-            if x1 >= l {
-                return 0.0;
-            }
-            if x2 > l {
-                t = (l - x1) / dx;
-            }
+            if x1 >= l { return 0.0; }
+            if x2 > l { t = (l - x1) / dx; }
         }
         if dy - dr * dx > 1e-140 {
-            if y1 >= dr * x1 {
-                return 0.0;
-            }
-            if y2 > x2 * dr {
-                t = t.min((dr * x1 - y1) / (dy - dr * dx));
-            }
+            if y1 >= dr * x1 { return 0.0; }
+            if y2 > x2 * dr { t = t.min((dr * x1 - y1) / (dy - dr * dx)); }
         }
         if dy + dr * dx < -1e-140 {
-            if y1 <= -dr * x1 {
-                return 0.0;
-            }
-            if y2 < -x2 * dr {
-                t = t.min((-dr * x1 - y1) / (dy + dr * dx));
-            }
+            if y1 <= -dr * x1 { return 0.0; }
+            if y2 < -x2 * dr { t = t.min((-dr * x1 - y1) / (dy + dr * dx)); }
         }
         t
     }
 
-    fn cut_square(x1: f64, y1: f64, x2: f64, y2: f64, r: f64, l: f64) -> f64 {
+    fn cut_shape_square(x1: f64, y1: f64, x2: f64, y2: f64, r: f64, l: f64) -> f64 {
         let dx = x2 - x1;
         let dy = y2 - y1;
         let mut t = 1.0;
         if dx > 1e-140 {
-            if x1 >= l {
-                return 0.0;
-            }
-            if x2 > l {
-                t = (l - x1) / dx;
-            }
+            if x1 >= l { return 0.0; }
+            if x2 > l { t = (l - x1) / dx; }
         } else if dx < -1e-140 {
-            if x1 <= 0.0 {
-                return 0.0;
-            }
-            if x2 < 0.0 {
-                t = -x1 / dx;
-            }
+            if x1 <= 0.0 { return 0.0; }
+            if x2 < 0.0 { t = -x1 / dx; }
         }
         if dy > 1e-140 {
-            if y1 >= r {
-                return 0.0;
-            }
-            if y2 > r {
-                t = t.min((r - y1) / dy);
-            }
+            if y1 >= r { return 0.0; }
+            if y2 > r { t = t.min((r - y1) / dy); }
         } else if dy < -1e-140 {
-            if y1 <= -r {
-                return 0.0;
-            }
-            if y2 < -r {
-                t = t.min((-r - y1) / dy);
-            }
+            if y1 <= -r { return 0.0; }
+            if y2 < -r { t = t.min((-r - y1) / dy); }
         }
         t
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn cut_circle(x1: f64, y1: f64, x2: f64, y2: f64, r: f64, l: f64, s: f64, semi: bool) -> f64 {
+    fn cut_shape_circle(x1: f64, y1: f64, x2: f64, y2: f64, r: f64, l: f64, s: f64, semi: bool) -> f64 {
         let x1 = (x1 - s) * 2.0 / l - 1.0;
         let x2 = (x2 - s) * 2.0 / l - 1.0;
         let y1 = y1 / r;
@@ -5452,9 +5373,7 @@ impl<'a> emPainter<'a> {
         let dx = x2 - x1;
         let dy = y2 - y1;
         let d = dx * dx + dy * dy;
-        if d <= 1e-140 {
-            return 1.0;
-        }
+        if d <= 1e-140 { return 1.0; }
         let d1 = x1 * x1 + y1 * y1;
         let d2 = x2 * x2 + y2 * y2;
         let u = (x1 * dx + y1 * dy) / d;
@@ -5464,132 +5383,71 @@ impl<'a> emPainter<'a> {
         }
         let mut t = (disc.sqrt() - u).clamp(0.0, 1.0);
         if semi && dx < -1e-140 {
-            if x1 <= 0.0 {
-                return 0.0;
-            }
-            if x2 < 0.0 {
-                t = t.min(-x1 / dx);
-            }
+            if x1 <= 0.0 { return 0.0; }
+            if x2 < 0.0 { t = t.min(-x1 / dx); }
         }
         t
     }
 
-    fn cut_diamond(x1: f64, y1: f64, x2: f64, y2: f64, r: f64, l: f64, semi: bool) -> f64 {
+    fn cut_shape_diamond(x1: f64, y1: f64, x2: f64, y2: f64, r: f64, l: f64, semi: bool) -> f64 {
         let dx = x2 - x1;
         let dy = y2 - y1;
         let dr = 2.0 * r / l;
         let mut t = 1.0;
         if dy - dr * dx > 1e-140 {
-            if y1 >= dr * x1 {
-                return 0.0;
-            }
-            if y2 > x2 * dr {
-                t = (dr * x1 - y1) / (dy - dr * dx);
-            }
+            if y1 >= dr * x1 { return 0.0; }
+            if y2 > x2 * dr { t = (dr * x1 - y1) / (dy - dr * dx); }
         }
         if dy + dr * dx < -1e-140 {
-            if y1 <= -dr * x1 {
-                return 0.0;
-            }
-            if y2 < -x2 * dr {
-                t = t.min((-dr * x1 - y1) / (dy + dr * dx));
-            }
+            if y1 <= -dr * x1 { return 0.0; }
+            if y2 < -x2 * dr { t = t.min((-dr * x1 - y1) / (dy + dr * dx)); }
         }
         if dy - dr * dx < -1e-140 {
-            if y1 <= dr * (x1 - l) {
-                return 0.0;
-            }
-            if y2 < (x2 - l) * dr {
-                t = t.min((dr * (x1 - l) - y1) / (dy - dr * dx));
-            }
+            if y1 <= dr * (x1 - l) { return 0.0; }
+            if y2 < (x2 - l) * dr { t = t.min((dr * (x1 - l) - y1) / (dy - dr * dx)); }
         }
         if dy + dr * dx > 1e-140 {
-            if y1 >= -dr * (x1 - l) {
-                return 0.0;
-            }
-            if y2 > -(x2 - l) * dr {
-                t = t.min((-dr * (x1 - l) - y1) / (dy + dr * dx));
-            }
+            if y1 >= -dr * (x1 - l) { return 0.0; }
+            if y2 > -(x2 - l) * dr { t = t.min((-dr * (x1 - l) - y1) / (dy + dr * dx)); }
         }
         if semi && dx < -1e-140 {
-            if x1 <= l * 0.5 {
-                return 0.0;
-            }
-            if x2 < l * 0.5 {
-                t = t.min((l * 0.5 - x1) / dx);
-            }
+            if x1 <= l * 0.5 { return 0.0; }
+            if x2 < l * 0.5 { t = t.min((l * 0.5 - x1) / dx); }
         }
         t
     }
 
-    /// Paint a stroke end decoration at an endpoint.
-    /// Structural port of C++ `emPainter::PaintArrow`.
-    ///
-    /// Parameters:
-    /// - `(x, y)`: endpoint position
-    /// - `(nx, ny)`: perpendicular to line direction = `(dy, -dx)` of into-line direction
-    /// - `(dx, dy)`: along-line direction pointing INTO the line body
-    /// - `thickness`: stroke width
-    /// - `stroke_color`: line body color
-    /// - `stroke_end`: decoration specification
-    /// - `rounded`: whether the parent stroke uses round joins/caps
+    /// C++ emPainter::PaintArrow (emPainter.cpp:3184-3449).
+    /// `(nx, ny)`: along-line direction pointing INTO the body (matches C++ PaintArrow params).
+    /// Perpendicular computed as `(ny, -nx)`.
     #[allow(clippy::too_many_arguments)]
     fn paint_stroke_end(
         &mut self,
-        x: f64,
-        y: f64,
-        nx: f64,
-        ny: f64,
-        dx: f64,
-        dy: f64,
+        x: f64, y: f64,
+        nx: f64, ny: f64,
         thickness: f64,
-        stroke_color: emColor,
+        stroke: &emStroke,
         stroke_end: &emStrokeEnd,
-        rounded: bool,
+        canvas_color: emColor,
     ) {
-        // C++ uses fabs for r and handles negative l by flipping direction.
         let r = (thickness * ARROW_BASE_SIZE * 0.5 * stroke_end.width_factor).abs();
-        if r <= 1e-140 {
-            return;
-        }
+        if r <= 1e-140 { return; }
         let mut l = thickness * ARROW_BASE_SIZE * stroke_end.length_factor;
-        // Handle negative length: flip direction (matches C++).
-        let (dx, dy, nx, ny) = if l < 0.0 {
+        let (nx, ny) = if l < 0.0 {
             l = -l;
-            (-dx, -dy, -nx, -ny)
+            (-nx, -ny)
         } else {
-            (dx, dy, nx, ny)
+            (nx, ny)
         };
-        if l <= 1e-140 {
-            return;
-        }
+        if l <= 1e-140 { return; }
 
-        // emStroke for sub-drawing (outlines, open polylines).
-        // Matches C++ `arrowStroke = stroke; arrowStroke.DashType = SOLID;`.
-        let arrow_stroke = {
-            let mut s = emStroke::new(stroke_color, thickness);
-            if rounded {
-                s.join = super::emStroke::LineJoin::Round;
-                s.cap = super::emStroke::LineCap::Round;
-            }
-            s
-        };
+        let rounded = stroke.cap == super::emStroke::LineCap::Round;
 
-        // Contour offset helper: C++ `s = thickness*0.5` with miter adjustment.
-        let contour_s = |r_val: f64, l_val: f64| -> f64 {
-            let mut s = thickness * 0.5;
-            if !rounded {
-                let sin_a = r_val / (l_val * l_val + r_val * r_val).sqrt();
-                if MAX_MITER * sin_a < 1.0 {
-                    s *= sin_a;
-                } else {
-                    s /= sin_a;
-                }
-            }
-            s
-        };
+        // C++: arrowStroke = stroke; arrowStroke.DashType = SOLID;
+        let mut arrow_stroke = stroke.clone();
+        arrow_stroke.dash_type = super::emStroke::DashType::Solid;
+        arrow_stroke.dash_pattern.clear();
 
-        // Bezier circle constant: 4/3 * tan(PI/8).
         let bc = 4.0_f64 / 3.0 * (std::f64::consts::PI / 8.0).tan();
 
         match stroke_end.end_type {
@@ -5599,328 +5457,229 @@ impl<'a> emPainter<'a> {
                 self.PaintPolygon(
                     &[
                         (x, y),
-                        (x + l * dx + r * nx, y + l * dy + r * ny),
-                        (
-                            x + (1.0 - ARROW_NOTCH) * l * dx,
-                            y + (1.0 - ARROW_NOTCH) * l * dy,
-                        ),
-                        (x + l * dx - r * nx, y + l * dy - r * ny),
+                        (x + l * nx + r * ny, y + l * ny - r * nx),
+                        (x + (1.0 - ARROW_NOTCH) * l * nx, y + (1.0 - ARROW_NOTCH) * l * ny),
+                        (x + l * nx - r * ny, y + l * ny + r * nx),
                     ],
-                    stroke_color,
-                    self.state.canvas_color,
+                    stroke.color, canvas_color,
                 );
             }
 
             StrokeEndType::ContourArrow => {
-                let s = contour_s(r, l);
+                let s = Self::contour_offset(thickness, rounded, r, l);
                 let verts = [
-                    (x + s * dx, y + s * dy),
-                    (x + (s + l) * dx + r * nx, y + (s + l) * dy + r * ny),
-                    (
-                        x + (s + (1.0 - ARROW_NOTCH) * l) * dx,
-                        y + (s + (1.0 - ARROW_NOTCH) * l) * dy,
-                    ),
-                    (x + (s + l) * dx - r * nx, y + (s + l) * dy - r * ny),
+                    (x + s * nx, y + s * ny),
+                    (x + (s + l) * nx + r * ny, y + (s + l) * ny - r * nx),
+                    (x + (s + (1.0 - ARROW_NOTCH) * l) * nx, y + (s + (1.0 - ARROW_NOTCH) * l) * ny),
+                    (x + (s + l) * nx - r * ny, y + (s + l) * ny + r * nx),
                 ];
-                self.PaintPolygon(&verts, stroke_end.inner_color, self.state.canvas_color);
-                self.PaintPolylineWithoutArrows(
-                    &verts,
-                    &arrow_stroke,
-                    true,
-                    self.state.canvas_color,
-                );
+                self.PaintPolygon(&verts, stroke_end.inner_color, canvas_color);
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, canvas_color);
             }
 
             StrokeEndType::LineArrow => {
-                let s = contour_s(r, l);
+                let s = Self::contour_offset(thickness, rounded, r, l);
                 let verts = [
-                    (x + (s + l) * dx - r * nx, y + (s + l) * dy - r * ny),
-                    (x + s * dx, y + s * dy),
-                    (x + (s + l) * dx + r * nx, y + (s + l) * dy + r * ny),
+                    (x + (s + l) * nx - r * ny, y + (s + l) * ny + r * nx),
+                    (x + s * nx, y + s * ny),
+                    (x + (s + l) * nx + r * ny, y + (s + l) * ny - r * nx),
                 ];
-                let mut line_stroke = arrow_stroke.clone();
-                line_stroke.start_end = emStrokeEnd::new(StrokeEndType::Cap);
-                line_stroke.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
-                self.PaintPolylineWithoutArrows(
-                    &verts,
-                    &line_stroke,
-                    false,
-                    self.state.canvas_color,
-                );
+                let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
+                arrow_stroke.start_end = cap_end;
+                arrow_stroke.finish_end = cap_end;
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, false, canvas_color);
             }
 
             StrokeEndType::Triangle => {
                 self.PaintPolygon(
                     &[
                         (x, y),
-                        (x + l * dx + r * nx, y + l * dy + r * ny),
-                        (x + l * dx - r * nx, y + l * dy - r * ny),
+                        (x + l * nx + r * ny, y + l * ny - r * nx),
+                        (x + l * nx - r * ny, y + l * ny + r * nx),
                     ],
-                    stroke_color,
-                    self.state.canvas_color,
+                    stroke.color, canvas_color,
                 );
             }
 
             StrokeEndType::ContourTriangle => {
-                let s = contour_s(r, l);
+                let s = Self::contour_offset(thickness, rounded, r, l);
                 let verts = [
-                    (x + s * dx, y + s * dy),
-                    (x + (s + l) * dx + r * nx, y + (s + l) * dy + r * ny),
-                    (x + (s + l) * dx - r * nx, y + (s + l) * dy - r * ny),
+                    (x + s * nx, y + s * ny),
+                    (x + (s + l) * nx + r * ny, y + (s + l) * ny - r * nx),
+                    (x + (s + l) * nx - r * ny, y + (s + l) * ny + r * nx),
                 ];
-                self.PaintPolygon(&verts, stroke_end.inner_color, self.state.canvas_color);
-                self.PaintPolylineWithoutArrows(
-                    &verts,
-                    &arrow_stroke,
-                    true,
-                    self.state.canvas_color,
-                );
+                self.PaintPolygon(&verts, stroke_end.inner_color, canvas_color);
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, canvas_color);
             }
 
             StrokeEndType::Square => {
                 self.PaintPolygon(
                     &[
-                        (x + r * nx, y + r * ny),
-                        (x + l * dx + r * nx, y + l * dy + r * ny),
-                        (x + l * dx - r * nx, y + l * dy - r * ny),
-                        (x - r * nx, y - r * ny),
+                        (x + r * ny, y - r * nx),
+                        (x + l * nx + r * ny, y + l * ny - r * nx),
+                        (x + l * nx - r * ny, y + l * ny + r * nx),
+                        (x - r * ny, y + r * nx),
                     ],
-                    stroke_color,
-                    self.state.canvas_color,
+                    stroke.color, canvas_color,
                 );
             }
 
             StrokeEndType::ContourSquare => {
                 let s = thickness * 0.5;
                 let verts = [
-                    (x + s * dx + r * nx, y + s * dy + r * ny),
-                    (x + (s + l) * dx + r * nx, y + (s + l) * dy + r * ny),
-                    (x + (s + l) * dx - r * nx, y + (s + l) * dy - r * ny),
-                    (x + s * dx - r * nx, y + s * dy - r * ny),
+                    (x + s * nx + r * ny, y + s * ny - r * nx),
+                    (x + (s + l) * nx + r * ny, y + (s + l) * ny - r * nx),
+                    (x + (s + l) * nx - r * ny, y + (s + l) * ny + r * nx),
+                    (x + s * nx - r * ny, y + s * ny + r * nx),
                 ];
-                self.PaintPolygon(&verts, stroke_end.inner_color, self.state.canvas_color);
-                self.PaintPolylineWithoutArrows(
-                    &verts,
-                    &arrow_stroke,
-                    true,
-                    self.state.canvas_color,
-                );
+                self.PaintPolygon(&verts, stroke_end.inner_color, canvas_color);
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, canvas_color);
             }
 
             StrokeEndType::HalfSquare => {
                 let s = thickness * 0.5;
                 let l_adj = (l * 0.5 - s).max(thickness * 0.0001);
                 let verts = [
-                    (x + s * dx + r * nx, y + s * dy + r * ny),
-                    (x + (s + l_adj) * dx + r * nx, y + (s + l_adj) * dy + r * ny),
-                    (x + (s + l_adj) * dx - r * nx, y + (s + l_adj) * dy - r * ny),
-                    (x + s * dx - r * nx, y + s * dy - r * ny),
+                    (x + s * nx + r * ny, y + s * ny - r * nx),
+                    (x + (s + l_adj) * nx + r * ny, y + (s + l_adj) * ny - r * nx),
+                    (x + (s + l_adj) * nx - r * ny, y + (s + l_adj) * ny + r * nx),
+                    (x + s * nx - r * ny, y + s * ny + r * nx),
                 ];
-                let mut hs_stroke = arrow_stroke.clone();
-                hs_stroke.start_end = emStrokeEnd::new(StrokeEndType::Cap);
-                hs_stroke.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
-                self.PaintPolylineWithoutArrows(
-                    &verts,
-                    &hs_stroke,
-                    false,
-                    self.state.canvas_color,
-                );
+                let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
+                arrow_stroke.start_end = cap_end;
+                arrow_stroke.finish_end = cap_end;
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, false, canvas_color);
             }
 
             StrokeEndType::Circle => {
-                // C++ uses 12-point Bezier (4 cubic segments) for exact ellipse.
-                let bezier_pts = [
+                let pts = [
                     (x, y),
-                    (x + bc * r * nx, y + bc * r * ny),
-                    (
-                        x + (1.0 - bc) * 0.5 * l * dx + r * nx,
-                        y + (1.0 - bc) * 0.5 * l * dy + r * ny,
-                    ),
-                    (x + 0.5 * l * dx + r * nx, y + 0.5 * l * dy + r * ny),
-                    (
-                        x + (1.0 + bc) * 0.5 * l * dx + r * nx,
-                        y + (1.0 + bc) * 0.5 * l * dy + r * ny,
-                    ),
-                    (x + l * dx + bc * r * nx, y + l * dy + bc * r * ny),
-                    (x + l * dx, y + l * dy),
-                    (x + l * dx - bc * r * nx, y + l * dy - bc * r * ny),
-                    (
-                        x + (1.0 + bc) * 0.5 * l * dx - r * nx,
-                        y + (1.0 + bc) * 0.5 * l * dy - r * ny,
-                    ),
-                    (x + 0.5 * l * dx - r * nx, y + 0.5 * l * dy - r * ny),
-                    (
-                        x + (1.0 - bc) * 0.5 * l * dx - r * nx,
-                        y + (1.0 - bc) * 0.5 * l * dy - r * ny,
-                    ),
-                    (x - bc * r * nx, y - bc * r * ny),
+                    (x + bc * r * ny, y - bc * r * nx),
+                    (x + (1.0 - bc) * 0.5 * l * nx + r * ny, y + (1.0 - bc) * 0.5 * l * ny - r * nx),
+                    (x + 0.5 * l * nx + r * ny, y + 0.5 * l * ny - r * nx),
+                    (x + (1.0 + bc) * 0.5 * l * nx + r * ny, y + (1.0 + bc) * 0.5 * l * ny - r * nx),
+                    (x + l * nx + bc * r * ny, y + l * ny - bc * r * nx),
+                    (x + l * nx, y + l * ny),
+                    (x + l * nx - bc * r * ny, y + l * ny + bc * r * nx),
+                    (x + (1.0 + bc) * 0.5 * l * nx - r * ny, y + (1.0 + bc) * 0.5 * l * ny + r * nx),
+                    (x + 0.5 * l * nx - r * ny, y + 0.5 * l * ny + r * nx),
+                    (x + (1.0 - bc) * 0.5 * l * nx - r * ny, y + (1.0 - bc) * 0.5 * l * ny + r * nx),
+                    (x - bc * r * ny, y + bc * r * nx),
                 ];
-                self.PaintBezier(&bezier_pts, stroke_color, self.state.canvas_color);
+                self.PaintBezier(&pts, stroke.color, canvas_color);
             }
 
             StrokeEndType::ContourCircle => {
                 let s = thickness * 0.5;
-                let bezier_pts = [
-                    (x + s * dx, y + s * dy),
-                    (x + s * dx + bc * r * nx, y + s * dy + bc * r * ny),
-                    (
-                        x + (s + (1.0 - bc) * 0.5 * l) * dx + r * nx,
-                        y + (s + (1.0 - bc) * 0.5 * l) * dy + r * ny,
-                    ),
-                    (
-                        x + (s + 0.5 * l) * dx + r * nx,
-                        y + (s + 0.5 * l) * dy + r * ny,
-                    ),
-                    (
-                        x + (s + (1.0 + bc) * 0.5 * l) * dx + r * nx,
-                        y + (s + (1.0 + bc) * 0.5 * l) * dy + r * ny,
-                    ),
-                    (
-                        x + (s + l) * dx + bc * r * nx,
-                        y + (s + l) * dy + bc * r * ny,
-                    ),
-                    (x + (s + l) * dx, y + (s + l) * dy),
-                    (
-                        x + (s + l) * dx - bc * r * nx,
-                        y + (s + l) * dy - bc * r * ny,
-                    ),
-                    (
-                        x + (s + (1.0 + bc) * 0.5 * l) * dx - r * nx,
-                        y + (s + (1.0 + bc) * 0.5 * l) * dy - r * ny,
-                    ),
-                    (
-                        x + (s + 0.5 * l) * dx - r * nx,
-                        y + (s + 0.5 * l) * dy - r * ny,
-                    ),
-                    (
-                        x + (s + (1.0 - bc) * 0.5 * l) * dx - r * nx,
-                        y + (s + (1.0 - bc) * 0.5 * l) * dy - r * ny,
-                    ),
-                    (x + s * dx - bc * r * nx, y + s * dy - bc * r * ny),
+                let pts = [
+                    (x + s * nx, y + s * ny),
+                    (x + s * nx + bc * r * ny, y + s * ny - bc * r * nx),
+                    (x + (s + (1.0 - bc) * 0.5 * l) * nx + r * ny, y + (s + (1.0 - bc) * 0.5 * l) * ny - r * nx),
+                    (x + (s + 0.5 * l) * nx + r * ny, y + (s + 0.5 * l) * ny - r * nx),
+                    (x + (s + (1.0 + bc) * 0.5 * l) * nx + r * ny, y + (s + (1.0 + bc) * 0.5 * l) * ny - r * nx),
+                    (x + (s + l) * nx + bc * r * ny, y + (s + l) * ny - bc * r * nx),
+                    (x + (s + l) * nx, y + (s + l) * ny),
+                    (x + (s + l) * nx - bc * r * ny, y + (s + l) * ny + bc * r * nx),
+                    (x + (s + (1.0 + bc) * 0.5 * l) * nx - r * ny, y + (s + (1.0 + bc) * 0.5 * l) * ny + r * nx),
+                    (x + (s + 0.5 * l) * nx - r * ny, y + (s + 0.5 * l) * ny + r * nx),
+                    (x + (s + (1.0 - bc) * 0.5 * l) * nx - r * ny, y + (s + (1.0 - bc) * 0.5 * l) * ny + r * nx),
+                    (x + s * nx - bc * r * ny, y + s * ny + bc * r * nx),
                 ];
-                self.PaintBezier(&bezier_pts, stroke_end.inner_color, self.state.canvas_color);
-                self.PaintBezierOutline(&bezier_pts, &arrow_stroke, self.state.canvas_color);
+                self.PaintBezier(&pts, stroke_end.inner_color, canvas_color);
+                self.PaintBezierOutline(&pts, &arrow_stroke, canvas_color);
             }
 
             StrokeEndType::HalfCircle => {
-                // C++ uses 7-point BezierLine.
                 let s = if rounded { thickness * 0.5 } else { 0.0 };
-                let bezier_pts = [
-                    (x + s * dx + r * nx, y + s * dy + r * ny),
-                    (
-                        x + (s + bc * 0.5 * l) * dx + r * nx,
-                        y + (s + bc * 0.5 * l) * dy + r * ny,
-                    ),
-                    (
-                        x + (s + 0.5 * l) * dx + bc * r * nx,
-                        y + (s + 0.5 * l) * dy + bc * r * ny,
-                    ),
-                    (x + (s + 0.5 * l) * dx, y + (s + 0.5 * l) * dy),
-                    (
-                        x + (s + 0.5 * l) * dx - bc * r * nx,
-                        y + (s + 0.5 * l) * dy - bc * r * ny,
-                    ),
-                    (
-                        x + (s + bc * 0.5 * l) * dx - r * nx,
-                        y + (s + bc * 0.5 * l) * dy - r * ny,
-                    ),
-                    (x + s * dx - r * nx, y + s * dy - r * ny),
+                let pts = [
+                    (x + s * nx + r * ny, y + s * ny - r * nx),
+                    (x + (s + bc * 0.5 * l) * nx + r * ny, y + (s + bc * 0.5 * l) * ny - r * nx),
+                    (x + (s + 0.5 * l) * nx + bc * r * ny, y + (s + 0.5 * l) * ny - bc * r * nx),
+                    (x + (s + 0.5 * l) * nx, y + (s + 0.5 * l) * ny),
+                    (x + (s + 0.5 * l) * nx - bc * r * ny, y + (s + 0.5 * l) * ny + bc * r * nx),
+                    (x + (s + bc * 0.5 * l) * nx - r * ny, y + (s + bc * 0.5 * l) * ny + r * nx),
+                    (x + s * nx - r * ny, y + s * ny + r * nx),
                 ];
-                let mut hc_stroke = arrow_stroke.clone();
-                if rounded {
-                    hc_stroke.start_end = emStrokeEnd::new(StrokeEndType::Cap);
-                    hc_stroke.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
-                }
-                self.PaintBezierLine(&bezier_pts, &hc_stroke, self.state.canvas_color);
+                let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
+                let butt_end = emStrokeEnd::butt();
+                arrow_stroke.start_end = if rounded { cap_end } else { butt_end };
+                arrow_stroke.finish_end = if rounded { cap_end } else { butt_end };
+                self.PaintBezierLine(&pts, &arrow_stroke, canvas_color);
             }
 
             StrokeEndType::Diamond => {
                 self.PaintPolygon(
                     &[
                         (x, y),
-                        (x + 0.5 * l * dx + r * nx, y + 0.5 * l * dy + r * ny),
-                        (x + l * dx, y + l * dy),
-                        (x + 0.5 * l * dx - r * nx, y + 0.5 * l * dy - r * ny),
+                        (x + 0.5 * l * nx + r * ny, y + 0.5 * l * ny - r * nx),
+                        (x + l * nx, y + l * ny),
+                        (x + 0.5 * l * nx - r * ny, y + 0.5 * l * ny + r * nx),
                     ],
-                    stroke_color,
-                    self.state.canvas_color,
+                    stroke.color, canvas_color,
                 );
             }
 
             StrokeEndType::ContourDiamond => {
-                let s = {
-                    let mut s = thickness * 0.5;
-                    if !rounded {
-                        let sin_a = r / (l * l * 0.25 + r * r).sqrt();
-                        if MAX_MITER * sin_a < 1.0 {
-                            s *= sin_a;
-                        } else {
-                            s /= sin_a;
-                        }
-                    }
-                    s
-                };
+                let s = Self::contour_offset_diamond(thickness, rounded, r, l);
                 let verts = [
-                    (x + s * dx, y + s * dy),
-                    (
-                        x + (s + 0.5 * l) * dx + r * nx,
-                        y + (s + 0.5 * l) * dy + r * ny,
-                    ),
-                    (x + (s + l) * dx, y + (s + l) * dy),
-                    (
-                        x + (s + 0.5 * l) * dx - r * nx,
-                        y + (s + 0.5 * l) * dy - r * ny,
-                    ),
+                    (x + s * nx, y + s * ny),
+                    (x + (s + 0.5 * l) * nx + r * ny, y + (s + 0.5 * l) * ny - r * nx),
+                    (x + (s + l) * nx, y + (s + l) * ny),
+                    (x + (s + 0.5 * l) * nx - r * ny, y + (s + 0.5 * l) * ny + r * nx),
                 ];
-                self.PaintPolygon(&verts, stroke_end.inner_color, self.state.canvas_color);
-                self.PaintPolylineWithoutArrows(
-                    &verts,
-                    &arrow_stroke,
-                    true,
-                    self.state.canvas_color,
-                );
+                self.PaintPolygon(&verts, stroke_end.inner_color, canvas_color);
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, canvas_color);
             }
 
             StrokeEndType::HalfDiamond => {
-                let s = {
-                    let mut s = thickness * 0.5;
-                    if !rounded {
-                        let sin_a = r / (l * l * 0.25 + r * r).sqrt();
-                        s *= sin_a + (1.0 - sin_a).sqrt();
-                    }
-                    s
-                };
+                let mut s = thickness * 0.5;
+                if !rounded {
+                    let sin_a = r / (l * l * 0.25 + r * r).sqrt();
+                    s *= sin_a + (1.0 - sin_a).sqrt();
+                }
                 let verts = [
-                    (x + s * dx + r * nx, y + s * dy + r * ny),
-                    (x + (s + 0.5 * l) * dx, y + (s + 0.5 * l) * dy),
-                    (x + s * dx - r * nx, y + s * dy - r * ny),
+                    (x + s * nx + r * ny, y + s * ny - r * nx),
+                    (x + (s + 0.5 * l) * nx, y + (s + 0.5 * l) * ny),
+                    (x + s * nx - r * ny, y + s * ny + r * nx),
                 ];
-                let mut hd_stroke = arrow_stroke.clone();
-                hd_stroke.start_end = emStrokeEnd::new(StrokeEndType::Cap);
-                hd_stroke.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
-                self.PaintPolylineWithoutArrows(
-                    &verts,
-                    &hd_stroke,
-                    false,
-                    self.state.canvas_color,
-                );
+                let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
+                arrow_stroke.start_end = cap_end;
+                arrow_stroke.finish_end = cap_end;
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, false, canvas_color);
             }
 
             StrokeEndType::emStroke => {
-                let stroke_thickness = thickness * stroke_end.length_factor.abs();
-                let verts = [(x + r * nx, y + r * ny), (x - r * nx, y - r * ny)];
-                let mut st_stroke = arrow_stroke.clone();
-                st_stroke.width = stroke_thickness;
-                st_stroke.start_end = emStrokeEnd::new(StrokeEndType::Cap);
-                st_stroke.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
-                self.PaintPolylineWithoutArrows(
-                    &verts,
-                    &st_stroke,
-                    false,
-                    self.state.canvas_color,
-                );
+                let verts = [
+                    (x + r * ny, y - r * nx),
+                    (x - r * ny, y + r * nx),
+                ];
+                arrow_stroke.width = thickness * stroke_end.length_factor.abs();
+                let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
+                arrow_stroke.start_end = cap_end;
+                arrow_stroke.finish_end = cap_end;
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, false, canvas_color);
             }
         }
+    }
+
+    /// C++ contour offset: `s = thickness*0.5`, adjusted by miter if not rounded.
+    fn contour_offset(thickness: f64, rounded: bool, r: f64, l: f64) -> f64 {
+        let mut s = thickness * 0.5;
+        if !rounded {
+            let sin_a = r / (l * l + r * r).sqrt();
+            if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+        }
+        s
+    }
+
+    /// C++ contour offset for diamond shapes (uses l*l*0.25 in discriminant).
+    fn contour_offset_diamond(thickness: f64, rounded: bool, r: f64, l: f64) -> f64 {
+        let mut s = thickness * 0.5;
+        if !rounded {
+            let sin_a = r / (l * l * 0.25 + r * r).sqrt();
+            if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+        }
+        s
     }
 
     // --- Anti-aliased polygon fill ---
