@@ -109,7 +109,22 @@ pub enum emTexture {
         extension: ImageExtension,
         quality: ImageQuality,
     },
+    /// C++ emImageColoredTexture: `output = color1 + input * (color2 - color1)`.
+    ImageColoredGradient {
+        image_ref: *const emImage,
+        src_x: u32,
+        src_y: u32,
+        src_w: u32,
+        src_h: u32,
+        color1: emColor,
+        color2: emColor,
+        extension: ImageExtension,
+    },
 }
+
+// SAFETY: ImageColoredGradient stores a raw pointer that must outlive the texture.
+unsafe impl Send for emTexture {}
+unsafe impl Sync for emTexture {}
 
 impl emTexture {
     /// Create a solid color texture.

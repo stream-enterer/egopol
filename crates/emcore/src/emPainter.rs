@@ -847,7 +847,8 @@ impl<'a> emPainter<'a> {
             super::emTexture::emTexture::RadialGradient { color_inner, .. } => *color_inner,
             super::emTexture::emTexture::SolidColor(c) => *c,
             super::emTexture::emTexture::emImage { .. }
-            | super::emTexture::emTexture::ImageColored { .. } => emColor::TRANSPARENT,
+            | super::emTexture::emTexture::ImageColored { .. }
+            | super::emTexture::emTexture::ImageColoredGradient { .. } => emColor::TRANSPARENT,
         };
         let Some(proof) = self.try_record(DrawOp::PaintRect {
             x, y, w, h, color: repr_color, canvas_color,
@@ -1094,7 +1095,8 @@ impl<'a> emPainter<'a> {
             super::emTexture::emTexture::LinearGradient { color_a, .. } => *color_a,
             super::emTexture::emTexture::SolidColor(c) => *c,
             super::emTexture::emTexture::emImage { .. }
-            | super::emTexture::emTexture::ImageColored { .. } => emColor::TRANSPARENT,
+            | super::emTexture::emTexture::ImageColored { .. }
+            | super::emTexture::emTexture::ImageColoredGradient { .. } => emColor::TRANSPARENT,
         };
         let is_recording = self.try_record(DrawOp::PaintEllipse {
             cx, cy, rx, ry,
@@ -2433,9 +2435,7 @@ impl<'a> emPainter<'a> {
 
     /// Draw an image with two-color mapping and canvas color support.
     /// Pixel luminance maps linearly from `color1` (at 0) to `color2` (at 255).
-    /// For single-color alpha mask behavior, pass `emColor::TRANSPARENT` as color1.
-    /// Source region is (src_x, src_y, src_w, src_h) within the image.
-    /// Matches C++ `PaintImageColored(x, y, w, h, img, color1, color2, canvasColor)`.
+    /// C++ `PaintImageColored` = `PaintRect(x,y,w,h, emImageColoredTexture(...), canvasColor)`.
     #[allow(clippy::too_many_arguments)]
     pub fn PaintImageColored(
         &mut self,
@@ -2453,217 +2453,285 @@ impl<'a> emPainter<'a> {
         canvas_color: emColor,
         extension: ImageExtension,
     ) {
-        let Some(proof) = self.try_record(DrawOp::PaintImageColored {
-            x,
-            y,
-            w,
-            h,
+        let Some(_proof) = self.try_record(DrawOp::PaintImageColored {
+            x, y, w, h,
             image_ptr: image as *const emImage,
-            src_x,
-            src_y,
-            src_w,
-            src_h,
-            color1,
-            color2,
-            canvas_color,
-            extension,
+            src_x, src_y, src_w, src_h,
+            color1, color2, canvas_color, extension,
         }) else { return; };
-        // Floating-point dest rect in pixel space (sub-pixel precision).
-        let dx = x * self.state.scale_x + self.state.offset_x;
-        let dy = y * self.state.scale_y + self.state.offset_y;
-        let dw = w * self.state.scale_x;
-        let dh = h * self.state.scale_y;
 
-        let sp = SubPixelEdges::new(dx, dy, dw, dh);
-        let px = sp.ix1;
-        let py = sp.iy1;
-        let px2 = sp.ix2;
-        let pw = px2 - px;
-
-        // C++ PaintRect-style iy2=truncate for Y coverage.
-        let iy_raw = (dy * 4096.0) as i32;
-        let iy2_raw = ((dy + dh) * 4096.0) as i32;
-        let mut cpp_ay1 = 0x1000 - (iy_raw & 0xfff);
-        let mut cpp_ay2 = iy2_raw & 0xfff;
-        let cpp_iy1 = iy_raw >> 12;
-        let cpp_iy2 = iy2_raw >> 12;
-        if cpp_iy1 >= cpp_iy2 {
-            cpp_ay1 += cpp_ay2 - 0x1000;
-            cpp_ay2 = 0;
-            if cpp_ay1 <= 0 { return; }
-        }
-
-        let cx1 = (self.state.clip.x1 as i32).max(0);
-        let cy1 = (self.state.clip.y1 as i32).max(0);
-        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
-        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
-        let start_x = px.max(cx1);
-        let start_y = cpp_iy1.max(cy1);
-        let end_x = px2.min(cx2);
-        // When cpp_iy1 >= cpp_iy2 the rect fits in one row; cpp_ay2 was zeroed
-        // by the collapse above but the row still needs painting (cpp_ay1 > 0).
-        let end_y = if cpp_ay2 > 0 || cpp_iy1 >= cpp_iy2 {
-            (cpp_iy2 + 1).min(cy2)
-        } else {
-            cpp_iy2.min(cy2)
+        let texture = super::emTexture::emTexture::ImageColoredGradient {
+            image_ref: image as *const emImage,
+            src_x, src_y, src_w, src_h,
+            color1, color2, extension,
         };
-        let ph = end_y - start_y;
+        self.paint_rect_textured(x, y, w, h, &texture, canvas_color);
+    }
 
-        if pw <= 0 || ph <= 0 || src_w == 0 || src_h == 0 {
-            return;
-        }
-
+    /// Core textured rect rendering matching C++ `PaintRect(texture, canvasColor)`.
+    /// Uses the same Fixed12 coverage loop as PaintRect(color).
+    /// Handles all texture types: solid, gradient, image colored.
+    #[allow(clippy::too_many_arguments)]
+    fn paint_rect_textured(
+        &mut self,
+        x: f64, y: f64, w: f64, h: f64,
+        texture: &super::emTexture::emTexture,
+        canvas_color: emColor,
+    ) {
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
 
+        // C++ PaintRect Fixed12 boundary computation
+        let x2f = x + w;
+        let y2f = y + h;
+        let px1 = (x * self.state.scale_x + self.state.offset_x)
+            .max(self.state.clip.x1).min(self.state.clip.x2);
+        let px2 = (x2f * self.state.scale_x + self.state.offset_x)
+            .max(self.state.clip.x1).min(self.state.clip.x2);
+        let py1 = (y * self.state.scale_y + self.state.offset_y)
+            .max(self.state.clip.y1).min(self.state.clip.y2);
+        let py2 = (y2f * self.state.scale_y + self.state.offset_y)
+            .max(self.state.clip.y1).min(self.state.clip.y2);
+        if px1 >= px2 || py1 >= py2 {
+            self.state.canvas_color = saved_canvas;
+            return;
+        }
+
+        let ix_raw = (px1 * 4096.0) as i32;
+        let ixe_raw = (px2 * 4096.0) as i32 + 0xfff;
+        let mut ax1 = 0x1000 - (ix_raw & 0xfff);
+        let ax2 = (ixe_raw & 0xfff) + 1;
+        let ix = ix_raw >> 12;
+        let ixe = ixe_raw >> 12;
+        let iw = ixe - ix;
+        if iw <= 0 { self.state.canvas_color = saved_canvas; return; }
+        if iw <= 1 { ax1 += ax2 - 0x1000; }
+
+        let iy_raw = (py1 * 4096.0) as i32;
+        let iy2_raw = (py2 * 4096.0) as i32;
+        let mut ay1 = 0x1000 - (iy_raw & 0xfff);
+        let mut ay2 = iy2_raw & 0xfff;
+        let mut iy = iy_raw >> 12;
+        let iy2 = iy2_raw >> 12;
+        if iy >= iy2 {
+            ay1 += ay2 - 0x1000;
+            ay2 = 0;
+            if ay1 <= 0 { self.state.canvas_color = saved_canvas; return; }
+        }
+
+        // Dispatch by texture type — mimics C++ ScanlineTool::Init + PaintScanline loop
+        let proof = match self.require_direct() {
+            Some(p) => p,
+            None => { self.state.canvas_color = saved_canvas; return; }
+        };
+
+        match texture {
+            super::emTexture::emTexture::SolidColor(c) => {
+                let c = *c;
+                if ay1 < 0x1000 {
+                    let a1 = ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+                    let a2 = ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
+                    self.paint_rect_scanline(proof, ix, iy, iw, a1, ay1, a2, c);
+                    iy += 1;
+                }
+                while iy < iy2 {
+                    self.paint_rect_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, c);
+                    iy += 1;
+                }
+                if ay2 > 0 {
+                    let a1 = ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+                    let a2 = ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
+                    self.paint_rect_scanline(proof, ix, iy, iw, a1, ay2, a2, c);
+                }
+            }
+            super::emTexture::emTexture::LinearGradient { color_a, color_b, start, end } => {
+                let pstart = (
+                    start.0 * self.state.scale_x + self.state.offset_x,
+                    start.1 * self.state.scale_y + self.state.offset_y,
+                );
+                let pend = (
+                    end.0 * self.state.scale_x + self.state.offset_x,
+                    end.1 * self.state.scale_y + self.state.offset_y,
+                );
+                let grad = emPainterInterpolation::LinearGradientParams::new(pstart, pend);
+                let mut gbuf = vec![0u8; iw as usize];
+                if ay1 < 0x1000 {
+                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, ay1, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                    iy += 1;
+                }
+                while iy < iy2 {
+                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                    iy += 1;
+                }
+                if ay2 > 0 {
+                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, ay2, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                }
+            }
+            super::emTexture::emTexture::RadialGradient { color_inner, color_outer, center, radius_x, radius_y } => {
+                let pcx = center.0 * self.state.scale_x + self.state.offset_x;
+                let pcy = center.1 * self.state.scale_y + self.state.offset_y;
+                let prx = radius_x * self.state.scale_x;
+                let pry = radius_y * self.state.scale_y;
+                if ay1 < 0x1000 {
+                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, ay1, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                    iy += 1;
+                }
+                while iy < iy2 {
+                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                    iy += 1;
+                }
+                if ay2 > 0 {
+                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, ay2, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                }
+            }
+            super::emTexture::emTexture::ImageColoredGradient {
+                image_ref, src_x, src_y, src_w, src_h, color1, color2, extension,
+            } => {
+                let image = unsafe { &**image_ref };
+                self.paint_rect_image_colored(
+                    proof, x, y, w, h,
+                    ix, iy, iy2, iw, ax1, ax2, ay1, ay2,
+                    image, *src_x, *src_y, *src_w, *src_h,
+                    *color1, *color2, *extension,
+                );
+            }
+            _ => {} // emImage, ImageColored — handled by other paths
+        }
+
+        self.state.canvas_color = saved_canvas;
+    }
+
+    /// Image colored gradient scanline rendering.
+    /// Moved from the old PaintImageColored inline body.
+    #[allow(clippy::too_many_arguments)]
+    fn paint_rect_image_colored(
+        &mut self,
+        proof: DirectProof,
+        x: f64, y: f64, w: f64, h: f64,
+        ix: i32, mut iy: i32, iy2: i32, iw: i32,
+        ax1: i32, ax2: i32, ay1: i32, ay2: i32,
+        image: &emImage,
+        src_x: u32, src_y: u32, src_w: u32, src_h: u32,
+        color1: emColor, color2: emColor,
+        extension: ImageExtension,
+    ) {
+        if src_w == 0 || src_h == 0 { return; }
+
         let ch = image.GetChannelCount();
-
-        // C++ emPainter uses area sampling for downscaling (DQ_3X3 default),
-        // nearest-neighbor for upscaling/1:1 with pixel-center offset.
-        let src_w_f = src_w as f64;
-        let src_h_f = src_h as f64;
-        let ratio_x = src_w_f / dw;
-        let ratio_y = src_h_f / dh;
-        let downscaling = ratio_x > 1.0 || ratio_y > 1.0;
-
+        let dw = w * self.state.scale_x;
+        let dh = h * self.state.scale_y;
+        let downscaling = (src_w as f64 / dw) > 1.0 || (src_h as f64 / dh) > 1.0;
         let ext = extension.resolve_for_colored(color1, color2);
 
-        // Scanline batch pipeline for colored images.
-        // Uses fused color-mapping + compositing (C++ PaintScanlineIntG1/G2/G1G2).
         let tw = self.target_width as usize;
         let mode = BlendMode::from_state(self.state.canvas_color, self.state.alpha);
         let mut ibuf = InterpolationBuffer::new(ch);
         let max_batch = ibuf.max_pixels();
-        let mut coverages = vec![0i32; max_batch];
-        let mut lums = [0u8; MAX_INTERP_BYTES]; // max possible pixels when ch=1
+        let mut lums = [0u8; MAX_INTERP_BYTES];
 
-        if downscaling {
-            // 24fp area sampling matching C++ ScanlineTool InterpolateImageAreaSampled.
-            let tdx_init = ((src_w as i64) << 24) as f64 / dw;
-            let tdy_init = ((src_h as i64) << 24) as f64 / dh;
-            let tdx_i = tdx_init as i64;
-            let tdy_i = tdy_init as i64;
-            let stride_x = if tdx_i > 0xFFFF00 {
-                ((tdx_i / 3 + 0xFFFFFF) >> 24) as u32
+        let sec = emPainterInterpolation::SectionBounds {
+            ox: src_x as i32, oy: src_y as i32,
+            w: src_w as i32, h: src_h as i32,
+        };
+
+        // Scanline loop matching C++ PaintRect: ay1 (top), 0x1000 (interior), ay2 (bottom)
+        let ixe = ix + iw;
+        let sxfm = if !downscaling { Some(self.scale_transform_24(src_w, src_h, x, y, w, h)) } else { None };
+
+        let mut cur_iy = iy;
+        loop {
+            let ay = if cur_iy == iy && ay1 < 0x1000 {
+                ay1
+            } else if cur_iy == iy2 {
+                if ay2 <= 0 { break; }
+                ay2
+            } else if cur_iy > iy2 {
+                break;
             } else {
-                1
-            }
-            .max(1);
-            let stride_y = if tdy_i > 0xFFFF00 {
-                ((tdy_i / 3 + 0xFFFFFF) >> 24) as u32
-            } else {
-                1
-            }
-            .max(1);
-            let red_w = src_w.div_ceil(stride_x);
-            let red_h = src_h.div_ceil(stride_y);
-            let off_x = (src_w as i32 - (red_w as i32 - 1) * stride_x as i32 - 1) / 2;
-            let off_y = (src_h as i32 - (red_h as i32 - 1) * stride_y as i32 - 1) / 2;
-            let mut xfm = self.area_sample_transform_24(red_w, red_h, x, y, w, h);
-            xfm.stride_x = stride_x;
-            xfm.stride_y = stride_y;
-            xfm.off_x = off_x;
-            xfm.off_y = off_y;
-            let sec = emPainterInterpolation::SectionBounds {
-                ox: src_x as i32,
-                oy: src_y as i32,
-                w: src_w as i32,
-                h: src_h as i32,
+                0x1000
             };
 
-            for row in start_y..end_y {
+            let mut col = ix;
+            if downscaling {
+                let tdx_i = (((src_w as i64) << 24) as f64 / dw) as i64;
+                let tdy_i = (((src_h as i64) << 24) as f64 / dh) as i64;
+                let stride_x = if tdx_i > 0xFFFF00 { ((tdx_i / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+                let stride_y = if tdy_i > 0xFFFF00 { ((tdy_i / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+                let red_w = src_w.div_ceil(stride_x);
+                let red_h = src_h.div_ceil(stride_y);
+                let mut xfm = self.area_sample_transform_24(red_w, red_h, x, y, w, h);
+                xfm.stride_x = stride_x;
+                xfm.stride_y = stride_y;
+                xfm.off_x = (src_w as i32 - (red_w as i32 - 1) * stride_x as i32 - 1) / 2;
+                xfm.off_y = (src_h as i32 - (red_h as i32 - 1) * stride_y as i32 - 1) / 2;
                 let mut carry = emPainterInterpolation::AreaSampleCarryState::new();
-                let mut col = start_x;
-                while col < end_x {
-                    let batch = ((end_x - col) as usize).min(max_batch);
+                while col < ixe {
+                    let batch = ((ixe - col) as usize).min(max_batch);
                     emPainterInterpolation::interpolate_scanline_area_sampled(
-                        image, col, row, batch, &xfm, &sec, ext, &mut ibuf, &mut carry,
+                        image, col, cur_iy, batch, &xfm, &sec, ext, &mut ibuf, &mut carry,
                     );
-                    let all_full =
-                        sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
-                    let dest_offset = (row as usize * tw + col as usize) * 4;
+                    let dest_offset = (cur_iy as usize * tw + col as usize) * 4;
                     let data = self.GetImage(proof).GetWritableMap();
                     let dest = &mut data[dest_offset..];
+                    let mut covs = vec![0i32; batch];
+                    for (i, cov) in covs.iter_mut().enumerate() {
+                        let ci = col + i as i32;
+                        let ax = if ci == ix { ax1 } else if ci == ixe - 1 && iw > 1 { ax2 } else { 0x1000 };
+                        *cov = ((ax as i64 * ay as i64 + 0x7ff) >> 12) as i32;
+                    }
+                    let all_full = covs.iter().all(|&c| c >= 0x1000);
                     if ch >= 3 {
-                        // Multi-channel: per-channel mapping (C++ PaintScanlineIntG1G2 CHANNELS=3/4)
-                        blend_colored_scanline_rgb(
-                            dest, &ibuf, batch,
-                            if all_full { None } else { Some(&coverages[..batch]) },
-                            color1, color2, &mode,
-                        );
+                        blend_colored_scanline_rgb(dest, &ibuf, batch,
+                            if all_full { None } else { Some(&covs) }, color1, color2, &mode);
                     } else {
-                        // Single-channel: luminance-based mapping
-                        for (i, lum) in lums[..batch].iter_mut().enumerate() {
-                            let p = ibuf.pixel_rgba(i);
-                            *lum = p[0];
-                        }
-                        blend_colored_scanline(
-                            dest, &lums[..batch], batch,
-                            if all_full { None } else { Some(&coverages[..batch]) },
-                            color1, color2, &mode,
-                        );
+                        for (i, lum) in lums[..batch].iter_mut().enumerate() { *lum = ibuf.pixel_rgba(i)[0]; }
+                        blend_colored_scanline(dest, &lums[..batch], batch,
+                            if all_full { None } else { Some(&covs) }, color1, color2, &mode);
                     }
                     col += batch as i32;
                 }
-            }
-        } else {
-            // Adaptive upscaling — matches C++ UQ_ADAPTIVE.
-            let sxfm =
-                self.scale_transform_24(src_w, src_h, x, y, w, h);
-            let sec = emPainterInterpolation::SectionBounds {
-                ox: src_x as i32,
-                oy: src_y as i32,
-                w: src_w as i32,
-                h: src_h as i32,
-            };
-            for row in start_y..end_y {
-                let mut col = start_x;
-                while col < end_x {
-                    let batch = ((end_x - col) as usize).min(max_batch);
+            } else if let Some(ref sxfm) = sxfm {
+                while col < ixe {
+                    let batch = ((ixe - col) as usize).min(max_batch);
                     if ch >= 3 {
-                        // Multi-channel: full RGBA adaptive interpolation
                         emPainterInterpolation::interpolate_scanline_adaptive_premul_section(
-                            image, px, py, col, row, batch, &sxfm, &sec, ext, &mut ibuf,
+                            image, ix, iy, col, cur_iy, batch, sxfm, &sec, ext, &mut ibuf,
                         );
                     } else {
-                        // Single-channel: luminance adaptive
                         for (i, lum) in lums[..batch].iter_mut().enumerate() {
                             let c = col + i as i32;
-                            let tx64 = (c - px) as i64 * sxfm.tdx + sxfm.base_x - 0x180_0000;
-                            let ty64 = (row - py) as i64 * sxfm.tdy + sxfm.base_y - 0x180_0000;
-                            let src_ix = (tx64 >> 24) as i32;
-                            let src_iy = (ty64 >> 24) as i32;
-                            let ox = (((tx64 & 0xFF_FFFF) as u32).wrapping_add(0x7FFF)) >> 16;
-                            let oy = (((ty64 & 0xFF_FFFF) as u32).wrapping_add(0x7FFF)) >> 16;
+                            let tx64 = (c - ix) as i64 * sxfm.tdx + sxfm.base_x - 0x180_0000;
+                            let ty64 = (cur_iy - iy) as i64 * sxfm.tdy + sxfm.base_y - 0x180_0000;
                             *lum = emPainterInterpolation::sample_adaptive_lum_section(
-                                image, src_ix, src_iy, ox, oy, &sec, ext,
+                                image, (tx64 >> 24) as i32, (ty64 >> 24) as i32,
+                                (((tx64 & 0xFF_FFFF) as u32).wrapping_add(0x7FFF)) >> 16,
+                                (((ty64 & 0xFF_FFFF) as u32).wrapping_add(0x7FFF)) >> 16,
+                                &sec, ext,
                             );
                         }
                     }
-                    let all_full =
-                        sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
-                    let dest_offset = (row as usize * tw + col as usize) * 4;
+                    let dest_offset = (cur_iy as usize * tw + col as usize) * 4;
                     let data = self.GetImage(proof).GetWritableMap();
                     let dest = &mut data[dest_offset..];
+                    let mut covs = vec![0i32; batch];
+                    for (i, cov) in covs.iter_mut().enumerate() {
+                        let ci = col + i as i32;
+                        let ax = if ci == ix { ax1 } else if ci == ixe - 1 && iw > 1 { ax2 } else { 0x1000 };
+                        *cov = ((ax as i64 * ay as i64 + 0x7ff) >> 12) as i32;
+                    }
+                    let all_full = covs.iter().all(|&c| c >= 0x1000);
                     if ch >= 3 {
-                        blend_colored_scanline_rgb(
-                            dest, &ibuf, batch,
-                            if all_full { None } else { Some(&coverages[..batch]) },
-                            color1, color2, &mode,
-                        );
+                        blend_colored_scanline_rgb(dest, &ibuf, batch,
+                            if all_full { None } else { Some(&covs) }, color1, color2, &mode);
                     } else {
-                        blend_colored_scanline(
-                            dest, &lums[..batch], batch,
-                            if all_full { None } else { Some(&coverages[..batch]) },
-                            color1, color2, &mode,
-                        );
+                        blend_colored_scanline(dest, &lums[..batch], batch,
+                            if all_full { None } else { Some(&covs) }, color1, color2, &mode);
                     }
                     col += batch as i32;
                 }
             }
+            cur_iy += 1;
         }
-
-        self.state.canvas_color = saved_canvas;
     }
 
     // ── Text rendering ────────────────────────────────────────────────
@@ -6737,6 +6805,10 @@ impl<'a> emPainter<'a> {
                 inv_scale_y: 1.0 / state.scale_y,
                 offset_x: state.offset_x,
                 offset_y: state.offset_y,
+            },
+            emTexture::ImageColoredGradient { .. } => {
+                // Handled by paint_rect_textured directly, not through polygon fill.
+                PixelTexture::Solid(emColor::TRANSPARENT)
             },
         }
     }
