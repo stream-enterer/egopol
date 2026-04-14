@@ -5435,6 +5435,7 @@ impl<'a> emPainter<'a> {
     /// `(nx, ny)`: along-line direction pointing INTO the body (matches C++ PaintArrow params).
     /// Perpendicular computed as `(ny, -nx)`.
     #[allow(clippy::too_many_arguments)]
+    // DIVERGED: PaintArrow — renamed paint_stroke_end; C++ name is PaintArrow
     fn paint_stroke_end(
         &mut self,
         x: f64, y: f64,
@@ -5444,8 +5445,10 @@ impl<'a> emPainter<'a> {
         stroke_end: &emStrokeEnd,
         canvas_color: emColor,
     ) {
+        let bc: f64 = 4.0 / 3.0 * (std::f64::consts::PI / 8.0).tan();
+
         let r = (thickness * ARROW_BASE_SIZE * 0.5 * stroke_end.width_factor).abs();
-        if r <= 1e-140 { return; }
+        if r <= 1E-140 { return; }
         let mut l = thickness * ARROW_BASE_SIZE * stroke_end.length_factor;
         let (nx, ny) = if l < 0.0 {
             l = -l;
@@ -5453,21 +5456,17 @@ impl<'a> emPainter<'a> {
         } else {
             (nx, ny)
         };
-        if l <= 1e-140 { return; }
+        if l <= 1E-140 { return; }
 
-        let rounded = stroke.cap == super::emStroke::LineCap::Round;
-
-        // C++: arrowStroke = stroke; arrowStroke.DashType = SOLID;
         let mut arrow_stroke = stroke.clone();
         arrow_stroke.dash_type = super::emStroke::DashType::Solid;
         arrow_stroke.dash_pattern.clear();
-
-        let bc = 4.0_f64 / 3.0 * (std::f64::consts::PI / 8.0).tan();
 
         match stroke_end.end_type {
             StrokeEndType::Butt | StrokeEndType::Cap => {}
 
             StrokeEndType::Arrow => {
+                // C++: PaintPolygon(xy,4,stroke.Color,canvasColor)
                 self.PaintPolygon(
                     &[
                         (x, y),
@@ -5480,24 +5479,37 @@ impl<'a> emPainter<'a> {
             }
 
             StrokeEndType::ContourArrow => {
-                let s = Self::contour_offset(thickness, rounded, r, l);
+                // C++: s=thickness*0.5; if (!stroke.Rounded) { sinA=r/sqrt(l*l+r*r); ... }
+                let mut s = thickness * 0.5;
+                if stroke.cap != super::emStroke::LineCap::Round {
+                    let sin_a = r / (l * l + r * r).sqrt();
+                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                }
                 let verts = [
                     (x + s * nx, y + s * ny),
                     (x + (s + l) * nx + r * ny, y + (s + l) * ny - r * nx),
                     (x + (s + (1.0 - ARROW_NOTCH) * l) * nx, y + (s + (1.0 - ARROW_NOTCH) * l) * ny),
                     (x + (s + l) * nx - r * ny, y + (s + l) * ny + r * nx),
                 ];
+                // C++: PaintPolygon(xy,4,strokeEnd.InnerColor,canvasColor)
                 self.PaintPolygon(&verts, stroke_end.inner_color, canvas_color);
-                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, canvas_color);
+                // C++: PaintPolygonOutline(xy,4,thickness,arrowStroke) — default canvasColor=0
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, emColor::TRANSPARENT);
             }
 
             StrokeEndType::LineArrow => {
-                let s = Self::contour_offset(thickness, rounded, r, l);
+                // C++: s=thickness*0.5; if (!stroke.Rounded) { sinA=r/sqrt(l*l+r*r); ... }
+                let mut s = thickness * 0.5;
+                if stroke.cap != super::emStroke::LineCap::Round {
+                    let sin_a = r / (l * l + r * r).sqrt();
+                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                }
                 let verts = [
                     (x + (s + l) * nx - r * ny, y + (s + l) * ny + r * nx),
                     (x + s * nx, y + s * ny),
                     (x + (s + l) * nx + r * ny, y + (s + l) * ny - r * nx),
                 ];
+                // C++: PaintPolyline(xy,3,thickness,arrowStroke,CapEnd,CapEnd,canvasColor)
                 let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
                 arrow_stroke.start_end = cap_end;
                 arrow_stroke.finish_end = cap_end;
@@ -5505,6 +5517,7 @@ impl<'a> emPainter<'a> {
             }
 
             StrokeEndType::Triangle => {
+                // C++: PaintPolygon(xy,3,stroke.Color,canvasColor)
                 self.PaintPolygon(
                     &[
                         (x, y),
@@ -5516,17 +5529,24 @@ impl<'a> emPainter<'a> {
             }
 
             StrokeEndType::ContourTriangle => {
-                let s = Self::contour_offset(thickness, rounded, r, l);
+                let mut s = thickness * 0.5;
+                if stroke.cap != super::emStroke::LineCap::Round {
+                    let sin_a = r / (l * l + r * r).sqrt();
+                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                }
                 let verts = [
                     (x + s * nx, y + s * ny),
                     (x + (s + l) * nx + r * ny, y + (s + l) * ny - r * nx),
                     (x + (s + l) * nx - r * ny, y + (s + l) * ny + r * nx),
                 ];
+                // C++: PaintPolygon(xy,3,strokeEnd.InnerColor,canvasColor)
                 self.PaintPolygon(&verts, stroke_end.inner_color, canvas_color);
-                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, canvas_color);
+                // C++: PaintPolygonOutline(xy,3,thickness,arrowStroke) — default canvasColor=0
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, emColor::TRANSPARENT);
             }
 
             StrokeEndType::Square => {
+                // C++: PaintPolygon(xy,4,stroke.Color,canvasColor)
                 self.PaintPolygon(
                     &[
                         (x + r * ny, y - r * nx),
@@ -5546,19 +5566,23 @@ impl<'a> emPainter<'a> {
                     (x + (s + l) * nx - r * ny, y + (s + l) * ny + r * nx),
                     (x + s * nx - r * ny, y + s * ny + r * nx),
                 ];
+                // C++: PaintPolygon(xy,4,strokeEnd.InnerColor,canvasColor)
                 self.PaintPolygon(&verts, stroke_end.inner_color, canvas_color);
-                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, canvas_color);
+                // C++: PaintPolygonOutline(xy,4,thickness,arrowStroke) — default canvasColor=0
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, emColor::TRANSPARENT);
             }
 
             StrokeEndType::HalfSquare => {
                 let s = thickness * 0.5;
-                let l_adj = (l * 0.5 - s).max(thickness * 0.0001);
+                // C++: l=emMax(l*0.5-s,thickness*0.0001)
+                let l = (l * 0.5 - s).max(thickness * 0.0001);
                 let verts = [
                     (x + s * nx + r * ny, y + s * ny - r * nx),
-                    (x + (s + l_adj) * nx + r * ny, y + (s + l_adj) * ny - r * nx),
-                    (x + (s + l_adj) * nx - r * ny, y + (s + l_adj) * ny + r * nx),
+                    (x + (s + l) * nx + r * ny, y + (s + l) * ny - r * nx),
+                    (x + (s + l) * nx - r * ny, y + (s + l) * ny + r * nx),
                     (x + s * nx - r * ny, y + s * ny + r * nx),
                 ];
+                // C++: PaintPolyline(xy,4,thickness,arrowStroke,CapEnd,CapEnd,canvasColor)
                 let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
                 arrow_stroke.start_end = cap_end;
                 arrow_stroke.finish_end = cap_end;
@@ -5566,6 +5590,7 @@ impl<'a> emPainter<'a> {
             }
 
             StrokeEndType::Circle => {
+                // C++: PaintBezier(xy,12,stroke.Color,canvasColor)
                 let pts = [
                     (x, y),
                     (x + bc * r * ny, y - bc * r * nx),
@@ -5599,12 +5624,15 @@ impl<'a> emPainter<'a> {
                     (x + (s + (1.0 - bc) * 0.5 * l) * nx - r * ny, y + (s + (1.0 - bc) * 0.5 * l) * ny + r * nx),
                     (x + s * nx - bc * r * ny, y + s * ny + bc * r * nx),
                 ];
+                // C++: PaintBezier(xy,12,strokeEnd.InnerColor,canvasColor)
                 self.PaintBezier(&pts, stroke_end.inner_color, canvas_color);
-                self.PaintBezierOutline(&pts, &arrow_stroke, canvas_color);
+                // C++: PaintBezierOutline(xy,12,thickness,arrowStroke) — default canvasColor=0
+                self.PaintBezierOutline(&pts, &arrow_stroke, emColor::TRANSPARENT);
             }
 
             StrokeEndType::HalfCircle => {
-                let s = if rounded { thickness * 0.5 } else { 0.0 };
+                // C++: if (stroke.Rounded) s=thickness*0.5; else s=0.0;
+                let s = if stroke.cap == super::emStroke::LineCap::Round { thickness * 0.5 } else { 0.0 };
                 let pts = [
                     (x + s * nx + r * ny, y + s * ny - r * nx),
                     (x + (s + bc * 0.5 * l) * nx + r * ny, y + (s + bc * 0.5 * l) * ny - r * nx),
@@ -5614,14 +5642,23 @@ impl<'a> emPainter<'a> {
                     (x + (s + bc * 0.5 * l) * nx - r * ny, y + (s + bc * 0.5 * l) * ny + r * nx),
                     (x + s * nx - r * ny, y + s * ny + r * nx),
                 ];
-                let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
-                let butt_end = emStrokeEnd::butt();
-                arrow_stroke.start_end = if rounded { cap_end } else { butt_end };
-                arrow_stroke.finish_end = if rounded { cap_end } else { butt_end };
+                // C++: PaintBezierLine(xy,7,thickness,arrowStroke,
+                //        stroke.Rounded ? CapEnd : ButtEnd,
+                //        stroke.Rounded ? CapEnd : ButtEnd, canvasColor)
+                let rounded = stroke.cap == super::emStroke::LineCap::Round;
+                if rounded {
+                    let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
+                    arrow_stroke.start_end = cap_end;
+                    arrow_stroke.finish_end = cap_end;
+                } else {
+                    arrow_stroke.start_end = emStrokeEnd::butt();
+                    arrow_stroke.finish_end = emStrokeEnd::butt();
+                }
                 self.PaintBezierLine(&pts, &arrow_stroke, canvas_color);
             }
 
             StrokeEndType::Diamond => {
+                // C++: PaintPolygon(xy,4,stroke.Color,canvasColor)
                 self.PaintPolygon(
                     &[
                         (x, y),
@@ -5634,20 +5671,28 @@ impl<'a> emPainter<'a> {
             }
 
             StrokeEndType::ContourDiamond => {
-                let s = Self::contour_offset_diamond(thickness, rounded, r, l);
+                // C++: s=thickness*0.5; if (!stroke.Rounded) { sinA=r/sqrt(l*l*0.25+r*r); ... }
+                let mut s = thickness * 0.5;
+                if stroke.cap != super::emStroke::LineCap::Round {
+                    let sin_a = r / (l * l * 0.25 + r * r).sqrt();
+                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                }
                 let verts = [
                     (x + s * nx, y + s * ny),
                     (x + (s + 0.5 * l) * nx + r * ny, y + (s + 0.5 * l) * ny - r * nx),
                     (x + (s + l) * nx, y + (s + l) * ny),
                     (x + (s + 0.5 * l) * nx - r * ny, y + (s + 0.5 * l) * ny + r * nx),
                 ];
+                // C++: PaintPolygon(xy,4,strokeEnd.InnerColor,canvasColor)
                 self.PaintPolygon(&verts, stroke_end.inner_color, canvas_color);
-                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, canvas_color);
+                // C++: PaintPolygonOutline(xy,4,thickness,arrowStroke) — default canvasColor=0
+                self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, true, emColor::TRANSPARENT);
             }
 
             StrokeEndType::HalfDiamond => {
+                // C++: s=thickness*0.5; if (!stroke.Rounded) { sinA=r/sqrt(l*l*0.25+r*r); s*=sinA+sqrt(1-sinA); }
                 let mut s = thickness * 0.5;
-                if !rounded {
+                if stroke.cap != super::emStroke::LineCap::Round {
                     let sin_a = r / (l * l * 0.25 + r * r).sqrt();
                     s *= sin_a + (1.0 - sin_a).sqrt();
                 }
@@ -5656,6 +5701,7 @@ impl<'a> emPainter<'a> {
                     (x + (s + 0.5 * l) * nx, y + (s + 0.5 * l) * ny),
                     (x + s * nx - r * ny, y + s * ny + r * nx),
                 ];
+                // C++: PaintPolyline(xy,3,thickness,arrowStroke,CapEnd,CapEnd,canvasColor)
                 let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
                 arrow_stroke.start_end = cap_end;
                 arrow_stroke.finish_end = cap_end;
@@ -5663,6 +5709,7 @@ impl<'a> emPainter<'a> {
             }
 
             StrokeEndType::emStroke => {
+                // C++: PaintPolyline(xy,2,thickness*fabs(strokeEnd.LengthFactor),arrowStroke,CapEnd,CapEnd,canvasColor)
                 let verts = [
                     (x + r * ny, y - r * nx),
                     (x - r * ny, y + r * nx),
@@ -5674,26 +5721,6 @@ impl<'a> emPainter<'a> {
                 self.PaintPolylineWithoutArrows(&verts, &arrow_stroke, false, canvas_color);
             }
         }
-    }
-
-    /// C++ contour offset: `s = thickness*0.5`, adjusted by miter if not rounded.
-    fn contour_offset(thickness: f64, rounded: bool, r: f64, l: f64) -> f64 {
-        let mut s = thickness * 0.5;
-        if !rounded {
-            let sin_a = r / (l * l + r * r).sqrt();
-            if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
-        }
-        s
-    }
-
-    /// C++ contour offset for diamond shapes (uses l*l*0.25 in discriminant).
-    fn contour_offset_diamond(thickness: f64, rounded: bool, r: f64, l: f64) -> f64 {
-        let mut s = thickness * 0.5;
-        if !rounded {
-            let sin_a = r / (l * l * 0.25 + r * r).sqrt();
-            if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
-        }
-        s
     }
 
     // --- Anti-aliased polygon fill ---
