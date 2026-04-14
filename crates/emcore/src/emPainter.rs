@@ -4090,72 +4090,103 @@ impl<'a> emPainter<'a> {
             canvas_color,
         }) else { return; };
 
+        // C++ PaintEllipseOutline(x,y,w,h,thickness,stroke,canvasColor)
+        // Rust API: cx,cy = center; rx,ry = shape radii (= w/2, h/2).
+        // C++ thickness = stroke.width.
         let thickness = stroke.width;
         if thickness <= 0.0 { return; }
-        let rx = rx.max(0.0);
-        let ry = ry.max(0.0);
+
+        // C++: if (w<0.0) w=0.0; if (h<0.0) h=0.0;
+        let w = (2.0 * rx).max(0.0);
+        let h = (2.0 * ry).max(0.0);
+
         let t2 = thickness * 0.5;
 
-        // C++ computes outer radii: rx = w/2+t2, ry = h/2+t2.
-        // In our (cx,cy,rx,ry) API, rx/ry are shape radii (= w/2, h/2).
-        let orx = rx + t2;
-        let ory = ry + t2;
+        // C++ clip checks use x1=x-t2, x2=x+w+t2, y1=y-t2, y2=y+h+t2
+        // where x=cx-w/2, y=cy-h/2.
+        let x1 = cx - w * 0.5 - t2;
+        if x1 * self.state.scale_x + self.state.offset_x >= self.state.clip.x2 { return; }
+        let x2 = cx + w * 0.5 + t2;
+        if x2 * self.state.scale_x + self.state.offset_x <= self.state.clip.x1 { return; }
+        let y1 = cy - h * 0.5 - t2;
+        if y1 * self.state.scale_y + self.state.offset_y >= self.state.clip.y2 { return; }
+        let y2 = cy + h * 0.5 + t2;
+        if y2 * self.state.scale_y + self.state.offset_y <= self.state.clip.y1 { return; }
 
-        // C++ computes segment count from OUTER radii.
+        // C++: cx=(x1+x2)*0.5; cy=(y1+y2)*0.5; rx=x2-cx; ry=y2-cy;
+        // These are outer radii: rx_outer = w/2 + t2, ry_outer = h/2 + t2.
+        let cx_o = (x1 + x2) * 0.5;
+        let cy_o = (y1 + y2) * 0.5;
+        let mut orx = x2 - cx_o;
+        let mut ory = y2 - cy_o;
+
+        // C++: f=CircleQuality*sqrt(rx*ScaleX+ry*ScaleY);
         let n = adaptive_circle_segments(orx, ory, self.state.scale_x, self.state.scale_y);
-        let step = 2.0 * std::f64::consts::PI / n as f64;
+        let f = 2.0 * std::f64::consts::PI / n as f64;
 
         if stroke.is_dashed() {
-            // Centerline vertices (rx, ry) but using outer-derived segment count n.
+            // C++: rx-=t2; ry-=t2; (back to centerline radii)
+            orx -= t2;
+            ory -= t2;
             let mut verts = Vec::with_capacity(n);
             for i in 0..n {
-                let angle = step * i as f64;
-                verts.push((angle.cos() * rx + cx, angle.sin() * ry + cy));
+                verts.push((
+                    (f * i as f64).cos() * orx + cx_o,
+                    (f * i as f64).sin() * ory + cy_o,
+                ));
             }
-            let canvas_color = if 2.0 * rx < thickness || 2.0 * ry < thickness {
+            // C++: if (w<thickness || h<thickness) canvasColor=0;
+            let canvas_color = if w < thickness || h < thickness {
                 emColor::TRANSPARENT
             } else {
                 canvas_color
             };
+            // C++: PaintPolylineWithoutArrows(xy,n,thickness,stroke,NoEnd,NoEnd,canvasColor);
             self.PaintPolylineWithoutArrows(&verts, stroke, false, canvas_color);
             return;
         }
 
-        // Solid: outer vertices using outer radii.
-        let mut verts = Vec::with_capacity(n);
+        // Solid stroke: outer ring vertices.
+        let mut verts: Vec<(f64, f64)> = Vec::with_capacity(514 * 2);
         for i in 0..n {
-            let angle = step * i as f64;
-            verts.push((angle.cos() * orx + cx, angle.sin() * ory + cy));
+            verts.push((
+                (f * i as f64).cos() * orx + cx_o,
+                (f * i as f64).sin() * ory + cy_o,
+            ));
         }
 
-        // Inner radii.
-        let irx = orx - thickness;
-        let iry = ory - thickness;
-        if irx <= 0.0 || iry <= 0.0 {
-            // Degenerate inner — fill outer as solid polygon.
+        // C++: rx-=thickness; ry-=thickness; (inner radii)
+        orx -= thickness;
+        ory -= thickness;
+        if orx <= 0.0 || ory <= 0.0 {
+            // C++: PaintPolygon(xy,n,stroke.Color,canvasColor);
             self.PaintPolygon(&verts, stroke.color, canvas_color);
             return;
         }
 
-        // Bridge from outer end to outer start.
+        // C++: xy[n*2]=xy[0]; xy[n*2+1]=xy[1]; (close outer ring)
         verts.push(verts[0]);
 
-        // Inner ring with potentially different segment count.
-        let m = adaptive_circle_segments(irx, iry, self.state.scale_x, self.state.scale_y);
-        let inner_step = 2.0 * std::f64::consts::PI / m as f64;
+        // C++: inner ring with potentially different segment count.
+        let m = adaptive_circle_segments(orx, ory, self.state.scale_x, self.state.scale_y);
+        let f2 = 2.0 * std::f64::consts::PI / m as f64;
 
-        let final_count = n + m + 2;
-        verts.resize(final_count, (0.0, 0.0));
+        // C++: total polygon = n + m + 2 vertices.
+        let total = n + m + 2;
+        verts.resize(total, (0.0, 0.0));
 
-        // C++ inner vertices in reverse order: xy[n+m+1-i] for i=0..m-1.
+        // C++: xy[(n+m+1-i)*2] = cos(f*i)*rx+cx; (reversed inner ring)
         for i in 0..m {
-            let angle = inner_step * i as f64;
-            verts[n + m + 1 - i] = (angle.cos() * irx + cx, angle.sin() * iry + cy);
+            verts[n + m + 1 - i] = (
+                (f2 * i as f64).cos() * orx + cx_o,
+                (f2 * i as f64).sin() * ory + cy_o,
+            );
         }
 
-        // Inner start repeated.
+        // C++: xy[(n+1)*2]=xy[(n+m+1)*2]; xy[(n+1)*2+1]=xy[(n+m+1)*2+1];
         verts[n + 1] = verts[n + m + 1];
 
+        // C++: PaintPolygon(xy,n+m+2,stroke.Color,canvasColor);
         self.PaintPolygon(&verts, stroke.color, canvas_color);
     }
 
