@@ -1400,22 +1400,17 @@ How to move or set the focus:\n\
         enabled: bool,
         pixel_scale: f64,
     ) {
-        // Dimming for disabled state: C++ "GetTransparented(75.0)" = alpha * 0.25 + 0.5, truncate.
         let dim_color = |c: crate::emColor::emColor| -> crate::emColor::emColor {
-            if enabled {
-                c
-            } else {
-                c.SetAlpha((c.GetAlpha() as f64 * 0.25 + 0.5) as u8)
-            }
+            if enabled { c } else { c.GetTransparented(75.0) }
         };
 
         // Outer border
         match self.outer {
             OuterBorderType::None => {}
             OuterBorderType::Filled => {
-                painter.PaintRect(0.0, 0.0, w, h, look.bg_color, painter.GetCanvasColor());
-                // C++ DoBorder: canvasColor=color after fill.
+                // C++ DoBorder: only fill when bg is non-transparent
                 if !look.bg_color.IsTotallyTransparent() {
+                    painter.PaintRect(0.0, 0.0, w, h, look.bg_color, painter.GetCanvasColor());
                     painter.SetCanvasColor(look.bg_color);
                 }
             }
@@ -1636,17 +1631,13 @@ How to move or set the focus:\n\
                 let s = self.base_unit(w, h);
                 let d = s * 0.006;
                 let color = look.bg_color;
-                let canvas = painter.GetCanvasColor();
                 if !color.IsTotallyTransparent() {
                     painter.PaintRect(0.0, 0.0, w, h, color, painter.GetCanvasColor());
                     painter.SetCanvasColor(color);
                 }
-                let r = d; // C++ ratio 159.0/159.0 = 1.0
-                let cc = if !color.IsTotallyTransparent() {
-                    color
-                } else {
-                    canvas
-                };
+                let r = d * (159.0 / 159.0);
+                // C++ passes canvasColor which was updated by Clear above
+                let cc = painter.GetCanvasColor();
                 with_toolkit_images(|img| {
                     painter.PaintBorderImage(
                         0.0,
@@ -1689,7 +1680,6 @@ How to move or set the focus:\n\
             let th = tw * 2.0;
             let tx = rnd_x + (hts - tw) * 0.5;
             let ty = oy + (rnd_h - th) * 0.5;
-            // C++ GetTransparented(90) = alpha * 0.10 + 0.5
             painter.PaintRoundRect(
                 tx,
                 ty,
@@ -1697,15 +1687,13 @@ How to move or set the focus:\n\
                 th,
                 tw * 0.01,
                 tw * 0.01,
-                look.fg_color.SetAlpha((255.0 * 0.10 + 0.5) as u8),
+                look.fg_color.GetTransparented(90.0),
                 painter.GetCanvasColor(),
             );
 
             // C++ emBorder.cpp:916-927: paint text inside the pill when large enough.
             if tw * th * pixel_scale > 100.0 && !self.how_to_text.is_empty() {
                 let d = tw * 0.01;
-                // C++ GetTransparented(35) = alpha * 0.65 + 0.5
-                let text_alpha = (look.fg_color.GetAlpha() as f64 * 0.65 + 0.5) as u8;
                 painter.PaintTextBoxed(
                     tx + d,
                     ty + d,
@@ -1713,7 +1701,7 @@ How to move or set the focus:\n\
                     th - d * 2.0,
                     &self.how_to_text,
                     th,
-                    look.fg_color.SetAlpha(text_alpha),
+                    look.fg_color.GetTransparented(35.0),
                     painter.GetCanvasColor(),
                     TextAlignment::Left,
                     VAlign::Top,
