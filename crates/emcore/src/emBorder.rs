@@ -1837,74 +1837,76 @@ How to move or set the focus:\n\
             );
         }
 
-        // Inner border — apply minSpace and label.
-        // C++ has-label: rndX+=ms, rndW-=2*ms, rndY+=labelSpace, rndH-=labelSpace+ms
-        // C++ no-label:  rndX+=ms, rndW-=2*ms, rndY+=ms, rndH-=2*ms
-        let inner_x = rnd_x + ms;
-        let inner_w = (rnd_w - 2.0 * ms).max(0.0);
-        let (inner_y, inner_h) = if ls > 0.0 {
-            (oy + ls, (h - oy * 2.0 - ls - ms).max(0.0))
-        } else {
-            (oy + ms, (h - oy * 2.0 - 2.0 * ms).max(0.0))
+        // Inner border — use do_border_geometry's pre-inner-border computation.
+        // This replicates C++ DoBorder lines 983-1065: minSpace+label adjustments.
+        let (inner_x, inner_y, inner_w, inner_h, mut inner_r) = {
+            let (ox2, oy2, ow2, oh2) = self.outer_insets(w, h);
+            let mut rx = ox2;
+            let mut rw = (w - ow2).max(0.0);
+            let rh = (h - oh2).max(0.0);
+            let s2 = rw.min(rh) * self.border_scaling;
+            let ms2 = s2 * self.min_space_factor();
+            if self.has_how_to {
+                let hts2 = s2 * self.how_to_space_factor();
+                if hts2 > ms2 { rx += hts2 - ms2; rw -= hts2 - ms2; }
+            }
+            let ls2 = if self.label_in_border && self.HasLabel() {
+                s2 * self.label_space_factor()
+            } else { 0.0 };
+            if ls2 > 0.0 {
+                rx += ms2; rw -= 2.0 * ms2;
+                let ry = oy2 + ls2;
+                let rh2 = rh - ls2 - ms2;
+                let rr = self.outer_radius(w, h) - ms2;
+                (rx, ry, rw, rh2, rr)
+            } else {
+                rx += ms2;
+                let ry = oy2 + ms2;
+                rw -= 2.0 * ms2;
+                let rh2 = rh - 2.0 * ms2;
+                let rr = self.outer_radius(w, h) - ms2;
+                (rx, ry, rw, rh2, rr)
+            }
         };
-        // C++ rndR = outer_radius - minSpace, then clamped up per inner type.
-        let mut inner_r = (self.outer_radius(w, h) - ms).max(0.0);
-        let type_r = self.inner_radius(inner_w, inner_h);
-        if inner_r < type_r {
-            inner_r = type_r;
-        }
 
         match self.inner {
             InnerBorderType::None => {}
             InnerBorderType::Group => {
+                // C++ line 1069-1070: r = min(rndW,rndH)*BorderScaling*0.0188; if(rndR<r) rndR=r;
+                let r = inner_w.min(inner_h) * self.border_scaling * 0.0188;
+                if inner_r < r { inner_r = r; }
                 let canvas = painter.GetCanvasColor();
                 with_toolkit_images(|img| {
                     painter.PaintBorderImage(
-                        inner_x,
-                        inner_y,
-                        inner_w,
-                        inner_h,
-                        inner_r,
-                        inner_r,
-                        inner_r,
-                        inner_r,
+                        inner_x, inner_y, inner_w, inner_h,
+                        inner_r, inner_r, inner_r, inner_r,
                         &img.group_inner_border,
-                        225,
-                        225,
-                        225,
-                        225,
-                        255,
-                        canvas,
-                        BORDER_EDGES_ONLY,
+                        225, 225, 225, 225,
+                        255, canvas, BORDER_EDGES_ONLY,
                     );
                 });
             }
             InnerBorderType::InputField => {
+                // C++ line 1093-1094: r = min(rndW,rndH)*BorderScaling*0.094; if(rndR<r) rndR=r;
+                let r = inner_w.min(inner_h) * self.border_scaling * 0.094;
+                if inner_r < r { inner_r = r; }
                 let bg = if enabled {
                     look.input_bg_color
                 } else {
                     look.input_bg_color.GetBlended(look.bg_color, 80.0)
                 };
-                // C++ insets the round rect by d = (16/216)*rndR, but paints the
-                // border image at the full substance rect (rndX,rndY,rndW,rndH).
                 let d = (16.0 / 216.0) * inner_r;
                 let tr = inner_r - d;
                 painter.PaintRoundRect(
-                    inner_x + d,
-                    inner_y + d,
-                    inner_w - 2.0 * d,
-                    inner_h - 2.0 * d,
-                    tr,
-                    tr,
-                    bg,
-                    painter.GetCanvasColor(),
+                    inner_x + d, inner_y + d,
+                    inner_w - 2.0 * d, inner_h - 2.0 * d,
+                    tr, tr, bg, painter.GetCanvasColor(),
                 );
                 painter.SetCanvasColor(bg);
-                // C++ paints content HERE (PaintContent), then the IO field
-                // overlay on top. Widgets must call paint_inner_overlay() after
-                // painting their content to match this ordering.
             }
             InnerBorderType::OutputField => {
+                let r = inner_w.min(inner_h) * self.border_scaling * 0.094;
+                if inner_r < r { inner_r = r; }
                 let bg = if enabled {
                     look.output_bg_color
                 } else {
@@ -1913,17 +1915,11 @@ How to move or set the focus:\n\
                 let d = (16.0 / 216.0) * inner_r;
                 let tr = inner_r - d;
                 painter.PaintRoundRect(
-                    inner_x + d,
-                    inner_y + d,
-                    inner_w - 2.0 * d,
-                    inner_h - 2.0 * d,
-                    tr,
-                    tr,
-                    bg,
-                    painter.GetCanvasColor(),
+                    inner_x + d, inner_y + d,
+                    inner_w - 2.0 * d, inner_h - 2.0 * d,
+                    tr, tr, bg, painter.GetCanvasColor(),
                 );
                 painter.SetCanvasColor(bg);
-                // Overlay painted by paint_inner_overlay() after content.
             }
             InnerBorderType::CustomRect => {
                 // C++ lines 1137-1153: first inset by 25% of corner radius,
