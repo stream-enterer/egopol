@@ -156,18 +156,19 @@ fn blend_scanline_canvas(
         let src = buf.pixel_rgba(i);
         let src_a = src[3];
 
-        // Apply coverage to source alpha
+        // Apply coverage using mulhrs matching C++ AVX2
+        use super::emColor::mulhrs_scale;
         let adjusted_a = if cov >= 0x1000 {
             src_a
         } else {
-            ((src_a as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8
+            mulhrs_scale(src_a, cov)
         };
 
         // Combine with painter alpha
         let combined_alpha = if painter_alpha == 255 {
             adjusted_a
         } else {
-            ((adjusted_a as u32 * painter_alpha as u32 + 127) / 255) as u8
+            super::emColor::fast_div255(adjusted_a as u32 * painter_alpha as u32)
         };
 
         if combined_alpha == 0 {
@@ -215,17 +216,18 @@ fn blend_scanline_source_over(
         let src = buf.pixel_rgba(i);
         let src_a = src[3];
 
-        // Apply coverage to source alpha
+        // Apply coverage using mulhrs matching C++ AVX2
+        use super::emColor::mulhrs_scale;
         let adjusted_a = if cov >= 0x1000 {
             src_a
         } else {
-            ((src_a as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8
+            mulhrs_scale(src_a, cov)
         };
 
         let ea = if painter_alpha == 255 {
             adjusted_a as u16
         } else {
-            ((adjusted_a as u32 * painter_alpha as u32 + 127) / 255) as u16
+            super::emColor::fast_div255(adjusted_a as u32 * painter_alpha as u32) as u16
         };
 
         if ea == 0 {
