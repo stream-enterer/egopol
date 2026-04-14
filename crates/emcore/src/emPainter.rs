@@ -3679,67 +3679,137 @@ impl<'a> emPainter<'a> {
             stroke: stroke.clone(),
             canvas_color,
         }) else { return; };
-        if rx <= 0.0 || ry <= 0.0 || stroke.width <= 0.0 {
-            return;
-        }
-        if range_angle == 0.0 {
-            return;
-        }
-        let abs_range = range_angle.abs();
-        if abs_range >= 2.0 * std::f64::consts::PI {
+
+        // C++ line 1734: startAngle*=M_PI/180.0; rangeAngle*=M_PI/180.0;
+        // (Rust API already receives radians — no conversion needed.)
+
+        // C++ line 1736: if (rangeAngle==0.0) return;
+        if range_angle == 0.0 { return; }
+
+        // C++ line 1737-1741: absRangeAngle=fabs(rangeAngle); if >=2*PI => PaintEllipseOutline
+        let abs_range_angle = range_angle.abs();
+        if abs_range_angle >= 2.0 * std::f64::consts::PI {
             self.PaintEllipseOutline(cx, cy, rx, ry, stroke, canvas_color);
             return;
         }
-        // C++ includes half-thickness in quality (emPainter.cpp:1759)
-        let t2 = stroke.width * 0.5;
-        let mut f = CIRCLE_QUALITY
-            * ((rx + t2) * self.state.scale_x + (ry + t2) * self.state.scale_y).sqrt();
+
+        // C++ line 1743: if (thickness<=0.0) return;
+        let thickness = stroke.width;
+        if thickness <= 0.0 { return; }
+
+        // C++ line 1744-1745: if (w<0.0) w=0.0; if (h<0.0) h=0.0;
+        let rx = rx.max(0.0);
+        let ry = ry.max(0.0);
+        let w = 2.0 * rx;
+        let h = 2.0 * ry;
+
+        // C++ line 1746: r=CalculateLinePointMinMaxRadius(thickness,stroke,strokeStart,strokeEnd);
+        let r = Self::CalculateLinePointMinMaxRadius(
+            thickness, stroke, &stroke.start_end, &stroke.finish_end,
+        );
+
+        // C++ lines 1747-1750: clip checks
+        // Map cx,cy,rx,ry back to x,y for clip: x = cx - rx, y = cy - ry
+        let x = cx - rx;
+        let y = cy - ry;
+        if (x - r) * self.state.scale_x + self.state.offset_x >= self.state.clip.x2 { return; }
+        if (x + w + r) * self.state.scale_x + self.state.offset_x <= self.state.clip.x1 { return; }
+        if (y - r) * self.state.scale_y + self.state.offset_y >= self.state.clip.y2 { return; }
+        if (y + h + r) * self.state.scale_y + self.state.offset_y <= self.state.clip.y1 { return; }
+
+        // C++ line 1752: UserSpaceLeaveGuard (no-op in Rust)
+
+        // C++ lines 1754-1758: rx=w*0.5; ry=h*0.5; cx=x+rx; cy=y+ry; t2=thickness*0.5;
+        // (Already have cx, cy, rx, ry from params; t2 computed below.)
+        let t2 = thickness * 0.5;
+
+        // C++ line 1759: f=CircleQuality*sqrt((rx+t2)*ScaleX+(ry+t2)*ScaleY);
+        let mut f = CIRCLE_QUALITY * ((rx + t2) * self.state.scale_x + (ry + t2) * self.state.scale_y).sqrt();
+
+        // C++ line 1760: if (f>256.0) f=256.0;
         if f > 256.0 { f = 256.0; }
-        f = f * abs_range / (2.0 * std::f64::consts::PI);
-        let n = if f <= 3.0 { 3 } else if f >= 256.0 { 256 } else { (f + 0.5) as usize };
-        let step = range_angle / n as f64;
+
+        // C++ line 1761: f=f*absRangeAngle/(2*M_PI);
+        f = f * abs_range_angle / (2.0 * std::f64::consts::PI);
+
+        // C++ lines 1762-1764: clamp n to [3,256]
+        let n: usize = if f <= 3.0 { 3 } else if f >= 256.0 { 256 } else { (f + 0.5) as usize };
+
+        // C++ line 1765: f=rangeAngle/n;
+        let f = range_angle / n as f64;
+
+        // C++ line 1766: n++;
         let vn = n + 1;
-        let mut verts = Vec::with_capacity(vn);
+
+        // C++ lines 1767-1770: generate vertices
+        let mut xy: Vec<(f64, f64)> = Vec::with_capacity(vn);
         for i in 0..vn {
-            let angle = start_angle + step * i as f64;
-            verts.push((cx + rx * angle.cos(), cy + ry * angle.sin()));
+            xy.push((
+                (start_angle + f * i as f64).cos() * rx + cx,
+                (start_angle + f * i as f64).sin() * ry + cy,
+            ));
         }
 
-        // C++ line 1804: if (w < thickness || h < thickness) canvasColor = 0;
-        let canvas_color = if 2.0 * rx < stroke.width || 2.0 * ry < stroke.width {
+        // C++ lines 1772-1802: compute normals for arrows
+        let mut nx1: f64 = 1.0;
+        let mut ny1: f64 = 0.0;
+        let mut nx2: f64 = 1.0;
+        let mut ny2: f64 = 0.0;
+        let mut with_arrows = false;
+
+        // C++ line 1775: if (strokeStart.IsDecorated())
+        if stroke.start_end.IsDecorated() {
+            with_arrows = true;
+            // C++ lines 1777-1778
+            nx1 = -(start_angle.sin());
+            ny1 = start_angle.cos();
+            // C++ line 1779: if (rangeAngle<0.0) { nx1=-nx1; ny1=-ny1; }
+            if range_angle < 0.0 { nx1 = -nx1; ny1 = -ny1; }
+            // C++ lines 1780-1787
+            let tnx = nx1 * rx;
+            let tny = ny1 * ry;
+            let ll = tnx * tnx + tny * tny;
+            if ll > 1e-280 {
+                let l = ll.sqrt();
+                nx1 = tnx / l;
+                ny1 = tny / l;
+            }
+        }
+
+        // C++ line 1789: if (strokeEnd.IsDecorated())
+        if stroke.finish_end.IsDecorated() {
+            with_arrows = true;
+            // C++ lines 1791-1792
+            nx2 = (start_angle + range_angle).sin();
+            ny2 = -((start_angle + range_angle).cos());
+            // C++ line 1793: if (rangeAngle<0.0) { nx2=-nx2; ny2=-ny2; }
+            if range_angle < 0.0 { nx2 = -nx2; ny2 = -ny2; }
+            // C++ lines 1794-1801
+            let tnx = nx2 * rx;
+            let tny = ny2 * ry;
+            let ll = tnx * tnx + tny * tny;
+            if ll > 1e-280 {
+                let l = ll.sqrt();
+                nx2 = tnx / l;
+                ny2 = tny / l;
+            }
+        }
+
+        // C++ line 1804: if (w<thickness || h<thickness) canvasColor=0;
+        let canvas_color = if w < thickness || h < thickness {
             emColor::TRANSPARENT
         } else {
             canvas_color
         };
 
-        // C++ computes exact ellipse tangent directions for arrow rendering
-        // (emPainter.cpp:1775-1801) instead of deriving them from polyline vertices.
-        let with_arrows = stroke.start_end.IsDecorated() || stroke.finish_end.IsDecorated();
+        // C++ lines 1806-1815
         if with_arrows {
-            let compute_normal = |angle: f64, forward: bool| -> (f64, f64) {
-                let (mut nx, mut ny) = if forward {
-                    (-angle.sin(), angle.cos())
-                } else {
-                    (angle.sin(), -angle.cos())
-                };
-                if range_angle < 0.0 { nx = -nx; ny = -ny; }
-                let tnx = nx * rx;
-                let tny = ny * ry;
-                let ll = tnx * tnx + tny * tny;
-                if ll > 1e-280 {
-                    let l = ll.sqrt();
-                    (tnx / l, tny / l)
-                } else {
-                    (nx, ny)
-                }
-            };
-
-            let n1 = compute_normal(start_angle, true);
-            let n2 = compute_normal(start_angle + range_angle, false);
-
-            self.PaintPolylineWithArrows(&verts, stroke, false, canvas_color, Some((n1, n2)));
+            self.PaintPolylineWithArrows(
+                &xy, stroke, false, canvas_color,
+                Some(((nx1, ny1), (nx2, ny2))),
+            );
         } else {
-            self.PaintPolylineWithoutArrows(&verts, stroke, false, canvas_color);
+            self.PaintPolylineWithoutArrows(&xy, stroke, false, canvas_color);
         }
     }
 
