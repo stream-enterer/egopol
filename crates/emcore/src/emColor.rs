@@ -521,19 +521,20 @@ impl emColor {
     ///   tp = amount * 0.01;
     ///   if tp >= 0: a = Alpha*(1-tp)+0.5
     ///   if tp < 0:  a = Alpha*(1+tp) - 255*tp + 0.5
+    /// C++ emColor::GetTransparented uses `float` (32-bit) arithmetic.
     pub fn GetTransparented(self, amount: f64) -> emColor {
-        let tp = amount.clamp(-100.0, 100.0) * 0.01;
-        let a = self.GetAlpha() as f64;
-        let new_a = if tp >= 1.0 {
-            0.0
-        } else if tp >= 0.0 {
-            a * (1.0 - tp) + 0.5
-        } else if tp <= -1.0 {
-            255.0
+        let tp = (amount as f32).clamp(-100.0f32, 100.0f32) * 0.01f32;
+        let a = self.GetAlpha() as f32;
+        let new_a = if tp >= 1.0f32 {
+            0u8
+        } else if tp >= 0.0f32 {
+            (a * (1.0f32 - tp) + 0.5f32) as u8
+        } else if tp <= -1.0f32 {
+            255u8
         } else {
-            a * (1.0 + tp) - 255.0 * tp + 0.5
+            (a * (1.0f32 + tp) - 255.0f32 * tp + 0.5f32) as u8
         };
-        self.SetAlpha(new_a as u8)
+        self.SetAlpha(new_a)
     }
 }
 
