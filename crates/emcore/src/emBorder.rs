@@ -459,6 +459,219 @@ impl emBorder {
         total_h / total_w.max(1e-100)
     }
 
+    /// Unified border geometry computation matching C++ `DoBorder` line-for-line.
+    /// All geometry functions delegate to this to eliminate divergence surfaces.
+    ///
+    /// Returns `(rndX, rndY, rndW, rndH, rndR, recX, recY, recW, recH, canvasColor)`
+    /// after processing outer border, howto, label, and inner border.
+    /// `w` = 1.0 (normalized width), `h` = panel tallness.
+    #[allow(clippy::too_many_arguments)]
+    fn do_border_geometry(
+        &self,
+        w: f64,
+        h: f64,
+        canvas_color: emColor,
+        look: &emLook,
+        enabled: bool,
+    ) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64, emColor) {
+        // C++ emBorder.cpp DoBorder lines 578-899: outer border switch.
+        let (mut rnd_x, mut rnd_y, mut rnd_w, mut rnd_h, mut rnd_r,
+             min_space, how_to_space, label_space, mut canvas_color) = {
+            let s = w.min(h) * self.border_scaling;
+            match self.outer {
+                OuterBorderType::None | OuterBorderType::Filled => {
+                    let mut cc = canvas_color;
+                    if self.outer == OuterBorderType::Filled {
+                        let color = look.bg_color;
+                        if !color.IsTotallyTransparent() { cc = color; }
+                    }
+                    (0.0, 0.0, w, h, 0.0, 0.0, 0.023, 0.17, cc)
+                }
+                OuterBorderType::Margin | OuterBorderType::MarginFilled => {
+                    let d = s * 0.04;
+                    let mut cc = canvas_color;
+                    if self.outer == OuterBorderType::MarginFilled {
+                        let color = look.bg_color;
+                        if !color.IsTotallyTransparent() { cc = color; }
+                    }
+                    (d, d, w - 2.0*d, h - 2.0*d, 0.0, 0.0, 0.023, 0.17, cc)
+                }
+                OuterBorderType::Rect => {
+                    let d = s * 0.023;
+                    let e = s * 0.02;
+                    let f = d + e;
+                    let color = look.bg_color;
+                    let mut cc = canvas_color;
+                    if !color.IsTotallyTransparent() { cc = color; }
+                    (f, f, w - 2.0*f, h - 2.0*f, 0.0, 0.023, 0.023, 0.17, cc)
+                }
+                OuterBorderType::RoundRect => {
+                    let d = s * 0.023;
+                    let e = s * 0.02;
+                    let f = s * 0.22;
+                    let g = d + e;
+                    let color = look.bg_color;
+                    let mut cc = canvas_color;
+                    if !color.IsTotallyTransparent() { cc = color; }
+                    (g, g, w - 2.0*g, h - 2.0*g, f - e, 0.023, 0.023, 0.17, cc)
+                }
+                OuterBorderType::Group => {
+                    let d = s * 0.0104;
+                    let color = look.bg_color;
+                    let mut cc = canvas_color;
+                    if !color.IsTotallyTransparent() { cc = color; }
+                    (d, d, w - 2.0*d, h - 2.0*d, s * 0.0188, 0.0046, 0.0046, 0.05, cc)
+                }
+                OuterBorderType::Instrument => {
+                    let d = s * 0.052;
+                    let color = look.bg_color;
+                    let mut cc = canvas_color;
+                    if !color.IsTotallyTransparent() { cc = color; }
+                    (d, d, w - 2.0*d, h - 2.0*d, s * 0.094, 0.023, 0.023, 0.17, cc)
+                }
+                OuterBorderType::InstrumentMoreRound => {
+                    let d = s * 0.052;
+                    let color = look.bg_color;
+                    let mut cc = canvas_color;
+                    if !color.IsTotallyTransparent() { cc = color; }
+                    (d, d, w - 2.0*d, h - 2.0*d, s * 0.223, 0.023, 0.023, 0.17, cc)
+                }
+                OuterBorderType::PopupRoot => {
+                    let d = s * 0.006;
+                    let color = look.bg_color;
+                    let mut cc = canvas_color;
+                    if !color.IsTotallyTransparent() { cc = color; }
+                    (d, d, w - 2.0*d, h - 2.0*d, 0.0, 0.0, 0.023, 0.17, cc)
+                }
+            }
+        };
+
+        // C++ line 901-902: s = min(rndW,rndH)*BorderScaling; minSpace *= s;
+        let s = rnd_w.min(rnd_h) * self.border_scaling;
+        let min_space = min_space * s;
+
+        // C++ lines 904-933: HowTo space.
+        if self.has_how_to {
+            let how_to_space = how_to_space * s;
+            if how_to_space > min_space {
+                rnd_x += how_to_space - min_space;
+                rnd_w -= how_to_space - min_space;
+            }
+        }
+
+        // C++ lines 936-1065: label/aux/no-label paths.
+        let label_space = if self.label_in_border && self.HasLabel() {
+            label_space * s
+        } else {
+            0.0
+        };
+
+        let (mut rec_x, mut rec_y, mut rec_w, mut rec_h);
+
+        if label_space > 0.0 {
+            // C++ lines 983-1002: has-label path.
+            rnd_x += min_space;
+            rnd_w -= 2.0 * min_space;
+            rnd_y += label_space;
+            rnd_h -= label_space + min_space;
+            rnd_r -= min_space;
+            if rnd_r > 0.0 {
+                rec_x = rnd_x + rnd_r * 0.5;
+                rec_w = rnd_w - rnd_r;
+                rec_y = rnd_y;
+                rec_h = rnd_h - rnd_r * 0.5;
+                let d = min_space + rnd_r * 0.5 - label_space;
+                if d > 0.0 { rec_y += d; rec_h -= d; }
+            } else {
+                rnd_r = 0.0;
+                rec_x = rnd_x; rec_w = rnd_w;
+                rec_y = rnd_y; rec_h = rnd_h;
+            }
+        } else {
+            // C++ lines 1046-1064: no-label path.
+            rnd_x += min_space;
+            rnd_y += min_space;
+            rnd_w -= 2.0 * min_space;
+            rnd_h -= 2.0 * min_space;
+            rnd_r -= min_space;
+            if rnd_r > 0.0 {
+                rec_x = rnd_x + rnd_r * 0.5;
+                rec_y = rnd_y + rnd_r * 0.5;
+                rec_w = rnd_w - rnd_r;
+                rec_h = rnd_h - rnd_r;
+            } else {
+                rnd_r = 0.0;
+                rec_x = rnd_x; rec_w = rnd_w;
+                rec_y = rnd_y; rec_h = rnd_h;
+            }
+        }
+
+        // C++ lines 1067-1168: inner border switch.
+        match self.inner {
+            InnerBorderType::None => {}
+            InnerBorderType::Group => {
+                // C++ lines 1068-1089.
+                let r = rnd_w.min(rnd_h) * self.border_scaling * 0.0188;
+                if rnd_r < r { rnd_r = r; }
+                let d = rnd_r * (17.0 / 225.0);
+                rnd_x += d; rnd_y += d;
+                rnd_w -= 2.0 * d; rnd_h -= 2.0 * d;
+                rnd_r -= d;
+                rec_x = rnd_x + rnd_r * 0.5;
+                rec_y = rnd_y + rnd_r * 0.5;
+                rec_w = rnd_w - rnd_r;
+                rec_h = rnd_h - rnd_r;
+            }
+            InnerBorderType::InputField | InnerBorderType::OutputField => {
+                // C++ lines 1091-1135.
+                let r = rnd_w.min(rnd_h) * self.border_scaling * 0.094;
+                if rnd_r < r { rnd_r = r; }
+                let d = (16.0 / 216.0) * rnd_r;
+                let tx = rnd_x + d;
+                let ty = rnd_y + d;
+                let tw = rnd_w - 2.0 * d;
+                let th = rnd_h - 2.0 * d;
+                let tr = rnd_r - d;
+                rec_x = tx + tr * 0.5;
+                rec_y = ty + tr * 0.5;
+                rec_w = tw - tr;
+                rec_h = th - tr;
+                let color = if self.inner == InnerBorderType::InputField {
+                    look.input_bg_color
+                } else {
+                    look.output_bg_color
+                };
+                let color = if enabled {
+                    color
+                } else {
+                    color.GetBlended(look.bg_color, 80.0)
+                };
+                canvas_color = color;
+                // Update rnd to tx/ty/tw/th/tr (C++ lines 1130-1134).
+                rnd_x = tx; rnd_y = ty;
+                rnd_w = tw; rnd_h = th;
+                rnd_r = tr;
+            }
+            InnerBorderType::CustomRect => {
+                // C++ lines 1137-1164.
+                let d = rnd_r * 0.25;
+                rnd_x += d; rnd_y += d;
+                rnd_w -= 2.0 * d; rnd_h -= 2.0 * d;
+                rnd_r -= d;
+                let r = w.min(h) * self.border_scaling * 0.0125;
+                if rnd_r < r { rnd_r = r; }
+                let d2 = rnd_r;
+                rnd_x += d2; rnd_y += d2;
+                rnd_w -= 2.0 * d2; rnd_h -= 2.0 * d2;
+                rnd_r = 0.0;
+                rec_x = rnd_x; rec_y = rnd_y;
+                rec_w = rnd_w; rec_h = rnd_h;
+            }
+        }
+
+        (rnd_x, rnd_y, rnd_w, rnd_h, rnd_r, rec_x, rec_y, rec_w, rec_h, canvas_color)
+    }
+
     /// Base scaling unit for outer geometry.
     fn base_unit(&self, w: f64, h: f64) -> f64 {
         w.min(h) * self.border_scaling
@@ -986,137 +1199,12 @@ How to move or set the focus:\n\
     ///
     /// C++ equivalent: `emBorder::GetContentRoundRect`
     /// (via `DoBorder(BORDER_FUNC_CONTENT_ROUND_RECT)`).
-    pub fn GetContentRoundRect(&self, w: f64, h: f64, _look: &emLook) -> (Rect, f64) {
-        let (ox, oy, ow, oh) = self.outer_insets(w, h);
-        let mut rnd_x = ox;
-        let mut label_area_w = (w - ow).max(0.0);
-        let rnd_h = (h - oh).max(0.0);
-
-        // minSpace: C++ computes s = min(rndW, rndH)*BorderScaling BEFORE label
-        // subtraction and HowTo (line 901), so ms uses the pre-label dimensions.
-        let s = label_area_w.min(rnd_h) * self.border_scaling;
-        let ms = s * self.min_space_factor();
-
-        // HowTo space: C++ shifts content rightward when howToSpace > minSpace.
-        if self.has_how_to {
-            let hts = s * self.how_to_space_factor();
-            if hts > ms {
-                rnd_x += hts - ms;
-                label_area_w -= hts - ms;
-            }
-        }
-
-        let label_h = if self.label_in_border && self.HasLabel() {
-            s * self.label_space_factor()
-        } else {
-            0.0
-        };
-
-        // Round rect after outer insets + label.
-        // `rnd_h` (from above) = h - oh, the pre-label outer height.
-        let rnd_h_after_label = (rnd_h - label_h).max(0.0);
-        let rnd_x = rnd_x + ms;
-        let rnd_w = (label_area_w - 2.0 * ms).max(0.0);
-        // C++ lines 983-987 (has-label) vs 1047-1050 (no-label):
-        //   has-label: rndY+=labelSpace (no ms on top), rndH-=labelSpace+ms (1 ms, bottom only)
-        //   no-label:  rndY+=ms (symmetric top+bottom), rndH-=2*ms
-        let (rnd_y, rnd_h_inner) = if label_h > 0.0 {
-            (oy + label_h, (rnd_h_after_label - ms).max(0.0))
-        } else {
-            (oy + ms, (rnd_h_after_label - 2.0 * ms).max(0.0))
-        };
-        let mut rnd_r = (self.outer_radius(w, h) - ms).max(0.0);
-
-        // Inner border processing: adjust round rect.
-        let inner_s = rnd_w.min(rnd_h_inner) * self.border_scaling;
-        match self.inner {
-            InnerBorderType::None => {}
-            InnerBorderType::Group => {
-                let r = inner_s * 0.0188;
-                if rnd_r < r {
-                    rnd_r = r;
-                }
-                // C++ line 1080: d = rndR * (17.0/225.0) — uses the actual
-                // rndR (which may be larger than `r` when the outer border
-                // contributed a bigger radius).
-                let d = rnd_r * (17.0 / 225.0);
-                // C++ lines 1081-1085: inset by d, reduce radius.
-                return (
-                    Rect {
-                        x: rnd_x + d,
-                        y: rnd_y + d,
-                        w: (rnd_w - 2.0 * d).max(0.0),
-                        h: (rnd_h_inner - 2.0 * d).max(0.0),
-                    },
-                    rnd_r - d,
-                );
-            }
-            InnerBorderType::InputField | InnerBorderType::OutputField => {
-                let r = inner_s * 0.094;
-                // C++ line 1093: if (rndR<r) rndR=r;
-                let adjusted_r = rnd_r.max(r);
-                // C++ line 1094: d=(1-(216.0-16.0)/216.0)*rndR = (16/216)*rndR
-                let d = (16.0 / 216.0) * adjusted_r;
-                // C++ lines 1095-1099: tx=rndX+d; ty=rndY+d; tw=rndW-2*d; th=rndH-2*d; tr=rndR-d
-                return (
-                    Rect {
-                        x: rnd_x + d,
-                        y: rnd_y + d,
-                        w: (rnd_w - 2.0 * d).max(0.0),
-                        h: (rnd_h_inner - 2.0 * d).max(0.0),
-                    },
-                    adjusted_r - d,
-                );
-            }
-            InnerBorderType::CustomRect => {
-                // C++ lines 1137-1164: two-step inset.
-                // Step 1: inset by 25% of outer corner radius.
-                let d = rnd_r * 0.25;
-                let mut cx = rnd_x + d;
-                let mut cy = rnd_y + d;
-                let mut cw = (rnd_w - 2.0 * d).max(0.0);
-                let mut ch = (rnd_h_inner - 2.0 * d).max(0.0);
-                let mut cr = rnd_r - d;
-                // Step 2: bump radius, then inset by full radius.
-                // C++ uses emMin(1.0, h) where 1.0 = normalized width.
-                // In pixel space: w.min(h) with original panel dimensions.
-                let r = w.min(h) * self.border_scaling * 0.0125;
-                if cr < r {
-                    cr = r;
-                }
-                let d2 = cr;
-                cx += d2;
-                cy += d2;
-                cw = (cw - 2.0 * d2).max(0.0);
-                ch = (ch - 2.0 * d2).max(0.0);
-                // C++ sets rndR=0 after second inset.
-                return (
-                    Rect {
-                        x: cx,
-                        y: cy,
-                        w: cw,
-                        h: ch,
-                    },
-                    0.0,
-                );
-            }
-        }
-
-        let (ix, iy, iw, ih) = self.inner_insets(rnd_w, rnd_h_inner);
-        let ir = self.inner_radius(rnd_w, rnd_h_inner);
-        let final_r = if self.inner != InnerBorderType::None {
-            ir
-        } else {
-            rnd_r
-        };
+    pub fn GetContentRoundRect(&self, w: f64, h: f64, look: &emLook) -> (Rect, f64) {
+        let (rnd_x, rnd_y, rnd_w, rnd_h, rnd_r, _, _, _, _, _) =
+            self.do_border_geometry(w, h, emColor::TRANSPARENT, look, true);
         (
-            Rect {
-                x: rnd_x + ix,
-                y: rnd_y + iy,
-                w: (rnd_w - iw).max(0.0),
-                h: (rnd_h_inner - ih).max(0.0),
-            },
-            final_r.max(0.0),
+            Rect { x: rnd_x, y: rnd_y, w: rnd_w.max(0.0), h: rnd_h.max(0.0) },
+            rnd_r.max(0.0),
         )
     }
 
@@ -1193,173 +1281,10 @@ How to move or set the focus:\n\
     }
 
     /// Compute the content area after border and label insets.
-    pub fn GetContentRect(&self, w: f64, h: f64, _look: &emLook) -> Rect {
-        let (ox, oy, ow, oh) = self.outer_insets(w, h);
-        let mut rnd_x = ox;
-        let mut rnd_y = oy;
-        let mut rnd_w = (w - ow).max(0.0);
-        let mut rnd_h = (h - oh).max(0.0);
-
-        // C++ DoBorder: s = min(rndW, rndH) * BorderScaling (pre-label, pre-howto).
-        let s = rnd_w.min(rnd_h) * self.border_scaling;
-        let ms = s * self.min_space_factor();
-        let mut rnd_r = self.outer_radius(w, h);
-
-        // HowTo space: when has_how_to and howToSpace > minSpace, shift content
-        // rightward. C++ emBorder.cpp lines 904-933.
-        if self.has_how_to {
-            let hts = s * self.how_to_space_factor();
-            if hts > ms {
-                rnd_x += hts - ms;
-                rnd_w -= hts - ms;
-            }
-        }
-
-        let label_h = if self.label_in_border && self.HasLabel() {
-            s * self.label_space_factor()
-        } else {
-            0.0
-        };
-
-        // Apply minSpace and label, then compute inscribed axis-aligned rect
-        // from the round rect. C++ DoBorder lines 983-1063.
-        let (mut rec_x, mut rec_y, mut rec_w, mut rec_h);
-
-        if label_h > 0.0 {
-            // Has-label path: C++ lines 983-1001.
-            // Side padding, label at top, one minSpace at bottom only.
-            rnd_x += ms;
-            rnd_w -= 2.0 * ms;
-            rnd_y += label_h;
-            rnd_h -= label_h + ms;
-            rnd_r -= ms;
-
-            if rnd_r > 0.0 {
-                // Inscribed rect from round rect: asymmetric because the
-                // label already provides top spacing.
-                rec_x = rnd_x + rnd_r * 0.5;
-                rec_w = rnd_w - rnd_r;
-                rec_y = rnd_y;
-                rec_h = rnd_h - rnd_r * 0.5;
-                // If label is small, push content down to clear the corner.
-                let d = ms + rnd_r * 0.5 - label_h;
-                if d > 0.0 {
-                    rec_y += d;
-                    rec_h -= d;
-                }
-            } else {
-                rnd_r = 0.0;
-                rec_x = rnd_x;
-                rec_w = rnd_w;
-                rec_y = rnd_y;
-                rec_h = rnd_h;
-            }
-        } else {
-            // No-label path: C++ lines 1047-1063.
-            // Symmetric minSpace on all sides.
-            rnd_x += ms;
-            rnd_y += ms;
-            rnd_w -= 2.0 * ms;
-            rnd_h -= 2.0 * ms;
-            rnd_r -= ms;
-
-            if rnd_r > 0.0 {
-                rec_x = rnd_x + rnd_r * 0.5;
-                rec_y = rnd_y + rnd_r * 0.5;
-                rec_w = rnd_w - rnd_r;
-                rec_h = rnd_h - rnd_r;
-            } else {
-                rnd_r = 0.0;
-                rec_x = rnd_x;
-                rec_w = rnd_w;
-                rec_y = rnd_y;
-                rec_h = rnd_h;
-            }
-        }
-
-        // Inner border processing: each type applies its own inset and a new
-        // inscribed rect, replacing the outer inscribed rect.
-        // C++ DoBorder lines 1067-1165.
-        match self.inner {
-            InnerBorderType::None => {}
-            InnerBorderType::Group => {
-                // C++ lines 1068-1089.
-                let r = rnd_w.min(rnd_h) * self.border_scaling * 0.0188;
-                if rnd_r < r {
-                    rnd_r = r;
-                }
-                let d = rnd_r * (17.0 / 225.0);
-                rnd_x += d;
-                rnd_y += d;
-                rnd_w -= 2.0 * d;
-                rnd_h -= 2.0 * d;
-                rnd_r -= d;
-                if rnd_r > 0.0 {
-                    rec_x = rnd_x + rnd_r * 0.5;
-                    rec_y = rnd_y + rnd_r * 0.5;
-                    rec_w = rnd_w - rnd_r;
-                    rec_h = rnd_h - rnd_r;
-                } else {
-                    rec_x = rnd_x;
-                    rec_y = rnd_y;
-                    rec_w = rnd_w;
-                    rec_h = rnd_h;
-                }
-            }
-            InnerBorderType::InputField | InnerBorderType::OutputField => {
-                // C++ lines 1091-1104.
-                let r = rnd_w.min(rnd_h) * self.border_scaling * 0.094;
-                if rnd_r < r {
-                    rnd_r = r;
-                }
-                let d = (16.0 / 216.0) * rnd_r;
-                let tx = rnd_x + d;
-                let ty = rnd_y + d;
-                let tw = rnd_w - 2.0 * d;
-                let th = rnd_h - 2.0 * d;
-                let tr = rnd_r - d;
-                if tr > 0.0 {
-                    rec_x = tx + tr * 0.5;
-                    rec_y = ty + tr * 0.5;
-                    rec_w = tw - tr;
-                    rec_h = th - tr;
-                } else {
-                    rec_x = tx;
-                    rec_y = ty;
-                    rec_w = tw;
-                    rec_h = th;
-                }
-            }
-            InnerBorderType::CustomRect => {
-                // C++ lines 1137-1164.
-                let d = rnd_r * 0.25;
-                rnd_x += d;
-                rnd_y += d;
-                rnd_w -= 2.0 * d;
-                rnd_h -= 2.0 * d;
-                rnd_r -= d;
-                let r = w.min(h) * self.border_scaling * 0.0125;
-                if rnd_r < r {
-                    rnd_r = r;
-                }
-                let d2 = rnd_r;
-                rnd_x += d2;
-                rnd_y += d2;
-                rnd_w -= 2.0 * d2;
-                rnd_h -= 2.0 * d2;
-                rec_x = rnd_x;
-                rec_y = rnd_y;
-                rec_w = rnd_w;
-                rec_h = rnd_h;
-            }
-        }
-
-        Rect {
-            x: rec_x,
-            y: rec_y,
-            w: rec_w.max(0.0),
-            h: rec_h.max(0.0),
-        }
+    pub fn GetContentRect(&self, w: f64, h: f64, look: &emLook) -> Rect {
+        let (_, _, _, _, _, rec_x, rec_y, rec_w, rec_h, _) =
+            self.do_border_geometry(w, h, emColor::TRANSPARENT, look, true);
+        Rect { x: rec_x, y: rec_y, w: rec_w.max(0.0), h: rec_h.max(0.0) }
     }
 
     /// Compute the canvas color at the content area, matching C++ DoBorder's
@@ -1373,49 +1298,9 @@ How to move or set the focus:\n\
     ///
     /// This method replicates that logic without needing a painter.
     pub fn content_canvas_color(&self, parent_canvas: emColor, look: &emLook, enabled: bool) -> emColor {
-        let mut canvas = parent_canvas;
-
-        // Outer border: if the border type paints a fill with bg_color,
-        // canvas becomes bg_color. Matches C++ DoBorder lines 581-898.
-        match self.outer {
-            OuterBorderType::None | OuterBorderType::Margin => {}
-            OuterBorderType::Filled
-            | OuterBorderType::MarginFilled
-            | OuterBorderType::Rect
-            | OuterBorderType::RoundRect
-            | OuterBorderType::Group
-            | OuterBorderType::Instrument
-            | OuterBorderType::InstrumentMoreRound
-            | OuterBorderType::PopupRoot => {
-                if !look.bg_color.IsTotallyTransparent() {
-                    canvas = look.bg_color;
-                }
-            }
-        }
-
-        // Inner border: InputField/OutputField paint their own background.
-        // Matches C++ DoBorder lines 1091-1136.
-        match self.inner {
-            InnerBorderType::None | InnerBorderType::Group | InnerBorderType::CustomRect => {}
-            InnerBorderType::InputField => {
-                let bg = if enabled {
-                    look.input_bg_color
-                } else {
-                    look.input_bg_color.GetBlended(look.bg_color, 80.0)
-                };
-                canvas = bg;
-            }
-            InnerBorderType::OutputField => {
-                let bg = if enabled {
-                    look.output_bg_color
-                } else {
-                    look.output_bg_color.GetBlended(look.bg_color, 80.0)
-                };
-                canvas = bg;
-            }
-        }
-
-        canvas
+        let (_, _, _, _, _, _, _, _, _, cc) =
+            self.do_border_geometry(1.0, 1.0, parent_canvas, look, enabled);
+        cc
     }
 
     /// Preferred size to fit the given content size.
