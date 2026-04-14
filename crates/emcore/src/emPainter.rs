@@ -20,6 +20,8 @@ const CIRCLE_QUALITY: f64 = 4.5;
 const MAX_MITER: f64 = 5.0;
 /// Minimum relative segment length for short-segment filtering.
 const MIN_REL_SEG_LEN: f64 = 0.001;
+/// Maximum number of dashes in PaintDashedPolyline (C++ MaxDashes).
+const MAX_DASHES: f64 = 1e5;
 
 /// Size of the C++ radial gradient sqrt lookup table.
 /// Table maps squared-distance index to sqrt (0–255).
@@ -4257,6 +4259,7 @@ impl<'a> emPainter<'a> {
 
     /// Draw a dashed polyline by splitting the path into dash/gap segments
     /// and painting each dash as a solid sub-polyline.
+    /// C++ emPainter.cpp:3451-3708 — PaintDashedPolyline.
     pub fn PaintDashedPolyline(
         &mut self,
         vertices: &[(f64, f64)],
@@ -4272,228 +4275,84 @@ impl<'a> emPainter<'a> {
         }) else { return; };
         use crate::emStroke::DashType;
 
-        if vertices.len() < 2 || stroke.width <= 0.0 {
-            self.PaintSolidPolyline(vertices, stroke, closed, canvas_color);
-            return;
-        }
-
-        // Route: if C++ dash_type API is set, use the fitted algorithm.
-        if stroke.dash_type != DashType::Solid {
-            self.paint_dashed_polyline_fitted(vertices, stroke, closed);
-            return;
-        }
-
-        // Legacy pattern-based dashes.
-        if stroke.dash_pattern.is_empty() {
-            self.PaintSolidPolyline(vertices, stroke, closed, canvas_color);
-            return;
-        }
-        let pattern = &stroke.dash_pattern;
-        let total_pattern_len: f64 = pattern.iter().sum();
-        if total_pattern_len <= 0.0 {
-            self.PaintSolidPolyline(vertices, stroke, closed, canvas_color);
-            return;
-        }
-
-        let n = vertices.len();
-        let seg_count = if closed { n } else { n - 1 };
-        let mut pat_idx = 0usize;
-        let mut remaining_in_pat = pattern[0];
-        let mut is_dash = true;
-        let mut offset = stroke.dash_offset % total_pattern_len;
-
-        while offset > 0.0 {
-            if offset >= remaining_in_pat {
-                offset -= remaining_in_pat;
-                pat_idx = (pat_idx + 1) % pattern.len();
-                remaining_in_pat = pattern[pat_idx];
-                is_dash = pat_idx.is_multiple_of(2);
-            } else {
-                remaining_in_pat -= offset;
-                offset = 0.0;
-            }
-        }
-
-        let mut current_segment: Vec<(f64, f64)> = Vec::new();
-        let dash_stroke = emStroke {
-            dash_pattern: Vec::new(),
-            dash_offset: 0.0,
-            dash_type: DashType::Solid,
-            ..stroke.clone()
-        };
-
-        for seg_i in 0..seg_count {
-            let (x0, y0) = vertices[seg_i];
-            let (x1, y1) = vertices[(seg_i + 1) % n];
-            let dx = x1 - x0;
-            let dy = y1 - y0;
-            let edge_len = (dx * dx + dy * dy).sqrt();
-            if edge_len < 1e-10 {
-                continue;
-            }
-            let ux = dx / edge_len;
-            let uy = dy / edge_len;
-
-            let mut consumed = 0.0;
-            while consumed < edge_len {
-                let available = edge_len - consumed;
-                let step = remaining_in_pat.min(available);
-                let px = x0 + ux * (consumed + step);
-                let py = y0 + uy * (consumed + step);
-
-                if is_dash {
-                    if current_segment.is_empty() {
-                        current_segment.push((x0 + ux * consumed, y0 + uy * consumed));
-                    }
-                    current_segment.push((px, py));
-                }
-
-                consumed += step;
-                remaining_in_pat -= step;
-
-                if remaining_in_pat <= 1e-10 {
-                    if is_dash && current_segment.len() >= 2 {
-                        self.PaintSolidPolyline(
-                            &current_segment,
-                            &dash_stroke,
-                            false,
-                            canvas_color,
-                        );
-                        current_segment.clear();
-                    } else {
-                        current_segment.clear();
-                    }
-                    pat_idx = (pat_idx + 1) % pattern.len();
-                    remaining_in_pat = pattern[pat_idx];
-                    is_dash = pat_idx.is_multiple_of(2);
-                }
-            }
-        }
-
-        if is_dash && current_segment.len() >= 2 {
-            self.PaintSolidPolyline(&current_segment, &dash_stroke, false, canvas_color);
-        }
-    }
-
-    /// C++ `PaintDashedPolyline` port: fits dashes to total path length.
-    fn paint_dashed_polyline_fitted(
-        &mut self,
-        vertices: &[(f64, f64)],
-        stroke: &emStroke,
-        closed: bool,
-    ) {
-        use crate::emStroke::DashType;
-
-        const MAX_DASHES: f64 = 1e5;
-
         let n = vertices.len();
         if n < 2 {
-            self.PaintSolidPolyline(vertices, stroke, closed, self.state.canvas_color);
+            self.PaintSolidPolyline(vertices, stroke, closed, canvas_color);
             return;
         }
 
         let thickness = stroke.width;
-        let rounded = stroke.join == super::emStroke::LineJoin::Round
-            || stroke.cap == super::emStroke::LineCap::Round;
+        let rounded = stroke.cap == super::emStroke::LineCap::Round;
         let have_dashes = stroke.dash_type != DashType::Dotted;
         let have_dots = stroke.dash_type != DashType::Dashed;
         let have_dashes_and_dots = have_dashes && have_dots;
         let is_endless = closed;
 
-        let min_dash_len = if have_dashes {
-            thickness
-                * if rounded {
-                    1.0 + MIN_REL_SEG_LEN
-                } else {
-                    MIN_REL_SEG_LEN
-                }
+        let min_dash_len: f64;
+        let pref_dash_len: f64;
+        if have_dashes {
+            min_dash_len = thickness * if rounded { 1.0 + MIN_REL_SEG_LEN } else { MIN_REL_SEG_LEN };
+            pref_dash_len = min_dash_len.max(thickness * 5.0 * stroke.dash_length_factor);
         } else {
-            0.0
-        };
-        let pref_dash_len = if have_dashes {
-            min_dash_len.max(thickness * 5.0 * stroke.dash_length_factor)
-        } else {
-            0.0
-        };
-        let mut dot_len = if have_dots {
-            thickness * (1.0 + MIN_REL_SEG_LEN)
-        } else {
-            0.0
-        };
-        let pref_gap_len = (thickness * 5.0 * stroke.gap_length_factor).max(0.0);
+            min_dash_len = 0.0;
+            pref_dash_len = 0.0;
+        }
+        let mut dot_len = if have_dots { thickness * (1.0 + MIN_REL_SEG_LEN) } else { 0.0 };
+        let pref_gap_len = 0.0f64.max(thickness * 5.0 * stroke.gap_length_factor);
         let min_phase_len = min_dash_len + dot_len;
         let pref_phase_len = pref_dash_len + dot_len + pref_gap_len;
 
-        // Compute total path length.
-        let num_edges = if is_endless { n } else { n - 1 };
-        let mut total_len = 0.0;
+        let num_edges: usize = if is_endless { n } else { n - 1 };
+        let mut total_len = 0.0f64;
         let mut x2 = vertices[0].0;
         let mut y2 = vertices[0].1;
         for i in 1..=num_edges {
             let x1 = x2;
             let y1 = y2;
-            let vi = vertices[i % n];
-            x2 = vi.0;
-            y2 = vi.1;
+            x2 = vertices[i % n].0;
+            y2 = vertices[i % n].1;
             let dx = x2 - x1;
             let dy = y2 - y1;
             total_len += (dx * dx + dy * dy).sqrt();
         }
 
-        // Compute fitted dash/gap/stroke counts.
         let stroke_count: i32;
         let mut dash_len: f64;
         let mut gap_len: f64;
         let mut end_extra: f64;
 
         if is_endless {
-            let max_stroke_count = MAX_DASHES.min(total_len / min_phase_len) as i32;
+            let max_stroke_count = (MAX_DASHES.min(total_len / min_phase_len)) as i32;
             if max_stroke_count < 1 {
-                self.PaintSolidPolyline(vertices, stroke, closed, self.state.canvas_color);
+                self.PaintSolidPolyline(vertices, stroke, closed, canvas_color);
                 return;
             }
-            stroke_count = (MAX_DASHES.min(total_len / pref_phase_len + 0.5) as i32)
-                .max(1)
-                .min(max_stroke_count);
+            stroke_count = ((MAX_DASHES.min(total_len / pref_phase_len + 0.5)) as i32)
+                .max(1).min(max_stroke_count);
             end_extra = 0.0;
             let t = total_len / stroke_count as f64 - dot_len;
             dash_len = min_dash_len.max(t / (pref_phase_len - dot_len) * pref_dash_len);
             gap_len = t - dash_len;
         } else {
             let mut t = total_len;
-            if have_dashes {
-                t += thickness.min(min_dash_len);
-            } else {
-                t += thickness;
-            }
-            if have_dashes_and_dots {
-                t += dot_len;
-            }
+            if have_dashes { t += thickness.min(min_dash_len); } else { t += thickness; }
+            if have_dashes_and_dots { t += dot_len; }
             let max_stroke_count = (MAX_DASHES.min(t / min_phase_len)) as i32;
             if max_stroke_count < 2 {
-                self.PaintSolidPolyline(vertices, stroke, closed, self.state.canvas_color);
+                self.PaintSolidPolyline(vertices, stroke, closed, canvas_color);
                 return;
             }
             t = total_len + pref_gap_len;
-            if have_dashes {
-                t += thickness.min(pref_dash_len);
-            } else {
-                t += thickness;
-            }
-            if have_dashes_and_dots {
-                t += dot_len;
-            }
-            stroke_count = (MAX_DASHES.min(t / pref_phase_len + 0.5) as i32)
-                .max(2)
-                .min(max_stroke_count);
+            if have_dashes { t += thickness.min(pref_dash_len); } else { t += thickness; }
+            if have_dashes_and_dots { t += dot_len; }
+            stroke_count = ((MAX_DASHES.min(t / pref_phase_len + 0.5)) as i32)
+                .max(2).min(max_stroke_count);
             end_extra = thickness;
             if have_dashes {
                 t = total_len + end_extra;
-                if have_dots {
-                    t -= (stroke_count - 1) as f64 * dot_len;
-                }
-                let u =
-                    stroke_count as f64 * pref_dash_len + (stroke_count - 1) as f64 * pref_gap_len;
+                if have_dots { t -= (stroke_count - 1) as f64 * dot_len; }
+                let u = stroke_count as f64 * pref_dash_len
+                    + (stroke_count - 1) as f64 * pref_gap_len;
                 dash_len = min_dash_len.max(t / u * pref_dash_len);
                 if dash_len < end_extra {
                     let t2 = t - end_extra;
@@ -4505,32 +4364,23 @@ impl<'a> emPainter<'a> {
                 dash_len = 0.0;
             }
             t = total_len + end_extra - stroke_count as f64 * (dash_len + dot_len);
-            if have_dashes_and_dots {
-                t += dot_len;
-            }
+            if have_dashes_and_dots { t += dot_len; }
             gap_len = t / (stroke_count - 1) as f64;
             end_extra *= 0.5;
         }
 
-        // Check if gap is too small at screen scale → render as solid with alpha.
-        let t_gap = if rounded {
-            gap_len + thickness * 0.215
-        } else {
-            gap_len
-        };
-        let s = self.state.scale_x + self.state.scale_y;
-        if t_gap * s * 0.5 < 1.2 {
+        // Gap too small at screen scale → render as solid with alpha.
+        let mut t = gap_len;
+        if rounded { t += thickness * 0.215; }
+        if t * (self.GetScaleX() + self.GetScaleY()) * 0.5 < 1.2 {
             let phase_len = dash_len + dot_len + gap_len;
-            let t_solid = ((phase_len - t_gap) / phase_len).clamp(0.0, 1.0);
-            if t_solid <= 0.0 {
-                return;
-            }
-            let mut solid_stroke = stroke.clone();
-            solid_stroke.dash_type = DashType::Solid;
-            solid_stroke.dash_pattern.clear();
-            let a = (stroke.color.GetAlpha() as f64 * t_solid + 0.5) as u8;
-            solid_stroke.color = solid_stroke.color.SetAlpha(a);
-            self.PaintSolidPolyline(vertices, &solid_stroke, closed, self.state.canvas_color);
+            let t_solid = ((phase_len - t) / phase_len).clamp(0.0, 1.0);
+            if t_solid <= 0.0 { return; }
+            let mut stroke2 = stroke.clone();
+            stroke2.color = stroke2.color.SetAlpha(
+                (stroke.color.GetAlpha() as f64 * t_solid + 0.5) as u8
+            );
+            self.PaintSolidPolyline(vertices, &stroke2, closed, canvas_color);
             return;
         }
 
@@ -4538,34 +4388,28 @@ impl<'a> emPainter<'a> {
         if have_dashes_and_dots {
             gap_len *= 0.5;
             stroke_count *= 2;
-            if !is_endless {
-                stroke_count -= 1;
-            }
+            if !is_endless { stroke_count -= 1; }
         }
 
         if rounded {
             end_extra = 0.0;
-            if have_dashes {
-                dash_len -= thickness;
-            }
-            if have_dots {
-                dot_len -= thickness;
-            }
+            if have_dashes { dash_len -= thickness; }
+            if have_dots { dot_len -= thickness; }
             gap_len += thickness;
         }
 
-        // Make a solid stroke for sub-segments.
-        let mut solid_stroke = stroke.clone();
-        solid_stroke.dash_type = DashType::Solid;
-        solid_stroke.dash_pattern.clear();
-
+        // Clip rect in logical coords, expanded by max radius.
         let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
         let butt_end = emStrokeEnd::butt();
+        let r = emPainter::CalculateLinePointMinMaxRadius(thickness, stroke, &cap_end, &cap_end);
+        let cx1 = (self.GetClipX1() - self.GetOriginX()) / self.GetScaleX() - r;
+        let cy1 = (self.GetClipY1() - self.GetOriginY()) / self.GetScaleY() - r;
+        let cx2 = (self.GetClipX2() - self.GetOriginX()) / self.GetScaleX() + r;
+        let cy2 = (self.GetClipY2() - self.GetOriginY()) / self.GetScaleY() + r;
 
-        // Walk the path, emitting dash sub-polylines.
         let mut is_in_stroke = false;
-        let mut end_of_stroke_reached;
-        let mut stroke_number = 1i32;
+        let mut end_of_stroke_reached = false;
+        let mut stroke_number: i32 = 1;
         let mut remaining_segment_len = 0.0f64;
         let mut remaining_edge_len = 0.0f64;
         let mut i: i32 = 0;
@@ -4573,6 +4417,10 @@ impl<'a> emPainter<'a> {
         y2 = vertices[0].1;
         let mut nx = 1.0f64;
         let mut ny = 0.0f64;
+        let mut min_x = 0.0f64;
+        let mut max_x = 0.0f64;
+        let mut min_y = 0.0f64;
+        let mut max_y = 0.0f64;
         let mut xy_out: Vec<(f64, f64)> = Vec::new();
 
         let (mut x1, mut y1) = if is_endless {
@@ -4587,7 +4435,8 @@ impl<'a> emPainter<'a> {
             let ll = dx * dx + dy * dy;
             if ll > 1e-280 {
                 let l = ll.sqrt();
-                remaining_edge_len = l.min(if have_dashes { dash_len } else { dot_len } * 0.5);
+                remaining_edge_len =
+                    l.min((if have_dashes { dash_len } else { dot_len }) * 0.5);
                 nx = dx / l;
                 ny = dy / l;
                 i -= 1;
@@ -4599,9 +4448,8 @@ impl<'a> emPainter<'a> {
                 i += 1;
                 x1 = x2;
                 y1 = y2;
-                let vi = vertices[i as usize % n];
-                x2 = vi.0;
-                y2 = vi.1;
+                x2 = vertices[i as usize % n].0;
+                y2 = vertices[i as usize % n].1;
                 let dx = x2 - x1;
                 let dy = y2 - y1;
                 let ll = dx * dx + dy * dy;
@@ -4621,61 +4469,55 @@ impl<'a> emPainter<'a> {
                 remaining_segment_len -= remaining_edge_len;
                 remaining_edge_len = 0.0;
                 if i >= num_edges as i32 {
-                    if !is_in_stroke {
-                        break;
-                    }
+                    if !is_in_stroke { break; }
                     end_of_stroke_reached = true;
-                } else {
-                    if !is_in_stroke {
-                        continue;
-                    }
-                    end_of_stroke_reached = false;
+                } else if !is_in_stroke {
+                    continue;
                 }
             }
 
             let x = x2 - nx * remaining_edge_len;
             let y = y2 - ny * remaining_edge_len;
+            if xy_out.is_empty() {
+                min_x = x; max_x = x;
+                min_y = y; max_y = y;
+            } else {
+                if min_x > x { min_x = x; } else if max_x < x { max_x = x; }
+                if min_y > y { min_y = y; } else if max_y < y { max_y = y; }
+            }
             xy_out.push((x, y));
 
             if !is_in_stroke {
                 is_in_stroke = true;
-                remaining_segment_len = if have_dashes && (!have_dots || (stroke_number & 1) != 0) {
-                    dash_len
-                } else {
-                    dot_len
-                };
-                if stroke_number == 1 {
-                    remaining_segment_len -= end_extra;
-                }
+                end_of_stroke_reached = false;
+                remaining_segment_len =
+                    if have_dashes && (!have_dots || (stroke_number & 1) != 0) {
+                        dash_len
+                    } else {
+                        dot_len
+                    };
+                if stroke_number == 1 { remaining_segment_len -= end_extra; }
                 continue;
             }
 
-            if !end_of_stroke_reached {
-                continue;
-            }
+            if !end_of_stroke_reached { continue; }
 
-            // Emit this dash sub-polyline.
-            if xy_out.len() >= 2 {
-                solid_stroke.start_end = if !is_endless && stroke_number == 1 {
+            if min_x < cx2 && min_y < cy2 && max_x > cx1 && max_y > cy1 {
+                let start = if !is_endless && stroke_number == 1 {
                     stroke.start_end
-                } else if rounded {
-                    cap_end
-                } else {
-                    butt_end
-                };
-                solid_stroke.finish_end = if !is_endless && stroke_number == stroke_count {
+                } else if rounded { cap_end } else { butt_end };
+                let end = if !is_endless && stroke_number == stroke_count {
                     stroke.finish_end
-                } else if rounded {
-                    cap_end
-                } else {
-                    butt_end
-                };
-                self.PaintSolidPolyline(&xy_out, &solid_stroke, false, self.state.canvas_color);
+                } else if rounded { cap_end } else { butt_end };
+                let mut solid_stroke = stroke.clone();
+                solid_stroke.dash_type = DashType::Solid;
+                solid_stroke.dash_pattern.clear();
+                solid_stroke.start_end = start;
+                solid_stroke.finish_end = end;
+                self.PaintSolidPolyline(&xy_out, &solid_stroke, false, canvas_color);
             }
 
-            if stroke_number >= stroke_count {
-                break;
-            }
+            if stroke_number >= stroke_count { break; }
             stroke_number += 1;
             is_in_stroke = false;
             remaining_segment_len = gap_len;
