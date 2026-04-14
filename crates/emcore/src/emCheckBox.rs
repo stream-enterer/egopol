@@ -7,7 +7,7 @@ use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPanel::PanelState;
 use crate::emPainter::{emPainter, BORDER_EDGES_ONLY};
-use crate::emStroke::{LineJoin, emStroke, emStrokeEnd, StrokeEndType};
+use crate::emStroke::{LineCap, LineJoin, emStroke, emStrokeEnd, StrokeEndType};
 
 use super::emBorder::{emBorder, OuterBorderType};
 use crate::emLook::emLook;
@@ -161,6 +161,7 @@ impl emCheckBox {
                 (fx + fw * 0.8, fy + fh * 0.2),
             ];
             let mut stroke = emStroke::new(check_color, fw * 0.16);
+            stroke.cap = LineCap::Round;
             stroke.join = LineJoin::Round;
             stroke.start_end = emStrokeEnd::new(StrokeEndType::Cap);
             stroke.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
