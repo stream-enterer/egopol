@@ -743,82 +743,67 @@ impl<'a> emPainter<'a> {
         color: emColor,
         canvas_color: emColor,
     ) {
-        let Some(proof) = self.try_record(DrawOp::PaintRect {
-            x,
-            y,
-            w,
-            h,
-            color,
-            canvas_color,
+        let Some(_proof) = self.try_record(DrawOp::PaintRect {
+            x, y, w, h, color, canvas_color,
         }) else { return; };
-        // Literal port of C++ emPainter::PaintRect (emPainter.cpp:339-397).
-        // Uses C++ ix/ixe/iy/iy2/ax1/ax2/ay1/ay2 formulas directly instead of
-        // SubPixelEdges, because C++ uses truncation for iy2 while SubPixelEdges
-        // uses ceil (and changing SubPixelEdges breaks 21 other tests).
+
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
 
-        let x2 = x + w;
-        let y2 = y + h;
-        let px1 = (x * self.state.scale_x + self.state.offset_x)
-            .max(self.state.clip.x1).min(self.state.clip.x2);
-        let px2 = (x2 * self.state.scale_x + self.state.offset_x)
-            .max(self.state.clip.x1).min(self.state.clip.x2);
-        let py1 = (y * self.state.scale_y + self.state.offset_y)
-            .max(self.state.clip.y1).min(self.state.clip.y2);
-        let py2 = (y2 * self.state.scale_y + self.state.offset_y)
-            .max(self.state.clip.y1).min(self.state.clip.y2);
-        if px1 >= px2 || py1 >= py2 {
-            self.state.canvas_color = saved_canvas;
-            return;
-        }
+        // C++ emPainter.cpp:402-411: transform and clip
+        let mut px = x * self.state.scale_x + self.state.offset_x;
+        let mut px2 = px + w * self.state.scale_x;
+        if px < self.state.clip.x1 { px = self.state.clip.x1; }
+        if px2 > self.state.clip.x2 { px2 = self.state.clip.x2; }
+        if px >= px2 { self.state.canvas_color = saved_canvas; return; }
+        let mut py = y * self.state.scale_y + self.state.offset_y;
+        let mut py2 = py + h * self.state.scale_y;
+        if py < self.state.clip.y1 { py = self.state.clip.y1; }
+        if py2 > self.state.clip.y2 { py2 = self.state.clip.y2; }
+        if py >= py2 { self.state.canvas_color = saved_canvas; return; }
 
-        // C++ Fixed12 arithmetic (emPainter.cpp:358-379)
-        let ix_raw = (px1 * 4096.0) as i32;
-        let ixe_raw = (px2 * 4096.0) as i32 + 0xfff;
+        // C++ emPainter.cpp:418-440: Fixed12 boundary computation
+        let ix_raw = (px * 0x1000 as f64) as i32;
+        let ixe_raw = (px2 * 0x1000 as f64) as i32 + 0xfff;
         let mut ax1 = 0x1000 - (ix_raw & 0xfff);
         let ax2 = (ixe_raw & 0xfff) + 1;
         let ix = ix_raw >> 12;
         let ixe = ixe_raw >> 12;
         let iw = ixe - ix;
-        if iw <= 0 {
-            self.state.canvas_color = saved_canvas;
-            return;
-        }
+        if iw <= 0 { self.state.canvas_color = saved_canvas; return; }
         if iw <= 1 { ax1 += ax2 - 0x1000; }
 
-        let iy_raw = (py1 * 4096.0) as i32;
-        let iy2_raw = (py2 * 4096.0) as i32;
+        let iy_raw = (py * 0x1000 as f64) as i32;
+        let iy2_raw = (py2 * 0x1000 as f64) as i32;
         let mut ay1 = 0x1000 - (iy_raw & 0xfff);
         let mut ay2 = iy2_raw & 0xfff;
         let mut iy = iy_raw >> 12;
-        let iy2 = iy2_raw >> 12; // C++ TRUNCATES (not ceil)
+        let iy2 = iy2_raw >> 12;
         if iy >= iy2 {
             ay1 += ay2 - 0x1000;
             ay2 = 0;
-            if ay1 <= 0 {
-                self.state.canvas_color = saved_canvas;
-                return;
-            }
+            if ay1 <= 0 { self.state.canvas_color = saved_canvas; return; }
         }
 
-        // Top edge row (partial Y coverage)
+        // C++ emPainter.cpp:442-456: scanline loop
+        let proof = match self.require_direct() {
+            Some(p) => p,
+            None => { self.state.canvas_color = saved_canvas; return; }
+        };
         if ay1 < 0x1000 {
-            let a1 = ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
-            let a2 = ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
-            self.paint_rect_scanline(proof, ix, iy, iw, a1, ay1, a2, color);
+            self.paint_rect_scanline(proof, ix, iy, iw,
+                ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32, ay1,
+                ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32, color);
             iy += 1;
         }
-        // Interior rows (full Y coverage)
         while iy < iy2 {
             self.paint_rect_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, color);
             iy += 1;
         }
-        // Bottom edge row (partial Y coverage)
         if ay2 > 0 {
-            let a1 = ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
-            let a2 = ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
-            self.paint_rect_scanline(proof, ix, iy, iw, a1, ay2, a2, color);
+            self.paint_rect_scanline(proof, ix, iy, iw,
+                ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32, ay2,
+                ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32, color);
         }
 
         self.state.canvas_color = saved_canvas;
@@ -6513,40 +6498,45 @@ impl<'a> emPainter<'a> {
     /// Caller must guarantee x,y are within both the clip rect and the target image.
     #[inline(always)]
     fn blend_pixel_unchecked(&mut self, proof: DirectProof, x: i32, y: i32, color: emColor) {
+        // C++ PaintScanlineCol AVX2: three paths based on alpha and canvas.
         let xu = x as u32;
         let yu = y as u32;
-        if color.IsOpaque() && self.state.alpha == 255 {
+        let alpha = color.GetAlpha();
+        if alpha == 0 { return; }
+
+        if alpha >= 255 && self.state.alpha == 255 {
+            // C++ alpha>=255: direct write
             let out = self.GetImage(proof).SetPixel(xu, yu);
             out[0] = color.GetRed();
             out[1] = color.GetGreen();
             out[2] = color.GetBlue();
             out[3] = 255;
         } else if self.state.canvas_color.IsOpaque() {
-            let combined_alpha = if self.state.alpha == 255 {
-                color.GetAlpha()
+            // C++ HAVE_CVC: pix = hash_color[alpha] - hash_canvas[alpha]; *p += pix
+            use super::emColor::blend_hash_lookup;
+            let a = if self.state.alpha == 255 {
+                alpha
             } else {
-                ((color.GetAlpha() as u16 * self.state.alpha as u16 + 128) >> 8) as u8
+                ((alpha as u16 * self.state.alpha as u16 + 128) >> 8) as u8
             };
-            if combined_alpha == 0 {
-                return;
-            }
+            if a == 0 { return; }
+            let cv = self.state.canvas_color;
+            let dr = blend_hash_lookup(color.GetRed(), a) as i32 - blend_hash_lookup(cv.GetRed(), a) as i32;
+            let dg = blend_hash_lookup(color.GetGreen(), a) as i32 - blend_hash_lookup(cv.GetGreen(), a) as i32;
+            let db = blend_hash_lookup(color.GetBlue(), a) as i32 - blend_hash_lookup(cv.GetBlue(), a) as i32;
             let px = self.read_pixel(proof, xu, yu);
-            let existing = emColor::rgba(px[0], px[1], px[2], px[3]);
-            let result = existing.canvas_blend(color, self.state.canvas_color, combined_alpha);
             let out = self.GetImage(proof).SetPixel(xu, yu);
-            out[0] = result.GetRed();
-            out[1] = result.GetGreen();
-            out[2] = result.GetBlue();
+            out[0] = (px[0] as i32 + dr).clamp(0, 255) as u8;
+            out[1] = (px[1] as i32 + dg).clamp(0, 255) as u8;
+            out[2] = (px[2] as i32 + db).clamp(0, 255) as u8;
         } else {
-            let ca = color.GetAlpha() as u16;
+            // C++ no canvas: fused source-over
             let ea = if self.state.alpha == 255 {
-                ca
+                alpha as u16
             } else {
-                (ca * self.state.alpha as u16 + 128) >> 8
+                (alpha as u16 * self.state.alpha as u16 + 128) >> 8
             };
-            if ea == 0 {
-                return;
-            }
+            if ea == 0 { return; }
             if ea >= 255 {
                 let out = self.GetImage(proof).SetPixel(xu, yu);
                 out[0] = color.GetRed();
@@ -6555,15 +6545,14 @@ impl<'a> emPainter<'a> {
                 out[3] = 255;
                 return;
             }
-            // Fused source-over matching C++ AVX2.
             use super::emColor::blend_channel_fused;
             let bg = self.read_pixel(proof, xu, yu);
-            let alpha = ea as u8;
+            let a = ea as u8;
             let out = self.GetImage(proof).SetPixel(xu, yu);
-            out[0] = blend_channel_fused(color.GetRed(), bg[0], alpha);
-            out[1] = blend_channel_fused(color.GetGreen(), bg[1], alpha);
-            out[2] = blend_channel_fused(color.GetBlue(), bg[2], alpha);
-            out[3] = blend_channel_fused(255, bg[3], alpha);
+            out[0] = blend_channel_fused(color.GetRed(), bg[0], a);
+            out[1] = blend_channel_fused(color.GetGreen(), bg[1], a);
+            out[2] = blend_channel_fused(color.GetBlue(), bg[2], a);
+            out[3] = blend_channel_fused(255, bg[3], a);
         }
     }
 
@@ -7701,85 +7690,13 @@ impl<'a> emPainter<'a> {
 
     fn blend_pixel(&mut self, proof: DirectProof, x: i32, y: i32, color: emColor) {
         let clip = self.state.clip;
-        // C++ uses integer floor/ceil for scanline bounds (sly1 = (int)minY,
-        // sly2 = ceil(maxY)).  Match that here — fractional clip boundaries
-        // must not reject integer pixel coords that fall within the scanline
-        // range.
-        if x < clip.x1 as i32
-            || x >= clip.x2.ceil() as i32
-            || y < clip.y1 as i32
-            || y >= clip.y2.ceil() as i32
-        {
-            return;
-        }
+        if x < clip.x1 as i32 || x >= clip.x2.ceil() as i32
+            || y < clip.y1 as i32 || y >= clip.y2.ceil() as i32
+        { return; }
         if x < 0 || y < 0 || x >= self.target_width as i32 || y >= self.target_height as i32 {
             return;
         }
-
-        if color.IsOpaque() && self.state.alpha == 255 {
-            // Fully opaque: direct write, no blending needed.
-            let out = self.GetImage(proof).SetPixel(x as u32, y as u32);
-            out[0] = color.GetRed();
-            out[1] = color.GetGreen();
-            out[2] = color.GetBlue();
-            out[3] = 255;
-        } else if self.state.canvas_color.IsOpaque() {
-            // Canvas blend: target += (source - canvas) * alpha / 256
-            // Used when the background color is known (opaque canvas), giving
-            // better anti-aliasing at shape edges. Matches Eagle Mode's emPainter.
-            // Alpha must combine both the source color's alpha and the painter's
-            // global alpha, matching Eagle Mode where opacity = color_alpha * coverage.
-            //
-            // C++ HAVE_CVC path only modifies RGB — alpha is unchanged.
-            // The hash tables hcR/hcG/hcB only cover RGB, and `*p += pix`
-            // leaves the alpha channel untouched.
-            let combined_alpha = if self.state.alpha == 255 {
-                color.GetAlpha()
-            } else {
-                ((color.GetAlpha() as u16 * self.state.alpha as u16 + 128) >> 8) as u8
-            };
-            if combined_alpha == 0 {
-                return;
-            }
-            let px = self.read_pixel(proof, x as u32, y as u32);
-            let existing = emColor::rgba(px[0], px[1], px[2], px[3]);
-            let result = existing.canvas_blend(color, self.state.canvas_color, combined_alpha);
-            let out = self.GetImage(proof).SetPixel(x as u32, y as u32);
-            out[0] = result.GetRed();
-            out[1] = result.GetGreen();
-            out[2] = result.GetBlue();
-            // out[3] unchanged — C++ HAVE_CVC never modifies destination alpha.
-        } else {
-            // Standard source-over alpha compositing when canvas color is
-            // unknown (non-opaque). Avoids the additive artifacts that
-            // canvas_blend produces with TRANSPARENT canvas.
-            let ca = color.GetAlpha() as u16;
-            let ea = if self.state.alpha == 255 {
-                ca
-            } else {
-                (ca * self.state.alpha as u16 + 128) >> 8
-            };
-            if ea == 0 {
-                return;
-            }
-            let bg = self.read_pixel(proof, x as u32, y as u32);
-            if ea >= 255 {
-                let out = self.GetImage(proof).SetPixel(x as u32, y as u32);
-                out[0] = color.GetRed();
-                out[1] = color.GetGreen();
-                out[2] = color.GetBlue();
-                out[3] = 255;
-            } else {
-                // Fused source-over matching C++ AVX2.
-                use super::emColor::blend_channel_fused;
-                let alpha = ea as u8;
-                let out = self.GetImage(proof).SetPixel(x as u32, y as u32);
-                out[0] = blend_channel_fused(color.GetRed(), bg[0], alpha);
-                out[1] = blend_channel_fused(color.GetGreen(), bg[1], alpha);
-                out[2] = blend_channel_fused(color.GetBlue(), bg[2], alpha);
-                out[3] = blend_channel_fused(255, bg[3], alpha);
-            }
-        }
+        self.blend_pixel_unchecked(proof, x, y, color);
     }
 
     /// Write a horizontal span of pixels at full coverage with no per-pixel
