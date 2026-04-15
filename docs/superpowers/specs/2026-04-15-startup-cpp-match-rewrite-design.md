@@ -44,7 +44,7 @@ C++ top-level layout: child 0 = lMain (weight 11.37, contains general + bookmark
 
 **In Rust:** `PanelBehavior` is a trait with `Cycle(&mut PanelCtx) -> bool`. Panels are NOT engines. They have no signal support — no `AddWakeUpSignal`, no `IsSignaled`. Panels use `PanelTree::run_panel_cycles()` (a flat list), not the scheduler. Current workaround for C++ signals: `Rc<Cell<bool>>` flags (ClickFlags pattern in emMainControlPanel).
 
-**Consequence:** The ControlPanelSignal cannot use the scheduler's `SignalId` system to wake panels. Must use a different mechanism (shared flag or framework-assisted approach).
+**Consequence:** Panels cannot directly use `AddWakeUpSignal`/`IsSignaled`. Where C++ uses panel-as-engine signal wiring, Rust registers a dedicated **bridge engine** that wakes on the signal and performs the cross-tree work. The bridge engine uses the scheduler's `SignalId` system identically to C++ — same signal, same wake-up, same action. The only structural difference is the engine is standalone rather than the panel itself.
 
 ## Existing Components That Already Work
 
@@ -66,7 +66,7 @@ The audit confirmed these Rust components are correctly ported and don't need ch
 
 ## Design
 
-Nine changes. All applied simultaneously (big bang).
+Eleven changes. All applied simultaneously (big bang).
 
 ### 1. Sub-tree Notice Delivery and Panel Cycling (CRITICAL)
 
@@ -249,53 +249,12 @@ Create a new `LMainPanel` wrapper that contains both `GeneralPanel` and `emBookm
 
 #### 6c. ContentControlPanel Lifecycle
 
-**Add to struct:**
+**Add to emMainControlPanel struct:**
 ```rust
 content_control_panel: Option<PanelId>,
-content_view_id: Option<PanelId>,  // PanelId of content emSubViewPanel in main tree
-needs_recreate_control_panel: bool, // Flag set by framework when active panel changes
 ```
 
-**Signal mechanism — adapted for Rust's panel-is-not-engine architecture:**
-
-C++ uses `AddWakeUpSignal(ContentView.GetControlPanelSignal())` → `IsSignaled()` in Cycle. Rust panels cannot use scheduler signals.
-
-**Approach: Framework-assisted with shared flag.**
-
-1. The emView `control_panel_invalid` flag (already exists) marks when the active panel changes
-2. The framework loop (`about_to_wait`) checks content sub-view's `control_panel_invalid` flag
-3. If flagged, the framework sets `needs_recreate_control_panel = true` on the emMainControlPanel (via `with_behavior_as`)
-4. emMainControlPanel's `Cycle()` checks `self.needs_recreate_control_panel` and calls `RecreateContentControlPanel()`
-
-This is a tactical DIVERGED from C++'s internal signal architecture but preserves the behavioral contract. Mark with DIVERGED comment explaining the panel-is-not-engine limitation.
-
-**RecreateContentControlPanel:** Match C++ emMainControlPanel.cpp:317-324.
-
-```rust
-fn RecreateContentControlPanel(&mut self, ctx: &mut PanelCtx) {
-    // Delete old
-    if let Some(old_id) = self.content_control_panel.take() {
-        ctx.remove_child(old_id);
-    }
-    // Create new from active panel's CreateControlPanel
-    // Uses existing PanelTree::create_control_panel_in() or
-    // PanelBehavior::CreateControlPanel trait method
-    // The actual creation happens through the main tree since
-    // the active panel is in the content sub-tree
-}
-```
-
-**Cross-tree access challenge:** emMainControlPanel lives in the control sub-tree but needs to read the content sub-tree's active panel. `PanelCtx.tree` points to the control sub-tree, not the main tree.
-
-**Resolution:** The `needs_recreate_control_panel` flag approach avoids this problem. The framework has access to both trees (main tree + all sub-trees via with_behavior_as). When it sets the flag, it can also store the active panel info (e.g., store the PanelId of the active content panel, or pre-create the control panel and pass its ID). The exact wiring:
-
-1. Framework checks content sub-view's `control_panel_invalid`
-2. Framework gets active panel from content sub-view
-3. Framework calls `create_control_panel_in()` (already exists in PanelTree) to create the control panel as a child of emMainControlPanel in the control sub-tree
-4. Framework stores the new panel's ID on emMainControlPanel via `with_behavior_as`
-5. Framework clears `control_panel_invalid`
-
-This keeps the cross-tree logic in the framework (which has natural access to everything) rather than trying to give panels cross-tree access.
+In C++, `emMainControlPanel` owns the `ContentControlPanel` lifecycle entirely: it calls `AddWakeUpSignal(ContentView.GetControlPanelSignal())`, checks `IsSignaled()` in `Cycle()`, and calls `RecreateContentControlPanel()`. Since Rust panels aren't engines, this lifecycle is handled by a dedicated **bridge engine** (see Section 8) that matches C++ behavior: wakes on `ControlPanelSignal`, accesses both sub-trees, and performs the recreation. emMainControlPanel just stores the resulting `content_control_panel` ID for layout purposes.
 
 #### 6d. Escape Key Handling
 
@@ -342,53 +301,65 @@ if (MainPanel && ControlPanel) {
 
 **Files:** `crates/emmain/src/emMainWindow.rs`, `crates/emmain/src/emMainControlPanel.rs`
 
-### 8. ContentControlPanel Creation in Framework
+### 8. ControlPanelBridge Engine — Signal-Driven ContentControlPanel
 
-Since panels can't use scheduler signals (Section 6c), move the content control panel creation trigger to the framework. This replaces the deleted ZuiWindow control lifecycle (Section 5) with a properly scoped version that creates controls inside emMainControlPanel instead of a separate tree.
+C++ `emMainControlPanel` IS an engine (inherits from `emPanel : emEngine`). It calls `AddWakeUpSignal(ContentView.GetControlPanelSignal())` and checks `IsSignaled()` in `Cycle()`. In Rust, panels aren't engines — but we can match C++ behavior exactly by registering a dedicated **bridge engine** that wakes on the same signal and does the same work.
 
-**In `about_to_wait()`, after notices are delivered:**
+**New: `ControlPanelBridge` engine** (registered with the scheduler like any other engine):
 
 ```rust
-// Content control panel lifecycle (replaces ZuiWindow control system)
-// DIVERGED: C++ uses emMainControlPanel::Cycle() + IsSignaled(ControlPanelSignal).
-// Rust panels aren't engines and can't receive signals. Framework drives the lifecycle.
-for win in self.windows.values_mut() {
-    let main_panel_id = win.root_panel;
-    // Get content sub-view panel ID
-    let content_view_id = tree.with_behavior_as::<emMainPanel, _>(
-        main_panel_id, |mp| mp.GetContentViewPanelId()
-    ).flatten();
+pub(crate) struct ControlPanelBridge {
+    control_panel_signal: SignalId,
+    main_panel_id: PanelId,
+    ctrl_view_id: PanelId,      // Control sub-view panel in main tree
+    content_view_id: PanelId,   // Content sub-view panel in main tree
+}
 
-    if let Some(content_id) = content_view_id {
-        // Check if content view's active panel changed
-        let invalid = tree.with_behavior_as::<emSubViewPanel, _>(content_id, |svp| {
-            svp.GetSubView().is_control_panel_invalid()
-        }).unwrap_or(false);
-
-        if invalid {
-            // Get control sub-view panel ID
-            let ctrl_view_id = tree.with_behavior_as::<emMainPanel, _>(
-                main_panel_id, |mp| mp.GetControlViewPanelId()
+impl emEngine for ControlPanelBridge {
+    fn Cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
+        if ctx.IsSignaled(self.control_panel_signal) {
+            // 1. Get active panel from content sub-view
+            let active = ctx.tree.with_behavior_as::<emSubViewPanel, _>(
+                self.content_view_id, |svp| {
+                    svp.GetSubView().GetActivePanel()
+                }
             ).flatten();
 
-            if let Some(ctrl_id) = ctrl_view_id {
-                // Recreate content control panel inside emMainControlPanel
-                // (access control sub-tree, find emMainControlPanel, manage its child)
-                // ... cross-tree wiring ...
-            }
-
-            // Clear the flag
-            tree.with_behavior_as::<emSubViewPanel, _>(content_id, |svp| {
-                svp.sub_view_mut().clear_control_panel_invalid();
+            // 2. Access control sub-tree, find emMainControlPanel, recreate child
+            ctx.tree.with_behavior_as::<emSubViewPanel, _>(self.ctrl_view_id, |svp| {
+                let sub_tree = svp.sub_tree_mut();
+                // Find emMainControlPanel in sub-tree, delete old content control
+                // panel, create new one via active panel's CreateControlPanel
+                // ... (uses existing create_control_panel_in infrastructure)
             });
         }
+        false // Sleep until next signal
     }
 }
 ```
 
-**Key difference from deleted code:** Creates the control panel as a child of emMainControlPanel (in control sub-tree), not in a separate control_tree on ZuiWindow. Same trigger (control_panel_invalid flag), different target.
+**Registration:** In StartupEngine state 5 (after creating emMainControlPanel), register the bridge engine:
 
-**Files:** `crates/emcore/src/emGUIFramework.rs`
+```rust
+let bridge = ControlPanelBridge {
+    control_panel_signal,
+    main_panel_id: self.main_panel_id,
+    ctrl_view_id,
+    content_view_id,
+};
+let bridge_id = ctx.scheduler.register_engine(Priority::Low, Box::new(bridge));
+ctx.scheduler.connect(control_panel_signal, bridge_id);
+```
+
+**Why this matches C++:**
+- Signal fires when content view's active panel changes (same trigger)
+- Engine wakes and performs RecreateContentControlPanel (same action)
+- Uses the scheduler's signal system with clock-based IsSignaled (same mechanism)
+- No framework-loop polling, no shared flags, no DIVERGED comment needed
+
+**Cross-tree access:** The engine has `ctx.tree` (the main tree) and can access both sub-trees via `with_behavior_as::<emSubViewPanel>`. This is natural since the engine runs at the scheduler level, not inside a sub-tree.
+
+**Files:** `crates/emmain/src/emMainWindow.rs` (or new `emMainControlPanelBridge.rs`)
 
 ### 9. GetTitle() — Dynamic Window Title
 
@@ -405,13 +376,75 @@ C++ emMainWindow::Cycle() (emMainWindow.cpp:176-178): checks title signal → `I
 
 **Current Rust:** MainWindowEngine only handles close signal. Title is static.
 
-**Fix:** MainWindowEngine checks the content view's title each cycle. Since panels can't use signals, the engine (which IS in the scheduler) can:
-1. Store the content sub-view panel ID
-2. In Cycle(), access the content sub-view via `ctx.tree.with_behavior_as::<emSubViewPanel>`
-3. Get the title from the sub-view
-4. If changed, update the window title via `ctx.windows`
+**Fix:** MainWindowEngine (already an engine in the scheduler) adds a wake-up signal for the content view's title signal. Matching C++ exactly:
+
+1. Add `title_signal: SignalId` to the content sub-view's emView (see Section 10)
+2. MainWindowEngine connects to this signal via `scheduler.connect(title_signal, engine_id)`
+3. In Cycle(), `ctx.IsSignaled(title_signal)` → update window title to "Eagle Mode - " + content view title
+4. Access title via `ctx.tree.with_behavior_as::<emSubViewPanel>(content_view_id, |svp| svp.GetSubView().GetTitle())`
 
 **Files:** `crates/emmain/src/emMainWindow.rs`
+
+### 10. emView: Add Real SignalIds for ControlPanelSignal and TitleSignal
+
+C++ `emView` has `ControlPanelSignal` (emView.h:682) and `TitleSignal` that fire when:
+- Active panel changes → fires ControlPanelSignal (emView.cpp:308)
+- `InvalidateControlPanel()` called → fires ControlPanelSignal
+- Title changes → fires TitleSignal
+
+Rust already has `control_panel_invalid: bool` flag. Add real `SignalId` fields so bridge engines can use the scheduler's signal system:
+
+**Add to emView:**
+```rust
+control_panel_signal: Option<SignalId>,
+title_signal: Option<SignalId>,
+```
+
+**Add methods:**
+```rust
+pub fn set_control_panel_signal(&mut self, signal: SignalId) {
+    self.control_panel_signal = Some(signal);
+}
+pub fn GetControlPanelSignal(&self) -> Option<SignalId> {
+    self.control_panel_signal
+}
+pub fn set_title_signal(&mut self, signal: SignalId) {
+    self.title_signal = Some(signal);
+}
+pub fn GetTitleSignal(&self) -> Option<SignalId> {
+    self.title_signal
+}
+```
+
+**Fire signals:** In `SetActivePanel()` and `InvalidateControlPanel()`, fire the signal via the scheduler. Since emView doesn't hold a scheduler reference, the signals are fired from the framework or engine layer after the flag is set. Specifically:
+- When `control_panel_invalid` becomes true, the ControlPanelBridge engine needs to wake. The signal is fired by the emSubViewPanel's notice/update cycle, or by the framework after calling `view.Update()`.
+- Alternatively: store an `Rc<RefCell<EngineScheduler>>` reference on emView (sub-views are created during startup when the scheduler is available). This lets emView fire signals directly, exactly matching C++.
+
+**Recommended:** Give emView an optional scheduler reference so it can fire signals directly:
+```rust
+scheduler: Option<Rc<RefCell<EngineScheduler>>>,
+```
+Set during sub-view creation in emMainPanel's LayoutChildren. This matches C++ where emView holds a reference to its context (which includes the scheduler).
+
+**Signal allocation:** Signals are created during StartupEngine state 5 (before creating emMainControlPanel) via `scheduler.create_signal()`. The signal IDs are passed to:
+1. The content sub-view's emView (via `set_control_panel_signal()`)
+2. The ControlPanelBridge engine (for `connect()`)
+3. MainWindowEngine (for title signal `connect()`)
+
+**Files:** `crates/emcore/src/emView.rs`
+
+### 11. emView: Add VisitByIdentity for State 11
+
+C++ StartupEngine state 11 calls `ContentView.Visit(identity, rel_x, rel_y, rel_a, adherent, subject)` with a string identity. Rust's `emView::Visit()` takes a PanelId.
+
+**Add:** `emView::VisitByIdentity(tree, identity, rel_x, rel_y, rel_a)` that:
+1. Uses existing `DecodeIdentity(identity)` to split the identity into path segments
+2. Walks the tree to find the panel matching the identity path
+3. Calls `Visit(panel_id, rel_x, rel_y, rel_a)`
+
+This eliminates the DIVERGED comment in StartupEngine state 11 and matches C++ exactly. Also useful for bookmark hotkey navigation (emMainWindow handle_input lines 246-264).
+
+**Files:** `crates/emcore/src/emView.rs`
 
 ## What This Preserves
 
@@ -429,7 +462,7 @@ C++ emMainWindow::Cycle() (emMainWindow.cpp:176-178): checks title signal → `I
 
 - `creation_stage` mechanism in emMainPanel
 - `control_tree`, `control_view`, `control_panel_id`, `control_strip_height` from ZuiWindow
-- Control panel lifecycle from `about_to_wait()` (replaced by Section 8)
+- Control panel lifecycle from `about_to_wait()` (replaced by ControlPanelBridge engine)
 - `show_control_strip()` / `hide_control_strip()` from ZuiWindow
 - `advance_creation_stage()` and related tests
 - `DoubleClickSlider()` as ToggleControlView mechanism
@@ -445,11 +478,9 @@ These C++ features exist but are not needed for cosmos to work. Explicitly defer
 - **WindowStateSaver:** Persistent window geometry save/restore.
 - **emStarFieldPanel TicTacToe easter egg:** Nested at depth > 50.
 - **Copy-to-user for cosmos items:** `.emVcItem` copy to user config dir.
-- **State 11 final Visit():** C++ calls ContentView.Visit() with identity string after animation. Animator already navigated; redundant. Marked DIVERGED.
 - **ReloadFiles() (F5):** Signal-based file reload. Already stubbed.
 - **emAutoplayControlPanel full UI:** Uses placeholder ControlButton widgets instead of full emToolkit. Functional but simplified.
 - **Screensaver inhibition during autoplay:** Flags present but no D-Bus/X11 calls.
-- **emView ControlPanelSignal as real SignalId:** Not feasible because panels aren't engines. Framework-assisted approach used instead.
 
 ## Blast Radius
 
@@ -460,8 +491,9 @@ These C++ features exist but are not needed for cosmos to work. Explicitly defer
 | `emMainWindow.rs` | Rewrite StartupEngine states 5-6, add ToggleControlView, extend MainWindowEngine for title | High — multi-concern |
 | `emMainControlPanel.rs` | Restructure layout (bookmarks inside lMain, add contentControlPanel slot), add Escape handling | High — layout rework |
 | `emWindow.rs` | Remove control_tree/control_view/control_strip_height, simplify render/resize | Medium — deletion |
-| `emGUIFramework.rs` | Replace control panel lifecycle (delete ZuiWindow version, add emMainControlPanel version) | Medium — replace |
-| `emView.rs` | Minor: ensure control_panel_invalid flag fires on active panel change (already does) | Low |
+| `emGUIFramework.rs` | Delete ZuiWindow control panel lifecycle from about_to_wait | Low — deletion |
+| `emView.rs` | Add real SignalIds (ControlPanelSignal, TitleSignal), optional scheduler ref, fire signals on active panel change | Medium |
+| `emMainWindow.rs` (or new file) | ControlPanelBridge engine — signal-driven ContentControlPanel lifecycle | Medium — new engine |
 
 ## Testing Strategy
 
@@ -493,7 +525,7 @@ These C++ features exist but are not needed for cosmos to work. Explicitly defer
 4. Sub-tree notice delivery working (panels inside sub-views get LayoutChildren + Cycle)
 5. No creation_stage mechanism remains
 6. No control_tree/control_view on ZuiWindow
-7. Per-panel context controls in emMainControlPanel (framework-assisted)
+7. Per-panel context controls via signal-driven ControlPanelBridge engine
 8. ToggleControlView works with Escape
 9. emMainControlPanel layout matches C++ (lMain with bookmarks, contentControlPanel slot)
 10. Dynamic window title: "Eagle Mode - " + content title
