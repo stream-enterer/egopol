@@ -371,7 +371,7 @@ impl emSplitter {
     /// Used by standalone tests and simple compositions where the splitter
     /// is not embedded in an `emBorder` widget.
     pub fn LayoutChildrenSimple(&self, ctx: &mut PanelCtx, w: f64, h: f64) {
-        self.LayoutChildren(ctx, w, h, None, crate::emColor::emColor::TRANSPARENT);
+        self.LayoutChildren(ctx, w, h, None, ctx.GetCanvasColor());
     }
 }
 

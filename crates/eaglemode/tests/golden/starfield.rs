@@ -1,13 +1,12 @@
 use emcore::emColor::emColor;
 use emcore::emImage::emImage;
 use emcore::emPainter::emPainter;
-use emcore::emPainterDrawList::RecordedOp;
 use emcore::emPanel::{PanelBehavior, PanelState};
 
 use emMain::emStarFieldPanel::emStarFieldPanel;
 
 use super::common::*;
-use super::draw_op_dump::{dump_draw_ops, dump_draw_ops_enabled};
+use super::draw_op_dump::{dump_draw_ops_enabled, install_direct_op_logger};
 
 macro_rules! require_golden {
     () => {
@@ -20,12 +19,15 @@ macro_rules! require_golden {
 
 /// Render a starfield panel at depth/seed into an image of the given size.
 /// Panel coordinates (0,0)-(1,1) are mapped to pixels (0,0)-(w,h).
-fn render_starfield(depth: i32, seed: u32, w: u32, h: u32) -> emImage {
+/// If `log_name` is Some, installs a direct-mode op logger.
+fn render_starfield(depth: i32, seed: u32, w: u32, h: u32, log_name: Option<&str>) -> emImage {
     let mut panel = emStarFieldPanel::new(depth, seed);
     let mut img = emImage::new(w, h, 4);
-    // Don't fill -- Paint clears to black.
     {
         let mut p = emPainter::new(&mut img);
+        if let Some(name) = log_name {
+            install_direct_op_logger(&mut p, name);
+        }
         p.scale(w as f64, h as f64);
         p.SetCanvasColor(emColor::TRANSPARENT);
         let state = PanelState::default_for_test();
@@ -42,20 +44,8 @@ fn render_starfield(depth: i32, seed: u32, w: u32, h: u32) -> emImage {
 fn starfield_small() {
     require_golden!();
     let (ew, eh, expected) = load_painter_golden("starfield_small");
-    let img = render_starfield(3, 0x12345678, ew, eh);
-    if dump_draw_ops_enabled() {
-        let mut ops: Vec<RecordedOp> = Vec::new();
-        {
-            let mut rec = emPainter::new_recording(ew, eh, &mut ops);
-            rec.set_record_subops(true);
-            rec.scale(ew as f64, eh as f64);
-            rec.SetCanvasColor(emColor::TRANSPARENT);
-            let mut panel = emStarFieldPanel::new(3, 0x12345678);
-            let state = PanelState::default_for_test();
-            panel.Paint(&mut rec, 1.0, 1.0, &state);
-        }
-        dump_draw_ops("starfield_small", &ops);
-    }
+    let log_name = if dump_draw_ops_enabled() { Some("starfield_small") } else { None };
+    let img = render_starfield(3, 0x12345678, ew, eh, log_name);
     compare_images("starfield_small", img.GetMap(), &expected, ew, eh, 0, 0.0)
         .expect("starfield_small golden mismatch");
 }
@@ -67,20 +57,8 @@ fn starfield_small() {
 fn starfield_large() {
     require_golden!();
     let (ew, eh, expected) = load_painter_golden("starfield_large");
-    let img = render_starfield(3, 0x12345678, ew, eh);
-    if dump_draw_ops_enabled() {
-        let mut ops: Vec<RecordedOp> = Vec::new();
-        {
-            let mut rec = emPainter::new_recording(ew, eh, &mut ops);
-            rec.set_record_subops(true);
-            rec.scale(ew as f64, eh as f64);
-            rec.SetCanvasColor(emColor::TRANSPARENT);
-            let mut panel = emStarFieldPanel::new(3, 0x12345678);
-            let state = PanelState::default_for_test();
-            panel.Paint(&mut rec, 1.0, 1.0, &state);
-        }
-        dump_draw_ops("starfield_large", &ops);
-    }
+    let log_name = if dump_draw_ops_enabled() { Some("starfield_large") } else { None };
+    let img = render_starfield(3, 0x12345678, ew, eh, log_name);
     compare_images("starfield_large", img.GetMap(), &expected, ew, eh, 0, 0.0)
         .expect("starfield_large golden mismatch");
 }

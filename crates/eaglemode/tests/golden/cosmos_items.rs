@@ -3,13 +3,12 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emImage::emImage;
 use emcore::emPainter::emPainter;
-use emcore::emPainterDrawList::RecordedOp;
 use emcore::emPanel::{PanelBehavior, PanelState};
 
 use emMain::emVirtualCosmos::{emVirtualCosmosItemPanel, emVirtualCosmosItemRec};
 
 use super::common::*;
-use super::draw_op_dump::{dump_draw_ops, dump_draw_ops_enabled};
+use super::draw_op_dump::{dump_draw_ops_enabled, install_direct_op_logger};
 
 /// Skip test if golden data hasn't been generated yet.
 macro_rules! require_golden {
@@ -69,22 +68,12 @@ fn cosmos_item_border() {
     {
         // Map panel coords (0,0)-(1.0, panel_h) to pixels (0,0)-(400,300).
         let mut p = emPainter::new(&mut img);
+        if dump_draw_ops_enabled() {
+            install_direct_op_logger(&mut p, "cosmos_item_border");
+        }
         p.SetCanvasColor(emColor::TRANSPARENT);
         p.scale(sx, sy);
         panel.Paint(&mut p, 1.0, panel_h, &state);
-    }
-
-    // Record DrawOps for parameter diff diagnosis when DUMP_DRAW_OPS=1.
-    if dump_draw_ops_enabled() {
-        let mut ops: Vec<RecordedOp> = Vec::new();
-        {
-            let mut rec = emPainter::new_recording(400, 300, &mut ops);
-            rec.set_record_subops(true);
-            rec.SetCanvasColor(emColor::TRANSPARENT);
-            rec.scale(sx, sy);
-            panel.Paint(&mut rec, 1.0, panel_h, &state);
-        }
-        dump_draw_ops("cosmos_item_border", &ops);
     }
 
     // ch_tol=130: Rust PaintRect passes canvas_color=paint_color (opaque fast path)

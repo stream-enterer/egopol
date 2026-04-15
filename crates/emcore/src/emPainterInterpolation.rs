@@ -1,4 +1,5 @@
 // SPLIT: Split from emPainter.h — interpolation routines extracted
+#![allow(dead_code)]
 use std::sync::OnceLock;
 
 use crate::emTexture::ImageExtension;

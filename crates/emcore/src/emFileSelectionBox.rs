@@ -232,7 +232,7 @@ impl PanelBehavior for FileItemPanelBehavior {
 
                     // Circle outline via ellipse outlined.
                     let stroke = emStroke::new(fg_color, rw * 0.26);
-                    painter.PaintEllipseOutline(cx, cy, rw, rw, &stroke, canvas_color);
+                    painter.PaintEllipseOutline(cx - rw, cy - rw, rw * 2.0, rw * 2.0, &stroke, canvas_color);
 
                     // Diagonal line.
                     let t = rw * std::f64::consts::FRAC_1_SQRT_2;

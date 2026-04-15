@@ -275,6 +275,150 @@ pub(crate) enum PaintTarget<'a> {
 struct DirectProof(());
 
 /// CPU software rasterizer that paints into an emImage buffer.
+/// Optimized pixel format index matching C++ `emPainter::OptimizedPixelFormatIndex`.
+/// Determines which AVX2 blend function variant to use based on channel byte order.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[allow(non_camel_case_types, dead_code)]
+pub(crate) enum OPFIndex {
+    /// No optimized format — use scalar blend with hash tables.
+    None = -1,
+    /// R=byte0, G=byte1, B=byte2, A=byte3 (little-endian RGBA). Standard for this codebase.
+    OPFI_8888_0BGR = 0,
+    OPFI_8888_0RGB = 1,
+    OPFI_8888_BGR0 = 2,
+    OPFI_8888_RGB0 = 3,
+}
+
+/// Painter model matching C++ `emPainter::SharedModel` + `SharedPixelFormat`.
+///
+/// C++ stores quality settings from `emCoreConfig`, CPU capability flags,
+/// and pre-computed blend hash tables per pixel format. The Rust model
+/// provides the same values so that quality/SIMD path selection matches.
+#[derive(Clone, Debug)]
+pub struct PainterModel {
+    /// `CoreConfig->AllowSIMD`. Controls whether AVX2 blend/interpolation is used.
+    pub allow_simd: bool,
+    /// `CoreConfig->DownscaleQuality`. Controls area-sampling pre-reduction stride.
+    /// C++ default from config: 3.
+    pub downscale_quality: i32,
+    /// `CoreConfig->UpscaleQuality`. Selects interpolation kernel for upscaling.
+    /// 0=nearest, 1=area, 2=bilinear, 3=bicubic, 4=lanczos, 5=adaptive.
+    /// C++ default from config: 5.
+    pub upscale_quality: i32,
+    /// Pixel format index for AVX2 blend path selection.
+    /// For standard RGBA images on little-endian: `OPFI_8888_0BGR`.
+    #[allow(dead_code)]
+    pub(crate) opf_index: OPFIndex,
+    /// Pre-computed blend hash tables matching C++ `SharedPixelFormat::RedHash` etc.
+    /// Each table is 256×256 entries of u32 (packed pixel with one channel non-zero).
+    /// Only used by the scalar blend fallback (when AVX2 is unavailable).
+    /// Index: `hash[color_value * 256 + alpha]`.
+    #[allow(dead_code)]
+    pub(crate) blend_hash: Option<BlendHashTables>,
+}
+
+/// Pre-computed blend hash tables matching C++ `emPainter::SharedPixelFormat`.
+///
+/// Each table maps `(channel_value, alpha)` → packed pixel contribution.
+/// Formula: `hash[c*256+a] = ((c * a * 255 + 32512) / 65025) << channel_shift`.
+///
+/// For OPFI_8888_0BGR (standard RGBA): red_shift=0, green_shift=8, blue_shift=16.
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+pub(crate) struct BlendHashTables {
+    pub red: Vec<u32>,   // 256*256 entries
+    pub green: Vec<u32>, // 256*256 entries
+    pub blue: Vec<u32>,  // 256*256 entries
+}
+
+impl BlendHashTables {
+    /// Compute hash tables matching C++ emPainter.cpp lines 236-275.
+    pub fn compute(red_shift: u32, green_shift: u32, blue_shift: u32) -> Self {
+        let range: u32 = 255;
+        let mut red = vec![0u32; 256 * 256];
+        let mut green = vec![0u32; 256 * 256];
+        let mut blue = vec![0u32; 256 * 256];
+
+        for (hash, shift) in [(&mut red, red_shift), (&mut green, green_shift), (&mut blue, blue_shift)] {
+            for a1 in 0u32..128 {
+                let c1 = (a1 * range + 127) / 255;
+                for a2 in 0u32..128 {
+                    let c2 = (a2 * range + 127) / 255;
+                    let c3 = (a1 * a2 * range + 32512) / 65025;
+                    hash[(a1 as usize) << 8 | a2 as usize] = c3 << shift;
+                    hash[(a1 as usize) << 8 | (255 - a2) as usize] = (c1 - c3) << shift;
+                    hash[((255 - a1) as usize) << 8 | a2 as usize] = (c2 - c3) << shift;
+                    hash[((255 - a1) as usize) << 8 | (255 - a2) as usize] = (range + c3 - c1 - c2) << shift;
+                }
+            }
+        }
+
+        Self { red, green, blue }
+    }
+
+    /// Compute for standard RGBA pixel format (OPFI_8888_0BGR).
+    pub fn compute_rgba() -> Self {
+        Self::compute(0, 8, 16)
+    }
+}
+
+impl Default for PainterModel {
+    fn default() -> Self {
+        Self {
+            allow_simd: true,
+            downscale_quality: 3,
+            upscale_quality: 5, // C++ config default UQ_ADAPTIVE
+            // Standard RGBA on little-endian x86: R=byte0(shift0), G=byte1(shift8), B=byte2(shift16)
+            opf_index: OPFIndex::OPFI_8888_0BGR,
+            blend_hash: Some(BlendHashTables::compute_rgba()),
+        }
+    }
+}
+
+impl PainterModel {
+    /// Load model settings from `emCoreConfig`, matching C++ `SharedModel::Acquire`.
+    pub fn from_core_config(config: &crate::emCoreConfig::emCoreConfig) -> Self {
+        Self {
+            allow_simd: config.allow_simd,
+            downscale_quality: config.downscale_quality,
+            upscale_quality: config.upscale_quality,
+            opf_index: OPFIndex::OPFI_8888_0BGR,
+            blend_hash: Some(BlendHashTables::compute_rgba()),
+        }
+    }
+
+    /// Load from the golden-test config file, matching C++ gen_golden behavior.
+    /// Falls back to defaults if the config file is not found.
+    pub fn load_from_config() -> Self {
+        use crate::emCoreConfig::emCoreConfig;
+        use crate::emConfigModel::emConfigModel;
+        use crate::emSignal::SignalId;
+
+        // Match C++ gen_golden: EM_USER_CONFIG_DIR=$TMPDIR/em_golden_config
+        let config_path = std::env::var("EM_USER_CONFIG_DIR")
+            .map(|d| std::path::PathBuf::from(d).join("emCore").join("config.rec"))
+            .unwrap_or_else(|_| {
+                let tmp = std::env::var("TMPDIR").unwrap_or_else(|_| "/tmp".to_string());
+                std::path::PathBuf::from(tmp)
+                    .join("em_golden_config")
+                    .join("emCore")
+                    .join("config.rec")
+            });
+
+        let signal_id = slotmap::KeyData::from_ffi(slotmap::KeyData::from_ffi(0).as_ffi());
+        let mut model_cfg = emConfigModel::new(
+            emCoreConfig::default(),
+            config_path,
+            SignalId::from(signal_id),
+        );
+        if model_cfg.TryLoadOrInstall().is_ok() {
+            Self::from_core_config(model_cfg.GetRec())
+        } else {
+            Self::default()
+        }
+    }
+}
+
 pub struct emPainter<'a> {
     target: PaintTarget<'a>,
     target_width: u32,
@@ -291,6 +435,15 @@ pub struct emPainter<'a> {
     /// Matches C++ `CoreConfig->AllowSIMD`. When false, SIMD fast paths
     /// (AVX2) are disabled even if the CPU supports them.
     pub(crate) allow_simd: bool,
+    /// Quality settings from `emCoreConfig`, matching C++ `emPainterModel`.
+    pub(crate) model: PainterModel,
+    /// Optional op logger callback for direct-mode diagnostic dumps.
+    /// Called from `try_record()` and `record_state()` with a reference to
+    /// the DrawOp, the current nesting depth, and the painter state snapshot.
+    /// This logs from the actual rendering path (not the recording painter),
+    /// eliminating double-pass recording noise.
+    #[allow(clippy::type_complexity)]
+    op_log_fn: Option<Box<dyn FnMut(&DrawOp, u32, RecordedState)>>,
 }
 
 /// The 9 target rectangles computed by PaintBorderImage's boundary logic.
@@ -348,6 +501,8 @@ impl<'a> emPainter<'a> {
             record_depth: 0,
             record_subops: false,
             allow_simd: true,
+            model: PainterModel::default(),
+            op_log_fn: None,
         }
     }
 
@@ -380,7 +535,15 @@ impl<'a> emPainter<'a> {
             record_depth: 0,
             record_subops: false,
             allow_simd: true,
+            model: PainterModel::default(),
+            op_log_fn: None,
         }
+    }
+
+    /// Set the painter model (quality settings from emCoreConfig).
+    pub fn set_model(&mut self, model: PainterModel) {
+        self.allow_simd = model.allow_simd;
+        self.model = model;
     }
 
     /// Enable sub-op recording for diagnostic dumps. When set, compound ops
@@ -389,6 +552,24 @@ impl<'a> emPainter<'a> {
     /// will be replayed — sub-ops would double-render.
     pub fn set_record_subops(&mut self, enable: bool) {
         self.record_subops = enable;
+    }
+
+    /// Install an op-logging callback for direct-mode diagnostic dumps.
+    ///
+    /// The callback fires from inside `try_record()` and `record_state()`,
+    /// receiving a reference to each DrawOp alongside the current depth and
+    /// painter state snapshot. This logs from the **actual rendering path**
+    /// (not a separate recording pass), eliminating double-pass noise.
+    pub fn set_op_log<F>(&mut self, f: F)
+    where
+        F: FnMut(&DrawOp, u32, RecordedState) + 'static,
+    {
+        self.op_log_fn = Some(Box::new(f));
+    }
+
+    /// Remove a previously installed op-logging callback.
+    pub fn clear_op_log(&mut self) {
+        self.op_log_fn = None;
     }
 
     /// Get a mutable reference to the target image.
@@ -408,24 +589,34 @@ impl<'a> emPainter<'a> {
         }
     }
 
+    /// Snapshot the current painter state for op logging / recording.
+    fn state_snapshot(&self) -> RecordedState {
+        RecordedState {
+            scale_x: self.state.scale_x,
+            scale_y: self.state.scale_y,
+            offset_x: self.state.offset_x,
+            offset_y: self.state.offset_y,
+            clip_x1: self.state.clip.x1,
+            clip_y1: self.state.clip.y1,
+            clip_x2: self.state.clip.x2,
+            clip_y2: self.state.clip.y2,
+            alpha: self.state.alpha,
+        }
+    }
+
     /// Try to record a draw op. Returns `Some(DirectProof)` if in direct mode,
     /// `None` if the op was recorded (recording mode).
     fn try_record(&mut self, op: DrawOp) -> Option<DirectProof> {
+        let state = self.state_snapshot();
+        let depth = self.record_depth;
+        if let Some(log) = &mut self.op_log_fn {
+            log(&op, depth, state);
+        }
         if let PaintTarget::DrawList(ops) = &mut self.target {
             ops.push(RecordedOp {
-                depth: self.record_depth,
+                depth,
                 op,
-                state: RecordedState {
-                    scale_x: self.state.scale_x,
-                    scale_y: self.state.scale_y,
-                    offset_x: self.state.offset_x,
-                    offset_y: self.state.offset_y,
-                    clip_x1: self.state.clip.x1,
-                    clip_y1: self.state.clip.y1,
-                    clip_x2: self.state.clip.x2,
-                    clip_y2: self.state.clip.y2,
-                    alpha: self.state.alpha,
-                },
+                state,
             });
             None
         } else {
@@ -446,21 +637,16 @@ impl<'a> emPainter<'a> {
     /// Record a state operation unconditionally (for push/pop/set that also
     /// mutate local state regardless of mode).
     fn record_state(&mut self, op: DrawOp) {
+        let state = self.state_snapshot();
+        let depth = self.record_depth;
+        if let Some(log) = &mut self.op_log_fn {
+            log(&op, depth, state);
+        }
         if let PaintTarget::DrawList(ops) = &mut self.target {
             ops.push(RecordedOp {
-                depth: self.record_depth,
+                depth,
                 op,
-                state: RecordedState {
-                    scale_x: self.state.scale_x,
-                    scale_y: self.state.scale_y,
-                    offset_x: self.state.offset_x,
-                    offset_y: self.state.offset_y,
-                    clip_x1: self.state.clip.x1,
-                    clip_y1: self.state.clip.y1,
-                    clip_x2: self.state.clip.x2,
-                    clip_y2: self.state.clip.y2,
-                    alpha: self.state.alpha,
-                },
+                state,
             });
         }
     }
@@ -683,13 +869,15 @@ impl<'a> emPainter<'a> {
 
     /// Round x coordinate to nearest pixel.
     pub fn RoundX(&self, x: f64) -> f64 {
-        ((x * self.state.scale_x + self.state.offset_x).round() - self.state.offset_x)
+        // C++ uses floor(x*ScaleX+OriginX+0.5) — NOT .round() which differs
+        // at exact half-integers due to floating-point addition of 0.5.
+        ((x * self.state.scale_x + self.state.offset_x + 0.5).floor() - self.state.offset_x)
             / self.state.scale_x
     }
 
     /// Round y coordinate to nearest pixel.
     pub fn RoundY(&self, y: f64) -> f64 {
-        ((y * self.state.scale_y + self.state.offset_y).round() - self.state.offset_y)
+        ((y * self.state.scale_y + self.state.offset_y + 0.5).floor() - self.state.offset_y)
             / self.state.scale_y
     }
 
@@ -1054,19 +1242,17 @@ impl<'a> emPainter<'a> {
             color,
             canvas_color,
         }).is_none();
-        if is_recording {
-            if !self.record_subops {
-                return;
-            }
-            self.record_depth += 1;
+        if is_recording && !self.record_subops {
+            return;
         }
+        self.record_depth += 1;
         let cx = x + w * 0.5;
         let cy = y + h * 0.5;
         let rx = w * 0.5;
         let ry = h * 0.5;
         let verts = self.ellipse_polygon(cx, cy, rx, ry);
         self.PaintPolygon(&verts, color, canvas_color);
-        if is_recording { self.record_depth -= 1; }
+        self.record_depth -= 1;
     }
 
     /// Fill an ellipse with a gradient texture using AA polygon approximation.
@@ -1100,15 +1286,13 @@ impl<'a> emPainter<'a> {
             color: repr_color,
             canvas_color,
         }).is_none();
-        if is_recording {
-            if !self.record_subops {
-                return;
-            }
-            self.record_depth += 1;
+        if is_recording && !self.record_subops {
+            return;
         }
+        self.record_depth += 1;
         let verts = self.ellipse_polygon(cx, cy, rx, ry);
         self.paint_polygon_textured(&verts, texture, canvas_color);
-        if is_recording { self.record_depth -= 1; }
+        self.record_depth -= 1;
     }
 
     /// Fill an ellipse sector (pie slice) defined by center, radii, and angle range.
@@ -1137,32 +1321,35 @@ impl<'a> emPainter<'a> {
             color,
             canvas_color,
         }) else { return; };
+        self.record_depth += 1;
         let cx = x + w * 0.5;
         let cy = y + h * 0.5;
         let rx = w * 0.5;
         let ry = h * 0.5;
         if rx <= 0.0 || ry <= 0.0 {
-            return;
+            self.record_depth -= 1; return;
         }
         if sweep_angle == 0.0 {
-            return;
+            self.record_depth -= 1; return;
         }
         // Normalize negative sweep.
         if sweep_angle < 0.0 {
-            return self.PaintEllipseSector(
+            self.PaintEllipseSector(
                 x, y, w, h,
                 start_angle + sweep_angle,
                 -sweep_angle,
                 color,
                 canvas_color,
             );
+            self.record_depth -= 1; return;
         }
         // Convert degrees to radians.
         let start_rad = start_angle * std::f64::consts::PI / 180.0;
         let sweep_rad = sweep_angle * std::f64::consts::PI / 180.0;
         // Full circle or more — delegate to paint_ellipse.
         if sweep_rad >= 2.0 * std::f64::consts::PI {
-            return self.PaintEllipse(cx - rx, cy - ry, rx * 2.0, ry * 2.0, color, canvas_color);
+            self.PaintEllipse(cx - rx, cy - ry, rx * 2.0, ry * 2.0, color, canvas_color);
+            self.record_depth -= 1; return;
         }
         // Match C++ PaintEllipseSector: keep f as float through arc scaling,
         // use round-to-nearest, minimum 3 arc segments, center vertex last.
@@ -1186,6 +1373,7 @@ impl<'a> emPainter<'a> {
         }
         verts.push((cx, cy));
         self.PaintPolygon(&verts, color, canvas_color);
+        self.record_depth -= 1;
     }
 
     /// Fill a rectangle with a linear gradient between two colors.
@@ -1465,11 +1653,14 @@ impl<'a> emPainter<'a> {
             thickness,
             canvas_color,
         }) else { return; };
+        self.record_depth += 1;
         if vertices.len() < 2 {
+            self.record_depth -= 1;
             return;
         }
         let stroke = emStroke::new(stroke_color, thickness);
         self.PaintPolylineWithoutArrows(vertices, &stroke, true, canvas_color);
+        self.record_depth -= 1;
     }
 
     /// Draw a polyline with full stroke support (joins, caps, dashes, arrows).
@@ -1494,12 +1685,10 @@ impl<'a> emPainter<'a> {
                 canvas_color,
             })
             .is_none();
-        if is_recording {
-            if !self.record_subops {
-                return;
-            }
-            self.record_depth += 1;
+        if is_recording && !self.record_subops {
+            return;
         }
+        self.record_depth += 1;
         let with_arrows = !closed
             && (stroke.start_end.IsDecorated() || stroke.finish_end.IsDecorated());
         if with_arrows {
@@ -1507,9 +1696,7 @@ impl<'a> emPainter<'a> {
         } else {
             self.PaintPolylineWithoutArrows(vertices, stroke, closed, canvas_color);
         }
-        if is_recording {
-            self.record_depth -= 1;
-        }
+        self.record_depth -= 1;
     }
 
     /// Fill a rounded rectangle using AA polygon approximation.
@@ -1530,12 +1717,14 @@ impl<'a> emPainter<'a> {
         let Some(_proof) = self.try_record(DrawOp::PaintRoundRect {
             x, y, w, h, rx, ry, color, canvas_color,
         }) else { return; };
+        self.record_depth += 1;
 
-        if w <= 0.0 || h <= 0.0 { return; }
+        if w <= 0.0 || h <= 0.0 { self.record_depth -= 1; return; }
 
         // C++ line 1299: degenerate to PaintRect when radius is non-positive.
         if rx <= 0.0 || ry <= 0.0 {
             self.PaintRect(x, y, w, h, color, canvas_color);
+            self.record_depth -= 1;
             return;
         }
 
@@ -1582,6 +1771,7 @@ impl<'a> emPainter<'a> {
             verts.push((cx1 - dy * rx, cy2 + dx * ry));       // bottom-left
         }
         self.PaintPolygon(&verts, color, canvas_color);
+        self.record_depth -= 1;
     }
 
     /// Draw a source image at the given position (convenience wrapper).
@@ -1600,6 +1790,9 @@ impl<'a> emPainter<'a> {
     /// Draw a source image scaled to fill a destination rectangle with alpha
     /// modulation and canvas color support. Matches C++ `PaintImage`.
     #[allow(clippy::too_many_arguments)]
+    /// DIVERGED: C++ `PaintImage` inlines to `PaintRect(emImageTexture)`.
+    /// Rust records as `PaintImageFull` for DrawList replay but serializes as
+    /// `"PaintRect"` in draw-op dumps to match C++ logging.
     pub fn paint_image_full(
         &mut self,
         x: f64,
@@ -1880,13 +2073,13 @@ impl<'a> emPainter<'a> {
             let tdx_i = tdx_init as i64;
             let tdy_i = tdy_init as i64;
             let stride_x = if tdx_i > 0xFFFF00 {
-                ((tdx_i / 3 + 0xFFFFFF) >> 24) as u32
+                ((tdx_i / self.model.downscale_quality as i64 + 0xFFFFFF) >> 24) as u32
             } else {
                 1
             }
             .max(1);
             let stride_y = if tdy_i > 0xFFFF00 {
-                ((tdy_i / 3 + 0xFFFFFF) >> 24) as u32
+                ((tdy_i / self.model.downscale_quality as i64 + 0xFFFFFF) >> 24) as u32
             } else {
                 1
             }
@@ -2144,8 +2337,9 @@ impl<'a> emPainter<'a> {
                 // Area sampling with pre-reduction (C++ emPainter_ScTl.cpp:312-343)
                 let sw_u = img_w as u32;
                 let sh_u = img_h as u32;
-                let stride_x = if tdx > 0xFFFF00 { ((tdx / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
-                let stride_y = if tdy > 0xFFFF00 { ((tdy / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+                let dsq = self.model.downscale_quality as i64;
+                let stride_x = if tdx > 0xFFFF00 { ((tdx / dsq + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+                let stride_y = if tdy > 0xFFFF00 { ((tdy / dsq + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
                 let red_w = sw_u.div_ceil(stride_x);
                 let red_h = sh_u.div_ceil(stride_y);
                 let off_x = (sw_u as i32 - (red_w as i32 - 1) * stride_x as i32 - 1) / 2;
@@ -2610,7 +2804,7 @@ impl<'a> emPainter<'a> {
         &mut self,
         proof: DirectProof,
         x: f64, y: f64, w: f64, h: f64,
-        ix: i32, mut iy: i32, iy2: i32, iw: i32,
+        ix: i32, iy: i32, iy2: i32, iw: i32,
         ax1: i32, ax2: i32, ay1: i32, ay2: i32,
         image: &emImage,
         src_x: u32, src_y: u32, src_w: u32, src_h: u32,
@@ -2657,8 +2851,8 @@ impl<'a> emPainter<'a> {
             if downscaling {
                 let tdx_i = (((src_w as i64) << 24) as f64 / dw) as i64;
                 let tdy_i = (((src_h as i64) << 24) as f64 / dh) as i64;
-                let stride_x = if tdx_i > 0xFFFF00 { ((tdx_i / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
-                let stride_y = if tdy_i > 0xFFFF00 { ((tdy_i / 3 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+                let stride_x = if tdx_i > 0xFFFF00 { ((tdx_i / self.model.downscale_quality as i64 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+                let stride_y = if tdy_i > 0xFFFF00 { ((tdy_i / self.model.downscale_quality as i64 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
                 let red_w = src_w.div_ceil(stride_x);
                 let red_h = src_h.div_ceil(stride_y);
                 let mut xfm = self.area_sample_transform_24(red_w, red_h, x, y, w, h);
@@ -2845,12 +3039,10 @@ impl<'a> emPainter<'a> {
             color,
             canvas_color,
         }).is_none();
-        if is_recording {
-            if !self.record_subops {
-                return;
-            }
-            self.record_depth += 1;
+        if is_recording && !self.record_subops {
+            return;
         }
+        self.record_depth += 1;
 
         let rcw = char_height / emFontCache::CHAR_BOX_TALLNESS;
         let char_width = rcw * width_scale;
@@ -2867,7 +3059,7 @@ impl<'a> emPainter<'a> {
                 color,
                 canvas_color,
             );
-            if is_recording { self.record_depth -= 1; }
+            self.record_depth -= 1;
             return;
         }
 
@@ -2877,7 +3069,7 @@ impl<'a> emPainter<'a> {
         let clip_y2 = self.GetUserClipY2();
 
         if y >= clip_y2 || y + char_height <= clip_y1 {
-            if is_recording { self.record_depth -= 1; }
+            self.record_depth -= 1;
             return;
         }
 
@@ -2916,7 +3108,7 @@ impl<'a> emPainter<'a> {
             );
         }
 
-        if is_recording { self.record_depth -= 1; }
+        self.record_depth -= 1;
     }
 
     /// Tiny-text fallback: at very small sizes, render non-space runs as
@@ -2972,9 +3164,10 @@ impl<'a> emPainter<'a> {
     /// Paint text fitted into a rectangle, with optional formatting.
     ///
     /// Matches C++ `emPainter::PaintTextBoxed`:
-    ///   - Measures text at `max_char_height`, scales down if it exceeds the box.
-    ///   - `box_h_align` / `box_v_align`: how to position the text block.
-    ///   - `text_alignment`: how to align individual lines horizontally.
+    /// - Measures text at `max_char_height`, scales down if it exceeds the box.
+    /// - `box_h_align` / `box_v_align`: how to position the text block.
+    /// - `text_alignment`: how to align individual lines horizontally.
+    ///
     /// C++ emPainter::PaintTextBoxed (emPainter.cpp:2566-2702).
     #[allow(clippy::too_many_arguments)]
     pub fn PaintTextBoxed(
@@ -2991,14 +3184,12 @@ impl<'a> emPainter<'a> {
             x, y, w, h, text: text.to_string(), max_char_height, color, canvas_color,
             box_h_align, box_v_align, text_alignment, min_width_scale, formatted, rel_line_space,
         }).is_none();
-        if is_recording {
-            if !self.record_subops { return; }
-            self.record_depth += 1;
-        }
+        if is_recording && !self.record_subops { return; }
+        self.record_depth += 1;
 
         let mut ch = max_char_height;
         let (mut tw, mut th) = Self::GetTextSize(text, ch, formatted, rel_line_space);
-        if tw <= 0.0 { if is_recording { self.record_depth -= 1; } return; }
+        if tw <= 0.0 { self.record_depth -= 1; return; }
 
         // C++ lines 2605-2630: scale ch/tw/th to fit in (w,h)
         if th > h { ch *= h / th; tw *= h / th; th = h; }
@@ -3085,7 +3276,7 @@ impl<'a> emPainter<'a> {
         } else {
             self.PaintText(x, y, text, ch, ws, color, canvas_color);
         }
-        if is_recording { self.record_depth -= 1; }
+        self.record_depth -= 1;
     }
 
     /// Convenience: measure text width for a single un-formatted line.
@@ -3133,14 +3324,12 @@ impl<'a> emPainter<'a> {
             color,
             canvas_color,
         }).is_none();
-        if is_recording {
-            if !self.record_subops {
-                return;
-            }
-            self.record_depth += 1;
+        if is_recording && !self.record_subops {
+            return;
         }
+        self.record_depth += 1;
         if points.len() < 3 {
-            if is_recording { self.record_depth -= 1; }
+            self.record_depth -= 1;
             return;
         }
         // C++ convention: n -= n%3; truncate to multiple of 3.
@@ -3159,7 +3348,7 @@ impl<'a> emPainter<'a> {
         if verts.len() >= 3 {
             self.PaintPolygon(&verts, color, canvas_color);
         }
-        if is_recording { self.record_depth -= 1; }
+        self.record_depth -= 1;
     }
 
     /// emStroke a closed Bezier path outline (tessellated to polyline, then stroked).
@@ -3175,7 +3364,9 @@ impl<'a> emPainter<'a> {
             stroke: stroke.clone(),
             canvas_color,
         }) else { return; };
+        self.record_depth += 1;
         if points.len() < 3 {
+            self.record_depth -= 1;
             return;
         }
         let n = points.len() - points.len() % 3;
@@ -3192,6 +3383,7 @@ impl<'a> emPainter<'a> {
         if verts.len() >= 2 {
             self.PaintPolylineWithoutArrows(&verts, stroke, true, canvas_color);
         }
+        self.record_depth -= 1;
     }
 
     /// emStroke a cubic Bezier curve (tessellated to polyline).
@@ -3208,14 +3400,15 @@ impl<'a> emPainter<'a> {
             stroke: stroke.clone(),
             canvas_color,
         }) else { return; };
+        self.record_depth += 1;
         let n = points.len();
         if n < 4 {
-            return;
+            self.record_depth -= 1; return;
         }
         let closed = n.is_multiple_of(3);
         let seg_count = if closed { n / 3 } else { (n - 1) / 3 };
         if seg_count == 0 {
-            return;
+            self.record_depth -= 1; return;
         }
         let s = self.state.scale_x + self.state.scale_y;
         let mut verts = Vec::new();
@@ -3235,7 +3428,7 @@ impl<'a> emPainter<'a> {
             verts.push(points[n - 1]);
         }
         if verts.len() < 2 {
-            return;
+            self.record_depth -= 1; return;
         }
 
         // C++ PaintBezierLine (emPainter.cpp:1651-1684): compute arrow direction
@@ -3281,6 +3474,7 @@ impl<'a> emPainter<'a> {
         };
 
         self.PaintPolylineWithArrows(&verts, stroke, closed, canvas_color, arrow_dirs);
+        self.record_depth -= 1;
     }
 
     // --- 9-slice border images ---
@@ -3457,10 +3651,8 @@ impl<'a> emPainter<'a> {
             src_l, src_t, src_r, src_b,
             alpha, canvas_color, which_sub_rects,
         }).is_none();
-        if is_recording {
-            if !self.record_subops { return; }
-            self.record_depth += 1;
-        }
+        if is_recording && !self.record_subops { return; }
+        self.record_depth += 1;
 
         // C++ UserSpaceLeaveGuard — no-op in single-threaded Rust.
 
@@ -3553,7 +3745,7 @@ impl<'a> emPainter<'a> {
             );
         }
 
-        if is_recording { self.record_depth -= 1; }
+        self.record_depth -= 1;
     }
 
     /// 9-slice border image with two-color tinting.
@@ -3592,10 +3784,8 @@ impl<'a> emPainter<'a> {
             which_sub_rects: which_sub_rects as u16,
             alpha: 255,
         }).is_none();
-        if is_recording {
-            if !self.record_subops { return; }
-            self.record_depth += 1;
-        }
+        if is_recording && !self.record_subops { return; }
+        self.record_depth += 1;
 
         // C++ UserSpaceLeaveGuard — no-op in single-threaded Rust.
 
@@ -3688,7 +3878,7 @@ impl<'a> emPainter<'a> {
             );
         }
 
-        if is_recording { self.record_depth -= 1; }
+        self.record_depth -= 1;
     }
 
     // --- Ellipse/sector outline utilities ---
@@ -3716,6 +3906,7 @@ impl<'a> emPainter<'a> {
             stroke: stroke.clone(),
             canvas_color,
         }) else { return; };
+        self.record_depth += 1;
         let cx = x + w * 0.5;
         let cy = y + h * 0.5;
         let rx = w * 0.5;
@@ -3724,15 +3915,15 @@ impl<'a> emPainter<'a> {
         let start_angle = start_angle * std::f64::consts::PI / 180.0;
         let range_angle = range_angle * std::f64::consts::PI / 180.0;
         if rx <= 0.0 || ry <= 0.0 || stroke.width <= 0.0 {
-            return;
+            self.record_depth -= 1; return;
         }
         if range_angle == 0.0 {
-            return;
+            self.record_depth -= 1; return;
         }
         let abs_range = range_angle.abs();
         if abs_range >= 2.0 * std::f64::consts::PI {
             self.PaintEllipseOutline(x, y, w, h, stroke, canvas_color);
-            return;
+            self.record_depth -= 1; return;
         }
         // C++ includes half-thickness in quality (emPainter.cpp:1759)
         let t2 = stroke.width * 0.5;
@@ -3785,6 +3976,7 @@ impl<'a> emPainter<'a> {
         } else {
             self.PaintPolylineWithoutArrows(&verts, stroke, false, canvas_color);
         }
+        self.record_depth -= 1;
     }
 
     /// Outline an ellipse sector. Angles in **degrees** (start + sweep).
@@ -3811,6 +4003,7 @@ impl<'a> emPainter<'a> {
             stroke: stroke.clone(),
             canvas_color,
         }) else { return; };
+        self.record_depth += 1;
 
         let cx = x + w * 0.5;
         let cy = y + h * 0.5;
@@ -3822,15 +4015,15 @@ impl<'a> emPainter<'a> {
         let mut start_rad = start_angle * std::f64::consts::PI / 180.0;
         let mut range_rad = sweep_angle * std::f64::consts::PI / 180.0;
         if range_rad <= 0.0 {
-            if range_rad == 0.0 { return; }
+            if range_rad == 0.0 { self.record_depth -= 1; return; }
             start_rad += range_rad;
             range_rad = -range_rad;
         }
         if range_rad >= 2.0 * std::f64::consts::PI {
             self.PaintEllipseOutline(x, y, w, h, stroke, canvas_color);
-            return;
+            self.record_depth -= 1; return;
         }
-        if thickness <= 0.0 { return; }
+        if thickness <= 0.0 { self.record_depth -= 1; return; }
 
         // C++ uses (x,y,w,h); Rust uses (cx,cy,rx,ry). Derive w,h,x,y for clip checks.
         let w = (2.0 * rx).max(0.0);
@@ -3841,10 +4034,10 @@ impl<'a> emPainter<'a> {
         // C++ emPainter.cpp:2045-2049 — clip-rect early-out
         let no_end = emStrokeEnd::butt();
         let r = emPainter::CalculateLinePointMinMaxRadius(thickness, stroke, &no_end, &no_end);
-        if (x - r) * self.state.scale_x + self.state.offset_x >= self.state.clip.x2 { return; }
-        if (x + w + r) * self.state.scale_x + self.state.offset_x <= self.state.clip.x1 { return; }
-        if (y - r) * self.state.scale_y + self.state.offset_y >= self.state.clip.y2 { return; }
-        if (y + h + r) * self.state.scale_y + self.state.offset_y <= self.state.clip.y1 { return; }
+        if (x - r) * self.state.scale_x + self.state.offset_x >= self.state.clip.x2 { self.record_depth -= 1; return; }
+        if (x + w + r) * self.state.scale_x + self.state.offset_x <= self.state.clip.x1 { self.record_depth -= 1; return; }
+        if (y - r) * self.state.scale_y + self.state.offset_y >= self.state.clip.y2 { self.record_depth -= 1; return; }
+        if (y + h + r) * self.state.scale_y + self.state.offset_y <= self.state.clip.y1 { self.record_depth -= 1; return; }
 
         // C++ emPainter.cpp:2053-2063
         let rx = w * 0.5;
@@ -3874,6 +4067,7 @@ impl<'a> emPainter<'a> {
 
         // C++ emPainter.cpp:2073-2075
         self.PaintPolylineWithoutArrows(&verts, stroke, false, canvas_color);
+        self.record_depth -= 1;
     }
 
     /// Draw a rectangle outline. emStroke is centered on the shape boundary.
@@ -3898,11 +4092,12 @@ impl<'a> emPainter<'a> {
             stroke: stroke.clone(),
             canvas_color,
         }) else { return; };
+        self.record_depth += 1;
         let sw = stroke.width;
         let w = w.max(0.0);
         let h = h.max(0.0);
         if sw <= 0.0 {
-            return;
+            self.record_depth -= 1; return;
         }
         let t2 = sw * 0.5;
         let rounded = stroke.join == super::emStroke::LineJoin::Round
@@ -3911,11 +4106,11 @@ impl<'a> emPainter<'a> {
         if rounded || stroke.is_dashed() {
             if (w <= sw || h <= sw) && !stroke.is_dashed() {
                 self.PaintRoundRect(x - t2, y - t2, w + sw, h + sw, t2, t2, stroke.color, canvas_color);
-                return;
+                self.record_depth -= 1; return;
             }
             let verts = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
             self.PaintPolylineWithoutArrows(&verts, stroke, true, canvas_color);
-            return;
+            self.record_depth -= 1; return;
         }
 
         // Outer rect expanded by t2 on each side.
@@ -3936,7 +4131,7 @@ impl<'a> emPainter<'a> {
                 stroke.color,
                 canvas_color,
             );
-            return;
+            self.record_depth -= 1; return;
         }
 
         // 10-vertex polygon: outer CW, bridge, inner CCW, bridge back.
@@ -3958,6 +4153,7 @@ impl<'a> emPainter<'a> {
         self.state.canvas_color = canvas_color;
         self.fill_polygon_aa(proof, &poly, stroke.color, WindingRule::NonZero);
         self.state.canvas_color = saved_canvas;
+        self.record_depth -= 1;
     }
 
     /// Draw a rounded rectangle outline. emStroke is centered on the shape boundary.
@@ -3986,8 +4182,9 @@ impl<'a> emPainter<'a> {
             stroke: stroke.clone(),
             canvas_color,
         }) else { return; };
+        self.record_depth += 1;
 
-        if thickness <= 0.0 { return; }
+        if thickness <= 0.0 { self.record_depth -= 1; return; }
         let w = w.max(0.0);
         let h = h.max(0.0);
         let t2 = thickness * 0.5;
@@ -3998,7 +4195,7 @@ impl<'a> emPainter<'a> {
         if ry > h * 0.5 { ry = h * 0.5; }
         if rx <= 0.0 || ry <= 0.0 {
             self.PaintRectOutline(x, y, w, h, stroke, canvas_color);
-            return;
+            self.record_depth -= 1; return;
         }
 
         rx += t2;
@@ -4033,7 +4230,7 @@ impl<'a> emPainter<'a> {
                 canvas_color
             };
             self.PaintPolylineWithoutArrows(&verts, stroke, true, canvas_color);
-            return;
+            self.record_depth -= 1; return;
         }
 
         // Solid stroke: build outer vertices.
@@ -4064,7 +4261,7 @@ impl<'a> emPainter<'a> {
         if x1 - rx >= x2 + rx || y1 - ry >= y2 + ry {
             // Degenerate inner — fill as solid polygon.
             self.PaintPolygon(&verts, stroke.color, canvas_color);
-            return;
+            self.record_depth -= 1; return;
         }
 
         // Bridge from outer end back to outer start.
@@ -4094,6 +4291,7 @@ impl<'a> emPainter<'a> {
         verts[4 * n + 5] = verts[4 * n + 4 * m + 9];
 
         self.PaintPolygon(&verts, stroke.color, canvas_color);
+        self.record_depth -= 1;
     }
 
     /// Draw an ellipse outline. emStroke is centered on the shape boundary.
@@ -4115,11 +4313,12 @@ impl<'a> emPainter<'a> {
             stroke: stroke.clone(),
             canvas_color,
         }) else { return; };
+        self.record_depth += 1;
 
         let cx = x + w * 0.5;
         let cy = y + h * 0.5;
         let thickness = stroke.width;
-        if thickness <= 0.0 { return; }
+        if thickness <= 0.0 { self.record_depth -= 1; return; }
 
         let w = w.max(0.0);
         let h = h.max(0.0);
@@ -4129,13 +4328,13 @@ impl<'a> emPainter<'a> {
         // C++ clip checks use x1=x-t2, x2=x+w+t2, y1=y-t2, y2=y+h+t2
         // where x=cx-w/2, y=cy-h/2.
         let x1 = cx - w * 0.5 - t2;
-        if x1 * self.state.scale_x + self.state.offset_x >= self.state.clip.x2 { return; }
+        if x1 * self.state.scale_x + self.state.offset_x >= self.state.clip.x2 { self.record_depth -= 1; return; }
         let x2 = cx + w * 0.5 + t2;
-        if x2 * self.state.scale_x + self.state.offset_x <= self.state.clip.x1 { return; }
+        if x2 * self.state.scale_x + self.state.offset_x <= self.state.clip.x1 { self.record_depth -= 1; return; }
         let y1 = cy - h * 0.5 - t2;
-        if y1 * self.state.scale_y + self.state.offset_y >= self.state.clip.y2 { return; }
+        if y1 * self.state.scale_y + self.state.offset_y >= self.state.clip.y2 { self.record_depth -= 1; return; }
         let y2 = cy + h * 0.5 + t2;
-        if y2 * self.state.scale_y + self.state.offset_y <= self.state.clip.y1 { return; }
+        if y2 * self.state.scale_y + self.state.offset_y <= self.state.clip.y1 { self.record_depth -= 1; return; }
 
         // C++: cx=(x1+x2)*0.5; cy=(y1+y2)*0.5; rx=x2-cx; ry=y2-cy;
         // These are outer radii: rx_outer = w/2 + t2, ry_outer = h/2 + t2.
@@ -4167,7 +4366,7 @@ impl<'a> emPainter<'a> {
             };
             // C++: PaintPolylineWithoutArrows(xy,n,thickness,stroke,NoEnd,NoEnd,canvasColor);
             self.PaintPolylineWithoutArrows(&verts, stroke, false, canvas_color);
-            return;
+            self.record_depth -= 1; return;
         }
 
         // Solid stroke: outer ring vertices.
@@ -4185,7 +4384,7 @@ impl<'a> emPainter<'a> {
         if orx <= 0.0 || ory <= 0.0 {
             // C++: PaintPolygon(xy,n,stroke.Color,canvasColor);
             self.PaintPolygon(&verts, stroke.color, canvas_color);
-            return;
+            self.record_depth -= 1; return;
         }
 
         // C++: xy[n*2]=xy[0]; xy[n*2+1]=xy[1]; (close outer ring)
@@ -4212,6 +4411,7 @@ impl<'a> emPainter<'a> {
 
         // C++: PaintPolygon(xy,n+m+2,stroke.Color,canvasColor);
         self.PaintPolygon(&verts, stroke.color, canvas_color);
+        self.record_depth -= 1;
     }
 
     /// Correct blending artifacts along a shared edge between two adjacent polygons.
@@ -4279,8 +4479,10 @@ impl<'a> emPainter<'a> {
         loop {
             let mut px1 = sx as f64; let mut py1 = sy as f64;
             let mut px2 = px1 + 1.0; let mut py2 = py1 + 1.0;
-            if px1 < cx1 { px1 = cx1; } if py1 < cy1 { py1 = cy1; }
-            if px2 > cx2 { px2 = cx2; } if py2 > cy2 { py2 = cy2; }
+            if px1 < cx1 { px1 = cx1; }
+            if py1 < cy1 { py1 = cy1; }
+            if px2 > cx2 { px2 = cx2; }
+            if py2 > cy2 { py2 = cy2; }
 
             let mut qx1 = x1; let mut qy1 = y1; let mut qx2 = x2; let mut qy2 = y2;
             if qy1 < py1 { qx1 += (py1 - qy1) * gx; qy1 = py1; }
@@ -4351,6 +4553,7 @@ impl<'a> emPainter<'a> {
     /// Draw a dashed polyline by splitting the path into dash/gap segments
     /// and painting each dash as a solid sub-polyline.
     /// C++ emPainter.cpp:3451-3708 — PaintDashedPolyline.
+    /// Internal dispatch — C++ does not log or depth-track this method.
     pub fn PaintDashedPolyline(
         &mut self,
         vertices: &[(f64, f64)],
@@ -4358,12 +4561,6 @@ impl<'a> emPainter<'a> {
         closed: bool,
         canvas_color: emColor,
     ) {
-        let Some(_proof) = self.try_record(DrawOp::PaintDashedPolyline {
-            vertices: vertices.to_vec(),
-            stroke: stroke.clone(),
-            closed,
-            canvas_color,
-        }) else { return; };
         use crate::emStroke::DashType;
 
         let n = vertices.len();
@@ -4741,6 +4938,7 @@ impl<'a> emPainter<'a> {
         }) else {
             return;
         };
+        self.record_depth += 1;
 
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
@@ -5209,6 +5407,7 @@ impl<'a> emPainter<'a> {
 
         self.PaintPolygon(&poly, stroke.color, canvas_color);
         self.state.canvas_color = saved_canvas;
+        self.record_depth -= 1;
     }
 
     /// Draw a stroked line with optional end decorations.
@@ -5229,6 +5428,7 @@ impl<'a> emPainter<'a> {
             stroke: stroke.clone(),
             canvas_color,
         }) else { return; };
+        self.record_depth += 1;
         // C++ PaintLine always uses PaintSolidPolyline which respects thickness.
         // No shortcut to simple PaintLine (which draws 1px regardless of thickness).
 
@@ -5251,6 +5451,7 @@ impl<'a> emPainter<'a> {
             None
         };
         self.PaintPolylineWithArrows(&verts, stroke, false, canvas_color, arrow_dirs);
+        self.record_depth -= 1;
     }
 
     /// Calculate the maximum radius that a line point (including any arrow
@@ -5991,7 +6192,7 @@ impl<'a> emPainter<'a> {
         let alpha = color.GetAlpha();
         if alpha == 0 { return; }
 
-        if alpha >= 255 && self.state.alpha == 255 {
+        if alpha == 255 && self.state.alpha == 255 {
             // C++ alpha>=255: direct write
             let out = self.GetImage(proof).SetPixel(xu, yu);
             out[0] = color.GetRed();

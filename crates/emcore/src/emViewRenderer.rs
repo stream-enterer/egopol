@@ -5,16 +5,18 @@ use crate::emView::emView;
 
 use crate::emPainterDrawList::DrawList;
 use crate::emRenderThreadPool::emRenderThreadPool;
-use super::emPainter::emPainter;
+use super::emPainter::{emPainter, PainterModel};
 
 pub struct SoftwareCompositor {
     framebuffer: emImage,
+    model: PainterModel,
 }
 
 impl SoftwareCompositor {
     pub fn new(width: u32, height: u32) -> Self {
         Self {
             framebuffer: emImage::new(width, height, 4),
+            model: PainterModel::load_from_config(),
         }
     }
 
@@ -23,8 +25,19 @@ impl SoftwareCompositor {
     }
 
     pub fn render(&mut self, tree: &mut PanelTree, view: &emView) {
+        self.render_with_setup(tree, view, |_| {});
+    }
+
+    /// Render with a setup closure that receives the painter before painting.
+    /// Use this to install op loggers or other diagnostic hooks.
+    pub fn render_with_setup<F>(&mut self, tree: &mut PanelTree, view: &emView, setup: F)
+    where
+        F: FnOnce(&mut emPainter),
+    {
         self.framebuffer.fill(emColor::BLACK);
         let mut painter = emPainter::new(&mut self.framebuffer);
+        painter.set_model(self.model.clone());
+        setup(&mut painter);
         view.Paint(tree, &mut painter, emColor::TRANSPARENT);
     }
 
@@ -57,6 +70,7 @@ impl SoftwareCompositor {
         let tile_count = (cols * rows) as usize;
         let ts = tile_size as f64;
 
+        let model = self.model.clone();
         let results: Vec<std::sync::Mutex<Option<emImage>>> = (0..tile_count)
             .map(|_| std::sync::Mutex::new(None::<emImage>))
             .collect();
@@ -73,6 +87,7 @@ impl SoftwareCompositor {
                 buf.fill(emColor::BLACK);
                 {
                     let mut p = emPainter::new(&mut buf);
+                    p.set_model(model.clone());
                     draw_list_ref.replay(&mut p, (col as f64 * ts, row as f64 * ts));
                 }
                 *results_ref[idx].lock().expect("poisoned") = Some(buf);

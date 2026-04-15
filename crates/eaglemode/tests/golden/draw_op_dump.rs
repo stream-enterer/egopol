@@ -1,11 +1,43 @@
 use std::io::Write;
 use std::path::PathBuf;
+use emcore::emColor::emColor;
 use emcore::emImage::emImage;
+use emcore::emPainter::emPainter;
 use emcore::emPainterDrawList::{DrawOp, RecordedOp, RecordedState};
+use emcore::emTexture::emTexture;
 
 /// Returns true if DUMP_DRAW_OPS=1 is set in the environment.
 pub fn dump_draw_ops_enabled() -> bool {
     std::env::var("DUMP_DRAW_OPS").as_deref() == Ok("1")
+}
+
+/// Install an op-logging callback on a **direct-mode** painter.
+///
+/// This logs draw ops from inside the actual rendering path (not a separate
+/// recording pass), eliminating double-pass recording noise. The callback
+/// serializes each op to JSONL and writes it to the output file. State ops
+/// (PushState, PopState, SetOffset, etc.) are filtered out to match the
+/// existing JSONL format.
+///
+/// The file is flushed when the painter is dropped or `clear_op_log()` is called.
+pub fn install_direct_op_logger(painter: &mut emPainter, name: &str) {
+    let path = output_path(name);
+    let _ = std::fs::create_dir_all(path.parent().expect("path has parent"));
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&path)
+        .expect("open rust_ops.jsonl for direct logging");
+    let mut seq = 0usize;
+    painter.set_op_log(move |op, depth, state| {
+        if is_state_op(op) {
+            return;
+        }
+        let line = serialize_op(seq, depth, op, &state);
+        writeln!(file, "{line}").expect("write op line");
+        seq += 1;
+    });
 }
 
 fn output_path(name: &str) -> PathBuf {
@@ -39,7 +71,24 @@ fn vertices_json(verts: &[(f64, f64)]) -> String {
     format!("[{}]", parts.join(","))
 }
 
+/// Extract the base color from a texture, matching C++ `texture.GetColor()`.
+/// C++ GetColor() returns Color1, which is set for color/gradient/image-colored textures
+/// but uninitialized (garbage) for plain image textures.
+fn texture_color(tex: &emTexture) -> emColor {
+    match tex {
+        emTexture::SolidColor(c) => *c,
+        emTexture::LinearGradient { color_a, .. } => *color_a,
+        emTexture::RadialGradient { color_inner, .. } => *color_inner,
+        emTexture::ImageColored { color, .. } => *color,
+        emTexture::ImageColoredGradient { color1, .. } => *color1,
+        // IMAGE type: Color1 is uninitialized in C++
+        emTexture::emImage { .. } => emColor::TRANSPARENT,
+    }
+}
+
 /// Serializes `ops` to JSONL at `target/golden-divergence/{name}.rust_ops.jsonl`.
+/// Kept for backward compatibility with recording-painter workflows.
+#[allow(dead_code)]
 pub fn dump_draw_ops(name: &str, ops: &[RecordedOp]) {
     let path = output_path(name);
     let _ = std::fs::create_dir_all(path.parent().expect("path has parent"));
@@ -129,27 +178,23 @@ fn serialize_op(seq: usize, depth: u32, op: &DrawOp, state: &RecordedState) -> S
             format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintSolidPolyline","vertices":{verts},"stroke_color":"{stroke_color}","stroke_width":{stroke_width},"closed":{closed},"canvas_color":"{canvas_color}",{sf}}}"#)
         }
 
-        DrawOp::PaintImageFull { x, y, w, h, canvas_color, .. } => {
-            let color = "00000000";
+        DrawOp::PaintImageFull { x, y, w, h, alpha: _, canvas_color, .. } => {
+            // C++ PaintImage dispatches to PaintRect(emImageTexture) internally.
+            // C++ logs texture.GetColor() which returns uninitialized Color1 (garbage).
+            // We output color=00000000 as a placeholder — the field is meaningless for IMAGE textures.
+            let canvas_color = color_hex(*canvas_color);
+            let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h)]);
+            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRect","x":{x},"y":{y},"w":{w},"h":{h},"color":"00000000","canvas_color":"{canvas_color}",{hf},{sf}}}"#)
+        }
+        DrawOp::PaintImageColored {
+            x, y, w, h, color1, canvas_color, ..
+        } => {
+            // C++ PaintImageColored dispatches to PaintRect(emImageColoredTexture).
+            // C++ logs texture.GetColor() which returns Color1. Match C++ PaintRect format.
+            let color = color_hex(*color1);
             let canvas_color = color_hex(*canvas_color);
             let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h)]);
             format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRect","x":{x},"y":{y},"w":{w},"h":{h},"color":"{color}","canvas_color":"{canvas_color}",{hf},{sf}}}"#)
-        }
-        DrawOp::PaintImageColored {
-            x, y, w, h, image_ptr, src_x, src_y, src_w, src_h,
-            color1, color2, canvas_color, extension,
-        } => {
-            // SAFETY: image_ptr is valid for the lifetime of the DrawOp list.
-            let (img_w, img_h, img_ch) = unsafe {
-                let img: &emImage = &**image_ptr;
-                (img.GetWidth(), img.GetHeight(), img.GetChannelCount())
-            };
-            let color1 = color_hex(*color1);
-            let color2 = color_hex(*color2);
-            let canvas_color = color_hex(*canvas_color);
-            let extension = format!("{extension:?}");
-            // C++ PaintImageColored dispatches to PaintRect with texture — logged as PaintRect
-            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRect","x":{x},"y":{y},"w":{w},"h":{h},"img_w":{img_w},"img_h":{img_h},"img_ch":{img_ch},"src_x":{src_x},"src_y":{src_y},"src_w":{src_w},"src_h":{src_h},"color1":"{color1}","color2":"{color2}","canvas_color":"{canvas_color}","extension":"{extension}",{sf}}}"#)
         }
         DrawOp::PaintBorderImage {
             x, y, w, h, l, t, r, b, image_ptr, src_l, src_t, src_r, src_b,
@@ -274,13 +319,15 @@ fn serialize_op(seq: usize, depth: u32, op: &DrawOp, state: &RecordedState) -> S
             let color = color_hex(*stroke_color);
             let canvas_color = color_hex(*canvas_color);
             let hf = hex_fields(&[("thickness", *thickness)]);
-            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintPolyline","vertices":{verts},"n":{},"thickness":{thickness},"color":"{color}","canvas_color":"{canvas_color}",{hf},{sf}}}"#, vertices.len())
+            // C++ PaintPolyline doesn't log vertices — just n, thickness, color, canvas_color.
+            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintPolyline","n":{},"thickness":{thickness},"color":"{color}","canvas_color":"{canvas_color}",{hf},{sf}}}"#, vertices.len())
         }
 
-        DrawOp::PaintPolygonTextured { vertices, texture: _, canvas_color } => {
+        DrawOp::PaintPolygonTextured { vertices, texture, canvas_color } => {
             let verts = vertices_json(vertices);
+            let color = color_hex(texture_color(texture));
             let canvas_color = color_hex(*canvas_color);
-            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintPolygon","vertices":{verts},"n":{},"canvas_color":"{canvas_color}",{sf}}}"#, vertices.len())
+            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintPolygon","vertices":{verts},"n":{},"color":"{color}","canvas_color":"{canvas_color}",{sf}}}"#, vertices.len())
         }
 
         DrawOp::PaintBezier { points, color, canvas_color } => {
@@ -305,28 +352,22 @@ fn serialize_op(seq: usize, depth: u32, op: &DrawOp, state: &RecordedState) -> S
         }
 
         DrawOp::PaintImageTextured {
-            rect_x, rect_y, rect_w, rect_h, image_ptr, src_x, src_y, src_w, src_h, alpha, ..
+            rect_x, rect_y, rect_w, rect_h, ..
         } => {
-            let (img_w, img_h, img_ch) = unsafe {
-                let img: &emImage = &**image_ptr;
-                (img.GetWidth(), img.GetHeight(), img.GetChannelCount())
-            };
-            let canvas_color = "00000000";
+            // C++ PaintImage(srcRect) dispatches to PaintRect(emImageTexture).
+            // texture.GetColor() returns uninitialized Color1 (garbage). Match C++ PaintRect format.
             let hf = hex_fields(&[("x", *rect_x), ("y", *rect_y), ("w", *rect_w), ("h", *rect_h)]);
-            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRect","x":{rect_x},"y":{rect_y},"w":{rect_w},"h":{rect_h},"img_w":{img_w},"img_h":{img_h},"img_ch":{img_ch},"src_x":{src_x},"src_y":{src_y},"src_w":{src_w},"src_h":{src_h},"alpha":{alpha},"canvas_color":"{canvas_color}",{hf},{sf}}}"#)
+            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRect","x":{rect_x},"y":{rect_y},"w":{rect_w},"h":{rect_h},"color":"00000000","canvas_color":"00000000",{hf},{sf}}}"#)
         }
         DrawOp::PaintImageColoredTextured {
-            rect_x, rect_y, rect_w, rect_h, image_ptr, color1, color2, canvas_color, ..
+            rect_x, rect_y, rect_w, rect_h, color1, canvas_color, ..
         } => {
-            let (img_w, img_h, img_ch) = unsafe {
-                let img: &emImage = &**image_ptr;
-                (img.GetWidth(), img.GetHeight(), img.GetChannelCount())
-            };
-            let color1 = color_hex(*color1);
-            let color2 = color_hex(*color2);
+            // C++ PaintImageColored dispatches to PaintRect(emImageColoredTexture).
+            // texture.GetColor() returns Color1. Match C++ PaintRect format.
+            let color = color_hex(*color1);
             let canvas_color = color_hex(*canvas_color);
             let hf = hex_fields(&[("x", *rect_x), ("y", *rect_y), ("w", *rect_w), ("h", *rect_h)]);
-            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRect","x":{rect_x},"y":{rect_y},"w":{rect_w},"h":{rect_h},"img_w":{img_w},"img_h":{img_h},"img_ch":{img_ch},"color1":"{color1}","color2":"{color2}","canvas_color":"{canvas_color}",{hf},{sf}}}"#)
+            format!(r#"{{"seq":{seq},"depth":{depth},"op":"PaintRect","x":{rect_x},"y":{rect_y},"w":{rect_w},"h":{rect_h},"color":"{color}","canvas_color":"{canvas_color}",{hf},{sf}}}"#)
         }
 
         // Catch-all for variants not individually serialized above.

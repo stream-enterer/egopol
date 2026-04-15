@@ -934,7 +934,7 @@ mod tests {
         // Scanline blend
         let mut dest_scan = make_dest(colors.len() as u32, 1, bg);
         let mode = BlendMode::SourceOver { painter_alpha };
-        blend_scanline(&mut dest_scan, &buf, colors.len(), None, &mode);
+        blend_scanline(&mut dest_scan, &buf, colors.len(), None, &mode, true);
 
         // Reference per-pixel blend
         let mut dest_ref = make_dest(colors.len() as u32, 1, bg);
@@ -968,7 +968,7 @@ mod tests {
             canvas,
             painter_alpha,
         };
-        blend_scanline(&mut dest_scan, &buf, colors.len(), None, &mode);
+        blend_scanline(&mut dest_scan, &buf, colors.len(), None, &mode, true);
 
         let mut dest_ref = make_dest(colors.len() as u32, 1, bg);
         for (i, c) in colors.iter().enumerate() {
@@ -1003,6 +1003,7 @@ mod tests {
             colors.len(),
             Some(&coverages),
             &mode,
+            true,
         );
 
         // Reference: apply coverage then blend
@@ -1043,7 +1044,7 @@ mod tests {
         // Full coverage, painter_alpha=255
         let mut dest_scan = make_dest(pm_pixels.len() as u32, 1, bg);
         let mode = BlendMode::SourceOver { painter_alpha: 255 };
-        blend_scanline_premul(&mut dest_scan, &buf, pm_pixels.len(), None, &mode);
+        blend_scanline_premul(&mut dest_scan, &buf, pm_pixels.len(), None, &mode, true);
 
         let mut dest_ref = make_dest(pm_pixels.len() as u32, 1, bg);
         for (i, pm) in pm_pixels.iter().enumerate() {
@@ -1074,7 +1075,7 @@ mod tests {
             canvas,
             painter_alpha: 255,
         };
-        blend_scanline_premul(&mut dest_scan, &buf, pm_pixels.len(), None, &mode);
+        blend_scanline_premul(&mut dest_scan, &buf, pm_pixels.len(), None, &mode, true);
 
         let mut dest_ref = make_dest(pm_pixels.len() as u32, 1, bg);
         for (i, pm) in pm_pixels.iter().enumerate() {
@@ -1109,6 +1110,7 @@ mod tests {
             pm_pixels.len(),
             Some(&coverages),
             &mode,
+            true,
         );
 
         // Reference: apply coverage + painter_alpha to premul, then blend
@@ -1175,7 +1177,7 @@ mod tests {
 
         let mut dest = make_dest(1, 1, dst);
         let mode = BlendMode::SourceOver { painter_alpha: 255 };
-        blend_scanline(&mut dest, &buf, 1, None, &mode);
+        blend_scanline(&mut dest, &buf, 1, None, &mode, true);
 
         // Compute expected alpha:
         // Background: Blinn div255; Source: (c*a+127)/255 (C++ hash table)
@@ -1209,7 +1211,7 @@ mod tests {
 
         let mut dest = make_dest(1, 1, dst);
         let mode = BlendMode::SourceOver { painter_alpha: 255 };
-        blend_scanline_premul(&mut dest, &buf, 1, None, &mode);
+        blend_scanline_premul(&mut dest, &buf, 1, None, &mode, true);
 
         let pm_a = 128u32;
         let dst_a = 200u32;
@@ -1240,7 +1242,7 @@ mod tests {
             canvas,
             painter_alpha: 200,
         };
-        blend_scanline(&mut dest, &buf, 1, None, &mode);
+        blend_scanline(&mut dest, &buf, 1, None, &mode, true);
 
         assert_eq!(
             dest[3], original_alpha,
@@ -1270,7 +1272,7 @@ mod tests {
 
         let coverages = [0i32, 0];
         let mode = BlendMode::SourceOver { painter_alpha: 255 };
-        blend_scanline(&mut dest, &buf, 2, Some(&coverages), &mode);
+        blend_scanline(&mut dest, &buf, 2, Some(&coverages), &mode, true);
 
         assert_eq!(dest, dest_copy, "zero coverage should not modify dest");
     }

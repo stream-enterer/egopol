@@ -20,10 +20,9 @@ use emcore::emPanelTree::{PanelId, PanelTree, ViewConditionType};
 use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 use emcore::emPainter::emPainter;
 use emcore::emView::{emView, ViewFlags};
-use emcore::emPainterDrawList::RecordedOp;
 use emcore::emViewRenderer::SoftwareCompositor;
 
-use super::draw_op_dump::{dump_draw_ops, dump_draw_ops_enabled};
+use super::draw_op_dump::{dump_draw_ops_enabled, install_direct_op_logger};
 
 use emcore::emButton::emButton;
 
@@ -1037,18 +1036,13 @@ fn composition_tktest_1x() {
         dump_panel_tree("tktest_1x", &tree, root);
     }
 
-    if dump_draw_ops_enabled() {
-        let mut ops: Vec<RecordedOp> = Vec::new();
-        {
-            let mut rec = emPainter::new_recording(w, h, &mut ops);
-            rec.set_record_subops(true);
-            view.Paint(&mut tree, &mut rec, emColor::TRANSPARENT);
-        }
-        dump_draw_ops("tktest_1x", &ops);
-    }
-
     let mut compositor = SoftwareCompositor::new(w, h);
-    compositor.render(&mut tree, &view);
+    let dump = dump_draw_ops_enabled();
+    compositor.render_with_setup(&mut tree, &view, |painter| {
+        if dump {
+            install_direct_op_logger(painter, "tktest_1x");
+        }
+    });
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images("tktest_1x", actual, expected_data, w, h, 0, 0.0);
@@ -1091,18 +1085,13 @@ fn composition_tktest_2x() {
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 10)
     settle(&mut tree, &mut view, 10);
 
-    if dump_draw_ops_enabled() {
-        let mut ops: Vec<RecordedOp> = Vec::new();
-        {
-            let mut rec = emPainter::new_recording(w, h, &mut ops);
-            rec.set_record_subops(true);
-            view.Paint(&mut tree, &mut rec, emColor::TRANSPARENT);
-        }
-        dump_draw_ops("tktest_2x", &ops);
-    }
-
     let mut compositor = SoftwareCompositor::new(w, h);
-    compositor.render(&mut tree, &view);
+    let dump = dump_draw_ops_enabled();
+    compositor.render_with_setup(&mut tree, &view, |painter| {
+        if dump {
+            install_direct_op_logger(painter, "tktest_2x");
+        }
+    });
     let actual = compositor.framebuffer().GetMap();
 
     // TkTestPanel at 2x zoom amplifies layout GetPos differences.

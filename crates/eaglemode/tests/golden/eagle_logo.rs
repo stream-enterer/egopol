@@ -3,13 +3,12 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emImage::emImage;
 use emcore::emPainter::emPainter;
-use emcore::emPainterDrawList::RecordedOp;
 use emcore::emPanel::{PanelBehavior, PanelState};
 
 use emMain::emMainContentPanel::emMainContentPanel;
 
 use super::common::*;
-use super::draw_op_dump::{dump_draw_ops, dump_draw_ops_enabled};
+use super::draw_op_dump::{dump_draw_ops_enabled, install_direct_op_logger};
 
 /// Skip test if golden data hasn't been generated yet.
 macro_rules! require_golden {
@@ -44,25 +43,15 @@ fn eagle_logo() {
         // Create painter with uniform scale: map (0,0)-(1.0,0.75) to (0,0)-(800,600).
         // scale_x = 800, scale_y = 800 (uniform, so 0.75 * 800 = 600 pixel rows).
         let mut p = emPainter::new(&mut img);
+        if dump_draw_ops_enabled() {
+            install_direct_op_logger(&mut p, "eagle_logo");
+        }
         p.SetCanvasColor(emColor::TRANSPARENT);
         p.scale(800.0, 800.0);
 
         // Paint with panel dimensions w=1.0, h=0.75.
         let state = PanelState::default_for_test();
         panel.Paint(&mut p, 1.0, 0.75, &state);
-    }
-
-    if dump_draw_ops_enabled() {
-        let mut ops: Vec<RecordedOp> = Vec::new();
-        {
-            let mut rec = emPainter::new_recording(800, 600, &mut ops);
-            rec.set_record_subops(true);
-            rec.SetCanvasColor(emColor::TRANSPARENT);
-            rec.scale(800.0, 800.0);
-            let state = PanelState::default_for_test();
-            panel.Paint(&mut rec, 1.0, 0.75, &state);
-        }
-        dump_draw_ops("eagle_logo", &ops);
     }
 
     compare_images("eagle_logo", img.GetMap(), &expected, ew, eh, 0, 0.0)

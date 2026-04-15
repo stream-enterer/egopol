@@ -1043,7 +1043,7 @@ impl emStocksItemChart {
         // Price dot and label
         let xt_base = self.x_offset + self.x_factor * (self.total_days as f64 - 0.5);
         let r = text_height * 0.12;
-        painter.PaintEllipse(xt_base, y2, r, r, c2, emColor::TRANSPARENT);
+        painter.PaintEllipse(xt_base - r, y2 - r, r * 2.0, r * 2.0, c2, emColor::TRANSPARENT);
 
         let (wt, _) =
             emPainter::GetTextSize(&self.price_on_selected_date_text, text_height, false, 0.0);
@@ -1083,7 +1083,7 @@ impl emStocksItemChart {
         if self.trade_offset_days >= 0 {
             xt_trade = self.x_offset + self.x_factor * (self.trade_offset_days as f64 + 0.5);
             if self.trade_offset_days < self.total_days {
-                painter.PaintEllipse(xt_trade, y1, r, r, c1, emColor::TRANSPARENT);
+                painter.PaintEllipse(xt_trade - r, y1 - r, r * 2.0, r * 2.0, c1, emColor::TRANSPARENT);
             }
         } else if self.trade_offset_days > i32::MIN {
             xt_trade = self.x_offset;
@@ -1266,7 +1266,7 @@ impl emStocksItemChart {
             }
             let px = x_off + x_fac * i as f64;
             let py = self.y_offset + self.y_factor * self.prices[i].value;
-            painter.PaintEllipse(px, py, r, r, c1, emColor::TRANSPARENT);
+            painter.PaintEllipse(px - r, py - r, r * 2.0, r * 2.0, c1, emColor::TRANSPARENT);
         }
 
         if !have_texts {
