@@ -180,8 +180,11 @@ impl PanelBehavior for emStarFieldPanel {
         let src_w = self.star_shape.GetWidth();
         let src_h = self.star_shape.GetHeight();
 
-        // DIVERGED: C++ PaintOverlay — Rust has no PaintOverlay trait method;
-        // stars render in Paint (before children) instead of after.
+        // DIVERGED: OverlayPanel — C++ emStarFieldPanel creates a child OverlayPanel("o")
+        // that covers the whole panel, intercepts all Input (empty handler), and calls
+        // parent->PaintOverlay() to draw stars on top of child quadrants. Rust has no
+        // equivalent architecture; stars are rendered here in Paint() instead, which is
+        // visually equivalent because child panels are opaque and cover their own area.
         for star in &self.stars {
             let mut r = star.Radius;
             let vr = sx * r;
@@ -257,8 +260,9 @@ impl PanelBehavior for emStarFieldPanel {
 
         if children.is_empty() {
             // Create 4 quadrant child panels.
-            // NOTE: Easter egg (TicTacToePanel at depth > 50) is not implemented.
-            // C++ emStarFieldPanel.cpp: if (Depth > 50 && rand%11213 == 0) create TicTacToe.
+            // DIVERGED: TicTacToePanel — C++ emStarFieldPanel creates a TicTacToePanel child
+            // at Layout(0.48, 0.48, 0.04, 0.04) when (Depth > 50 && GetRandom()%11213 == 0).
+            // This easter egg is not ported; Rust has no TicTacToePanel type.
             for i in 0..4 {
                 let child_depth = self.depth + 1;
                 let child_seed = self.child_random_seeds[i];
