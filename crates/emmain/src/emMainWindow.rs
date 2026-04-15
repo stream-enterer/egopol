@@ -407,6 +407,12 @@ impl emEngine for StartupEngine {
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.advance_creation_stage();
                     });
+                // Queue LAYOUT_CHANGED so HandleNotice re-calls LayoutChildren
+                // with the updated creation_stage.
+                ctx.tree.queue_notice(
+                    self.main_panel_id,
+                    emcore::emPanel::NoticeFlags::LAYOUT_CHANGED,
+                );
                 self.state += 1;
                 !ctx.IsTimeSliceAtEnd()
             }
@@ -416,6 +422,10 @@ impl emEngine for StartupEngine {
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.advance_creation_stage();
                     });
+                ctx.tree.queue_notice(
+                    self.main_panel_id,
+                    emcore::emPanel::NoticeFlags::LAYOUT_CHANGED,
+                );
                 self.state += 1;
                 !ctx.IsTimeSliceAtEnd()
             }

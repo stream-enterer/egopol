@@ -410,7 +410,7 @@ impl PanelTree {
     }
 
     /// Queue notice flags on a panel and mark the tree as having pending notices.
-    pub(crate) fn queue_notice(&mut self, id: PanelId, flags: NoticeFlags) {
+    pub fn queue_notice(&mut self, id: PanelId, flags: NoticeFlags) {
         if let Some(panel) = self.panels.get_mut(id) {
             panel.pending_notices.insert(flags);
             self.has_pending_notices = true;
