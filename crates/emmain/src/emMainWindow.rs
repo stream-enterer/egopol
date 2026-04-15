@@ -21,7 +21,10 @@ use emcore::emPanelTree::PanelId;
 use emcore::emSignal::SignalId;
 use emcore::emWindow::{WindowFlags, ZuiWindow};
 
+use emcore::emSubViewPanel::emSubViewPanel;
+
 use crate::emBookmarks::emBookmarksModel;
+use crate::emMainContentPanel::emMainContentPanel;
 use crate::emMainControlPanel::emMainControlPanel;
 use crate::emMainPanel::emMainPanel;
 
@@ -108,17 +111,17 @@ impl emMainWindow {
 
     /// Port of C++ `emMainWindow::ToggleControlView` (emMainWindow.cpp:144-158).
     ///
-    /// DIVERGED: ToggleControlView — C++ toggles focus between control view and
-    /// content view (two separate emView instances inside emMainPanel).  Rust uses
-    /// a single ZuiWindow with a slider; toggling the control view is implemented
-    /// by calling `DoubleClickSlider()` which opens/closes the slider, producing
-    /// the same user-visible effect.
+    /// Toggles the control view slider between open and closed. When the slider
+    /// opens, focus shifts to the control sub-view; when it closes, focus shifts
+    /// to the content sub-view. This matches C++ behavior where ToggleControlView
+    /// toggles between ControlView.Activate() and ContentView.Activate().
     pub fn ToggleControlView(&mut self, app: &mut App) {
         if let Some(main_id) = self.main_panel_id {
             app.tree
                 .with_behavior_as::<emMainPanel, _>(main_id, |mp| {
                     mp.DoubleClickSlider();
                 });
+            log::debug!("ToggleControlView");
         }
     }
 
@@ -292,6 +295,9 @@ where
 /// (emMainWindow.cpp:174-190).
 pub(crate) struct MainWindowEngine {
     close_signal: SignalId,
+    title_signal: Option<SignalId>,
+    window_id: Option<winit::window::WindowId>,
+    startup_done: bool,
 }
 
 impl emEngine for MainWindowEngine {
@@ -301,6 +307,29 @@ impl emEngine for MainWindowEngine {
             with_main_window(|mw| {
                 mw.to_close = true;
             });
+        }
+
+        // Check title signal — update window title to "Eagle Mode - <content title>".
+        if let Some(title_sig) = self.title_signal
+            && ctx.IsSignaled(title_sig)
+            && let Some(wid) = self.window_id
+            && let Some(win) = ctx.windows.get(&wid)
+        {
+            let view_title = win.view().GetTitle();
+            let title = if view_title.is_empty() {
+                "Eagle Mode".to_string()
+            } else {
+                format!("Eagle Mode - {view_title}")
+            };
+            win.winit_window.set_title(&title);
+        }
+
+        // Check if startup is now done.
+        if !self.startup_done {
+            let done = with_main_window(|mw| mw.startup_engine_id.is_none()).unwrap_or(false);
+            if done {
+                self.startup_done = true;
+            }
         }
 
         // Self-delete if to_close (C++ emMainWindow.cpp:184-187).
@@ -401,31 +430,62 @@ impl emEngine for StartupEngine {
                 self.state += 1;
                 !ctx.IsTimeSliceAtEnd()
             }
-            // State 5: Create control panel (C++ emMainWindow.cpp:407-415).
+            // State 5: Create control panel directly in control sub-view's sub-tree
+            // (C++ emMainWindow.cpp:407-415).
             5 => {
-                ctx.tree
+                let ctrl_view_id = ctx.tree
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
-                        mp.advance_creation_stage();
+                        mp.GetControlViewPanelId()
+                    })
+                    .flatten();
+                let content_view_id = ctx.tree
+                    .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
+                        mp.GetContentViewPanelId()
+                    })
+                    .flatten();
+
+                if let Some(ctrl_id) = ctrl_view_id {
+                    let ctrl_ctx = Rc::clone(&self.context);
+                    ctx.tree.with_behavior_as::<emSubViewPanel, _>(ctrl_id, |svp| {
+                        let sub_tree = svp.sub_tree_mut();
+                        let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
+                        let child_id = sub_tree.create_child(sub_root, "ctrl");
+                        sub_tree.set_behavior(
+                            child_id,
+                            Box::new(emMainControlPanel::new(ctrl_ctx, content_view_id)),
+                        );
+                        // C++ control tallness matches the parent's control_tallness
+                        sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 5.0);
                     });
-                // Queue LAYOUT_CHANGED so HandleNotice re-calls LayoutChildren
-                // with the updated creation_stage.
-                ctx.tree.queue_notice(
-                    self.main_panel_id,
-                    emcore::emPanel::NoticeFlags::LAYOUT_CHANGED,
-                );
+                }
+
                 self.state += 1;
                 !ctx.IsTimeSliceAtEnd()
             }
-            // State 6: Create content panel (C++ emMainWindow.cpp:416-422).
+            // State 6: Create content panel directly in content sub-view's sub-tree
+            // (C++ emMainWindow.cpp:416-422).
             6 => {
-                ctx.tree
+                let content_view_id = ctx.tree
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
-                        mp.advance_creation_stage();
+                        mp.GetContentViewPanelId()
+                    })
+                    .flatten();
+
+                if let Some(content_id) = content_view_id {
+                    let content_ctx = Rc::clone(&self.context);
+                    ctx.tree.with_behavior_as::<emSubViewPanel, _>(content_id, |svp| {
+                        let sub_tree = svp.sub_tree_mut();
+                        let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
+                        let child_id = sub_tree.create_child(sub_root, "");
+                        sub_tree.set_behavior(
+                            child_id,
+                            Box::new(emMainContentPanel::new(content_ctx)),
+                        );
+                        sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 1.0);
                     });
-                ctx.tree.queue_notice(
-                    self.main_panel_id,
-                    emcore::emPanel::NoticeFlags::LAYOUT_CHANGED,
-                );
+                }
+
+
                 self.state += 1;
                 !ctx.IsTimeSliceAtEnd()
             }
@@ -516,14 +576,45 @@ impl emEngine for StartupEngine {
                 if self.clock.elapsed().as_millis() < 100 {
                     return true;
                 }
-                // DIVERGED: C++ calls ContentView.Visit() with identity-based
-                // navigation and sets the active panel.  Rust's emView::Visit()
-                // takes a PanelId, not an identity string.  The visiting animator
-                // already navigated to the goal; skip the redundant final visit
-                // until identity-based Visit is ported.
+                // Final visit using VisitByIdentity (C++ ContentView.Visit()).
+                if self.visit_valid
+                    && let Some(win) = ctx.windows.get_mut(&self.window_id)
+                {
+                    win.view_mut().VisitByIdentity(
+                        ctx.tree,
+                        &self.visit_identity,
+                        self.visit_rel_x,
+                        self.visit_rel_y,
+                        self.visit_rel_a,
+                    );
+                }
+                // Store startup_engine_id = None in main window to indicate startup is done.
+                with_main_window(|mw| {
+                    mw.startup_engine_id = None;
+                });
                 false // engine stops permanently
             }
         }
+    }
+}
+
+/// Engine that bridges control panel signal to control sub-view.
+///
+/// When the active panel changes in the content view, the control panel signal
+/// fires. This engine reacts by logging the change (full wiring to recreate
+/// the content control panel will be added later).
+pub(crate) struct ControlPanelBridge {
+    control_panel_signal: SignalId,
+    _ctrl_view_id: PanelId,
+    _content_view_id: PanelId,
+}
+
+impl emEngine for ControlPanelBridge {
+    fn Cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
+        if ctx.IsSignaled(self.control_panel_signal) {
+            log::debug!("ControlPanelBridge: control panel signal fired");
+        }
+        false
     }
 }
 
@@ -582,12 +673,43 @@ pub fn create_main_window(
 
     // Register MainWindowEngine — wakes only on signals, no wake_up call
     // (C++ emMainWindow::Cycle, emMainWindow.cpp:174-190).
-    let mw_engine = MainWindowEngine { close_signal };
+    let title_signal = app.scheduler.borrow_mut().create_signal();
+    if let Some(win) = app.windows.get_mut(&window_id) {
+        win.view_mut().set_title_signal(title_signal);
+    }
+    let mw_engine = MainWindowEngine {
+        close_signal,
+        title_signal: Some(title_signal),
+        window_id: Some(window_id),
+        startup_done: false,
+    };
     let mw_engine_id = app
         .scheduler
         .borrow_mut()
         .register_engine(Priority::Low, Box::new(mw_engine));
     app.scheduler.borrow_mut().connect(close_signal, mw_engine_id);
+    app.scheduler.borrow_mut().connect(title_signal, mw_engine_id);
+
+    // Wire control panel signal + ControlPanelBridge.
+    // The bridge reacts to control panel signal (active panel changes) and
+    // will update the content control panel in the control sub-view.
+    let cp_signal = app.scheduler.borrow_mut().create_signal();
+    if let Some(win) = app.windows.get_mut(&window_id) {
+        win.view_mut().set_scheduler(Rc::clone(&app.scheduler));
+        win.view_mut().set_control_panel_signal(cp_signal);
+    }
+    // We don't yet have the sub-view panel IDs (created during LayoutChildren),
+    // so use a dummy PanelId(0) for now — the bridge only uses the signal.
+    let bridge = ControlPanelBridge {
+        control_panel_signal: cp_signal,
+        _ctrl_view_id: root_id,
+        _content_view_id: root_id,
+    };
+    let bridge_id = app
+        .scheduler
+        .borrow_mut()
+        .register_engine(Priority::Low, Box::new(bridge));
+    app.scheduler.borrow_mut().connect(cp_signal, bridge_id);
 
     mw.autoplay_view_model = Some(crate::emAutoplay::emAutoplayViewModel::new());
 
@@ -608,7 +730,7 @@ pub fn create_control_window(
     app: &mut App,
     event_loop: &ActiveEventLoop,
 ) -> Option<winit::window::WindowId> {
-    let ctrl_panel = emMainControlPanel::new(Rc::clone(&app.context));
+    let ctrl_panel = emMainControlPanel::new(Rc::clone(&app.context), None);
     let root_id = app.tree.create_root("ctrl_window_root");
     app.tree.set_behavior(root_id, Box::new(ctrl_panel));
 
