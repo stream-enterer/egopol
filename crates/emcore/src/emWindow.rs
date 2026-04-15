@@ -1162,6 +1162,7 @@ impl ZuiWindow {
         self.screensaver_inhibit_count += 1;
         if self.screensaver_inhibit_count == 1 {
             self.screensaver_cookie = super::emWindowPlatform::InhibitScreensaver();
+            super::emWindowPlatform::start_screensaver_keepalive();
         }
         log::debug!(
             "screensaver inhibited (count={})",
@@ -1179,6 +1180,7 @@ impl ZuiWindow {
             if let Some(cookie) = self.screensaver_cookie.take() {
                 super::emWindowPlatform::uninhibit_screensaver(cookie);
             }
+            super::emWindowPlatform::stop_screensaver_keepalive();
         }
         log::debug!(
             "screensaver allowed (count={})",

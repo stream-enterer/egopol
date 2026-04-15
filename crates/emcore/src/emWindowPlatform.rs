@@ -146,6 +146,74 @@ mod inner {
             log::debug!("screensaver uninhibit failed: {e}");
         }
     }
+
+    /// DIVERGED: C++ calls `system("xscreensaver-command -deactivate >&- 2>&- &")`
+    /// in emX11Screen.cpp:711-765. Rust spawns the process directly.
+    fn poke_xscreensaver() {
+        use std::process::Command;
+        // Fire and forget — match C++ `system("xscreensaver-command -deactivate >&- 2>&- &")`
+        let _ = Command::new("xscreensaver-command")
+            .arg("-deactivate")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+    }
+
+    /// Keepalive state for periodic screensaver re-inhibition.
+    /// DIVERGED: C++ uses emX11Screen::ScreensaverUpdateTimer (59s) with
+    /// XResetScreenSaver + xscreensaver-command. Rust uses thread-local state
+    /// ticked from the event loop since we don't have an X11 display handle.
+    /// `active_count` ref-counts callers so multi-window support is correct:
+    /// keepalive stays active until all windows release it.
+    struct ScreensaverKeepAlive {
+        active_count: u32,
+        last_poke: std::time::Instant,
+    }
+
+    thread_local! {
+        static KEEPALIVE: std::cell::RefCell<ScreensaverKeepAlive> =
+            std::cell::RefCell::new(ScreensaverKeepAlive {
+                active_count: 0,
+                last_poke: std::time::Instant::now(),
+            });
+    }
+
+    const KEEPALIVE_INTERVAL_SECS: u64 = 59;
+
+    pub(crate) fn start_screensaver_keepalive() {
+        KEEPALIVE.with(|cell| {
+            let mut ka = cell.borrow_mut();
+            ka.active_count += 1;
+            if ka.active_count == 1 {
+                ka.last_poke = std::time::Instant::now();
+                poke_xscreensaver();
+                log::debug!("screensaver keepalive started");
+            }
+        });
+    }
+
+    pub(crate) fn stop_screensaver_keepalive() {
+        KEEPALIVE.with(|cell| {
+            let mut ka = cell.borrow_mut();
+            if ka.active_count > 0 {
+                ka.active_count -= 1;
+                if ka.active_count == 0 {
+                    log::debug!("screensaver keepalive stopped");
+                }
+            }
+        });
+    }
+
+    pub(crate) fn tick_screensaver_keepalive() {
+        KEEPALIVE.with(|cell| {
+            let mut ka = cell.borrow_mut();
+            if ka.active_count > 0 && ka.last_poke.elapsed().as_secs() >= KEEPALIVE_INTERVAL_SECS {
+                ka.last_poke = std::time::Instant::now();
+                poke_xscreensaver();
+                log::debug!("screensaver keepalive poked (59s tick)");
+            }
+        });
+    }
 }
 
 #[cfg(any(not(target_os = "linux"), kani))]
@@ -155,8 +223,14 @@ mod inner {
         None
     }
     pub(crate) fn uninhibit_screensaver(_cookie: u32) {}
+    pub(crate) fn start_screensaver_keepalive() {}
+    pub(crate) fn stop_screensaver_keepalive() {}
+    pub(crate) fn tick_screensaver_keepalive() {}
 }
 
 pub(crate) use inner::InhibitScreensaver;
+pub(crate) use inner::start_screensaver_keepalive;
+pub(crate) use inner::stop_screensaver_keepalive;
 pub(crate) use inner::system_beep;
+pub(crate) use inner::tick_screensaver_keepalive;
 pub(crate) use inner::uninhibit_screensaver;

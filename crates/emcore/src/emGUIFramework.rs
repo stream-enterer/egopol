@@ -311,6 +311,9 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // Tick screensaver keepalive (pokes xscreensaver every 59s when inhibited).
+        super::emWindowPlatform::tick_screensaver_keepalive();
+
         // Process deferred actions (window creation from Duplicate/ccw, etc.).
         let actions: Vec<DeferredAction> = self.pending_actions.drain(..).collect();
         for action in actions {
