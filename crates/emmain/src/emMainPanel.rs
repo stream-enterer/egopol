@@ -21,8 +21,6 @@ use emcore::emSubViewPanel::emSubViewPanel;
 use emcore::emView::ViewFlags;
 
 use crate::emMainConfig::emMainConfig;
-use crate::emMainContentPanel::emMainContentPanel;
-use crate::emMainControlPanel::emMainControlPanel;
 
 // ── SliderPanel ───────────────────────────────────────────────────────────────
 
@@ -283,7 +281,7 @@ impl PanelBehavior for StartupOverlayPanel {
 ///
 /// Port of C++ `emMainPanel`.
 pub struct emMainPanel {
-    ctx: Rc<emContext>,
+    _ctx: Rc<emContext>,
     config: Rc<RefCell<emMainConfig>>,
     control_tallness: f64,
     unified_slider_pos: f64,
@@ -314,20 +312,10 @@ pub struct emMainPanel {
     slider_min_y: f64,
     slider_max_y: f64,
 
-    // Child panel IDs (created inside sub-views)
-    control_panel_created: Option<PanelId>,
-    content_panel_created: Option<PanelId>,
-
     // State
     slider_pressed: bool,
     children_created: bool,
     last_height: f64,
-
-    // Creation stage for staged panel construction (C++ StartupEngine drives this)
-    // Stage 0: Only sub-views, slider, and startup overlay
-    // Stage 1: Control panel created inside control sub-view
-    // Stage 2: Content panel created inside content sub-view
-    creation_stage: u8,
 
     // Mouse movement tracking for slider auto-hide (C++ emMainPanel::Input)
     old_mouse_x: f64,
@@ -352,7 +340,7 @@ impl emMainPanel {
             load_tga(include_bytes!("../../../res/emMain/ControlEdges.tga"))
                 .expect("failed to load ControlEdges.tga");
         Self {
-            ctx,
+            _ctx: ctx,
             config,
             control_tallness,
             unified_slider_pos,
@@ -362,11 +350,8 @@ impl emMainPanel {
             startup_overlay: None,
             control_edges_color: emColor::from_packed(0x515E84FF),
             control_edges_image,
-            control_panel_created: None,
-            content_panel_created: None,
             slider_pressed: false,
             children_created: false,
-            creation_stage: 0,
             control_x: 0.0,
             control_y: 0.0,
             control_w: 0.0,
@@ -529,18 +514,14 @@ impl emMainPanel {
         self.startup_overlay.is_some()
     }
 
-    /// Advance the creation stage by one step.
-    ///
-    /// Called by the startup engine to progressively create child panels.
-    pub fn advance_creation_stage(&mut self) {
-        if self.creation_stage < 2 {
-            self.creation_stage += 1;
-        }
+    /// Get the PanelId of the control sub-view panel.
+    pub fn GetControlViewPanelId(&self) -> Option<PanelId> {
+        self.control_view_panel
     }
 
-    /// Return the current creation stage.
-    pub fn creation_stage(&self) -> u8 {
-        self.creation_stage
+    /// Get the PanelId of the content sub-view panel.
+    pub fn GetContentViewPanelId(&self) -> Option<PanelId> {
+        self.content_view_panel
     }
 
     /// Get the control edges color.
@@ -773,44 +754,6 @@ impl PanelBehavior for emMainPanel {
             self.startup_overlay = Some(overlay_id);
 
             self.children_created = true;
-        }
-
-        // Create control panel inside control sub-view (gated on creation_stage >= 1).
-        if let Some(ctrl_id) = self.control_view_panel
-            && self.control_panel_created.is_none()
-            && self.creation_stage >= 1
-        {
-            let ctrl_ctx = Rc::clone(&self.ctx);
-            let tallness = self.control_tallness;
-            self.control_panel_created =
-                ctx.tree.with_behavior_as::<emSubViewPanel, _>(ctrl_id, |svp| {
-                    let sub_tree = svp.sub_tree_mut();
-                    let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
-                    let child_id = sub_tree.create_child(sub_root, "ctrl");
-                    sub_tree.set_behavior(child_id, Box::new(emMainControlPanel::new(ctrl_ctx)));
-                    sub_tree.Layout(child_id, 0.0, 0.0, 1.0, tallness);
-                    child_id
-                });
-        }
-
-        // Create content panel inside content sub-view (gated on creation_stage >= 2).
-        if let Some(content_id) = self.content_view_panel
-            && self.content_panel_created.is_none()
-            && self.creation_stage >= 2
-        {
-            let content_ctx = Rc::clone(&self.ctx);
-            self.content_panel_created =
-                ctx.tree.with_behavior_as::<emSubViewPanel, _>(content_id, |svp| {
-                    let sub_tree = svp.sub_tree_mut();
-                    let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
-                    let child_id = sub_tree.create_child(sub_root, "");
-                    sub_tree.set_behavior(
-                        child_id,
-                        Box::new(emMainContentPanel::new(content_ctx)),
-                    );
-                    sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 1.0);
-                    child_id
-                });
         }
 
         // Pass parent slider state to SliderPanel for conditional arrow rendering.
@@ -1224,33 +1167,4 @@ mod tests {
         assert!((panel.press_my - 0.2).abs() < 1e-10);
     }
 
-    // ── creation_stage tests ────────────────────────────────────────────
-
-    #[test]
-    fn test_creation_stage_initial() {
-        let ctx = emcore::emContext::emContext::NewRoot();
-        let panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
-        assert_eq!(panel.creation_stage(), 0);
-    }
-
-    #[test]
-    fn test_advance_creation_stage() {
-        let ctx = emcore::emContext::emContext::NewRoot();
-        let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
-        assert_eq!(panel.creation_stage(), 0);
-        panel.advance_creation_stage();
-        assert_eq!(panel.creation_stage(), 1);
-        panel.advance_creation_stage();
-        assert_eq!(panel.creation_stage(), 2);
-    }
-
-    #[test]
-    fn test_advance_creation_stage_saturates_at_2() {
-        let ctx = emcore::emContext::emContext::NewRoot();
-        let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
-        panel.advance_creation_stage();
-        panel.advance_creation_stage();
-        panel.advance_creation_stage(); // should not go past 2
-        assert_eq!(panel.creation_stage(), 2);
-    }
 }
