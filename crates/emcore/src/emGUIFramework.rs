@@ -310,6 +310,17 @@ impl ApplicationHandler for App {
         // Run one scheduler time slice
         self.scheduler.borrow_mut().DoTimeSlice(&mut self.tree, &mut self.windows);
 
+        // Keep event loop pumping while engines are active.
+        // C++ runs a tight 10ms loop; Rust uses event-driven winit with
+        // ControlFlow::Wait which only fires about_to_wait on OS events.
+        // Requesting redraws ensures continuous cycling during startup,
+        // animations, and any other engine activity.
+        if self.scheduler.borrow().has_awake_engines() {
+            for win in self.windows.values() {
+                win.request_redraw();
+            }
+        }
+
         // Run per-frame panel cycles
         self.tree.run_panel_cycles();
 
