@@ -995,6 +995,16 @@ impl PanelTree {
         }
     }
 
+    /// Re-fire initialization notices on a panel (e.g., after setting
+    /// behavior on an existing panel that already had its init notices
+    /// drained before behavior was attached).
+    pub fn fire_init_notices(&mut self, id: PanelId) {
+        if let Some(panel) = self.panels.get_mut(id) {
+            panel.pending_notices.insert(Self::INIT_NOTICE_FLAGS);
+            self.has_pending_notices = true;
+        }
+    }
+
     /// Build a `PanelState` snapshot for the given panel.
     pub fn build_panel_state(
         &self,

@@ -345,6 +345,24 @@ impl PanelBehavior for emMainContentPanel {
         self.paint_eagle(painter);
     }
 
+    fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
+        // C++ creates the cosmos panel in the constructor. Rust needs
+        // PanelCtx, so create in Cycle (called via run_panel_cycles).
+        if self.cosmos_panel.is_some() {
+            return false;
+        }
+        let cosmos = Box::new(
+            crate::emVirtualCosmos::emVirtualCosmosPanel::new(Rc::clone(&self.ctx)),
+        );
+        // C++ uses child name "".
+        let id = ctx.create_child_with("", cosmos);
+        // Register cosmos for cycling so it creates its own children.
+        ctx.tree.Cycle(id);
+        self.cosmos_panel = Some(id);
+        // CHILDREN_CHANGED will fire → LayoutChildren positions the cosmos.
+        false
+    }
+
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         // Compute cosmos panel position using the eagle-coordinate transform.
         // Port of C++ emMainContentPanel::UpdateChildLayout.
@@ -355,22 +373,9 @@ impl PanelBehavior for emMainContentPanel {
         let ch = sz * self.eagle_scale_y;
         let canvas = emColor::from_packed(0x000000FF);
 
-        // Create cosmos panel lazily (C++ constructor creates it immediately, but
-        // we need PanelCtx to attach it to the tree).
-        let cosmos_id = match self.cosmos_panel {
-            Some(id) => id,
-            None => {
-                let cosmos = Box::new(
-                    crate::emVirtualCosmos::emVirtualCosmosPanel::new(Rc::clone(&self.ctx)),
-                );
-                // C++ uses child name "".
-                let id = ctx.create_child_with("", cosmos);
-                self.cosmos_panel = Some(id);
-                id
-            }
-        };
-
-        ctx.layout_child_canvas(cosmos_id, cx, cy, cw, ch, canvas);
+        if let Some(cosmos_id) = self.cosmos_panel {
+            ctx.layout_child_canvas(cosmos_id, cx, cy, cw, ch, canvas);
+        }
     }
 }
 

@@ -494,7 +494,8 @@ impl emEngine for StartupEngine {
                     self.visit_subject = rec.entry.Name.clone();
                 }
                 self.state += 1;
-                !ctx.IsTimeSliceAtEnd()
+                // C++ falls through to state 5 if time permits; always stays awake.
+                true
             }
             // State 5: Create control panel directly in control sub-view's sub-tree
             // (C++ emMainWindow.cpp:407-415).
@@ -527,7 +528,8 @@ impl emEngine for StartupEngine {
                 }
 
                 self.state += 1;
-                !ctx.IsTimeSliceAtEnd()
+                // C++ falls through to state 6 if time permits; always stays awake.
+                true
             }
             // State 6: Create content panel directly in content sub-view's sub-tree
             // (C++ emMainWindow.cpp:416-422).
@@ -544,18 +546,24 @@ impl emEngine for StartupEngine {
                     ctx.tree.with_behavior_as::<emSubViewPanel, _>(content_id, |svp| {
                         let sub_tree = svp.sub_tree_mut();
                         let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
-                        let child_id = sub_tree.create_child(sub_root, "");
+                        // C++ creates emMainContentPanel as the root panel
+                        // of the content view — set behavior on sub-tree root
+                        // directly (no extra child level).
                         sub_tree.set_behavior(
-                            child_id,
+                            sub_root,
                             Box::new(emMainContentPanel::new(content_ctx)),
                         );
-                        sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 1.0);
+                        // Re-fire init notices so the new behavior gets
+                        // notice + LayoutChildren calls.
+                        sub_tree.fire_init_notices(sub_root);
+                        // Register for cycling so cosmos is created.
+                        sub_tree.Cycle(sub_root);
                     });
                 }
 
-
                 self.state += 1;
-                !ctx.IsTimeSliceAtEnd()
+                // C++ falls through to state 7 if time permits; always stays awake.
+                true
             }
             // State 7: Create visiting animator on content sub-view, zoom to ":"
             // (C++ emMainWindow.cpp:423-432).
@@ -573,7 +581,8 @@ impl emEngine for StartupEngine {
                 }
                 self.clock = std::time::Instant::now();
                 self.state += 1;
-                !ctx.IsTimeSliceAtEnd()
+                // C++ falls through to state 8 if time permits; always stays awake.
+                true
             }
             // State 8: Wait up to 2s or until animator inactive
             // (C++ emMainWindow.cpp:433-438).
@@ -615,7 +624,8 @@ impl emEngine for StartupEngine {
                 }
                 self.clock = std::time::Instant::now();
                 self.state += 1;
-                !ctx.IsTimeSliceAtEnd()
+                // C++ falls through to state 10 if time permits; always stays awake.
+                true
             }
             // State 10: Wait up to 2s, then clean up overlay and animator
             // (C++ emMainWindow.cpp:455-465).

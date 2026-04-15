@@ -578,14 +578,16 @@ impl PanelBehavior for emVirtualCosmosItemPanel {
             && (rec.BorderColor.IsOpaque() || rec.BorderScaling <= 1e-200)
     }
 
-    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+    fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
+        // C++ creates content panel in AutoExpand. Rust notice() lacks
+        // PanelCtx, so we create in Cycle (runs via run_panel_cycles).
         if !self.update_needed {
-            return;
+            return false;
         }
         self.update_needed = false;
 
         let Some(rec) = &self.item_rec else {
-            return;
+            return false;
         };
 
         let (l, t, r, b) = self.CalcBorders();
@@ -593,9 +595,8 @@ impl PanelBehavior for emVirtualCosmosItemPanel {
         let content_h = content_w * rec.ContentTallness;
         let total_h = content_h + t + b;
 
-        // Ensure total_h is non-degenerate (avoid zero-height content).
         if total_h < 1e-100 || content_w < 1e-100 {
-            return;
+            return false;
         }
 
         // If path changed, destroy old content panel.
@@ -622,7 +623,8 @@ impl PanelBehavior for emVirtualCosmosItemPanel {
                 stat_mode,
                 self.alt as usize,
             );
-            let child_id = ctx.create_child_with("content", behavior);
+            // C++ uses name "" for the content panel (matches identity path).
+            let child_id = ctx.create_child_with("", behavior);
             self.content_panel = Some(child_id);
         }
 
@@ -635,10 +637,34 @@ impl PanelBehavior for emVirtualCosmosItemPanel {
                 .unwrap_or(emColor::TRANSPARENT);
             ctx.layout_child_canvas(child, l, t, content_w, content_h, canvas);
         }
+
+        false
+    }
+
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        // Position content panel within border (C++ LayoutContentPanel).
+        let Some(rec) = &self.item_rec else {
+            return;
+        };
+        let (l, t, r, b) = self.CalcBorders();
+        let content_w = 1.0 - l - r;
+        let content_h = content_w * rec.ContentTallness;
+        let total_h = content_h + t + b;
+        if total_h < 1e-100 || content_w < 1e-100 {
+            return;
+        }
+        if let Some(child) = self.content_panel {
+            let canvas = self
+                .item_rec
+                .as_ref()
+                .map(|r| r.BackgroundColor)
+                .unwrap_or(emColor::TRANSPARENT);
+            ctx.layout_child_canvas(child, l, t, content_w, content_h, canvas);
+        }
     }
 
     fn notice(&mut self, flags: NoticeFlags, _state: &PanelState) {
-        if flags.intersects(NoticeFlags::VIEW_CHANGED) {
+        if flags.intersects(NoticeFlags::VIEW_CHANGED | NoticeFlags::LAYOUT_CHANGED) {
             self.update_needed = true;
         }
     }
@@ -681,40 +707,12 @@ impl emVirtualCosmosPanel {
             needs_update: true,
         }
     }
-}
 
-impl PanelBehavior for emVirtualCosmosPanel {
-    fn IsOpaque(&self) -> bool {
-        // Starfield background is fully opaque (black).
-        true
-    }
-
-    fn get_title(&self) -> Option<String> {
-        Some("Virtual Cosmos".to_string())
-    }
-
-    fn Cycle(&mut self, _ctx: &mut PanelCtx) -> bool {
-        // In the full implementation, poll model change signal here.
-        // For now, just drain the flag set by notice().
-        false
-    }
-
-    fn notice(&mut self, flags: NoticeFlags, _state: &PanelState) {
-        if flags.intersects(NoticeFlags::VIEW_CHANGED) {
-            self.needs_update = true;
-        }
-    }
-
-    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
-        if !self.needs_update {
-            return;
-        }
-        self.needs_update = false;
-
-        // ── 1. Starfield background ──────────────────────────────────────────
+    /// Port of C++ `emVirtualCosmosPanel::UpdateChildren`.
+    /// Creates/updates/removes child panels to match the model.
+    fn update_children(&mut self, ctx: &mut PanelCtx) {
+        // ── 1. Starfield background ──────────────────────────────────────
         if self.background_panel.is_none() {
-            // Derive a deterministic seed from the context (use a fixed value
-            // for the cosmos background — depth=50 matches C++ usage).
             let seed: u32 = 0x7f3a_19c0;
             let bg = crate::emStarFieldPanel::emStarFieldPanel::new(50, seed);
             let child_id = ctx.create_child_with("_StarField", Box::new(bg));
@@ -725,21 +723,17 @@ impl PanelBehavior for emVirtualCosmosPanel {
 
         // Layout background to cover the entire panel.
         if let Some(bg_id) = self.background_panel {
-            // Compute tallness from layout_rect.
             let lr = ctx.layout_rect();
             let tallness = if lr.w > 1e-100 { lr.h / lr.w } else { 1.0 };
             ctx.layout_child(bg_id, 0.0, 0.0, 1.0, tallness);
         }
 
-        // ── 2. Item panels ───────────────────────────────────────────────────
-
-        // Collect desired items from model (snapshot to avoid borrow conflict).
+        // ── 2. Item panels ──────────────────────────────────────────────
         let desired: Vec<emVirtualCosmosItemRec> = {
             let m = self.model.borrow();
             m.GetItemRecs().cloned().collect()
         };
 
-        // Build a set of desired names for fast lookup.
         let desired_names: std::collections::HashSet<String> =
             desired.iter().map(|r| r.Name.clone()).collect();
 
@@ -771,8 +765,6 @@ impl PanelBehavior for emVirtualCosmosPanel {
             let child_name = rec.Name.clone();
 
             let child_id = if let Some(&existing_id) = existing.get(&rec.Name) {
-                // Update existing panel's item record.
-                // We must extract behavior, update, and put back.
                 if let Some(mut beh) = ctx.tree.take_behavior(existing_id) {
                     if let Some(item_panel) = beh
                         .as_any_mut()
@@ -784,10 +776,13 @@ impl PanelBehavior for emVirtualCosmosPanel {
                 }
                 existing_id
             } else {
-                // Create new item panel.
                 let mut item_panel = emVirtualCosmosItemPanel::new(Rc::clone(&self.ctx));
                 item_panel.SetItemRec(rec.clone());
-                ctx.create_child_with(&child_name, Box::new(item_panel))
+                let id = ctx.create_child_with(&child_name, Box::new(item_panel));
+                // Register for cycling so Cycle() creates content panel
+                // (C++ AutoExpand; Rust uses Cycle).
+                ctx.tree.Cycle(id);
+                id
             };
 
             new_item_panels.push((rec.Name.clone(), child_id));
@@ -795,11 +790,17 @@ impl PanelBehavior for emVirtualCosmosPanel {
 
         self.item_panels = new_item_panels;
 
-        // Layout each item panel at its (PosX, PosY, Width, computed_height).
+        // Layout each item panel.
+        self.layout_items(ctx);
+    }
+
+    fn layout_items(&self, ctx: &mut PanelCtx) {
+        let desired: Vec<emVirtualCosmosItemRec> = {
+            let m = self.model.borrow();
+            m.GetItemRecs().cloned().collect()
+        };
         for (name, child_id) in &self.item_panels {
             if let Some(rec) = desired.iter().find(|r| r.Name == *name) {
-                // Compute full item height including borders.
-                // b_frac = min(1.0, tallness) * border_scaling
                 let b_frac = rec.ContentTallness.min(1.0) * rec.BorderScaling;
                 let l = b_frac * 0.03;
                 let t = b_frac * 0.05;
@@ -814,6 +815,46 @@ impl PanelBehavior for emVirtualCosmosPanel {
                 ctx.layout_child(*child_id, rec.PosX, rec.PosY, rec.Width, item_height);
             }
         }
+    }
+}
+
+impl PanelBehavior for emVirtualCosmosPanel {
+    fn IsOpaque(&self) -> bool {
+        // Starfield background is fully opaque (black).
+        true
+    }
+
+    fn get_title(&self) -> Option<String> {
+        Some("Virtual Cosmos".to_string())
+    }
+
+    fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
+        // C++ creates/updates children in Notice(NF_VIEWING_CHANGED) via
+        // UpdateChildren(). Rust notice() lacks PanelCtx, so we do it in
+        // Cycle which runs each frame via run_panel_cycles.
+        if !self.needs_update {
+            return false;
+        }
+        self.needs_update = false;
+        self.update_children(ctx);
+        false
+    }
+
+    fn notice(&mut self, flags: NoticeFlags, _state: &PanelState) {
+        if flags.intersects(NoticeFlags::VIEW_CHANGED | NoticeFlags::LAYOUT_CHANGED) {
+            self.needs_update = true;
+        }
+    }
+
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        // Layout background.
+        if let Some(bg_id) = self.background_panel {
+            let lr = ctx.layout_rect();
+            let tallness = if lr.w > 1e-100 { lr.h / lr.w } else { 1.0 };
+            ctx.layout_child(bg_id, 0.0, 0.0, 1.0, tallness);
+        }
+        // Layout items.
+        self.layout_items(ctx);
     }
 
     fn Paint(&mut self, _painter: &mut emPainter, _w: f64, _h: f64, _state: &PanelState) {
