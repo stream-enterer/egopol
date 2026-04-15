@@ -405,45 +405,6 @@ impl ApplicationHandler for App {
             // SubViewPortClass::InvalidatePainting → SuperPanel → parent view).
             win.view_mut().collect_parent_invalidation(tree);
 
-            // Control panel lifecycle
-            if win.view().is_control_panel_invalid() {
-                // Destroy old control panel
-                if let Some(old_id) = win.control_panel_id.take() {
-                    win.control_tree.remove(old_id);
-                }
-
-                // Create new control panel in the control tree.
-                // Extract active panel from view first to avoid borrow conflict.
-                let active = win.view().GetActivePanel();
-                let control_root = win.control_view.GetRootPanel();
-                let new_id = active.and_then(|active_id| {
-                    tree.create_control_panel_in(
-                        active_id,
-                        &mut win.control_tree,
-                        control_root,
-                        "context",
-                    )
-                });
-                win.control_panel_id = new_id;
-
-                // Show or hide the control strip
-                if new_id.is_some() {
-                    win.show_control_strip(tree);
-                } else {
-                    win.hide_control_strip(tree);
-                }
-
-                win.view_mut().clear_control_panel_invalid();
-                needs_full_repaint = true;
-            }
-
-            // Deliver notices for control tree
-            if win.control_strip_height > 0 {
-                win.control_tree
-                    .HandleNotice(window_focused, pixel_tallness);
-                win.control_view.update(&mut win.control_tree);
-            }
-
             // Invalidate the active (focused) panel every frame so that
             // cursor blink and other clock-driven updates repaint. This
             // matches C++ emCore where Input() is called for all viewed

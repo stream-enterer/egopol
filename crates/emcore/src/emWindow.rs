@@ -31,9 +31,6 @@ bitflags! {
 
 /// An eaglemode-rs window: owns a winit window, wgpu surface, compositor, tile
 /// cache, and view.
-/// Fixed height of the control strip in pixels.
-const CONTROL_STRIP_PX: u32 = 32;
-
 pub struct ZuiWindow {
     pub winit_window: Arc<winit::window::Window>,
     surface: wgpu::Surface<'static>,
@@ -60,14 +57,6 @@ pub struct ZuiWindow {
     flags_changed: bool,
     wm_res_name: String,
     render_pool: emRenderThreadPool,
-    /// Separate panel tree for the control panel region.
-    pub(crate) control_tree: PanelTree,
-    /// emView for the control panel region.
-    pub(crate) control_view: emView,
-    /// Currently active control panel (child of control_root).
-    pub(crate) control_panel_id: Option<PanelId>,
-    /// Height of the control strip: 0 when hidden, CONTROL_STRIP_PX when active.
-    pub(crate) control_strip_height: u32,
 }
 
 impl ZuiWindow {
@@ -133,13 +122,6 @@ impl ZuiWindow {
         let viewport_buffer = crate::emImage::emImage::new(w, h, 4);
         let view = emView::new(root_panel, w as f64, h as f64);
 
-        // Create control tree with a root panel
-        let mut control_tree = PanelTree::new();
-        let control_root = control_tree.create_root("control_root");
-        control_tree.Layout(control_root, 0.0, 0.0, 1.0, 1.0);
-        // Hidden initially — zero viewport height
-        let control_view = emView::new(control_root, w as f64, 0.0);
-
         let vif_chain: Vec<Box<dyn emViewInputFilter>> = vec![
             {
                 let mut mouse_vif = emMouseZoomScrollVIF::new();
@@ -176,10 +158,6 @@ impl ZuiWindow {
             render_pool: emRenderThreadPool::new(
                 crate::emCoreConfig::emCoreConfig::default().max_render_threads,
             ),
-            control_tree,
-            control_view,
-            control_panel_id: None,
-            control_strip_height: 0,
         }
     }
 
@@ -199,49 +177,7 @@ impl ZuiWindow {
         self.compositor.resize(w, h);
         self.tile_cache.resize(w, h);
         self.viewport_buffer.setup(w, h, 4);
-        let ch = self.content_height();
-        self.view.SetGeometry(tree, w as f64, ch as f64);
-        if self.control_strip_height > 0 {
-            self.control_view.SetGeometry(
-                &mut self.control_tree,
-                w as f64,
-                self.control_strip_height as f64,
-            );
-        }
-    }
-
-    /// Height available for the content viewport.
-    pub(crate) fn content_height(&self) -> u32 {
-        self.surface_config
-            .height
-            .saturating_sub(self.control_strip_height)
-    }
-
-    /// Show the control strip at the bottom of the window.
-    pub(crate) fn show_control_strip(&mut self, tree: &mut PanelTree) {
-        if self.control_strip_height == 0 {
-            self.control_strip_height = CONTROL_STRIP_PX;
-            let w = self.surface_config.width;
-            let ch = self.content_height();
-            self.view.SetGeometry(tree, w as f64, ch as f64);
-            self.control_view.SetGeometry(
-                &mut self.control_tree,
-                w as f64,
-                CONTROL_STRIP_PX as f64,
-            );
-            self.invalidate();
-        }
-    }
-
-    /// Hide the control strip, giving all space back to content.
-    pub(crate) fn hide_control_strip(&mut self, tree: &mut PanelTree) {
-        if self.control_strip_height > 0 {
-            self.control_strip_height = 0;
-            let w = self.surface_config.width;
-            let h = self.surface_config.height;
-            self.view.SetGeometry(tree, w as f64, h as f64);
-            self.invalidate();
-        }
+        self.view.SetGeometry(tree, w as f64, h as f64);
     }
 
     /// Update the render thread pool from emCoreConfig.
@@ -271,22 +207,9 @@ impl ZuiWindow {
             // once, then copy tile-sized chunks. Avoids redundant tree walks and
             // re-rasterization of primitives across tiles.
             self.viewport_buffer.fill(crate::emColor::emColor::BLACK);
-            let ctrl_height = self.control_strip_height;
-            let content_h = self.content_height() as f64;
-            let ctrl_root = self.control_view.GetRootPanel();
-            let ctrl_bg = self.control_view.GetBackgroundColor();
             {
                 let mut painter = emPainter::new(&mut self.viewport_buffer);
                 self.view.Paint(tree, &mut painter, crate::emColor::emColor::TRANSPARENT);
-                if ctrl_height > 0 {
-                    self.control_view.paint_sub_tree(
-                        &mut self.control_tree,
-                        &mut painter,
-                        ctrl_root,
-                        (0.0, content_h),
-                        ctrl_bg,
-                    );
-                }
             }
             for row in 0..rows {
                 for col in 0..cols {
@@ -311,7 +234,6 @@ impl ZuiWindow {
             self.render_parallel(tree, gpu, cols, rows, tile_size);
         } else {
             // Few dirty tiles, single-threaded: paint per-tile.
-            let content_h = self.content_height();
             for row in 0..rows {
                 for col in 0..cols {
                     let tile = self.tile_cache.get_or_create(col, row);
@@ -322,19 +244,6 @@ impl ZuiWindow {
                             let ts = tile_size as f64;
                             painter.translate(-(col as f64 * ts), -(row as f64 * ts));
                             self.view.Paint(tree, &mut painter, crate::emColor::emColor::TRANSPARENT);
-                            if self.control_strip_height > 0
-                                && row * tile_size + tile_size > content_h
-                            {
-                                let control_root = self.control_view.GetRootPanel();
-                                let bg = self.control_view.GetBackgroundColor();
-                                self.control_view.paint_sub_tree(
-                                    &mut self.control_tree,
-                                    &mut painter,
-                                    control_root,
-                                    (-(col as f64 * ts), -(row as f64 * ts) + content_h as f64),
-                                    bg,
-                                );
-                            }
                         }
                         tile.dirty = false;
                         let tile_ref = self.tile_cache.GetRec(col, row).unwrap();
@@ -393,18 +302,6 @@ impl ZuiWindow {
         {
             let mut painter = emPainter::new_recording(vp_w, vp_h, draw_list.ops_mut());
             self.view.Paint(tree, &mut painter, emColor::TRANSPARENT);
-            if self.control_strip_height > 0 {
-                let content_h = self.content_height() as f64;
-                let control_root = self.control_view.GetRootPanel();
-                let bg = self.control_view.GetBackgroundColor();
-                self.control_view.paint_sub_tree(
-                    &mut self.control_tree,
-                    &mut painter,
-                    control_root,
-                    (0.0, content_h),
-                    bg,
-                );
-            }
         }
 
         // Collect dirty tiles.
@@ -645,61 +542,6 @@ impl ZuiWindow {
             InputKey::WheelUp | InputKey::WheelDown | InputKey::WheelLeft | InputKey::WheelRight
         ) {
             self.last_mouse_pos = (event.mouse_x, event.mouse_y);
-        }
-
-        // Route to control region if mouse is below the content viewport
-        let content_h = self.content_height() as f64;
-        if self.control_strip_height > 0 && event.mouse_y >= content_h {
-            let mut ctrl_event = event.clone();
-            ctrl_event.mouse_y -= content_h;
-
-            // For mouse press: set active panel in the CONTROL view
-            if ctrl_event.variant == InputVariant::Press
-                && matches!(
-                    ctrl_event.key,
-                    InputKey::MouseLeft | InputKey::MouseRight | InputKey::MouseMiddle
-                )
-            {
-                let panel = self
-                    .control_view
-                    .GetFocusablePanelAt(
-                        &self.control_tree,
-                        ctrl_event.mouse_x,
-                        ctrl_event.mouse_y,
-                    )
-                    .unwrap_or_else(|| self.control_view.GetRootPanel());
-                self.control_view
-                    .set_active_panel(&mut self.control_tree, panel, false);
-            }
-
-            // Dispatch to control tree panels
-            let ctrl_ev = ctrl_event.with_modifiers(state);
-            let wf = self.view.IsFocused();
-            let viewed = self.control_tree.viewed_panels_dfs();
-            for panel_id in viewed {
-                let mut panel_ev = ctrl_ev.clone();
-                panel_ev.mouse_x = self.control_tree.ViewToPanelX(panel_id, ctrl_ev.mouse_x);
-                panel_ev.mouse_y = self.control_tree.ViewToPanelY(
-                    panel_id,
-                    ctrl_ev.mouse_y,
-                    self.control_view.GetCurrentPixelTallness(),
-                );
-                if let Some(mut behavior) = self.control_tree.take_behavior(panel_id) {
-                    let panel_state = self.control_tree.build_panel_state(
-                        panel_id,
-                        wf,
-                        self.control_view.GetCurrentPixelTallness(),
-                    );
-                    let consumed = behavior.Input(&panel_ev, &panel_state, state);
-                    self.control_tree.put_behavior(panel_id, behavior);
-                    if consumed {
-                        self.control_view
-                            .InvalidatePainting(&self.control_tree, panel_id);
-                        break;
-                    }
-                }
-            }
-            return;
         }
 
         // Run VIF chain
