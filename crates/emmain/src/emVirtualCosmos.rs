@@ -6,7 +6,7 @@ use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emFpPlugin::{emFpPluginList, FileStatMode, PanelParentArg};
 use emcore::emImage::emImage;
-use emcore::emInstallInfo::emGetConfigDirOverloadable;
+use emcore::emInstallInfo::{emGetConfigDirOverloadable, emGetInstallPath, InstallDirType};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanelCtx::PanelCtx;
@@ -48,9 +48,9 @@ impl emVirtualCosmosItemRec {
     /// Port of C++ `emVirtualCosmosItemRec::TryPrepareItemFile`.
     ///
     /// If `CopyToUser` is false the path is `orig_dir/FileName`. If
-    /// `CopyToUser` is true the path would be `user_dir/FileName` (with copy
-    /// from orig_dir if absent), but the copy step is not implemented — a
-    /// warning is logged instead.
+    /// `CopyToUser` is true the path is `user_dir/FileName`, copying from
+    /// `orig_dir` if the user copy does not yet exist. On error, falls back
+    /// to the `orig_dir` path with a warning.
     pub fn TryPrepareItemFile(&mut self, orig_dir: &str, user_dir: &str) {
         let src_path = PathBuf::from(orig_dir).join(&self.FileName);
 
@@ -59,16 +59,31 @@ impl emVirtualCosmosItemRec {
             return;
         }
 
-        // CopyToUser: ideally copy from orig_dir to user_dir if absent.
-        // The copy logic is not yet implemented.
-        log::warn!(
-            "emVirtualCosmosItemRec: CopyToUser is true for '{}' — \
-             copy from '{}' to '{}' is not implemented; using orig_dir path",
-            self.FileName,
-            orig_dir,
-            user_dir,
-        );
-        self.ItemFilePath = src_path.to_string_lossy().into_owned();
+        let tgt_path = PathBuf::from(user_dir).join(&self.FileName);
+        self.ItemFilePath = tgt_path.to_string_lossy().into_owned();
+
+        if !tgt_path.exists() {
+            if let Err(e) = std::fs::create_dir_all(user_dir) {
+                log::warn!(
+                    "emVirtualCosmosItemRec: failed to create dir '{}': {}; \
+                     falling back to orig path",
+                    user_dir,
+                    e,
+                );
+                self.ItemFilePath = src_path.to_string_lossy().into_owned();
+                return;
+            }
+            if let Err(e) = std::fs::copy(&src_path, &tgt_path) {
+                log::warn!(
+                    "emVirtualCosmosItemRec: failed to copy '{}' to '{}': {}; \
+                     falling back to orig path",
+                    src_path.display(),
+                    tgt_path.display(),
+                    e,
+                );
+                self.ItemFilePath = src_path.to_string_lossy().into_owned();
+            }
+        }
     }
 }
 
@@ -259,6 +274,10 @@ impl emVirtualCosmosModel {
         let item_files_dir = emGetConfigDirOverloadable("emMain", Some("VcItemFiles"))
             .map(|p| p.to_string_lossy().into_owned())
             .unwrap_or_default();
+        let item_files_user_dir =
+            emGetInstallPath(InstallDirType::UserConfig, "emMain", Some("VcItemFiles.user"))
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
 
         self.items_dir = items_dir.clone();
         self.item_files_dir = item_files_dir.clone();
@@ -325,7 +344,7 @@ impl emVirtualCosmosModel {
             };
 
             item_rec.Name = name;
-            item_rec.TryPrepareItemFile(&item_files_dir, &item_files_dir);
+            item_rec.TryPrepareItemFile(&item_files_dir, &item_files_user_dir);
 
             new_items.push(LoadedItem {
                 file_name,
@@ -978,6 +997,65 @@ mod tests {
         item.CopyToUser = false;
         item.TryPrepareItemFile("/orig", "/user");
         assert_eq!(item.ItemFilePath, "/orig/foo.tga");
+    }
+
+    #[test]
+    fn test_try_prepare_item_file_copy_to_user() {
+        let tmp = std::env::temp_dir().join("eaglemode_test_copy_to_user");
+        let orig = tmp.join("orig");
+        let user = tmp.join("user");
+        // Clean up from any prior run.
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&orig).unwrap();
+
+        let src_file = orig.join("hello.txt");
+        std::fs::write(&src_file, b"hello").unwrap();
+
+        let mut item = emVirtualCosmosItemRec::default();
+        item.FileName = "hello.txt".to_string();
+        item.CopyToUser = true;
+        item.TryPrepareItemFile(
+            &orig.to_string_lossy(),
+            &user.to_string_lossy(),
+        );
+
+        let expected = user.join("hello.txt");
+        assert_eq!(item.ItemFilePath, expected.to_string_lossy());
+        assert!(expected.exists(), "file should have been copied to user dir");
+        assert_eq!(std::fs::read(&expected).unwrap(), b"hello");
+
+        // Second call should not fail (file already exists).
+        item.TryPrepareItemFile(
+            &orig.to_string_lossy(),
+            &user.to_string_lossy(),
+        );
+        assert_eq!(item.ItemFilePath, expected.to_string_lossy());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_try_prepare_item_file_copy_fallback_on_missing_src() {
+        let tmp = std::env::temp_dir().join("eaglemode_test_copy_fallback");
+        let orig = tmp.join("orig");
+        let user = tmp.join("user");
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&orig).unwrap();
+        // Do NOT create the source file — copy should fail and fall back.
+
+        let mut item = emVirtualCosmosItemRec::default();
+        item.FileName = "missing.txt".to_string();
+        item.CopyToUser = true;
+        item.TryPrepareItemFile(
+            &orig.to_string_lossy(),
+            &user.to_string_lossy(),
+        );
+
+        // Should fall back to orig path.
+        let expected_fallback = orig.join("missing.txt");
+        assert_eq!(item.ItemFilePath, expected_fallback.to_string_lossy());
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
