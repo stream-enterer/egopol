@@ -162,7 +162,17 @@ impl emFileLinkPanel {
 }
 
 impl PanelBehavior for emFileLinkPanel {
-    fn Cycle(&mut self, _ctx: &mut PanelCtx) -> bool {
+    fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
+        // Drive model loading and child creation.
+        if let Some(ref model_rc) = self.model {
+            let loaded = model_rc.borrow_mut().ensure_loaded();
+            if loaded && self.child_panel.is_none() {
+                // Force viewed=true so the child is created. Also set
+                // last_viewed to prevent LayoutChildren from deleting it.
+                self.last_viewed = true;
+                self.update_data_and_child_panel(ctx, true);
+            }
+        }
         self.file_panel.refresh_vir_file_state();
         false
     }

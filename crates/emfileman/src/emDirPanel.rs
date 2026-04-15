@@ -262,10 +262,7 @@ impl emDirPanel {
                         Rc::clone(&self.ctx),
                         entry.clone(),
                     );
-                    let id = ctx.create_child_with(entry.GetName(), Box::new(panel));
-                    // Register for cycling so content panel is created
-                    // (C++ uses AutoExpand; Rust uses Cycle).
-                    ctx.tree.Cycle(id);
+                    ctx.create_child_with(entry.GetName(), Box::new(panel));
                 }
 
                 self.child_count = visible_count;
