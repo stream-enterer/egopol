@@ -14,4 +14,4 @@ BorderColor = "#3A3F43"
 TitleColor = "#EEC"
 
 FileName = "Stocks1.emStocks"
-CopyToUser = true
+CopyToUser = false
