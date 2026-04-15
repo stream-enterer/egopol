@@ -256,14 +256,15 @@ impl PanelBehavior for StartupOverlayPanel {
 
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         painter.Clear(emColor::from_packed(0x808080FF));
+        let text_height = 30.0 / painter.GetScaleY();
         painter.PaintTextBoxed(
             0.0,
             0.0,
             w,
             h,
             "Loading...",
-            h,
-            emColor::from_packed(0xFFFFFFFF),
+            text_height,
+            emColor::from_packed(0x404040FF),
             emColor::from_packed(0x808080FF),
             TextAlignment::Center,
             VAlign::Center,
