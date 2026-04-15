@@ -26,6 +26,23 @@ impl Hotkey {
         }
     }
 
+    /// Construct a hotkey from an input event key and the current input state.
+    ///
+    /// Port of C++ `emInputHotkey(const emInputEvent &, const emInputState &)`.
+    /// Returns `None` if the event key is a modifier or not a keyboard key.
+    pub fn from_event_and_state(key: InputKey, state: &emInputState) -> Option<Self> {
+        if key.emIsModifierInputKey() || !key.emIsKeyboardInputKey() {
+            return None;
+        }
+        Some(Self {
+            ctrl: state.GetCtrl(),
+            alt: state.GetAlt(),
+            shift: state.GetShift(),
+            meta: state.GetMeta(),
+            key,
+        })
+    }
+
     /// Parse a hotkey from a string like "Ctrl+Shift+C" or "Alt+F4".
     pub fn TryParse(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.split('+').map(|p| p.trim()).collect();
