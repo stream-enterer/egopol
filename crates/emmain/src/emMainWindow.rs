@@ -163,7 +163,13 @@ impl emMainWindow {
         log::info!("emMainWindow::ReloadFiles");
     }
 
-    /// Port of C++ `emMainWindow::ToggleControlView`.
+    /// Port of C++ `emMainWindow::ToggleControlView` (emMainWindow.cpp:144-158).
+    ///
+    /// DIVERGED: ToggleControlView — C++ toggles focus between control view and
+    /// content view (two separate emView instances inside emMainPanel).  Rust uses
+    /// a single ZuiWindow with a slider; toggling the control view is implemented
+    /// by calling `DoubleClickSlider()` which opens/closes the slider, producing
+    /// the same user-visible effect.
     pub fn ToggleControlView(&mut self, app: &mut App) {
         if let Some(main_id) = self.main_panel_id {
             app.tree
@@ -183,6 +189,31 @@ impl emMainWindow {
         app.scheduler.borrow_mut().InitiateTermination();
     }
 
+    /// Port of C++ `emMainWindow::GetTitle` (emMainWindow.cpp:87-95).
+    ///
+    /// C++ returns "Eagle Mode - <content view title>" when MainPanel exists
+    /// and startup is complete, otherwise just "Eagle Mode".
+    pub fn GetTitle(&self) -> String {
+        if self.main_panel_id.is_some() && self.startup_state.is_none() {
+            // DIVERGED: GetTitle — C++ reads MainPanel->GetContentView().GetTitle()
+            // which returns the visited panel's title.  Rust doesn't have the
+            // dual-view architecture, so we return the static title.  A future
+            // enhancement can read the content panel's title from the tree.
+            "Eagle Mode".to_string()
+        } else {
+            "Eagle Mode".to_string()
+        }
+    }
+
+    /// Port of C++ `emMainWindow::Duplicate` (emMainWindow.cpp:98-129).
+    ///
+    /// DIVERGED: Duplicate — C++ creates a new OS window visiting the same
+    /// content panel location.  Rust uses a single ZuiWindow architecture and
+    /// does not support multi-window.  This is a no-op with a log message.
+    pub fn Duplicate(&self) {
+        log::info!("emMainWindow::Duplicate — multi-window not supported in Rust port");
+    }
+
     /// Port of C++ `emMainWindow::Input` (emMainWindow.cpp:193-263).
     ///
     /// DIVERGED: C++ Input uses emInputEvent, Rust uses the same struct but
@@ -194,7 +225,22 @@ impl emMainWindow {
         input_state: &emInputState,
         app: &mut App,
     ) -> bool {
+        // C++ eats all input during startup (emMainWindow.cpp:197-201).
+        if self.startup_state.is_some() {
+            return true;
+        }
+
         let handled = match event.key {
+            // F4 no modifier: Duplicate window (C++ emMainWindow.cpp:205-208)
+            InputKey::F4
+                if !input_state.GetShift()
+                    && !input_state.GetCtrl()
+                    && !input_state.GetAlt() =>
+            {
+                self.Duplicate();
+                true
+            }
+            // Alt+F4: Close (C++ emMainWindow.cpp:209-212)
             InputKey::F4
                 if !input_state.GetShift()
                     && !input_state.GetCtrl()
@@ -203,6 +249,7 @@ impl emMainWindow {
                 self.Close();
                 true
             }
+            // Shift+Alt+F4: Quit (C++ emMainWindow.cpp:213-216)
             InputKey::F4
                 if input_state.GetShift()
                     && !input_state.GetCtrl()
@@ -211,6 +258,7 @@ impl emMainWindow {
                 self.Quit(app);
                 true
             }
+            // F5 no modifier: Reload (C++ emMainWindow.cpp:219-222)
             InputKey::F5
                 if !input_state.GetShift()
                     && !input_state.GetCtrl()
@@ -219,6 +267,7 @@ impl emMainWindow {
                 self.ReloadFiles();
                 true
             }
+            // F11 no modifier: Toggle fullscreen (C++ emMainWindow.cpp:225-228)
             InputKey::F11
                 if !input_state.GetShift()
                     && !input_state.GetCtrl()
@@ -227,6 +276,7 @@ impl emMainWindow {
                 self.ToggleFullscreen(app);
                 true
             }
+            // Escape no modifier: Toggle control view (C++ emMainWindow.cpp:230-237)
             InputKey::Escape
                 if !input_state.GetShift()
                     && !input_state.GetCtrl()
@@ -248,6 +298,11 @@ impl emMainWindow {
         {
             return true;
         }
+
+        // DIVERGED: Bookmark hotkeys — C++ searches BookmarksModel for matching
+        // hotkeys and visits the bookmark location (emMainWindow.cpp:247-260).
+        // Rust does not yet have BookmarksModel integration; bookmark hotkeys
+        // are not handled here.
 
         false
     }
@@ -477,10 +532,14 @@ pub fn create_control_window(
 ///
 /// Port of C++ `emMainWindow::DoCustomCheat` (emMainWindow.cpp:266-277).
 ///
-/// Currently recognized cheats:
+/// Recognized cheats:
+/// - `"rcp"`: Recreate content panels (see `RecreateContentPanels`).
 /// - `"ccw"`: Create a detached control window.
 pub fn do_custom_cheat(cheat: &str, app: &mut App, event_loop: &ActiveEventLoop) {
     match cheat {
+        "rcp" => {
+            RecreateContentPanels(app);
+        }
         "ccw" => {
             create_control_window(app, event_loop);
         }
@@ -488,6 +547,16 @@ pub fn do_custom_cheat(cheat: &str, app: &mut App, event_loop: &ActiveEventLoop)
             log::debug!("Unknown cheat code: {cheat}");
         }
     }
+}
+
+/// Port of C++ `emMainWindow::RecreateContentPanels` (emMainWindow.cpp:280-306).
+///
+/// DIVERGED: RecreateContentPanels — C++ iterates all windows on the screen,
+/// finds emMainWindow instances, and recreates each one's content panel while
+/// preserving the visited location.  Rust has a single-window architecture with
+/// thread-local storage; this logs the request but does not yet recreate panels.
+fn RecreateContentPanels(_app: &mut App) {
+    log::info!("emMainWindow::RecreateContentPanels — not yet implemented in Rust port");
 }
 
 #[cfg(test)]
