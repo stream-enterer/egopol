@@ -50,7 +50,7 @@ impl Record for emAutoplayConfigRec {
             DurationMS: rec
                 .get_int("DurationMS")
                 .unwrap_or(d.DurationMS)
-                .clamp(100, 600_000),
+                .max(0),
             Recursive: rec.get_bool("Recursive").unwrap_or(d.Recursive),
             Loop: rec.get_bool("Loop").unwrap_or(d.Loop),
             LastLocationValid: rec
@@ -129,7 +129,7 @@ impl emAutoplayConfig {
     }
 
     pub fn GetFormatName(&self) -> &str {
-        "emAutoplayConfig"
+        "emAutoplay"
     }
 
     pub fn GetChangeSignal(&self) -> SignalId {
@@ -142,7 +142,7 @@ impl emAutoplayConfig {
 
     pub fn SetDurationMS(&mut self, ms: i32) {
         self.config_model
-            .modify(|d| d.DurationMS = ms.clamp(100, 600_000));
+            .modify(|d| d.DurationMS = ms.max(0));
     }
 
     pub fn IsRecursive(&self) -> bool {
@@ -329,8 +329,8 @@ impl emAutoplayViewAnimator {
         self.ClearGoal();
         self.State = AutoplayState::Unfinished;
         self.CurrentPanelIdentity = panel_identity.to_string();
-        self.CameFrom = CameFromType::Parent;
-        self.CurrentPanelState = CurrentPanelState::NotVisited;
+        // DIVERGED: C++ does not set CameFrom or OneMoreWakeUp here; Rust sets
+        // OneMoreWakeUp to drive the stub LowPriCycle without the engine scheduler.
         self.OneMoreWakeUp = true;
     }
 
@@ -343,8 +343,7 @@ impl emAutoplayViewAnimator {
         self.Backwards = true;
         self.SkipCurrent = true;
         self.CurrentPanelIdentity = panel_identity.to_string();
-        self.CameFrom = CameFromType::Parent;
-        self.CurrentPanelState = CurrentPanelState::NotVisited;
+        // DIVERGED: see SetGoalToItemAt note above.
         self.OneMoreWakeUp = true;
     }
 
@@ -354,11 +353,9 @@ impl emAutoplayViewAnimator {
     pub fn SetGoalToNextItemOf(&mut self, panel_identity: &str) {
         self.ClearGoal();
         self.State = AutoplayState::Unfinished;
-        self.Backwards = false;
         self.SkipCurrent = true;
         self.CurrentPanelIdentity = panel_identity.to_string();
-        self.CameFrom = CameFromType::Parent;
-        self.CurrentPanelState = CurrentPanelState::NotVisited;
+        // DIVERGED: see SetGoalToItemAt note above.
         self.OneMoreWakeUp = true;
     }
 
@@ -366,38 +363,38 @@ impl emAutoplayViewAnimator {
     ///
     /// Port of C++ `emAutoplayViewAnimator::SkipToPreviousItem`.
     pub fn SkipToPreviousItem(&mut self) {
-        if self.State == AutoplayState::NoGoal {
-            return;
+        if self.State != AutoplayState::NoGoal {
+            self.State = AutoplayState::Unfinished;
+            if self.Backwards {
+                self.SkipItemCount += 1;
+            } else if self.SkipItemCount > 0 {
+                self.SkipItemCount -= 1;
+            } else {
+                self.InvertDirection();
+            }
+            // DIVERGED: C++ wakes up the engine scheduler; Rust sets OneMoreWakeUp
+            // to drive the stub LowPriCycle.
+            self.OneMoreWakeUp = true;
         }
-        if self.Backwards {
-            self.SkipItemCount += 1;
-        } else if self.SkipItemCount > 0 {
-            self.SkipItemCount -= 1;
-        } else {
-            self.InvertDirection();
-            self.SkipCurrent = true;
-            self.SkipItemCount += 1;
-        }
-        self.OneMoreWakeUp = true;
     }
 
     /// Skip forward to the next item in the current traversal.
     ///
     /// Port of C++ `emAutoplayViewAnimator::SkipToNextItem`.
     pub fn SkipToNextItem(&mut self) {
-        if self.State == AutoplayState::NoGoal {
-            return;
+        if self.State != AutoplayState::NoGoal {
+            self.State = AutoplayState::Unfinished;
+            if !self.Backwards {
+                self.SkipItemCount += 1;
+            } else if self.SkipItemCount > 0 {
+                self.SkipItemCount -= 1;
+            } else {
+                self.InvertDirection();
+            }
+            // DIVERGED: C++ wakes up the engine scheduler; Rust sets OneMoreWakeUp
+            // to drive the stub LowPriCycle.
+            self.OneMoreWakeUp = true;
         }
-        if !self.Backwards {
-            self.SkipItemCount += 1;
-        } else if self.SkipItemCount > 0 {
-            self.SkipItemCount -= 1;
-        } else {
-            self.InvertDirection();
-            self.SkipCurrent = true;
-            self.SkipItemCount += 1;
-        }
-        self.OneMoreWakeUp = true;
     }
 
     //------------------------------------------------------------------
@@ -868,7 +865,7 @@ impl emAutoplayViewModel {
     }
 
     pub fn SetDurationMS(&mut self, ms: i32) {
-        self.DurationMS = ms.clamp(100, 600_000);
+        self.DurationMS = ms.max(0);
     }
 
     pub fn IsRecursive(&self) -> bool {
@@ -999,9 +996,13 @@ impl emAutoplayViewModel {
                     .ViewAnimator
                     .GetCurrentPanelIdentity()
                     .to_string();
+                self.SaveLocation(Some(&identity));
                 self.StartItemPlaying();
-                self.SaveLocation(&identity);
             } else if self.ViewAnimator.HasGivenUp() {
+                // Port of C++: if played anything this session, clear saved location.
+                if self.PlayedAnyInCurrentSession {
+                    self.SaveLocation(None);
+                }
                 self.SetAutoplaying(false);
             }
         }
@@ -1009,9 +1010,19 @@ impl emAutoplayViewModel {
         self.Autoplaying || self.ViewAnimator.HasGoal()
     }
 
-    fn SaveLocation(&mut self, identity: &str) {
-        self.LastLocationValid = true;
-        self.LastLocation = identity.to_string();
+    /// Port of C++ `emAutoplayViewModel::SaveLocation(emPanel*)`.
+    /// Pass `Some(identity)` to save a location, or `None` to clear it.
+    fn SaveLocation(&mut self, identity: Option<&str>) {
+        match identity {
+            Some(id) => {
+                self.LastLocationValid = true;
+                self.LastLocation = id.to_string();
+            }
+            None => {
+                self.LastLocationValid = false;
+                self.LastLocation.clear();
+            }
+        }
     }
 
     pub fn SkipToPreviousItem(&mut self) {
@@ -1032,22 +1043,31 @@ impl emAutoplayViewModel {
         }
     }
 
+    /// Port of C++ `emAutoplayViewModel::Input`.
     pub fn Input(&mut self, event: &emInputEvent, input_state: &emInputState) -> bool {
         match event.key {
-            InputKey::F12 if !input_state.GetShift() && input_state.GetCtrl() => {
-                self.SetAutoplaying(!self.Autoplaying);
-                true
-            }
-            InputKey::F12 if input_state.GetShift() && input_state.GetCtrl() => {
-                self.ContinueLastAutoplay();
-                true
-            }
-            InputKey::F12 if !input_state.GetShift() && !input_state.GetCtrl() => {
+            InputKey::F12 if input_state.IsNoMod() => {
                 self.SkipToNextItem();
                 true
             }
-            InputKey::F12 if input_state.GetShift() && !input_state.GetCtrl() => {
+            InputKey::F12 if input_state.IsShiftMod() => {
                 self.SkipToPreviousItem();
+                true
+            }
+            InputKey::F12 if input_state.IsCtrlMod() => {
+                self.SetAutoplaying(!self.Autoplaying);
+                true
+            }
+            InputKey::F12 if input_state.IsShiftCtrlMod() => {
+                self.ContinueLastAutoplay();
+                true
+            }
+            InputKey::MouseX1 if input_state.IsNoMod() => {
+                self.SkipToPreviousItem();
+                true
+            }
+            InputKey::MouseX2 if input_state.IsNoMod() => {
+                self.SkipToNextItem();
                 true
             }
             _ => false,
