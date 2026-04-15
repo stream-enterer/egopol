@@ -136,16 +136,17 @@ impl emMainWindow {
     ///
     /// C++ returns "Eagle Mode - <content view title>" when MainPanel exists
     /// and startup is complete, otherwise just "Eagle Mode".
-    pub fn GetTitle(&self) -> String {
-        if self.main_panel_id.is_some() && self.startup_engine_id.is_none() {
-            // DIVERGED: GetTitle — C++ reads MainPanel->GetContentView().GetTitle()
-            // which returns the visited panel's title.  Rust doesn't have the
-            // dual-view architecture, so we return the static title.  A future
-            // enhancement can read the content panel's title from the tree.
-            "Eagle Mode".to_string()
-        } else {
-            "Eagle Mode".to_string()
+    pub fn GetTitle(&self, app: &App) -> String {
+        if self.main_panel_id.is_some()
+            && self.startup_engine_id.is_none()
+            && let Some(win) = self.window_id.and_then(|id| app.windows.get(&id))
+        {
+            let title = win.view().GetTitle();
+            if !title.is_empty() {
+                return format!("Eagle Mode - {title}");
+            }
         }
+        "Eagle Mode".to_string()
     }
 
     /// Port of C++ `emMainWindow::Duplicate` (emMainWindow.cpp:98-129).
@@ -285,6 +286,31 @@ where
     MAIN_WINDOW.with(|cell| {
         cell.borrow_mut().as_mut().map(f)
     })
+}
+
+/// Engine for emMainWindow, matching C++ emMainWindow::Cycle()
+/// (emMainWindow.cpp:174-190).
+pub(crate) struct MainWindowEngine {
+    close_signal: SignalId,
+}
+
+impl emEngine for MainWindowEngine {
+    fn Cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
+        // Check close signal (C++ emMainWindow.cpp:180-181).
+        if ctx.IsSignaled(self.close_signal) {
+            with_main_window(|mw| {
+                mw.to_close = true;
+            });
+        }
+
+        // Self-delete if to_close (C++ emMainWindow.cpp:184-187).
+        let to_close = with_main_window(|mw| mw.to_close).unwrap_or(false);
+        if to_close {
+            return false;
+        }
+
+        false // Sleep until signaled
+    }
 }
 
 /// Startup engine registered with the scheduler.
@@ -543,6 +569,15 @@ pub fn create_main_window(
         .register_engine(Priority::Low, Box::new(startup_engine));
     app.scheduler.borrow_mut().wake_up(engine_id);
     mw.startup_engine_id = Some(engine_id);
+
+    // Register MainWindowEngine — wakes only on signals, no wake_up call
+    // (C++ emMainWindow::Cycle, emMainWindow.cpp:174-190).
+    let mw_engine = MainWindowEngine { close_signal };
+    let mw_engine_id = app
+        .scheduler
+        .borrow_mut()
+        .register_engine(Priority::Low, Box::new(mw_engine));
+    app.scheduler.borrow_mut().connect(close_signal, mw_engine_id);
 
     mw.autoplay_view_model = Some(crate::emAutoplay::emAutoplayViewModel::new());
 
