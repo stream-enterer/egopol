@@ -138,6 +138,15 @@ impl emMainConfig {
     pub fn IsUnsaved(&self) -> bool {
         self.config_model.IsUnsaved()
     }
+
+    /// Persist the current config to disk.
+    ///
+    /// Port of C++ `emConfigModel::Save`. Writes the current record to the config file.
+    pub fn Save(&mut self) {
+        if let Err(e) = self.config_model.Save() {
+            log::warn!("MainConfig: failed to save config: {e}");
+        }
+    }
 }
 
 #[cfg(test)]

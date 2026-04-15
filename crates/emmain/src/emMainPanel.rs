@@ -586,6 +586,7 @@ impl emMainPanel {
                 self.update_coordinates(self.last_height);
                 self.update_slider_hiding(false);
                 self.config.borrow_mut().SetControlViewSize(self.unified_slider_pos);
+                self.config.borrow_mut().Save();
             }
         }
     }
@@ -597,6 +598,7 @@ impl emMainPanel {
         if self.unified_slider_pos < 0.01 {
             if self.config.borrow().GetControlViewSize() < 0.01 {
                 self.config.borrow_mut().SetControlViewSize(0.7);
+                self.config.borrow_mut().Save();
             }
             self.unified_slider_pos = self.config.borrow().GetControlViewSize();
         } else {
