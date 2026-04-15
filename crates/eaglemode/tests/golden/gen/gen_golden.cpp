@@ -5224,8 +5224,8 @@ static void gen_cosmos_item_border() {
     const char* title = "Test Cosmos Item";
 
     double b_val = emMin(contentTallness, 1.0) * borderScaling;
-    double bl = b_val * 0.03, bt = b_val * 0.05, br = b_val * 0.03, bb = b_val * 0.03;
-    double panelH = contentTallness + bt + bb;
+    double l = b_val * 0.03, t = b_val * 0.05, r = b_val * 0.03, b = b_val * 0.03;
+    double panelH = contentTallness + t + b;
 
     const int W = 400, H = 300;
     emImage img(W, H, 4);
@@ -5236,24 +5236,78 @@ static void gen_cosmos_item_border() {
     emPainter p(pixel_p, pixel_p.GetClipX1(), pixel_p.GetClipY1(),
         pixel_p.GetClipX2(), pixel_p.GetClipY2(), 0.0, 0.0, sx, sy);
 
-    double w = 1.0, h = panelH;
+    double h = panelH;
+    emColor canvasColor = 0;
+
+    // Matches C++ emVirtualCosmosItemPanel::Paint (emVirtualCosmos.cpp:361-443)
+    emImage outerBorderImage = emGetInsResImage(*g_ctx, "emMain", "VcItemOuterBorder.tga");
+    emImage innerBorderImage = emGetInsResImage(*g_ctx, "emMain", "VcItemInnerBorder.tga");
 
     open_draw_op_log("cosmos_item_border");
-    // Top border strip
-    p.PaintRect(0.0, 0.0, w, bt * h, borderColor);
-    // Bottom border strip
-    p.PaintRect(0.0, (1.0 - bb) * h, w, bb * h, borderColor);
-    // Left border strip
-    p.PaintRect(0.0, bt * h, bl * w, (1.0 - bt - bb) * h, borderColor);
-    // Right border strip
-    p.PaintRect((1.0 - br) * w, bt * h, br * w, (1.0 - bt - bb) * h, borderColor);
-    // Background
-    p.PaintRect(bl * w, bt * h, (1.0 - bl - br) * w, (1.0 - bt - bb) * h, bgColor);
-    // Title text
-    double fontH = bt * h * 0.7;
-    if (fontH >= 1.0) {
-        p.PaintText(bl * w, bt * h * 0.15, title, fontH, 1.0, titleColor);
+
+    // borCol != bgColor, so paint background + hollow polygon
+    {
+        double x1 = l;
+        double x2 = 1.0 - r;
+        double y1 = t;
+        double y2 = h - b;
+        if (borderColor.IsOpaque()) {
+            x1 = p.RoundDownX(x1);
+            y1 = p.RoundDownY(y1);
+            x2 = p.RoundUpX(x2);
+            y2 = p.RoundUpY(y2);
+        }
+        p.PaintRect(x1, y1, x2 - x1, y2 - y1, bgColor, canvasColor);
+
+        double xy[10*2];
+        xy[ 0]=0.0;   xy[ 1]=0.0;
+        xy[ 2]=1.0;   xy[ 3]=0.0;
+        xy[ 4]=1.0;   xy[ 5]=h;
+        xy[ 6]=0.0;   xy[ 7]=h;
+        xy[ 8]=0.0;   xy[ 9]=0.0;
+        xy[10]=l;     xy[11]=t;
+        xy[12]=l;     xy[13]=h-b;
+        xy[14]=1.0-r; xy[15]=h-b;
+        xy[16]=1.0-r; xy[17]=t;
+        xy[18]=l;     xy[19]=t;
+        p.PaintPolygon(xy, 10, borderColor, 0);
     }
+
+    // Outer border image
+    double d = l * 0.4;
+    p.PaintBorderImage(
+        0.0, 0.0, 1.0, h,
+        d, d, d, d,
+        outerBorderImage,
+        82, 82, 82, 82,
+        255, borderColor, 0757
+    );
+
+    // Inner border image
+    double e = l * 0.5;
+    double f = e * (23.0 / 126);
+    p.PaintBorderImage(
+        l-e, t-f, 1.0-l-r+e*2.0, h-t-b+f*2.0,
+        e, f, e, f,
+        innerBorderImage,
+        126, 23, 126, 23,
+        255, borderColor, 0757
+    );
+
+    // Title
+    p.PaintTextBoxed(
+        d,
+        d + (t - d - f) * 0.07,
+        1.0 - d * 2.0,
+        (t - d - f) * 0.8,
+        title,
+        h,
+        titleColor,
+        borderColor,
+        EM_ALIGN_CENTER,
+        EM_ALIGN_CENTER
+    );
+
     close_draw_op_log();
 
     dump_painter("cosmos_item_border", img);

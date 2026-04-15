@@ -76,9 +76,6 @@ fn cosmos_item_border() {
         panel.Paint(&mut p, 1.0, panel_h, &state);
     }
 
-    // ch_tol=130: Rust PaintRect passes canvas_color=paint_color (opaque fast path)
-    // while C++ uses canvasColor=0 (alpha blending), producing different sub-pixel
-    // coverage at rect boundaries. Affects 1 row of pixels (0.67% of image).
     compare_images("cosmos_item_border", img.GetMap(), &expected, ew, eh, 0, 0.0)
         .expect("cosmos_item_border golden mismatch");
 }

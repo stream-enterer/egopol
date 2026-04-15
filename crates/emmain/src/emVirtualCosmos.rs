@@ -5,14 +5,16 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emFpPlugin::{emFpPluginList, FileStatMode, PanelParentArg};
+use emcore::emImage::emImage;
 use emcore::emInstallInfo::emGetConfigDirOverloadable;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emPainter::emPainter;
+use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
 use emcore::emRec::{RecError, RecStruct, RecValue};
 use emcore::emRecRecord::Record;
 use emcore::emRecRecTypes::emColorRec;
+use emcore::emResTga::load_tga;
 
 // ── emVirtualCosmosItemRec ────────────────────────────────────────────────────
 
@@ -392,6 +394,8 @@ pub struct emVirtualCosmosItemPanel {
     alt: i32,
     item_focusable: bool,
     update_needed: bool,
+    OuterBorderImage: emImage,
+    InnerBorderImage: emImage,
 }
 
 impl emVirtualCosmosItemPanel {
@@ -399,6 +403,12 @@ impl emVirtualCosmosItemPanel {
     ///
     /// Port of C++ `emVirtualCosmosItemPanel` constructor.
     pub fn new(ctx: Rc<emContext>) -> Self {
+        let outer_border_image =
+            load_tga(include_bytes!("../../../res/emMain/VcItemOuterBorder.tga"))
+                .expect("failed to load VcItemOuterBorder.tga");
+        let inner_border_image =
+            load_tga(include_bytes!("../../../res/emMain/VcItemInnerBorder.tga"))
+                .expect("failed to load VcItemInnerBorder.tga");
         Self {
             ctx,
             item_rec: None,
@@ -407,6 +417,8 @@ impl emVirtualCosmosItemPanel {
             alt: 0,
             item_focusable: true,
             update_needed: false,
+            OuterBorderImage: outer_border_image,
+            InnerBorderImage: inner_border_image,
         }
     }
 
@@ -449,55 +461,94 @@ impl emVirtualCosmosItemPanel {
 impl PanelBehavior for emVirtualCosmosItemPanel {
     // DIVERGED: C++ Paint(const emPainter&, emColor canvasColor)
     // Rust PanelBehavior::Paint doesn't receive canvasColor; use painter.GetCanvasColor().
-    // C++ uses PaintPolygon (hollow border frame) + PaintBorderImage (decorations)
-    // + PaintTextBoxed. This simplified version uses PaintRect strips to match
-    // the golden test generator's approach.
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
+    fn Paint(&mut self, painter: &mut emPainter, _w: f64, h: f64, _state: &PanelState) {
         let Some(rec) = &self.item_rec else {
             return;
         };
 
+        if rec.BorderScaling <= 1e-100 {
+            let canvas_color = painter.GetCanvasColor();
+            painter.ClearWithCanvas(rec.BackgroundColor, canvas_color);
+            return;
+        }
+
+        let bor_col = rec.BorderColor;
         let (l, t, r, b) = self.CalcBorders();
         let canvas_color = painter.GetCanvasColor();
 
-        // Draw border region (all four sides) using the border color.
-        let border_color = rec.BorderColor;
-        // Top strip
-        painter.PaintRect(0.0, 0.0, w, t * h, border_color, canvas_color);
-        // Bottom strip
-        painter.PaintRect(0.0, (1.0 - b) * h, w, b * h, border_color, canvas_color);
-        // Left strip (between top and bottom)
-        painter.PaintRect(0.0, t * h, l * w, (1.0 - t - b) * h, border_color, canvas_color);
-        // Right strip
-        painter.PaintRect((1.0 - r) * w, t * h, r * w, (1.0 - t - b) * h, border_color, canvas_color);
+        if bor_col == rec.BackgroundColor {
+            painter.ClearWithCanvas(rec.BackgroundColor, canvas_color);
+        } else {
+            let mut x1 = l;
+            let mut x2 = 1.0 - r;
+            let mut y1 = t;
+            let mut y2 = h - b;
+            if bor_col.IsOpaque() {
+                x1 = painter.RoundDownX(x1);
+                y1 = painter.RoundDownY(y1);
+                x2 = painter.RoundUpX(x2);
+                y2 = painter.RoundUpY(y2);
+            }
+            painter.PaintRect(
+                x1, y1, x2 - x1, y2 - y1,
+                rec.BackgroundColor, canvas_color,
+            );
+            // Hollow border polygon: outer CW, inner CCW (10 vertices)
+            let verts: [(f64, f64); 10] = [
+                (0.0, 0.0),
+                (1.0, 0.0),
+                (1.0, h),
+                (0.0, h),
+                (0.0, 0.0),
+                (l, t),
+                (l, h - b),
+                (1.0 - r, h - b),
+                (1.0 - r, t),
+                (l, t),
+            ];
+            painter.PaintPolygon(&verts, bor_col, emColor::TRANSPARENT);
+        }
 
-        // Draw background inside content area.
-        let bg_color = rec.BackgroundColor;
-        painter.PaintRect(
-            l * w,
-            t * h,
-            (1.0 - l - r) * w,
-            (1.0 - t - b) * h,
-            bg_color,
-            canvas_color,
+        // Outer border image
+        let d = l * 0.4;
+        painter.PaintBorderImage(
+            0.0, 0.0, 1.0, h,
+            d, d, d, d,
+            &self.OuterBorderImage,
+            82, 82, 82, 82,
+            255, bor_col, 0o757,
         );
 
-        // Draw title text at top of border area.
-        if !rec.Title.is_empty() && t > 0.0 {
-            let title_color = rec.TitleColor;
-            let font_size = t * h * 0.7;
-            if font_size >= 1.0 {
-                painter.PaintText(
-                    l * w,
-                    t * h * 0.15,
-                    &rec.Title,
-                    font_size,
-                    1.0,
-                    title_color,
-                    canvas_color,
-                );
-            }
-        }
+        // Inner border image
+        let e = l * 0.5;
+        let f = e * (23.0 / 126.0);
+        painter.PaintBorderImage(
+            l - e, t - f, 1.0 - l - r + e * 2.0, h - t - b + f * 2.0,
+            e, f, e, f,
+            &self.InnerBorderImage,
+            126, 23, 126, 23,
+            255, bor_col, 0o757,
+        );
+
+        // Title text
+        let title = rec.Title.clone();
+        let title_color = rec.TitleColor;
+        painter.PaintTextBoxed(
+            d,
+            d + (t - d - f) * 0.07,
+            1.0 - d * 2.0,
+            (t - d - f) * 0.8,
+            &title,
+            h,
+            title_color,
+            bor_col,
+            TextAlignment::Center,
+            VAlign::Center,
+            TextAlignment::Center,
+            0.5,
+            true,
+            0.0,
+        );
     }
 
     fn IsOpaque(&self) -> bool {
