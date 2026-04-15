@@ -437,10 +437,11 @@ impl emVirtualCosmosItemPanel {
     /// `b = min(1.0, tallness) * border_scaling`
     /// then `l = b*0.03, t = b*0.05, r = b*0.03, bottom = b*0.03`.
     pub fn CalcBorders(&self) -> (f64, f64, f64, f64) {
-        let Some(rec) = &self.item_rec else {
-            return (0.0, 0.0, 0.0, 0.0);
+        let (t, bs) = match &self.item_rec {
+            Some(rec) => (rec.ContentTallness, rec.BorderScaling),
+            None => (1.0, 1.0),
         };
-        let b = rec.ContentTallness.min(1.0) * rec.BorderScaling;
+        let b = t.min(1.0) * bs;
         (b * 0.03, b * 0.05, b * 0.03, b * 0.03)
     }
 }
