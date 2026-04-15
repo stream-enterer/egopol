@@ -71,7 +71,7 @@ impl emLinearLayout {
         self.child_constraints.insert(child, constraint);
     }
 
-    pub(crate) fn do_layout_skip(
+    pub fn do_layout_skip(
         &mut self,
         ctx: &mut PanelCtx,
         skip: Option<PanelId>,

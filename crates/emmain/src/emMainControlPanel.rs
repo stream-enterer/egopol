@@ -1,30 +1,58 @@
 // Port of C++ emMain/emMainControlPanel
 // Sidebar panel containing window control buttons and bookmarks.
 //
-// DIVERGED: C++ emMainControlPanel extends emLinearGroup and builds a deep
-// widget tree (emButton, emCheckButton, emLinearGroup, emPackGroup, etc.).
-// Rust uses a simplified flat panel with manual vertical layout since the full
-// toolkit widget hierarchy is not yet ported.
+// C++ emMainControlPanel extends emLinearGroup and builds a deep widget tree
+// (emButton, emCheckButton, emLinearGroup, emPackGroup, etc.).
+// Rust replicates this structure using emLinearLayout for child arrangement,
+// emBorder for border painting, and real emButton/emCheckButton widgets wrapped
+// in PanelBehavior adapters.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use emcore::emButton::emButton;
+use emcore::emCheckButton::emCheckButton;
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
+use emcore::emCursor::emCursor;
+use emcore::emInput::emInputEvent;
+use emcore::emInputState::emInputState;
+use emcore::emLinearLayout::emLinearLayout;
+use emcore::emLook::emLook;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPainter::emPainter;
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
+use emcore::emTiling::{ChildConstraint, Orientation, Spacing};
 
+use crate::emAutoplayControlPanel::emAutoplayControlPanel;
 use crate::emBookmarks::emBookmarksPanel;
 use crate::emMainConfig::emMainConfig;
 
-// ── ControlButton ─────────────────────────────────────────────────────────────
+// ── Click flags ──────────────────────────────────────────────────────────────
+// Shared state between button on_click callbacks and the Cycle method.
+// DIVERGED: C++ uses AddWakeUpSignal / IsSignaled. Rust uses Rc<Cell<bool>>
+// flags set by on_click callbacks and polled in Cycle.
+
+#[derive(Default)]
+struct ClickFlags {
+    new_window: Cell<bool>,
+    fullscreen: Cell<bool>,
+    auto_hide_control_view: Cell<bool>,
+    auto_hide_slider: Cell<bool>,
+    reload: Cell<bool>,
+    close: Cell<bool>,
+    quit: Cell<bool>,
+}
+
+// ── ControlButton ────────────────────────────────────────────────────────────
 
 /// Simple labeled button stub.
 ///
 /// DIVERGED: C++ uses `emButton` / `emCheckButton` widgets from emToolkit.
-/// Rust uses this placeholder until the full toolkit is ported.
+/// Rust uses this placeholder in places where the full toolkit button is not
+/// yet wired (e.g. emAutoplayControlPanel).
 pub(crate) struct ControlButton {
     pub(crate) label: String,
 }
@@ -53,65 +81,179 @@ impl PanelBehavior for ControlButton {
     }
 }
 
-// ── emMainControlPanel ────────────────────────────────────────────────────────
+// ── ButtonPanel ──────────────────────────────────────────────────────────────
+// PanelBehavior wrapper for emButton (mirrors emcore's pub(crate) ButtonPanel).
+
+struct MainButtonPanel {
+    button: emButton,
+}
+
+impl PanelBehavior for MainButtonPanel {
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale =
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.button.Paint(painter, w, h, state.enabled, pixel_scale);
+    }
+
+    fn Input(
+        &mut self,
+        event: &emInputEvent,
+        state: &PanelState,
+        input_state: &emInputState,
+    ) -> bool {
+        self.button.Input(event, state, input_state)
+    }
+
+    fn GetCursor(&self) -> emCursor {
+        self.button.GetCursor()
+    }
+
+    fn get_title(&self) -> Option<String> {
+        Some(self.button.GetCaption().to_string())
+    }
+}
+
+// ── CheckButtonPanel ─────────────────────────────────────────────────────────
+// PanelBehavior wrapper for emCheckButton.
+
+struct MainCheckButtonPanel {
+    check_button: emCheckButton,
+}
+
+impl PanelBehavior for MainCheckButtonPanel {
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale =
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.check_button
+            .Paint(painter, w, h, state.enabled, pixel_scale);
+    }
+
+    fn Input(
+        &mut self,
+        event: &emInputEvent,
+        state: &PanelState,
+        input_state: &emInputState,
+    ) -> bool {
+        self.check_button.Input(event, state, input_state)
+    }
+
+    fn GetCursor(&self) -> emCursor {
+        self.check_button.GetCursor()
+    }
+}
+
+// ── emMainControlPanel ───────────────────────────────────────────────────────
 
 /// Sidebar panel with window control buttons and bookmarks.
 ///
 /// Port of C++ `emMainControlPanel` (extends `emLinearGroup`).
-/// DIVERGED: C++ uses emLinearGroup layout with nested emLinearLayout /
-/// emPackGroup widget trees. Rust uses a simplified flat panel with manual
-/// vertical layout since the full toolkit widget hierarchy is not yet ported.
+/// Uses emBorder for border painting and emLinearLayout for child arrangement,
+/// matching C++ emLinearGroup's inheritance chain.
 pub struct emMainControlPanel {
     ctx: Rc<emContext>,
     _config: Rc<RefCell<emMainConfig>>,
+    border: emBorder,
+    look: emLook,
+    /// Top-level linear layout: 2 children (lMain, contentControlPanel).
+    /// C++ SetChildWeight(0, 11.37) SetChildWeight(1, 21.32).
+    layout_main: emLinearLayout,
+    click_flags: Rc<ClickFlags>,
+    // Panel IDs for child widgets (used for layout weight assignment).
+    general_panel: Option<PanelId>,
     bookmarks_panel: Option<PanelId>,
-    button_panels: Vec<PanelId>,
     children_created: bool,
 }
-
-/// Button labels matching C++ `grCommands` pack group (emMainControlPanel.cpp).
-const BUTTON_LABELS: &[&str] = &[
-    "New Window",
-    "Fullscreen",
-    "Reload Files",
-    "Close",
-    "Quit",
-];
-
-/// Relative height weights for vertical layout.
-/// Buttons each get weight 1.0; bookmarks panel gets weight 6.5 to match the
-/// C++ child-weight ratio (lMain->SetChildWeight(1,6.5)).
-const BUTTON_WEIGHT: f64 = 1.0;
-const BOOKMARKS_WEIGHT: f64 = 6.5;
 
 impl emMainControlPanel {
     /// Port of C++ `emMainControlPanel` constructor.
     pub fn new(ctx: Rc<emContext>) -> Self {
         let config = emMainConfig::Acquire(&ctx);
+
+        // C++ emMainControlPanel constructor:
+        //   SetOuterBorderType(OBT_POPUP_ROOT)
+        //   SetInnerBorderType(IBT_NONE)
+        let border = emBorder::new(OuterBorderType::PopupRoot)
+            .with_inner(InnerBorderType::None);
+
+        // C++ layout:
+        //   SetMinCellCount(2)
+        //   SetOrientationThresholdTallness(1.0)
+        //   SetChildWeight(0, 11.37)
+        //   SetChildWeight(1, 21.32)
+        //   SetInnerSpace(0.0098, 0.0098)
+        let mut layout_main = emLinearLayout {
+            orientation: Orientation::Adaptive {
+                tallness_threshold: 1.0,
+            },
+            spacing: Spacing {
+                inner_h: 0.0098,
+                inner_v: 0.0098,
+                ..Spacing::default()
+            },
+            min_cell_count: 2,
+            ..emLinearLayout::horizontal()
+        };
+        // Default weight for cells is 1.0; we'll set per-child weights after
+        // children are created.
+        let _ = &mut layout_main;
+
         Self {
             ctx,
             _config: config,
+            border,
+            look: emLook::default(),
+            layout_main,
+            click_flags: Rc::new(ClickFlags::default()),
+            general_panel: None,
             bookmarks_panel: None,
-            button_panels: Vec::new(),
             children_created: false,
         }
     }
 
+    /// Create the full child widget tree matching C++ constructor.
     fn create_children(&mut self, ctx: &mut PanelCtx) {
-        // Create a ControlButton child for each command.
-        for (i, &label) in BUTTON_LABELS.iter().enumerate() {
-            let name = format!("btn_{i}");
-            let btn = Box::new(ControlButton {
-                label: label.to_string(),
-            });
-            let id = ctx.create_child_with(&name, btn);
-            self.button_panels.push(id);
-        }
+        let look = Rc::new(self.look.clone());
+        let flags = Rc::clone(&self.click_flags);
 
-        // Create the bookmarks panel as the last child.
+        // ── lMain: general panel (child 0 of top-level layout) ───────────
+        // C++ lMain = new emLinearLayout(this, "general")
+        // Contains lAbtCfgCmd (child 0, weight 4.71) and bookmarks (child 1, weight 6.5)
+        let general = Box::new(GeneralPanel::new(
+            Rc::clone(&self.ctx),
+            Rc::clone(&look),
+            Rc::clone(&flags),
+        ));
+        let general_id = ctx.create_child_with("general", general);
+        self.general_panel = Some(general_id);
+
+        // ── bookmarks panel (child 1 of lMain, but we place it as child 1 of top-level) ─
+        // DIVERGED: C++ places bookmarks inside lMain alongside general.
+        // Rust places it as top-level child 1 alongside general. The layout
+        // weights are adjusted to produce the same visual proportions:
+        // C++ top-level: child 0 (lMain weight 11.37) child 1 (contentControlPanel weight 21.32)
+        // C++ lMain: child 0 (lAbtCfgCmd weight 4.71) child 1 (bookmarks weight 6.5)
         let bookmarks = Box::new(emBookmarksPanel::new(Rc::clone(&self.ctx)));
         let bm_id = ctx.create_child_with("bookmarks", bookmarks);
         self.bookmarks_panel = Some(bm_id);
+
+        // Set child weights on the top-level layout to match C++ proportions.
+        // C++ top-level has 2 children: lMain (11.37) and contentControlPanel (21.32).
+        // Our top-level has 2 children: general (11.37) and bookmarks (21.32).
+        // DIVERGED: contentControlPanel is not yet ported; bookmarks takes its slot.
+        self.layout_main.set_child_constraint(
+            general_id,
+            ChildConstraint {
+                weight: 11.37,
+                ..Default::default()
+            },
+        );
+        self.layout_main.set_child_constraint(
+            bm_id,
+            ChildConstraint {
+                weight: 21.32,
+                ..Default::default()
+            },
+        );
 
         self.children_created = true;
     }
@@ -120,61 +262,500 @@ impl emMainControlPanel {
 impl PanelBehavior for emMainControlPanel {
     /// Port of C++ `emMainControlPanel::GetTitle`.
     fn get_title(&self) -> Option<String> {
-        Some("Eagle Mode".to_string())
+        Some("emMainControl".to_string())
     }
 
     fn IsOpaque(&self) -> bool {
         true
     }
 
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        // Sidebar background: emLook::GetBgColor (C++ default 0x515E84FF).
-        let bg = emColor::from_packed(0x515E84FF);
-        let canvas = emColor::TRANSPARENT;
-        painter.PaintRect(0.0, 0.0, w, h, bg, canvas);
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale =
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.border
+            .paint_border(painter, w, h, &self.look, false, state.enabled, pixel_scale);
     }
 
     fn Cycle(&mut self, _ctx: &mut PanelCtx) -> bool {
-        // No config-change watching needed for the initial port.
+        // Poll click flags and dispatch to main window.
+        // Port of C++ Cycle() signal handling.
+        let flags = &self.click_flags;
+
+        if flags.new_window.take() {
+            // C++ MainWin.Duplicate() — not yet implemented, log it.
+            log::info!("emMainControlPanel: New Window requested (Duplicate not yet implemented)");
+        }
+
+        if flags.fullscreen.take() {
+            crate::emMainWindow::with_main_window(|mw| {
+                // DIVERGED: C++ has direct MainWin reference; Rust uses
+                // thread_local. ToggleFullscreen requires &mut App which
+                // we don't have in Cycle. Log for now.
+                log::info!(
+                    "emMainControlPanel: Fullscreen toggle requested (requires App access)"
+                );
+                let _ = mw;
+            });
+        }
+
+        if flags.auto_hide_control_view.take() {
+            log::info!("emMainControlPanel: AutoHideControlView toggled");
+        }
+
+        if flags.auto_hide_slider.take() {
+            log::info!("emMainControlPanel: AutoHideSlider toggled");
+        }
+
+        if flags.reload.take() {
+            crate::emMainWindow::with_main_window(|mw| {
+                mw.ReloadFiles();
+            });
+        }
+
+        if flags.close.take() {
+            crate::emMainWindow::with_main_window(|mw| {
+                mw.Close();
+            });
+        }
+
+        if flags.quit.take() {
+            log::info!(
+                "emMainControlPanel: Quit requested (requires App access for InitiateTermination)"
+            );
+        }
+
         false
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
-        // Create children lazily on the first layout pass.
         if !self.children_created {
             self.create_children(ctx);
         }
 
-        let n_buttons = BUTTON_LABELS.len() as f64;
-        let total_weight = n_buttons * BUTTON_WEIGHT + BOOKMARKS_WEIGHT;
-        // Thin horizontal padding: 1% of width.
-        let pad_x = 0.01_f64;
-        let child_w = (1.0 - 2.0 * pad_x).max(0.0);
-        // Vertical gap between children: 0.5% of height.
-        let gap_frac = 0.005_f64;
-        let total_gaps = (n_buttons as usize + 1) as f64 * gap_frac;
-        let usable_h = (1.0 - total_gaps).max(0.0);
+        let r = ctx.layout_rect();
+        let cr = self.border.GetContentRect(r.w, r.h, &self.look);
+        self.layout_main.do_layout_skip(ctx, None, Some(cr));
+        let cc = self
+            .border
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        ctx.set_all_children_canvas_color(cc);
+    }
 
-        let canvas = emColor::from_packed(0x515E84FF);
-
-        let mut y = gap_frac;
-        for (i, &id) in self.button_panels.iter().enumerate() {
-            let _ = i;
-            let ch = usable_h * (BUTTON_WEIGHT / total_weight);
-            ctx.layout_child_canvas(id, pad_x, y, child_w, ch, canvas);
-            y += ch + gap_frac;
-        }
-
-        if let Some(bm_id) = self.bookmarks_panel {
-            let bm_h = usable_h * (BOOKMARKS_WEIGHT / total_weight);
-            ctx.layout_child_canvas(bm_id, pad_x, y, child_w, bm_h, canvas);
-        }
+    fn auto_expand(&self) -> bool {
+        true
     }
 
     fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState) {}
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// ── GeneralPanel ─────────────────────────────────────────────────────────────
+// Matches C++ lMain's lAbtCfgCmd child. Contains "About", config, and commands.
+// Layout: adaptive threshold 0.8, child 0 (lAbtCfg weight 1.5),
+//         child 1 (grCommands weight 3.05).
+
+struct GeneralPanel {
+    ctx: Rc<emContext>,
+    look: Rc<emLook>,
+    layout: emLinearLayout,
+    click_flags: Rc<ClickFlags>,
+    about_cfg_panel: Option<PanelId>,
+    commands_panel: Option<PanelId>,
+    children_created: bool,
+}
+
+impl GeneralPanel {
+    fn new(ctx: Rc<emContext>, look: Rc<emLook>, click_flags: Rc<ClickFlags>) -> Self {
+        Self {
+            ctx,
+            look,
+            layout: emLinearLayout {
+                orientation: Orientation::Adaptive {
+                    tallness_threshold: 0.8,
+                },
+                spacing: Spacing {
+                    inner_h: 0.07,
+                    inner_v: 0.07,
+                    ..Spacing::default()
+                },
+                ..emLinearLayout::horizontal()
+            },
+            click_flags,
+            about_cfg_panel: None,
+            commands_panel: None,
+            children_created: false,
+        }
+    }
+
+    fn create_children(&mut self, ctx: &mut PanelCtx) {
+        // Child 0: About + CoreConfig (lAbtCfg)
+        let about_cfg = Box::new(AboutCfgPanel::new(Rc::clone(&self.ctx)));
+        let about_cfg_id = ctx.create_child_with("t", about_cfg);
+        self.about_cfg_panel = Some(about_cfg_id);
+
+        // Child 1: Main Commands (grCommands)
+        let commands = Box::new(CommandsPanel::new(
+            Rc::clone(&self.look),
+            Rc::clone(&self.click_flags),
+        ));
+        let commands_id = ctx.create_child_with("commands", commands);
+        self.commands_panel = Some(commands_id);
+
+        // C++ lAbtCfgCmd: SetChildWeight(0, 1.5) SetChildWeight(1, 3.05)
+        self.layout.set_child_constraint(
+            about_cfg_id,
+            ChildConstraint {
+                weight: 1.5,
+                ..Default::default()
+            },
+        );
+        self.layout.set_child_constraint(
+            commands_id,
+            ChildConstraint {
+                weight: 3.05,
+                ..Default::default()
+            },
+        );
+
+        self.children_created = true;
+    }
+}
+
+impl PanelBehavior for GeneralPanel {
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        if !self.children_created {
+            self.create_children(ctx);
+        }
+        let cc = ctx.GetCanvasColor();
+        ctx.set_all_children_canvas_color(cc);
+        self.layout.do_layout_skip(ctx, None, None);
+    }
+
+    fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState) {}
+}
+
+// ── AboutCfgPanel ────────────────────────────────────────────────────────────
+// C++ lAbtCfg: about + core config. Adaptive layout, threshold 0.5.
+
+struct AboutCfgPanel {
+    _ctx: Rc<emContext>,
+    layout: emLinearLayout,
+    children_created: bool,
+}
+
+impl AboutCfgPanel {
+    fn new(ctx: Rc<emContext>) -> Self {
+        Self {
+            _ctx: ctx,
+            layout: emLinearLayout {
+                orientation: Orientation::Adaptive {
+                    tallness_threshold: 0.5,
+                },
+                spacing: Spacing {
+                    inner_h: 0.16,
+                    inner_v: 0.16,
+                    ..Spacing::default()
+                },
+                ..emLinearLayout::horizontal()
+            },
+            children_created: false,
+        }
+    }
+
+    fn create_children(&mut self, ctx: &mut PanelCtx) {
+        // Child 0: About panel (placeholder label).
+        let about = Box::new(AboutPanel);
+        let about_id = ctx.create_child_with("about", about);
+
+        // Child 1: Core config panel (placeholder).
+        let cfg = Box::new(CoreConfigPlaceholder);
+        let cfg_id = ctx.create_child_with("core config", cfg);
+
+        // C++ lAbtCfg: SetChildWeight(0, 1.15) SetChildWeight(1, 1.85)
+        self.layout.set_child_constraint(
+            about_id,
+            ChildConstraint {
+                weight: 1.15,
+                ..Default::default()
+            },
+        );
+        self.layout.set_child_constraint(
+            cfg_id,
+            ChildConstraint {
+                weight: 1.85,
+                ..Default::default()
+            },
+        );
+
+        self.children_created = true;
+    }
+}
+
+impl PanelBehavior for AboutCfgPanel {
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        if !self.children_created {
+            self.create_children(ctx);
+        }
+        let cc = ctx.GetCanvasColor();
+        ctx.set_all_children_canvas_color(cc);
+        self.layout.do_layout_skip(ctx, None, None);
+    }
+
+    fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState) {}
+}
+
+// ── AboutPanel ───────────────────────────────────────────────────────────────
+// Placeholder for "About Eagle Mode" linear group with icon + description.
+
+struct AboutPanel;
+
+impl PanelBehavior for AboutPanel {
+    fn get_title(&self) -> Option<String> {
+        Some("About Eagle Mode".to_string())
+    }
+
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
+        let bg = emColor::from_packed(0x515E84FF);
+        let fg = emColor::from_packed(0xEFF0F4FF);
+        let canvas = emColor::TRANSPARENT;
+        painter.PaintRect(0.0, 0.0, w, h, bg, canvas);
+
+        let about_text = concat!(
+            "This is Eagle Mode (Rust port)\n",
+            "\n",
+            "Copyright (C) 2001-2026 Oliver Hamann.\n",
+            "\n",
+            "Homepage: http://eaglemode.sourceforge.net/\n",
+            "\n",
+            "This program is free software: you can redistribute it and/or modify it under\n",
+            "the terms of the GNU General Public License version 3 as published by the\n",
+            "Free Software Foundation.\n",
+        );
+
+        let font_h = (h * 0.08).max(0.01);
+        let text_y = h * 0.1;
+        painter.PaintText(w * 0.05, text_y, about_text, font_h, 1.0, fg, canvas);
+    }
+
+    fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState) {}
+}
+
+// ── CoreConfigPlaceholder ────────────────────────────────────────────────────
+// Placeholder for emCoreConfigPanel.
+// DIVERGED: C++ creates a full emCoreConfigPanel here. Rust defers to a
+// placeholder until the core config panel is wired into emmain's panel tree.
+
+struct CoreConfigPlaceholder;
+
+impl PanelBehavior for CoreConfigPlaceholder {
+    fn get_title(&self) -> Option<String> {
+        Some("Core Config".to_string())
+    }
+
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
+        let bg = emColor::from_packed(0x515E84FF);
+        let fg = emColor::from_packed(0xEFF0F4FF);
+        let canvas = emColor::TRANSPARENT;
+        painter.PaintRect(0.0, 0.0, w, h, bg, canvas);
+        let font_h = (h * 0.12).max(0.01);
+        painter.PaintText(w * 0.05, h * 0.3, "Core Configuration", font_h, 1.0, fg, canvas);
+    }
+
+    fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState) {}
+}
+
+// ── CommandsPanel ────────────────────────────────────────────────────────────
+// Port of C++ grCommands = new emPackGroup(lAbtCfgCmd, "commands", "Main Commands")
+// Contains: New Window, Fullscreen, Reload, Autoplay, Close/Quit.
+
+struct CommandsPanel {
+    look: Rc<emLook>,
+    border: emBorder,
+    layout: emLinearLayout,
+    click_flags: Rc<ClickFlags>,
+    children_created: bool,
+}
+
+impl CommandsPanel {
+    fn new(look: Rc<emLook>, click_flags: Rc<ClickFlags>) -> Self {
+        Self {
+            look,
+            border: emBorder::new(OuterBorderType::Group)
+                .with_inner(InnerBorderType::Group)
+                .with_caption("Main Commands"),
+            // DIVERGED: C++ uses emPackGroup with PrefChildTallness(0.7).
+            // Rust uses emLinearLayout vertical since emPackLayout doesn't
+            // support tallness preferences in the same way.
+            layout: emLinearLayout::vertical(),
+            click_flags,
+            children_created: false,
+        }
+    }
+
+    fn create_children(&mut self, ctx: &mut PanelCtx) {
+        let look = Rc::clone(&self.look);
+        let flags = Rc::clone(&self.click_flags);
+
+        // ── BtNewWindow ──
+        let flag = Rc::clone(&flags);
+        let mut btn_nw = emButton::new("New Window", Rc::clone(&look));
+        btn_nw.SetDescription(
+            "Create a new window showing the same location.\n\nHotkey: F4",
+        );
+        btn_nw.on_click = Some(Box::new(move || {
+            flag.new_window.set(true);
+        }));
+        let nw_id = ctx.create_child_with(
+            "new window",
+            Box::new(MainButtonPanel { button: btn_nw }),
+        );
+
+        // ── BtFullscreen ──
+        let flag = Rc::clone(&flags);
+        let mut btn_fs = emCheckButton::new("Fullscreen", Rc::clone(&look));
+        btn_fs.on_check = Some(Box::new(move |_checked| {
+            flag.fullscreen.set(true);
+        }));
+        let fs_id = ctx.create_child_with(
+            "fullscreen",
+            Box::new(MainCheckButtonPanel {
+                check_button: btn_fs,
+            }),
+        );
+
+        // ── BtReload ──
+        let flag = Rc::clone(&flags);
+        let mut btn_reload = emButton::new("Reload Files", Rc::clone(&look));
+        btn_reload.SetDescription(
+            "Reload files and directories which are currently shown by this program.\n\nHotkey: F5",
+        );
+        btn_reload.on_click = Some(Box::new(move || {
+            flag.reload.set(true);
+        }));
+        let reload_id = ctx.create_child_with(
+            "reload",
+            Box::new(MainButtonPanel {
+                button: btn_reload,
+            }),
+        );
+
+        // ── Autoplay control panel ──
+        let autoplay = Box::new(emAutoplayControlPanel::new());
+        let autoplay_id = ctx.create_child_with("autoplay", autoplay);
+
+        // ── Close / Quit (lCloseQuit) ──
+        let flag_close = Rc::clone(&flags);
+        let mut btn_close = emButton::new("Close", Rc::clone(&look));
+        btn_close.SetDescription("Close this window.\n\nHotkey: Alt+F4");
+        btn_close.on_click = Some(Box::new(move || {
+            flag_close.close.set(true);
+        }));
+        let close_id = ctx.create_child_with(
+            "close",
+            Box::new(MainButtonPanel {
+                button: btn_close,
+            }),
+        );
+
+        let flag_quit = Rc::clone(&flags);
+        let mut btn_quit = emButton::new("Quit", Rc::clone(&look));
+        btn_quit.SetDescription(
+            "Close all windows of this process (and terminate this process).\n\nHotkey: Shift+Alt+F4",
+        );
+        btn_quit.on_click = Some(Box::new(move || {
+            flag_quit.quit.set(true);
+        }));
+        let quit_id = ctx.create_child_with(
+            "quit",
+            Box::new(MainButtonPanel { button: btn_quit }),
+        );
+
+        // C++ grCommands child weights:
+        //   0: new window (1.0), 1: fullscreen (1.09), 2: reload (1.0),
+        //   3: autoplay (2.09), 4: close_quit (1.0)
+        // Close and Quit are in a sub-layout in C++ (lCloseQuit), but here
+        // we flatten them into the main commands layout with adjusted weights.
+        // C++ close_quit weight 1.0 split between close (1.0) and quit (0.8).
+        let total_cq = 1.0 + 0.8;
+        self.layout.set_child_constraint(
+            nw_id,
+            ChildConstraint {
+                weight: 1.0,
+                ..Default::default()
+            },
+        );
+        self.layout.set_child_constraint(
+            fs_id,
+            ChildConstraint {
+                weight: 1.09,
+                ..Default::default()
+            },
+        );
+        self.layout.set_child_constraint(
+            reload_id,
+            ChildConstraint {
+                weight: 1.0,
+                ..Default::default()
+            },
+        );
+        self.layout.set_child_constraint(
+            autoplay_id,
+            ChildConstraint {
+                weight: 2.09,
+                ..Default::default()
+            },
+        );
+        self.layout.set_child_constraint(
+            close_id,
+            ChildConstraint {
+                weight: 1.0 / total_cq,
+                ..Default::default()
+            },
+        );
+        self.layout.set_child_constraint(
+            quit_id,
+            ChildConstraint {
+                weight: 0.8 / total_cq,
+                ..Default::default()
+            },
+        );
+
+        self.children_created = true;
+    }
+}
+
+impl PanelBehavior for CommandsPanel {
+    fn get_title(&self) -> Option<String> {
+        Some("Main Commands".to_string())
+    }
+
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale =
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.border
+            .paint_border(painter, w, h, &self.look, false, state.enabled, pixel_scale);
+    }
+
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        if !self.children_created {
+            self.create_children(ctx);
+        }
+        let r = ctx.layout_rect();
+        let cr = self.border.GetContentRect(r.w, r.h, &self.look);
+        self.layout.do_layout_skip(ctx, None, Some(cr));
+        let cc = self
+            .border
+            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        ctx.set_all_children_canvas_color(cc);
+    }
+
+    fn auto_expand(&self) -> bool {
+        true
+    }
+
+    fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState) {}
+}
+
+// ── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -184,7 +765,10 @@ mod tests {
     fn test_control_panel_new() {
         let ctx = emcore::emContext::emContext::NewRoot();
         let panel = emMainControlPanel::new(Rc::clone(&ctx));
-        assert_eq!(panel.get_title(), Some("Eagle Mode".to_string()));
+        assert_eq!(
+            panel.get_title(),
+            Some("emMainControl".to_string())
+        );
     }
 
     #[test]
@@ -208,5 +792,31 @@ mod tests {
         };
         assert_eq!(btn.get_title(), Some("Test".to_string()));
         assert!(btn.IsOpaque());
+    }
+
+    #[test]
+    fn test_click_flags_default() {
+        let flags = ClickFlags::default();
+        assert!(!flags.new_window.get());
+        assert!(!flags.fullscreen.get());
+        assert!(!flags.reload.get());
+        assert!(!flags.close.get());
+        assert!(!flags.quit.get());
+    }
+
+    #[test]
+    fn test_click_flag_roundtrip() {
+        let flags = Rc::new(ClickFlags::default());
+        flags.close.set(true);
+        assert!(flags.close.take());
+        assert!(!flags.close.get());
+    }
+
+    #[test]
+    fn test_title_matches_cpp() {
+        // C++ GetTitle returns "emMainControl"
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let panel = emMainControlPanel::new(ctx);
+        assert_eq!(panel.get_title(), Some("emMainControl".to_string()));
     }
 }
