@@ -437,7 +437,7 @@ fn set_start_location_in(entries: &mut [emBookmarkEntryUnion], target_identity: 
 ///
 /// Port of C++ `emBookmarksModel` (extends emConfigModel + emBookmarksRec).
 /// Backed by `emConfigModel` for file persistence at
-/// `~/.eaglemode/emMain/bookmarks.rec`.
+/// `~/.eaglemode-rs/emMain/bookmarks.rec`.
 pub struct emBookmarksModel {
     config_model: emConfigModel<emBookmarksRec>,
 }
@@ -453,7 +453,7 @@ impl emBookmarksModel {
                     .unwrap_or_else(|_| {
                         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
                         std::path::PathBuf::from(home)
-                            .join(".eaglemode")
+                            .join(".eaglemode-rs")
                             .join("emMain")
                             .join("bookmarks.rec")
                     });

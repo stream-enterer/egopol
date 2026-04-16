@@ -114,7 +114,7 @@ fn user_config_default() {
         &["EM_USER_CONFIG_DIR"],
         || {
             let p = emGetInstallPath(InstallDirType::UserConfig, "emCore", None).unwrap();
-            assert_eq!(p, PathBuf::from("/home/testuser/.eaglemode/emCore"));
+            assert_eq!(p, PathBuf::from("/home/testuser/.eaglemode-rs/emCore"));
         },
     );
 }

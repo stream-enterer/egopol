@@ -17,7 +17,12 @@ pub enum InstallDirType {
     HtmlDoc,
     /// PostScript documentation (`<em>/doc/ps`).
     PsDoc,
-    /// Per-user configuration (`~/.eaglemode/<prj>` or `$EM_USER_CONFIG_DIR/<prj>`).
+    /// Per-user configuration (`~/.eaglemode-rs/<prj>` or `$EM_USER_CONFIG_DIR/<prj>`).
+    ///
+    /// DIVERGED: C++ uses `~/.eaglemode`. eaglemode-rs uses `~/.eaglemode-rs`
+    /// so the two builds do not share a config directory: Rust's serialized
+    /// files are not bit-identical to C++'s (notably missing the emRec format
+    /// header), and letting them overwrite each other breaks the C++ install.
     UserConfig,
     /// System-wide configuration (`<em>/etc/<prj>`).
     HostConfig,
@@ -203,7 +208,8 @@ fn user_config_dir() -> Result<PathBuf, InstallInfoError> {
         return Ok(PathBuf::from(dir));
     }
     let home = home_dir()?;
-    Ok(home.join(".eaglemode"))
+    // DIVERGED: C++ `emGetInstallPath` uses `.eaglemode`; see `UserConfig` doc.
+    Ok(home.join(".eaglemode-rs"))
 }
 
 #[cfg(target_os = "linux")]

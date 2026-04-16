@@ -218,7 +218,7 @@ impl emCoreConfig {
                 .unwrap_or_else(|_| {
                     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
                     std::path::PathBuf::from(home)
-                        .join(".eaglemode")
+                        .join(".eaglemode-rs")
                         .join("emCore")
                         .join("config.rec")
                 });

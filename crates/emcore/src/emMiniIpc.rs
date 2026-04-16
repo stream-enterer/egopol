@@ -113,7 +113,11 @@ mod platform {
     fn ipc_dir() -> PathBuf {
         let uid = unsafe { libc::getuid() };
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-        PathBuf::from(home).join(format!(".emMiniIpc-{uid}"))
+        // DIVERGED: C++ `emMiniIpc` uses `~/.emMiniIpc-<uid>`. eaglemode-rs
+        // uses `~/.emMiniIpc-rs-<uid>` so a running C++ server is not mistaken
+        // for a Rust server (and vice-versa) — the two builds must not share
+        // the IPC namespace even though the protocol would collide on names.
+        PathBuf::from(home).join(format!(".emMiniIpc-rs-{uid}"))
     }
 
     fn hostname() -> String {
