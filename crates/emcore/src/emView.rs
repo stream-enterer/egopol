@@ -1383,15 +1383,18 @@ impl emView {
     ) {
         let clip = viewport.intersection(&abs);
 
-        {
-            let panel = match tree.get_mut(id) {
-                Some(p) => p,
-                None => return,
-            };
+        let (was_viewed, visible) = match tree.GetRec(id) {
+            Some(p) => (p.prev_viewed, p.visible),
+            None => return,
+        };
+        if !visible {
+            return;
+        }
 
-            if !panel.visible {
-                return;
-            }
+        let new_viewed = clip.is_some();
+
+        {
+            let panel = tree.get_mut(id).unwrap();
 
             panel.viewed_x = abs.x;
             panel.viewed_y = abs.y;
@@ -1404,7 +1407,25 @@ impl emView {
                 panel.clip_w = c.w;
                 panel.clip_h = c.h;
                 panel.viewed = true;
+                panel.in_viewed_path = true;
+            } else {
+                panel.viewed = false;
             }
+        }
+
+        // C++ emView::RawVisitAbs (emView.cpp:1789-1793) fires
+        // NF_VIEWING_CHANGED | NF_UPDATE_PRIORITY_CHANGED | NF_MEMORY_LIMIT_CHANGED
+        // whenever a panel's viewing state changes. Without this notice, panels
+        // like emSubViewPanel never learn that they've become viewed and never
+        // sync their sub-view geometry, leaving the sub-view stuck at its
+        // initial 1x1 viewport.
+        if was_viewed != new_viewed {
+            tree.queue_notice(
+                id,
+                super::emPanel::NoticeFlags::VIEW_CHANGED
+                    | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
+                    | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
+            );
         }
 
         // Recurse into children
