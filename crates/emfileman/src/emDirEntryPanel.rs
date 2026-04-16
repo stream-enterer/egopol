@@ -71,10 +71,8 @@ pub fn compute_bg_color(
 /// info, borders, and content area. Creates content panels via the plugin
 /// system and alt panels for alternative views.
 ///
-/// DIVERGED: C++ UpdateContentPanel/UpdateAltPanel are called from
-/// Notice()+Cycle() with full view state. Rust uses dirty flags set in
-/// notice() and defers creation/deletion to LayoutChildren() for borrow
-/// safety — LayoutChildren receives PanelCtx which allows child mutation.
+/// Children are created in Notice() (NF_VIEWING_CHANGED|NF_SOUGHT_NAME_CHANGED|NF_ACTIVE_CHANGED),
+/// mirroring C++ emDirEntryPanel::Notice() which calls UpdateContentPanel()/UpdateAltPanel() directly.
 pub struct emDirEntryPanel {
     ctx: Rc<emContext>,
     file_man: Rc<RefCell<emFileManModel>>,
@@ -83,11 +81,6 @@ pub struct emDirEntryPanel {
     pub(crate) bg_color: u32,
     content_panel: Option<PanelId>,
     alt_panel: Option<PanelId>,
-    content_dirty: bool,
-    alt_dirty: bool,
-    last_viewed: bool,
-    last_in_active_path: bool,
-    last_viewed_width: f64,
 }
 
 impl emDirEntryPanel {
@@ -117,11 +110,6 @@ impl emDirEntryPanel {
             bg_color,
             content_panel: None,
             alt_panel: None,
-            content_dirty: true,
-            alt_dirty: true,
-            last_viewed: false,
-            last_in_active_path: false,
-            last_viewed_width: 0.0,
         }
     }
 
@@ -140,95 +128,170 @@ impl emDirEntryPanel {
         }
     }
 
-    /// DIVERGED: C++ UpdateContentPanel is called from Notice+Cycle with
-    /// full view state. Rust version uses cached dirty flags set in notice()
-    /// and is called from LayoutChildren() for borrow safety.
-    fn update_content_panel(&mut self, ctx: &mut PanelCtx) {
-        if !self.content_dirty {
-            return;
-        }
-        self.content_dirty = false;
-
-        let (content_w, min_content_vw) = {
+    /// Port of C++ emDirEntryPanel::UpdateContentPanel(forceRecreation, forceRelayout).
+    /// Called from notice() and Cycle() with current panel state.
+    fn update_content_panel(
+        &mut self,
+        ctx: &mut PanelCtx,
+        state: &PanelState,
+        force_recreation: bool,
+        force_relayout: bool,
+    ) {
+        let (cx, cy, cw, ch, cc, min_content_vw) = {
             let cfg = self.config.borrow();
             let theme = cfg.GetTheme();
             let theme_rec = theme.GetRec();
-            let cw = if self.dir_entry.IsDirectory() {
-                theme_rec.DirContentW
+            if self.dir_entry.IsDirectory() {
+                (
+                    theme_rec.DirContentX,
+                    theme_rec.DirContentY,
+                    theme_rec.DirContentW,
+                    theme_rec.DirContentH,
+                    emColor::from_packed(theme_rec.DirContentColor),
+                    theme_rec.MinContentVW,
+                )
             } else {
-                theme_rec.FileContentW
-            };
-            (cw, theme_rec.MinContentVW)
+                (
+                    theme_rec.FileContentX,
+                    theme_rec.FileContentY,
+                    theme_rec.FileContentW,
+                    theme_rec.FileContentH,
+                    emColor::from_packed(theme_rec.FileContentColor),
+                    theme_rec.MinContentVW,
+                )
+            }
         };
 
-        // C++ emDirEntryPanel::Notice/Cycle (line 758-771): create content
-        // when panel is seek target for ContentName, OR when viewed and
-        // ViewedWidth*cw >= MinContentVW.
-        let is_sought = ctx.is_seek_target() && ctx.seek_child_name() == CONTENT_NAME;
-        let should_create =
-            is_sought || (self.last_viewed && self.last_viewed_width * content_w >= min_content_vw);
-        let should_delete = !self.last_in_active_path && !self.last_viewed;
-
-        if should_delete && self.content_panel.is_some() {
-            if let Some(child) = self.content_panel.take() {
+        // Look up existing content child.
+        let existing = ctx.find_child_by_name(CONTENT_NAME);
+        if force_recreation {
+            if let Some(child) = existing {
                 ctx.delete_child(child);
+                self.content_panel = None;
             }
-        } else if should_create && self.content_panel.is_none() {
-            let stat_mode = if self.dir_entry.IsDirectory() {
-                emcore::emFpPlugin::FileStatMode::Directory
-            } else {
-                emcore::emFpPlugin::FileStatMode::Regular
-            };
-            let fppl = emcore::emFpPlugin::emFpPluginList::Acquire(&self.ctx);
-            let fppl = fppl.borrow();
-            let parent_arg = emcore::emFpPlugin::PanelParentArg::new(Rc::clone(&self.ctx));
-            let behavior = fppl.CreateFilePanelWithStat(
-                &parent_arg,
-                CONTENT_NAME,
-                self.dir_entry.GetPath(),
-                None,
-                stat_mode,
-                0,
-            );
-            let child_id = ctx.create_child_with(CONTENT_NAME, behavior);
-            // Register for cycling so the file panel's model loads
-            // (C++ file panels are emEngines that self-wake; Rust needs
-            // explicit registration).
-            ctx.tree.Cycle(child_id);
-            self.content_panel = Some(child_id);
+        }
+        let mut force_relayout = force_relayout || force_recreation;
+        let existing = ctx.find_child_by_name(CONTENT_NAME);
+
+        // C++ emDirEntryPanel.cpp:758-771: create when sought OR viewed+size+clip.
+        let is_sought = ctx.is_seek_target() && ctx.seek_child_name() == CONTENT_NAME;
+        let (clip_x1, clip_y1, clip_x2, clip_y2) = ctx.clip_rect();
+        let should_create = is_sought
+            || (state.viewed
+                && state.viewed_rect.w * cw >= min_content_vw
+                && ctx.panel_to_view_x(cx) < clip_x2
+                && ctx.panel_to_view_x(cx + cw) > clip_x1
+                && ctx.panel_to_view_y(cy) < clip_y2
+                && ctx.panel_to_view_y(cy + ch) > clip_y1);
+
+        if should_create {
+            if existing.is_none() {
+                let stat_mode = if self.dir_entry.IsDirectory() {
+                    emcore::emFpPlugin::FileStatMode::Directory
+                } else {
+                    emcore::emFpPlugin::FileStatMode::Regular
+                };
+                let fppl = emcore::emFpPlugin::emFpPluginList::Acquire(&self.ctx);
+                let fppl = fppl.borrow();
+                let parent_arg = emcore::emFpPlugin::PanelParentArg::new(Rc::clone(&self.ctx));
+                let behavior = fppl.CreateFilePanelWithStat(
+                    &parent_arg,
+                    CONTENT_NAME,
+                    self.dir_entry.GetPath(),
+                    None,
+                    stat_mode,
+                    0,
+                );
+                let child_id = ctx.create_child_with(CONTENT_NAME, behavior);
+                ctx.be_first_child(child_id);
+                // Register for cycling so the file panel's model loads.
+                ctx.tree.Cycle(child_id);
+                self.content_panel = Some(child_id);
+                force_relayout = true;
+            }
+        } else if let Some(child) = existing {
+            // C++ line 785: delete if !InActivePath && (!InViewedPath || IsViewed())
+            let in_active = ctx.child_in_active_path(child);
+            let in_viewed = ctx.child_in_viewed_path(child);
+            if !in_active && (!in_viewed || state.viewed) {
+                ctx.delete_child(child);
+                self.content_panel = None;
+            }
+        }
+
+        if force_relayout {
+            if let Some(child) = self.content_panel {
+                ctx.layout_child_canvas(child, cx, cy, cw, ch, cc);
+            }
         }
     }
 
-    /// DIVERGED: C++ UpdateAltPanel is called from Notice+Cycle.
-    /// Rust version uses cached dirty flags, called from LayoutChildren().
-    fn update_alt_panel(&mut self, ctx: &mut PanelCtx) {
-        if !self.alt_dirty {
-            return;
-        }
-        self.alt_dirty = false;
-
-        let (alt_w, min_alt_vw) = {
+    /// Port of C++ emDirEntryPanel::UpdateAltPanel(forceRecreation, forceRelayout).
+    fn update_alt_panel(
+        &mut self,
+        ctx: &mut PanelCtx,
+        state: &PanelState,
+        force_recreation: bool,
+        force_relayout: bool,
+    ) {
+        let (ax, ay, aw, ah, min_alt_vw) = {
             let cfg = self.config.borrow();
             let theme = cfg.GetTheme();
             let theme_rec = theme.GetRec();
-            (theme_rec.AltW, theme_rec.MinAltVW)
+            (
+                theme_rec.AltX,
+                theme_rec.AltY,
+                theme_rec.AltW,
+                theme_rec.AltH,
+                theme_rec.MinAltVW,
+            )
         };
 
-        let should_create = self.last_viewed && self.last_viewed_width * alt_w >= min_alt_vw;
-        let should_delete = !self.last_in_active_path && !self.last_viewed;
-
-        if should_delete && self.alt_panel.is_some() {
-            if let Some(child) = self.alt_panel.take() {
+        let existing = ctx.find_child_by_name(ALT_NAME);
+        if force_recreation {
+            if let Some(child) = existing {
                 ctx.delete_child(child);
+                self.alt_panel = None;
             }
-        } else if should_create && self.alt_panel.is_none() {
-            let alt = crate::emDirEntryAltPanel::emDirEntryAltPanel::new(
-                Rc::clone(&self.ctx),
-                self.dir_entry.clone(),
-                1,
-            );
-            let child_id = ctx.create_child_with(ALT_NAME, Box::new(alt));
-            self.alt_panel = Some(child_id);
+        }
+        let mut force_relayout = force_relayout || force_recreation;
+        let existing = ctx.find_child_by_name(ALT_NAME);
+
+        // C++ emDirEntryPanel.cpp:804-816: create when sought OR viewed+size+clip.
+        let is_sought = ctx.is_seek_target() && ctx.seek_child_name() == ALT_NAME;
+        let (clip_x1, clip_y1, clip_x2, clip_y2) = ctx.clip_rect();
+        let should_create = is_sought
+            || (state.viewed
+                && state.viewed_rect.w * aw >= min_alt_vw
+                && ctx.panel_to_view_x(ax) < clip_x2
+                && ctx.panel_to_view_x(ax + aw) > clip_x1
+                && ctx.panel_to_view_y(ay) < clip_y2
+                && ctx.panel_to_view_y(ay + ah) > clip_y1);
+
+        if should_create {
+            if existing.is_none() {
+                let alt = crate::emDirEntryAltPanel::emDirEntryAltPanel::new(
+                    Rc::clone(&self.ctx),
+                    self.dir_entry.clone(),
+                    1,
+                );
+                let child_id = ctx.create_child_with(ALT_NAME, Box::new(alt));
+                self.alt_panel = Some(child_id);
+                force_relayout = true;
+            }
+        } else if let Some(child) = existing {
+            let in_active = ctx.child_in_active_path(child);
+            let in_viewed = ctx.child_in_viewed_path(child);
+            if !in_active && (!in_viewed || state.viewed) {
+                ctx.delete_child(child);
+                self.alt_panel = None;
+            }
+        }
+
+        if force_relayout {
+            if let Some(child) = self.alt_panel {
+                ctx.layout_child_canvas(child, ax, ay, aw, ah, emColor::from_packed(self.bg_color));
+            }
         }
     }
 
@@ -349,50 +412,34 @@ impl emDirEntryPanel {
 }
 
 impl PanelBehavior for emDirEntryPanel {
-    fn notice(&mut self, flags: NoticeFlags, state: &PanelState, _ctx: &mut PanelCtx) {
+    /// Port of C++ emDirEntryPanel::Notice(flags):
+    ///   if (flags & (NF_VIEWING_CHANGED|NF_SOUGHT_NAME_CHANGED|NF_ACTIVE_CHANGED))
+    ///     UpdateContentPanel(); UpdateAltPanel();
+    fn notice(&mut self, flags: NoticeFlags, state: &PanelState, ctx: &mut PanelCtx) {
         if flags.intersects(
-            NoticeFlags::VIEW_CHANGED
+            NoticeFlags::VISIBILITY
                 | NoticeFlags::SOUGHT_NAME_CHANGED
                 | NoticeFlags::ACTIVE_CHANGED,
         ) {
-            let viewed_changed = state.viewed != self.last_viewed;
-            let active_changed = state.in_active_path != self.last_in_active_path;
-            let sought_changed = flags.contains(NoticeFlags::SOUGHT_NAME_CHANGED);
-            self.last_viewed = state.viewed;
-            self.last_in_active_path = state.in_active_path;
-            self.last_viewed_width = state.viewed_rect.w;
-            // C++ emDirEntryPanel uses GetSoughtName() in both Notice() and
-            // Cycle() to decide whether to create content. When sought name
-            // changes (e.g., this panel becomes the seek target), mark
-            // content_dirty so LayoutChildren re-runs update_content_panel.
-            if viewed_changed || active_changed || sought_changed {
-                self.content_dirty = true;
-                self.alt_dirty = true;
-            }
+            self.update_content_panel(ctx, state, false, false);
+            self.update_alt_panel(ctx, state, false, false);
         }
     }
 
-    fn Cycle(&mut self, _ctx: &mut PanelCtx) -> bool {
+    fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
+        // C++ Cycle: update bg on selection signal; update panels on config change.
+        // Rust models don't have IsSignaled() yet — always update bg (conservative).
         self.update_bg_color();
+
+        // C++ Cycle calls UpdateContentPanel(false,true)/UpdateAltPanel(false,true)
+        // on config change. Build state from tree for forceRelayout pass.
+        let pt = ctx.tree.get_pixel_tallness();
+        if ctx.tree.contains(ctx.id) {
+            let state = ctx.tree.build_panel_state(ctx.id, false, pt);
+            self.update_content_panel(ctx, &state, false, true);
+            self.update_alt_panel(ctx, &state, false, true);
+        }
         false
-    }
-
-    fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
-        // Port of C++ emDirEntryPanel::AutoExpand — creates content
-        // and alt panels. AutoExpand runs when view condition reaches
-        // threshold or panel is seek target.
-        self.last_viewed = true;
-        self.last_viewed_width = self.last_viewed_width.max(1.0);
-        self.content_dirty = true;
-        self.alt_dirty = true;
-        self.update_content_panel(ctx);
-        self.update_alt_panel(ctx);
-    }
-
-    fn AutoShrink(&mut self, _ctx: &mut PanelCtx) {
-        // Default AutoShrink deletes children with created_by_ae=true.
-        self.content_panel = None;
-        self.alt_panel = None;
     }
 
     fn Input(
@@ -582,10 +629,9 @@ impl PanelBehavior for emDirEntryPanel {
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
-        // Create/delete children based on dirty flags
-        self.update_content_panel(ctx);
-        self.update_alt_panel(ctx);
-
+        // Children are created in notice(); LayoutChildren only positions them.
+        // C++ UpdateContentPanel/UpdateAltPanel called with forceRelayout=true
+        // when the layout rect changes.
         if let Some(child) = self.content_panel {
             let cfg = self.config.borrow();
             let theme = cfg.GetTheme();

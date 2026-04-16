@@ -320,6 +320,10 @@ impl PanelTree {
         self.current_pixel_tallness = pt.max(1e-100);
     }
 
+    pub fn get_pixel_tallness(&self) -> f64 {
+        self.current_pixel_tallness
+    }
+
     /// Link `id` into the notice ring at the tail.
     /// Port of C++ `emView::AddToNoticeList` (emView.cpp).
     fn add_to_notice_list(&mut self, id: PanelId) {

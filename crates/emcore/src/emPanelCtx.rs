@@ -225,4 +225,52 @@ impl<'a> PanelCtx<'a> {
             self.tree.SetCanvasColor(child, color);
         }
     }
+
+    /// Port of C++ `emPanel::PanelToViewX(x)`.
+    /// Maps panel-space x-coordinate to view (screen) space.
+    pub fn panel_to_view_x(&self, x: f64) -> f64 {
+        self.tree.PanelToViewX(self.id, x)
+    }
+
+    /// Port of C++ `emPanel::PanelToViewY(y)`.
+    /// Maps panel-space y-coordinate to view (screen) space.
+    /// C++: ViewedY + y * ViewedWidth / CurrentPixelTallness.
+    pub fn panel_to_view_y(&self, y: f64) -> f64 {
+        if let Some(p) = self.tree.GetRec(self.id) {
+            p.viewed_y + y * p.viewed_width / self.tree.current_pixel_tallness
+        } else {
+            0.0
+        }
+    }
+
+    /// Port of C++ `emPanel::GetClipX1/X2/Y1/Y2`.
+    /// Returns the panel's clip rect in view (screen) space.
+    pub fn clip_rect(&self) -> (f64, f64, f64, f64) {
+        if let Some(p) = self.tree.GetRec(self.id) {
+            (p.clip_x, p.clip_y, p.clip_x + p.clip_w, p.clip_y + p.clip_h)
+        } else {
+            (0.0, 0.0, 0.0, 0.0)
+        }
+    }
+
+    /// Make child the first child in sibling order. Port of C++ `BeFirst()`.
+    pub fn be_first_child(&mut self, child: PanelId) {
+        self.tree.BeFirst(child);
+    }
+
+    /// Check if child panel is in the active path.
+    pub fn child_in_active_path(&self, child: PanelId) -> bool {
+        self.tree
+            .GetRec(child)
+            .map(|p| p.in_active_path)
+            .unwrap_or(false)
+    }
+
+    /// Check if child panel is in the viewed path.
+    pub fn child_in_viewed_path(&self, child: PanelId) -> bool {
+        self.tree
+            .GetRec(child)
+            .map(|p| p.in_viewed_path)
+            .unwrap_or(false)
+    }
 }
