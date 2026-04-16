@@ -22,18 +22,15 @@ fn filename_construction_linux() {
 fn open_libc_and_resolve_symbol() {
     // libc.so.6 is always available on Linux
     let handle = emTryOpenLib("libc.so.6", true).expect("should open libc");
-    let ptr = unsafe {
-        emTryResolveSymbolFromLib(&handle, "strlen").expect("should find strlen")
-    };
+    let ptr = unsafe { emTryResolveSymbolFromLib(&handle, "strlen").expect("should find strlen") };
     assert!(!ptr.is_null());
     emCloseLib(handle);
 }
 
 #[test]
 fn resolve_symbol_sets_infinite_lifetime() {
-    let ptr = unsafe {
-        emTryResolveSymbol("libc.so.6", true, "strlen").expect("should resolve strlen")
-    };
+    let ptr =
+        unsafe { emTryResolveSymbol("libc.so.6", true, "strlen").expect("should resolve strlen") };
     assert!(!ptr.is_null());
     // Library now has infinite lifetime — closing is a no-op
 }

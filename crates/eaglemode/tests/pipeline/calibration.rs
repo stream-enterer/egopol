@@ -3,22 +3,21 @@
 //! Click interactions produce expected state changes when dispatched through
 //! the coordinate-transform pipeline.
 
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use emcore::emButton::emButton;
+use emcore::emColorField::emColorField;
 use emcore::emCursor::emCursor;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
-use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emPanelCtx::PanelCtx;
-use emcore::emPainter::emPainter;
-use emcore::emViewRenderer::SoftwareCompositor;
-use emcore::emButton::emButton;
-use emcore::emColorField::emColorField;
 use emcore::emListBox::{emListBox, SelectionMode};
 use emcore::emLook::emLook;
+use emcore::emPainter::emPainter;
+use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use emcore::emPanelCtx::PanelCtx;
 use emcore::emScalarField::emScalarField;
+use emcore::emViewRenderer::SoftwareCompositor;
 
 use super::support::pipeline::PipelineTestHarness;
 
@@ -271,8 +270,8 @@ fn colorfield_expansion_creates_child_sliders() {
 /// Actual:   passes at 1x (600x600), fails at 2x (1200x1200).
 #[test]
 fn button_click_works_after_zoom() {
-    use std::cell::Cell;
     use emcore::emImage::emImage;
+    use std::cell::Cell;
 
     let look = emLook::new();
     let mut btn = emButton::new("Zoom Test", look.clone());
@@ -356,7 +355,8 @@ fn button_click_works_after_zoom() {
     }
     impl PanelBehavior for BtnPanel {
         fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-            let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+            let pixel_scale =
+                state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
             self.widget.Paint(painter, w, h, state.enabled, pixel_scale);
         }
         fn Input(

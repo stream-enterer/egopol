@@ -6,19 +6,18 @@
 //! radio box. The test verifies correct selection at both 1x and 2x zoom,
 //! re-clicking the already-GetChecked box (no-op), and cycling through all items.
 
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use emcore::emCursor::emCursor;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
-use emcore::emPanel::{PanelBehavior, PanelState};
-use emcore::emPainter::emPainter;
-use emcore::emViewRenderer::SoftwareCompositor;
 use emcore::emLook::emLook;
+use emcore::emPainter::emPainter;
+use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emRadioBox::emRadioBox;
 use emcore::emRadioButton::RadioGroup;
+use emcore::emViewRenderer::SoftwareCompositor;
 
 use super::support::pipeline::PipelineTestHarness;
 
@@ -91,16 +90,13 @@ impl RadioBoxHarness {
         //   panel 1: y=0.33..0.66  (middle third)
         //   panel 2: y=0.66..1.00  (bottom third)
         let panel0 = h.add_panel_with(root, "rbox0", Box::new(RadioBoxBehavior::new(rb0)));
-        h.tree
-            .Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
+        h.tree.Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
 
         let panel1 = h.add_panel_with(root, "rbox1", Box::new(RadioBoxBehavior::new(rb1)));
-        h.tree
-            .Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
+        h.tree.Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
 
         let panel2 = h.add_panel_with(root, "rbox2", Box::new(RadioBoxBehavior::new(rb2)));
-        h.tree
-            .Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
+        h.tree.Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
 
         // Settle layout and viewing Restore.
         h.tick_n(5);
@@ -241,42 +237,26 @@ fn radiobox_cycle_forward_and_backward() {
     // Forward Cycle at 1x: 0 -> 1 -> 2
     for i in 0..3 {
         t.click_option(i);
-        assert_eq!(
-            t.checked(),
-            Some(i),
-            "1x forward: expected selection {i}"
-        );
+        assert_eq!(t.checked(), Some(i), "1x forward: expected selection {i}");
     }
 
     // Backward Cycle at 1x: 2 -> 1 -> 0
     for i in (0..3).rev() {
         t.click_option(i);
-        assert_eq!(
-            t.checked(),
-            Some(i),
-            "1x backward: expected selection {i}"
-        );
+        assert_eq!(t.checked(), Some(i), "1x backward: expected selection {i}");
     }
 
     // Forward Cycle at 2x
     t.zoom_to(2.0);
     for i in 0..3 {
         t.click_option(i);
-        assert_eq!(
-            t.checked(),
-            Some(i),
-            "2x forward: expected selection {i}"
-        );
+        assert_eq!(t.checked(), Some(i), "2x forward: expected selection {i}");
     }
 
     // Backward Cycle at 2x
     for i in (0..3).rev() {
         t.click_option(i);
-        assert_eq!(
-            t.checked(),
-            Some(i),
-            "2x backward: expected selection {i}"
-        );
+        assert_eq!(t.checked(), Some(i), "2x backward: expected selection {i}");
     }
 }
 

@@ -23,10 +23,7 @@ pub fn emFileLinkFpPluginFunc(
     // C++: new emFileLinkPanel(parent, name,
     //        emFileLinkModel::Acquire(parent.GetRootContext(), path))
     let model = emFileLinkModel::Acquire(parent.root_context(), path, false);
-    let mut panel = emFileLinkPanel::new(
-        Rc::clone(parent.root_context()),
-        true,
-    );
+    let mut panel = emFileLinkPanel::new(Rc::clone(parent.root_context()), true);
     panel.set_link_model(model);
     Some(Box::new(panel))
 }

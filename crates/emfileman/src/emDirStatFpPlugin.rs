@@ -19,7 +19,7 @@ pub fn emDirStatFpPluginFunc(
         *error_buf = "emDirStatFpPlugin: No properties allowed.".to_string();
         return None;
     }
-    Some(Box::new(emDirStatPanel::new(
-        Rc::clone(parent.root_context()),
-    )))
+    Some(Box::new(emDirStatPanel::new(Rc::clone(
+        parent.root_context(),
+    ))))
 }

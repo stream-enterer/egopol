@@ -15,8 +15,8 @@ use crate::emPanelTree::PanelTree;
 use crate::emScheduler::EngineScheduler;
 use crate::emSignal::SignalId;
 
-use crate::emScreen::emScreen;
 use super::emWindow::{WindowFlags, ZuiWindow};
+use crate::emScreen::emScreen;
 
 /// Shared GPU resources created once and used by all windows.
 pub struct GpuContext {
@@ -268,11 +268,7 @@ impl ApplicationHandler for App {
             WindowEvent::Touch(ref touch) => {
                 if let Some(win) = self.windows.get_mut(&window_id) {
                     win.handle_touch(touch, &mut self.tree);
-                    Self::dispatch_forward_events(
-                        win,
-                        &mut self.tree,
-                        &mut self.input_state,
-                    );
+                    Self::dispatch_forward_events(win, &mut self.tree, &mut self.input_state);
                     win.invalidate();
                     win.request_redraw();
                 }
@@ -346,7 +342,9 @@ impl ApplicationHandler for App {
         }
 
         // Run one scheduler time slice
-        self.scheduler.borrow_mut().DoTimeSlice(&mut self.tree, &mut self.windows);
+        self.scheduler
+            .borrow_mut()
+            .DoTimeSlice(&mut self.tree, &mut self.windows);
 
         // Keep event loop pumping while engines are active.
         // C++ runs a tight 10ms loop; Rust uses event-driven winit with

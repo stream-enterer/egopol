@@ -16,8 +16,10 @@ use emcore::emPanelTree::{PanelId, PanelTree};
 
 use emcore::emView::emView;
 
-use emcore::emViewInputFilter::{emDefaultTouchVIF, emKeyboardZoomScrollVIF, emMouseZoomScrollVIF, emViewInputFilter};
 use emcore::emScheduler::EngineScheduler;
+use emcore::emViewInputFilter::{
+    emDefaultTouchVIF, emKeyboardZoomScrollVIF, emMouseZoomScrollVIF, emViewInputFilter,
+};
 use emcore::emWindow::ZuiWindow;
 use winit::window::WindowId;
 
@@ -141,9 +143,9 @@ impl TestHarness {
         let viewed = self.tree.viewed_panels_dfs();
         for panel_id in viewed {
             if let Some(mut behavior) = self.tree.take_behavior(panel_id) {
-                let state = self
-                    .tree
-                    .build_panel_state(panel_id, wf, self.view.GetCurrentPixelTallness());
+                let state =
+                    self.tree
+                        .build_panel_state(panel_id, wf, self.view.GetCurrentPixelTallness());
                 let consumed = behavior.Input(&ev, &state, &self.input_state);
                 self.tree.put_behavior(panel_id, behavior);
                 if consumed {

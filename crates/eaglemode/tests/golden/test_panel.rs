@@ -685,12 +685,18 @@ impl TestPanel {
 
         // Ellipse outlines (x,y,w,h bounding box)
         p.PaintEllipseOutline(
-            0.05, 0.86, 0.01, 0.01,
+            0.05,
+            0.86,
+            0.01,
+            0.01,
             &emStroke::new(emColor::WHITE, 0.003),
             bg,
         );
         p.PaintEllipseOutline(
-            0.065, 0.86, 0.02, 0.01,
+            0.065,
+            0.86,
+            0.02,
+            0.01,
             &emStroke::new(emColor::WHITE, 0.001),
             bg,
         );
@@ -702,26 +708,42 @@ impl TestPanel {
             p.PaintEllipseOutline(0.09, 0.86, 0.005, 0.01, &rd_s, bg);
         }
         p.PaintEllipseArc(
-            0.10, 0.86, 0.01, 0.01,
-            90.0, 225.0,
+            0.10,
+            0.86,
+            0.01,
+            0.01,
+            90.0,
+            225.0,
             &emStroke::new(emColor::WHITE, 0.001),
             bg,
         );
         p.PaintEllipseSectorOutline(
-            0.11, 0.86, 0.02, 0.01,
-            45.0, -320.0,
+            0.11,
+            0.86,
+            0.02,
+            0.01,
+            45.0,
+            -320.0,
             &emStroke::new(emColor::WHITE, 0.0001),
             bg,
         );
         p.PaintEllipseArc(
-            0.13, 0.86, 0.005, 0.01,
-            245.0, 50.0,
+            0.13,
+            0.86,
+            0.005,
+            0.01,
+            245.0,
+            50.0,
             &emStroke::new(emColor::WHITE, 0.001),
             bg,
         );
         p.PaintEllipseArc(
-            0.14, 0.86, 0.01, 0.01,
-            245.0, -50.0,
+            0.14,
+            0.86,
+            0.01,
+            0.01,
+            245.0,
+            -50.0,
             &emStroke::new(emColor::WHITE, 0.001),
             bg,
         );
@@ -731,12 +753,7 @@ impl TestPanel {
             rounded_s.join = LineJoin::Round;
             rounded_s.start_end = emStrokeEnd::new(StrokeEndType::Cap);
             rounded_s.finish_end = emStrokeEnd::new(StrokeEndType::LineArrow);
-            p.PaintEllipseArc(
-                0.15, 0.86, 0.01, 0.01,
-                0.0, -145.0,
-                &rounded_s,
-                bg,
-            );
+            p.PaintEllipseArc(0.15, 0.86, 0.01, 0.01, 0.0, -145.0, &rounded_s, bg);
         }
 
         // Round rect outlines
@@ -907,8 +924,14 @@ impl TestPanel {
         // Textured polygons — star shapes (C++ emTestPanel.cpp:372-413)
         // C++ uses hardcoded 8-vertex arrays, not generated star patterns.
         let star1: [(f64, f64); 8] = [
-            (0.200, 0.905), (0.215, 0.912), (0.230, 0.900), (0.222, 0.915),
-            (0.230, 0.930), (0.220, 0.922), (0.205, 0.935), (0.212, 0.920),
+            (0.200, 0.905),
+            (0.215, 0.912),
+            (0.230, 0.900),
+            (0.222, 0.915),
+            (0.230, 0.930),
+            (0.220, 0.922),
+            (0.205, 0.935),
+            (0.212, 0.920),
         ];
         p.paint_polygon_textured(
             &star1,
@@ -925,8 +948,14 @@ impl TestPanel {
         // center = (0.21+0.025, 0.90+0.0175) = (0.235, 0.9175)
         // rx = 0.025, ry = 0.0175
         let star2: [(f64, f64); 8] = [
-            (0.220, 0.905), (0.235, 0.912), (0.250, 0.900), (0.242, 0.915),
-            (0.250, 0.930), (0.240, 0.922), (0.225, 0.935), (0.232, 0.920),
+            (0.220, 0.905),
+            (0.235, 0.912),
+            (0.250, 0.900),
+            (0.242, 0.915),
+            (0.250, 0.930),
+            (0.240, 0.922),
+            (0.225, 0.935),
+            (0.232, 0.920),
         ];
         p.paint_polygon_textured(
             &star2,
@@ -941,11 +970,17 @@ impl TestPanel {
         );
 
         // C++ emImageTexture(0.0, 0.0, 0.002, 0.002*H/W, TestImage, 192)
-        let img_h_ratio = 0.002 * self.test_image.GetHeight() as f64
-            / self.test_image.GetWidth() as f64;
+        let img_h_ratio =
+            0.002 * self.test_image.GetHeight() as f64 / self.test_image.GetWidth() as f64;
         let star3: [(f64, f64); 8] = [
-            (0.240, 0.905), (0.255, 0.912), (0.270, 0.900), (0.262, 0.915),
-            (0.270, 0.930), (0.260, 0.922), (0.245, 0.935), (0.252, 0.920),
+            (0.240, 0.905),
+            (0.255, 0.912),
+            (0.270, 0.900),
+            (0.262, 0.915),
+            (0.270, 0.930),
+            (0.260, 0.922),
+            (0.245, 0.935),
+            (0.252, 0.920),
         ];
         p.paint_polygon_textured(
             &star3,
@@ -966,7 +1001,10 @@ impl TestPanel {
         // C++ emLinearGradientTexture(0.207, 0.944, 0x00000080, 0.213, 0.946, 0x80808080)
         // Painted into rect (0.2, 0.94, 0.02, 0.01).
         p.paint_rect_with_texture(
-            0.2, 0.94, 0.02, 0.01,
+            0.2,
+            0.94,
+            0.02,
+            0.01,
             &emTexture::LinearGradient {
                 color_a: emColor::rgba(0, 0, 0, 0x80),
                 color_b: emColor::rgba(0x80, 0x80, 0x80, 0x80),
@@ -979,7 +1017,10 @@ impl TestPanel {
         // center = (0.223+0.002, 0.941+0.004) = (0.225, 0.945), rx=0.002, ry=0.004
         // Painted into rect (0.221, 0.94, 0.008, 0.01).
         p.paint_rect_with_texture(
-            0.221, 0.94, 0.008, 0.01,
+            0.221,
+            0.94,
+            0.008,
+            0.01,
             &emTexture::RadialGradient {
                 color_inner: emColor::rgba(0xFF, 0x88, 0, 0xFF),
                 color_outer: emColor::rgba(0, 0x55, 0, 0xFF),
@@ -993,7 +1034,10 @@ impl TestPanel {
         //     emRadialGradientTexture(0.23, 0.94, 0.02, 0.01, 0, 0x00CC88FF))
         // C++ uses (x,y,w,h) bounding rect → center=(0.24, 0.945), rx=0.01, ry=0.005
         p.paint_ellipse_with_texture(
-            0.24, 0.945, 0.01, 0.005,
+            0.24,
+            0.945,
+            0.01,
+            0.005,
             &emTexture::RadialGradient {
                 color_inner: emColor::rgba(0, 0, 0, 0),
                 color_outer: emColor::rgba(0, 0xCC, 0x88, 0xFF),
@@ -1005,23 +1049,38 @@ impl TestPanel {
         );
 
         // emImageTexture: tiled image (C++ emTestPanel.cpp:430-439)
-        let h_ratio = 0.001 * self.test_image.GetHeight() as f64
-            / self.test_image.GetWidth() as f64;
+        let h_ratio =
+            0.001 * self.test_image.GetHeight() as f64 / self.test_image.GetWidth() as f64;
         let iw = self.test_image.GetWidth() as i32;
         let ih = self.test_image.GetHeight() as i32;
         p.PaintImageTextured(
-            0.26, 0.94, 0.02, 0.01,         // paint rect
-            0.26, 0.94, 0.001, h_ratio,      // texture coords
+            0.26,
+            0.94,
+            0.02,
+            0.01, // paint rect
+            0.26,
+            0.94,
+            0.001,
+            h_ratio, // texture coords
             &self.test_image,
-            0, 0, iw, ih,                    // full image
+            0,
+            0,
+            iw,
+            ih, // full image
             255,
             ImageExtension::Repeat,
         );
 
         // emImageColoredTexture (C++ emTestPanel.cpp:441-451)
         p.PaintImageColoredTextured(
-            0.2625, 0.942, 0.02, 0.01,      // paint rect
-            1.0005, 0.942, 0.001, h_ratio,   // texture coords
+            0.2625,
+            0.942,
+            0.02,
+            0.01, // paint rect
+            1.0005,
+            0.942,
+            0.001,
+            h_ratio, // texture coords
             &self.test_image,
             emColor::from_packed(0x00FF_FFFF), // color1
             emColor::from_packed(0xFF00_00FF), // color2
@@ -1031,30 +1090,57 @@ impl TestPanel {
 
         // emImageTexture with src rect + EXTEND_TILED (C++ emTestPanel.cpp:453-460)
         p.PaintImageTextured(
-            0.275, 0.907, 0.002, 0.002,      // paint rect
-            0.2755, 0.9075, 0.001, 0.001,    // texture coords
+            0.275,
+            0.907,
+            0.002,
+            0.002, // paint rect
+            0.2755,
+            0.9075,
+            0.001,
+            0.001, // texture coords
             &self.test_image,
-            50, 10, 110, 110,                // src rect
+            50,
+            10,
+            110,
+            110, // src rect
             255,
             ImageExtension::Repeat,
         );
 
         // emImageTexture with src rect + EXTEND_EDGE (C++ emTestPanel.cpp:462-469)
         p.PaintImageTextured(
-            0.275, 0.910, 0.002, 0.002,      // paint rect
-            0.2755, 0.9105, 0.001, 0.001,    // texture coords
+            0.275,
+            0.910,
+            0.002,
+            0.002, // paint rect
+            0.2755,
+            0.9105,
+            0.001,
+            0.001, // texture coords
             &self.test_image,
-            50, 10, 110, 110,                // src rect
+            50,
+            10,
+            110,
+            110, // src rect
             255,
             ImageExtension::Clamp,
         );
 
         // emImageTexture with src rect + EXTEND_ZERO (C++ emTestPanel.cpp:471-478)
         p.PaintImageTextured(
-            0.275, 0.913, 0.002, 0.002,      // paint rect
-            0.2755, 0.9135, 0.001, 0.001,    // texture coords
+            0.275,
+            0.913,
+            0.002,
+            0.002, // paint rect
+            0.2755,
+            0.9135,
+            0.001,
+            0.001, // texture coords
             &self.test_image,
-            50, 10, 110, 110,                // src rect
+            50,
+            10,
+            110,
+            110, // src rect
             255,
             ImageExtension::Zero,
         );
@@ -1811,15 +1897,13 @@ impl TkTestPanel {
             lb7.SetStrictRaster();
             add_items_1_to_7(&mut lb7);
             lb7.SetSelectedIndex(0);
-            lb7.set_item_behavior_factory(
-                move |_i, text, selected, look, _sel_mode, _enabled| {
-                    Box::new(CustomItemPanelBehavior::new(
-                        text.to_string(),
-                        selected,
-                        look,
-                    ))
-                },
-            );
+            lb7.set_item_behavior_factory(move |_i, text, selected, look, _sel_mode, _enabled| {
+                Box::new(CustomItemPanelBehavior::new(
+                    text.to_string(),
+                    selected,
+                    look,
+                ))
+            });
             let id = ctx.tree.create_child(gid, "l7");
             ctx.tree
                 .set_behavior(id, Box::new(ListBoxPanel { widget: lb7 }));

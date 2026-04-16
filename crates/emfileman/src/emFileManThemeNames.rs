@@ -193,11 +193,15 @@ impl emFileManThemeNames {
     }
 
     pub fn GetThemeStyleDisplayName(&self, style_index: usize) -> Option<&str> {
-        self.styles.get(style_index).map(|s| s.display_name.as_str())
+        self.styles
+            .get(style_index)
+            .map(|s| s.display_name.as_str())
     }
 
     pub fn GetThemeStyleDisplayIcon(&self, style_index: usize) -> Option<&str> {
-        self.styles.get(style_index).map(|s| s.display_icon.as_str())
+        self.styles
+            .get(style_index)
+            .map(|s| s.display_icon.as_str())
     }
 
     pub fn GetThemeAspectRatio(&self, style_index: usize, ar_index: usize) -> Option<&str> {
@@ -248,8 +252,7 @@ impl emFileManThemeNames {
             let new_catalog = discover_themes_from_dir(&self.theme_dir);
             self.styles = new_catalog.styles;
             self.name_to_packed_index = new_catalog.name_to_packed_index;
-            self.change_generation
-                .set(self.change_generation.get() + 1);
+            self.change_generation.set(self.change_generation.get() + 1);
             return true;
         }
         false

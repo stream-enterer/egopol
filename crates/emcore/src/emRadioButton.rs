@@ -2,19 +2,19 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use crate::emColor::emColor;
-use crate::emPanel::Rect;
 use crate::emCursor::emCursor;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emLinearLayout::emLinearLayout;
-use crate::emRasterLayout::emRasterLayout;
-use crate::emPanel::PanelState;
 use crate::emPainter::{emPainter, BORDER_EDGES_ONLY};
+use crate::emPanel::PanelState;
+use crate::emPanel::Rect;
+use crate::emRasterLayout::emRasterLayout;
 
 use super::emBorder::{emBorder, OuterBorderType};
+use crate::emBorder::with_toolkit_images;
 use crate::emButton::{HOWTO_BUTTON, HOWTO_EOI_BUTTON};
 use crate::emLook::emLook;
-use crate::emBorder::with_toolkit_images;
 
 /// Shared state for a group of radio buttons enforcing mutual exclusion.
 ///
@@ -295,7 +295,14 @@ impl emRadioButton {
     /// emRadioButton renders as a normal button (face + centered label).
     /// ShownRadioed=true only affects which border image is used (ButtonChecked
     /// vs ButtonPressed vs Button). ShownBoxed is false for radio buttons.
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
+    pub fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        w: f64,
+        h: f64,
+        enabled: bool,
+        pixel_scale: f64,
+    ) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -355,29 +362,61 @@ impl emRadioButton {
         with_toolkit_images(|img| {
             if self.pressed {
                 painter.PaintBorderImage(
-                    cr.x, cr.y, cr.w, cr.h,
-                    360.0 / 264.0 * r, 374.0 / 264.0 * r, r, r,
+                    cr.x,
+                    cr.y,
+                    cr.w,
+                    cr.h,
+                    360.0 / 264.0 * r,
+                    374.0 / 264.0 * r,
+                    r,
+                    r,
                     &img.button_pressed,
-                    360, 374, 264, 264,
-                    255, emColor::TRANSPARENT, BORDER_EDGES_ONLY,
+                    360,
+                    374,
+                    264,
+                    264,
+                    255,
+                    emColor::TRANSPARENT,
+                    BORDER_EDGES_ONLY,
                 );
             } else if checked {
                 painter.PaintBorderImage(
-                    cr.x, cr.y, cr.w, cr.h,
-                    340.0 / 264.0 * r, 374.0 / 264.0 * r, r, r,
+                    cr.x,
+                    cr.y,
+                    cr.w,
+                    cr.h,
+                    340.0 / 264.0 * r,
+                    374.0 / 264.0 * r,
+                    r,
+                    r,
                     &img.button_checked,
-                    340, 374, 264, 264,
-                    255, emColor::TRANSPARENT, BORDER_EDGES_ONLY,
+                    340,
+                    374,
+                    264,
+                    264,
+                    255,
+                    emColor::TRANSPARENT,
+                    BORDER_EDGES_ONLY,
                 );
             } else {
                 let extra = (658.0 - 648.0) / 264.0 * r;
                 painter.PaintBorderImage(
-                    cr.x, cr.y, cr.w + extra, cr.h + extra,
-                    278.0 / 264.0 * r, 278.0 / 264.0 * r,
-                    278.0 / 264.0 * r, 278.0 / 264.0 * r,
+                    cr.x,
+                    cr.y,
+                    cr.w + extra,
+                    cr.h + extra,
+                    278.0 / 264.0 * r,
+                    278.0 / 264.0 * r,
+                    278.0 / 264.0 * r,
+                    278.0 / 264.0 * r,
                     &img.button,
-                    278, 278, 278, 278,
-                    255, emColor::TRANSPARENT, BORDER_EDGES_ONLY,
+                    278,
+                    278,
+                    278,
+                    278,
+                    255,
+                    emColor::TRANSPARENT,
+                    BORDER_EDGES_ONLY,
                 );
             }
         });
@@ -457,9 +496,7 @@ impl emRadioButton {
                     }
                     self.pressed = false;
                     if hit {
-                        self.group
-                            .borrow_mut()
-                            .SetChecked(self.index_cell.get());
+                        self.group.borrow_mut().SetChecked(self.index_cell.get());
                     }
                     true
                 }

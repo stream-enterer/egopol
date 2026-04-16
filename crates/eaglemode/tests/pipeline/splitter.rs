@@ -4,19 +4,18 @@
 //! Verifies emSplitter drag behavior when dispatched through the coordinate-
 //! transform pipeline at different zoom levels.
 
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use emcore::emCursor::emCursor;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
-use emcore::emTiling::Orientation;
-use emcore::emPanel::{PanelBehavior, PanelState};
-use emcore::emPainter::emPainter;
-use emcore::emViewRenderer::SoftwareCompositor;
 use emcore::emLook::emLook;
+use emcore::emPainter::emPainter;
+use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emSplitter::emSplitter;
+use emcore::emTiling::Orientation;
+use emcore::emViewRenderer::SoftwareCompositor;
 
 use super::support::pipeline::PipelineTestHarness;
 
@@ -30,7 +29,9 @@ struct SharedSplitterPanel {
 
 impl PanelBehavior for SharedSplitterPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.inner.borrow_mut().PaintContent(painter, w, h, state.enabled);
+        self.inner
+            .borrow_mut()
+            .PaintContent(painter, w, h, state.enabled);
     }
 
     fn Input(
@@ -58,7 +59,11 @@ impl PanelBehavior for SharedSplitterPanel {
 fn setup_splitter(
     orientation: Orientation,
     initial_pos: f64,
-) -> (PipelineTestHarness, Rc<RefCell<emSplitter>>, SoftwareCompositor) {
+) -> (
+    PipelineTestHarness,
+    Rc<RefCell<emSplitter>>,
+    SoftwareCompositor,
+) {
     let mut h = PipelineTestHarness::new();
     let root = h.get_root_panel();
 
@@ -307,7 +312,12 @@ fn splitter_limits_respected_across_zoom() {
 fn setup_splitter_with_id(
     orientation: Orientation,
     initial_pos: f64,
-) -> (PipelineTestHarness, Rc<RefCell<emSplitter>>, SoftwareCompositor, emcore::emPanelTree::PanelId) {
+) -> (
+    PipelineTestHarness,
+    Rc<RefCell<emSplitter>>,
+    SoftwareCompositor,
+    emcore::emPanelTree::PanelId,
+) {
     let mut h = PipelineTestHarness::new();
     let root = h.get_root_panel();
 
@@ -336,7 +346,10 @@ fn setup_splitter_with_id(
 fn splitter_press_on_grip_starts_drag() {
     let (mut h, sp_ref, _compositor) = setup_splitter(Orientation::Horizontal, 0.5);
 
-    assert!(!sp_ref.borrow().is_dragging(), "should not be dragging initially");
+    assert!(
+        !sp_ref.borrow().is_dragging(),
+        "should not be dragging initially"
+    );
 
     // Press at grip center (view x=400 at 1x maps to panel x≈0.5 which hits
     // the grip centered at 0.5).

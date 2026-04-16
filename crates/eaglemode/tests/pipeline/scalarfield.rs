@@ -5,18 +5,17 @@
 //! value at both zoom levels, using approximate assertions to account for
 //! border insets in the content area.
 
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use emcore::emCursor::emCursor;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
-use emcore::emPanel::{PanelBehavior, PanelState};
-use emcore::emPainter::emPainter;
-use emcore::emViewRenderer::SoftwareCompositor;
 use emcore::emLook::emLook;
+use emcore::emPainter::emPainter;
+use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emScalarField::emScalarField;
+use emcore::emViewRenderer::SoftwareCompositor;
 
 use super::support::pipeline::PipelineTestHarness;
 
@@ -186,7 +185,11 @@ fn setup_sf(
     editable: bool,
     mark_intervals: &[u64],
     kb_interval: u64,
-) -> (PipelineTestHarness, Rc<RefCell<f64>>, emcore::emPanelTree::PanelId) {
+) -> (
+    PipelineTestHarness,
+    Rc<RefCell<f64>>,
+    emcore::emPanelTree::PanelId,
+) {
     let mut h = PipelineTestHarness::new();
     let root = h.get_root_panel();
 
@@ -524,5 +527,10 @@ fn scalarfield_keyboard_auto_interval_selection() {
 
     h.press_key(InputKey::Key('+'));
     let after = *value.borrow();
-    assert_approx(after, 510.0, 1.0, "auto interval: 500 + step should use dv=10");
+    assert_approx(
+        after,
+        510.0,
+        1.0,
+        "auto interval: 500 + step should use dv=10",
+    );
 }

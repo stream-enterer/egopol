@@ -68,5 +68,10 @@ fn bench_scaled_update(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_scaled_pan_zoom, bench_scaled_paint, bench_scaled_update);
+criterion_group!(
+    benches,
+    bench_scaled_pan_zoom,
+    bench_scaled_paint,
+    bench_scaled_update
+);
 criterion_main!(benches);

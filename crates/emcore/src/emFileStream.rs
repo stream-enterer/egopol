@@ -181,8 +181,7 @@ impl emFileStream {
             let avail = self.buf_end - self.buf_pos;
             let need = buf.len() - filled;
             let n = avail.min(need);
-            buf[filled..filled + n]
-                .copy_from_slice(&self.buf[self.buf_pos..self.buf_pos + n]);
+            buf[filled..filled + n].copy_from_slice(&self.buf[self.buf_pos..self.buf_pos + n]);
             self.buf_pos += n;
             filled += n;
         }
@@ -287,8 +286,7 @@ impl emFileStream {
                 continue;
             }
             let n = space.min(data.len() - written);
-            self.buf[self.buf_pos..self.buf_pos + n]
-                .copy_from_slice(&data[written..written + n]);
+            self.buf[self.buf_pos..self.buf_pos + n].copy_from_slice(&data[written..written + n]);
             self.buf_pos += n;
             self.buf_end = self.buf_pos;
             written += n;

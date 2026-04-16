@@ -6,12 +6,12 @@
 
 use std::rc::Rc;
 
+use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use emcore::emPainter::emPainter;
 use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelTree;
 use emcore::emView::{emView, ViewFlags};
-use emcore::emPainter::emPainter;
 use emcore::emViewRenderer::SoftwareCompositor;
-use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 
 use emcore::emCheckBox::emCheckBox;
 
@@ -136,7 +136,8 @@ struct LabelBehavior {
 impl PanelBehavior for LabelBehavior {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.label.PaintContent(painter, w, h, state.enabled, pixel_scale);
+        self.label
+            .PaintContent(painter, w, h, state.enabled, pixel_scale);
     }
 }
 
@@ -147,7 +148,8 @@ struct CheckBoxBehavior {
 impl PanelBehavior for CheckBoxBehavior {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.check_box.Paint(painter, w, h, state.enabled, pixel_scale);
+        self.check_box
+            .Paint(painter, w, h, state.enabled, pixel_scale);
     }
 }
 
@@ -158,7 +160,8 @@ struct ScalarFieldBehavior {
 impl PanelBehavior for ScalarFieldBehavior {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.scalar_field.Paint(painter, w, h, state.enabled, pixel_scale);
+        self.scalar_field
+            .Paint(painter, w, h, state.enabled, pixel_scale);
     }
 }
 

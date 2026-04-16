@@ -81,7 +81,6 @@ impl InterpolationBuffer {
             _ => {}
         }
     }
-
 }
 
 /// Blend mode determined once per paint call. Controls which blend *path*
@@ -276,9 +275,14 @@ pub(crate) fn blend_scanline_premul(
             canvas,
             painter_alpha,
         } => blend_scanline_premul_canvas(dest, buf, count, coverages, *canvas, *painter_alpha),
-        BlendMode::SourceOver { painter_alpha } => {
-            blend_scanline_premul_source_over(dest, buf, count, coverages, *painter_alpha, allow_simd)
-        }
+        BlendMode::SourceOver { painter_alpha } => blend_scanline_premul_source_over(
+            dest,
+            buf,
+            count,
+            coverages,
+            *painter_alpha,
+            allow_simd,
+        ),
     }
 }
 
@@ -340,9 +344,8 @@ fn blend_scanline_premul_canvas(
         let cb = blend_hash_lookup(canvas.GetBlue(), a) as u32;
         let cvs: u32 = cr | (cg << 8) | (cb << 16);
 
-        let dest_packed: u32 = dest[off] as u32
-            | ((dest[off + 1] as u32) << 8)
-            | ((dest[off + 2] as u32) << 16);
+        let dest_packed: u32 =
+            dest[off] as u32 | ((dest[off + 1] as u32) << 8) | ((dest[off + 2] as u32) << 16);
         let result = dest_packed.wrapping_add(pix.wrapping_sub(cvs));
         dest[off] = result as u8;
         dest[off + 1] = (result >> 8) as u8;
@@ -369,7 +372,11 @@ fn blend_scanline_premul_source_over(
         && is_x86_feature_detected!("avx2")
     {
         unsafe {
-            super::emPainterScanlineAvx2::blend_premul_source_over_avx2(dest, buf.raw_data(), count);
+            super::emPainterScanlineAvx2::blend_premul_source_over_avx2(
+                dest,
+                buf.raw_data(),
+                count,
+            );
         }
         return;
     }
@@ -643,15 +650,11 @@ pub fn blend_colored_scanline(
         } else {
             // Source-over: premultiplied gradient values + Blinn attenuation
             let t = (255 - a) * 257;
-            dest[off] =
-                (((dest[off] as u32 * t + 0x8073) >> 16) + pix_r as u32) as u8;
-            dest[off + 1] =
-                (((dest[off + 1] as u32 * t + 0x8073) >> 16) + pix_g as u32) as u8;
-            dest[off + 2] =
-                (((dest[off + 2] as u32 * t + 0x8073) >> 16) + pix_b as u32) as u8;
-            dest[off + 3] =
-                (((dest[off + 3] as u32 * t + 0x8073) >> 16) + blend_hash_lookup(255, a as u8) as u32)
-                    as u8;
+            dest[off] = (((dest[off] as u32 * t + 0x8073) >> 16) + pix_r as u32) as u8;
+            dest[off + 1] = (((dest[off + 1] as u32 * t + 0x8073) >> 16) + pix_g as u32) as u8;
+            dest[off + 2] = (((dest[off + 2] as u32 * t + 0x8073) >> 16) + pix_b as u32) as u8;
+            dest[off + 3] = (((dest[off + 3] as u32 * t + 0x8073) >> 16)
+                + blend_hash_lookup(255, a as u8) as u32) as u8;
         }
     }
 }
@@ -678,7 +681,10 @@ pub fn blend_colored_scanline_rgb(
     let c2_transparent = color2.GetAlpha() == 0;
 
     let (canvas_opt, painter_alpha) = match mode {
-        BlendMode::CanvasBlend { canvas, painter_alpha } => (Some(*canvas), *painter_alpha),
+        BlendMode::CanvasBlend {
+            canvas,
+            painter_alpha,
+        } => (Some(*canvas), *painter_alpha),
         BlendMode::SourceOver { painter_alpha } => (None, *painter_alpha),
     };
 
@@ -693,7 +699,9 @@ pub fn blend_colored_scanline_rgb(
 
     for i in 0..count {
         let cov = coverages.map_or(0x1000i32, |c| c[i]);
-        if cov <= 0 { continue; }
+        if cov <= 0 {
+            continue;
+        }
 
         let p = ibuf.pixel_rgba(i);
         let sr = p[0] as u32;
@@ -706,8 +714,16 @@ pub fn blend_colored_scanline_rgb(
         } else {
             cov
         };
-        let o1 = if !c1_transparent { (o * c1a as i32 + 127) / 255 } else { 0 };
-        let o2 = if !c2_transparent { (o * c2a as i32 + 127) / 255 } else { 0 };
+        let o1 = if !c1_transparent {
+            (o * c1a as i32 + 127) / 255
+        } else {
+            0
+        };
+        let o2 = if !c2_transparent {
+            (o * c2a as i32 + 127) / 255
+        } else {
+            0
+        };
 
         // Per-channel alpha (ar, ag, ab) for compositing — C++ uses these
         // independently for source-over and canvas blending when CHANNELS>=3.
@@ -719,13 +735,19 @@ pub fn blend_colored_scanline_rgb(
                 ar = ((sr as i32 * o2 + 0x800) >> 12) as u32;
                 ag = ((sg as i32 * o2 + 0x800) >> 12) as u32;
                 ab = ((sb as i32 * o2 + 0x800) >> 12) as u32;
-                if ar + ag + ab == 0 { continue; }
+                if ar + ag + ab == 0 {
+                    continue;
+                }
                 pix_r = blend_hash_lookup(c2r as u8, ar as u8);
                 pix_g = blend_hash_lookup(c2g as u8, ag as u8);
                 pix_b = blend_hash_lookup(c2b as u8, ab as u8);
             } else {
-                ar = sr; ag = sg; ab = sb;
-                if ar + ag + ab == 0 { continue; }
+                ar = sr;
+                ag = sg;
+                ab = sb;
+                if ar + ag + ab == 0 {
+                    continue;
+                }
                 pix_r = blend_hash_lookup(c2r as u8, ar as u8);
                 pix_g = blend_hash_lookup(c2g as u8, ag as u8);
                 pix_b = blend_hash_lookup(c2b as u8, ab as u8);
@@ -736,13 +758,19 @@ pub fn blend_colored_scanline_rgb(
                 ar = (((sa - sr) as i32 * o1 + 0x800) >> 12) as u32;
                 ag = (((sa - sg) as i32 * o1 + 0x800) >> 12) as u32;
                 ab = (((sa - sb) as i32 * o1 + 0x800) >> 12) as u32;
-                if ar + ag + ab == 0 { continue; }
+                if ar + ag + ab == 0 {
+                    continue;
+                }
                 pix_r = blend_hash_lookup(c1r as u8, ar as u8);
                 pix_g = blend_hash_lookup(c1g as u8, ag as u8);
                 pix_b = blend_hash_lookup(c1b as u8, ab as u8);
             } else {
-                ar = sa - sr; ag = sa - sg; ab = sa - sb;
-                if ar + ag + ab == 0 { continue; }
+                ar = sa - sr;
+                ag = sa - sg;
+                ab = sa - sb;
+                if ar + ag + ab == 0 {
+                    continue;
+                }
                 pix_r = blend_hash_lookup(c1r as u8, ar as u8);
                 pix_g = blend_hash_lookup(c1g as u8, ag as u8);
                 pix_b = blend_hash_lookup(c1b as u8, ab as u8);
@@ -759,16 +787,38 @@ pub fn blend_colored_scanline_rgb(
                 ar = (ar1 + ar2) as u32;
                 ag = (ag1 + ag2) as u32;
                 ab = (ab1 + ab2) as u32;
-                if ar + ag + ab == 0 { continue; }
-                pix_r = blend_hash_lookup(255, (((c1r * ar1 as u32 + c2r * ar2 as u32) * 257 + 0x8073) >> 16) as u8);
-                pix_g = blend_hash_lookup(255, (((c1g * ag1 as u32 + c2g * ag2 as u32) * 257 + 0x8073) >> 16) as u8);
-                pix_b = blend_hash_lookup(255, (((c1b * ab1 as u32 + c2b * ab2 as u32) * 257 + 0x8073) >> 16) as u8);
+                if ar + ag + ab == 0 {
+                    continue;
+                }
+                pix_r = blend_hash_lookup(
+                    255,
+                    (((c1r * ar1 as u32 + c2r * ar2 as u32) * 257 + 0x8073) >> 16) as u8,
+                );
+                pix_g = blend_hash_lookup(
+                    255,
+                    (((c1g * ag1 as u32 + c2g * ag2 as u32) * 257 + 0x8073) >> 16) as u8,
+                );
+                pix_b = blend_hash_lookup(
+                    255,
+                    (((c1b * ab1 as u32 + c2b * ab2 as u32) * 257 + 0x8073) >> 16) as u8,
+                );
             } else {
                 // Full opacity: ar1+ar2 = ag1+ag2 = ab1+ab2 = sa (= 255 for opaque)
-                ar = sa; ag = sa; ab = sa;
-                pix_r = blend_hash_lookup(255, (((c1r * (sa - sr) + c2r * sr) * 257 + 0x8073) >> 16) as u8);
-                pix_g = blend_hash_lookup(255, (((c1g * (sa - sg) + c2g * sg) * 257 + 0x8073) >> 16) as u8);
-                pix_b = blend_hash_lookup(255, (((c1b * (sa - sb) + c2b * sb) * 257 + 0x8073) >> 16) as u8);
+                ar = sa;
+                ag = sa;
+                ab = sa;
+                pix_r = blend_hash_lookup(
+                    255,
+                    (((c1r * (sa - sr) + c2r * sr) * 257 + 0x8073) >> 16) as u8,
+                );
+                pix_g = blend_hash_lookup(
+                    255,
+                    (((c1g * (sa - sg) + c2g * sg) * 257 + 0x8073) >> 16) as u8,
+                );
+                pix_b = blend_hash_lookup(
+                    255,
+                    (((c1b * (sa - sb) + c2b * sb) * 257 + 0x8073) >> 16) as u8,
+                );
             }
         } else {
             continue;
@@ -805,7 +855,8 @@ pub fn blend_colored_scanline_rgb(
             // Alpha channel: use max of per-channel alphas
             let a_max = ar.max(ag).max(ab);
             let ta = (255 - a_max) * 257;
-            dest[off + 3] = (((dest[off + 3] as u32 * ta + 0x8073) >> 16) + blend_hash_lookup(255, a_max as u8) as u32) as u8;
+            dest[off + 3] = (((dest[off + 3] as u32 * ta + 0x8073) >> 16)
+                + blend_hash_lookup(255, a_max as u8) as u32) as u8;
         }
     }
 }
@@ -905,8 +956,7 @@ mod tests {
         let cg = blend_hash_lookup(canvas.GetGreen(), a) as u32;
         let cb = blend_hash_lookup(canvas.GetBlue(), a) as u32;
         let cvs: u32 = cr | (cg << 8) | (cb << 16);
-        let dest_packed: u32 =
-            dest[0] as u32 | ((dest[1] as u32) << 8) | ((dest[2] as u32) << 16);
+        let dest_packed: u32 = dest[0] as u32 | ((dest[1] as u32) << 8) | ((dest[2] as u32) << 16);
         let result = dest_packed.wrapping_add(pix.wrapping_sub(cvs));
         dest[0] = result as u8;
         dest[1] = (result >> 8) as u8;
@@ -916,7 +966,7 @@ mod tests {
     #[test]
     fn blend_scanline_source_over_matches_perpixel() {
         let colors = [
-            emColor::rgba(255, 0, 0, 255),   // opaque red
+            emColor::rgba(255, 0, 0, 255),    // opaque red
             emColor::rgba(0, 255, 0, 128),    // semi-transparent green
             emColor::rgba(0, 0, 255, 0),      // fully transparent
             emColor::rgba(200, 100, 50, 200), // arbitrary
@@ -942,7 +992,10 @@ mod tests {
             ref_blend_source_over(&mut dest_ref[i * 4..(i + 1) * 4], *c, painter_alpha);
         }
 
-        assert_eq!(dest_scan, dest_ref, "source-over scanline vs per-pixel mismatch");
+        assert_eq!(
+            dest_scan, dest_ref,
+            "source-over scanline vs per-pixel mismatch"
+        );
     }
 
     #[test]
@@ -1028,9 +1081,9 @@ mod tests {
     #[test]
     fn blend_scanline_premul_source_over_matches() {
         let pm_pixels: [[u8; 4]; 4] = [
-            [200, 0, 0, 200],   // premul red
-            [0, 100, 0, 128],   // premul green
-            [0, 0, 0, 0],       // transparent
+            [200, 0, 0, 200],     // premul red
+            [0, 100, 0, 128],     // premul green
+            [0, 0, 0, 0],         // transparent
             [255, 255, 255, 255], // opaque white
         ];
         let bg = emColor::rgba(100, 100, 100, 200);
@@ -1056,11 +1109,7 @@ mod tests {
 
     #[test]
     fn blend_scanline_premul_canvas_matches() {
-        let pm_pixels: [[u8; 4]; 3] = [
-            [200, 0, 0, 200],
-            [0, 100, 0, 128],
-            [255, 255, 255, 255],
-        ];
+        let pm_pixels: [[u8; 4]; 3] = [[200, 0, 0, 200], [0, 100, 0, 128], [255, 255, 255, 255]];
         let bg = emColor::rgba(100, 100, 100, 200);
         let canvas = emColor::rgba(50, 50, 50, 255);
 
@@ -1087,11 +1136,7 @@ mod tests {
 
     #[test]
     fn blend_scanline_premul_with_coverage_matches() {
-        let pm_pixels: [[u8; 4]; 3] = [
-            [200, 0, 0, 200],
-            [0, 100, 0, 128],
-            [50, 50, 50, 100],
-        ];
+        let pm_pixels: [[u8; 4]; 3] = [[200, 0, 0, 200], [0, 100, 0, 128], [50, 50, 50, 100]];
         let coverages = [0x1000i32, 0x800, 0x400];
         let bg = emColor::rgba(100, 100, 100, 200);
         let painter_alpha = 200u8;
@@ -1172,7 +1217,10 @@ mod tests {
         let dst = emColor::rgba(50, 75, 100, 200);
 
         let mut buf = InterpolationBuffer::new(4);
-        buf.set_pixel(0, [src.GetRed(), src.GetGreen(), src.GetBlue(), src.GetAlpha()]);
+        buf.set_pixel(
+            0,
+            [src.GetRed(), src.GetGreen(), src.GetBlue(), src.GetAlpha()],
+        );
         buf.set_len(1);
 
         let mut dest = make_dest(1, 1, dst);
@@ -1184,8 +1232,7 @@ mod tests {
         let src_a = 128u32;
         let dst_a = 200u32;
         let t = (255 - src_a) * 257; // inv_alpha * 257
-        let expected_a =
-            (((dst_a * t + 0x8073) >> 16) + ((255u32 * src_a + 127) / 255)) as u8;
+        let expected_a = (((dst_a * t + 0x8073) >> 16) + ((255u32 * src_a + 127) / 255)) as u8;
 
         assert_eq!(
             dest[3], expected_a,
@@ -1233,7 +1280,10 @@ mod tests {
         let canvas = emColor::rgba(80, 80, 80, 255);
 
         let mut buf = InterpolationBuffer::new(4);
-        buf.set_pixel(0, [src.GetRed(), src.GetGreen(), src.GetBlue(), src.GetAlpha()]);
+        buf.set_pixel(
+            0,
+            [src.GetRed(), src.GetGreen(), src.GetBlue(), src.GetAlpha()],
+        );
         buf.set_len(1);
 
         let mut dest = make_dest(1, 1, dst);
@@ -1278,14 +1328,14 @@ mod tests {
     }
 }
 
-
 #[cfg(kani)]
 mod kani_private_proofs {
     use super::*;
 
     #[kani::proof]
     fn kani_private_BlendMode_from_state() {
-        let mut p_canvas_color = crate::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+        let mut p_canvas_color =
+            crate::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
         let mut p_alpha: u8 = kani::any::<u8>();
         let _r = BlendMode::from_state(p_canvas_color, p_alpha);
     }

@@ -10,7 +10,8 @@ struct TempDir {
 
 impl TempDir {
     fn new(name: &str) -> Self {
-        let path = std::env::temp_dir().join(format!("eaglemode_test_{name}_{}", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("eaglemode_test_{name}_{}", std::process::id()));
         if path.exists() {
             fs::remove_dir_all(&path).expect("cleanup pre-existing tempdir");
         }
@@ -45,10 +46,22 @@ fn lists_directory_contents() {
     // ".." entry is prepended when not at root, so expect 5 entries total.
     let names: Vec<&str> = listing.iter().map(|(n, _)| n.as_str()).collect();
     assert!(names.contains(&".."), "listing should contain '..' entry");
-    assert!(names.contains(&"alpha.txt"), "listing should contain alpha.txt");
-    assert!(names.contains(&"bravo.txt"), "listing should contain bravo.txt");
-    assert!(names.contains(&"charlie.rs"), "listing should contain charlie.rs");
-    assert!(names.contains(&"delta_dir"), "listing should contain delta_dir");
+    assert!(
+        names.contains(&"alpha.txt"),
+        "listing should contain alpha.txt"
+    );
+    assert!(
+        names.contains(&"bravo.txt"),
+        "listing should contain bravo.txt"
+    );
+    assert!(
+        names.contains(&"charlie.rs"),
+        "listing should contain charlie.rs"
+    );
+    assert!(
+        names.contains(&"delta_dir"),
+        "listing should contain delta_dir"
+    );
     assert_eq!(names.len(), 5);
 
     // Verify directory flag on delta_dir.

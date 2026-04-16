@@ -10,8 +10,10 @@ use emcore::emPanelTree::{PanelId, PanelTree};
 
 use emcore::emView::emView;
 
-use emcore::emViewInputFilter::{emDefaultTouchVIF, emKeyboardZoomScrollVIF, emMouseZoomScrollVIF, emViewInputFilter};
 use emcore::emScheduler::EngineScheduler;
+use emcore::emViewInputFilter::{
+    emDefaultTouchVIF, emKeyboardZoomScrollVIF, emMouseZoomScrollVIF, emViewInputFilter,
+};
 use emcore::emWindow::ZuiWindow;
 use winit::window::WindowId;
 
@@ -234,10 +236,7 @@ impl PipelineTestHarness {
 
         // Arrow key sibling navigation (C++ emPanel.cpp Input, state.IsNoMod() guard).
         // Only fires if no behavior consumed the event.
-        if !consumed
-            && event.variant == InputVariant::Press
-            && self.input_state.IsNoMod()
-        {
+        if !consumed && event.variant == InputVariant::Press && self.input_state.IsNoMod() {
             match event.key {
                 InputKey::ArrowLeft => self.view.VisitLeft(&mut self.tree),
                 InputKey::ArrowRight => self.view.VisitRight(&mut self.tree),

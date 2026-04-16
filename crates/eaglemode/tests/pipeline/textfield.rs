@@ -4,18 +4,17 @@
 //! pipeline (VIF chain, hit test, coordinate transform, keyboard suppression)
 //! and assert on widget STATE (text content, cursor GetPos), not pixels.
 
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use emcore::emCursor::emCursor;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
-use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emPainter::emPainter;
-use emcore::emViewRenderer::SoftwareCompositor;
 use emcore::emLook::emLook;
+use emcore::emPainter::emPainter;
+use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emTextField::emTextField;
+use emcore::emViewRenderer::SoftwareCompositor;
 
 use super::support::pipeline::PipelineTestHarness;
 
@@ -32,7 +31,9 @@ struct SharedTextFieldPanel {
 impl PanelBehavior for SharedTextFieldPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.inner.borrow_mut().Paint(painter, w, h, state.enabled, pixel_scale);
+        self.inner
+            .borrow_mut()
+            .Paint(painter, w, h, state.enabled, pixel_scale);
     }
 
     fn Input(
@@ -292,7 +293,11 @@ fn textfield_insert_at_cursor() {
             "Inserting 'b' between 'a' and 'c' should produce 'abc', got '{}'",
             tf.GetText()
         );
-        assert_eq!(tf.GetCursorIndex(), 2, "Cursor should advance to 2 after insert");
+        assert_eq!(
+            tf.GetCursorIndex(),
+            2,
+            "Cursor should advance to 2 after insert"
+        );
     }
 }
 
@@ -421,7 +426,10 @@ fn textfield_type_across_zoom_levels() {
 
 /// Helper: set up a focused, editable emTextField pre-populated with `text`,
 /// cursor at `cursor_pos`. Returns harness + shared emTextField ref.
-fn setup_nav_harness(text: &str, cursor_pos: usize) -> (PipelineTestHarness, Rc<RefCell<emTextField>>) {
+fn setup_nav_harness(
+    text: &str,
+    cursor_pos: usize,
+) -> (PipelineTestHarness, Rc<RefCell<emTextField>>) {
     let (mut h, tf_ref) = setup_textfield_harness();
     tf_ref.borrow_mut().SetText(text);
     tf_ref.borrow_mut().SetCursorIndex(cursor_pos);
@@ -736,7 +744,10 @@ fn textfield_left_clears_selection() {
     h.press_key(InputKey::ArrowLeft);
     {
         let tf = tf_ref.borrow();
-        assert!(tf.IsSelectionEmpty(), "Left without Shift should clear selection");
+        assert!(
+            tf.IsSelectionEmpty(),
+            "Left without Shift should clear selection"
+        );
         assert_eq!(tf.GetCursorIndex(), 4);
     }
 }
@@ -750,7 +761,10 @@ fn textfield_right_clears_selection() {
     h.press_key(InputKey::ArrowRight);
     {
         let tf = tf_ref.borrow();
-        assert!(tf.IsSelectionEmpty(), "Right without Shift should clear selection");
+        assert!(
+            tf.IsSelectionEmpty(),
+            "Right without Shift should clear selection"
+        );
         assert_eq!(tf.GetCursorIndex(), 3);
     }
 }
@@ -1517,8 +1531,12 @@ fn textfield_double_click_selects_word() {
     );
     // Verify the selection boundaries are word boundaries: all chars should be
     // the same type (all word chars or all delimiters).
-    let all_word = sel_text.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-    let all_delim = sel_text.chars().all(|c| !(c.is_ascii_alphanumeric() || c == '_'));
+    let all_word = sel_text
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_');
+    let all_delim = sel_text
+        .chars()
+        .all(|c| !(c.is_ascii_alphanumeric() || c == '_'));
     assert!(
         all_word || all_delim,
         "Double-click selection '{}' should be a single word or delimiter segment",
@@ -1613,10 +1631,7 @@ fn textfield_drag_selects_text() {
     h.drag(300.0, 300.0, 500.0, 300.0);
 
     let tf = tf_ref.borrow();
-    assert!(
-        !tf.IsSelectionEmpty(),
-        "Drag should create a selection"
-    );
+    assert!(!tf.IsSelectionEmpty(), "Drag should create a selection");
     let sel = tf.selected_text();
     assert!(
         !sel.is_empty(),
@@ -1731,10 +1746,7 @@ fn textfield_shift_ctrl_a_deselects() {
     h.input_state.release(InputKey::Shift);
 
     let tf = tf_ref.borrow();
-    assert!(
-        tf.IsSelectionEmpty(),
-        "Shift+Ctrl+A should deselect all"
-    );
+    assert!(tf.IsSelectionEmpty(), "Shift+Ctrl+A should deselect all");
 }
 
 /// Shift+Ctrl+A on already empty selection is a no-op.
@@ -2005,7 +2017,10 @@ fn textfield_ctrl_x_with_selection_cuts_text() {
         tf.GetText()
     );
     assert_eq!(tf.GetCursorIndex(), 2, "Cursor should be at 2 after cut");
-    assert!(tf.IsSelectionEmpty(), "Selection should be cleared after cut");
+    assert!(
+        tf.IsSelectionEmpty(),
+        "Selection should be cleared after cut"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -2053,7 +2068,11 @@ fn textfield_ctrl_v_pastes_text_at_cursor() {
         "Pasting 'World' at end of 'Hello' should produce 'HelloWorld', got '{}'",
         tf.GetText()
     );
-    assert_eq!(tf.GetCursorIndex(), 10, "Cursor should be at end after paste");
+    assert_eq!(
+        tf.GetCursorIndex(),
+        10,
+        "Cursor should be at end after paste"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -2081,7 +2100,11 @@ fn textfield_ctrl_v_with_selection_replaces_selection() {
         "Pasting 'XY' over selection 'CD' in 'ABCDEF' should produce 'ABXYEF', got '{}'",
         tf.GetText()
     );
-    assert_eq!(tf.GetCursorIndex(), 4, "Cursor should be at end of pasted text");
+    assert_eq!(
+        tf.GetCursorIndex(),
+        4,
+        "Cursor should be at end of pasted text"
+    );
     assert!(tf.IsSelectionEmpty());
 }
 
@@ -2125,7 +2148,11 @@ fn textfield_ctrl_insert_copies_text() {
     h.input_state.release(InputKey::Ctrl);
 
     let copies = copy_recorder.borrow();
-    assert_eq!(copies.len(), 1, "Ctrl+Insert should fire copy callback once");
+    assert_eq!(
+        copies.len(),
+        1,
+        "Ctrl+Insert should fire copy callback once"
+    );
     assert_eq!(copies[0], "Hello");
 }
 
@@ -2389,12 +2416,17 @@ fn textfield_drag_move_selected_text_moves() {
     let mut sorted_after: Vec<char> = tf.GetText().chars().collect();
     sorted_after.sort();
     assert_eq!(
-        sorted_before, sorted_after,
+        sorted_before,
+        sorted_after,
         "Drag-move should not lose or gain characters. Before: 'foo bar baz', After: '{}'",
         tf.GetText()
     );
     // The text length should be preserved.
-    assert_eq!(tf.GetText().len(), 11, "Text length should be preserved after drag-move");
+    assert_eq!(
+        tf.GetText().len(),
+        11,
+        "Text length should be preserved after drag-move"
+    );
 }
 
 // ---------------------------------------------------------------------------

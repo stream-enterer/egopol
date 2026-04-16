@@ -5,20 +5,19 @@ use std::f64::consts::PI;
 
 use emcore::emColor::emColor;
 
-
 use emcore::emImage::emImage;
 use emcore::emPanel::{PanelBehavior, PanelState};
 
 use emcore::emPanelTree::{PanelId, PanelTree};
 
-use emcore::emView::{emView, ViewFlags};
 use emcore::emPainter::emPainter;
+use emcore::emView::{emView, ViewFlags};
 
-use emcore::emStroke::{LineCap, LineJoin, emStroke};
+use emcore::emStroke::{emStroke, LineCap, LineJoin};
 
 use emcore::emStrokeEnd::{emStrokeEnd, StrokeEndType};
 
-use emcore::emTexture::{ImageExtension, ImageQuality, emTexture};
+use emcore::emTexture::{emTexture, ImageExtension, ImageQuality};
 
 use emcore::emViewRendererTileCache::{TileCache, TILE_SIZE};
 
@@ -176,7 +175,11 @@ impl PanelBehavior for TestPanel {
                 (a.sin() * 0.05 + 0.65, a.cos() * 0.05 + 0.85)
             })
             .collect();
-        painter.PaintPolygon(&circle, emColor::rgba(255, 255, 0, 255), emColor::TRANSPARENT);
+        painter.PaintPolygon(
+            &circle,
+            emColor::rgba(255, 255, 0, 255),
+            emColor::TRANSPARENT,
+        );
 
         let clipped: Vec<_> = (0..64)
             .map(|i| {
@@ -186,7 +189,11 @@ impl PanelBehavior for TestPanel {
             .collect();
         painter.push_state();
         painter.SetClipping(0.51, 0.81, 0.08, 0.08);
-        painter.PaintPolygon(&clipped, emColor::rgba(0, 255, 0, 255), emColor::TRANSPARENT);
+        painter.PaintPolygon(
+            &clipped,
+            emColor::rgba(0, 255, 0, 255),
+            emColor::TRANSPARENT,
+        );
         painter.pop_state();
 
         let ellipse: Vec<_> = (0..64)
@@ -236,19 +243,54 @@ impl PanelBehavior for TestPanel {
 
         painter.PaintEllipse(0.05, 0.80, 0.01, 0.01, emColor::WHITE, emColor::TRANSPARENT);
         painter.PaintEllipse(0.06, 0.80, 0.02, 0.01, emColor::WHITE, emColor::TRANSPARENT);
-        painter.PaintEllipse(0.09, 0.80, 0.005, 0.01, emColor::WHITE, emColor::TRANSPARENT);
+        painter.PaintEllipse(
+            0.09,
+            0.80,
+            0.005,
+            0.01,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
+        );
 
         painter.PaintEllipseSector(
-            0.10, 0.80, 0.01, 0.01, 45.0, 305.0, emColor::WHITE, emColor::TRANSPARENT,
+            0.10,
+            0.80,
+            0.01,
+            0.01,
+            45.0,
+            305.0,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
         );
         painter.PaintEllipseSector(
-            0.11, 0.80, 0.02, 0.01, -350.0, 395.0, emColor::WHITE, emColor::TRANSPARENT,
+            0.11,
+            0.80,
+            0.02,
+            0.01,
+            -350.0,
+            395.0,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
         );
         painter.PaintEllipseSector(
-            0.13, 0.80, 0.005, 0.01, 245.0, 50.0, emColor::WHITE, emColor::TRANSPARENT,
+            0.13,
+            0.80,
+            0.005,
+            0.01,
+            245.0,
+            50.0,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
         );
         painter.PaintEllipseSector(
-            0.14, 0.80, 0.01, 0.01, 195.0, 50.0, emColor::WHITE, emColor::TRANSPARENT,
+            0.14,
+            0.80,
+            0.01,
+            0.01,
+            195.0,
+            50.0,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
         );
 
         painter.PaintRectOutline(
@@ -279,19 +321,70 @@ impl PanelBehavior for TestPanel {
             emColor::TRANSPARENT,
         );
 
-        painter.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, 0.001, emColor::WHITE, emColor::TRANSPARENT);
-        painter.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, 0.002, emColor::WHITE, emColor::TRANSPARENT);
-        painter.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, 0.003, emColor::WHITE, emColor::TRANSPARENT);
-        painter.PaintRoundRect(0.13, 0.84, 0.01, 0.01, 0.006, 0.006, emColor::WHITE, emColor::TRANSPARENT);
-        painter.PaintRoundRect(0.15, 0.84, 0.01, 0.01, 0.0, 0.0, emColor::WHITE, emColor::TRANSPARENT);
+        painter.PaintRoundRect(
+            0.05,
+            0.84,
+            0.01,
+            0.01,
+            0.001,
+            0.001,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
+        );
+        painter.PaintRoundRect(
+            0.07,
+            0.84,
+            0.02,
+            0.01,
+            0.002,
+            0.002,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
+        );
+        painter.PaintRoundRect(
+            0.10,
+            0.84,
+            0.01,
+            0.01,
+            0.003,
+            0.003,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
+        );
+        painter.PaintRoundRect(
+            0.13,
+            0.84,
+            0.01,
+            0.01,
+            0.006,
+            0.006,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
+        );
+        painter.PaintRoundRect(
+            0.15,
+            0.84,
+            0.01,
+            0.01,
+            0.0,
+            0.0,
+            emColor::WHITE,
+            emColor::TRANSPARENT,
+        );
 
         painter.PaintEllipseOutline(
-            0.05, 0.86, 0.01, 0.01,
+            0.05,
+            0.86,
+            0.01,
+            0.01,
             &emStroke::new(emColor::WHITE, 0.003),
             emColor::TRANSPARENT,
         );
         painter.PaintEllipseOutline(
-            0.065, 0.86, 0.02, 0.01,
+            0.065,
+            0.86,
+            0.02,
+            0.01,
             &emStroke::new(emColor::WHITE, 0.001),
             emColor::TRANSPARENT,
         );
@@ -302,26 +395,42 @@ impl PanelBehavior for TestPanel {
         painter.PaintEllipseOutline(0.09, 0.86, 0.005, 0.01, &dot_s, emColor::TRANSPARENT);
 
         painter.PaintEllipseArc(
-            0.10, 0.86, 0.01, 0.01,
-            90.0, 225.0,
+            0.10,
+            0.86,
+            0.01,
+            0.01,
+            90.0,
+            225.0,
             &emStroke::new(emColor::WHITE, 0.001),
             emColor::TRANSPARENT,
         );
         painter.PaintEllipseSectorOutline(
-            0.11, 0.86, 0.02, 0.01,
-            45.0, -365.0,
+            0.11,
+            0.86,
+            0.02,
+            0.01,
+            45.0,
+            -365.0,
             &emStroke::new(emColor::WHITE, 0.0001),
             emColor::TRANSPARENT,
         );
         painter.PaintEllipseArc(
-            0.13, 0.86, 0.005, 0.01,
-            245.0, 295.0,
+            0.13,
+            0.86,
+            0.005,
+            0.01,
+            245.0,
+            295.0,
             &emStroke::new(emColor::WHITE, 0.001),
             emColor::TRANSPARENT,
         );
         painter.PaintEllipseArc(
-            0.14, 0.86, 0.01, 0.01,
-            195.0, 245.0,
+            0.14,
+            0.86,
+            0.01,
+            0.01,
+            195.0,
+            245.0,
             &emStroke::new(emColor::WHITE, 0.001),
             emColor::TRANSPARENT,
         );
@@ -331,8 +440,12 @@ impl PanelBehavior for TestPanel {
         rs.start_end = emStrokeEnd::new(StrokeEndType::Cap);
         rs.finish_end = emStrokeEnd::new(StrokeEndType::LineArrow);
         painter.PaintEllipseArc(
-            0.15, 0.86, 0.01, 0.01,
-            0.0, -145.0,
+            0.15,
+            0.86,
+            0.01,
+            0.01,
+            0.0,
+            -145.0,
             &rs,
             emColor::TRANSPARENT,
         );
@@ -423,7 +536,8 @@ impl PanelBehavior for TestPanel {
         bls.join = LineJoin::Round;
         bls.cap = LineCap::Round;
         bls.dash_pattern = vec![0.001, 0.0005];
-        bls.start_end = emStrokeEnd::new(StrokeEndType::ContourTriangle).with_inner_color(emColor::RED);
+        bls.start_end =
+            emStrokeEnd::new(StrokeEndType::ContourTriangle).with_inner_color(emColor::RED);
         bls.finish_end = emStrokeEnd::new(StrokeEndType::Arrow);
         painter.PaintBezierLine(
             &[(0.105, 0.91), (0.09, 0.902), (0.098, 0.89), (0.105, 0.900)],
@@ -674,8 +788,12 @@ pub fn run_one_frame(
     for row in 0..rows {
         for col in 0..cols {
             let tile = tile_cache.get_or_create(col, row);
-            tile.image
-                .copy_from_rect(0, 0, viewport_buf, (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE));
+            tile.image.copy_from_rect(
+                0,
+                0,
+                viewport_buf,
+                (col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE),
+            );
         }
     }
 

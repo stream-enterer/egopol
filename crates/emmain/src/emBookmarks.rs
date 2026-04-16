@@ -4,13 +4,13 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emConfigModel::emConfigModel;
 use emcore::emContext::emContext;
-use emcore::emInstallInfo::{emGetInstallPath, InstallDirType};
+use emcore::emInstallInfo::{InstallDirType, emGetInstallPath};
+use emcore::emPainter::{TextAlignment, VAlign, emPainter};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emRec::{RecError, RecStruct, RecValue};
-use emcore::emRecRecord::Record;
 use emcore::emRecRecTypes::emColorRec;
+use emcore::emRecRecord::Record;
 use emcore::emSignal::SignalId;
 use slotmap::Key as _;
 
@@ -127,10 +127,7 @@ impl emBookmarkRec {
         Ok(Self {
             entry,
             Hotkey: rec.get_str("hotkey").unwrap_or("").to_string(),
-            LocationIdentity: rec
-                .get_str("locationidentity")
-                .unwrap_or("")
-                .to_string(),
+            LocationIdentity: rec.get_str("locationidentity").unwrap_or("").to_string(),
             LocationRelX: rec.get_double("locationrelx").unwrap_or(0.0),
             LocationRelY: rec.get_double("locationrely").unwrap_or(0.0),
             LocationRelA: rec.get_double("locationrela").unwrap_or(0.0).max(0.0),
@@ -204,11 +201,7 @@ impl emBookmarkGroupRec {
     pub fn to_rec(&self) -> RecStruct {
         let mut s = RecStruct::new();
         self.entry.write_into(&mut s);
-        let items: Vec<RecValue> = self
-            .Bookmarks
-            .iter()
-            .map(|e| e.to_rec_value())
-            .collect();
+        let items: Vec<RecValue> = self.Bookmarks.iter().map(|e| e.to_rec_value()).collect();
         s.SetValue("bookmarks", RecValue::Array(items));
         s
     }
@@ -235,24 +228,20 @@ pub enum emBookmarkEntryUnion {
 impl emBookmarkEntryUnion {
     fn from_rec_value(val: &RecValue) -> Result<Self, RecError> {
         match val {
-            RecValue::Union(variant, inner) if variant == "bookmark" => {
-                match inner.as_ref() {
-                    RecValue::Struct(s) => Ok(Self::Bookmark(emBookmarkRec::from_rec(s)?)),
-                    _ => Err(RecError::InvalidValue {
-                        field: "bookmark".into(),
-                        message: "expected struct inside union".into(),
-                    }),
-                }
-            }
-            RecValue::Union(variant, inner) if variant == "group" => {
-                match inner.as_ref() {
-                    RecValue::Struct(s) => Ok(Self::Group(emBookmarkGroupRec::from_rec(s)?)),
-                    _ => Err(RecError::InvalidValue {
-                        field: "group".into(),
-                        message: "expected struct inside union".into(),
-                    }),
-                }
-            }
+            RecValue::Union(variant, inner) if variant == "bookmark" => match inner.as_ref() {
+                RecValue::Struct(s) => Ok(Self::Bookmark(emBookmarkRec::from_rec(s)?)),
+                _ => Err(RecError::InvalidValue {
+                    field: "bookmark".into(),
+                    message: "expected struct inside union".into(),
+                }),
+            },
+            RecValue::Union(variant, inner) if variant == "group" => match inner.as_ref() {
+                RecValue::Struct(s) => Ok(Self::Group(emBookmarkGroupRec::from_rec(s)?)),
+                _ => Err(RecError::InvalidValue {
+                    field: "group".into(),
+                    message: "expected struct inside union".into(),
+                }),
+            },
             RecValue::Union(variant, _) => Err(RecError::InvalidValue {
                 field: "entry".into(),
                 message: format!("unknown union variant: {variant}"),
@@ -341,9 +330,7 @@ impl Record for emBookmarksRec {
     fn from_rec(rec: &RecStruct) -> Result<Self, RecError> {
         // Support both C++ format (top-level array stored as "_array") and
         // legacy Rust format (struct with "entries" field).
-        let arr = rec
-            .get_array("_array")
-            .or_else(|| rec.get_array("entries"));
+        let arr = rec.get_array("_array").or_else(|| rec.get_array("entries"));
         let entries = if let Some(arr) = arr {
             arr.iter()
                 .filter_map(|v| emBookmarkEntryUnion::from_rec_value(v).ok())
@@ -357,11 +344,7 @@ impl Record for emBookmarksRec {
     fn to_rec(&self) -> RecStruct {
         // Write in C++ compatible format: top-level array of union entries.
         let mut s = RecStruct::new();
-        let items: Vec<RecValue> = self
-            .entries
-            .iter()
-            .map(|e| e.to_rec_value())
-            .collect();
+        let items: Vec<RecValue> = self.entries.iter().map(|e| e.to_rec_value()).collect();
         s.SetValue("_array", RecValue::Array(items));
         s
     }
@@ -468,17 +451,15 @@ impl emBookmarksModel {
             let path =
                 emGetInstallPath(InstallDirType::UserConfig, "emMain", Some("bookmarks.rec"))
                     .unwrap_or_else(|_| {
-                        let home =
-                            std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+                        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
                         std::path::PathBuf::from(home)
                             .join(".eaglemode")
                             .join("emMain")
                             .join("bookmarks.rec")
                     });
 
-            let mut model =
-                emConfigModel::new(emBookmarksRec::default(), path, SignalId::null())
-                    .with_format_name("emBookmarks");
+            let mut model = emConfigModel::new(emBookmarksRec::default(), path, SignalId::null())
+                .with_format_name("emBookmarks");
 
             if let Err(e) = model.TryLoadOrInstall() {
                 log::warn!("emBookmarksModel: failed to load or install: {e}");
@@ -679,10 +660,8 @@ impl PanelBehavior for emBookmarksPanel {
                         // Build a nested panel backed by a temporary model
                         // snapshot.  The child holds its own ctx reference so
                         // it can re-acquire the model for sub-entries.
-                        let sub_panel = emBookmarksGroupPanel::new(
-                            Rc::clone(&self.ctx),
-                            grp.clone(),
-                        );
+                        let sub_panel =
+                            emBookmarksGroupPanel::new(Rc::clone(&self.ctx), grp.clone());
                         ctx.create_child_with(&name, Box::new(sub_panel));
                     }
                 }
@@ -782,10 +761,7 @@ impl PanelBehavior for emBookmarksGroupPanel {
                     ctx.create_child_with(&name, Box::new(btn));
                 }
                 emBookmarkEntryUnion::Group(sub_grp) => {
-                    let sub = emBookmarksGroupPanel::new(
-                        Rc::clone(&self._ctx),
-                        sub_grp.clone(),
-                    );
+                    let sub = emBookmarksGroupPanel::new(Rc::clone(&self._ctx), sub_grp.clone());
                     ctx.create_child_with(&name, Box::new(sub));
                 }
             }

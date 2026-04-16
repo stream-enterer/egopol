@@ -207,7 +207,11 @@ pub enum LibError {
     /// Failed to load a dynamic library.
     LibraryLoad { library: String, message: String },
     /// Failed to resolve a symbol from a loaded library.
-    SymbolResolve { library: String, symbol: String, message: String },
+    SymbolResolve {
+        library: String,
+        symbol: String,
+        message: String,
+    },
 }
 
 impl std::fmt::Display for LibError {
@@ -216,8 +220,15 @@ impl std::fmt::Display for LibError {
             Self::LibraryLoad { library, message } => {
                 write!(f, "failed to load library \"{library}\": {message}")
             }
-            Self::SymbolResolve { library, symbol, message } => {
-                write!(f, "failed to resolve \"{symbol}\" in \"{library}\": {message}")
+            Self::SymbolResolve {
+                library,
+                symbol,
+                message,
+            } => {
+                write!(
+                    f,
+                    "failed to resolve \"{symbol}\" in \"{library}\": {message}"
+                )
             }
         }
     }
@@ -283,12 +294,11 @@ pub fn emTryOpenLib(lib_name: &str, is_filename: bool) -> Result<emLibHandle, Li
         }
 
         // Load new library
-        let handle = unsafe { libloading::Library::new(&filename) }.map_err(|e| {
-            LibError::LibraryLoad {
+        let handle =
+            unsafe { libloading::Library::new(&filename) }.map_err(|e| LibError::LibraryLoad {
                 library: filename.clone(),
                 message: e.to_string(),
-            }
-        })?;
+            })?;
 
         let index = table.len();
         table.push(LibTableEntry {
@@ -315,13 +325,11 @@ pub unsafe fn emTryResolveSymbolFromLib(
         let table = table.borrow();
         let entry = &table[handle.index];
 
-        let sym: libloading::Symbol<*const ()> =
-            unsafe { entry.handle.get(symbol.as_bytes()) }.map_err(|e| {
-                LibError::SymbolResolve {
-                    library: entry.filename.clone(),
-                    symbol: symbol.to_string(),
-                    message: e.to_string(),
-                }
+        let sym: libloading::Symbol<*const ()> = unsafe { entry.handle.get(symbol.as_bytes()) }
+            .map_err(|e| LibError::SymbolResolve {
+                library: entry.filename.clone(),
+                symbol: symbol.to_string(),
+                message: e.to_string(),
             })?;
 
         Ok(*sym)
@@ -456,7 +464,10 @@ mod tests {
         // "A" (0x41=65): 0 * 335171 + 65 = 65
         assert_eq!(emCalcHashCode(b"A", 0), 65);
         // "AB": (65 * 335171 + 66) = 21786181
-        assert_eq!(emCalcHashCode(b"AB", 0), 65_i32.wrapping_mul(335_171).wrapping_add(66));
+        assert_eq!(
+            emCalcHashCode(b"AB", 0),
+            65_i32.wrapping_mul(335_171).wrapping_add(66)
+        );
     }
 
     #[test]

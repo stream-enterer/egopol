@@ -2,8 +2,8 @@ use crate::emColor::emColor;
 use crate::emImage::emImage;
 
 use super::emPainter::{TextAlignment, VAlign};
+use super::emTexture::{emTexture, ImageExtension, ImageQuality};
 use crate::emStroke::emStroke;
-use super::emTexture::{ImageExtension, ImageQuality, emTexture};
 
 /// A recorded drawing operation for parallel tile rendering.
 ///
@@ -17,7 +17,12 @@ pub enum DrawOp {
     PopState,
     SetOffset(f64, f64),
     SetScaling(f64, f64),
-    SetTransformation { ox: f64, oy: f64, sx: f64, sy: f64 },
+    SetTransformation {
+        ox: f64,
+        oy: f64,
+        sx: f64,
+        sy: f64,
+    },
     ClipRect {
         x: f64,
         y: f64,
@@ -427,7 +432,6 @@ impl DrawList {
         &mut self.ops
     }
 
-
     /// Replay all recorded operations into the given painter.
     ///
     /// `tile_offset` is subtracted from all absolute `SetOffset` calls to
@@ -449,12 +453,7 @@ impl DrawList {
                     painter.SetScaling(*sx, *sy);
                 }
                 DrawOp::SetTransformation { ox, oy, sx, sy } => {
-                    painter.SetTransformation(
-                        ox - tile_offset.0,
-                        oy - tile_offset.1,
-                        *sx,
-                        *sy,
-                    );
+                    painter.SetTransformation(ox - tile_offset.0, oy - tile_offset.1, *sx, *sy);
                 }
                 DrawOp::ClipRect { x, y, w, h } => painter.SetClipping(*x, *y, *w, *h),
                 DrawOp::SetCanvasColor(c) => painter.SetCanvasColor(*c),
@@ -583,35 +582,59 @@ impl DrawList {
                 }
 
                 DrawOp::PaintImageTextured {
-                    rect_x, rect_y, rect_w, rect_h,
-                    tex_x, tex_y, tex_w, tex_h,
+                    rect_x,
+                    rect_y,
+                    rect_w,
+                    rect_h,
+                    tex_x,
+                    tex_y,
+                    tex_w,
+                    tex_h,
                     image_ptr,
-                    src_x, src_y, src_w, src_h,
+                    src_x,
+                    src_y,
+                    src_w,
+                    src_h,
                     alpha,
                     extension,
                 } => {
                     let image = unsafe { &**image_ptr };
                     painter.PaintImageTextured(
-                        *rect_x, *rect_y, *rect_w, *rect_h,
-                        *tex_x, *tex_y, *tex_w, *tex_h,
-                        image, *src_x, *src_y, *src_w, *src_h,
-                        *alpha, *extension,
+                        *rect_x, *rect_y, *rect_w, *rect_h, *tex_x, *tex_y, *tex_w, *tex_h, image,
+                        *src_x, *src_y, *src_w, *src_h, *alpha, *extension,
                     );
                 }
 
                 DrawOp::PaintImageColoredTextured {
-                    rect_x, rect_y, rect_w, rect_h,
-                    tex_x, tex_y, tex_w, tex_h,
+                    rect_x,
+                    rect_y,
+                    rect_w,
+                    rect_h,
+                    tex_x,
+                    tex_y,
+                    tex_w,
+                    tex_h,
                     image_ptr,
-                    color1, color2,
+                    color1,
+                    color2,
                     canvas_color,
                     extension,
                 } => {
                     let image = unsafe { &**image_ptr };
                     painter.PaintImageColoredTextured(
-                        *rect_x, *rect_y, *rect_w, *rect_h,
-                        *tex_x, *tex_y, *tex_w, *tex_h,
-                        image, *color1, *color2, *canvas_color, *extension,
+                        *rect_x,
+                        *rect_y,
+                        *rect_w,
+                        *rect_h,
+                        *tex_x,
+                        *tex_y,
+                        *tex_w,
+                        *tex_h,
+                        image,
+                        *color1,
+                        *color2,
+                        *canvas_color,
+                        *extension,
                     );
                 }
 
@@ -705,28 +728,72 @@ impl DrawList {
                 ),
 
                 DrawOp::PaintEllipseSector {
-                    x, y, w, h,
-                    start_angle, sweep_angle, color, canvas_color,
+                    x,
+                    y,
+                    w,
+                    h,
+                    start_angle,
+                    sweep_angle,
+                    color,
+                    canvas_color,
                 } => painter.PaintEllipseSector(
-                    *x, *y, *w, *h, *start_angle, *sweep_angle, *color, *canvas_color,
+                    *x,
+                    *y,
+                    *w,
+                    *h,
+                    *start_angle,
+                    *sweep_angle,
+                    *color,
+                    *canvas_color,
                 ),
 
                 DrawOp::PaintEllipseArc {
-                    x, y, w, h,
-                    start_angle, range_angle, stroke, canvas_color,
+                    x,
+                    y,
+                    w,
+                    h,
+                    start_angle,
+                    range_angle,
+                    stroke,
+                    canvas_color,
                 } => painter.PaintEllipseArc(
-                    *x, *y, *w, *h, *start_angle, *range_angle, stroke, *canvas_color,
+                    *x,
+                    *y,
+                    *w,
+                    *h,
+                    *start_angle,
+                    *range_angle,
+                    stroke,
+                    *canvas_color,
                 ),
 
                 DrawOp::PaintEllipseSectorOutline {
-                    x, y, w, h,
-                    start_angle, sweep_angle, stroke, canvas_color,
+                    x,
+                    y,
+                    w,
+                    h,
+                    start_angle,
+                    sweep_angle,
+                    stroke,
+                    canvas_color,
                 } => painter.PaintEllipseSectorOutline(
-                    *x, *y, *w, *h, *start_angle, *sweep_angle, stroke, *canvas_color,
+                    *x,
+                    *y,
+                    *w,
+                    *h,
+                    *start_angle,
+                    *sweep_angle,
+                    stroke,
+                    *canvas_color,
                 ),
 
                 DrawOp::PaintEllipseOutline {
-                    x, y, w, h, stroke, canvas_color,
+                    x,
+                    y,
+                    w,
+                    h,
+                    stroke,
+                    canvas_color,
                 } => painter.PaintEllipseOutline(*x, *y, *w, *h, stroke, *canvas_color),
 
                 DrawOp::PaintLinearGradient {
@@ -808,7 +875,9 @@ impl DrawList {
                     stroke_color,
                     thickness,
                     canvas_color,
-                } => painter.PaintPolygonOutline(vertices, *stroke_color, *thickness, *canvas_color),
+                } => {
+                    painter.PaintPolygonOutline(vertices, *stroke_color, *thickness, *canvas_color)
+                }
 
                 DrawOp::PaintPolyline {
                     vertices,
@@ -870,11 +939,26 @@ impl DrawList {
                 } => {
                     let image = unsafe { &**image_ptr };
                     painter.PaintBorderImageColored(
-                        *x, *y, *w, *h, *l, *t, *r, *b,
+                        *x,
+                        *y,
+                        *w,
+                        *h,
+                        *l,
+                        *t,
+                        *r,
+                        *b,
                         image,
-                        0, 0, image.GetWidth() as i32, image.GetHeight() as i32,
-                        *src_l, *src_t, *src_r, *src_b,
-                        *color1, *color2, *canvas_color,
+                        0,
+                        0,
+                        image.GetWidth() as i32,
+                        image.GetHeight() as i32,
+                        *src_l,
+                        *src_t,
+                        *src_r,
+                        *src_b,
+                        *color1,
+                        *color2,
+                        *canvas_color,
                         *which_sub_rects as i32,
                     );
                 }
@@ -1027,7 +1111,10 @@ mod tests {
 
         let map = img.GetMap();
         let inside = pixel_at(map, 15, 15, 64);
-        assert_ne!(inside, WHITE, "pixel inside clip region should not be white");
+        assert_ne!(
+            inside, WHITE,
+            "pixel inside clip region should not be white"
+        );
 
         let outside = pixel_at(map, 5, 5, 64);
         assert_eq!(outside, WHITE, "pixel outside clip region should be white");
@@ -1054,9 +1141,15 @@ mod tests {
         }
         let map1 = img1.GetMap();
         let shifted = pixel_at(map1, 15, 15, 64);
-        assert_ne!(shifted, WHITE, "pixel at (15,15) should be painted (rect shifted to 10,10)");
+        assert_ne!(
+            shifted, WHITE,
+            "pixel at (15,15) should be painted (rect shifted to 10,10)"
+        );
         let before = pixel_at(map1, 5, 5, 64);
-        assert_eq!(before, WHITE, "pixel at (5,5) should be white (before offset)");
+        assert_eq!(
+            before, WHITE,
+            "pixel at (5,5) should be white (before offset)"
+        );
 
         // Replay with tile_offset=(5,5)
         let mut img2 = emImage::new(64, 64, 4);

@@ -97,13 +97,7 @@ impl emSubViewPanel {
     /// This method borrows `sub_view` and `sub_tree` simultaneously, which
     /// requires access to `self` rather than separate `sub_view_mut()` and
     /// `sub_tree_mut()` calls (which would conflict on `&mut self`).
-    pub fn visit_by_identity(
-        &mut self,
-        identity: &str,
-        rel_x: f64,
-        rel_y: f64,
-        rel_a: f64,
-    ) {
+    pub fn visit_by_identity(&mut self, identity: &str, rel_x: f64, rel_y: f64, rel_a: f64) {
         self.sub_view
             .VisitByIdentity(&mut self.sub_tree, identity, rel_x, rel_y, rel_a);
     }
@@ -171,9 +165,7 @@ impl PanelBehavior for emSubViewPanel {
         let sub_vy = event.mouse_y * self.viewed_width / state.pixel_tallness;
 
         // Hit-test and set active panel on mouse press (mirrors parent window logic).
-        if event.is_mouse_event()
-            && event.variant == crate::emInput::InputVariant::Press
-        {
+        if event.is_mouse_event() && event.variant == crate::emInput::InputVariant::Press {
             let panel = self
                 .sub_view
                 .GetFocusablePanelAt(&self.sub_tree, sub_vx, sub_vy)
@@ -197,9 +189,11 @@ impl PanelBehavior for emSubViewPanel {
                 self.sub_view.GetCurrentPixelTallness(),
             );
             if let Some(mut behavior) = self.sub_tree.take_behavior(panel_id) {
-                let panel_state = self
-                    .sub_tree
-                    .build_panel_state(panel_id, wf, self.sub_view.GetCurrentPixelTallness());
+                let panel_state = self.sub_tree.build_panel_state(
+                    panel_id,
+                    wf,
+                    self.sub_view.GetCurrentPixelTallness(),
+                );
                 // Suppress keyboard events for panels not in the active path.
                 if panel_ev.is_keyboard_event() && !panel_state.in_active_path {
                     self.sub_tree.put_behavior(panel_id, behavior);
@@ -208,8 +202,7 @@ impl PanelBehavior for emSubViewPanel {
                 let consumed = behavior.Input(&panel_ev, &panel_state, input_state);
                 self.sub_tree.put_behavior(panel_id, behavior);
                 if consumed {
-                    self.sub_view
-                        .InvalidatePainting(&self.sub_tree, panel_id);
+                    self.sub_view.InvalidatePainting(&self.sub_tree, panel_id);
                     return true;
                 }
             }
@@ -241,7 +234,8 @@ impl PanelBehavior for emSubViewPanel {
         // delivery to allow the seek mechanism to expand panels layer by layer
         // within a single frame (C++ does this across scheduler cycles).
         self.sub_tree.run_panel_cycles();
-        self.sub_tree.HandleNotice(state.is_focused(), state.pixel_tallness);
+        self.sub_tree
+            .HandleNotice(state.is_focused(), state.pixel_tallness);
         self.sub_view.Update(&mut self.sub_tree);
 
         // Run animator + expand loop: animator seeks deeper, view updates
@@ -261,9 +255,13 @@ impl PanelBehavior for emSubViewPanel {
             };
 
             self.sub_view.Update(&mut self.sub_tree);
-            let had_notices = self.sub_tree.HandleNotice(state.is_focused(), state.pixel_tallness);
+            let had_notices = self
+                .sub_tree
+                .HandleNotice(state.is_focused(), state.pixel_tallness);
             self.sub_tree.run_panel_cycles();
-            let had_notices2 = self.sub_tree.HandleNotice(state.is_focused(), state.pixel_tallness);
+            let had_notices2 = self
+                .sub_tree
+                .HandleNotice(state.is_focused(), state.pixel_tallness);
 
             if !anim_active && !had_notices && !had_notices2 {
                 break;

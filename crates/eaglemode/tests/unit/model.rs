@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use emcore::emRec::RecStruct;
 use emcore::emContext::emContext;
+use emcore::emRec::RecStruct;
 
 use emcore::emFileModel::{emFileModel, FileModelOps, FileState};
 
@@ -13,8 +13,8 @@ use emcore::emRecRecord::Record;
 
 use emcore::emRes::ResourceCache;
 
-use emcore::emVarModel::WatchedVar;
 use emcore::emScheduler::EngineScheduler;
+use emcore::emVarModel::WatchedVar;
 
 // ── Shared test record ──────────────────────────────────────────────────────
 
@@ -104,7 +104,10 @@ fn context_parent_child_tree() {
     let child = emContext::NewChild(&root);
     assert_eq!(root.child_count(), 1);
     assert!(child.GetParentContext().is_some());
-    assert!(std::rc::Rc::ptr_eq(&child.GetParentContext().unwrap(), &root));
+    assert!(std::rc::Rc::ptr_eq(
+        &child.GetParentContext().unwrap(),
+        &root
+    ));
 }
 
 #[test]

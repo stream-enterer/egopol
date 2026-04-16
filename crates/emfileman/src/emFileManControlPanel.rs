@@ -15,8 +15,8 @@ use emcore::emContext::emContext;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
 use emcore::emLook::emLook;
-use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
+use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emRadioButton::{emRadioButton, RadioGroup};
 
 use crate::emFileManConfig::{NameSortingStyle, SortCriterion};
@@ -26,7 +26,12 @@ use crate::emFileManViewConfig::emFileManViewConfig;
 
 /// Sort criterion labels matching enum variant order.
 const SORT_LABELS: [&str; 6] = [
-    "By Name", "By Ending", "By Class", "By Version", "By Date", "By Size",
+    "By Name",
+    "By Ending",
+    "By Class",
+    "By Version",
+    "By Date",
+    "By Size",
 ];
 
 /// Name sorting style labels matching enum variant order.
@@ -95,7 +100,9 @@ impl emFileManControlPanel {
         let sort_radios: Vec<emRadioButton> = SORT_LABELS
             .iter()
             .enumerate()
-            .map(|(i, label)| emRadioButton::new(label, Rc::clone(&look), Rc::clone(&sort_group), i))
+            .map(|(i, label)| {
+                emRadioButton::new(label, Rc::clone(&look), Rc::clone(&sort_group), i)
+            })
             .collect();
 
         // Build name sorting style radio group
@@ -136,8 +143,7 @@ impl emFileManControlPanel {
         };
 
         // Checkboxes
-        let dirs_first_check =
-            emCheckButton::new("Sort Directories First", Rc::clone(&look));
+        let dirs_first_check = emCheckButton::new("Sort Directories First", Rc::clone(&look));
         let show_hidden_check = emCheckButton::new("Show Hidden", Rc::clone(&look));
         let autosave_check = emCheckButton::new("Autosave", Rc::clone(&look));
 
@@ -192,8 +198,7 @@ impl emFileManControlPanel {
             .SetChecked(cfg.GetNameSortingStyle() as usize);
         self.dirs_first_check
             .SetChecked(cfg.GetSortDirectoriesFirst());
-        self.show_hidden_check
-            .SetChecked(cfg.GetShowHiddenFiles());
+        self.show_hidden_check.SetChecked(cfg.GetShowHiddenFiles());
         self.autosave_check.SetChecked(cfg.GetAutosave());
 
         // Sync theme style and AR from current theme name
@@ -201,9 +206,7 @@ impl emFileManControlPanel {
         drop(cfg);
         let tn = self.theme_names.borrow();
         if let Some(style_idx) = tn.GetThemeStyleIndex(&theme_name) {
-            self.theme_style_group
-                .borrow_mut()
-                .SetChecked(style_idx);
+            self.theme_style_group.borrow_mut().SetChecked(style_idx);
             // Rebuild AR radios for the selected style
             let ar_count = tn.GetThemeAspectRatioCount(style_idx);
             self.theme_ar_radios.clear();
@@ -323,7 +326,13 @@ impl PanelBehavior for emFileManControlPanel {
 
         // --- Name Sorting Style section ---
         y = Self::paint_section_label(
-            painter, margin, y, content_w, row_h, "Name Sorting Style", fg,
+            painter,
+            margin,
+            y,
+            content_w,
+            row_h,
+            "Name Sorting Style",
+            fg,
         );
         for radio in &mut self.nss_radios {
             paint_widget!(radio);
@@ -332,9 +341,7 @@ impl PanelBehavior for emFileManControlPanel {
         y += row_h * 0.5;
 
         // --- Theme Style section ---
-        y = Self::paint_section_label(
-            painter, margin, y, content_w, row_h, "Theme Style:", fg,
-        );
+        y = Self::paint_section_label(painter, margin, y, content_w, row_h, "Theme Style:", fg);
         for radio in &mut self.theme_style_radios {
             paint_widget!(radio);
         }
@@ -342,9 +349,7 @@ impl PanelBehavior for emFileManControlPanel {
         y += row_h * 0.5;
 
         // --- Aspect Ratio section ---
-        y = Self::paint_section_label(
-            painter, margin, y, content_w, row_h, "Aspect Ratio:", fg,
-        );
+        y = Self::paint_section_label(painter, margin, y, content_w, row_h, "Aspect Ratio:", fg);
         for radio in &mut self.theme_ar_radios {
             paint_widget!(radio);
         }
@@ -416,16 +421,11 @@ impl PanelBehavior for emFileManControlPanel {
             if radio.Input(event, state, input_state) {
                 let style_idx = self.theme_style_group.borrow().GetChecked();
                 if let Some(style_idx) = style_idx {
-                    let ar_idx = self
-                        .theme_ar_group
-                        .borrow()
-                        .GetChecked()
-                        .unwrap_or(0);
+                    let ar_idx = self.theme_ar_group.borrow().GetChecked().unwrap_or(0);
                     let tn = self.theme_names.borrow();
                     // Clamp AR index to new style's AR count
-                    let clamped_ar = ar_idx.min(
-                        tn.GetThemeAspectRatioCount(style_idx).saturating_sub(1),
-                    );
+                    let clamped_ar =
+                        ar_idx.min(tn.GetThemeAspectRatioCount(style_idx).saturating_sub(1));
                     let name = tn.GetThemeName(style_idx, clamped_ar);
                     drop(tn);
                     if let Some(name) = name {
@@ -441,11 +441,7 @@ impl PanelBehavior for emFileManControlPanel {
         for radio in &mut self.theme_ar_radios {
             if radio.Input(event, state, input_state) {
                 if let Some(ar_idx) = self.theme_ar_group.borrow().GetChecked() {
-                    let style_idx = self
-                        .theme_style_group
-                        .borrow()
-                        .GetChecked()
-                        .unwrap_or(0);
+                    let style_idx = self.theme_style_group.borrow().GetChecked().unwrap_or(0);
                     let tn = self.theme_names.borrow();
                     if let Some(name) = tn.GetThemeName(style_idx, ar_idx) {
                         drop(tn);

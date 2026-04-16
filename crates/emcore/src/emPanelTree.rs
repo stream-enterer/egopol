@@ -7,9 +7,9 @@ use slotmap::{new_key_type, SlotMap};
 use crate::dlog;
 
 use super::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use crate::emPanelCtx::PanelCtx;
 use crate::emColor::emColor;
 use crate::emPanel::Rect;
+use crate::emPanelCtx::PanelCtx;
 
 // ── Autoplay handling flags ─────────────────────────────────────────
 
@@ -528,11 +528,7 @@ impl PanelTree {
     /// Extract the last segment (leaf name) from a panel's identity.
     pub fn get_panel_name(&self, id: PanelId) -> String {
         let identity = self.GetIdentity(id);
-        identity
-            .rsplit(':')
-            .next()
-            .unwrap_or(&identity)
-            .to_string()
+        identity.rsplit(':').next().unwrap_or(&identity).to_string()
     }
 
     /// Check if a panel exists.
@@ -1016,7 +1012,10 @@ impl PanelTree {
     }
 
     pub fn has_behavior(&self, id: PanelId) -> bool {
-        self.panels.get(id).and_then(|p| p.behavior.as_ref()).is_some()
+        self.panels
+            .get(id)
+            .and_then(|p| p.behavior.as_ref())
+            .is_some()
     }
 
     /// Re-fire initialization notices on a panel (e.g., after setting
@@ -1173,7 +1172,8 @@ impl PanelTree {
                 if let Some(mut behavior) = self.take_behavior(id) {
                     let state = self.build_panel_state(id, window_focused, pixel_tallness);
                     behavior.notice(flags, &state);
-                    if flags.intersects(NoticeFlags::LAYOUT_CHANGED | NoticeFlags::CHILDREN_CHANGED) && self.GetFirstChild(id).is_some()
+                    if flags.intersects(NoticeFlags::LAYOUT_CHANGED | NoticeFlags::CHILDREN_CHANGED)
+                        && self.GetFirstChild(id).is_some()
                     {
                         let mut ctx = PanelCtx::new(self, id);
                         behavior.LayoutChildren(&mut ctx);
@@ -1884,7 +1884,6 @@ impl PanelTree {
         self.panels.keys().collect()
     }
 
-
     /// Return viewed panels in depth-first order (root → leaves), matching the
     /// order C++ `emPanel::Input` recursively dispatches input events.
     /// Return viewed panels in post-order: children before parents, last child
@@ -2376,7 +2375,8 @@ mod tests {
         let child = t.create_child(root, "child");
         // child has no behavior, so create_control_panel should
         // walk up to root, which has ControlCreator.
-        let ctrl_id = t.CreateControlPanel(child, root, "ctrl")
+        let ctrl_id = t
+            .CreateControlPanel(child, root, "ctrl")
             .expect("create_control_panel should succeed when root has ControlCreator");
         assert_eq!(t.name(ctrl_id), Some("ctrl"));
         // The control panel is created as a child of root (parent_arg).

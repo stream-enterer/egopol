@@ -3,20 +3,20 @@
 
 pub mod emDirEntry;
 pub mod emDirModel;
+pub mod emFileLinkModel;
 pub mod emFileManConfig;
-pub mod emFileManTheme;
 pub mod emFileManModel;
+pub mod emFileManTheme;
 pub mod emFileManThemeNames;
 pub mod emFileManViewConfig;
-pub mod emFileLinkModel;
 
-pub mod emDirStatPanel;
-pub mod emDirEntryPanel;
 pub mod emDirEntryAltPanel;
+pub mod emDirEntryPanel;
 pub mod emDirPanel;
+pub mod emDirStatPanel;
 pub mod emFileLinkPanel;
-pub mod emFileManSelInfoPanel;
 pub mod emFileManControlPanel;
+pub mod emFileManSelInfoPanel;
 
 pub mod emDirFpPlugin;
 pub mod emDirStatFpPlugin;

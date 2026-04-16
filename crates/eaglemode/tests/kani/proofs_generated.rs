@@ -10,17 +10,17 @@
 // (non_snake_case allowed via parent module)
 
 #[allow(unused_imports)]
-use emcore::emViewAnimator::KineticState;
-#[allow(unused_imports)]
-use emcore::emPanel::Rect;
-#[allow(unused_imports)]
-use emcore::emTiling::Spacing;
-#[allow(unused_imports)]
-use emcore::emProcess::StartFlags;
-#[allow(unused_imports)]
 use emcore::emColor::emColor;
 #[allow(unused_imports)]
 use emcore::emLook::emLook;
+#[allow(unused_imports)]
+use emcore::emPanel::Rect;
+#[allow(unused_imports)]
+use emcore::emProcess::StartFlags;
+#[allow(unused_imports)]
+use emcore::emTiling::Spacing;
+#[allow(unused_imports)]
+use emcore::emViewAnimator::KineticState;
 
 #[cfg(kani)]
 #[kani::proof]
@@ -71,7 +71,8 @@ fn kani_emATMatrix_AffineMatrix_scale_around() {
     kani::assume(p_fac_y.is_finite());
     kani::assume(p_fix_x.is_finite());
     kani::assume(p_fix_y.is_finite());
-    let _result = emcore::emATMatrix::AffineMatrix::scale_around(p_fac_x, p_fac_y, p_fix_x, p_fix_y);
+    let _result =
+        emcore::emATMatrix::AffineMatrix::scale_around(p_fac_x, p_fac_y, p_fix_x, p_fix_y);
 }
 
 #[cfg(kani)]
@@ -154,35 +155,40 @@ fn kani_emColor_emColor_rgb() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_GetRed() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = self_val.GetRed();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_GetGreen() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = self_val.GetGreen();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_GetBlue() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = self_val.GetBlue();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_GetAlpha() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = self_val.GetAlpha();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_GetPacked() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = self_val.GetPacked();
 }
 
@@ -201,14 +207,16 @@ fn kani_emColor_emColor_SetHSVA() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_GetHSV() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = self_val.GetHSV();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_GetLighted() {
-    let self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let p_light: f32 = kani::any::<f32>();
     kani::assume(p_light.is_finite());
     let _result = self_val.GetLighted(p_light);
@@ -217,8 +225,10 @@ fn kani_emColor_emColor_GetLighted() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_blend() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
-    let mut p_other = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut p_other =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_alpha: u8 = kani::any::<u8>();
     let _result = self_val.blend(p_other, p_alpha);
 }
@@ -226,7 +236,8 @@ fn kani_emColor_emColor_blend() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_SetAlpha() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_a: u8 = kani::any::<u8>();
     let _result = self_val.SetAlpha(p_a);
 }
@@ -234,8 +245,10 @@ fn kani_emColor_emColor_SetAlpha() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_GetBlended() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
-    let mut p_other = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut p_other =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_t: f64 = kani::any::<f64>();
     kani::assume(p_t.is_finite());
     let _result = self_val.GetBlended(p_other, p_t);
@@ -244,9 +257,12 @@ fn kani_emColor_emColor_GetBlended() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_canvas_blend() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
-    let mut p_source = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
-    let mut p_canvas = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut p_source =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut p_canvas =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_alpha: u8 = kani::any::<u8>();
     let _result = self_val.canvas_blend(p_source, p_canvas, p_alpha);
 }
@@ -254,7 +270,8 @@ fn kani_emColor_emColor_canvas_blend() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_SetRed() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_r: u8 = kani::any::<u8>();
     let _result = self_val.SetRed(p_r);
 }
@@ -262,7 +279,8 @@ fn kani_emColor_emColor_SetRed() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_SetGreen() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_g: u8 = kani::any::<u8>();
     let _result = self_val.SetGreen(p_g);
 }
@@ -270,7 +288,8 @@ fn kani_emColor_emColor_SetGreen() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_SetBlue() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_b: u8 = kani::any::<u8>();
     let _result = self_val.SetBlue(p_b);
 }
@@ -278,28 +297,32 @@ fn kani_emColor_emColor_SetBlue() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_IsTotallyTransparent() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = self_val.IsTotallyTransparent();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_IsOpaque() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = self_val.IsOpaque();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_IsGrey() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = self_val.IsGrey();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_GetGrey() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = self_val.GetGrey();
 }
 
@@ -313,7 +336,8 @@ fn kani_emColor_emColor_SetGrey() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_SetHue() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_h: f32 = kani::any::<f32>();
     kani::assume(p_h.is_finite());
     let _result = self_val.SetHue(p_h);
@@ -322,7 +346,8 @@ fn kani_emColor_emColor_SetHue() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_SetSat() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_s: f32 = kani::any::<f32>();
     kani::assume(p_s.is_finite());
     let _result = self_val.SetSat(p_s);
@@ -331,7 +356,8 @@ fn kani_emColor_emColor_SetSat() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_SetVal() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_v: f32 = kani::any::<f32>();
     kani::assume(p_v.is_finite());
     let _result = self_val.SetVal(p_v);
@@ -340,7 +366,8 @@ fn kani_emColor_emColor_SetVal() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emColor_emColor_GetTransparented() {
-    let mut self_val = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_amount: f64 = kani::any::<f64>();
     kani::assume(p_amount.is_finite());
     let _result = self_val.GetTransparented(p_amount);
@@ -373,35 +400,340 @@ fn kani_emLinearLayout_emLinearLayout_adaptive() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emLook_emLook_border_tint() {
-    let mut self_val = emLook { bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), button_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), button_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_hl_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_hl_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()) };
+    let mut self_val = emLook {
+        bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        button_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        button_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_hl_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_hl_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+    };
     let _result = self_val.border_tint();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emLook_emLook_focus_tint() {
-    let mut self_val = emLook { bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), button_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), button_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_hl_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_hl_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()) };
+    let mut self_val = emLook {
+        bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        button_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        button_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_hl_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_hl_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+    };
     let _result = self_val.focus_tint();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emLook_emLook_disabled_fg() {
-    let mut self_val = emLook { bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), button_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), button_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_hl_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_hl_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()) };
+    let mut self_val = emLook {
+        bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        button_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        button_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_hl_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_hl_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+    };
     let _result = self_val.disabled_fg();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emLook_emLook_button_hover() {
-    let mut self_val = emLook { bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), button_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), button_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_hl_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_hl_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()) };
+    let mut self_val = emLook {
+        bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        button_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        button_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_hl_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_hl_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+    };
     let _result = self_val.button_hover();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emLook_emLook_button_pressed() {
-    let mut self_val = emLook { bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), button_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), button_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), input_hl_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_bg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_fg_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), output_hl_color: emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()) };
+    let mut self_val = emLook {
+        bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        button_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        button_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        input_hl_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_bg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_fg_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+        output_hl_color: emcore::emColor::emColor::rgba(
+            kani::any(),
+            kani::any(),
+            kani::any(),
+            kani::any(),
+        ),
+    };
     let _result = self_val.button_pressed();
 }
 
@@ -416,7 +748,8 @@ fn kani_emProcess_StartFlags_contains() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emRecRecTypes_emColorRec_new() {
-    let mut p_default_value = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut p_default_value =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_have_alpha: bool = kani::any::<bool>();
     let _result = emcore::emRecRecTypes::emColorRec::new(p_default_value, p_have_alpha);
 }
@@ -424,43 +757,60 @@ fn kani_emRecRecTypes_emColorRec_new() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emRecRecTypes_emColorRec_GetRec() {
-    let mut self_val = emcore::emRecRecTypes::emColorRec::new(emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), kani::any());
+    let mut self_val = emcore::emRecRecTypes::emColorRec::new(
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()),
+        kani::any(),
+    );
     let _result = self_val.GetRec();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emRecRecTypes_emColorRec_Set() {
-    let mut self_val = emcore::emRecRecTypes::emColorRec::new(emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), kani::any());
-    let mut p_value = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val = emcore::emRecRecTypes::emColorRec::new(
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()),
+        kani::any(),
+    );
+    let mut p_value =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = self_val.Set(p_value);
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emRecRecTypes_emColorRec_SetToDefault() {
-    let mut self_val = emcore::emRecRecTypes::emColorRec::new(emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), kani::any());
+    let mut self_val = emcore::emRecRecTypes::emColorRec::new(
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()),
+        kani::any(),
+    );
     let _result = self_val.SetToDefault();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emRecRecTypes_emColorRec_IsSetToDefault() {
-    let mut self_val = emcore::emRecRecTypes::emColorRec::new(emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), kani::any());
+    let mut self_val = emcore::emRecRecTypes::emColorRec::new(
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()),
+        kani::any(),
+    );
     let _result = self_val.IsSetToDefault();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emRecRecTypes_emColorRec_HaveAlpha() {
-    let mut self_val = emcore::emRecRecTypes::emColorRec::new(emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()), kani::any());
+    let mut self_val = emcore::emRecRecTypes::emColorRec::new(
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()),
+        kani::any(),
+    );
     let _result = self_val.HaveAlpha();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emRecRecTypes_emColorRec_ToRecStruct() {
-    let mut p_color = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut p_color =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_have_alpha: bool = kani::any::<bool>();
     let _result = emcore::emRecRecTypes::emColorRec::ToRecStruct(p_color, p_have_alpha);
 }
@@ -504,7 +854,8 @@ fn kani_emStd1_emSetFatalErrorGraphical() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emStroke_emStroke_new() {
-    let mut p_color = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut p_color =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let mut p_width: f64 = kani::any::<f64>();
     kani::assume(p_width.is_finite());
     let _result = emcore::emStroke::emStroke::new(p_color, p_width);
@@ -513,7 +864,8 @@ fn kani_emStroke_emStroke_new() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emTexture_emTexture_GetColor() {
-    let mut p_c = emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut p_c =
+        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
     let _result = emcore::emTexture::emTexture::GetColor(p_c);
 }
 
@@ -530,7 +882,14 @@ fn kani_emTiling_Spacing_uniform() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emTiling_Spacing_clamped() {
-    let mut self_val = Spacing { inner_h: kani::any::<f64>(), inner_v: kani::any::<f64>(), margin_left: kani::any::<f64>(), margin_right: kani::any::<f64>(), margin_top: kani::any::<f64>(), margin_bottom: kani::any::<f64>() };
+    let mut self_val = Spacing {
+        inner_h: kani::any::<f64>(),
+        inner_v: kani::any::<f64>(),
+        margin_left: kani::any::<f64>(),
+        margin_right: kani::any::<f64>(),
+        margin_top: kani::any::<f64>(),
+        margin_bottom: kani::any::<f64>(),
+    };
     let _result = self_val.clamped();
 }
 
@@ -545,13 +904,23 @@ fn kani_emViewAnimator_emKineticViewAnimator_new() {
     kani::assume(p_velocity_y.is_finite());
     kani::assume(p_velocity_z.is_finite());
     kani::assume(p_friction.is_finite());
-    let _result = emcore::emViewAnimator::emKineticViewAnimator::new(p_velocity_x, p_velocity_y, p_velocity_z, p_friction);
+    let _result = emcore::emViewAnimator::emKineticViewAnimator::new(
+        p_velocity_x,
+        p_velocity_y,
+        p_velocity_z,
+        p_friction,
+    );
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emViewAnimator_emKineticViewAnimator_SetVelocity() {
-    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(
+        kani::any(),
+        kani::any(),
+        kani::any(),
+        kani::any(),
+    );
     let mut p_vx: f64 = kani::any::<f64>();
     let mut p_vy: f64 = kani::any::<f64>();
     let mut p_vz: f64 = kani::any::<f64>();
@@ -564,7 +933,12 @@ fn kani_emViewAnimator_emKineticViewAnimator_SetVelocity() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emViewAnimator_emKineticViewAnimator_GetVelocity() {
-    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(
+        kani::any(),
+        kani::any(),
+        kani::any(),
+        kani::any(),
+    );
     let _result = self_val.GetVelocity();
     assert!(_result.0.is_finite(), "non-finite result.0");
     assert!(_result.1.is_finite(), "non-finite result.1");
@@ -574,7 +948,12 @@ fn kani_emViewAnimator_emKineticViewAnimator_GetVelocity() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emViewAnimator_emKineticViewAnimator_GetAbsVelocity() {
-    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(
+        kani::any(),
+        kani::any(),
+        kani::any(),
+        kani::any(),
+    );
     let _result = self_val.GetAbsVelocity();
     // Layer 2: finite output from finite inputs
     assert!(_result.is_finite(), "non-finite result");
@@ -583,7 +962,12 @@ fn kani_emViewAnimator_emKineticViewAnimator_GetAbsVelocity() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emViewAnimator_emKineticViewAnimator_SetFrictionEnabled() {
-    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(
+        kani::any(),
+        kani::any(),
+        kani::any(),
+        kani::any(),
+    );
     let mut p_enabled: bool = kani::any::<bool>();
     let _result = self_val.SetFrictionEnabled(p_enabled);
 }
@@ -591,14 +975,24 @@ fn kani_emViewAnimator_emKineticViewAnimator_SetFrictionEnabled() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emViewAnimator_emKineticViewAnimator_IsFrictionEnabled() {
-    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(
+        kani::any(),
+        kani::any(),
+        kani::any(),
+        kani::any(),
+    );
     let _result = self_val.IsFrictionEnabled();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emViewAnimator_emKineticViewAnimator_SetFriction() {
-    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(
+        kani::any(),
+        kani::any(),
+        kani::any(),
+        kani::any(),
+    );
     let mut p_friction: f64 = kani::any::<f64>();
     kani::assume(p_friction.is_finite());
     let _result = self_val.SetFriction(p_friction);
@@ -607,7 +1001,12 @@ fn kani_emViewAnimator_emKineticViewAnimator_SetFriction() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emViewAnimator_emKineticViewAnimator_GetFriction() {
-    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(
+        kani::any(),
+        kani::any(),
+        kani::any(),
+        kani::any(),
+    );
     let _result = self_val.GetFriction();
     // Layer 2: finite output from finite inputs
     assert!(_result.is_finite(), "non-finite result");
@@ -616,15 +1015,32 @@ fn kani_emViewAnimator_emKineticViewAnimator_GetFriction() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emViewAnimator_emKineticViewAnimator_extract_kinetic_state() {
-    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(
+        kani::any(),
+        kani::any(),
+        kani::any(),
+        kani::any(),
+    );
     let _result = self_val.extract_kinetic_state();
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_emViewAnimator_emKineticViewAnimator_inject_kinetic_state() {
-    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
-    let mut p_state = KineticState { vx: kani::any::<f64>(), vy: kani::any::<f64>(), vz: kani::any::<f64>(), zoom_fix_centered: kani::any::<bool>(), zoom_fix_x: kani::any::<f64>(), zoom_fix_y: kani::any::<f64>() };
+    let mut self_val = emcore::emViewAnimator::emKineticViewAnimator::new(
+        kani::any(),
+        kani::any(),
+        kani::any(),
+        kani::any(),
+    );
+    let mut p_state = KineticState {
+        vx: kani::any::<f64>(),
+        vy: kani::any::<f64>(),
+        vz: kani::any::<f64>(),
+        zoom_fix_centered: kani::any::<bool>(),
+        zoom_fix_x: kani::any::<f64>(),
+        zoom_fix_y: kani::any::<f64>(),
+    };
     let _result = self_val.inject_kinetic_state(p_state);
 }
 
@@ -699,7 +1115,9 @@ fn kani_emViewAnimator_emVisitingViewAnimator_new() {
     kani::assume(p_target_y.is_finite());
     kani::assume(p_target_a.is_finite());
     kani::assume(p__speed.is_finite());
-    let _result = emcore::emViewAnimator::emVisitingViewAnimator::new(p_target_x, p_target_y, p_target_a, p__speed);
+    let _result = emcore::emViewAnimator::emVisitingViewAnimator::new(
+        p_target_x, p_target_y, p_target_a, p__speed,
+    );
 }
 
 #[cfg(kani)]
@@ -812,7 +1230,11 @@ fn kani_emViewRendererTileCache_TileCache_new() {
     let mut p_viewport_width: u32 = kani::any::<u32>();
     let mut p_viewport_height: u32 = kani::any::<u32>();
     let mut p_max_tiles: usize = kani::any::<usize>();
-    let _result = emcore::emViewRendererTileCache::TileCache::new(p_viewport_width, p_viewport_height, p_max_tiles);
+    let _result = emcore::emViewRendererTileCache::TileCache::new(
+        p_viewport_width,
+        p_viewport_height,
+        p_max_tiles,
+    );
 }
 
 #[cfg(kani)]
@@ -919,23 +1341,48 @@ fn kani_rect_Rect_new() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_rect_Rect_intersects() {
-    let mut self_val = Rect { x: kani::any::<f64>(), y: kani::any::<f64>(), w: kani::any::<f64>(), h: kani::any::<f64>() };
-    let mut p_other = Rect { x: kani::any::<f64>(), y: kani::any::<f64>(), w: kani::any::<f64>(), h: kani::any::<f64>() };
+    let mut self_val = Rect {
+        x: kani::any::<f64>(),
+        y: kani::any::<f64>(),
+        w: kani::any::<f64>(),
+        h: kani::any::<f64>(),
+    };
+    let mut p_other = Rect {
+        x: kani::any::<f64>(),
+        y: kani::any::<f64>(),
+        w: kani::any::<f64>(),
+        h: kani::any::<f64>(),
+    };
     let _result = self_val.intersects(&p_other);
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_rect_Rect_intersection() {
-    let mut self_val = Rect { x: kani::any::<f64>(), y: kani::any::<f64>(), w: kani::any::<f64>(), h: kani::any::<f64>() };
-    let mut p_other = Rect { x: kani::any::<f64>(), y: kani::any::<f64>(), w: kani::any::<f64>(), h: kani::any::<f64>() };
+    let mut self_val = Rect {
+        x: kani::any::<f64>(),
+        y: kani::any::<f64>(),
+        w: kani::any::<f64>(),
+        h: kani::any::<f64>(),
+    };
+    let mut p_other = Rect {
+        x: kani::any::<f64>(),
+        y: kani::any::<f64>(),
+        w: kani::any::<f64>(),
+        h: kani::any::<f64>(),
+    };
     let _result = self_val.intersection(&p_other);
 }
 
 #[cfg(kani)]
 #[kani::proof]
 fn kani_rect_Rect_contains_point() {
-    let mut self_val = Rect { x: kani::any::<f64>(), y: kani::any::<f64>(), w: kani::any::<f64>(), h: kani::any::<f64>() };
+    let mut self_val = Rect {
+        x: kani::any::<f64>(),
+        y: kani::any::<f64>(),
+        w: kani::any::<f64>(),
+        h: kani::any::<f64>(),
+    };
     let mut p_px: f64 = kani::any::<f64>();
     let mut p_py: f64 = kani::any::<f64>();
     kani::assume(p_px.is_finite());
@@ -946,9 +1393,13 @@ fn kani_rect_Rect_contains_point() {
 #[cfg(kani)]
 #[kani::proof]
 fn kani_rect_Rect_area() {
-    let mut self_val = Rect { x: kani::any::<f64>(), y: kani::any::<f64>(), w: kani::any::<f64>(), h: kani::any::<f64>() };
+    let mut self_val = Rect {
+        x: kani::any::<f64>(),
+        y: kani::any::<f64>(),
+        w: kani::any::<f64>(),
+        h: kani::any::<f64>(),
+    };
     let _result = self_val.area();
     // Layer 2: finite output from finite inputs
     assert!(_result.is_finite(), "non-finite result");
 }
-

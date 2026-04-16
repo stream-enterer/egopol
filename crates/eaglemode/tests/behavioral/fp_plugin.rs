@@ -1,5 +1,5 @@
+use emcore::emFpPlugin::{emFpPlugin, emFpPluginList, FileStatMode, FpPluginProperty};
 use emcore::emRec::RecStruct;
-use emcore::emFpPlugin::{FileStatMode, emFpPlugin, emFpPluginList, FpPluginProperty};
 use emcore::emRecRecord::Record;
 
 // ── Helper ──────────────────────────────────────────────────────────
@@ -337,7 +337,11 @@ fn search_plugin_case_insensitive_extension() {
 
     // File has lowercase extension, plugin has uppercase — should still match.
     let found = list.SearchPlugin(None, Some("image.png"), false, 0, FileStatMode::Regular);
-    assert_eq!(found.unwrap().library, "lib", "case-insensitive match should find the plugin");
+    assert_eq!(
+        found.unwrap().library,
+        "lib",
+        "case-insensitive match should find the plugin"
+    );
 }
 
 #[test]
@@ -352,7 +356,11 @@ fn search_plugin_extracts_filename_from_path() {
         0,
         FileStatMode::Regular,
     );
-    assert_eq!(found.unwrap().library, "lib", "path extraction should find the plugin");
+    assert_eq!(
+        found.unwrap().library,
+        "lib",
+        "path extraction should find the plugin"
+    );
 }
 
 #[test]

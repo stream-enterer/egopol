@@ -3,8 +3,8 @@ use std::ffi::CString;
 use std::rc::Rc;
 
 use crate::emDirEntry::emDirEntry;
-use crate::emFileManConfig::{NameSortingStyle, SortCriterion};
 use crate::emFileManConfig::emFileManConfig;
+use crate::emFileManConfig::{NameSortingStyle, SortCriterion};
 use crate::emFileManTheme::emFileManTheme;
 use crate::emFileManThemeNames::emFileManThemeNames;
 
@@ -54,11 +54,7 @@ pub fn get_extension_in_path(name: &str) -> &str {
 /// Extracted from the `SORT_BY_VERSION` case of `CompareDirEntries` for
 /// testability. Returns `Some(ordering)` if the version logic produced a
 /// definitive result, or `None` to fall through to name comparison.
-pub fn compare_version_names(
-    n1: &str,
-    n2: &str,
-    style: NameSortingStyle,
-) -> i32 {
+pub fn compare_version_names(n1: &str, n2: &str, style: NameSortingStyle) -> i32 {
     let b1 = n1.as_bytes();
     let b2 = n2.as_bytes();
 
@@ -82,18 +78,11 @@ fn is_digit(b: u8) -> bool {
 
 /// Core version comparison on byte slices. Returns `Some(i32)` if the version
 /// logic resolves the comparison, `None` to fall through to name comparison.
-fn compare_version_bytes(
-    b1: &[u8],
-    b2: &[u8],
-    style: NameSortingStyle,
-) -> Option<i32> {
+fn compare_version_bytes(b1: &[u8], b2: &[u8], style: NameSortingStyle) -> Option<i32> {
     // Find divergence point
     let mut i: usize = 0;
     if style == NameSortingStyle::CaseInsensitive {
-        while i < b1.len()
-            && i < b2.len()
-            && (b1[i] == b2[i]
-                || b1[i].eq_ignore_ascii_case(&b2[i]))
+        while i < b1.len() && i < b2.len() && (b1[i] == b2[i] || b1[i].eq_ignore_ascii_case(&b2[i]))
         {
             i += 1;
         }
@@ -394,10 +383,7 @@ impl emFileManViewConfig {
                     c.GetAutosave(),
                 )
             };
-            let theme = emFileManTheme::Acquire(
-                ctx,
-                if tn.is_empty() { "default" } else { &tn },
-            );
+            let theme = emFileManTheme::Acquire(ctx, if tn.is_empty() { "default" } else { &tn });
             Self {
                 ctx: Rc::clone(ctx),
                 config,
@@ -421,8 +407,7 @@ impl emFileManViewConfig {
     }
 
     fn bump_generation(&self) {
-        self.change_generation
-            .set(self.change_generation.get() + 1);
+        self.change_generation.set(self.change_generation.get() + 1);
     }
 
     fn write_back_if_autosave(&self) {
@@ -588,11 +573,7 @@ mod tests {
 
     #[test]
     fn sort_directories_first() {
-        let cfg = make_config(
-            SortCriterion::ByName,
-            NameSortingStyle::CaseSensitive,
-            true,
-        );
+        let cfg = make_config(SortCriterion::ByName, NameSortingStyle::CaseSensitive, true);
         let dir = emDirEntry::from_path("/tmp"); // directory
         let file = emDirEntry::from_path("/dev/null"); // not a directory (char device)
         let cmp = CompareDirEntries(&dir, &file, &cfg);

@@ -44,7 +44,11 @@ fn render_starfield(depth: i32, seed: u32, w: u32, h: u32, log_name: Option<&str
 fn starfield_small() {
     require_golden!();
     let (ew, eh, expected) = load_painter_golden("starfield_small");
-    let log_name = if dump_draw_ops_enabled() { Some("starfield_small") } else { None };
+    let log_name = if dump_draw_ops_enabled() {
+        Some("starfield_small")
+    } else {
+        None
+    };
     let img = render_starfield(3, 0x12345678, ew, eh, log_name);
     compare_images("starfield_small", img.GetMap(), &expected, ew, eh, 0, 0.0)
         .expect("starfield_small golden mismatch");
@@ -57,7 +61,11 @@ fn starfield_small() {
 fn starfield_large() {
     require_golden!();
     let (ew, eh, expected) = load_painter_golden("starfield_large");
-    let log_name = if dump_draw_ops_enabled() { Some("starfield_large") } else { None };
+    let log_name = if dump_draw_ops_enabled() {
+        Some("starfield_large")
+    } else {
+        None
+    };
     let img = render_starfield(3, 0x12345678, ew, eh, log_name);
     compare_images("starfield_large", img.GetMap(), &expected, ew, eh, 0, 0.0)
         .expect("starfield_large golden mismatch");

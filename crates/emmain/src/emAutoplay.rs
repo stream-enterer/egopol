@@ -1,9 +1,11 @@
 use emcore::emConfigModel::emConfigModel;
 use emcore::emContext::emContext;
-use emcore::emInput::{emInputEvent, InputKey};
+use emcore::emInput::{InputKey, emInputEvent};
 use emcore::emInputState::emInputState;
-use emcore::emInstallInfo::{emGetInstallPath, InstallDirType};
-use emcore::emPanelTree::{AutoplayHandlingFlags, DecodeIdentity, EncodeIdentity, PanelId, PanelTree};
+use emcore::emInstallInfo::{InstallDirType, emGetInstallPath};
+use emcore::emPanelTree::{
+    AutoplayHandlingFlags, DecodeIdentity, EncodeIdentity, PanelId, PanelTree,
+};
 use emcore::emRec::{RecError, RecStruct};
 use emcore::emRecRecord::Record;
 use emcore::emSignal::SignalId;
@@ -47,10 +49,7 @@ impl Record for emAutoplayConfigRec {
     fn from_rec(rec: &RecStruct) -> Result<Self, RecError> {
         let d = Self::default();
         Ok(Self {
-            DurationMS: rec
-                .get_int("DurationMS")
-                .unwrap_or(d.DurationMS)
-                .max(0),
+            DurationMS: rec.get_int("DurationMS").unwrap_or(d.DurationMS).max(0),
             Recursive: rec.get_bool("Recursive").unwrap_or(d.Recursive),
             Loop: rec.get_bool("Loop").unwrap_or(d.Loop),
             LastLocationValid: rec
@@ -101,22 +100,17 @@ impl emAutoplayConfig {
     /// Port of C++ `emAutoplayConfig::Acquire`.
     pub fn Acquire(ctx: &Rc<emContext>) -> Rc<RefCell<Self>> {
         ctx.acquire::<Self>("", || {
-            let path =
-                emGetInstallPath(InstallDirType::UserConfig, "emMain", Some("autoplay.rec"))
-                    .unwrap_or_else(|_| {
-                        let home =
-                            std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-                        std::path::PathBuf::from(home)
-                            .join(".eaglemode")
-                            .join("emMain")
-                            .join("autoplay.rec")
-                    });
+            let path = emGetInstallPath(InstallDirType::UserConfig, "emMain", Some("autoplay.rec"))
+                .unwrap_or_else(|_| {
+                    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+                    std::path::PathBuf::from(home)
+                        .join(".eaglemode")
+                        .join("emMain")
+                        .join("autoplay.rec")
+                });
 
-            let mut model = emConfigModel::new(
-                emAutoplayConfigRec::default(),
-                path,
-                SignalId::null(),
-            );
+            let mut model =
+                emConfigModel::new(emAutoplayConfigRec::default(), path, SignalId::null());
 
             if let Err(e) = model.TryLoadOrInstall() {
                 log::warn!("AutoplayConfig: failed to load or install config: {e}");
@@ -141,8 +135,7 @@ impl emAutoplayConfig {
     }
 
     pub fn SetDurationMS(&mut self, ms: i32) {
-        self.config_model
-            .modify(|d| d.DurationMS = ms.max(0));
+        self.config_model.modify(|d| d.DurationMS = ms.max(0));
     }
 
     pub fn IsRecursive(&self) -> bool {
@@ -166,8 +159,7 @@ impl emAutoplayConfig {
     }
 
     pub fn SetLastLocationValid(&mut self, valid: bool) {
-        self.config_model
-            .modify(|d| d.LastLocationValid = valid);
+        self.config_model.modify(|d| d.LastLocationValid = valid);
     }
 
     pub fn GetLastLocation(&self) -> &str {
@@ -470,10 +462,7 @@ impl emAutoplayViewAnimator {
     /// Port of C++ `emAutoplayViewAnimator::GoParent`.
     pub fn go_parent(&mut self, tree: &PanelTree, current: PanelId) {
         if let Some(parent) = tree.GetParentContext(current) {
-            let child_name = tree
-                .name(current)
-                .unwrap_or("")
-                .to_string();
+            let child_name = tree.name(current).unwrap_or("").to_string();
             self.SkipCurrent = false;
             self.CameFrom = CameFromType::Child;
             self.CameFromChildName = child_name;
@@ -783,8 +772,7 @@ impl emAutoplayViewAnimator {
             if cnt > 0 {
                 self.CameFrom = CameFromType::Child;
                 self.CameFromChildName = names[cnt - 1].clone();
-                let parent_names: Vec<&str> =
-                    names[..cnt - 1].iter().map(|s| s.as_str()).collect();
+                let parent_names: Vec<&str> = names[..cnt - 1].iter().map(|s| s.as_str()).collect();
                 self.CurrentPanelIdentity = EncodeIdentity(&parent_names);
                 self.CurrentPanelState = CurrentPanelState::NotVisited;
             }
@@ -992,10 +980,7 @@ impl emAutoplayViewModel {
             self.ViewAnimator.LowPriCycle(tree);
 
             if self.ViewAnimator.HasReachedGoal() {
-                let identity = self
-                    .ViewAnimator
-                    .GetCurrentPanelIdentity()
-                    .to_string();
+                let identity = self.ViewAnimator.GetCurrentPanelIdentity().to_string();
                 self.SaveLocation(Some(&identity));
                 self.StartItemPlaying();
             } else if self.ViewAnimator.HasGivenUp() {

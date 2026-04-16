@@ -8,20 +8,20 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
-use emcore::emColor::emColor;
+use emcore::emBorder::{InnerBorderType, OuterBorderType, emBorder};
 use emcore::emButton::emButton;
 use emcore::emCheckBox::emCheckBox;
 use emcore::emCheckButton::emCheckButton;
+use emcore::emColor::emColor;
 use emcore::emCursor::emCursor;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
 use emcore::emLinearLayout::emLinearLayout;
 use emcore::emLook::emLook;
 use emcore::emPackLayout::emPackLayout;
+use emcore::emPainter::emPainter;
 use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
-use emcore::emPainter::emPainter;
 use emcore::emScalarField::emScalarField;
 use emcore::emTiling::ChildConstraint;
 
@@ -129,8 +129,7 @@ struct AutoplayButtonPanel {
 
 impl PanelBehavior for AutoplayButtonPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        let pixel_scale =
-            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.button.Paint(painter, w, h, state.enabled, pixel_scale);
     }
 
@@ -162,8 +161,7 @@ struct AutoplayCheckButtonPanel {
 
 impl PanelBehavior for AutoplayCheckButtonPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        let pixel_scale =
-            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.check_button
             .Paint(painter, w, h, state.enabled, pixel_scale);
 
@@ -197,8 +195,7 @@ struct AutoplayCheckBoxPanel {
 
 impl PanelBehavior for AutoplayCheckBoxPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        let pixel_scale =
-            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.check_box
             .Paint(painter, w, h, state.enabled, pixel_scale);
     }
@@ -224,8 +221,7 @@ struct AutoplayScalarFieldPanel {
 
 impl PanelBehavior for AutoplayScalarFieldPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        let pixel_scale =
-            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.scalar_field
             .Paint(painter, w, h, state.enabled, pixel_scale);
     }
@@ -304,9 +300,7 @@ impl SettingsPanel {
         // C++ SetPrefChildTallness(1, 0.15), SetChildWeight(1, 0.75)
         let flags = Rc::clone(&self.flags);
         let mut cb_recursive = emCheckBox::new("Recursive", Rc::clone(&look));
-        cb_recursive.SetDescription(
-            "Whether autoplay shall play subdirectories recursively.",
-        );
+        cb_recursive.SetDescription("Whether autoplay shall play subdirectories recursively.");
         cb_recursive.on_check = Some(Box::new(move |checked| {
             flags.recursive.set(Some(checked));
         }));
@@ -338,9 +332,7 @@ impl SettingsPanel {
         }));
         let loop_id = ctx.create_child_with(
             "loop",
-            Box::new(AutoplayCheckBoxPanel {
-                check_box: cb_loop,
-            }),
+            Box::new(AutoplayCheckBoxPanel { check_box: cb_loop }),
         );
         self.layout.set_child_constraint(
             loop_id,
@@ -361,8 +353,7 @@ impl PanelBehavior for SettingsPanel {
     }
 
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        let pixel_scale =
-            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.border.paint_border(
             painter,
             w,
@@ -382,9 +373,9 @@ impl PanelBehavior for SettingsPanel {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 
@@ -429,10 +420,7 @@ impl PrevNextPanel {
         btn_prev.on_click = Some(Box::new(move || {
             flags.prev.set(true);
         }));
-        ctx.create_child_with(
-            "prev",
-            Box::new(AutoplayButtonPanel { button: btn_prev }),
-        );
+        ctx.create_child_with("prev", Box::new(AutoplayButtonPanel { button: btn_prev }));
 
         // ── BtNext ──
         let flags = Rc::clone(&self.flags);
@@ -445,10 +433,7 @@ impl PrevNextPanel {
         btn_next.on_click = Some(Box::new(move || {
             flags.next.set(true);
         }));
-        ctx.create_child_with(
-            "next",
-            Box::new(AutoplayButtonPanel { button: btn_next }),
-        );
+        ctx.create_child_with("next", Box::new(AutoplayButtonPanel { button: btn_next }));
 
         self.children_created = true;
     }
@@ -566,10 +551,8 @@ impl emAutoplayControlPanel {
         btn_cont.on_click = Some(Box::new(move || {
             cont_flags.continue_last.set(true);
         }));
-        let cont_id = ctx.create_child_with(
-            "cont",
-            Box::new(AutoplayButtonPanel { button: btn_cont }),
-        );
+        let cont_id =
+            ctx.create_child_with("cont", Box::new(AutoplayButtonPanel { button: btn_cont }));
         self.layout.set_child_constraint(
             cont_id,
             ChildConstraint {
@@ -606,8 +589,7 @@ impl PanelBehavior for emAutoplayControlPanel {
     }
 
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        let pixel_scale =
-            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.border.paint_border(
             painter,
             w,
@@ -627,9 +609,9 @@ impl PanelBehavior for emAutoplayControlPanel {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 
@@ -702,7 +684,8 @@ mod tests {
             let ms = DurationValueToMS(v);
             let v2 = DurationMSToValue(ms);
             assert_eq!(
-                DurationValueToMS(v2), ms,
+                DurationValueToMS(v2),
+                ms,
                 "round-trip failed for value {v}: ms={ms}, v2={v2}"
             );
         }

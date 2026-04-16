@@ -4,17 +4,17 @@ use std::rc::Rc;
 
 use crate::dlog;
 use crate::emColor::emColor;
+use crate::emPainter::emPainter;
+use crate::emPanel::NoticeFlags;
 use crate::emPanel::{PanelBehavior, PanelState};
 use crate::emPanelCtx::PanelCtx;
-use crate::emPanel::NoticeFlags;
 use crate::emPanelTree::PanelId;
-use crate::emPainter::emPainter;
 use crate::emStroke::emStroke;
 
-use super::emBorder::{emBorder, InnerBorderType, OuterBorderType, with_toolkit_images};
-use crate::emCheckBox::emCheckBox;
+use super::emBorder::{emBorder, with_toolkit_images, InnerBorderType, OuterBorderType};
 use super::emColorFieldFieldPanel::{CheckBoxPanel, ListBoxPanel, TextFieldPanel};
 use super::emListBox::{emListBox, SelectionMode};
+use crate::emCheckBox::emCheckBox;
 use crate::emLook::emLook;
 use crate::emTextField::emTextField;
 use crate::emTexture::ImageExtension;
@@ -232,7 +232,14 @@ impl PanelBehavior for FileItemPanelBehavior {
 
                     // Circle outline via ellipse outlined.
                     let stroke = emStroke::new(fg_color, rw * 0.26);
-                    painter.PaintEllipseOutline(cx - rw, cy - rw, rw * 2.0, rw * 2.0, &stroke, canvas_color);
+                    painter.PaintEllipseOutline(
+                        cx - rw,
+                        cy - rw,
+                        rw * 2.0,
+                        rw * 2.0,
+                        &stroke,
+                        canvas_color,
+                    );
 
                     // Diagonal line.
                     let t = rw * std::f64::consts::FRAC_1_SQRT_2;
@@ -271,7 +278,8 @@ impl PanelBehavior for FileItemPanelBehavior {
             // behavior directly: read the file and paint it as text.
             let content_id = ctx.create_child("content");
             let path = self.parent_dir.join(&self.name);
-            ctx.tree.set_behavior(content_id, Box::new(TextFilePanel::new(&path)));
+            ctx.tree
+                .set_behavior(content_id, Box::new(TextFilePanel::new(&path)));
             let _overlay_id = ctx.create_child("overlay");
         }
         // C++ FileItemPanel::LayoutChildren (emFileSelectionBox.cpp:1095-1112):
@@ -485,8 +493,7 @@ impl TextFilePanel {
                 if col2 < col1 {
                     col2 = col1;
                 }
-                relative_line_indents[row] =
-                    (col1 * 256 / (column_count + 1)).min(255) as u8;
+                relative_line_indents[row] = (col1 * 256 / (column_count + 1)).min(255) as u8;
                 relative_line_widths[row] =
                     ((col2 - col1) * 256 / (column_count + 1)).min(255) as u8;
             }
@@ -553,8 +560,7 @@ impl TextFilePanel {
             self.char_height = h / self.page_rows as f64;
             self.char_width = self.char_height * f;
             self.page_gap = page_gap_chars * self.char_width;
-            self.page_width =
-                (1.0 - (page_count - 1) as f64 * self.page_gap) / page_count as f64;
+            self.page_width = (1.0 - (page_count - 1) as f64 * self.page_gap) / page_count as f64;
         }
     }
 
@@ -562,14 +568,7 @@ impl TextFilePanel {
     ///
     /// Port of C++ `emTextFilePanel::PaintTextRowsSilhouette`
     /// (emTextFilePanel.cpp:616-669).
-    fn paint_silhouette(
-        &self,
-        p: &mut emPainter,
-        x: f64,
-        mut y: f64,
-        mut row: i32,
-        end_row: i32,
-    ) {
+    fn paint_silhouette(&self, p: &mut emPainter, x: f64, mut y: f64, mut row: i32, end_row: i32) {
         // C++ step = (int)(0.5 / (CharHeight * GetViewedWidth()))
         // At golden test scale, step >= 1. We don't have GetViewedWidth(),
         // but at the scales where silhouette mode is active, step=1 is correct
@@ -1084,10 +1083,8 @@ impl emFileSelectionBox {
                 let mut e = events.borrow_mut();
                 e.dir_text_changed = Some(text.to_string());
             }));
-            let id = ctx.create_child_with(
-                "directory",
-                Box::new(TextFieldPanel { text_field: tf }),
-            );
+            let id =
+                ctx.create_child_with("directory", Box::new(TextFieldPanel { text_field: tf }));
             self.dir_field_id = Some(id);
         }
 
@@ -1139,25 +1136,23 @@ impl emFileSelectionBox {
             // Set custom item behavior factory for FileItemPanel rendering.
             let listing_data = self.listing_data.clone();
             let parent_dir = self.parent_dir.clone();
-            lb.set_item_behavior_factory(
-                move |index, text, selected, look, sel_mode, enabled| {
-                    let data = listing_data.borrow();
-                    let (is_dir, is_readable) = data
-                        .get(index)
-                        .map(|d| (d.is_directory, d.is_readable))
-                        .unwrap_or((false, true));
-                    Box::new(FileItemPanelBehavior::new(
-                        text.to_string(),
-                        is_dir,
-                        is_readable,
-                        selected,
-                        look,
-                        sel_mode,
-                        enabled,
-                        parent_dir.clone(),
-                    ))
-                },
-            );
+            lb.set_item_behavior_factory(move |index, text, selected, look, sel_mode, enabled| {
+                let data = listing_data.borrow();
+                let (is_dir, is_readable) = data
+                    .get(index)
+                    .map(|d| (d.is_directory, d.is_readable))
+                    .unwrap_or((false, true));
+                Box::new(FileItemPanelBehavior::new(
+                    text.to_string(),
+                    is_dir,
+                    is_readable,
+                    selected,
+                    look,
+                    sel_mode,
+                    enabled,
+                    parent_dir.clone(),
+                ))
+            });
             let id = ctx.create_child_with("files", Box::new(ListBoxPanel { list_box: lb }));
             self.files_lb_id = Some(id);
         }
@@ -1175,10 +1170,7 @@ impl emFileSelectionBox {
                 let mut e = events.borrow_mut();
                 e.name_text_changed = Some(text.to_string());
             }));
-            let id = ctx.create_child_with(
-                "name",
-                Box::new(TextFieldPanel { text_field: tf }),
-            );
+            let id = ctx.create_child_with("name", Box::new(TextFieldPanel { text_field: tf }));
             self.name_field_id = Some(id);
         }
 
@@ -1251,18 +1243,15 @@ impl emFileSelectionBox {
             // Items changed — notify the listbox panel to re-run LayoutChildren
             // so it creates/updates item panels. C++ does this implicitly via
             // CreateItemPanel() in InsertItem() when IsAutoExpanded().
-            ctx.tree.queue_notice(lb_id, super::emPanel::NoticeFlags::LAYOUT_CHANGED);
+            ctx.tree
+                .queue_notice(lb_id, super::emPanel::NoticeFlags::LAYOUT_CHANGED);
         }
     }
 
     /// Update name field text to match current selection.
     fn sync_name_field(&self, ctx: &mut PanelCtx) {
         if let Some(nf_id) = self.name_field_id {
-            let text = self
-                .selected_names
-                .first()
-                .cloned()
-                .unwrap_or_default();
+            let text = self.selected_names.first().cloned().unwrap_or_default();
             ctx.tree
                 .with_behavior_as::<TextFieldPanel, _>(nf_id, |tfp| {
                     tfp.text_field.SetText(&text);
@@ -1338,8 +1327,15 @@ fn match_pattern_recursive(fname: &[u8], pattern: &[u8]) -> bool {
 
 impl PanelBehavior for emFileSelectionBox {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
+        self.border.paint_border(
+            painter,
+            w,
+            h,
+            &self.look,
+            state.enabled,
+            true,
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100),
+        );
     }
 
     fn auto_expand(&self) -> bool {
@@ -1373,9 +1369,9 @@ impl PanelBehavior for emFileSelectionBox {
         let cr = self.border.GetContentRectUnobscured(w, h, &self.look);
         let (x, y, cw, ch) = (cr.x, cr.y, cr.w, cr.h);
 
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
 
         // 3-zone geometry matching C++ LayoutChildren
         let hs = (cw * 0.05).min(ch * 0.15);

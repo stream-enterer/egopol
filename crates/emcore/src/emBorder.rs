@@ -4,9 +4,9 @@ use crate::emColor::emColor;
 use crate::emImage::emImage;
 use crate::emLook::emLook;
 use crate::emPainter::{emPainter, TextAlignment, VAlign, BORDER_EDGES_ONLY};
+use crate::emPanel::Rect;
 use crate::emResTga::load_tga;
 use crate::emStroke::emStroke;
-use crate::emPanel::Rect;
 
 /// Outer border style.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -320,7 +320,10 @@ impl emBorder {
 
         if self.has_how_to {
             let hts = s * self.how_to_space_factor();
-            if hts > ms { rnd_x += hts - ms; rnd_w -= hts - ms; }
+            if hts > ms {
+                rnd_x += hts - ms;
+                rnd_w -= hts - ms;
+            }
         }
 
         let label_space = if self.label_in_border && self.HasLabel() {
@@ -340,7 +343,9 @@ impl emBorder {
                 let r = rnd_r - f;
                 let g = r - d + f;
                 let f2 = rnd_r - (r * r - g * g).sqrt();
-                if e < f2 { e = f2; }
+                if e < f2 {
+                    e = f2;
+                }
             }
             let tx = rnd_x + e;
             let tw = rnd_w - 2.0 * e;
@@ -453,7 +458,8 @@ impl emBorder {
         // Step 3: description
         // C++: descW = emPainter::GetTextSize(Description, 1.0, true, 0.0, &descH)
         if has_desc {
-            let (desc_w_raw, desc_h_raw) = emPainter::GetTextSize(&self.description, 1.0, true, 0.0);
+            let (desc_w_raw, desc_h_raw) =
+                emPainter::GetTextSize(&self.description, 1.0, true, 0.0);
             if has_icon || has_cap {
                 let f = if has_cap {
                     cap_h * 0.15
@@ -842,7 +848,18 @@ impl emBorder {
             }
         }
 
-        (rnd_x, rnd_y, rnd_w, rnd_h, rnd_r, rec_x, rec_y, rec_w, rec_h, canvas_color)
+        (
+            rnd_x,
+            rnd_y,
+            rnd_w,
+            rnd_h,
+            rnd_r,
+            rec_x,
+            rec_y,
+            rec_w,
+            rec_h,
+            canvas_color,
+        )
     }
 
     /// Base scaling unit for outer geometry.
@@ -1060,8 +1077,12 @@ impl emBorder {
         if w2 <= w {
             match self.label_alignment {
                 TextAlignment::Left => {}
-                TextAlignment::Center => { x += (w - w2) * 0.5; }
-                TextAlignment::Right => { x += w - w2; }
+                TextAlignment::Center => {
+                    x += (w - w2) * 0.5;
+                }
+                TextAlignment::Right => {
+                    x += w - w2;
+                }
             }
             w = w2;
         } else {
@@ -1110,17 +1131,32 @@ impl emBorder {
         desc_h *= f;
 
         let icon_rect = if has_icon {
-            Some(Rect { x: icon_x, y: icon_y, w: icon_w, h: icon_h })
+            Some(Rect {
+                x: icon_x,
+                y: icon_y,
+                w: icon_w,
+                h: icon_h,
+            })
         } else {
             None
         };
         let caption_rect = if has_cap {
-            Some(Rect { x: cap_x, y: cap_y, w: cap_w_final, h: cap_h })
+            Some(Rect {
+                x: cap_x,
+                y: cap_y,
+                w: cap_w_final,
+                h: cap_h,
+            })
         } else {
             None
         };
         let description_rect = if has_desc && desc_h > 0.0 {
-            Some(Rect { x: desc_x, y: desc_y, w: desc_w_final, h: desc_h })
+            Some(Rect {
+                x: desc_x,
+                y: desc_y,
+                w: desc_w_final,
+                h: desc_h,
+            })
         } else {
             None
         };
@@ -1226,35 +1262,81 @@ How to move or set the focus:\n\
     pub fn GetSubstanceRect(&self, w: f64, h: f64) -> (Rect, f64) {
         let s = w.min(h) * self.border_scaling;
         match self.outer {
-            OuterBorderType::None | OuterBorderType::Filled => {
-                (Rect { x: 0.0, y: 0.0, w, h }, 0.0)
-            }
+            OuterBorderType::None | OuterBorderType::Filled => (
+                Rect {
+                    x: 0.0,
+                    y: 0.0,
+                    w,
+                    h,
+                },
+                0.0,
+            ),
             OuterBorderType::Margin | OuterBorderType::MarginFilled => {
                 let d = s * 0.04;
-                (Rect { x: d, y: d, w: w - 2.0*d, h: h - 2.0*d }, 0.0)
+                (
+                    Rect {
+                        x: d,
+                        y: d,
+                        w: w - 2.0 * d,
+                        h: h - 2.0 * d,
+                    },
+                    0.0,
+                )
             }
             OuterBorderType::Rect => {
                 let d = s * 0.023;
-                (Rect { x: d, y: d, w: w - 2.0*d, h: h - 2.0*d }, 0.0)
+                (
+                    Rect {
+                        x: d,
+                        y: d,
+                        w: w - 2.0 * d,
+                        h: h - 2.0 * d,
+                    },
+                    0.0,
+                )
             }
             OuterBorderType::RoundRect => {
                 let d = s * 0.023;
                 let f = s * 0.22;
-                (Rect { x: d, y: d, w: w - 2.0*d, h: h - 2.0*d }, f)
+                (
+                    Rect {
+                        x: d,
+                        y: d,
+                        w: w - 2.0 * d,
+                        h: h - 2.0 * d,
+                    },
+                    f,
+                )
             }
             OuterBorderType::Group => {
                 let d = s * 0.0104;
                 let rnd_r = s * 0.0188;
                 let r = rnd_r * (280.0 / 209.0);
                 let e = r - rnd_r;
-                (Rect { x: d - e, y: d - e, w: w - 2.0*d + 2.0*e, h: h - 2.0*d + 2.0*e }, r)
+                (
+                    Rect {
+                        x: d - e,
+                        y: d - e,
+                        w: w - 2.0 * d + 2.0 * e,
+                        h: h - 2.0 * d + 2.0 * e,
+                    },
+                    r,
+                )
             }
             OuterBorderType::Instrument => {
                 let d = s * 0.052;
                 let rnd_r = s * 0.094;
                 let r = rnd_r * (280.0 / 209.0);
                 let e = r - rnd_r;
-                (Rect { x: d - e, y: d - e, w: w - 2.0*d + 2.0*e, h: h - 2.0*d + 2.0*e }, r)
+                (
+                    Rect {
+                        x: d - e,
+                        y: d - e,
+                        w: w - 2.0 * d + 2.0 * e,
+                        h: h - 2.0 * d + 2.0 * e,
+                    },
+                    r,
+                )
             }
             OuterBorderType::InstrumentMoreRound => {
                 let d = s * 0.052;
@@ -1262,11 +1344,25 @@ How to move or set the focus:\n\
                 // C++ line 825: 336/293.4 (integer division on 336).
                 let r = rnd_r * (336.0 / 293.4);
                 let e = r - rnd_r;
-                (Rect { x: d - e, y: d - e, w: w - 2.0*d + 2.0*e, h: h - 2.0*d + 2.0*e }, r)
+                (
+                    Rect {
+                        x: d - e,
+                        y: d - e,
+                        w: w - 2.0 * d + 2.0 * e,
+                        h: h - 2.0 * d + 2.0 * e,
+                    },
+                    r,
+                )
             }
-            OuterBorderType::PopupRoot => {
-                (Rect { x: 0.0, y: 0.0, w, h }, 0.0)
-            }
+            OuterBorderType::PopupRoot => (
+                Rect {
+                    x: 0.0,
+                    y: 0.0,
+                    w,
+                    h,
+                },
+                0.0,
+            ),
         }
     }
 
@@ -1300,7 +1396,12 @@ How to move or set the focus:\n\
         let (rnd_x, rnd_y, rnd_w, rnd_h, rnd_r, _, _, _, _, _) =
             self.do_border_geometry(w, h, emColor::TRANSPARENT, look, true);
         (
-            Rect { x: rnd_x, y: rnd_y, w: rnd_w.max(0.0), h: rnd_h.max(0.0) },
+            Rect {
+                x: rnd_x,
+                y: rnd_y,
+                w: rnd_w.max(0.0),
+                h: rnd_h.max(0.0),
+            },
             rnd_r.max(0.0),
         )
     }
@@ -1326,24 +1427,34 @@ How to move or set the focus:\n\
                 let ms = s * self.min_space_factor();
                 if self.has_how_to {
                     let hts = s * self.how_to_space_factor();
-                    if hts > ms { rx += hts - ms; rw -= hts - ms; }
+                    if hts > ms {
+                        rx += hts - ms;
+                        rw -= hts - ms;
+                    }
                 }
                 let ls = if self.label_in_border && self.HasLabel() {
                     s * self.label_space_factor()
-                } else { 0.0 };
+                } else {
+                    0.0
+                };
                 let (ry, rh2) = if ls > 0.0 {
-                    rx += ms; rw -= 2.0 * ms;
+                    rx += ms;
+                    rw -= 2.0 * ms;
                     (oy + ls, rh - ls - ms)
                 } else {
-                    rx += ms; rw -= 2.0 * ms;
+                    rx += ms;
+                    rw -= 2.0 * ms;
                     (oy + ms, rh - 2.0 * ms)
                 };
                 let mut rr = (self.outer_radius(w, h) - ms).max(0.0);
                 let r = rw.min(rh2) * self.border_scaling * 0.094;
-                if rr < r { rr = r; }
+                if rr < r {
+                    rr = r;
+                }
                 let d = (220.0 / 216.0) * rr;
                 Rect {
-                    x: rx + d, y: ry + d,
+                    x: rx + d,
+                    y: ry + d,
                     w: (rw - 2.0 * d).max(0.0),
                     h: (rh2 - 2.0 * d).max(0.0),
                 }
@@ -1356,7 +1467,12 @@ How to move or set the focus:\n\
     pub fn GetContentRect(&self, w: f64, h: f64, look: &emLook) -> Rect {
         let (_, _, _, _, _, rec_x, rec_y, rec_w, rec_h, _) =
             self.do_border_geometry(w, h, emColor::TRANSPARENT, look, true);
-        Rect { x: rec_x, y: rec_y, w: rec_w.max(0.0), h: rec_h.max(0.0) }
+        Rect {
+            x: rec_x,
+            y: rec_y,
+            w: rec_w.max(0.0),
+            h: rec_h.max(0.0),
+        }
     }
 
     /// Compute the canvas color at the content area, matching C++ DoBorder's
@@ -1369,7 +1485,12 @@ How to move or set the focus:\n\
     /// updated again. The final value is what child panels receive via `Layout()`.
     ///
     /// This method replicates that logic without needing a painter.
-    pub fn content_canvas_color(&self, parent_canvas: emColor, look: &emLook, enabled: bool) -> emColor {
+    pub fn content_canvas_color(
+        &self,
+        parent_canvas: emColor,
+        look: &emLook,
+        enabled: bool,
+    ) -> emColor {
         let (_, _, _, _, _, _, _, _, _, cc) =
             self.do_border_geometry(1.0, 1.0, parent_canvas, look, enabled);
         cc
@@ -1449,8 +1570,7 @@ How to move or set the focus:\n\
         if let Some(ref icon_rect) = label.icon_rect {
             if let Some(ref img) = self.icon {
                 if !img.IsEmpty() {
-                    let true_w =
-                        icon_rect.h * img.GetWidth() as f64 / img.GetHeight() as f64;
+                    let true_w = icon_rect.h * img.GetWidth() as f64 / img.GetHeight() as f64;
                     let icon_x = icon_rect.x + (icon_rect.w - true_w) * 0.5;
                     let icon_w = true_w;
                     if img.GetChannelCount() == 1 {
@@ -1620,10 +1740,7 @@ How to move or set the focus:\n\
                 color = look.bg_color;
                 // C++ lines 654-662
                 if !color.IsTotallyTransparent() {
-                    painter.PaintRect(
-                        d, d, w - 2.0 * d, h - 2.0 * d,
-                        color, canvas_color,
-                    );
+                    painter.PaintRect(d, d, w - 2.0 * d, h - 2.0 * d, color, canvas_color);
                     canvas_color = color;
                 }
                 // C++ lines 663-671
@@ -1634,7 +1751,10 @@ How to move or set the focus:\n\
                         color = color.GetTransparented(75.0);
                     }
                     painter.PaintRectOutline(
-                        d, d, w - 2.0 * d, h - 2.0 * d,
+                        d,
+                        d,
+                        w - 2.0 * d,
+                        h - 2.0 * d,
                         &emStroke::new(color, e),
                         canvas_color,
                     );
@@ -1659,8 +1779,14 @@ How to move or set the focus:\n\
                 // C++ lines 695-703
                 if !color.IsTotallyTransparent() {
                     painter.PaintRoundRect(
-                        d, d, w - 2.0 * d, h - 2.0 * d, f, f,
-                        color, canvas_color,
+                        d,
+                        d,
+                        w - 2.0 * d,
+                        h - 2.0 * d,
+                        f,
+                        f,
+                        color,
+                        canvas_color,
                     );
                     canvas_color = color;
                 }
@@ -1673,7 +1799,12 @@ How to move or set the focus:\n\
                         color = color.GetTransparented(75.0);
                     }
                     painter.PaintRoundRectOutline(
-                        d, d, w - 2.0 * d, h - 2.0 * d, f, f,
+                        d,
+                        d,
+                        w - 2.0 * d,
+                        h - 2.0 * d,
+                        f,
+                        f,
                         &emStroke::new(color, e),
                         canvas_color,
                     );
@@ -1695,14 +1826,18 @@ How to move or set the focus:\n\
                 // C++ lines 736-761
                 {
                     let mut color2 = canvas_color;
-                    if !color.IsTotallyTransparent()
-                        && (!color2.IsOpaque() || color2 != color)
-                    {
+                    if !color.IsTotallyTransparent() && (!color2.IsOpaque() || color2 != color) {
                         let r = rnd_r * (280.0 / 209.0);
                         let e = r - rnd_r;
                         painter.PaintRoundRect(
-                            rnd_x - e, rnd_y - e, rnd_w + 2.0 * e, rnd_h + 2.0 * e,
-                            r, r, color, color2,
+                            rnd_x - e,
+                            rnd_y - e,
+                            rnd_w + 2.0 * e,
+                            rnd_h + 2.0 * e,
+                            r,
+                            r,
+                            color,
+                            color2,
                         );
                         color2 = emColor::TRANSPARENT;
                     }
@@ -1710,11 +1845,22 @@ How to move or set the focus:\n\
                     let e = r - rnd_r;
                     with_toolkit_images(|img| {
                         painter.PaintBorderImage(
-                            rnd_x - e, rnd_y - e, rnd_w + 2.0 * e, rnd_h + 2.0 * e,
-                            r, r, r, r,
+                            rnd_x - e,
+                            rnd_y - e,
+                            rnd_w + 2.0 * e,
+                            rnd_h + 2.0 * e,
+                            r,
+                            r,
+                            r,
+                            r,
                             &img.group_border,
-                            286, 286, 286, 286,
-                            255, color2, BORDER_EDGES_ONLY,
+                            286,
+                            286,
+                            286,
+                            286,
+                            255,
+                            color2,
+                            BORDER_EDGES_ONLY,
                         );
                     });
                 }
@@ -1738,14 +1884,18 @@ How to move or set the focus:\n\
                 // C++ lines 785-810
                 {
                     let mut color2 = canvas_color;
-                    if !color.IsTotallyTransparent()
-                        && (!color2.IsOpaque() || color2 != color)
-                    {
+                    if !color.IsTotallyTransparent() && (!color2.IsOpaque() || color2 != color) {
                         let r = rnd_r * (280.0 / 209.0);
                         let e = r - rnd_r;
                         painter.PaintRoundRect(
-                            rnd_x - e, rnd_y - e, rnd_w + 2.0 * e, rnd_h + 2.0 * e,
-                            r, r, color, color2,
+                            rnd_x - e,
+                            rnd_y - e,
+                            rnd_w + 2.0 * e,
+                            rnd_h + 2.0 * e,
+                            r,
+                            r,
+                            color,
+                            color2,
                         );
                         color2 = emColor::TRANSPARENT;
                     }
@@ -1753,11 +1903,22 @@ How to move or set the focus:\n\
                     let e = r - rnd_r;
                     with_toolkit_images(|img| {
                         painter.PaintBorderImage(
-                            rnd_x - e, rnd_y - e, rnd_w + 2.0 * e, rnd_h + 2.0 * e,
-                            r, r, r, r,
+                            rnd_x - e,
+                            rnd_y - e,
+                            rnd_w + 2.0 * e,
+                            rnd_h + 2.0 * e,
+                            r,
+                            r,
+                            r,
+                            r,
                             &img.group_border,
-                            286, 286, 286, 286,
-                            255, color2, BORDER_EDGES_ONLY,
+                            286,
+                            286,
+                            286,
+                            286,
+                            255,
+                            color2,
+                            BORDER_EDGES_ONLY,
                         );
                     });
                 }
@@ -1781,15 +1942,19 @@ How to move or set the focus:\n\
                 // C++ lines 834-860
                 {
                     let mut color2 = canvas_color;
-                    if !color.IsTotallyTransparent()
-                        && (!color2.IsOpaque() || color2 != color)
-                    {
+                    if !color.IsTotallyTransparent() && (!color2.IsOpaque() || color2 != color) {
                         // C++ line 840: r=rndR*(336/293.4);
                         let r = rnd_r * (336.0 / 293.4);
                         let e = r - rnd_r;
                         painter.PaintRoundRect(
-                            rnd_x - e, rnd_y - e, rnd_w + 2.0 * e, rnd_h + 2.0 * e,
-                            r, r, color, color2,
+                            rnd_x - e,
+                            rnd_y - e,
+                            rnd_w + 2.0 * e,
+                            rnd_h + 2.0 * e,
+                            r,
+                            r,
+                            color,
+                            color2,
                         );
                         color2 = emColor::TRANSPARENT;
                     }
@@ -1798,11 +1963,22 @@ How to move or set the focus:\n\
                     let e = r - rnd_r;
                     with_toolkit_images(|img| {
                         painter.PaintBorderImage(
-                            rnd_x - e, rnd_y - e, rnd_w + 2.0 * e, rnd_h + 2.0 * e,
-                            r, r, r, r,
+                            rnd_x - e,
+                            rnd_y - e,
+                            rnd_w + 2.0 * e,
+                            rnd_h + 2.0 * e,
+                            r,
+                            r,
+                            r,
+                            r,
                             &img.button_border,
-                            340, 340, 340, 340,
-                            255, color2, BORDER_EDGES_ONLY,
+                            340,
+                            340,
+                            340,
+                            340,
+                            255,
+                            color2,
+                            BORDER_EDGES_ONLY,
                         );
                     });
                 }
@@ -1834,11 +2010,22 @@ How to move or set the focus:\n\
                     let r = d;
                     with_toolkit_images(|img| {
                         painter.PaintBorderImage(
-                            0.0, 0.0, w, h,
-                            r, r, r, r,
+                            0.0,
+                            0.0,
+                            w,
+                            h,
+                            r,
+                            r,
+                            r,
+                            r,
                             &img.popup_border,
-                            159, 159, 159, 159,
-                            255, canvas_color, BORDER_EDGES_ONLY,
+                            159,
+                            159,
+                            159,
+                            159,
+                            255,
+                            canvas_color,
+                            BORDER_EDGES_ONLY,
                         );
                     });
                 }
@@ -1864,7 +2051,12 @@ How to move or set the focus:\n\
                 let tx = rnd_x + (how_to_space - tw) * 0.5;
                 let ty = rnd_y + (rnd_h - th) * 0.5;
                 painter.PaintRoundRect(
-                    tx, ty, tw, th, tw * 0.01, tw * 0.01,
+                    tx,
+                    ty,
+                    tw,
+                    th,
+                    tw * 0.01,
+                    tw * 0.01,
                     look.fg_color.GetTransparented(90.0),
                     canvas_color,
                 );
@@ -1872,7 +2064,10 @@ How to move or set the focus:\n\
                 if tw * th * pixel_scale > 100.0 && !self.how_to_text.is_empty() {
                     let d = tw * 0.01;
                     painter.PaintTextBoxed(
-                        tx + d, ty + d, tw - d * 2.0, th - d * 2.0,
+                        tx + d,
+                        ty + d,
+                        tw - d * 2.0,
+                        th - d * 2.0,
                         &self.how_to_text,
                         th,
                         look.fg_color.GetTransparented(35.0),
@@ -1940,7 +2135,11 @@ How to move or set the focus:\n\
                     Rect::new(tx, ty, tw, th),
                     look,
                     &|c: emColor| -> emColor {
-                        if enabled { c } else { c.GetTransparented(75.0) }
+                        if enabled {
+                            c
+                        } else {
+                            c.GetTransparented(75.0)
+                        }
                     },
                 );
             }
@@ -2001,11 +2200,22 @@ How to move or set the focus:\n\
                 // C++ lines 1071-1079
                 with_toolkit_images(|img| {
                     painter.PaintBorderImage(
-                        rnd_x, rnd_y, rnd_w, rnd_h,
-                        rnd_r, rnd_r, rnd_r, rnd_r,
+                        rnd_x,
+                        rnd_y,
+                        rnd_w,
+                        rnd_h,
+                        rnd_r,
+                        rnd_r,
+                        rnd_r,
+                        rnd_r,
                         &img.group_inner_border,
-                        225, 225, 225, 225,
-                        255, canvas_color, BORDER_EDGES_ONLY,
+                        225,
+                        225,
+                        225,
+                        225,
+                        255,
+                        canvas_color,
+                        BORDER_EDGES_ONLY,
                     );
                 });
             }
@@ -2055,11 +2265,22 @@ How to move or set the focus:\n\
                 // C++ lines 1146-1154
                 with_toolkit_images(|img| {
                     painter.PaintBorderImage(
-                        rnd_x, rnd_y, rnd_w, rnd_h,
-                        rnd_r, rnd_r, rnd_r, rnd_r,
+                        rnd_x,
+                        rnd_y,
+                        rnd_w,
+                        rnd_h,
+                        rnd_r,
+                        rnd_r,
+                        rnd_r,
+                        rnd_r,
                         &img.custom_rect_border,
-                        200, 200, 200, 200,
-                        255, canvas_color, BORDER_EDGES_ONLY,
+                        200,
+                        200,
+                        200,
+                        200,
+                        255,
+                        canvas_color,
+                        BORDER_EDGES_ONLY,
                     );
                 });
             }
@@ -2090,19 +2311,26 @@ How to move or set the focus:\n\
         let ms = s * self.min_space_factor();
         if self.has_how_to {
             let hts = s * self.how_to_space_factor();
-            if hts > ms { rx += hts - ms; rw -= hts - ms; }
+            if hts > ms {
+                rx += hts - ms;
+                rw -= hts - ms;
+            }
         }
         let ls = if self.label_in_border && self.HasLabel() {
             s * self.label_space_factor()
-        } else { 0.0 };
-        let (inner_x, inner_y, inner_w, inner_h) = if ls > 0.0 {
-            (rx + ms, oy2 + ls, (rw - 2.0*ms).max(0.0), rh - ls - ms)
         } else {
-            (rx + ms, oy2 + ms, (rw - 2.0*ms).max(0.0), rh - 2.0*ms)
+            0.0
+        };
+        let (inner_x, inner_y, inner_w, inner_h) = if ls > 0.0 {
+            (rx + ms, oy2 + ls, (rw - 2.0 * ms).max(0.0), rh - ls - ms)
+        } else {
+            (rx + ms, oy2 + ms, (rw - 2.0 * ms).max(0.0), rh - 2.0 * ms)
         };
         let mut inner_r = (self.outer_radius(w, h) - ms).max(0.0);
         let r = inner_w.min(inner_h) * self.border_scaling * 0.094;
-        if inner_r < r { inner_r = r; }
+        if inner_r < r {
+            inner_r = r;
+        }
 
         with_toolkit_images(|img| {
             painter.PaintBorderImage(
@@ -2478,10 +2706,7 @@ mod tests {
     #[test]
     fn is_opaque_filled_opaque_bg() {
         let look = test_look();
-        assert!(
-            look.bg_color.IsOpaque(),
-            "default look bg should be opaque"
-        );
+        assert!(look.bg_color.IsOpaque(), "default look bg should be opaque");
         let border = emBorder::new(OuterBorderType::Filled);
         assert!(border.IsOpaque(&look));
     }
@@ -3089,8 +3314,7 @@ mod tests {
 
         // Without HowTo, same caption — label_h should be identical because
         // both use s = min(rnd_w, rnd_h) before any HowTo shift.
-        let border_no_howto = emBorder::new(OuterBorderType::None)
-            .with_caption("Test");
+        let border_no_howto = emBorder::new(OuterBorderType::None).with_caption("Test");
         let r_no_howto = border_no_howto.GetContentRect(w, h, &look);
 
         // With the fix, the label contribution to `y` is the same in both
@@ -3101,7 +3325,9 @@ mod tests {
             (r_howto.y - r_no_howto.y).abs() < 1e-10,
             "content_rect label_h must use pre-HowTo s: \
              with_howto.y={}, without_howto.y={}, diff={}",
-            r_howto.y, r_no_howto.y, (r_howto.y - r_no_howto.y).abs()
+            r_howto.y,
+            r_no_howto.y,
+            (r_howto.y - r_no_howto.y).abs()
         );
 
         // Also verify the y offset matches our expected pre-HowTo label_h.
@@ -3119,8 +3345,7 @@ mod tests {
         let border_howto = emBorder::new(OuterBorderType::None)
             .with_caption("Test")
             .with_how_to(true);
-        let border_no_howto = emBorder::new(OuterBorderType::None)
-            .with_caption("Test");
+        let border_no_howto = emBorder::new(OuterBorderType::None).with_caption("Test");
 
         let w = 100.0;
         let h = 200.0;
@@ -3135,7 +3360,9 @@ mod tests {
             (rr_howto.y - rr_no_howto.y).abs() < 1e-10,
             "content_round_rect label_h must use pre-HowTo s: \
              with_howto.y={}, without_howto.y={}, diff={}",
-            rr_howto.y, rr_no_howto.y, (rr_howto.y - rr_no_howto.y).abs()
+            rr_howto.y,
+            rr_no_howto.y,
+            (rr_howto.y - rr_no_howto.y).abs()
         );
     }
 

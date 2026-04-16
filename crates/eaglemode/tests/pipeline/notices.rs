@@ -244,11 +244,7 @@ fn layout_change_fires_on_panel() {
     let root = h.get_root_panel();
 
     let flags = Rc::new(RefCell::new(NoticeFlags::empty()));
-    let panel = h.add_panel_with(
-        root,
-        "panel",
-        Box::new(NoticeBehavior::new(flags.clone())),
-    );
+    let panel = h.add_panel_with(root, "panel", Box::new(NoticeBehavior::new(flags.clone())));
 
     settle(&mut h);
     *flags.borrow_mut() = NoticeFlags::empty();
@@ -422,11 +418,23 @@ fn focus_change_fires_active_and_focus_changed_on_both_panels() {
 
     let entries = log.borrow();
 
-    let a_entries: Vec<&String> = entries.iter().filter(|e| e.starts_with("a:notice:")).collect();
-    let b_entries: Vec<&String> = entries.iter().filter(|e| e.starts_with("b:notice:")).collect();
+    let a_entries: Vec<&String> = entries
+        .iter()
+        .filter(|e| e.starts_with("a:notice:"))
+        .collect();
+    let b_entries: Vec<&String> = entries
+        .iter()
+        .filter(|e| e.starts_with("b:notice:"))
+        .collect();
 
-    assert!(!a_entries.is_empty(), "Panel A (old active) must receive a notice");
-    assert!(!b_entries.is_empty(), "Panel B (new active) must receive a notice");
+    assert!(
+        !a_entries.is_empty(),
+        "Panel A (old active) must receive a notice"
+    );
+    assert!(
+        !b_entries.is_empty(),
+        "Panel B (new active) must receive a notice"
+    );
 
     let has_active_changed =
         |entries: &[&String]| entries.iter().any(|e| e.contains("ACTIVE_CHANGED"));
@@ -496,12 +504,10 @@ fn focus_change_old_panel_notified_before_new_panel() {
         .iter()
         .position(|e| e.starts_with("b:notice:") && e.contains("ACTIVE_CHANGED"));
 
-    let a_idx = a_idx.unwrap_or_else(|| {
-        panic!("Panel A must receive ACTIVE_CHANGED. Log: {:?}", *entries)
-    });
-    let b_idx = b_idx.unwrap_or_else(|| {
-        panic!("Panel B must receive ACTIVE_CHANGED. Log: {:?}", *entries)
-    });
+    let a_idx =
+        a_idx.unwrap_or_else(|| panic!("Panel A must receive ACTIVE_CHANGED. Log: {:?}", *entries));
+    let b_idx =
+        b_idx.unwrap_or_else(|| panic!("Panel B must receive ACTIVE_CHANGED. Log: {:?}", *entries));
 
     assert!(
         a_idx < b_idx,
@@ -764,7 +770,10 @@ fn disable_parent_propagates_enable_changed_to_descendants() {
     h.tree.SetEnableSwitch(parent, false);
     h.tick();
 
-    assert!(has_enable_changed(&parent_acc), "Parent must get ENABLE_CHANGED");
+    assert!(
+        has_enable_changed(&parent_acc),
+        "Parent must get ENABLE_CHANGED"
+    );
     assert!(
         has_enable_changed(&child_acc),
         "Child must get ENABLE_CHANGED when ancestor is disabled"
@@ -839,8 +848,14 @@ fn sibling_branch_does_not_get_enable_changed() {
     h.tree.SetEnableSwitch(branch_a, false);
     h.tick();
 
-    assert!(has_enable_changed(&branch_a_acc), "Disabled branch root must get ENABLE_CHANGED");
-    assert!(has_enable_changed(&child_a_acc), "Disabled branch child must get ENABLE_CHANGED");
+    assert!(
+        has_enable_changed(&branch_a_acc),
+        "Disabled branch root must get ENABLE_CHANGED"
+    );
+    assert!(
+        has_enable_changed(&child_a_acc),
+        "Disabled branch child must get ENABLE_CHANGED"
+    );
     assert!(
         !has_enable_changed(&branch_b_acc),
         "Sibling branch must NOT get ENABLE_CHANGED"
@@ -964,9 +979,18 @@ fn disable_propagates_to_all_children_not_just_first() {
     h.tick();
 
     assert!(has_enable_changed(&parent_acc), "Parent must get notice");
-    assert!(has_enable_changed(&c1_acc), "First child must get ENABLE_CHANGED");
-    assert!(has_enable_changed(&c2_acc), "Second child must get ENABLE_CHANGED");
-    assert!(has_enable_changed(&c3_acc), "Third child must get ENABLE_CHANGED");
+    assert!(
+        has_enable_changed(&c1_acc),
+        "First child must get ENABLE_CHANGED"
+    );
+    assert!(
+        has_enable_changed(&c2_acc),
+        "Second child must get ENABLE_CHANGED"
+    );
+    assert!(
+        has_enable_changed(&c3_acc),
+        "Third child must get ENABLE_CHANGED"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1018,8 +1042,11 @@ fn add_child_does_not_fire_children_changed_on_grandparent() {
     let root = h.get_root_panel();
 
     let gp_acc = Rc::new(RefCell::new(NoticeFlags::empty()));
-    let grandparent =
-        h.add_panel_with(root, "grandparent", Box::new(NoticeBehavior::new(gp_acc.clone())));
+    let grandparent = h.add_panel_with(
+        root,
+        "grandparent",
+        Box::new(NoticeBehavior::new(gp_acc.clone())),
+    );
     let parent = h.add_panel(grandparent, "parent");
     h.tick();
     gp_acc.borrow_mut().remove(NoticeFlags::all());
@@ -1039,8 +1066,11 @@ fn remove_child_does_not_fire_children_changed_on_grandparent() {
     let root = h.get_root_panel();
 
     let gp_acc = Rc::new(RefCell::new(NoticeFlags::empty()));
-    let grandparent =
-        h.add_panel_with(root, "grandparent", Box::new(NoticeBehavior::new(gp_acc.clone())));
+    let grandparent = h.add_panel_with(
+        root,
+        "grandparent",
+        Box::new(NoticeBehavior::new(gp_acc.clone())),
+    );
     let parent = h.add_panel(grandparent, "parent");
     let child = h.add_panel(parent, "child");
     h.tick();
@@ -1125,7 +1155,11 @@ fn active_changed_fires_on_old_active_panel() {
         build_labeled_tree(&mut h, &log);
 
     h.view.set_active_panel(&mut h.tree, leaf_a, false);
-    flush_and_clear(&mut h, &log, &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc]);
+    flush_and_clear(
+        &mut h,
+        &log,
+        &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc],
+    );
 
     h.view.set_active_panel(&mut h.tree, leaf_b, false);
     h.tick();
@@ -1144,7 +1178,11 @@ fn active_changed_fires_on_new_active_panel() {
         build_labeled_tree(&mut h, &log);
 
     h.view.set_active_panel(&mut h.tree, leaf_a, false);
-    flush_and_clear(&mut h, &log, &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc]);
+    flush_and_clear(
+        &mut h,
+        &log,
+        &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc],
+    );
 
     h.view.set_active_panel(&mut h.tree, leaf_b, false);
     h.tick();
@@ -1163,7 +1201,11 @@ fn active_changed_fires_on_old_active_ancestor() {
         build_labeled_tree(&mut h, &log);
 
     h.view.set_active_panel(&mut h.tree, leaf_a, false);
-    flush_and_clear(&mut h, &log, &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc]);
+    flush_and_clear(
+        &mut h,
+        &log,
+        &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc],
+    );
 
     h.view.set_active_panel(&mut h.tree, leaf_b, false);
     h.tick();
@@ -1182,7 +1224,11 @@ fn active_changed_fires_on_new_active_ancestor() {
         build_labeled_tree(&mut h, &log);
 
     h.view.set_active_panel(&mut h.tree, leaf_a, false);
-    flush_and_clear(&mut h, &log, &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc]);
+    flush_and_clear(
+        &mut h,
+        &log,
+        &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc],
+    );
 
     h.view.set_active_panel(&mut h.tree, leaf_b, false);
     h.tick();
@@ -1201,7 +1247,11 @@ fn shared_ancestor_receives_active_changed() {
         build_labeled_tree(&mut h, &log);
 
     h.view.set_active_panel(&mut h.tree, leaf_a, false);
-    flush_and_clear(&mut h, &log, &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc]);
+    flush_and_clear(
+        &mut h,
+        &log,
+        &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc],
+    );
 
     h.view.set_active_panel(&mut h.tree, leaf_b, false);
     h.tick();
@@ -1247,7 +1297,14 @@ fn non_path_panels_do_not_receive_active_changed() {
     flush_and_clear(
         &mut h,
         &log,
-        &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc, &bystander_acc],
+        &[
+            &root_acc,
+            &ba_acc,
+            &la_acc,
+            &bb_acc,
+            &lb_acc,
+            &bystander_acc,
+        ],
     );
 
     h.view.set_active_panel(&mut h.tree, leaf_b, false);
@@ -1267,7 +1324,11 @@ fn delivery_order_old_active_before_new_active() {
         build_labeled_tree(&mut h, &log);
 
     h.view.set_active_panel(&mut h.tree, leaf_a, false);
-    flush_and_clear(&mut h, &log, &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc]);
+    flush_and_clear(
+        &mut h,
+        &log,
+        &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc],
+    );
 
     h.view.set_active_panel(&mut h.tree, leaf_b, false);
     h.tick();
@@ -1317,7 +1378,11 @@ fn no_active_changed_when_reactivating_same_panel() {
         build_labeled_tree(&mut h, &log);
 
     h.view.set_active_panel(&mut h.tree, leaf_a, false);
-    flush_and_clear(&mut h, &log, &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc]);
+    flush_and_clear(
+        &mut h,
+        &log,
+        &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc],
+    );
 
     h.view.set_active_panel(&mut h.tree, leaf_a, false);
     h.tick();
@@ -1348,14 +1413,33 @@ fn all_panels_on_both_paths_receive_active_changed() {
         build_labeled_tree(&mut h, &log);
 
     h.view.set_active_panel(&mut h.tree, leaf_a, false);
-    flush_and_clear(&mut h, &log, &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc]);
+    flush_and_clear(
+        &mut h,
+        &log,
+        &[&root_acc, &ba_acc, &la_acc, &bb_acc, &lb_acc],
+    );
 
     h.view.set_active_panel(&mut h.tree, leaf_b, false);
     h.tick();
 
-    assert!(la_acc.borrow().contains(NoticeFlags::ACTIVE_CHANGED), "leaf_a must get ACTIVE_CHANGED");
-    assert!(ba_acc.borrow().contains(NoticeFlags::ACTIVE_CHANGED), "branch_a must get ACTIVE_CHANGED");
-    assert!(root_acc.borrow().contains(NoticeFlags::ACTIVE_CHANGED), "root must get ACTIVE_CHANGED");
-    assert!(lb_acc.borrow().contains(NoticeFlags::ACTIVE_CHANGED), "leaf_b must get ACTIVE_CHANGED");
-    assert!(bb_acc.borrow().contains(NoticeFlags::ACTIVE_CHANGED), "branch_b must get ACTIVE_CHANGED");
+    assert!(
+        la_acc.borrow().contains(NoticeFlags::ACTIVE_CHANGED),
+        "leaf_a must get ACTIVE_CHANGED"
+    );
+    assert!(
+        ba_acc.borrow().contains(NoticeFlags::ACTIVE_CHANGED),
+        "branch_a must get ACTIVE_CHANGED"
+    );
+    assert!(
+        root_acc.borrow().contains(NoticeFlags::ACTIVE_CHANGED),
+        "root must get ACTIVE_CHANGED"
+    );
+    assert!(
+        lb_acc.borrow().contains(NoticeFlags::ACTIVE_CHANGED),
+        "leaf_b must get ACTIVE_CHANGED"
+    );
+    assert!(
+        bb_acc.borrow().contains(NoticeFlags::ACTIVE_CHANGED),
+        "branch_b must get ACTIVE_CHANGED"
+    );
 }

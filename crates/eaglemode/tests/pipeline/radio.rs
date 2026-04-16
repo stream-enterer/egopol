@@ -5,19 +5,18 @@
 //! stacked vertically. Clicking each panel's center selects the corresponding
 //! radio button. The test verifies correct selection at both 1x and 2x zoom.
 
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use emcore::emCursor::emCursor;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
+use emcore::emLook::emLook;
+use emcore::emPainter::emPainter;
 use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelId;
-use emcore::emPainter::emPainter;
-use emcore::emViewRenderer::SoftwareCompositor;
-use emcore::emLook::emLook;
 use emcore::emRadioButton::{emRadioButton, RadioGroup};
+use emcore::emViewRenderer::SoftwareCompositor;
 
 use super::support::pipeline::PipelineTestHarness;
 
@@ -83,16 +82,13 @@ fn radiobutton_select_1x_and_2x() {
     //   panel 1: y=0.33..0.66  (middle third)
     //   panel 2: y=0.66..1.00  (bottom third)
     let panel0 = h.add_panel_with(root, "radio0", Box::new(RadioButtonBehavior::new(rb0)));
-    h.tree
-        .Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
+    h.tree.Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
 
     let panel1 = h.add_panel_with(root, "radio1", Box::new(RadioButtonBehavior::new(rb1)));
-    h.tree
-        .Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
+    h.tree.Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
 
     let panel2 = h.add_panel_with(root, "radio2", Box::new(RadioButtonBehavior::new(rb2)));
-    h.tree
-        .Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
+    h.tree.Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
 
     // Settle layout and viewing Restore.
     h.tick_n(5);
@@ -203,16 +199,13 @@ impl RadioButtonHarness {
         let root = h.get_root_panel();
 
         let panel0 = h.add_panel_with(root, "radio0", Box::new(RadioButtonBehavior::new(rb0)));
-        h.tree
-            .Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
+        h.tree.Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
 
         let panel1 = h.add_panel_with(root, "radio1", Box::new(RadioButtonBehavior::new(rb1)));
-        h.tree
-            .Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
+        h.tree.Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
 
         let panel2 = h.add_panel_with(root, "radio2", Box::new(RadioButtonBehavior::new(rb2)));
-        h.tree
-            .Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
+        h.tree.Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
 
         h.tick_n(5);
 
@@ -258,7 +251,11 @@ fn bp13_click_a_selects_a_deselects_bc() {
     let mut t = RadioButtonHarness::new();
 
     t.click_option(0);
-    assert_eq!(t.checked(), Some(0), "A should be selected after clicking A");
+    assert_eq!(
+        t.checked(),
+        Some(0),
+        "A should be selected after clicking A"
+    );
     // Verify B and C are not GetChecked by checking group state
     assert_ne!(t.checked(), Some(1), "B must not be selected");
     assert_ne!(t.checked(), Some(2), "C must not be selected");
@@ -280,7 +277,11 @@ fn bp13_click_b_selects_b_deselects_ac() {
 
     // Now Click B
     t.click_option(1);
-    assert_eq!(t.checked(), Some(1), "B should be selected after clicking B");
+    assert_eq!(
+        t.checked(),
+        Some(1),
+        "B should be selected after clicking B"
+    );
     assert_ne!(t.checked(), Some(0), "A must be deselected");
     assert_ne!(t.checked(), Some(2), "C must not be selected");
 }
@@ -338,7 +339,11 @@ fn bp13_programmatic_set_check_index_fires_callback() {
 
     // Programmatically select button 2
     t.group.borrow_mut().SetCheckIndex(Some(2));
-    assert_eq!(t.checked(), Some(2), "set_check_index(Some(2)) should select button 2");
+    assert_eq!(
+        t.checked(),
+        Some(2),
+        "set_check_index(Some(2)) should select button 2"
+    );
     assert_eq!(
         *callbacks.borrow(),
         vec![Some(2)],
@@ -347,7 +352,11 @@ fn bp13_programmatic_set_check_index_fires_callback() {
 
     // Now change to button 0
     t.group.borrow_mut().SetCheckIndex(Some(0));
-    assert_eq!(t.checked(), Some(0), "set_check_index(Some(0)) should select button 0");
+    assert_eq!(
+        t.checked(),
+        Some(0),
+        "set_check_index(Some(0)) should select button 0"
+    );
     assert_eq!(
         *callbacks.borrow(),
         vec![Some(2), Some(0)],

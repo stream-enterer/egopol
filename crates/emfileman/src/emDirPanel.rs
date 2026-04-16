@@ -8,10 +8,10 @@ use emcore::emContext::emContext;
 use emcore::emFilePanel::emFilePanel;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
+use emcore::emPainter::emPainter;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
-use emcore::emPainter::emPainter;
 
 use crate::emDirEntry::emDirEntry;
 use crate::emDirEntryPanel::emDirEntryPanel;
@@ -258,10 +258,7 @@ impl emDirPanel {
                 ctx.DeleteAllChildren();
 
                 for entry in &visible {
-                    let panel = emDirEntryPanel::new(
-                        Rc::clone(&self.ctx),
-                        entry.clone(),
-                    );
+                    let panel = emDirEntryPanel::new(Rc::clone(&self.ctx), entry.clone());
                     ctx.create_child_with(entry.GetName(), Box::new(panel));
                 }
 
@@ -319,26 +316,24 @@ impl PanelBehavior for emDirPanel {
                     }
                     changed = true;
                 }
-                emcore::emFileModel::FileState::Loading { .. } => {
-                    match dm.try_continue_loading() {
-                        Ok(true) => {
-                            dm.quit_loading();
-                            self.loading_done = true;
-                            self.file_panel.clear_custom_error();
-                            drop(dm);
-                            self.update_children(ctx);
-                            changed = true;
-                        }
-                        Ok(false) => {
-                            changed = true;
-                        }
-                        Err(e) => {
-                            self.loading_error = Some(e.clone());
-                            self.file_panel.set_custom_error(&e);
-                            changed = true;
-                        }
+                emcore::emFileModel::FileState::Loading { .. } => match dm.try_continue_loading() {
+                    Ok(true) => {
+                        dm.quit_loading();
+                        self.loading_done = true;
+                        self.file_panel.clear_custom_error();
+                        drop(dm);
+                        self.update_children(ctx);
+                        changed = true;
                     }
-                }
+                    Ok(false) => {
+                        changed = true;
+                    }
+                    Err(e) => {
+                        self.loading_error = Some(e.clone());
+                        self.file_panel.set_custom_error(&e);
+                        changed = true;
+                    }
+                },
                 emcore::emFileModel::FileState::Loaded => {
                     drop(dm);
                     // Model was loaded previously (possibly by another
@@ -386,7 +381,9 @@ impl PanelBehavior for emDirPanel {
     }
 
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {
-        if flags.contains(NoticeFlags::VIEW_CHANGED) || flags.contains(NoticeFlags::SOUGHT_NAME_CHANGED) {
+        if flags.contains(NoticeFlags::VIEW_CHANGED)
+            || flags.contains(NoticeFlags::SOUGHT_NAME_CHANGED)
+        {
             // C++ emDirPanel::Notice:
             //   if (IsViewed() || GetSoughtName()) {
             //     if (!GetFileModel()) SetFileModel(emDirModel::Acquire(...))
@@ -471,8 +468,10 @@ impl PanelBehavior for emDirPanel {
                 if i < rects.len() {
                     ctx.layout_child_canvas(
                         *child,
-                        rects[i].x, rects[i].y,
-                        rects[i].w, rects[i].h,
+                        rects[i].x,
+                        rects[i].y,
+                        rects[i].w,
+                        rects[i].h,
                         canvas_color,
                     );
                 }
@@ -484,7 +483,10 @@ impl PanelBehavior for emDirPanel {
                 let mut cw = 0.5_f64;
                 cw = cw.clamp(0.001, 1.0);
                 let mut ch = cw * t;
-                if ch > rect.h { ch = rect.h; cw = ch / t; }
+                if ch > rect.h {
+                    ch = rect.h;
+                    cw = ch / t;
+                }
                 ctx.layout_child_canvas(*child, 0.0, 0.0, cw, ch, canvas_color);
             }
         }
@@ -570,17 +572,11 @@ mod tests {
         let mut panel = emDirPanel::new(Rc::clone(&ctx), "/tmp".to_string());
 
         panel.key_walk('a');
-        assert_eq!(
-            panel.key_walk_state.as_ref().unwrap().search,
-            "a"
-        );
+        assert_eq!(panel.key_walk_state.as_ref().unwrap().search, "a");
 
         // Within timeout: appends
         panel.key_walk('b');
-        assert_eq!(
-            panel.key_walk_state.as_ref().unwrap().search,
-            "ab"
-        );
+        assert_eq!(panel.key_walk_state.as_ref().unwrap().search, "ab");
     }
 
     #[test]
@@ -590,9 +586,6 @@ mod tests {
 
         panel.key_walk('*');
         panel.key_walk('t');
-        assert_eq!(
-            panel.key_walk_state.as_ref().unwrap().search,
-            "*t"
-        );
+        assert_eq!(panel.key_walk_state.as_ref().unwrap().search, "*t");
     }
 }

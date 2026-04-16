@@ -70,7 +70,14 @@ fn input_mouse_hit() {
         (*recv_child2.borrow(), a_c2, p_c2),
     ];
     // C++ and Rust both broadcast Input() to all viewed panels.
-    compare_input("input_mouse_hit", &actual, &expected, &["root", "child1", "child2"], true).unwrap();
+    compare_input(
+        "input_mouse_hit",
+        &actual,
+        &expected,
+        &["root", "child1", "child2"],
+        true,
+    )
+    .unwrap();
 }
 
 // ─── Test 2: input_key_to_focused ───────────────────────────────
@@ -115,7 +122,14 @@ fn input_key_to_focused() {
         (*recv_child2.borrow(), a_c2, p_c2),
     ];
     // C++ and Rust both broadcast Input() to all viewed panels.
-    compare_input("input_key_to_focused", &actual, &expected, &["root", "child1", "child2"], true).unwrap();
+    compare_input(
+        "input_key_to_focused",
+        &actual,
+        &expected,
+        &["root", "child1", "child2"],
+        true,
+    )
+    .unwrap();
 }
 
 // ─── Test 3: input_scroll_delta ─────────────────────────────────
@@ -158,7 +172,14 @@ fn input_scroll_delta() {
         (*recv_root.borrow(), a_root, p_root),
         (*recv_child1.borrow(), a_c1, p_c1),
     ];
-    compare_input("input_scroll_delta", &actual, &expected, &["root", "child1"], true).unwrap();
+    compare_input(
+        "input_scroll_delta",
+        &actual,
+        &expected,
+        &["root", "child1"],
+        true,
+    )
+    .unwrap();
 }
 
 // ─── Phase 5: input_mouse_miss ──────────────────────────────────
@@ -199,7 +220,14 @@ fn input_mouse_miss() {
         (*recv_root.borrow(), a_root, p_root),
         (*recv_child1.borrow(), a_c1, p_c1),
     ];
-    compare_input("input_mouse_miss", &actual, &expected, &["root", "child1"], true).unwrap();
+    compare_input(
+        "input_mouse_miss",
+        &actual,
+        &expected,
+        &["root", "child1"],
+        true,
+    )
+    .unwrap();
 }
 
 // ─── Phase 5: input_nested_hit ──────────────────────────────────
@@ -311,5 +339,12 @@ fn input_drag_sequence() {
         (*recv_child2.borrow(), a_c2, p_c2),
     ];
     // C++ and Rust both broadcast Input() to all viewed panels.
-    compare_input("input_drag_sequence", &actual, &expected, &["root", "child1", "child2"], true).unwrap();
+    compare_input(
+        "input_drag_sequence",
+        &actual,
+        &expected,
+        &["root", "child1", "child2"],
+        true,
+    )
+    .unwrap();
 }

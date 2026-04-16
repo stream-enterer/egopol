@@ -279,7 +279,14 @@ fn notice_window_focus_gained() {
 
     let actual = vec![acc_root.borrow().bits(), acc_child1.borrow().bits()];
     // Use full mask — Rust explicitly queues UPDATE_PRIORITY_CHANGED in set_window_focused
-    compare_notices("notice_window_focus_gained", &actual, &expected, &["root", "child1"], NOTICE_FULL_MASK).unwrap();
+    compare_notices(
+        "notice_window_focus_gained",
+        &actual,
+        &expected,
+        &["root", "child1"],
+        NOTICE_FULL_MASK,
+    )
+    .unwrap();
 }
 
 // ─── Test 6: notice_window_focus_lost ───────────────────────────
@@ -319,7 +326,14 @@ fn notice_window_focus_lost() {
     settle(&mut tree, &mut view);
 
     let actual = vec![acc_root.borrow().bits(), acc_child1.borrow().bits()];
-    compare_notices("notice_window_focus_lost", &actual, &expected, &["root", "child1"], NOTICE_FULL_MASK).unwrap();
+    compare_notices(
+        "notice_window_focus_lost",
+        &actual,
+        &expected,
+        &["root", "child1"],
+        NOTICE_FULL_MASK,
+    )
+    .unwrap();
 }
 
 // ─── Test 7: notice_window_resize ───────────────────────────────
@@ -520,7 +534,14 @@ fn notice_remove_child() {
     settle(&mut tree, &mut view);
 
     let actual = vec![acc_root.borrow().bits(), acc_child1.borrow().bits()];
-    compare_notices("notice_remove_child", &actual, &expected, &["root", "child1"], NOTICE_FULL_MASK).unwrap();
+    compare_notices(
+        "notice_remove_child",
+        &actual,
+        &expected,
+        &["root", "child1"],
+        NOTICE_FULL_MASK,
+    )
+    .unwrap();
 }
 
 // ─── Phase 6: notice_focus_and_layout ────────────────────────────

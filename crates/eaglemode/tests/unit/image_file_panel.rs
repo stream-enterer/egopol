@@ -19,7 +19,9 @@ fn assert_approx(actual: (f64, f64, f64, f64), expected: (f64, f64, f64, f64)) {
 fn essence_rect_landscape() {
     let mut panel = emImageFilePanel::new();
     panel.set_current_image(Some(emImage::new(200, 100, 3)));
-    let rect = panel.GetEssenceRect(400.0, 400.0).expect("should return rect");
+    let rect = panel
+        .GetEssenceRect(400.0, 400.0)
+        .expect("should return rect");
     assert_approx(rect, (0.0, 100.0, 400.0, 200.0));
 }
 
@@ -27,7 +29,9 @@ fn essence_rect_landscape() {
 fn essence_rect_portrait() {
     let mut panel = emImageFilePanel::new();
     panel.set_current_image(Some(emImage::new(100, 200, 3)));
-    let rect = panel.GetEssenceRect(400.0, 400.0).expect("should return rect");
+    let rect = panel
+        .GetEssenceRect(400.0, 400.0)
+        .expect("should return rect");
     assert_approx(rect, (100.0, 0.0, 200.0, 400.0));
 }
 
@@ -44,9 +48,11 @@ fn file_panel_delegation() {
     use std::path::PathBuf;
     use std::rc::Rc;
 
-    let model: Rc<RefCell<emFileModel<String>>> = Rc::new(RefCell::new(
-        emFileModel::new(PathBuf::from("/tmp/test"), Default::default(), Default::default()),
-    ));
+    let model: Rc<RefCell<emFileModel<String>>> = Rc::new(RefCell::new(emFileModel::new(
+        PathBuf::from("/tmp/test"),
+        Default::default(),
+        Default::default(),
+    )));
     model.borrow_mut().complete_load("data".to_string());
 
     let mut panel = emImageFilePanel::new();

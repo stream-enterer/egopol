@@ -1,11 +1,11 @@
-use emcore::emPanel::Rect;
 use emcore::emLinearLayout::emLinearLayout;
 use emcore::emPackLayout::emPackLayout;
-use emcore::emRasterLayout::emRasterLayout;
-use emcore::emTiling::{AlignmentH, AlignmentV, ChildConstraint, Spacing};
 use emcore::emPanel::PanelBehavior;
+use emcore::emPanel::Rect;
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::{PanelId, PanelTree};
+use emcore::emRasterLayout::emRasterLayout;
+use emcore::emTiling::{AlignmentH, AlignmentV, ChildConstraint, Spacing};
 
 use super::common::*;
 

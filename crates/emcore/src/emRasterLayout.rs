@@ -345,7 +345,6 @@ impl PanelBehavior for emRasterLayout {
     fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState) {}
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

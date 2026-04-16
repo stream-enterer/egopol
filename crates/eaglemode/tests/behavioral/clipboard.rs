@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use emcore::emClipboard::{LookupInherited, emClipboard, emPrivateClipboard};
+use emcore::emClipboard::{emClipboard, emPrivateClipboard, LookupInherited};
 use emcore::emContext::emContext;
 
 #[test]

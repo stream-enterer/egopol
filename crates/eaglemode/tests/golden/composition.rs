@@ -79,10 +79,7 @@ fn dump_panel_tree_enabled() -> bool {
 
 /// Dump the full panel tree as JSONL — one line per panel.
 fn dump_panel_tree(name: &str, tree: &PanelTree, root: PanelId) {
-    let dir = format!(
-        "{}/target/golden-divergence",
-        env!("CARGO_MANIFEST_DIR")
-    );
+    let dir = format!("{}/target/golden-divergence", env!("CARGO_MANIFEST_DIR"));
     std::fs::create_dir_all(&dir).unwrap();
     let path = format!("{dir}/{name}.rust_tree.jsonl");
     let mut lines = Vec::new();
@@ -91,12 +88,7 @@ fn dump_panel_tree(name: &str, tree: &PanelTree, root: PanelId) {
     eprintln!("  tree/{name} ({} panels)", lines.len());
 }
 
-fn dump_panel_recursive(
-    tree: &PanelTree,
-    id: PanelId,
-    depth: usize,
-    out: &mut Vec<String>,
-) {
+fn dump_panel_recursive(tree: &PanelTree, id: PanelId, depth: usize, out: &mut Vec<String>) {
     let path = tree.GetIdentity(id).replace('\\', "\\\\");
     let lr = tree.layout_rect(id).unwrap();
     let child_count = tree.child_count(id);
@@ -108,10 +100,7 @@ fn dump_panel_recursive(
          \"lx\":{:.17},\"ly\":{:.17},\"lw\":{:.17},\"lh\":{:.17},\
          \"children\":{child_count},\"ae_expanded\":{},\"viewed\":{},\
          \"ae_thresh\":{:.17}}}\n",
-        lr.x, lr.y, lr.w, lr.h,
-        ae_expanded as u8,
-        viewed as u8,
-        ae_thresh,
+        lr.x, lr.y, lr.w, lr.h, ae_expanded as u8, viewed as u8, ae_thresh,
     ));
     for child in tree.children(id) {
         dump_panel_recursive(tree, child, depth + 1, out);
@@ -867,15 +856,13 @@ impl TkTestPanel {
             lb7.SetStrictRaster();
             add_items_1_to_7(&mut lb7);
             lb7.SetSelectedIndex(0);
-            lb7.set_item_behavior_factory(
-                move |_i, text, selected, look, _sel_mode, _enabled| {
-                    Box::new(CustomItemPanelBehavior::new(
-                        text.to_string(),
-                        selected,
-                        look,
-                    ))
-                },
-            );
+            lb7.set_item_behavior_factory(move |_i, text, selected, look, _sel_mode, _enabled| {
+                Box::new(CustomItemPanelBehavior::new(
+                    text.to_string(),
+                    selected,
+                    look,
+                ))
+            });
             let id = ctx.tree.create_child(gid, "l7");
             ctx.tree
                 .set_behavior(id, Box::new(ListBoxPanel { widget: lb7 }));

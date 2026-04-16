@@ -10,10 +10,10 @@ use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
+use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
-use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 
 use crate::emDirEntry::emDirEntry;
 use crate::emFileManViewConfig::emFileManViewConfig;
@@ -125,10 +125,8 @@ impl emDirEntryAltPanel {
                 self.data.dir_entry.clone(),
                 self.data.alternative + 1,
             );
-            let child_id = ctx.create_child_with(
-                crate::emDirEntryPanel::ALT_NAME,
-                Box::new(next_alt),
-            );
+            let child_id =
+                ctx.create_child_with(crate::emDirEntryPanel::ALT_NAME, Box::new(next_alt));
             self.alt_panel = Some(child_id);
         }
     }
@@ -179,20 +177,31 @@ impl PanelBehavior for emDirEntryAltPanel {
         let canvas = emColor::TRANSPARENT;
 
         painter.PaintTextBoxed(
-            theme_rec.AltLabelX, theme_rec.AltLabelY,
-            theme_rec.AltLabelW, theme_rec.AltLabelH,
-            &label, theme_rec.AltLabelH,
-            label_color, canvas,
-            TextAlignment::Left, VAlign::Center,
-            TextAlignment::Left, 0.5, false, 1.0,
+            theme_rec.AltLabelX,
+            theme_rec.AltLabelY,
+            theme_rec.AltLabelW,
+            theme_rec.AltLabelH,
+            &label,
+            theme_rec.AltLabelH,
+            label_color,
+            canvas,
+            TextAlignment::Left,
+            VAlign::Center,
+            TextAlignment::Left,
+            0.5,
+            false,
+            1.0,
         );
 
         // Content background
         let bg = emColor::from_packed(theme_rec.BackgroundColor);
         painter.PaintRect(
-            theme_rec.AltContentX, theme_rec.AltContentY,
-            theme_rec.AltContentW, theme_rec.AltContentH,
-            bg, canvas,
+            theme_rec.AltContentX,
+            theme_rec.AltContentY,
+            theme_rec.AltContentW,
+            theme_rec.AltContentH,
+            bg,
+            canvas,
         );
     }
 
@@ -219,8 +228,10 @@ impl PanelBehavior for emDirEntryAltPanel {
             let bg = emColor::from_packed(theme_rec.BackgroundColor);
             ctx.layout_child_canvas(
                 child_id,
-                theme_rec.AltContentX, theme_rec.AltContentY,
-                theme_rec.AltContentW, theme_rec.AltContentH,
+                theme_rec.AltContentX,
+                theme_rec.AltContentY,
+                theme_rec.AltContentW,
+                theme_rec.AltContentH,
                 bg,
             );
         }
@@ -232,8 +243,10 @@ impl PanelBehavior for emDirEntryAltPanel {
             let canvas = ctx.GetCanvasColor();
             ctx.layout_child_canvas(
                 child_id,
-                theme_rec.AltAltX, theme_rec.AltAltY,
-                theme_rec.AltAltW, theme_rec.AltAltH,
+                theme_rec.AltAltX,
+                theme_rec.AltAltY,
+                theme_rec.AltAltW,
+                theme_rec.AltAltH,
                 canvas,
             );
         }

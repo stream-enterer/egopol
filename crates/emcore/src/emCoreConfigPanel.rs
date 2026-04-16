@@ -1,19 +1,19 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use crate::emLinearLayout::emLinearLayout;
-use crate::emRasterLayout::emRasterLayout;
-use crate::emTiling::{AlignmentH, AlignmentV, ChildConstraint, Spacing};
 use crate::emConfigModel::emConfigModel;
 use crate::emCoreConfig::emCoreConfig;
+use crate::emLinearLayout::emLinearLayout;
+use crate::emPainter::emPainter;
 use crate::emPanel::{PanelBehavior, PanelState};
 use crate::emPanelCtx::PanelCtx;
-use crate::emPainter::emPainter;
+use crate::emRasterLayout::emRasterLayout;
+use crate::emTiling::{AlignmentH, AlignmentV, ChildConstraint, Spacing};
 
 use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use super::emColorFieldFieldPanel::{ButtonPanel, CheckBoxPanel, LabelPanel, ScalarFieldPanel};
 use crate::emButton::emButton;
 use crate::emCheckBox::emCheckBox;
-use super::emColorFieldFieldPanel::{ButtonPanel, CheckBoxPanel, LabelPanel, ScalarFieldPanel};
 use crate::emLabel::emLabel;
 use crate::emLook::emLook;
 use crate::emScalarField::emScalarField;
@@ -226,8 +226,15 @@ impl KBGroup {
 
 impl PanelBehavior for KBGroup {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
+        self.border.paint_border(
+            painter,
+            w,
+            h,
+            &self.look,
+            state.enabled,
+            true,
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100),
+        );
     }
 
     fn auto_expand(&self) -> bool {
@@ -255,9 +262,9 @@ impl PanelBehavior for KBGroup {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -337,8 +344,15 @@ impl MouseMiscGroup {
 
 impl PanelBehavior for MouseMiscGroup {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
+        self.border.paint_border(
+            painter,
+            w,
+            h,
+            &self.look,
+            state.enabled,
+            true,
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100),
+        );
     }
 
     fn auto_expand(&self) -> bool {
@@ -366,9 +380,9 @@ impl PanelBehavior for MouseMiscGroup {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -494,8 +508,15 @@ impl KineticGroup {
 
 impl PanelBehavior for KineticGroup {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
+        self.border.paint_border(
+            painter,
+            w,
+            h,
+            &self.look,
+            state.enabled,
+            true,
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100),
+        );
     }
 
     fn auto_expand(&self) -> bool {
@@ -523,9 +544,9 @@ impl PanelBehavior for KineticGroup {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -560,7 +581,8 @@ impl MaxMemGroup {
     }
 
     fn create_children(&mut self, ctx: &mut PanelCtx) {
-        let label_text = "Here you can set the maximum allowed memory consumption per view (or window) in\n\
+        let label_text =
+            "Here you can set the maximum allowed memory consumption per view (or window) in\n\
             megabytes. This mainly plays a role when viewing extravagant files like\n\
             high-resolution image files. The higher the maximum allowed memory consumption,\n\
             the earlier the files are shown and the more extravagant files are shown at all.\n\
@@ -610,8 +632,15 @@ impl MaxMemGroup {
 
 impl PanelBehavior for MaxMemGroup {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
+        self.border.paint_border(
+            painter,
+            w,
+            h,
+            &self.look,
+            state.enabled,
+            true,
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100),
+        );
     }
 
     fn auto_expand(&self) -> bool {
@@ -639,9 +668,9 @@ impl PanelBehavior for MaxMemGroup {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -770,7 +799,9 @@ impl PanelBehavior for MaxMemInnerTunnelPanel {
         }
 
         let rect = ctx.layout_rect();
-        let cr = self.tunnel.GetChildRect(rect.w, rect.h, ctx.GetCanvasColor());
+        let cr = self
+            .tunnel
+            .GetChildRect(rect.w, rect.h, ctx.GetCanvasColor());
         if let Some(&child) = ctx.children().first() {
             ctx.layout_child(child, cr.x, cr.y, cr.w, cr.h);
             ctx.tree.SetCanvasColor(child, cr.canvas_color);
@@ -831,7 +862,9 @@ impl PanelBehavior for MaxMemTunnelPanel {
         }
 
         let rect = ctx.layout_rect();
-        let cr = self.tunnel.GetChildRect(rect.w, rect.h, ctx.GetCanvasColor());
+        let cr = self
+            .tunnel
+            .GetChildRect(rect.w, rect.h, ctx.GetCanvasColor());
         if let Some(&child) = ctx.children().first() {
             ctx.layout_child(child, cr.x, cr.y, cr.w, cr.h);
             ctx.tree.SetCanvasColor(child, cr.canvas_color);
@@ -919,8 +952,15 @@ impl CpuGroup {
 
 impl PanelBehavior for CpuGroup {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
+        self.border.paint_border(
+            painter,
+            w,
+            h,
+            &self.look,
+            state.enabled,
+            true,
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100),
+        );
     }
 
     fn auto_expand(&self) -> bool {
@@ -948,9 +988,9 @@ impl PanelBehavior for CpuGroup {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -1067,8 +1107,15 @@ impl PerformanceGroup {
 
 impl PanelBehavior for PerformanceGroup {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
+        self.border.paint_border(
+            painter,
+            w,
+            h,
+            &self.look,
+            state.enabled,
+            true,
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100),
+        );
     }
 
     fn auto_expand(&self) -> bool {
@@ -1096,9 +1143,9 @@ impl PanelBehavior for PerformanceGroup {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -1238,8 +1285,15 @@ impl MouseGroup {
 
 impl PanelBehavior for MouseGroup {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
+        self.border.paint_border(
+            painter,
+            w,
+            h,
+            &self.look,
+            state.enabled,
+            true,
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100),
+        );
     }
 
     fn auto_expand(&self) -> bool {
@@ -1267,9 +1321,9 @@ impl PanelBehavior for MouseGroup {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -1516,8 +1570,15 @@ impl emCoreConfigPanel {
 
 impl PanelBehavior for emCoreConfigPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
+        self.border.paint_border(
+            painter,
+            w,
+            h,
+            &self.look,
+            state.enabled,
+            true,
+            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100),
+        );
     }
 
     fn auto_expand(&self) -> bool {
@@ -1537,9 +1598,9 @@ impl PanelBehavior for emCoreConfigPanel {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRectUnobscured(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, aux_id, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -1669,18 +1730,12 @@ mod tests {
 
     #[test]
     fn factor_text_disabled_label() {
-        assert_eq!(
-            factor_text_of_value(-200, 100, true, 0.25, 4.0),
-            "Disabled"
-        );
+        assert_eq!(factor_text_of_value(-200, 100, true, 0.25, 4.0), "Disabled");
     }
 
     #[test]
     fn factor_text_default_label() {
-        assert_eq!(
-            factor_text_of_value(0, 100, false, 0.25, 4.0),
-            "Default"
-        );
+        assert_eq!(factor_text_of_value(0, 100, false, 0.25, 4.0), "Default");
     }
 
     #[test]
@@ -1688,11 +1743,13 @@ mod tests {
         for &mb in &[8, 1024, 16384] {
             let val = mem_cfg_to_val(mb);
             let back = mem_val_to_cfg(val);
-            assert_eq!(back, mb, "mem roundtrip failed for {mb}: val={val}, back={back}");
+            assert_eq!(
+                back, mb,
+                "mem roundtrip failed for {mb}: val={val}, back={back}"
+            );
         }
     }
 }
-
 
 #[cfg(kani)]
 mod kani_private_proofs {

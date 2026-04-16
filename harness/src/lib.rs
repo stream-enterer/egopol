@@ -16,8 +16,7 @@ static BLEND_HASH: LazyLock<Box<[u8; 65536]>> = LazyLock::new(|| {
             hash[(a1 as usize) << 8 | a2 as usize] = c3 as u8;
             hash[(a1 as usize) << 8 | (255 - a2 as usize)] = (c1 - c3) as u8;
             hash[(255 - a1 as usize) << 8 | a2 as usize] = (c2 - c3) as u8;
-            hash[(255 - a1 as usize) << 8 | (255 - a2 as usize)] =
-                (range + c3 - c1 - c2) as u8;
+            hash[(255 - a1 as usize) << 8 | (255 - a2 as usize)] = (range + c3 - c1 - c2) as u8;
         }
     }
     hash
@@ -55,14 +54,18 @@ pub unsafe extern "C" fn rust_blend_source_over_simple(
 
         // Apply opacity (Fixed12) — matches C++ PaintScanlineInt opacity scaling
         if opacity < 0x1000 {
-            if opacity <= 0 { continue; }
+            if opacity <= 0 {
+                continue;
+            }
             sr = (sr * opacity + 0x800) >> 12;
             sg = (sg * opacity + 0x800) >> 12;
             sb = (sb * opacity + 0x800) >> 12;
             sa = (sa * opacity + 0x800) >> 12;
         }
 
-        if sa == 0 { continue; }
+        if sa == 0 {
+            continue;
+        }
         if sa >= 255 {
             *dest.add(d_off) = sr as u8;
             *dest.add(d_off + 1) = sg as u8;
@@ -77,12 +80,11 @@ pub unsafe extern "C" fn rust_blend_source_over_simple(
         // This is equivalent to adding the premul channels directly.
         let a = sa as u32;
         let t = (255 - a) * 257;
-        *dest.add(d_off) = ((((*dest.add(d_off) as u32) * t + 0x8073) >> 16)
-            + sr as u32) as u8;
-        *dest.add(d_off + 1) = ((((*dest.add(d_off + 1) as u32) * t + 0x8073) >> 16)
-            + sg as u32) as u8;
-        *dest.add(d_off + 2) = ((((*dest.add(d_off + 2) as u32) * t + 0x8073) >> 16)
-            + sb as u32) as u8;
+        *dest.add(d_off) = ((((*dest.add(d_off) as u32) * t + 0x8073) >> 16) + sr as u32) as u8;
+        *dest.add(d_off + 1) =
+            ((((*dest.add(d_off + 1) as u32) * t + 0x8073) >> 16) + sg as u32) as u8;
+        *dest.add(d_off + 2) =
+            ((((*dest.add(d_off + 2) as u32) * t + 0x8073) >> 16) + sb as u32) as u8;
         // C++ does NOT write alpha (bits 24-31 are zeroed by the packed pixel math).
         // Match that: don't update dest alpha.
     }
@@ -90,13 +92,12 @@ pub unsafe extern "C" fn rust_blend_source_over_simple(
 
 // ── Layer 3: Area sampling interpolation ─────────────────────────
 
+use emcore::emImage::emImage;
 use emcore::emPainterInterpolation::{
-    AreaSampleTransform, AreaSampleCarryState, SectionBounds,
-    interpolate_scanline_area_sampled,
+    interpolate_scanline_area_sampled, AreaSampleCarryState, AreaSampleTransform, SectionBounds,
 };
 use emcore::emPainterScanlineTool::InterpolationBuffer;
 use emcore::emTexture::ImageExtension;
-use emcore::emImage::emImage;
 
 /// C-compatible struct for passing transform parameters across FFI.
 #[repr(C)]
@@ -130,7 +131,10 @@ pub unsafe extern "C" fn rust_interpolate_area_sampled(
     img_w: i32,
     img_h: i32,
     xfm: *const CAreaSampleTransform,
-    sec_ox: i32, sec_oy: i32, sec_w: i32, sec_h: i32,
+    sec_ox: i32,
+    sec_oy: i32,
+    sec_w: i32,
+    sec_h: i32,
     dest_x: i32,
     dest_y: i32,
     count: i32,
@@ -200,8 +204,12 @@ pub unsafe extern "C" fn rust_interpolate_area_sampled(
 /// Duplicated here because SubPixelEdges is private to emPainter.rs.
 #[no_mangle]
 pub extern "C" fn rust_get_coverage(
-    dx_px: f64, dy_px: f64, dw_px: f64, dh_px: f64,
-    px: i32, py: i32,
+    dx_px: f64,
+    dy_px: f64,
+    dw_px: f64,
+    dh_px: f64,
+    px: i32,
+    py: i32,
 ) -> i32 {
     // Fixed12 arithmetic matching emPainter.rs
     let fx1 = (dx_px * 4096.0) as i32;
@@ -213,10 +221,10 @@ pub extern "C" fn rust_get_coverage(
     let iy1 = fy1 >> 12;
     let ixe_raw = fx2 + 0xFFF;
     let ix2 = ixe_raw >> 12;
-    let iy2 = fy2 >> 12;  // C++ truncates, not ceil
+    let iy2 = fy2 >> 12; // C++ truncates, not ceil
 
     let frac_left = 0x1000i32.saturating_sub(fx1 & 0xFFF);
-    let frac_right = (ixe_raw & 0xFFF) + 1;  // C++ ax2 = (ixe & 0xfff) + 1
+    let frac_right = (ixe_raw & 0xFFF) + 1; // C++ ax2 = (ixe & 0xfff) + 1
     let frac_top = 0x1000i32.saturating_sub(fy1 & 0xFFF);
     let frac_bottom = fy2 & 0xFFF;
     let raw_w = (fx2 as i64 - fx1 as i64) as i32;
@@ -232,7 +240,9 @@ pub extern "C" fn rust_get_coverage(
     } else {
         0x1000
     };
-    if alpha_y <= 0 { return 0; }
+    if alpha_y <= 0 {
+        return 0;
+    }
 
     // alpha_x
     let alpha_x = if px == ix1 && px == ix2 - 1 {
@@ -244,16 +254,18 @@ pub extern "C" fn rust_get_coverage(
     } else {
         0x1000
     };
-    if alpha_x <= 0 { return 0; }
+    if alpha_x <= 0 {
+        return 0;
+    }
 
     ((alpha_x as i64 * alpha_y as i64 + 0x7ff) >> 12) as i32
 }
 
 // ── Layer 6: Colored blend (IMAGE_COLORED / font glyph pipeline) ─
 
-use emcore::emPainterScanlineTool::{blend_colored_scanline, BlendMode};
 use emcore::emColor::emColor;
 use emcore::emPainterInterpolation::sample_adaptive_lum_section;
+use emcore::emPainterScanlineTool::{blend_colored_scanline, BlendMode};
 
 /// C-compatible color struct (RGBA u8).
 #[repr(C)]
@@ -306,19 +318,11 @@ pub unsafe extern "C" fn rust_blend_colored_g2(
             painter_alpha: 255,
         }
     } else {
-        BlendMode::SourceOver {
-            painter_alpha: 255,
-        }
+        BlendMode::SourceOver { painter_alpha: 255 }
     };
 
     blend_colored_scanline(
-        dest_slice,
-        lum_slice,
-        count_u,
-        cov_slice,
-        color1,
-        color2,
-        &mode,
+        dest_slice, lum_slice, count_u, cov_slice, color1, color2, &mode,
     );
 }
 
@@ -364,17 +368,8 @@ pub unsafe extern "C" fn rust_sample_adaptive_lum(
         h: sec_h,
     };
 
-    sample_adaptive_lum_section(
-        &image,
-        ix,
-        iy,
-        ox,
-        oy,
-        &sec,
-        ImageExtension::Zero,
-    )
+    sample_adaptive_lum_section(&image, ix, iy, ox, oy, &sec, ImageExtension::Zero)
 }
-
 
 // ── Layer 8: Border image boundary computation ──────────────────
 
@@ -439,11 +434,8 @@ pub unsafe extern "C" fn rust_border_image_boundaries(
     let canvas = emColor::rgba(p.canvas_r, p.canvas_g, p.canvas_b, p.canvas_a);
 
     let slices = painter.compute_border_image_slices(
-        p.x, p.y, p.w, p.h,
-        p.l, p.t, p.r, p.b,
-        0, 0, p.img_w, p.img_h,
-        p.src_l, p.src_t, p.src_r, p.src_b,
-        canvas,
+        p.x, p.y, p.w, p.h, p.l, p.t, p.r, p.b, 0, 0, p.img_w, p.img_h, p.src_l, p.src_t, p.src_r,
+        p.src_b, canvas,
     );
 
     let Some(slices) = slices else {
@@ -525,10 +517,19 @@ pub unsafe extern "C" fn rust_paint_border_image(
     let canvas = emColor::rgba(canvas_r, canvas_g, canvas_b, canvas_a);
 
     painter.PaintBorderImage(
-        x, y, w, h,
-        l, t, r, b,
+        x,
+        y,
+        w,
+        h,
+        l,
+        t,
+        r,
+        b,
         &source,
-        src_l, src_t, src_r, src_b,
+        src_l,
+        src_t,
+        src_r,
+        src_b,
         alpha,
         canvas,
         which_sub_rects as u16,
@@ -636,7 +637,11 @@ pub unsafe extern "C" fn rust_rasterize_polygon(
 
     *out_scanline_count = count as i32;
 
-    if scanlines.len() > max { -1 } else { 0 }
+    if scanlines.len() > max {
+        -1
+    } else {
+        0
+    }
 }
 
 // ── Layer 10: Linear gradient interpolation ─────────────────────
@@ -740,9 +745,18 @@ pub unsafe extern "C" fn rust_paint_image_rect(
     };
 
     painter.PaintImageSrcRect(
-        x, y, w, h, &source,
-        src_x, src_y, src_w, src_h,
-        alpha as u8, cc, ext,
+        x,
+        y,
+        w,
+        h,
+        &source,
+        src_x,
+        src_y,
+        src_w,
+        src_h,
+        alpha as u8,
+        cc,
+        ext,
     );
 
     // Copy result back to caller's framebuffer.
@@ -821,9 +835,19 @@ pub unsafe extern "C" fn rust_paint_image_colored(
     };
 
     painter.PaintImageColored(
-        x, y, w, h, &source,
-        src_x as u32, src_y as u32, src_w as u32, src_h as u32,
-        c1, c2, cc, ext,
+        x,
+        y,
+        w,
+        h,
+        &source,
+        src_x as u32,
+        src_y as u32,
+        src_w as u32,
+        src_h as u32,
+        c1,
+        c2,
+        cc,
+        ext,
     );
 
     // Copy result back to caller's framebuffer.
@@ -933,7 +957,7 @@ pub unsafe extern "C" fn rust_paint_round_rect(
 
 // ── Layer 17: PaintPolyline (solid polyline with stroke) ───────
 
-use emcore::emStroke::{emStroke, LineJoin, LineCap};
+use emcore::emStroke::{emStroke, LineCap, LineJoin};
 
 /// Paint a solid polyline using the full Rust pipeline.
 ///
@@ -974,7 +998,9 @@ pub unsafe extern "C" fn rust_paint_polyline(
 
     let n = n_vertices as usize;
     let xy_slice = std::slice::from_raw_parts(vertices, n * 2);
-    let verts: Vec<(f64, f64)> = (0..n).map(|i| (xy_slice[i * 2], xy_slice[i * 2 + 1])).collect();
+    let verts: Vec<(f64, f64)> = (0..n)
+        .map(|i| (xy_slice[i * 2], xy_slice[i * 2 + 1]))
+        .collect();
 
     let cc = emColor::from_packed(canvas_color);
     let sc = emColor::from_packed(stroke_color);

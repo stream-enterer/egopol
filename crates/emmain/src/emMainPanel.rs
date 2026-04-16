@@ -11,9 +11,9 @@ use emcore::emCursor::emCursor;
 use emcore::emImage::emImage;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
-use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPainter::emPainter;
 use emcore::emPainter::{TextAlignment, VAlign};
+use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
 use emcore::emResTga::load_tga;
@@ -96,7 +96,6 @@ impl SliderPanel {
         self.parent_slider_max_y = slider_max_y;
         self.parent_layout_w = layout_w;
     }
-
 }
 
 impl PanelBehavior for SliderPanel {
@@ -143,8 +142,7 @@ impl PanelBehavior for SliderPanel {
         if self.pressed {
             let mut dy = (my - self.press_my) * self.parent_layout_w;
             if input_state.GetShift() {
-                dy = (dy + self.parent_slider_y - self.press_slider_y) * 0.25
-                    + self.press_slider_y
+                dy = (dy + self.parent_slider_y - self.press_slider_y) * 0.25 + self.press_slider_y
                     - self.parent_slider_y;
             }
             self.pending_drag_delta = Some(dy);
@@ -172,7 +170,16 @@ impl PanelBehavior for SliderPanel {
         } else {
             emColor::from_packed(0x33445580)
         };
-        painter.PaintRoundRect(0.0, 0.0, 2.0, h, 6.0 / 64.0, 6.0 / 75.0 * h, color, emColor::TRANSPARENT);
+        painter.PaintRoundRect(
+            0.0,
+            0.0,
+            2.0,
+            h,
+            6.0 / 64.0,
+            6.0 / 75.0 * h,
+            color,
+            emColor::TRANSPARENT,
+        );
 
         // Arrow indicators (C++ emMainPanel.cpp:478-498).
         if self.mouse_over || self.pressed {
@@ -336,9 +343,8 @@ impl emMainPanel {
     pub fn new(ctx: Rc<emContext>, control_tallness: f64) -> Self {
         let config = emMainConfig::Acquire(&ctx);
         let unified_slider_pos = config.borrow().GetControlViewSize();
-        let control_edges_image =
-            load_tga(include_bytes!("../../../res/emMain/ControlEdges.tga"))
-                .expect("failed to load ControlEdges.tga");
+        let control_edges_image = load_tga(include_bytes!("../../../res/emMain/ControlEdges.tga"))
+            .expect("failed to load ControlEdges.tga");
         Self {
             _ctx: ctx,
             config,
@@ -388,8 +394,18 @@ impl emMainPanel {
         self.slider_pressed = slider_pressed;
         self.update_coordinates(h);
         [
-            (self.control_x, self.control_y, self.control_w, self.control_h),
-            (self.content_x, self.content_y, self.content_w, self.content_h),
+            (
+                self.control_x,
+                self.control_y,
+                self.control_w,
+                self.control_h,
+            ),
+            (
+                self.content_x,
+                self.content_y,
+                self.content_w,
+                self.content_h,
+            ),
             (self.slider_x, self.slider_y, self.slider_w, self.slider_h),
         ]
     }
@@ -570,7 +586,9 @@ impl emMainPanel {
                 self.unified_slider_pos = n;
                 self.update_coordinates(self.last_height);
                 self.update_slider_hiding(false);
-                self.config.borrow_mut().SetControlViewSize(self.unified_slider_pos);
+                self.config
+                    .borrow_mut()
+                    .SetControlViewSize(self.unified_slider_pos);
                 self.config.borrow_mut().Save();
             }
         }
@@ -615,19 +633,22 @@ impl PanelBehavior for emMainPanel {
         // Propagate hidden state to SliderPanel.
         if let Some(slider_id) = self.slider_panel {
             let hidden = self.slider_hidden;
-            ctx.tree.with_behavior_as::<SliderPanel, _>(slider_id, |sp| {
-                sp.SetHidden(hidden);
-            });
+            ctx.tree
+                .with_behavior_as::<SliderPanel, _>(slider_id, |sp| {
+                    sp.SetHidden(hidden);
+                });
         }
 
         // Read slider drag/double-click actions.
         if let Some(slider_id) = self.slider_panel {
-            let action = ctx.tree.with_behavior_as::<SliderPanel, _>(slider_id, |sp| {
-                let dc = sp.double_clicked;
-                let drag = sp.pending_drag_delta.take();
-                sp.double_clicked = false;
-                (dc, drag)
-            });
+            let action = ctx
+                .tree
+                .with_behavior_as::<SliderPanel, _>(slider_id, |sp| {
+                    let dc = sp.double_clicked;
+                    let drag = sp.pending_drag_delta.take();
+                    sp.double_clicked = false;
+                    (dc, drag)
+                });
             if let Some((double_clicked, drag_delta)) = action {
                 if double_clicked {
                     self.DoubleClickSlider();
@@ -661,7 +682,14 @@ impl PanelBehavior for emMainPanel {
         let sy = painter.RoundDownY(self.control_h);
         let sw = 1.0;
         let sh = painter.RoundUpY(self.content_y) - sy;
-        painter.PaintRect(sx, sy, sw, sh, emColor::from_packed(0x000000FF), emColor::TRANSPARENT);
+        painter.PaintRect(
+            sx,
+            sy,
+            sw,
+            sh,
+            emColor::from_packed(0x000000FF),
+            emColor::TRANSPARENT,
+        );
 
         let d = self.control_h * 0.015;
 
@@ -671,15 +699,43 @@ impl PanelBehavior for emMainPanel {
             let by = 0.0;
             let bw = painter.RoundUpX(self.control_x) - bx;
             let bh = painter.RoundUpY(self.content_y);
-            painter.PaintRect(bx, by, bw, bh, emColor::from_packed(0x000000FF), emColor::TRANSPARENT);
-            painter.PaintRect(x1, y1, w1, h1, self.control_edges_color, self.control_edges_color);
+            painter.PaintRect(
+                bx,
+                by,
+                bw,
+                bh,
+                emColor::from_packed(0x000000FF),
+                emColor::TRANSPARENT,
+            );
+            painter.PaintRect(
+                x1,
+                y1,
+                w1,
+                h1,
+                self.control_edges_color,
+                self.control_edges_color,
+            );
             painter.PaintBorderImageSrcRect(
-                x1, y1, w1, h1,
-                0.0, d, d, d,
+                x1,
+                y1,
+                w1,
+                h1,
+                0.0,
+                d,
+                d,
+                d,
                 &self.control_edges_image,
-                191, 0, 190, 11,
-                0, 5, 5, 5,
-                255, self.control_edges_color, 0o57,
+                191,
+                0,
+                190,
+                11,
+                0,
+                5,
+                5,
+                5,
+                255,
+                self.control_edges_color,
+                0o57,
             );
         }
 
@@ -689,15 +745,43 @@ impl PanelBehavior for emMainPanel {
             let by = 0.0;
             let bw = painter.RoundUpX(x2) - bx;
             let bh = painter.RoundUpY(self.content_y);
-            painter.PaintRect(bx, by, bw, bh, emColor::from_packed(0x000000FF), emColor::TRANSPARENT);
-            painter.PaintRect(x2, y2, w2, h2, self.control_edges_color, self.control_edges_color);
+            painter.PaintRect(
+                bx,
+                by,
+                bw,
+                bh,
+                emColor::from_packed(0x000000FF),
+                emColor::TRANSPARENT,
+            );
+            painter.PaintRect(
+                x2,
+                y2,
+                w2,
+                h2,
+                self.control_edges_color,
+                self.control_edges_color,
+            );
             painter.PaintBorderImageSrcRect(
-                x2, y2, w2, h2,
-                d, d, 0.0, d,
+                x2,
+                y2,
+                w2,
+                h2,
+                d,
+                d,
+                0.0,
+                d,
                 &self.control_edges_image,
-                0, 0, 190, 11,
-                5, 5, 0, 5,
-                255, self.control_edges_color, 0o750,
+                0,
+                0,
+                190,
+                11,
+                5,
+                5,
+                0,
+                5,
+                255,
+                self.control_edges_color,
+                0o750,
             );
         }
     }
@@ -753,8 +837,7 @@ impl PanelBehavior for emMainPanel {
             self.slider_panel = Some(slider_id);
 
             // Create startup overlay.
-            let overlay_id =
-                ctx.create_child_with("startupOverlay", Box::new(StartupOverlayPanel));
+            let overlay_id = ctx.create_child_with("startupOverlay", Box::new(StartupOverlayPanel));
             self.startup_overlay = Some(overlay_id);
 
             self.children_created = true;
@@ -766,15 +849,20 @@ impl PanelBehavior for emMainPanel {
             let smin = self.slider_min_y;
             let smax = self.slider_max_y;
             let sw = self.slider_w;
-            ctx.tree
-                .with_behavior_as::<SliderPanel, _>(slider, |sp| {
-                    sp.set_parent_slider_state(sy, smin, smax, sw);
-                });
+            ctx.tree.with_behavior_as::<SliderPanel, _>(slider, |sp| {
+                sp.set_parent_slider_state(sy, smin, smax, sw);
+            });
         }
 
         // Position children.
         if let Some(ctrl) = self.control_view_panel {
-            ctx.layout_child(ctrl, self.control_x, self.control_y, self.control_w, self.control_h);
+            ctx.layout_child(
+                ctrl,
+                self.control_x,
+                self.control_y,
+                self.control_w,
+                self.control_h,
+            );
         }
         if let Some(content) = self.content_view_panel {
             ctx.layout_child(
@@ -1170,5 +1258,4 @@ mod tests {
         assert!((panel.press_slider_y - 0.42).abs() < 1e-10);
         assert!((panel.press_my - 0.2).abs() < 1e-10);
     }
-
 }

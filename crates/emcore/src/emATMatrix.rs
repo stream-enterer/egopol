@@ -605,4 +605,3 @@ mod tests {
         assert_eq!(m.InverseTransY(15.0, 27.0).unwrap(), iy);
     }
 }
-

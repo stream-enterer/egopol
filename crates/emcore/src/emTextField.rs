@@ -3,8 +3,8 @@ use std::rc::Rc;
 use crate::emCursor::emCursor;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
-use crate::emPanel::PanelState;
 use crate::emPainter::emPainter;
+use crate::emPanel::PanelState;
 
 use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 use crate::emLook::emLook;
@@ -334,7 +334,8 @@ impl emTextField {
     }
 
     pub fn IsSelectionEmpty(&self) -> bool {
-        self.selection_anchor.is_none() || self.GetSelectionStartIndex() == self.GetSelectionEndIndex()
+        self.selection_anchor.is_none()
+            || self.GetSelectionStartIndex() == self.GetSelectionEndIndex()
     }
 
     pub fn selected_text(&self) -> &str {
@@ -957,7 +958,8 @@ impl emTextField {
         // so we only need to subtract tx and add scroll_x.
         let tx = if self.last_w > 0.0 && self.last_h > 0.0 {
             let (content, radius) =
-                self.border.GetContentRoundRect(self.last_w, self.last_h, &self.look);
+                self.border
+                    .GetContentRoundRect(self.last_w, self.last_h, &self.look);
             let d = content.h.min(content.w) * 0.1 + radius * 0.5;
             content.x + d
         } else {
@@ -994,7 +996,9 @@ impl emTextField {
             return 0;
         }
 
-        let row = ((y - effective_ty + self.scroll_y) / effective_ch).floor().max(0.0) as usize;
+        let row = ((y - effective_ty + self.scroll_y) / effective_ch)
+            .floor()
+            .max(0.0) as usize;
         let rows: Vec<&str> = self.text.split('\n').collect();
         let row = row.min(rows.len().saturating_sub(1));
         let row_text = rows[row];
@@ -1109,7 +1113,14 @@ impl emTextField {
 
     // ── Paint ───────────────────────────────────────────────────────────
 
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
+    pub fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        w: f64,
+        h: f64,
+        enabled: bool,
+        pixel_scale: f64,
+    ) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -1134,7 +1145,9 @@ impl emTextField {
         let (mut cols, rows) = self.calc_total_cols_rows();
         if self.overwrite_mode && self.focused {
             let (cursor_col, _) = self.index_to_col_row(self.cursor);
-            if cursor_col == cols { cols += 1; }
+            if cursor_col == cols {
+                cols += 1;
+            }
         }
         let mut ch = if rows > 0 { th / rows as f64 } else { th };
         let cw_orig = emPainter::measure_text_width("X", ch);
@@ -1154,9 +1167,17 @@ impl emTextField {
 
         // Colors (C++ lines 956-971)
         let (mut bg_col, mut fg_col, mut hl_col) = if self.editable {
-            (self.look.input_bg_color, self.look.input_fg_color, self.look.input_hl_color)
+            (
+                self.look.input_bg_color,
+                self.look.input_fg_color,
+                self.look.input_hl_color,
+            )
         } else {
-            (self.look.output_bg_color, self.look.output_fg_color, self.look.output_hl_color)
+            (
+                self.look.output_bg_color,
+                self.look.output_fg_color,
+                self.look.output_hl_color,
+            )
         };
         if !enabled {
             let base = self.look.bg_color;
@@ -1170,17 +1191,19 @@ impl emTextField {
         let sel_idx = self.GetSelectionStartIndex();
         let sel_end = self.GetSelectionEndIndex();
         if sel_idx < sel_end {
-            if !self.focused { sel_color = bg_col.GetBlended(fg_col, 40.0); }
+            if !self.focused {
+                sel_color = bg_col.GetBlended(fg_col, 40.0);
+            }
             let (col0, row0) = self.index_to_col_row(sel_idx);
             let (col1, row1) = self.index_to_col_row(sel_end);
             let vertices = [
                 (tx + col0 as f64 * cw, ty + row0 as f64 * ch),
-                (tx + tw,               ty + row0 as f64 * ch),
-                (tx + tw,               ty + row1 as f64 * ch),
+                (tx + tw, ty + row0 as f64 * ch),
+                (tx + tw, ty + row1 as f64 * ch),
                 (tx + col1 as f64 * cw, ty + row1 as f64 * ch),
                 (tx + col1 as f64 * cw, ty + row1 as f64 * ch + ch),
-                (tx,                    ty + row1 as f64 * ch + ch),
-                (tx,                    ty + row0 as f64 * ch + ch),
+                (tx, ty + row1 as f64 * ch + ch),
+                (tx, ty + row0 as f64 * ch + ch),
                 (tx + col0 as f64 * cw, ty + row0 as f64 * ch + ch),
             ];
             painter.PaintPolygon(&vertices, sel_color, canvas_color);
@@ -1204,29 +1227,37 @@ impl emTextField {
                 (0u32, 0usize)
             };
             let selected = i >= sel_idx && i < sel_end;
-            let is_special = c <= 0x0d
-                && (c == 0 || (self.multi_line && (c == 0x09 || c == 0x0d || c == 0x0a)));
+            let is_special =
+                c <= 0x0d && (c == 0 || (self.multi_line && (c == 0x09 || c == 0x0d || c == 0x0a)));
             if is_special || selected0 != selected {
                 if i0 < i {
                     if self.password_mode {
                         for j in 0..(col - col0) {
                             painter.PaintText(
-                                tx + (col0 + j) as f64 * cw, ty + row0 as f64 * ch,
-                                "*", ch, ws,
+                                tx + (col0 + j) as f64 * cw,
+                                ty + row0 as f64 * ch,
+                                "*",
+                                ch,
+                                ws,
                                 if selected0 { bg_col } else { fg_col },
                                 if selected0 { sel_color } else { canvas_color },
                             );
                         }
                     } else {
                         painter.PaintText(
-                            tx + col0 as f64 * cw, ty + row0 as f64 * ch,
-                            &self.text[i0..i], ch, ws,
+                            tx + col0 as f64 * cw,
+                            ty + row0 as f64 * ch,
+                            &self.text[i0..i],
+                            ch,
+                            ws,
                             if selected0 { bg_col } else { fg_col },
                             if selected0 { sel_color } else { canvas_color },
                         );
                     }
                 }
-                if c == 0 { break; }
+                if c == 0 {
+                    break;
+                }
                 row0 = row;
                 col0 = col;
                 i0 = i;
@@ -1241,7 +1272,9 @@ impl emTextField {
                     i0 = i;
                     selected0 = i0 >= sel_idx && i0 < sel_end;
                 } else if c == 0x0a || c == 0x0d {
-                    if c == 0x0d && i < text_len && text_bytes[i] == 0x0a { i += 1; }
+                    if c == 0x0d && i < text_len && text_bytes[i] == 0x0a {
+                        i += 1;
+                    }
                     col = 0;
                     row += 1;
                     row0 = row;
@@ -1255,19 +1288,27 @@ impl emTextField {
         // Cursor (C++ lines 1056-1091)
         if self.focused {
             let mut cur_color = fg_col;
-            if !self.editable { cur_color = cur_color.GetTransparented(75.0); }
-            else if !self.cursor_blink_on { cur_color = cur_color.GetTransparented(88.0); }
+            if !self.editable {
+                cur_color = cur_color.GetTransparented(75.0);
+            } else if !self.cursor_blink_on {
+                cur_color = cur_color.GetTransparented(88.0);
+            }
             let (col, row) = self.index_to_col_row(self.cursor);
             let cx = tx + cw * col as f64;
             let cy = ty + ch * row as f64;
             if self.overwrite_mode {
                 let d = ch * 0.07;
                 let vertices = [
-                    (cx - d, cy - d), (cx + cw + d, cy - d),
-                    (cx + cw + d, cy + ch + d), (cx - d, cy + ch + d),
                     (cx - d, cy - d),
-                    (cx, cy), (cx, cy + ch),
-                    (cx + cw, cy + ch), (cx + cw, cy), (cx, cy),
+                    (cx + cw + d, cy - d),
+                    (cx + cw + d, cy + ch + d),
+                    (cx - d, cy + ch + d),
+                    (cx - d, cy - d),
+                    (cx, cy),
+                    (cx, cy + ch),
+                    (cx + cw, cy + ch),
+                    (cx + cw, cy),
+                    (cx, cy),
                 ];
                 painter.PaintPolygon(&vertices, cur_color, canvas_color);
             } else {
@@ -1275,10 +1316,14 @@ impl emTextField {
                 let d1 = d * 0.5;
                 let d2 = d * 2.2;
                 let vertices = [
-                    (cx - d2, cy - d), (cx + d2, cy - d),
-                    (cx + d1, cy), (cx + d1, cy + ch),
-                    (cx + d2, cy + ch + d), (cx - d2, cy + ch + d),
-                    (cx - d1, cy + ch), (cx - d1, cy),
+                    (cx - d2, cy - d),
+                    (cx + d2, cy - d),
+                    (cx + d1, cy),
+                    (cx + d1, cy + ch),
+                    (cx + d2, cy + ch + d),
+                    (cx - d2, cy + ch + d),
+                    (cx - d1, cy + ch),
+                    (cx - d1, cy),
                 ];
                 painter.PaintPolygon(&vertices, cur_color, canvas_color);
             }
@@ -1286,7 +1331,6 @@ impl emTextField {
 
         self.border.paint_inner_overlay(painter, w, h, &self.look);
     }
-
 
     // ── ScrollToCursor (TF-003) ────────────────────────────────────────
 
@@ -1315,7 +1359,8 @@ impl emTextField {
 
             let cursor_row_start = self.row_start(self.cursor);
             let cursor_in_row = &self.text[cursor_row_start..self.cursor];
-            let cursor_x_px = emPainter::measure_text_width(cursor_in_row, self.ml_cell_h) * self.ml_ws;
+            let cursor_x_px =
+                emPainter::measure_text_width(cursor_in_row, self.ml_cell_h) * self.ml_ws;
 
             // C++ ScrollToCursor padding: col ± 0.5 char, row ± 0.2 row height
             let half_char = emPainter::measure_text_width("X", self.ml_cell_h) * self.ml_ws * 0.5;
@@ -1351,7 +1396,12 @@ impl emTextField {
 
     // ── Input ───────────────────────────────────────────────────────────
 
-    pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(
+        &mut self,
+        event: &emInputEvent,
+        state: &PanelState,
+        _input_state: &emInputState,
+    ) -> bool {
         // C++ emTextField: GetViewCondition(VCT_MIN_EXT) >= 10.0
         let min_ext = state.viewed_rect.w.min(state.viewed_rect.h);
         if min_ext < 10.0 {
@@ -2889,7 +2939,11 @@ mod tests {
         assert_eq!(tf.selected_text(), "test");
 
         // Ctrl+Shift+A = deselect
-        tf.Input(&emInputEvent::press(InputKey::Key('a')).with_shift_ctrl(), &ps, &is);
+        tf.Input(
+            &emInputEvent::press(InputKey::Key('a')).with_shift_ctrl(),
+            &ps,
+            &is,
+        );
         assert!(tf.IsSelectionEmpty());
     }
 
@@ -3362,7 +3416,7 @@ mod tests {
         let busy = tf.cycle_blink(true);
         assert!(busy);
         assert!(tf.IsCursorBlinkOn()); // just started, < 500ms
-                                          // Not focused: resets blink, returns false
+                                       // Not focused: resets blink, returns false
         let busy = tf.cycle_blink(false);
         assert!(!busy);
         assert!(tf.IsCursorBlinkOn());
@@ -3423,7 +3477,6 @@ mod tests {
         let _ = hit;
     }
 }
-
 
 #[cfg(kani)]
 mod kani_private_proofs {

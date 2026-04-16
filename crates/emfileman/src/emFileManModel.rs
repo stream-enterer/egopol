@@ -1006,8 +1006,14 @@ mod command_tests {
             # ButtonFgColor = #FFFFFFFF\n\
             # [[END PROPERTIES]]\n";
         let cmd = super::parse_command_properties(content, "/test.sh").unwrap();
-        assert_eq!(cmd.look.bg_color, emcore::emColor::emColor::rgba(0xFF, 0x00, 0x00, 0xFF));
-        assert_eq!(cmd.look.fg_color, emcore::emColor::emColor::rgba(0x00, 0xFF, 0x00, 0xFF));
+        assert_eq!(
+            cmd.look.bg_color,
+            emcore::emColor::emColor::rgba(0xFF, 0x00, 0x00, 0xFF)
+        );
+        assert_eq!(
+            cmd.look.fg_color,
+            emcore::emColor::emColor::rgba(0x00, 0xFF, 0x00, 0xFF)
+        );
         assert_eq!(
             cmd.look.button_bg_color,
             emcore::emColor::emColor::rgba(0x00, 0x00, 0xFF, 0xFF)
@@ -1025,7 +1031,10 @@ mod command_tests {
             # BgColor = #FF0000\n\
             # [[END PROPERTIES]]\n";
         let cmd = super::parse_command_properties(content, "/test.sh").unwrap();
-        assert_eq!(cmd.look.bg_color, emcore::emColor::emColor::rgba(0xFF, 0x00, 0x00, 0xFF));
+        assert_eq!(
+            cmd.look.bg_color,
+            emcore::emColor::emColor::rgba(0xFF, 0x00, 0x00, 0xFF)
+        );
     }
 
     #[test]

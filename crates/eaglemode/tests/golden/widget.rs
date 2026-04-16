@@ -1,17 +1,17 @@
 use std::rc::Rc;
 
 use emcore::emLinearGroup::emLinearGroup;
-use emcore::emTiling::Orientation;
 use emcore::emPanel::{PanelBehavior, PanelState};
+use emcore::emTiling::Orientation;
 
 use emcore::emPanelCtx::PanelCtx;
 
 use emcore::emPanelTree::{PanelTree, ViewConditionType};
 
-use emcore::emView::{emView, ViewFlags};
-use emcore::emPainter::emPainter;
-use emcore::emViewRenderer::SoftwareCompositor;
 use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use emcore::emPainter::emPainter;
+use emcore::emView::{emView, ViewFlags};
+use emcore::emViewRenderer::SoftwareCompositor;
 
 use emcore::emButton::emButton;
 
@@ -64,7 +64,12 @@ fn settle(tree: &mut PanelTree, view: &mut emView) {
 }
 
 /// Install direct-mode op logger on compositor before rendering.
-fn render_with_ops(compositor: &mut SoftwareCompositor, tree: &mut PanelTree, view: &emView, name: &str) {
+fn render_with_ops(
+    compositor: &mut SoftwareCompositor,
+    tree: &mut PanelTree,
+    view: &emView,
+    name: &str,
+) {
     let dump = dump_draw_ops_enabled();
     compositor.render_with_setup(tree, view, |painter| {
         if dump {
@@ -82,7 +87,12 @@ struct BorderBehavior {
 }
 
 impl BorderBehavior {
-    fn new(outer: OuterBorderType, inner: InnerBorderType, caption: &str, look: Rc<emLook>) -> Self {
+    fn new(
+        outer: OuterBorderType,
+        inner: InnerBorderType,
+        caption: &str,
+        look: Rc<emLook>,
+    ) -> Self {
         let mut border = emBorder::new(outer).with_inner(inner).with_caption(caption);
         border.label_in_border = true;
         Self { border, look }
@@ -110,7 +120,8 @@ struct LabelBehavior {
 impl PanelBehavior for LabelBehavior {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.label.PaintContent(painter, w, h, state.enabled, pixel_scale);
+        self.label
+            .PaintContent(painter, w, h, state.enabled, pixel_scale);
     }
 }
 
@@ -134,7 +145,8 @@ struct CheckBoxBehavior {
 impl PanelBehavior for CheckBoxBehavior {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.check_box.Paint(painter, w, h, state.enabled, pixel_scale);
+        self.check_box
+            .Paint(painter, w, h, state.enabled, pixel_scale);
     }
 }
 
@@ -146,7 +158,8 @@ struct TextFieldBehavior {
 impl PanelBehavior for TextFieldBehavior {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.text_field.Paint(painter, w, h, state.enabled, pixel_scale);
+        self.text_field
+            .Paint(painter, w, h, state.enabled, pixel_scale);
     }
 }
 
@@ -158,7 +171,8 @@ struct ScalarFieldBehavior {
 impl PanelBehavior for ScalarFieldBehavior {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.scalar_field.Paint(painter, w, h, state.enabled, pixel_scale);
+        self.scalar_field
+            .Paint(painter, w, h, state.enabled, pixel_scale);
     }
 }
 
@@ -418,7 +432,8 @@ struct RadioButtonBehavior {
 impl PanelBehavior for RadioButtonBehavior {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.radio_button.Paint(painter, w, h, state.enabled, pixel_scale);
+        self.radio_button
+            .Paint(painter, w, h, state.enabled, pixel_scale);
     }
 }
 
@@ -724,12 +739,7 @@ fn golden_widget_border_rect_extreme_tall() {
     let (w, h, expected) = load_compositor_golden("widget_border_rect_extreme_tall");
 
     let look = emLook::new();
-    let behavior = BorderBehavior::new(
-        OuterBorderType::Rect,
-        InnerBorderType::None,
-        "Test",
-        look,
-    );
+    let behavior = BorderBehavior::new(OuterBorderType::Rect, InnerBorderType::None, "Test", look);
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -741,7 +751,12 @@ fn golden_widget_border_rect_extreme_tall() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_border_rect_extreme_tall");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_border_rect_extreme_tall",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -768,12 +783,7 @@ fn golden_widget_border_rect_extreme_wide() {
     let (w, h, expected) = load_compositor_golden("widget_border_rect_extreme_wide");
 
     let look = emLook::new();
-    let behavior = BorderBehavior::new(
-        OuterBorderType::Rect,
-        InnerBorderType::None,
-        "Test",
-        look,
-    );
+    let behavior = BorderBehavior::new(OuterBorderType::Rect, InnerBorderType::None, "Test", look);
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("test");
@@ -785,7 +795,12 @@ fn golden_widget_border_rect_extreme_wide() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_border_rect_extreme_wide");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_border_rect_extreme_wide",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -829,7 +844,12 @@ fn golden_widget_border_roundrect_thin() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_border_roundrect_thin");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_border_roundrect_thin",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -847,7 +867,6 @@ fn golden_widget_border_roundrect_thin() {
     }
     result.unwrap();
 }
-
 
 // ─── BV-4: widget_border_instrument_cramped ─────────────────────
 
@@ -875,7 +894,12 @@ fn golden_widget_border_instrument_cramped() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_border_instrument_cramped");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_border_instrument_cramped",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -914,18 +938,15 @@ fn golden_widget_label_single_char() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_label_single_char");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_label_single_char",
+    );
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images(
-        "widget_label_single_char",
-        actual,
-        &expected,
-        w,
-        h,
-        0,
-        0.0,
-    );
+    let result = compare_images("widget_label_single_char", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_label_single_char", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 1);
@@ -956,15 +977,7 @@ fn golden_widget_label_empty() {
     render_with_ops(&mut compositor, &mut tree, &view, "widget_label_empty");
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images(
-        "widget_label_empty",
-        actual,
-        &expected,
-        w,
-        h,
-        0,
-        0.0,
-    );
+    let result = compare_images("widget_label_empty", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_label_empty", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 1);
@@ -995,18 +1008,15 @@ fn golden_widget_label_long_narrow() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_label_long_narrow");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_label_long_narrow",
+    );
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images(
-        "widget_label_long_narrow",
-        actual,
-        &expected,
-        w,
-        h,
-        0,
-        0.0,
-    );
+    let result = compare_images("widget_label_long_narrow", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_label_long_narrow", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 1);
@@ -1104,7 +1114,12 @@ fn widget_file_selection_box() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_file_selection_box");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_file_selection_box",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images("widget_file_selection_box", actual, &expected, w, h, 0, 0.0);
@@ -1137,7 +1152,12 @@ fn golden_widget_textfield_empty_wide() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_textfield_empty_wide");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_textfield_empty_wide",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -1179,7 +1199,12 @@ fn golden_widget_textfield_single_char_square() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_textfield_single_char_square");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_textfield_single_char_square",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -1192,7 +1217,13 @@ fn golden_widget_textfield_single_char_square() {
         0.0,
     );
     if result.is_err() && dump_golden_enabled() {
-        dump_test_images("widget_textfield_single_char_square", actual, &expected, w, h);
+        dump_test_images(
+            "widget_textfield_single_char_square",
+            actual,
+            &expected,
+            w,
+            h,
+        );
         analyze_diff_distribution(actual, &expected, w, h, 1);
     }
     result.unwrap();
@@ -1221,7 +1252,12 @@ fn golden_widget_scalarfield_min_value() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_scalarfield_min_value");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_scalarfield_min_value",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -1263,7 +1299,12 @@ fn golden_widget_scalarfield_max_value() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_scalarfield_max_value");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_scalarfield_max_value",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -1305,7 +1346,12 @@ fn golden_widget_scalarfield_zero_range() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_scalarfield_zero_range");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_scalarfield_zero_range",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -1348,15 +1394,7 @@ fn golden_widget_listbox_empty() {
     render_with_ops(&mut compositor, &mut tree, &view, "widget_listbox_empty");
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images(
-        "widget_listbox_empty",
-        actual,
-        &expected,
-        w,
-        h,
-        0,
-        0.0,
-    );
+    let result = compare_images("widget_listbox_empty", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_listbox_empty", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 1);
@@ -1389,15 +1427,7 @@ fn golden_widget_listbox_single() {
     render_with_ops(&mut compositor, &mut tree, &view, "widget_listbox_single");
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images(
-        "widget_listbox_single",
-        actual,
-        &expected,
-        w,
-        h,
-        0,
-        0.0,
-    );
+    let result = compare_images("widget_listbox_single", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_listbox_single", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 1);
@@ -1429,7 +1459,12 @@ fn golden_widget_listbox_extreme_wide() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_listbox_extreme_wide");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_listbox_extreme_wide",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -1472,15 +1507,7 @@ fn golden_widget_splitter_h_pos0() {
     render_with_ops(&mut compositor, &mut tree, &view, "widget_splitter_h_pos0");
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images(
-        "widget_splitter_h_pos0",
-        actual,
-        &expected,
-        w,
-        h,
-        0,
-        0.0,
-    );
+    let result = compare_images("widget_splitter_h_pos0", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_splitter_h_pos0", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 1);
@@ -1512,15 +1539,7 @@ fn golden_widget_splitter_h_pos1() {
     render_with_ops(&mut compositor, &mut tree, &view, "widget_splitter_h_pos1");
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images(
-        "widget_splitter_h_pos1",
-        actual,
-        &expected,
-        w,
-        h,
-        0,
-        0.0,
-    );
+    let result = compare_images("widget_splitter_h_pos1", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("widget_splitter_h_pos1", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 1);
@@ -1549,7 +1568,12 @@ fn golden_widget_splitter_v_extreme_tall() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_splitter_v_extreme_tall");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_splitter_v_extreme_tall",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     // ch_tol=1: 74 pixels at y=304 differ by exactly 1 in R/G channels.
@@ -1593,7 +1617,12 @@ fn golden_widget_checkbox_extreme_tall() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_checkbox_extreme_tall");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_checkbox_extreme_tall",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -1634,7 +1663,12 @@ fn golden_widget_tunnel_extreme_wide() {
     settle(&mut tree, &mut view);
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_tunnel_extreme_wide");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_tunnel_extreme_wide",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -1683,7 +1717,12 @@ fn golden_widget_colorfield_alpha_zero() {
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_colorfield_alpha_zero");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_colorfield_alpha_zero",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -1732,7 +1771,12 @@ fn golden_widget_colorfield_alpha_opaque() {
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_colorfield_alpha_opaque");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_colorfield_alpha_opaque",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -1781,7 +1825,12 @@ fn golden_widget_colorfield_alpha_near() {
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "widget_colorfield_alpha_near");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "widget_colorfield_alpha_near",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images(
@@ -1885,15 +1934,7 @@ fn composition_border_nest() {
     // closely. Remaining 2.3% (at tol=0) comes from widget-level rendering
     // differences (button text kerning, border image interpolation, text
     // positioning). At tol=3 these are well under 1%.
-    let result = compare_images(
-        "composed_border_nest",
-        actual,
-        &expected,
-        w,
-        h,
-        0,
-        0.0,
-    );
+    let result = compare_images("composed_border_nest", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("composed_border_nest", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 3);
@@ -1944,10 +1985,7 @@ fn composition_splitter_content() {
     let root = tree.create_root("test");
     // C++ DoLayout(0, 0, 800/600, 1.0)
     tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
-    tree.set_behavior(
-        root,
-        Box::new(SplitterCompositionBehavior { splitter: sp }),
-    );
+    tree.set_behavior(root, Box::new(SplitterCompositionBehavior { splitter: sp }));
 
     // Left child: emBorder with OBT_Rect/IBT_None, caption "Left".
     // In C++, emBorder positions children at default off-screen — so they're invisible.
@@ -1994,18 +2032,15 @@ fn composition_splitter_content() {
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "composed_splitter_content");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "composed_splitter_content",
+    );
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images(
-        "composed_splitter_content",
-        actual,
-        &expected,
-        w,
-        h,
-        0,
-        0.0,
-    );
+    let result = compare_images("composed_splitter_content", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("composed_splitter_content", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 3);
@@ -2063,18 +2098,15 @@ fn composition_scrolled_listbox_in_border() {
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "composed_scrolled_listbox");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "composed_scrolled_listbox",
+    );
     let actual = compositor.framebuffer().GetMap();
 
-    let result = compare_images(
-        "composed_scrolled_listbox",
-        actual,
-        &expected,
-        w,
-        h,
-        0,
-        0.0,
-    );
+    let result = compare_images("composed_scrolled_listbox", actual, &expected, w, h, 0, 0.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("composed_scrolled_listbox", actual, &expected, w, h);
         analyze_diff_distribution(actual, &expected, w, h, 1);
@@ -2125,7 +2157,12 @@ fn composition_colorfield_expansion_wide() {
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "composed_colorfield_wide");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "composed_colorfield_wide",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images("composed_colorfield_wide", actual, &expected, w, h, 0, 0.0);
@@ -2178,7 +2215,12 @@ fn composition_colorfield_expansion_tall() {
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
-    render_with_ops(&mut compositor, &mut tree, &view, "composed_colorfield_tall");
+    render_with_ops(
+        &mut compositor,
+        &mut tree,
+        &view,
+        "composed_colorfield_tall",
+    );
     let actual = compositor.framebuffer().GetMap();
 
     let result = compare_images("composed_colorfield_tall", actual, &expected, w, h, 0, 0.0);

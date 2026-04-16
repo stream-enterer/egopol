@@ -1,10 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::emInstallInfo::{emGetInstallPath, InstallDirType};
-use crate::emRec::{RecError, RecStruct};
 use crate::emConfigModel::emConfigModel;
 use crate::emContext::emContext;
+use crate::emInstallInfo::{emGetInstallPath, InstallDirType};
+use crate::emRec::{RecError, RecStruct};
 use crate::emRecRecord::Record;
 use slotmap::Key as _;
 
@@ -234,20 +234,57 @@ impl emCoreConfig {
     }
 }
 
-
 #[cfg(kani)]
 mod kani_private_proofs {
     use super::*;
 
     #[kani::proof]
     fn kani_private_emCoreConfig_IsSetToDefault() {
-        let mut self_val = emCoreConfig { stick_mouse_when_navigating: kani::any::<bool>(), emulate_middle_button: kani::any::<bool>(), pan_function: kani::any::<bool>(), mouse_zoom_speed: kani::any::<f64>(), mouse_scroll_speed: kani::any::<f64>(), mouse_wheel_zoom_speed: kani::any::<f64>(), mouse_wheel_zoom_acceleration: kani::any::<f64>(), keyboard_zoom_speed: kani::any::<f64>(), keyboard_scroll_speed: kani::any::<f64>(), kinetic_zooming_and_scrolling: kani::any::<f64>(), magnetism_radius: kani::any::<f64>(), magnetism_speed: kani::any::<f64>(), visit_speed: kani::any::<f64>(), max_megabytes_per_view: kani::any::<i32>(), max_render_threads: kani::any::<i32>(), allow_simd: kani::any::<bool>(), downscale_quality: kani::any::<i32>(), upscale_quality: kani::any::<i32>() };
+        let mut self_val = emCoreConfig {
+            stick_mouse_when_navigating: kani::any::<bool>(),
+            emulate_middle_button: kani::any::<bool>(),
+            pan_function: kani::any::<bool>(),
+            mouse_zoom_speed: kani::any::<f64>(),
+            mouse_scroll_speed: kani::any::<f64>(),
+            mouse_wheel_zoom_speed: kani::any::<f64>(),
+            mouse_wheel_zoom_acceleration: kani::any::<f64>(),
+            keyboard_zoom_speed: kani::any::<f64>(),
+            keyboard_scroll_speed: kani::any::<f64>(),
+            kinetic_zooming_and_scrolling: kani::any::<f64>(),
+            magnetism_radius: kani::any::<f64>(),
+            magnetism_speed: kani::any::<f64>(),
+            visit_speed: kani::any::<f64>(),
+            max_megabytes_per_view: kani::any::<i32>(),
+            max_render_threads: kani::any::<i32>(),
+            allow_simd: kani::any::<bool>(),
+            downscale_quality: kani::any::<i32>(),
+            upscale_quality: kani::any::<i32>(),
+        };
         let _r = self_val.IsSetToDefault();
     }
 
     #[kani::proof]
     fn kani_private_emCoreConfig_SetToDefault() {
-        let mut self_val = emCoreConfig { stick_mouse_when_navigating: kani::any::<bool>(), emulate_middle_button: kani::any::<bool>(), pan_function: kani::any::<bool>(), mouse_zoom_speed: kani::any::<f64>(), mouse_scroll_speed: kani::any::<f64>(), mouse_wheel_zoom_speed: kani::any::<f64>(), mouse_wheel_zoom_acceleration: kani::any::<f64>(), keyboard_zoom_speed: kani::any::<f64>(), keyboard_scroll_speed: kani::any::<f64>(), kinetic_zooming_and_scrolling: kani::any::<f64>(), magnetism_radius: kani::any::<f64>(), magnetism_speed: kani::any::<f64>(), visit_speed: kani::any::<f64>(), max_megabytes_per_view: kani::any::<i32>(), max_render_threads: kani::any::<i32>(), allow_simd: kani::any::<bool>(), downscale_quality: kani::any::<i32>(), upscale_quality: kani::any::<i32>() };
+        let mut self_val = emCoreConfig {
+            stick_mouse_when_navigating: kani::any::<bool>(),
+            emulate_middle_button: kani::any::<bool>(),
+            pan_function: kani::any::<bool>(),
+            mouse_zoom_speed: kani::any::<f64>(),
+            mouse_scroll_speed: kani::any::<f64>(),
+            mouse_wheel_zoom_speed: kani::any::<f64>(),
+            mouse_wheel_zoom_acceleration: kani::any::<f64>(),
+            keyboard_zoom_speed: kani::any::<f64>(),
+            keyboard_scroll_speed: kani::any::<f64>(),
+            kinetic_zooming_and_scrolling: kani::any::<f64>(),
+            magnetism_radius: kani::any::<f64>(),
+            magnetism_speed: kani::any::<f64>(),
+            visit_speed: kani::any::<f64>(),
+            max_megabytes_per_view: kani::any::<i32>(),
+            max_render_threads: kani::any::<i32>(),
+            allow_simd: kani::any::<bool>(),
+            downscale_quality: kani::any::<i32>(),
+            upscale_quality: kani::any::<i32>(),
+        };
         let _r = self_val.SetToDefault();
     }
 

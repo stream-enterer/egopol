@@ -1,5 +1,5 @@
-use crate::emSignal::SignalId;
 use super::emScheduler::EngineScheduler;
+use crate::emSignal::SignalId;
 
 /// The state of a job in the queue.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

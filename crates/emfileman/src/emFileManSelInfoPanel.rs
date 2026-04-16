@@ -5,9 +5,9 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
+use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
-use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 
 use crate::emDirEntry::emDirEntry;
 use crate::emFileManModel::emFileManModel;
@@ -81,10 +81,7 @@ impl Default for SelInfoState {
 }
 
 /// Process a single entry, updating scan details.
-pub fn work_on_detail_entry(
-    details: &mut ScanDetails,
-    entry: &crate::emDirEntry::emDirEntry,
-) {
+pub fn work_on_detail_entry(details: &mut ScanDetails, entry: &crate::emDirEntry::emDirEntry) {
     details.entries += 1;
     if entry.IsHidden() {
         details.hidden_entries += 1;
@@ -297,8 +294,7 @@ impl emFileManSelInfoPanel {
                         entry.GetLStatErrNo()
                     );
                     self.state.recursive.state = ScanState::Error;
-                    self.state.recursive.error_message =
-                        self.state.direct.error_message.clone();
+                    self.state.recursive.error_message = self.state.direct.error_message.clone();
                     self.sel_list.clear();
                     self.dir_stack.clear();
                     return false;
@@ -311,8 +307,7 @@ impl emFileManSelInfoPanel {
                 self.state.direct.size += entry.GetLStat().st_size as u64;
                 #[cfg(target_os = "linux")]
                 {
-                    self.state.direct.disk_usage +=
-                        (entry.GetLStat().st_blocks as u64) * 512;
+                    self.state.direct.disk_usage += (entry.GetLStat().st_blocks as u64) * 512;
                 }
                 #[cfg(not(target_os = "linux"))]
                 {
@@ -346,10 +341,8 @@ impl emFileManSelInfoPanel {
                         }
                         Err(e) => {
                             self.state.recursive.state = ScanState::Error;
-                            self.state.recursive.error_message = format!(
-                                "Failed to read dir \"{}\": {}",
-                                self.dir_path, e
-                            );
+                            self.state.recursive.error_message =
+                                format!("Failed to read dir \"{}\": {}", self.dir_path, e);
                             self.dir_stack.clear();
                             self.initial_dir_stack.clear();
                             self.dir_path.clear();
@@ -362,8 +355,7 @@ impl emFileManSelInfoPanel {
                 match dir_handle.next() {
                     Some(Ok(de)) => {
                         let name = de.file_name().to_string_lossy().to_string();
-                        let entry =
-                            emDirEntry::from_parent_and_name(&self.dir_path, &name);
+                        let entry = emDirEntry::from_parent_and_name(&self.dir_path, &name);
                         if entry.GetLStatErrNo() != 0 {
                             self.state.recursive.state = ScanState::Error;
                             self.state.recursive.error_message = format!(
@@ -382,8 +374,7 @@ impl emFileManSelInfoPanel {
                             &entry,
                             &mut self.dir_stack,
                         );
-                        self.state.recursive.size +=
-                            entry.GetLStat().st_size as u64;
+                        self.state.recursive.size += entry.GetLStat().st_size as u64;
                         #[cfg(target_os = "linux")]
                         {
                             self.state.recursive.disk_usage +=
@@ -397,10 +388,8 @@ impl emFileManSelInfoPanel {
                     }
                     Some(Err(e)) => {
                         self.state.recursive.state = ScanState::Error;
-                        self.state.recursive.error_message = format!(
-                            "Error reading dir \"{}\": {}",
-                            self.dir_path, e
-                        );
+                        self.state.recursive.error_message =
+                            format!("Error reading dir \"{}\": {}", self.dir_path, e);
                         self.dir_stack.clear();
                         self.initial_dir_stack.clear();
                         self.dir_path.clear();
@@ -455,9 +444,7 @@ impl emFileManSelInfoPanel {
             let (msg, blend_color) = match details.state {
                 ScanState::Costly => ("Costly", emColor::from_packed(0x886666FF)),
                 ScanState::Wait => ("Wait...", emColor::from_packed(0x888800FF)),
-                ScanState::Scanning => {
-                    ("Scanning...", emColor::from_packed(0x008800FF))
-                }
+                ScanState::Scanning => ("Scanning...", emColor::from_packed(0x008800FF)),
                 _ => {
                     let msg = if details.error_message.is_empty() {
                         "ERROR"

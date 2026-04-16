@@ -1,7 +1,5 @@
-use emStocks::emStocksRec::{
-    emStocksRec, Interest, StockRec, AddDaysToDate, GetDateDifference,
-};
 use emStocks::emStocksConfig::{emStocksConfig, ChartPeriod, Sorting};
+use emStocks::emStocksRec::{emStocksRec, AddDaysToDate, GetDateDifference, Interest, StockRec};
 use emcore::emRecRecord::Record;
 
 // ─── Record round-trip tests ───
@@ -39,7 +37,10 @@ fn emstocks_rec_file_round_trip() {
     assert_eq!(deserialized.stocks[0].name, "Test Corp");
     assert_eq!(deserialized.stocks[0].prices, "100|101|102");
     assert_eq!(deserialized.stocks[0].interest, Interest::High);
-    assert_eq!(deserialized.stocks[0].web_pages, vec!["https://example.com"]);
+    assert_eq!(
+        deserialized.stocks[0].web_pages,
+        vec!["https://example.com"]
+    );
     assert_eq!(deserialized.stocks[1].id, "2");
     assert_eq!(deserialized.stocks[1].owning_shares, true);
     assert_eq!(deserialized.stocks[1].interest, Interest::Low);

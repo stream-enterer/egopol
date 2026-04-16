@@ -70,14 +70,7 @@ struct ScanEntry {
 /// The C++ macro traverses a sorted linked list, accumulating into existing
 /// entries or inserting new ones. We use a Vec with linear scan for the same
 /// sorted-insert/accumulate behavior.
-fn add_scan_entry(
-    scanlines: &mut [Vec<ScanEntry>],
-    row: i32,
-    x: i32,
-    a0: f64,
-    a1: f64,
-    a2: f64,
-) {
+fn add_scan_entry(scanlines: &mut [Vec<ScanEntry>], row: i32, x: i32, a0: f64, a1: f64, a2: f64) {
     if row < 0 || row as usize >= scanlines.len() {
         return;
     }
@@ -1044,7 +1037,6 @@ mod tests {
         );
     }
 }
-
 
 #[cfg(kani)]
 mod kani_private_proofs {

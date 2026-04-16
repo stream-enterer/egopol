@@ -8,8 +8,8 @@ use crate::emInput::emInputEvent;
 use crate::emInputState::emInputState;
 use crate::emPainter::emPainter;
 
-use crate::emPanelCtx::PanelCtx;
 use super::emPanelTree::{PanelId, PlaybackState};
+use crate::emPanelCtx::PanelCtx;
 
 // RUST_ONLY: rect.rs -- Consolidates C++ pattern of passing 4 separate
 // doubles (GetLayoutX/Y/Width/Height in emPanel.h) into a typed struct.

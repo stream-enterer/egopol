@@ -10,9 +10,9 @@ use emcore::emRadioButton::{emRadioButton, RadioGroup};
 use emcore::emScalarField::emScalarField;
 use emcore::emTextField::emTextField;
 
-use crate::emStocksConfig::{ChartPeriod, Sorting, emStocksConfig};
+use crate::emStocksConfig::{emStocksConfig, ChartPeriod, Sorting};
 use crate::emStocksListBox::emStocksListBox;
-use crate::emStocksRec::{Interest, PaymentPriceToString, StockRec, emStocksRec};
+use crate::emStocksRec::{emStocksRec, Interest, PaymentPriceToString, StockRec};
 
 // ─── FileFieldPanel ──────────────────────────────────────────────────────────
 
@@ -283,7 +283,10 @@ impl ControlWidgets {
 
             min_visible_interest_group: interest_group,
             _min_visible_interest_buttons: interest_buttons,
-            visible_countries: ControlCategoryPanel::new("Visible Countries", CategoryType::Country),
+            visible_countries: ControlCategoryPanel::new(
+                "Visible Countries",
+                CategoryType::Country,
+            ),
             visible_sectors: ControlCategoryPanel::new("Visible Sectors", CategoryType::Sector),
             visible_collections: ControlCategoryPanel::new(
                 "Visible Collections",
@@ -507,7 +510,9 @@ impl emStocksControlPanel {
         widgets.api_key.SetText(&config.api_key);
         widgets.web_browser.UpdateControls(config);
 
-        widgets.auto_update_dates.SetChecked(config.auto_update_dates);
+        widgets
+            .auto_update_dates
+            .SetChecked(config.auto_update_dates);
         widgets
             .triggering_opens_web_page
             .SetChecked(config.triggering_opens_web_page);
@@ -527,7 +532,9 @@ impl emStocksControlPanel {
             .visible_countries
             .UpdateItems(&rec.stocks, countries_ext);
         let sectors_ext = widgets.visible_sectors.extractor();
-        widgets.visible_sectors.UpdateItems(&rec.stocks, sectors_ext);
+        widgets
+            .visible_sectors
+            .UpdateItems(&rec.stocks, sectors_ext);
         let collections_ext = widgets.visible_collections.extractor();
         widgets
             .visible_collections
@@ -535,13 +542,17 @@ impl emStocksControlPanel {
 
         let sorting_idx = sorting_to_index(config.sorting);
         widgets.sorting_group.borrow_mut().SetChecked(sorting_idx);
-        widgets.owned_shares_first.SetChecked(config.owned_shares_first);
+        widgets
+            .owned_shares_first
+            .SetChecked(config.owned_shares_first);
 
         // History navigation enabled state
-        widgets.go_back_in_history_enabled =
-            !rec.GetPricesDateBefore(list_box.GetSelectedDate()).is_empty();
-        widgets.go_forward_in_history_enabled =
-            !rec.GetPricesDateAfter(list_box.GetSelectedDate()).is_empty();
+        widgets.go_back_in_history_enabled = !rec
+            .GetPricesDateBefore(list_box.GetSelectedDate())
+            .is_empty();
+        widgets.go_forward_in_history_enabled = !rec
+            .GetPricesDateAfter(list_box.GetSelectedDate())
+            .is_empty();
 
         widgets.selected_date = ValidateDate(list_box.GetSelectedDate());
 
@@ -644,7 +655,11 @@ mod tests {
     #[test]
     fn category_panel_update_items() {
         let mut cp = ControlCategoryPanel::new("Countries", CategoryType::Country);
-        let mut stocks = vec![StockRec::default(), StockRec::default(), StockRec::default()];
+        let mut stocks = vec![
+            StockRec::default(),
+            StockRec::default(),
+            StockRec::default(),
+        ];
         stocks[0].country = "US".to_string();
         stocks[1].country = "DE".to_string();
         stocks[2].country = "US".to_string(); // duplicate
@@ -670,7 +685,10 @@ mod tests {
         );
         assert_eq!(widgets.web_browser.field_type, FileFieldType::Browser);
         // chart_period starts at default index
-        assert!((widgets.chart_period.GetValue() - chart_period_to_index(ChartPeriod::default())).abs() < f64::EPSILON);
+        assert!(
+            (widgets.chart_period.GetValue() - chart_period_to_index(ChartPeriod::default())).abs()
+                < f64::EPSILON
+        );
         // interest and sorting groups start with no selection
         assert!(!widgets.auto_update_dates.IsChecked());
         assert!(!widgets.triggering_opens_web_page.IsChecked());
@@ -759,7 +777,10 @@ mod tests {
         assert_eq!(w.api_key.GetText(), "test-key");
         assert!(w.auto_update_dates.IsChecked());
         assert!(w.triggering_opens_web_page.IsChecked());
-        assert!((w.chart_period.GetValue() - chart_period_to_index(ChartPeriod::Months3)).abs() < f64::EPSILON);
+        assert!(
+            (w.chart_period.GetValue() - chart_period_to_index(ChartPeriod::Months3)).abs()
+                < f64::EPSILON
+        );
         assert_eq!(
             w.min_visible_interest_group.borrow().GetChecked(),
             Some(interest_to_index(Interest::High))
@@ -1006,7 +1027,10 @@ mod tests {
 
         assert_eq!(readback.api_key, original.api_key);
         assert_eq!(readback.auto_update_dates, original.auto_update_dates);
-        assert_eq!(readback.triggering_opens_web_page, original.triggering_opens_web_page);
+        assert_eq!(
+            readback.triggering_opens_web_page,
+            original.triggering_opens_web_page
+        );
         assert_eq!(readback.chart_period, original.chart_period);
         assert_eq!(readback.min_visible_interest, original.min_visible_interest);
         assert_eq!(readback.sorting, original.sorting);

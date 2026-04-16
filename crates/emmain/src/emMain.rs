@@ -43,9 +43,7 @@ pub fn CalcServerName() -> String {
 fn get_hostname() -> String {
     // SAFETY: gethostname fills a stack buffer; we check the return code.
     let mut buf = [0u8; 512];
-    let rc = unsafe {
-        libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len())
-    };
+    let rc = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) };
     if rc != 0 {
         return "localhost".to_string();
     }
@@ -153,7 +151,10 @@ mod tests {
     fn test_try_ipc_client_no_server() {
         // Should return false when no server is running
         assert!(!try_ipc_client("nonexistent_test_server_12345", None));
-        assert!(!try_ipc_client("nonexistent_test_server_12345", Some("/home")));
+        assert!(!try_ipc_client(
+            "nonexistent_test_server_12345",
+            Some("/home")
+        ));
     }
 
     #[test]

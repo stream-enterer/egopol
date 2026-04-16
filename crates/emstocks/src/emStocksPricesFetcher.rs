@@ -35,11 +35,7 @@ pub struct emStocksPricesFetcher {
 }
 
 impl emStocksPricesFetcher {
-    pub fn new(
-        api_script: &str,
-        api_script_interpreter: &str,
-        api_key: &str,
-    ) -> Self {
+    pub fn new(api_script: &str, api_script_interpreter: &str, api_key: &str) -> Self {
         Self {
             api_script: api_script.to_string(),
             api_script_interpreter: api_script_interpreter.to_string(),
@@ -73,9 +69,7 @@ impl emStocksPricesFetcher {
 
     /// Port of C++ GetCurrentStockId.
     pub fn GetCurrentStockId(&self) -> Option<&str> {
-        if self.current_index < 0
-            || self.current_index as usize >= self.stock_ids.len()
-        {
+        if self.current_index < 0 || self.current_index as usize >= self.stock_ids.len() {
             return None;
         }
         Some(&self.stock_ids[self.current_index as usize])
@@ -83,9 +77,7 @@ impl emStocksPricesFetcher {
 
     /// Port of C++ GetProgressInPercent.
     pub fn GetProgressInPercent(&self) -> f64 {
-        if self.current_index < 0
-            || self.current_index as usize >= self.stock_ids.len()
-        {
+        if self.current_index < 0 || self.current_index as usize >= self.stock_ids.len() {
             return 100.0;
         }
         (self.current_index as f64 + 0.5) * 100.0 / self.stock_ids.len() as f64
@@ -93,8 +85,7 @@ impl emStocksPricesFetcher {
 
     /// Port of C++ HasFinished.
     pub fn HasFinished(&self) -> bool {
-        self.current_index < 0
-            || self.current_index as usize >= self.stock_ids.len()
+        self.current_index < 0 || self.current_index as usize >= self.stock_ids.len()
     }
 
     /// Port of C++ GetError.
@@ -132,8 +123,7 @@ impl emStocksPricesFetcher {
 
         let d = match stock_rec {
             Some(sr) if !sr.last_price_date.is_empty() => {
-                let (diff, _) =
-                    GetDateDifference(&sr.last_price_date, &current_date);
+                let (diff, _) = GetDateDifference(&sr.last_price_date, &current_date);
                 let d = diff + 1;
                 d.max(1).min(StockRec::MAX_NUM_PRICES as i32)
             }
@@ -152,10 +142,7 @@ impl emStocksPricesFetcher {
         loop {
             // Find line break (0x0d or 0x0a)
             let mut brk = pos;
-            while brk < len
-                && self.out_buffer[brk] != 0x0d
-                && self.out_buffer[brk] != 0x0a
-            {
+            while brk < len && self.out_buffer[brk] != 0x0d && self.out_buffer[brk] != 0x0a {
                 brk += 1;
             }
             if brk >= len {
@@ -163,16 +150,12 @@ impl emStocksPricesFetcher {
             }
 
             // Extract line as string (replacing the break char with nul like C++)
-            let line =
-                String::from_utf8_lossy(&self.out_buffer[pos..brk]).to_string();
+            let line = String::from_utf8_lossy(&self.out_buffer[pos..brk]).to_string();
             self.ProcessOutBufferLine(&line, rec);
 
             // Skip consecutive line break chars
             brk += 1;
-            while brk < len
-                && (self.out_buffer[brk] == 0x0d
-                    || self.out_buffer[brk] == 0x0a)
-            {
+            while brk < len && (self.out_buffer[brk] == 0x0d || self.out_buffer[brk] == 0x0a) {
                 brk += 1;
             }
             pos = brk;
@@ -185,11 +168,7 @@ impl emStocksPricesFetcher {
 
     /// Port of C++ ProcessOutBufferLine.
     /// Parses a single line "YYYY-MM-DD price" and calls AddPrice.
-    pub fn ProcessOutBufferLine(
-        &mut self,
-        line: &str,
-        rec: &mut emStocksRec,
-    ) {
+    pub fn ProcessOutBufferLine(&mut self, line: &str, rec: &mut emStocksRec) {
         let bytes = line.as_bytes();
         let len = bytes.len();
         let mut pos = 0;
@@ -253,12 +232,7 @@ impl emStocksPricesFetcher {
     }
 
     /// Port of C++ AddPrice (the fetcher's version, which updates StockRec and ListBoxes).
-    fn AddPriceToStock(
-        &mut self,
-        date: &str,
-        price: &str,
-        rec: &mut emStocksRec,
-    ) {
+    fn AddPriceToStock(&mut self, date: &str, price: &str, rec: &mut emStocksRec) {
         let idx = match self.GetCurrentStockRecIndex(rec) {
             Some(i) => i,
             None => return,
@@ -400,9 +374,7 @@ impl emStocksPricesFetcher {
                 PipeResult::Bytes(n) => {
                     self.err_buffer.extend_from_slice(&tmp[..n]);
                     if self.err_buffer.len() > 100000 {
-                        self.SetFailed(
-                            "API script printed too much data on stderr.",
-                        );
+                        self.SetFailed("API script printed too much data on stderr.");
                         return;
                     }
                 }
@@ -439,13 +411,11 @@ impl emStocksPricesFetcher {
             if let Some(idx) = self.GetCurrentStockRecIndex(rec) {
                 let symbol = &rec.stocks[idx].symbol;
                 let name = &rec.stocks[idx].name;
-                self.no_data_stocks +=
-                    &format!("  {} - {}\n", symbol, name);
+                self.no_data_stocks += &format!("  {} - {}\n", symbol, name);
             }
         }
 
-        if !self.no_data_stocks.is_empty()
-            && self.current_index + 1 >= self.stock_ids.len() as i32
+        if !self.no_data_stocks.is_empty() && self.current_index + 1 >= self.stock_ids.len() as i32
         {
             self.SetFailed(&format!(
                 "Could not fetch any new data for:\n{}",
@@ -467,11 +437,7 @@ impl emStocksPricesFetcher {
     }
 
     /// Resolve stock ID to StockRec index in the emStocksRec.
-    fn GetStockRecIndex(
-        &self,
-        stock_id: &str,
-        rec: &emStocksRec,
-    ) -> Option<usize> {
+    fn GetStockRecIndex(&self, stock_id: &str, rec: &emStocksRec) -> Option<usize> {
         // Check cached index first
         if let Some(Some(idx)) = self.stock_index_map.get(stock_id) {
             if *idx < rec.stocks.len() && rec.stocks[*idx].id == stock_id {
@@ -524,8 +490,7 @@ mod tests {
 
     #[test]
     fn fetcher_add_stock_ids() {
-        let mut fetcher =
-            emStocksPricesFetcher::new("script.pl", "perl", "key123");
+        let mut fetcher = emStocksPricesFetcher::new("script.pl", "perl", "key123");
         fetcher.AddStockIds(&["1".to_string(), "2".to_string()]);
         assert!(!fetcher.HasFinished());
         assert_eq!(fetcher.GetCurrentStockId(), Some("1"));
@@ -601,8 +566,7 @@ mod tests {
         rec.stocks.push(stock);
         fetcher.AddStockIds(&["1".to_string()]);
 
-        fetcher.out_buffer =
-            b"2024-03-14 99.0\n2024-03-15 100.5\n2024-03-".to_vec();
+        fetcher.out_buffer = b"2024-03-14 99.0\n2024-03-15 100.5\n2024-03-".to_vec();
         fetcher.ProcessOutBufferLines(&mut rec);
         assert_eq!(fetcher.out_buffer, b"2024-03-");
         assert_eq!(rec.stocks[0].last_price_date, "2024-03-15");
@@ -627,8 +591,7 @@ mod tests {
 
     #[test]
     fn build_argv_with_interpreter() {
-        let mut fetcher =
-            emStocksPricesFetcher::new("script.pl", "perl", "key123");
+        let mut fetcher = emStocksPricesFetcher::new("script.pl", "perl", "key123");
         fetcher.current_symbol = "AAPL".to_string();
         fetcher.current_start_date = "2024-01-01".to_string();
         let argv = fetcher.BuildProcessArgv();
@@ -640,21 +603,16 @@ mod tests {
 
     #[test]
     fn build_argv_without_interpreter() {
-        let mut fetcher =
-            emStocksPricesFetcher::new("script.py", "", "mykey");
+        let mut fetcher = emStocksPricesFetcher::new("script.py", "", "mykey");
         fetcher.current_symbol = "GOOG".to_string();
         fetcher.current_start_date = "2024-06-01".to_string();
         let argv = fetcher.BuildProcessArgv();
-        assert_eq!(
-            argv,
-            vec!["script.py", "GOOG", "2024-06-01", "mykey"]
-        );
+        assert_eq!(argv, vec!["script.py", "GOOG", "2024-06-01", "mykey"]);
     }
 
     #[test]
     fn start_process_skips_stocks_without_symbol() {
-        let mut fetcher =
-            emStocksPricesFetcher::new("script.py", "", "key");
+        let mut fetcher = emStocksPricesFetcher::new("script.py", "", "key");
         let mut rec = emStocksRec::default();
 
         // Stock 1: no symbol (should be skipped)
@@ -706,8 +664,7 @@ mod tests {
 
     #[test]
     fn poll_process_handles_exit_with_error() {
-        let mut fetcher =
-            emStocksPricesFetcher::new("script.py", "", "key");
+        let mut fetcher = emStocksPricesFetcher::new("script.py", "", "key");
         // Simulate an active process state without real process
         // (PollProcess will see pipes closed and process not running)
         fetcher.current_process_active = true;
@@ -731,8 +688,7 @@ mod tests {
 
     #[test]
     fn start_process_returns_early_when_all_done() {
-        let mut fetcher =
-            emStocksPricesFetcher::new("script.py", "", "key");
+        let mut fetcher = emStocksPricesFetcher::new("script.py", "", "key");
         let mut rec = emStocksRec::default();
         // No stocks added — StartProcess should return immediately
         fetcher.StartProcess(&mut rec);
@@ -741,8 +697,7 @@ mod tests {
 
     #[test]
     fn start_process_skips_missing_stock_rec() {
-        let mut fetcher =
-            emStocksPricesFetcher::new("script.py", "", "key");
+        let mut fetcher = emStocksPricesFetcher::new("script.py", "", "key");
         let mut rec = emStocksRec::default();
         // Add stock ID "1" but no matching StockRec in rec
         fetcher.AddStockIds(&["1".to_string()]);

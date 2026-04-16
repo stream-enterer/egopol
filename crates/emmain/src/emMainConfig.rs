@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use emcore::emConfigModel::emConfigModel;
 use emcore::emContext::emContext;
-use emcore::emInstallInfo::{emGetInstallPath, InstallDirType};
+use emcore::emInstallInfo::{InstallDirType, emGetInstallPath};
 use emcore::emRec::{RecError, RecStruct};
 use emcore::emRecRecord::Record;
 use emcore::emSignal::SignalId;
@@ -38,9 +38,7 @@ impl Record for emMainConfigRec {
             AutoHideControlView: rec
                 .get_bool("AutoHideControlView")
                 .unwrap_or(d.AutoHideControlView),
-            AutoHideSlider: rec
-                .get_bool("AutoHideSlider")
-                .unwrap_or(d.AutoHideSlider),
+            AutoHideSlider: rec.get_bool("AutoHideSlider").unwrap_or(d.AutoHideSlider),
             ControlViewSize: rec
                 .get_double("ControlViewSize")
                 .unwrap_or(d.ControlViewSize)
@@ -89,8 +87,7 @@ impl emMainConfig {
                         .join("config.rec")
                 });
 
-            let mut model =
-                emConfigModel::new(emMainConfigRec::default(), path, SignalId::null());
+            let mut model = emConfigModel::new(emMainConfigRec::default(), path, SignalId::null());
 
             if let Err(e) = model.TryLoadOrInstall() {
                 log::warn!("MainConfig: failed to load or install config: {e}");

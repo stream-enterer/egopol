@@ -44,9 +44,7 @@ impl<K: Ord + Clone, V: Clone> emAvlTreeMap<K, V> {
     pub fn from_entry(key: K, value: V) -> Self {
         let mut map = BTreeMap::new();
         map.insert(key, value);
-        Self {
-            data: Rc::new(map),
-        }
+        Self { data: Rc::new(map) }
     }
 
     // --- Read ---

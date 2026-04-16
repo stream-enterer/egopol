@@ -2,7 +2,7 @@ use emcore::emColor::emColor;
 use emcore::emImage::emImage;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 
-use emcore::emStroke::{DashType, LineCap, LineJoin, emStroke};
+use emcore::emStroke::{emStroke, DashType, LineCap, LineJoin};
 
 use emcore::emStrokeEnd::{emStrokeEnd, StrokeEndType};
 
@@ -105,7 +105,14 @@ fn painter_ellipse_basic() {
     {
         let mut p = white_painter(&mut img);
         // C++ PaintEllipse(28,28,200,150)
-        p.PaintEllipse(28.0, 28.0, 200.0, 150.0, emColor::GREEN, emColor::TRANSPARENT);
+        p.PaintEllipse(
+            28.0,
+            28.0,
+            200.0,
+            150.0,
+            emColor::GREEN,
+            emColor::TRANSPARENT,
+        );
     }
     compare_images("ellipse_basic", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
@@ -119,7 +126,14 @@ fn painter_ellipse_small() {
     {
         let mut p = white_painter(&mut img);
         // C++ PaintEllipse(118,118,20,20)
-        p.PaintEllipse(118.0, 118.0, 20.0, 20.0, emColor::BLUE, emColor::TRANSPARENT);
+        p.PaintEllipse(
+            118.0,
+            118.0,
+            20.0,
+            20.0,
+            emColor::BLUE,
+            emColor::TRANSPARENT,
+        );
     }
     compare_images("ellipse_small", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
@@ -206,7 +220,16 @@ fn painter_round_rect() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        p.PaintRoundRect(20.0, 20.0, 200.0, 150.0, 20.0, 20.0, emColor::BLUE, emColor::TRANSPARENT);
+        p.PaintRoundRect(
+            20.0,
+            20.0,
+            200.0,
+            150.0,
+            20.0,
+            20.0,
+            emColor::BLUE,
+            emColor::TRANSPARENT,
+        );
     }
     compare_images("round_rect", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
@@ -448,7 +471,12 @@ fn painter_outline_polygon() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        p.PaintPolygonOutline(&pentagon_vertices(), emColor::BLACK, 3.0, emColor::TRANSPARENT);
+        p.PaintPolygonOutline(
+            &pentagon_vertices(),
+            emColor::BLACK,
+            3.0,
+            emColor::TRANSPARENT,
+        );
     }
     compare_images("outline_polygon", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
 }
@@ -475,7 +503,16 @@ fn painter_outline_round_rect() {
     }
     // Residual: arc approximation segment GetCount differs slightly from C++.
     // max_diff=162, 0.21% of pixels differ at ch_tol=1.
-    compare_images("outline_round_rect", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
+    compare_images(
+        "outline_round_rect",
+        img.GetMap(),
+        &expected,
+        ew,
+        eh,
+        0,
+        0.0,
+    )
+    .unwrap();
 }
 
 // ─── Test 21: bezier_filled ─────────────────────────────────────
@@ -688,7 +725,16 @@ fn painter_transform_translate() {
         p.PaintRect(0.0, 0.0, 80.0, 60.0, emColor::RED, emColor::TRANSPARENT);
         p.pop_state();
     }
-    compare_images("transform_translate", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
+    compare_images(
+        "transform_translate",
+        img.GetMap(),
+        &expected,
+        ew,
+        eh,
+        0,
+        0.0,
+    )
+    .unwrap();
 }
 
 // ─── Test 35: transform_fractional ──────────────────────────────
@@ -1071,5 +1117,14 @@ fn painter_howto_isolate() {
             emColor::rgba(0x51, 0x5e, 0x84, 0xff),
         );
     }
-    compare_images("painter_howto_isolate", img.GetMap(), &expected, ew, eh, 0, 0.0).unwrap();
+    compare_images(
+        "painter_howto_isolate",
+        img.GetMap(),
+        &expected,
+        ew,
+        eh,
+        0,
+        0.0,
+    )
+    .unwrap();
 }

@@ -5,14 +5,17 @@ use bitflags::bitflags;
 use crate::emImage::emImage;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
-use crate::emViewInputFilter::{CheatAction, emCheatVIF, emDefaultTouchVIF, emKeyboardZoomScrollVIF, emMouseZoomScrollVIF, emViewInputFilter};
 use crate::emPanelTree::{PanelId, PanelTree};
+use crate::emRenderThreadPool::emRenderThreadPool;
+use crate::emSignal::SignalId;
 use crate::emView::emView;
 use crate::emViewAnimator::emViewAnimator;
-use crate::emRenderThreadPool::emRenderThreadPool;
+use crate::emViewInputFilter::{
+    emCheatVIF, emDefaultTouchVIF, emKeyboardZoomScrollVIF, emMouseZoomScrollVIF,
+    emViewInputFilter, CheatAction,
+};
 use crate::emViewRendererCompositor::WgpuCompositor;
 use crate::emViewRendererTileCache::TileCache;
-use crate::emSignal::SignalId;
 
 use crate::emGUIFramework::GpuContext;
 use crate::emScreen::emScreen;
@@ -220,7 +223,8 @@ impl ZuiWindow {
             self.viewport_buffer.fill(crate::emColor::emColor::BLACK);
             {
                 let mut painter = emPainter::new(&mut self.viewport_buffer);
-                self.view.Paint(tree, &mut painter, crate::emColor::emColor::TRANSPARENT);
+                self.view
+                    .Paint(tree, &mut painter, crate::emColor::emColor::TRANSPARENT);
             }
             for row in 0..rows {
                 for col in 0..cols {
@@ -254,7 +258,11 @@ impl ZuiWindow {
                             let mut painter = emPainter::new(&mut tile.image);
                             let ts = tile_size as f64;
                             painter.translate(-(col as f64 * ts), -(row as f64 * ts));
-                            self.view.Paint(tree, &mut painter, crate::emColor::emColor::TRANSPARENT);
+                            self.view.Paint(
+                                tree,
+                                &mut painter,
+                                crate::emColor::emColor::TRANSPARENT,
+                            );
                         }
                         tile.dirty = false;
                         let tile_ref = self.tile_cache.GetRec(col, row).unwrap();
@@ -302,8 +310,8 @@ impl ZuiWindow {
         tile_size: u32,
     ) {
         use crate::emColor::emColor;
-        use crate::emPainterDrawList::DrawList;
         use crate::emPainter::emPainter;
+        use crate::emPainterDrawList::DrawList;
 
         let vp_w = self.surface_config.width;
         let vp_h = self.surface_config.height;
@@ -546,7 +554,12 @@ impl ZuiWindow {
     }
 
     /// Dispatch an input event through VIF chain, then to panel behavior.
-    pub fn dispatch_input(&mut self, tree: &mut PanelTree, event: &emInputEvent, state: &mut emInputState) {
+    pub fn dispatch_input(
+        &mut self,
+        tree: &mut PanelTree,
+        event: &emInputEvent,
+        state: &mut emInputState,
+    ) {
         // Track mouse position for cursor warping (skip wheel events).
         if !matches!(
             event.key,
@@ -672,7 +685,8 @@ impl ZuiWindow {
                 tree.ViewToPanelY(panel_id, ev.mouse_y, self.view.GetCurrentPixelTallness());
 
             if let Some(mut behavior) = tree.take_behavior(panel_id) {
-                let panel_state = tree.build_panel_state(panel_id, wf, self.view.GetCurrentPixelTallness());
+                let panel_state =
+                    tree.build_panel_state(panel_id, wf, self.view.GetCurrentPixelTallness());
                 // C++ RecurseInput (emView.cpp:2055-2058): keyboard events are
                 // suppressed for panels not in the active path.
                 if panel_ev.is_keyboard_event() && !panel_state.in_active_path {
@@ -681,7 +695,10 @@ impl ZuiWindow {
                 }
                 consumed = behavior.Input(&panel_ev, &panel_state, state);
                 if trace && is_press_release {
-                    let name = tree.GetRec(panel_id).map(|p| p.name.as_str()).unwrap_or("?");
+                    let name = tree
+                        .GetRec(panel_id)
+                        .map(|p| p.name.as_str())
+                        .unwrap_or("?");
                     eprintln!(
                         "  {:?} {:?} local=({:.4},{:.4}) consumed={}",
                         panel_id, name, panel_ev.mouse_x, panel_ev.mouse_y, consumed
@@ -694,7 +711,10 @@ impl ZuiWindow {
                 tree.put_behavior(panel_id, behavior);
                 if consumed {
                     if trace && is_press_release {
-                        let name = tree.GetRec(panel_id).map(|p| p.name.as_str()).unwrap_or("?");
+                        let name = tree
+                            .GetRec(panel_id)
+                            .map(|p| p.name.as_str())
+                            .unwrap_or("?");
                         eprintln!("  >>> CONSUMED by {:?}", name);
                     }
                     self.view.InvalidatePainting(tree, panel_id);
@@ -705,10 +725,7 @@ impl ZuiWindow {
 
         // Arrow key sibling navigation (C++ emPanel.cpp Input, state.IsNoMod() guard).
         // Only fires if no behavior consumed the event.
-        if !consumed
-            && event.variant == InputVariant::Press
-            && state.IsNoMod()
-        {
+        if !consumed && event.variant == InputVariant::Press && state.IsNoMod() {
             match event.key {
                 InputKey::ArrowLeft => self.view.VisitLeft(tree),
                 InputKey::ArrowRight => self.view.VisitRight(tree),
@@ -887,22 +904,16 @@ impl ZuiWindow {
 
     /// Handle a winit Touch event by routing to the emDefaultTouchVIF.
     /// Returns true if the event was consumed.
-    pub fn handle_touch(
-        &mut self,
-        touch: &winit::event::Touch,
-        tree: &mut PanelTree,
-    ) -> bool {
+    pub fn handle_touch(&mut self, touch: &winit::event::Touch, tree: &mut PanelTree) -> bool {
         use winit::event::TouchPhase;
         match touch.phase {
-            TouchPhase::Started => {
-                self.touch_vif.touch_start(
-                    touch.id,
-                    touch.location.x,
-                    touch.location.y,
-                    &mut self.view,
-                    tree,
-                )
-            }
+            TouchPhase::Started => self.touch_vif.touch_start(
+                touch.id,
+                touch.location.x,
+                touch.location.y,
+                &mut self.view,
+                tree,
+            ),
             TouchPhase::Moved => {
                 // dt=0.016 is a reasonable default; the real frame delta is
                 // applied in cycle_gesture which runs each frame.
@@ -1136,9 +1147,11 @@ impl ZuiWindow {
             icon.get_converted(4)
         };
 
-        if let Ok(winit_icon) =
-            winit::window::Icon::from_rgba(rgba.GetMap().to_vec(), rgba.GetWidth(), rgba.GetHeight())
-        {
+        if let Ok(winit_icon) = winit::window::Icon::from_rgba(
+            rgba.GetMap().to_vec(),
+            rgba.GetWidth(),
+            rgba.GetHeight(),
+        ) {
             self.winit_window.set_window_icon(Some(winit_icon));
         } else {
             log::error!(
@@ -1374,9 +1387,7 @@ mod tests {
         let _ = std::fs::create_dir_all(&dir);
         // Remove any existing files
         for n in 0..10u32 {
-            let _ = std::fs::remove_file(
-                dir.join(format!("eaglemode_screenshot_{:03}.xwd", n)),
-            );
+            let _ = std::fs::remove_file(dir.join(format!("eaglemode_screenshot_{:03}.xwd", n)));
         }
 
         let path = find_next_screenshot_path_in(&dir).expect("should find a path");

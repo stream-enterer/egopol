@@ -3,9 +3,9 @@ use std::rc::Rc;
 
 use crate::emColor::emColor;
 use crate::emFileModel::{FileModelState, FileState};
+use crate::emPainter::{emPainter, TextAlignment, VAlign};
 use crate::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use crate::emPanelCtx::PanelCtx;
-use crate::emPainter::{emPainter, TextAlignment, VAlign};
 
 /// Extended file state for a file panel, adding custom error and no-model states.
 ///
@@ -95,7 +95,6 @@ impl emFilePanel {
     pub fn GetCustomError(&self) -> Option<&str> {
         self.custom_error.as_deref()
     }
-
 
     /// Return the cached virtual file state.
     pub fn GetVirFileState(&self) -> VirtualFileState {
@@ -349,7 +348,6 @@ impl emFilePanel {
             }
         }
     }
-
 }
 
 /// Paint a centered status text over the full panel area.

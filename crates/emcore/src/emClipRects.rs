@@ -549,7 +549,6 @@ mod tests {
     }
 }
 
-
 #[cfg(kani)]
 mod kani_private_proofs {
     use super::*;

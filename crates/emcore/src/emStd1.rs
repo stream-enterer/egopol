@@ -30,11 +30,7 @@ pub fn start_capture() {
 
 /// Stop capturing and return all captured lines.
 pub fn stop_capture() -> Vec<String> {
-    DLOG_CAPTURE
-        .lock()
-        .unwrap()
-        .take()
-        .unwrap_or_default()
+    DLOG_CAPTURE.lock().unwrap().take().unwrap_or_default()
 }
 
 /// Push a line to the capture buffer if active.

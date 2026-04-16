@@ -1,11 +1,11 @@
 mod animator;
-mod draw_op_dump;
 mod common;
 mod composition;
+mod compositor;
 mod control_panel;
 mod cosmos_items;
+mod draw_op_dump;
 mod eagle_logo;
-mod compositor;
 mod input;
 mod input_filter;
 mod interaction;

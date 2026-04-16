@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::emColor::emColor;
-use crate::emPanel::Rect;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
-use crate::emRasterLayout::emRasterLayout;
+use crate::emPainter::emPainter;
+use crate::emPanel::Rect;
 use crate::emPanel::{PanelBehavior, PanelState};
 use crate::emPanelCtx::PanelCtx;
-use crate::emPainter::emPainter;
+use crate::emRasterLayout::emRasterLayout;
 
 use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 use crate::emLook::emLook;
@@ -160,10 +160,19 @@ impl PanelBehavior for DefaultItemPanelBehavior {
         // C++ emListBox::DefaultItemPanel::Paint — emListBox.cpp:554-608
         let canvas_color = painter.GetCanvasColor();
 
-        let (mut bg_col, mut fg_col, mut hl_col) = if self.selection_mode != SelectionMode::ReadOnly {
-            (self.look.input_bg_color, self.look.input_fg_color, self.look.input_hl_color)
+        let (mut bg_col, mut fg_col, mut hl_col) = if self.selection_mode != SelectionMode::ReadOnly
+        {
+            (
+                self.look.input_bg_color,
+                self.look.input_fg_color,
+                self.look.input_hl_color,
+            )
         } else {
-            (self.look.output_bg_color, self.look.output_fg_color, self.look.output_hl_color)
+            (
+                self.look.output_bg_color,
+                self.look.output_fg_color,
+                self.look.output_hl_color,
+            )
         };
         if !self.enabled {
             let base = self.look.bg_color;
@@ -182,20 +191,36 @@ impl PanelBehavior for DefaultItemPanelBehavior {
             let dx = cw.min(ch) * 0.015;
             let dy = cw.min(ch) * 0.015;
             let r = cw.min(ch) * 0.15;
-            painter.PaintRoundRect(x + dx, y + dy, cw - 2.0 * dx, ch - 2.0 * dy, r, r, hl_col, canvas_color);
+            painter.PaintRoundRect(
+                x + dx,
+                y + dy,
+                cw - 2.0 * dx,
+                ch - 2.0 * dy,
+                r,
+                r,
+                hl_col,
+                canvas_color,
+            );
             canvas_color = hl_col;
         }
 
         let dx = cw.min(ch) * 0.15;
         let dy = cw.min(ch) * 0.03;
         painter.PaintTextBoxed(
-            x + dx, y + dy, cw - 2.0 * dx, ch - 2.0 * dy,
-            &self.text, h,
+            x + dx,
+            y + dy,
+            cw - 2.0 * dx,
+            ch - 2.0 * dy,
+            &self.text,
+            h,
             if self.selected { bg_col } else { fg_col },
             canvas_color,
-            crate::emPainter::TextAlignment::Left, crate::emPainter::VAlign::Center,
             crate::emPainter::TextAlignment::Left,
-            0.5, true, 0.0,
+            crate::emPainter::VAlign::Center,
+            crate::emPainter::TextAlignment::Left,
+            0.5,
+            true,
+            0.0,
         );
     }
 
@@ -410,12 +435,7 @@ impl emListBox {
 
     /// Add an item at the end with associated user data.
     /// Matches C++ `emListBox::AddItem(name, text, data)`.
-    pub fn add_item_with_data(
-        &mut self,
-        name: String,
-        text: String,
-        data: Option<Box<dyn Any>>,
-    ) {
+    pub fn add_item_with_data(&mut self, name: String, text: String, data: Option<Box<dyn Any>>) {
         let idx = self.items.len();
         self.insert_item_with_data(idx, name, text, data);
     }
@@ -931,7 +951,8 @@ impl emListBox {
     /// Signature: `(index, text, selected, look, selection_mode, enabled) -> Box<dyn PanelBehavior>`
     pub fn set_item_behavior_factory<F>(&mut self, factory: F)
     where
-        F: Fn(usize, &str, bool, Rc<emLook>, SelectionMode, bool) -> Box<dyn PanelBehavior> + 'static,
+        F: Fn(usize, &str, bool, Rc<emLook>, SelectionMode, bool) -> Box<dyn PanelBehavior>
+            + 'static,
     {
         self.item_behavior_factory = Some(Box::new(factory));
     }
@@ -979,7 +1000,14 @@ impl emListBox {
             let child = ctx.create_child(&item.name);
             let behavior: Box<dyn PanelBehavior> =
                 if let Some(factory) = &self.item_behavior_factory {
-                    factory(i, &item.text, item.selected, look.clone(), sel_mode, enabled)
+                    factory(
+                        i,
+                        &item.text,
+                        item.selected,
+                        look.clone(),
+                        sel_mode,
+                        enabled,
+                    )
                 } else {
                     Box::new(DefaultItemPanelBehavior::new(
                         item.text.clone(),
@@ -1008,9 +1036,9 @@ impl emListBox {
         self.raster_layout.do_layout_skip(ctx, None, Some(cr));
 
         // Propagate content canvas color to children.
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 
@@ -1188,7 +1216,12 @@ impl emListBox {
         dx * dx + dy * dy <= r * r
     }
 
-    pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(
+        &mut self,
+        event: &emInputEvent,
+        state: &PanelState,
+        _input_state: &emInputState,
+    ) -> bool {
         if !self.enabled {
             return false;
         }
@@ -1467,7 +1500,9 @@ impl emListBox {
             }
         }
 
-        let now = self.keywalk_clock.map_or_else(std::time::Instant::now, |f| f());
+        let now = self
+            .keywalk_clock
+            .map_or_else(std::time::Instant::now, |f| f());
 
         // Check timeout.
         if let Some(prev_time) = self.keywalk_time {
@@ -2017,11 +2052,19 @@ mod tests {
         lb.AddItem("c".into(), "C".into());
 
         // Ctrl+A selects all
-        lb.Input(&emInputEvent::press(InputKey::Key('a')).with_ctrl(), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::Key('a')).with_ctrl(),
+            &ps,
+            &is,
+        );
         assert_eq!(lb.GetSelectedIndices(), &[0, 1, 2]);
 
         // Shift+Ctrl+A clears
-        lb.Input(&emInputEvent::press(InputKey::Key('a')).with_shift_ctrl(), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::Key('a')).with_shift_ctrl(),
+            &ps,
+            &is,
+        );
         assert!(lb.GetSelectedIndices().is_empty());
     }
 

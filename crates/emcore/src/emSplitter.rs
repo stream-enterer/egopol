@@ -1,14 +1,14 @@
 use crate::emCursor::emCursor;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
-use crate::emTiling::{Orientation, ResolvedOrientation};
+use crate::emPainter::{emPainter, BORDER_EDGES_ONLY};
 use crate::emPanel::PanelState;
 use crate::emPanelCtx::PanelCtx;
-use crate::emPainter::{emPainter, BORDER_EDGES_ONLY};
 use crate::emPanelTree::PanelId;
+use crate::emTiling::{Orientation, ResolvedOrientation};
 
-use crate::emLook::emLook;
 use crate::emBorder::{emBorder, with_toolkit_images};
+use crate::emLook::emLook;
 use std::rc::Rc;
 
 /// C++ emSplitter grip base fraction before borderScaling.
@@ -202,7 +202,12 @@ impl emSplitter {
         }
     }
 
-    pub fn Input(&mut self, event: &emInputEvent, _state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(
+        &mut self,
+        event: &emInputEvent,
+        _state: &PanelState,
+        _input_state: &emInputState,
+    ) -> bool {
         if self.last_w <= 0.0 || self.last_h <= 0.0 {
             return false;
         }
@@ -307,9 +312,8 @@ impl emSplitter {
         canvas_color: crate::emColor::emColor,
     ) {
         // --- C++ line 200: emBorder::LayoutChildren() base call ---
-        let aux_id: Option<PanelId> = border.and_then(|b| {
-            crate::emTiling::position_aux_panel(ctx, b)
-        });
+        let aux_id: Option<PanelId> =
+            border.and_then(|b| crate::emTiling::position_aux_panel(ctx, b));
 
         // --- C++ line 202: p = GetFirstChild(); if (!p) return; ---
         let children = ctx.children();

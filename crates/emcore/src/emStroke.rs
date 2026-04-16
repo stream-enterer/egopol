@@ -1,5 +1,5 @@
-use crate::emColor::emColor;
 pub use super::emStrokeEnd::{emStrokeEnd, StrokeEndType};
+use crate::emColor::emColor;
 
 /// Line join style.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -29,8 +29,6 @@ pub enum DashType {
     /// Alternating dashes and dots.
     DashDotted,
 }
-
-
 
 /// emStroke properties for outlined shapes.
 #[derive(Clone, Debug)]

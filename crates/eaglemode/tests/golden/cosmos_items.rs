@@ -76,6 +76,14 @@ fn cosmos_item_border() {
         panel.Paint(&mut p, 1.0, panel_h, &state);
     }
 
-    compare_images("cosmos_item_border", img.GetMap(), &expected, ew, eh, 0, 0.0)
-        .expect("cosmos_item_border golden mismatch");
+    compare_images(
+        "cosmos_item_border",
+        img.GetMap(),
+        &expected,
+        ew,
+        eh,
+        0,
+        0.0,
+    )
+    .expect("cosmos_item_border golden mismatch");
 }

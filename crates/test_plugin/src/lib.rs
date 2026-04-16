@@ -19,7 +19,7 @@ pub fn test_plugin_func(
     }
 
     // Return an error panel as a simple PanelBehavior implementor
-    Some(Box::new(emErrorPanel::new(
-        &format!("test_plugin loaded: {path}"),
-    )))
+    Some(Box::new(emErrorPanel::new(&format!(
+        "test_plugin loaded: {path}"
+    ))))
 }

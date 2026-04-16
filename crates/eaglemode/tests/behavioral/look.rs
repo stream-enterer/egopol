@@ -1,6 +1,6 @@
-use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emLook::emLook;
+use std::rc::Rc;
 
 /// emLook::Apply — apply look to target, optionally recursive.
 #[test]

@@ -47,7 +47,11 @@ fn remove_active_panel_reselects() {
     // emView should auto-select a new active panel (set_active_panel_best_possible).
     // Only B and root remain; B is the expected pick (deepest focusable).
     h.view.SetActivePanelBestPossible(&mut h.tree);
-    assert_eq!(h.view.GetActivePanel(), Some(b), "view should reselect panel B after removing A");
+    assert_eq!(
+        h.view.GetActivePanel(),
+        Some(b),
+        "view should reselect panel B after removing A"
+    );
 }
 
 #[test]

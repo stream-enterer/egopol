@@ -1,4 +1,4 @@
-use emcore::emListBox::{DefaultItemPanel, ItemPanelInterface, emListBox};
+use emcore::emListBox::{emListBox, DefaultItemPanel, ItemPanelInterface};
 use emcore::emLook::emLook;
 
 struct CustomPanel {

@@ -129,9 +129,7 @@ impl ItemWidgets {
         let interest_buttons: Vec<emRadioButton> = ["High", "Medium", "Low"]
             .iter()
             .enumerate()
-            .map(|(i, label)| {
-                emRadioButton::new(label, look.clone(), interest_group.clone(), i)
-            })
+            .map(|(i, label)| emRadioButton::new(label, look.clone(), interest_group.clone(), i))
             .collect();
 
         Self {
@@ -533,7 +531,12 @@ impl emStocksItemPanel {
             stock.web_pages[i] = tf.GetText().to_string();
         }
         // Trim trailing empty entries
-        while stock.web_pages.last().map(|s: &String| s.is_empty()).unwrap_or(false) {
+        while stock
+            .web_pages
+            .last()
+            .map(|s: &String| s.is_empty())
+            .unwrap_or(false)
+        {
             stock.web_pages.pop();
         }
 
@@ -1057,7 +1060,10 @@ mod tests {
         panel.ReadFromWidgets(&mut stock, &config);
 
         assert_eq!(stock.symbol, "NEW");
-        assert!(stock.prices.is_empty(), "prices must be cleared on symbol change");
+        assert!(
+            stock.prices.is_empty(),
+            "prices must be cleared on symbol change"
+        );
     }
 
     #[test]

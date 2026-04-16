@@ -237,9 +237,7 @@ impl<T: Clone> emArray<T> {
         for _ in 0..count {
             v.push(obj.clone());
         }
-        self.adjustments
-            .borrow_mut()
-            .push((count as isize, index));
+        self.adjustments.borrow_mut().push((count as isize, index));
     }
 
     /// Append all elements from another emArray.
@@ -247,9 +245,7 @@ impl<T: Clone> emArray<T> {
         let index = self.data.len();
         let count = array.data.len();
         self.make_writable().extend_from_slice(&array.data);
-        self.adjustments
-            .borrow_mut()
-            .push((count as isize, index));
+        self.adjustments.borrow_mut().push((count as isize, index));
     }
 
     /// Append all elements from a slice.
@@ -257,9 +253,7 @@ impl<T: Clone> emArray<T> {
         let index = self.data.len();
         let count = slice.len();
         self.make_writable().extend_from_slice(slice);
-        self.adjustments
-            .borrow_mut()
-            .push((count as isize, index));
+        self.adjustments.borrow_mut().push((count as isize, index));
     }
 
     /// Set the number of elements. New elements are default-initialized.
@@ -297,9 +291,7 @@ impl<T: Clone> emArray<T> {
     pub fn Insert_fill(&mut self, index: usize, obj: T, count: usize) {
         let items: Vec<T> = (0..count).map(|_| obj.clone()).collect();
         self.make_writable().splice(index..index, items);
-        self.adjustments
-            .borrow_mut()
-            .push((count as isize, index));
+        self.adjustments.borrow_mut().push((count as isize, index));
     }
 
     /// Insert all elements from a slice at `index`.
@@ -307,9 +299,7 @@ impl<T: Clone> emArray<T> {
         let count = slice.len();
         self.make_writable()
             .splice(index..index, slice.iter().cloned());
-        self.adjustments
-            .borrow_mut()
-            .push((count as isize, index));
+        self.adjustments.borrow_mut().push((count as isize, index));
     }
 
     /// Insert all elements from another emArray at `index`.
@@ -318,9 +308,7 @@ impl<T: Clone> emArray<T> {
         let slice = &array.data;
         self.make_writable()
             .splice(index..index, slice.iter().cloned());
-        self.adjustments
-            .borrow_mut()
-            .push((count as isize, index));
+        self.adjustments.borrow_mut().push((count as isize, index));
     }
 
     /// Remove `count` elements starting at `index`.
@@ -376,9 +364,7 @@ impl<T: Clone> emArray<T> {
         let count = self.data.len();
         self.make_writable().clear();
         if count > 0 {
-            self.adjustments
-                .borrow_mut()
-                .push((-(count as isize), 0));
+            self.adjustments.borrow_mut().push((-(count as isize), 0));
         }
     }
 
@@ -611,10 +597,7 @@ impl<T: Clone> emArray<T> {
     }
 
     /// Remove the matching element (per `compare`). Returns `true` if found.
-    pub fn BinaryRemove_by(
-        &mut self,
-        compare: impl FnMut(&T) -> std::cmp::Ordering,
-    ) -> bool {
+    pub fn BinaryRemove_by(&mut self, compare: impl FnMut(&T) -> std::cmp::Ordering) -> bool {
         match self.data.binary_search_by(compare) {
             Ok(i) => {
                 self.make_writable().remove(i);
@@ -653,11 +636,7 @@ impl<T: Clone> emArray<T> {
 
     /// Remove by extracted key. Returns `true` if found.
     /// C++ `BinaryRemoveByKey`.
-    pub fn BinaryRemoveByKey<K: Ord>(
-        &mut self,
-        key: &K,
-        extract: impl Fn(&T) -> K,
-    ) -> bool {
+    pub fn BinaryRemoveByKey<K: Ord>(&mut self, key: &K, extract: impl Fn(&T) -> K) -> bool {
         match self.data.binary_search_by(|probe| extract(probe).cmp(key)) {
             Ok(i) => {
                 self.make_writable().remove(i);

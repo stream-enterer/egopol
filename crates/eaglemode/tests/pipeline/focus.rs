@@ -36,7 +36,14 @@ fn active_state(tree: &PanelTree, id: PanelId) -> (bool, bool) {
 /// Click hit-testing can target them by view-space coordinates.
 ///
 /// Returns (harness, root, branch_a, leaf_a, branch_b, leaf_b).
-fn two_branch_tree() -> (PipelineTestHarness, PanelId, PanelId, PanelId, PanelId, PanelId) {
+fn two_branch_tree() -> (
+    PipelineTestHarness,
+    PanelId,
+    PanelId,
+    PanelId,
+    PanelId,
+    PanelId,
+) {
     let mut h = PipelineTestHarness::new();
     let root = h.get_root_panel();
 
@@ -167,14 +174,20 @@ fn old_active_loses_is_active_on_click() {
     // Activate leaf_a.
     h.view.set_active_panel(&mut h.tree, leaf_a, false);
     h.tick();
-    assert!(active_state(&h.tree, leaf_a).0, "leaf_a should start active");
+    assert!(
+        active_state(&h.tree, leaf_a).0,
+        "leaf_a should start active"
+    );
 
     // Click on right half → activates leaf_b (y=150 avoids leaf_b boundary).
     h.click(600.0, 150.0);
     h.tick();
 
     let (la_active, _) = active_state(&h.tree, leaf_a);
-    assert!(!la_active, "leaf_a should lose is_active after clicking leaf_b");
+    assert!(
+        !la_active,
+        "leaf_a should lose is_active after clicking leaf_b"
+    );
 
     let (lb_active, _) = active_state(&h.tree, leaf_b);
     assert!(lb_active, "leaf_b should gain is_active");
@@ -382,7 +395,11 @@ fn deep_tree_activation_propagates_in_active_path() {
     h.view.set_active_panel(&mut h.tree, mid, false);
     h.tick();
 
-    assert_eq!(active_state(&h.tree, mid), (true, true), "mid is now active");
+    assert_eq!(
+        active_state(&h.tree, mid),
+        (true, true),
+        "mid is now active"
+    );
     assert_eq!(
         active_state(&h.tree, root),
         (false, true),

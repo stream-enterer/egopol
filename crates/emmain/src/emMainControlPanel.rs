@@ -10,7 +10,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use emcore::emBorder::{InnerBorderType, OuterBorderType, emBorder};
 use emcore::emButton::emButton;
 use emcore::emCheckButton::emCheckButton;
 use emcore::emColor::emColor;
@@ -20,13 +20,13 @@ use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
 use emcore::emLinearLayout::emLinearLayout;
 use emcore::emLook::emLook;
-use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPainter::emPainter;
+use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
 use emcore::emTiling::{ChildConstraint, Orientation, Spacing};
 
-use crate::emAutoplayControlPanel::{emAutoplayControlPanel, AutoplayFlags};
+use crate::emAutoplayControlPanel::{AutoplayFlags, emAutoplayControlPanel};
 use crate::emBookmarks::emBookmarksPanel;
 use crate::emMainConfig::emMainConfig;
 
@@ -55,8 +55,7 @@ struct MainButtonPanel {
 
 impl PanelBehavior for MainButtonPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        let pixel_scale =
-            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.button.Paint(painter, w, h, state.enabled, pixel_scale);
     }
 
@@ -87,8 +86,7 @@ struct MainCheckButtonPanel {
 
 impl PanelBehavior for MainCheckButtonPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        let pixel_scale =
-            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.check_button
             .Paint(painter, w, h, state.enabled, pixel_scale);
     }
@@ -143,8 +141,7 @@ impl emMainControlPanel {
         // C++ emMainControlPanel constructor:
         //   SetOuterBorderType(OBT_POPUP_ROOT)
         //   SetInnerBorderType(IBT_NONE)
-        let border = emBorder::new(OuterBorderType::PopupRoot)
-            .with_inner(InnerBorderType::None);
+        let border = emBorder::new(OuterBorderType::PopupRoot).with_inner(InnerBorderType::None);
 
         // C++ layout:
         //   SetMinCellCount(2)
@@ -223,8 +220,7 @@ impl PanelBehavior for emMainControlPanel {
     }
 
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        let pixel_scale =
-            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.border
             .paint_border(painter, w, h, &self.look, false, state.enabled, pixel_scale);
     }
@@ -263,9 +259,7 @@ impl PanelBehavior for emMainControlPanel {
                 // DIVERGED: C++ has direct MainWin reference; Rust uses
                 // thread_local. ToggleFullscreen requires &mut App which
                 // we don't have in Cycle. Log for now.
-                log::info!(
-                    "emMainControlPanel: Fullscreen toggle requested (requires App access)"
-                );
+                log::info!("emMainControlPanel: Fullscreen toggle requested (requires App access)");
                 let _ = mw;
             });
         }
@@ -310,9 +304,9 @@ impl PanelBehavior for emMainControlPanel {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRect(r.w, r.h, &self.look);
         self.layout_main.do_layout_skip(ctx, None, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 
@@ -633,7 +627,15 @@ impl PanelBehavior for CoreConfigPlaceholder {
         let canvas = emColor::TRANSPARENT;
         painter.PaintRect(0.0, 0.0, w, h, bg, canvas);
         let font_h = (h * 0.12).max(0.01);
-        painter.PaintText(w * 0.05, h * 0.3, "Core Configuration", font_h, 1.0, fg, canvas);
+        painter.PaintText(
+            w * 0.05,
+            h * 0.3,
+            "Core Configuration",
+            font_h,
+            1.0,
+            fg,
+            canvas,
+        );
     }
 
     fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState) {}
@@ -680,16 +682,12 @@ impl CommandsPanel {
         // ── BtNewWindow ──
         let flag = Rc::clone(&flags);
         let mut btn_nw = emButton::new("New Window", Rc::clone(&look));
-        btn_nw.SetDescription(
-            "Create a new window showing the same location.\n\nHotkey: F4",
-        );
+        btn_nw.SetDescription("Create a new window showing the same location.\n\nHotkey: F4");
         btn_nw.on_click = Some(Box::new(move || {
             flag.new_window.set(true);
         }));
-        let nw_id = ctx.create_child_with(
-            "new window",
-            Box::new(MainButtonPanel { button: btn_nw }),
-        );
+        let nw_id =
+            ctx.create_child_with("new window", Box::new(MainButtonPanel { button: btn_nw }));
 
         // ── BtFullscreen ──
         let flag = Rc::clone(&flags);
@@ -713,12 +711,8 @@ impl CommandsPanel {
         btn_reload.on_click = Some(Box::new(move || {
             flag.reload.set(true);
         }));
-        let reload_id = ctx.create_child_with(
-            "reload",
-            Box::new(MainButtonPanel {
-                button: btn_reload,
-            }),
-        );
+        let reload_id =
+            ctx.create_child_with("reload", Box::new(MainButtonPanel { button: btn_reload }));
 
         // ── Autoplay control panel ──
         let autoplay = Box::new(emAutoplayControlPanel::new(
@@ -734,12 +728,8 @@ impl CommandsPanel {
         btn_close.on_click = Some(Box::new(move || {
             flag_close.close.set(true);
         }));
-        let close_id = ctx.create_child_with(
-            "close",
-            Box::new(MainButtonPanel {
-                button: btn_close,
-            }),
-        );
+        let close_id =
+            ctx.create_child_with("close", Box::new(MainButtonPanel { button: btn_close }));
 
         let flag_quit = Rc::clone(&flags);
         let mut btn_quit = emButton::new("Quit", Rc::clone(&look));
@@ -749,10 +739,7 @@ impl CommandsPanel {
         btn_quit.on_click = Some(Box::new(move || {
             flag_quit.quit.set(true);
         }));
-        let quit_id = ctx.create_child_with(
-            "quit",
-            Box::new(MainButtonPanel { button: btn_quit }),
-        );
+        let quit_id = ctx.create_child_with("quit", Box::new(MainButtonPanel { button: btn_quit }));
 
         // C++ grCommands child weights:
         //   0: new window (1.0), 1: fullscreen (1.09), 2: reload (1.0),
@@ -814,8 +801,7 @@ impl PanelBehavior for CommandsPanel {
     }
 
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        let pixel_scale =
-            state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.border
             .paint_border(painter, w, h, &self.look, false, state.enabled, pixel_scale);
     }
@@ -827,9 +813,9 @@ impl PanelBehavior for CommandsPanel {
         let r = ctx.layout_rect();
         let cr = self.border.GetContentRect(r.w, r.h, &self.look);
         self.layout.do_layout_skip(ctx, None, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 
@@ -850,10 +836,7 @@ mod tests {
     fn test_control_panel_new() {
         let ctx = emcore::emContext::emContext::NewRoot();
         let panel = emMainControlPanel::new(Rc::clone(&ctx), None);
-        assert_eq!(
-            panel.get_title(),
-            Some("emMainControl".to_string())
-        );
+        assert_eq!(panel.get_title(), Some("emMainControl".to_string()));
     }
 
     #[test]

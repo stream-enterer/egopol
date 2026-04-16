@@ -208,7 +208,10 @@ fn layout_rect_and_canvas_color() {
         tree.layout_rect(root).unwrap(),
         Rect::new(10.0, 20.0, 300.0, 200.0)
     );
-    assert_eq!(tree.GetCanvasColor(root).unwrap(), emColor::rgb(128, 128, 128));
+    assert_eq!(
+        tree.GetCanvasColor(root).unwrap(),
+        emColor::rgb(128, 128, 128)
+    );
     assert!(tree
         .pending_notices(root)
         .contains(NoticeFlags::LAYOUT_CHANGED));

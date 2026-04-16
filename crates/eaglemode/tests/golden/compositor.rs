@@ -1,8 +1,8 @@
 use emcore::emColor::emColor;
+use emcore::emPainter::emPainter;
 use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelTree;
 use emcore::emView::{emView, ViewFlags};
-use emcore::emPainter::emPainter;
 use emcore::emViewRenderer::SoftwareCompositor;
 
 use super::common::*;

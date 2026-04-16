@@ -3,8 +3,8 @@
 //! PanelBehavior contract (auto_expand, child count) is upheld.
 
 use emcore::emPackGroup::emPackGroup;
-use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emPainter::emPainter;
+use emcore::emPanel::{PanelBehavior, PanelState};
 
 use super::support::pipeline::PipelineTestHarness;
 
@@ -36,7 +36,10 @@ fn packgroup_layouts_children() {
 
     // All three children should still be present under the packgroup.
     let child_count = h.tree.children(pg_id).count();
-    assert_eq!(child_count, 3, "expected 3 children under packgroup, got {child_count}");
+    assert_eq!(
+        child_count, 3,
+        "expected 3 children under packgroup, got {child_count}"
+    );
 
     // Each child should have a layout rect with positive area.
     for (label, id) in [("child_a", c1), ("child_b", c2), ("child_c", c3)] {

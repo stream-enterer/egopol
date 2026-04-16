@@ -4,19 +4,18 @@
 //! These tests verify that mouse clicks toggle the checked state correctly when
 //! dispatched through the coordinate-transform pipeline at different zoom levels.
 
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use emcore::emCheckBox::emCheckBox;
+use emcore::emCheckButton::emCheckButton;
 use emcore::emCursor::emCursor;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
-use emcore::emPanel::{PanelBehavior, PanelState};
-use emcore::emPainter::emPainter;
-use emcore::emViewRenderer::SoftwareCompositor;
-use emcore::emCheckBox::emCheckBox;
-use emcore::emCheckButton::emCheckButton;
 use emcore::emLook::emLook;
+use emcore::emPainter::emPainter;
+use emcore::emPanel::{PanelBehavior, PanelState};
+use emcore::emViewRenderer::SoftwareCompositor;
 
 use super::support::pipeline::PipelineTestHarness;
 
@@ -31,7 +30,9 @@ struct SharedCheckButtonPanel {
 impl PanelBehavior for SharedCheckButtonPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.inner.borrow_mut().Paint(painter, w, h, state.enabled, pixel_scale);
+        self.inner
+            .borrow_mut()
+            .Paint(painter, w, h, state.enabled, pixel_scale);
     }
 
     fn Input(
@@ -63,7 +64,9 @@ struct SharedCheckBoxPanel {
 impl PanelBehavior for SharedCheckBoxPanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.inner.borrow_mut().Paint(painter, w, h, state.enabled, pixel_scale);
+        self.inner
+            .borrow_mut()
+            .Paint(painter, w, h, state.enabled, pixel_scale);
     }
 
     fn Input(
@@ -479,10 +482,7 @@ fn checkbutton_alt_click_rejected() {
     h.click(400.0, 300.0);
     h.input_state.release(emcore::emInput::InputKey::Alt);
 
-    assert!(
-        !cb_ref.borrow().IsChecked(),
-        "Alt+Click should be rejected"
-    );
+    assert!(!cb_ref.borrow().IsChecked(), "Alt+Click should be rejected");
 }
 
 // ---------------------------------------------------------------------------

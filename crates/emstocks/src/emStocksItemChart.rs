@@ -8,8 +8,8 @@ use emcore::emTexture::emTexture;
 
 use super::emStocksConfig::emStocksConfig;
 use super::emStocksRec::{
-    AddDaysToDate, AddDaysToDateParts, GetCurrentDate, GetDateDifference,
-    GetDateDifferenceParts, GetDaysOfMonth, ParseDate, SharePriceToString, StockRec,
+    AddDaysToDate, AddDaysToDateParts, GetCurrentDate, GetDateDifference, GetDateDifferenceParts,
+    GetDaysOfMonth, ParseDate, SharePriceToString, StockRec,
 };
 
 /// Port of C++ emStocksItemChart::Price.
@@ -175,7 +175,12 @@ impl emStocksItemChart {
     }
 
     /// Set view context values. Called by the parent panel before painting.
-    pub fn set_view_context(&mut self, pixels_per_unit_x: f64, pixels_per_unit_y: f64, viewed: bool) {
+    pub fn set_view_context(
+        &mut self,
+        pixels_per_unit_x: f64,
+        pixels_per_unit_y: f64,
+        viewed: bool,
+    ) {
         self.pixels_per_unit_x = pixels_per_unit_x;
         self.pixels_per_unit_y = pixels_per_unit_y;
         self.max_label_height = self.ViewToPanelDeltaY(14.0).min(0.032);
@@ -279,8 +284,7 @@ impl emStocksItemChart {
             self.trade_price_text = format!("{}: {}", label, &stock_rec.trade_price);
 
             if !stock_rec.trade_date.is_empty() {
-                let (diff, _valid) =
-                    GetDateDifference(&self.start_date, &stock_rec.trade_date);
+                let (diff, _valid) = GetDateDifference(&self.start_date, &stock_rec.trade_date);
                 self.trade_offset_days = diff;
             } else {
                 self.trade_offset_days = i32::MIN;
@@ -293,14 +297,10 @@ impl emStocksItemChart {
         let price_str = stock_rec.GetPriceOfDate(&self.selected_date);
         self.price_on_selected_date.Set(&price_str);
         if self.price_on_selected_date.valid {
-            if !self.min_price.valid
-                || self.min_price.value > self.price_on_selected_date.value
-            {
+            if !self.min_price.valid || self.min_price.value > self.price_on_selected_date.value {
                 self.min_price = self.price_on_selected_date;
             }
-            if !self.max_price.valid
-                || self.max_price.value < self.price_on_selected_date.value
-            {
+            if !self.max_price.valid || self.max_price.value < self.price_on_selected_date.value {
                 self.max_price = self.price_on_selected_date;
             }
             self.price_on_selected_date_text = format!("Price: {}", price_str);
@@ -316,8 +316,7 @@ impl emStocksItemChart {
             if !self.max_price.valid || self.max_price.value < self.desired_price.value {
                 self.max_price = self.desired_price;
             }
-            self.desired_price_text =
-                format!("Desired Price: {}", &stock_rec.desired_price);
+            self.desired_price_text = format!("Desired Price: {}", &stock_rec.desired_price);
         } else {
             self.desired_price_text.clear();
         }
@@ -345,8 +344,7 @@ impl emStocksItemChart {
 
         let mut remaining_days = (self.total_days - 1) % self.days_per_price + 1;
 
-        let (diff_days, _) =
-            GetDateDifference(&stock_rec.last_price_date, &self.end_date);
+        let (diff_days, _) = GetDateDifference(&stock_rec.last_price_date, &self.end_date);
         let mut diff_days = diff_days - 1;
 
         // s2 is the exclusive end pointer into the prices string
@@ -392,8 +390,7 @@ impl emStocksItemChart {
                     s2 -= 1;
                 }
                 // Parse the price value
-                let price_str =
-                    std::str::from_utf8(&s_bytes[s2..]).unwrap_or("0");
+                let price_str = std::str::from_utf8(&s_bytes[s2..]).unwrap_or("0");
                 // Find end of this value (up to next '|' or end)
                 let val_end = price_str.find('|').unwrap_or(price_str.len());
                 let sv: f64 = price_str[..val_end].parse().unwrap_or(0.0);
@@ -472,10 +469,7 @@ impl emStocksItemChart {
             }
             let d_price = f64::max(
                 0.5 * c,
-                f64::max(
-                    self.max_price.value - c,
-                    c - self.min_price.value,
-                ),
+                f64::max(self.max_price.value - c, c - self.min_price.value),
             );
             let mut p1 = c - d_price;
             let mut p2 = c + d_price;
@@ -689,9 +683,7 @@ impl emStocksItemChart {
         let mut max_level: i32 = 3;
         if text_height[2] >= 0.9 * text_height[3] {
             max_level = 2;
-            if text_height[1] >= 0.9 * text_height[2]
-                && text_width[1] / text_height[1] > 12.0
-            {
+            if text_height[1] >= 0.9 * text_height[2] && text_width[1] / text_height[1] > 12.0 {
                 max_level = 1;
             }
         }
@@ -728,8 +720,7 @@ impl emStocksItemChart {
             }
 
             while day <= end_day {
-                let x1 =
-                    self.x_offset + self.x_factor * f64::max(day as f64, f_start_day);
+                let x1 = self.x_offset + self.x_factor * f64::max(day as f64, f_start_day);
 
                 let label: String;
                 if level == 0 {
@@ -746,11 +737,7 @@ impl emStocksItemChart {
                     }
                 } else if level == 1 {
                     if max_level == 1 {
-                        label = format!(
-                            "{} {}",
-                            MONTH_TEXTS[(month - 1) as usize],
-                            year
-                        );
+                        label = format!("{} {}", MONTH_TEXTS[(month - 1) as usize], year);
                     } else {
                         label = MONTH_TEXTS[(month - 1) as usize].to_string();
                     }
@@ -770,8 +757,7 @@ impl emStocksItemChart {
                     year += 10;
                 }
 
-                let x2 = self.x_offset
-                    + self.x_factor * f64::min(day as f64, f_end_day);
+                let x2 = self.x_offset + self.x_factor * f64::min(day as f64, f_end_day);
                 if x1 < x2 {
                     let th = text_height[level as usize];
                     painter.PaintTextBoxed(
@@ -913,7 +899,11 @@ impl emStocksItemChart {
                 t = max_text_height;
             }
             // Format with appropriate decimal places based on level
-            let decimals = if level >= 0 { 0 } else { ((1 - level) >> 1) as usize };
+            let decimals = if level >= 0 {
+                0
+            } else {
+                ((1 - level) >> 1) as usize
+            };
             let label = format!("{:.prec$}", price, prec = decimals);
             painter.PaintTextBoxed(
                 xt,
@@ -1043,7 +1033,14 @@ impl emStocksItemChart {
         // Price dot and label
         let xt_base = self.x_offset + self.x_factor * (self.total_days as f64 - 0.5);
         let r = text_height * 0.12;
-        painter.PaintEllipse(xt_base - r, y2 - r, r * 2.0, r * 2.0, c2, emColor::TRANSPARENT);
+        painter.PaintEllipse(
+            xt_base - r,
+            y2 - r,
+            r * 2.0,
+            r * 2.0,
+            c2,
+            emColor::TRANSPARENT,
+        );
 
         let (wt, _) =
             emPainter::GetTextSize(&self.price_on_selected_date_text, text_height, false, 0.0);
@@ -1052,11 +1049,7 @@ impl emStocksItemChart {
         if xt > x_right {
             xt = x_right;
         }
-        let label_y = if y1 > y2 {
-            y2 - text_height
-        } else {
-            y2
-        };
+        let label_y = if y1 > y2 { y2 - text_height } else { y2 };
         painter.PaintTextBoxed(
             xt,
             label_y,
@@ -1083,7 +1076,14 @@ impl emStocksItemChart {
         if self.trade_offset_days >= 0 {
             xt_trade = self.x_offset + self.x_factor * (self.trade_offset_days as f64 + 0.5);
             if self.trade_offset_days < self.total_days {
-                painter.PaintEllipse(xt_trade - r, y1 - r, r * 2.0, r * 2.0, c1, emColor::TRANSPARENT);
+                painter.PaintEllipse(
+                    xt_trade - r,
+                    y1 - r,
+                    r * 2.0,
+                    r * 2.0,
+                    c1,
+                    emColor::TRANSPARENT,
+                );
             }
         } else if self.trade_offset_days > i32::MIN {
             xt_trade = self.x_offset;
@@ -1091,8 +1091,7 @@ impl emStocksItemChart {
             xt_trade = self.x_offset + self.x_factor * self.total_days as f64 * 0.5;
         }
 
-        let (wt, _) =
-            emPainter::GetTextSize(&self.trade_price_text, text_height, false, 0.0);
+        let (wt, _) = emPainter::GetTextSize(&self.trade_price_text, text_height, false, 0.0);
         let mut xt = xt_trade - wt * 0.5;
         if xt < self.x_offset {
             xt = self.x_offset;
@@ -1324,7 +1323,6 @@ impl emStocksItemChart {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1493,7 +1491,12 @@ mod tests {
 
         // With range 100, f = 100*0.4 = 40. maxDist starts at 1, grows to 10, then stops
         // (100 > 40). So maxDist=10, maxLevel=2.
-        assert!(max_level >= min_level, "max_level({}) >= min_level({})", max_level, min_level);
+        assert!(
+            max_level >= min_level,
+            "max_level({}) >= min_level({})",
+            max_level,
+            min_level
+        );
         assert!(min_dist > 0.0, "min_dist should be positive");
     }
 
@@ -1508,7 +1511,11 @@ mod tests {
         let (min_level, min_dist, max_level) = chart.CalculateYScaleLevelRange();
         assert!(max_level >= min_level);
         // With small price range, min_dist should be small
-        assert!(min_dist <= 1.0, "min_dist={} should be <= 1.0 for small range", min_dist);
+        assert!(
+            min_dist <= 1.0,
+            "min_dist={} should be <= 1.0 for small range",
+            min_dist
+        );
     }
 
     #[test]
@@ -1614,7 +1621,12 @@ mod tests {
             let y1 = chart.y_offset + chart.y_factor * chart.trade_price.value;
             let y2 = chart.y_offset + chart.y_factor * chart.price_on_selected_date.value;
             // In the coordinate system y1 > y2 means profit (price went up)
-            assert_eq!(y1 > y2, *expected_profit, "profit check for price={}", price_str);
+            assert_eq!(
+                y1 > y2,
+                *expected_profit,
+                "profit check for price={}",
+                price_str
+            );
 
             let mut img = emcore::emImage::emImage::new(200, 100, 4);
             let mut painter = emPainter::new(&mut img);

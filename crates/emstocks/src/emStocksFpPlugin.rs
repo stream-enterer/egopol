@@ -45,10 +45,12 @@ mod tests {
         let ctx = emcore::emContext::emContext::NewRoot();
         let parent = PanelParentArg::new(ctx);
         let mut plugin = emFpPlugin::new();
-        plugin.properties.push(emcore::emFpPlugin::FpPluginProperty {
-            name: "bad".to_string(),
-            value: "prop".to_string(),
-        });
+        plugin
+            .properties
+            .push(emcore::emFpPlugin::FpPluginProperty {
+                name: "bad".to_string(),
+                value: "prop".to_string(),
+            });
         let mut err = String::new();
         let result = emStocksFpPluginFunc(&parent, "test", "/tmp/test.emStocks", &plugin, &mut err);
         assert!(result.is_none());

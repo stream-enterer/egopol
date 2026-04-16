@@ -1,14 +1,17 @@
 use std::sync::OnceLock;
 
-use crate::emPainterDrawList::{DrawOp, RecordedOp, RecordedState};
 use super::emFontCache;
 use super::emPainterInterpolation;
 use super::emPainterScanline::{self, WindingRule};
-use super::emPainterScanlineTool::{blend_colored_scanline, blend_colored_scanline_rgb, blend_scanline, blend_scanline_premul, BlendMode, InterpolationBuffer, MAX_INTERP_BYTES};
+use super::emPainterScanlineTool::{
+    blend_colored_scanline, blend_colored_scanline_rgb, blend_scanline, blend_scanline_premul,
+    BlendMode, InterpolationBuffer, MAX_INTERP_BYTES,
+};
 use super::emStroke::{emStroke, emStrokeEnd, StrokeEndType};
-use super::emTexture::{ImageExtension, ImageQuality, emTexture};
+use super::emTexture::{emTexture, ImageExtension, ImageQuality};
 use crate::emColor::{blend_hash_lookup, emColor};
 use crate::emImage::emImage;
+use crate::emPainterDrawList::{DrawOp, RecordedOp, RecordedState};
 
 /// Base multiplier for decoration size.
 const ARROW_BASE_SIZE: f64 = 10.0;
@@ -245,17 +248,29 @@ impl SubPixelEdges {
     /// Batch X coverage × C++ PaintRect iy2=truncate Y coverage.
     #[allow(clippy::too_many_arguments)]
     fn batch_coverages_cpp_y(
-        &self, row: i32, col_start: i32, out: &mut [i32],
-        cpp_iy1: i32, cpp_iy2: i32, cpp_ay1: i32, cpp_ay2: i32,
+        &self,
+        row: i32,
+        col_start: i32,
+        out: &mut [i32],
+        cpp_iy1: i32,
+        cpp_iy2: i32,
+        cpp_ay1: i32,
+        cpp_ay2: i32,
     ) -> bool {
-        let ay = if row == cpp_iy1 && cpp_ay1 < 0x1000 { cpp_ay1 }
-                 else if row == cpp_iy2 && cpp_ay2 > 0 { cpp_ay2 }
-                 else { 0x1000 };
+        let ay = if row == cpp_iy1 && cpp_ay1 < 0x1000 {
+            cpp_ay1
+        } else if row == cpp_iy2 && cpp_ay2 > 0 {
+            cpp_ay2
+        } else {
+            0x1000
+        };
         let mut all_full = true;
         for (i, cov) in out.iter_mut().enumerate() {
             let ax = self.coverage_x(col_start + i as i32);
             *cov = ((ax as i64 * ay as i64 + 0x7ff) >> 12) as i32;
-            if *cov < 0x1000 { all_full = false; }
+            if *cov < 0x1000 {
+                all_full = false;
+            }
         }
         all_full
     }
@@ -339,7 +354,11 @@ impl BlendHashTables {
         let mut green = vec![0u32; 256 * 256];
         let mut blue = vec![0u32; 256 * 256];
 
-        for (hash, shift) in [(&mut red, red_shift), (&mut green, green_shift), (&mut blue, blue_shift)] {
+        for (hash, shift) in [
+            (&mut red, red_shift),
+            (&mut green, green_shift),
+            (&mut blue, blue_shift),
+        ] {
             for a1 in 0u32..128 {
                 let c1 = (a1 * range + 127) / 255;
                 for a2 in 0u32..128 {
@@ -348,7 +367,8 @@ impl BlendHashTables {
                     hash[(a1 as usize) << 8 | a2 as usize] = c3 << shift;
                     hash[(a1 as usize) << 8 | (255 - a2) as usize] = (c1 - c3) << shift;
                     hash[((255 - a1) as usize) << 8 | a2 as usize] = (c2 - c3) << shift;
-                    hash[((255 - a1) as usize) << 8 | (255 - a2) as usize] = (range + c3 - c1 - c2) << shift;
+                    hash[((255 - a1) as usize) << 8 | (255 - a2) as usize] =
+                        (range + c3 - c1 - c2) << shift;
                 }
             }
         }
@@ -390,13 +410,17 @@ impl PainterModel {
     /// Load from the golden-test config file, matching C++ gen_golden behavior.
     /// Falls back to defaults if the config file is not found.
     pub fn load_from_config() -> Self {
-        use crate::emCoreConfig::emCoreConfig;
         use crate::emConfigModel::emConfigModel;
+        use crate::emCoreConfig::emCoreConfig;
         use crate::emSignal::SignalId;
 
         // Match C++ gen_golden: EM_USER_CONFIG_DIR=$TMPDIR/em_golden_config
         let config_path = std::env::var("EM_USER_CONFIG_DIR")
-            .map(|d| std::path::PathBuf::from(d).join("emCore").join("config.rec"))
+            .map(|d| {
+                std::path::PathBuf::from(d)
+                    .join("emCore")
+                    .join("config.rec")
+            })
             .unwrap_or_else(|_| {
                 let tmp = std::env::var("TMPDIR").unwrap_or_else(|_| "/tmp".to_string());
                 std::path::PathBuf::from(tmp)
@@ -613,11 +637,7 @@ impl<'a> emPainter<'a> {
             log(&op, depth, state);
         }
         if let PaintTarget::DrawList(ops) = &mut self.target {
-            ops.push(RecordedOp {
-                depth,
-                op,
-                state,
-            });
+            ops.push(RecordedOp { depth, op, state });
             None
         } else {
             Some(DirectProof(()))
@@ -643,11 +663,7 @@ impl<'a> emPainter<'a> {
             log(&op, depth, state);
         }
         if let PaintTarget::DrawList(ops) = &mut self.target {
-            ops.push(RecordedOp {
-                depth,
-                op,
-                state,
-            });
+            ops.push(RecordedOp { depth, op, state });
         }
     }
 
@@ -809,7 +825,12 @@ impl<'a> emPainter<'a> {
         let uy = (y1 - self.state.offset_y) / self.state.scale_y;
         let uw = (x2 - x1) / self.state.scale_x;
         let uh = (y2 - y1) / self.state.scale_y;
-        self.record_state(DrawOp::ClipRect { x: ux, y: uy, w: uw, h: uh });
+        self.record_state(DrawOp::ClipRect {
+            x: ux,
+            y: uy,
+            w: uw,
+            h: uh,
+        });
         self.state.clip = ClipRect { x1, y1, x2, y2 };
     }
 
@@ -939,8 +960,15 @@ impl<'a> emPainter<'a> {
         canvas_color: emColor,
     ) {
         let Some(_proof) = self.try_record(DrawOp::PaintRect {
-            x, y, w, h, color, canvas_color,
-        }) else { return; };
+            x,
+            y,
+            w,
+            h,
+            color,
+            canvas_color,
+        }) else {
+            return;
+        };
 
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
@@ -948,14 +976,28 @@ impl<'a> emPainter<'a> {
         // C++ emPainter.cpp:402-411: transform and clip
         let mut px = x * self.state.scale_x + self.state.offset_x;
         let mut px2 = px + w * self.state.scale_x;
-        if px < self.state.clip.x1 { px = self.state.clip.x1; }
-        if px2 > self.state.clip.x2 { px2 = self.state.clip.x2; }
-        if px >= px2 { self.state.canvas_color = saved_canvas; return; }
+        if px < self.state.clip.x1 {
+            px = self.state.clip.x1;
+        }
+        if px2 > self.state.clip.x2 {
+            px2 = self.state.clip.x2;
+        }
+        if px >= px2 {
+            self.state.canvas_color = saved_canvas;
+            return;
+        }
         let mut py = y * self.state.scale_y + self.state.offset_y;
         let mut py2 = py + h * self.state.scale_y;
-        if py < self.state.clip.y1 { py = self.state.clip.y1; }
-        if py2 > self.state.clip.y2 { py2 = self.state.clip.y2; }
-        if py >= py2 { self.state.canvas_color = saved_canvas; return; }
+        if py < self.state.clip.y1 {
+            py = self.state.clip.y1;
+        }
+        if py2 > self.state.clip.y2 {
+            py2 = self.state.clip.y2;
+        }
+        if py >= py2 {
+            self.state.canvas_color = saved_canvas;
+            return;
+        }
 
         // C++ emPainter.cpp:418-440: Fixed12 boundary computation
         let ix_raw = (px * 0x1000 as f64) as i32;
@@ -965,8 +1007,13 @@ impl<'a> emPainter<'a> {
         let ix = ix_raw >> 12;
         let ixe = ixe_raw >> 12;
         let iw = ixe - ix;
-        if iw <= 0 { self.state.canvas_color = saved_canvas; return; }
-        if iw <= 1 { ax1 += ax2 - 0x1000; }
+        if iw <= 0 {
+            self.state.canvas_color = saved_canvas;
+            return;
+        }
+        if iw <= 1 {
+            ax1 += ax2 - 0x1000;
+        }
 
         let iy_raw = (py * 0x1000 as f64) as i32;
         let iy2_raw = (py2 * 0x1000 as f64) as i32;
@@ -977,18 +1024,31 @@ impl<'a> emPainter<'a> {
         if iy >= iy2 {
             ay1 += ay2 - 0x1000;
             ay2 = 0;
-            if ay1 <= 0 { self.state.canvas_color = saved_canvas; return; }
+            if ay1 <= 0 {
+                self.state.canvas_color = saved_canvas;
+                return;
+            }
         }
 
         // C++ emPainter.cpp:442-456: scanline loop
         let proof = match self.require_direct() {
             Some(p) => p,
-            None => { self.state.canvas_color = saved_canvas; return; }
+            None => {
+                self.state.canvas_color = saved_canvas;
+                return;
+            }
         };
         if ay1 < 0x1000 {
-            self.paint_rect_scanline(proof, ix, iy, iw,
-                ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32, ay1,
-                ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32, color);
+            self.paint_rect_scanline(
+                proof,
+                ix,
+                iy,
+                iw,
+                ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32,
+                ay1,
+                ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32,
+                color,
+            );
             iy += 1;
         }
         while iy < iy2 {
@@ -996,9 +1056,16 @@ impl<'a> emPainter<'a> {
             iy += 1;
         }
         if ay2 > 0 {
-            self.paint_rect_scanline(proof, ix, iy, iw,
-                ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32, ay2,
-                ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32, color);
+            self.paint_rect_scanline(
+                proof,
+                ix,
+                iy,
+                iw,
+                ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32,
+                ay2,
+                ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32,
+                color,
+            );
         }
 
         self.state.canvas_color = saved_canvas;
@@ -1031,8 +1098,15 @@ impl<'a> emPainter<'a> {
             | super::emTexture::emTexture::ImageColoredGradient { .. } => emColor::TRANSPARENT,
         };
         let Some(proof) = self.try_record(DrawOp::PaintRect {
-            x, y, w, h, color: repr_color, canvas_color,
-        }) else { return; };
+            x,
+            y,
+            w,
+            h,
+            color: repr_color,
+            canvas_color,
+        }) else {
+            return;
+        };
 
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
@@ -1041,13 +1115,17 @@ impl<'a> emPainter<'a> {
         let x2 = x + w;
         let y2 = y + h;
         let px1 = (x * self.state.scale_x + self.state.offset_x)
-            .max(self.state.clip.x1).min(self.state.clip.x2);
+            .max(self.state.clip.x1)
+            .min(self.state.clip.x2);
         let px2 = (x2 * self.state.scale_x + self.state.offset_x)
-            .max(self.state.clip.x1).min(self.state.clip.x2);
+            .max(self.state.clip.x1)
+            .min(self.state.clip.x2);
         let py1 = (y * self.state.scale_y + self.state.offset_y)
-            .max(self.state.clip.y1).min(self.state.clip.y2);
+            .max(self.state.clip.y1)
+            .min(self.state.clip.y2);
         let py2 = (y2 * self.state.scale_y + self.state.offset_y)
-            .max(self.state.clip.y1).min(self.state.clip.y2);
+            .max(self.state.clip.y1)
+            .min(self.state.clip.y2);
         if px1 >= px2 || py1 >= py2 {
             self.state.canvas_color = saved_canvas;
             return;
@@ -1064,7 +1142,9 @@ impl<'a> emPainter<'a> {
             self.state.canvas_color = saved_canvas;
             return;
         }
-        if iw <= 1 { ax1 += ax2 - 0x1000; }
+        if iw <= 1 {
+            ax1 += ax2 - 0x1000;
+        }
 
         let iy_raw = (py1 * 4096.0) as i32;
         let iy2_raw = (py2 * 4096.0) as i32;
@@ -1084,7 +1164,12 @@ impl<'a> emPainter<'a> {
         // --- Per-pixel gradient rendering ---
         // Prepare gradient interpolation parameters
         match texture {
-            super::emTexture::emTexture::LinearGradient { color_a, color_b, start, end } => {
+            super::emTexture::emTexture::LinearGradient {
+                color_a,
+                color_b,
+                start,
+                end,
+            } => {
                 let pstart = (
                     start.0 * self.state.scale_x + self.state.offset_x,
                     start.1 * self.state.scale_y + self.state.offset_y,
@@ -1097,33 +1182,87 @@ impl<'a> emPainter<'a> {
                 let mut gbuf = vec![0u8; iw as usize];
                 // Scanline loop matching PaintRect
                 if ay1 < 0x1000 {
-                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, ay1, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                    self.paint_rect_gradient_scanline(
+                        proof, ix, iy, iw, ax1, ay1, ax2, &grad, &mut gbuf, *color_a, *color_b,
+                    );
                     iy += 1;
                 }
                 while iy < iy2 {
-                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                    self.paint_rect_gradient_scanline(
+                        proof, ix, iy, iw, ax1, 0x1000, ax2, &grad, &mut gbuf, *color_a, *color_b,
+                    );
                     iy += 1;
                 }
                 if ay2 > 0 {
-                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, ay2, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                    self.paint_rect_gradient_scanline(
+                        proof, ix, iy, iw, ax1, ay2, ax2, &grad, &mut gbuf, *color_a, *color_b,
+                    );
                 }
             }
-            super::emTexture::emTexture::RadialGradient { color_inner, color_outer, center, radius_x, radius_y } => {
+            super::emTexture::emTexture::RadialGradient {
+                color_inner,
+                color_outer,
+                center,
+                radius_x,
+                radius_y,
+            } => {
                 // Radial gradient: distance from center, normalized by radii
                 let pcx = center.0 * self.state.scale_x + self.state.offset_x;
                 let pcy = center.1 * self.state.scale_y + self.state.offset_y;
                 let prx = radius_x * self.state.scale_x;
                 let pry = radius_y * self.state.scale_y;
                 if ay1 < 0x1000 {
-                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, ay1, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                    self.paint_rect_radial_scanline(
+                        proof,
+                        ix,
+                        iy,
+                        iw,
+                        ax1,
+                        ay1,
+                        ax2,
+                        pcx,
+                        pcy,
+                        prx,
+                        pry,
+                        *color_inner,
+                        *color_outer,
+                    );
                     iy += 1;
                 }
                 while iy < iy2 {
-                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                    self.paint_rect_radial_scanline(
+                        proof,
+                        ix,
+                        iy,
+                        iw,
+                        ax1,
+                        0x1000,
+                        ax2,
+                        pcx,
+                        pcy,
+                        prx,
+                        pry,
+                        *color_inner,
+                        *color_outer,
+                    );
                     iy += 1;
                 }
                 if ay2 > 0 {
-                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, ay2, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                    self.paint_rect_radial_scanline(
+                        proof,
+                        ix,
+                        iy,
+                        iw,
+                        ax1,
+                        ay2,
+                        ax2,
+                        pcx,
+                        pcy,
+                        prx,
+                        pry,
+                        *color_inner,
+                        *color_outer,
+                    );
                 }
             }
             super::emTexture::emTexture::SolidColor(c) => {
@@ -1155,8 +1294,12 @@ impl<'a> emPainter<'a> {
     fn paint_rect_gradient_scanline(
         &mut self,
         proof: DirectProof,
-        ix: i32, iy: i32, iw: i32,
-        ax1: i32, ay: i32, ax2: i32,
+        ix: i32,
+        iy: i32,
+        iw: i32,
+        ax1: i32,
+        ay: i32,
+        ax2: i32,
         grad: &emPainterInterpolation::LinearGradientParams,
         gbuf: &mut [u8],
         color_a: emColor,
@@ -1171,7 +1314,12 @@ impl<'a> emPainter<'a> {
         self.blend_with_coverage(proof, ix, iy, c0, a1);
 
         // Interior pixels
-        for (i, &g) in gbuf.iter().enumerate().take((iw as usize).saturating_sub(1)).skip(1) {
+        for (i, &g) in gbuf
+            .iter()
+            .enumerate()
+            .take((iw as usize).saturating_sub(1))
+            .skip(1)
+        {
             let c = emPainterInterpolation::blend_gradient_colors(g, color_a, color_b);
             self.blend_with_coverage(proof, ix + i as i32, iy, c, ay);
         }
@@ -1179,7 +1327,11 @@ impl<'a> emPainter<'a> {
         // Last pixel (if width > 1)
         if iw > 1 {
             let a2 = ((ax2 as i64 * ay as i64 + 0x7ff) >> 12) as i32;
-            let c_last = emPainterInterpolation::blend_gradient_colors(gbuf[(iw - 1) as usize], color_a, color_b);
+            let c_last = emPainterInterpolation::blend_gradient_colors(
+                gbuf[(iw - 1) as usize],
+                color_a,
+                color_b,
+            );
             self.blend_with_coverage(proof, ix + iw - 1, iy, c_last, a2);
         }
     }
@@ -1190,9 +1342,16 @@ impl<'a> emPainter<'a> {
     fn paint_rect_radial_scanline(
         &mut self,
         proof: DirectProof,
-        ix: i32, iy: i32, iw: i32,
-        ax1: i32, ay: i32, ax2: i32,
-        pcx: f64, pcy: f64, prx: f64, pry: f64,
+        ix: i32,
+        iy: i32,
+        iw: i32,
+        ax1: i32,
+        ay: i32,
+        ax2: i32,
+        pcx: f64,
+        pcy: f64,
+        prx: f64,
+        pry: f64,
         color_inner: emColor,
         color_outer: emColor,
     ) {
@@ -1234,14 +1393,16 @@ impl<'a> emPainter<'a> {
         if w <= 0.0 || h <= 0.0 {
             return;
         }
-        let is_recording = self.try_record(DrawOp::PaintEllipse {
-            x,
-            y,
-            w,
-            h,
-            color,
-            canvas_color,
-        }).is_none();
+        let is_recording = self
+            .try_record(DrawOp::PaintEllipse {
+                x,
+                y,
+                w,
+                h,
+                color,
+                canvas_color,
+            })
+            .is_none();
         if is_recording && !self.record_subops {
             return;
         }
@@ -1281,11 +1442,16 @@ impl<'a> emPainter<'a> {
             | super::emTexture::emTexture::ImageColored { .. }
             | super::emTexture::emTexture::ImageColoredGradient { .. } => emColor::TRANSPARENT,
         };
-        let is_recording = self.try_record(DrawOp::PaintEllipse {
-            x: cx - rx, y: cy - ry, w: rx * 2.0, h: ry * 2.0,
-            color: repr_color,
-            canvas_color,
-        }).is_none();
+        let is_recording = self
+            .try_record(DrawOp::PaintEllipse {
+                x: cx - rx,
+                y: cy - ry,
+                w: rx * 2.0,
+                h: ry * 2.0,
+                color: repr_color,
+                canvas_color,
+            })
+            .is_none();
         if is_recording && !self.record_subops {
             return;
         }
@@ -1320,28 +1486,36 @@ impl<'a> emPainter<'a> {
             sweep_angle,
             color,
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         self.record_depth += 1;
         let cx = x + w * 0.5;
         let cy = y + h * 0.5;
         let rx = w * 0.5;
         let ry = h * 0.5;
         if rx <= 0.0 || ry <= 0.0 {
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
         if sweep_angle == 0.0 {
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
         // Normalize negative sweep.
         if sweep_angle < 0.0 {
             self.PaintEllipseSector(
-                x, y, w, h,
+                x,
+                y,
+                w,
+                h,
                 start_angle + sweep_angle,
                 -sweep_angle,
                 color,
                 canvas_color,
             );
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
         // Convert degrees to radians.
         let start_rad = start_angle * std::f64::consts::PI / 180.0;
@@ -1349,7 +1523,8 @@ impl<'a> emPainter<'a> {
         // Full circle or more — delegate to paint_ellipse.
         if sweep_rad >= 2.0 * std::f64::consts::PI {
             self.PaintEllipse(cx - rx, cy - ry, rx * 2.0, ry * 2.0, color, canvas_color);
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
         // Match C++ PaintEllipseSector: keep f as float through arc scaling,
         // use round-to-nearest, minimum 3 arc segments, center vertex last.
@@ -1398,7 +1573,9 @@ impl<'a> emPainter<'a> {
             color_b,
             horizontal,
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         let allow_simd = self.allow_simd;
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
@@ -1437,10 +1614,16 @@ impl<'a> emPainter<'a> {
                 let batch = ((end_x - col) as usize).min(max_batch);
                 grad.interpolate_scanline(col, row, &mut grad_buf[..batch]);
                 for (i, &g) in grad_buf[..batch].iter().enumerate() {
-                    let color = emPainterInterpolation::blend_gradient_colors(
-                        g, color_a, color_b,
+                    let color = emPainterInterpolation::blend_gradient_colors(g, color_a, color_b);
+                    ibuf.set_pixel(
+                        i,
+                        [
+                            color.GetRed(),
+                            color.GetGreen(),
+                            color.GetBlue(),
+                            color.GetAlpha(),
+                        ],
                     );
-                    ibuf.set_pixel(i, [color.GetRed(), color.GetGreen(), color.GetBlue(), color.GetAlpha()]);
                 }
                 ibuf.set_len(batch);
                 let dest_offset = (row as usize * tw + col as usize) * 4;
@@ -1476,7 +1659,9 @@ impl<'a> emPainter<'a> {
             color_inner,
             color_outer,
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         if rx <= 0.0 || ry <= 0.0 {
             return;
         }
@@ -1551,7 +1736,9 @@ impl<'a> emPainter<'a> {
             y1,
             color,
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
         let px0 = self.to_pixel_x(x0);
@@ -1569,7 +1756,9 @@ impl<'a> emPainter<'a> {
             vertices: vertices.to_vec(),
             color,
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
         self.fill_polygon_aa(proof, vertices, color, WindingRule::NonZero);
@@ -1587,7 +1776,9 @@ impl<'a> emPainter<'a> {
             vertices: vertices.to_vec(),
             color,
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
         self.fill_polygon_aa(proof, vertices, color, WindingRule::EvenOdd);
@@ -1606,7 +1797,9 @@ impl<'a> emPainter<'a> {
             vertices: vertices.to_vec(),
             texture: texture.clone(),
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
         if let emTexture::SolidColor(color) = texture {
@@ -1628,7 +1821,9 @@ impl<'a> emPainter<'a> {
             vertices: vertices.to_vec(),
             texture: texture.clone(),
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
         if let emTexture::SolidColor(color) = texture {
@@ -1652,7 +1847,9 @@ impl<'a> emPainter<'a> {
             stroke_color,
             thickness,
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         self.record_depth += 1;
         if vertices.len() < 2 {
             self.record_depth -= 1;
@@ -1689,8 +1886,8 @@ impl<'a> emPainter<'a> {
             return;
         }
         self.record_depth += 1;
-        let with_arrows = !closed
-            && (stroke.start_end.IsDecorated() || stroke.finish_end.IsDecorated());
+        let with_arrows =
+            !closed && (stroke.start_end.IsDecorated() || stroke.finish_end.IsDecorated());
         if with_arrows {
             self.PaintPolylineWithArrows(vertices, stroke, closed, canvas_color, None);
         } else {
@@ -1715,11 +1912,23 @@ impl<'a> emPainter<'a> {
         canvas_color: emColor,
     ) {
         let Some(_proof) = self.try_record(DrawOp::PaintRoundRect {
-            x, y, w, h, rx, ry, color, canvas_color,
-        }) else { return; };
+            x,
+            y,
+            w,
+            h,
+            rx,
+            ry,
+            color,
+            canvas_color,
+        }) else {
+            return;
+        };
         self.record_depth += 1;
 
-        if w <= 0.0 || h <= 0.0 { self.record_depth -= 1; return; }
+        if w <= 0.0 || h <= 0.0 {
+            self.record_depth -= 1;
+            return;
+        }
 
         // C++ line 1299: degenerate to PaintRect when radius is non-positive.
         if rx <= 0.0 || ry <= 0.0 {
@@ -1729,14 +1938,24 @@ impl<'a> emPainter<'a> {
         }
 
         // C++ lines 1305-1306: clamp radii.
-        if rx > w * 0.5 { rx = w * 0.5; }
-        if ry > h * 0.5 { ry = h * 0.5; }
+        if rx > w * 0.5 {
+            rx = w * 0.5;
+        }
+        if ry > h * 0.5 {
+            ry = h * 0.5;
+        }
 
         // C++ lines 1307-1312: compute vertex count from CircleQuality.
         let circle_quality = CIRCLE_QUALITY;
         let f = circle_quality * (rx * self.state.scale_x + ry * self.state.scale_y).sqrt();
         let f = f.min(256.0) * 0.25;
-        let n = if f <= 1.0 { 1 } else if f >= 64.0 { 64 } else { (f + 0.5) as usize };
+        let n = if f <= 1.0 {
+            1
+        } else if f >= 64.0 {
+            64
+        } else {
+            (f + 0.5) as usize
+        };
         let step = std::f64::consts::FRAC_PI_2 / n as f64;
 
         // C++ lines 1314-1327: generate 4*(n+1) vertices.
@@ -1750,25 +1969,25 @@ impl<'a> emPainter<'a> {
             let a = step * i as f64;
             let dx = a.cos();
             let dy = a.sin();
-            verts.push((cx1 - dx * rx, cy1 - dy * ry));       // top-left
+            verts.push((cx1 - dx * rx, cy1 - dy * ry)); // top-left
         }
         for i in 0..=n {
             let a = step * i as f64;
             let dx = a.cos();
             let dy = a.sin();
-            verts.push((cx2 + dy * rx, cy1 - dx * ry));       // top-right
+            verts.push((cx2 + dy * rx, cy1 - dx * ry)); // top-right
         }
         for i in 0..=n {
             let a = step * i as f64;
             let dx = a.cos();
             let dy = a.sin();
-            verts.push((cx2 + dx * rx, cy2 + dy * ry));       // bottom-right
+            verts.push((cx2 + dx * rx, cy2 + dy * ry)); // bottom-right
         }
         for i in 0..=n {
             let a = step * i as f64;
             let dx = a.cos();
             let dy = a.sin();
-            verts.push((cx1 - dy * rx, cy2 + dx * ry));       // bottom-left
+            verts.push((cx1 - dy * rx, cy2 + dx * ry)); // bottom-left
         }
         self.PaintPolygon(&verts, color, canvas_color);
         self.record_depth -= 1;
@@ -1781,7 +2000,9 @@ impl<'a> emPainter<'a> {
             x,
             y,
             image_ptr: image as *const emImage,
-        }) else { return; };
+        }) else {
+            return;
+        };
         let iw = image.GetWidth() as f64 / self.state.scale_x;
         let ih = image.GetHeight() as f64 / self.state.scale_y;
         self.paint_image_full(x, y, iw, ih, image, 255, emColor::TRANSPARENT);
@@ -1814,7 +2035,9 @@ impl<'a> emPainter<'a> {
             image_ptr: image as *const emImage,
             alpha,
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
 
         // Save and temporarily override canvas color and alpha.
         let saved_canvas = self.state.canvas_color;
@@ -1860,13 +2083,20 @@ impl<'a> emPainter<'a> {
         if w <= 0.0 || h <= 0.0 || alpha == 0 {
             return;
         }
-        if src_w <= 0 || src_h <= 0 { return; }
+        if src_w <= 0 || src_h <= 0 {
+            return;
+        }
         let Some(proof) = self.try_record(DrawOp::PaintImageFull {
-            x, y, w, h,
+            x,
+            y,
+            w,
+            h,
             image_ptr: image as *const emImage,
             alpha,
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
 
         let saved_canvas = self.state.canvas_color;
         let saved_alpha = self.state.alpha;
@@ -1884,11 +2114,23 @@ impl<'a> emPainter<'a> {
                 } else {
                     super::emTexture::ImageExtension::Clamp
                 }
-            },
+            }
             other => other,
         };
 
-        self.paint_image_rect(proof, x, y, w, h, image, src_x, src_y, src_w, src_h, resolved_ext);
+        self.paint_image_rect(
+            proof,
+            x,
+            y,
+            w,
+            h,
+            image,
+            src_x,
+            src_y,
+            src_w,
+            src_h,
+            resolved_ext,
+        );
 
         self.state.canvas_color = saved_canvas;
         self.state.alpha = saved_alpha;
@@ -1925,15 +2167,28 @@ impl<'a> emPainter<'a> {
         if rect_w <= 0.0 || rect_h <= 0.0 || alpha == 0 {
             return;
         }
-        if tex_w <= 0.0 || tex_h <= 0.0 || src_w <= 0 || src_h <= 0 { return; }
+        if tex_w <= 0.0 || tex_h <= 0.0 || src_w <= 0 || src_h <= 0 {
+            return;
+        }
         let Some(proof) = self.try_record(DrawOp::PaintImageTextured {
-            rect_x, rect_y, rect_w, rect_h,
-            tex_x, tex_y, tex_w, tex_h,
+            rect_x,
+            rect_y,
+            rect_w,
+            rect_h,
+            tex_x,
+            tex_y,
+            tex_w,
+            tex_h,
             image_ptr: image as *const emImage,
-            src_x, src_y, src_w, src_h,
+            src_x,
+            src_y,
+            src_w,
+            src_h,
             alpha,
             extension,
-        }) else { return; };
+        }) else {
+            return;
+        };
 
         let saved_canvas = self.state.canvas_color;
         let saved_alpha = self.state.alpha;
@@ -1949,15 +2204,26 @@ impl<'a> emPainter<'a> {
                 } else {
                     super::emTexture::ImageExtension::Clamp
                 }
-            },
+            }
             other => other,
         };
 
         self.paint_image_rect_textured(
             proof,
-            rect_x, rect_y, rect_w, rect_h,
-            tex_x, tex_y, tex_w, tex_h,
-            image, src_x, src_y, src_w, src_h, resolved_ext,
+            rect_x,
+            rect_y,
+            rect_w,
+            rect_h,
+            tex_x,
+            tex_y,
+            tex_w,
+            tex_h,
+            image,
+            src_x,
+            src_y,
+            src_w,
+            src_h,
+            resolved_ext,
         );
 
         self.state.canvas_color = saved_canvas;
@@ -1986,13 +2252,22 @@ impl<'a> emPainter<'a> {
         extension: ImageExtension,
     ) {
         let Some(proof) = self.try_record(DrawOp::PaintImageColoredTextured {
-            rect_x, rect_y, rect_w, rect_h,
-            tex_x, tex_y, tex_w, tex_h,
+            rect_x,
+            rect_y,
+            rect_w,
+            rect_h,
+            tex_x,
+            tex_y,
+            tex_w,
+            tex_h,
             image_ptr: image as *const emImage,
-            color1, color2,
+            color1,
+            color2,
             canvas_color,
             extension,
-        }) else { return; };
+        }) else {
+            return;
+        };
 
         // Floating-point dest rect in pixel space (sub-pixel precision).
         let dx = rect_x * self.state.scale_x + self.state.offset_x;
@@ -2020,7 +2295,9 @@ impl<'a> emPainter<'a> {
         if cpp_iy1 >= cpp_iy2 {
             cpp_ay1 += cpp_ay2 - 0x1000;
             cpp_ay2 = 0;
-            if cpp_ay1 <= 0 { return; }
+            if cpp_ay1 <= 0 {
+                return;
+            }
         }
 
         let cx1 = (self.state.clip.x1 as i32).max(0);
@@ -2095,7 +2372,10 @@ impl<'a> emPainter<'a> {
             xfm.off_x = off_x;
             xfm.off_y = off_y;
             let sec = emPainterInterpolation::SectionBounds {
-                ox: 0, oy: 0, w: src_w as i32, h: src_h as i32,
+                ox: 0,
+                oy: 0,
+                w: src_w as i32,
+                h: src_h as i32,
             };
 
             for row in start_y..end_y {
@@ -2106,25 +2386,48 @@ impl<'a> emPainter<'a> {
                     emPainterInterpolation::interpolate_scanline_area_sampled(
                         image, col, row, batch, &xfm, &sec, ext, &mut ibuf, &mut carry,
                     );
-                    let all_full =
-                        sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
+                    let all_full = sp.batch_coverages_cpp_y(
+                        row,
+                        col,
+                        &mut coverages[..batch],
+                        cpp_iy1,
+                        cpp_iy2,
+                        cpp_ay1,
+                        cpp_ay2,
+                    );
                     let dest_offset = (row as usize * target_w + col as usize) * 4;
                     let data = self.GetImage(proof).GetWritableMap();
                     let dest = &mut data[dest_offset..];
                     if ch >= 3 {
                         blend_colored_scanline_rgb(
-                            dest, &ibuf, batch,
-                            if all_full { None } else { Some(&coverages[..batch]) },
-                            color1, color2, &mode,
+                            dest,
+                            &ibuf,
+                            batch,
+                            if all_full {
+                                None
+                            } else {
+                                Some(&coverages[..batch])
+                            },
+                            color1,
+                            color2,
+                            &mode,
                         );
                     } else {
                         for (i, lum) in lums[..batch].iter_mut().enumerate() {
                             *lum = ibuf.pixel_rgba(i)[0];
                         }
                         blend_colored_scanline(
-                            dest, &lums[..batch], batch,
-                            if all_full { None } else { Some(&coverages[..batch]) },
-                            color1, color2, &mode,
+                            dest,
+                            &lums[..batch],
+                            batch,
+                            if all_full {
+                                None
+                            } else {
+                                Some(&coverages[..batch])
+                            },
+                            color1,
+                            color2,
+                            &mode,
                         );
                     }
                     col += batch as i32;
@@ -2132,10 +2435,12 @@ impl<'a> emPainter<'a> {
             }
         } else {
             // Upscale: use texture coords for transform.
-            let sxfm =
-                self.scale_transform_24(src_w, src_h, tex_x, tex_y, tex_w, tex_h);
+            let sxfm = self.scale_transform_24(src_w, src_h, tex_x, tex_y, tex_w, tex_h);
             let sec = emPainterInterpolation::SectionBounds {
-                ox: 0, oy: 0, w: src_w as i32, h: src_h as i32,
+                ox: 0,
+                oy: 0,
+                w: src_w as i32,
+                h: src_h as i32,
             };
             for row in start_y..end_y {
                 let mut col = start_x;
@@ -2159,22 +2464,45 @@ impl<'a> emPainter<'a> {
                             );
                         }
                     }
-                    let all_full =
-                        sp.batch_coverages_cpp_y(row, col, &mut coverages[..batch], cpp_iy1, cpp_iy2, cpp_ay1, cpp_ay2);
+                    let all_full = sp.batch_coverages_cpp_y(
+                        row,
+                        col,
+                        &mut coverages[..batch],
+                        cpp_iy1,
+                        cpp_iy2,
+                        cpp_ay1,
+                        cpp_ay2,
+                    );
                     let dest_offset = (row as usize * target_w + col as usize) * 4;
                     let data = self.GetImage(proof).GetWritableMap();
                     let dest = &mut data[dest_offset..];
                     if ch >= 3 {
                         blend_colored_scanline_rgb(
-                            dest, &ibuf, batch,
-                            if all_full { None } else { Some(&coverages[..batch]) },
-                            color1, color2, &mode,
+                            dest,
+                            &ibuf,
+                            batch,
+                            if all_full {
+                                None
+                            } else {
+                                Some(&coverages[..batch])
+                            },
+                            color1,
+                            color2,
+                            &mode,
                         );
                     } else {
                         blend_colored_scanline(
-                            dest, &lums[..batch], batch,
-                            if all_full { None } else { Some(&coverages[..batch]) },
-                            color1, color2, &mode,
+                            dest,
+                            &lums[..batch],
+                            batch,
+                            if all_full {
+                                None
+                            } else {
+                                Some(&coverages[..batch])
+                            },
+                            color1,
+                            color2,
+                            &mode,
                         );
                     }
                     col += batch as i32;
@@ -2209,7 +2537,9 @@ impl<'a> emPainter<'a> {
         ext: super::emTexture::ImageExtension,
     ) {
         // Non-textured: rect coords and texture coords are the same.
-        self.paint_image_rect_textured(proof, x, y, w, h, x, y, w, h, image, src_x, src_y, src_w, src_h, ext);
+        self.paint_image_rect_textured(
+            proof, x, y, w, h, x, y, w, h, image, src_x, src_y, src_w, src_h, ext,
+        );
     }
 
     /// Core image rendering with separate paint-rect and texture coordinates.
@@ -2239,7 +2569,13 @@ impl<'a> emPainter<'a> {
         src_h: i32,
         ext: super::emTexture::ImageExtension,
     ) {
-        if rect_w <= 0.0 || rect_h <= 0.0 || tex_w <= 0.0 || tex_h <= 0.0 || src_w <= 0 || src_h <= 0 {
+        if rect_w <= 0.0
+            || rect_h <= 0.0
+            || tex_w <= 0.0
+            || tex_h <= 0.0
+            || src_w <= 0
+            || src_h <= 0
+        {
             return;
         }
 
@@ -2247,15 +2583,23 @@ impl<'a> emPainter<'a> {
         // Literal port: transform to pixel space, clip, THEN compute fixed-point
         // boundaries. This matches PaintRect for color fills exactly.
         let px1 = (rect_x * self.state.scale_x + self.state.offset_x)
-            .max(self.state.clip.x1).min(self.state.clip.x2);
+            .max(self.state.clip.x1)
+            .min(self.state.clip.x2);
         let px2 = ((rect_x + rect_w) * self.state.scale_x + self.state.offset_x)
-            .max(self.state.clip.x1).min(self.state.clip.x2);
-        if px1 >= px2 { return; }
+            .max(self.state.clip.x1)
+            .min(self.state.clip.x2);
+        if px1 >= px2 {
+            return;
+        }
         let py1 = (rect_y * self.state.scale_y + self.state.offset_y)
-            .max(self.state.clip.y1).min(self.state.clip.y2);
+            .max(self.state.clip.y1)
+            .min(self.state.clip.y2);
         let py2 = ((rect_y + rect_h) * self.state.scale_y + self.state.offset_y)
-            .max(self.state.clip.y1).min(self.state.clip.y2);
-        if py1 >= py2 { return; }
+            .max(self.state.clip.y1)
+            .min(self.state.clip.y2);
+        if py1 >= py2 {
+            return;
+        }
 
         // C++ Fixed12 arithmetic (emPainter.cpp:412-430)
         let ix_raw = (px1 * 4096.0) as i32;
@@ -2265,8 +2609,12 @@ impl<'a> emPainter<'a> {
         let ix = ix_raw >> 12;
         let ixe = ixe_raw >> 12;
         let iw = ixe - ix;
-        if iw <= 0 { return; }
-        if iw <= 1 { ax1 += ax2 - 0x1000; }
+        if iw <= 0 {
+            return;
+        }
+        if iw <= 1 {
+            ax1 += ax2 - 0x1000;
+        }
 
         let iy_raw = (py1 * 4096.0) as i32;
         let iy2_raw = (py2 * 4096.0) as i32;
@@ -2276,7 +2624,9 @@ impl<'a> emPainter<'a> {
         let iy2 = iy2_raw >> 12;
         let (ay1, ay2) = if iy >= iy2 {
             let collapsed = ay1 + ay2 - 0x1000;
-            if collapsed <= 0 { return; }
+            if collapsed <= 0 {
+                return;
+            }
             (collapsed, 0)
         } else {
             (ay1, ay2)
@@ -2288,10 +2638,14 @@ impl<'a> emPainter<'a> {
         let ih_img = image.GetHeight() as i32;
         let csx = src_x.max(0);
         let csx2 = (src_x + src_w).min(iw_img);
-        if csx >= csx2 { return; }
+        if csx >= csx2 {
+            return;
+        }
         let csy = src_y.max(0);
         let csy2 = (src_y + src_h).min(ih_img);
-        if csy >= csy2 { return; }
+        if csy >= csy2 {
+            return;
+        }
         let img_w = csx2 - csx;
         let img_h = csy2 - csy;
 
@@ -2300,14 +2654,19 @@ impl<'a> emPainter<'a> {
         let th_px = tex_h * self.state.scale_y;
         let tdx_f64 = ((img_w as i64) << 24) as f64 / tw_px;
         let tdy_f64 = ((img_h as i64) << 24) as f64 / th_px;
-        if !(0.0..=2.8e14).contains(&tdx_f64) || !(0.0..=2.8e14).contains(&tdy_f64) { return; }
+        if !(0.0..=2.8e14).contains(&tdx_f64) || !(0.0..=2.8e14).contains(&tdy_f64) {
+            return;
+        }
         let tdx = tdx_f64 as i64;
         let tdy = tdy_f64 as i64;
         let tx_pixel = tex_x * self.state.scale_x + self.state.offset_x;
         let ty_pixel = tex_y * self.state.scale_y + self.state.offset_y;
 
         let sec = emPainterInterpolation::SectionBounds {
-            ox: csx, oy: csy, w: img_w, h: img_h,
+            ox: csx,
+            oy: csy,
+            w: img_w,
+            h: img_h,
         };
 
         let tw_stride = self.target_width as usize;
@@ -2321,57 +2680,132 @@ impl<'a> emPainter<'a> {
 
         if downscaling {
             // C++ emPainter_ScTl.cpp:296-311: near-1:1 pixel-aligned → NEAREST
-            let near_1_to_1 = tdx < 0x10000FF && tdy < 0x10000FF
-                && tdx > 0x0FFFF00 && tdy > 0x0FFFF00
+            let near_1_to_1 = tdx < 0x10000FF
+                && tdy < 0x10000FF
+                && tdx > 0x0FFFF00
+                && tdy > 0x0FFFF00
                 && ((tx_pixel * tdx_f64) as i64 + 0x800) & 0xFFF000 == 0
                 && ((ty_pixel * tdy_f64) as i64 + 0x800) & 0xFFF000 == 0;
 
             if near_1_to_1 {
-                let sxfm = self.scale_transform_24(img_w as u32, img_h as u32, tex_x, tex_y, tex_w, tex_h);
+                let sxfm =
+                    self.scale_transform_24(img_w as u32, img_h as u32, tex_x, tex_y, tex_w, tex_h);
                 self.paint_image_scanlines_nearest(
-                    proof, image, &sxfm, &sec, ext,
-                    ix, iy, iy2, iw, ax1, ax2, ay1, ay2,
-                    &mode, &mut ibuf, max_batch, &mut coverages, tw_stride,
+                    proof,
+                    image,
+                    &sxfm,
+                    &sec,
+                    ext,
+                    ix,
+                    iy,
+                    iy2,
+                    iw,
+                    ax1,
+                    ax2,
+                    ay1,
+                    ay2,
+                    &mode,
+                    &mut ibuf,
+                    max_batch,
+                    &mut coverages,
+                    tw_stride,
                 );
             } else {
                 // Area sampling with pre-reduction (C++ emPainter_ScTl.cpp:312-343)
                 let sw_u = img_w as u32;
                 let sh_u = img_h as u32;
                 let dsq = self.model.downscale_quality as i64;
-                let stride_x = if tdx > 0xFFFF00 { ((tdx / dsq + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
-                let stride_y = if tdy > 0xFFFF00 { ((tdy / dsq + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+                let stride_x = if tdx > 0xFFFF00 {
+                    ((tdx / dsq + 0xFFFFFF) >> 24) as u32
+                } else {
+                    1
+                }
+                .max(1);
+                let stride_y = if tdy > 0xFFFF00 {
+                    ((tdy / dsq + 0xFFFFFF) >> 24) as u32
+                } else {
+                    1
+                }
+                .max(1);
                 let red_w = sw_u.div_ceil(stride_x);
                 let red_h = sh_u.div_ceil(stride_y);
                 let off_x = (sw_u as i32 - (red_w as i32 - 1) * stride_x as i32 - 1) / 2;
                 let off_y = (sh_u as i32 - (red_h as i32 - 1) * stride_y as i32 - 1) / 2;
-                let mut xfm = self.area_sample_transform_24(red_w, red_h, tex_x, tex_y, tex_w, tex_h);
+                let mut xfm =
+                    self.area_sample_transform_24(red_w, red_h, tex_x, tex_y, tex_w, tex_h);
                 xfm.stride_x = stride_x;
                 xfm.stride_y = stride_y;
                 xfm.off_x = off_x;
                 xfm.off_y = off_y;
 
                 self.paint_image_scanlines_area(
-                    proof, image, &xfm, &sec, ext,
-                    ix, iy, iy2, iw, ax1, ax2, ay1, ay2,
-                    &mode, &mut ibuf, max_batch, &mut coverages, tw_stride,
+                    proof,
+                    image,
+                    &xfm,
+                    &sec,
+                    ext,
+                    ix,
+                    iy,
+                    iy2,
+                    iw,
+                    ax1,
+                    ax2,
+                    ay1,
+                    ay2,
+                    &mode,
+                    &mut ibuf,
+                    max_batch,
+                    &mut coverages,
+                    tw_stride,
                 );
             }
         } else {
             // Upscale or exact 1:1 (C++ emPainter_ScTl.cpp:345-378)
-            let sxfm = self.scale_transform_24(img_w as u32, img_h as u32, tex_x, tex_y, tex_w, tex_h);
+            let sxfm =
+                self.scale_transform_24(img_w as u32, img_h as u32, tex_x, tex_y, tex_w, tex_h);
             let upscaling = tdx < 0x1000000 || tdy < 0x1000000;
 
             if upscaling {
                 self.paint_image_scanlines_adaptive(
-                    proof, image, &sxfm, &sec, ext,
-                    ix, iy, iy2, iw, ax1, ax2, ay1, ay2,
-                    &mode, &mut ibuf, max_batch, &mut coverages, tw_stride,
+                    proof,
+                    image,
+                    &sxfm,
+                    &sec,
+                    ext,
+                    ix,
+                    iy,
+                    iy2,
+                    iw,
+                    ax1,
+                    ax2,
+                    ay1,
+                    ay2,
+                    &mode,
+                    &mut ibuf,
+                    max_batch,
+                    &mut coverages,
+                    tw_stride,
                 );
             } else {
                 self.paint_image_scanlines_nearest(
-                    proof, image, &sxfm, &sec, ext,
-                    ix, iy, iy2, iw, ax1, ax2, ay1, ay2,
-                    &mode, &mut ibuf, max_batch, &mut coverages, tw_stride,
+                    proof,
+                    image,
+                    &sxfm,
+                    &sec,
+                    ext,
+                    ix,
+                    iy,
+                    iy2,
+                    iw,
+                    ax1,
+                    ax2,
+                    ay1,
+                    ay2,
+                    &mode,
+                    &mut ibuf,
+                    max_batch,
+                    &mut coverages,
+                    tw_stride,
                 );
             }
         }
@@ -2387,28 +2821,34 @@ impl<'a> emPainter<'a> {
         sxfm: &emPainterInterpolation::ScaleTransform24,
         sec: &emPainterInterpolation::SectionBounds,
         ext: super::emTexture::ImageExtension,
-        ix: i32, mut iy: i32, iy2: i32, iw: i32,
-        ax1: i32, ax2: i32, ay1: i32, ay2: i32,
+        ix: i32,
+        mut iy: i32,
+        iy2: i32,
+        iw: i32,
+        ax1: i32,
+        ax2: i32,
+        ay1: i32,
+        ay2: i32,
         mode: &BlendMode,
-        ibuf: &mut InterpolationBuffer, max_batch: usize,
-        coverages: &mut [i32], tw_stride: usize,
+        ibuf: &mut InterpolationBuffer,
+        max_batch: usize,
+        coverages: &mut [i32],
+        tw_stride: usize,
     ) {
         // C++ PaintRect scanline loop (emPainter.cpp:432-441)
         if ay1 < 0x1000 {
             let a1 = ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
             let a2 = ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
             self.paint_image_scanline_nearest(
-                proof, image, sxfm, sec, ext,
-                ix, iy, iw, a1, ay1, a2,
-                mode, ibuf, max_batch, coverages, tw_stride,
+                proof, image, sxfm, sec, ext, ix, iy, iw, a1, ay1, a2, mode, ibuf, max_batch,
+                coverages, tw_stride,
             );
             iy += 1;
         }
         while iy < iy2 {
             self.paint_image_scanline_nearest(
-                proof, image, sxfm, sec, ext,
-                ix, iy, iw, ax1, 0x1000, ax2,
-                mode, ibuf, max_batch, coverages, tw_stride,
+                proof, image, sxfm, sec, ext, ix, iy, iw, ax1, 0x1000, ax2, mode, ibuf, max_batch,
+                coverages, tw_stride,
             );
             iy += 1;
         }
@@ -2416,9 +2856,8 @@ impl<'a> emPainter<'a> {
             let a1 = ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
             let a2 = ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
             self.paint_image_scanline_nearest(
-                proof, image, sxfm, sec, ext,
-                ix, iy, iw, a1, ay2, a2,
-                mode, ibuf, max_batch, coverages, tw_stride,
+                proof, image, sxfm, sec, ext, ix, iy, iw, a1, ay2, a2, mode, ibuf, max_batch,
+                coverages, tw_stride,
             );
         }
     }
@@ -2433,11 +2872,17 @@ impl<'a> emPainter<'a> {
         sxfm: &emPainterInterpolation::ScaleTransform24,
         sec: &emPainterInterpolation::SectionBounds,
         ext: super::emTexture::ImageExtension,
-        ix: i32, iy: i32, iw: i32,
-        a1: i32, a: i32, a2: i32,
+        ix: i32,
+        iy: i32,
+        iw: i32,
+        a1: i32,
+        a: i32,
+        a2: i32,
         mode: &BlendMode,
-        ibuf: &mut InterpolationBuffer, max_batch: usize,
-        coverages: &mut [i32], tw_stride: usize,
+        ibuf: &mut InterpolationBuffer,
+        max_batch: usize,
+        coverages: &mut [i32],
+        tw_stride: usize,
     ) {
         let allow_simd = self.allow_simd;
         let mut col = ix;
@@ -2450,16 +2895,30 @@ impl<'a> emPainter<'a> {
             // Build coverage array matching C++ PaintScanline three-part pattern
             for (i, cov) in coverages[..batch].iter_mut().enumerate() {
                 let px = col + i as i32;
-                *cov = if px == ix { a1 }
-                    else if px == end - 1 { a2 }
-                    else { a };
+                *cov = if px == ix {
+                    a1
+                } else if px == end - 1 {
+                    a2
+                } else {
+                    a
+                };
             }
             let all_full = coverages[..batch].iter().all(|&c| c >= 0x1000);
             let dest_offset = (iy as usize * tw_stride + col as usize) * 4;
             let data = self.GetImage(proof).GetWritableMap();
             let dest = &mut data[dest_offset..];
-            if all_full { blend_scanline(dest, ibuf, batch, None, mode, allow_simd); }
-            else { blend_scanline(dest, ibuf, batch, Some(&coverages[..batch]), mode, allow_simd); }
+            if all_full {
+                blend_scanline(dest, ibuf, batch, None, mode, allow_simd);
+            } else {
+                blend_scanline(
+                    dest,
+                    ibuf,
+                    batch,
+                    Some(&coverages[..batch]),
+                    mode,
+                    allow_simd,
+                );
+            }
             col += batch as i32;
         }
     }
@@ -2473,27 +2932,33 @@ impl<'a> emPainter<'a> {
         xfm: &emPainterInterpolation::AreaSampleTransform,
         sec: &emPainterInterpolation::SectionBounds,
         ext: super::emTexture::ImageExtension,
-        ix: i32, mut iy: i32, iy2: i32, iw: i32,
-        ax1: i32, ax2: i32, ay1: i32, ay2: i32,
+        ix: i32,
+        mut iy: i32,
+        iy2: i32,
+        iw: i32,
+        ax1: i32,
+        ax2: i32,
+        ay1: i32,
+        ay2: i32,
         mode: &BlendMode,
-        ibuf: &mut InterpolationBuffer, max_batch: usize,
-        coverages: &mut [i32], tw_stride: usize,
+        ibuf: &mut InterpolationBuffer,
+        max_batch: usize,
+        coverages: &mut [i32],
+        tw_stride: usize,
     ) {
         if ay1 < 0x1000 {
             let a1 = ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
             let a2 = ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
             self.paint_image_scanline_area(
-                proof, image, xfm, sec, ext,
-                ix, iy, iw, a1, ay1, a2,
-                mode, ibuf, max_batch, coverages, tw_stride,
+                proof, image, xfm, sec, ext, ix, iy, iw, a1, ay1, a2, mode, ibuf, max_batch,
+                coverages, tw_stride,
             );
             iy += 1;
         }
         while iy < iy2 {
             self.paint_image_scanline_area(
-                proof, image, xfm, sec, ext,
-                ix, iy, iw, ax1, 0x1000, ax2,
-                mode, ibuf, max_batch, coverages, tw_stride,
+                proof, image, xfm, sec, ext, ix, iy, iw, ax1, 0x1000, ax2, mode, ibuf, max_batch,
+                coverages, tw_stride,
             );
             iy += 1;
         }
@@ -2501,9 +2966,8 @@ impl<'a> emPainter<'a> {
             let a1 = ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
             let a2 = ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
             self.paint_image_scanline_area(
-                proof, image, xfm, sec, ext,
-                ix, iy, iw, a1, ay2, a2,
-                mode, ibuf, max_batch, coverages, tw_stride,
+                proof, image, xfm, sec, ext, ix, iy, iw, a1, ay2, a2, mode, ibuf, max_batch,
+                coverages, tw_stride,
             );
         }
     }
@@ -2516,11 +2980,17 @@ impl<'a> emPainter<'a> {
         xfm: &emPainterInterpolation::AreaSampleTransform,
         sec: &emPainterInterpolation::SectionBounds,
         ext: super::emTexture::ImageExtension,
-        ix: i32, iy: i32, iw: i32,
-        a1: i32, a: i32, a2: i32,
+        ix: i32,
+        iy: i32,
+        iw: i32,
+        a1: i32,
+        a: i32,
+        a2: i32,
         mode: &BlendMode,
-        ibuf: &mut InterpolationBuffer, max_batch: usize,
-        coverages: &mut [i32], tw_stride: usize,
+        ibuf: &mut InterpolationBuffer,
+        max_batch: usize,
+        coverages: &mut [i32],
+        tw_stride: usize,
     ) {
         let allow_simd = self.allow_simd;
         let end = ix + iw;
@@ -2533,16 +3003,30 @@ impl<'a> emPainter<'a> {
             );
             for (i, cov) in coverages[..batch].iter_mut().enumerate() {
                 let px = col + i as i32;
-                *cov = if px == ix { a1 }
-                    else if px == end - 1 { a2 }
-                    else { a };
+                *cov = if px == ix {
+                    a1
+                } else if px == end - 1 {
+                    a2
+                } else {
+                    a
+                };
             }
             let all_full = coverages[..batch].iter().all(|&c| c >= 0x1000);
             let dest_offset = (iy as usize * tw_stride + col as usize) * 4;
             let data = self.GetImage(proof).GetWritableMap();
             let dest = &mut data[dest_offset..];
-            if all_full { blend_scanline_premul(dest, ibuf, batch, None, mode, allow_simd); }
-            else { blend_scanline_premul(dest, ibuf, batch, Some(&coverages[..batch]), mode, allow_simd); }
+            if all_full {
+                blend_scanline_premul(dest, ibuf, batch, None, mode, allow_simd);
+            } else {
+                blend_scanline_premul(
+                    dest,
+                    ibuf,
+                    batch,
+                    Some(&coverages[..batch]),
+                    mode,
+                    allow_simd,
+                );
+            }
             col += batch as i32;
         }
     }
@@ -2556,27 +3040,33 @@ impl<'a> emPainter<'a> {
         sxfm: &emPainterInterpolation::ScaleTransform24,
         sec: &emPainterInterpolation::SectionBounds,
         ext: super::emTexture::ImageExtension,
-        ix: i32, mut iy: i32, iy2: i32, iw: i32,
-        ax1: i32, ax2: i32, ay1: i32, ay2: i32,
+        ix: i32,
+        mut iy: i32,
+        iy2: i32,
+        iw: i32,
+        ax1: i32,
+        ax2: i32,
+        ay1: i32,
+        ay2: i32,
         mode: &BlendMode,
-        ibuf: &mut InterpolationBuffer, max_batch: usize,
-        coverages: &mut [i32], tw_stride: usize,
+        ibuf: &mut InterpolationBuffer,
+        max_batch: usize,
+        coverages: &mut [i32],
+        tw_stride: usize,
     ) {
         if ay1 < 0x1000 {
             let a1 = ((ax1 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
             let a2 = ((ax2 as i64 * ay1 as i64 + 0x7ff) >> 12) as i32;
             self.paint_image_scanline_adaptive(
-                proof, image, sxfm, sec, ext,
-                ix, iy, iw, a1, ay1, a2,
-                mode, ibuf, max_batch, coverages, tw_stride,
+                proof, image, sxfm, sec, ext, ix, iy, iw, a1, ay1, a2, mode, ibuf, max_batch,
+                coverages, tw_stride,
             );
             iy += 1;
         }
         while iy < iy2 {
             self.paint_image_scanline_adaptive(
-                proof, image, sxfm, sec, ext,
-                ix, iy, iw, ax1, 0x1000, ax2,
-                mode, ibuf, max_batch, coverages, tw_stride,
+                proof, image, sxfm, sec, ext, ix, iy, iw, ax1, 0x1000, ax2, mode, ibuf, max_batch,
+                coverages, tw_stride,
             );
             iy += 1;
         }
@@ -2584,9 +3074,8 @@ impl<'a> emPainter<'a> {
             let a1 = ((ax1 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
             let a2 = ((ax2 as i64 * ay2 as i64 + 0x7ff) >> 12) as i32;
             self.paint_image_scanline_adaptive(
-                proof, image, sxfm, sec, ext,
-                ix, iy, iw, a1, ay2, a2,
-                mode, ibuf, max_batch, coverages, tw_stride,
+                proof, image, sxfm, sec, ext, ix, iy, iw, a1, ay2, a2, mode, ibuf, max_batch,
+                coverages, tw_stride,
             );
         }
     }
@@ -2599,11 +3088,17 @@ impl<'a> emPainter<'a> {
         sxfm: &emPainterInterpolation::ScaleTransform24,
         sec: &emPainterInterpolation::SectionBounds,
         ext: super::emTexture::ImageExtension,
-        ix: i32, iy: i32, iw: i32,
-        a1: i32, a: i32, a2: i32,
+        ix: i32,
+        iy: i32,
+        iw: i32,
+        a1: i32,
+        a: i32,
+        a2: i32,
         mode: &BlendMode,
-        ibuf: &mut InterpolationBuffer, max_batch: usize,
-        coverages: &mut [i32], tw_stride: usize,
+        ibuf: &mut InterpolationBuffer,
+        max_batch: usize,
+        coverages: &mut [i32],
+        tw_stride: usize,
     ) {
         let allow_simd = self.allow_simd;
         let end = ix + iw;
@@ -2615,16 +3110,30 @@ impl<'a> emPainter<'a> {
             );
             for (i, cov) in coverages[..batch].iter_mut().enumerate() {
                 let px = col + i as i32;
-                *cov = if px == ix { a1 }
-                    else if px == end - 1 { a2 }
-                    else { a };
+                *cov = if px == ix {
+                    a1
+                } else if px == end - 1 {
+                    a2
+                } else {
+                    a
+                };
             }
             let all_full = coverages[..batch].iter().all(|&c| c >= 0x1000);
             let dest_offset = (iy as usize * tw_stride + col as usize) * 4;
             let data = self.GetImage(proof).GetWritableMap();
             let dest = &mut data[dest_offset..];
-            if all_full { blend_scanline_premul(dest, ibuf, batch, None, mode, allow_simd); }
-            else { blend_scanline_premul(dest, ibuf, batch, Some(&coverages[..batch]), mode, allow_simd); }
+            if all_full {
+                blend_scanline_premul(dest, ibuf, batch, None, mode, allow_simd);
+            } else {
+                blend_scanline_premul(
+                    dest,
+                    ibuf,
+                    batch,
+                    Some(&coverages[..batch]),
+                    mode,
+                    allow_simd,
+                );
+            }
             col += batch as i32;
         }
     }
@@ -2650,16 +3159,32 @@ impl<'a> emPainter<'a> {
         extension: ImageExtension,
     ) {
         let Some(_proof) = self.try_record(DrawOp::PaintImageColored {
-            x, y, w, h,
+            x,
+            y,
+            w,
+            h,
             image_ptr: image as *const emImage,
-            src_x, src_y, src_w, src_h,
-            color1, color2, canvas_color, extension,
-        }) else { return; };
+            src_x,
+            src_y,
+            src_w,
+            src_h,
+            color1,
+            color2,
+            canvas_color,
+            extension,
+        }) else {
+            return;
+        };
 
         let texture = super::emTexture::emTexture::ImageColoredGradient {
             image_ref: image as *const emImage,
-            src_x, src_y, src_w, src_h,
-            color1, color2, extension,
+            src_x,
+            src_y,
+            src_w,
+            src_h,
+            color1,
+            color2,
+            extension,
         };
         self.paint_rect_textured(x, y, w, h, &texture, canvas_color);
     }
@@ -2670,7 +3195,10 @@ impl<'a> emPainter<'a> {
     #[allow(clippy::too_many_arguments)]
     fn paint_rect_textured(
         &mut self,
-        x: f64, y: f64, w: f64, h: f64,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
         texture: &super::emTexture::emTexture,
         canvas_color: emColor,
     ) {
@@ -2681,13 +3209,17 @@ impl<'a> emPainter<'a> {
         let x2f = x + w;
         let y2f = y + h;
         let px1 = (x * self.state.scale_x + self.state.offset_x)
-            .max(self.state.clip.x1).min(self.state.clip.x2);
+            .max(self.state.clip.x1)
+            .min(self.state.clip.x2);
         let px2 = (x2f * self.state.scale_x + self.state.offset_x)
-            .max(self.state.clip.x1).min(self.state.clip.x2);
+            .max(self.state.clip.x1)
+            .min(self.state.clip.x2);
         let py1 = (y * self.state.scale_y + self.state.offset_y)
-            .max(self.state.clip.y1).min(self.state.clip.y2);
+            .max(self.state.clip.y1)
+            .min(self.state.clip.y2);
         let py2 = (y2f * self.state.scale_y + self.state.offset_y)
-            .max(self.state.clip.y1).min(self.state.clip.y2);
+            .max(self.state.clip.y1)
+            .min(self.state.clip.y2);
         if px1 >= px2 || py1 >= py2 {
             self.state.canvas_color = saved_canvas;
             return;
@@ -2700,8 +3232,13 @@ impl<'a> emPainter<'a> {
         let ix = ix_raw >> 12;
         let ixe = ixe_raw >> 12;
         let iw = ixe - ix;
-        if iw <= 0 { self.state.canvas_color = saved_canvas; return; }
-        if iw <= 1 { ax1 += ax2 - 0x1000; }
+        if iw <= 0 {
+            self.state.canvas_color = saved_canvas;
+            return;
+        }
+        if iw <= 1 {
+            ax1 += ax2 - 0x1000;
+        }
 
         let iy_raw = (py1 * 4096.0) as i32;
         let iy2_raw = (py2 * 4096.0) as i32;
@@ -2712,13 +3249,19 @@ impl<'a> emPainter<'a> {
         if iy >= iy2 {
             ay1 += ay2 - 0x1000;
             ay2 = 0;
-            if ay1 <= 0 { self.state.canvas_color = saved_canvas; return; }
+            if ay1 <= 0 {
+                self.state.canvas_color = saved_canvas;
+                return;
+            }
         }
 
         // Dispatch by texture type — mimics C++ ScanlineTool::Init + PaintScanline loop
         let proof = match self.require_direct() {
             Some(p) => p,
-            None => { self.state.canvas_color = saved_canvas; return; }
+            None => {
+                self.state.canvas_color = saved_canvas;
+                return;
+            }
         };
 
         match texture {
@@ -2740,7 +3283,12 @@ impl<'a> emPainter<'a> {
                     self.paint_rect_scanline(proof, ix, iy, iw, a1, ay2, a2, c);
                 }
             }
-            super::emTexture::emTexture::LinearGradient { color_a, color_b, start, end } => {
+            super::emTexture::emTexture::LinearGradient {
+                color_a,
+                color_b,
+                start,
+                end,
+            } => {
                 let pstart = (
                     start.0 * self.state.scale_x + self.state.offset_x,
                     start.1 * self.state.scale_y + self.state.offset_y,
@@ -2752,43 +3300,102 @@ impl<'a> emPainter<'a> {
                 let grad = emPainterInterpolation::LinearGradientParams::new(pstart, pend);
                 let mut gbuf = vec![0u8; iw as usize];
                 if ay1 < 0x1000 {
-                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, ay1, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                    self.paint_rect_gradient_scanline(
+                        proof, ix, iy, iw, ax1, ay1, ax2, &grad, &mut gbuf, *color_a, *color_b,
+                    );
                     iy += 1;
                 }
                 while iy < iy2 {
-                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                    self.paint_rect_gradient_scanline(
+                        proof, ix, iy, iw, ax1, 0x1000, ax2, &grad, &mut gbuf, *color_a, *color_b,
+                    );
                     iy += 1;
                 }
                 if ay2 > 0 {
-                    self.paint_rect_gradient_scanline(proof, ix, iy, iw, ax1, ay2, ax2, &grad, &mut gbuf, *color_a, *color_b);
+                    self.paint_rect_gradient_scanline(
+                        proof, ix, iy, iw, ax1, ay2, ax2, &grad, &mut gbuf, *color_a, *color_b,
+                    );
                 }
             }
-            super::emTexture::emTexture::RadialGradient { color_inner, color_outer, center, radius_x, radius_y } => {
+            super::emTexture::emTexture::RadialGradient {
+                color_inner,
+                color_outer,
+                center,
+                radius_x,
+                radius_y,
+            } => {
                 let pcx = center.0 * self.state.scale_x + self.state.offset_x;
                 let pcy = center.1 * self.state.scale_y + self.state.offset_y;
                 let prx = radius_x * self.state.scale_x;
                 let pry = radius_y * self.state.scale_y;
                 if ay1 < 0x1000 {
-                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, ay1, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                    self.paint_rect_radial_scanline(
+                        proof,
+                        ix,
+                        iy,
+                        iw,
+                        ax1,
+                        ay1,
+                        ax2,
+                        pcx,
+                        pcy,
+                        prx,
+                        pry,
+                        *color_inner,
+                        *color_outer,
+                    );
                     iy += 1;
                 }
                 while iy < iy2 {
-                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, 0x1000, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                    self.paint_rect_radial_scanline(
+                        proof,
+                        ix,
+                        iy,
+                        iw,
+                        ax1,
+                        0x1000,
+                        ax2,
+                        pcx,
+                        pcy,
+                        prx,
+                        pry,
+                        *color_inner,
+                        *color_outer,
+                    );
                     iy += 1;
                 }
                 if ay2 > 0 {
-                    self.paint_rect_radial_scanline(proof, ix, iy, iw, ax1, ay2, ax2, pcx, pcy, prx, pry, *color_inner, *color_outer);
+                    self.paint_rect_radial_scanline(
+                        proof,
+                        ix,
+                        iy,
+                        iw,
+                        ax1,
+                        ay2,
+                        ax2,
+                        pcx,
+                        pcy,
+                        prx,
+                        pry,
+                        *color_inner,
+                        *color_outer,
+                    );
                 }
             }
             super::emTexture::emTexture::ImageColoredGradient {
-                image_ref, src_x, src_y, src_w, src_h, color1, color2, extension,
+                image_ref,
+                src_x,
+                src_y,
+                src_w,
+                src_h,
+                color1,
+                color2,
+                extension,
             } => {
                 let image = unsafe { &**image_ref };
                 self.paint_rect_image_colored(
-                    proof, x, y, w, h,
-                    ix, iy, iy2, iw, ax1, ax2, ay1, ay2,
-                    image, *src_x, *src_y, *src_w, *src_h,
-                    *color1, *color2, *extension,
+                    proof, x, y, w, h, ix, iy, iy2, iw, ax1, ax2, ay1, ay2, image, *src_x, *src_y,
+                    *src_w, *src_h, *color1, *color2, *extension,
                 );
             }
             _ => {} // emImage, ImageColored — handled by other paths
@@ -2803,15 +3410,30 @@ impl<'a> emPainter<'a> {
     fn paint_rect_image_colored(
         &mut self,
         proof: DirectProof,
-        x: f64, y: f64, w: f64, h: f64,
-        ix: i32, iy: i32, iy2: i32, iw: i32,
-        ax1: i32, ax2: i32, ay1: i32, ay2: i32,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        ix: i32,
+        iy: i32,
+        iy2: i32,
+        iw: i32,
+        ax1: i32,
+        ax2: i32,
+        ay1: i32,
+        ay2: i32,
         image: &emImage,
-        src_x: u32, src_y: u32, src_w: u32, src_h: u32,
-        color1: emColor, color2: emColor,
+        src_x: u32,
+        src_y: u32,
+        src_w: u32,
+        src_h: u32,
+        color1: emColor,
+        color2: emColor,
         extension: ImageExtension,
     ) {
-        if src_w == 0 || src_h == 0 { return; }
+        if src_w == 0 || src_h == 0 {
+            return;
+        }
 
         let ch = image.GetChannelCount();
         let dw = w * self.state.scale_x;
@@ -2826,20 +3448,28 @@ impl<'a> emPainter<'a> {
         let mut lums = [0u8; MAX_INTERP_BYTES];
 
         let sec = emPainterInterpolation::SectionBounds {
-            ox: src_x as i32, oy: src_y as i32,
-            w: src_w as i32, h: src_h as i32,
+            ox: src_x as i32,
+            oy: src_y as i32,
+            w: src_w as i32,
+            h: src_h as i32,
         };
 
         // Scanline loop matching C++ PaintRect: ay1 (top), 0x1000 (interior), ay2 (bottom)
         let ixe = ix + iw;
-        let sxfm = if !downscaling { Some(self.scale_transform_24(src_w, src_h, x, y, w, h)) } else { None };
+        let sxfm = if !downscaling {
+            Some(self.scale_transform_24(src_w, src_h, x, y, w, h))
+        } else {
+            None
+        };
 
         let mut cur_iy = iy;
         loop {
             let ay = if cur_iy == iy && ay1 < 0x1000 {
                 ay1
             } else if cur_iy == iy2 {
-                if ay2 <= 0 { break; }
+                if ay2 <= 0 {
+                    break;
+                }
                 ay2
             } else if cur_iy > iy2 {
                 break;
@@ -2851,8 +3481,18 @@ impl<'a> emPainter<'a> {
             if downscaling {
                 let tdx_i = (((src_w as i64) << 24) as f64 / dw) as i64;
                 let tdy_i = (((src_h as i64) << 24) as f64 / dh) as i64;
-                let stride_x = if tdx_i > 0xFFFF00 { ((tdx_i / self.model.downscale_quality as i64 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
-                let stride_y = if tdy_i > 0xFFFF00 { ((tdy_i / self.model.downscale_quality as i64 + 0xFFFFFF) >> 24) as u32 } else { 1 }.max(1);
+                let stride_x = if tdx_i > 0xFFFF00 {
+                    ((tdx_i / self.model.downscale_quality as i64 + 0xFFFFFF) >> 24) as u32
+                } else {
+                    1
+                }
+                .max(1);
+                let stride_y = if tdy_i > 0xFFFF00 {
+                    ((tdy_i / self.model.downscale_quality as i64 + 0xFFFFFF) >> 24) as u32
+                } else {
+                    1
+                }
+                .max(1);
                 let red_w = src_w.div_ceil(stride_x);
                 let red_h = src_h.div_ceil(stride_y);
                 let mut xfm = self.area_sample_transform_24(red_w, red_h, x, y, w, h);
@@ -2872,17 +3512,39 @@ impl<'a> emPainter<'a> {
                     let mut covs = vec![0i32; batch];
                     for (i, cov) in covs.iter_mut().enumerate() {
                         let ci = col + i as i32;
-                        let ax = if ci == ix { ax1 } else if ci == ixe - 1 && iw > 1 { ax2 } else { 0x1000 };
+                        let ax = if ci == ix {
+                            ax1
+                        } else if ci == ixe - 1 && iw > 1 {
+                            ax2
+                        } else {
+                            0x1000
+                        };
                         *cov = ((ax as i64 * ay as i64 + 0x7ff) >> 12) as i32;
                     }
                     let all_full = covs.iter().all(|&c| c >= 0x1000);
                     if ch >= 3 {
-                        blend_colored_scanline_rgb(dest, &ibuf, batch,
-                            if all_full { None } else { Some(&covs) }, color1, color2, &mode);
+                        blend_colored_scanline_rgb(
+                            dest,
+                            &ibuf,
+                            batch,
+                            if all_full { None } else { Some(&covs) },
+                            color1,
+                            color2,
+                            &mode,
+                        );
                     } else {
-                        for (i, lum) in lums[..batch].iter_mut().enumerate() { *lum = ibuf.pixel_rgba(i)[0]; }
-                        blend_colored_scanline(dest, &lums[..batch], batch,
-                            if all_full { None } else { Some(&covs) }, color1, color2, &mode);
+                        for (i, lum) in lums[..batch].iter_mut().enumerate() {
+                            *lum = ibuf.pixel_rgba(i)[0];
+                        }
+                        blend_colored_scanline(
+                            dest,
+                            &lums[..batch],
+                            batch,
+                            if all_full { None } else { Some(&covs) },
+                            color1,
+                            color2,
+                            &mode,
+                        );
                     }
                     col += batch as i32;
                 }
@@ -2899,10 +3561,13 @@ impl<'a> emPainter<'a> {
                             let tx64 = (c - ix) as i64 * sxfm.tdx + sxfm.base_x - 0x180_0000;
                             let ty64 = (cur_iy - iy) as i64 * sxfm.tdy + sxfm.base_y - 0x180_0000;
                             *lum = emPainterInterpolation::sample_adaptive_lum_section(
-                                image, (tx64 >> 24) as i32, (ty64 >> 24) as i32,
+                                image,
+                                (tx64 >> 24) as i32,
+                                (ty64 >> 24) as i32,
                                 (((tx64 & 0xFF_FFFF) as u32).wrapping_add(0x7FFF)) >> 16,
                                 (((ty64 & 0xFF_FFFF) as u32).wrapping_add(0x7FFF)) >> 16,
-                                &sec, ext,
+                                &sec,
+                                ext,
                             );
                         }
                     }
@@ -2912,16 +3577,36 @@ impl<'a> emPainter<'a> {
                     let mut covs = vec![0i32; batch];
                     for (i, cov) in covs.iter_mut().enumerate() {
                         let ci = col + i as i32;
-                        let ax = if ci == ix { ax1 } else if ci == ixe - 1 && iw > 1 { ax2 } else { 0x1000 };
+                        let ax = if ci == ix {
+                            ax1
+                        } else if ci == ixe - 1 && iw > 1 {
+                            ax2
+                        } else {
+                            0x1000
+                        };
                         *cov = ((ax as i64 * ay as i64 + 0x7ff) >> 12) as i32;
                     }
                     let all_full = covs.iter().all(|&c| c >= 0x1000);
                     if ch >= 3 {
-                        blend_colored_scanline_rgb(dest, &ibuf, batch,
-                            if all_full { None } else { Some(&covs) }, color1, color2, &mode);
+                        blend_colored_scanline_rgb(
+                            dest,
+                            &ibuf,
+                            batch,
+                            if all_full { None } else { Some(&covs) },
+                            color1,
+                            color2,
+                            &mode,
+                        );
                     } else {
-                        blend_colored_scanline(dest, &lums[..batch], batch,
-                            if all_full { None } else { Some(&covs) }, color1, color2, &mode);
+                        blend_colored_scanline(
+                            dest,
+                            &lums[..batch],
+                            batch,
+                            if all_full { None } else { Some(&covs) },
+                            color1,
+                            color2,
+                            &mode,
+                        );
                     }
                     col += batch as i32;
                 }
@@ -3030,15 +3715,17 @@ impl<'a> emPainter<'a> {
         if text.is_empty() || char_height <= 0.0 || color.GetAlpha() == 0 {
             return;
         }
-        let is_recording = self.try_record(DrawOp::PaintText {
-            x,
-            y,
-            text: text.to_string(),
-            char_height,
-            width_scale,
-            color,
-            canvas_color,
-        }).is_none();
+        let is_recording = self
+            .try_record(DrawOp::PaintText {
+                x,
+                y,
+                text: text.to_string(),
+                char_height,
+                width_scale,
+                color,
+                canvas_color,
+            })
+            .is_none();
         if is_recording && !self.record_subops {
             return;
         }
@@ -3050,15 +3737,7 @@ impl<'a> emPainter<'a> {
         // Tiny text fallback: colored rectangles instead of glyphs.
         let pixel_height = char_height * self.state.scale_y;
         if pixel_height < 1.7 {
-            self.paint_text_tiny(
-                x,
-                y,
-                text,
-                char_width,
-                char_height,
-                color,
-                canvas_color,
-            );
+            self.paint_text_tiny(x, y, text, char_width, char_height, color, canvas_color);
             self.record_depth -= 1;
             return;
         }
@@ -3089,7 +3768,9 @@ impl<'a> emPainter<'a> {
             // C++ PaintText: per-character show_height from font cache glyph dims.
             let (src_x, src_y, src_w, src_h) = emFontCache::GetChar(ch);
             let mut show_height = rcw * src_h as f64 / src_w as f64;
-            if show_height > char_height { show_height = char_height; }
+            if show_height > char_height {
+                show_height = char_height;
+            }
 
             self.PaintImageColored(
                 x1,
@@ -3172,49 +3853,95 @@ impl<'a> emPainter<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn PaintTextBoxed(
         &mut self,
-        mut x: f64, mut y: f64, w: f64, h: f64,
-        text: &str, max_char_height: f64,
-        color: emColor, canvas_color: emColor,
-        box_h_align: TextAlignment, box_v_align: VAlign,
+        mut x: f64,
+        mut y: f64,
+        w: f64,
+        h: f64,
+        text: &str,
+        max_char_height: f64,
+        color: emColor,
+        canvas_color: emColor,
+        box_h_align: TextAlignment,
+        box_v_align: VAlign,
         text_alignment: TextAlignment,
-        min_width_scale: f64, formatted: bool, rel_line_space: f64,
+        min_width_scale: f64,
+        formatted: bool,
+        rel_line_space: f64,
     ) {
-        if text.is_empty() { return; }
-        let is_recording = self.try_record(DrawOp::PaintTextBoxed {
-            x, y, w, h, text: text.to_string(), max_char_height, color, canvas_color,
-            box_h_align, box_v_align, text_alignment, min_width_scale, formatted, rel_line_space,
-        }).is_none();
-        if is_recording && !self.record_subops { return; }
+        if text.is_empty() {
+            return;
+        }
+        let is_recording = self
+            .try_record(DrawOp::PaintTextBoxed {
+                x,
+                y,
+                w,
+                h,
+                text: text.to_string(),
+                max_char_height,
+                color,
+                canvas_color,
+                box_h_align,
+                box_v_align,
+                text_alignment,
+                min_width_scale,
+                formatted,
+                rel_line_space,
+            })
+            .is_none();
+        if is_recording && !self.record_subops {
+            return;
+        }
         self.record_depth += 1;
 
         let mut ch = max_char_height;
         let (mut tw, mut th) = Self::GetTextSize(text, ch, formatted, rel_line_space);
-        if tw <= 0.0 { self.record_depth -= 1; return; }
+        if tw <= 0.0 {
+            self.record_depth -= 1;
+            return;
+        }
 
         // C++ lines 2605-2630: scale ch/tw/th to fit in (w,h)
-        if th > h { ch *= h / th; tw *= h / th; th = h; }
+        if th > h {
+            ch *= h / th;
+            tw *= h / th;
+            th = h;
+        }
         let mut ws = w / tw;
         if ws < 1.0 {
             tw = w;
             if ws < min_width_scale {
-                th *= ws / min_width_scale; ch *= ws / min_width_scale; ws = min_width_scale;
+                th *= ws / min_width_scale;
+                ch *= ws / min_width_scale;
+                ws = min_width_scale;
             }
         } else {
             ws = 1.0;
             if ws < min_width_scale {
-                ws = min_width_scale; tw *= ws;
-                if tw > w { th *= w / tw; ch *= w / tw; tw = w; }
+                ws = min_width_scale;
+                tw *= ws;
+                if tw > w {
+                    th *= w / tw;
+                    ch *= w / tw;
+                    tw = w;
+                }
             }
         }
 
         // C++ lines 2631-2638: box alignment
         if box_h_align != TextAlignment::Left {
-            if box_h_align == TextAlignment::Right { x += w - tw; }
-            else { x += (w - tw) * 0.5; }
+            if box_h_align == TextAlignment::Right {
+                x += w - tw;
+            } else {
+                x += (w - tw) * 0.5;
+            }
         }
         if box_v_align != VAlign::Top {
-            if box_v_align == VAlign::Bottom { y += h - th + ch * rel_line_space; }
-            else { y += (h - th + ch * rel_line_space) * 0.5; }
+            if box_v_align == VAlign::Bottom {
+                y += h - th + ch * rel_line_space;
+            } else {
+                y += (h - th + ch * rel_line_space) * 0.5;
+            }
         }
 
         if formatted {
@@ -3232,17 +3959,26 @@ impl<'a> emPainter<'a> {
                     while j2 < text_len {
                         let c = bytes[j2];
                         if c <= 0x0d {
-                            if c == 0x09 { cols2 = ((cols2 + j2 as i32 + 8) & !7) - j2 as i32; }
-                            else if c == 0x0a || c == 0x0d { break; }
+                            if c == 0x09 {
+                                cols2 = ((cols2 + j2 as i32 + 8) & !7) - j2 as i32;
+                            } else if c == 0x0a || c == 0x0d {
+                                break;
+                            }
                         } else if c >= 0x80 {
                             let n = utf8_char_len(c);
-                            if n > 1 { j2 += n - 1; cols2 -= (n - 1) as i32; }
+                            if n > 1 {
+                                j2 += n - 1;
+                                cols2 -= (n - 1) as i32;
+                            }
                         }
                         j2 += 1;
                     }
                     cols2 += j2 as i32;
-                    if text_alignment == TextAlignment::Right { tx += tw - cols2 as f64 * cw; }
-                    else { tx += (tw - cols2 as f64 * cw) * 0.5; }
+                    if text_alignment == TextAlignment::Right {
+                        tx += tw - cols2 as f64 * cw;
+                    } else {
+                        tx += (tw - cols2 as f64 * cw) * 0.5;
+                    }
                 }
 
                 let mut cols = 0i32;
@@ -3253,23 +3989,49 @@ impl<'a> emPainter<'a> {
                     if c <= 0x0d {
                         if c == 0x09 {
                             if j < i {
-                                self.PaintText(tx + cols as f64 * cw, ty, &text[j..i], ch, ws, color, canvas_color);
+                                self.PaintText(
+                                    tx + cols as f64 * cw,
+                                    ty,
+                                    &text[j..i],
+                                    ch,
+                                    ws,
+                                    color,
+                                    canvas_color,
+                                );
                                 cols += k + i as i32;
                             }
                             cols = (cols + 8) & !7;
-                            j = i + 1; k = -(j as i32);
-                        } else if c == 0x0a || c == 0x0d { break; }
+                            j = i + 1;
+                            k = -(j as i32);
+                        } else if c == 0x0a || c == 0x0d {
+                            break;
+                        }
                     } else if c >= 0x80 {
                         let n = utf8_char_len(c);
-                        if n > 1 { i += n - 1; k -= (n - 1) as i32; }
+                        if n > 1 {
+                            i += n - 1;
+                            k -= (n - 1) as i32;
+                        }
                     }
                     i += 1;
                 }
                 if j < i {
-                    self.PaintText(tx + cols as f64 * cw, ty, &text[j..i], ch, ws, color, canvas_color);
+                    self.PaintText(
+                        tx + cols as f64 * cw,
+                        ty,
+                        &text[j..i],
+                        ch,
+                        ws,
+                        color,
+                        canvas_color,
+                    );
                 }
-                if i >= text_len { break; }
-                if bytes[i] == 0x0d && i + 1 < text_len && bytes[i + 1] == 0x0a { i += 1; }
+                if i >= text_len {
+                    break;
+                }
+                if bytes[i] == 0x0d && i + 1 < text_len && bytes[i + 1] == 0x0a {
+                    i += 1;
+                }
                 i += 1;
                 ty += ch * (1.0 + rel_line_space);
             }
@@ -3291,23 +4053,38 @@ impl<'a> emPainter<'a> {
     /// C++ PaintImage = PaintRect(x,y,w,h, emImageTexture(...), canvasColor).
     pub fn paint_image_scaled(
         &mut self,
-        x: f64, y: f64, w: f64, h: f64,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
         image: &emImage,
         quality: super::emTexture::ImageQuality,
         extension: super::emTexture::ImageExtension,
     ) {
-        if w <= 0.0 || h <= 0.0 { return; }
+        if w <= 0.0 || h <= 0.0 {
+            return;
+        }
         let Some(_proof) = self.try_record(DrawOp::PaintImageScaled {
-            x, y, w, h,
+            x,
+            y,
+            w,
+            h,
             image_ptr: image as *const emImage,
-            quality, extension,
-        }) else { return; };
+            quality,
+            extension,
+        }) else {
+            return;
+        };
 
         let texture = super::emTexture::emTexture::emImage {
             image: image.clone(),
-            x, y, w, h,
+            x,
+            y,
+            w,
+            h,
             alpha: 255,
-            extension, quality,
+            extension,
+            quality,
         };
         self.paint_rect_with_texture(x, y, w, h, &texture, self.state.canvas_color);
     }
@@ -3319,11 +4096,13 @@ impl<'a> emPainter<'a> {
     /// segment i uses points[i*3], points[i*3+1], points[i*3+2], points[((i+1)*3) % n].
     /// The path is implicitly closed.
     pub fn PaintBezier(&mut self, points: &[(f64, f64)], color: emColor, canvas_color: emColor) {
-        let is_recording = self.try_record(DrawOp::PaintBezier {
-            points: points.to_vec(),
-            color,
-            canvas_color,
-        }).is_none();
+        let is_recording = self
+            .try_record(DrawOp::PaintBezier {
+                points: points.to_vec(),
+                color,
+                canvas_color,
+            })
+            .is_none();
         if is_recording && !self.record_subops {
             return;
         }
@@ -3363,7 +4142,9 @@ impl<'a> emPainter<'a> {
             points: points.to_vec(),
             stroke: stroke.clone(),
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         self.record_depth += 1;
         if points.len() < 3 {
             self.record_depth -= 1;
@@ -3399,16 +4180,20 @@ impl<'a> emPainter<'a> {
             points: points.to_vec(),
             stroke: stroke.clone(),
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         self.record_depth += 1;
         let n = points.len();
         if n < 4 {
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
         let closed = n.is_multiple_of(3);
         let seg_count = if closed { n / 3 } else { (n - 1) / 3 };
         if seg_count == 0 {
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
         let s = self.state.scale_x + self.state.scale_y;
         let mut verts = Vec::new();
@@ -3428,50 +4213,50 @@ impl<'a> emPainter<'a> {
             verts.push(points[n - 1]);
         }
         if verts.len() < 2 {
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
 
         // C++ PaintBezierLine (emPainter.cpp:1651-1684): compute arrow direction
         // vectors from the ORIGINAL control points, then pass them explicitly to
         // PaintPolylineWithArrows (matching C++ nx1,ny1,nx2,ny2 parameters).
-        let arrow_dirs = if !closed
-            && (stroke.start_end.IsDecorated() || stroke.finish_end.IsDecorated())
-        {
-            let mut nx1 = 1.0_f64;
-            let mut ny1 = 0.0_f64;
-            let mut nx2 = 1.0_f64;
-            let mut ny2 = 0.0_f64;
-            if stroke.start_end.IsDecorated() {
-                for j in 1..n {
-                    let dx = points[j].0 - points[0].0;
-                    let dy = points[j].1 - points[0].1;
-                    let ll = dx * dx + dy * dy;
-                    if ll > 1e-280 {
-                        let l = ll.sqrt();
-                        nx1 = dx / l;
-                        ny1 = dy / l;
-                        break;
+        let arrow_dirs =
+            if !closed && (stroke.start_end.IsDecorated() || stroke.finish_end.IsDecorated()) {
+                let mut nx1 = 1.0_f64;
+                let mut ny1 = 0.0_f64;
+                let mut nx2 = 1.0_f64;
+                let mut ny2 = 0.0_f64;
+                if stroke.start_end.IsDecorated() {
+                    for j in 1..n {
+                        let dx = points[j].0 - points[0].0;
+                        let dy = points[j].1 - points[0].1;
+                        let ll = dx * dx + dy * dy;
+                        if ll > 1e-280 {
+                            let l = ll.sqrt();
+                            nx1 = dx / l;
+                            ny1 = dy / l;
+                            break;
+                        }
                     }
                 }
-            }
-            if stroke.finish_end.IsDecorated() {
-                let last = points[n - 1];
-                for j in (0..n - 1).rev() {
-                    let dx = points[j].0 - last.0;
-                    let dy = points[j].1 - last.1;
-                    let ll = dx * dx + dy * dy;
-                    if ll > 1e-280 {
-                        let l = ll.sqrt();
-                        nx2 = dx / l;
-                        ny2 = dy / l;
-                        break;
+                if stroke.finish_end.IsDecorated() {
+                    let last = points[n - 1];
+                    for j in (0..n - 1).rev() {
+                        let dx = points[j].0 - last.0;
+                        let dy = points[j].1 - last.1;
+                        let ll = dx * dx + dy * dy;
+                        if ll > 1e-280 {
+                            let l = ll.sqrt();
+                            nx2 = dx / l;
+                            ny2 = dy / l;
+                            break;
+                        }
                     }
                 }
-            }
-            Some(((nx1, ny1), (nx2, ny2)))
-        } else {
-            None
-        };
+                Some(((nx1, ny1), (nx2, ny2)))
+            } else {
+                None
+            };
 
         self.PaintPolylineWithArrows(&verts, stroke, closed, canvas_color, arrow_dirs);
         self.record_depth -= 1;
@@ -3522,13 +4307,21 @@ impl<'a> emPainter<'a> {
         // C++ lines 1903-1908: pixel-round inset boundaries when not opaque.
         if !canvas_color.IsOpaque() {
             let f = self.RoundX(x + l) - x;
-            if f > 0.0 && f < w - r { l = f; }
+            if f > 0.0 && f < w - r {
+                l = f;
+            }
             let f = x + w - self.RoundX(x + w - r);
-            if f > 0.0 && f < w - l { r = f; }
+            if f > 0.0 && f < w - l {
+                r = f;
+            }
             let f = self.RoundY(y + t) - y;
-            if f > 0.0 && f < h - b { t = f; }
+            if f > 0.0 && f < h - b {
+                t = f;
+            }
             let f = y + h - self.RoundY(y + h - b);
-            if f > 0.0 && f < h - t { b = f; }
+            if f > 0.0 && f < h - t {
+                b = f;
+            }
         }
 
         let src_cx = img_w - src_l - src_r;
@@ -3539,29 +4332,29 @@ impl<'a> emPainter<'a> {
         // C++ bit layout:  8=UL 5=U 2=UR / 7=L 4=C 1=R / 6=LL 3=B 0=LR
         // Order: UL(0), U(1), UR(2), L(3), C(4), R(5), LL(6), B(7), LR(8)
         let target_rects = [
-            (x,             y,             l,      t),      // UL
-            (x + l,         y,             dst_cx, t),      // U
-            (x + w - r,     y,             r,      t),      // UR
-            (x,             y + t,         l,      dst_cy), // L
-            (x + l,         y + t,         dst_cx, dst_cy), // C
-            (x + w - r,     y + t,         r,      dst_cy), // R
-            (x,             y + h - b,     l,      b),      // LL
-            (x + l,         y + h - b,     dst_cx, b),      // B
-            (x + w - r,     y + h - b,     r,      b),      // LR
+            (x, y, l, t),                   // UL
+            (x + l, y, dst_cx, t),          // U
+            (x + w - r, y, r, t),           // UR
+            (x, y + t, l, dst_cy),          // L
+            (x + l, y + t, dst_cx, dst_cy), // C
+            (x + w - r, y + t, r, dst_cy),  // R
+            (x, y + h - b, l, b),           // LL
+            (x + l, y + h - b, dst_cx, b),  // B
+            (x + w - r, y + h - b, r, b),   // LR
         ];
 
         let ox = img_ox;
         let oy = img_oy;
         let source_rects = [
-            (ox,                     oy,                     src_l,  src_t),  // UL
-            (ox + src_l,             oy,                     src_cx, src_t),  // U
-            (ox + img_w - src_r,     oy,                     src_r,  src_t),  // UR
-            (ox,                     oy + src_t,             src_l,  src_cy), // L
-            (ox + src_l,             oy + src_t,             src_cx, src_cy), // C
-            (ox + img_w - src_r,     oy + src_t,             src_r,  src_cy), // R
-            (ox,                     oy + img_h - src_b,     src_l,  src_b),  // LL
-            (ox + src_l,             oy + img_h - src_b,     src_cx, src_b),  // B
-            (ox + img_w - src_r,     oy + img_h - src_b,     src_r,  src_b),  // LR
+            (ox, oy, src_l, src_t),                                 // UL
+            (ox + src_l, oy, src_cx, src_t),                        // U
+            (ox + img_w - src_r, oy, src_r, src_t),                 // UR
+            (ox, oy + src_t, src_l, src_cy),                        // L
+            (ox + src_l, oy + src_t, src_cx, src_cy),               // C
+            (ox + img_w - src_r, oy + src_t, src_r, src_cy),        // R
+            (ox, oy + img_h - src_b, src_l, src_b),                 // LL
+            (ox + src_l, oy + img_h - src_b, src_cx, src_b),        // B
+            (ox + img_w - src_r, oy + img_h - src_b, src_r, src_b), // LR
         ];
 
         Some(BorderImageSlices {
@@ -3605,11 +4398,26 @@ impl<'a> emPainter<'a> {
         // C++ inline overload: forwards to PaintBorderImage(x,y,w,h,l,t,r,b,img,
         //   0,0,img.GetWidth(),img.GetHeight(),srcL,srcT,srcR,srcB,alpha,canvasColor,whichSubRects)
         self.PaintBorderImageSrcRect(
-            x, y, w, h, l, t, r, b,
+            x,
+            y,
+            w,
+            h,
+            l,
+            t,
+            r,
+            b,
             image,
-            0, 0, image.GetWidth() as i32, image.GetHeight() as i32,
-            src_l, src_t, src_r, src_b,
-            alpha, canvas_color, which_sub_rects,
+            0,
+            0,
+            image.GetWidth() as i32,
+            image.GetHeight() as i32,
+            src_l,
+            src_t,
+            src_r,
+            src_b,
+            alpha,
+            canvas_color,
+            which_sub_rects,
         );
     }
 
@@ -3645,13 +4453,29 @@ impl<'a> emPainter<'a> {
         which_sub_rects: u16,
     ) {
         // C2: line-by-line port of C++ emPainter::PaintBorderImage (emPainter.cpp:2221-2338).
-        let is_recording = self.try_record(DrawOp::PaintBorderImage {
-            x, y, w, h, l, t, r, b,
-            image_ptr: image as *const emImage,
-            src_l, src_t, src_r, src_b,
-            alpha, canvas_color, which_sub_rects,
-        }).is_none();
-        if is_recording && !self.record_subops { return; }
+        let is_recording = self
+            .try_record(DrawOp::PaintBorderImage {
+                x,
+                y,
+                w,
+                h,
+                l,
+                t,
+                r,
+                b,
+                image_ptr: image as *const emImage,
+                src_l,
+                src_t,
+                src_r,
+                src_b,
+                alpha,
+                canvas_color,
+                which_sub_rects,
+            })
+            .is_none();
+        if is_recording && !self.record_subops {
+            return;
+        }
         self.record_depth += 1;
 
         // C++ UserSpaceLeaveGuard — no-op in single-threaded Rust.
@@ -3659,13 +4483,21 @@ impl<'a> emPainter<'a> {
         // C++ lines 2258-2263: RoundX/RoundY pixel-snap when canvas not opaque.
         if !canvas_color.IsOpaque() {
             let f = self.RoundX(x + l) - x;
-            if f > 0.0 && f < w - r { l = f; }
+            if f > 0.0 && f < w - r {
+                l = f;
+            }
             let f = x + w - self.RoundX(x + w - r);
-            if f > 0.0 && f < w - l { r = f; }
+            if f > 0.0 && f < w - l {
+                r = f;
+            }
             let f = self.RoundY(y + t) - y;
-            if f > 0.0 && f < h - b { t = f; }
+            if f > 0.0 && f < h - b {
+                t = f;
+            }
             let f = y + h - self.RoundY(y + h - b);
-            if f > 0.0 && f < h - t { b = f; }
+            if f > 0.0 && f < h - t {
+                b = f;
+            }
         }
 
         let ext = super::emTexture::ImageExtension::Clamp; // C++ emTexture::EXTEND_EDGE
@@ -3674,74 +4506,146 @@ impl<'a> emPainter<'a> {
         // Bit layout: 8=TL  5=T  2=TR / 7=L  4=C  1=R / 6=BL  3=B  0=BR
         if which_sub_rects & (1 << 8) != 0 {
             self.PaintImageSrcRect(
-                x, y, l, t,
+                x,
+                y,
+                l,
+                t,
                 image,
-                src_x, src_y, src_l, src_t,
-                alpha, canvas_color, ext,
+                src_x,
+                src_y,
+                src_l,
+                src_t,
+                alpha,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 5) != 0 {
             self.PaintImageSrcRect(
-                x + l, y, w - l - r, t,
+                x + l,
+                y,
+                w - l - r,
+                t,
                 image,
-                src_x + src_l, src_y, src_w - src_l - src_r, src_t,
-                alpha, canvas_color, ext,
+                src_x + src_l,
+                src_y,
+                src_w - src_l - src_r,
+                src_t,
+                alpha,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 2) != 0 {
             self.PaintImageSrcRect(
-                x + w - r, y, r, t,
+                x + w - r,
+                y,
+                r,
+                t,
                 image,
-                src_x + src_w - src_r, src_y, src_r, src_t,
-                alpha, canvas_color, ext,
+                src_x + src_w - src_r,
+                src_y,
+                src_r,
+                src_t,
+                alpha,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 7) != 0 {
             self.PaintImageSrcRect(
-                x, y + t, l, h - t - b,
+                x,
+                y + t,
+                l,
+                h - t - b,
                 image,
-                src_x, src_y + src_t, src_l, src_h - src_t - src_b,
-                alpha, canvas_color, ext,
+                src_x,
+                src_y + src_t,
+                src_l,
+                src_h - src_t - src_b,
+                alpha,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 4) != 0 {
             self.PaintImageSrcRect(
-                x + l, y + t, w - l - r, h - t - b,
+                x + l,
+                y + t,
+                w - l - r,
+                h - t - b,
                 image,
-                src_x + src_l, src_y + src_t, src_w - src_l - src_r, src_h - src_t - src_b,
-                alpha, canvas_color, ext,
+                src_x + src_l,
+                src_y + src_t,
+                src_w - src_l - src_r,
+                src_h - src_t - src_b,
+                alpha,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 1) != 0 {
             self.PaintImageSrcRect(
-                x + w - r, y + t, r, h - t - b,
+                x + w - r,
+                y + t,
+                r,
+                h - t - b,
                 image,
-                src_x + src_w - src_r, src_y + src_t, src_r, src_h - src_t - src_b,
-                alpha, canvas_color, ext,
+                src_x + src_w - src_r,
+                src_y + src_t,
+                src_r,
+                src_h - src_t - src_b,
+                alpha,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 6) != 0 {
             self.PaintImageSrcRect(
-                x, y + h - b, l, b,
+                x,
+                y + h - b,
+                l,
+                b,
                 image,
-                src_x, src_y + src_h - src_b, src_l, src_b,
-                alpha, canvas_color, ext,
+                src_x,
+                src_y + src_h - src_b,
+                src_l,
+                src_b,
+                alpha,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 3) != 0 {
             self.PaintImageSrcRect(
-                x + l, y + h - b, w - l - r, b,
+                x + l,
+                y + h - b,
+                w - l - r,
+                b,
                 image,
-                src_x + src_l, src_y + src_h - src_b, src_w - src_l - src_r, src_b,
-                alpha, canvas_color, ext,
+                src_x + src_l,
+                src_y + src_h - src_b,
+                src_w - src_l - src_r,
+                src_b,
+                alpha,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 0) != 0 {
             self.PaintImageSrcRect(
-                x + w - r, y + h - b, r, b,
+                x + w - r,
+                y + h - b,
+                r,
+                b,
                 image,
-                src_x + src_w - src_r, src_y + src_h - src_b, src_r, src_b,
-                alpha, canvas_color, ext,
+                src_x + src_w - src_r,
+                src_y + src_h - src_b,
+                src_r,
+                src_b,
+                alpha,
+                canvas_color,
+                ext,
             );
         }
 
@@ -3776,15 +4680,31 @@ impl<'a> emPainter<'a> {
         which_sub_rects: i32,
     ) {
         // C2: line-by-line port of C++ emPainter::PaintBorderImageColored (emPainter.cpp:2341-2461).
-        let is_recording = self.try_record(DrawOp::PaintBorderImageColored {
-            x, y, w, h, l, t, r, b,
-            image_ptr: image as *const emImage,
-            src_l, src_t, src_r, src_b,
-            color1, color2, canvas_color,
-            which_sub_rects: which_sub_rects as u16,
-            alpha: 255,
-        }).is_none();
-        if is_recording && !self.record_subops { return; }
+        let is_recording = self
+            .try_record(DrawOp::PaintBorderImageColored {
+                x,
+                y,
+                w,
+                h,
+                l,
+                t,
+                r,
+                b,
+                image_ptr: image as *const emImage,
+                src_l,
+                src_t,
+                src_r,
+                src_b,
+                color1,
+                color2,
+                canvas_color,
+                which_sub_rects: which_sub_rects as u16,
+                alpha: 255,
+            })
+            .is_none();
+        if is_recording && !self.record_subops {
+            return;
+        }
         self.record_depth += 1;
 
         // C++ UserSpaceLeaveGuard — no-op in single-threaded Rust.
@@ -3792,13 +4712,21 @@ impl<'a> emPainter<'a> {
         // C++ lines 2381-2386: RoundX/RoundY pixel-snap when canvas not opaque.
         if !canvas_color.IsOpaque() {
             let f = self.RoundX(x + l) - x;
-            if f > 0.0 && f < w - r { l = f; }
+            if f > 0.0 && f < w - r {
+                l = f;
+            }
             let f = x + w - self.RoundX(x + w - r);
-            if f > 0.0 && f < w - l { r = f; }
+            if f > 0.0 && f < w - l {
+                r = f;
+            }
             let f = self.RoundY(y + t) - y;
-            if f > 0.0 && f < h - b { t = f; }
+            if f > 0.0 && f < h - b {
+                t = f;
+            }
             let f = y + h - self.RoundY(y + h - b);
-            if f > 0.0 && f < h - t { b = f; }
+            if f > 0.0 && f < h - t {
+                b = f;
+            }
         }
 
         let ext = ImageExtension::Clamp; // C++ emTexture::EXTEND_EDGE
@@ -3807,74 +4735,155 @@ impl<'a> emPainter<'a> {
         // Bit layout: 8=TL  5=T  2=TR / 7=L  4=C  1=R / 6=BL  3=B  0=BR
         if which_sub_rects & (1 << 8) != 0 {
             self.PaintImageColored(
-                x, y, l, t,
+                x,
+                y,
+                l,
+                t,
                 image,
-                src_x as u32, src_y as u32, src_l as u32, src_t as u32,
-                color1, color2, canvas_color, ext,
+                src_x as u32,
+                src_y as u32,
+                src_l as u32,
+                src_t as u32,
+                color1,
+                color2,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 5) != 0 {
             self.PaintImageColored(
-                x + l, y, w - l - r, t,
+                x + l,
+                y,
+                w - l - r,
+                t,
                 image,
-                (src_x + src_l) as u32, src_y as u32, (src_w - src_l - src_r) as u32, src_t as u32,
-                color1, color2, canvas_color, ext,
+                (src_x + src_l) as u32,
+                src_y as u32,
+                (src_w - src_l - src_r) as u32,
+                src_t as u32,
+                color1,
+                color2,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 2) != 0 {
             self.PaintImageColored(
-                x + w - r, y, r, t,
+                x + w - r,
+                y,
+                r,
+                t,
                 image,
-                (src_x + src_w - src_r) as u32, src_y as u32, src_r as u32, src_t as u32,
-                color1, color2, canvas_color, ext,
+                (src_x + src_w - src_r) as u32,
+                src_y as u32,
+                src_r as u32,
+                src_t as u32,
+                color1,
+                color2,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 7) != 0 {
             self.PaintImageColored(
-                x, y + t, l, h - t - b,
+                x,
+                y + t,
+                l,
+                h - t - b,
                 image,
-                src_x as u32, (src_y + src_t) as u32, src_l as u32, (src_h - src_t - src_b) as u32,
-                color1, color2, canvas_color, ext,
+                src_x as u32,
+                (src_y + src_t) as u32,
+                src_l as u32,
+                (src_h - src_t - src_b) as u32,
+                color1,
+                color2,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 4) != 0 {
             self.PaintImageColored(
-                x + l, y + t, w - l - r, h - t - b,
+                x + l,
+                y + t,
+                w - l - r,
+                h - t - b,
                 image,
-                (src_x + src_l) as u32, (src_y + src_t) as u32, (src_w - src_l - src_r) as u32, (src_h - src_t - src_b) as u32,
-                color1, color2, canvas_color, ext,
+                (src_x + src_l) as u32,
+                (src_y + src_t) as u32,
+                (src_w - src_l - src_r) as u32,
+                (src_h - src_t - src_b) as u32,
+                color1,
+                color2,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 1) != 0 {
             self.PaintImageColored(
-                x + w - r, y + t, r, h - t - b,
+                x + w - r,
+                y + t,
+                r,
+                h - t - b,
                 image,
-                (src_x + src_w - src_r) as u32, (src_y + src_t) as u32, src_r as u32, (src_h - src_t - src_b) as u32,
-                color1, color2, canvas_color, ext,
+                (src_x + src_w - src_r) as u32,
+                (src_y + src_t) as u32,
+                src_r as u32,
+                (src_h - src_t - src_b) as u32,
+                color1,
+                color2,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 6) != 0 {
             self.PaintImageColored(
-                x, y + h - b, l, b,
+                x,
+                y + h - b,
+                l,
+                b,
                 image,
-                src_x as u32, (src_y + src_h - src_b) as u32, src_l as u32, src_b as u32,
-                color1, color2, canvas_color, ext,
+                src_x as u32,
+                (src_y + src_h - src_b) as u32,
+                src_l as u32,
+                src_b as u32,
+                color1,
+                color2,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 3) != 0 {
             self.PaintImageColored(
-                x + l, y + h - b, w - l - r, b,
+                x + l,
+                y + h - b,
+                w - l - r,
+                b,
                 image,
-                (src_x + src_l) as u32, (src_y + src_h - src_b) as u32, (src_w - src_l - src_r) as u32, src_b as u32,
-                color1, color2, canvas_color, ext,
+                (src_x + src_l) as u32,
+                (src_y + src_h - src_b) as u32,
+                (src_w - src_l - src_r) as u32,
+                src_b as u32,
+                color1,
+                color2,
+                canvas_color,
+                ext,
             );
         }
         if which_sub_rects & (1 << 0) != 0 {
             self.PaintImageColored(
-                x + w - r, y + h - b, r, b,
+                x + w - r,
+                y + h - b,
+                r,
+                b,
                 image,
-                (src_x + src_w - src_r) as u32, (src_y + src_h - src_b) as u32, src_r as u32, src_b as u32,
-                color1, color2, canvas_color, ext,
+                (src_x + src_w - src_r) as u32,
+                (src_y + src_h - src_b) as u32,
+                src_r as u32,
+                src_b as u32,
+                color1,
+                color2,
+                canvas_color,
+                ext,
             );
         }
 
@@ -3905,7 +4914,9 @@ impl<'a> emPainter<'a> {
             range_angle,
             stroke: stroke.clone(),
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         self.record_depth += 1;
         let cx = x + w * 0.5;
         let cy = y + h * 0.5;
@@ -3915,23 +4926,34 @@ impl<'a> emPainter<'a> {
         let start_angle = start_angle * std::f64::consts::PI / 180.0;
         let range_angle = range_angle * std::f64::consts::PI / 180.0;
         if rx <= 0.0 || ry <= 0.0 || stroke.width <= 0.0 {
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
         if range_angle == 0.0 {
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
         let abs_range = range_angle.abs();
         if abs_range >= 2.0 * std::f64::consts::PI {
             self.PaintEllipseOutline(x, y, w, h, stroke, canvas_color);
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
         // C++ includes half-thickness in quality (emPainter.cpp:1759)
         let t2 = stroke.width * 0.5;
         let mut f = CIRCLE_QUALITY
             * ((rx + t2) * self.state.scale_x + (ry + t2) * self.state.scale_y).sqrt();
-        if f > 256.0 { f = 256.0; }
+        if f > 256.0 {
+            f = 256.0;
+        }
         f = f * abs_range / (2.0 * std::f64::consts::PI);
-        let n = if f <= 3.0 { 3 } else if f >= 256.0 { 256 } else { (f + 0.5) as usize };
+        let n = if f <= 3.0 {
+            3
+        } else if f >= 256.0 {
+            256
+        } else {
+            (f + 0.5) as usize
+        };
         let step = range_angle / n as f64;
         let vn = n + 1;
         let mut verts = Vec::with_capacity(vn);
@@ -3957,7 +4979,10 @@ impl<'a> emPainter<'a> {
                 } else {
                     (angle.sin(), -angle.cos())
                 };
-                if range_angle < 0.0 { nx = -nx; ny = -ny; }
+                if range_angle < 0.0 {
+                    nx = -nx;
+                    ny = -ny;
+                }
                 let tnx = nx * rx;
                 let tny = ny * ry;
                 let ll = tnx * tnx + tny * tny;
@@ -4002,7 +5027,9 @@ impl<'a> emPainter<'a> {
             sweep_angle,
             stroke: stroke.clone(),
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         self.record_depth += 1;
 
         let cx = x + w * 0.5;
@@ -4015,15 +5042,22 @@ impl<'a> emPainter<'a> {
         let mut start_rad = start_angle * std::f64::consts::PI / 180.0;
         let mut range_rad = sweep_angle * std::f64::consts::PI / 180.0;
         if range_rad <= 0.0 {
-            if range_rad == 0.0 { self.record_depth -= 1; return; }
+            if range_rad == 0.0 {
+                self.record_depth -= 1;
+                return;
+            }
             start_rad += range_rad;
             range_rad = -range_rad;
         }
         if range_rad >= 2.0 * std::f64::consts::PI {
             self.PaintEllipseOutline(x, y, w, h, stroke, canvas_color);
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
-        if thickness <= 0.0 { self.record_depth -= 1; return; }
+        if thickness <= 0.0 {
+            self.record_depth -= 1;
+            return;
+        }
 
         // C++ uses (x,y,w,h); Rust uses (cx,cy,rx,ry). Derive w,h,x,y for clip checks.
         let w = (2.0 * rx).max(0.0);
@@ -4034,10 +5068,22 @@ impl<'a> emPainter<'a> {
         // C++ emPainter.cpp:2045-2049 — clip-rect early-out
         let no_end = emStrokeEnd::butt();
         let r = emPainter::CalculateLinePointMinMaxRadius(thickness, stroke, &no_end, &no_end);
-        if (x - r) * self.state.scale_x + self.state.offset_x >= self.state.clip.x2 { self.record_depth -= 1; return; }
-        if (x + w + r) * self.state.scale_x + self.state.offset_x <= self.state.clip.x1 { self.record_depth -= 1; return; }
-        if (y - r) * self.state.scale_y + self.state.offset_y >= self.state.clip.y2 { self.record_depth -= 1; return; }
-        if (y + h + r) * self.state.scale_y + self.state.offset_y <= self.state.clip.y1 { self.record_depth -= 1; return; }
+        if (x - r) * self.state.scale_x + self.state.offset_x >= self.state.clip.x2 {
+            self.record_depth -= 1;
+            return;
+        }
+        if (x + w + r) * self.state.scale_x + self.state.offset_x <= self.state.clip.x1 {
+            self.record_depth -= 1;
+            return;
+        }
+        if (y - r) * self.state.scale_y + self.state.offset_y >= self.state.clip.y2 {
+            self.record_depth -= 1;
+            return;
+        }
+        if (y + h + r) * self.state.scale_y + self.state.offset_y <= self.state.clip.y1 {
+            self.record_depth -= 1;
+            return;
+        }
 
         // C++ emPainter.cpp:2053-2063
         let rx = w * 0.5;
@@ -4045,9 +5091,17 @@ impl<'a> emPainter<'a> {
         let t2 = thickness * 0.5;
         let mut f = CIRCLE_QUALITY
             * ((rx + t2) * self.state.scale_x + (ry + t2) * self.state.scale_y).sqrt();
-        if f > 256.0 { f = 256.0; }
+        if f > 256.0 {
+            f = 256.0;
+        }
         f = f * range_rad / (2.0 * std::f64::consts::PI);
-        let n: usize = if f <= 3.0 { 3 } else if f >= 256.0 { 256 } else { (f + 0.5) as usize };
+        let n: usize = if f <= 3.0 {
+            3
+        } else if f >= 256.0 {
+            256
+        } else {
+            (f + 0.5) as usize
+        };
         let step = range_rad / n as f64;
 
         // C++ emPainter.cpp:2065-2071 — center + n+1 arc points = n+2 total vertices
@@ -4091,13 +5145,16 @@ impl<'a> emPainter<'a> {
             h,
             stroke: stroke.clone(),
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         self.record_depth += 1;
         let sw = stroke.width;
         let w = w.max(0.0);
         let h = h.max(0.0);
         if sw <= 0.0 {
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
         let t2 = sw * 0.5;
         let rounded = stroke.join == super::emStroke::LineJoin::Round
@@ -4105,12 +5162,23 @@ impl<'a> emPainter<'a> {
 
         if rounded || stroke.is_dashed() {
             if (w <= sw || h <= sw) && !stroke.is_dashed() {
-                self.PaintRoundRect(x - t2, y - t2, w + sw, h + sw, t2, t2, stroke.color, canvas_color);
-                self.record_depth -= 1; return;
+                self.PaintRoundRect(
+                    x - t2,
+                    y - t2,
+                    w + sw,
+                    h + sw,
+                    t2,
+                    t2,
+                    stroke.color,
+                    canvas_color,
+                );
+                self.record_depth -= 1;
+                return;
             }
             let verts = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)];
             self.PaintPolylineWithoutArrows(&verts, stroke, true, canvas_color);
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
 
         // Outer rect expanded by t2 on each side.
@@ -4131,7 +5199,8 @@ impl<'a> emPainter<'a> {
                 stroke.color,
                 canvas_color,
             );
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
 
         // 10-vertex polygon: outer CW, bridge, inner CCW, bridge back.
@@ -4181,29 +5250,47 @@ impl<'a> emPainter<'a> {
             ry,
             stroke: stroke.clone(),
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         self.record_depth += 1;
 
-        if thickness <= 0.0 { self.record_depth -= 1; return; }
+        if thickness <= 0.0 {
+            self.record_depth -= 1;
+            return;
+        }
         let w = w.max(0.0);
         let h = h.max(0.0);
         let t2 = thickness * 0.5;
 
         let mut rx = rx;
         let mut ry = ry;
-        if rx > w * 0.5 { rx = w * 0.5; }
-        if ry > h * 0.5 { ry = h * 0.5; }
+        if rx > w * 0.5 {
+            rx = w * 0.5;
+        }
+        if ry > h * 0.5 {
+            ry = h * 0.5;
+        }
         if rx <= 0.0 || ry <= 0.0 {
             self.PaintRectOutline(x, y, w, h, stroke, canvas_color);
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
 
         rx += t2;
         ry += t2;
         let mut f = CIRCLE_QUALITY * (rx * self.state.scale_x + ry * self.state.scale_y).sqrt();
-        if f > 256.0 { f = 256.0; }
+        if f > 256.0 {
+            f = 256.0;
+        }
         f *= 0.25;
-        let n: usize = if f <= 1.0 { 1 } else if f >= 64.0 { 64 } else { (f + 0.5) as usize };
+        let n: usize = if f <= 1.0 {
+            1
+        } else if f >= 64.0 {
+            64
+        } else {
+            (f + 0.5) as usize
+        };
         let step = std::f64::consts::FRAC_PI_2 / n as f64;
 
         // Corner centers (from outer bounding box edges + outer radii).
@@ -4230,7 +5317,8 @@ impl<'a> emPainter<'a> {
                 canvas_color
             };
             self.PaintPolylineWithoutArrows(&verts, stroke, true, canvas_color);
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
 
         // Solid stroke: build outer vertices.
@@ -4261,7 +5349,8 @@ impl<'a> emPainter<'a> {
         if x1 - rx >= x2 + rx || y1 - ry >= y2 + ry {
             // Degenerate inner — fill as solid polygon.
             self.PaintPolygon(&verts, stroke.color, canvas_color);
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
 
         // Bridge from outer end back to outer start.
@@ -4270,9 +5359,17 @@ impl<'a> emPainter<'a> {
 
         // Inner ring with potentially different segment count.
         let mut f = CIRCLE_QUALITY * (rx * self.state.scale_x + ry * self.state.scale_y).sqrt();
-        if f > 256.0 { f = 256.0; }
+        if f > 256.0 {
+            f = 256.0;
+        }
         f *= 0.25;
-        let m: usize = if f <= 1.0 { 1 } else if f >= 64.0 { 64 } else { (f + 0.5) as usize };
+        let m: usize = if f <= 1.0 {
+            1
+        } else if f >= 64.0 {
+            64
+        } else {
+            (f + 0.5) as usize
+        };
         let inner_step = std::f64::consts::FRAC_PI_2 / m as f64;
 
         let final_count = 4 * n + 4 * m + 10;
@@ -4312,13 +5409,18 @@ impl<'a> emPainter<'a> {
             h,
             stroke: stroke.clone(),
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         self.record_depth += 1;
 
         let cx = x + w * 0.5;
         let cy = y + h * 0.5;
         let thickness = stroke.width;
-        if thickness <= 0.0 { self.record_depth -= 1; return; }
+        if thickness <= 0.0 {
+            self.record_depth -= 1;
+            return;
+        }
 
         let w = w.max(0.0);
         let h = h.max(0.0);
@@ -4328,13 +5430,25 @@ impl<'a> emPainter<'a> {
         // C++ clip checks use x1=x-t2, x2=x+w+t2, y1=y-t2, y2=y+h+t2
         // where x=cx-w/2, y=cy-h/2.
         let x1 = cx - w * 0.5 - t2;
-        if x1 * self.state.scale_x + self.state.offset_x >= self.state.clip.x2 { self.record_depth -= 1; return; }
+        if x1 * self.state.scale_x + self.state.offset_x >= self.state.clip.x2 {
+            self.record_depth -= 1;
+            return;
+        }
         let x2 = cx + w * 0.5 + t2;
-        if x2 * self.state.scale_x + self.state.offset_x <= self.state.clip.x1 { self.record_depth -= 1; return; }
+        if x2 * self.state.scale_x + self.state.offset_x <= self.state.clip.x1 {
+            self.record_depth -= 1;
+            return;
+        }
         let y1 = cy - h * 0.5 - t2;
-        if y1 * self.state.scale_y + self.state.offset_y >= self.state.clip.y2 { self.record_depth -= 1; return; }
+        if y1 * self.state.scale_y + self.state.offset_y >= self.state.clip.y2 {
+            self.record_depth -= 1;
+            return;
+        }
         let y2 = cy + h * 0.5 + t2;
-        if y2 * self.state.scale_y + self.state.offset_y <= self.state.clip.y1 { self.record_depth -= 1; return; }
+        if y2 * self.state.scale_y + self.state.offset_y <= self.state.clip.y1 {
+            self.record_depth -= 1;
+            return;
+        }
 
         // C++: cx=(x1+x2)*0.5; cy=(y1+y2)*0.5; rx=x2-cx; ry=y2-cy;
         // These are outer radii: rx_outer = w/2 + t2, ry_outer = h/2 + t2.
@@ -4366,7 +5480,8 @@ impl<'a> emPainter<'a> {
             };
             // C++: PaintPolylineWithoutArrows(xy,n,thickness,stroke,NoEnd,NoEnd,canvasColor);
             self.PaintPolylineWithoutArrows(&verts, stroke, false, canvas_color);
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
 
         // Solid stroke: outer ring vertices.
@@ -4384,7 +5499,8 @@ impl<'a> emPainter<'a> {
         if orx <= 0.0 || ory <= 0.0 {
             // C++: PaintPolygon(xy,n,stroke.Color,canvasColor);
             self.PaintPolygon(&verts, stroke.color, canvas_color);
-            self.record_depth -= 1; return;
+            self.record_depth -= 1;
+            return;
         }
 
         // C++: xy[n*2]=xy[0]; xy[n*2+1]=xy[1]; (close outer ring)
@@ -4419,13 +5535,23 @@ impl<'a> emPainter<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn PaintEdgeCorrection(
         &mut self,
-        mut x1: f64, mut y1: f64,
-        mut x2: f64, mut y2: f64,
-        mut color1: emColor, mut color2: emColor,
+        mut x1: f64,
+        mut y1: f64,
+        mut x2: f64,
+        mut y2: f64,
+        mut color1: emColor,
+        mut color2: emColor,
     ) {
         let Some(proof) = self.try_record(DrawOp::PaintEdgeCorrection {
-            x1, y1, x2, y2, color1, color2,
-        }) else { return; };
+            x1,
+            y1,
+            x2,
+            y2,
+            color1,
+            color2,
+        }) else {
+            return;
+        };
 
         x1 = x1 * self.state.scale_x + self.state.offset_x;
         y1 = y1 * self.state.scale_y + self.state.offset_y;
@@ -4449,25 +5575,75 @@ impl<'a> emPainter<'a> {
         let cx2f = self.state.clip.x2;
         let cy2f = self.state.clip.y2;
 
-        if y1 < cy1f { if y2 <= cy1f { return; } x1 += (cy1f - y1) * gx; y1 = cy1f; }
-        if y2 > cy2f { if y1 >= cy2f { return; } x2 += (cy2f - y2) * gx; y2 = cy2f; }
+        if y1 < cy1f {
+            if y2 <= cy1f {
+                return;
+            }
+            x1 += (cy1f - y1) * gx;
+            y1 = cy1f;
+        }
+        if y2 > cy2f {
+            if y1 >= cy2f {
+                return;
+            }
+            x2 += (cy2f - y2) * gx;
+            y2 = cy2f;
+        }
 
-        let mut cx1; let mut cx2; let mut sx: i32;
+        let mut cx1;
+        let mut cx2;
+        let mut sx: i32;
         if dx >= 0.0 {
-            if x1 < cx1f { if x2 <= cx1f { return; } y1 += (cx1f - x1) * gy; x1 = cx1f; }
-            if x2 > cx2f { if x1 >= cx2f { return; } y2 += (cx2f - x2) * gy; x2 = cx2f; }
-            sx = x1 as i32; cx1 = x1; cx2 = x2;
+            if x1 < cx1f {
+                if x2 <= cx1f {
+                    return;
+                }
+                y1 += (cx1f - x1) * gy;
+                x1 = cx1f;
+            }
+            if x2 > cx2f {
+                if x1 >= cx2f {
+                    return;
+                }
+                y2 += (cx2f - x2) * gy;
+                x2 = cx2f;
+            }
+            sx = x1 as i32;
+            cx1 = x1;
+            cx2 = x2;
         } else {
-            if x2 < cx1f { if x1 <= cx1f { return; } y2 += (cx1f - x2) * gy; x2 = cx1f; }
-            if x1 > cx2f { if x2 >= cx2f { return; } y1 += (cx2f - x1) * gy; x1 = cx2f; }
-            sx = x1.ceil() as i32 - 1; cx1 = x2; cx2 = x1;
+            if x2 < cx1f {
+                if x1 <= cx1f {
+                    return;
+                }
+                y2 += (cx1f - x2) * gy;
+                x2 = cx1f;
+            }
+            if x1 > cx2f {
+                if x2 >= cx2f {
+                    return;
+                }
+                y1 += (cx2f - x1) * gy;
+                x1 = cx2f;
+            }
+            sx = x1.ceil() as i32 - 1;
+            cx1 = x2;
+            cx2 = x1;
         }
         let mut sy = y1 as i32;
-        let mut cy1 = y1; let mut cy2 = y2;
-        if adx > dy { cy1 = cy1.floor(); cy2 = cy2.ceil(); }
-        else { cx1 = cx1.floor(); cx2 = cx2.ceil(); }
+        let mut cy1 = y1;
+        let mut cy2 = y2;
+        if adx > dy {
+            cy1 = cy1.floor();
+            cy2 = cy2.ceil();
+        } else {
+            cx1 = cx1.floor();
+            cx2 = cx2.ceil();
+        }
 
-        if color1.IsTotallyTransparent() || color2.IsTotallyTransparent() { return; }
+        if color1.IsTotallyTransparent() || color2.IsTotallyTransparent() {
+            return;
+        }
 
         let ac1 = color1.GetAlpha() as f64 * (1.0 / 255.0);
         let ac2 = color2.GetAlpha() as f64 * (1.0 / 255.0);
@@ -4477,24 +5653,53 @@ impl<'a> emPainter<'a> {
         let h2 = [color2.GetRed(), color2.GetGreen(), color2.GetBlue()];
 
         loop {
-            let mut px1 = sx as f64; let mut py1 = sy as f64;
-            let mut px2 = px1 + 1.0; let mut py2 = py1 + 1.0;
-            if px1 < cx1 { px1 = cx1; }
-            if py1 < cy1 { py1 = cy1; }
-            if px2 > cx2 { px2 = cx2; }
-            if py2 > cy2 { py2 = cy2; }
+            let mut px1 = sx as f64;
+            let mut py1 = sy as f64;
+            let mut px2 = px1 + 1.0;
+            let mut py2 = py1 + 1.0;
+            if px1 < cx1 {
+                px1 = cx1;
+            }
+            if py1 < cy1 {
+                py1 = cy1;
+            }
+            if px2 > cx2 {
+                px2 = cx2;
+            }
+            if py2 > cy2 {
+                py2 = cy2;
+            }
 
-            let mut qx1 = x1; let mut qy1 = y1; let mut qx2 = x2; let mut qy2 = y2;
-            if qy1 < py1 { qx1 += (py1 - qy1) * gx; qy1 = py1; }
-            if qy2 > py2 { qx2 += (py2 - qy2) * gx; qy2 = py2; }
+            let mut qx1 = x1;
+            let mut qy1 = y1;
+            let mut qx2 = x2;
+            let mut qy2 = y2;
+            if qy1 < py1 {
+                qx1 += (py1 - qy1) * gx;
+                qy1 = py1;
+            }
+            if qy2 > py2 {
+                qx2 += (py2 - qy2) * gx;
+                qy2 = py2;
+            }
             let a2;
             if dx >= 0.0 {
-                if qx1 < px1 { qy1 += (px1 - qx1) * gy; } // qx1 = px1 implicit
-                if qx2 > px2 { qy2 += (px2 - qx2) * gy; } // qx2 = px2 implicit
+                if qx1 < px1 {
+                    qy1 += (px1 - qx1) * gy;
+                } // qx1 = px1 implicit
+                if qx2 > px2 {
+                    qy2 += (px2 - qx2) * gy;
+                } // qx2 = px2 implicit
                 a2 = py2 - qy2;
             } else {
-                if qx2 < px1 { qy2 += (px1 - qx2) * gy; qx2 = px1; }
-                if qx1 > px2 { qy1 += (px2 - qx1) * gy; qx1 = px2; }
+                if qx2 < px1 {
+                    qy2 += (px1 - qx2) * gy;
+                    qx2 = px1;
+                }
+                if qx1 > px2 {
+                    qy1 += (px2 - qx1) * gy;
+                    qx1 = px2;
+                }
                 a2 = qy1 - py1;
             }
             let a2 = a2 * (px2 - px1) + (qy2 - qy1) * ((qx1 + qx2) * 0.5 - px1);
@@ -4514,7 +5719,9 @@ impl<'a> emPainter<'a> {
                     for ch in 0..3 {
                         let bg_term = if alpha3 > 0 {
                             blend_hash_lookup(bg[ch], alpha3 as u8) as i32
-                        } else { 0 };
+                        } else {
+                            0
+                        };
                         let c1_term = blend_hash_lookup(h1[ch], alpha1 as u8) as i32;
                         let c2_term = blend_hash_lookup(h2[ch], alpha2 as u8) as i32;
                         out[ch] = (bg_term + c1_term + c2_term).clamp(0, 255) as u8;
@@ -4525,16 +5732,22 @@ impl<'a> emPainter<'a> {
             if dx >= 0.0 {
                 if (sy as f64 + 1.0 - y1) * dx > (sx as f64 + 1.0 - x1) * dy {
                     sx += 1;
-                    if (sx as f64) < cx2 { continue; }
+                    if (sx as f64) < cx2 {
+                        continue;
+                    }
                     break;
                 }
             } else if (sy as f64 + 1.0 - y1) * dx < (sx as f64 - x1) * dy {
                 sx -= 1;
-                if sx as f64 + 1.0 > cx1 { continue; }
+                if sx as f64 + 1.0 > cx1 {
+                    continue;
+                }
                 break;
             }
             sy += 1;
-            if sy as f64 >= cy2 { break; }
+            if sy as f64 >= cy2 {
+                break;
+            }
         }
     }
 
@@ -4579,13 +5792,22 @@ impl<'a> emPainter<'a> {
         let min_dash_len: f64;
         let pref_dash_len: f64;
         if have_dashes {
-            min_dash_len = thickness * if rounded { 1.0 + MIN_REL_SEG_LEN } else { MIN_REL_SEG_LEN };
+            min_dash_len = thickness
+                * if rounded {
+                    1.0 + MIN_REL_SEG_LEN
+                } else {
+                    MIN_REL_SEG_LEN
+                };
             pref_dash_len = min_dash_len.max(thickness * 5.0 * stroke.dash_length_factor);
         } else {
             min_dash_len = 0.0;
             pref_dash_len = 0.0;
         }
-        let mut dot_len = if have_dots { thickness * (1.0 + MIN_REL_SEG_LEN) } else { 0.0 };
+        let mut dot_len = if have_dots {
+            thickness * (1.0 + MIN_REL_SEG_LEN)
+        } else {
+            0.0
+        };
         let pref_gap_len = 0.0f64.max(thickness * 5.0 * stroke.gap_length_factor);
         let min_phase_len = min_dash_len + dot_len;
         let pref_phase_len = pref_dash_len + dot_len + pref_gap_len;
@@ -4616,31 +5838,47 @@ impl<'a> emPainter<'a> {
                 return;
             }
             stroke_count = ((MAX_DASHES.min(total_len / pref_phase_len + 0.5)) as i32)
-                .max(1).min(max_stroke_count);
+                .max(1)
+                .min(max_stroke_count);
             end_extra = 0.0;
             let t = total_len / stroke_count as f64 - dot_len;
             dash_len = min_dash_len.max(t / (pref_phase_len - dot_len) * pref_dash_len);
             gap_len = t - dash_len;
         } else {
             let mut t = total_len;
-            if have_dashes { t += thickness.min(min_dash_len); } else { t += thickness; }
-            if have_dashes_and_dots { t += dot_len; }
+            if have_dashes {
+                t += thickness.min(min_dash_len);
+            } else {
+                t += thickness;
+            }
+            if have_dashes_and_dots {
+                t += dot_len;
+            }
             let max_stroke_count = (MAX_DASHES.min(t / min_phase_len)) as i32;
             if max_stroke_count < 2 {
                 self.PaintSolidPolyline(vertices, stroke, closed, canvas_color);
                 return;
             }
             t = total_len + pref_gap_len;
-            if have_dashes { t += thickness.min(pref_dash_len); } else { t += thickness; }
-            if have_dashes_and_dots { t += dot_len; }
+            if have_dashes {
+                t += thickness.min(pref_dash_len);
+            } else {
+                t += thickness;
+            }
+            if have_dashes_and_dots {
+                t += dot_len;
+            }
             stroke_count = ((MAX_DASHES.min(t / pref_phase_len + 0.5)) as i32)
-                .max(2).min(max_stroke_count);
+                .max(2)
+                .min(max_stroke_count);
             end_extra = thickness;
             if have_dashes {
                 t = total_len + end_extra;
-                if have_dots { t -= (stroke_count - 1) as f64 * dot_len; }
-                let u = stroke_count as f64 * pref_dash_len
-                    + (stroke_count - 1) as f64 * pref_gap_len;
+                if have_dots {
+                    t -= (stroke_count - 1) as f64 * dot_len;
+                }
+                let u =
+                    stroke_count as f64 * pref_dash_len + (stroke_count - 1) as f64 * pref_gap_len;
                 dash_len = min_dash_len.max(t / u * pref_dash_len);
                 if dash_len < end_extra {
                     let t2 = t - end_extra;
@@ -4652,22 +5890,28 @@ impl<'a> emPainter<'a> {
                 dash_len = 0.0;
             }
             t = total_len + end_extra - stroke_count as f64 * (dash_len + dot_len);
-            if have_dashes_and_dots { t += dot_len; }
+            if have_dashes_and_dots {
+                t += dot_len;
+            }
             gap_len = t / (stroke_count - 1) as f64;
             end_extra *= 0.5;
         }
 
         // Gap too small at screen scale → render as solid with alpha.
         let mut t = gap_len;
-        if rounded { t += thickness * 0.215; }
+        if rounded {
+            t += thickness * 0.215;
+        }
         if t * (self.GetScaleX() + self.GetScaleY()) * 0.5 < 1.2 {
             let phase_len = dash_len + dot_len + gap_len;
             let t_solid = ((phase_len - t) / phase_len).clamp(0.0, 1.0);
-            if t_solid <= 0.0 { return; }
+            if t_solid <= 0.0 {
+                return;
+            }
             let mut stroke2 = stroke.clone();
-            stroke2.color = stroke2.color.SetAlpha(
-                (stroke.color.GetAlpha() as f64 * t_solid + 0.5) as u8
-            );
+            stroke2.color = stroke2
+                .color
+                .SetAlpha((stroke.color.GetAlpha() as f64 * t_solid + 0.5) as u8);
             self.PaintSolidPolyline(vertices, &stroke2, closed, canvas_color);
             return;
         }
@@ -4676,13 +5920,19 @@ impl<'a> emPainter<'a> {
         if have_dashes_and_dots {
             gap_len *= 0.5;
             stroke_count *= 2;
-            if !is_endless { stroke_count -= 1; }
+            if !is_endless {
+                stroke_count -= 1;
+            }
         }
 
         if rounded {
             end_extra = 0.0;
-            if have_dashes { dash_len -= thickness; }
-            if have_dots { dot_len -= thickness; }
+            if have_dashes {
+                dash_len -= thickness;
+            }
+            if have_dots {
+                dot_len -= thickness;
+            }
             gap_len += thickness;
         }
 
@@ -4723,8 +5973,7 @@ impl<'a> emPainter<'a> {
             let ll = dx * dx + dy * dy;
             if ll > 1e-280 {
                 let l = ll.sqrt();
-                remaining_edge_len =
-                    l.min((if have_dashes { dash_len } else { dot_len }) * 0.5);
+                remaining_edge_len = l.min((if have_dashes { dash_len } else { dot_len }) * 0.5);
                 nx = dx / l;
                 ny = dy / l;
                 i -= 1;
@@ -4757,7 +6006,9 @@ impl<'a> emPainter<'a> {
                 remaining_segment_len -= remaining_edge_len;
                 remaining_edge_len = 0.0;
                 if i >= num_edges as i32 {
-                    if !is_in_stroke { break; }
+                    if !is_in_stroke {
+                        break;
+                    }
                     end_of_stroke_reached = true;
                 } else if !is_in_stroke {
                     continue;
@@ -4767,36 +6018,57 @@ impl<'a> emPainter<'a> {
             let x = x2 - nx * remaining_edge_len;
             let y = y2 - ny * remaining_edge_len;
             if xy_out.is_empty() {
-                min_x = x; max_x = x;
-                min_y = y; max_y = y;
+                min_x = x;
+                max_x = x;
+                min_y = y;
+                max_y = y;
             } else {
-                if min_x > x { min_x = x; } else if max_x < x { max_x = x; }
-                if min_y > y { min_y = y; } else if max_y < y { max_y = y; }
+                if min_x > x {
+                    min_x = x;
+                } else if max_x < x {
+                    max_x = x;
+                }
+                if min_y > y {
+                    min_y = y;
+                } else if max_y < y {
+                    max_y = y;
+                }
             }
             xy_out.push((x, y));
 
             if !is_in_stroke {
                 is_in_stroke = true;
                 end_of_stroke_reached = false;
-                remaining_segment_len =
-                    if have_dashes && (!have_dots || (stroke_number & 1) != 0) {
-                        dash_len
-                    } else {
-                        dot_len
-                    };
-                if stroke_number == 1 { remaining_segment_len -= end_extra; }
+                remaining_segment_len = if have_dashes && (!have_dots || (stroke_number & 1) != 0) {
+                    dash_len
+                } else {
+                    dot_len
+                };
+                if stroke_number == 1 {
+                    remaining_segment_len -= end_extra;
+                }
                 continue;
             }
 
-            if !end_of_stroke_reached { continue; }
+            if !end_of_stroke_reached {
+                continue;
+            }
 
             if min_x < cx2 && min_y < cy2 && max_x > cx1 && max_y > cy1 {
                 let start = if !is_endless && stroke_number == 1 {
                     stroke.start_end
-                } else if rounded { cap_end } else { butt_end };
+                } else if rounded {
+                    cap_end
+                } else {
+                    butt_end
+                };
                 let end = if !is_endless && stroke_number == stroke_count {
                     stroke.finish_end
-                } else if rounded { cap_end } else { butt_end };
+                } else if rounded {
+                    cap_end
+                } else {
+                    butt_end
+                };
                 let mut solid_stroke = stroke.clone();
                 solid_stroke.dash_type = DashType::Solid;
                 solid_stroke.dash_pattern.clear();
@@ -4805,7 +6077,9 @@ impl<'a> emPainter<'a> {
                 self.PaintSolidPolyline(&xy_out, &solid_stroke, false, canvas_color);
             }
 
-            if stroke_number >= stroke_count { break; }
+            if stroke_number >= stroke_count {
+                break;
+            }
             stroke_number += 1;
             is_in_stroke = false;
             remaining_segment_len = gap_len;
@@ -4846,7 +6120,9 @@ impl<'a> emPainter<'a> {
         arrow_dirs: Option<((f64, f64), (f64, f64))>,
     ) {
         let n = vertices.len();
-        if n == 0 { return; }
+        if n == 0 {
+            return;
+        }
 
         let mut work = vertices.to_vec();
         let mut p1: usize = 0;
@@ -4869,9 +6145,13 @@ impl<'a> emPainter<'a> {
                 let (ex1, ey1) = (work[p1].0 - x0, work[p1].1 - y0);
                 let (ex2, ey2) = (work[p1 + 1].0 - x0, work[p1 + 1].1 - y0);
                 let t = Self::cut_line_at_arrow(
-                    ex1 * nx1 + ey1 * ny1, ey1 * nx1 - ex1 * ny1,
-                    ex2 * nx1 + ey2 * ny1, ey2 * nx1 - ex2 * ny1,
-                    stroke.width, stroke, &stroke.start_end,
+                    ex1 * nx1 + ey1 * ny1,
+                    ey1 * nx1 - ex1 * ny1,
+                    ex2 * nx1 + ey2 * ny1,
+                    ey2 * nx1 - ex2 * ny1,
+                    stroke.width,
+                    stroke,
+                    &stroke.start_end,
                 );
                 if t < 1.0 {
                     work[p1].0 = (1.0 - t) * work[p1].0 + t * work[p1 + 1].0;
@@ -4888,9 +6168,13 @@ impl<'a> emPainter<'a> {
                 let (ex1, ey1) = (work[p2].0 - x0, work[p2].1 - y0);
                 let (ex2, ey2) = (work[p2 - 1].0 - x0, work[p2 - 1].1 - y0);
                 let t = Self::cut_line_at_arrow(
-                    ex1 * nx2 + ey1 * ny2, ey1 * nx2 - ex1 * ny2,
-                    ex2 * nx2 + ey2 * ny2, ey2 * nx2 - ex2 * ny2,
-                    stroke.width, stroke, &stroke.finish_end,
+                    ex1 * nx2 + ey1 * ny2,
+                    ey1 * nx2 - ex1 * ny2,
+                    ex2 * nx2 + ey2 * ny2,
+                    ey2 * nx2 - ex2 * ny2,
+                    stroke.width,
+                    stroke,
+                    &stroke.finish_end,
                 );
                 if t < 1.0 {
                     work[p2].0 = (1.0 - t) * work[p2].0 + t * work[p2 - 1].0;
@@ -4901,16 +6185,33 @@ impl<'a> emPainter<'a> {
             }
         }
 
-        
         self.PaintPolylineWithoutArrows(&work[p1..=p2], stroke, closed, canvas_color);
 
         if has_start {
             let (x, y) = vertices[0];
-            self.paint_stroke_end(x, y, nx1, ny1, stroke.width, stroke, &stroke.start_end, emColor::TRANSPARENT);
+            self.paint_stroke_end(
+                x,
+                y,
+                nx1,
+                ny1,
+                stroke.width,
+                stroke,
+                &stroke.start_end,
+                emColor::TRANSPARENT,
+            );
         }
         if has_end {
             let (x, y) = vertices[n - 1];
-            self.paint_stroke_end(x, y, nx2, ny2, stroke.width, stroke, &stroke.finish_end, emColor::TRANSPARENT);
+            self.paint_stroke_end(
+                x,
+                y,
+                nx2,
+                ny2,
+                stroke.width,
+                stroke,
+                &stroke.finish_end,
+                emColor::TRANSPARENT,
+            );
         }
     }
 
@@ -4951,8 +6252,8 @@ impl<'a> emPainter<'a> {
 
         #[derive(Clone)]
         struct Vertex {
-            dir: i32,     // 0=turn right, 1=turn left, -1=other
-            flags: u32,   // Combination of VTX_ flags
+            dir: i32,   // 0=turn right, 1=turn left, -1=other
+            flags: u32, // Combination of VTX_ flags
             x: f64,
             y: f64,
             nx: f64,
@@ -4960,7 +6261,7 @@ impl<'a> emPainter<'a> {
             el: [f64; 2], // Remaining length of right and left outgoing edge
             nn: f64,      // Scalar product of this NX,NY and previous NX,NY
             mx: f64,
-            my: f64,      // Miter vector
+            my: f64, // Miter vector
         }
 
         impl Default for Vertex {
@@ -5199,9 +6500,7 @@ impl<'a> emPainter<'a> {
                         Action::InnerMiter
                     } else {
                         // fall through to near-start-or-end check
-                        if (vtx[v1i].flags & VTX_IS_NEAR_START_OR_END) != 0
-                            && vtx[v1i].nn >= -0.5
-                        {
+                        if (vtx[v1i].flags & VTX_IS_NEAR_START_OR_END) != 0 && vtx[v1i].nn >= -0.5 {
                             Action::InnerMiter
                         } else {
                             Action::Bevel
@@ -5427,7 +6726,9 @@ impl<'a> emPainter<'a> {
             y1,
             stroke: stroke.clone(),
             canvas_color,
-        }) else { return; };
+        }) else {
+            return;
+        };
         self.record_depth += 1;
         // C++ PaintLine always uses PaintSolidPolyline which respects thickness.
         // No shortcut to simple PaintLine (which draws 1px regardless of thickness).
@@ -5525,13 +6826,22 @@ impl<'a> emPainter<'a> {
     /// C++ emPainter::CutLineAtArrow (emPainter.cpp:2934-3182).
     /// Returns t in [0, 1]: fraction of line segment outside the arrow shape.
     fn cut_line_at_arrow(
-        x1: f64, y1: f64, x2: f64, y2: f64,
-        thickness: f64, stroke: &emStroke, stroke_end: &emStrokeEnd,
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        thickness: f64,
+        stroke: &emStroke,
+        stroke_end: &emStrokeEnd,
     ) -> f64 {
         let mut r = (thickness * ARROW_BASE_SIZE * 0.5 * stroke_end.width_factor).abs();
-        if r <= 1e-140 { return 0.0; }
+        if r <= 1e-140 {
+            return 0.0;
+        }
         let mut l = thickness * ARROW_BASE_SIZE * stroke_end.length_factor;
-        if l <= 1e-140 { return 0.0; }
+        if l <= 1e-140 {
+            return 0.0;
+        }
 
         let rounded = stroke.cap == super::emStroke::LineCap::Round;
         let mut s: f64;
@@ -5554,7 +6864,11 @@ impl<'a> emPainter<'a> {
                 s = thickness * 0.5;
                 if !rounded {
                     let sin_a = r / (l * l + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                    if MAX_MITER * sin_a < 1.0 {
+                        s *= sin_a;
+                    } else {
+                        s /= sin_a;
+                    }
                 }
                 Self::cut_shape_arrow(x1 - s, y1, x2 - s, y2, r, l)
             }
@@ -5562,7 +6876,11 @@ impl<'a> emPainter<'a> {
                 s = thickness * 0.5;
                 if !rounded {
                     let sin_a = r / (l * l + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                    if MAX_MITER * sin_a < 1.0 {
+                        s *= sin_a;
+                    } else {
+                        s /= sin_a;
+                    }
                 }
                 let l2 = s * 1.5;
                 r *= l2 / l;
@@ -5583,7 +6901,11 @@ impl<'a> emPainter<'a> {
                 s = thickness * 0.5;
                 if !rounded {
                     let sin_a = r / (l * l + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                    if MAX_MITER * sin_a < 1.0 {
+                        s *= sin_a;
+                    } else {
+                        s /= sin_a;
+                    }
                 }
                 Self::cut_shape_triangle(x1 - s, y1, x2 - s, y2, r, l)
             }
@@ -5627,7 +6949,11 @@ impl<'a> emPainter<'a> {
                 s = thickness * 0.5;
                 if !rounded {
                     let sin_a = r / (l * l * 0.25 + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                    if MAX_MITER * sin_a < 1.0 {
+                        s *= sin_a;
+                    } else {
+                        s /= sin_a;
+                    }
                 }
                 Self::cut_shape_diamond(x1 - s, y1, x2 - s, y2, r, l, false)
             }
@@ -5642,7 +6968,9 @@ impl<'a> emPainter<'a> {
             }
             StrokeEndType::emStroke => {
                 l = thickness * (stroke_end.length_factor.abs() - 1.0);
-                if l < 0.0 { l = 0.0; }
+                if l < 0.0 {
+                    l = 0.0;
+                }
                 s = -l * 0.5;
                 Self::cut_shape_square(x1 - s, y1, x2 - s, y2, r, l)
             }
@@ -5659,22 +6987,38 @@ impl<'a> emPainter<'a> {
         let d2 = r / (l - l2);
         let mut t = 1.0;
         if dy - d2 * dx < -1e-140 {
-            if y1 <= d2 * (x1 - l2) { t = 0.0; }
-            else if y2 < (x2 - l2) * d2 { t = (d2 * (x1 - l2) - y1) / (dy - d2 * dx); }
+            if y1 <= d2 * (x1 - l2) {
+                t = 0.0;
+            } else if y2 < (x2 - l2) * d2 {
+                t = (d2 * (x1 - l2) - y1) / (dy - d2 * dx);
+            }
         }
         let mut u = 1.0;
         if dy + d2 * dx > 1e-140 {
-            if y1 >= -d2 * (x1 - l2) { u = 0.0; }
-            else if y2 > -(x2 - l2) * d2 { u = (-d2 * (x1 - l2) - y1) / (dy + d2 * dx); }
+            if y1 >= -d2 * (x1 - l2) {
+                u = 0.0;
+            } else if y2 > -(x2 - l2) * d2 {
+                u = (-d2 * (x1 - l2) - y1) / (dy + d2 * dx);
+            }
         }
-        if t < u { t = u; }
+        if t < u {
+            t = u;
+        }
         if dy - dr * dx > 1e-140 {
-            if y1 >= dr * x1 { return 0.0; }
-            if y2 > x2 * dr { t = t.min((dr * x1 - y1) / (dy - dr * dx)); }
+            if y1 >= dr * x1 {
+                return 0.0;
+            }
+            if y2 > x2 * dr {
+                t = t.min((dr * x1 - y1) / (dy - dr * dx));
+            }
         }
         if dy + dr * dx < -1e-140 {
-            if y1 <= -dr * x1 { return 0.0; }
-            if y2 < -x2 * dr { t = t.min((-dr * x1 - y1) / (dy + dr * dx)); }
+            if y1 <= -dr * x1 {
+                return 0.0;
+            }
+            if y2 < -x2 * dr {
+                t = t.min((-dr * x1 - y1) / (dy + dr * dx));
+            }
         }
         t
     }
@@ -5685,16 +7029,28 @@ impl<'a> emPainter<'a> {
         let dr = r / l;
         let mut t = 1.0;
         if dx > 1e-140 {
-            if x1 >= l { return 0.0; }
-            if x2 > l { t = (l - x1) / dx; }
+            if x1 >= l {
+                return 0.0;
+            }
+            if x2 > l {
+                t = (l - x1) / dx;
+            }
         }
         if dy - dr * dx > 1e-140 {
-            if y1 >= dr * x1 { return 0.0; }
-            if y2 > x2 * dr { t = t.min((dr * x1 - y1) / (dy - dr * dx)); }
+            if y1 >= dr * x1 {
+                return 0.0;
+            }
+            if y2 > x2 * dr {
+                t = t.min((dr * x1 - y1) / (dy - dr * dx));
+            }
         }
         if dy + dr * dx < -1e-140 {
-            if y1 <= -dr * x1 { return 0.0; }
-            if y2 < -x2 * dr { t = t.min((-dr * x1 - y1) / (dy + dr * dx)); }
+            if y1 <= -dr * x1 {
+                return 0.0;
+            }
+            if y2 < -x2 * dr {
+                t = t.min((-dr * x1 - y1) / (dy + dr * dx));
+            }
         }
         t
     }
@@ -5704,24 +7060,49 @@ impl<'a> emPainter<'a> {
         let dy = y2 - y1;
         let mut t = 1.0;
         if dx > 1e-140 {
-            if x1 >= l { return 0.0; }
-            if x2 > l { t = (l - x1) / dx; }
+            if x1 >= l {
+                return 0.0;
+            }
+            if x2 > l {
+                t = (l - x1) / dx;
+            }
         } else if dx < -1e-140 {
-            if x1 <= 0.0 { return 0.0; }
-            if x2 < 0.0 { t = -x1 / dx; }
+            if x1 <= 0.0 {
+                return 0.0;
+            }
+            if x2 < 0.0 {
+                t = -x1 / dx;
+            }
         }
         if dy > 1e-140 {
-            if y1 >= r { return 0.0; }
-            if y2 > r { t = t.min((r - y1) / dy); }
+            if y1 >= r {
+                return 0.0;
+            }
+            if y2 > r {
+                t = t.min((r - y1) / dy);
+            }
         } else if dy < -1e-140 {
-            if y1 <= -r { return 0.0; }
-            if y2 < -r { t = t.min((-r - y1) / dy); }
+            if y1 <= -r {
+                return 0.0;
+            }
+            if y2 < -r {
+                t = t.min((-r - y1) / dy);
+            }
         }
         t
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn cut_shape_circle(x1: f64, y1: f64, x2: f64, y2: f64, r: f64, l: f64, s: f64, semi: bool) -> f64 {
+    fn cut_shape_circle(
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        r: f64,
+        l: f64,
+        s: f64,
+        semi: bool,
+    ) -> f64 {
         let x1 = (x1 - s) * 2.0 / l - 1.0;
         let x2 = (x2 - s) * 2.0 / l - 1.0;
         let y1 = y1 / r;
@@ -5729,7 +7110,9 @@ impl<'a> emPainter<'a> {
         let dx = x2 - x1;
         let dy = y2 - y1;
         let d = dx * dx + dy * dy;
-        if d <= 1e-140 { return 1.0; }
+        if d <= 1e-140 {
+            return 1.0;
+        }
         let d1 = x1 * x1 + y1 * y1;
         let d2 = x2 * x2 + y2 * y2;
         let u = (x1 * dx + y1 * dy) / d;
@@ -5739,8 +7122,12 @@ impl<'a> emPainter<'a> {
         }
         let mut t = (disc.sqrt() - u).clamp(0.0, 1.0);
         if semi && dx < -1e-140 {
-            if x1 <= 0.0 { return 0.0; }
-            if x2 < 0.0 { t = t.min(-x1 / dx); }
+            if x1 <= 0.0 {
+                return 0.0;
+            }
+            if x2 < 0.0 {
+                t = t.min(-x1 / dx);
+            }
         }
         t
     }
@@ -5751,24 +7138,44 @@ impl<'a> emPainter<'a> {
         let dr = 2.0 * r / l;
         let mut t = 1.0;
         if dy - dr * dx > 1e-140 {
-            if y1 >= dr * x1 { return 0.0; }
-            if y2 > x2 * dr { t = (dr * x1 - y1) / (dy - dr * dx); }
+            if y1 >= dr * x1 {
+                return 0.0;
+            }
+            if y2 > x2 * dr {
+                t = (dr * x1 - y1) / (dy - dr * dx);
+            }
         }
         if dy + dr * dx < -1e-140 {
-            if y1 <= -dr * x1 { return 0.0; }
-            if y2 < -x2 * dr { t = t.min((-dr * x1 - y1) / (dy + dr * dx)); }
+            if y1 <= -dr * x1 {
+                return 0.0;
+            }
+            if y2 < -x2 * dr {
+                t = t.min((-dr * x1 - y1) / (dy + dr * dx));
+            }
         }
         if dy - dr * dx < -1e-140 {
-            if y1 <= dr * (x1 - l) { return 0.0; }
-            if y2 < (x2 - l) * dr { t = t.min((dr * (x1 - l) - y1) / (dy - dr * dx)); }
+            if y1 <= dr * (x1 - l) {
+                return 0.0;
+            }
+            if y2 < (x2 - l) * dr {
+                t = t.min((dr * (x1 - l) - y1) / (dy - dr * dx));
+            }
         }
         if dy + dr * dx > 1e-140 {
-            if y1 >= -dr * (x1 - l) { return 0.0; }
-            if y2 > -(x2 - l) * dr { t = t.min((-dr * (x1 - l) - y1) / (dy + dr * dx)); }
+            if y1 >= -dr * (x1 - l) {
+                return 0.0;
+            }
+            if y2 > -(x2 - l) * dr {
+                t = t.min((-dr * (x1 - l) - y1) / (dy + dr * dx));
+            }
         }
         if semi && dx < -1e-140 {
-            if x1 <= l * 0.5 { return 0.0; }
-            if x2 < l * 0.5 { t = t.min((l * 0.5 - x1) / dx); }
+            if x1 <= l * 0.5 {
+                return 0.0;
+            }
+            if x2 < l * 0.5 {
+                t = t.min((l * 0.5 - x1) / dx);
+            }
         }
         t
     }
@@ -5780,8 +7187,10 @@ impl<'a> emPainter<'a> {
     // DIVERGED: PaintArrow — renamed paint_stroke_end; C++ name is PaintArrow
     fn paint_stroke_end(
         &mut self,
-        x: f64, y: f64,
-        nx: f64, ny: f64,
+        x: f64,
+        y: f64,
+        nx: f64,
+        ny: f64,
         thickness: f64,
         stroke: &emStroke,
         stroke_end: &emStrokeEnd,
@@ -5790,7 +7199,9 @@ impl<'a> emPainter<'a> {
         let bc: f64 = 4.0 / 3.0 * (std::f64::consts::PI / 8.0).tan();
 
         let r = (thickness * ARROW_BASE_SIZE * 0.5 * stroke_end.width_factor).abs();
-        if r <= 1E-140 { return; }
+        if r <= 1E-140 {
+            return;
+        }
         let mut l = thickness * ARROW_BASE_SIZE * stroke_end.length_factor;
         let (nx, ny) = if l < 0.0 {
             l = -l;
@@ -5798,7 +7209,9 @@ impl<'a> emPainter<'a> {
         } else {
             (nx, ny)
         };
-        if l <= 1E-140 { return; }
+        if l <= 1E-140 {
+            return;
+        }
 
         let mut arrow_stroke = stroke.clone();
         arrow_stroke.dash_type = super::emStroke::DashType::Solid;
@@ -5813,10 +7226,14 @@ impl<'a> emPainter<'a> {
                     &[
                         (x, y),
                         (x + l * nx + r * ny, y + l * ny - r * nx),
-                        (x + (1.0 - ARROW_NOTCH) * l * nx, y + (1.0 - ARROW_NOTCH) * l * ny),
+                        (
+                            x + (1.0 - ARROW_NOTCH) * l * nx,
+                            y + (1.0 - ARROW_NOTCH) * l * ny,
+                        ),
                         (x + l * nx - r * ny, y + l * ny + r * nx),
                     ],
-                    stroke.color, canvas_color,
+                    stroke.color,
+                    canvas_color,
                 );
             }
 
@@ -5825,12 +7242,19 @@ impl<'a> emPainter<'a> {
                 let mut s = thickness * 0.5;
                 if stroke.cap != super::emStroke::LineCap::Round {
                     let sin_a = r / (l * l + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                    if MAX_MITER * sin_a < 1.0 {
+                        s *= sin_a;
+                    } else {
+                        s /= sin_a;
+                    }
                 }
                 let verts = [
                     (x + s * nx, y + s * ny),
                     (x + (s + l) * nx + r * ny, y + (s + l) * ny - r * nx),
-                    (x + (s + (1.0 - ARROW_NOTCH) * l) * nx, y + (s + (1.0 - ARROW_NOTCH) * l) * ny),
+                    (
+                        x + (s + (1.0 - ARROW_NOTCH) * l) * nx,
+                        y + (s + (1.0 - ARROW_NOTCH) * l) * ny,
+                    ),
                     (x + (s + l) * nx - r * ny, y + (s + l) * ny + r * nx),
                 ];
                 // C++: PaintPolygon(xy,4,strokeEnd.InnerColor,canvasColor)
@@ -5844,7 +7268,11 @@ impl<'a> emPainter<'a> {
                 let mut s = thickness * 0.5;
                 if stroke.cap != super::emStroke::LineCap::Round {
                     let sin_a = r / (l * l + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                    if MAX_MITER * sin_a < 1.0 {
+                        s *= sin_a;
+                    } else {
+                        s /= sin_a;
+                    }
                 }
                 let verts = [
                     (x + (s + l) * nx - r * ny, y + (s + l) * ny + r * nx),
@@ -5866,7 +7294,8 @@ impl<'a> emPainter<'a> {
                         (x + l * nx + r * ny, y + l * ny - r * nx),
                         (x + l * nx - r * ny, y + l * ny + r * nx),
                     ],
-                    stroke.color, canvas_color,
+                    stroke.color,
+                    canvas_color,
                 );
             }
 
@@ -5874,7 +7303,11 @@ impl<'a> emPainter<'a> {
                 let mut s = thickness * 0.5;
                 if stroke.cap != super::emStroke::LineCap::Round {
                     let sin_a = r / (l * l + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                    if MAX_MITER * sin_a < 1.0 {
+                        s *= sin_a;
+                    } else {
+                        s /= sin_a;
+                    }
                 }
                 let verts = [
                     (x + s * nx, y + s * ny),
@@ -5896,7 +7329,8 @@ impl<'a> emPainter<'a> {
                         (x + l * nx - r * ny, y + l * ny + r * nx),
                         (x - r * ny, y + r * nx),
                     ],
-                    stroke.color, canvas_color,
+                    stroke.color,
+                    canvas_color,
                 );
             }
 
@@ -5936,15 +7370,27 @@ impl<'a> emPainter<'a> {
                 let pts = [
                     (x, y),
                     (x + bc * r * ny, y - bc * r * nx),
-                    (x + (1.0 - bc) * 0.5 * l * nx + r * ny, y + (1.0 - bc) * 0.5 * l * ny - r * nx),
+                    (
+                        x + (1.0 - bc) * 0.5 * l * nx + r * ny,
+                        y + (1.0 - bc) * 0.5 * l * ny - r * nx,
+                    ),
                     (x + 0.5 * l * nx + r * ny, y + 0.5 * l * ny - r * nx),
-                    (x + (1.0 + bc) * 0.5 * l * nx + r * ny, y + (1.0 + bc) * 0.5 * l * ny - r * nx),
+                    (
+                        x + (1.0 + bc) * 0.5 * l * nx + r * ny,
+                        y + (1.0 + bc) * 0.5 * l * ny - r * nx,
+                    ),
                     (x + l * nx + bc * r * ny, y + l * ny - bc * r * nx),
                     (x + l * nx, y + l * ny),
                     (x + l * nx - bc * r * ny, y + l * ny + bc * r * nx),
-                    (x + (1.0 + bc) * 0.5 * l * nx - r * ny, y + (1.0 + bc) * 0.5 * l * ny + r * nx),
+                    (
+                        x + (1.0 + bc) * 0.5 * l * nx - r * ny,
+                        y + (1.0 + bc) * 0.5 * l * ny + r * nx,
+                    ),
                     (x + 0.5 * l * nx - r * ny, y + 0.5 * l * ny + r * nx),
-                    (x + (1.0 - bc) * 0.5 * l * nx - r * ny, y + (1.0 - bc) * 0.5 * l * ny + r * nx),
+                    (
+                        x + (1.0 - bc) * 0.5 * l * nx - r * ny,
+                        y + (1.0 - bc) * 0.5 * l * ny + r * nx,
+                    ),
                     (x - bc * r * ny, y + bc * r * nx),
                 ];
                 self.PaintBezier(&pts, stroke.color, canvas_color);
@@ -5955,15 +7401,39 @@ impl<'a> emPainter<'a> {
                 let pts = [
                     (x + s * nx, y + s * ny),
                     (x + s * nx + bc * r * ny, y + s * ny - bc * r * nx),
-                    (x + (s + (1.0 - bc) * 0.5 * l) * nx + r * ny, y + (s + (1.0 - bc) * 0.5 * l) * ny - r * nx),
-                    (x + (s + 0.5 * l) * nx + r * ny, y + (s + 0.5 * l) * ny - r * nx),
-                    (x + (s + (1.0 + bc) * 0.5 * l) * nx + r * ny, y + (s + (1.0 + bc) * 0.5 * l) * ny - r * nx),
-                    (x + (s + l) * nx + bc * r * ny, y + (s + l) * ny - bc * r * nx),
+                    (
+                        x + (s + (1.0 - bc) * 0.5 * l) * nx + r * ny,
+                        y + (s + (1.0 - bc) * 0.5 * l) * ny - r * nx,
+                    ),
+                    (
+                        x + (s + 0.5 * l) * nx + r * ny,
+                        y + (s + 0.5 * l) * ny - r * nx,
+                    ),
+                    (
+                        x + (s + (1.0 + bc) * 0.5 * l) * nx + r * ny,
+                        y + (s + (1.0 + bc) * 0.5 * l) * ny - r * nx,
+                    ),
+                    (
+                        x + (s + l) * nx + bc * r * ny,
+                        y + (s + l) * ny - bc * r * nx,
+                    ),
                     (x + (s + l) * nx, y + (s + l) * ny),
-                    (x + (s + l) * nx - bc * r * ny, y + (s + l) * ny + bc * r * nx),
-                    (x + (s + (1.0 + bc) * 0.5 * l) * nx - r * ny, y + (s + (1.0 + bc) * 0.5 * l) * ny + r * nx),
-                    (x + (s + 0.5 * l) * nx - r * ny, y + (s + 0.5 * l) * ny + r * nx),
-                    (x + (s + (1.0 - bc) * 0.5 * l) * nx - r * ny, y + (s + (1.0 - bc) * 0.5 * l) * ny + r * nx),
+                    (
+                        x + (s + l) * nx - bc * r * ny,
+                        y + (s + l) * ny + bc * r * nx,
+                    ),
+                    (
+                        x + (s + (1.0 + bc) * 0.5 * l) * nx - r * ny,
+                        y + (s + (1.0 + bc) * 0.5 * l) * ny + r * nx,
+                    ),
+                    (
+                        x + (s + 0.5 * l) * nx - r * ny,
+                        y + (s + 0.5 * l) * ny + r * nx,
+                    ),
+                    (
+                        x + (s + (1.0 - bc) * 0.5 * l) * nx - r * ny,
+                        y + (s + (1.0 - bc) * 0.5 * l) * ny + r * nx,
+                    ),
                     (x + s * nx - bc * r * ny, y + s * ny + bc * r * nx),
                 ];
                 // C++: PaintBezier(xy,12,strokeEnd.InnerColor,canvasColor)
@@ -5974,14 +7444,30 @@ impl<'a> emPainter<'a> {
 
             StrokeEndType::HalfCircle => {
                 // C++: if (stroke.Rounded) s=thickness*0.5; else s=0.0;
-                let s = if stroke.cap == super::emStroke::LineCap::Round { thickness * 0.5 } else { 0.0 };
+                let s = if stroke.cap == super::emStroke::LineCap::Round {
+                    thickness * 0.5
+                } else {
+                    0.0
+                };
                 let pts = [
                     (x + s * nx + r * ny, y + s * ny - r * nx),
-                    (x + (s + bc * 0.5 * l) * nx + r * ny, y + (s + bc * 0.5 * l) * ny - r * nx),
-                    (x + (s + 0.5 * l) * nx + bc * r * ny, y + (s + 0.5 * l) * ny - bc * r * nx),
+                    (
+                        x + (s + bc * 0.5 * l) * nx + r * ny,
+                        y + (s + bc * 0.5 * l) * ny - r * nx,
+                    ),
+                    (
+                        x + (s + 0.5 * l) * nx + bc * r * ny,
+                        y + (s + 0.5 * l) * ny - bc * r * nx,
+                    ),
                     (x + (s + 0.5 * l) * nx, y + (s + 0.5 * l) * ny),
-                    (x + (s + 0.5 * l) * nx - bc * r * ny, y + (s + 0.5 * l) * ny + bc * r * nx),
-                    (x + (s + bc * 0.5 * l) * nx - r * ny, y + (s + bc * 0.5 * l) * ny + r * nx),
+                    (
+                        x + (s + 0.5 * l) * nx - bc * r * ny,
+                        y + (s + 0.5 * l) * ny + bc * r * nx,
+                    ),
+                    (
+                        x + (s + bc * 0.5 * l) * nx - r * ny,
+                        y + (s + bc * 0.5 * l) * ny + r * nx,
+                    ),
                     (x + s * nx - r * ny, y + s * ny + r * nx),
                 ];
                 // C++: PaintBezierLine(xy,7,thickness,arrowStroke,
@@ -6008,7 +7494,8 @@ impl<'a> emPainter<'a> {
                         (x + l * nx, y + l * ny),
                         (x + 0.5 * l * nx - r * ny, y + 0.5 * l * ny + r * nx),
                     ],
-                    stroke.color, canvas_color,
+                    stroke.color,
+                    canvas_color,
                 );
             }
 
@@ -6017,13 +7504,23 @@ impl<'a> emPainter<'a> {
                 let mut s = thickness * 0.5;
                 if stroke.cap != super::emStroke::LineCap::Round {
                     let sin_a = r / (l * l * 0.25 + r * r).sqrt();
-                    if MAX_MITER * sin_a < 1.0 { s *= sin_a; } else { s /= sin_a; }
+                    if MAX_MITER * sin_a < 1.0 {
+                        s *= sin_a;
+                    } else {
+                        s /= sin_a;
+                    }
                 }
                 let verts = [
                     (x + s * nx, y + s * ny),
-                    (x + (s + 0.5 * l) * nx + r * ny, y + (s + 0.5 * l) * ny - r * nx),
+                    (
+                        x + (s + 0.5 * l) * nx + r * ny,
+                        y + (s + 0.5 * l) * ny - r * nx,
+                    ),
                     (x + (s + l) * nx, y + (s + l) * ny),
-                    (x + (s + 0.5 * l) * nx - r * ny, y + (s + 0.5 * l) * ny + r * nx),
+                    (
+                        x + (s + 0.5 * l) * nx - r * ny,
+                        y + (s + 0.5 * l) * ny + r * nx,
+                    ),
                 ];
                 // C++: PaintPolygon(xy,4,strokeEnd.InnerColor,canvasColor)
                 self.PaintPolygon(&verts, stroke_end.inner_color, canvas_color);
@@ -6052,10 +7549,7 @@ impl<'a> emPainter<'a> {
 
             StrokeEndType::emStroke => {
                 // C++: PaintPolyline(xy,2,thickness*fabs(strokeEnd.LengthFactor),arrowStroke,CapEnd,CapEnd,canvasColor)
-                let verts = [
-                    (x + r * ny, y - r * nx),
-                    (x - r * ny, y + r * nx),
-                ];
+                let verts = [(x + r * ny, y - r * nx), (x - r * ny, y + r * nx)];
                 arrow_stroke.width = thickness * stroke_end.length_factor.abs();
                 let cap_end = emStrokeEnd::new(StrokeEndType::Cap);
                 arrow_stroke.start_end = cap_end;
@@ -6068,7 +7562,13 @@ impl<'a> emPainter<'a> {
     // --- Anti-aliased polygon fill ---
 
     /// Fill a polygon with anti-aliased edges using the scanline rasterizer.
-    fn fill_polygon_aa(&mut self, proof: DirectProof, vertices: &[(f64, f64)], color: emColor, rule: WindingRule) {
+    fn fill_polygon_aa(
+        &mut self,
+        proof: DirectProof,
+        vertices: &[(f64, f64)],
+        color: emColor,
+        rule: WindingRule,
+    ) {
         if vertices.len() < 3 {
             return;
         }
@@ -6083,7 +7583,8 @@ impl<'a> emPainter<'a> {
             })
             .collect();
 
-        let rows = emPainterScanline::rasterize(&pixel_verts, self.state.clip.to_scanline_clip(), rule);
+        let rows =
+            emPainterScanline::rasterize(&pixel_verts, self.state.clip.to_scanline_clip(), rule);
 
         for (y, spans) in &rows {
             for span in spans {
@@ -6093,7 +7594,13 @@ impl<'a> emPainter<'a> {
     }
 
     /// Blit a single AA span onto the target.
-    fn blit_span(&mut self, proof: DirectProof, y: i32, span: &emPainterScanline::Span, color: emColor) {
+    fn blit_span(
+        &mut self,
+        proof: DirectProof,
+        y: i32,
+        span: &emPainterScanline::Span,
+        color: emColor,
+    ) {
         let tw = self.target_width as i32;
         let th = self.target_height as i32;
         if y < 0 || y >= th {
@@ -6149,9 +7656,14 @@ impl<'a> emPainter<'a> {
     /// All opacities are Fixed12 (0..0x1000).
     #[allow(clippy::too_many_arguments)]
     fn paint_rect_scanline(
-        &mut self, proof: DirectProof,
-        ix: i32, iy: i32, iw: i32,
-        a1: i32, a: i32, a2: i32,
+        &mut self,
+        proof: DirectProof,
+        ix: i32,
+        iy: i32,
+        iw: i32,
+        a1: i32,
+        a: i32,
+        a2: i32,
         color: emColor,
     ) {
         // First pixel
@@ -6171,13 +7683,24 @@ impl<'a> emPainter<'a> {
         }
     }
 
-    fn blend_with_coverage(&mut self, proof: DirectProof, x: i32, y: i32, color: emColor, cov: i32) {
-        if cov <= 0 { return; }
+    fn blend_with_coverage(
+        &mut self,
+        proof: DirectProof,
+        x: i32,
+        y: i32,
+        color: emColor,
+        cov: i32,
+    ) {
+        if cov <= 0 {
+            return;
+        }
         // C++ PaintScanlineCol: alpha = (color_alpha * opacity + 0x800) >> 12
         // Must use raw opacity (not capped at 0x1000) so double winding (0x2000)
         // with semi-transparent colors correctly produces alpha >= 255.
         let alpha = ((color.GetAlpha() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8;
-        if alpha == 0 { return; }
+        if alpha == 0 {
+            return;
+        }
         let blended = color.SetAlpha(alpha);
         self.blend_pixel(proof, x, y, blended);
     }
@@ -6190,7 +7713,9 @@ impl<'a> emPainter<'a> {
         let xu = x as u32;
         let yu = y as u32;
         let alpha = color.GetAlpha();
-        if alpha == 0 { return; }
+        if alpha == 0 {
+            return;
+        }
 
         if alpha == 255 && self.state.alpha == 255 {
             // C++ alpha>=255: direct write
@@ -6207,11 +7732,16 @@ impl<'a> emPainter<'a> {
             } else {
                 ((alpha as u16 * self.state.alpha as u16 + 128) >> 8) as u8
             };
-            if a == 0 { return; }
+            if a == 0 {
+                return;
+            }
             let cv = self.state.canvas_color;
-            let dr = blend_hash_lookup(color.GetRed(), a) as i32 - blend_hash_lookup(cv.GetRed(), a) as i32;
-            let dg = blend_hash_lookup(color.GetGreen(), a) as i32 - blend_hash_lookup(cv.GetGreen(), a) as i32;
-            let db = blend_hash_lookup(color.GetBlue(), a) as i32 - blend_hash_lookup(cv.GetBlue(), a) as i32;
+            let dr = blend_hash_lookup(color.GetRed(), a) as i32
+                - blend_hash_lookup(cv.GetRed(), a) as i32;
+            let dg = blend_hash_lookup(color.GetGreen(), a) as i32
+                - blend_hash_lookup(cv.GetGreen(), a) as i32;
+            let db = blend_hash_lookup(color.GetBlue(), a) as i32
+                - blend_hash_lookup(cv.GetBlue(), a) as i32;
             let px = self.read_pixel(proof, xu, yu);
             let out = self.GetImage(proof).SetPixel(xu, yu);
             out[0] = (px[0] as i32 + dr).clamp(0, 255) as u8;
@@ -6224,7 +7754,9 @@ impl<'a> emPainter<'a> {
             } else {
                 (alpha as u16 * self.state.alpha as u16 + 128) >> 8
             };
-            if ea == 0 { return; }
+            if ea == 0 {
+                return;
+            }
             if ea >= 255 {
                 let out = self.GetImage(proof).SetPixel(xu, yu);
                 out[0] = color.GetRed();
@@ -6246,11 +7778,22 @@ impl<'a> emPainter<'a> {
 
     /// Same as `blend_with_coverage` but without clip/bounds checks.
     #[inline(always)]
-    fn blend_with_coverage_unchecked(&mut self, proof: DirectProof, x: i32, y: i32, color: emColor, cov: i32) {
-        if cov <= 0 { return; }
+    fn blend_with_coverage_unchecked(
+        &mut self,
+        proof: DirectProof,
+        x: i32,
+        y: i32,
+        color: emColor,
+        cov: i32,
+    ) {
+        if cov <= 0 {
+            return;
+        }
         // C++ PaintScanlineCol: alpha = (color_alpha * opacity + 0x800) >> 12
         let alpha = ((color.GetAlpha() as i32 * cov + 0x800) >> 12).clamp(0, 255) as u8;
-        if alpha == 0 { return; }
+        if alpha == 0 {
+            return;
+        }
         let blended = color.SetAlpha(alpha);
         self.blend_pixel_unchecked(proof, x, y, blended);
     }
@@ -6277,7 +7820,8 @@ impl<'a> emPainter<'a> {
             })
             .collect();
 
-        let rows = emPainterScanline::rasterize(&pixel_verts, self.state.clip.to_scanline_clip(), rule);
+        let rows =
+            emPainterScanline::rasterize(&pixel_verts, self.state.clip.to_scanline_clip(), rule);
 
         // Pre-transform texture coordinates to pixel space.
         // Extract state values to avoid borrowing self through the loop.
@@ -6422,8 +7966,10 @@ impl<'a> emPainter<'a> {
                 // After pre-reduction, re-check if the reduced TDX/TDY qualify
                 // for NEAREST sampling (like paint_image_rect_textured does).
                 let is_area_sampled = if is_area_sampled {
-                    let near_1_to_1 = fp_tdx < 0x10000FF && fp_tdy < 0x10000FF
-                        && fp_tdx > 0x0FFFF00 && fp_tdy > 0x0FFFF00
+                    let near_1_to_1 = fp_tdx < 0x10000FF
+                        && fp_tdy < 0x10000FF
+                        && fp_tdx > 0x0FFFF00
+                        && fp_tdy > 0x0FFFF00
                         && ((tx_px * tdx_f64) as i64 + 0x800) & 0xFFF000 == 0
                         && ((ty_px * tdy_f64) as i64 + 0x800) & 0xFFF000 == 0;
                     !near_1_to_1
@@ -6486,7 +8032,7 @@ impl<'a> emPainter<'a> {
             emTexture::ImageColoredGradient { .. } => {
                 // Handled by paint_rect_textured directly, not through polygon fill.
                 PixelTexture::Solid(emColor::TRANSPARENT)
-            },
+            }
         }
     }
 
@@ -6560,8 +8106,7 @@ impl<'a> emPainter<'a> {
                 let g = factor;
                 let inv_g = 255 - g;
                 let mix = |a: u8, b: u8| -> u8 {
-                    (blend_hash_lookup(a, inv_g) as u16
-                        + blend_hash_lookup(b, g) as u16) as u8
+                    (blend_hash_lookup(a, inv_g) as u16 + blend_hash_lookup(b, g) as u16) as u8
                 };
                 emColor::rgba(
                     mix(color_inner.GetRed(), color_outer.GetRed()),
@@ -6644,26 +8189,57 @@ impl<'a> emPainter<'a> {
     ///   a2 = (g * o2 + 0x800) >> 12
     ///   pix = hash_255[((c1*a1 + c2*a2)*257 + 0x8073) >> 16]
     /// Then source-over blend with combined alpha a = a1 + a2.
-    fn blit_span_textured(&mut self, proof: DirectProof, y: i32, span: &emPainterScanline::Span, texture: &PixelTexture) {
+    fn blit_span_textured(
+        &mut self,
+        proof: DirectProof,
+        y: i32,
+        span: &emPainterScanline::Span,
+        texture: &PixelTexture,
+    ) {
         let tw = self.target_width as i32;
         let th = self.target_height as i32;
-        if y < 0 || y >= th { return; }
+        if y < 0 || y >= th {
+            return;
+        }
 
         let x_start = span.x_start.max(0);
         let x_end = span.x_end.min(tw);
-        if x_start >= x_end { return; }
+        if x_start >= x_end {
+            return;
+        }
 
         match texture {
-            PixelTexture::LinearGradient { color_a, color_b, fp_tx, fp_tdx, fp_tdy } => {
+            PixelTexture::LinearGradient {
+                color_a,
+                color_b,
+                fp_tx,
+                fp_tdx,
+                fp_tdy,
+            } => {
                 self.blit_span_linear_gradient_g1g2(
-                    proof, y, span, x_start, x_end,
-                    *color_a, *color_b, *fp_tx, *fp_tdx, *fp_tdy,
+                    proof, y, span, x_start, x_end, *color_a, *color_b, *fp_tx, *fp_tdx, *fp_tdy,
                 );
             }
-            PixelTexture::RadialGradient { color_inner, color_outer, fp_tx, fp_ty, fp_tdx, fp_tdy } => {
+            PixelTexture::RadialGradient {
+                color_inner,
+                color_outer,
+                fp_tx,
+                fp_ty,
+                fp_tdx,
+                fp_tdy,
+            } => {
                 self.blit_span_radial_gradient_g1g2(
-                    proof, y, span, x_start, x_end,
-                    *color_inner, *color_outer, *fp_tx, *fp_ty, *fp_tdx, *fp_tdy,
+                    proof,
+                    y,
+                    span,
+                    x_start,
+                    x_end,
+                    *color_inner,
+                    *color_outer,
+                    *fp_tx,
+                    *fp_ty,
+                    *fp_tdx,
+                    *fp_tdy,
                 );
             }
             PixelTexture::emImage {
@@ -6676,15 +8252,34 @@ impl<'a> emPainter<'a> {
                 fp_tx,
                 fp_ty,
                 is_area_sampled,
-                img_w, img_h, img_dx, img_dy, img_sx, img_sy,
+                img_w,
+                img_h,
+                img_dx,
+                img_dy,
+                img_sx,
+                img_sy,
                 img_map_offset,
                 ..
             } if *is_area_sampled && *extension == ImageExtension::Repeat => {
                 self.blit_span_image_area_sampled_tiled(
-                    proof, y, span, x_start, x_end,
-                    image, *sct_alpha, *have_alpha,
-                    *fp_tdx, *fp_tdy, *fp_tx, *fp_ty,
-                    *img_w, *img_h, *img_dx, *img_dy, *img_sx, *img_sy,
+                    proof,
+                    y,
+                    span,
+                    x_start,
+                    x_end,
+                    image,
+                    *sct_alpha,
+                    *have_alpha,
+                    *fp_tdx,
+                    *fp_tdy,
+                    *fp_tx,
+                    *fp_ty,
+                    *img_w,
+                    *img_h,
+                    *img_dx,
+                    *img_dy,
+                    *img_sx,
+                    *img_sy,
                     *img_map_offset,
                 );
             }
@@ -6693,7 +8288,9 @@ impl<'a> emPainter<'a> {
                 let py = y as f64 + 0.5;
                 for x in x_start..x_end {
                     let opacity = span_opacity_at(span, x, x_start, x_end);
-                    if opacity == 0 { continue; }
+                    if opacity == 0 {
+                        continue;
+                    }
                     let color = Self::sample_pixel_texture(texture, x as f64 + 0.5, py);
                     // blend_with_coverage_unchecked handles all opacity values correctly,
                     // including > 0x1000 for double-wound polygons.
@@ -6710,10 +8307,17 @@ impl<'a> emPainter<'a> {
     /// Then blends: a1 = ((255-g)*o1+0x800)>>12, a2 = (g*o2+0x800)>>12
     #[allow(clippy::too_many_arguments)]
     fn blit_span_linear_gradient_g1g2(
-        &mut self, proof: DirectProof, y: i32,
-        span: &emPainterScanline::Span, x_start: i32, x_end: i32,
-        color1: emColor, color2: emColor,
-        fp_tx: i64, fp_tdx: i64, fp_tdy: i64,
+        &mut self,
+        proof: DirectProof,
+        y: i32,
+        span: &emPainterScanline::Span,
+        x_start: i32,
+        x_end: i32,
+        color1: emColor,
+        color2: emColor,
+        fp_tx: i64,
+        fp_tdx: i64,
+        fp_tdy: i64,
     ) {
         let c1r = color1.GetRed() as u32;
         let c1g = color1.GetGreen() as u32;
@@ -6782,10 +8386,18 @@ impl<'a> emPainter<'a> {
     /// Radial gradient span matching C++ PaintScanlineInt G1G2 exactly.
     #[allow(clippy::too_many_arguments)]
     fn blit_span_radial_gradient_g1g2(
-        &mut self, proof: DirectProof, y: i32,
-        span: &emPainterScanline::Span, x_start: i32, x_end: i32,
-        color1: emColor, color2: emColor,
-        fp_tx: i64, fp_ty: i64, fp_tdx: i64, fp_tdy: i64,
+        &mut self,
+        proof: DirectProof,
+        y: i32,
+        span: &emPainterScanline::Span,
+        x_start: i32,
+        x_end: i32,
+        color1: emColor,
+        color2: emColor,
+        fp_tx: i64,
+        fp_ty: i64,
+        fp_tdx: i64,
+        fp_tdy: i64,
     ) {
         let table = grad_sqrt_table();
         let c1r = color1.GetRed() as u32;
@@ -6805,13 +8417,19 @@ impl<'a> emPainter<'a> {
 
         // Precompute ty*ty + rounding constant (matching C++ line 213)
         let ty_in_range = (ty as u64).wrapping_add(HALF_RANGE) < FULL_RANGE;
-        let tyty = if ty_in_range { ty * ty + ((1i64 << 45) - 1) } else { 0 };
+        let tyty = if ty_in_range {
+            ty * ty + ((1i64 << 45) - 1)
+        } else {
+            0
+        };
 
         let tw = self.target_width as usize;
 
         for x in x_start..x_end {
             let opacity = span_opacity_at(span, x, x_start, x_end);
-            if opacity == 0 { continue; }
+            if opacity == 0 {
+                continue;
+            }
 
             // C++ PaintScanlineInt G1G2: o1 = (opacity * Color1.alpha + 127) / 255
             let o1 = (opacity as u32 * color1.GetAlpha() as u32 + 127) / 255;
@@ -6825,7 +8443,11 @@ impl<'a> emPainter<'a> {
                 255u32
             } else {
                 let t_idx = ((tx * tx + tyty) >> 46) as usize;
-                if t_idx < GRAD_SQRT_TABLE_SIZE { table[t_idx] as u32 } else { 255 }
+                if t_idx < GRAD_SQRT_TABLE_SIZE {
+                    table[t_idx] as u32
+                } else {
+                    255
+                }
             };
 
             // C++ PaintScanlineInt G1G2, CHANNELS=1:
@@ -6834,7 +8456,9 @@ impl<'a> emPainter<'a> {
             let a1 = ((255 - g) * o1 + 0x800) >> 12;
             let a2 = (g * o2 + 0x800) >> 12;
             let a = a1 + a2;
-            if a == 0 { continue; }
+            if a == 0 {
+                continue;
+            }
 
             // C++ pix = hR[((c1R*a1+c2R*a2)*257+0x8073)>>16] + ...
             // where hR is hash at component=255 → hash_255[v] = (255*v*257+0x8073)>>16 ≈ v
@@ -6872,29 +8496,55 @@ impl<'a> emPainter<'a> {
     /// using C++ integer math, then blend into the output using PaintScanlineInt logic.
     #[allow(clippy::too_many_arguments)]
     fn blit_span_image_area_sampled_tiled(
-        &mut self, proof: DirectProof, y: i32,
-        span: &emPainterScanline::Span, x_start: i32, x_end: i32,
-        image: &emImage, sct_alpha: u32, have_alpha: bool,
-        fp_tdx: i64, fp_tdy: i64, fp_tx: i64, fp_ty: i64,
-        img_w: i32, img_h: i32,
-        img_dx: isize, img_dy: isize, img_sx: isize, img_sy: isize,
+        &mut self,
+        proof: DirectProof,
+        y: i32,
+        span: &emPainterScanline::Span,
+        x_start: i32,
+        x_end: i32,
+        image: &emImage,
+        sct_alpha: u32,
+        have_alpha: bool,
+        fp_tdx: i64,
+        fp_tdy: i64,
+        fp_tx: i64,
+        fp_ty: i64,
+        img_w: i32,
+        img_h: i32,
+        img_dx: isize,
+        img_dy: isize,
+        img_sx: isize,
+        img_sy: isize,
         img_map_offset: usize,
     ) {
         let channels = image.GetChannelCount() as usize;
-        if img_w <= 0 || img_h <= 0 { return; }
+        if img_w <= 0 || img_h <= 0 {
+            return;
+        }
 
         let img_map = &image.GetMap()[img_map_offset..];
 
         // C++ ODX/ODY: rational inverse of TDX/TDY for weight computation.
-        let odx: u32 = if fp_tdx <= 0x200 { 0x7FFF_FFFF } else { (((1i64 << 40) - 1) / fp_tdx + 1) as u32 };
-        let ody: u32 = if fp_tdy <= 0x200 { 0x7FFF_FFFF } else { (((1i64 << 40) - 1) / fp_tdy + 1) as u32 };
+        let odx: u32 = if fp_tdx <= 0x200 {
+            0x7FFF_FFFF
+        } else {
+            (((1i64 << 40) - 1) / fp_tdx + 1) as u32
+        };
+        let ody: u32 = if fp_tdy <= 0x200 {
+            0x7FFF_FFFF
+        } else {
+            (((1i64 << 40) - 1) / fp_tdy + 1) as u32
+        };
 
         // C++ tx = x * TDX - TX (for first pixel in span)
         let tx = x_start as i64 * fp_tdx - fp_tx;
 
         // C++ ox1 = ((0x1000000 - (tx & 0xffffff)) * (i64)odx + 0xffffff) >> 24
-        let mut ox1: u32 = (((0x100_0000i64 - (tx & 0xFF_FFFF)) * odx as i64 + 0xFF_FFFF) >> 24) as u32;
-        if odx == 0x7FFF_FFFF { ox1 = 0x7FFF_FFFF; }
+        let mut ox1: u32 =
+            (((0x100_0000i64 - (tx & 0xFF_FFFF)) * odx as i64 + 0xFF_FFFF) >> 24) as u32;
+        if odx == 0x7FFF_FFFF {
+            ox1 = 0x7FFF_FFFF;
+        }
 
         // C++ DEFINE_AND_SET_IMAGE_X(imgX, tx>>24, imgDX, imgSX) for tiled:
         //   imgX = ((tx>>24) * DX) % SX; if imgX < 0 { imgX += SX; }
@@ -6904,8 +8554,11 @@ impl<'a> emPainter<'a> {
         let ty = y as i64 * fp_tdy - fp_ty;
 
         // C++ oy1 = ((0x1000000 - (ty & 0xffffff)) * (i64)ody + 0xffffff) >> 24
-        let mut oy1: u32 = (((0x100_0000i64 - (ty & 0xFF_FFFF)) * ody as i64 + 0xFF_FFFF) >> 24) as u32;
-        if oy1 >= 0x10000 || ody == 0x7FFF_FFFF { oy1 = 0x10000; }
+        let mut oy1: u32 =
+            (((0x100_0000i64 - (ty & 0xFF_FFFF)) * ody as i64 + 0xFF_FFFF) >> 24) as u32;
+        if oy1 >= 0x10000 || ody == 0x7FFF_FFFF {
+            oy1 = 0x10000;
+        }
         let oy1n: u32 = 0x10000 - oy1;
 
         // C++ DEFINE_AND_SET_IMAGE_Y(imgY1, ty>>24, imgDY, imgSY) for tiled:
@@ -6949,7 +8602,9 @@ impl<'a> emPainter<'a> {
                 if oys > 0 {
                     // INCREMENT_IMAGE_Y: imgY += imgDY; if imgY >= imgSY { imgY = 0; }
                     img_y += img_dy;
-                    if img_y >= img_sy { img_y = 0; }
+                    if img_y >= img_sy {
+                        img_y = 0;
+                    }
 
                     if oys > ody {
                         // Accumulate full rows.
@@ -6958,9 +8613,13 @@ impl<'a> emPainter<'a> {
                             let p_off = (img_y + img_x) as usize;
                             Self::add_read_premul_color(&mut ctmp, img_map, p_off, channels);
                             img_y += img_dy;
-                            if img_y >= img_sy { img_y = 0; }
+                            if img_y >= img_sy {
+                                img_y = 0;
+                            }
                             oys -= ody;
-                            if oys <= ody { break; }
+                            if oys <= ody {
+                                break;
+                            }
                         }
                         // ADD_MUL_COLOR(cy, ctmp, ody)
                         for ch in 0..channels {
@@ -6979,7 +8638,9 @@ impl<'a> emPainter<'a> {
 
                 // INCREMENT_IMAGE_X: imgX += imgDX; if imgX >= imgSX { imgX = 0; }
                 img_x += img_dx;
-                if img_x >= img_sx { img_x = 0; }
+                if img_x >= img_sx {
+                    img_x = 0;
+                }
 
                 ox = ox1;
                 ox1 = odx;
@@ -6998,7 +8659,9 @@ impl<'a> emPainter<'a> {
             ox -= oxs;
 
             // Skip blend if zero opacity.
-            if opacity == 0 { continue; }
+            if opacity == 0 {
+                continue;
+            }
 
             // --- PaintScanlineInt blend (no gradient) ---
             // C++ HAVE_ALPHA: o = (opacity * sct.Alpha + 127) / 255
@@ -7018,7 +8681,9 @@ impl<'a> emPainter<'a> {
                     if o < 0x1000 {
                         // Low opacity: scale channels.
                         let a = (s[3] as u32 * o + 0x800) >> 12;
-                        if a == 0 { continue; }
+                        if a == 0 {
+                            continue;
+                        }
                         let pix_r = blend_hash_lookup(255, ((s[0] as u32 * o + 0x800) >> 12) as u8);
                         let pix_g = blend_hash_lookup(255, ((s[1] as u32 * o + 0x800) >> 12) as u8);
                         let pix_b = blend_hash_lookup(255, ((s[2] as u32 * o + 0x800) >> 12) as u8);
@@ -7032,12 +8697,16 @@ impl<'a> emPainter<'a> {
                             dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + pix_r as u32) as u8;
                             dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + pix_g as u32) as u8;
                             dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + pix_b as u32) as u8;
-                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16) + blend_hash_lookup(255, a as u8) as u32) as u8;
+                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16)
+                                + blend_hash_lookup(255, a as u8) as u32)
+                                as u8;
                         }
                     } else {
                         // High opacity: direct write or blend.
                         let a = s[3] as u32;
-                        if a == 0 { continue; }
+                        if a == 0 {
+                            continue;
+                        }
                         let pix_r = blend_hash_lookup(255, s[0]);
                         let pix_g = blend_hash_lookup(255, s[1]);
                         let pix_b = blend_hash_lookup(255, s[2]);
@@ -7051,7 +8720,9 @@ impl<'a> emPainter<'a> {
                             dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + pix_r as u32) as u8;
                             dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + pix_g as u32) as u8;
                             dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + pix_b as u32) as u8;
-                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16) + blend_hash_lookup(255, a as u8) as u32) as u8;
+                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16)
+                                + blend_hash_lookup(255, a as u8) as u32)
+                                as u8;
                         }
                     }
                 }
@@ -7064,7 +8735,9 @@ impl<'a> emPainter<'a> {
                     } else {
                         255
                     };
-                    if a == 0 { continue; }
+                    if a == 0 {
+                        continue;
+                    }
                     let (pix_r, pix_g, pix_b) = if o < 0x1000 {
                         (
                             blend_hash_lookup(255, ((s[0] as u32 * o + 0x800) >> 12) as u8),
@@ -7093,7 +8766,9 @@ impl<'a> emPainter<'a> {
                     // 2-channel (gray + alpha).
                     if o < 0x1000 {
                         let a = (s[1] as u32 * o + 0x800) >> 12;
-                        if a == 0 { continue; }
+                        if a == 0 {
+                            continue;
+                        }
                         let g_val = blend_hash_lookup(255, ((s[0] as u32 * o + 0x800) >> 12) as u8);
                         if a >= 255 {
                             dest[0] = g_val;
@@ -7105,11 +8780,15 @@ impl<'a> emPainter<'a> {
                             dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
                             dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
                             dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
-                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16) + blend_hash_lookup(255, a as u8) as u32) as u8;
+                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16)
+                                + blend_hash_lookup(255, a as u8) as u32)
+                                as u8;
                         }
                     } else {
                         let a = s[1] as u32;
-                        if a == 0 { continue; }
+                        if a == 0 {
+                            continue;
+                        }
                         let g_val = blend_hash_lookup(255, s[0]);
                         if a >= 255 {
                             dest[0] = g_val;
@@ -7121,7 +8800,9 @@ impl<'a> emPainter<'a> {
                             dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
                             dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
                             dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + g_val as u32) as u8;
-                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16) + blend_hash_lookup(255, a as u8) as u32) as u8;
+                            dest[3] = (((dest[3] as u32 * t + 0x8073) >> 16)
+                                + blend_hash_lookup(255, a as u8) as u32)
+                                as u8;
                         }
                     }
                 }
@@ -7132,7 +8813,9 @@ impl<'a> emPainter<'a> {
                     } else {
                         255
                     };
-                    if a == 0 { continue; }
+                    if a == 0 {
+                        continue;
+                    }
                     let g_val = if o < 0x1000 {
                         blend_hash_lookup(255, ((s[0] as u32 * o + 0x800) >> 12) as u8)
                     } else {
@@ -7155,7 +8838,13 @@ impl<'a> emPainter<'a> {
 
     /// C++ READ_PREMUL_MUL_COLOR: read pixel, premultiply (for 2/4ch), multiply by weight.
     #[inline(always)]
-    fn read_premul_mul_color(cy: &mut [u32; 4], map: &[u8], offset: usize, channels: usize, weight: u32) {
+    fn read_premul_mul_color(
+        cy: &mut [u32; 4],
+        map: &[u8],
+        offset: usize,
+        channels: usize,
+        weight: u32,
+    ) {
         match channels {
             4 => {
                 let a = map[offset + 3] as u32 * weight;
@@ -7209,7 +8898,13 @@ impl<'a> emPainter<'a> {
 
     /// C++ ADD_READ_PREMUL_MUL_COLOR: read pixel, premultiply (for 2/4ch), multiply by weight, add.
     #[inline(always)]
-    fn add_read_premul_mul_color(acc: &mut [u32; 4], map: &[u8], offset: usize, channels: usize, weight: u32) {
+    fn add_read_premul_mul_color(
+        acc: &mut [u32; 4],
+        map: &[u8],
+        offset: usize,
+        channels: usize,
+        weight: u32,
+    ) {
         match channels {
             4 => {
                 let a = map[offset + 3] as u32 * weight;
@@ -7378,9 +9073,13 @@ impl<'a> emPainter<'a> {
 
     fn blend_pixel(&mut self, proof: DirectProof, x: i32, y: i32, color: emColor) {
         let clip = self.state.clip;
-        if x < clip.x1 as i32 || x >= clip.x2.ceil() as i32
-            || y < clip.y1 as i32 || y >= clip.y2.ceil() as i32
-        { return; }
+        if x < clip.x1 as i32
+            || x >= clip.x2.ceil() as i32
+            || y < clip.y1 as i32
+            || y >= clip.y2.ceil() as i32
+        {
+            return;
+        }
         if x < 0 || y < 0 || x >= self.target_width as i32 || y >= self.target_height as i32 {
             return;
         }
@@ -7471,7 +9170,15 @@ impl<'a> emPainter<'a> {
         }
     }
 
-    fn fill_rect_pixels(&mut self, proof: DirectProof, x: i32, y: i32, w: i32, h: i32, color: emColor) {
+    fn fill_rect_pixels(
+        &mut self,
+        proof: DirectProof,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+        color: emColor,
+    ) {
         let cx1 = (self.state.clip.x1 as i32).max(0);
         let cy1 = (self.state.clip.y1 as i32).max(0);
         let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
@@ -7505,7 +9212,15 @@ impl<'a> emPainter<'a> {
         }
     }
 
-    fn draw_line_pixels(&mut self, proof: DirectProof, mut x0: i32, mut y0: i32, x1: i32, y1: i32, color: emColor) {
+    fn draw_line_pixels(
+        &mut self,
+        proof: DirectProof,
+        mut x0: i32,
+        mut y0: i32,
+        x1: i32,
+        y1: i32,
+        color: emColor,
+    ) {
         // Bresenham's line algorithm
         let dx = (x1 - x0).abs();
         let dy = -(y1 - y0).abs();
@@ -7535,10 +9250,17 @@ impl<'a> emPainter<'a> {
 /// Return the byte length of a UTF-8 character from its leading byte.
 /// Matches the skip count of C++ `emDecodeChar` continuation byte handling.
 fn utf8_char_len(lead: u8) -> usize {
-    if lead < 0xC0 { 1 } // ASCII or continuation byte
-    else if lead < 0xE0 { 2 }
-    else if lead < 0xF0 { 3 }
-    else { 4 }
+    if lead < 0xC0 {
+        1
+    }
+    // ASCII or continuation byte
+    else if lead < 0xE0 {
+        2
+    } else if lead < 0xF0 {
+        3
+    } else {
+        4
+    }
 }
 
 /// Choose number of polygon segments for circle approximation.
@@ -8209,7 +9931,6 @@ mod fixed12_tests {
     }
 }
 
-
 #[cfg(kani)]
 mod kani_private_proofs {
     use super::*;
@@ -8348,21 +10069,24 @@ mod tiny_rect_tests {
         let mut img = crate::emImage::emImage::new(cw, ch, 4);
         let map = img.GetWritableMap();
         for i in 0..(cw * ch) as usize {
-            map[i*4] = 128; map[i*4+1] = 128; map[i*4+2] = 128; map[i*4+3] = 255;
+            map[i * 4] = 128;
+            map[i * 4 + 1] = 128;
+            map[i * 4 + 2] = 128;
+            map[i * 4 + 3] = 255;
         }
 
         let text_color = crate::emColor::emColor::rgba(239, 240, 244, 56);
         let base_y: f64 = 24.7;
         let line_h: f64 = 0.275;
-        let rects: &[(f64,f64,f64,f64)] = &[
-            (10.0, base_y + 0.0*line_h, 5.2, line_h),
-            (10.0, base_y + 1.0*line_h, 4.9, line_h),
-            (10.0, base_y + 3.0*line_h, 10.4, line_h),
-            (10.0, base_y + 4.0*line_h, 10.8, line_h),
-            (10.0, base_y + 5.0*line_h, 10.4, line_h),
-            (10.0, base_y + 7.0*line_h, 0.7, line_h),
-            (10.0, base_y + 9.0*line_h, 10.9, line_h),
-            (10.0, base_y + 10.0*line_h, 11.1, line_h),
+        let rects: &[(f64, f64, f64, f64)] = &[
+            (10.0, base_y + 0.0 * line_h, 5.2, line_h),
+            (10.0, base_y + 1.0 * line_h, 4.9, line_h),
+            (10.0, base_y + 3.0 * line_h, 10.4, line_h),
+            (10.0, base_y + 4.0 * line_h, 10.8, line_h),
+            (10.0, base_y + 5.0 * line_h, 10.4, line_h),
+            (10.0, base_y + 7.0 * line_h, 0.7, line_h),
+            (10.0, base_y + 9.0 * line_h, 10.9, line_h),
+            (10.0, base_y + 10.0 * line_h, 11.1, line_h),
         ];
 
         {
@@ -8375,10 +10099,20 @@ mod tiny_rect_tests {
 
         // Reference values matching C++ AVX2 PaintScanlineCol fused blend.
         // Original scalar C++ values differed by ±1 at sub-pixel boundaries.
-        let cpp_y25: [(u8,u8,u8); 13] = [
-            (144,144,144), (144,144,144), (144,144,144), (144,144,144),
-            (144,144,144), (139,140,140), (139,140,140), (139,140,140),
-            (139,140,140), (139,140,140), (135,135,135), (128,128,128), (128,128,128),
+        let cpp_y25: [(u8, u8, u8); 13] = [
+            (144, 144, 144),
+            (144, 144, 144),
+            (144, 144, 144),
+            (144, 144, 144),
+            (144, 144, 144),
+            (139, 140, 140),
+            (139, 140, 140),
+            (139, 140, 140),
+            (139, 140, 140),
+            (139, 140, 140),
+            (135, 135, 135),
+            (128, 128, 128),
+            (128, 128, 128),
         ];
 
         let map = img.GetMap();
@@ -8386,22 +10120,35 @@ mod tiny_rect_tests {
         for (i, &(er, eg, eb)) in cpp_y25.iter().enumerate() {
             let x = 10 + i;
             let off = (25 * cw as usize + x) * 4;
-            let (ar, ag, ab) = (map[off], map[off+1], map[off+2]);
-            let d = (ar as i16 - er as i16).unsigned_abs()
+            let (ar, ag, ab) = (map[off], map[off + 1], map[off + 2]);
+            let d = (ar as i16 - er as i16)
+                .unsigned_abs()
                 .max((ag as i16 - eg as i16).unsigned_abs())
                 .max((ab as i16 - eb as i16).unsigned_abs());
             if d > 0 {
                 mismatches.push(format!(
                     "({},25): rust=({},{},{}) cpp=({},{},{}) diff=({:+},{:+},{:+})",
-                    x, ar, ag, ab, er, eg, eb,
-                    ar as i16 - er as i16, ag as i16 - eg as i16, ab as i16 - eb as i16
+                    x,
+                    ar,
+                    ag,
+                    ab,
+                    er,
+                    eg,
+                    eb,
+                    ar as i16 - er as i16,
+                    ag as i16 - eg as i16,
+                    ab as i16 - eb as i16
                 ));
             }
         }
 
         if !mismatches.is_empty() {
             let max_diff = mismatches.len();
-            panic!("Tiny rect compose: {} mismatches vs C++:\n{}", max_diff, mismatches.join("\n"));
+            panic!(
+                "Tiny rect compose: {} mismatches vs C++:\n{}",
+                max_diff,
+                mismatches.join("\n")
+            );
         }
     }
 }

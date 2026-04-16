@@ -192,7 +192,8 @@ fn filter_middle_pan() {
         actual.push(read_view_state(&view));
     }
 
-    compare_trajectory("filter_middle_pan", &actual, &golden, 1e-6).unwrap_or_else(|e| panic!("filter_middle_pan: {e}"));
+    compare_trajectory("filter_middle_pan", &actual, &golden, 1e-6)
+        .unwrap_or_else(|e| panic!("filter_middle_pan: {e}"));
 }
 
 #[test]

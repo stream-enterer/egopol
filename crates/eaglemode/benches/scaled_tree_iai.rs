@@ -1,14 +1,14 @@
 #[allow(dead_code)]
 mod common;
 
-use gungraun::{library_benchmark, library_benchmark_group, main};
 use emcore::emColor::emColor;
+use gungraun::{library_benchmark, library_benchmark_group, main};
 
 use emcore::emImage::emImage;
 use emcore::emPanelTree::PanelTree;
 
-use emcore::emView::emView;
 use emcore::emPainter::emPainter;
+use emcore::emView::emView;
 
 use common::scaled::{build_scaled_tree, run_one_scaled_frame};
 use common::{DEFAULT_VH, DEFAULT_VW};

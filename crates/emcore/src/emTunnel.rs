@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
 use crate::emColor::emColor;
+use crate::emPainter::emPainter;
 use crate::emPanel::Rect;
 use crate::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use crate::emPanelCtx::PanelCtx;
-use crate::emPainter::emPainter;
 
-use super::emBorder::{emBorder, OuterBorderType, with_toolkit_images};
+use super::emBorder::{emBorder, with_toolkit_images, OuterBorderType};
 use crate::emLook::emLook;
 
 /// A panel that creates a visual tunnel/zoom corridor to a child panel.
@@ -120,7 +120,9 @@ impl emTunnel {
             y: by + 0.5 * br,
             w: bw - br,
             h: bh - br,
-            canvas_color: self.border.content_canvas_color(parent_canvas, &self.look, true),
+            canvas_color: self
+                .border
+                .content_canvas_color(parent_canvas, &self.look, true),
         }
     }
 
@@ -201,7 +203,8 @@ impl emTunnel {
 
                 // Sample color from the tunnel image at the edge angle.
                 let ix = ((img_rx + (img_rx - 0.6) * edge_dx + 0.5) as u32).min(img.GetWidth() - 1);
-                let iy = ((img_ry + (img_ry - 0.6) * edge_dy + 0.5) as u32).min(img.GetHeight() - 1);
+                let iy =
+                    ((img_ry + (img_ry - 0.6) * edge_dy + 0.5) as u32).min(img.GetHeight() - 1);
                 let pix = img.GetPixel(ix, iy);
                 let color = if img.GetChannelCount() >= 4 {
                     emColor::rgba(pix[0], pix[1], pix[2], pix[3])

@@ -98,7 +98,6 @@ impl emRenderThreadPool {
     }
 }
 
-
 #[cfg(kani)]
 mod kani_private_proofs {
     use super::*;

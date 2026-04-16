@@ -8,8 +8,8 @@
 
 // (non_snake_case allowed via parent module)
 
-use emcore::emColor::emColor;
 use emcore::emATMatrix::AffineMatrix;
+use emcore::emColor::emColor;
 use emcore::emPainter::Fixed12;
 use emcore::emPanel::Rect;
 
@@ -51,8 +51,10 @@ fn l3_emColor_rgb_packing() {
 fn l3_emColor_GetRed() {
     let packed: u32 = kani::any();
     let c = emColor::rgba(
-        (packed >> 24) as u8, (packed >> 16) as u8,
-        (packed >> 8) as u8, packed as u8,
+        (packed >> 24) as u8,
+        (packed >> 16) as u8,
+        (packed >> 8) as u8,
+        packed as u8,
     );
     // C++: return Components.Red;  (bits 31:24)
     assert_eq!(c.GetRed(), (packed >> 24) as u8);
@@ -63,8 +65,10 @@ fn l3_emColor_GetRed() {
 fn l3_emColor_GetGreen() {
     let packed: u32 = kani::any();
     let c = emColor::rgba(
-        (packed >> 24) as u8, (packed >> 16) as u8,
-        (packed >> 8) as u8, packed as u8,
+        (packed >> 24) as u8,
+        (packed >> 16) as u8,
+        (packed >> 8) as u8,
+        packed as u8,
     );
     assert_eq!(c.GetGreen(), (packed >> 16) as u8);
 }
@@ -74,8 +78,10 @@ fn l3_emColor_GetGreen() {
 fn l3_emColor_GetBlue() {
     let packed: u32 = kani::any();
     let c = emColor::rgba(
-        (packed >> 24) as u8, (packed >> 16) as u8,
-        (packed >> 8) as u8, packed as u8,
+        (packed >> 24) as u8,
+        (packed >> 16) as u8,
+        (packed >> 8) as u8,
+        packed as u8,
     );
     assert_eq!(c.GetBlue(), (packed >> 8) as u8);
 }
@@ -85,8 +91,10 @@ fn l3_emColor_GetBlue() {
 fn l3_emColor_GetAlpha() {
     let packed: u32 = kani::any();
     let c = emColor::rgba(
-        (packed >> 24) as u8, (packed >> 16) as u8,
-        (packed >> 8) as u8, packed as u8,
+        (packed >> 24) as u8,
+        (packed >> 16) as u8,
+        (packed >> 8) as u8,
+        packed as u8,
     );
     assert_eq!(c.GetAlpha(), packed as u8);
 }
@@ -258,10 +266,26 @@ fn l3_emColor_GetBlended() {
     // Rust: weight is in [0.0, 100.0] (matches C++ scale)
     let result = c1.GetBlended(c2, weight_pct as f64);
 
-    assert_eq!(result.GetRed(), cpp_r, "red mismatch at weight={weight_pct}");
-    assert_eq!(result.GetGreen(), cpp_g, "green mismatch at weight={weight_pct}");
-    assert_eq!(result.GetBlue(), cpp_b, "blue mismatch at weight={weight_pct}");
-    assert_eq!(result.GetAlpha(), cpp_a, "alpha mismatch at weight={weight_pct}");
+    assert_eq!(
+        result.GetRed(),
+        cpp_r,
+        "red mismatch at weight={weight_pct}"
+    );
+    assert_eq!(
+        result.GetGreen(),
+        cpp_g,
+        "green mismatch at weight={weight_pct}"
+    );
+    assert_eq!(
+        result.GetBlue(),
+        cpp_b,
+        "blue mismatch at weight={weight_pct}"
+    );
+    assert_eq!(
+        result.GetAlpha(),
+        cpp_a,
+        "alpha mismatch at weight={weight_pct}"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -295,18 +319,28 @@ fn l3_emColor_GetTransparented() {
     // C++ formula
     let tp = amount * 0.01;
     let cpp_a = if tp >= 0.0 {
-        if tp >= 1.0 { 0u8 }
-        else { (alpha as f64 * (1.0 - tp) + 0.5) as u8 }
+        if tp >= 1.0 {
+            0u8
+        } else {
+            (alpha as f64 * (1.0 - tp) + 0.5) as u8
+        }
     } else {
-        if tp <= -1.0 { 255u8 }
-        else { (alpha as f64 * (1.0 + tp) - 255.0 * tp + 0.5) as u8 }
+        if tp <= -1.0 {
+            255u8
+        } else {
+            (alpha as f64 * (1.0 + tp) - 255.0 * tp + 0.5) as u8
+        }
     };
 
     let result = c.GetTransparented(amount);
     assert_eq!(result.GetRed(), r);
     assert_eq!(result.GetGreen(), g);
     assert_eq!(result.GetBlue(), b);
-    assert_eq!(result.GetAlpha(), cpp_a, "alpha mismatch at amount={amount_int}, original_alpha={alpha}");
+    assert_eq!(
+        result.GetAlpha(),
+        cpp_a,
+        "alpha mismatch at amount={amount_int}, original_alpha={alpha}"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -411,7 +445,7 @@ fn l3_Fixed12_from_raw_raw_roundtrip() {
 fn l3_Fixed12_from_i32() {
     let v: i32 = kani::any();
     kani::assume(v >= -524288 && v <= 524287); // prevent shift overflow
-    // C++: value = v << 12
+                                               // C++: value = v << 12
     assert_eq!(Fixed12::from_i32(v).raw(), v << 12);
 }
 
@@ -479,7 +513,8 @@ fn l3_emColor_GetLighted_negative_is_GetBlended_black() {
     let c = emColor::rgba(r, g, b, a);
     assert_eq!(
         c.GetLighted(-(amount as f32)).GetPacked(),
-        c.GetBlended(emColor::rgba(0, 0, 0, a), amount as f64).GetPacked()
+        c.GetBlended(emColor::rgba(0, 0, 0, a), amount as f64)
+            .GetPacked()
     );
 }
 
@@ -495,7 +530,8 @@ fn l3_emColor_GetLighted_positive_is_GetBlended_white() {
     let c = emColor::rgba(r, g, b, a);
     assert_eq!(
         c.GetLighted(amount as f32).GetPacked(),
-        c.GetBlended(emColor::rgba(255, 255, 255, a), amount as f64).GetPacked()
+        c.GetBlended(emColor::rgba(255, 255, 255, a), amount as f64)
+            .GetPacked()
     );
 }
 
@@ -546,11 +582,15 @@ fn l3_emColor_blend_convex() {
     let result = c1.blend(c2, alpha);
     // Each output channel is in [min(c1,c2), max(c1,c2)]
     let rr = result.GetRed();
-    assert!(rr <= r1.max(r2) && rr >= r1.min(r2).saturating_sub(1),
-        "red out of convex hull");
+    assert!(
+        rr <= r1.max(r2) && rr >= r1.min(r2).saturating_sub(1),
+        "red out of convex hull"
+    );
     let rg = result.GetGreen();
-    assert!(rg <= g1.max(g2) && rg >= g1.min(g2).saturating_sub(1),
-        "green out of convex hull");
+    assert!(
+        rg <= g1.max(g2) && rg >= g1.min(g2).saturating_sub(1),
+        "green out of convex hull"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -638,7 +678,10 @@ fn l3_Fixed12_ceil_correct() {
     // ceil(x).raw() >= x.raw() always
     assert!((result.raw() as i64) >= (raw as i64), "ceil rounded down");
     // ceil(x) - x < 4096 (one unit)
-    assert!((result.raw() as i64 - raw as i64) < 4096, "ceil jumped too far");
+    assert!(
+        (result.raw() as i64 - raw as i64) < 4096,
+        "ceil jumped too far"
+    );
     // ceil(x).frac() == 0 always
     assert_eq!(result.frac(), 0, "ceil has fractional part");
 }

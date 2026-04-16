@@ -42,8 +42,7 @@ static BLEND_HASH: LazyLock<Box<[u8; 65536]>> = LazyLock::new(|| {
             hash[(a1 as usize) << 8 | a2 as usize] = c3 as u8;
             hash[(a1 as usize) << 8 | (255 - a2 as usize)] = (c1 - c3) as u8;
             hash[(255 - a1 as usize) << 8 | a2 as usize] = (c2 - c3) as u8;
-            hash[(255 - a1 as usize) << 8 | (255 - a2 as usize)] =
-                (range + c3 - c1 - c2) as u8;
+            hash[(255 - a1 as usize) << 8 | (255 - a2 as usize)] = (range + c3 - c1 - c2) as u8;
         }
     }
     hash
@@ -157,7 +156,13 @@ impl emColor {
     pub fn SetHSVA(h: f32, s: f32, v: f32) -> Self {
         let s = s.clamp(0.0, 100.0);
         let v = v.clamp(0.0, 100.0);
-        let h = if h < 0.0 { (h % 360.0) + 360.0 } else if h >= 360.0 { h % 360.0 } else { h };
+        let h = if h < 0.0 {
+            (h % 360.0) + 360.0
+        } else if h >= 360.0 {
+            h % 360.0
+        } else {
+            h
+        };
 
         // Exact C++ expression order and types (float = f32). s/v are already [0,100].
         let cmax = (v * 2.55_f32 + 0.5_f32) as i32;
@@ -270,10 +275,7 @@ impl emColor {
         if light <= 0.0 {
             self.GetBlended(emColor::rgba(0, 0, 0, self.GetAlpha()), (-light) as f64)
         } else {
-            self.GetBlended(
-                emColor::rgba(255, 255, 255, self.GetAlpha()),
-                light as f64,
-            )
+            self.GetBlended(emColor::rgba(255, 255, 255, self.GetAlpha()), light as f64)
         }
     }
 
@@ -466,7 +468,12 @@ impl emColor {
                 let g = u8::from_str_radix(&hex[1..2], 16).ok()?;
                 let b = u8::from_str_radix(&hex[2..3], 16).ok()?;
                 let a = u8::from_str_radix(&hex[3..4], 16).ok()?;
-                Some(emColor::rgba(r << 4 | r, g << 4 | g, b << 4 | b, a << 4 | a))
+                Some(emColor::rgba(
+                    r << 4 | r,
+                    g << 4 | g,
+                    b << 4 | b,
+                    a << 4 | a,
+                ))
             }
             6 => {
                 // #RRGGBB
@@ -819,7 +826,12 @@ mod tests {
         // C++ formula: w2 = (50.0 * 655.36 + 0.5) as i32 = 32768
         // mix(0, 255) = (0 * (65536-32768) + 255 * 32768 + 32768) >> 16
         //             = (8355840 + 32768) >> 16 = 8388608 >> 16 = 128
-        assert_eq!(result.GetAlpha(), 128, "lerp alpha at weight=50: got {} expected 128", result.GetAlpha());
+        assert_eq!(
+            result.GetAlpha(),
+            128,
+            "lerp alpha at weight=50: got {} expected 128",
+            result.GetAlpha()
+        );
         assert_eq!(result.GetRed(), result.GetAlpha());
         assert_eq!(result.GetGreen(), result.GetAlpha());
         assert_eq!(result.GetBlue(), result.GetAlpha());
@@ -828,7 +840,11 @@ mod tests {
         let at_zero = a.GetBlended(b, 0.0);
         assert_eq!(at_zero.GetAlpha(), 0, "lerp alpha at weight=0 should be 0");
         let at_hundred = a.GetBlended(b, 100.0);
-        assert_eq!(at_hundred.GetAlpha(), 255, "lerp alpha at weight=100 should be 255");
+        assert_eq!(
+            at_hundred.GetAlpha(),
+            255,
+            "lerp alpha at weight=100 should be 255"
+        );
     }
 
     #[test]
@@ -855,7 +871,11 @@ mod tests {
         );
 
         // Verify it's different from input (the blend did modify alpha)
-        assert_ne!(result.GetAlpha(), target.GetAlpha(), "canvas_blend should modify alpha channel");
+        assert_ne!(
+            result.GetAlpha(),
+            target.GetAlpha(),
+            "canvas_blend should modify alpha channel"
+        );
     }
 
     #[test]

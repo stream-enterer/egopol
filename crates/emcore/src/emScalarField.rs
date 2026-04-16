@@ -4,8 +4,8 @@ use crate::emColor::emColor;
 use crate::emCursor::emCursor;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
-use crate::emPanel::PanelState;
 use crate::emPainter::{emPainter, TextAlignment, VAlign};
+use crate::emPanel::PanelState;
 
 use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 use crate::emLook::emLook;
@@ -296,7 +296,14 @@ impl emScalarField {
 
     // --- Paint ---
 
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
+    pub fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        w: f64,
+        h: f64,
+        enabled: bool,
+        pixel_scale: f64,
+    ) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -335,7 +342,9 @@ impl emScalarField {
         }
         let ivals = &all_ivals[ival_off..ival_off + ival_cnt];
         let mut ival_sum: u64 = 0;
-        for iv in &ivals[..ival_cnt] { ival_sum += iv; }
+        for iv in &ivals[..ival_cnt] {
+            ival_sum += iv;
+        }
 
         // C++ lines 345-352
         let mtw0 = 1.0_f64;
@@ -364,18 +373,28 @@ impl emScalarField {
         // C++ lines 365-381
         let mut e = s * 0.3 * 0.5;
         let mut d = e - d_base;
-        if d < 0.0 { d = 0.0; }
+        if d < 0.0 {
+            d = 0.0;
+        }
         if ival_cnt > 0 && v_range > 0.0 {
             let mut th = ah;
             let f = th * ivals[0] as f64 / ival_sum as f64;
             let tw = f * mw * v_range / ivals[0] as f64;
             let mut f2 = f * mtw;
-            if tw + f2 > aw { f2 *= aw / (tw + f2); }
+            if tw + f2 > aw {
+                f2 *= aw / (tw + f2);
+            }
             f2 *= 0.5;
-            if d < f2 { d = f2; }
+            if d < f2 {
+                d = f2;
+            }
             let f_lim = aw * 0.2;
-            if d > f_lim { d = f_lim; }
-            if tw > aw - 2.0 * d { th *= (aw - 2.0 * d) / tw; }
+            if d > f_lim {
+                d = f_lim;
+            }
+            if tw > aw - 2.0 * d {
+                th *= (aw - 2.0 * d) / tw;
+            }
             ay += ah - th;
             ah = th;
         }
@@ -405,7 +424,9 @@ impl emScalarField {
         } else {
             ax + aw * 0.5
         };
-        if e > ay + ah - ry { e = ay + ah - ry; }
+        if e > ay + ah - ry {
+            e = ay + ah - ry;
+        }
         let arrow = [
             (tx - e, ry),
             (tx + e, ry),
@@ -429,8 +450,12 @@ impl emScalarField {
                     let h5 = mah * th;
                     let mut x3 = painter.GetUserClipX1() - tw * 0.5;
                     let mut w3 = painter.GetUserClipX2() + tw * 0.5 - x3;
-                    if x3 < ax { x3 = ax; }
-                    if w3 > ax + aw - x3 { w3 = ax + aw - x3; }
+                    if x3 < ax {
+                        x3 = ax;
+                    }
+                    if w3 > ax + aw - x3 {
+                        w3 = ax + aw - x3;
+                    }
                     let k1 = (((x3 - ax) / f + self.min - 0.01) / ival as f64).ceil() as i64;
                     let k2 = (((x3 + w3 - ax) / f + self.min + 0.01) / ival as f64).floor() as i64;
                     let mut k = k1;
@@ -439,12 +464,20 @@ impl emScalarField {
                         let mark_tx = (v - self.min) * f + ax;
                         let label = (self.text_of_value_fn)(v as i64, ival);
                         painter.PaintTextBoxed(
-                            mark_tx - tw * 0.5, ty, tw, h4,
-                            &label, h4,
-                            col, canvas_color,
-                            TextAlignment::Center, VAlign::Center,
+                            mark_tx - tw * 0.5,
+                            ty,
+                            tw,
+                            h4,
+                            &label,
+                            h4,
+                            col,
+                            canvas_color,
                             TextAlignment::Center,
-                            0.5, true, 0.0,
+                            VAlign::Center,
+                            TextAlignment::Center,
+                            0.5,
+                            true,
+                            0.0,
                         );
                         let tri = [
                             (mark_tx - h5 * 0.5, ty + h4),
@@ -464,7 +497,12 @@ impl emScalarField {
 
     // --- Input ---
 
-    pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(
+        &mut self,
+        event: &emInputEvent,
+        state: &PanelState,
+        _input_state: &emInputState,
+    ) -> bool {
         // C++ emScalarField.cpp:246-268: gates on IsEditable() && IsEnabled().
         if !self.editable || !self.enabled {
             return false;
@@ -581,7 +619,9 @@ impl emScalarField {
         }
         let ivals = &all_ivals[ival_off..ival_off + ival_cnt];
         let mut ival_sum: u64 = 0;
-        for iv in &ivals[..ival_cnt] { ival_sum += iv; }
+        for iv in &ivals[..ival_cnt] {
+            ival_sum += iv;
+        }
 
         let mtw0 = 1.0_f64;
         let mth0 = self.text_box_tallness;
@@ -601,17 +641,25 @@ impl emScalarField {
         let ah = rh - 2.0 * d_base;
 
         let mut d = s * 0.3 * 0.5 - d_base;
-        if d < 0.0 { d = 0.0; }
+        if d < 0.0 {
+            d = 0.0;
+        }
         if ival_cnt > 0 && v_range > 0.0 {
             let th = ah;
             let f = th * ivals[0] as f64 / ival_sum as f64;
             let tw = f * mw * v_range / ivals[0] as f64;
             let mut f2 = f * mtw;
-            if tw + f2 > aw { f2 *= aw / (tw + f2); }
+            if tw + f2 > aw {
+                f2 *= aw / (tw + f2);
+            }
             f2 *= 0.5;
-            if d < f2 { d = f2; }
+            if d < f2 {
+                d = f2;
+            }
             let f_lim = aw * 0.2;
-            if d > f_lim { d = f_lim; }
+            if d > f_lim {
+                d = f_lim;
+            }
         }
         ax += d;
         aw -= 2.0 * d;
@@ -624,11 +672,19 @@ impl emScalarField {
         // C++ value computation (lines 389-396)
         let mut val = (mx - ax) / aw;
         val = val * v_range + self.min;
-        if val < self.min { val = self.min; }
-        if val > self.max { val = self.max; }
+        if val < self.min {
+            val = self.min;
+        }
+        if val > self.max {
+            val = self.max;
+        }
         val = (val + 0.5).floor();
-        if val < self.min { val = self.min; }
-        if val > self.max { val = self.max; }
+        if val < self.min {
+            val = self.min;
+        }
+        if val > self.max {
+            val = self.max;
+        }
         (hit, val)
     }
 
@@ -698,7 +754,6 @@ impl emScalarField {
             cb(self.value);
         }
     }
-
 }
 
 #[cfg(test)]
@@ -757,10 +812,18 @@ mod tests {
         sf.last_h = 40.0;
 
         // emScalarField uses '+' and '-' keys (not arrow keys).
-        sf.Input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        sf.Input(
+            &emInputEvent::press(InputKey::Key('+')),
+            &default_panel_state(),
+            &default_input_state(),
+        );
         assert!(sf.GetValue() > 50.0);
 
-        sf.Input(&emInputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
+        sf.Input(
+            &emInputEvent::press(InputKey::Key('-')),
+            &default_panel_state(),
+            &default_input_state(),
+        );
         // Should be roughly back to 50
         assert!((sf.GetValue() - 50.0).abs() < 2.0);
     }
@@ -780,7 +843,11 @@ mod tests {
             val_clone.borrow_mut().push(v);
         }));
 
-        sf.Input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        sf.Input(
+            &emInputEvent::press(InputKey::Key('+')),
+            &default_panel_state(),
+            &default_input_state(),
+        );
         assert_eq!(values.borrow().len(), 1);
         assert!(values.borrow()[0] > 5.0);
     }
@@ -805,7 +872,11 @@ mod tests {
         sf.SetValue(50.0);
         sf.last_w = 200.0;
         sf.last_h = 40.0;
-        let handled = sf.Input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        let handled = sf.Input(
+            &emInputEvent::press(InputKey::Key('+')),
+            &default_panel_state(),
+            &default_input_state(),
+        );
         assert!(!handled);
         assert!((sf.GetValue() - 50.0).abs() < 0.001);
 
@@ -921,10 +992,18 @@ mod tests {
         sf.last_w = 200.0;
         sf.last_h = 40.0;
 
-        sf.Input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        sf.Input(
+            &emInputEvent::press(InputKey::Key('+')),
+            &default_panel_state(),
+            &default_input_state(),
+        );
         assert!((sf.GetValue() - 60.0).abs() < 1.0);
 
-        sf.Input(&emInputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
+        sf.Input(
+            &emInputEvent::press(InputKey::Key('-')),
+            &default_panel_state(),
+            &default_input_state(),
+        );
         assert!((sf.GetValue() - 50.0).abs() < 1.0);
     }
 
@@ -947,7 +1026,11 @@ mod tests {
         sf.last_w = 200.0;
         sf.last_h = 40.0;
 
-        let handled = sf.Input(&emInputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
+        let handled = sf.Input(
+            &emInputEvent::press(InputKey::Key('+')),
+            &default_panel_state(),
+            &default_input_state(),
+        );
         assert!(handled);
         assert!(sf.GetValue() > 50.0);
     }

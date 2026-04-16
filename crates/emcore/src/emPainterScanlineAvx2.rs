@@ -278,12 +278,12 @@ mod tests {
         let src = vec![
             255, 0, 0, 255, // opaque red
             0, 200, 0, 128, // semi green
-            0, 0, 255, 0,   // transparent
+            0, 0, 255, 0, // transparent
             100, 50, 25, 200, // semi
             180, 90, 45, 64, // low alpha
-            0, 0, 0, 0,     // transparent
+            0, 0, 0, 0, // transparent
             255, 255, 255, 255, // white
-            10, 20, 30, 40,  // low alpha
+            10, 20, 30, 40, // low alpha
         ];
         let bg = vec![128u8; 32];
 
@@ -310,14 +310,14 @@ mod tests {
         }
         // Premul pixels
         let src = vec![
-            200, 0, 0, 200,   // premul red
-            0, 100, 0, 128,   // premul green
-            0, 0, 0, 0,       // transparent
+            200, 0, 0, 200, // premul red
+            0, 100, 0, 128, // premul green
+            0, 0, 0, 0, // transparent
             255, 255, 255, 255, // opaque white
-            50, 25, 10, 64,   // low alpha premul
-            0, 0, 0, 0,       // transparent
+            50, 25, 10, 64, // low alpha premul
+            0, 0, 0, 0, // transparent
             128, 128, 128, 128, // half premul
-            10, 20, 30, 40,   // low alpha
+            10, 20, 30, 40, // low alpha
         ];
         let bg = vec![100u8; 32];
 
@@ -343,11 +343,7 @@ mod tests {
         }
         // 5 pixels — tests 4-pixel chunk + 1 remainder
         let src = vec![
-            255, 0, 0, 255,
-            0, 255, 0, 128,
-            0, 0, 255, 0,
-            100, 50, 25, 200,
-            180, 90, 45, 64,
+            255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 0, 100, 50, 25, 200, 180, 90, 45, 64,
         ];
         let bg = vec![128u8; 20];
 

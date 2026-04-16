@@ -54,9 +54,7 @@ impl<T: Ord + Clone> emAvlTreeSet<T> {
     pub fn from_element(obj: T) -> Self {
         let mut set = BTreeSet::new();
         set.insert(obj);
-        Self {
-            data: Rc::new(set),
-        }
+        Self { data: Rc::new(set) }
     }
 
     // --- Read ---

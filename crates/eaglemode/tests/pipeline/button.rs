@@ -1,18 +1,17 @@
 //! Systematic interaction test for emButton at 1x and 2x zoom, driven through
 //! the full Input dispatch pipeline (PipelineTestHarness).
 
-
 use std::cell::Cell;
 use std::rc::Rc;
 
+use emcore::emButton::emButton;
 use emcore::emCursor::emCursor;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
-use emcore::emPanel::{PanelBehavior, PanelState};
-use emcore::emPainter::emPainter;
-use emcore::emViewRenderer::SoftwareCompositor;
-use emcore::emButton::emButton;
 use emcore::emLook::emLook;
+use emcore::emPainter::emPainter;
+use emcore::emPanel::{PanelBehavior, PanelState};
+use emcore::emViewRenderer::SoftwareCompositor;
 
 use super::support::pipeline::PipelineTestHarness;
 
@@ -144,7 +143,11 @@ fn bp9_mouse_press_enters_pressed_state() {
     h.dispatch(&press);
 
     let log = press_log.borrow();
-    assert_eq!(log.len(), 1, "press_state callback should fire once on press");
+    assert_eq!(
+        log.len(),
+        1,
+        "press_state callback should fire once on press"
+    );
     assert!(log[0], "press_state callback should report pressed=true");
 }
 
@@ -156,7 +159,11 @@ fn bp9_mouse_release_inside_fires_click() {
     // Full Click at viewport center.
     h.click(400.0, 300.0);
 
-    assert_eq!(counter.get(), 1, "click callback should fire on release inside");
+    assert_eq!(
+        counter.get(),
+        1,
+        "click callback should fire on release inside"
+    );
     let log = press_log.borrow();
     assert_eq!(log.len(), 2, "should have press + release state changes");
     assert!(log[0], "first state change = pressed");
@@ -181,7 +188,11 @@ fn bp9_mouse_release_outside_no_click() {
 
     assert_eq!(counter.get(), 0, "no click when release is outside button");
     let log = press_log.borrow();
-    assert_eq!(log.len(), 2, "should still get press + release state changes");
+    assert_eq!(
+        log.len(),
+        2,
+        "should still get press + release state changes"
+    );
     assert!(log[0], "pressed on press");
     assert!(!log[1], "released on release");
 }
@@ -221,7 +232,11 @@ fn bp9_ctrl_click_rejected() {
     h.dispatch(&release);
     h.input_state.release(InputKey::Ctrl);
 
-    assert_eq!(counter.get(), 0, "Ctrl+click should NOT fire click callback");
+    assert_eq!(
+        counter.get(),
+        0,
+        "Ctrl+click should NOT fire click callback"
+    );
 }
 
 /// C++ emButton.cpp:81-82: Alt modifier rejects.
@@ -251,7 +266,11 @@ fn bp9_meta_click_rejected() {
     h.dispatch(&release);
     h.input_state.release(InputKey::Meta);
 
-    assert_eq!(counter.get(), 0, "Meta+click should NOT fire click callback");
+    assert_eq!(
+        counter.get(),
+        0,
+        "Meta+click should NOT fire click callback"
+    );
 }
 
 /// C++ emButton.cpp:81-82: Shift modifier IS accepted (state.IsShiftMod()).
@@ -336,7 +355,11 @@ fn bp9_disabled_button_ignores_enter() {
 
     h.press_key(InputKey::Enter);
 
-    assert_eq!(counter.get(), 0, "disabled button should not fire click on Enter");
+    assert_eq!(
+        counter.get(),
+        0,
+        "disabled button should not fire click on Enter"
+    );
 }
 
 /// C++ emButton.cpp:84: GetViewCondition(VCT_MIN_EXT) >= 8.0. When the panel
@@ -429,7 +452,11 @@ fn bp9_release_without_press_is_noop() {
     let release = emInputEvent::release(InputKey::MouseLeft).with_mouse(400.0, 300.0);
     h.dispatch(&release);
 
-    assert_eq!(counter.get(), 0, "release without press should not fire click");
+    assert_eq!(
+        counter.get(),
+        0,
+        "release without press should not fire click"
+    );
     assert!(
         press_log.borrow().is_empty(),
         "release without press should not fire press_state"
@@ -447,5 +474,9 @@ fn bp9_space_key_does_not_activate() {
 
     h.press_key(InputKey::Space);
 
-    assert_eq!(counter.get(), 1, "Space should NOT activate button (C++ only handles Enter)");
+    assert_eq!(
+        counter.get(),
+        1,
+        "Space should NOT activate button (C++ only handles Enter)"
+    );
 }

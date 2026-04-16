@@ -493,7 +493,6 @@ impl PanelBehavior for emLinearLayout {
     fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState) {}
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

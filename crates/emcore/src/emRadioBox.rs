@@ -2,17 +2,17 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use crate::emColor::emColor;
-use crate::emPanel::Rect;
 use crate::emCursor::emCursor;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
-use crate::emPanel::PanelState;
 use crate::emPainter::{emPainter, BORDER_EDGES_ONLY};
+use crate::emPanel::PanelState;
+use crate::emPanel::Rect;
 
 use super::emBorder::{emBorder, OuterBorderType};
+use crate::emBorder::with_toolkit_images;
 use crate::emLook::emLook;
 use crate::emRadioButton::RadioGroup;
-use crate::emBorder::with_toolkit_images;
 
 /// Small radio box widget — box indicator with label text.
 ///
@@ -36,7 +36,12 @@ pub struct emRadioBox {
 }
 
 impl emRadioBox {
-    pub fn new(label: &str, look: Rc<emLook>, group: Rc<RefCell<RadioGroup>>, _index: usize) -> Self {
+    pub fn new(
+        label: &str,
+        look: Rc<emLook>,
+        group: Rc<RefCell<RadioGroup>>,
+        _index: usize,
+    ) -> Self {
         let index_cell = group.borrow_mut().register();
         Self {
             border: emBorder::new(OuterBorderType::Margin)
@@ -77,10 +82,7 @@ impl emRadioBox {
 
     /// Compute the box + label geometry from the content rect (C++ lines 235-260).
     /// Returns (bx0, by0, bw0, lx, ly, lw, lh).
-    fn box_label_geometry(
-        &self,
-        cr: &Rect,
-    ) -> (f64, f64, f64, f64, f64, f64, f64) {
+    fn box_label_geometry(&self, cr: &Rect) -> (f64, f64, f64, f64, f64, f64, f64) {
         let has_label = self.border.HasLabel();
         if has_label {
             let label_tallness = self.border.GetBestLabelTallness().max(0.2);
@@ -106,7 +108,14 @@ impl emRadioBox {
     }
 
     /// Paint using the C++ DoButton ShownBoxed=true, ShownRadioed=true path.
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
+    pub fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        w: f64,
+        h: f64,
+        enabled: bool,
+        pixel_scale: f64,
+    ) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -114,8 +123,7 @@ impl emRadioBox {
             .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
 
         let cr = self.border.GetContentRect(w, h, &self.look);
-        let (bx0, by0, bw0, mut lx, mut ly, mut lw, mut lh) =
-            self.box_label_geometry(&cr);
+        let (bx0, by0, bw0, mut lx, mut ly, mut lw, mut lh) = self.box_label_geometry(&cr);
 
         // Inset for image area: d = bw * 0.13 (C++ line 262).
         let d = bw0 * 0.13;
@@ -210,7 +218,16 @@ impl emRadioBox {
         // C++ DoButton: disabled gray overlay for boxed+radioed path.
         // PaintRoundRect(fx, fy, fw, fh, fr, fr, 0x888888E0).
         if !enabled {
-            painter.PaintRoundRect(fx, fy, fw, fh, fr, fr, emColor::rgba(0x88, 0x88, 0x88, 0xE0), emColor::TRANSPARENT);
+            painter.PaintRoundRect(
+                fx,
+                fy,
+                fw,
+                fh,
+                fr,
+                fr,
+                emColor::rgba(0x88, 0x88, 0x88, 0xE0),
+                emColor::TRANSPARENT,
+            );
         }
     }
 
@@ -296,8 +313,7 @@ impl emRadioBox {
                         return false;
                     }
                     self.pressed = true;
-                    self.box_pressed =
-                        self.box_hit_test(event.mouse_x, event.mouse_y);
+                    self.box_pressed = self.box_hit_test(event.mouse_x, event.mouse_y);
                     true
                 }
                 InputVariant::Release => {

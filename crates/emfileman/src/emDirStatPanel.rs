@@ -4,9 +4,9 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emFilePanel::{emFilePanel, VirtualFileState};
+use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
-use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 
 use crate::emDirEntry::emDirEntry;
 use crate::emFileManViewConfig::emFileManViewConfig;

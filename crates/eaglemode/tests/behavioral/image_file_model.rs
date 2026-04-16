@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use emcore::emImage::emImage;
 use emcore::emFileModel::FileState;
-use emcore::emImageFile::{ImageFileData, emImageFileModel};
-use emcore::emScheduler::EngineScheduler;
+use emcore::emImage::emImage;
+use emcore::emImageFile::{emImageFileModel, ImageFileData};
 use emcore::emImageFileImageFilePanel::emImageFilePanel;
+use emcore::emScheduler::EngineScheduler;
 
 fn make_model() -> emImageFileModel {
     let mut sched = EngineScheduler::new();

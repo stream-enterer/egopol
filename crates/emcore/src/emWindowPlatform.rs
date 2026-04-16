@@ -228,9 +228,9 @@ mod inner {
     pub(crate) fn tick_screensaver_keepalive() {}
 }
 
-pub(crate) use inner::InhibitScreensaver;
 pub(crate) use inner::start_screensaver_keepalive;
 pub(crate) use inner::stop_screensaver_keepalive;
 pub(crate) use inner::system_beep;
 pub(crate) use inner::tick_screensaver_keepalive;
 pub(crate) use inner::uninhibit_screensaver;
+pub(crate) use inner::InhibitScreensaver;

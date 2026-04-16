@@ -221,26 +221,24 @@ impl emFpPlugin {
                 return Err(FpPluginError::EmptyFunctionName);
             }
 
-            let ptr = unsafe {
-                emTryResolveSymbol(&self.library, false, &self.function)
-            }
-            .map_err(|e| match e {
-                LibError::LibraryLoad { library, message } => {
-                    FpPluginError::LibraryLoad { library, message }
-                }
-                LibError::SymbolResolve {
-                    library,
-                    symbol,
-                    message,
-                } => FpPluginError::SymbolResolve {
-                    library,
-                    symbol,
-                    message,
+            let ptr = unsafe { emTryResolveSymbol(&self.library, false, &self.function) }.map_err(
+                |e| match e {
+                    LibError::LibraryLoad { library, message } => {
+                        FpPluginError::LibraryLoad { library, message }
+                    }
+                    LibError::SymbolResolve {
+                        library,
+                        symbol,
+                        message,
+                    } => FpPluginError::SymbolResolve {
+                        library,
+                        symbol,
+                        message,
+                    },
                 },
-            })?;
+            )?;
 
-            cached.func =
-                Some(unsafe { std::mem::transmute::<*const (), emFpPluginFunc>(ptr) });
+            cached.func = Some(unsafe { std::mem::transmute::<*const (), emFpPluginFunc>(ptr) });
             cached.func_name = self.function.clone();
         }
 
@@ -287,23 +285,21 @@ impl emFpPlugin {
                 return Err(FpPluginError::EmptyFunctionName);
             }
 
-            let ptr = unsafe {
-                emTryResolveSymbol(&self.library, false, &self.model_function)
-            }
-            .map_err(|e| match e {
-                LibError::LibraryLoad { library, message } => {
-                    FpPluginError::LibraryLoad { library, message }
-                }
-                LibError::SymbolResolve {
-                    library,
-                    symbol,
-                    message,
-                } => FpPluginError::SymbolResolve {
-                    library,
-                    symbol,
-                    message,
-                },
-            })?;
+            let ptr = unsafe { emTryResolveSymbol(&self.library, false, &self.model_function) }
+                .map_err(|e| match e {
+                    LibError::LibraryLoad { library, message } => {
+                        FpPluginError::LibraryLoad { library, message }
+                    }
+                    LibError::SymbolResolve {
+                        library,
+                        symbol,
+                        message,
+                    } => FpPluginError::SymbolResolve {
+                        library,
+                        symbol,
+                        message,
+                    },
+                })?;
 
             cached.model_func =
                 Some(unsafe { std::mem::transmute::<*const (), emFpPluginModelFunc>(ptr) });
@@ -677,7 +673,8 @@ impl emFpPluginList {
 
         let mut skip = alternative;
         for plugin in &self.plugins {
-            if plugin.IsMatchingPlugin(model_class_name, file_name, require_able_to_save, stat_mode) {
+            if plugin.IsMatchingPlugin(model_class_name, file_name, require_able_to_save, stat_mode)
+            {
                 if skip == 0 {
                     return Some(plugin);
                 }
@@ -703,7 +700,12 @@ impl emFpPluginList {
         self.plugins
             .iter()
             .filter(|plugin| {
-                plugin.IsMatchingPlugin(model_class_name, file_name, require_able_to_save, stat_mode)
+                plugin.IsMatchingPlugin(
+                    model_class_name,
+                    file_name,
+                    require_able_to_save,
+                    stat_mode,
+                )
             })
             .collect()
     }
@@ -721,27 +723,21 @@ impl emFpPluginList {
         let abs_path = match std::fs::canonicalize(path) {
             Ok(p) => p.to_string_lossy().to_string(),
             Err(e) => {
-                return Box::new(
-                    crate::emErrorPanel::emErrorPanel::new(&e.to_string()),
-                );
+                return Box::new(crate::emErrorPanel::emErrorPanel::new(&e.to_string()));
             }
         };
 
         let metadata = std::fs::metadata(&abs_path);
 
         match metadata {
-            Err(e) => Box::new(
-                crate::emErrorPanel::emErrorPanel::new(&e.to_string()),
-            ),
+            Err(e) => Box::new(crate::emErrorPanel::emErrorPanel::new(&e.to_string())),
             Ok(meta) => {
                 let stat_mode = if meta.is_dir() {
                     FileStatMode::Directory
                 } else {
                     FileStatMode::Regular
                 };
-                self.CreateFilePanelWithStat(
-                    parent, name, &abs_path, None, stat_mode, alternative,
-                )
+                self.CreateFilePanelWithStat(parent, name, &abs_path, None, stat_mode, alternative)
             }
         }
     }
@@ -758,13 +754,10 @@ impl emFpPluginList {
         alternative: usize,
     ) -> Box<dyn PanelBehavior> {
         if let Some(err) = stat_err {
-            return Box::new(
-                crate::emErrorPanel::emErrorPanel::new(&err.to_string()),
-            );
+            return Box::new(crate::emErrorPanel::emErrorPanel::new(&err.to_string()));
         }
 
-        let plugin =
-            self.SearchPlugin(None, Some(absolute_path), false, alternative, stat_mode);
+        let plugin = self.SearchPlugin(None, Some(absolute_path), false, alternative, stat_mode);
         match plugin {
             None => {
                 let msg = if alternative == 0 {
@@ -772,15 +765,11 @@ impl emFpPluginList {
                 } else {
                     "No alternative file panel plugin available."
                 };
-                Box::new(
-                    crate::emErrorPanel::emErrorPanel::new(msg),
-                )
+                Box::new(crate::emErrorPanel::emErrorPanel::new(msg))
             }
             Some(plugin) => match plugin.TryCreateFilePanel(parent, name, absolute_path) {
                 Ok(panel) => panel,
-                Err(e) => Box::new(
-                    crate::emErrorPanel::emErrorPanel::new(&e.to_string()),
-                ),
+                Err(e) => Box::new(crate::emErrorPanel::emErrorPanel::new(&e.to_string())),
             },
         }
     }
@@ -799,13 +788,7 @@ impl emFpPluginList {
         stat_mode: FileStatMode,
     ) -> Result<Rc<RefCell<dyn Any>>, FpPluginError> {
         let file_path = if name_is_file_path { Some(name) } else { None };
-        let plugin = self.SearchPlugin(
-            Some(class_name),
-            file_path,
-            false,
-            alternative,
-            stat_mode,
-        );
+        let plugin = self.SearchPlugin(Some(class_name), file_path, false, alternative, stat_mode);
 
         match plugin {
             None => Err(FpPluginError::NoPluginFound),

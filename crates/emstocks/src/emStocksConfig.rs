@@ -6,26 +6,24 @@ use std::str::FromStr;
 use emcore::emRec::{RecStruct, RecValue};
 use emcore::emRecRecord::{RecError, Record};
 
-use super::emStocksRec::{
-    GetDaysOfMonth, GetDateDifferenceParts, Interest, ParseDate,
-};
+use super::emStocksRec::{GetDateDifferenceParts, GetDaysOfMonth, Interest, ParseDate};
 
 // ─── ChartPeriod ─────────────────────────────────────────────────────────────
 
 /// Port of C++ emStocksConfig::PeriodType.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum ChartPeriod {
-    Week1,      // PT_1_WEEK
-    Weeks2,     // PT_2_WEEKS
-    Month1,     // PT_1_MONTH
-    Months3,    // PT_3_MONTHS
-    Months6,    // PT_6_MONTHS
+    Week1,   // PT_1_WEEK
+    Weeks2,  // PT_2_WEEKS
+    Month1,  // PT_1_MONTH
+    Months3, // PT_3_MONTHS
+    Months6, // PT_6_MONTHS
     #[default]
-    Year1,      // PT_1_YEAR  (default)
-    Years3,     // PT_3_YEARS
-    Years5,     // PT_5_YEARS
-    Years10,    // PT_10_YEARS
-    Years20,    // PT_20_YEARS
+    Year1, // PT_1_YEAR  (default)
+    Years3,  // PT_3_YEARS
+    Years5,  // PT_5_YEARS
+    Years10, // PT_10_YEARS
+    Years20, // PT_20_YEARS
 }
 
 impl fmt::Display for ChartPeriod {
@@ -71,17 +69,17 @@ impl FromStr for ChartPeriod {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum Sorting {
     #[default]
-    ByName,            // SORT_BY_NAME (default)
-    ByTradeDate,       // SORT_BY_TRADE_DATE
-    ByInquiryDate,     // SORT_BY_INQUIRY_DATE
-    ByAchievement,     // SORT_BY_ACHIEVEMENT
-    ByOneWeekRise,     // SORT_BY_ONE_WEEK_RISE
-    ByThreeWeekRise,   // SORT_BY_THREE_WEEK_RISE
-    ByNineWeekRise,    // SORT_BY_NINE_WEEK_RISE
-    ByDividend,        // SORT_BY_DIVIDEND
-    ByPurchaseValue,   // SORT_BY_PURCHASE_VALUE
-    ByValue,           // SORT_BY_VALUE
-    ByDifference,      // SORT_BY_DIFFERENCE
+    ByName, // SORT_BY_NAME (default)
+    ByTradeDate,     // SORT_BY_TRADE_DATE
+    ByInquiryDate,   // SORT_BY_INQUIRY_DATE
+    ByAchievement,   // SORT_BY_ACHIEVEMENT
+    ByOneWeekRise,   // SORT_BY_ONE_WEEK_RISE
+    ByThreeWeekRise, // SORT_BY_THREE_WEEK_RISE
+    ByNineWeekRise,  // SORT_BY_NINE_WEEK_RISE
+    ByDividend,      // SORT_BY_DIVIDEND
+    ByPurchaseValue, // SORT_BY_PURCHASE_VALUE
+    ByValue,         // SORT_BY_VALUE
+    ByDifference,    // SORT_BY_DIFFERENCE
 }
 
 impl fmt::Display for Sorting {
@@ -211,7 +209,9 @@ impl emStocksConfig {
         if categories.is_empty() {
             return true;
         }
-        categories.binary_search_by(|c| c.as_str().cmp(category)).is_ok()
+        categories
+            .binary_search_by(|c| c.as_str().cmp(category))
+            .is_ok()
     }
 }
 
@@ -241,11 +241,7 @@ fn read_string_array(rec: &RecStruct, name: &str) -> Vec<String> {
 fn write_string_array(rec: &mut RecStruct, name: &str, arr: &[String]) {
     rec.SetValue(
         name,
-        RecValue::Array(
-            arr.iter()
-                .map(|s| RecValue::Str(s.clone()))
-                .collect(),
-        ),
+        RecValue::Array(arr.iter().map(|s| RecValue::Str(s.clone())).collect()),
     );
 }
 
@@ -253,34 +249,36 @@ fn write_string_array(rec: &mut RecStruct, name: &str, arr: &[String]) {
 
 impl Record for emStocksConfig {
     fn from_rec(rec: &RecStruct) -> Result<Self, RecError> {
-        let get_str = |name: &str| -> String {
-            rec.get_str(name).unwrap_or("").to_string()
-        };
+        let get_str = |name: &str| -> String { rec.get_str(name).unwrap_or("").to_string() };
 
-        let chart_period = parse_ident_upper::<ChartPeriod>(rec, "ChartPeriod")
-            .unwrap_or_default();
+        let chart_period = parse_ident_upper::<ChartPeriod>(rec, "ChartPeriod").unwrap_or_default();
 
-        let sorting = parse_ident_upper::<Sorting>(rec, "Sorting")
-            .unwrap_or_default();
+        let sorting = parse_ident_upper::<Sorting>(rec, "Sorting").unwrap_or_default();
 
         // MinVisibleInterest: try canonical first, then deprecated-normal fallback
         let min_visible_interest = if let Some(ident) = rec.get_ident("MinVisibleInterest") {
             let upper = ident.to_ascii_uppercase();
-            Interest::from_str(&upper).unwrap_or_else(|_| {
-                Interest::from_deprecated_normal(&upper)
-            })
+            Interest::from_str(&upper).unwrap_or_else(|_| Interest::from_deprecated_normal(&upper))
         } else {
             Interest::Low
         };
 
         let api_script_interpreter = {
             let s = get_str("ApiScriptInterpreter");
-            if s.is_empty() { "perl".to_string() } else { s }
+            if s.is_empty() {
+                "perl".to_string()
+            } else {
+                s
+            }
         };
 
         let web_browser = {
             let s = get_str("WebBrowser");
-            if s.is_empty() { "firefox".to_string() } else { s }
+            if s.is_empty() {
+                "firefox".to_string()
+            } else {
+                s
+            }
         };
 
         Ok(Self {
@@ -339,13 +337,19 @@ mod tests {
     fn chart_period_from_str() {
         assert_eq!(ChartPeriod::from_str("PT_1_WEEK"), Ok(ChartPeriod::Week1));
         assert_eq!(ChartPeriod::from_str("PT_1_YEAR"), Ok(ChartPeriod::Year1));
-        assert_eq!(ChartPeriod::from_str("PT_20_YEARS"), Ok(ChartPeriod::Years20));
+        assert_eq!(
+            ChartPeriod::from_str("PT_20_YEARS"),
+            Ok(ChartPeriod::Years20)
+        );
     }
 
     #[test]
     fn sorting_from_str() {
         assert_eq!(Sorting::from_str("SORT_BY_NAME"), Ok(Sorting::ByName));
-        assert_eq!(Sorting::from_str("SORT_BY_DIFFERENCE"), Ok(Sorting::ByDifference));
+        assert_eq!(
+            Sorting::from_str("SORT_BY_DIFFERENCE"),
+            Ok(Sorting::ByDifference)
+        );
     }
 
     #[test]
@@ -380,7 +384,10 @@ mod tests {
     #[test]
     fn is_in_visible_categories_empty_means_all_visible() {
         let categories: Vec<String> = vec![];
-        assert!(emStocksConfig::IsInVisibleCategories(&categories, "anything"));
+        assert!(emStocksConfig::IsInVisibleCategories(
+            &categories,
+            "anything"
+        ));
     }
 
     #[test]

@@ -1,8 +1,11 @@
 // SPLIT: Split from emRec.h — record type definitions extracted
 use std::path::Path;
 
-use crate::emRec::{parse_rec, parse_rec_with_format, write_rec, write_rec_with_format, RecError, RecStruct, RecValue};
 use crate::emColor::emColor;
+use crate::emRec::{
+    parse_rec, parse_rec_with_format, write_rec, write_rec_with_format, RecError, RecStruct,
+    RecValue,
+};
 use crate::emTiling::Alignment;
 
 // ---- RecListener ----
@@ -158,7 +161,12 @@ impl emColorRec {
         let value = if have_alpha {
             default_value
         } else {
-            emColor::rgba(default_value.GetRed(), default_value.GetGreen(), default_value.GetBlue(), 255)
+            emColor::rgba(
+                default_value.GetRed(),
+                default_value.GetGreen(),
+                default_value.GetBlue(),
+                255,
+            )
         };
         Self {
             value,

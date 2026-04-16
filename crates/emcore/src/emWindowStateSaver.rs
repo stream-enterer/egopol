@@ -148,7 +148,11 @@ impl emWindowStateSaver {
     ///
     /// Port of C++ emWindowStateSaver::Restore. Validates saved geometry
     /// against monitor bounds, then applies position, size, and window flags.
-    pub fn Restore(&self, window: &mut crate::emWindow::ZuiWindow, screen: &crate::emScreen::emScreen) {
+    pub fn Restore(
+        &self,
+        window: &mut crate::emWindow::ZuiWindow,
+        screen: &crate::emScreen::emScreen,
+    ) {
         let rec = self.model.GetRec();
 
         let x = rec.ViewX;

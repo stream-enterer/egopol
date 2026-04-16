@@ -3,11 +3,11 @@ use std::rc::Rc;
 use crate::emColor::emColor;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
-use crate::emRasterLayout::emRasterLayout;
-use crate::emTiling::{AlignmentH, AlignmentV, Spacing};
+use crate::emPainter::{emPainter, TextAlignment, VAlign};
 use crate::emPanel::PanelState;
 use crate::emPanelCtx::PanelCtx;
-use crate::emPainter::{emPainter, TextAlignment, VAlign};
+use crate::emRasterLayout::emRasterLayout;
+use crate::emTiling::{AlignmentH, AlignmentV, Spacing};
 
 use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 use super::emColorFieldFieldPanel::{ScalarFieldPanel, TextFieldPanel};
@@ -413,21 +413,45 @@ impl emColorField {
 
         if !self.color.IsOpaque() {
             painter.PaintTextBoxed(
-                x + d, y + d, cw - 2.0 * d, ch - 2.0 * d,
+                x + d,
+                y + d,
+                cw - 2.0 * d,
+                ch - 2.0 * d,
                 "transparent",
                 ch,
-                if self.editable { self.look.input_fg_color } else { self.look.output_fg_color },
+                if self.editable {
+                    self.look.input_fg_color
+                } else {
+                    self.look.output_fg_color
+                },
                 canvas_color,
-                TextAlignment::Center, VAlign::Center,
                 TextAlignment::Center,
-                0.5, true, 0.0,
+                VAlign::Center,
+                TextAlignment::Center,
+                0.5,
+                true,
+                0.0,
             );
             canvas_color = emColor::TRANSPARENT;
         }
-        painter.PaintRect(x + d, y + d, cw - 2.0 * d, ch - 2.0 * d, self.color, canvas_color);
+        painter.PaintRect(
+            x + d,
+            y + d,
+            cw - 2.0 * d,
+            ch - 2.0 * d,
+            self.color,
+            canvas_color,
+        );
         {
             let stroke = crate::emStroke::emStroke::new(self.look.input_fg_color, d * 0.08);
-            painter.PaintRectOutline(x + d, y + d, cw - 2.0 * d, ch - 2.0 * d, &stroke, emColor::TRANSPARENT);
+            painter.PaintRectOutline(
+                x + d,
+                y + d,
+                cw - 2.0 * d,
+                ch - 2.0 * d,
+                &stroke,
+                emColor::TRANSPARENT,
+            );
         }
 
         self.border.paint_inner_overlay(painter, w, h, &self.look);
@@ -445,7 +469,12 @@ impl emColorField {
         dx * dx + dy * dy <= r * r
     }
 
-    pub fn Input(&mut self, event: &emInputEvent, _state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(
+        &mut self,
+        event: &emInputEvent,
+        _state: &PanelState,
+        _input_state: &emInputState,
+    ) -> bool {
         match event.key {
             InputKey::MouseLeft if event.variant == InputVariant::Release => {
                 if !self.hit_test(event.mouse_x, event.mouse_y) {

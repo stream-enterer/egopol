@@ -2,15 +2,10 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use emcore::emFileModel::{
-    emAbsoluteFileModelClient, emFileModel, FileModelOps, FileState,
-};
+use emcore::emFileModel::{emAbsoluteFileModelClient, emFileModel, FileModelOps, FileState};
 use emcore::emScheduler::EngineScheduler;
 
-fn make_signals() -> (
-    emcore::emSignal::SignalId,
-    emcore::emSignal::SignalId,
-) {
+fn make_signals() -> (emcore::emSignal::SignalId, emcore::emSignal::SignalId) {
     let mut sched = EngineScheduler::new();
     (sched.create_signal(), sched.create_signal())
 }
@@ -73,7 +68,11 @@ fn update_keeps_loaded_if_fresh() {
     m.IsOutOfDate(1000, 512); // same date, not out of date
     m.update();
     assert!(matches!(m.GetFileState(), &FileState::Loaded));
-    assert_eq!(m.GetMap().unwrap(), "data", "loaded data should be preserved after fresh update");
+    assert_eq!(
+        m.GetMap().unwrap(),
+        "data",
+        "loaded data should be preserved after fresh update"
+    );
 }
 
 #[test]

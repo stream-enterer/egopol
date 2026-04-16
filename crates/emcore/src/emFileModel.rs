@@ -543,7 +543,10 @@ impl<T> emFileModel<T> {
 
     /// Number of live (non-dropped) clients.
     pub fn client_count(&self) -> usize {
-        self.clients.iter().filter(|w| w.upgrade().is_some()).count()
+        self.clients
+            .iter()
+            .filter(|w| w.upgrade().is_some())
+            .count()
     }
 
     /// Recompute memory limit as max across all clients.
@@ -869,22 +872,27 @@ mod tests {
         let mut sched = EngineScheduler::new();
         let mut ps_model = PriSchedModel::new(&mut sched);
 
-        let model: Rc<RefCell<emFileModel<String>>> = Rc::new(RefCell::new(
-            emFileModel::new(PathBuf::from("/dev/null"), SignalId::default(), SignalId::default()),
-        ));
+        let model: Rc<RefCell<emFileModel<String>>> = Rc::new(RefCell::new(emFileModel::new(
+            PathBuf::from("/dev/null"),
+            SignalId::default(),
+            SignalId::default(),
+        )));
 
         // Create a GotAccess callback that drives loading
         let m = Rc::clone(&model);
-        let agent = ps_model.add_agent(1.0, Box::new(move || {
-            let mut model = m.borrow_mut();
-            model.complete_load("loaded".to_string());
-        }));
+        let agent = ps_model.add_agent(
+            1.0,
+            Box::new(move || {
+                let mut model = m.borrow_mut();
+                model.complete_load("loaded".to_string());
+            }),
+        );
 
         ps_model.RequestAccess(agent, &mut sched);
         {
-            use std::collections::HashMap;
             use crate::emPanelTree::PanelTree;
             use crate::emWindow::ZuiWindow;
+            use std::collections::HashMap;
             use winit::window::WindowId;
             let mut tree = PanelTree::new();
             let mut windows: HashMap<WindowId, ZuiWindow> = HashMap::new();

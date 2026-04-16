@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use emcore::emCrossPtr::{emCrossPtr, emCrossPtrList};
 use emStocks::emStocksPricesFetcher::emStocksPricesFetcher;
 use emStocks::emStocksRec::{emStocksRec, SharePriceToString, StockRec};
+use emcore::emCrossPtr::{emCrossPtr, emCrossPtrList};
 
 // ─── emCrossPtr patterns used by emStocks ───
 

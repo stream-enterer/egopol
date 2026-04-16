@@ -2,17 +2,17 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
 
-use bitflags::bitflags;
 use crate::dlog;
+use bitflags::bitflags;
 
-use crate::emPanelCtx::PanelCtx;
 use super::emPanelTree::{PanelId, PanelTree};
 use crate::emClipRects::ClipRects;
 use crate::emColor::emColor;
-use crate::emRec::{write_rec_with_format, RecStruct, RecValue};
-use crate::emPanel::Rect;
 use crate::emCursor::emCursor;
 use crate::emPainter::{emPainter, TextAlignment, VAlign};
+use crate::emPanel::Rect;
+use crate::emPanelCtx::PanelCtx;
+use crate::emRec::{write_rec_with_format, RecStruct, RecValue};
 
 bitflags! {
     /// Flags controlling view behavior.
@@ -1304,7 +1304,10 @@ impl emView {
         // Recurse into children
         let children: Vec<PanelId> = tree.children(id).collect();
         for child in children {
-            let lr = tree.GetRec(child).map(|p| p.layout_rect).unwrap_or_default();
+            let lr = tree
+                .GetRec(child)
+                .map(|p| p.layout_rect)
+                .unwrap_or_default();
             // C++ emPanel.cpp:562-565: x uses ViewedWidth, y uses
             // ViewedWidth/CurrentPixelTallness. CurrentPixelTallness is always
             // 1.0 for the golden tests (square pixels), so vw/pt = vw.
@@ -1777,7 +1780,10 @@ impl emView {
     /// Whether a panel is in the focused path: it is in the active path and
     /// the view's window is focused.
     pub fn is_panel_in_focused_path(&self, tree: &PanelTree, panel: PanelId) -> bool {
-        let in_active_path = tree.GetRec(panel).map(|p| p.in_active_path).unwrap_or(false);
+        let in_active_path = tree
+            .GetRec(panel)
+            .map(|p| p.in_active_path)
+            .unwrap_or(false);
         in_active_path && self.window_focused
     }
 
@@ -1821,7 +1827,10 @@ impl emView {
     ///
     /// Corresponds to `emPanel::InvalidateTitle`.
     pub fn InvalidateTitle(&mut self, tree: &PanelTree, panel: PanelId) {
-        let in_active_path = tree.GetRec(panel).map(|p| p.in_active_path).unwrap_or(false);
+        let in_active_path = tree
+            .GetRec(panel)
+            .map(|p| p.in_active_path)
+            .unwrap_or(false);
         if in_active_path {
             self.title_invalid = true;
         }
@@ -1832,7 +1841,10 @@ impl emView {
     ///
     /// Corresponds to `emPanel::InvalidateCursor`.
     pub fn InvalidateCursor(&mut self, tree: &PanelTree, panel: PanelId) {
-        let in_viewed_path = tree.GetRec(panel).map(|p| p.in_viewed_path).unwrap_or(false);
+        let in_viewed_path = tree
+            .GetRec(panel)
+            .map(|p| p.in_viewed_path)
+            .unwrap_or(false);
         if in_viewed_path {
             self.cursor_invalid = true;
         }
@@ -1904,7 +1916,10 @@ impl emView {
     ///
     /// Corresponds to `emPanel::InvalidateControlPanel`.
     pub fn InvalidateControlPanel(&mut self, tree: &PanelTree, panel: PanelId) {
-        let in_active_path = tree.GetRec(panel).map(|p| p.in_active_path).unwrap_or(false);
+        let in_active_path = tree
+            .GetRec(panel)
+            .map(|p| p.in_active_path)
+            .unwrap_or(false);
         if in_active_path {
             self.control_panel_invalid = true;
             if let Some(sig) = self.control_panel_signal {
@@ -2325,7 +2340,9 @@ impl emView {
         // (C++ calls SetActivePanelBestPossible after Scroll/Zoom)
         let need_reselect = match self.active {
             None => true,
-            Some(id) => !tree.contains(id) || !tree.GetRec(id).map(|p| p.focusable).unwrap_or(false),
+            Some(id) => {
+                !tree.contains(id) || !tree.GetRec(id).map(|p| p.focusable).unwrap_or(false)
+            }
         };
         if need_reselect || self.viewport_changed {
             self.SetActivePanelBestPossible(tree);
@@ -2381,12 +2398,7 @@ impl emView {
     /// paint and pop_state once after the entire child loop, matching the
     /// C++ lifecycle where `pnt` is alive for the whole block and `painter`
     /// (the original) is used for PaintHighlight.
-    pub fn Paint(
-        &self,
-        tree: &mut PanelTree,
-        painter: &mut emPainter,
-        canvas_color: emColor,
-    ) {
+    pub fn Paint(&self, tree: &mut PanelTree, painter: &mut emPainter, canvas_color: emColor) {
         // C++ line 1056
         debug_assert!(
             painter.GetScaleX() == 1.0 && painter.GetScaleY() == 1.0,
@@ -2450,13 +2462,21 @@ impl emView {
 
         // C++ lines 1085-1088: clamp SVP clip to render region
         let mut cx1 = svp_clip_x1;
-        if cx1 < rx1 { cx1 = rx1; }
+        if cx1 < rx1 {
+            cx1 = rx1;
+        }
         let mut cx2 = svp_clip_x2;
-        if cx2 > rx2 { cx2 = rx2; }
+        if cx2 > rx2 {
+            cx2 = rx2;
+        }
         let mut cy1 = svp_clip_y1;
-        if cy1 < ry1 { cy1 = ry1; }
+        if cy1 < ry1 {
+            cy1 = ry1;
+        }
         let mut cy2 = svp_clip_y2;
-        if cy2 > ry2 { cy2 = ry2; }
+        if cy2 > ry2 {
+            cy2 = ry2;
+        }
 
         // C++ line 1089
         if cx1 < cx2 && cy1 < cy2 {
@@ -2483,14 +2503,22 @@ impl emView {
                     if panel.viewed {
                         // C++ lines 1104-1108: clamp child clip to render region
                         let mut cx1 = panel.clip_x;
-                        if cx1 < rx1 { cx1 = rx1; }
+                        if cx1 < rx1 {
+                            cx1 = rx1;
+                        }
                         let mut cx2 = panel.clip_x + panel.clip_w;
-                        if cx2 > rx2 { cx2 = rx2; }
+                        if cx2 > rx2 {
+                            cx2 = rx2;
+                        }
                         if cx1 < cx2 {
                             let mut cy1 = panel.clip_y;
-                            if cy1 < ry1 { cy1 = ry1; }
+                            if cy1 < ry1 {
+                                cy1 = ry1;
+                            }
                             let mut cy2 = panel.clip_y + panel.clip_h;
-                            if cy2 > ry2 { cy2 = ry2; }
+                            if cy2 > ry2 {
+                                cy2 = ry2;
+                            }
                             if cy1 < cy2 {
                                 // C++ lines 1110-1115
                                 let p_vx = panel.viewed_x;
@@ -2499,12 +2527,8 @@ impl emView {
                                 let p_canvas = panel.canvas_color;
                                 let p_layout = panel.layout_rect;
 
-                                painter.SetClippingAbsolute(
-                                    cx1 + ox, cy1 + oy, cx2 + ox, cy2 + oy,
-                                );
-                                painter.SetTransformation(
-                                    p_vx + ox, p_vy + oy, p_vw, p_vw,
-                                );
+                                painter.SetClippingAbsolute(cx1 + ox, cy1 + oy, cx2 + ox, cy2 + oy);
+                                painter.SetTransformation(p_vx + ox, p_vy + oy, p_vw, p_vw);
 
                                 // C++ line 1118: p->Paint(pnt, p->CanvasColor)
                                 painter.SetCanvasColor(p_canvas);
@@ -2645,7 +2669,12 @@ impl emView {
             255
         };
 
-        let color = emColor::rgba(base_color.GetRed(), base_color.GetGreen(), base_color.GetBlue(), alpha);
+        let color = emColor::rgba(
+            base_color.GetRed(),
+            base_color.GetGreen(),
+            base_color.GetBlue(),
+            alpha,
+        );
 
         // Shadow color: black with alpha 192 normally, alpha/3 when unfocused
         let shadow_alpha =
@@ -3734,7 +3763,10 @@ mod tests {
         // pixel at (5, 5): offset = (5 * 800 + 5) * 4
         let off = (5 * 800 + 5) * 4;
         let has_overlay = px[off] > 0 || px[off + 1] > 0 || px[off + 2] > 0;
-        assert!(has_overlay, "stress test overlay should paint in top-left corner");
+        assert!(
+            has_overlay,
+            "stress test overlay should paint in top-left corner"
+        );
     }
 
     #[test]
@@ -3781,12 +3813,7 @@ mod tests {
 
     /// Helper: convert viewport pixel to panel-local coordinates using
     /// viewed_x/viewed_width from the panel tree. Convention-independent.
-    fn panel_space_at_pixel(
-        tree: &PanelTree,
-        panel: PanelId,
-        px: f64,
-        py: f64,
-    ) -> (f64, f64) {
+    fn panel_space_at_pixel(tree: &PanelTree, panel: PanelId, px: f64, py: f64) -> (f64, f64) {
         let rec = tree.GetRec(panel).unwrap();
         (
             (px - rec.viewed_x) / rec.viewed_width,
@@ -3949,9 +3976,9 @@ mod tests {
 
     #[test]
     fn test_signal_fields_and_visit_by_identity() {
+        use crate::emScheduler::EngineScheduler;
         use std::cell::RefCell;
         use std::rc::Rc;
-        use crate::emScheduler::EngineScheduler;
 
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
@@ -3993,7 +4020,6 @@ mod tests {
         sched.borrow_mut().remove_signal(title_sig);
     }
 }
-
 
 #[cfg(kani)]
 mod kani_private_proofs {

@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
-use crate::emPanel::Rect;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
-use crate::emPanel::PanelState;
-use crate::emPanelCtx::PanelCtx;
 use crate::emPainter::emPainter;
+use crate::emPanel::PanelState;
+use crate::emPanel::Rect;
+use crate::emPanelCtx::PanelCtx;
 
 use super::emBorder::{emBorder, OuterBorderType};
 use crate::emLook::emLook;
@@ -129,9 +129,9 @@ impl emDialog {
         }
 
         // Propagate content canvas color to children.
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 

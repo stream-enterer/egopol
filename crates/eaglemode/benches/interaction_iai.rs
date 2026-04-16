@@ -1,9 +1,9 @@
 #[allow(dead_code)]
 mod common;
 
-use gungraun::{library_benchmark, library_benchmark_group, main};
 use emcore::emImage::emImage;
 use emcore::emPanelTree::PanelTree;
+use gungraun::{library_benchmark, library_benchmark_group, main};
 
 use emcore::emView::emView;
 use emcore::emViewRendererTileCache::TileCache;
@@ -76,7 +76,13 @@ fn bench_pan_zoom(state: ScenarioState) {
 
 library_benchmark_group!(
     name = interaction,
-    benchmarks = [bench_static, bench_pan, bench_zoom_in, bench_zoom_out, bench_pan_zoom]
+    benchmarks = [
+        bench_static,
+        bench_pan,
+        bench_zoom_in,
+        bench_zoom_out,
+        bench_pan_zoom
+    ]
 );
 
 main!(library_benchmark_groups = interaction);

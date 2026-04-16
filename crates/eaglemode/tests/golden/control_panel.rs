@@ -61,10 +61,7 @@ fn control_panel_child_names() {
     }
 
     let children: Vec<_> = tree.children(root).collect();
-    let names: Vec<&str> = children
-        .iter()
-        .map(|&id| tree.name(id).unwrap())
-        .collect();
+    let names: Vec<&str> = children.iter().map(|&id| tree.name(id).unwrap()).collect();
 
     // C++ top-level child 0: lMain (contains general + bookmarks).
     assert_eq!(names, vec!["lMain"]);

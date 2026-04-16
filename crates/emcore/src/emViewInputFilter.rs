@@ -5,8 +5,8 @@ use crate::dlog;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 
-use crate::emPanelTree::PanelTree;
 use super::emView::{emView, ViewFlags};
+use crate::emPanelTree::PanelTree;
 
 /// Trait for view input filters that intercept input before it reaches panels.
 pub trait emViewInputFilter {
@@ -15,7 +15,12 @@ pub trait emViewInputFilter {
 
     /// Tick per-frame animations (wheel zoom spring, grip pan spring).
     /// Returns true if animation is still active and needs another frame.
-    fn animate(&mut self, _view: &mut emView, _tree: &mut super::emPanelTree::PanelTree, _dt: f64) -> bool {
+    fn animate(
+        &mut self,
+        _view: &mut emView,
+        _tree: &mut super::emPanelTree::PanelTree,
+        _dt: f64,
+    ) -> bool {
         false
     }
 
@@ -873,7 +878,12 @@ impl emViewInputFilter for emMouseZoomScrollVIF {
         false
     }
 
-    fn animate(&mut self, view: &mut emView, tree: &mut super::emPanelTree::PanelTree, dt: f64) -> bool {
+    fn animate(
+        &mut self,
+        view: &mut emView,
+        tree: &mut super::emPanelTree::PanelTree,
+        dt: f64,
+    ) -> bool {
         let wheel = self.animate_wheel(view, tree, dt);
         let grip = self.animate_grip(view, tree, dt);
         wheel || grip
@@ -1000,7 +1010,12 @@ impl emKeyboardZoomScrollVIF {
     ///
     /// Called each frame when `is_animating()` returns true.
     /// `dt` is the time delta in seconds.
-    pub fn animate(&mut self, view: &mut emView, tree: &mut super::emPanelTree::PanelTree, dt: f64) {
+    pub fn animate(
+        &mut self,
+        view: &mut emView,
+        tree: &mut super::emPanelTree::PanelTree,
+        dt: f64,
+    ) {
         // Compute target velocities from held keys (in pixels/sec, matching C++)
         let target_vx = if self.key_state.contains(KeyState::RIGHT) {
             self.scroll_speed
@@ -1638,8 +1653,7 @@ impl TouchTracker {
                     let x = self.touches[0].down_x;
                     let y = self.touches[0].down_y;
                     if let Some(panel) = view.GetFocusablePanelAt(tree, x, y) {
-                        let (rx, ry, ra) =
-                            view.CalcVisitFullsizedCoords(tree, panel, true);
+                        let (rx, ry, ra) = view.CalcVisitFullsizedCoords(tree, panel, true);
                         view.Visit(panel, rx, ry, ra);
                     }
                     self.gesture_state = GestureState::Finish;
@@ -1979,7 +1993,7 @@ impl emDefaultTouchVIF {
                 ..Touch::default()
             };
             self.gesture_tracker.touch_count += 1;
-            }
+        }
 
         self.run_gesture_loop(view, tree);
         let events = self.drain_gesture_actions(view);
@@ -2360,14 +2374,12 @@ impl emCheatVIF {
 
             // EmulateMiddleButton on/off: chEat:emb!
             "emb" => {
-                self.pending_actions
-                    .push(CheatAction::EmulateMiddleButton);
+                self.pending_actions.push(CheatAction::EmulateMiddleButton);
             }
 
             // PanFunction on/off: chEat:pan!
             "pan" => {
-                self.pending_actions
-                    .push(CheatAction::PanFunction);
+                self.pending_actions.push(CheatAction::PanFunction);
             }
 
             // Tree dump: chEat:td!
@@ -2379,7 +2391,10 @@ impl emCheatVIF {
             "dlog" => {
                 let enabled = !crate::emStd1::emIsDLogEnabled();
                 crate::emStd1::emEnableDLog(enabled);
-                eprintln!("[CheatVIF] debug log {}", if enabled { "enabled" } else { "disabled" });
+                eprintln!(
+                    "[CheatVIF] debug log {}",
+                    if enabled { "enabled" } else { "disabled" }
+                );
             }
 
             // Screenshot: chEat:ss!
@@ -2501,14 +2516,16 @@ mod tests {
     fn test_drain_gesture_actions_returns_forward_input() {
         let mut vif = emDefaultTouchVIF::new();
         // Manually push a ForwardInput action to simulate gesture machine output
-        vif.gesture_tracker.pending_actions.push(GestureAction::ForwardInput {
-            key: InputKey::MouseLeft,
-            variant: InputVariant::Press,
-            mouse_x: 100.0,
-            mouse_y: 200.0,
-            shift: false,
-            ctrl: false,
-        });
+        vif.gesture_tracker
+            .pending_actions
+            .push(GestureAction::ForwardInput {
+                key: InputKey::MouseLeft,
+                variant: InputVariant::Press,
+                mouse_x: 100.0,
+                mouse_y: 200.0,
+                shift: false,
+                ctrl: false,
+            });
         let (_tree, mut view) = setup();
         let forward_events = vif.drain_gesture_actions(&mut view);
         assert_eq!(forward_events.len(), 1);
@@ -2535,8 +2552,7 @@ mod tests {
         let rx_after = view.current_visit().rel_x;
         let ry_after = view.current_visit().rel_y;
         assert!(
-            (rx_after - rx_before).abs() < 1e-12
-                && (ry_after - ry_before).abs() < 1e-12,
+            (rx_after - rx_before).abs() < 1e-12 && (ry_after - ry_before).abs() < 1e-12,
             "View scrolled during dead zone — old SingleTouch not suppressed \
              (dx={:.6}, dy={:.6})",
             rx_after - rx_before,
@@ -2822,7 +2838,10 @@ mod tests {
         let before = view.current_visit().rel_x;
         vif.touch_move(1, 130.0, 100.0, 0.016, &mut view, &mut tree);
         let after = view.current_visit().rel_x;
-        assert!(after != before, "Single touch should pan after 20px dead zone");
+        assert!(
+            after != before,
+            "Single touch should pan after 20px dead zone"
+        );
 
         // Touch end with low velocity — should go idle
         vif.touch_end(1, &mut view, &mut tree);
@@ -2859,7 +2878,14 @@ mod tests {
         // Rapid drag
         vif.touch_start(1, 100.0, 100.0, &mut view, &mut tree);
         for i in 1..10 {
-            vif.touch_move(1, 100.0 + i as f64 * 50.0, 100.0, 0.016, &mut view, &mut tree);
+            vif.touch_move(
+                1,
+                100.0 + i as f64 * 50.0,
+                100.0,
+                0.016,
+                &mut view,
+                &mut tree,
+            );
         }
         vif.touch_end(1, &mut view, &mut tree);
         assert_eq!(vif.state(), TouchState::Fling);
@@ -2885,7 +2911,14 @@ mod tests {
         // Create fling
         vif.touch_start(1, 100.0, 100.0, &mut view, &mut tree);
         for i in 1..10 {
-            vif.touch_move(1, 100.0 + i as f64 * 50.0, 100.0, 0.016, &mut view, &mut tree);
+            vif.touch_move(
+                1,
+                100.0 + i as f64 * 50.0,
+                100.0,
+                0.016,
+                &mut view,
+                &mut tree,
+            );
         }
         vif.touch_end(1, &mut view, &mut tree);
         assert_eq!(vif.state(), TouchState::Fling);
@@ -3412,8 +3445,13 @@ mod tests {
         // Three fingers down
         for i in 0..3u64 {
             tracker.touches[i as usize] = Touch {
-                id: i + 1, down: true, x: 100.0 + i as f64 * 50.0, y: 200.0,
-                down_x: 100.0 + i as f64 * 50.0, down_y: 200.0, ..Touch::default()
+                id: i + 1,
+                down: true,
+                x: 100.0 + i as f64 * 50.0,
+                y: 200.0,
+                down_x: 100.0 + i as f64 * 50.0,
+                down_y: 200.0,
+                ..Touch::default()
             };
         }
         tracker.touch_count = 3;
@@ -3426,7 +3464,9 @@ mod tests {
         while tracker.do_gesture(&mut view, &mut tree) {}
 
         assert!(
-            tracker.pending_actions.contains(&GestureAction::InjectMenuKey),
+            tracker
+                .pending_actions
+                .contains(&GestureAction::InjectMenuKey),
             "three-finger release should inject Menu key"
         );
     }
@@ -3440,8 +3480,13 @@ mod tests {
         // Four fingers down
         for i in 0..4u64 {
             tracker.touches[i as usize] = Touch {
-                id: i + 1, down: true, x: 100.0 + i as f64 * 50.0, y: 200.0,
-                down_x: 100.0 + i as f64 * 50.0, down_y: 200.0, ..Touch::default()
+                id: i + 1,
+                down: true,
+                x: 100.0 + i as f64 * 50.0,
+                y: 200.0,
+                down_x: 100.0 + i as f64 * 50.0,
+                down_y: 200.0,
+                ..Touch::default()
             };
         }
         tracker.touch_count = 4;
@@ -3454,7 +3499,9 @@ mod tests {
         while tracker.do_gesture(&mut view, &mut tree) {}
 
         assert!(
-            tracker.pending_actions.contains(&GestureAction::ToggleSoftKeyboard),
+            tracker
+                .pending_actions
+                .contains(&GestureAction::ToggleSoftKeyboard),
             "four-finger release should toggle soft keyboard"
         );
     }
@@ -3477,17 +3524,27 @@ mod tests {
         );
     }
 
-    fn setup_two_finger_tracker(
-        x0: f64, y0: f64, x1: f64, y1: f64,
-    ) -> TouchTracker {
+    fn setup_two_finger_tracker(x0: f64, y0: f64, x1: f64, y1: f64) -> TouchTracker {
         let mut tracker = TouchTracker::new();
         tracker.touches[0] = Touch {
-            id: 1, down: true, x: x0, y: y0,
-            down_x: x0, down_y: y0, ms_total: 260, ..Touch::default()
+            id: 1,
+            down: true,
+            x: x0,
+            y: y0,
+            down_x: x0,
+            down_y: y0,
+            ms_total: 260,
+            ..Touch::default()
         };
         tracker.touches[1] = Touch {
-            id: 2, down: true, x: x1, y: y1,
-            down_x: x1, down_y: y1, ms_total: 260, ..Touch::default()
+            id: 2,
+            down: true,
+            x: x1,
+            y: y1,
+            down_x: x1,
+            down_y: y1,
+            ms_total: 260,
+            ..Touch::default()
         };
         tracker.touch_count = 2;
         tracker.gesture_state = GestureState::SecondDown;
@@ -3540,8 +3597,13 @@ mod tests {
 
         // First down
         tracker.touches[0] = Touch {
-            id: 1, down: true, x: 400.0, y: 300.0,
-            down_x: 400.0, down_y: 300.0, ..Touch::default()
+            id: 1,
+            down: true,
+            x: 400.0,
+            y: 300.0,
+            down_x: 400.0,
+            down_y: 300.0,
+            ..Touch::default()
         };
         tracker.touch_count = 1;
         tracker.gesture_state = GestureState::FirstDown;
@@ -3554,8 +3616,13 @@ mod tests {
 
         // Second down (new touch)
         tracker.touches[1] = Touch {
-            id: 2, down: true, x: 400.0, y: 300.0,
-            down_x: 400.0, down_y: 300.0, ..Touch::default()
+            id: 2,
+            down: true,
+            x: 400.0,
+            y: 300.0,
+            down_x: 400.0,
+            down_y: 300.0,
+            ..Touch::default()
         };
         tracker.touch_count = 2;
         while tracker.do_gesture(&mut view, &mut tree) {}
@@ -3581,8 +3648,13 @@ mod tests {
 
         // Touch down
         tracker.touches[0] = Touch {
-            id: 1, down: true, x: 400.0, y: 300.0,
-            down_x: 400.0, down_y: 300.0, ..Touch::default()
+            id: 1,
+            down: true,
+            x: 400.0,
+            y: 300.0,
+            down_x: 400.0,
+            down_y: 300.0,
+            ..Touch::default()
         };
         tracker.touch_count = 1;
         tracker.gesture_state = GestureState::FirstDown;
@@ -3812,7 +3884,6 @@ mod tests {
     }
 }
 
-
 #[cfg(kani)]
 mod kani_private_proofs {
     use super::*;
@@ -3832,7 +3903,15 @@ mod kani_private_proofs {
         let mut p_friction_enabled: bool = kani::any::<bool>();
         let mut p_dt: f64 = kani::any::<f64>();
         kani::assume(p_dt.is_finite());
-        let _r = speeding_step(p_v, p_target, p_accel, p_reverse_accel, p_friction, p_friction_enabled, p_dt);
+        let _r = speeding_step(
+            p_v,
+            p_target,
+            p_accel,
+            p_reverse_accel,
+            p_friction,
+            p_friction_enabled,
+            p_dt,
+        );
         assert!(_r.is_finite());
     }
 }

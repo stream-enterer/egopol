@@ -17,52 +17,52 @@ use emcore::emRecRecord::Record;
 #[repr(i32)]
 pub enum BasePathType {
     #[default]
-    None       =  0,
-    Bin        =  1,
-    Include    =  2,
-    Lib        =  3,
-    HtmlDoc    =  4,
-    PdfDoc     =  5,
-    PsDoc      =  6,
-    UserConfig =  7,
-    HostConfig =  8,
-    Tmp        =  9,
-    Res        = 10,
-    Home       = 11,
+    None = 0,
+    Bin = 1,
+    Include = 2,
+    Lib = 3,
+    HtmlDoc = 4,
+    PdfDoc = 5,
+    PsDoc = 6,
+    UserConfig = 7,
+    HostConfig = 8,
+    Tmp = 9,
+    Res = 10,
+    Home = 11,
 }
 
 impl BasePathType {
     fn to_ident(self) -> &'static str {
         match self {
-            Self::None       => "none",
-            Self::Bin        => "bin",
-            Self::Include    => "include",
-            Self::Lib        => "lib",
-            Self::HtmlDoc    => "htmldoc",
-            Self::PdfDoc     => "pdfdoc",
-            Self::PsDoc      => "psdoc",
+            Self::None => "none",
+            Self::Bin => "bin",
+            Self::Include => "include",
+            Self::Lib => "lib",
+            Self::HtmlDoc => "htmldoc",
+            Self::PdfDoc => "pdfdoc",
+            Self::PsDoc => "psdoc",
             Self::UserConfig => "userconfig",
             Self::HostConfig => "hostconfig",
-            Self::Tmp        => "tmp",
-            Self::Res        => "res",
-            Self::Home       => "home",
+            Self::Tmp => "tmp",
+            Self::Res => "res",
+            Self::Home => "home",
         }
     }
 
     fn from_ident(s: &str) -> Result<Self, RecError> {
         match s {
-            "none"       => Ok(Self::None),
-            "bin"        => Ok(Self::Bin),
-            "include"    => Ok(Self::Include),
-            "lib"        => Ok(Self::Lib),
-            "htmldoc"    => Ok(Self::HtmlDoc),
-            "pdfdoc"     => Ok(Self::PdfDoc),
-            "psdoc"      => Ok(Self::PsDoc),
+            "none" => Ok(Self::None),
+            "bin" => Ok(Self::Bin),
+            "include" => Ok(Self::Include),
+            "lib" => Ok(Self::Lib),
+            "htmldoc" => Ok(Self::HtmlDoc),
+            "pdfdoc" => Ok(Self::PdfDoc),
+            "psdoc" => Ok(Self::PsDoc),
             "userconfig" => Ok(Self::UserConfig),
             "hostconfig" => Ok(Self::HostConfig),
-            "tmp"        => Ok(Self::Tmp),
-            "res"        => Ok(Self::Res),
-            "home"       => Ok(Self::Home),
+            "tmp" => Ok(Self::Tmp),
+            "res" => Ok(Self::Res),
+            "home" => Ok(Self::Home),
             _ => Err(RecError::InvalidValue {
                 field: "BasePathType".to_string(),
                 message: format!("unknown base path type: {s}"),
@@ -110,26 +110,38 @@ impl emFileLinkData {
             &self.base_path_project
         };
 
-        let base = match self.base_path_type {
-            BasePathType::None => {
-                // C++: emGetParentPath(GetFilePath())
-                let p = std::path::Path::new(file_path);
-                p.parent()
-                    .map(|d| d.to_path_buf())
-                    .unwrap_or_else(|| PathBuf::from("."))
-            }
-            BasePathType::Bin        => emGetInstallPath(InstallDirType::Bin,        prj, None).unwrap_or_else(|_| PathBuf::new()),
-            BasePathType::Include    => emGetInstallPath(InstallDirType::Include,    prj, None).unwrap_or_else(|_| PathBuf::new()),
-            BasePathType::Lib        => emGetInstallPath(InstallDirType::Lib,        prj, None).unwrap_or_else(|_| PathBuf::new()),
-            BasePathType::HtmlDoc    => emGetInstallPath(InstallDirType::HtmlDoc,    prj, None).unwrap_or_else(|_| PathBuf::new()),
-            BasePathType::PdfDoc     => emGetInstallPath(InstallDirType::PdfDoc,     prj, None).unwrap_or_else(|_| PathBuf::new()),
-            BasePathType::PsDoc      => emGetInstallPath(InstallDirType::PsDoc,      prj, None).unwrap_or_else(|_| PathBuf::new()),
-            BasePathType::UserConfig => emGetInstallPath(InstallDirType::UserConfig, prj, None).unwrap_or_else(|_| PathBuf::new()),
-            BasePathType::HostConfig => emGetInstallPath(InstallDirType::HostConfig, prj, None).unwrap_or_else(|_| PathBuf::new()),
-            BasePathType::Tmp        => emGetInstallPath(InstallDirType::Tmp,        prj, None).unwrap_or_else(|_| PathBuf::new()),
-            BasePathType::Res        => emGetInstallPath(InstallDirType::Res,        prj, None).unwrap_or_else(|_| PathBuf::new()),
-            BasePathType::Home       => emGetInstallPath(InstallDirType::Home,       prj, None).unwrap_or_else(|_| PathBuf::new()),
-        };
+        let base =
+            match self.base_path_type {
+                BasePathType::None => {
+                    // C++: emGetParentPath(GetFilePath())
+                    let p = std::path::Path::new(file_path);
+                    p.parent()
+                        .map(|d| d.to_path_buf())
+                        .unwrap_or_else(|| PathBuf::from("."))
+                }
+                BasePathType::Bin => emGetInstallPath(InstallDirType::Bin, prj, None)
+                    .unwrap_or_else(|_| PathBuf::new()),
+                BasePathType::Include => emGetInstallPath(InstallDirType::Include, prj, None)
+                    .unwrap_or_else(|_| PathBuf::new()),
+                BasePathType::Lib => emGetInstallPath(InstallDirType::Lib, prj, None)
+                    .unwrap_or_else(|_| PathBuf::new()),
+                BasePathType::HtmlDoc => emGetInstallPath(InstallDirType::HtmlDoc, prj, None)
+                    .unwrap_or_else(|_| PathBuf::new()),
+                BasePathType::PdfDoc => emGetInstallPath(InstallDirType::PdfDoc, prj, None)
+                    .unwrap_or_else(|_| PathBuf::new()),
+                BasePathType::PsDoc => emGetInstallPath(InstallDirType::PsDoc, prj, None)
+                    .unwrap_or_else(|_| PathBuf::new()),
+                BasePathType::UserConfig => emGetInstallPath(InstallDirType::UserConfig, prj, None)
+                    .unwrap_or_else(|_| PathBuf::new()),
+                BasePathType::HostConfig => emGetInstallPath(InstallDirType::HostConfig, prj, None)
+                    .unwrap_or_else(|_| PathBuf::new()),
+                BasePathType::Tmp => emGetInstallPath(InstallDirType::Tmp, prj, None)
+                    .unwrap_or_else(|_| PathBuf::new()),
+                BasePathType::Res => emGetInstallPath(InstallDirType::Res, prj, None)
+                    .unwrap_or_else(|_| PathBuf::new()),
+                BasePathType::Home => emGetInstallPath(InstallDirType::Home, prj, None)
+                    .unwrap_or_else(|_| PathBuf::new()),
+            };
 
         // C++: emGetAbsolutePath(Path.Get(), basePath) — join base + path
         let joined = if self.path.is_empty() {
@@ -148,10 +160,7 @@ impl Record for emFileLinkData {
             Some(s) => BasePathType::from_ident(s)?,
             None => BasePathType::None,
         };
-        let base_path_project = rec
-            .get_str("basepathproject")
-            .unwrap_or("")
-            .to_string();
+        let base_path_project = rec.get_str("basepathproject").unwrap_or("").to_string();
         let path = rec.get_str("path").unwrap_or("").to_string();
         let have_dir_entry = rec.get_bool("havedirentry").unwrap_or(false);
 

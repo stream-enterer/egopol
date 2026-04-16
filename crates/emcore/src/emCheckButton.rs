@@ -1,17 +1,17 @@
 use std::rc::Rc;
 
 use crate::emColor::emColor;
-use crate::emPanel::Rect;
 use crate::emCursor::emCursor;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
-use crate::emPanel::PanelState;
 use crate::emPainter::{emPainter, BORDER_EDGES_ONLY};
+use crate::emPanel::PanelState;
+use crate::emPanel::Rect;
 
 use super::emBorder::{emBorder, OuterBorderType};
+use crate::emBorder::with_toolkit_images;
 use crate::emButton::HOWTO_BUTTON;
 use crate::emLook::emLook;
-use crate::emBorder::with_toolkit_images;
 
 /// Toggle button widget — visually depressed when checked.
 pub struct emCheckButton {
@@ -71,7 +71,14 @@ impl emCheckButton {
     /// emCheckButton renders as a normal button face with centered label.
     /// When checked (ShownChecked=true), the label is slightly shrunk and
     /// a ButtonChecked overlay is painted instead of the normal emButton overlay.
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
+    pub fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        w: f64,
+        h: f64,
+        enabled: bool,
+        pixel_scale: f64,
+    ) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -114,37 +121,74 @@ impl emCheckButton {
             lh *= d;
         }
         let mut color = self.look.button_fg_color;
-        if !enabled { color = color.GetTransparented(75.0); }
+        if !enabled {
+            color = color.GetTransparented(75.0);
+        }
         self.border.paint_label_colored(
-            painter, Rect::new(lx, ly, lw, lh), &self.look, color, true,
+            painter,
+            Rect::new(lx, ly, lw, lh),
+            &self.look,
+            color,
+            true,
         );
 
         with_toolkit_images(|img| {
             if self.pressed {
                 painter.PaintBorderImage(
-                    x, y, cw, ch,
-                    360.0 / 264.0 * r, 374.0 / 264.0 * r, r, r,
+                    x,
+                    y,
+                    cw,
+                    ch,
+                    360.0 / 264.0 * r,
+                    374.0 / 264.0 * r,
+                    r,
+                    r,
                     &img.button_pressed,
-                    360, 374, 264, 264,
-                    255, emColor::TRANSPARENT, BORDER_EDGES_ONLY,
+                    360,
+                    374,
+                    264,
+                    264,
+                    255,
+                    emColor::TRANSPARENT,
+                    BORDER_EDGES_ONLY,
                 );
             } else if self.checked {
                 painter.PaintBorderImage(
-                    x, y, cw, ch,
-                    340.0 / 264.0 * r, 374.0 / 264.0 * r, r, r,
+                    x,
+                    y,
+                    cw,
+                    ch,
+                    340.0 / 264.0 * r,
+                    374.0 / 264.0 * r,
+                    r,
+                    r,
                     &img.button_checked,
-                    340, 374, 264, 264,
-                    255, emColor::TRANSPARENT, BORDER_EDGES_ONLY,
+                    340,
+                    374,
+                    264,
+                    264,
+                    255,
+                    emColor::TRANSPARENT,
+                    BORDER_EDGES_ONLY,
                 );
             } else {
                 painter.PaintBorderImage(
-                    x, y,
+                    x,
+                    y,
                     cw + (658.0 - 648.0) / 264.0 * r,
                     ch + (658.0 - 648.0) / 264.0 * r,
-                    278.0 / 264.0 * r, 278.0 / 264.0 * r, 278.0 / 264.0 * r, 278.0 / 264.0 * r,
+                    278.0 / 264.0 * r,
+                    278.0 / 264.0 * r,
+                    278.0 / 264.0 * r,
+                    278.0 / 264.0 * r,
                     &img.button,
-                    278, 278, 278, 278,
-                    255, emColor::TRANSPARENT, BORDER_EDGES_ONLY,
+                    278,
+                    278,
+                    278,
+                    278,
+                    255,
+                    emColor::TRANSPARENT,
+                    BORDER_EDGES_ONLY,
                 );
             }
         });
@@ -169,7 +213,12 @@ impl emCheckButton {
         dx * dx + dy * dy <= fr * fr
     }
 
-    pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(
+        &mut self,
+        event: &emInputEvent,
+        state: &PanelState,
+        _input_state: &emInputState,
+    ) -> bool {
         if !self.enabled {
             return false;
         }

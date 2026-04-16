@@ -4,8 +4,8 @@ use emcore::emPanel::{PanelBehavior, PanelState};
 
 use emcore::emPanelTree::{PanelId, PanelTree};
 
-use emcore::emView::{emView, ViewFlags};
 use emcore::emPainter::emPainter;
+use emcore::emView::{emView, ViewFlags};
 
 use super::{DEFAULT_VH, DEFAULT_VW};
 

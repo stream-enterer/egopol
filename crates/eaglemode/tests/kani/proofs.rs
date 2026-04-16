@@ -63,7 +63,10 @@ fn proof_div255_blinn_within_one_of_exact() {
     } else {
         exact - blinn
     };
-    assert!(diff <= 1, "Blinn differs from exact by more than 1 at x={x}");
+    assert!(
+        diff <= 1,
+        "Blinn differs from exact by more than 1 at x={x}"
+    );
 }
 
 // ──────────────── Proof 3: Blinn never overestimates ────────────────────────
@@ -123,7 +126,10 @@ fn proof_blend_channel_no_overflow() {
     let bg = (bg_term) >> 16;
     let fg = (fg_term) >> 16;
     let result = bg + fg;
-    assert!(result <= 255, "blend result exceeds u8 range: dst={dst}, src={src}, alpha={alpha}, result={result}");
+    assert!(
+        result <= 255,
+        "blend result exceeds u8 range: dst={dst}, src={src}, alpha={alpha}, result={result}"
+    );
 }
 
 // ──────────────── Proof 4: Alpha channel blend ──────────────────────────────
@@ -175,16 +181,36 @@ fn proof_blend_alpha_channel_no_overflow() {
 /// so Kani can verify it without depending on test infrastructure.
 fn translate_cpp_notice_flags(cpp: u32) -> u32 {
     let mut rust: u32 = 0;
-    if cpp & (1 << 0) != 0 { rust |= 0x08; }   // CHILDREN_CHANGED
-    if cpp & (1 << 1) != 0 { rust |= 0x01; }   // LAYOUT_CHANGED
-    if cpp & (1 << 2) != 0 { rust |= 0x04; }   // VISIBILITY
-    if cpp & (1 << 3) != 0 { rust |= 0x40; }   // ENABLE_CHANGED
-    if cpp & (1 << 4) != 0 { rust |= 0x100; }  // ACTIVE_CHANGED
-    if cpp & (1 << 5) != 0 { rust |= 0x02; }   // FOCUS_CHANGED
-    if cpp & (1 << 6) != 0 { rust |= 0x200; }  // VIEW_FOCUS_CHANGED
-    if cpp & (1 << 7) != 0 { rust |= 0x400; }  // UPDATE_PRIORITY_CHANGED
-    if cpp & (1 << 8) != 0 { rust |= 0x800; }  // MEMORY_LIMIT_CHANGED
-    if cpp & (1 << 9) != 0 { rust |= 0x80; }   // SOUGHT_NAME_CHANGED
+    if cpp & (1 << 0) != 0 {
+        rust |= 0x08;
+    } // CHILDREN_CHANGED
+    if cpp & (1 << 1) != 0 {
+        rust |= 0x01;
+    } // LAYOUT_CHANGED
+    if cpp & (1 << 2) != 0 {
+        rust |= 0x04;
+    } // VISIBILITY
+    if cpp & (1 << 3) != 0 {
+        rust |= 0x40;
+    } // ENABLE_CHANGED
+    if cpp & (1 << 4) != 0 {
+        rust |= 0x100;
+    } // ACTIVE_CHANGED
+    if cpp & (1 << 5) != 0 {
+        rust |= 0x02;
+    } // FOCUS_CHANGED
+    if cpp & (1 << 6) != 0 {
+        rust |= 0x200;
+    } // VIEW_FOCUS_CHANGED
+    if cpp & (1 << 7) != 0 {
+        rust |= 0x400;
+    } // UPDATE_PRIORITY_CHANGED
+    if cpp & (1 << 8) != 0 {
+        rust |= 0x800;
+    } // MEMORY_LIMIT_CHANGED
+    if cpp & (1 << 9) != 0 {
+        rust |= 0x80;
+    } // SOUGHT_NAME_CHANGED
     rust
 }
 

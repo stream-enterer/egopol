@@ -1,6 +1,5 @@
 use crate::emColor::emColor;
 
-
 /// emStroke end type matching Eagle Mode's 17 `emStrokeEnd` variants.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum StrokeEndType {
@@ -81,4 +80,3 @@ impl emStrokeEnd {
         !matches!(self.end_type, StrokeEndType::Butt | StrokeEndType::Cap)
     }
 }
-

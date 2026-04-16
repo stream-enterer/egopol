@@ -1,7 +1,7 @@
 // SPLIT: Split from emPanel.h — panel context types extracted
-use crate::emPanel::PanelBehavior;
 use super::emPanelTree::{PanelId, PanelTree};
 use crate::emColor::emColor;
+use crate::emPanel::PanelBehavior;
 use crate::emPanel::Rect;
 
 /// Panel context — provides a scoped API for a panel to interact with the tree.
@@ -112,7 +112,10 @@ impl<'a> PanelCtx<'a> {
 
     /// Get whether the panel is visible.
     pub fn is_visible(&self) -> bool {
-        self.tree.GetRec(self.id).map(|p| p.visible).unwrap_or(false)
+        self.tree
+            .GetRec(self.id)
+            .map(|p| p.visible)
+            .unwrap_or(false)
     }
 
     /// Set visibility.
@@ -178,7 +181,10 @@ impl<'a> PanelCtx<'a> {
 
     /// Get whether the panel is enabled.
     pub fn is_enabled(&self) -> bool {
-        self.tree.GetRec(self.id).map(|p| p.enabled).unwrap_or(false)
+        self.tree
+            .GetRec(self.id)
+            .map(|p| p.enabled)
+            .unwrap_or(false)
     }
 
     /// Set the enable switch for the current panel.

@@ -4,16 +4,16 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
-use emcore::emFpPlugin::{emFpPluginList, FileStatMode, PanelParentArg};
+use emcore::emFpPlugin::{FileStatMode, PanelParentArg, emFpPluginList};
 use emcore::emImage::emImage;
-use emcore::emInstallInfo::{emGetConfigDirOverloadable, emGetInstallPath, InstallDirType};
+use emcore::emInstallInfo::{InstallDirType, emGetConfigDirOverloadable, emGetInstallPath};
+use emcore::emPainter::{TextAlignment, VAlign, emPainter};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::{AutoplayHandlingFlags, PanelId};
 use emcore::emRec::{RecError, RecStruct, RecValue};
-use emcore::emRecRecord::Record;
 use emcore::emRecRecTypes::emColorRec;
+use emcore::emRecRecord::Record;
 use emcore::emResTga::load_tga;
 
 // ── emVirtualCosmosItemRec ────────────────────────────────────────────────────
@@ -112,26 +112,15 @@ impl Default for emVirtualCosmosItemRec {
 impl Record for emVirtualCosmosItemRec {
     fn from_rec(rec: &RecStruct) -> Result<Self, RecError> {
         let bg = parse_color_field(rec, "backgroundcolor", emColor::from_packed(0xAAAAAAFF));
-        let border_color =
-            parse_color_field(rec, "bordercolor", emColor::from_packed(0xAAAAAAFF));
-        let title_color =
-            parse_color_field(rec, "titlecolor", emColor::from_packed(0x000000FF));
+        let border_color = parse_color_field(rec, "bordercolor", emColor::from_packed(0xAAAAAAFF));
+        let title_color = parse_color_field(rec, "titlecolor", emColor::from_packed(0x000000FF));
 
         Ok(Self {
             Name: rec.get_str("name").unwrap_or("").to_string(),
             Title: rec.get_str("title").unwrap_or("").to_string(),
-            PosX: rec
-                .get_double("posx")
-                .unwrap_or(0.0)
-                .clamp(0.0, 1.0),
-            PosY: rec
-                .get_double("posy")
-                .unwrap_or(0.0)
-                .clamp(0.0, 1.0),
-            Width: rec
-                .get_double("width")
-                .unwrap_or(0.1)
-                .clamp(1e-10, 1.0),
+            PosX: rec.get_double("posx").unwrap_or(0.0).clamp(0.0, 1.0),
+            PosY: rec.get_double("posy").unwrap_or(0.0).clamp(0.0, 1.0),
+            Width: rec.get_double("width").unwrap_or(0.1).clamp(1e-10, 1.0),
             ContentTallness: rec
                 .get_double("contenttallness")
                 .unwrap_or(1.0)
@@ -144,15 +133,9 @@ impl Record for emVirtualCosmosItemRec {
             BorderColor: border_color,
             TitleColor: title_color,
             Focusable: rec.get_bool("focusable").unwrap_or(true),
-            FileName: rec
-                .get_str("filename")
-                .unwrap_or("unnamed")
-                .to_string(),
+            FileName: rec.get_str("filename").unwrap_or("unnamed").to_string(),
             CopyToUser: rec.get_bool("copytouser").unwrap_or(false),
-            Alternative: rec
-                .get_int("alternative")
-                .unwrap_or(0)
-                .max(0),
+            Alternative: rec.get_int("alternative").unwrap_or(0).max(0),
             ItemFilePath: String::new(),
         })
     }
@@ -274,10 +257,13 @@ impl emVirtualCosmosModel {
         let item_files_dir = emGetConfigDirOverloadable("emMain", Some("VcItemFiles"))
             .map(|p| p.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let item_files_user_dir =
-            emGetInstallPath(InstallDirType::UserConfig, "emMain", Some("VcItemFiles.user"))
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_default();
+        let item_files_user_dir = emGetInstallPath(
+            InstallDirType::UserConfig,
+            "emMain",
+            Some("VcItemFiles.user"),
+        )
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default();
 
         self.items_dir = items_dir.clone();
         self.item_files_dir = item_files_dir.clone();
@@ -285,7 +271,11 @@ impl emVirtualCosmosModel {
         let dir_entries = match std::fs::read_dir(&items_dir) {
             Ok(d) => d,
             Err(e) => {
-                log::warn!("emVirtualCosmosModel: cannot read dir '{}': {}", items_dir, e);
+                log::warn!(
+                    "emVirtualCosmosModel: cannot read dir '{}': {}",
+                    items_dir,
+                    e
+                );
                 self.items.clear();
                 self.item_recs.clear();
                 return;
@@ -508,10 +498,7 @@ impl PanelBehavior for emVirtualCosmosItemPanel {
                 x2 = painter.RoundUpX(x2);
                 y2 = painter.RoundUpY(y2);
             }
-            painter.PaintRect(
-                x1, y1, x2 - x1, y2 - y1,
-                rec.BackgroundColor, canvas_color,
-            );
+            painter.PaintRect(x1, y1, x2 - x1, y2 - y1, rec.BackgroundColor, canvas_color);
             // Hollow border polygon: outer CW, inner CCW (10 vertices)
             let verts: [(f64, f64); 10] = [
                 (0.0, 0.0),
@@ -531,22 +518,44 @@ impl PanelBehavior for emVirtualCosmosItemPanel {
         // Outer border image
         let d = l * 0.4;
         painter.PaintBorderImage(
-            0.0, 0.0, 1.0, h,
-            d, d, d, d,
+            0.0,
+            0.0,
+            1.0,
+            h,
+            d,
+            d,
+            d,
+            d,
             &self.OuterBorderImage,
-            82, 82, 82, 82,
-            255, bor_col, 0o757,
+            82,
+            82,
+            82,
+            82,
+            255,
+            bor_col,
+            0o757,
         );
 
         // Inner border image
         let e = l * 0.5;
         let f = e * (23.0 / 126.0);
         painter.PaintBorderImage(
-            l - e, t - f, 1.0 - l - r + e * 2.0, h - t - b + f * 2.0,
-            e, f, e, f,
+            l - e,
+            t - f,
+            1.0 - l - r + e * 2.0,
+            h - t - b + f * 2.0,
+            e,
+            f,
+            e,
+            f,
             &self.InnerBorderImage,
-            126, 23, 126, 23,
-            255, bor_col, 0o757,
+            126,
+            23,
+            126,
+            23,
+            255,
+            bor_col,
+            0o757,
         );
 
         // Title text
@@ -698,7 +707,8 @@ impl emVirtualCosmosPanel {
             let bg = crate::emStarFieldPanel::emStarFieldPanel::new(50, seed);
             let child_id = ctx.create_child_with("_StarField", Box::new(bg));
             ctx.tree.set_focusable(child_id, false);
-            ctx.tree.SetAutoplayHandling(child_id, AutoplayHandlingFlags::CUTOFF);
+            ctx.tree
+                .SetAutoplayHandling(child_id, AutoplayHandlingFlags::CUTOFF);
             self.background_panel = Some(child_id);
         }
 
@@ -747,9 +757,8 @@ impl emVirtualCosmosPanel {
 
             let child_id = if let Some(&existing_id) = existing.get(&rec.Name) {
                 if let Some(mut beh) = ctx.tree.take_behavior(existing_id) {
-                    if let Some(item_panel) = beh
-                        .as_any_mut()
-                        .downcast_mut::<emVirtualCosmosItemPanel>()
+                    if let Some(item_panel) =
+                        beh.as_any_mut().downcast_mut::<emVirtualCosmosItemPanel>()
                     {
                         item_panel.SetItemRec(rec.clone());
                     }
@@ -1047,21 +1056,18 @@ mod tests {
         let mut item = emVirtualCosmosItemRec::default();
         item.FileName = "hello.txt".to_string();
         item.CopyToUser = true;
-        item.TryPrepareItemFile(
-            &orig.to_string_lossy(),
-            &user.to_string_lossy(),
-        );
+        item.TryPrepareItemFile(&orig.to_string_lossy(), &user.to_string_lossy());
 
         let expected = user.join("hello.txt");
         assert_eq!(item.ItemFilePath, expected.to_string_lossy());
-        assert!(expected.exists(), "file should have been copied to user dir");
+        assert!(
+            expected.exists(),
+            "file should have been copied to user dir"
+        );
         assert_eq!(std::fs::read(&expected).unwrap(), b"hello");
 
         // Second call should not fail (file already exists).
-        item.TryPrepareItemFile(
-            &orig.to_string_lossy(),
-            &user.to_string_lossy(),
-        );
+        item.TryPrepareItemFile(&orig.to_string_lossy(), &user.to_string_lossy());
         assert_eq!(item.ItemFilePath, expected.to_string_lossy());
 
         let _ = std::fs::remove_dir_all(&tmp);
@@ -1079,10 +1085,7 @@ mod tests {
         let mut item = emVirtualCosmosItemRec::default();
         item.FileName = "missing.txt".to_string();
         item.CopyToUser = true;
-        item.TryPrepareItemFile(
-            &orig.to_string_lossy(),
-            &user.to_string_lossy(),
-        );
+        item.TryPrepareItemFile(&orig.to_string_lossy(), &user.to_string_lossy());
 
         // Should fall back to orig path.
         let expected_fallback = orig.join("missing.txt");

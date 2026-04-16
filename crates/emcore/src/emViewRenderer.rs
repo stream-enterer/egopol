@@ -3,9 +3,9 @@ use crate::emImage::emImage;
 use crate::emPanelTree::PanelTree;
 use crate::emView::emView;
 
+use super::emPainter::{emPainter, PainterModel};
 use crate::emPainterDrawList::DrawList;
 use crate::emRenderThreadPool::emRenderThreadPool;
-use super::emPainter::{emPainter, PainterModel};
 
 pub struct SoftwareCompositor {
     framebuffer: emImage,

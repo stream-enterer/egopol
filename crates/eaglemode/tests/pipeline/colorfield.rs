@@ -6,18 +6,17 @@
 //! and a emTextField for color name/hex), and that the expansion data is
 //! correctly initialized from the widget's color.
 
-
 use std::rc::Rc;
 
 use emcore::emColor::emColor;
+use emcore::emColorField::emColorField;
 use emcore::emCursor::emCursor;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
+use emcore::emLook::emLook;
+use emcore::emPainter::emPainter;
 use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
-use emcore::emPainter::emPainter;
-use emcore::emColorField::emColorField;
-use emcore::emLook::emLook;
 
 use super::support::pipeline::PipelineTestHarness;
 
@@ -74,7 +73,10 @@ impl PanelBehavior for ColorFieldBehavior {
 // ---------------------------------------------------------------------------
 // Helper: collect child panel names under a given parent_context
 // ---------------------------------------------------------------------------
-fn child_names(h: &PipelineTestHarness, parent_context: emcore::emPanelTree::PanelId) -> Vec<String> {
+fn child_names(
+    h: &PipelineTestHarness,
+    parent_context: emcore::emPanelTree::PanelId,
+) -> Vec<String> {
     h.tree
         .children(parent_context)
         .filter_map(|id| h.tree.name(id).map(|n| n.to_string()))
@@ -392,10 +394,7 @@ fn colorfield_expanded_name_field_initialized() {
         .downcast_ref::<ColorFieldBehavior>()
         .expect("should be ColorFieldBehavior");
 
-    let exp = cfb
-        .color_field
-        .expansion()
-        .expect("expansion should exist");
+    let exp = cfb.color_field.expansion().expect("expansion should exist");
 
     assert_eq!(
         exp.tf_name, "#ABCDEF",
@@ -456,7 +455,10 @@ fn colorfield_cycle_red_slider_updates_color_and_syncs() {
     // Set red to 50% (5000 out of 10000).
     cfb.color_field.expansion_mut().unwrap().sf_red = 5000;
     let changed = cfb.color_field.Cycle();
-    assert!(changed, "cycle() should return true when red slider changes");
+    assert!(
+        changed,
+        "cycle() should return true when red slider changes"
+    );
 
     // Red channel: (5000 * 255 + 5000) / 10000 = 127 or 128
     let r = cfb.color_field.GetColor().GetRed();
@@ -510,7 +512,10 @@ fn colorfield_cycle_green_slider_updates_color() {
 
     cfb.color_field.expansion_mut().unwrap().sf_green = 7500;
     let changed = cfb.color_field.Cycle();
-    assert!(changed, "cycle() should return true when green slider changes");
+    assert!(
+        changed,
+        "cycle() should return true when green slider changes"
+    );
 
     // Green channel: (7500 * 255 + 5000) / 10000 = 191
     let g = cfb.color_field.GetColor().GetGreen();
@@ -549,7 +554,10 @@ fn colorfield_cycle_blue_slider_updates_color() {
 
     cfb.color_field.expansion_mut().unwrap().sf_blue = 2500;
     let changed = cfb.color_field.Cycle();
-    assert!(changed, "cycle() should return true when blue slider changes");
+    assert!(
+        changed,
+        "cycle() should return true when blue slider changes"
+    );
 
     // Blue channel: (2500 * 255 + 5000) / 10000 = 64
     let b = cfb.color_field.GetColor().GetBlue();
@@ -782,9 +790,8 @@ fn colorfield_cycle_fires_on_color_callback() {
     cfb.color_field.Cycle();
 
     let cb_color = received.borrow();
-    let cb_color = cb_color.expect(
-        "on_color callback should have fired after cycle() detects a change",
-    );
+    let cb_color =
+        cb_color.expect("on_color callback should have fired after cycle() detects a change");
     assert_eq!(
         cb_color.GetGreen(),
         255,
@@ -983,7 +990,10 @@ fn colorfield_scalar_panels_paint() {
         if !scalar_names.contains(&name.as_str()) {
             continue;
         }
-        let r = h.tree.layout_rect(child_id).expect("layout rect should exist");
+        let r = h
+            .tree
+            .layout_rect(child_id)
+            .expect("layout rect should exist");
         assert!(
             r.w > 0.0 && r.h > 0.0,
             "Scalar panel '{name}' should have non-zero layout rect, got {r:?}"
@@ -1011,10 +1021,7 @@ fn colorfield_text_panel_hex() {
         .downcast_ref::<ColorFieldBehavior>()
         .expect("should be ColorFieldBehavior");
 
-    let exp = cfb
-        .color_field
-        .expansion()
-        .expect("expansion should exist");
+    let exp = cfb.color_field.expansion().expect("expansion should exist");
 
     assert!(
         exp.tf_name.contains("FF0000"),

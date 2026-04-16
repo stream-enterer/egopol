@@ -623,7 +623,11 @@ mod tests {
             PipeResult::WouldBlock => panic!("unexpected WouldBlock after wait"),
         }
 
-        assert_eq!(proc.GetExitStatus(), Some(0), "process should exit with status 0");
+        assert_eq!(
+            proc.GetExitStatus(),
+            Some(0),
+            "process should exit with status 0"
+        );
     }
 
     #[test]

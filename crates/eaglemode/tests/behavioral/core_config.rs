@@ -1,6 +1,6 @@
-use emcore::emRec::RecStruct;
 use emcore::emContext::emContext;
 use emcore::emCoreConfig::emCoreConfig;
+use emcore::emRec::RecStruct;
 use emcore::emRecRecord::Record;
 
 #[test]

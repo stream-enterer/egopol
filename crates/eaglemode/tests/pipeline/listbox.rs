@@ -5,17 +5,16 @@
 //! zoom levels, using view-space coordinates derived from the panel's viewed
 //! Restore and the border's content rect.
 
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 use emcore::emCursor::emCursor;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
-use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPainter::emPainter;
+use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emViewRenderer::SoftwareCompositor;
-use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 
 use emcore::emListBox::{emListBox, SelectionMode};
 
@@ -103,10 +102,7 @@ fn item_center_view_y(
 
 /// Compute the view-space X coordinate at the horizontal center of the
 /// content rect.
-fn content_center_view_x(
-    vr: &emcore::emPanel::Rect,
-    pixel_tallness: f64,
-) -> f64 {
+fn content_center_view_x(vr: &emcore::emPanel::Rect, pixel_tallness: f64) -> f64 {
     let look = emLook::new();
     let border = emBorder::new(OuterBorderType::Instrument)
         .with_inner(InnerBorderType::InputField)
@@ -155,11 +151,7 @@ fn listbox_click_items_1x_and_2x() {
 
     // ---------- 5. At 1x zoom ----------
 
-    let state = h.tree.build_panel_state(
-        panel_id,
-        h.view.IsFocused(),
-        pt,
-    );
+    let state = h.tree.build_panel_state(panel_id, h.view.IsFocused(), pt);
     let vr = state.viewed_rect;
     let click_x = content_center_view_x(&vr, pt);
 
@@ -193,11 +185,7 @@ fn listbox_click_items_1x_and_2x() {
     h.tick_n(5);
     compositor.render(&mut h.tree, &h.view);
 
-    let state_2x = h.tree.build_panel_state(
-        panel_id,
-        h.view.IsFocused(),
-        pt,
-    );
+    let state_2x = h.tree.build_panel_state(panel_id, h.view.IsFocused(), pt);
     let vr2 = state_2x.viewed_rect;
     let click_x_2x = content_center_view_x(&vr2, pt);
 
@@ -344,7 +332,10 @@ fn listbox_multi_mode_click_selects_solely() {
 
     h.click(cx, ys[3]);
     assert_eq!(lb.borrow().GetSelectedIndex(), Some(3));
-    assert!(!lb.borrow().IsSelected(1), "plain click in Multi replaces selection");
+    assert!(
+        !lb.borrow().IsSelected(1),
+        "plain click in Multi replaces selection"
+    );
 }
 
 #[test]
@@ -502,7 +493,10 @@ fn listbox_readonly_rejects_click() {
     let (mut h, lb, _pid, cx, ys) = setup_listbox_harness(SelectionMode::ReadOnly);
 
     h.click(cx, ys[0]);
-    assert!(lb.borrow().GetSelectedIndices().is_empty(), "ReadOnly rejects click");
+    assert!(
+        lb.borrow().GetSelectedIndices().is_empty(),
+        "ReadOnly rejects click"
+    );
 }
 
 #[test]
@@ -512,7 +506,10 @@ fn listbox_readonly_rejects_shift_click() {
     h.input_state.press(InputKey::Shift);
     h.click(cx, ys[2]);
     h.input_state.release(InputKey::Shift);
-    assert!(lb.borrow().GetSelectedIndices().is_empty(), "ReadOnly rejects shift+click");
+    assert!(
+        lb.borrow().GetSelectedIndices().is_empty(),
+        "ReadOnly rejects shift+click"
+    );
 }
 
 #[test]
@@ -522,7 +519,10 @@ fn listbox_readonly_rejects_ctrl_click() {
     h.input_state.press(InputKey::Ctrl);
     h.click(cx, ys[2]);
     h.input_state.release(InputKey::Ctrl);
-    assert!(lb.borrow().GetSelectedIndices().is_empty(), "ReadOnly rejects ctrl+click");
+    assert!(
+        lb.borrow().GetSelectedIndices().is_empty(),
+        "ReadOnly rejects ctrl+click"
+    );
 }
 
 // ── Double-Click (trigger) ──────────────────────────────────────────────
@@ -558,7 +558,11 @@ fn listbox_single_mode_double_click_triggers() {
 
     double_click(&mut h, cx, ys[2]);
     assert_eq!(lb.borrow().GetSelectedIndex(), Some(2));
-    assert_eq!(*triggered.borrow(), Some(2), "double-click triggers in Single mode");
+    assert_eq!(
+        *triggered.borrow(),
+        Some(2),
+        "double-click triggers in Single mode"
+    );
 }
 
 #[test]
@@ -573,7 +577,11 @@ fn listbox_multi_mode_double_click_triggers() {
     }));
 
     double_click(&mut h, cx, ys[3]);
-    assert_eq!(*triggered.borrow(), Some(3), "double-click triggers in Multi mode");
+    assert_eq!(
+        *triggered.borrow(),
+        Some(3),
+        "double-click triggers in Multi mode"
+    );
 }
 
 #[test]
@@ -588,7 +596,11 @@ fn listbox_toggle_mode_double_click_triggers() {
     }));
 
     double_click(&mut h, cx, ys[1]);
-    assert_eq!(*triggered.borrow(), Some(1), "double-click triggers in Toggle mode");
+    assert_eq!(
+        *triggered.borrow(),
+        Some(1),
+        "double-click triggers in Toggle mode"
+    );
 }
 
 #[test]
@@ -603,8 +615,15 @@ fn listbox_readonly_double_click_no_trigger() {
     }));
 
     double_click(&mut h, cx, ys[2]);
-    assert!(lb.borrow().GetSelectedIndices().is_empty(), "ReadOnly: no selection");
-    assert_eq!(*triggered.borrow(), None, "ReadOnly: no trigger on double-click");
+    assert!(
+        lb.borrow().GetSelectedIndices().is_empty(),
+        "ReadOnly: no selection"
+    );
+    assert_eq!(
+        *triggered.borrow(),
+        None,
+        "ReadOnly: no trigger on double-click"
+    );
 }
 
 // ── Enter key trigger (all modes) ────────────────────────────────────────
@@ -626,7 +645,11 @@ fn listbox_single_mode_enter_triggers() {
 
     // Enter triggers the focused item.
     h.press_key(InputKey::Enter);
-    assert_eq!(*triggered.borrow(), Some(2), "Enter triggers in Single mode");
+    assert_eq!(
+        *triggered.borrow(),
+        Some(2),
+        "Enter triggers in Single mode"
+    );
 }
 
 #[test]
@@ -641,7 +664,11 @@ fn listbox_readonly_enter_no_trigger() {
     }));
 
     h.press_key(InputKey::Enter);
-    assert_eq!(*triggered.borrow(), None, "ReadOnly: Enter does not trigger");
+    assert_eq!(
+        *triggered.borrow(),
+        None,
+        "ReadOnly: Enter does not trigger"
+    );
 }
 
 // ── Ctrl+A / Shift+Ctrl+A (select all / Clear) ──────────────────────────
@@ -682,7 +709,10 @@ fn listbox_multi_shift_ctrl_a_clears() {
     h.input_state.release(InputKey::Shift);
     h.input_state.release(InputKey::Ctrl);
 
-    assert!(lb.borrow().GetSelectedIndices().is_empty(), "Shift+Ctrl+A clears in Multi");
+    assert!(
+        lb.borrow().GetSelectedIndices().is_empty(),
+        "Shift+Ctrl+A clears in Multi"
+    );
 }
 
 #[test]
@@ -741,7 +771,11 @@ fn listbox_multi_space_selects_solely() {
     h.press_key(InputKey::ArrowDown);
     // Press Space: selects focused item solely.
     h.press_key(InputKey::Space);
-    assert_eq!(lb.borrow().GetSelectedIndices(), &[2], "Space selects solely in Multi");
+    assert_eq!(
+        lb.borrow().GetSelectedIndices(),
+        &[2],
+        "Space selects solely in Multi"
+    );
 }
 
 #[test]
@@ -755,7 +789,10 @@ fn listbox_toggle_space_toggles() {
 
     // Space toggles off.
     h.press_key(InputKey::Space);
-    assert!(!lb.borrow().IsSelected(0), "Space toggles off in Toggle mode");
+    assert!(
+        !lb.borrow().IsSelected(0),
+        "Space toggles off in Toggle mode"
+    );
 
     // Space toggles on again.
     h.press_key(InputKey::Space);
@@ -797,7 +834,10 @@ fn listbox_multi_ctrl_space_toggles() {
     h.input_state.press(InputKey::Ctrl);
     h.press_key(InputKey::Space);
     h.input_state.release(InputKey::Ctrl);
-    assert!(!lb.borrow().IsSelected(1), "Ctrl+Space toggles off in Multi");
+    assert!(
+        !lb.borrow().IsSelected(1),
+        "Ctrl+Space toggles off in Multi"
+    );
 }
 
 // ── BP-2: emListBox keywalk (type-ahead search) behavioral parity tests ────
@@ -882,8 +922,7 @@ fn listbox_keywalk_single_char_prefix() {
 #[test]
 fn listbox_keywalk_single_char_case_insensitive() {
     // C++ ref: strncasecmp is case-insensitive.
-    let (mut h, lb, _pid, _cx, _fy) =
-        setup_keywalk_harness(&["Apple", "Banana", "Cherry"]);
+    let (mut h, lb, _pid, _cx, _fy) = setup_keywalk_harness(&["Apple", "Banana", "Cherry"]);
 
     lb.borrow_mut().ClearSelection();
 
@@ -899,8 +938,7 @@ fn listbox_keywalk_single_char_case_insensitive() {
 fn listbox_keywalk_accumulated_prefix() {
     // C++ ref: emListBox.cpp:871 — str=KeyWalkChars+event.GetChars()
     // Multiple keystrokes within the timeout accumulate a prefix.
-    let (mut h, lb, _pid, _cx, _fy) =
-        setup_keywalk_harness(&["Apple", "Apricot", "Banana"]);
+    let (mut h, lb, _pid, _cx, _fy) = setup_keywalk_harness(&["Apple", "Apricot", "Banana"]);
 
     lb.borrow_mut().ClearSelection();
 
@@ -933,8 +971,7 @@ fn listbox_keywalk_accumulated_prefix() {
 fn listbox_keywalk_star_substring_search() {
     // C++ ref: emListBox.cpp:874-888 — '*' prefix triggers substring search.
     // Typing '*' then chars does case-insensitive substring matching.
-    let (mut h, lb, _pid, _cx, _fy) =
-        setup_keywalk_harness(&["Apple", "Banana", "Pineapple"]);
+    let (mut h, lb, _pid, _cx, _fy) = setup_keywalk_harness(&["Apple", "Banana", "Pineapple"]);
 
     lb.borrow_mut().ClearSelection();
 
@@ -960,8 +997,7 @@ fn listbox_keywalk_star_substring_search() {
 #[test]
 fn listbox_keywalk_star_substring_case_insensitive() {
     // C++ ref: emListBox.cpp:879-886 — the substring comparison uses tolower.
-    let (mut h, lb, _pid, _cx, _fy) =
-        setup_keywalk_harness(&["FooBar", "BazQux"]);
+    let (mut h, lb, _pid, _cx, _fy) = setup_keywalk_harness(&["FooBar", "BazQux"]);
 
     lb.borrow_mut().ClearSelection();
 
@@ -981,8 +1017,7 @@ fn listbox_keywalk_no_match_clears_accumulator() {
     // C++ ref: emListBox.cpp:920-924 — on no match, KeyWalkChars.Clear().
     // After a failed search, the accumulator is cleared so the next keystroke
     // starts a fresh search.
-    let (mut h, lb, _pid, _cx, _fy) =
-        setup_keywalk_harness(&["Apple", "Banana", "Cherry"]);
+    let (mut h, lb, _pid, _cx, _fy) = setup_keywalk_harness(&["Apple", "Banana", "Cherry"]);
 
     lb.borrow_mut().ClearSelection();
 
@@ -1009,8 +1044,7 @@ fn listbox_keywalk_no_match_clears_accumulator() {
 fn listbox_keywalk_no_match_retains_previous_selection() {
     // C++ ref: emListBox.cpp:920-924 — on no match, only the accumulator is
     // cleared; the existing selection is NOT changed.
-    let (mut h, lb, _pid, _cx, _fy) =
-        setup_keywalk_harness(&["Apple", "Banana", "Cherry"]);
+    let (mut h, lb, _pid, _cx, _fy) = setup_keywalk_harness(&["Apple", "Banana", "Cherry"]);
 
     // Initial Click GetChecked item 0. Type 'b' to select "Banana".
     h.press_char('b');
@@ -1035,8 +1069,7 @@ fn listbox_keywalk_focus_lost_clears_accumulator() {
     // Note: calling on_focus_changed directly rather than through a multi-panel
     // pipeline Click, since creating a second panel for focus stealing is
     // orthogonal to keywalk behavior.
-    let (mut h, lb, _pid, _cx, _fy) =
-        setup_keywalk_harness(&["Apple", "Apricot", "Banana"]);
+    let (mut h, lb, _pid, _cx, _fy) = setup_keywalk_harness(&["Apple", "Apricot", "Banana"]);
 
     lb.borrow_mut().ClearSelection();
 
@@ -1063,8 +1096,7 @@ fn listbox_keywalk_focus_lost_clears_accumulator() {
 fn listbox_keywalk_fuzzy_match_skips_separators() {
     // C++ ref: emListBox.cpp:893-906 — fuzzy match skips ' ', '-', '_' in
     // item text when prefix match fails.
-    let (mut h, lb, _pid, _cx, _fy) =
-        setup_keywalk_harness(&["Red-Apple", "Banana"]);
+    let (mut h, lb, _pid, _cx, _fy) = setup_keywalk_harness(&["Red-Apple", "Banana"]);
 
     lb.borrow_mut().ClearSelection();
 
@@ -1083,8 +1115,7 @@ fn listbox_keywalk_fuzzy_match_skips_separators() {
 fn listbox_keywalk_ctrl_chars_rejected() {
     // C++ ref: emListBox.cpp:861 — if state.GetCtrl() return (no keywalk).
     // Ctrl+key should NOT be processed as keywalk.
-    let (mut h, lb, _pid, _cx, _fy) =
-        setup_keywalk_harness(&["Apple", "Banana"]);
+    let (mut h, lb, _pid, _cx, _fy) = setup_keywalk_harness(&["Apple", "Banana"]);
 
     lb.borrow_mut().ClearSelection();
 
@@ -1170,8 +1201,7 @@ fn listbox_keywalk_timeout_clears_accumulator() {
         ANCHOR.with(|a| *a + Duration::from_millis(FAKE_OFFSET.with(|c| c.get())))
     }
 
-    let (mut h, lb, _pid, _cx, _fy) =
-        setup_keywalk_harness(&["Apple", "Apricot", "Banana"]);
+    let (mut h, lb, _pid, _cx, _fy) = setup_keywalk_harness(&["Apple", "Apricot", "Banana"]);
 
     lb.borrow_mut().set_keywalk_clock(fake_clock);
     lb.borrow_mut().ClearSelection();

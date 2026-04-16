@@ -191,14 +191,8 @@ impl emStocksListBox {
     /// Checks interest level and category visibility against config.
     pub fn IsVisibleStock(stock_rec: &StockRec, config: &emStocksConfig) -> bool {
         stock_rec.interest <= config.min_visible_interest
-            && emStocksConfig::IsInVisibleCategories(
-                &config.visible_countries,
-                &stock_rec.country,
-            )
-            && emStocksConfig::IsInVisibleCategories(
-                &config.visible_sectors,
-                &stock_rec.sector,
-            )
+            && emStocksConfig::IsInVisibleCategories(&config.visible_countries, &stock_rec.country)
+            && emStocksConfig::IsInVisibleCategories(&config.visible_sectors, &stock_rec.sector)
             && emStocksConfig::IsInVisibleCategories(
                 &config.visible_collections,
                 &stock_rec.collection,
@@ -241,13 +235,11 @@ impl emStocksListBox {
         let (b1, f1, b2, f2) = match config.sorting {
             Sorting::ByName => (false, 0.0, false, 0.0),
             Sorting::ByTradeDate => {
-                let cmp =
-                    CompareDates(&s1.trade_date, &s2.trade_date) as f64;
+                let cmp = CompareDates(&s1.trade_date, &s2.trade_date) as f64;
                 (true, cmp, true, 0.0)
             }
             Sorting::ByInquiryDate => {
-                let cmp = CompareDates(&s1.inquiry_date, &s2.inquiry_date)
-                    as f64;
+                let cmp = CompareDates(&s1.inquiry_date, &s2.inquiry_date) as f64;
                 (true, cmp, true, 0.0)
             }
             Sorting::ByAchievement => {
@@ -409,11 +401,7 @@ impl emStocksListBox {
     /// Creates a new stock, assigns an ID, sets initial fields from config,
     /// updates items, and selects the new stock.
     // C++ reads from owned FileModel/Config references. Rust passes rec and config explicitly — avoids shared mutable state.
-    pub fn NewStock(
-        &mut self,
-        rec: &mut emStocksRec,
-        config: &emStocksConfig,
-    ) {
+    pub fn NewStock(&mut self, rec: &mut emStocksRec, config: &emStocksConfig) {
         let stock_index = rec.stocks.len();
         let mut stock_rec = StockRec::default();
         stock_rec.id = rec.InventStockId();
@@ -488,10 +476,8 @@ impl emStocksListBox {
                     d.Finish(DialogResult::Cancel);
                 }
                 let count = self.GetSelectionCount();
-                let mut dialog = emDialog::new(
-                    &format!("Really delete {} stock(s)?", count),
-                    look.clone(),
-                );
+                let mut dialog =
+                    emDialog::new(&format!("Really delete {} stock(s)?", count), look.clone());
                 dialog.AddCustomButton("Delete", DialogResult::Ok);
                 dialog.AddCustomButton("Cancel", DialogResult::Cancel);
                 self.delete_stocks_dialog = Some(dialog);
@@ -530,10 +516,8 @@ impl emStocksListBox {
                     d.Finish(DialogResult::Cancel);
                 }
                 let count = self.GetSelectionCount();
-                let mut dialog = emDialog::new(
-                    &format!("Really cut {} stock(s)?", count),
-                    look.clone(),
-                );
+                let mut dialog =
+                    emDialog::new(&format!("Really cut {} stock(s)?", count), look.clone());
                 dialog.AddCustomButton("Cut", DialogResult::Ok);
                 dialog.AddCustomButton("Cancel", DialogResult::Cancel);
                 self.cut_stocks_dialog = Some(dialog);
@@ -645,12 +629,7 @@ impl emStocksListBox {
     /// polls the result.
     /// When `ask=false`, applies the interest change immediately.
     /// C++ takes no arguments beyond interest. Rust takes `rec` and `ask` parameters.
-    pub fn SetInterest(
-        &mut self,
-        rec: &mut emStocksRec,
-        interest: Interest,
-        ask: bool,
-    ) {
+    pub fn SetInterest(&mut self, rec: &mut emStocksRec, interest: Interest, ask: bool) {
         if ask {
             if let Some(ref look) = self.look {
                 // Cancel any in-flight dialog before creating a new one.
@@ -684,7 +663,11 @@ impl emStocksListBox {
         let mut busy = false;
 
         // Poll delete dialog.
-        if let Some(result) = self.delete_stocks_dialog.as_ref().and_then(|d| d.GetResult()) {
+        if let Some(result) = self
+            .delete_stocks_dialog
+            .as_ref()
+            .and_then(|d| d.GetResult())
+        {
             let confirmed = *result == DialogResult::Ok;
             self.delete_stocks_dialog = None;
             if confirmed {
@@ -706,7 +689,11 @@ impl emStocksListBox {
         }
 
         // Poll paste dialog.
-        if let Some(result) = self.paste_stocks_dialog.as_ref().and_then(|d| d.GetResult()) {
+        if let Some(result) = self
+            .paste_stocks_dialog
+            .as_ref()
+            .and_then(|d| d.GetResult())
+        {
             let confirmed = *result == DialogResult::Ok;
             self.paste_stocks_dialog = None;
             if confirmed {
@@ -798,11 +785,7 @@ impl emStocksListBox {
     /// Searches forward from active item, wrapping around.
     /// Returns the visible-item index of the found stock, or None.
     /// C++ navigates view to found panel. Rust returns the index for the caller to handle.
-    pub fn FindNext(
-        &mut self,
-        rec: &emStocksRec,
-        config: &emStocksConfig,
-    ) -> Option<usize> {
+    pub fn FindNext(&mut self, rec: &emStocksRec, config: &emStocksConfig) -> Option<usize> {
         let count = self.visible_items.len();
         if count == 0 {
             return None;
@@ -828,11 +811,7 @@ impl emStocksListBox {
     /// Searches backward from active item, wrapping around.
     /// Returns the visible-item index of the found stock, or None.
     /// C++ navigates view to found panel. Rust returns the index for the caller to handle.
-    pub fn FindPrevious(
-        &mut self,
-        rec: &emStocksRec,
-        config: &emStocksConfig,
-    ) -> Option<usize> {
+    pub fn FindPrevious(&mut self, rec: &emStocksRec, config: &emStocksConfig) -> Option<usize> {
         let count = self.visible_items.len();
         if count == 0 {
             return None;
@@ -914,8 +893,10 @@ mod tests {
     #[test]
     fn update_items_filters_and_sorts() {
         let mut rec = emStocksRec::default();
-        rec.stocks.push(make_stock("1", "Zebra Corp", Interest::High));
-        rec.stocks.push(make_stock("2", "Alpha Inc", Interest::High));
+        rec.stocks
+            .push(make_stock("1", "Zebra Corp", Interest::High));
+        rec.stocks
+            .push(make_stock("2", "Alpha Inc", Interest::High));
         rec.stocks.push(make_stock("3", "Hidden", Interest::Low));
 
         let config = emStocksConfig {
@@ -1217,14 +1198,8 @@ mod tests {
 
         lb.SetInterest(&mut rec, Interest::High, false);
         // Only the selected stock should change
-        assert_eq!(
-            rec.stocks[lb.visible_items[0]].interest,
-            Interest::High
-        );
-        assert_eq!(
-            rec.stocks[lb.visible_items[1]].interest,
-            Interest::Medium
-        );
+        assert_eq!(rec.stocks[lb.visible_items[0]].interest, Interest::High);
+        assert_eq!(rec.stocks[lb.visible_items[1]].interest, Interest::Medium);
     }
 
     #[test]
@@ -1276,9 +1251,11 @@ mod tests {
     #[test]
     fn find_next_wraps_around() {
         let mut rec = emStocksRec::default();
-        rec.stocks.push(make_stock("1", "Alpha Corp", Interest::High));
+        rec.stocks
+            .push(make_stock("1", "Alpha Corp", Interest::High));
         rec.stocks.push(make_stock("2", "Beta Inc", Interest::High));
-        rec.stocks.push(make_stock("3", "Alpha Ltd", Interest::High));
+        rec.stocks
+            .push(make_stock("3", "Alpha Ltd", Interest::High));
 
         let mut lb = emStocksListBox::new();
         let mut config = emStocksConfig::default();
@@ -1289,36 +1266,29 @@ mod tests {
         let result = lb.FindNext(&rec, &config);
         assert!(result.is_some());
         let idx = result.unwrap();
-        assert_eq!(
-            rec.stocks[lb.visible_items[idx]].name,
-            "Alpha Corp"
-        );
+        assert_eq!(rec.stocks[lb.visible_items[idx]].name, "Alpha Corp");
 
         // Second find should find "Alpha Ltd" (index 2)
         let result = lb.FindNext(&rec, &config);
         assert!(result.is_some());
         let idx = result.unwrap();
-        assert_eq!(
-            rec.stocks[lb.visible_items[idx]].name,
-            "Alpha Ltd"
-        );
+        assert_eq!(rec.stocks[lb.visible_items[idx]].name, "Alpha Ltd");
 
         // Third find should wrap back to "Alpha Corp"
         let result = lb.FindNext(&rec, &config);
         assert!(result.is_some());
         let idx = result.unwrap();
-        assert_eq!(
-            rec.stocks[lb.visible_items[idx]].name,
-            "Alpha Corp"
-        );
+        assert_eq!(rec.stocks[lb.visible_items[idx]].name, "Alpha Corp");
     }
 
     #[test]
     fn find_previous_wraps_around() {
         let mut rec = emStocksRec::default();
-        rec.stocks.push(make_stock("1", "Alpha Corp", Interest::High));
+        rec.stocks
+            .push(make_stock("1", "Alpha Corp", Interest::High));
         rec.stocks.push(make_stock("2", "Beta Inc", Interest::High));
-        rec.stocks.push(make_stock("3", "Alpha Ltd", Interest::High));
+        rec.stocks
+            .push(make_stock("3", "Alpha Ltd", Interest::High));
 
         let mut lb = emStocksListBox::new();
         let mut config = emStocksConfig::default();
@@ -1329,10 +1299,7 @@ mod tests {
         let result = lb.FindPrevious(&rec, &config);
         assert!(result.is_some());
         let idx = result.unwrap();
-        assert_eq!(
-            rec.stocks[lb.visible_items[idx]].name,
-            "Alpha Ltd"
-        );
+        assert_eq!(rec.stocks[lb.visible_items[idx]].name, "Alpha Ltd");
     }
 
     #[test]
@@ -1363,7 +1330,8 @@ mod tests {
         // back to config.search_text.  Pre-set search_text so the fallback
         // exercises the FindNext path.
         let mut rec = emStocksRec::default();
-        rec.stocks.push(make_stock("1", "Alpha Corp", Interest::High));
+        rec.stocks
+            .push(make_stock("1", "Alpha Corp", Interest::High));
 
         let mut lb = emStocksListBox::new();
         let mut config = emStocksConfig::default();

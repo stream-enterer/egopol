@@ -115,7 +115,8 @@ impl emStarFieldPanel {
             let count = (max_count * get_random_range(&mut random_seed, 0.5, 1.0)) as usize;
             let mut stars = Vec::with_capacity(count);
             for _ in 0..count {
-                let r = MIN_STAR_RADIUS / MIN_PANEL_SIZE * get_random_range(&mut random_seed, 0.5, 1.0);
+                let r =
+                    MIN_STAR_RADIUS / MIN_PANEL_SIZE * get_random_range(&mut random_seed, 0.5, 1.0);
                 let x = get_random_range(&mut random_seed, r, 1.0 - r);
                 let y = get_random_range(&mut random_seed, r, 1.0 - r);
                 // C++ SetHSVA(GetRandom(0,360), GetRandom(0,15), 100) — GCC evaluates
@@ -216,20 +217,36 @@ impl PanelBehavior for emStarFieldPanel {
                 // Glow pass
                 let glow_color = emColor::SetHSVA_with_alpha(hue, 100.0, 100.0, alpha);
                 painter.PaintImageColored(
-                    x, y, d, d,
-                    &self.star_shape, 0, 0, src_w, src_h,
+                    x,
+                    y,
+                    d,
+                    d,
+                    &self.star_shape,
+                    0,
+                    0,
+                    src_w,
+                    src_h,
                     emColor::TRANSPARENT, // color1: black bg → transparent
                     glow_color,           // color2: white star → glow
-                    emColor::TRANSPARENT, ImageExtension::Zero,
+                    emColor::TRANSPARENT,
+                    ImageExtension::Zero,
                 );
                 // Star pass
                 let star_color = emColor::SetHSVA(hue, (sat - 10.0).max(0.0), 100.0);
                 painter.PaintImageColored(
-                    x, y, d, d,
-                    &self.star_shape, 0, 0, src_w, src_h,
+                    x,
+                    y,
+                    d,
+                    d,
+                    &self.star_shape,
+                    0,
+                    0,
+                    src_w,
+                    src_h,
                     emColor::TRANSPARENT, // color1: black bg → transparent
                     star_color,           // color2: white star → star color
-                    emColor::TRANSPARENT, ImageExtension::Zero,
+                    emColor::TRANSPARENT,
+                    ImageExtension::Zero,
                 );
             } else {
                 r *= 0.6;
@@ -237,7 +254,14 @@ impl PanelBehavior for emStarFieldPanel {
                 if vr > 1.2 {
                     // Tier 2: ellipse
                     // C++ PaintOverlay passes no canvasColor (defaults to 0 = transparent)
-                    painter.PaintEllipse(star.X - r, star.Y - r, r * 2.0, r * 2.0, star.Color, emColor::TRANSPARENT);
+                    painter.PaintEllipse(
+                        star.X - r,
+                        star.Y - r,
+                        r * 2.0,
+                        r * 2.0,
+                        star.Color,
+                        emColor::TRANSPARENT,
+                    );
                 } else {
                     // Tier 3: rect
                     r *= 0.8862;
@@ -261,11 +285,8 @@ impl PanelBehavior for emStarFieldPanel {
         // This is idempotent and ensures the correct threshold is set after the first
         // expansion (the very first call may use the default Area threshold, but once
         // LayoutChildren runs, Width threshold is recorded for subsequent checks).
-        ctx.tree.SetAutoExpansionThreshold(
-            ctx.id,
-            2.0 * MIN_PANEL_SIZE,
-            ViewConditionType::Width,
-        );
+        ctx.tree
+            .SetAutoExpansionThreshold(ctx.id, 2.0 * MIN_PANEL_SIZE, ViewConditionType::Width);
 
         let children = ctx.children();
         let bg = emColor::from_packed(BG_COLOR);
@@ -296,7 +317,11 @@ impl PanelBehavior for emStarFieldPanel {
             }
         } else {
             // Reposition existing children (e.g. after LAYOUT_CHANGED).
-            let num_quadrants = if self.has_tic_tac_toe { children.len().saturating_sub(1) } else { children.len() };
+            let num_quadrants = if self.has_tic_tac_toe {
+                children.len().saturating_sub(1)
+            } else {
+                children.len()
+            };
             for (i, &child_id) in children.iter().enumerate() {
                 if i < num_quadrants.min(4) {
                     let (cx, cy, cw, ch) = Self::CHILD_RECTS[i];
@@ -339,7 +364,10 @@ impl TicTacToePanel {
 
     /// LCG step matching C++ TicTacToePanel::GetRandom().
     fn GetRandom(&mut self) -> u32 {
-        self.random_seed = self.random_seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        self.random_seed = self
+            .random_seed
+            .wrapping_mul(1_664_525)
+            .wrapping_add(1_013_904_223);
         self.random_seed
     }
 
@@ -349,38 +377,72 @@ impl TicTacToePanel {
     fn CheckState(state: i32) -> i32 {
         // Row 0 (cells 0,1,2): bits 0..5
         let m = state & 0x0003F;
-        if m == 0x00015 { return 1; }
-        if m == 0x0002A { return 2; }
+        if m == 0x00015 {
+            return 1;
+        }
+        if m == 0x0002A {
+            return 2;
+        }
         // Row 1 (cells 3,4,5): bits 6..11
         let m = state & 0x00FC0;
-        if m == 0x00540 { return 1; }
-        if m == 0x00A80 { return 2; }
+        if m == 0x00540 {
+            return 1;
+        }
+        if m == 0x00A80 {
+            return 2;
+        }
         // Row 2 (cells 6,7,8): bits 12..17
         let m = state & 0x3F000;
-        if m == 0x15000 { return 1; }
-        if m == 0x2A000 { return 2; }
+        if m == 0x15000 {
+            return 1;
+        }
+        if m == 0x2A000 {
+            return 2;
+        }
         // Col 0 (cells 0,3,6)
         let m = state & 0x030C3;
-        if m == 0x01041 { return 1; }
-        if m == 0x02082 { return 2; }
+        if m == 0x01041 {
+            return 1;
+        }
+        if m == 0x02082 {
+            return 2;
+        }
         // Col 1 (cells 1,4,7)
         let m = state & 0x0C30C;
-        if m == 0x04104 { return 1; }
-        if m == 0x08208 { return 2; }
+        if m == 0x04104 {
+            return 1;
+        }
+        if m == 0x08208 {
+            return 2;
+        }
         // Col 2 (cells 2,5,8)
         let m = state & 0x30C30;
-        if m == 0x10410 { return 1; }
-        if m == 0x20820 { return 2; }
+        if m == 0x10410 {
+            return 1;
+        }
+        if m == 0x20820 {
+            return 2;
+        }
         // Diagonal top-left to bottom-right (cells 0,4,8)
         let m = state & 0x30303;
-        if m == 0x10101 { return 1; }
-        if m == 0x20202 { return 2; }
+        if m == 0x10101 {
+            return 1;
+        }
+        if m == 0x20202 {
+            return 2;
+        }
         // Diagonal top-right to bottom-left (cells 2,4,6)
         let m = state & 0x03330;
-        if m == 0x01110 { return 1; }
-        if m == 0x02220 { return 2; }
+        if m == 0x01110 {
+            return 1;
+        }
+        if m == 0x02220 {
+            return 2;
+        }
         // Check for draw: all cells filled
-        if ((state | (state >> 1)) & 0x15555) == 0x15555 { return 0; }
+        if ((state | (state >> 1)) & 0x15555) == 0x15555 {
+            return 0;
+        }
         -1
     }
 
@@ -388,13 +450,19 @@ impl TicTacToePanel {
     /// Port of C++ TicTacToePanel::DeepCheckState.
     fn DeepCheckState(state: i32, turn: i32) -> i32 {
         let c = Self::CheckState(state);
-        if c >= 0 { return c; }
+        if c >= 0 {
+            return c;
+        }
         let mut best = turn ^ 3;
         for i in 0..9 {
             if (state & (3 << (i * 2))) == 0 {
                 let c = Self::DeepCheckState(state | (turn << (i * 2)), turn ^ 3);
-                if c == turn { return c; }
-                if c == 0 { best = 0; }
+                if c == turn {
+                    return c;
+                }
+                if c == 0 {
+                    best = 0;
+                }
             }
         }
         best
@@ -425,7 +493,10 @@ impl PanelBehavior for TicTacToePanel {
 
         if event.is_left_button()
             && event.variant == emcore::emInput::InputVariant::Press
-            && ix >= 0 && iy >= 0 && ix <= 2 && iy <= 2
+            && ix >= 0
+            && iy >= 0
+            && ix <= 2
+            && iy <= 2
             && Self::CheckState(self.state) < 0
         {
             let i = iy * 3 + ix;
@@ -527,7 +598,10 @@ impl PanelBehavior for TicTacToePanel {
 
         // Instructions text
         painter.PaintTextBoxed(
-            0.0, 0.04, 1.0, 0.02,
+            0.0,
+            0.04,
+            1.0,
+            0.02,
             "TIC TAC TOE  -  Left mouse button marks a field, \
              right mouse button starts new game.",
             0.01,
@@ -536,7 +610,9 @@ impl PanelBehavior for TicTacToePanel {
             TextAlignment::Center,
             VAlign::Center,
             TextAlignment::Center,
-            1.0, false, 0.0,
+            1.0,
+            false,
+            0.0,
         );
     }
 }
@@ -571,7 +647,11 @@ mod tests {
         let p = emStarFieldPanel::new(1, 0x12345678);
         assert!(!p.stars.is_empty());
         // min(1*3, 400) * random(0.5, 1.0) ∈ [1.5, 3.0) → 1..3 stars
-        assert!(p.stars.len() <= 3, "depth-1 panel should have at most 3 stars, got {}", p.stars.len());
+        assert!(
+            p.stars.len() <= 3,
+            "depth-1 panel should have at most 3 stars, got {}",
+            p.stars.len()
+        );
     }
 
     #[test]

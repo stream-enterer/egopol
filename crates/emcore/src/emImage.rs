@@ -244,7 +244,12 @@ impl emImage {
                 }
             }
             4 => {
-                let bytes = [color.GetRed(), color.GetGreen(), color.GetBlue(), color.GetAlpha()];
+                let bytes = [
+                    color.GetRed(),
+                    color.GetGreen(),
+                    color.GetBlue(),
+                    color.GetAlpha(),
+                ];
                 for chunk in self.data.chunks_exact_mut(4) {
                     chunk.copy_from_slice(&bytes);
                 }
@@ -325,7 +330,12 @@ impl emImage {
                 }
             }
             4 => {
-                let bytes = [color.GetRed(), color.GetGreen(), color.GetBlue(), color.GetAlpha()];
+                let bytes = [
+                    color.GetRed(),
+                    color.GetGreen(),
+                    color.GetBlue(),
+                    color.GetAlpha(),
+                ];
                 for row in y1..y2 {
                     let row_start = row as usize * stride + x1 as usize * 4;
                     for col in 0..(x2 - x1) as usize {
@@ -863,7 +873,12 @@ impl emImage {
         let det = a * e - b * d;
         if det.abs() < 1e-15 {
             // Degenerate (singular) matrix — fill with bg.
-            let bg_bytes = [bg_color.GetRed(), bg_color.GetGreen(), bg_color.GetBlue(), bg_color.GetAlpha()];
+            let bg_bytes = [
+                bg_color.GetRed(),
+                bg_color.GetGreen(),
+                bg_color.GetBlue(),
+                bg_color.GetAlpha(),
+            ];
             for py in y..y + h {
                 for px in x..x + w {
                     if px >= 0 && py >= 0 && (px as u32) < self.width && (py as u32) < self.height {
@@ -1645,7 +1660,13 @@ mod tests {
         let src = emImage::new(2, 2, 4);
         let mut dst = emImage::new(4, 4, 4);
         let singular = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-        dst.copy_transformed((1, 1, 2, 2), &singular, &src, false, emColor::rgb(42, 42, 42));
+        dst.copy_transformed(
+            (1, 1, 2, 2),
+            &singular,
+            &src,
+            false,
+            emColor::rgb(42, 42, 42),
+        );
 
         assert_eq!(dst.GetPixel(1, 1), &[42, 42, 42, 255]);
         assert_eq!(dst.GetPixel(2, 2), &[42, 42, 42, 255]);

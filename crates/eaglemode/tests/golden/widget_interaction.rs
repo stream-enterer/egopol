@@ -1,19 +1,19 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use emcore::emPanel::Rect;
+use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 use emcore::emCursor::emCursor;
 use emcore::emInput::{emInputEvent, InputKey, InputVariant};
 use emcore::emInputState::emInputState;
 use emcore::emLinearGroup::emLinearGroup;
-use emcore::emTiling::Orientation;
+use emcore::emPainter::emPainter;
+use emcore::emPanel::Rect;
 use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelTree;
+use emcore::emTiling::Orientation;
 use emcore::emView::{emView, ViewFlags};
-use emcore::emPainter::emPainter;
 use emcore::emViewRenderer::SoftwareCompositor;
-use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 
 use emcore::emButton::emButton;
 use emcore::emCheckBox::emCheckBox;
@@ -77,7 +77,10 @@ fn check_f64(field: &str, actual: f64, expected: f64, eps: f64) -> (&str, bool, 
     (
         field,
         (actual - expected).abs() < eps,
-        format!("actual={actual} expected={expected} diff={}", (actual - expected).abs()),
+        format!(
+            "actual={actual} expected={expected} diff={}",
+            (actual - expected).abs()
+        ),
     )
 }
 
@@ -89,7 +92,11 @@ fn check_str<'a>(field: &'a str, actual: &str, expected: &str) -> (&'a str, bool
     )
 }
 
-fn check_indices<'a>(field: &'a str, actual: &[usize], expected: &[usize]) -> (&'a str, bool, String) {
+fn check_indices<'a>(
+    field: &'a str,
+    actual: &[usize],
+    expected: &[usize],
+) -> (&'a str, bool, String) {
     (
         field,
         actual == expected,
@@ -434,7 +441,11 @@ fn widget_listbox_multi() {
             .push(u32::from_le_bytes(golden[off..off + 4].try_into().unwrap()) as usize);
     }
 
-    let c0 = check_indices("multi_selection", lb.GetSelectedIndices(), &expected_indices);
+    let c0 = check_indices(
+        "multi_selection",
+        lb.GetSelectedIndices(),
+        &expected_indices,
+    );
     compare_widget_state("widget_listbox_multi", &[c0]).unwrap();
 }
 
@@ -636,10 +647,7 @@ fn splitter_layout_h() {
             checks.push((
                 field,
                 (actual[j] - expected[i][j]).abs() < eps,
-                format!(
-                    "actual={:.6} expected={:.6}",
-                    actual[j], expected[i][j]
-                ),
+                format!("actual={:.6} expected={:.6}", actual[j], expected[i][j]),
             ));
         }
     }
@@ -670,10 +678,7 @@ fn splitter_layout_v() {
             checks.push((
                 field,
                 (actual[j] - expected[i][j]).abs() < eps,
-                format!(
-                    "actual={:.6} expected={:.6}",
-                    actual[j], expected[i][j]
-                ),
+                format!("actual={:.6} expected={:.6}", actual[j], expected[i][j]),
             ));
         }
     }
@@ -781,10 +786,7 @@ fn composition_click_through_tree() {
     btn.on_click = Some(Box::new(move || {
         clicked_clone.set(clicked_clone.get() + 1);
     }));
-    tree.set_behavior(
-        button_id,
-        Box::new(ClickableButtonPanel { widget: btn }),
-    );
+    tree.set_behavior(button_id, Box::new(ClickableButtonPanel { widget: btn }));
 
     tree.set_behavior(root, Box::new(root_group));
 

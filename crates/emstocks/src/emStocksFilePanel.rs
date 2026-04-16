@@ -148,7 +148,12 @@ impl PanelBehavior for emStocksFilePanel {
                 }
                 InputKey::Key('N') => {
                     // C++: ListBox->NewStock()
-                    let Self { list_box, model, config, .. } = self;
+                    let Self {
+                        list_box,
+                        model,
+                        config,
+                        ..
+                    } = self;
                     if let Some(lb) = list_box.as_mut() {
                         lb.NewStock(model.GetWritableRec(), config);
                     }
@@ -156,7 +161,9 @@ impl PanelBehavior for emStocksFilePanel {
                 }
                 InputKey::Key('X') => {
                     // C++: ListBox->CutStocks()
-                    let Self { list_box, model, .. } = self;
+                    let Self {
+                        list_box, model, ..
+                    } = self;
                     if let Some(lb) = list_box.as_mut() {
                         lb.CutStocks(model.GetWritableRec(), false);
                     }
@@ -171,7 +178,12 @@ impl PanelBehavior for emStocksFilePanel {
                 }
                 InputKey::Key('V') => {
                     // C++: ListBox->PasteStocks()
-                    let Self { list_box, model, config, .. } = self;
+                    let Self {
+                        list_box,
+                        model,
+                        config,
+                        ..
+                    } = self;
                     if let Some(lb) = list_box.as_mut() {
                         let _ = lb.PasteStocks(model.GetWritableRec(), config, false);
                     }
@@ -206,7 +218,12 @@ impl PanelBehavior for emStocksFilePanel {
                 }
                 InputKey::Key('H') => {
                     // C++: ListBox->FindSelected()
-                    let Self { list_box, model, config, .. } = self;
+                    let Self {
+                        list_box,
+                        model,
+                        config,
+                        ..
+                    } = self;
                     if let Some(lb) = list_box.as_mut() {
                         let _found = lb.FindSelected(model.GetRec(), config);
                     }
@@ -214,7 +231,12 @@ impl PanelBehavior for emStocksFilePanel {
                 }
                 InputKey::Key('G') => {
                     // C++: ListBox->FindNext()
-                    let Self { list_box, model, config, .. } = self;
+                    let Self {
+                        list_box,
+                        model,
+                        config,
+                        ..
+                    } = self;
                     if let Some(lb) = list_box.as_mut() {
                         let _found = lb.FindNext(model.GetRec(), config);
                     }
@@ -236,7 +258,12 @@ impl PanelBehavior for emStocksFilePanel {
                 }
                 InputKey::Key('G') => {
                     // C++: ListBox->FindPrevious()
-                    let Self { list_box, model, config, .. } = self;
+                    let Self {
+                        list_box,
+                        model,
+                        config,
+                        ..
+                    } = self;
                     if let Some(lb) = list_box.as_mut() {
                         let _found = lb.FindPrevious(model.GetRec(), config);
                     }
@@ -249,7 +276,9 @@ impl PanelBehavior for emStocksFilePanel {
         // ── No-modifier shortcuts ──
         if input_state.IsNoMod() && event.key == InputKey::Delete {
             // C++: ListBox->DeleteStocks()
-            let Self { list_box, model, .. } = self;
+            let Self {
+                list_box, model, ..
+            } = self;
             if let Some(lb) = list_box.as_mut() {
                 lb.DeleteStocks(model.GetWritableRec(), false);
             }
@@ -261,7 +290,9 @@ impl PanelBehavior for emStocksFilePanel {
             match event.key {
                 InputKey::Key('H') => {
                     // C++: ListBox->SetInterest(HIGH_INTEREST)
-                    let Self { list_box, model, .. } = self;
+                    let Self {
+                        list_box, model, ..
+                    } = self;
                     if let Some(lb) = list_box.as_mut() {
                         lb.SetInterest(model.GetWritableRec(), Interest::High, false);
                     }
@@ -269,7 +300,9 @@ impl PanelBehavior for emStocksFilePanel {
                 }
                 InputKey::Key('M') => {
                     // C++: ListBox->SetInterest(MEDIUM_INTEREST)
-                    let Self { list_box, model, .. } = self;
+                    let Self {
+                        list_box, model, ..
+                    } = self;
                     if let Some(lb) = list_box.as_mut() {
                         lb.SetInterest(model.GetWritableRec(), Interest::Medium, false);
                     }
@@ -277,7 +310,9 @@ impl PanelBehavior for emStocksFilePanel {
                 }
                 InputKey::Key('L') => {
                     // C++: ListBox->SetInterest(LOW_INTEREST)
-                    let Self { list_box, model, .. } = self;
+                    let Self {
+                        list_box, model, ..
+                    } = self;
                     if let Some(lb) = list_box.as_mut() {
                         lb.SetInterest(model.GetWritableRec(), Interest::Low, false);
                     }
@@ -298,8 +333,8 @@ impl PanelBehavior for emStocksFilePanel {
             let rect = ctx.layout_rect();
             list_box.layout_x = 0.0;
             list_box.layout_y = 0.0;
-            list_box.layout_w = rect.w;  // width = 1.0
-            list_box.layout_h = rect.h;  // height = tallness
+            list_box.layout_w = rect.w; // width = 1.0
+            list_box.layout_h = rect.h; // height = tallness
         }
     }
 
@@ -323,7 +358,12 @@ impl PanelBehavior for emStocksFilePanel {
 
         // Poll ListBox confirmation dialogs (C++: Cycle calls into ListBox state machine)
         let list_box_busy = {
-            let Self { list_box, model, config, .. } = self;
+            let Self {
+                list_box,
+                model,
+                config,
+                ..
+            } = self;
             if let Some(lb) = list_box.as_mut() {
                 lb.Cycle(model.GetWritableRec(), config)
             } else {
@@ -361,18 +401,19 @@ impl Default for emStocksFilePanel {
 #[cfg(test)]
 impl emStocksFilePanel {
     pub(crate) fn set_vfs_good_for_test(&mut self) {
-        use std::cell::RefCell;
-        use std::rc::Rc;
         use emcore::emFileModel::{emFileModel, FileModelState};
         use emcore::emSignal::SignalId;
+        use std::cell::RefCell;
         use std::path::PathBuf;
+        use std::rc::Rc;
         let model = Rc::new(RefCell::new(emFileModel::<String>::new(
             PathBuf::from("/tmp/test"),
             SignalId::default(),
             SignalId::default(),
         )));
         model.borrow_mut().complete_load("test".to_string());
-        self.file_panel.SetFileModel(Some(model as Rc<RefCell<dyn FileModelState>>));
+        self.file_panel
+            .SetFileModel(Some(model as Rc<RefCell<dyn FileModelState>>));
     }
 }
 
@@ -535,7 +576,11 @@ mod tests {
         stock.AddPrice("2024-06-14", "100");
         stock.AddPrice("2024-06-15", "101");
         panel.model.GetWritableRec().stocks.push(stock);
-        panel.list_box.as_mut().unwrap().SetSelectedDate("2024-06-15");
+        panel
+            .list_box
+            .as_mut()
+            .unwrap()
+            .SetSelectedDate("2024-06-15");
 
         let mut input_state = emInputState::new();
         input_state.press(InputKey::Ctrl);
@@ -555,7 +600,11 @@ mod tests {
         stock.AddPrice("2024-06-14", "100");
         stock.AddPrice("2024-06-15", "101");
         panel.model.GetWritableRec().stocks.push(stock);
-        panel.list_box.as_mut().unwrap().SetSelectedDate("2024-06-14");
+        panel
+            .list_box
+            .as_mut()
+            .unwrap()
+            .SetSelectedDate("2024-06-14");
 
         let mut input_state = emInputState::new();
         input_state.press(InputKey::Ctrl);

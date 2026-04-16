@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use emcore::emInstallInfo::{emGetConfigDirOverloadable, emGetInstallPath, InstallDirType, InstallInfoError};
+use emcore::emInstallInfo::{
+    emGetConfigDirOverloadable, emGetInstallPath, InstallDirType, InstallInfoError,
+};
 
 /// Serialize all tests that mutate environment variables.
 static ENV_LOCK: Mutex<()> = Mutex::new(());

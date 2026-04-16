@@ -1,8 +1,8 @@
-use emcore::emRec::{parse_rec_with_format, write_rec_with_format};
-use emcore::emRecRecord::Record;
 use emStocks::emStocksConfig::{emStocksConfig, ChartPeriod, Sorting};
 use emStocks::emStocksListBox::emStocksListBox;
 use emStocks::emStocksRec::{emStocksRec, Interest, StockRec};
+use emcore::emRec::{parse_rec_with_format, write_rec_with_format};
+use emcore::emRecRecord::Record;
 
 #[test]
 fn load_emstocks_from_rec_format() {

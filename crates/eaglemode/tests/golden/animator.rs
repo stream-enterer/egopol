@@ -1,6 +1,9 @@
 use emcore::emPanelTree::PanelTree;
 use emcore::emView::{emView, ViewFlags};
-use emcore::emViewAnimator::{emKineticViewAnimator, emMagneticViewAnimator, emSpeedingViewAnimator, emSwipingViewAnimator, emViewAnimator, emVisitingViewAnimator};
+use emcore::emViewAnimator::{
+    emKineticViewAnimator, emMagneticViewAnimator, emSpeedingViewAnimator, emSwipingViewAnimator,
+    emViewAnimator, emVisitingViewAnimator,
+};
 
 use super::common::*;
 
@@ -308,7 +311,11 @@ fn animator_visiting_short() {
         let dx = (a.vel_x - g.vel_x).abs();
         let dy = (a.vel_y - g.vel_y).abs();
         let dz = (a.vel_z - g.vel_z).abs();
-        let flag = if dx > 1e-4 || dy > 1e-4 || dz > 1e-4 { " <<< FAIL" } else { "" };
+        let flag = if dx > 1e-4 || dy > 1e-4 || dz > 1e-4 {
+            " <<< FAIL"
+        } else {
+            ""
+        };
         eprintln!("step {i:2}: actual=({:.10e}, {:.10e}, {:.10e})  golden=({:.10e}, {:.10e}, {:.10e})  diff=({dx:.3e}, {dy:.3e}, {dz:.3e}){flag}",
             a.vel_x, a.vel_y, a.vel_z, g.vel_x, g.vel_y, g.vel_z);
     }

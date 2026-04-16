@@ -116,10 +116,7 @@ impl Record for emFileManConfigData {
         };
         let sort_directories_first = rec.get_bool("sortdirectoriesfirst").unwrap_or(false);
         let show_hidden_files = rec.get_bool("showhiddenfiles").unwrap_or(false);
-        let theme_name = rec
-            .get_str("themename")
-            .unwrap_or("")
-            .to_string();
+        let theme_name = rec.get_str("themename").unwrap_or("").to_string();
         let autosave = rec.get_bool("autosave").unwrap_or(true);
 
         Ok(Self {
@@ -164,11 +161,7 @@ impl emFileManConfig {
             let signal_id = SignalId::null();
             let path = std::path::PathBuf::from("");
             Self {
-                config_model: emConfigModel::new(
-                    emFileManConfigData::default(),
-                    path,
-                    signal_id,
-                ),
+                config_model: emConfigModel::new(emFileManConfigData::default(), path, signal_id),
             }
         })
     }
@@ -194,8 +187,7 @@ impl emFileManConfig {
     }
 
     pub fn SetNameSortingStyle(&mut self, nss: NameSortingStyle) {
-        self.config_model
-            .modify(|d| d.name_sorting_style = nss);
+        self.config_model.modify(|d| d.name_sorting_style = nss);
     }
 
     pub fn GetSortDirectoriesFirst(&self) -> bool {
@@ -203,8 +195,7 @@ impl emFileManConfig {
     }
 
     pub fn SetSortDirectoriesFirst(&mut self, b: bool) {
-        self.config_model
-            .modify(|d| d.sort_directories_first = b);
+        self.config_model.modify(|d| d.sort_directories_first = b);
     }
 
     pub fn GetShowHiddenFiles(&self) -> bool {

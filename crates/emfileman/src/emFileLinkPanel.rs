@@ -7,15 +7,15 @@ use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emFilePanel::emFilePanel;
 
+use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
-use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 
 use crate::emDirEntry::emDirEntry;
 use crate::emDirEntryPanel::emDirEntryPanel;
-use crate::emFileManViewConfig::emFileManViewConfig;
 use crate::emFileLinkModel::emFileLinkModel;
+use crate::emFileManViewConfig::emFileManViewConfig;
 
 pub const BORDER_BG_COLOR: u32 = 0xBBBBBBFF;
 pub const BORDER_FG_COLOR: u32 = 0x444444FF;
@@ -216,10 +216,14 @@ impl PanelBehavior for emFileLinkPanel {
             let theme = config.GetTheme();
             let theme_rec = theme.GetRec();
             let (cx, cy, cw, ch) = CalcContentCoords(
-                state.height, self.have_border, self.have_dir_entry_panel,
+                state.height,
+                self.have_border,
+                self.have_dir_entry_panel,
                 theme_rec.Height,
-                theme_rec.LnkPaddingL, theme_rec.LnkPaddingT,
-                theme_rec.LnkPaddingR, theme_rec.LnkPaddingB,
+                theme_rec.LnkPaddingL,
+                theme_rec.LnkPaddingT,
+                theme_rec.LnkPaddingR,
+                theme_rec.LnkPaddingB,
             );
 
             // Border outline
@@ -230,26 +234,36 @@ impl PanelBehavior for emFileLinkPanel {
                 width: t,
                 ..Default::default()
             };
-            painter.PaintRectOutline(
-                cx - d * 0.5, cy - d * 0.5,
-                cw + d, ch + d, &stroke, bg,
-            );
+            painter.PaintRectOutline(cx - d * 0.5, cy - d * 0.5, cw + d, ch + d, &stroke, bg);
 
             // Label
             let label = format!("emFileLink to {}", self.full_path);
             let ty = cx.min(cy) * 0.2;
             painter.PaintTextBoxed(
-                ty, 0.0, 1.0 - ty * 2.0, cy - ty,
-                &label, (cy - ty) * 0.9,
-                fg, bg,
-                TextAlignment::Center, VAlign::Center,
-                TextAlignment::Left, 1.0, false, 1.0,
+                ty,
+                0.0,
+                1.0 - ty * 2.0,
+                cy - ty,
+                &label,
+                (cy - ty) * 0.9,
+                fg,
+                bg,
+                TextAlignment::Center,
+                VAlign::Center,
+                TextAlignment::Left,
+                1.0,
+                false,
+                1.0,
             );
 
             if self.have_dir_entry_panel {
                 painter.PaintRect(
-                    cx, cy, cw, ch,
-                    emColor::from_packed(theme_rec.DirContentColor), bg,
+                    cx,
+                    cy,
+                    cw,
+                    ch,
+                    emColor::from_packed(theme_rec.DirContentColor),
+                    bg,
                 );
             }
         } else if self.have_dir_entry_panel {

@@ -1,18 +1,18 @@
 use std::rc::Rc;
 
 use crate::emColor::emColor;
-use crate::emPanel::Rect;
 use crate::emCursor::emCursor;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
-use crate::emPanel::PanelState;
 use crate::emPainter::{emPainter, BORDER_EDGES_ONLY};
-use crate::emStroke::{LineCap, LineJoin, emStroke, emStrokeEnd, StrokeEndType};
+use crate::emPanel::PanelState;
+use crate::emPanel::Rect;
+use crate::emStroke::{emStroke, emStrokeEnd, LineCap, LineJoin, StrokeEndType};
 
 use super::emBorder::{emBorder, OuterBorderType};
-use crate::emLook::emLook;
 use crate::emBorder::with_toolkit_images;
 use crate::emButton::{HOWTO_BUTTON, HOWTO_EOI_BUTTON};
+use crate::emLook::emLook;
 
 /// emCheckBox widget — Margin border with ShownBoxed paint path.
 /// Matches C++ `emCheckBox` (which extends `emCheckButton` extends `emButton`).
@@ -75,10 +75,7 @@ impl emCheckBox {
     /// Compute the box + label geometry from the content rect (C++ lines 235-260).
     /// Returns (bx0, by0, bw0, lx, ly, lw, lh) where bx0/by0/bw0 are the outer
     /// box dimensions and lx/ly/lw/lh are the label area.
-    fn box_label_geometry(
-        &self,
-        cr: &Rect,
-    ) -> (f64, f64, f64, f64, f64, f64, f64) {
+    fn box_label_geometry(&self, cr: &Rect) -> (f64, f64, f64, f64, f64, f64, f64) {
         let has_label = self.border.HasLabel();
         if has_label {
             let label_tallness = self.border.GetBestLabelTallness().max(0.2);
@@ -107,7 +104,14 @@ impl emCheckBox {
     ///
     /// Layout: small checkbox box on the left, label text on the right.
     /// The box contains: InputBgColor face → checkmark symbol → emCheckBox image overlay.
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, enabled: bool, pixel_scale: f64) {
+    pub fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        w: f64,
+        h: f64,
+        enabled: bool,
+        pixel_scale: f64,
+    ) {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
@@ -167,7 +171,9 @@ impl emCheckBox {
 
         // C++ lines 290-291: label color
         let mut color = self.look.fg_color;
-        if !enabled { color = color.GetTransparented(75.0); }
+        if !enabled {
+            color = color.GetTransparented(75.0);
+        }
 
         // C++ lines 293-308: label with press nudge
         if has_label {
@@ -180,7 +186,11 @@ impl emCheckBox {
                 lh *= 0.986;
             }
             self.border.paint_label_colored(
-                painter, Rect::new(lx, ly, lw, lh), &self.look, color, true,
+                painter,
+                Rect::new(lx, ly, lw, lh),
+                &self.look,
+                color,
+                true,
             );
         }
 
@@ -207,7 +217,16 @@ impl emCheckBox {
 
         // C++ line 316: disabled overlay
         if !enabled {
-            painter.PaintRoundRect(fx, fy, fw, fh, fr, fr, emColor::rgba(0x88, 0x88, 0x88, 0xE0), emColor::TRANSPARENT);
+            painter.PaintRoundRect(
+                fx,
+                fy,
+                fw,
+                fh,
+                fr,
+                fr,
+                emColor::rgba(0x88, 0x88, 0x88, 0xE0),
+                emColor::TRANSPARENT,
+            );
         }
 
         // C++ lines 318-331: PaintImage (checkbox image overlay)
@@ -224,10 +243,22 @@ impl emCheckBox {
         if self.pressed && !self.box_pressed {
             with_toolkit_images(|img| {
                 painter.PaintBorderImage(
-                    x, y, cw, ch, r, r, r, r,
+                    x,
+                    y,
+                    cw,
+                    ch,
+                    r,
+                    r,
+                    r,
+                    r,
                     &img.group_inner_border,
-                    225, 225, 225, 225,
-                    255, emColor::TRANSPARENT, BORDER_EDGES_ONLY,
+                    225,
+                    225,
+                    225,
+                    225,
+                    255,
+                    emColor::TRANSPARENT,
+                    BORDER_EDGES_ONLY,
                 );
             });
         }
@@ -280,7 +311,12 @@ impl emCheckBox {
         dx * dx + dy * dy <= fr * fr
     }
 
-    pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
+    pub fn Input(
+        &mut self,
+        event: &emInputEvent,
+        state: &PanelState,
+        _input_state: &emInputState,
+    ) -> bool {
         if !self.enabled {
             return false;
         }
@@ -313,8 +349,7 @@ impl emCheckBox {
                         return false;
                     }
                     self.pressed = true;
-                    self.box_pressed =
-                        self.box_hit_test(event.mouse_x, event.mouse_y);
+                    self.box_pressed = self.box_hit_test(event.mouse_x, event.mouse_y);
                     true
                 }
                 InputVariant::Release => {

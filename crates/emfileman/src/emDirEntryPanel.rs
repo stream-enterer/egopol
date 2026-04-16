@@ -5,10 +5,10 @@ use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
+use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
-use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 
 use crate::emDirEntry::emDirEntry;
 use crate::emFileManModel::emFileManModel;
@@ -161,8 +161,8 @@ impl emDirEntryPanel {
             (cw, theme_rec.MinContentVW)
         };
 
-        let should_create = self.last_viewed
-            && self.last_viewed_width * content_w >= min_content_vw;
+        let should_create =
+            self.last_viewed && self.last_viewed_width * content_w >= min_content_vw;
         let should_delete = !self.last_in_active_path && !self.last_viewed;
 
         if should_delete && self.content_panel.is_some() {
@@ -177,8 +177,7 @@ impl emDirEntryPanel {
             };
             let fppl = emcore::emFpPlugin::emFpPluginList::Acquire(&self.ctx);
             let fppl = fppl.borrow();
-            let parent_arg =
-                emcore::emFpPlugin::PanelParentArg::new(Rc::clone(&self.ctx));
+            let parent_arg = emcore::emFpPlugin::PanelParentArg::new(Rc::clone(&self.ctx));
             let behavior = fppl.CreateFilePanelWithStat(
                 &parent_arg,
                 CONTENT_NAME,
@@ -211,8 +210,7 @@ impl emDirEntryPanel {
             (theme_rec.AltW, theme_rec.MinAltVW)
         };
 
-        let should_create = self.last_viewed
-            && self.last_viewed_width * alt_w >= min_alt_vw;
+        let should_create = self.last_viewed && self.last_viewed_width * alt_w >= min_alt_vw;
         let should_delete = !self.last_in_active_path && !self.last_viewed;
 
         if should_delete && self.alt_panel.is_some() {
@@ -273,10 +271,7 @@ impl emDirEntryPanel {
                     .unwrap_or("");
 
                 if !parent_dir.is_empty() {
-                    let dm = crate::emDirModel::emDirModel::Acquire(
-                        &self.ctx,
-                        parent_dir,
-                    );
+                    let dm = crate::emDirModel::emDirModel::Acquire(&self.ctx, parent_dir);
                     let dm = dm.borrow();
                     let cfg = self.config.borrow();
                     let show_hidden = cfg.GetShowHiddenFiles();
@@ -303,10 +298,8 @@ impl emDirEntryPanel {
                     });
 
                     // Find anchor and target indices
-                    let anchor_idx =
-                        visible.iter().position(|e| e.GetPath() == anchor_path);
-                    let target_idx =
-                        visible.iter().position(|e| e.GetPath() == path);
+                    let anchor_idx = visible.iter().position(|e| e.GetPath() == anchor_path);
+                    let target_idx = visible.iter().position(|e| e.GetPath() == path);
                     drop(cfg);
                     drop(dm);
 
@@ -443,9 +436,14 @@ impl PanelBehavior for emDirEntryPanel {
         // Background rounded rect
         let r = theme_rec.BackgroundRX.min(theme_rec.BackgroundRY);
         painter.PaintRoundRect(
-            theme_rec.BackgroundX, theme_rec.BackgroundY,
-            theme_rec.BackgroundW, theme_rec.BackgroundH,
-            r, r, bg, emColor::TRANSPARENT,
+            theme_rec.BackgroundX,
+            theme_rec.BackgroundY,
+            theme_rec.BackgroundW,
+            theme_rec.BackgroundH,
+            r,
+            r,
+            bg,
+            emColor::TRANSPARENT,
         );
 
         // Name color based on file type
@@ -464,12 +462,20 @@ impl PanelBehavior for emDirEntryPanel {
 
         let name = self.dir_entry.GetName();
         painter.PaintTextBoxed(
-            theme_rec.NameX, theme_rec.NameY,
-            theme_rec.NameW, theme_rec.NameH,
-            name, theme_rec.NameH,
-            name_color, bg,
-            TextAlignment::Left, VAlign::Center,
-            TextAlignment::Left, 0.5, false, 1.0,
+            theme_rec.NameX,
+            theme_rec.NameY,
+            theme_rec.NameW,
+            theme_rec.NameH,
+            name,
+            theme_rec.NameH,
+            name_color,
+            bg,
+            TextAlignment::Left,
+            VAlign::Center,
+            TextAlignment::Left,
+            0.5,
+            false,
+            1.0,
         );
 
         // Path (shown when content area is visible)
@@ -479,28 +485,43 @@ impl PanelBehavior for emDirEntryPanel {
             theme_rec.FileContentW
         };
 
-        if self.content_panel.is_some() || state.viewed_rect.w * content_w >= theme_rec.MinContentVW {
+        if self.content_panel.is_some() || state.viewed_rect.w * content_w >= theme_rec.MinContentVW
+        {
             painter.PaintTextBoxed(
-                theme_rec.PathX, theme_rec.PathY,
-                theme_rec.PathW, theme_rec.PathH,
-                self.dir_entry.GetPath(), theme_rec.PathH,
-                emColor::from_packed(theme_rec.PathColor), bg,
-                TextAlignment::Left, VAlign::Center,
-                TextAlignment::Left, 0.5, false, 1.0,
+                theme_rec.PathX,
+                theme_rec.PathY,
+                theme_rec.PathW,
+                theme_rec.PathH,
+                self.dir_entry.GetPath(),
+                theme_rec.PathH,
+                emColor::from_packed(theme_rec.PathColor),
+                bg,
+                TextAlignment::Left,
+                VAlign::Center,
+                TextAlignment::Left,
+                0.5,
+                false,
+                1.0,
             );
 
             // Content area background
             if self.dir_entry.IsDirectory() {
                 painter.PaintRect(
-                    theme_rec.DirContentX, theme_rec.DirContentY,
-                    theme_rec.DirContentW, theme_rec.DirContentH,
-                    emColor::from_packed(theme_rec.DirContentColor), bg,
+                    theme_rec.DirContentX,
+                    theme_rec.DirContentY,
+                    theme_rec.DirContentW,
+                    theme_rec.DirContentH,
+                    emColor::from_packed(theme_rec.DirContentColor),
+                    bg,
                 );
             } else {
                 painter.PaintRect(
-                    theme_rec.FileContentX, theme_rec.FileContentY,
-                    theme_rec.FileContentW, theme_rec.FileContentH,
-                    emColor::from_packed(theme_rec.FileContentColor), bg,
+                    theme_rec.FileContentX,
+                    theme_rec.FileContentY,
+                    theme_rec.FileContentW,
+                    theme_rec.FileContentH,
+                    emColor::from_packed(theme_rec.FileContentColor),
+                    bg,
                 );
             }
         }
@@ -509,12 +530,20 @@ impl PanelBehavior for emDirEntryPanel {
         let info_color = emColor::from_packed(theme_rec.InfoColor);
         let time_str = FormatTime(self.dir_entry.GetStat().st_mtime, false);
         painter.PaintTextBoxed(
-            theme_rec.InfoX, theme_rec.InfoY,
-            theme_rec.InfoW, theme_rec.InfoH,
-            &time_str, theme_rec.InfoH,
-            info_color, bg,
-            TextAlignment::Left, VAlign::Center,
-            TextAlignment::Left, 0.5, false, 1.0,
+            theme_rec.InfoX,
+            theme_rec.InfoY,
+            theme_rec.InfoW,
+            theme_rec.InfoH,
+            &time_str,
+            theme_rec.InfoH,
+            info_color,
+            bg,
+            TextAlignment::Left,
+            VAlign::Center,
+            TextAlignment::Left,
+            0.5,
+            false,
+            1.0,
         );
     }
 
@@ -553,13 +582,21 @@ impl PanelBehavior for emDirEntryPanel {
             let theme = cfg.GetTheme();
             let theme_rec = theme.GetRec();
             let (cx, cy, cw, ch, cc) = if self.dir_entry.IsDirectory() {
-                (theme_rec.DirContentX, theme_rec.DirContentY,
-                 theme_rec.DirContentW, theme_rec.DirContentH,
-                 emColor::from_packed(theme_rec.DirContentColor))
+                (
+                    theme_rec.DirContentX,
+                    theme_rec.DirContentY,
+                    theme_rec.DirContentW,
+                    theme_rec.DirContentH,
+                    emColor::from_packed(theme_rec.DirContentColor),
+                )
             } else {
-                (theme_rec.FileContentX, theme_rec.FileContentY,
-                 theme_rec.FileContentW, theme_rec.FileContentH,
-                 emColor::from_packed(theme_rec.FileContentColor))
+                (
+                    theme_rec.FileContentX,
+                    theme_rec.FileContentY,
+                    theme_rec.FileContentW,
+                    theme_rec.FileContentH,
+                    emColor::from_packed(theme_rec.FileContentColor),
+                )
             };
             ctx.layout_child_canvas(child, cx, cy, cw, ch, cc);
         }
@@ -569,8 +606,10 @@ impl PanelBehavior for emDirEntryPanel {
             let theme_rec = theme.GetRec();
             ctx.layout_child_canvas(
                 child,
-                theme_rec.AltX, theme_rec.AltY,
-                theme_rec.AltW, theme_rec.AltH,
+                theme_rec.AltX,
+                theme_rec.AltY,
+                theme_rec.AltW,
+                theme_rec.AltH,
                 emColor::from_packed(self.bg_color),
             );
         }
@@ -722,10 +761,7 @@ mod tests {
         // Plain click on entry1 — sets anchor
         panel1.select(false, false);
         assert!(panel1.file_man.borrow().IsSelectedAsTarget("/tmp/a.txt"));
-        assert_eq!(
-            panel1.file_man.borrow().GetShiftTgtSelPath(),
-            "/tmp/a.txt"
-        );
+        assert_eq!(panel1.file_man.borrow().GetShiftTgtSelPath(), "/tmp/a.txt");
 
         // Shift click on entry2 — should attempt range selection
         // (Model for /tmp needs to be loaded for full range; fallback selects entry)

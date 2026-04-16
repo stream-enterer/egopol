@@ -1,9 +1,9 @@
 use crate::dlog;
 
-use crate::emPanelTree::PanelTree;
 use super::emView::{emView, ViewFlags};
 use crate::emColor::emColor;
 use crate::emPanel::Rect;
+use crate::emPanelTree::PanelTree;
 
 /// Trait for view animation strategies.
 pub trait emViewAnimator {
@@ -224,8 +224,8 @@ impl emKineticViewAnimator {
         self.zoom_fix_point_centered = state.zoom_fix_centered;
         self.zoom_fix_x = state.zoom_fix_x;
         self.zoom_fix_y = state.zoom_fix_y;
-        self.active = (state.vx * state.vx + state.vy * state.vy + state.vz * state.vz).sqrt()
-            > 0.01;
+        self.active =
+            (state.vx * state.vx + state.vy * state.vy + state.vz * state.vz).sqrt() > 0.01;
     }
 
     /// Activate this animator, inheriting velocity from any outgoing
@@ -1826,8 +1826,7 @@ impl emVisitingViewAnimator {
                 }
                 VisitType::VisitRel => {
                     if self.rel_a <= 0.0 {
-                        let coords =
-                            view.CalcVisitFullsizedCoords(tree, panel, self.rel_a < -0.9);
+                        let coords = view.CalcVisitFullsizedCoords(tree, panel, self.rel_a < -0.9);
                         target_x = coords.0;
                         target_y = coords.1;
                         target_a = coords.2;
@@ -1922,10 +1921,7 @@ impl emVisitingViewAnimator {
                 None => break, // root reached
             };
             if b_data.in_viewed_path {
-                let parent_viewed = tree
-                    .GetRec(parent_id)
-                    .map(|p| p.viewed)
-                    .unwrap_or(false);
+                let parent_viewed = tree.GetRec(parent_id).map(|p| p.viewed).unwrap_or(false);
                 if !parent_viewed {
                     break;
                 }
@@ -2245,7 +2241,8 @@ impl emSwipingViewAnimator {
     }
 
     fn update_busy_state(&mut self) {
-        if self.gripped && (self.GetAbsSpringExtension() > 0.01 || self.inner.GetAbsVelocity() > 0.01)
+        if self.gripped
+            && (self.GetAbsSpringExtension() > 0.01 || self.inner.GetAbsVelocity() > 0.01)
         {
             self.busy = true;
         } else {
@@ -2406,9 +2403,8 @@ impl emMagneticViewAnimator {
         }
         self.magnetism_active = false;
         // Walk active animator chain to find a emKineticViewAnimator
-        let kinetic = active_animator.and_then(|a| {
-            a.as_any().downcast_ref::<emKineticViewAnimator>()
-        });
+        let kinetic =
+            active_animator.and_then(|a| a.as_any().downcast_ref::<emKineticViewAnimator>());
         if let Some(kva) = kinetic {
             self.inner.SetFriction(kva.GetFriction());
             self.inner.SetFrictionEnabled(kva.IsFrictionEnabled());
@@ -2528,8 +2524,9 @@ impl emMagneticViewAnimator {
     /// home rect (viewport origin + dimensions).
     pub fn get_view_rect(view: &emView) -> Rect {
         if view.flags.contains(ViewFlags::POPUP_ZOOM) {
-            view.max_popup_rect()
-                .unwrap_or_else(|| Rect::new(0.0, 0.0, view.viewport_size().0, view.viewport_size().1))
+            view.max_popup_rect().unwrap_or_else(|| {
+                Rect::new(0.0, 0.0, view.viewport_size().0, view.viewport_size().1)
+            })
         } else {
             let (w, h) = view.viewport_size();
             Rect::new(0.0, 0.0, w, h)
@@ -2637,7 +2634,8 @@ impl emViewAnimator for emMagneticViewAnimator {
 
         // C++ lines 800-803: temporarily disable friction during magnetism
         let friction_enabled = self.inner.IsFrictionEnabled();
-        self.inner.SetFrictionEnabled(friction_enabled && !self.magnetism_active);
+        self.inner
+            .SetFrictionEnabled(friction_enabled && !self.magnetism_active);
         if self.inner.animate(view, tree, dt) {
             busy = true;
         }
@@ -3203,10 +3201,7 @@ mod tests {
         let (_dx, _dy, dz, abs_dist) = emMagneticViewAnimator::calculate_distance(&view, &tree);
         // Root panel fills the viewport, so dz depends on
         // log(view_dim / panel_dim) which should be near 0 when panel ≈ viewport
-        assert!(
-            abs_dist < f64::MAX,
-            "should find root panel as candidate"
-        );
+        assert!(abs_dist < f64::MAX, "should find root panel as candidate");
         // dz should be finite
         assert!(dz.is_finite(), "dz should be finite, got {}", dz);
     }
@@ -3300,8 +3295,7 @@ mod tests {
             let viewed_y_before = tree.GetRec(root).unwrap().viewed_y;
 
             // Create animator targeting exactly the current state
-            let mut anim =
-                emVisitingViewAnimator::new(state.rel_x, state.rel_y, state.rel_a, 0.0);
+            let mut anim = emVisitingViewAnimator::new(state.rel_x, state.rel_y, state.rel_a, 0.0);
             anim.set_identity("root", "");
             anim.SetAnimated(true);
             anim.SetAcceleration(5.0);
@@ -3409,7 +3403,6 @@ mod tests {
     }
 }
 
-
 #[cfg(kani)]
 mod kani_private_proofs {
     use super::*;
@@ -3429,7 +3422,15 @@ mod kani_private_proofs {
         let mut p_friction_enabled: bool = kani::any::<bool>();
         let mut p_dt: f64 = kani::any::<f64>();
         kani::assume(p_dt.is_finite());
-        let _r = accelerate_dim(p_v, p_target, p_accel, p_reverse_accel, p_friction, p_friction_enabled, p_dt);
+        let _r = accelerate_dim(
+            p_v,
+            p_target,
+            p_accel,
+            p_reverse_accel,
+            p_friction,
+            p_friction_enabled,
+            p_dt,
+        );
         assert!(_r.is_finite());
     }
 
@@ -3472,7 +3473,8 @@ mod kani_private_proofs {
 
     #[kani::proof]
     fn kani_private_emKineticViewAnimator_is_active() {
-        let mut self_val = emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+        let mut self_val =
+            emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
         let _r = self_val.is_active();
     }
 
@@ -3496,7 +3498,8 @@ mod kani_private_proofs {
 
     #[kani::proof]
     fn kani_private_emKineticViewAnimator_stop() {
-        let mut self_val = emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+        let mut self_val =
+            emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
         let _r = self_val.stop();
     }
 
@@ -3520,7 +3523,8 @@ mod kani_private_proofs {
 
     #[kani::proof]
     fn kani_private_emKineticViewAnimator_update_busy_state() {
-        let mut self_val = emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+        let mut self_val =
+            emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
         let _r = self_val.update_busy_state();
     }
 

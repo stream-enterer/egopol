@@ -50,8 +50,8 @@ impl Interest {
     pub fn from_deprecated_bugged(s: &str) -> Self {
         let upper = s.to_ascii_uppercase();
         match upper.as_str() {
-            "LOW_INTEREST" => Self::High,      // C++ bug: swapped
-            "HIGH_INTEREST" => Self::Low,      // C++ bug: swapped
+            "LOW_INTEREST" => Self::High, // C++ bug: swapped
+            "HIGH_INTEREST" => Self::Low, // C++ bug: swapped
             "MEDIUM_INTEREST" => Self::Medium,
             _ => Self::Medium,
         }
@@ -500,8 +500,7 @@ impl StockRec {
             return;
         }
 
-        let mut i: i32 =
-            n - 1 + GetDateDifference(&self.last_price_date, date).0;
+        let mut i: i32 = n - 1 + GetDateDifference(&self.last_price_date, date).0;
 
         if i >= n {
             // Trim old prices from front if exceeding MAX_NUM_PRICES
@@ -794,9 +793,7 @@ impl PartialEq for StockRec {
 
 impl Record for StockRec {
     fn from_rec(rec: &RecStruct) -> Result<Self, RecError> {
-        let get_str = |name: &str| -> String {
-            rec.get_str(name).unwrap_or("").to_string()
-        };
+        let get_str = |name: &str| -> String { rec.get_str(name).unwrap_or("").to_string() };
 
         let interest = if let Some(ident) = rec.get_ident("Interest") {
             Interest::from_rec_ident(ident)
@@ -944,9 +941,7 @@ impl emStocksRec {
     pub fn GetLatestPricesDate(&self) -> String {
         let mut result = String::new();
         for stock in &self.stocks {
-            if result.is_empty()
-                || CompareDates(&stock.last_price_date, &result) > 0
-            {
+            if result.is_empty() || CompareDates(&stock.last_price_date, &result) > 0 {
                 result = stock.last_price_date.clone();
             }
         }
@@ -958,9 +953,7 @@ impl emStocksRec {
         let mut result = String::new();
         for stock in &self.stocks {
             let d = stock.GetPricesDateBefore(date);
-            if !d.is_empty()
-                && (result.is_empty() || CompareDates(&d, &result) > 0)
-            {
+            if !d.is_empty() && (result.is_empty() || CompareDates(&d, &result) > 0) {
                 result = d;
             }
         }
@@ -972,9 +965,7 @@ impl emStocksRec {
         let mut result = String::new();
         for stock in &self.stocks {
             let d = stock.GetPricesDateAfter(date);
-            if !d.is_empty()
-                && (result.is_empty() || CompareDates(&d, &result) < 0)
-            {
+            if !d.is_empty() && (result.is_empty() || CompareDates(&d, &result) < 0) {
                 result = d;
             }
         }

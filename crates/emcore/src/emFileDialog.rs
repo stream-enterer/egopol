@@ -254,8 +254,7 @@ impl emFileDialog {
                         // Create the overwrite confirmation dialog, matching
                         // C++ CheckFinish lines 186-197 (new emDialog, set
                         // title, add OK/Cancel buttons).
-                        let mut dlg =
-                            emDialog::new("File Exists", self.dialog.look().clone());
+                        let mut dlg = emDialog::new("File Exists", self.dialog.look().clone());
                         dlg.AddCustomButton("OK", DialogResult::Ok);
                         dlg.AddCustomButton("Cancel", DialogResult::Cancel);
                         self.overwrite_dialog = Some(dlg);

@@ -12,9 +12,9 @@ use std::rc::Rc;
 use winit::event_loop::ActiveEventLoop;
 
 use emcore::emContext::emContext;
-use emcore::emEngine::{emEngine, EngineCtx, EngineId, Priority};
+use emcore::emEngine::{EngineCtx, EngineId, Priority, emEngine};
 use emcore::emGUIFramework::App;
-use emcore::emInput::{emInputEvent, InputKey};
+use emcore::emInput::{InputKey, emInputEvent};
 use emcore::emInputHotkey::Hotkey;
 use emcore::emInputState::emInputState;
 use emcore::emPanelTree::PanelId;
@@ -121,9 +121,7 @@ impl emMainWindow {
     /// Port of C++ `emMainWindow::ReloadFiles`.
     /// Fires the global file-update signal so all listening file models reload.
     pub fn ReloadFiles(&self, app: &App) {
-        app.scheduler
-            .borrow_mut()
-            .fire(app.file_update_signal);
+        app.scheduler.borrow_mut().fire(app.file_update_signal);
     }
 
     /// Port of C++ `emMainWindow::ToggleControlView` (emMainWindow.cpp:144-158).
@@ -134,10 +132,9 @@ impl emMainWindow {
     /// toggles between ControlView.Activate() and ContentView.Activate().
     pub fn ToggleControlView(&mut self, app: &mut App) {
         if let Some(main_id) = self.main_panel_id {
-            app.tree
-                .with_behavior_as::<emMainPanel, _>(main_id, |mp| {
-                    mp.DoubleClickSlider();
-                });
+            app.tree.with_behavior_as::<emMainPanel, _>(main_id, |mp| {
+                mp.DoubleClickSlider();
+            });
             log::debug!("ToggleControlView");
         }
     }
@@ -182,7 +179,13 @@ impl emMainWindow {
                 let visit = view.current_visit();
                 let identity = app.tree.GetIdentity(visit.panel);
                 let adherent = view.IsActivationAdherent();
-                (Some(identity), visit.rel_x, visit.rel_y, visit.rel_a, adherent)
+                (
+                    Some(identity),
+                    visit.rel_x,
+                    visit.rel_y,
+                    visit.rel_a,
+                    adherent,
+                )
             } else {
                 (None, 0.0, 0.0, 0.0, false)
             };
@@ -232,54 +235,42 @@ impl emMainWindow {
         let handled = match event.key {
             // F4 no modifier: Duplicate window (C++ emMainWindow.cpp:205-208)
             InputKey::F4
-                if !input_state.GetShift()
-                    && !input_state.GetCtrl()
-                    && !input_state.GetAlt() =>
+                if !input_state.GetShift() && !input_state.GetCtrl() && !input_state.GetAlt() =>
             {
                 self.Duplicate(app);
                 true
             }
             // Alt+F4: Close (C++ emMainWindow.cpp:209-212)
             InputKey::F4
-                if !input_state.GetShift()
-                    && !input_state.GetCtrl()
-                    && input_state.GetAlt() =>
+                if !input_state.GetShift() && !input_state.GetCtrl() && input_state.GetAlt() =>
             {
                 self.Close();
                 true
             }
             // Shift+Alt+F4: Quit (C++ emMainWindow.cpp:213-216)
             InputKey::F4
-                if input_state.GetShift()
-                    && !input_state.GetCtrl()
-                    && input_state.GetAlt() =>
+                if input_state.GetShift() && !input_state.GetCtrl() && input_state.GetAlt() =>
             {
                 self.Quit(app);
                 true
             }
             // F5 no modifier: Reload (C++ emMainWindow.cpp:219-222)
             InputKey::F5
-                if !input_state.GetShift()
-                    && !input_state.GetCtrl()
-                    && !input_state.GetAlt() =>
+                if !input_state.GetShift() && !input_state.GetCtrl() && !input_state.GetAlt() =>
             {
                 self.ReloadFiles(app);
                 true
             }
             // F11 no modifier: Toggle fullscreen (C++ emMainWindow.cpp:225-228)
             InputKey::F11
-                if !input_state.GetShift()
-                    && !input_state.GetCtrl()
-                    && !input_state.GetAlt() =>
+                if !input_state.GetShift() && !input_state.GetCtrl() && !input_state.GetAlt() =>
             {
                 self.ToggleFullscreen(app);
                 true
             }
             // Escape no modifier: Toggle control view (C++ emMainWindow.cpp:230-237)
             InputKey::Escape
-                if !input_state.GetShift()
-                    && !input_state.GetCtrl()
-                    && !input_state.GetAlt() =>
+                if !input_state.GetShift() && !input_state.GetCtrl() && !input_state.GetAlt() =>
             {
                 self.ToggleControlView(app);
                 true
@@ -309,11 +300,7 @@ impl emMainWindow {
                 // identity-based navigation. Rust uses the visiting animator
                 // directly on the window. Full wiring requires identity-based
                 // Visit on emView (not yet ported).
-                log::info!(
-                    "Bookmark hotkey {}: visit {}",
-                    hotkey_str,
-                    rec.entry.Name
-                );
+                log::info!("Bookmark hotkey {}: visit {}", hotkey_str, rec.entry.Name);
                 return true;
             }
         }
@@ -338,9 +325,7 @@ pub fn with_main_window<F, R>(f: F) -> Option<R>
 where
     F: FnOnce(&mut emMainWindow) -> R,
 {
-    MAIN_WINDOW.with(|cell| {
-        cell.borrow_mut().as_mut().map(f)
-    })
+    MAIN_WINDOW.with(|cell| cell.borrow_mut().as_mut().map(f))
 }
 
 /// Engine for emMainWindow, matching C++ emMainWindow::Cycle()
@@ -500,31 +485,34 @@ impl emEngine for StartupEngine {
             // State 5: Create control panel directly in control sub-view's sub-tree
             // (C++ emMainWindow.cpp:407-415).
             5 => {
-                let ctrl_view_id = ctx.tree
+                let ctrl_view_id = ctx
+                    .tree
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.GetControlViewPanelId()
                     })
                     .flatten();
-                let content_view_id = ctx.tree
+                let content_view_id = ctx
+                    .tree
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.GetContentViewPanelId()
                     })
                     .flatten();
                 if let Some(ctrl_id) = ctrl_view_id {
                     let ctrl_ctx = Rc::clone(&self.context);
-                    ctx.tree.with_behavior_as::<emSubViewPanel, _>(ctrl_id, |svp| {
-                        let sub_tree = svp.sub_tree_mut();
-                        let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
-                        let child_id = sub_tree.create_child(sub_root, "ctrl");
-                        sub_tree.set_behavior(
-                            child_id,
-                            Box::new(emMainControlPanel::new(ctrl_ctx, content_view_id)),
-                        );
-                        // C++ control tallness matches the parent's control_tallness
-                        // C++ control panel fills the control view; tallness matches
-                        // ControlTallness (0.0538) set on emMainPanel.
-                        sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 0.0538);
-                    });
+                    ctx.tree
+                        .with_behavior_as::<emSubViewPanel, _>(ctrl_id, |svp| {
+                            let sub_tree = svp.sub_tree_mut();
+                            let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
+                            let child_id = sub_tree.create_child(sub_root, "ctrl");
+                            sub_tree.set_behavior(
+                                child_id,
+                                Box::new(emMainControlPanel::new(ctrl_ctx, content_view_id)),
+                            );
+                            // C++ control tallness matches the parent's control_tallness
+                            // C++ control panel fills the control view; tallness matches
+                            // ControlTallness (0.0538) set on emMainPanel.
+                            sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 0.0538);
+                        });
                 }
 
                 self.state += 1;
@@ -534,7 +522,8 @@ impl emEngine for StartupEngine {
             // State 6: Create content panel directly in content sub-view's sub-tree
             // (C++ emMainWindow.cpp:416-422).
             6 => {
-                let content_view_id = ctx.tree
+                let content_view_id = ctx
+                    .tree
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.GetContentViewPanelId()
                     })
@@ -544,33 +533,36 @@ impl emEngine for StartupEngine {
                     self.content_svp_id = Some(content_id);
                     let content_ctx = Rc::clone(&self.context);
                     let content_ctx2 = Rc::clone(&self.context);
-                    ctx.tree.with_behavior_as::<emSubViewPanel, _>(content_id, |svp| {
-                        let sub_tree = svp.sub_tree_mut();
-                        let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
-                        // C++ creates emMainContentPanel as the root panel
-                        // of the content view — set behavior on sub-tree root
-                        // directly (no extra child level).
-                        sub_tree.set_behavior(
-                            sub_root,
-                            Box::new(emMainContentPanel::new(content_ctx)),
-                        );
-                        // C++ emMainContentPanel constructor creates the
-                        // cosmos panel directly (not via AutoExpand). Do
-                        // the same here so the cosmos is permanent
-                        // (not marked created_by_ae) and won't be deleted
-                        // by AutoShrink.
-                        let cosmos_id = sub_tree.create_child(sub_root, "");
-                        sub_tree.set_behavior(
-                            cosmos_id,
-                            Box::new(crate::emVirtualCosmos::emVirtualCosmosPanel::new(content_ctx2)),
-                        );
-                        sub_tree.with_behavior_as::<emMainContentPanel, _>(sub_root, |mcp| {
-                            mcp.set_cosmos_panel(cosmos_id);
+                    ctx.tree
+                        .with_behavior_as::<emSubViewPanel, _>(content_id, |svp| {
+                            let sub_tree = svp.sub_tree_mut();
+                            let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
+                            // C++ creates emMainContentPanel as the root panel
+                            // of the content view — set behavior on sub-tree root
+                            // directly (no extra child level).
+                            sub_tree.set_behavior(
+                                sub_root,
+                                Box::new(emMainContentPanel::new(content_ctx)),
+                            );
+                            // C++ emMainContentPanel constructor creates the
+                            // cosmos panel directly (not via AutoExpand). Do
+                            // the same here so the cosmos is permanent
+                            // (not marked created_by_ae) and won't be deleted
+                            // by AutoShrink.
+                            let cosmos_id = sub_tree.create_child(sub_root, "");
+                            sub_tree.set_behavior(
+                                cosmos_id,
+                                Box::new(crate::emVirtualCosmos::emVirtualCosmosPanel::new(
+                                    content_ctx2,
+                                )),
+                            );
+                            sub_tree.with_behavior_as::<emMainContentPanel, _>(sub_root, |mcp| {
+                                mcp.set_cosmos_panel(cosmos_id);
+                            });
+                            // Re-fire init notices so the new behavior gets
+                            // notice + LayoutChildren calls.
+                            sub_tree.fire_init_notices(sub_root);
                         });
-                        // Re-fire init notices so the new behavior gets
-                        // notice + LayoutChildren calls.
-                        sub_tree.fire_init_notices(sub_root);
-                    });
                 }
 
                 self.state += 1;
@@ -583,13 +575,13 @@ impl emEngine for StartupEngine {
             7 => {
                 if let Some(svp_id) = self.content_svp_id {
                     use emcore::emViewAnimator::emVisitingViewAnimator;
-                    let mut animator =
-                        emVisitingViewAnimator::new(0.0, 0.0, 0.0, 1.0);
+                    let mut animator = emVisitingViewAnimator::new(0.0, 0.0, 0.0, 1.0);
                     animator.SetAnimated(false);
                     animator.SetGoalFullsized(":", false, false, "");
-                    ctx.tree.with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
-                        svp.active_animator = Some(Box::new(animator));
-                    });
+                    ctx.tree
+                        .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
+                            svp.active_animator = Some(Box::new(animator));
+                        });
                 }
                 self.clock = std::time::Instant::now();
                 self.state += 1;
@@ -599,10 +591,16 @@ impl emEngine for StartupEngine {
             // State 8: Wait up to 2s or until animator inactive
             // (C++ emMainWindow.cpp:433-438).
             8 => {
-                let still_active = self.content_svp_id
-                    .and_then(|id| ctx.tree.with_behavior_as::<emSubViewPanel, _>(id, |svp| {
-                        svp.active_animator.as_ref().map(|a| a.is_active()).unwrap_or(false)
-                    }))
+                let still_active = self
+                    .content_svp_id
+                    .and_then(|id| {
+                        ctx.tree.with_behavior_as::<emSubViewPanel, _>(id, |svp| {
+                            svp.active_animator
+                                .as_ref()
+                                .map(|a| a.is_active())
+                                .unwrap_or(false)
+                        })
+                    })
                     .unwrap_or(false);
                 if self.clock.elapsed().as_millis() < 2000 && still_active {
                     return true;
@@ -614,25 +612,25 @@ impl emEngine for StartupEngine {
             // (C++ emMainWindow.cpp:439-454).
             9 => {
                 if let Some(svp_id) = self.content_svp_id {
-                    ctx.tree.with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
-                        if let Some(ref mut anim) = svp.active_animator {
-                            anim.stop();
-                        }
-                        if self.visit_valid {
-                            use emcore::emViewAnimator::emVisitingViewAnimator;
-                            let mut animator =
-                                emVisitingViewAnimator::new(0.0, 0.0, 0.0, 1.0);
-                            animator.set_goal_rel(
-                                &self.visit_identity,
-                                self.visit_rel_x,
-                                self.visit_rel_y,
-                                self.visit_rel_a,
-                                self.visit_adherent,
-                                &self.visit_subject,
-                            );
-                            svp.active_animator = Some(Box::new(animator));
-                        }
-                    });
+                    ctx.tree
+                        .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
+                            if let Some(ref mut anim) = svp.active_animator {
+                                anim.stop();
+                            }
+                            if self.visit_valid {
+                                use emcore::emViewAnimator::emVisitingViewAnimator;
+                                let mut animator = emVisitingViewAnimator::new(0.0, 0.0, 0.0, 1.0);
+                                animator.set_goal_rel(
+                                    &self.visit_identity,
+                                    self.visit_rel_x,
+                                    self.visit_rel_y,
+                                    self.visit_rel_a,
+                                    self.visit_adherent,
+                                    &self.visit_subject,
+                                );
+                                svp.active_animator = Some(Box::new(animator));
+                            }
+                        });
                 }
                 self.clock = std::time::Instant::now();
                 self.state += 1;
@@ -642,10 +640,16 @@ impl emEngine for StartupEngine {
             // State 10: Wait up to 2s, then clean up overlay and animator
             // (C++ emMainWindow.cpp:455-465).
             10 => {
-                let still_active = self.content_svp_id
-                    .and_then(|id| ctx.tree.with_behavior_as::<emSubViewPanel, _>(id, |svp| {
-                        svp.active_animator.as_ref().map(|a| a.is_active()).unwrap_or(false)
-                    }))
+                let still_active = self
+                    .content_svp_id
+                    .and_then(|id| {
+                        ctx.tree.with_behavior_as::<emSubViewPanel, _>(id, |svp| {
+                            svp.active_animator
+                                .as_ref()
+                                .map(|a| a.is_active())
+                                .unwrap_or(false)
+                        })
+                    })
                     .unwrap_or(false);
                 if self.clock.elapsed().as_millis() < 2000 && still_active {
                     return true;
@@ -653,13 +657,15 @@ impl emEngine for StartupEngine {
                 // Clean up animator and zoom out on content sub-view.
                 // C++: VisitingVA.Reset(); ContentView.RawZoomOut();
                 if let Some(svp_id) = self.content_svp_id {
-                    ctx.tree.with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
-                        svp.active_animator = None;
-                        let (view, tree) = svp.view_and_tree_mut();
-                        view.RawZoomOut(tree);
-                    });
+                    ctx.tree
+                        .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
+                            svp.active_animator = None;
+                            let (view, tree) = svp.view_and_tree_mut();
+                            view.RawZoomOut(tree);
+                        });
                 }
-                let overlay_id = ctx.tree
+                let overlay_id = ctx
+                    .tree
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.SetStartupOverlay(false)
                     })
@@ -696,9 +702,10 @@ impl emEngine for StartupEngine {
                         self.visit_adherent,
                         &self.visit_subject,
                     );
-                    ctx.tree.with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
-                        svp.active_animator = Some(Box::new(animator));
-                    });
+                    ctx.tree
+                        .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
+                            svp.active_animator = Some(Box::new(animator));
+                        });
                 }
                 // Store startup_engine_id = None in main window to indicate startup is done.
                 with_main_window(|mw| {
@@ -804,8 +811,12 @@ pub fn create_main_window(
         .scheduler
         .borrow_mut()
         .register_engine(Priority::Low, Box::new(mw_engine));
-    app.scheduler.borrow_mut().connect(close_signal, mw_engine_id);
-    app.scheduler.borrow_mut().connect(title_signal, mw_engine_id);
+    app.scheduler
+        .borrow_mut()
+        .connect(close_signal, mw_engine_id);
+    app.scheduler
+        .borrow_mut()
+        .connect(title_signal, mw_engine_id);
 
     // Wire control panel signal + ControlPanelBridge.
     // The bridge reacts to control panel signal (active panel changes) and
@@ -1006,10 +1017,7 @@ fn RecreateContentPanels(app: &mut App) {
             // Create new content panel (C++ emMainWindow.cpp:303).
             let sub_tree = svp.sub_tree_mut();
             let child_id = sub_tree.create_child(sub_root, "");
-            sub_tree.set_behavior(
-                child_id,
-                Box::new(emMainContentPanel::new(ctx)),
-            );
+            sub_tree.set_behavior(child_id, Box::new(emMainContentPanel::new(ctx)));
             sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 1.0);
 
             // Restore visit (C++ emMainWindow.cpp:304).
