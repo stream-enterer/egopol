@@ -119,9 +119,6 @@ impl emFileLinkPanel {
                 let entry = emDirEntry::from_path(&self.full_path);
                 let panel = emDirEntryPanel::new(Rc::clone(&self.ctx), entry);
                 let child_id = ctx.create_child_with("", Box::new(panel));
-                // Register for cycling so content panel is created
-                // (C++ uses AutoExpand; Rust uses Cycle).
-                ctx.tree.Cycle(child_id);
                 self.child_panel = Some(child_id);
             } else {
                 let fppl = emcore::emFpPlugin::emFpPluginList::Acquire(&self.ctx);
@@ -129,6 +126,7 @@ impl emFileLinkPanel {
                 let parent_arg = emcore::emFpPlugin::PanelParentArg::new(Rc::clone(&self.ctx));
                 let behavior = fppl.CreateFilePanel(&parent_arg, "", &self.full_path, 0);
                 let child_id = ctx.create_child_with("", behavior);
+                ctx.tree.Cycle(child_id);
                 self.child_panel = Some(child_id);
             }
         }
@@ -162,19 +160,28 @@ impl emFileLinkPanel {
 }
 
 impl PanelBehavior for emFileLinkPanel {
-    fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
-        // Drive model loading and child creation.
-        if let Some(ref model_rc) = self.model {
-            let loaded = model_rc.borrow_mut().ensure_loaded();
-            if loaded && self.child_panel.is_none() {
-                // Force viewed=true so the child is created. Also set
-                // last_viewed to prevent LayoutChildren from deleting it.
-                self.last_viewed = true;
-                self.update_data_and_child_panel(ctx, true);
-            }
-        }
+    fn Cycle(&mut self, _ctx: &mut PanelCtx) -> bool {
         self.file_panel.refresh_vir_file_state();
         false
+    }
+
+    fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
+        // Port of C++ emFileLinkPanel::AutoExpand. Load the model
+        // synchronously (C++ uses emEngine; Rust loads here) and
+        // create the child panel.
+        if let Some(ref model_rc) = self.model {
+            let _ = model_rc.borrow_mut().ensure_loaded();
+        }
+        // Force viewed=true so update_data_and_child_panel creates
+        // the child. AutoExpand only runs when the panel is being
+        // viewed or sought, matching C++ semantics.
+        self.last_viewed = true;
+        self.update_data_and_child_panel(ctx, true);
+    }
+
+    fn AutoShrink(&mut self, _ctx: &mut PanelCtx) {
+        // Default AutoShrink deletes children with created_by_ae=true.
+        self.child_panel = None;
     }
 
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {

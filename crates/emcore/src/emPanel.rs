@@ -232,6 +232,26 @@ pub trait PanelBehavior: AsAny {
     /// Layout child panels. Called when the panel's layout rect changes.
     fn LayoutChildren(&mut self, _ctx: &mut PanelCtx) {}
 
+    /// Create child panels by auto-expansion.
+    ///
+    /// Port of C++ `emPanel::AutoExpand`. Called when the view condition
+    /// reaches a threshold value OR the panel is the seek target. Panels
+    /// that dynamically create children based on view condition should
+    /// override this. The default implementation does nothing.
+    ///
+    /// Children created inside this call are marked `CreatedByAE` and
+    /// will be deleted by the default `AutoShrink` when the view
+    /// condition falls below threshold.
+    fn AutoExpand(&mut self, _ctx: &mut PanelCtx) {}
+
+    /// Delete child panels created by auto-expansion.
+    ///
+    /// Port of C++ `emPanel::AutoShrink`. The default behavior deletes
+    /// all children with `created_by_ae=true` (handled by the panel
+    /// tree, not here). Panels only need to override this to reset
+    /// panel pointer variables after children are deleted.
+    fn AutoShrink(&mut self, _ctx: &mut PanelCtx) {}
+
     /// Receive a notice about state changes.
     fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState) {}
 

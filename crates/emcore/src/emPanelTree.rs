@@ -184,6 +184,9 @@ pub(crate) struct PanelData {
     pub(crate) ae_decision_invalid: bool,
     /// True if this panel was created during auto-expansion (C++ `CreatedByAE`).
     pub(crate) created_by_ae: bool,
+    /// True while AutoExpand() is being called on this panel (C++ `AECalling`).
+    /// Used to mark newly created children with `created_by_ae=true`.
+    pub(crate) ae_calling: bool,
 
     // Viewing state (set by emView::update_viewing each frame)
     pub(crate) viewed: bool,
@@ -224,6 +227,7 @@ impl PanelData {
             ae_invalid: false,
             ae_decision_invalid: false,
             created_by_ae: false,
+            ae_calling: false,
             viewed: false,
             in_viewed_path: false,
             in_active_path: false,
@@ -272,6 +276,10 @@ impl PanelTree {
     /// All notice flags that C++ fires on a newly created panel so its behavior
     /// sees every state dimension on first notice delivery. Matches C++ emPanel
     /// constructor which sets all NF_* bits.
+    // C++ emPanel constructor fires all NF_* flags including
+    // NF_VIEWING_CHANGED so that AutoExpand can trigger on panels
+    // that start viewed (e.g., root panels, panels created during
+    // seek-descent).
     const INIT_NOTICE_FLAGS: NoticeFlags = NoticeFlags::LAYOUT_CHANGED
         .union(NoticeFlags::FOCUS_CHANGED)
         .union(NoticeFlags::VISIBILITY)
@@ -281,7 +289,8 @@ impl PanelTree {
         .union(NoticeFlags::ACTIVE_CHANGED)
         .union(NoticeFlags::VIEW_FOCUS_CHANGED)
         .union(NoticeFlags::UPDATE_PRIORITY_CHANGED)
-        .union(NoticeFlags::MEMORY_LIMIT_CHANGED);
+        .union(NoticeFlags::MEMORY_LIMIT_CHANGED)
+        .union(NoticeFlags::VIEW_CHANGED);
 
     /// Create the root panel.
     ///
@@ -293,8 +302,11 @@ impl PanelTree {
             "create_root called but root panel already exists"
         );
         let id = self.panels.insert(PanelData::new(name.to_string()));
-        // Root uses its own id as the parent key
-        self.name_index.insert((id, name.to_string()), id);
+        // Note: root is NOT inserted in name_index under its own key.
+        // Previously it was (self-indexed) which caused find_child_by_name
+        // to return the root itself for name="" lookups, breaking identity
+        // path resolution like "::FS::..." where the first "" after the
+        // initial ":" is meant to be a child of root, not root itself.
         self.root = Some(id);
         // C++ fires all NF_* flags on new panels as initialization notices
         self.panels[id].pending_notices = Self::INIT_NOTICE_FLAGS;
@@ -304,11 +316,15 @@ impl PanelTree {
 
     /// Create a child panel under the given parent.
     pub fn create_child(&mut self, parent: PanelId, name: &str) -> PanelId {
+        // C++ emPanel ctor: CreatedByAE = Parent->AECalling
+        let created_by_ae = self.panels[parent].ae_calling;
+
         let id = self.panels.insert(PanelData::new(name.to_string()));
         self.name_index.insert((parent, name.to_string()), id);
 
         // Link into parent's child list
         self.panels[id].parent = Some(parent);
+        self.panels[id].created_by_ae = created_by_ae;
 
         let prev_last = self.panels[parent].last_child;
         if let Some(prev) = prev_last {
@@ -992,7 +1008,15 @@ impl PanelTree {
     pub fn set_behavior(&mut self, id: PanelId, behavior: Box<dyn PanelBehavior>) {
         if let Some(panel) = self.panels.get_mut(id) {
             panel.behavior = Some(behavior);
+            // Behavior installed on an existing panel means its AE
+            // decision could now change (e.g., sub-tree root gets
+            // emMainContentPanel behavior). Force re-evaluation.
+            panel.ae_decision_invalid = true;
         }
+    }
+
+    pub fn has_behavior(&self, id: PanelId) -> bool {
+        self.panels.get(id).and_then(|p| p.behavior.as_ref()).is_some()
     }
 
     /// Re-fire initialization notices on a panel (e.g., after setting

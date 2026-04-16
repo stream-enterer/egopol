@@ -398,9 +398,15 @@ impl emView {
             self.seek_pos_panel = panel;
             self.seek_pos_child_name = child_name.to_string();
 
-            // Notify new panel that sought name is set
+            // Notify new panel that sought name is set. Queue
+            // ae_decision_invalid so the next update_auto_expansion
+            // checks if this panel should now expand (C++ AutoExpand
+            // triggers when View.SeekPosPanel==this).
             if let Some(new_id) = self.seek_pos_panel {
                 tree.queue_notice(new_id, super::emPanel::NoticeFlags::SOUGHT_NAME_CHANGED);
+                if let Some(p) = tree.get_mut(new_id) {
+                    p.ae_decision_invalid = true;
+                }
             }
         } else if panel.is_some() && self.seek_pos_child_name != child_name {
             self.seek_pos_child_name = child_name.to_string();
@@ -1298,7 +1304,38 @@ impl emView {
     /// `update_viewing()` after all viewed coordinates are computed.
     fn update_auto_expansion(&self, tree: &mut PanelTree) {
         let panel_ids = tree.all_ids();
+        let seek_pos = self.seek_pos_panel;
 
+        // First pass: mark panels whose AE decision might have changed.
+        // C++ emPanel::HandleNotice does this on NF_VIEWING_CHANGED /
+        // NF_SOUGHT_NAME_CHANGED:
+        //   if (SeekPos==this || GetViewCondition()>=threshold) {
+        //     if (!AEExpanded) AEDecisionInvalid=1;
+        //   } else {
+        //     if (AEExpanded) AEDecisionInvalid=1;
+        //   }
+        for &id in &panel_ids {
+            let (threshold_value, threshold_type, currently_expanded) = {
+                let Some(panel) = tree.GetRec(id) else {
+                    continue;
+                };
+                (
+                    panel.ae_threshold_value,
+                    panel.ae_threshold_type,
+                    panel.ae_expanded,
+                )
+            };
+            let is_seek_target = seek_pos == Some(id);
+            let vc = tree.GetViewCondition(id, threshold_type);
+            let would_expand = is_seek_target || vc >= threshold_value;
+            if would_expand != currently_expanded {
+                if let Some(p) = tree.get_mut(id) {
+                    p.ae_decision_invalid = true;
+                }
+            }
+        }
+
+        // Second pass: process panels with ae_decision_invalid set.
         for id in panel_ids {
             let (threshold_value, threshold_type, currently_expanded, decision_invalid) = {
                 let Some(panel) = tree.GetRec(id) else {
@@ -1312,24 +1349,44 @@ impl emView {
                 )
             };
 
-            // Skip panels with no threshold set (default 0.0 with default auto_expand() = false)
-            // A panel must have explicitly set a threshold > 0.0 to participate
-            if threshold_value <= 0.0 && !currently_expanded {
+            // Only re-evaluate if decision_invalid is set (C++ AE only
+            // runs via HandleNotice when AEDecisionInvalid is set).
+            if !decision_invalid {
                 continue;
             }
 
+            let is_seek_target = seek_pos == Some(id);
             let vc = tree.GetViewCondition(id, threshold_type);
-            let should_expand = vc >= threshold_value;
+            let should_expand = is_seek_target || vc >= threshold_value;
 
             if should_expand && !currently_expanded {
-                // Expand: set flag and create children directly via layout_children.
-                // This matches C++ where AutoExpand() creates children, then a
-                // subsequent HandleNotice pass calls LayoutChildren() to position them.
+                // Skip panels with no behavior (e.g., sub-tree root
+                // before behavior is set). ae_decision_invalid stays
+                // true so we retry when behavior is installed.
+                if !tree.has_behavior(id) {
+                    continue;
+                }
+                // C++ HandleNotice: AEExpanded=1; AECalling=1; AutoExpand();
+                // AECalling=0
                 if let Some(panel) = tree.get_mut(id) {
                     panel.ae_expanded = true;
                     panel.ae_decision_invalid = false;
                     panel.ae_invalid = false;
+                    panel.ae_calling = true;
                 }
+                if let Some(mut behavior) = tree.take_behavior(id) {
+                    let mut ctx = PanelCtx::new(tree, id);
+                    behavior.AutoExpand(&mut ctx);
+                    if tree.contains(id) {
+                        tree.put_behavior(id, behavior);
+                    }
+                }
+                if let Some(panel) = tree.get_mut(id) {
+                    panel.ae_calling = false;
+                }
+                // Also call LayoutChildren to position newly created children
+                // (and for widgets that still use the unified child-creation
+                // pattern with `IsAutoExpanded && child_count==0`).
                 if let Some(mut behavior) = tree.take_behavior(id) {
                     let mut ctx = PanelCtx::new(tree, id);
                     behavior.LayoutChildren(&mut ctx);
@@ -1340,8 +1397,23 @@ impl emView {
                 // Queue LAYOUT_CHANGED so deliver_notices repositions children
                 tree.queue_notice(id, super::emPanel::NoticeFlags::LAYOUT_CHANGED);
             } else if !should_expand && currently_expanded {
-                // Shrink: delete children and clear flag
-                tree.DeleteAllChildren(id);
+                // C++ HandleNotice: AEExpanded=0; AutoShrink()
+                // Default AutoShrink deletes children with created_by_ae=true
+                if let Some(mut behavior) = tree.take_behavior(id) {
+                    let mut ctx = PanelCtx::new(tree, id);
+                    behavior.AutoShrink(&mut ctx);
+                    if tree.contains(id) {
+                        tree.put_behavior(id, behavior);
+                    }
+                }
+                // Default C++ AutoShrink: delete AE-created children
+                let ae_children: Vec<PanelId> = tree
+                    .children(id)
+                    .filter(|&cid| tree.GetRec(cid).map(|p| p.created_by_ae).unwrap_or(false))
+                    .collect();
+                for cid in ae_children {
+                    tree.remove(cid);
+                }
                 if let Some(panel) = tree.get_mut(id) {
                     panel.ae_expanded = false;
                     panel.ae_decision_invalid = false;

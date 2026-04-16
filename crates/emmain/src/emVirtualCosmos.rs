@@ -578,69 +578,48 @@ impl PanelBehavior for emVirtualCosmosItemPanel {
             && (rec.BorderColor.IsOpaque() || rec.BorderScaling <= 1e-200)
     }
 
-    fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
-        // C++ creates content panel in AutoExpand. Rust notice() lacks
-        // PanelCtx, so we create in Cycle (runs via run_panel_cycles).
-        if !self.update_needed {
-            return false;
-        }
-        self.update_needed = false;
-
+    fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
+        // Port of C++ emVirtualCosmosItemPanel::AutoExpand — creates
+        // the content panel via the file plugin system.
         let Some(rec) = &self.item_rec else {
-            return false;
+            return;
         };
-
         let (l, t, r, b) = self.CalcBorders();
         let content_w = 1.0 - l - r;
         let content_h = content_w * rec.ContentTallness;
         let total_h = content_h + t + b;
-
         if total_h < 1e-100 || content_w < 1e-100 {
-            return false;
+            return;
         }
-
-        // If path changed, destroy old content panel.
-        if let Some(child) = self.content_panel.take() {
-            ctx.delete_child(child);
+        if self.path.is_empty() || self.content_panel.is_some() {
+            return;
         }
+        let stat_mode = match std::fs::metadata(&self.path) {
+            Ok(m) if m.is_dir() => FileStatMode::Directory,
+            _ => FileStatMode::Regular,
+        };
+        let fppl = emFpPluginList::Acquire(&self.ctx);
+        let fppl = fppl.borrow();
+        let parent_arg = PanelParentArg::new(Rc::clone(&self.ctx));
+        let behavior = fppl.CreateFilePanelWithStat(
+            &parent_arg,
+            "content",
+            &self.path,
+            None,
+            stat_mode,
+            self.alt as usize,
+        );
+        // C++ uses name "" for the content panel (matches identity path).
+        let child_id = ctx.create_child_with("", behavior);
+        // Register for cycling so the file panel drives its model loading.
+        ctx.tree.Cycle(child_id);
+        self.content_panel = Some(child_id);
+    }
 
-        // Auto-expand: create content panel if path is set.
-        if !self.path.is_empty() {
-            let stat_mode = {
-                match std::fs::metadata(&self.path) {
-                    Ok(m) if m.is_dir() => FileStatMode::Directory,
-                    _ => FileStatMode::Regular,
-                }
-            };
-            let fppl = emFpPluginList::Acquire(&self.ctx);
-            let fppl = fppl.borrow();
-            let parent_arg = PanelParentArg::new(Rc::clone(&self.ctx));
-            let behavior = fppl.CreateFilePanelWithStat(
-                &parent_arg,
-                "content",
-                &self.path,
-                None,
-                stat_mode,
-                self.alt as usize,
-            );
-            // C++ uses name "" for the content panel (matches identity path).
-            let child_id = ctx.create_child_with("", behavior);
-            // Register for cycling so the content panel loads its model.
-            ctx.tree.Cycle(child_id);
-            self.content_panel = Some(child_id);
-        }
-
-        // Layout content panel within border.
-        if let Some(child) = self.content_panel {
-            let canvas = self
-                .item_rec
-                .as_ref()
-                .map(|r| r.BackgroundColor)
-                .unwrap_or(emColor::TRANSPARENT);
-            ctx.layout_child_canvas(child, l, t, content_w, content_h, canvas);
-        }
-
-        false
+    fn AutoShrink(&mut self, _ctx: &mut PanelCtx) {
+        // Default AutoShrink deletes children with created_by_ae=true.
+        // Clear our reference since the panel will be deleted.
+        self.content_panel = None;
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
@@ -780,11 +759,7 @@ impl emVirtualCosmosPanel {
             } else {
                 let mut item_panel = emVirtualCosmosItemPanel::new(Rc::clone(&self.ctx));
                 item_panel.SetItemRec(rec.clone());
-                let id = ctx.create_child_with(&child_name, Box::new(item_panel));
-                // Register for cycling so Cycle() creates content panel
-                // (C++ AutoExpand; Rust uses Cycle).
-                ctx.tree.Cycle(id);
-                id
+                ctx.create_child_with(&child_name, Box::new(item_panel))
             };
 
             new_item_panels.push((rec.Name.clone(), child_id));
@@ -831,21 +806,29 @@ impl PanelBehavior for emVirtualCosmosPanel {
     }
 
     fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
-        // C++ creates/updates children in Notice(NF_VIEWING_CHANGED) via
-        // UpdateChildren(). Rust notice() lacks PanelCtx, so we do it in
-        // Cycle which runs each frame via run_panel_cycles.
-        if !self.needs_update {
-            return false;
+        // C++ emVirtualCosmosPanel::Cycle polls model change signal and
+        // calls UpdateChildren on change. We drain the notice flag here.
+        if self.needs_update {
+            self.needs_update = false;
+            self.update_children(ctx);
         }
-        self.needs_update = false;
-        self.update_children(ctx);
         false
     }
 
     fn notice(&mut self, flags: NoticeFlags, _state: &PanelState) {
-        if flags.intersects(NoticeFlags::VIEW_CHANGED | NoticeFlags::LAYOUT_CHANGED) {
+        // C++ Notice(NF_VIEWING_CHANGED) calls UpdateChildren. We defer
+        // to Cycle since notice() has no PanelCtx.
+        if flags.intersects(NoticeFlags::VIEW_CHANGED) {
             self.needs_update = true;
         }
+    }
+
+    fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
+        // C++ emVirtualCosmosPanel doesn't override AutoExpand — it
+        // creates children in Notice(NF_VIEWING_CHANGED) via
+        // UpdateChildren. We hook AutoExpand to eagerly create items
+        // when the panel becomes viewed, matching the C++ behavior.
+        self.update_children(ctx);
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
