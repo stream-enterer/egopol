@@ -1095,150 +1095,6 @@ impl PanelTree {
         }
     }
 
-    /// Port of C++ `emPanel::UpdateChildrenViewing()` (emPanel.cpp:1454–1520).
-    ///
-    /// Propagates the viewing state of `id` down to all its direct children,
-    /// computing each child's `viewed_x/y/width/height` and clip rect from the
-    /// parent's coordinates, then queuing `VIEW_CHANGED` on any child whose
-    /// viewed state changes. Recurses into viewed children.
-    ///
-    /// Called from `Layout()` when a panel's layout changes and the parent is
-    /// viewed, and from `SetRootViewing()` when the root's view coords change.
-    pub(crate) fn update_children_viewing(&mut self, id: PanelId) {
-        let (viewed, pvx, pvy, pvw, pcx1, pcy1, pcx2, pcy2, pt) = {
-            let Some(p) = self.panels.get(id) else {
-                return;
-            };
-            (
-                p.viewed,
-                p.viewed_x,
-                p.viewed_y,
-                p.viewed_width,
-                p.clip_x,
-                p.clip_y,
-                p.clip_x + p.clip_w,
-                p.clip_y + p.clip_h,
-                self.current_pixel_tallness,
-            )
-        };
-
-        let children: Vec<PanelId> = self.children(id).collect();
-
-        if !viewed {
-            // C++ emPanel.cpp:1461–1473: if parent not viewed, clear InViewedPath
-            // on any child that was in the viewed path.
-            for child_id in children {
-                let (was_ivp, has_children) = {
-                    let Some(cp) = self.panels.get(child_id) else {
-                        continue;
-                    };
-                    (cp.in_viewed_path, cp.first_child.is_some())
-                };
-                if was_ivp {
-                    if let Some(cp) = self.panels.get_mut(child_id) {
-                        cp.viewed = false;
-                        cp.in_viewed_path = false;
-                    }
-                    self.panels[child_id].pending_notices.insert(
-                        NoticeFlags::VIEW_CHANGED
-                            | NoticeFlags::UPDATE_PRIORITY_CHANGED
-                            | NoticeFlags::MEMORY_LIMIT_CHANGED,
-                    );
-                    self.has_pending_notices = true;
-                    self.add_to_notice_list(child_id);
-                    if has_children {
-                        self.update_children_viewing(child_id);
-                    }
-                }
-            }
-        } else {
-            // C++ emPanel.cpp:1476–1515: parent is viewed; compute each child's coords.
-            for child_id in children {
-                let (lx, ly, lw, lh, was_ivp, has_children) = {
-                    let Some(cp) = self.panels.get(child_id) else {
-                        continue;
-                    };
-                    let lr = cp.layout_rect;
-                    (
-                        lr.x,
-                        lr.y,
-                        lr.w,
-                        lr.h,
-                        cp.in_viewed_path,
-                        cp.first_child.is_some(),
-                    )
-                };
-
-                let cx = pvx + lx * pvw;
-                let cy = pvy + ly * (pvw / pt);
-                let cw = lw * pvw;
-                let ch = lh * (pvw / pt);
-
-                let mut cx1 = cx;
-                let mut cx2 = cx + cw;
-                let mut cy1 = cy;
-                let mut cy2 = cy + ch;
-                if cx1 < pcx1 {
-                    cx1 = pcx1;
-                }
-                if cx2 > pcx2 {
-                    cx2 = pcx2;
-                }
-                if cy1 < pcy1 {
-                    cy1 = pcy1;
-                }
-                if cy2 > pcy2 {
-                    cy2 = pcy2;
-                }
-
-                if let Some(cp) = self.panels.get_mut(child_id) {
-                    cp.viewed_x = cx;
-                    cp.viewed_y = cy;
-                    cp.viewed_width = cw;
-                    cp.viewed_height = ch;
-                    cp.clip_x = cx1;
-                    cp.clip_y = cy1;
-                    cp.clip_w = (cx2 - cx1).max(0.0);
-                    cp.clip_h = (cy2 - cy1).max(0.0);
-                }
-
-                if cx1 < cx2 && cy1 < cy2 {
-                    // Child is within clip — viewed.
-                    if let Some(cp) = self.panels.get_mut(child_id) {
-                        cp.viewed = true;
-                        cp.in_viewed_path = true;
-                    }
-                    self.panels[child_id].pending_notices.insert(
-                        NoticeFlags::VIEW_CHANGED
-                            | NoticeFlags::UPDATE_PRIORITY_CHANGED
-                            | NoticeFlags::MEMORY_LIMIT_CHANGED,
-                    );
-                    self.has_pending_notices = true;
-                    self.add_to_notice_list(child_id);
-                    if has_children {
-                        self.update_children_viewing(child_id);
-                    }
-                } else if was_ivp {
-                    // Child was in viewed path but is now outside clip.
-                    if let Some(cp) = self.panels.get_mut(child_id) {
-                        cp.viewed = false;
-                        cp.in_viewed_path = false;
-                    }
-                    self.panels[child_id].pending_notices.insert(
-                        NoticeFlags::VIEW_CHANGED
-                            | NoticeFlags::UPDATE_PRIORITY_CHANGED
-                            | NoticeFlags::MEMORY_LIMIT_CHANGED,
-                    );
-                    self.has_pending_notices = true;
-                    self.add_to_notice_list(child_id);
-                    if has_children {
-                        self.update_children_viewing(child_id);
-                    }
-                }
-            }
-        }
-    }
-
     /// Set the layout rectangle for a panel.
     ///
     /// Port of C++ `emPanel::Layout(x,y,w,h,canvasColor)` (emPanel.cpp:490–640).
@@ -1350,7 +1206,7 @@ impl PanelTree {
             self.has_pending_notices = true;
             self.add_to_notice_list(id);
             // Propagate to children (C++ emPanel.cpp:591: UpdateChildrenViewing()).
-            self.update_children_viewing(id);
+            self.UpdateChildrenViewing(id);
         } else {
             // Panel is outside clip. Clear viewed state if it was in viewed path.
             let was_in_viewed_path = self
@@ -1372,7 +1228,7 @@ impl PanelTree {
                 );
                 self.has_pending_notices = true;
                 self.add_to_notice_list(id);
-                self.update_children_viewing(id);
+                self.UpdateChildrenViewing(id);
             }
         }
     }
@@ -2589,7 +2445,7 @@ impl PanelTree {
         while let Some(c) = child_opt {
             let next = self.GetNext(c);
 
-            let (cx, cy, cw, ch, clip_x, clip_y, clip_w, clip_h, became_viewed, was_in_path) = {
+            let (is_viewed_now, was_in_path) = {
                 let cp = match self.panels.get_mut(c) {
                     Some(cp) => cp,
                     None => {
@@ -2629,21 +2485,10 @@ impl PanelTree {
                     cp.in_viewed_path = false;
                     cp.viewed = false;
                 }
-                (vx, vy, vw, vh, x1, y1, x2 - x1, y2 - y1, non_empty, was_in_path)
+                (non_empty, was_in_path)
             };
-            let _ = (cx, cy, cw, ch, clip_x, clip_y, clip_w, clip_h);
 
-            if became_viewed {
-                self.queue_notice(
-                    c,
-                    NoticeFlags::VIEW_CHANGED
-                        | NoticeFlags::UPDATE_PRIORITY_CHANGED
-                        | NoticeFlags::MEMORY_LIMIT_CHANGED,
-                );
-                if self.GetFirstChild(c).is_some() {
-                    self.UpdateChildrenViewing(c);
-                }
-            } else if was_in_path {
+            if is_viewed_now || was_in_path {
                 self.queue_notice(
                     c,
                     NoticeFlags::VIEW_CHANGED

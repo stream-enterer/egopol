@@ -59,6 +59,12 @@ impl emCursor {
     }
 }
 
+impl fmt::Display for emCursor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.emInputKeyToString())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,11 +73,5 @@ mod tests {
     fn test_get_returns_self() {
         let c = emCursor::Hand;
         assert_eq!(c.Get(), emCursor::Hand);
-    }
-}
-
-impl fmt::Display for emCursor {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.emInputKeyToString())
     }
 }

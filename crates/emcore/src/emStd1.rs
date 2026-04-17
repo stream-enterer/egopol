@@ -61,6 +61,23 @@ macro_rules! dlog {
     };
 }
 
+/// Global flag: whether fatal errors should be displayed graphically.
+static FATAL_ERROR_GRAPHICAL: AtomicBool = AtomicBool::new(false);
+
+/// Enable or disable graphical display of fatal errors.
+///
+/// Matches C++ emSetFatalErrorGraphical. When enabled, a future fatal-error
+/// handler could show a dialog instead of just logging to stderr.
+/// Currently only stores the flag; no graphical dialog is implemented yet.
+pub fn emSetFatalErrorGraphical(enable: bool) {
+    FATAL_ERROR_GRAPHICAL.store(enable, Ordering::Relaxed);
+}
+
+/// Query whether fatal errors should be displayed graphically.
+pub fn is_fatal_error_graphical() -> bool {
+    FATAL_ERROR_GRAPHICAL.load(Ordering::Relaxed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,21 +116,4 @@ mod tests {
         assert!(lines[0].contains("captured line 1"));
         assert!(lines[1].contains("captured line 2"));
     }
-}
-
-/// Global flag: whether fatal errors should be displayed graphically.
-static FATAL_ERROR_GRAPHICAL: AtomicBool = AtomicBool::new(false);
-
-/// Enable or disable graphical display of fatal errors.
-///
-/// Matches C++ emSetFatalErrorGraphical. When enabled, a future fatal-error
-/// handler could show a dialog instead of just logging to stderr.
-/// Currently only stores the flag; no graphical dialog is implemented yet.
-pub fn emSetFatalErrorGraphical(enable: bool) {
-    FATAL_ERROR_GRAPHICAL.store(enable, Ordering::Relaxed);
-}
-
-/// Query whether fatal errors should be displayed graphically.
-pub fn is_fatal_error_graphical() -> bool {
-    FATAL_ERROR_GRAPHICAL.load(Ordering::Relaxed)
 }
