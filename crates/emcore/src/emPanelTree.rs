@@ -190,15 +190,6 @@ pub(crate) struct PanelData {
 
     // Viewing state (set by emView::update_viewing each frame)
     pub(crate) viewed: bool,
-    /// Snapshot of `viewed` taken at the start of each UpdateViewing pass
-    /// (in `clear_viewing_flags`), so that `compute_viewed_recursive` can
-    /// detect real `viewed` transitions and fire `VIEW_CHANGED` notices only
-    /// on actual state changes. Without this snapshot, `clear_viewing_flags`
-    /// would set `viewed = false` every frame and every still-viewed panel
-    /// would look like it just transitioned. This is Rust-specific machinery:
-    /// C++ `emView::RawVisitAbs` mutates viewing state surgically without
-    /// ever resetting it, so there is no equivalent field on C++ `emPanel`.
-    pub(crate) prev_viewed: bool,
     pub(crate) in_viewed_path: bool,
     pub(crate) in_active_path: bool,
     pub(crate) is_active: bool,
@@ -250,7 +241,6 @@ impl PanelData {
             created_by_ae: false,
             ae_calling: false,
             viewed: false,
-            prev_viewed: false,
             in_viewed_path: false,
             in_active_path: false,
             is_active: false,
@@ -2352,30 +2342,6 @@ impl PanelTree {
                     }
                 }
             }
-        }
-    }
-
-    /// Clear all viewing flags on all panels.
-    ///
-    /// Snapshots `viewed` into `prev_viewed` before clearing, so
-    /// `compute_viewed_recursive` can detect real viewing transitions and
-    /// fire `VIEW_CHANGED` notices only when a panel's viewed state actually
-    /// changes across this UpdateViewing pass.
-    pub fn clear_viewing_flags(&mut self) {
-        for (_, panel) in self.panels.iter_mut() {
-            panel.prev_viewed = panel.viewed;
-            panel.viewed = false;
-            panel.in_viewed_path = false;
-            panel.in_active_path = false;
-            panel.is_active = false;
-            panel.viewed_x = 0.0;
-            panel.viewed_y = 0.0;
-            panel.viewed_width = 0.0;
-            panel.viewed_height = 0.0;
-            panel.clip_x = 0.0;
-            panel.clip_y = 0.0;
-            panel.clip_w = 0.0;
-            panel.clip_h = 0.0;
         }
     }
 

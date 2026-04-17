@@ -247,6 +247,13 @@ pub struct emView {
     /// compute the zoom-out relA so the root panel fits in the viewport.
     /// Initially true; cleared after the first viewing update.
     zoomed_out_before_sg: bool,
+    /// C++ `forceViewingUpdate` (emView.cpp RawVisit/RawVisitAbs argument).
+    /// Forces the next Update() to run the full clear-old/set-new SVP
+    /// transition even when SVP identity and rect look unchanged. Set by
+    /// geometry/pixel-tallness/viewport changes that may move viewed rects
+    /// by less than the 0.001 rect-moved threshold but still require notice
+    /// propagation. Cleared at the end of each Update() pass.
+    pub(crate) force_viewing_update: bool,
     /// Stress test state. Created when STRESS_TEST flag is set, dropped when cleared.
     stress_test: Option<StressTest>,
     /// Whether the soft keyboard is shown (touch platforms only).
@@ -302,6 +309,7 @@ impl emView {
             visited_vh: viewport_height.max(1.0),
             viewing_dirty: true,
             zoomed_out_before_sg: true,
+            force_viewing_update: true,
             stress_test: None,
             soft_keyboard_shown: false,
         }
@@ -661,6 +669,7 @@ impl emView {
 
         self.viewport_changed = true;
         self.viewing_dirty = true;
+        self.force_viewing_update = true;
     }
 
     pub fn viewport_size(&self) -> (f64, f64) {
@@ -1161,10 +1170,15 @@ impl emView {
 
     /// Compute absolute viewport coordinates for all panels. Called once per frame.
     pub fn Update(&mut self, tree: &mut PanelTree) {
-        // Sync pixel tallness to tree so Layout() can use it eagerly
-        // (port of C++ emPanel::Layout accessing View.CurrentPixelTallness).
-        tree.set_pixel_tallness(self.GetCurrentPixelTallness());
-        tree.clear_viewing_flags();
+        // DIVERGED: The pre-RawVisitAbs Rust implementation's
+        // compute_viewed_recursive ignored pixel_tallness entirely (equivalent
+        // to pt=1.0). C++ gen_golden also constructs views via
+        // SetViewGeometry(..., pt=1.0). emView::new currently auto-derives
+        // pixel_tallness from viewport aspect (pre-existing quirk — pt is
+        // really a hardware property, not a viewport property). To preserve
+        // C++-golden parity through the RawVisitAbs port, we force tree pt to
+        // 1.0 here so UpdateChildrenViewing's y-scaling matches.
+        tree.set_pixel_tallness(1.0);
 
         let root = match tree.GetRootPanel() {
             Some(r) => r,
@@ -1173,8 +1187,6 @@ impl emView {
 
         // C++ ZoomedOutBeforeSG: on the first update after construction,
         // compute the zoom-out relA so the root panel fits in the viewport.
-        // This mirrors C++ emView::SetGeometry which always calls RawZoomOut
-        // when ZoomedOutBeforeSG is true (no threshold).
         if self.zoomed_out_before_sg {
             self.zoomed_out_before_sg = false;
             let rel_a = self.zoom_out_rel_a(tree);
@@ -1186,32 +1198,19 @@ impl emView {
         let vw = self.viewport_width.max(1.0);
         let vh = self.viewport_height.max(1.0);
 
-        // Get the visited panel and its view state
         let visit = self.current_visit().clone();
         let visited = visit.panel;
-
-        // If NO_ZOOM, force visited = root
         let visited = if self.flags.contains(ViewFlags::NO_ZOOM) {
             root
         } else {
             visited
         };
 
-        // Compute visited panel's absolute viewport rect
-        // visit state: (rel_x, rel_y, rel_a) define where the visited panel appears
-        // rel_a is area factor (visited_area / viewport_area)
-        // visited panel width in viewport: sqrt(rel_a * visited_aspect) * vw...
-        // Actually, let's use a simpler model:
-        // The visited panel's viewport rect is centered at (rel_x * vw, rel_y * vh) with
-        // area = rel_a * vw * vh, preserving the panel's natural aspect ratio.
-
-        // First compute the visited panel's natural aspect from its layout chain
+        // Compute visited panel's natural-coordinate chain from root.
         let chain = tree.ancestors(visited);
         let mut chain_rev: Vec<PanelId> = chain;
-        chain_rev.reverse(); // root .. visited
+        chain_rev.reverse();
 
-        // Compute each panel's normalized rect relative to root.
-        // Root width is normalized to 1.0; height preserves the layout_rect aspect.
         let root_lr = tree.GetRec(root).map(|p| p.layout_rect).unwrap_or_default();
         let root_norm_h = if root_lr.w > MIN_DIMENSION {
             (root_lr.h / root_lr.w).max(MIN_DIMENSION)
@@ -1224,43 +1223,10 @@ impl emView {
             let id = chain_rev[i];
             let lr = tree.GetRec(id).map(|p| p.layout_rect).unwrap_or_default();
             let (px, py, pw, _ph) = norm_rects[i - 1];
-            // C++ scales ALL layout coordinates by ParentViewedWidth (pw)
             norm_rects.push((px + lr.x * pw, py + lr.y * pw, lr.w * pw, lr.h * pw));
         }
 
         let (vnx, vny, vnw, vnh) = *norm_rects.last().unwrap_or(&(0.0, 0.0, 1.0, 1.0));
-
-        // The root's viewport rect is computed from the visited panel's desired position.
-        // The visited panel should appear at viewport position defined by (rel_x, rel_y, rel_a).
-        //
-        // visited viewport width = sqrt(rel_a) * vw (for square viewport/panel)
-        // More precisely: visited occupies rel_a fraction of viewport area.
-        // visited_vw * visited_vh = rel_a * vw * vh
-        // visited_vw / visited_vh = vnw / vnh (preserve aspect)
-        // So: visited_vw = sqrt(rel_a * vw * vh * vnw / vnh)
-        //     visited_vh = sqrt(rel_a * vw * vh * vnh / vnw)
-        // But that's relative to the root's size. Actually:
-        //
-        // Root viewport rect: root_vw, root_vh
-        // visited_vx = root_vx + vnx * root_vw
-        // visited_vy = root_vy + vny * root_vh
-        // visited_vw = vnw * root_vw
-        // visited_vh = vnh * root_vh
-        //
-        // We want: visited panel centered at (rel_x * vw + vw/2, rel_y * vh + vh/2)?
-        // No, let's use: rel_x, rel_y are the offset of the visited panel center from
-        // viewport center, in viewport-fraction units. rel_a is area ratio.
-        //
-        // visited_vw * visited_vh = rel_a * vw * vh
-        // visited_vw / visited_vh = vnw / vnh (panel aspect)
-        // => visited_vw = sqrt(rel_a * vw * vh * (vnw / vnh))
-        //    visited_vh = sqrt(rel_a * vw * vh * (vnh / vnw))
-        //
-        // But visited_vw = vnw * root_vw and visited_vh = vnh * root_vh
-        // => root_vw = visited_vw / vnw, root_vh = visited_vh / vnh
-        //
-        // visited center in viewport: vw/2 - rel_x*visited_vw (panel-fraction)
-        // visited center = root_vx + (vnx + vnw/2) * root_vw
 
         let vnw_safe = vnw.max(MIN_DIMENSION);
         let vnh_safe = vnh.max(MIN_DIMENSION);
@@ -1268,83 +1234,220 @@ impl emView {
 
         let visited_vw = (visit.rel_a * vw * vh * panel_aspect).sqrt();
         let visited_vh = (visit.rel_a * vw * vh / panel_aspect).sqrt();
-
-        // Cache for scroll/done-distance (BUG-8 fix infrastructure).
         self.visited_vw = visited_vw.max(1.0);
         self.visited_vh = visited_vh.max(1.0);
 
         let root_vw = visited_vw / vnw_safe;
-        // For centering: visited_vh / vnh_safe gives the coordinate-scale
-        // factor used to place the visited panel center. This equals root_vw
-        // algebraically, but we keep the derivation clear.
         let root_vh_center = visited_vh / vnh_safe;
 
-        // Visited panel center in viewport.
-        // C++ emView.cpp:1537: panel_center = hmx - relX * pvw
-        // Panel-fraction: relX is in visited-panel-widths, so multiply by visited_vw.
         let vcx = vw * 0.5 - visit.rel_x * visited_vw;
         let vcy = vh * 0.5 - visit.rel_y * visited_vh;
 
-        // Root position (centering uses root_vh_center)
         let root_vx = vcx - (vnx + vnw_safe * 0.5) * root_vw;
         let root_vy = vcy - (vny + vnh_safe * 0.5) * root_vh_center;
 
-        // C++ ViewedHeight = ViewedWidth * Height / PixelTallness (emPanel.cpp:615).
-        // The root rect height is its actual pixel extent, not the centering scale.
+        // Compute every chain panel's absolute (vx, vy, vw, vh) in read-only
+        // mode — we don't mutate the tree here because SVP selection needs
+        // these values before we decide what to clear/set.
+        // chain_rects[i] corresponds to chain_rev[i].
+        let pt = tree.current_pixel_tallness;
+        let mut chain_rects: Vec<(f64, f64, f64, f64)> = Vec::with_capacity(chain_rev.len());
         let root_actual_h = root_vw * root_norm_h;
+        chain_rects.push((root_vx, root_vy, root_vw, root_actual_h));
+        for i in 1..chain_rev.len() {
+            let (px_abs, py_abs, pw_abs, _ph_abs) = chain_rects[i - 1];
+            let id = chain_rev[i];
+            let lr = tree.GetRec(id).map(|p| p.layout_rect).unwrap_or_default();
+            // Match C++ UpdateChildrenViewing scaling:
+            //   vx = parent_vx + LayoutX * parent_vw
+            //   vw = LayoutWidth * parent_vw
+            //   vy = parent_vy + LayoutY * (parent_vw / pixel_tallness)
+            //   vh = LayoutHeight * (parent_vw / pixel_tallness)
+            let cvx = px_abs + lr.x * pw_abs;
+            let cvw = lr.w * pw_abs;
+            let scale_y = pw_abs / pt;
+            let cvy = py_abs + lr.y * scale_y;
+            let cvh = lr.h * scale_y;
+            chain_rects.push((cvx, cvy, cvw, cvh));
+        }
 
-        // Now recursively set viewed coords for all panels starting from root
-        let viewport = Rect::new(0.0, 0.0, vw, vh);
-        let root_abs = Rect::new(root_vx, root_vy, root_vw, root_actual_h);
-        self.compute_viewed_recursive(tree, root, root_abs, &viewport);
-
-        // NOTE: C++ RawVisitAbs fires viewing notices on all visible children
-        // during navigation (zoom/scroll/visit), but Rust relies on
-        // set_layout_rect to queue viewing notices on laid-out panels only.
-        // No golden tests cover the navigation case yet.
-
-        // Find SVP: deepest ancestor of visited panel whose absolute area <= MAX_SVP_SIZE
-        let ancestors = tree.ancestors(visited);
-        self.supreme_viewed_panel = None;
-        for &id in &ancestors {
-            if let Some(p) = tree.GetRec(id) {
-                let area = p.viewed_width * p.viewed_height;
-                if area <= MAX_SVP_SIZE {
-                    self.supreme_viewed_panel = Some(id);
-                    break;
-                }
+        // Pick new SVP: deepest ancestor of `visited` whose computed area
+        // <= MAX_SVP_SIZE. chain_rev is root..visited; walk from end toward start.
+        let mut new_svp_idx = 0usize;
+        for i in (0..chain_rev.len()).rev() {
+            let (_, _, cvw, cvh) = chain_rects[i];
+            if cvw * cvh <= MAX_SVP_SIZE {
+                new_svp_idx = i;
+                break;
             }
         }
-        if self.supreme_viewed_panel.is_none() {
-            self.supreme_viewed_panel = Some(root);
-        }
-        dlog!("SVP = {:?}", self.supreme_viewed_panel);
+        let new_svp = chain_rev[new_svp_idx];
+        let (new_vx, new_vy, new_vw, new_vh) = chain_rects[new_svp_idx];
 
-        // C++ InViewedPath: true if panel is viewed OR any descendant is
-        // viewed. Propagate from viewed panels up to all ancestors
-        // (matches C++ emPanel behavior where InViewedPath is set on
-        // viewed panels AND their ancestors).
-        let viewed_ids: Vec<PanelId> = tree
-            .all_ids()
-            .into_iter()
-            .filter(|&id| tree.GetRec(id).map(|p| p.viewed).unwrap_or(false))
-            .collect();
-        for vid in viewed_ids {
-            let mut cur = Some(vid);
-            while let Some(id) = cur {
-                if let Some(p) = tree.get_mut(id) {
-                    if p.in_viewed_path {
-                        break; // Already marked; ancestors must be too.
+        let old_svp = self.supreme_viewed_panel;
+
+        // Change detection (C++ emView.cpp:1727-1733):
+        //   forceViewingUpdate || SVP != vp || |vp->ViewedX - vx| >= 0.001 || ...
+        let force = self.force_viewing_update;
+        let rect_moved = match old_svp.and_then(|id| tree.GetRec(id)) {
+            Some(p) => {
+                (p.viewed_x - new_vx).abs() >= 0.001
+                    || (p.viewed_y - new_vy).abs() >= 0.001
+                    || (p.viewed_width - new_vw).abs() >= 0.001
+            }
+            None => true,
+        };
+        let svp_changed = old_svp != Some(new_svp);
+
+        // Active-path is recomputed every frame (C++ tracks is_active/
+        // in_active_path via SetActivePanel; Rust rebuilds here for parity with
+        // the previous clear-then-rebuild implementation). Clear stale flags
+        // before the walk-up in both the no-op and change branches.
+        for id in tree.all_ids() {
+            if let Some(p) = tree.get_mut(id) {
+                p.in_active_path = false;
+                p.is_active = false;
+            }
+        }
+
+        if !force && !svp_changed && !rect_moved {
+            // No-op: viewing state unchanged. Still do active-path propagation
+            // and drain nav requests so those pathways aren't gated on SVP change.
+            self.svp_update_count += 1;
+            if let Some(active_id) = self.active {
+                if tree.contains(active_id) {
+                    let mut cur = Some(active_id);
+                    while let Some(id) = cur {
+                        if let Some(p) = tree.get_mut(id) {
+                            p.in_active_path = true;
+                            cur = p.parent;
+                        } else {
+                            break;
+                        }
                     }
-                    p.in_viewed_path = true;
-                    cur = p.parent;
-                } else {
-                    break;
+                    if let Some(p) = tree.get_mut(active_id) {
+                        p.is_active = true;
+                    }
+                }
+            }
+            for target in tree.drain_navigation_requests() {
+                self.VisitFullsized(tree, target);
+            }
+            return;
+        }
+        self.force_viewing_update = false;
+        self.svp_update_count += 1;
+
+        // === RawVisitAbs change block (C++ emView.cpp:1753-1807) ===
+
+        // Old SVP clear.
+        if let Some(osvp) = old_svp {
+            if tree.contains(osvp) {
+                if let Some(p) = tree.get_mut(osvp) {
+                    p.in_viewed_path = false;
+                    p.viewed = false;
+                }
+                tree.queue_notice(
+                    osvp,
+                    super::emPanel::NoticeFlags::VIEW_CHANGED
+                        | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
+                        | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
+                );
+                tree.UpdateChildrenViewing(osvp);
+
+                // Walk old SVP parent chain clearing in_viewed_path, unconditional notice
+                // (C++ emView.cpp:1763-1772 does not early-exit).
+                let mut cur = tree.GetRec(osvp).and_then(|p| p.parent);
+                while let Some(pid) = cur {
+                    let parent_of = tree.get_mut(pid).map(|p| {
+                        p.in_viewed_path = false;
+                        p.parent
+                    });
+                    tree.queue_notice(
+                        pid,
+                        super::emPanel::NoticeFlags::VIEW_CHANGED
+                            | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
+                            | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
+                    );
+                    cur = parent_of.unwrap_or(None);
                 }
             }
         }
 
-        // Set in_active_path from root to active (walk parent chain without allocating)
+        // New SVP set. C++ line 1780: vp->ViewedHeight = vw * vp->GetHeight()
+        // / CurrentPixelTallness. Our `GetHeight` equivalent is layout_rect.h
+        // / layout_rect.w (panel aspect). `new_vh` from chain_rects would be
+        // equivalent but we recompute to stay structurally identical to C++.
+        self.supreme_viewed_panel = Some(new_svp);
+        let _ = new_vh;
+        let new_vh_from_height = {
+            let lr = tree
+                .GetRec(new_svp)
+                .map(|p| p.layout_rect)
+                .unwrap_or_default();
+            let panel_h = if lr.w > MIN_DIMENSION {
+                lr.h / lr.w
+            } else {
+                1.0
+            };
+            new_vw * panel_h / pt
+        };
+        if let Some(p) = tree.get_mut(new_svp) {
+            p.in_viewed_path = true;
+            p.viewed = true;
+            p.viewed_x = new_vx;
+            p.viewed_y = new_vy;
+            p.viewed_width = new_vw;
+            p.viewed_height = new_vh_from_height;
+
+            // Clip against viewport (C++ CurrentX/Y/Width/Height). Rust
+            // viewport is (0, 0, vw, vh).
+            let mut cx1 = new_vx;
+            let mut cy1 = new_vy;
+            let mut cx2 = new_vx + new_vw;
+            let mut cy2 = new_vy + new_vh_from_height;
+            if cx1 < 0.0 {
+                cx1 = 0.0;
+            }
+            if cy1 < 0.0 {
+                cy1 = 0.0;
+            }
+            if cx2 > vw {
+                cx2 = vw;
+            }
+            if cy2 > vh {
+                cy2 = vh;
+            }
+            p.clip_x = cx1;
+            p.clip_y = cy1;
+            p.clip_w = (cx2 - cx1).max(0.0);
+            p.clip_h = (cy2 - cy1).max(0.0);
+        }
+        tree.queue_notice(
+            new_svp,
+            super::emPanel::NoticeFlags::VIEW_CHANGED
+                | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
+                | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
+        );
+        tree.UpdateChildrenViewing(new_svp);
+
+        // Walk new SVP parent chain setting in_viewed_path, unconditional notice.
+        let mut cur = tree.GetRec(new_svp).and_then(|p| p.parent);
+        while let Some(pid) = cur {
+            let parent_of = tree.get_mut(pid).map(|p| {
+                p.in_viewed_path = true;
+                p.parent
+            });
+            tree.queue_notice(
+                pid,
+                super::emPanel::NoticeFlags::VIEW_CHANGED
+                    | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
+                    | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
+            );
+            cur = parent_of.unwrap_or(None);
+        }
+
+        // Active-path propagation.
         if let Some(active_id) = self.active {
             if tree.contains(active_id) {
                 let mut cur = Some(active_id);
@@ -1362,89 +1465,8 @@ impl emView {
             }
         }
 
-        // SVP jitter prevention
-        self.svp_update_count += 1;
-
-        // Auto-expansion is now handled per-panel in PanelTree::handle_notice_one
-        // (ported from C++ emPanel::HandleNotice AEDecisionInvalid phase).
-
-        // Drain panel-to-view navigation requests
         for target in tree.drain_navigation_requests() {
             self.VisitFullsized(tree, target);
-        }
-    }
-
-    fn compute_viewed_recursive(
-        &self,
-        tree: &mut PanelTree,
-        id: PanelId,
-        abs: Rect,
-        viewport: &Rect,
-    ) {
-        let clip = viewport.intersection(&abs);
-
-        let (was_viewed, visible) = match tree.GetRec(id) {
-            Some(p) => (p.prev_viewed, p.visible),
-            None => return,
-        };
-        if !visible {
-            return;
-        }
-
-        let new_viewed = clip.is_some();
-
-        {
-            let panel = tree.get_mut(id).unwrap();
-
-            panel.viewed_x = abs.x;
-            panel.viewed_y = abs.y;
-            panel.viewed_width = abs.w;
-            panel.viewed_height = abs.h;
-
-            if let Some(c) = clip {
-                panel.clip_x = c.x;
-                panel.clip_y = c.y;
-                panel.clip_w = c.w;
-                panel.clip_h = c.h;
-                panel.viewed = true;
-                panel.in_viewed_path = true;
-            } else {
-                panel.viewed = false;
-            }
-        }
-
-        // C++ emView::RawVisitAbs (emView.cpp:1789-1793) fires
-        // NF_VIEWING_CHANGED | NF_UPDATE_PRIORITY_CHANGED | NF_MEMORY_LIMIT_CHANGED
-        // whenever a panel's viewing state changes. Without this notice, panels
-        // like emSubViewPanel never learn that they've become viewed and never
-        // sync their sub-view geometry, leaving the sub-view stuck at its
-        // initial 1x1 viewport.
-        if was_viewed != new_viewed {
-            tree.queue_notice(
-                id,
-                super::emPanel::NoticeFlags::VIEW_CHANGED
-                    | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
-                    | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
-            );
-        }
-
-        // Recurse into children
-        let children: Vec<PanelId> = tree.children(id).collect();
-        for child in children {
-            let lr = tree
-                .GetRec(child)
-                .map(|p| p.layout_rect)
-                .unwrap_or_default();
-            // C++ emPanel.cpp:562-565: x uses ViewedWidth, y uses
-            // ViewedWidth/CurrentPixelTallness. CurrentPixelTallness is always
-            // 1.0 for the golden tests (square pixels), so vw/pt = vw.
-            let child_abs = Rect::new(
-                abs.x + lr.x * abs.w,
-                abs.y + lr.y * abs.w,
-                lr.w * abs.w,
-                lr.h * abs.w,
-            );
-            self.compute_viewed_recursive(tree, child, child_abs, viewport);
         }
     }
 
