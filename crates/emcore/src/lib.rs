@@ -97,6 +97,7 @@ pub mod emVarSigModel;
 pub mod emView;
 pub mod emViewAnimator;
 pub mod emViewInputFilter;
+pub mod emViewPort;
 pub mod emViewRenderer;
 pub mod emViewRendererCompositor;
 pub mod emViewRendererTileCache;

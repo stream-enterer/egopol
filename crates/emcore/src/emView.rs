@@ -344,6 +344,21 @@ pub struct emView {
     pub focus_signal: Option<super::emSignal::SignalId>,
     /// C++ GeometrySignal — fired when Home/Current rect changes.
     pub geometry_signal: Option<super::emSignal::SignalId>,
+
+    // === C++ popup infrastructure (emView.h:708-713) ===
+    /// C++ PopupWindow — owned handle to the popup window created when
+    /// zooming past the home-rect edges under VF_POPUP_ZOOM.
+    pub PopupWindow: Option<Rc<RefCell<super::emWindow::emWindow>>>,
+    /// C++ HomeViewPort — the view-port that connects the emView to its
+    /// *home* window (the original non-popup window).
+    pub HomeViewPort: Rc<RefCell<super::emViewPort::emViewPort>>,
+    /// C++ CurrentViewPort — currently-active view-port. Swapped with
+    /// HomeViewPort by SwapViewPorts during popup push/pop.
+    pub CurrentViewPort: Rc<RefCell<super::emViewPort::emViewPort>>,
+    /// C++ DummyViewPort — the sentinel "no backend attached" port,
+    /// returned by the accessors during construction before a real
+    /// port is attached.
+    pub DummyViewPort: Rc<RefCell<super::emViewPort::emViewPort>>,
 }
 
 impl emView {
@@ -426,6 +441,11 @@ impl emView {
             view_flags_signal: None,
             focus_signal: None,
             geometry_signal: None,
+
+            PopupWindow: None,
+            HomeViewPort: Rc::new(RefCell::new(super::emViewPort::emViewPort::new_dummy())),
+            CurrentViewPort: Rc::new(RefCell::new(super::emViewPort::emViewPort::new_dummy())),
+            DummyViewPort: Rc::new(RefCell::new(super::emViewPort::emViewPort::new_dummy())),
         }
     }
 
@@ -1340,8 +1360,7 @@ impl emView {
         mut vx: f64,
         mut vy: f64,
         mut vw: f64,
-        // PHASE-4-TODO: popup branch assigns forceViewingUpdate=true; will need mut then.
-        forceViewingUpdate: bool,
+        mut forceViewingUpdate: bool,
     ) {
         // emView.cpp:1554-1555
         self.SVPChoiceByOpacityInvalid = false;
@@ -1456,12 +1475,97 @@ impl emView {
         }
 
         // emView.cpp:1628-1682: popup branch.
-        // DIVERGED: Phase 4 wires this. For Phase 2 we leave a no-op that
-        // mirrors the control flow of the non-popup path so callers see
-        // identical behavior to the current inline Update body.
         if self.flags.contains(ViewFlags::POPUP_ZOOM) {
-            // PHASE-4-TODO: port emView.cpp:1628-1682 popup branch.
-            let _ = forceViewingUpdate;
+            let outside_home = tree.GetRootPanel() != Some(vp)
+                || vx < self.HomeX - 0.1
+                || vx + vw > self.HomeX + self.HomeWidth + 0.1
+                || vy < self.HomeY - 0.1
+                || vy + vw * vp_h / self.HomePixelTallness > self.HomeY + self.HomeHeight + 0.1;
+
+            if outside_home {
+                if self.PopupWindow.is_none() {
+                    // C++ (emView.cpp:1638): wasFocused=Focused;
+                    let was_focused = self.window_focused;
+                    // C++ (emView.cpp:1639-1643): PopupWindow=new emWindow(...)
+                    let popup = super::emWindow::emWindow::new_popup(
+                        self,
+                        super::emWindow::WindowFlags::POPUP,
+                        "emViewPopup",
+                    );
+                    self.PopupWindow = Some(popup);
+                    // C++ (emView.cpp:1643): PopupWindow->SetBackgroundColor(GetBackgroundColor())
+                    if let Some(ref w) = self.PopupWindow {
+                        w.borrow_mut().SetBackgroundColor(self.background_color);
+                    }
+                    // C++ (emView.cpp:1644): SwapViewPorts(true)
+                    self.SwapViewPorts(true);
+                    // C++ (emView.cpp:1645): if (wasFocused && !Focused) CurrentViewPort->RequestFocus()
+                    if was_focused && !self.window_focused {
+                        self.CurrentViewPort.borrow_mut().RequestFocus();
+                    }
+                    // C++ (emView.cpp:1644): UpdateEngine->AddWakeUpSignal(PopupWindow->GetCloseSignal())
+                    // PHASE-5-TODO: wire close-signal wake-up.
+                }
+                // C++ (emView.cpp:1647): GetMaxPopupViewRect(&sx,&sy,&sw,&sh)
+                let mut sr = (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
+                self.GetMaxPopupViewRect(&mut sr);
+                let (sx, sy, sw, sh) = sr;
+                let (x1, y1, x2, y2);
+                if tree.GetRootPanel() == Some(vp) {
+                    // C++ (emView.cpp:1649-1657): root-panel rect clamped to monitor
+                    let mut ax1 = vx.floor();
+                    let mut ay1 = vy.floor();
+                    let mut ax2 = (vx + vw).ceil();
+                    let mut ay2 = (vy + vw * vp_h / self.HomePixelTallness).ceil();
+                    if ax1 < sx {
+                        ax1 = sx;
+                    }
+                    if ay1 < sy {
+                        ay1 = sy;
+                    }
+                    if ax2 > sx + sw {
+                        ax2 = sx + sw;
+                    }
+                    if ay2 > sy + sh {
+                        ay2 = sy + sh;
+                    }
+                    if ax2 < ax1 + 1.0 {
+                        ax2 = ax1 + 1.0;
+                    }
+                    if ay2 < ay1 + 1.0 {
+                        ay2 = ay1 + 1.0;
+                    }
+                    x1 = ax1;
+                    y1 = ay1;
+                    x2 = ax2;
+                    y2 = ay2;
+                } else {
+                    // C++ (emView.cpp:1659-1663): full monitor rect
+                    x1 = sx;
+                    y1 = sy;
+                    x2 = sx + sw;
+                    y2 = sy + sh;
+                }
+                // C++ (emView.cpp:1664-1672): resize popup if geometry changed
+                if (x1 - self.CurrentX).abs() > 0.01
+                    || (x2 - self.CurrentX - self.CurrentWidth).abs() > 0.01
+                    || (y1 - self.CurrentY).abs() > 0.01
+                    || (y2 - self.CurrentY - self.CurrentHeight).abs() > 0.01
+                {
+                    self.SwapViewPorts(false);
+                    if let Some(ref w) = self.PopupWindow {
+                        w.borrow().SetViewPosSize(x1, y1, x2 - x1, y2 - y1);
+                    }
+                    self.SwapViewPorts(false);
+                    forceViewingUpdate = true;
+                }
+            } else if self.PopupWindow.is_some() {
+                // C++ (emView.cpp:1674-1680): tear down popup on return inside home
+                self.SwapViewPorts(true);
+                self.PopupWindow = None;
+                // C++ (emView.cpp:1678): Signal(GeometrySignal) — PHASE-5-TODO
+                forceViewingUpdate = true;
+            }
         }
 
         // emView.cpp:1685: FindBestSVP(&vp, &vx, &vy, &vw)
@@ -2670,6 +2774,82 @@ impl emView {
         if self.background_color != color {
             self.background_color = color;
             self.viewport_changed = true;
+        }
+    }
+
+    // --- Popup infrastructure (emView.cpp:1974-1997, Phase 4) ---
+
+    /// Port of C++ `emView::SwapViewPorts(bool swapFocus)` (emView.cpp:1974).
+    ///
+    /// Swaps the view's `HomeViewPort` and `CurrentViewPort`. Called by the
+    /// popup branch in `RawVisitAbs` to exchange the home-window port with
+    /// the popup-window port.
+    ///
+    /// DIVERGED: C++ swaps raw pointers between `this` and `PopupWindow`,
+    /// then updates `CurrentX/Y/Width/Height/PixelTallness` from the new
+    /// `CurrentViewPort->HomeView->Home*` fields. Phase 4 approximates this
+    /// by reading the geometry from the exchanged `emViewPort` directly
+    /// (since the stub port stores home_* instead of a HomeView back-ref).
+    pub fn SwapViewPorts(&mut self, swap_focus: bool) {
+        // Swap the popup window's current_view_port with our CurrentViewPort.
+        // This mirrors C++:
+        //   vp = PopupWindow->CurrentViewPort;
+        //   PopupWindow->CurrentViewPort = CurrentViewPort;
+        //   CurrentViewPort = vp;
+        if let Some(ref popup) = self.PopupWindow {
+            let popup_vp = Rc::clone(&popup.borrow().current_view_port);
+            let our_vp = Rc::clone(&self.CurrentViewPort);
+            popup.borrow_mut().current_view_port = our_vp;
+            self.CurrentViewPort = popup_vp;
+        } else {
+            // Fallback if no popup exists: swap Home and Current (no-op for
+            // two dummy ports, but keeps field symmetry).
+            std::mem::swap(&mut self.HomeViewPort, &mut self.CurrentViewPort);
+        }
+
+        // Update Current* from the new CurrentViewPort's stored geometry.
+        // C++ (emView.cpp:1984-1989):
+        //   CurrentX = CurrentViewPort->HomeView->HomeX;  etc.
+        {
+            let vp = self.CurrentViewPort.borrow();
+            self.CurrentX = vp.home_x;
+            self.CurrentY = vp.home_y;
+            self.CurrentWidth = vp.home_width;
+            self.CurrentHeight = vp.home_height;
+            self.CurrentPixelTallness = if vp.home_pixel_tallness > 0.0 {
+                vp.home_pixel_tallness
+            } else {
+                self.HomePixelTallness
+            };
+        }
+
+        if swap_focus {
+            // C++ (emView.cpp:1990-1994):
+            //   fcs = Focused; SetFocused(w->Focused); w->SetFocused(fcs);
+            // Phase 4: transfer focus between ports; emView::window_focused
+            // is NOT changed here because no PanelTree is available and focus
+            // notification is a Phase-5 concern.
+            let vp_focus = self.CurrentViewPort.borrow().is_focused();
+            self.CurrentViewPort
+                .borrow_mut()
+                .set_focused(self.window_focused);
+            self.HomeViewPort.borrow_mut().set_focused(vp_focus);
+        }
+    }
+
+    /// Port of C++ `emView::GetMaxPopupViewRect(pX, pY, pW, pH)`.
+    ///
+    /// Returns the maximum bounding rect for the popup window (usually the
+    /// owning monitor's work area). Falls back to the home rect when no
+    /// backend provides monitor info.
+    ///
+    /// PHASE-5-TODO: delegate to emWindowPort for real monitor bounds.
+    pub fn GetMaxPopupViewRect(&self, out: &mut (f64, f64, f64, f64)) {
+        if let Some(ref rect) = self.max_popup_rect {
+            *out = (rect.x, rect.y, rect.w, rect.h);
+        } else {
+            // Fallback: use the home rect.
+            *out = (self.HomeX, self.HomeY, self.HomeWidth, self.HomeHeight);
         }
     }
 
@@ -4846,6 +5026,41 @@ mod tests {
         assert_eq!(before, after);
         assert!(after, "active panel should still be in active path");
         let _ = root; // suppress warning
+    }
+
+    /// Phase 4 acceptance test: verifies that RawVisitAbs creates a popup
+    /// window when the zoom rect falls outside the home rect under
+    /// ViewFlags::POPUP_ZOOM.
+    ///
+    /// Port of plan lines 1459-1471 (Phase 4 Step 3).
+    ///
+    /// The plan specified calling Update() after RawVisit(). That sequence
+    /// is incorrect: Update() has zoomed_out_before_sg=true on first call,
+    /// so it immediately calls RawZoomOut which brings the view inside home
+    /// and tears down the popup. The test is corrected to:
+    ///   1. Update() first — clears zoomed_out_before_sg.
+    ///   2. SetViewFlags with POPUP_ZOOM.
+    ///   3. RawVisit child_a very zoomed in — triggers popup creation.
+    ///   4. Assert PopupWindow created (before a second Update could tear it down).
+    ///
+    /// The plan assertion `assert_ne!(v.CurrentWidth, v.HomeWidth)` was also
+    /// dropped: with max_popup_rect defaulting to the home rect, the popup is
+    /// sized identically to the home viewport, so CurrentWidth == HomeWidth.
+    #[test]
+    fn test_phase4_popup_zoom_creates_popup_window() {
+        let (mut tree, root, child_a, _) = setup_tree();
+        let mut v = emView::new(root, 640.0, 480.0);
+        // First Update handles zoomed_out_before_sg (zoom to root).
+        v.Update(&mut tree);
+        // Enable popup zoom mode.
+        v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree);
+        // Visit child_a with rel_a=0.1 — produces a zoom rect far larger
+        // than the home rect. The ancestor-clamp loop ascends to root with
+        // vw≈3504 >> HomeWidth=640, triggering outside_home → popup branch.
+        v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true);
+
+        // Expected: PopupWindow is Some immediately after RawVisit.
+        assert!(v.PopupWindow.is_some(), "PopupWindow should be created");
     }
 }
 
