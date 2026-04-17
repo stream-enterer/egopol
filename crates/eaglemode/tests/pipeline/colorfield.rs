@@ -236,7 +236,8 @@ fn colorfield_expanded_data_matches_initial_color() {
 /// (black, white, pure red, transparent).
 #[test]
 fn colorfield_expanded_various_colors() {
-    let test_cases: Vec<(&str, emColor, Box<dyn Fn(i64, i64, i64, i64)>)> = vec![
+    type RgbaAssertion = Box<dyn Fn(i64, i64, i64, i64)>;
+    let test_cases: Vec<(&str, emColor, RgbaAssertion)> = vec![
         (
             "black",
             emColor::BLACK,
@@ -610,11 +611,8 @@ fn colorfield_cycle_hex_text_updates_color() {
 
     // RGBA expansion fields should be synced (textChanged → UpdateRGBAOutput).
     let exp = cfb.color_field.expansion().unwrap();
-    assert_eq!(
-        exp.sf_red,
-        (0i64 * 10000 + 127) / 255,
-        "sf_red should be synced after hex text change"
-    );
+    // #00FF80: red=0x00, green=0xFF. Formula: (channel * 10000 + 127) / 255.
+    assert_eq!(exp.sf_red, 0, "sf_red should be 0 for red=0x00 (#00FF80)");
     assert_eq!(
         exp.sf_green,
         (255i64 * 10000 + 127) / 255,

@@ -458,6 +458,7 @@ impl PanelBehavior for TestPanel {
             0.001,
             0.001,
             &emStroke::new(emColor::WHITE, 0.001),
+            emColor::TRANSPARENT,
         );
         painter.PaintRoundRectOutline(
             0.07,
@@ -467,6 +468,7 @@ impl PanelBehavior for TestPanel {
             0.002,
             0.002,
             &emStroke::new(emColor::WHITE, 0.001),
+            emColor::TRANSPARENT,
         );
         painter.PaintRoundRectOutline(
             0.10,
@@ -476,6 +478,7 @@ impl PanelBehavior for TestPanel {
             0.003,
             0.003,
             &emStroke::new(emColor::WHITE, 0.003),
+            emColor::TRANSPARENT,
         );
         painter.PaintRoundRectOutline(
             0.12,
@@ -485,10 +488,20 @@ impl PanelBehavior for TestPanel {
             0.006,
             0.006,
             &emStroke::new(emColor::WHITE, 0.0001),
+            emColor::TRANSPARENT,
         );
         let mut dds = emStroke::new(emColor::WHITE, 0.00002);
         dds.dash_pattern = vec![0.0001, 0.00005, 0.00003, 0.00005];
-        painter.PaintRoundRectOutline(0.135, 0.88, 0.01, 0.01, 0.001, 0.001, &dds);
+        painter.PaintRoundRectOutline(
+            0.135,
+            0.88,
+            0.01,
+            0.01,
+            0.001,
+            0.001,
+            &dds,
+            emColor::TRANSPARENT,
+        );
         painter.PaintRoundRectOutline(
             0.15,
             0.88,
@@ -497,6 +510,7 @@ impl PanelBehavior for TestPanel {
             0.0,
             0.0,
             &emStroke::new(emColor::WHITE, 0.001),
+            emColor::TRANSPARENT,
         );
 
         painter.PaintBezier(
