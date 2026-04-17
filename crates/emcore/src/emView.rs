@@ -3443,6 +3443,51 @@ mod tests {
     }
 
     #[test]
+    fn test_update_change_block_side_effects() {
+        // The first Update call transitions SVP from None → root, firing the
+        // change block (emView.cpp:1803-1806). Verify the two ported side
+        // effects: cursor_invalid=true and a full-viewport dirty rect.
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root");
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        let mut view = emView::new(root, 800.0, 600.0);
+
+        // Precondition: both flags are clear before any Update.
+        assert!(!view.is_cursor_invalid());
+        assert!(!view.has_dirty_rects());
+
+        view.Update(&mut tree);
+
+        // Change block must have set cursor_invalid.
+        assert!(
+            view.is_cursor_invalid(),
+            "Update() change block must set cursor_invalid=true"
+        );
+
+        // Change block must have pushed a full-viewport dirty rect.
+        let rects = view.take_dirty_rects();
+        assert_eq!(
+            rects.len(),
+            1,
+            "Update() change block must push exactly one dirty rect (got {})",
+            rects.len()
+        );
+        let r = &rects[0];
+        assert!(
+            (r.x - 0.0).abs() < 1e-9 && (r.y - 0.0).abs() < 1e-9,
+            "dirty rect must start at (0,0), got ({}, {})",
+            r.x,
+            r.y
+        );
+        assert!(
+            (r.w - 800.0).abs() < 1e-9 && (r.h - 600.0).abs() < 1e-9,
+            "dirty rect must span full viewport 800x600, got {}x{}",
+            r.w,
+            r.h
+        );
+    }
+
+    #[test]
     fn test_invalidate_control_panel() {
         let (mut tree, root, child1, child2) = setup_tree();
         let mut view = emView::new(root, 800.0, 600.0);
