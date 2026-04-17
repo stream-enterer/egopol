@@ -4064,7 +4064,7 @@ impl<'a> emPainter<'a> {
         if w <= 0.0 || h <= 0.0 {
             return;
         }
-        let Some(_proof) = self.try_record(DrawOp::PaintImageScaled {
+        let Some(proof) = self.try_record(DrawOp::PaintImageScaled {
             x,
             y,
             w,
@@ -4076,17 +4076,19 @@ impl<'a> emPainter<'a> {
             return;
         };
 
-        let texture = super::emTexture::emTexture::emImage {
-            image: image.clone(),
-            x,
-            y,
-            w,
-            h,
-            alpha: 255,
-            extension,
-            quality,
-        };
-        self.paint_rect_with_texture(x, y, w, h, &texture, self.state.canvas_color);
+        // Route through the core image renderer. tex_w/tex_h = w/h makes the
+        // source image scale to fit the destination rectangle (matches C++
+        // `PaintRect(x, y, w, h, emImageTexture(x, y, w, h, img))`).
+        // Note: `quality` is not yet wired through paint_image_rect_textured;
+        // the current pipeline uses nearest sampling. Matching the full C++
+        // quality kernels (bilinear / bicubic / area / lanczos) is a separate
+        // port task.
+        let _ = quality;
+        let iw = image.GetWidth() as i32;
+        let ih = image.GetHeight() as i32;
+        self.paint_image_rect_textured(
+            proof, x, y, w, h, x, y, w, h, image, 0, 0, iw, ih, extension,
+        );
     }
 
     // --- Bezier curves ---
