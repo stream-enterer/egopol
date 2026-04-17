@@ -30,23 +30,24 @@ The Rust port omits all four. `cursor_invalid` is the only one with an obvious R
 
 **Steps:**
 
-- [ ] **Step 1: Audit the four side effects in Rust.**
+- [ ] **Step 1: Audit and port the four side effects.**
 
-  For each of the four C++ statements, find the Rust equivalent:
-  - `CursorInvalid = true` → `self.cursor_invalid = true` (grep `cursor_invalid` in emView.rs to confirm field exists).
-  - `InvalidatePainting()` → grep for `invalidate_painting\|InvalidatePainting` in emView.rs. If it exists, call it. If not, set whatever dirty flag the paint path consumes (likely a field like `painting_invalid` or `dirty`). If no such flag exists, note this as a BLOCKED sub-step and report — the whole-view invalidate mechanism may need to be added separately.
-  - `RestartInputRecursion = true` → grep `restart_input_recursion\|RestartInputRecursion`. Likely does not yet exist in Rust (input recursion is C++ model-specific). If absent, document the omission with a `// NOT PORTED:` comment referencing emView.cpp:1803 and move on — it's acceptable if Rust's input path doesn't need this.
-  - `UpdateEngine->WakeUp()` → grep for wake-up/schedule mechanism on the Rust event loop. `em-harness` or similar may expose it. If nothing equivalent exists, document and skip.
+  All four are mandatory. If an analog is missing in Rust, port the C++ class or field now — no escape hatches, no `NOT PORTED:` markers. Per the imperative rule: full ports only, no downscoping.
+  - `CursorInvalid = true` → `self.cursor_invalid = true`.
+  - `InvalidatePainting()` → view-level no-arg overload: `CurrentViewPort->InvalidatePainting(CurrentX, CurrentY, CurrentWidth, CurrentHeight)` (C++ emView.cpp / emViewPort.h). Port the no-arg overload if missing.
+  - `RestartInputRecursion = true` → port the field on emView (see emView.h:701) and all its setters/readers (emView.cpp:74, 1033, 1035, 1038, 2063, 2067, 2129). Without it the input loop cannot bail when the SVP changes mid-dispatch.
+  - `UpdateEngine->WakeUp()` → port `emView::UpdateEngineClass` (emView.h:626-634, emView.cpp:2514-2525) and the `UpdateEngine` member (emView.h:708). It is a trivial emEngine subclass (HIGH_PRIORITY, `Cycle()` calls `View.Update()`). Scheduler/Engine infrastructure already exists in Rust.
 
 - [ ] **Step 2: Wire the surviving side effects into the change block.**
 
-  At the end of the change block (after the new-SVP parent-chain walk-up finishes; just before the active-path propagation), add:
+  At the end of the change block (after the new-SVP parent-chain walk-up finishes; just before the active-path propagation), add all four:
   ```rust
-  self.cursor_invalid = true;
-  // <invalidate-painting call here>
-  // <wakeup call here if applicable>
+  self.restart_input_recursion = true;   // emView.cpp:1803
+  self.cursor_invalid = true;             // emView.cpp:1804
+  self.update_engine.wake_up(&mut sched); // emView.cpp:1805
+  self.InvalidatePainting();              // emView.cpp:1806
   ```
-  Guard each assignment with a comment citing the C++ line it ports.
+  Comment each with the C++ line. No omissions.
 
 - [ ] **Step 3: Verify.**
 
