@@ -295,6 +295,11 @@ pub struct PanelTree {
     /// `Layout()` can compute viewed coordinates without a view reference
     /// (port of C++ `emPanel::Layout` which accesses `View.CurrentPixelTallness`).
     pub(crate) current_pixel_tallness: f64,
+    /// Set by `Layout()` on the root panel (no parent). Matches C++
+    /// `emPanel::Layout` `!Parent` branch which sets `View.SVPChoiceInvalid`
+    /// and calls `View.RawZoomOut(true)` when zoomed out. `emView::Update`
+    /// drains this flag and calls `RawZoomOut` when it is true.
+    pub(crate) root_layout_changed: bool,
 }
 
 impl PanelTree {
@@ -310,6 +315,7 @@ impl PanelTree {
             seek_pos_child_name: String::new(),
             notice_ring_head_next: None,
             notice_ring_head_prev: None,
+            root_layout_changed: false,
             current_pixel_tallness: 1.0,
         }
     }
@@ -439,6 +445,10 @@ impl PanelTree {
         // path resolution like "::FS::..." where the first "" after the
         // initial ":" is meant to be a child of root, not root itself.
         self.root = Some(id);
+        // C++ emPanel root ctor (emPanel.cpp:~100): Active=1; InActivePath=1;
+        // View.ActivePanel=this. Root starts as the active panel.
+        self.panels[id].is_active = true;
+        self.panels[id].in_active_path = true;
         // C++ fires all NF_* flags on new panels as initialization notices
         self.panels[id].pending_notices = Self::INIT_NOTICE_FLAGS;
         self.has_pending_notices = true;
@@ -1117,6 +1127,16 @@ impl PanelTree {
         }
         self.add_to_notice_list(id);
 
+        // C++ emPanel::Layout `!Parent` branch (emPanel.cpp:524):
+        //   View.SVPChoiceInvalid=true; ... RawZoomOut(true) or RawVisit(p,...,true)
+        // Rust can't call view methods from here — set root_layout_changed so
+        // emView::Update sees it and calls RawZoomOut on the next frame.
+        let is_root = self.panels.get(id).and_then(|p| p.parent).is_none();
+        if is_root {
+            self.root_layout_changed = true;
+            return; // root viewed coords are managed by emView, not eagerly here
+        }
+
         // Port of C++ emPanel::Layout "else if (Parent->Viewed)" branch
         // (emPanel.cpp:557–610): eagerly compute viewing coords from parent.
         // Without this, Rust's lazy view.Update() wouldn't set viewed_width
@@ -1427,6 +1447,12 @@ impl PanelTree {
     }
 
     /// Deliver pending notices to all panels via the notice ring.
+    /// Whether any panel has pending notices queued (C++ `NoticeList` non-empty).
+    /// Used by `emView::Update` drain loop to decide whether to call `HandleNotice`.
+    pub fn has_pending_notices(&self) -> bool {
+        self.has_pending_notices || self.notice_ring_head_next.is_some()
+    }
+
     ///
     /// Port of C++ `emView::Update` inner loop + `emPanel::HandleNotice`
     /// (emPanel.cpp:1387–1451). Drains the doubly-linked notice ring; for

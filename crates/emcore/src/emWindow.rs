@@ -570,7 +570,7 @@ impl ZuiWindow {
 
         // Run VIF chain
         for vif in &mut self.vif_chain {
-            if vif.filter(event, state, &mut self.view) {
+            if vif.filter(event, state, &mut self.view, tree) {
                 return;
             }
         }
@@ -591,7 +591,7 @@ impl ZuiWindow {
         }
 
         // Run cheat VIF (never consumes events, but may produce actions)
-        self.cheat_vif.filter(event, state, &mut self.view);
+        self.cheat_vif.filter(event, state, &mut self.view, tree);
         for action in self.cheat_vif.drain_actions() {
             match action {
                 CheatAction::PanFunction
@@ -896,7 +896,7 @@ impl ZuiWindow {
         let dt_ms = (dt * 1000.0) as i32;
         self.touch_vif.cycle_gesture(view, tree, dt_ms);
         // Tick fling animation
-        if self.touch_vif.animate_fling(view, dt) {
+        if self.touch_vif.animate_fling(view, tree, dt) {
             active = true;
         }
         active

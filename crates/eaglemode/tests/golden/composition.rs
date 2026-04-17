@@ -1068,7 +1068,7 @@ fn composition_tktest_2x() {
 
     // C++ gen_golden.cpp: view.Zoom(400, 300, 2.0)
     // Rust emView::Zoom(factor, center_x, center_y)
-    view.Zoom(2.0, 400.0, 300.0);
+    view.Zoom(&mut tree, 2.0, 400.0, 300.0);
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 10)
     settle(&mut tree, &mut view, 10);
 

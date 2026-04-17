@@ -114,7 +114,7 @@ impl TestHarness {
     pub fn inject_input(&mut self, event: &emInputEvent) {
         // Run VIF chain
         for vif in &mut self.vif_chain {
-            if vif.filter(event, &self.input_state, &mut self.view) {
+            if vif.filter(event, &self.input_state, &mut self.view, &mut self.tree) {
                 return;
             }
         }

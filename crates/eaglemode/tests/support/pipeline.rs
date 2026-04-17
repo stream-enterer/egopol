@@ -131,7 +131,7 @@ impl PipelineTestHarness {
         // level-x linear magnification.
         if (level - 1.0).abs() > 1e-12 {
             let (vw, vh) = self.view.viewport_size();
-            self.view.Zoom(level, vw * 0.5, vh * 0.5);
+            self.view.Zoom(&mut self.tree, level, vw * 0.5, vh * 0.5);
         }
 
         // Step 3: refresh viewed Restore for all panels.
@@ -168,7 +168,7 @@ impl PipelineTestHarness {
     pub fn dispatch(&mut self, event: &emInputEvent) {
         // Run VIF chain
         for vif in &mut self.vif_chain {
-            if vif.filter(event, &self.input_state, &mut self.view) {
+            if vif.filter(event, &self.input_state, &mut self.view, &mut self.tree) {
                 return;
             }
         }

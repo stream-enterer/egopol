@@ -263,7 +263,9 @@ fn input_nested_hit() {
     // Click at (100, 300) → inside gc
     h.input_state.set_mouse(100.0, 300.0);
     let event = emInputEvent::press(InputKey::MouseLeft).with_mouse(100.0, 300.0);
+
     h.inject_input(&event);
+
     h.tick();
 
     let (a_root, p_root) = panel_state(&h.tree, root);

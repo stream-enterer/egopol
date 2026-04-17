@@ -28,7 +28,7 @@ fn setup_vif_view() -> (PanelTree, emView) {
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.Update(&mut tree);
     // C++ Zoom(400,300,100.0) -> ra *= 1/100^2 -> rel_a *= 100^2 = 10000
-    view.Zoom(100.0, 400.0, 300.0);
+    view.Zoom(&mut tree, 100.0, 400.0, 300.0);
     view.Update(&mut tree);
     view.SetFocused(&mut tree, true);
     (tree, view)
@@ -71,13 +71,18 @@ fn setup_keyboard_vif(view: &emView) -> emKeyboardZoomScrollVIF {
     vif
 }
 
-/// Record view state trajectory as (rel_x, rel_y, rel_a).
+/// Record view state trajectory as (rel_x, rel_y, 1/rel_a).
+///
+/// The C++ gen_golden stores `1/ra` (i.e., `vw*vh/(HomeW*HomeH)`, the old
+/// "Rust scale-factor convention"). Rust now uses C++ convention internally
+/// (`rel_a = HomeW*HomeH/(vw*vh)`), so invert here to keep golden data stable.
 fn read_view_state(view: &emView) -> TrajectoryStep {
     let visit = view.current_visit();
+    let ra = visit.rel_a;
     TrajectoryStep {
         vel_x: visit.rel_x,
         vel_y: visit.rel_y,
-        vel_z: visit.rel_a,
+        vel_z: if ra > 1e-100 { 1.0 / ra } else { 1000.0 },
     }
 }
 
@@ -94,7 +99,7 @@ fn filter_wheel_zoom_in() {
     let event = emInputEvent::press(InputKey::WheelUp).with_mouse(400.0, 300.0);
     let mut state = emInputState::new();
     state.set_mouse(400.0, 300.0);
-    vif.filter(&event, &state, &mut view);
+    vif.filter(&event, &state, &mut view, &mut tree);
 
     let mut actual = Vec::with_capacity(60);
     for i in 0..60 {
@@ -117,7 +122,7 @@ fn filter_wheel_zoom_out() {
     let event = emInputEvent::press(InputKey::WheelDown).with_mouse(400.0, 300.0);
     let mut state = emInputState::new();
     state.set_mouse(400.0, 300.0);
-    vif.filter(&event, &state, &mut view);
+    vif.filter(&event, &state, &mut view, &mut tree);
 
     let mut actual = Vec::with_capacity(60);
     for i in 0..60 {
@@ -145,7 +150,7 @@ fn filter_wheel_acceleration() {
             let event = emInputEvent::press(InputKey::WheelUp).with_mouse(400.0, 300.0);
             let mut state = emInputState::new();
             state.set_mouse(400.0, 300.0);
-            vif.filter(&event, &state, &mut view);
+            vif.filter(&event, &state, &mut view, &mut tree);
         }
 
         vif.set_test_clock(CLOCK_INIT + (i as u64 + 1) * CLOCK_STEP);
@@ -172,7 +177,7 @@ fn filter_middle_pan() {
         let mut state = emInputState::new();
         state.set_mouse(400.0, 300.0);
         state.press(InputKey::MouseMiddle);
-        vif.filter(&event, &state, &mut view);
+        vif.filter(&event, &state, &mut view, &mut tree);
     }
 
     let mut actual = Vec::with_capacity(60);
@@ -185,7 +190,7 @@ fn filter_middle_pan() {
             let mut state = emInputState::new();
             state.set_mouse(mx, my);
             state.press(InputKey::MouseMiddle);
-            vif.filter(&event, &state, &mut view);
+            vif.filter(&event, &state, &mut view, &mut tree);
         }
 
         vif.animate_grip(&mut view, &mut tree, dt_for_frame(i));
@@ -209,7 +214,7 @@ fn filter_middle_fling() {
         let mut state = emInputState::new();
         state.set_mouse(400.0, 300.0);
         state.press(InputKey::MouseMiddle);
-        vif.filter(&event, &state, &mut view);
+        vif.filter(&event, &state, &mut view, &mut tree);
     }
 
     let mut actual = Vec::with_capacity(60);
@@ -222,7 +227,7 @@ fn filter_middle_fling() {
             let mut state = emInputState::new();
             state.set_mouse(mx, my);
             state.press(InputKey::MouseMiddle);
-            vif.filter(&event, &state, &mut view);
+            vif.filter(&event, &state, &mut view, &mut tree);
         }
 
         // Frame 10: release middle button (after move event)
@@ -230,7 +235,7 @@ fn filter_middle_fling() {
             let event = emInputEvent::release(InputKey::MouseMiddle).with_mouse(500.0, 400.0);
             let mut state = emInputState::new();
             state.set_mouse(500.0, 400.0);
-            vif.filter(&event, &state, &mut view);
+            vif.filter(&event, &state, &mut view, &mut tree);
         }
 
         vif.animate_grip(&mut view, &mut tree, dt_for_frame(i));
@@ -257,7 +262,7 @@ fn filter_keyboard_scroll() {
         let mut state = emInputState::new();
         state.press(InputKey::Alt);
         state.press(InputKey::ArrowRight);
-        vif.filter(&event, &state, &mut view);
+        vif.filter(&event, &state, &mut view, &mut tree);
     }
 
     let mut actual = Vec::with_capacity(60);
@@ -284,7 +289,7 @@ fn filter_keyboard_zoom() {
         let mut state = emInputState::new();
         state.press(InputKey::Alt);
         state.press(InputKey::PageUp);
-        vif.filter(&event, &state, &mut view);
+        vif.filter(&event, &state, &mut view, &mut tree);
     }
 
     let mut actual = Vec::with_capacity(60);
@@ -311,7 +316,7 @@ fn filter_keyboard_release() {
         let mut state = emInputState::new();
         state.press(InputKey::Alt);
         state.press(InputKey::ArrowRight);
-        vif.filter(&event, &state, &mut view);
+        vif.filter(&event, &state, &mut view, &mut tree);
     }
 
     let mut actual = Vec::with_capacity(60);
@@ -322,7 +327,7 @@ fn filter_keyboard_release() {
             event.alt = true;
             let mut state = emInputState::new();
             state.press(InputKey::Alt);
-            vif.filter(&event, &state, &mut view);
+            vif.filter(&event, &state, &mut view, &mut tree);
         }
 
         vif.animate(&mut view, &mut tree, dt_for_frame(i));

@@ -33,7 +33,7 @@ fn setup_anim_view() -> (PanelTree, emView) {
 
     // Moderate zoom in: factor=2 matches C++ VisitAnimViewSetup Zoom(400,300,2.0).
     // rel_a ≈ 4 (ra *= 1/4). Gives room to scroll and zoom further in.
-    view.Zoom(2.0, 400.0, 300.0);
+    view.Zoom(&mut tree, 2.0, 400.0, 300.0);
     view.Update(&mut tree);
 
     (tree, view)
@@ -266,6 +266,10 @@ fn animator_swiping_release() {
 // ─── Visiting trajectory tests ──────────────────────────────────
 
 /// Collect GetPos trajectory from emVisitingViewAnimator.
+///
+/// `target_a` is in C++ convention (relA = HomeW*HomeH/(vw*vh)).
+/// Trajectory `vel_z` stores `1/rel_a` (old "Rust scale-factor convention")
+/// to match the C++ gen_golden which outputs `1/ra` for each step.
 fn run_visiting_trajectory(
     tree: &mut PanelTree,
     view: &mut emView,
@@ -287,11 +291,12 @@ fn run_visiting_trajectory(
     for _ in 0..steps {
         anim.animate(view, tree, dt);
         let visit = view.current_visit();
-        // Golden data stores (rel_x, rel_y, rel_a) in Rust convention
+        // C++ gen_golden stores (rx, ry, 1/ra) — invert rel_a to match.
+        let ra = visit.rel_a;
         trajectory.push(TrajectoryStep {
             vel_x: visit.rel_x,
             vel_y: visit.rel_y,
-            vel_z: visit.rel_a,
+            vel_z: if ra > 1e-100 { 1.0 / ra } else { 1000.0 },
         });
     }
 
@@ -303,7 +308,9 @@ fn animator_visiting_short() {
     require_golden!();
     let golden = load_trajectory_golden("animator_visiting_short");
     let (mut tree, mut view) = setup_anim_view();
-    let actual = run_visiting_trajectory(&mut tree, &mut view, 0.1, 0.1, 2.0, 60);
+    // target_a = 0.5 is C++ relA (HomeW*HomeH/(vw*vh)), matching C++ SetGoal(0.5).
+    // Old Rust convention was 2.0 = 1/0.5.
+    let actual = run_visiting_trajectory(&mut tree, &mut view, 0.1, 0.1, 0.5, 60);
 
     if dump_golden_enabled() {
         save_trajectory_golden("animator_visiting_short", &actual);
@@ -338,7 +345,7 @@ fn setup_anim_view_square_panel() -> (PanelTree, emView) {
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.Update(&mut tree);
 
-    view.Zoom(2.0, 400.0, 300.0);
+    view.Zoom(&mut tree, 2.0, 400.0, 300.0);
     view.Update(&mut tree);
 
     (tree, view)
@@ -347,7 +354,9 @@ fn setup_anim_view_square_panel() -> (PanelTree, emView) {
 #[test]
 fn animator_visiting_square_panel() {
     let (mut tree, mut view) = setup_anim_view_square_panel();
-    let actual = run_visiting_trajectory(&mut tree, &mut view, 0.1, 0.1, 2.0, 60);
+    // target_a = 0.5 is C++ relA (HomeW*HomeH/(vw*vh)). Rust-native golden, regenerated
+    // when convention changed from old Rust (2.0 = 1/0.5) to C++ (0.5).
+    let actual = run_visiting_trajectory(&mut tree, &mut view, 0.1, 0.1, 0.5, 60);
 
     // Rust-native golden: no C++ reference for non-matching-aspect Restore.
     // Generate with DUMP_GOLDEN=1; thereafter compare.
@@ -364,7 +373,8 @@ fn animator_visiting_zoom() {
     require_golden!();
     let golden = load_trajectory_golden("animator_visiting_zoom");
     let (mut tree, mut view) = setup_anim_view();
-    let actual = run_visiting_trajectory(&mut tree, &mut view, 0.0, 0.0, 16.0, 60);
+    // target_a = 0.0625 is C++ relA matching C++ SetGoal(0.0625). Old Rust: 16.0 = 1/0.0625.
+    let actual = run_visiting_trajectory(&mut tree, &mut view, 0.0, 0.0, 0.0625, 60);
 
     compare_trajectory("animator_visiting_zoom", &actual, &golden, 1e-4)
         .unwrap_or_else(|e| panic!("animator_visiting_zoom: {e}"));
@@ -386,7 +396,7 @@ fn run_magnetic_trajectory(steps: usize) -> Vec<TrajectoryStep> {
     view.Update(&mut tree);
 
     // C++ AnimViewSetup: Zoom(400, 300, 100.0)
-    view.Zoom(100.0, 400.0, 300.0);
+    view.Zoom(&mut tree, 100.0, 400.0, 300.0);
     view.Update(&mut tree);
 
     let mut anim = emMagneticViewAnimator::new();
