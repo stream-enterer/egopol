@@ -3082,10 +3082,12 @@ mod tests {
         let h = 100.0_f64;
         let (rect, radius) = border.GetSubstanceRect(w, h);
 
+        // C++ emBorder.cpp:687-692 (OBT_ROUND_RECT, BORDER_FUNC_SUBSTANCE_ROUND_RECT):
+        // pX=d, pY=d, pW=1-2d, pH=h-2d, pR=f. The radius is exactly f.
         let s = w.min(h) * border.border_scaling;
         let expected_d = s * 0.023;
         let expected_f = s * 0.22;
-        let expected_radius = (expected_f - expected_d).max(0.0);
+        let expected_radius = expected_f;
 
         let eps = 1e-6;
         assert!(

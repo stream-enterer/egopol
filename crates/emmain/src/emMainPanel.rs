@@ -891,11 +891,36 @@ impl PanelBehavior for emMainPanel {
 mod tests {
     use super::*;
 
+    /// Point HOME at a unique per-test temp dir so emMainConfig::Acquire's
+    /// load/save goes to an isolated path, never the user's real ~/.eaglemode-rs.
+    /// Relies on nextest's per-test-process isolation: env changes do not leak
+    /// to other tests.
+    fn isolate_home() {
+        let tmp = std::env::temp_dir().join(format!(
+            "eaglemode_rs_mp_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        // SAFETY: nextest runs each test in its own process, so the env change
+        // does not affect other tests.
+        unsafe {
+            std::env::set_var("HOME", &tmp);
+        }
+    }
+
     #[test]
     fn test_new() {
+        // C++ emMainPanel stores the passed controlTallness verbatim
+        // (emMainPanel.cpp:56 `ControlTallness=controlTallness`).
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
-        assert!((panel.control_tallness - 0.0538).abs() < 1e-10);
+        assert!((panel.control_tallness - 5.0).abs() < 1e-10);
         // startup_overlay is None until the StartupEngine creates it and
         // hands its id to set_startup_overlay (C++ SetStartupOverlay(true)).
         assert!(!panel.HasStartupOverlay());
@@ -903,6 +928,7 @@ mod tests {
 
     #[test]
     fn test_update_coordinates() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.update_coordinates(1.0);
@@ -914,6 +940,7 @@ mod tests {
 
     #[test]
     fn test_coordinates_content_below_control() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.update_coordinates(1.0);
@@ -922,6 +949,7 @@ mod tests {
 
     #[test]
     fn test_title() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         assert_eq!(panel.get_title(), Some("Eagle Mode".to_string()));
@@ -929,6 +957,7 @@ mod tests {
 
     #[test]
     fn test_behavior() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         let _: Box<dyn PanelBehavior> = Box::new(panel);
@@ -937,6 +966,7 @@ mod tests {
     #[test]
     fn test_update_coordinates_slider_near_top() {
         // When SliderY < SliderH*0.5, C++ uses: ControlH = SliderY + SliderH * SliderY / t
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.unified_slider_pos = 0.01; // very small → SliderY near 0
@@ -948,6 +978,7 @@ mod tests {
     #[test]
     fn test_update_coordinates_control_collapsed() {
         // When ControlH < 1E-5, C++ sets ControlH=1E-5 and centers content
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.unified_slider_pos = 0.0; // slider at very top
@@ -964,6 +995,7 @@ mod tests {
         // control_h / control_tallness large enough that
         // min((1-control_w)*0.5, slider_x - control_w) < 1e-5.
         // control_tallness=0.1 makes control_w ≈ 1.02 (>> 1), guaranteeing entry.
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 0.1);
         panel.unified_slider_pos = 0.8; // slider pushed down
@@ -988,6 +1020,7 @@ mod tests {
 
     #[test]
     fn test_update_coordinates_slider_min_max() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.unified_slider_pos = 0.5;
@@ -998,6 +1031,7 @@ mod tests {
 
     #[test]
     fn test_sub_view_panel_fields() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         assert!(panel.control_view_panel.is_none());
@@ -1006,6 +1040,7 @@ mod tests {
 
     #[test]
     fn test_control_edges_color() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         let color = emColor::from_packed(0xFF0000FF);
@@ -1015,6 +1050,7 @@ mod tests {
 
     #[test]
     fn test_control_edges_image_loaded() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         assert!(panel.GetControlEdgesImage().GetWidth() > 0);
@@ -1023,6 +1059,7 @@ mod tests {
 
     #[test]
     fn test_paint_skips_when_content_at_top() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.content_y = 0.0;
@@ -1067,6 +1104,7 @@ mod tests {
 
     #[test]
     fn test_drag_slider_clamps_to_min() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.update_coordinates(1.0);
@@ -1076,6 +1114,7 @@ mod tests {
 
     #[test]
     fn test_drag_slider_clamps_to_max() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.update_coordinates(1.0);
@@ -1085,6 +1124,7 @@ mod tests {
 
     #[test]
     fn test_double_click_slider_toggle() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.update_coordinates(1.0);
@@ -1098,6 +1138,7 @@ mod tests {
 
     #[test]
     fn test_drag_slider_updates_config() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.update_coordinates(1.0);
@@ -1113,6 +1154,7 @@ mod tests {
 
     #[test]
     fn test_update_fullscreen_on_auto_hide() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.unified_slider_pos = 0.5;
@@ -1126,6 +1168,7 @@ mod tests {
 
     #[test]
     fn test_update_fullscreen_on_no_auto_hide() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.unified_slider_pos = 0.5;
@@ -1139,6 +1182,7 @@ mod tests {
 
     #[test]
     fn test_update_fullscreen_off_restores() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.config.borrow_mut().SetAutoHideControlView(true);
@@ -1154,6 +1198,7 @@ mod tests {
 
     #[test]
     fn test_update_fullscreen_idempotent() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.update_fullscreen_on();
@@ -1166,6 +1211,7 @@ mod tests {
 
     #[test]
     fn test_update_slider_hiding_not_fullscreen() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.unified_slider_pos = 0.0;
@@ -1177,6 +1223,7 @@ mod tests {
 
     #[test]
     fn test_update_slider_hiding_fullscreen_collapsed() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.fullscreen_on = true;
@@ -1190,6 +1237,7 @@ mod tests {
 
     #[test]
     fn test_update_slider_hiding_restart_unhides() {
+        isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.fullscreen_on = true;

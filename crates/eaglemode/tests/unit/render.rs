@@ -112,12 +112,13 @@ fn paint_ellipse_basic() {
     {
         let mut p = emPainter::new(&mut img);
         p.SetCanvasColor(emColor::BLACK);
+        // Bounding box (10,10)-(15,15): ellipse center is (12.5, 12.5).
         p.PaintEllipse(10.0, 10.0, 5.0, 5.0, emColor::RED, emColor::TRANSPARENT);
     }
-    // Center should be filled
-    let px = img.GetPixel(10, 10);
-    assert_eq!(px[0], 255); // red
-                            // Far corner should be canvas color
+    // The pixel nearest the center should be fully filled with red.
+    let px = img.GetPixel(12, 12);
+    assert_eq!(px[0], 255, "center pixel should be fully red, got {px:?}");
+    // Far corner should be canvas color (untouched).
     assert_eq!(img.GetPixel(0, 0), &[0, 0, 0, 255]);
 }
 
