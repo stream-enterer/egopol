@@ -2467,10 +2467,18 @@ impl PanelTree {
                 let mut y1 = vy;
                 let mut x2 = vx + vw;
                 let mut y2 = vy + vh;
-                if x1 < pid_cx1 { x1 = pid_cx1; }
-                if x2 > pid_cx2 { x2 = pid_cx2; }
-                if y1 < pid_cy1 { y1 = pid_cy1; }
-                if y2 > pid_cy2 { y2 = pid_cy2; }
+                if x1 < pid_cx1 {
+                    x1 = pid_cx1;
+                }
+                if x2 > pid_cx2 {
+                    x2 = pid_cx2;
+                }
+                if y1 < pid_cy1 {
+                    y1 = pid_cy1;
+                }
+                if y2 > pid_cy2 {
+                    y2 = pid_cy2;
+                }
                 cp.clip_x = x1;
                 cp.clip_y = y1;
                 cp.clip_w = (x2 - x1).max(0.0);
