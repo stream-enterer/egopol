@@ -195,6 +195,28 @@ impl emInputState {
         &self.touches
     }
 
+    /// Current mouse X in window coordinates. (C++ emInputState::GetMouseX parity.)
+    pub fn GetMouseX(&self) -> f64 {
+        self.mouse_x
+    }
+
+    /// Current mouse Y in window coordinates. (C++ emInputState::GetMouseY parity.)
+    pub fn GetMouseY(&self) -> f64 {
+        self.mouse_y
+    }
+
+    /// X of the i-th touch point. Returns 0.0 if index out of range.
+    /// (C++ emInputState::GetTouchX parity.)
+    pub fn GetTouchX(&self, i: usize) -> f64 {
+        self.touches.get(i).map_or(0.0, |t| t.1)
+    }
+
+    /// Y of the i-th touch point. Returns 0.0 if index out of range.
+    /// (C++ emInputState::GetTouchY parity.)
+    pub fn GetTouchY(&self, i: usize) -> f64 {
+        self.touches.get(i).map_or(0.0, |t| t.2)
+    }
+
     /// Get the set of currently pressed keys.
     pub fn GetKeyStates(&self) -> &HashSet<InputKey> {
         &self.pressed

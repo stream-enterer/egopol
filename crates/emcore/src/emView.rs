@@ -196,6 +196,82 @@ impl StressTest {
     }
 }
 
+/// Port of C++ `emView::UpdateEngineClass` (emView.h:626-633).
+///
+/// A wake-up driver: `WakeUp()` marks it awake so the scheduler calls
+/// `Update()` on the next slice.  `Cycle()` is a no-op because the actual
+/// `Update` drain is driven directly from the window loop for now (backend
+/// gap); the struct exists so `WakeUp()` can be called idiomatically.
+///
+/// DIVERGED: backend-gap — C++ `Cycle()` calls `View.Update()` directly via
+/// the scheduler; Rust currently drives `Update` from the window loop.  The
+/// struct is present for field/call-site parity; full scheduler wiring is a
+/// Phase 6 / backend concern.
+pub struct UpdateEngineClass {
+    /// True when the engine has been woken up and is waiting for the next
+    /// scheduler cycle.
+    pub awake: bool,
+}
+
+impl UpdateEngineClass {
+    /// Create a new `UpdateEngineClass`.  Mirrors C++ ctor setting HIGH_PRIORITY.
+    pub fn new() -> Self {
+        Self { awake: false }
+    }
+
+    /// Mark the engine awake.  Mirrors C++ `emEngine::WakeUp()`.
+    pub fn WakeUp(&mut self) {
+        self.awake = true;
+    }
+
+    /// Clear the awake flag (called after `Update()` runs).
+    pub fn clear(&mut self) {
+        self.awake = false;
+    }
+}
+
+impl Default for UpdateEngineClass {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Port of C++ `emView::EOIEngineClass` (emView.h:636-645, emView.cpp:2528-2543).
+///
+/// Owns the End-Of-Interaction countdown.  `SignalEOIDelayed` creates /
+/// resets this engine; `Cycle` ticks the countdown and fires the EOI signal
+/// when it reaches zero.
+///
+/// DIVERGED: backend-gap — C++ `Cycle()` runs via the scheduler and calls
+/// `Signal(View.EOISignal)`; Rust drives the countdown via `tick_eoi()` for
+/// now, which the window loop calls.  Full scheduler wiring is a Phase 6 /
+/// backend concern.
+pub struct EOIEngineClass {
+    /// Countdown in scheduler ticks.  Mirrors C++ `CountDown` field.
+    pub CountDown: i32,
+}
+
+impl EOIEngineClass {
+    /// Create and immediately arm the countdown.  Mirrors C++ ctor which sets
+    /// `CountDown=5` and calls `WakeUp()`.
+    pub fn new() -> Self {
+        Self { CountDown: 5 }
+    }
+
+    /// Tick the countdown.  Returns `true` when zero is reached and the EOI
+    /// signal should fire.  Mirrors C++ `EOIEngineClass::Cycle`.
+    pub fn Cycle(&mut self) -> bool {
+        self.CountDown -= 1;
+        self.CountDown <= 0
+    }
+}
+
+impl Default for EOIEngineClass {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The emView manages the viewport — which panels are visible and how they're
 /// navigated and rendered.
 #[allow(non_snake_case)] // F&N rule: field names mirror C++ emView.h:680-715.
@@ -246,9 +322,14 @@ pub struct emView {
     /// instead of doing an instant jump. The window loop feeds this to the
     /// emVisitingViewAnimator. None means no pending animated visit.
     pending_animated_visit: Option<VisitState>,
-    /// PORT-0129: Countdown for delayed End-Of-Interaction signal.
-    /// When `Some(n)`, tick_eoi() decrements each frame and fires when 0.
-    eoi_countdown: Option<i32>,
+    /// C++ `EOIEngine` — drives the End-Of-Interaction countdown.
+    /// `None` when no EOI is pending.  Created by `SignalEOIDelayed`.
+    /// Mirrors C++ `emOwnPtr<EOIEngineClass> EOIEngine` (emView.h:709).
+    pub EOIEngine: Option<EOIEngineClass>,
+    /// C++ `UpdateEngine` — wake-up driver for the scheduler.
+    /// Always `Some` after construction.
+    /// Mirrors C++ `emOwnPtr<UpdateEngineClass> UpdateEngine` (emView.h:708).
+    pub UpdateEngine: Option<UpdateEngineClass>,
     /// The view title. Updated from the active panel's title.
     pub title: String,
     /// Current mouse cursor for this view.
@@ -400,7 +481,8 @@ impl emView {
             viewport_changed: false,
             needs_animator_abort: false,
             pending_animated_visit: None,
-            eoi_countdown: None,
+            EOIEngine: None,
+            UpdateEngine: Some(UpdateEngineClass::new()),
             title: String::new(),
             cursor: emCursor::Normal,
             max_popup_rect: None,
@@ -1775,7 +1857,10 @@ impl emView {
         // emView.cpp:1803-1806: side effects.
         self.RestartInputRecursion = true;
         self.cursor_invalid = true;
-        // UpdateEngine->WakeUp: Phase 5 replaces with engine call.
+        // C++ emView.cpp:1805: UpdateEngine->WakeUp().
+        if let Some(ref mut engine) = self.UpdateEngine {
+            engine.WakeUp();
+        }
         // InvalidatePainting() whole-view — use Current rect (Phase 0 audit
         // verdict). During non-popup Current == Home, so rect = whole view.
         self.dirty_rects.push(Rect::new(
@@ -2883,30 +2968,313 @@ impl emView {
 
     // --- EOI signal (PORT-0129) ---
 
-    /// Request a delayed End-Of-Interaction signal. The window loop should
-    /// check `eoi_delayed()` and count down before signaling EOI.
-    /// Matches C++ `emView::SignalEOIDelayed`.
+    /// Request a delayed End-Of-Interaction signal.
+    ///
+    /// Creates an `EOIEngineClass` if one is not already active.
+    /// Matches C++ `emView::SignalEOIDelayed` (emView.cpp:940-943).
     pub fn SignalEOIDelayed(&mut self) {
-        self.eoi_countdown = Some(3);
+        if self.EOIEngine.is_none() {
+            self.EOIEngine = Some(EOIEngineClass::new());
+        }
     }
 
     /// Whether an EOI countdown is active.
     pub fn eoi_delayed(&self) -> bool {
-        self.eoi_countdown.is_some()
+        self.EOIEngine.is_some()
     }
 
     /// Tick the EOI countdown. Returns `true` when the countdown has reached
     /// zero and the EOI should be signaled (caller should then act, e.g.
     /// zoom out for popup views).
+    ///
+    /// DIVERGED: backend-gap — C++ fires EOI via `Signal(View.EOISignal)` from
+    /// the scheduler; Rust uses this poll-based helper from the window loop
+    /// until full scheduler integration lands.
     pub fn tick_eoi(&mut self) -> bool {
-        if let Some(ref mut count) = self.eoi_countdown {
-            if *count <= 0 {
-                self.eoi_countdown = None;
-                return true;
-            }
-            *count -= 1;
+        let fired = self.EOIEngine.as_mut().map(|e| e.Cycle()).unwrap_or(false);
+        if fired {
+            self.EOIEngine = None;
         }
-        false
+        fired
+    }
+
+    // --- InvalidateHighlight / AddToNoticeList / RecurseInput ---
+
+    /// Port of C++ `emView::InvalidateHighlight` (emView.cpp:2137-2146).
+    ///
+    /// If the active panel is viewed and highlight should be drawn, marks the
+    /// whole view dirty so the highlight is repainted.  C++ comment notes this
+    /// is overly broad ("too much") — we preserve that behaviour.
+    pub fn InvalidateHighlight(&mut self) {
+        let active_viewed = self.active.is_some();
+
+        if !active_viewed {
+            return;
+        }
+
+        // C++ emView.cpp:2145: InvalidatePainting() — mark whole view dirty.
+        self.dirty_rects.push(Rect::new(
+            self.CurrentX,
+            self.CurrentY,
+            self.CurrentWidth,
+            self.CurrentHeight,
+        ));
+    }
+
+    /// Port of C++ `emView::AddToNoticeList(PanelRingNode*)` (emView.cpp:1282).
+    ///
+    /// DIVERGED: Rust owns the notice ring on `PanelTree`, so this method
+    /// delegates to `tree.add_to_notice_list(panel)` and then wakes the
+    /// `UpdateEngine`.  Exists on `emView` for C++ call-site parity.
+    pub fn AddToNoticeList(&mut self, tree: &mut PanelTree, panel: PanelId) {
+        tree.add_to_notice_list(panel);
+        // C++ emView.cpp:1288: UpdateEngine->WakeUp().
+        if let Some(ref mut engine) = self.UpdateEngine {
+            engine.WakeUp();
+        }
+    }
+
+    /// Port of C++ `emView::RecurseInput` (public overload + private panel overload,
+    /// emView.cpp:2004-2134).
+    ///
+    /// DIVERGED: C++ has `RecurseInput(e, s)` (public) and
+    /// `RecurseInput(panel, e, s)` (private).  Rust merges them into a single
+    /// method; callers pass `start_panel: None` for the public entry point.
+    ///
+    /// When `start_panel` is `None` the walk begins at `SupremeViewedPanel`
+    /// and climbs toward the root (public overload, emView.cpp:2004).
+    /// When `start_panel` is `Some(id)` the walk recurses into that subtree
+    /// only (private overload, emView.cpp:2079).
+    pub fn RecurseInput(
+        &mut self,
+        tree: &mut PanelTree,
+        event: &mut super::emInput::emInputEvent,
+        state: &super::emInputState::emInputState,
+        start_panel: Option<PanelId>,
+    ) {
+        use super::emInput::emInputEvent;
+
+        // A "no event" sentinel — an eaten emInputEvent that satisfies
+        // `IsEmpty()` and won't match any handler.  Mirrors C++ `NoEvent`.
+        let mut no_event = emInputEvent::press(super::emInput::InputKey::Key('\0'));
+        no_event.eaten = true;
+
+        match start_panel {
+            None => {
+                // --- Public overload (emView.cpp:2004-2076) ---
+                let panel = match self.supreme_viewed_panel {
+                    Some(id) => id,
+                    None => return,
+                };
+
+                // Eat the sentinel for this entry (C++ `NoEvent.Eat()`).
+                no_event.eaten = true;
+
+                let mx_raw = state.GetMouseX();
+                let my_raw = state.GetMouseY();
+
+                // Get panel clip bounds and ViewedX/W to transform coords.
+                let (clip_x1, clip_x2, clip_y1, clip_y2, viewed_x, viewed_y, viewed_width) = {
+                    let p = match tree.GetRec(panel) {
+                        Some(p) => p,
+                        None => return,
+                    };
+                    (
+                        p.clip_x,
+                        p.clip_x + p.clip_w,
+                        p.clip_y,
+                        p.clip_y + p.clip_h,
+                        p.viewed_x,
+                        p.viewed_y,
+                        p.viewed_width,
+                    )
+                };
+
+                // Determine effective event for mouse events (clip check).
+                let ebase_eaten = event.IsMouseEvent()
+                    && (mx_raw < clip_x1
+                        || mx_raw >= clip_x2
+                        || my_raw < clip_y1
+                        || my_raw >= clip_y2);
+
+                // Transform mouse to panel-local coords.
+                // C++ emView.cpp:2023-2024.
+                let mut mx = (mx_raw - viewed_x) / viewed_width;
+                let mut my = (my_raw - viewed_y) / viewed_width * self.CurrentPixelTallness;
+
+                // Touch coords.
+                let (tx_raw, ty_raw) = if !state.GetTouchCount().is_empty() {
+                    (state.GetTouchX(0), state.GetTouchY(0))
+                } else {
+                    (state.GetMouseX(), state.GetMouseY())
+                };
+
+                let ebase_touch_eaten = event.IsTouchEvent()
+                    && (tx_raw < clip_x1
+                        || tx_raw >= clip_x2
+                        || ty_raw < clip_y1
+                        || ty_raw >= clip_y2);
+
+                let mut tx = (tx_raw - viewed_x) / viewed_width;
+                let mut ty = (ty_raw - viewed_y) / viewed_width * self.CurrentPixelTallness;
+
+                // Walk from SVP toward root, dispatching to each panel with
+                // PendingInput set.  C++ emView.cpp:2041-2075.
+                let mut cur = panel;
+                loop {
+                    if tree.get_pending_input(cur) {
+                        // Choose effective event for this panel.
+                        let use_no_event = if ebase_eaten || ebase_touch_eaten {
+                            true
+                        } else if !event.IsEmpty() {
+                            if event.IsMouseEvent() {
+                                !tree.IsPointInSubstanceRect(cur, mx, my)
+                            } else if event.IsTouchEvent() {
+                                !tree.IsPointInSubstanceRect(cur, tx, ty)
+                            } else if event.IsKeyboardEvent() {
+                                !tree.GetRec(cur).is_some_and(|p| p.in_active_path)
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+
+                        // Recurse into children first (last child → first child).
+                        let children_rev: Vec<PanelId> = {
+                            let mut v = Vec::new();
+                            let mut child_opt = tree.GetLastChild(cur);
+                            while let Some(child) = child_opt {
+                                v.push(child);
+                                child_opt = tree.GetPrev(child);
+                            }
+                            v
+                        };
+
+                        for child in children_rev {
+                            if use_no_event {
+                                self.RecurseInput(tree, &mut no_event, state, Some(child));
+                            } else {
+                                self.RecurseInput(tree, event, state, Some(child));
+                            }
+                            if self.RestartInputRecursion {
+                                return;
+                            }
+                        }
+
+                        // Clear PendingInput and dispatch to this panel.
+                        tree.set_pending_input(cur, false);
+                        let eff_event: &super::emInput::emInputEvent =
+                            if use_no_event { &no_event } else { event };
+                        tree.dispatch_input(
+                            cur,
+                            eff_event,
+                            state,
+                            self.window_focused,
+                            self.CurrentPixelTallness,
+                        );
+                        if self.RestartInputRecursion {
+                            return;
+                        }
+                    }
+
+                    // Climb to parent, converting coords.
+                    // C++ emView.cpp:2070-2074.
+                    let layout_rect = match tree.GetRec(cur) {
+                        Some(p) => p.layout_rect,
+                        None => break,
+                    };
+                    let lx = layout_rect.x;
+                    let ly = layout_rect.y;
+                    let lw = layout_rect.w;
+                    mx = mx * lw + lx;
+                    my = my * lw + ly;
+                    tx = tx * lw + lx;
+                    ty = ty * lw + ly;
+
+                    match tree.GetRec(cur).and_then(|p| p.parent) {
+                        Some(parent) => cur = parent,
+                        None => break,
+                    }
+                }
+            }
+
+            Some(panel) => {
+                // --- Private overload (emView.cpp:2079-2134) ---
+                if !tree.get_pending_input(panel) {
+                    return;
+                }
+
+                let (mx, my, tx, ty) = if tree.GetRec(panel).is_some_and(|p| p.viewed) {
+                    let vx = tree.GetRec(panel).map_or(0.0, |p| p.viewed_x);
+                    let vy = tree.GetRec(panel).map_or(0.0, |p| p.viewed_y);
+                    let vw = tree.GetRec(panel).map_or(1.0, |p| p.viewed_width);
+                    let mx = (state.GetMouseX() - vx) / vw;
+                    let my = (state.GetMouseY() - vy) / vw * self.CurrentPixelTallness;
+                    let (tx, ty) = if !state.GetTouchCount().is_empty() {
+                        (
+                            (state.GetTouchX(0) - vx) / vw,
+                            (state.GetTouchY(0) - vy) / vw * self.CurrentPixelTallness,
+                        )
+                    } else {
+                        (mx, my)
+                    };
+                    (mx, my, tx, ty)
+                } else {
+                    // C++ emView.cpp:2102-2106: not viewed → sentinel coords.
+                    (-1.0_f64, -1.0_f64, -1.0_f64, -1.0_f64)
+                };
+
+                // Choose effective event for this panel.
+                let use_no_event = if !event.IsEmpty() {
+                    if event.IsMouseEvent() {
+                        !tree.IsPointInSubstanceRect(panel, mx, my)
+                    } else if event.IsTouchEvent() {
+                        !tree.IsPointInSubstanceRect(panel, tx, ty)
+                    } else if event.IsKeyboardEvent() {
+                        !tree.GetRec(panel).is_some_and(|p| p.in_active_path)
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+
+                // Recurse into children (last → first).
+                let children_rev: Vec<PanelId> = {
+                    let mut v = Vec::new();
+                    let mut child_opt = tree.GetLastChild(panel);
+                    while let Some(child) = child_opt {
+                        v.push(child);
+                        child_opt = tree.GetPrev(child);
+                    }
+                    v
+                };
+
+                for child in children_rev {
+                    if use_no_event {
+                        self.RecurseInput(tree, &mut no_event, state, Some(child));
+                    } else {
+                        self.RecurseInput(tree, event, state, Some(child));
+                    }
+                    if self.RestartInputRecursion {
+                        return;
+                    }
+                }
+
+                // Clear PendingInput and dispatch to this panel.
+                tree.set_pending_input(panel, false);
+                let eff_event: &super::emInput::emInputEvent =
+                    if use_no_event { &no_event } else { event };
+                tree.dispatch_input(
+                    panel,
+                    eff_event,
+                    state,
+                    self.window_focused,
+                    self.CurrentPixelTallness,
+                );
+            }
+        }
     }
 
     /// TF-003: Scroll the viewport to make a panel-pixel rect visible.
@@ -5061,6 +5429,71 @@ mod tests {
 
         // Expected: PopupWindow is Some immediately after RawVisit.
         assert!(v.PopupWindow.is_some(), "PopupWindow should be created");
+    }
+
+    // --- Phase 5 gate tests ---
+
+    /// Gate test: EOIEngineClass replaces the old `eoi_countdown` field.
+    ///
+    /// Exercises `SignalEOIDelayed`, `eoi_delayed`, and `tick_eoi` against the
+    /// new `EOIEngineClass`-backed implementation.  The countdown in C++ is 5
+    /// ticks; after enough ticks the engine should be gone and `eoi_delayed`
+    /// must return false.
+    #[test]
+    fn test_phase5_eoi_engine_replaces_countdown() {
+        let (mut tree, root, _, _) = setup_tree();
+        let mut v = emView::new(root, 640.0, 480.0);
+        v.SignalEOIDelayed();
+        assert!(v.eoi_delayed());
+        // After enough scheduler ticks the engine fires and clears.
+        for _ in 0..10 {
+            v.tick_eoi();
+        }
+        assert!(!v.eoi_delayed());
+    }
+
+    /// Phase 5: UpdateEngineClass is present and WakeUp sets the awake flag.
+    #[test]
+    fn test_phase5_update_engine_wakeup() {
+        let (mut tree, root, _, _) = setup_tree();
+        let mut v = emView::new(root, 640.0, 480.0);
+        // UpdateEngine is created by new().
+        assert!(v.UpdateEngine.is_some());
+        // WakeUp is callable and sets the awake flag.
+        v.UpdateEngine.as_mut().unwrap().WakeUp();
+        assert!(v.UpdateEngine.as_ref().unwrap().awake);
+    }
+
+    /// Phase 5: InvalidateHighlight marks the view dirty.
+    #[test]
+    fn test_phase5_invalidate_highlight_dirties_view() {
+        let (mut tree, root, _, _) = setup_tree();
+        let mut v = emView::new(root, 640.0, 480.0);
+        v.Update(&mut tree);
+        // Active panel is set by construction; view is in view.
+        let before = v.dirty_rects.len();
+        v.InvalidateHighlight();
+        assert!(
+            v.dirty_rects.len() > before,
+            "InvalidateHighlight should append a dirty rect"
+        );
+    }
+
+    /// Phase 5: AddToNoticeList delegates to the tree and wakes UpdateEngine.
+    #[test]
+    fn test_phase5_add_to_notice_list_wakes_update_engine() {
+        let (mut tree, root, child1, _) = setup_tree();
+        let mut v = emView::new(root, 640.0, 480.0);
+        v.Update(&mut tree);
+        // Clear the awake flag so we can detect the WakeUp call.
+        v.UpdateEngine.as_mut().unwrap().clear();
+        assert!(!v.UpdateEngine.as_ref().unwrap().awake);
+
+        v.AddToNoticeList(&mut tree, child1);
+        assert!(
+            v.UpdateEngine.as_ref().unwrap().awake,
+            "AddToNoticeList should wake UpdateEngine"
+        );
     }
 }
 

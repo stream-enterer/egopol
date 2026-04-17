@@ -207,6 +207,11 @@ pub(crate) struct PanelData {
     // is delivered and FirstChild exists; cleared after LayoutChildren runs.
     pub(crate) children_layout_invalid: bool,
 
+    /// C++ `emPanel::PendingInput` — set to 1 when this panel needs to
+    /// receive the current input event. Cleared by `RecurseInput` after
+    /// dispatching. Mirrors C++ emView.h/emPanel.h `PendingInput` field.
+    pub(crate) pending_input: bool,
+
     // Notice ring linkage (C++ emPanel::NoticeNode.Prev/Next).
     // Panels with queued notices form a doubly-linked circular ring
     // rooted on PanelTree.notice_ring_head_*. When neither prev nor next
@@ -253,6 +258,7 @@ impl PanelData {
             clip_w: 0.0,
             clip_h: 0.0,
             children_layout_invalid: false,
+            pending_input: false,
             notice_prev_in_ring: None,
             notice_next_in_ring: None,
         }
@@ -332,7 +338,7 @@ impl PanelTree {
 
     /// Link `id` into the notice ring at the tail.
     /// Port of C++ `emView::AddToNoticeList` (emView.cpp).
-    fn add_to_notice_list(&mut self, id: PanelId) {
+    pub(crate) fn add_to_notice_list(&mut self, id: PanelId) {
         // Already linked?
         {
             let p = &self.panels[id];
@@ -1352,6 +1358,45 @@ impl PanelTree {
             memory_limit: 0,
             pixel_tallness,
             height: p.layout_rect.h / p.layout_rect.w,
+        }
+    }
+
+    /// Set the `pending_input` flag on a panel.
+    ///
+    /// Used by `emView::RecurseInput` to track which panels need input
+    /// dispatching.  Mirrors C++ `emPanel::PendingInput` field writes.
+    pub fn set_pending_input(&mut self, id: PanelId, value: bool) {
+        if let Some(p) = self.panels.get_mut(id) {
+            p.pending_input = value;
+        }
+    }
+
+    /// Get the `pending_input` flag on a panel.
+    ///
+    /// Mirrors C++ `emPanel::PendingInput` field reads.
+    pub fn get_pending_input(&self, id: PanelId) -> bool {
+        self.panels.get(id).is_some_and(|p| p.pending_input)
+    }
+
+    /// Dispatch an input event to a panel's behavior.
+    ///
+    /// Builds a `PanelState`, takes the behavior, calls `Input`, and puts
+    /// the behavior back. Mirrors C++ `emPanel::Input` dispatch from
+    /// `emView::RecurseInput`.
+    pub fn dispatch_input(
+        &mut self,
+        id: PanelId,
+        event: &super::emInput::emInputEvent,
+        input_state: &super::emInputState::emInputState,
+        window_focused: bool,
+        pixel_tallness: f64,
+    ) {
+        let state = self.build_panel_state(id, window_focused, pixel_tallness);
+        if let Some(mut behavior) = self.take_behavior(id) {
+            behavior.Input(event, &state, input_state);
+            if self.panels.contains_key(id) {
+                self.put_behavior(id, behavior);
+            }
         }
     }
 

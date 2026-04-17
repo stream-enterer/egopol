@@ -375,14 +375,29 @@ impl emInputEvent {
         !self.eaten && self.key.emIsMouseInputKey()
     }
 
+    /// C++ parity alias for `is_mouse_event`. (C++ emInputEvent::IsMouseEvent.)
+    pub fn IsMouseEvent(&self) -> bool {
+        self.is_mouse_event()
+    }
+
     /// Whether this is a touch event.
     pub fn is_touch_event(&self) -> bool {
         !self.eaten && self.key.emIsTouchInputKey()
     }
 
+    /// C++ parity alias for `is_touch_event`. (C++ emInputEvent::IsTouchEvent.)
+    pub fn IsTouchEvent(&self) -> bool {
+        self.is_touch_event()
+    }
+
     /// Whether this is a keyboard event (key is keyboard, or chars non-empty).
     pub fn is_keyboard_event(&self) -> bool {
         !self.eaten && (self.key.emIsKeyboardInputKey() || !self.chars.is_empty())
+    }
+
+    /// C++ parity alias for `is_keyboard_event`. (C++ emInputEvent::IsKeyboardEvent.)
+    pub fn IsKeyboardEvent(&self) -> bool {
+        self.is_keyboard_event()
     }
 
     pub fn with_chars(mut self, chars: &str) -> Self {
