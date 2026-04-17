@@ -90,14 +90,16 @@ persists across frames. If `self.svp` is already persistent, reuse it; mark
 - `PanelData.prev_viewed` field, its initialization, and its write in
   `clear_viewing_flags`.
 
-## Divergences to Mark
+## Naming — Match C++ Exactly
 
-- If `supreme_viewed_panel` field name differs from C++ `SupremeViewedPanel`:
-  `DIVERGED:` comment at the field definition.
-- If `update_children_viewing` signature differs from C++ (e.g., takes
-  `&mut self` on the tree instead of running as a method on the panel):
-  `DIVERGED:` comment at method definition noting C++ name is
-  `emPanel::UpdateChildrenViewing` and reason is the Rust arena model.
+- Field name: `SupremeViewedPanel` (C++ `emView::SupremeViewedPanel`). If a
+  pre-existing `self.svp` field is present, rename it.
+- Method name: `UpdateChildrenViewing`. Because Rust's panel arena stores
+  behaviors separately from `PanelData`, place this method on `PanelTree` —
+  no `DIVERGED:` comment; the name is preserved and `PanelTree` is already
+  the accepted overlay for `emPanel` container-side methods (e.g.
+  `HandleNotice`).
+- Every method/field touched in this rewrite keeps its C++ name.
 
 ## Verification
 
