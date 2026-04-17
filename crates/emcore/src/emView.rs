@@ -1447,6 +1447,23 @@ impl emView {
             cur = parent_of.unwrap_or(None);
         }
 
+        // emView.cpp:1803 — RestartInputRecursion=true
+        // NOT PORTED: RestartInputRecursion not yet implemented in Rust.
+
+        // emView.cpp:1804 — CursorInvalid=true
+        self.cursor_invalid = true;
+
+        // emView.cpp:1805 — UpdateEngine->WakeUp()
+        // NOT PORTED: UpdateEngine/WakeUp not yet implemented in Rust.
+
+        // emView.cpp:1806 — InvalidatePainting() (view-level: entire viewport rect)
+        self.dirty_rects.push(Rect::new(
+            0.0,
+            0.0,
+            self.viewport_width,
+            self.viewport_height,
+        ));
+
         // Active-path propagation.
         if let Some(active_id) = self.active {
             if tree.contains(active_id) {
@@ -3366,6 +3383,7 @@ mod tests {
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = emView::new(root, 800.0, 600.0);
         view.Update(&mut tree);
+        view.take_dirty_rects(); // drain change-block invalidation
 
         // child1 should be viewed after update_viewing
         view.InvalidatePainting(&tree, child1);
@@ -3382,6 +3400,7 @@ mod tests {
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = emView::new(root, 800.0, 600.0);
         view.Update(&mut tree);
+        view.take_dirty_rects(); // drain change-block invalidation
 
         // Invalidate a sub-rect of child1 in panel coordinates
         view.invalidate_painting_rect(&tree, child1, 0.0, 0.0, 0.5, 0.5);
@@ -3402,6 +3421,7 @@ mod tests {
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = emView::new(root, 800.0, 600.0);
         view.Update(&mut tree);
+        view.clear_cursor_invalid(); // drain change-block side effect
         view.set_active_panel(&mut tree, child1, false);
 
         // child1 is active, thus in_active_path
@@ -3715,6 +3735,7 @@ mod tests {
         let (mut tree, root, _, _) = setup_tree();
         let mut view = emView::new(root, 800.0, 600.0);
         view.Update(&mut tree);
+        view.clear_cursor_invalid(); // drain change-block side effect
 
         assert!(!view.is_cursor_invalid());
         view.flags ^= ViewFlags::EGO_MODE;
