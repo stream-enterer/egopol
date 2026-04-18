@@ -92,9 +92,13 @@ pub struct App {
     pub windows: HashMap<WindowId, Rc<RefCell<emWindow>>>,
     pub input_state: emInputState,
     /// Deferred actions queued by input handlers that need `&ActiveEventLoop`
-    /// (e.g., window creation for Duplicate/CreateControlWindow).
+    /// (e.g., window creation for Duplicate/CreateControlWindow, popup
+    /// surface materialization from `emView::RawVisitAbs`).
     /// Drained each frame in `about_to_wait`.
-    pub pending_actions: Vec<DeferredAction>,
+    ///
+    /// `Rc<RefCell<...>>` so `emView` can hold a handle and enqueue without
+    /// a borrow of `App`.
+    pub pending_actions: Rc<RefCell<Vec<DeferredAction>>>,
     /// Global file-update signal. Port of C++ `emFileModel::AcquireUpdateSignalModel`.
     /// When fired, all file models that listen to it will reload from disk.
     pub file_update_signal: SignalId,
@@ -116,7 +120,7 @@ impl App {
             tree: PanelTree::new(),
             windows: HashMap::new(),
             input_state: emInputState::new(),
-            pending_actions: Vec::new(),
+            pending_actions: Rc::new(RefCell::new(Vec::new())),
             file_update_signal,
             setup_fn: Some(setup),
             initialized: false,
@@ -199,8 +203,6 @@ impl App {
     /// happened in the same frame as popup-entry), `win_rc` is the only
     /// remaining strong reference and the materialization is skipped.
     /// The Rc drops at function end; no winit window is created.
-    // Caller wired in W3 Task 4.
-    #[allow(dead_code)]
     pub(crate) fn materialize_popup_surface(
         &mut self,
         win_rc: Rc<RefCell<emWindow>>,
@@ -436,8 +438,21 @@ impl ApplicationHandler for App {
         // Tick screensaver keepalive (pokes xscreensaver every 59s when inhibited).
         super::emWindowPlatform::tick_screensaver_keepalive();
 
-        // Process deferred actions (window creation from Duplicate/ccw, etc.).
-        let actions: Vec<DeferredAction> = self.pending_actions.drain(..).collect();
+        // Lazy-wire each view's pending_framework_actions handle so that
+        // popup-creation paths in `emView::RawVisitAbs` can enqueue back into
+        // `App::pending_actions`. Idempotent — overwrites with the same Rc.
+        for rc in self.windows.values() {
+            rc.borrow_mut()
+                .view_mut()
+                .set_pending_framework_actions(self.pending_actions.clone());
+        }
+
+        // Process deferred actions (window creation from Duplicate/ccw,
+        // popup surface materialization, etc.). Drain by move so that
+        // closures own their captured `Rc<RefCell<emWindow>>`; this is
+        // required by `materialize_popup_surface`'s cancellation check
+        // (`Rc::strong_count(&win_rc) == 1`).
+        let actions: Vec<DeferredAction> = self.pending_actions.borrow_mut().drain(..).collect();
         for action in actions {
             action(self, event_loop);
         }

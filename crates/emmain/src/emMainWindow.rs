@@ -209,17 +209,19 @@ impl emMainWindow {
         let dup_adherent = adherent;
 
         // Queue deferred window creation (needs &ActiveEventLoop).
-        app.pending_actions.push(Box::new(move |app, event_loop| {
-            let mut dup_config = config;
-            // Encode full visit params into the config's visit_rel fields.
-            dup_config.visit_rel_x = dup_rel_x;
-            dup_config.visit_rel_y = dup_rel_y;
-            dup_config.visit_rel_a = dup_rel_a;
-            dup_config.visit_adherent = dup_adherent;
-            let mw = create_main_window(app, event_loop, dup_config);
-            set_main_window(mw);
-            log::info!("emMainWindow::Duplicate — created new window");
-        }));
+        app.pending_actions
+            .borrow_mut()
+            .push(Box::new(move |app, event_loop| {
+                let mut dup_config = config;
+                // Encode full visit params into the config's visit_rel fields.
+                dup_config.visit_rel_x = dup_rel_x;
+                dup_config.visit_rel_y = dup_rel_y;
+                dup_config.visit_rel_a = dup_rel_a;
+                dup_config.visit_adherent = dup_adherent;
+                let mw = create_main_window(app, event_loop, dup_config);
+                set_main_window(mw);
+                log::info!("emMainWindow::Duplicate — created new window");
+            }));
     }
 
     /// Port of C++ `emMainWindow::Input` (emMainWindow.cpp:193-263).

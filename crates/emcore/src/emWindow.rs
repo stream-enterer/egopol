@@ -1366,12 +1366,20 @@ impl emWindow {
     /// Set the content area position and size.
     ///
     /// Matches C++ emWindow::SetViewPosSize (PSAS_VIEW pos, PSAS_VIEW size).
-    pub fn SetViewPosSize(&self, x: f64, y: f64, w: f64, h: f64) {
-        self.winit_window()
-            .set_outer_position(winit::dpi::LogicalPosition::new(x, y));
-        let _ = self
-            .winit_window()
-            .request_inner_size(winit::dpi::LogicalSize::new(w, h));
+    pub fn SetViewPosSize(&mut self, x: f64, y: f64, w: f64, h: f64) {
+        match &mut self.os_surface {
+            OsSurface::Materialized(m) => {
+                m.winit_window
+                    .set_outer_position(winit::dpi::LogicalPosition::new(x, y));
+                let _ = m
+                    .winit_window
+                    .request_inner_size(winit::dpi::LogicalSize::new(w, h));
+            }
+            OsSurface::Pending(p) => {
+                // Stash the requested geometry; applied at materialization.
+                p.requested_pos_size = Some((x as i32, y as i32, w as i32, h as i32));
+            }
+        }
     }
 
     /// Set the window position (including decorations).
