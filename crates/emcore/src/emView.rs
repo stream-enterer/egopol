@@ -3110,6 +3110,11 @@ impl emView {
     /// `VisitingVAEngineClass::Cycle` which requires a window registry; unit
     /// tests without a window use this to observe the post-convergence active
     /// panel after a `Visit*` call.
+    ///
+    /// Gated behind the `test-support` cargo feature so the symbol does not
+    /// leak into the non-test public API. Cross-crate test consumers must
+    /// enable `features = ["test-support"]` on their `emcore` dev-dependency.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn pump_visiting_va(&mut self, tree: &mut PanelTree) {
         use super::emViewAnimator::emViewAnimator as _;
         let va_rc = Rc::clone(&self.VisitingVA);
