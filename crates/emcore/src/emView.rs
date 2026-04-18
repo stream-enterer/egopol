@@ -283,7 +283,7 @@ pub struct emView {
     pub flags: ViewFlags,
     supreme_viewed_panel: Option<PanelId>,
     background_color: emColor,
-    svp_update_count: u32,
+    SVPUpdCount: u32,
     window_focused: bool,
     /// Panel targeted by the visiting animator's seek operation.
     seek_pos_panel: Option<PanelId>,
@@ -449,7 +449,7 @@ impl emView {
             flags: ViewFlags::empty(),
             supreme_viewed_panel: None,
             background_color: emColor::rgba(0x80, 0x80, 0x80, 0xFF),
-            svp_update_count: 0,
+            SVPUpdCount: 0,
             window_focused: true,
             seek_pos_panel: None,
             seek_pos_child_name: String::new(),
@@ -1780,12 +1780,10 @@ impl emView {
             .unwrap_or(0);
         if self.SVPUpdSlice != slice {
             self.SVPUpdSlice = slice;
-            self.svp_update_count = 0;
+            self.SVPUpdCount = 0;
         }
-        self.svp_update_count += 1;
-        if self.svp_update_count > 1000
-            && (self.svp_update_count % 1000 == 1 || self.svp_update_count > 10000)
-        {
+        self.SVPUpdCount += 1;
+        if self.SVPUpdCount > 1000 && (self.SVPUpdCount % 1000 == 1 || self.SVPUpdCount > 10000) {
             // Per-spec "scope up on missing": emGetDblRandom helper does
             // not exist in the Rust crate. Port as a tiny module-local
             // helper — the call site is an fp-instability escape-hatch
