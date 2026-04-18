@@ -23,6 +23,10 @@ use super::emPanelTree::{PanelId, PanelTree};
 pub struct PopupPlaceholder {
     pub background_color: crate::emColor::emColor,
     pub current_view_port: Rc<RefCell<super::emViewPort::emViewPort>>,
+    /// Close signal, populated when the owning view has a scheduler attached.
+    /// Mirrors `emWindow::close_signal`. Phase 8 uses this to drive the popup
+    /// close drain in `emView::Update` and wake-up wiring in `SwapViewPorts`.
+    pub close_signal: Option<super::emSignal::SignalId>,
 }
 
 impl PopupPlaceholder {
@@ -34,11 +38,17 @@ impl PopupPlaceholder {
         Rc::new(RefCell::new(PopupPlaceholder {
             background_color: crate::emColor::emColor::rgba(0x80, 0x80, 0x80, 0xFF),
             current_view_port: Rc::new(RefCell::new(super::emViewPort::emViewPort::new_dummy())),
+            close_signal: None,
         }))
     }
 
     pub fn SetBackgroundColor(&mut self, color: crate::emColor::emColor) {
         self.background_color = color;
+    }
+
+    /// Return the close signal, mirroring C++ `emWindow::GetCloseSignal()`.
+    pub fn GetCloseSignal(&self) -> Option<super::emSignal::SignalId> {
+        self.close_signal
     }
 
     /// PHASE-6-FOLLOWUP: forward to real OS window resize once popup
@@ -1667,7 +1677,19 @@ impl emView {
                         self.CurrentViewPort.borrow_mut().RequestFocus();
                     }
                     // C++ (emView.cpp:1644): UpdateEngine->AddWakeUpSignal(PopupWindow->GetCloseSignal())
-                    // PHASE-5-TODO: wire close-signal wake-up.
+                    // Allocate a close signal on the scheduler, stash it on
+                    // the popup placeholder, and connect it to the update
+                    // engine so firing wakes Update. Mirrors the C++ contract
+                    // even though the placeholder is Rust-only scaffolding.
+                    if let (Some(popup), Some(sched_weak), Some(eng_id)) = (
+                        self.PopupWindow.as_ref(),
+                        self.scheduler.as_ref(),
+                        self.update_engine_id,
+                    ) {
+                        let close_sig = sched_weak.borrow_mut().create_signal();
+                        popup.borrow_mut().close_signal = Some(close_sig);
+                        sched_weak.borrow_mut().connect(close_sig, eng_id);
+                    }
                 }
                 // C++ (emView.cpp:1647): GetMaxPopupViewRect(&sx,&sy,&sw,&sh)
                 let mut sr = (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
@@ -1725,6 +1747,19 @@ impl emView {
             } else if self.PopupWindow.is_some() {
                 // C++ (emView.cpp:1674-1680): tear down popup on return inside home
                 self.SwapViewPorts(true);
+                // Disconnect + remove the popup's close signal (allocated on
+                // popup creation above) so the scheduler doesn't leak it.
+                if let (Some(popup), Some(sched), Some(eng_id)) = (
+                    self.PopupWindow.as_ref(),
+                    self.scheduler.as_ref(),
+                    self.update_engine_id,
+                ) {
+                    if let Some(close_sig) = popup.borrow().close_signal {
+                        let mut s = sched.borrow_mut();
+                        s.disconnect(close_sig, eng_id);
+                        s.remove_signal(close_sig);
+                    }
+                }
                 self.PopupWindow = None;
                 // C++ (emView.cpp:1678): Signal(GeometrySignal).
                 if let (Some(sig), Some(sched)) = (self.geometry_signal, &self.scheduler) {
@@ -2171,9 +2206,28 @@ impl emView {
     /// DIVERGED: notice-drain delegates to PanelTree::HandleNotice (ring owned
     /// by PanelTree, per commit 75c7c68). Rest of shape is identical.
     pub fn Update(&mut self, tree: &mut PanelTree) {
-        // C++ emView.cpp:1299-1301: popup close.
-        // backend-gap: requires IsSignaled(PopupWindow->GetCloseSignal()); call
-        // ZoomOut() when the popup window is closed. Needs scheduler signal wiring.
+        // C++ emView.cpp:1299-1301: popup close —
+        //   if (IsSignaled(PopupWindow->GetCloseSignal())) ZoomOut();
+        // Check the popup placeholder's close signal via the scheduler's
+        // clock-based predicate (scoped for borrow correctness).
+        let popup_closed = {
+            if let (Some(popup), Some(sched), Some(eng_id)) = (
+                self.PopupWindow.as_ref(),
+                self.scheduler.as_ref(),
+                self.update_engine_id,
+            ) {
+                let close_sig = popup.borrow().close_signal;
+                match close_sig {
+                    Some(sig) => sched.borrow().is_signaled_for_engine(sig, eng_id),
+                    None => false,
+                }
+            } else {
+                false
+            }
+        };
+        if popup_closed {
+            self.ZoomOut(tree);
+        }
 
         // First-frame zoom-out: C++ ZoomedOutBeforeSG.
         // C++ SetGeometry (emView.cpp:1272-1273) calls RawZoomOut(true) directly.
@@ -5723,6 +5777,90 @@ mod tests {
         assert_eq!(v.HomePixelTallness, 1.25);
         assert_eq!(v.CurrentX, 100.0); // Current tracks Home when no popup.
         assert_eq!(v.CurrentPixelTallness, 1.25);
+    }
+
+    /// Phase 8 acceptance test — `emView::Update` drains the popup's
+    /// close_signal and calls `ZoomOut`, and `SwapViewPorts` (via the
+    /// popup-creation path) connects the close_signal to the update engine
+    /// as a wake-up.
+    #[test]
+    fn test_phase8_popup_close_signal_zooms_out() {
+        let (mut tree, root, child_a, _) = setup_tree();
+        let mut v = emView::new(root, 640.0, 480.0);
+        let sched = Rc::new(RefCell::new(EngineScheduler::new()));
+        v.attach_to_scheduler(sched.clone(), winit::window::WindowId::dummy());
+
+        // Clear zoomed_out_before_sg, enable popup zoom, and create a popup.
+        v.Update(&mut tree);
+        v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree);
+        v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true);
+        assert!(
+            v.PopupWindow.is_some(),
+            "popup should be created by RawVisit under POPUP_ZOOM"
+        );
+
+        // SwapViewPorts (Step 2) should have allocated close_signal and
+        // connected it to the update engine.
+        let close_sig = v
+            .PopupWindow
+            .as_ref()
+            .and_then(|p| p.borrow().close_signal)
+            .expect("close_signal allocated when scheduler is attached");
+        let eng_id = v.update_engine_id.expect("update engine registered");
+        assert!(
+            sched.borrow().get_signal_refs(close_sig, eng_id) >= 1,
+            "close_signal must be connected to the update engine"
+        );
+
+        // Drive the signal phase so sig.clock advances past eng.clock, then
+        // call Update() directly. We swap `update_engine_id` for a dormant
+        // dummy engine before the slice so that (a) the real update engine
+        // (which RawVisit may have woken via WakeUpUpdateEngine) doesn't
+        // interfere with the Update drain test, and (b) the dummy's clock
+        // stays at its registration value while sig.clock advances. The
+        // wake-up connection against the real engine was verified above.
+        use crate::emEngine::{emEngine as EngineTrait, EngineCtx, Priority};
+        struct NoopEngine;
+        impl EngineTrait for NoopEngine {
+            fn Cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
+                false
+            }
+        }
+        sched.borrow_mut().disconnect(close_sig, eng_id);
+        let dummy_id = sched
+            .borrow_mut()
+            .register_engine(Priority::High, Box::new(NoopEngine));
+        v.update_engine_id = Some(dummy_id);
+        sched.borrow_mut().connect(close_sig, dummy_id);
+        // Immediately disconnect so DoTimeSlice doesn't wake the dummy
+        // either — we only need sig.clock to advance via process signals.
+        sched.borrow_mut().disconnect(close_sig, dummy_id);
+
+        sched.borrow_mut().fire(close_sig);
+        let mut windows = std::collections::HashMap::new();
+        sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows);
+        // Now sig.clock > dummy.clock (dummy was never cycled this slice).
+        v.Update(&mut tree);
+
+        // Primary invariant: popup is torn down. This proves
+        // Update -> ZoomOut -> RawVisit -> popup teardown branch fired.
+        assert!(
+            v.PopupWindow.is_none(),
+            "popup should be torn down after ZoomOut"
+        );
+
+        // Scheduler cleanup for Drop debug_asserts. `update_engine_id` now
+        // points at the dummy; the original engine is still registered.
+        if let Some(id) = v.update_engine_id.take() {
+            sched.borrow_mut().remove_engine(id);
+        }
+        sched.borrow_mut().remove_engine(eng_id);
+        if let Some(eoi) = v.EOISignal.take() {
+            sched.borrow_mut().remove_signal(eoi);
+        }
+        if let Some(id) = v.eoi_engine_id.take() {
+            sched.borrow_mut().remove_engine(id);
+        }
     }
 }
 

@@ -77,6 +77,22 @@ impl EngineScheduler {
         self.inner.signals.get(id).is_some_and(|s| s.pending)
     }
 
+    /// Clock-based signaled check for a given engine, mirroring
+    /// C++ `emEngine::IsSignaled`. Returns true if the signal was processed
+    /// after the engine's last `Cycle()` call.
+    ///
+    /// Use outside of `Cycle` (e.g. from `emView::Update` which the
+    /// `UpdateEngineClass` invokes) to ask "has this signal fired since this
+    /// engine last ran?".
+    pub fn is_signaled_for_engine(&self, signal: SignalId, engine: EngineId) -> bool {
+        let sig_clock = match self.inner.signals.get(signal) {
+            Some(s) => s.clock,
+            None => return false,
+        };
+        let eng_clock = self.inner.engines.get(engine).map_or(0, |e| e.clock);
+        sig_clock > eng_clock
+    }
+
     /// Abort a pending signal (cancel before processing).
     pub fn abort(&mut self, id: SignalId) {
         if let Some(sig) = self.inner.signals.get_mut(id) {
