@@ -2119,7 +2119,8 @@ impl emView {
     /// by PanelTree, per commit 75c7c68). Rest of shape is identical.
     pub fn Update(&mut self, tree: &mut PanelTree) {
         // C++ emView.cpp:1299-1301: popup close.
-        // PHASE-4-TODO: check self.PopupWindow close signal and ZoomOut.
+        // backend-gap: requires IsSignaled(PopupWindow->GetCloseSignal()); call
+        // ZoomOut() when the popup window is closed. Needs scheduler signal wiring.
 
         // First-frame zoom-out: C++ ZoomedOutBeforeSG.
         // C++ SetGeometry (emView.cpp:1272-1273) calls RawZoomOut(true) directly.
