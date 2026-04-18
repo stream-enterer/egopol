@@ -12,18 +12,18 @@ eaglemode-rs is an **observational port** of emCore. From a user's seat — visi
 3. Rust idiom — applies only below the observable surface, and only where C++ structure is not load-bearing.
 4. LLM judgment / convenience — lowest. Never outranks the above.
 
-**Classify every divergence from C++:**
-- **Forced** — Rust or a required dependency (winit/wgpu) makes the C++ shape literally impossible. Not "awkward", not "would require refactoring" — impossible. Minimize the concession.
-- **Design intent** — a deliberate architectural choice by the C++ author. Preserve; it is load-bearing.
-- **Idiom adaptation** — below the observable surface, outside name correspondence. Adapt syntax and ownership freely; behavior stays identical.
+**Classify every difference from C++** (the first two are *divergences* — observable or structural departures. The third is not):
+- **Forced divergence** — Rust or a required dependency (winit/wgpu) makes the C++ shape literally impossible. Not "awkward", not "would require refactoring" — impossible. Minimize the concession.
+- **Preserved design intent** — a deliberate architectural choice by the C++ author. Preserve; it is load-bearing.
+- **Idiom adaptation** — below the observable surface, outside name correspondence. Adapt syntax and ownership freely; behavior stays identical. Not a divergence.
 
 **Failure modes this prevents:**
-- Collapsing *design intent* into *forced*: using one real constraint as license to redesign surrounding C++ structure.
-- Treating Rust convenience as a reason to diverge. Convenience is never a reason.
+- Collapsing *preserved design intent* into *forced divergence*: using one real constraint as license to redesign surrounding C++ structure.
+- Treating Rust convenience as a reason to diverge (observably or structurally). Convenience is never a reason.
 - Speculating about author intent instead of reading C++ to confirm.
 - Preserving Rust out of inertia when it diverges from C++. Rust is defective by default; C++ is the reference.
 
-**When unsure:** match C++ exactly and mark the divergence point explicitly. Silent drift is worse than verbose preservation. If unclear whether a C++ choice is intent or incident, assume intent and read the source before concluding otherwise.
+**When unsure whether a difference is forced or design intent:** assume design intent, match C++ exactly, and mark the point of departure explicitly. Silent drift is worse than verbose preservation.
 
 ## Commands
 
@@ -77,7 +77,7 @@ Concretization of the Port Ideology by code layer. Golden tests compare Rust pix
 
 **State logic, data structures, ownership, API surface**: Fully idiomatic Rust, subject to File and Name Correspondence (names and file structure match C++ even when Rust idiom would differ). Golden tests verify output, not structure. Preserve behavioral contracts (return values, side effects, ordering). Adapt syntax freely where it does not break name correspondence.
 
-**When in doubt**: Check if the function's output feeds a golden test. If yes → port the C++ formula exactly. If no → write idiomatic Rust.
+**Layer test**: if the function's output feeds a golden test → port the C++ formula exactly. Otherwise → idiomatic Rust is permitted (subject to Port Ideology).
 
 ## Golden Tests
 
