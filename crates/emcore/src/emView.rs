@@ -1212,6 +1212,8 @@ impl emView {
             ra *= re_fac * re_fac;
             self.RawVisit(tree, panel, rx, ry, ra, true);
         }
+        // C++ emView.cpp:800.
+        self.SetActivePanelBestPossible(tree);
     }
 
     /// Port of C++ `emView::Scroll(deltaX, deltaY)` (emView.cpp:765-782).
@@ -1244,6 +1246,8 @@ impl emView {
             ry += dy / pvh;
             self.RawVisit(tree, panel, rx, ry, ra, true);
         }
+        // C++ emView.cpp:780.
+        self.SetActivePanelBestPossible(tree);
     }
 
     /// Port of C++ `emView::RawScrollAndZoom(fixX, fixY, dX, dY, dZ, panel, ...)`
@@ -1346,6 +1350,8 @@ impl emView {
 
     pub fn ZoomOut(&mut self, tree: &mut PanelTree) {
         self.RawZoomOut(tree, false);
+        // C++ emView.cpp:901.
+        self.SetActivePanelBestPossible(tree);
     }
 
     /// DIVERGED: C++ has public `RawZoomOut()` + private overload
@@ -4883,17 +4889,21 @@ mod tests {
         let mut view = emView::new_for_test(root, 800.0, 600.0);
         view.Update(&mut tree);
 
-        // Zoom around center — should keep center stable
-        let (_, _, _, before_ra) = view
-            .get_visited_panel_idiom(&tree)
-            .expect("visited panel should exist before zoom");
+        // Read root's viewed_width pre/post; ra = HomeW*HomeH/(vw*vh).
+        // Zoom(factor=2) grows vw by 2 and vh by 2, so relA /= 4.
+        // NOTE: Post-SP4, Zoom calls SetActivePanelBestPossible (C++ parity),
+        // which can reassign the "visited panel" to a child. Measure ra from
+        // the root panel directly so the assertion tracks the geometry, not
+        // the active-panel selection.
+        let before_vw = tree.GetRec(root).unwrap().viewed_width;
+        let before_vh = tree.GetRec(root).unwrap().viewed_height;
+        let before_ra = (view.HomeWidth * view.HomeHeight) / (before_vw * before_vh);
         view.Zoom(&mut tree, 2.0, 400.0, 300.0);
-        let (_, _, _, after_ra) = view
-            .get_visited_panel_idiom(&tree)
-            .expect("visited panel should exist after zoom");
+        let after_vw = tree.GetRec(root).unwrap().viewed_width;
+        let after_vh = tree.GetRec(root).unwrap().viewed_height;
+        let after_ra = (view.HomeWidth * view.HomeHeight) / (after_vw * after_vh);
 
         // C++ Zoom(factor=2): reFac = 1/2, ra *= reFac^2 = 1/4.
-        // relA = HomeW*HomeH/(vw*vh); zooming in by 2 grows vw*vh by 4, so relA /= 4.
         assert!((after_ra - before_ra / 4.0).abs() < 0.01 * before_ra);
     }
 
