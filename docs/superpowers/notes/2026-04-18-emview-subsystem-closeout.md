@@ -161,7 +161,7 @@ Per CLAUDE.md, `DIVERGED:` is the prescribed marker for name mismatches; the W4 
 
 ### 4.6 `PHASE-W4-FOLLOWUP:` markers — 3, all CoreConfig defaults
 
-All three mark hardcoded `SetAnimParamsByCoreConfig(1.0, 10.0)` calls where C++ would pass `emView`'s `CoreConfig` by reference. Rust `emView` does not yet own a `CoreConfig` field. Locations: `crates/emcore/src/emView.rs:897, 921, 3067`.
+All three mark hardcoded `SetAnimParamsByCoreConfig(1.0, 10.0)` calls where C++ would pass `emView`'s `CoreConfig` by reference. Rust `emView` does not yet own a `CoreConfig` field. Locations: `crates/emcore/src/emView.rs:897, 921, 3080`.
 
 ---
 
@@ -175,7 +175,7 @@ Everything below was flagged during one of the three waves and remains open. Gro
 
 2. **Double-fire of `GeometrySignal` on popup teardown** (`emView.rs` ~1733). The popup-teardown branch calls `SwapViewPorts(true)` which fires once, then fires `GeometrySignal` a second time explicitly. C++ (`emView.cpp:1678 + 1995`) does the same double-fire, so behaviour matches; comment does not acknowledge `SwapViewPorts` already fired. **Follow-up:** one-line comment tying the double-fire to the C++ pair.
 
-3. **`emView::Input` animator-forward is missing** (`emView.rs` ~3524). C++ `emView::Input` (`emView.cpp:1004`) forwards to the active animator first via `ActiveAnimator->Input(event, state)`. Rust port documents the gap in a top-of-method comment; no code implements it. Current marker: `PHASE-6-FOLLOWUP:` at the call site (the sole surviving Phase-6 marker).
+3. **`emView::Input` animator-forward is a structural divergence** (`emView.rs:3778`). ~~"missing"~~ — **revised 2026-04-18 during W1/W2 plan-writing.** C++ `emView::Input` (`emView.cpp:1004`) forwards to the active animator first via `ActiveAnimator->Input(event, state)`, because C++ `emView` owns the `ActiveAnimator` field. The Rust port places the forward on the animator-owner callers — `emWindow::dispatch_input` (`emWindow.rs:840-862`) and `emSubViewPanel::Behavior::Input` — because Rust `emView` does not own an animator slot. Observable behavior matches C++ (animator sees input first); only the *location* of the forward differs. The existing prose comment at the call site documents this. **Resolution:** promote the comment to a formal `DIVERGED:` block; drop the `PHASE-6-FOLLOWUP:` prefix. Covered by W1/W2 bundle Task 1.
 
 4. **Multi-window framework ambiguity on pixel tallness** (`emGUIFramework.rs` ~362–367). Reads pixel tallness from `windows.values().next()` with `.unwrap_or(1.0)`. Any multi-window future silently picks an arbitrary window. Phase-3's `current_pixel_tallness` threading inherited this hazard. **Follow-up:** TODO marker plus a multi-window-design decision when that feature lands.
 
@@ -194,7 +194,7 @@ Each of these is a one-liner; batchable in a single cleanup pass.
 1. `emSubViewPanel.rs:48` — literal `1.0` for pixel tallness not symbolically tied to `CurrentPixelTallness`'s initial value. Add one-line comment.
 2. `emGUIFramework.rs:~393` — `let mut win = rc.borrow_mut(); let win = &mut *win;` could be `&mut *rc.borrow_mut()`.
 3. `emGUIFramework.rs` `dispatch_forward_events` — added doc-comment describes caller-side usage, not the function itself. Move to the call site or drop.
-4. `tests/unit/popup_window.rs` — `popup_window_creation_path_is_gated_on_display` has a dead `DISPLAY`/`WAYLAND_DISPLAY` gate (both branches run unconditionally). Simplify to the reachability assertion. (Note: `31ff689` retargeted this test; gate remains.)
+4. ~~`tests/unit/popup_window.rs` — dead `DISPLAY`/`WAYLAND_DISPLAY` gate.~~ **Stale as of 2026-04-18.** W1/W2 plan-writing re-read the file; the gate is already absent. The current test is `popup_window_creation_path_is_reachable` (a direct reachability assertion with no DISPLAY branching). Item closed without action.
 5. **W4 `DIVERGED:` suffix consistency.** Four new suffixes (`WithCoords`, `Short`, `ByIdentity`, `ByIdentityShort`). `Short` is an antonym heuristic rather than a semantic descriptor. More uniform names (`VisitBare`/`VisitByIdentityBare` or `VisitCoords`/`VisitByIdentityCoords`) would make the overload family self-describing. Cheap rename now; expensive once external consumers reference the names.
 
 ---
@@ -205,7 +205,7 @@ Each of these is a one-liner; batchable in a single cleanup pass.
 |---|---|---|
 | `PHASE-5-TODO:` | 0 | Closed by Phases 6/8 |
 | `PHASE-6-FOLLOWUP:` | 1 | VIF-chain migration at `emView.rs:~3626` (animator-forward work) |
-| `PHASE-W4-FOLLOWUP:` | 3 | CoreConfig defaults at `emView.rs:897, 921, 3067` |
+| `PHASE-W4-FOLLOWUP:` | 3 | CoreConfig defaults at `emView.rs:897, 921, 3080` |
 | `UPSTREAM-GAP:` | 2 | Intentional — `IsSoftKeyboardShown` / `ShowSoftKeyboard` in `emViewPort.rs`; no upstream backend overrides them |
 | `backend-gap:` | 0 | Phase 8 cleared the last one |
 | `KNOWN GAP` | 0 | W4 closed the `factor=1.0` marker |
@@ -256,11 +256,11 @@ Original plan expected `exit=124` from `timeout 20 cargo run --release ...`. Mos
 
 Numbered in rough priority / landing order. Items marked `[W#]` are cheap C++-mirror ports; items marked `[ARCH]` need a spec and may need a brainstorm.
 
-1. **[W1] `emView::Input` animator forward** — port `emView.cpp:1004`'s `ActiveAnimator->Input(event, state)`. Closes one `PHASE-6-FOLLOWUP:` marker. (§5.1 item 3.)
+1. **[W1] `emView::Input` animator forward** — ~~port `emView.cpp:1004`'s `ActiveAnimator->Input(event, state)`~~ **revised 2026-04-18**: observable behavior already matches C++ via the animator-owner callers; resolution is to promote the existing in-code comment at `emView.rs:3778` to a formal `DIVERGED:` block and drop the `PHASE-6-FOLLOWUP:` prefix. Closes one `PHASE-6-FOLLOWUP:` marker. (§5.1 item 3.) Covered by W1/W2 bundle Task 1 — see `docs/superpowers/plans/2026-04-18-emview-w1-w2-cleanup-bundle.md`.
 2. **[W1] `InvalidateHighlight` call-site audit** — the C++ equivalent is called from focus-state changes and similar; Rust has no production caller. (§5.1 item 3 residual, originally §4.8.)
 3. **[W1] Re-entrancy doc comments** on `PaintView`/`InvalidatePainting`; full audit deferred until real callers wire. (§5.1 item 1.)
 4. **[W1] GeometrySignal double-fire comment** — one line at `emView.rs:~1733`. (§5.1 item 2.)
-5. **[W1] Minor cleanups batch** (§5.2, five items).
+5. **[W1] Minor cleanups batch** (§5.2, ~~five~~ four items post-stale-audit — the `popup_window.rs` gate item was closed without action on 2026-04-18).
 6. **[W2] `VisitByIdentity` co-location** — mechanical move. (§5.1 item 6.)
 7. **[W2] `pump_visiting_va` visibility fix** — pick (a)/(b)/(c). (§5.1 item 7.)
 8. **[W2] Navigation method `NO_NAVIGATE` gate** — remove or add `DIVERGED:`. (§5.1 item 8.)
