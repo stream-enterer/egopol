@@ -235,14 +235,19 @@ impl emScreen {
 
     pub fn LeaveFullscreenModes(
         &self,
-        windows: &mut std::collections::HashMap<winit::window::WindowId, super::emWindow::emWindow>,
+        windows: &mut std::collections::HashMap<
+            winit::window::WindowId,
+            std::rc::Rc<std::cell::RefCell<super::emWindow::emWindow>>,
+        >,
         except: Option<winit::window::WindowId>,
     ) {
         use crate::emWindow::WindowFlags;
 
-        for (id, win) in windows.iter_mut() {
+        for (id, rc) in windows.iter() {
+            let mut win = rc.borrow_mut();
             if win.flags.contains(WindowFlags::FULLSCREEN) && Some(*id) != except {
-                win.SetWindowFlags(win.flags & !WindowFlags::FULLSCREEN);
+                let new_flags = win.flags & !WindowFlags::FULLSCREEN;
+                win.SetWindowFlags(new_flags);
             }
         }
     }

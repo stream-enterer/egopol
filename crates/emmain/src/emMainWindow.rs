@@ -115,7 +115,8 @@ impl emMainWindow {
 
     /// Port of C++ `emMainWindow::ToggleFullscreen`.
     pub fn ToggleFullscreen(&self, app: &mut App) {
-        if let Some(win) = self.window_id.and_then(|id| app.windows.get_mut(&id)) {
+        if let Some(rc) = self.window_id.and_then(|id| app.windows.get(&id)) {
+            let mut win = rc.borrow_mut();
             let new_flags = win.flags ^ WindowFlags::FULLSCREEN;
             win.SetWindowFlags(new_flags);
         }
@@ -159,8 +160,9 @@ impl emMainWindow {
     pub fn GetTitle(&self, app: &App) -> String {
         if self.main_panel_id.is_some()
             && self.startup_engine_id.is_none()
-            && let Some(win) = self.window_id.and_then(|id| app.windows.get(&id))
+            && let Some(rc) = self.window_id.and_then(|id| app.windows.get(&id))
         {
+            let win = rc.borrow();
             let title = win.view().GetTitle();
             if !title.is_empty() {
                 return format!("Eagle Mode - {title}");
@@ -177,7 +179,8 @@ impl emMainWindow {
     pub fn Duplicate(&self, app: &mut App) {
         // Extract visit info from the current window's view (C++ emMainWindow.cpp:112-117).
         let (visit_identity, rel_x, rel_y, rel_a, adherent) =
-            if let Some(win) = self.window_id.and_then(|id| app.windows.get(&id)) {
+            if let Some(rc) = self.window_id.and_then(|id| app.windows.get(&id)) {
+                let win = rc.borrow();
                 let view = win.view();
                 let visit = view.current_visit();
                 let identity = app.tree.GetIdentity(visit.panel);
@@ -354,8 +357,9 @@ impl emEngine for MainWindowEngine {
         if let Some(title_sig) = self.title_signal
             && ctx.IsSignaled(title_sig)
             && let Some(wid) = self.window_id
-            && let Some(win) = ctx.windows.get(&wid)
+            && let Some(rc) = ctx.windows.get(&wid)
         {
+            let win = rc.borrow();
             let view_title = win.view().GetTitle();
             let title = if view_title.is_empty() {
                 "Eagle Mode".to_string()
@@ -812,7 +816,7 @@ pub fn create_main_window(
         focus_signal,
         geometry_signal,
     );
-    let window_id = window.winit_window.id();
+    let window_id = window.borrow().winit_window.id();
     app.windows.insert(window_id, window);
     mw.window_id = Some(window_id);
 
@@ -832,8 +836,8 @@ pub fn create_main_window(
     // Register MainWindowEngine — wakes only on signals, no wake_up call
     // (C++ emMainWindow::Cycle, emMainWindow.cpp:174-190).
     let title_signal = app.scheduler.borrow_mut().create_signal();
-    if let Some(win) = app.windows.get_mut(&window_id) {
-        win.view_mut().set_title_signal(title_signal);
+    if let Some(rc) = app.windows.get(&window_id) {
+        rc.borrow_mut().view_mut().set_title_signal(title_signal);
     }
     let mw_engine = MainWindowEngine {
         close_signal,
@@ -857,7 +861,8 @@ pub fn create_main_window(
     // The bridge reacts to control panel signal (active panel changes) and
     // will update the content control panel in the control sub-view.
     let cp_signal = app.scheduler.borrow_mut().create_signal();
-    if let Some(win) = app.windows.get_mut(&window_id) {
+    if let Some(rc) = app.windows.get(&window_id) {
+        let mut win = rc.borrow_mut();
         win.view_mut().set_scheduler(Rc::clone(&app.scheduler));
         win.view_mut().set_control_panel_signal(cp_signal);
     }
@@ -903,8 +908,8 @@ pub fn create_main_window(
             ..
         } = *app;
         let screen = screen.as_ref().expect("Screen not initialized");
-        if let Some(win) = windows.get_mut(&window_id) {
-            saver.Restore(win, screen);
+        if let Some(rc) = windows.get(&window_id) {
+            saver.Restore(&mut rc.borrow_mut(), screen);
         }
 
         let saver_id = app
@@ -938,8 +943,8 @@ pub fn create_control_window(
     // C++ emMainWindow.cpp:311-313: If ControlWindow exists, raise it.
     let existing_id = with_main_window(|mw| mw.control_window_id).flatten();
     if let Some(cw_id) = existing_id {
-        if let Some(win) = app.windows.get(&cw_id) {
-            win.winit_window.focus_window();
+        if let Some(rc) = app.windows.get(&cw_id) {
+            rc.borrow().winit_window.focus_window();
             return Some(cw_id);
         }
         // Window was closed/removed — clear stale ID.
@@ -977,7 +982,7 @@ pub fn create_control_window(
         focus_signal,
         geometry_signal,
     );
-    let window_id = window.winit_window.id();
+    let window_id = window.borrow().winit_window.id();
     app.windows.insert(window_id, window);
 
     // Store the control window ID for raise-if-existing logic.

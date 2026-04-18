@@ -59,7 +59,7 @@ pub struct EngineCtx<'a> {
     pub(crate) engine_id: EngineId,
     pub(crate) scheduler: &'a mut EngineCtxInner,
     pub tree: &'a mut PanelTree,
-    pub windows: &'a mut HashMap<WindowId, emWindow>,
+    pub windows: &'a mut HashMap<WindowId, std::rc::Rc<std::cell::RefCell<emWindow>>>,
 }
 
 /// The scheduler fields accessible through EngineCtx.

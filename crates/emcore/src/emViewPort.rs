@@ -161,6 +161,10 @@ impl emViewPort {
     ///
     /// Requests a redraw on the owning `emWindow`. No-op for dummy ports.
     pub fn PaintView(&self) {
+        debug_assert!(
+            self.window.is_some() || cfg!(test),
+            "emViewPort::PaintView called on viewport without back-reference"
+        );
         if let Some(weak) = &self.window {
             if let Some(rc) = weak.upgrade() {
                 rc.borrow().request_redraw();
@@ -251,6 +255,10 @@ impl emViewPort {
     /// Delegates to the owning `emWindow`'s tile cache. No-op for dummy
     /// ports.
     pub fn InvalidatePainting(&mut self, x: f64, y: f64, w: f64, h: f64) {
+        debug_assert!(
+            self.window.is_some() || cfg!(test),
+            "emViewPort::InvalidatePainting called on viewport without back-reference"
+        );
         if let Some(weak) = &self.window {
             if let Some(rc) = weak.upgrade() {
                 rc.borrow_mut().invalidate_rect(x, y, w, h);

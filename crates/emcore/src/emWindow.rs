@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use bitflags::bitflags;
@@ -68,6 +70,10 @@ pub struct emWindow {
 
 impl emWindow {
     /// Create a new window with a wgpu surface and rendering pipeline.
+    ///
+    /// Returns `Rc<RefCell<Self>>` so that `emViewPort::window` (a
+    /// `Weak<RefCell<emWindow>>`) can be wired immediately after construction
+    /// without requiring a second pass from the caller.
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         event_loop: &winit::event_loop::ActiveEventLoop,
@@ -78,7 +84,7 @@ impl emWindow {
         flags_signal: SignalId,
         focus_signal: SignalId,
         geometry_signal: SignalId,
-    ) -> Self {
+    ) -> Rc<RefCell<Self>> {
         let mut attrs = winit::window::WindowAttributes::default().with_title("eaglemode-rs");
 
         if flags.contains(WindowFlags::UNDECORATED) {
@@ -146,7 +152,7 @@ impl emWindow {
             Box::new(emKeyboardZoomScrollVIF::new()),
         ];
 
-        Self {
+        let window = Rc::new(RefCell::new(Self {
             winit_window,
             surface,
             surface_config,
@@ -175,7 +181,45 @@ impl emWindow {
             render_pool: emRenderThreadPool::new(
                 crate::emCoreConfig::emCoreConfig::default().max_render_threads,
             ),
+        }));
+
+        // Wire the emViewPort back-reference (Phase 6 / Phase-5 absorbed work).
+        // The current view-port (initially the home port) gets a Weak pointer
+        // back to the owning window so PaintView and InvalidatePainting can
+        // dispatch to backend machinery. Matches the C++ emWindowPort
+        // constructor which stores &Window on the port.
+        {
+            let win_ref = window.borrow();
+            let vp = win_ref.view.CurrentViewPort.clone();
+            vp.borrow_mut().window = Some(Rc::downgrade(&window));
         }
+
+        window
+    }
+
+    /// Port of C++ `emWindow` ctor with `WF_POPUP`. Creates an undecorated,
+    /// always-on-top popup window sharing the scheduler context with the
+    /// owner.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_popup(
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        gpu: &GpuContext,
+        root_panel: PanelId,
+        close_signal: SignalId,
+        flags_signal: SignalId,
+        focus_signal: SignalId,
+        geometry_signal: SignalId,
+    ) -> Rc<RefCell<Self>> {
+        Self::create(
+            event_loop,
+            gpu,
+            root_panel,
+            WindowFlags::POPUP | WindowFlags::UNDECORATED | WindowFlags::AUTO_DELETE,
+            close_signal,
+            flags_signal,
+            focus_signal,
+            geometry_signal,
+        )
     }
 
     /// Handle a resize event.

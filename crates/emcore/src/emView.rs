@@ -7,26 +7,29 @@ use bitflags::bitflags;
 
 use super::emPanelTree::{PanelId, PanelTree};
 
-/// PHASE-6-TODO: replace with real popup window wiring.
+/// PHASE-6-FOLLOWUP: replace with real popup window wiring.
 ///
 /// Phase 4 deleted the popup-stub `emWindow` and renamed `ZuiWindow` →
 /// `emWindow` (the heavyweight windowed view). Heavyweight `emWindow`
 /// requires a `winit::ActiveEventLoop` + `GpuContext` to construct and
-/// cannot be built from inside `RawVisitAbs`. Phase 6 owns real popup
-/// creation; until then, `PopupWindow` holds this placeholder so the
-/// existing popup branch (and its acceptance test
-/// `test_phase4_popup_zoom_creates_popup_window`) continues to compile
-/// and run.
+/// cannot be built from inside `RawVisitAbs`. Phase 6 added
+/// `emWindow::new_popup` as the target constructor, but the routing from
+/// `RawVisitAbs` (which does not hold the event loop) to
+/// `emGUIFramework::about_to_wait` (which does) is deferred to a later
+/// sub-phase because the Phase 4 acceptance test
+/// `test_phase4_popup_zoom_creates_popup_window` requires the popup slot
+/// to be populated synchronously from `RawVisit`, and switching to a
+/// deferred-creation scheme changes that contract.
 pub struct PopupPlaceholder {
     pub background_color: crate::emColor::emColor,
     pub current_view_port: Rc<RefCell<super::emViewPort::emViewPort>>,
 }
 
 impl PopupPlaceholder {
-    /// PHASE-6-TODO: replace with real `emWindow::create` once popup OS
-    /// windowing is wired (needs event_loop+gpu threaded into the view).
-    /// `flags` and `tag` will become meaningful then; Phase 4 drops them
-    /// to avoid dead-code warnings.
+    /// PHASE-6-FOLLOWUP: replace with real `emWindow::new_popup` once the
+    /// deferred-creation routing from `RawVisitAbs` to `about_to_wait` is
+    /// in place. `flags` and `tag` will become meaningful then; Phase 4
+    /// drops them to avoid dead-code warnings.
     pub fn new_popup(_flags: super::emWindow::WindowFlags, _tag: &str) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(PopupPlaceholder {
             background_color: crate::emColor::emColor::rgba(0x80, 0x80, 0x80, 0xFF),
@@ -38,7 +41,8 @@ impl PopupPlaceholder {
         self.background_color = color;
     }
 
-    /// PHASE-6-TODO: forward to real OS window resize.
+    /// PHASE-6-FOLLOWUP: forward to real OS window resize once popup
+    /// windows are created by `emWindow::new_popup`.
     pub fn SetViewPosSize(&self, x: f64, y: f64, w: f64, h: f64) {
         self.current_view_port
             .borrow_mut()
@@ -1649,8 +1653,8 @@ impl emView {
                     // C++ (emView.cpp:1638): wasFocused=Focused;
                     let was_focused = self.window_focused;
                     // C++ (emView.cpp:1639-1643): PopupWindow=new emWindow(...)
-                    // PHASE-6-TODO: replace with real `emWindow::create` once
-                    // popup OS windowing is wired.
+                    // PHASE-6-FOLLOWUP: route to real `emWindow::new_popup`
+                    // via a deferred request drained in `about_to_wait`.
                     let popup = PopupPlaceholder::new_popup(
                         super::emWindow::WindowFlags::POPUP,
                         "emViewPopup",
@@ -1726,7 +1730,10 @@ impl emView {
                 // C++ (emView.cpp:1674-1680): tear down popup on return inside home
                 self.SwapViewPorts(true);
                 self.PopupWindow = None;
-                // C++ (emView.cpp:1678): Signal(GeometrySignal) — PHASE-5-TODO
+                // C++ (emView.cpp:1678): Signal(GeometrySignal).
+                if let (Some(sig), Some(sched)) = (self.geometry_signal, &self.scheduler) {
+                    sched.borrow_mut().fire(sig);
+                }
                 forceViewingUpdate = true;
             }
         }
@@ -2995,6 +3002,12 @@ impl emView {
                 .set_focused(self.window_focused);
             self.HomeViewPort.borrow_mut().set_focused(vp_focus);
         }
+
+        // C++ emView.cpp:1995: Signal(GeometrySignal) — viewport swap changes
+        // the current geometry, so wake listeners (e.g. emWindowStateSaver).
+        if let (Some(sig), Some(sched)) = (self.geometry_signal, &self.scheduler) {
+            sched.borrow_mut().fire(sig);
+        }
     }
 
     /// Port of C++ `emView::GetMaxPopupViewRect(pX, pY, pW, pH)`.
@@ -3497,15 +3510,18 @@ impl emView {
     /// method only runs the prologue that the downstream code (tile
     /// invalidation, cursor resolution) depends on.
     ///
-    /// PHASE-6-TODO: migrate the VIF-chain + panel-broadcast dispatch from
-    /// `emWindow::dispatch_input` into this method; invoke `RecurseInput`
-    /// once its Rust port exists.
+    /// PHASE-6-FOLLOWUP: migrate the VIF-chain + panel-broadcast dispatch
+    /// from `emWindow::dispatch_input` into this method; invoke
+    /// `RecurseInput` once its Rust port exists. Also forward to the active
+    /// animator first (C++ emView.cpp:1004) — the animator currently lives
+    /// on `emWindow`, not `emView`, so this routing cannot happen here yet.
     pub fn Input(
         &mut self,
         _tree: &mut PanelTree,
         _event: &crate::emInput::emInputEvent,
         state: &crate::emInputState::emInputState,
     ) {
+        // PHASE-6-FOLLOWUP: forward to active animator first (C++ emView.cpp:1004)
         // emView.cpp:1004: forward to active animator first.
         // Animator resolution: emWindow holds the active animator; input
         // forwards to emView which wakes the engine to trigger animation.

@@ -892,10 +892,12 @@ mod tests {
         {
             use crate::emPanelTree::PanelTree;
             use crate::emWindow::emWindow;
+            use std::cell::RefCell;
             use std::collections::HashMap;
+            use std::rc::Rc;
             use winit::window::WindowId;
             let mut tree = PanelTree::new();
-            let mut windows: HashMap<WindowId, emWindow> = HashMap::new();
+            let mut windows: HashMap<WindowId, Rc<RefCell<emWindow>>> = HashMap::new();
             sched.DoTimeSlice(&mut tree, &mut windows);
         }
 

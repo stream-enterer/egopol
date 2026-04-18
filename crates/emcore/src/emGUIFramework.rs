@@ -88,7 +88,7 @@ pub struct App {
     pub scheduler: Rc<RefCell<EngineScheduler>>,
     pub context: Rc<emContext>,
     pub tree: PanelTree,
-    pub windows: HashMap<WindowId, emWindow>,
+    pub windows: HashMap<WindowId, Rc<RefCell<emWindow>>>,
     pub input_state: emInputState,
     /// Deferred actions queued by input handlers that need `&ActiveEventLoop`
     /// (e.g., window creation for Duplicate/CreateControlWindow).
@@ -152,6 +152,7 @@ impl App {
         tree: &mut PanelTree,
         input_state: &mut emInputState,
     ) {
+        // Called with the RefMut derefed to &mut emWindow.
         let forward_events = win.touch_vif_mut().drain_forward_events();
         if forward_events.is_empty() {
             return;
@@ -221,11 +222,11 @@ impl ApplicationHandler for App {
                 let auto_delete = self
                     .windows
                     .get(&window_id)
-                    .map(|w| w.flags.contains(WindowFlags::AUTO_DELETE))
+                    .map(|rc| rc.borrow().flags.contains(WindowFlags::AUTO_DELETE))
                     .unwrap_or(true);
 
-                if let Some(win) = self.windows.get(&window_id) {
-                    self.scheduler.borrow_mut().fire(win.close_signal);
+                if let Some(rc) = self.windows.get(&window_id) {
+                    self.scheduler.borrow_mut().fire(rc.borrow().close_signal);
                 }
 
                 if auto_delete {
@@ -237,7 +238,8 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::Resized(size) => {
-                if let Some(win) = self.windows.get_mut(&window_id) {
+                if let Some(rc) = self.windows.get(&window_id) {
+                    let mut win = rc.borrow_mut();
                     let gpu = self.gpu.as_ref().unwrap();
                     win.resize(gpu, &mut self.tree, size.width, size.height);
                     win.set_geometry_changed();
@@ -247,18 +249,20 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::Moved(_) => {
-                if let Some(win) = self.windows.get_mut(&window_id) {
-                    win.set_geometry_changed();
+                if let Some(rc) = self.windows.get(&window_id) {
+                    rc.borrow_mut().set_geometry_changed();
                 }
             }
             WindowEvent::RedrawRequested => {
-                if let Some(win) = self.windows.get_mut(&window_id) {
+                if let Some(rc) = self.windows.get(&window_id) {
+                    let mut win = rc.borrow_mut();
                     let gpu = self.gpu.as_ref().unwrap();
                     win.render(&mut self.tree, gpu);
                 }
             }
             WindowEvent::Focused(focused) => {
-                if let Some(win) = self.windows.get_mut(&window_id) {
+                if let Some(rc) = self.windows.get(&window_id) {
+                    let mut win = rc.borrow_mut();
                     win.view_mut().SetFocused(&mut self.tree, focused);
                     win.set_focus_changed();
                     win.invalidate();
@@ -266,9 +270,10 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::Touch(ref touch) => {
-                if let Some(win) = self.windows.get_mut(&window_id) {
+                if let Some(rc) = self.windows.get(&window_id) {
+                    let mut win = rc.borrow_mut();
                     win.handle_touch(touch, &mut self.tree);
-                    Self::dispatch_forward_events(win, &mut self.tree, &mut self.input_state);
+                    Self::dispatch_forward_events(&mut win, &mut self.tree, &mut self.input_state);
                     win.invalidate();
                     win.request_redraw();
                 }
@@ -298,8 +303,12 @@ impl ApplicationHandler for App {
                         input.mouse_y = self.input_state.mouse_y;
                     }
 
-                    if let Some(win) = self.windows.get_mut(&window_id) {
-                        win.dispatch_input(&mut self.tree, &input, &mut self.input_state);
+                    if let Some(rc) = self.windows.get(&window_id) {
+                        rc.borrow_mut().dispatch_input(
+                            &mut self.tree,
+                            &input,
+                            &mut self.input_state,
+                        );
                     }
                 }
             }
@@ -319,8 +328,9 @@ impl ApplicationHandler for App {
         // Fire signals for any windows whose state changed this frame.
         let changed_signals: Vec<_> = self
             .windows
-            .values_mut()
-            .flat_map(|win| {
+            .values()
+            .flat_map(|rc| {
+                let mut win = rc.borrow_mut();
                 let mut sigs = Vec::new();
                 if win.flags_changed() {
                     win.clear_flags_changed();
@@ -352,18 +362,21 @@ impl ApplicationHandler for App {
         // Requesting redraws ensures continuous cycling during startup,
         // animations, and any other engine activity.
         if self.scheduler.borrow().has_awake_engines() {
-            for win in self.windows.values() {
-                win.request_redraw();
+            for rc in self.windows.values() {
+                rc.borrow().request_redraw();
             }
         }
 
         // Deliver notices (includes layout dispatch)
-        let window_focused = self.windows.values().any(|w| w.view().IsFocused());
+        let window_focused = self
+            .windows
+            .values()
+            .any(|rc| rc.borrow().view().IsFocused());
         let pixel_tallness = self
             .windows
             .values()
             .next()
-            .map(|w| w.view().GetCurrentPixelTallness())
+            .map(|rc| rc.borrow().view().GetCurrentPixelTallness())
             .unwrap_or(1.0);
 
         // Run per-frame panel cycles
@@ -380,7 +393,9 @@ impl ApplicationHandler for App {
         self.last_frame_time = now;
         let tree = &mut self.tree;
         let state = &mut self.input_state;
-        for win in self.windows.values_mut() {
+        for rc in self.windows.values() {
+            let mut win = rc.borrow_mut();
+            let win = &mut *win;
             // Layout changes from notices require viewed coordinate recomputation.
             if had_notices {
                 win.view_mut().mark_viewing_dirty();

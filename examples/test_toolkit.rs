@@ -559,10 +559,11 @@ fn main() {
             focus_sig,
             geometry_sig,
         );
-        let wid = win.winit_window.id();
+        let wid = win.borrow().winit_window.id();
         app.windows.insert(wid, win);
         {
-            let win = app.windows.get_mut(&wid).unwrap();
+            let rc = app.windows.get(&wid).unwrap();
+            let mut win = rc.borrow_mut();
             // SCAFFOLDING: ROOT_SAME_TALLNESS Match test_panel.rs window setup
             let flags = win.view().flags | ViewFlags::ROOT_SAME_TALLNESS;
             win.view_mut().SetViewFlags(flags, &mut app.tree);

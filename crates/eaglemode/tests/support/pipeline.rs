@@ -76,7 +76,8 @@ impl PipelineTestHarness {
 
     /// Run one frame: scheduler time slice, deliver notices, update viewing.
     pub fn tick(&mut self) {
-        let mut windows: HashMap<WindowId, emWindow> = HashMap::new();
+        let mut windows: HashMap<WindowId, std::rc::Rc<std::cell::RefCell<emWindow>>> =
+            HashMap::new();
         self.scheduler.DoTimeSlice(&mut self.tree, &mut windows);
         self.tree
             .HandleNotice(self.view.IsFocused(), self.view.GetCurrentPixelTallness());

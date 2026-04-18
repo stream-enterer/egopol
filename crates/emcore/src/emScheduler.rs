@@ -277,7 +277,11 @@ impl EngineScheduler {
     /// 4. Run engines from highest to lowest priority
     /// 5. After each engine, process any signals it fired (instant chaining)
     /// 6. Priority re-ascent: higher-priority engines woken mid-slice run in the same slice
-    pub fn DoTimeSlice(&mut self, tree: &mut PanelTree, windows: &mut HashMap<WindowId, emWindow>) {
+    pub fn DoTimeSlice(
+        &mut self,
+        tree: &mut PanelTree,
+        windows: &mut HashMap<WindowId, std::rc::Rc<std::cell::RefCell<emWindow>>>,
+    ) {
         self.inner.time_slice_counter += 1;
         self.inner.deadline = Instant::now() + TIME_SLICE_DURATION;
         let next_parity = self.inner.time_slice ^ 1;

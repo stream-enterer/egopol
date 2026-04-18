@@ -83,9 +83,12 @@ fn main() {
             focus_sig,
             geometry_sig,
         );
-        let wid = win.winit_window.id();
+        let wid = win.borrow().winit_window.id();
         app.windows.insert(wid, win);
-        app.windows.get_mut(&wid).unwrap().view_mut().flags |= ViewFlags::ROOT_SAME_TALLNESS;
+        {
+            let rc = app.windows.get(&wid).unwrap();
+            rc.borrow_mut().view_mut().flags |= ViewFlags::ROOT_SAME_TALLNESS;
+        }
     }));
     app.run();
 }
