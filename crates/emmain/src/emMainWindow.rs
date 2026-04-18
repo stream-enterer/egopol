@@ -182,16 +182,13 @@ impl emMainWindow {
             if let Some(rc) = self.window_id.and_then(|id| app.windows.get(&id)) {
                 let win = rc.borrow();
                 let view = win.view();
-                let visit = view.current_visit();
-                let identity = app.tree.GetIdentity(visit.panel);
+                let mut rel_x = 0.0;
+                let mut rel_y = 0.0;
+                let mut rel_a = 0.0;
+                let panel_opt = view.GetVisitedPanel(&app.tree, &mut rel_x, &mut rel_y, &mut rel_a);
+                let identity = panel_opt.map(|p| app.tree.GetIdentity(p));
                 let adherent = view.IsActivationAdherent();
-                (
-                    Some(identity),
-                    visit.rel_x,
-                    visit.rel_y,
-                    visit.rel_a,
-                    adherent,
-                )
+                (identity, rel_x, rel_y, rel_a, adherent)
             } else {
                 (None, 0.0, 0.0, 0.0, false)
             };
@@ -1043,11 +1040,18 @@ fn RecreateContentPanels(app: &mut App) {
     app.tree
         .with_behavior_as::<emSubViewPanel, _>(content_view_id, |svp| {
             // Save current visit state (C++ emMainWindow.cpp:297-301).
-            let visit = svp.GetSubView().current_visit();
-            let identity = svp.sub_tree().GetIdentity(visit.panel);
-            let rel_x = visit.rel_x;
-            let rel_y = visit.rel_y;
-            let rel_a = visit.rel_a;
+            let mut rel_x = 0.0;
+            let mut rel_y = 0.0;
+            let mut rel_a = 0.0;
+            let panel_opt = svp.GetSubView().GetVisitedPanel(
+                svp.sub_tree(),
+                &mut rel_x,
+                &mut rel_y,
+                &mut rel_a,
+            );
+            let identity = panel_opt
+                .map(|p| svp.sub_tree().GetIdentity(p))
+                .unwrap_or_default();
 
             // Delete old content panel(s) — remove all children of sub-tree root
             // (C++ emMainWindow.cpp:302).
