@@ -3906,28 +3906,6 @@ impl emView {
 
     // --- Update loop ---
 
-    /// Per-frame update: drain the C++ Update loop, then reselect active panel.
-    ///
-    /// DIVERGED: the old Rust wrapper gated `Update` on `viewing_dirty`; Phase 3
-    /// removes that gate. `Update` now drains unconditionally (fast no-op when all
-    /// flags are clear). `mark_viewing_dirty` callers now set `SVPChoiceInvalid`
-    /// instead, which the drain loop picks up automatically.
-    pub fn update(&mut self, tree: &mut PanelTree) {
-        self.Update(tree);
-
-        // VIEW-003: After scroll/zoom or viewport change, reselect active panel
-        // (C++ calls SetActivePanelBestPossible after Scroll/Zoom)
-        let need_reselect = match self.active {
-            None => true,
-            Some(id) => {
-                !tree.contains(id) || !tree.GetRec(id).map(|p| p.focusable).unwrap_or(false)
-            }
-        };
-        if need_reselect || self.viewport_changed {
-            self.SetActivePanelBestPossible(tree);
-        }
-    }
-
     /// Mark the SVP choice as invalid, triggering Update to recompute viewed coords.
     ///
     /// DIVERGED: was `mark_viewing_dirty()` (set `viewing_dirty`). Phase 3 removes
