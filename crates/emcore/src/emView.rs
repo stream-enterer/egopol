@@ -870,7 +870,7 @@ impl emView {
 
     /// Port of C++ `emView::Visit(identity, relX, relY, relA, adherent, subject)`
     /// at emView.cpp:500-508. Three-line delegation to `VisitingVA`:
-    /// `SetAnimParamsByCoreConfig` → `SetGoalWithCoords` → `Activate`. The
+    /// `SetAnimParamsByCoreConfig` → `SetGoalCoords` → `Activate`. The
     /// animator engine (`VisitingVAEngineClass::Cycle`) observes `is_active()`
     /// and drives the curve each scheduler tick.
     ///
@@ -890,7 +890,7 @@ impl emView {
     ) {
         let mut va = self.VisitingVA.borrow_mut();
         va.SetAnimParamsByCoreConfig(1.0, 10.0);
-        va.SetGoalWithCoords(identity, rel_x, rel_y, rel_a, adherent, subject);
+        va.SetGoalCoords(identity, rel_x, rel_y, rel_a, adherent, subject);
         va.Activate();
     }
 
@@ -934,15 +934,15 @@ impl emView {
     pub fn VisitPanel(&mut self, tree: &PanelTree, panel: PanelId, adherent: bool) {
         let identity = tree.GetIdentity(panel);
         let subject = tree.get_title(panel);
-        self.VisitByIdentityShort(&identity, adherent, &subject);
+        self.VisitByIdentityBare(&identity, adherent, &subject);
     }
 
     /// DIVERGED: C++ overload `emView::Visit(identity, adherent, subject)` (emView.cpp:517-523)
-    /// — Rust cannot overload by arity; renamed `VisitByIdentityShort` to disambiguate from
-    /// the canonical 7-arg `VisitByIdentity` added in Task 3.1.
+    /// — Rust cannot overload by arity; renamed `VisitByIdentityBare` ("bare" = without
+    /// relX/relY/relA coords) to disambiguate from the 7-arg `VisitByIdentity`.
     ///
     /// Port of C++ `emView::Visit(identity, adherent, subject)` (emView.cpp:517-523).
-    pub fn VisitByIdentityShort(&mut self, identity: &str, adherent: bool, subject: &str) {
+    pub fn VisitByIdentityBare(&mut self, identity: &str, adherent: bool, subject: &str) {
         let mut va = self.VisitingVA.borrow_mut();
         // PHASE-W4-FOLLOWUP: CoreConfig defaults — see Task 3.1.
         va.SetAnimParamsByCoreConfig(1.0, 10.0);
@@ -5660,7 +5660,7 @@ mod tests {
     #[test]
     fn visit_panel_short_form_routes_through_animator() {
         // Short-form VisitPanel(tree, panel, adherent) delegates to VisitingVA
-        // via VisitByIdentityShort, matching C++ emView.cpp:511-523.
+        // via VisitByIdentityBare, matching C++ emView.cpp:511-523.
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
