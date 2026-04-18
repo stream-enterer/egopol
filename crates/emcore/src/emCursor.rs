@@ -57,6 +57,39 @@ impl emCursor {
             emCursor::Move => "Move",
         }
     }
+
+    /// Map to the corresponding winit cursor icon.
+    ///
+    /// DIVERGED: no C++ equivalent; C++ emCore uses its own cursor integers
+    /// translated by the platform backend (emX11/emWnds). Rust translates
+    /// directly to `winit::window::CursorIcon`.
+    pub fn to_winit_cursor(self) -> winit::window::CursorIcon {
+        use winit::window::CursorIcon;
+        match self {
+            emCursor::Normal => CursorIcon::Default,
+            // winit has no true invisible cursor; Default is the closest
+            // fallback (emWindow can call `set_cursor_visible(false)` for a
+            // stricter mapping in the future).
+            emCursor::Invisible => CursorIcon::Default,
+            emCursor::Wait => CursorIcon::Wait,
+            emCursor::Crosshair => CursorIcon::Crosshair,
+            emCursor::Text => CursorIcon::Text,
+            emCursor::Hand => CursorIcon::Pointer,
+            emCursor::ArrowN => CursorIcon::NResize,
+            emCursor::ArrowS => CursorIcon::SResize,
+            emCursor::ArrowE => CursorIcon::EResize,
+            emCursor::ArrowW => CursorIcon::WResize,
+            emCursor::ArrowNE => CursorIcon::NeResize,
+            emCursor::ArrowNW => CursorIcon::NwResize,
+            emCursor::ArrowSE => CursorIcon::SeResize,
+            emCursor::ArrowSW => CursorIcon::SwResize,
+            emCursor::ResizeNS => CursorIcon::NsResize,
+            emCursor::ResizeEW => CursorIcon::EwResize,
+            emCursor::ResizeNESW => CursorIcon::NeswResize,
+            emCursor::ResizeNWSE => CursorIcon::NwseResize,
+            emCursor::Move => CursorIcon::Move,
+        }
+    }
 }
 
 impl fmt::Display for emCursor {

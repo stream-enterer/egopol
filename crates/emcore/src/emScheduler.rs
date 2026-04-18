@@ -12,6 +12,17 @@ use super::emWindow::emWindow;
 
 const TIME_SLICE_DURATION: Duration = Duration::from_millis(50);
 
+/// Process-wide monotonic clock start point used by [`emGetClockMS`].
+static CLOCK_START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+
+/// Port of C++ `emGetClockMS()` (emStd1.h). Returns a monotonic millisecond
+/// clock value that increases over the process lifetime. Used by
+/// `emViewPort::GetInputClockMS` dispatch.
+pub fn emGetClockMS() -> u64 {
+    let start = CLOCK_START.get_or_init(Instant::now);
+    start.elapsed().as_millis() as u64
+}
+
 /// The core cooperative scheduler. Manages signals, engines, and timers.
 ///
 /// Faithfully implements the C++ emScheduler/emEngine algorithm:

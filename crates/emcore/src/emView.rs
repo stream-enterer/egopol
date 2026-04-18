@@ -2262,8 +2262,11 @@ impl emView {
                 }
                 if self.cursor != cur {
                     self.cursor = cur;
-                    // C++ InvalidateCursor() here. In Rust the cursor field IS
-                    // the display state; no separate dirty flag needed.
+                    // C++ emView.cpp: CurrentViewPort->InvalidateCursor().
+                    // Phase 5 wires this through emViewPort::SetViewCursor,
+                    // which caches the cursor and flags it dirty for emWindow
+                    // to apply on the next frame.
+                    self.CurrentViewPort.borrow_mut().SetViewCursor(cur);
                 }
                 continue;
             }
@@ -3475,6 +3478,49 @@ impl emView {
     pub fn set_cursor(&mut self, cursor: emCursor) {
         self.cursor = cursor;
         self.cursor_invalid = false;
+    }
+
+    /// Port of C++ `emView::Input(emInputEvent&, const emInputState&)`
+    /// (emView.cpp:1000-1039).
+    ///
+    /// Prologue bookkeeping for every input event routed via
+    /// `emViewPort::InputToView`:
+    ///   - forward to the active animator (if any)
+    ///   - update `LastMouseX`/`LastMouseY` and mark `cursor_invalid` if the
+    ///     mouse actually moved
+    ///
+    /// The C++ implementation also walks the panel tree to set
+    /// `PendingInput=true` on every panel and then calls `RecurseInput` to
+    /// dispatch. Phases 6/8 of emview-rewrite-followups own migrating the
+    /// existing `emWindow::dispatch_input` panel broadcast into this
+    /// method. For Phase 5 the broadcast stays in `emWindow` and this
+    /// method only runs the prologue that the downstream code (tile
+    /// invalidation, cursor resolution) depends on.
+    ///
+    /// PHASE-6-TODO: migrate the VIF-chain + panel-broadcast dispatch from
+    /// `emWindow::dispatch_input` into this method; invoke `RecurseInput`
+    /// once its Rust port exists.
+    pub fn Input(
+        &mut self,
+        _tree: &mut PanelTree,
+        _event: &crate::emInput::emInputEvent,
+        state: &crate::emInputState::emInputState,
+    ) {
+        // emView.cpp:1004: forward to active animator first.
+        // RUST-DIVERGED: active animator currently lives on emWindow, not
+        // emView. Animator forwarding stays in emWindow for Phase 5.
+
+        // emView.cpp:1006-1014: cursor-invalid on mouse move.
+        let mx = state.GetMouseX();
+        let my = state.GetMouseY();
+        if (mx - self.LastMouseX).abs() > 0.1 || (my - self.LastMouseY).abs() > 0.1 {
+            self.LastMouseX = mx;
+            self.LastMouseY = my;
+            self.cursor_invalid = true;
+            if let Some(ref mut engine) = self.UpdateEngine {
+                engine.WakeUp();
+            }
+        }
     }
 
     // --- Control panel (C++ CreateControlPanel / GetControlPanelSignal) ---

@@ -2,8 +2,8 @@
 //
 // DIVERGED: not a class hierarchy but a concrete struct with optional backend
 // hooks. Rust has no dummy-base-class pattern; the "default implementation
-// connects to nothing" model becomes an Option<Box<dyn BackendPort>> in the
-// future; for Phase 4 the struct is self-contained with no backend.
+// connects to nothing" model becomes a `Weak<RefCell<emWindow>>` back-reference
+// which is `None` for dummy instances.
 //
 // C++ emViewPort has two constructors:
 //   emViewPort(emView & homeView) — real port, registers itself on the view
@@ -14,32 +14,25 @@
 // The C++ constructor-registers-on-view side-effect is handled by the call
 // site (emView::new and emWindow::new_popup) rather than inside emViewPort.
 //
-// For Phase 4, the methods called by emView viewing/geometry paths are fully
-// implemented:
-//   GetViewX/Y/Width/Height   — delegate to stored home geometry
-//   SetViewGeometry           — update stored home geometry
-//   SetViewFocused            — update focused flag
-//   RequestFocus              — set_focused(true) (dummy base class behaviour)
-//   is_focused / set_focused  — Rust accessors (DIVERGED: no C++ equivalent
-//                               with these exact names; C++ uses Focused field)
-//   SetViewPosSize            — update home geometry (used by SwapViewPorts
-//                               and popup window placement)
-//   InvalidatePainting        — PHASE-5-TODO: backend dirty-rect dispatch
-//   InvalidateCursor          — PHASE-5-TODO: backend cursor dirty flag
-//
-// The remaining virtual methods are stubs:
-//   PaintView             — PHASE-5-TODO: backend compositing hook
-//   GetViewCursor         — PHASE-5-TODO: backend cursor query
-//   IsSoftKeyboardShown   — PHASE-5-TODO: touch platform hook
-//   ShowSoftKeyboard      — PHASE-5-TODO: touch platform hook
-//   GetInputClockMS       — PHASE-5-TODO: returns 0 as placeholder
-//   InputToView           — PHASE-5-TODO: backend input dispatch
+// Phase 5 wires the seven backend dispatch methods:
+//   PaintView             — request_redraw on owning emWindow
+//   GetViewCursor         — return cached cursor
+//   SetViewCursor         — update cached cursor, set dirty flag (Rust-only helper)
+//   IsSoftKeyboardShown   — UPSTREAM-GAP: no C++ backend overrides this
+//   ShowSoftKeyboard      — UPSTREAM-GAP: no C++ backend overrides this
+//   GetInputClockMS       — return cached scheduler clock
+//   InputToView           — forward to emView::Input
+//   InvalidateCursor      — set cursor-dirty flag (consumed by emWindow on next frame)
+//   InvalidatePainting    — delegate to emWindow::invalidate_rect (tile cache)
+
+use std::cell::RefCell;
+use std::rc::Weak;
 
 /// Port of C++ `emViewPort` (emView.h:719-794).
 ///
 /// Connects an `emView` to its OS/hardware backend. The default ("dummy")
-/// instance connects to nothing. A real instance would be created by a
-/// backend (e.g. `emWindowPort` in C++).
+/// instance connects to nothing (back-reference is `None`). A real instance
+/// has a `Weak<emWindow>` back-reference set by `emWindow::create`.
 #[allow(non_snake_case)]
 pub struct emViewPort {
     // === C++ private fields (emView.h:789-793) ===
@@ -60,6 +53,27 @@ pub struct emViewPort {
     // DIVERGED: no direct C++ equivalent field on emViewPort; focus is on
     // the emView. Introduced here to support SwapViewPorts stub.
     focused: bool,
+
+    /// Back-reference to the owning emWindow. Used by `PaintView`,
+    /// `InvalidatePainting` to dispatch to backend machinery. `Weak` to
+    /// avoid `Rc` cycles. `None` for dummy ports.
+    pub(crate) window: Option<Weak<RefCell<crate::emWindow::emWindow>>>,
+
+    /// Cursor reported by the view; `emWindow` consumes it on each frame.
+    /// (C++ stores the cursor on `emView`, not `emViewPort`; the Rust
+    /// design caches it on the port so the window can read it without
+    /// a back-ref to the view.)
+    pub(crate) cursor: crate::emCursor::emCursor,
+
+    /// Set by `InvalidateCursor`; `emWindow` consumes the flag on next frame.
+    pub(crate) cursor_dirty: bool,
+
+    /// Monotonic-millisecond clock value, set by `emWindow` on each input
+    /// dispatch from the scheduler. Read by `GetInputClockMS`.
+    pub(crate) input_clock_ms: u64,
+
+    /// Test instrumentation: counts `InputToView` dispatches.
+    pub input_event_count: u64,
 }
 
 #[allow(non_snake_case)]
@@ -75,6 +89,11 @@ impl emViewPort {
             home_width: 0.0,
             home_height: 0.0,
             focused: false,
+            window: None,
+            cursor: crate::emCursor::emCursor::Normal,
+            cursor_dirty: false,
+            input_clock_ms: 0,
+            input_event_count: 0,
         }
     }
 
@@ -92,6 +111,11 @@ impl emViewPort {
             home_width,
             home_height,
             focused: false,
+            window: None,
+            cursor: crate::emCursor::emCursor::Normal,
+            cursor_dirty: false,
+            input_clock_ms: 0,
+            input_event_count: 0,
         }
     }
 
@@ -118,17 +142,32 @@ impl emViewPort {
     }
 
     /// Port of C++ `emViewPort::GetViewCursor`.
-    ///
-    /// PHASE-5-TODO: backend cursor query.
     pub fn GetViewCursor(&self) -> crate::emCursor::emCursor {
-        crate::emCursor::emCursor::Normal
+        self.cursor
+    }
+
+    /// Cache the cursor reported by the view.
+    ///
+    /// DIVERGED: C++ stores the cursor on `emView::Cursor` and the view-port
+    /// queries the view. Rust caches it on the port so `emWindow` can read
+    /// without a back-reference into the view. Marks the dirty flag only if
+    /// the cursor actually changed.
+    pub fn SetViewCursor(&mut self, cursor: crate::emCursor::emCursor) {
+        if self.cursor != cursor {
+            self.cursor = cursor;
+            self.cursor_dirty = true;
+        }
     }
 
     /// Port of C++ `emViewPort::PaintView`.
     ///
-    /// PHASE-5-TODO: backend compositing hook.
+    /// Requests a redraw on the owning `emWindow`. No-op for dummy ports.
     pub fn PaintView(&self) {
-        // PHASE-5-TODO: dispatch to backend compositor
+        if let Some(weak) = &self.window {
+            if let Some(rc) = weak.upgrade() {
+                rc.borrow().request_redraw();
+            }
+        }
     }
 
     // === Protected methods (emView.h:763-778) ===
@@ -159,51 +198,66 @@ impl emViewPort {
 
     /// Port of C++ `emViewPort::IsSoftKeyboardShown`.
     ///
-    /// PHASE-5-TODO: touch platform hook.
+    /// UPSTREAM-GAP: emCore ships this as a no-op; no platform backend
+    /// (emX11, emWnds) overrides it. Soft-keyboard support is absent in
+    /// upstream Eagle Mode.
     pub fn IsSoftKeyboardShown(&self) -> bool {
-        // emView.cpp:2667-2671: default returns false
         false
     }
 
     /// Port of C++ `emViewPort::ShowSoftKeyboard`.
     ///
-    /// PHASE-5-TODO: touch platform hook.
-    pub fn ShowSoftKeyboard(&mut self, _show: bool) {
-        // emView.cpp:2673-2676: default is a no-op
-    }
+    /// UPSTREAM-GAP: emCore ships this as a no-op; no platform backend
+    /// (emX11, emWnds) overrides it. Soft-keyboard support is absent in
+    /// upstream Eagle Mode.
+    pub fn ShowSoftKeyboard(&mut self, _show: bool) {}
 
     /// Port of C++ `emViewPort::GetInputClockMS`.
     ///
-    /// PHASE-5-TODO: returns 0 as a placeholder; backend should return a
-    /// high-resolution monotonic clock value in milliseconds.
+    /// Returns the monotonic-millisecond clock cached at input-dispatch
+    /// time by `emWindow`. C++ calls `emGetClockMS()` directly; Rust caches
+    /// the value so the view-port doesn't need a back-reference to the
+    /// scheduler.
     pub fn GetInputClockMS(&self) -> u64 {
-        // emView.cpp:2678-2681: default calls emGetClockMS()
-        // PHASE-5-TODO: call the scheduler's clock when available.
-        0
+        self.input_clock_ms
     }
 
     /// Port of C++ `emViewPort::InputToView`.
     ///
-    /// PHASE-5-TODO: backend input dispatch to view.
-    pub fn InputToView(&self) {
-        // emView.cpp:2684-2691: routes event to FirstVIF or View::Input
-        // PHASE-5-TODO: wire up when input path is in scope.
+    /// Routes an input event to the home view. C++ dispatches via
+    /// `CurrentView->Input(event, state)`; Rust takes `view` and `tree` as
+    /// parameters because the back-reference is `Weak<RefCell<emWindow>>`
+    /// and `emView` lives inside `emWindow`. The dispatch site in
+    /// `emWindow::dispatch_input` already holds borrows to both.
+    pub fn InputToView(
+        &mut self,
+        view: &mut crate::emView::emView,
+        tree: &mut crate::emPanelTree::PanelTree,
+        event: &crate::emInput::emInputEvent,
+        state: &crate::emInputState::emInputState,
+    ) {
+        self.input_event_count += 1;
+        view.Input(tree, event, state);
     }
 
     /// Port of C++ `emViewPort::InvalidateCursor`.
     ///
-    /// PHASE-5-TODO: backend cursor dirty flag.
+    /// Marks the cursor dirty so the owning `emWindow` will apply the new
+    /// cursor on the next frame.
     pub fn InvalidateCursor(&mut self) {
-        // emView.cpp:2693-2695: default is a no-op
-        // PHASE-5-TODO: notify backend to update cursor
+        self.cursor_dirty = true;
     }
 
     /// Port of C++ `emViewPort::InvalidatePainting(x, y, w, h)`.
     ///
-    /// PHASE-5-TODO: backend dirty-rect dispatch.
-    pub fn InvalidatePainting(&mut self, _x: f64, _y: f64, _w: f64, _h: f64) {
-        // emView.cpp:2698-2700: default is a no-op
-        // PHASE-5-TODO: accumulate dirty rect and notify backend compositor
+    /// Delegates to the owning `emWindow`'s tile cache. No-op for dummy
+    /// ports.
+    pub fn InvalidatePainting(&mut self, x: f64, y: f64, w: f64, h: f64) {
+        if let Some(weak) = &self.window {
+            if let Some(rc) = weak.upgrade() {
+                rc.borrow_mut().invalidate_rect(x, y, w, h);
+            }
+        }
     }
 
     // === Rust-only accessors for SwapViewPorts / focus transfer ===

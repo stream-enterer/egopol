@@ -207,6 +207,19 @@ impl emWindow {
     pub fn render(&mut self, tree: &mut crate::emPanelTree::PanelTree, gpu: &GpuContext) {
         use crate::emPainter::emPainter;
 
+        // Phase 5 (emview-rewrite-followups): consume cursor-dirty flag set
+        // by emViewPort::InvalidateCursor and apply the cached cursor to
+        // the winit window. Matches the C++ emWindowPort frame prologue.
+        {
+            let vp = self.view.CurrentViewPort.clone();
+            let dirty = vp.borrow().cursor_dirty;
+            if dirty {
+                let cursor = vp.borrow().cursor;
+                self.winit_window.set_cursor(cursor.to_winit_cursor());
+                vp.borrow_mut().cursor_dirty = false;
+            }
+        }
+
         let (cols, rows) = self.tile_cache.grid_size();
         let tile_size = crate::emViewRendererTileCache::TILE_SIZE;
 
@@ -570,6 +583,18 @@ impl emWindow {
             InputKey::WheelUp | InputKey::WheelDown | InputKey::WheelLeft | InputKey::WheelRight
         ) {
             self.last_mouse_pos = (event.mouse_x, event.mouse_y);
+        }
+
+        // Phase 5 (emview-rewrite-followups): route through emViewPort.
+        // This stamps the input clock and invokes emView::Input for the
+        // C++ prologue bookkeeping (LastMouseX/Y, CursorInvalid). The
+        // VIF-chain + panel broadcast below remain the actual dispatch
+        // mechanism; Phases 6/8 migrate that into emView::Input proper.
+        {
+            let vp = self.view.CurrentViewPort.clone();
+            let mut vp = vp.borrow_mut();
+            vp.input_clock_ms = crate::emScheduler::emGetClockMS();
+            vp.InputToView(&mut self.view, tree, event, state);
         }
 
         // Run VIF chain
@@ -961,6 +986,15 @@ impl emWindow {
     /// Mark all tiles as dirty so the next render repaints everything.
     pub fn invalidate(&mut self) {
         self.tile_cache.mark_all_dirty();
+    }
+
+    /// Invalidate a pixel-coordinate rectangle `(x, y, w, h)` in the tile
+    /// cache. Entry point for `emViewPort::InvalidatePainting`.
+    ///
+    /// Matches C++ `emWindowPort::InvalidatePainting`: forwards a dirty rect
+    /// from the view to the backend compositor (the tile cache, here).
+    pub fn invalidate_rect(&mut self, x: f64, y: f64, w: f64, h: f64) {
+        self.mark_dirty_rect(x, y, x + w, y + h);
     }
 
     /// Mark only the tiles overlapping the given pixel-coordinate rectangle as
