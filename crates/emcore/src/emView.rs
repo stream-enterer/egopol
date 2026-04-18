@@ -960,7 +960,12 @@ impl emView {
     pub fn go_back(&mut self) -> bool {
         if self.visit_stack.len() > 1 {
             self.visit_stack.pop();
-            self.active = Some(self.current_visit().panel);
+            self.active = Some(
+                self.visit_stack
+                    .last()
+                    .expect("visit stack should never be empty after pop in go_back")
+                    .panel,
+            );
             self.viewport_changed = true;
             self.SVPChoiceInvalid = true;
             true
@@ -3836,7 +3841,7 @@ impl emView {
 
     pub fn supreme_panel(&self) -> PanelId {
         self.supreme_viewed_panel
-            .unwrap_or(self.current_visit().panel)
+            .expect("supreme_viewed_panel should be populated post-Update (C++: GetSupremeViewedPanel returns SupremeViewedPanel directly)")
     }
 
     // --- Stress test ---
