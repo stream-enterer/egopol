@@ -506,6 +506,14 @@ impl ApplicationHandler for App {
             .windows
             .values()
             .any(|rc| rc.borrow().view().IsFocused());
+        // TODO(per-view-notice-dispatch): selecting one window's
+        // pixel_tallness for the whole frame is wrong when multi-window
+        // is active. C++ dispatches HandleNotice per-view from
+        // emView::Update (emView.cpp:1312), using that view's own
+        // CurrentPixelTallness. Correct fix requires moving NoticeList
+        // ownership from PanelTree to emView. Tracked as "Per-view
+        // notice dispatch (emView.cpp:1312 parity)" in
+        // docs/superpowers/notes/2026-04-18-emview-subsystem-closeout.md §8.
         let pixel_tallness = self
             .windows
             .values()
