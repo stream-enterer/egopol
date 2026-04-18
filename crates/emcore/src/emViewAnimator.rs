@@ -3413,20 +3413,7 @@ mod tests {
         // not move: get_distance_to must return 0 at the current position.
         // Also verifies that viewed_x is consistent with the visit state
         // (catches correlated errors between Update and get_distance_to).
-        //
-        // factor=1.0 is excluded — known Rust-vs-C++ design gap, tracked below.
-        //
-        // KNOWN GAP (tracked in visit-stack rewrite): At factor=1.0, root-centering
-        // (C++ emView.cpp:1588-1626) clamps viewed_x=0 regardless of the
-        // visit-stack rel_x value.  Rust's visit stack stores rel_x explicitly
-        // (it has no C++ analogue — C++ derives rel coords on-the-fly from
-        // ViewedX/Y each time).  Because the clamp discards the visit-stack
-        // rel_x, the Rust animator sees a nonzero get_distance_to even when
-        // "at target", breaking the invariant.  This is a Rust-only artefact
-        // that does not exist in C++.  The visit-stack rewrite should
-        // re-examine whether Rust should derive rel coords from ViewedX/Y on
-        // every read (matching C++ semantics) instead of storing them.
-        for &factor in &[2.0, 4.0, 16.0, 100.0] {
+        for &factor in &[1.0, 2.0, 4.0, 16.0, 100.0] {
             let (mut tree, mut view) = setup_scrolled(factor);
             let root = view.GetRootPanel();
 
