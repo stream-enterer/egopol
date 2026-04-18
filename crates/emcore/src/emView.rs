@@ -645,8 +645,6 @@ impl emView {
     /// Used by every scheduler-write call site in `emView.rs` that is
     /// reachable from `Update`. Non-Update call sites hit the inline-apply
     /// arm and incur zero queue overhead.
-    // SP4 Phase 1 staging: see comment above `SchedOp` enum for rationale.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn queue_or_apply_sched_op(&mut self, op: SchedOp) {
         let Some(sched_rc) = self.scheduler.as_ref() else {
             return; // Unit-test bare view: no scheduler, all ops no-op.
@@ -1110,9 +1108,7 @@ impl emView {
 
         // C++ Signal(GeometrySignal).
         if let Some(sig) = self.geometry_signal {
-            if let Some(sched) = &self.scheduler {
-                sched.borrow_mut().fire(sig);
-            }
+            self.queue_or_apply_sched_op(SchedOp::Fire(sig));
         }
 
         // C++ SetGeometry parity: inline-update root panel layout when
@@ -1563,9 +1559,7 @@ impl emView {
         self.InvalidateHighlight(tree);
         self.control_panel_invalid = true;
         if let Some(sig) = self.control_panel_signal {
-            if let Some(sched) = &self.scheduler {
-                sched.borrow_mut().fire(sig);
-            }
+            self.queue_or_apply_sched_op(SchedOp::Fire(sig));
         }
         tree.mark_notices_pending();
     }
@@ -1843,10 +1837,8 @@ impl emView {
                     );
                     self.PopupWindow = Some(popup.clone());
                     // C++ (emView.cpp:1644): UpdateEngine->AddWakeUpSignal(PopupWindow->GetCloseSignal())
-                    if let (Some(sched), Some(eng_id)) =
-                        (self.scheduler.as_ref(), self.update_engine_id)
-                    {
-                        sched.borrow_mut().connect(close_sig, eng_id);
+                    if let Some(eng_id) = self.update_engine_id {
+                        self.queue_or_apply_sched_op(SchedOp::Connect(close_sig, eng_id));
                     }
                     // C++ (emView.cpp:1644): SwapViewPorts(true)
                     self.SwapViewPorts(true);
@@ -1931,13 +1923,10 @@ impl emView {
                     .PopupWindow
                     .take()
                     .expect("PopupWindow.is_some() checked above");
-                if let (Some(sched), Some(eng_id)) =
-                    (self.scheduler.as_ref(), self.update_engine_id)
-                {
+                if let Some(eng_id) = self.update_engine_id {
                     let close_sig = popup.borrow().close_signal;
-                    let mut s = sched.borrow_mut();
-                    s.disconnect(close_sig, eng_id);
-                    s.remove_signal(close_sig);
+                    self.queue_or_apply_sched_op(SchedOp::Disconnect(close_sig, eng_id));
+                    self.queue_or_apply_sched_op(SchedOp::RemoveSignal(close_sig));
                 }
                 let materialized_id = popup
                     .borrow()
@@ -1962,8 +1951,8 @@ impl emView {
                 // SwapViewPorts fires GeometrySignal at the end; C++ SwapViewPorts
                 // does not), and once explicitly here (mirroring C++
                 // emView.cpp:1680). Keep both; do not dedup.
-                if let (Some(sig), Some(sched)) = (self.geometry_signal, &self.scheduler) {
-                    sched.borrow_mut().fire(sig);
+                if let Some(sig) = self.geometry_signal {
+                    self.queue_or_apply_sched_op(SchedOp::Fire(sig));
                 }
                 forceViewingUpdate = true;
             }
@@ -3054,9 +3043,7 @@ impl emView {
         if in_active_path {
             self.control_panel_invalid = true;
             if let Some(sig) = self.control_panel_signal {
-                if let Some(sched) = &self.scheduler {
-                    sched.borrow_mut().fire(sig);
-                }
+                self.queue_or_apply_sched_op(SchedOp::Fire(sig));
             }
         }
     }
@@ -3161,9 +3148,9 @@ impl emView {
 
     /// Wake the scheduler-registered `UpdateEngineClass` so `Update()` runs
     /// in the current time slice. Mirrors C++ `UpdateEngine->WakeUp()`.
-    pub fn WakeUpUpdateEngine(&self) {
-        if let (Some(id), Some(sched)) = (self.update_engine_id, &self.scheduler) {
-            sched.borrow_mut().wake_up(id);
+    pub fn WakeUpUpdateEngine(&mut self) {
+        if let Some(id) = self.update_engine_id {
+            self.queue_or_apply_sched_op(SchedOp::WakeUp(id));
         }
     }
 
@@ -3348,8 +3335,8 @@ impl emView {
 
         // C++ emView.cpp:1995: Signal(GeometrySignal) — viewport swap changes
         // the current geometry, so wake listeners (e.g. emWindowStateSaver).
-        if let (Some(sig), Some(sched)) = (self.geometry_signal, &self.scheduler) {
-            sched.borrow_mut().fire(sig);
+        if let Some(sig) = self.geometry_signal {
+            self.queue_or_apply_sched_op(SchedOp::Fire(sig));
         }
     }
 
