@@ -171,33 +171,20 @@ impl PanelState {
 }
 
 bitflags! {
-    /// Flags indicating what kinds of changes a panel needs to be notified about.
+    /// Port of C++ `emPanel::NoticeFlags` (emPanel.h:542-553). Names and
+    /// bit values match C++ one-for-one.
     #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
     pub struct NoticeFlags: u32 {
-        /// Panel's layout rect has changed.
-        const LAYOUT_CHANGED  = 0b0000_0001;
-        /// Panel gained or lost focus.
-        const FOCUS_CHANGED   = 0b0000_0010;
-        /// Panel became visible or invisible.
-        const VISIBILITY      = 0b0000_0100;
-        /// A child was added or removed.
-        const CHILDREN_CHANGED = 0b0000_1000;
-        /// Canvas color changed.
-        const CANVAS_CHANGED  = 0b0001_0000;
-        /// Panel is being viewed (visit state changed).
-        const VIEW_CHANGED    = 0b0010_0000;
-        /// Panel's enable state changed.
-        const ENABLE_CHANGED  = 0b0100_0000;
-        /// The sought child name (for seeking navigation) changed.
-        const SOUGHT_NAME_CHANGED = 0b1000_0000;
-        /// The active panel changed.
-        const ACTIVE_CHANGED      = 0b0001_0000_0000;
-        /// The view's focus state changed (window gained/lost focus).
-        const VIEW_FOCUS_CHANGED  = 0b0010_0000_0000;
-        /// The panel's update priority changed.
-        const UPDATE_PRIORITY_CHANGED = 0b0100_0000_0000;
-        /// The panel's memory limit changed.
-        const MEMORY_LIMIT_CHANGED = 0b1000_0000_0000;
+        const CHILD_LIST_CHANGED      = 1 << 0;
+        const LAYOUT_CHANGED          = 1 << 1;
+        const VIEWING_CHANGED         = 1 << 2;
+        const ENABLE_CHANGED          = 1 << 3;
+        const ACTIVE_CHANGED          = 1 << 4;
+        const FOCUS_CHANGED           = 1 << 5;
+        const VIEW_FOCUS_CHANGED      = 1 << 6;
+        const UPDATE_PRIORITY_CHANGED = 1 << 7;
+        const MEMORY_LIMIT_CHANGED    = 1 << 8;
+        const SOUGHT_NAME_CHANGED     = 1 << 9;
     }
 }
 

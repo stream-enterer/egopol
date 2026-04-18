@@ -381,7 +381,7 @@ impl PanelBehavior for emDirPanel {
     }
 
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState, _ctx: &mut PanelCtx) {
-        if flags.contains(NoticeFlags::VIEW_CHANGED)
+        if flags.contains(NoticeFlags::VIEWING_CHANGED)
             || flags.contains(NoticeFlags::SOUGHT_NAME_CHANGED)
         {
             // C++ emDirPanel::Notice:

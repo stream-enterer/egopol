@@ -419,15 +419,15 @@ impl PanelTree {
     // seek-descent).
     const INIT_NOTICE_FLAGS: NoticeFlags = NoticeFlags::LAYOUT_CHANGED
         .union(NoticeFlags::FOCUS_CHANGED)
-        .union(NoticeFlags::VISIBILITY)
-        .union(NoticeFlags::CHILDREN_CHANGED)
+        .union(NoticeFlags::VIEWING_CHANGED)
+        .union(NoticeFlags::CHILD_LIST_CHANGED)
         .union(NoticeFlags::ENABLE_CHANGED)
         .union(NoticeFlags::SOUGHT_NAME_CHANGED)
         .union(NoticeFlags::ACTIVE_CHANGED)
         .union(NoticeFlags::VIEW_FOCUS_CHANGED)
         .union(NoticeFlags::UPDATE_PRIORITY_CHANGED)
         .union(NoticeFlags::MEMORY_LIMIT_CHANGED)
-        .union(NoticeFlags::VIEW_CHANGED);
+        .union(NoticeFlags::VIEWING_CHANGED);
 
     /// Create the root panel.
     ///
@@ -483,7 +483,7 @@ impl PanelTree {
         // Notify parent
         self.panels[parent]
             .pending_notices
-            .insert(NoticeFlags::CHILDREN_CHANGED);
+            .insert(NoticeFlags::CHILD_LIST_CHANGED);
         self.has_pending_notices = true;
         self.add_to_notice_list(parent);
 
@@ -525,7 +525,7 @@ impl PanelTree {
 
             self.panels[parent_id]
                 .pending_notices
-                .insert(NoticeFlags::CHILDREN_CHANGED);
+                .insert(NoticeFlags::CHILD_LIST_CHANGED);
             self.has_pending_notices = true;
             self.add_to_notice_list(parent_id);
         }
@@ -640,7 +640,7 @@ impl PanelTree {
         let changed = if let Some(panel) = self.panels.get_mut(id) {
             if panel.visible != visible {
                 panel.visible = visible;
-                panel.pending_notices.insert(NoticeFlags::VISIBILITY);
+                panel.pending_notices.insert(NoticeFlags::VIEWING_CHANGED);
                 self.has_pending_notices = true;
                 true
             } else {
@@ -814,7 +814,7 @@ impl PanelTree {
         if let Some(parent_id) = parent {
             self.panels[parent_id]
                 .pending_notices
-                .insert(NoticeFlags::CHILDREN_CHANGED);
+                .insert(NoticeFlags::CHILD_LIST_CHANGED);
             self.has_pending_notices = true;
             self.add_to_notice_list(parent_id);
         }
@@ -1006,7 +1006,7 @@ impl PanelTree {
 
         self.panels[parent]
             .pending_notices
-            .insert(NoticeFlags::CHILDREN_CHANGED);
+            .insert(NoticeFlags::CHILD_LIST_CHANGED);
         self.has_pending_notices = true;
         self.add_to_notice_list(parent);
     }
@@ -1209,7 +1209,7 @@ impl PanelTree {
             // Queue NF_VIEWING_CHANGED | NF_UPDATE_PRIORITY_CHANGED | NF_MEMORY_LIMIT_CHANGED
             // (C++ emPanel.cpp:583–590). VISIBILITY = C++ NF_VIEWING_CHANGED.
             self.panels[id].pending_notices.insert(
-                NoticeFlags::VISIBILITY
+                NoticeFlags::VIEWING_CHANGED
                     | NoticeFlags::UPDATE_PRIORITY_CHANGED
                     | NoticeFlags::MEMORY_LIMIT_CHANGED,
             );
@@ -1232,7 +1232,7 @@ impl PanelTree {
                 // C++ queues NF_VIEWING_CHANGED when becoming non-viewed (emPanel.cpp:598).
                 // VISIBILITY = C++ NF_VIEWING_CHANGED.
                 self.panels[id].pending_notices.insert(
-                    NoticeFlags::VISIBILITY
+                    NoticeFlags::VIEWING_CHANGED
                         | NoticeFlags::UPDATE_PRIORITY_CHANGED
                         | NoticeFlags::MEMORY_LIMIT_CHANGED,
                 );
@@ -1247,7 +1247,7 @@ impl PanelTree {
     pub fn SetCanvasColor(&mut self, id: PanelId, color: emColor) {
         if let Some(panel) = self.panels.get_mut(id) {
             panel.canvas_color = color;
-            panel.pending_notices.insert(NoticeFlags::CANVAS_CHANGED);
+            panel.pending_notices.insert(NoticeFlags::VIEWING_CHANGED);
             self.has_pending_notices = true;
         } else {
             return;
@@ -1612,8 +1612,8 @@ impl PanelTree {
             // NF_VIEWING_CHANGED = Rust VISIBILITY. VIEW_CHANGED is Rust-internal (INIT + children).
             if flags.intersects(
                 NoticeFlags::SOUGHT_NAME_CHANGED
-                    | NoticeFlags::VIEW_CHANGED
-                    | NoticeFlags::VISIBILITY,
+                    | NoticeFlags::VIEWING_CHANGED
+                    | NoticeFlags::VIEWING_CHANGED,
             ) {
                 let should_expand = self.is_seek_target(id)
                     || self.GetViewCondition(id, ae_threshold_type) >= ae_threshold_value;
@@ -1621,7 +1621,7 @@ impl PanelTree {
                     new_ae_di = true;
                 }
             }
-            if flags.intersects(NoticeFlags::LAYOUT_CHANGED | NoticeFlags::CHILDREN_CHANGED)
+            if flags.intersects(NoticeFlags::LAYOUT_CHANGED | NoticeFlags::CHILD_LIST_CHANGED)
                 && self.GetFirstChild(id).is_some()
             {
                 new_cli = true;
@@ -2458,7 +2458,7 @@ impl PanelTree {
                 if needs_recurse {
                     self.queue_notice(
                         c,
-                        NoticeFlags::VIEW_CHANGED
+                        NoticeFlags::VIEWING_CHANGED
                             | NoticeFlags::UPDATE_PRIORITY_CHANGED
                             | NoticeFlags::MEMORY_LIMIT_CHANGED,
                     );
@@ -2530,7 +2530,7 @@ impl PanelTree {
             if is_viewed_now || was_in_path {
                 self.queue_notice(
                     c,
-                    NoticeFlags::VIEW_CHANGED
+                    NoticeFlags::VIEWING_CHANGED
                         | NoticeFlags::UPDATE_PRIORITY_CHANGED
                         | NoticeFlags::MEMORY_LIMIT_CHANGED,
                 );
@@ -2998,7 +2998,7 @@ mod tests {
         t.SortChildren(root, |a_id, b_id| names[&a_id].cmp(&names[&b_id]));
         assert!(!t
             .pending_notices(root)
-            .contains(NoticeFlags::CHILDREN_CHANGED));
+            .contains(NoticeFlags::CHILD_LIST_CHANGED));
     }
 
     #[test]

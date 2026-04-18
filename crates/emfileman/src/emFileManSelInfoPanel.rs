@@ -655,7 +655,7 @@ impl PanelBehavior for emFileManSelInfoPanel {
         if flags.contains(NoticeFlags::LAYOUT_CHANGED) {
             self.set_rectangles(state.height);
         }
-        if flags.contains(NoticeFlags::VIEW_CHANGED) {
+        if flags.contains(NoticeFlags::VIEWING_CHANGED) {
             self.allow_business = state.viewed;
         }
     }

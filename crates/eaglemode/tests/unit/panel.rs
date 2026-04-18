@@ -111,7 +111,7 @@ fn notice_flag_propagation() {
     // Verify notice is pending before delivery
     assert!(tree
         .pending_notices(root)
-        .contains(NoticeFlags::CHILDREN_CHANGED));
+        .contains(NoticeFlags::CHILD_LIST_CHANGED));
 
     // Deliver notices
     tree.HandleNotice(true, 1.0);
@@ -240,5 +240,5 @@ fn layout_rect_and_canvas_color() {
         .contains(NoticeFlags::LAYOUT_CHANGED));
     assert!(tree
         .pending_notices(root)
-        .contains(NoticeFlags::CANVAS_CHANGED));
+        .contains(NoticeFlags::VIEWING_CHANGED));
 }

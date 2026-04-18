@@ -417,7 +417,7 @@ impl PanelBehavior for emDirEntryPanel {
     ///     UpdateContentPanel(); UpdateAltPanel();
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState, ctx: &mut PanelCtx) {
         if flags.intersects(
-            NoticeFlags::VISIBILITY
+            NoticeFlags::VIEWING_CHANGED
                 | NoticeFlags::SOUGHT_NAME_CHANGED
                 | NoticeFlags::ACTIVE_CHANGED,
         ) {

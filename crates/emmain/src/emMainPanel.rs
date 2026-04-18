@@ -878,7 +878,7 @@ impl PanelBehavior for emMainPanel {
     }
 
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState, _ctx: &mut PanelCtx) {
-        if flags.intersects(NoticeFlags::LAYOUT_CHANGED | NoticeFlags::VIEW_CHANGED) {
+        if flags.intersects(NoticeFlags::LAYOUT_CHANGED | NoticeFlags::VIEWING_CHANGED) {
             self.unified_slider_pos = self.config.borrow().GetControlViewSize();
             self.update_coordinates(state.height);
         }

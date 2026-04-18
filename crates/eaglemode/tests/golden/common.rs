@@ -499,54 +499,15 @@ pub fn load_notice_golden(name: &str) -> Vec<GoldenNoticeState> {
 
 /// Translate C++ NF_* bit flags to Rust NoticeFlags.
 ///
-/// C++ and Rust use different bit positions:
-///   C++ NF_CHILD_LIST_CHANGED    = 1<<0  → Rust CHILDREN_CHANGED     = 0x08
-///   C++ NF_LAYOUT_CHANGED        = 1<<1  → Rust LAYOUT_CHANGED       = 0x01
-///   C++ NF_VIEWING_CHANGED       = 1<<2  → Rust VISIBILITY           = 0x04
-///   C++ NF_ENABLE_CHANGED        = 1<<3  → Rust ENABLE_CHANGED       = 0x40
-///   C++ NF_ACTIVE_CHANGED        = 1<<4  → Rust ACTIVE_CHANGED       = 0x100
-///   C++ NF_FOCUS_CHANGED         = 1<<5  → Rust FOCUS_CHANGED        = 0x02
-///   C++ NF_VIEW_FOCUS_CHANGED    = 1<<6  → Rust VIEW_FOCUS_CHANGED   = 0x200
-///   C++ NF_UPDATE_PRIORITY_CHANGED = 1<<7 → Rust UPDATE_PRIORITY_CHANGED = 0x400
-///   C++ NF_MEMORY_LIMIT_CHANGED  = 1<<8  → Rust MEMORY_LIMIT_CHANGED = 0x800
-///   C++ NF_SOUGHT_NAME_CHANGED   = 1<<9  → Rust SOUGHT_NAME_CHANGED  = 0x80
+/// Since Phase 7, Rust NoticeFlags bit values match C++ one-for-one
+/// (CHILD_LIST_CHANGED=1<<0 ... SOUGHT_NAME_CHANGED=1<<9), so this is
+/// an identity translation.
 pub fn translate_cpp_notice_flags(cpp: u32) -> u32 {
-    let mut rust: u32 = 0;
-    if cpp & (1 << 0) != 0 {
-        rust |= 0x08;
-    } // CHILDREN_CHANGED
-    if cpp & (1 << 1) != 0 {
-        rust |= 0x01;
-    } // LAYOUT_CHANGED
-    if cpp & (1 << 2) != 0 {
-        rust |= 0x04;
-    } // VISIBILITY
-    if cpp & (1 << 3) != 0 {
-        rust |= 0x40;
-    } // ENABLE_CHANGED
-    if cpp & (1 << 4) != 0 {
-        rust |= 0x100;
-    } // ACTIVE_CHANGED
-    if cpp & (1 << 5) != 0 {
-        rust |= 0x02;
-    } // FOCUS_CHANGED
-    if cpp & (1 << 6) != 0 {
-        rust |= 0x200;
-    } // VIEW_FOCUS_CHANGED
-    if cpp & (1 << 7) != 0 {
-        rust |= 0x400;
-    } // UPDATE_PRIORITY_CHANGED
-    if cpp & (1 << 8) != 0 {
-        rust |= 0x800;
-    } // MEMORY_LIMIT_CHANGED
-    if cpp & (1 << 9) != 0 {
-        rust |= 0x80;
-    } // SOUGHT_NAME_CHANGED
-    rust
+    cpp
 }
 
-/// Full mask covering all 12 notice flag bits.
-pub const NOTICE_FULL_MASK: u32 = 0x0FFF;
+/// Full mask covering all 10 notice flag bits (bits 0-9).
+pub const NOTICE_FULL_MASK: u32 = 0x03FF;
 
 /// Compare actual Rust NoticeFlags against C++ golden notice data.
 /// `mask` GetFilters which bits are compared (use NOTICE_ACTION_MASK or NOTICE_FULL_MASK).

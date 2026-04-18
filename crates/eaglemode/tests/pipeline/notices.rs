@@ -1010,7 +1010,7 @@ fn add_child_fires_children_changed_on_parent() {
     h.tick();
 
     assert!(
-        acc.borrow().contains(NoticeFlags::CHILDREN_CHANGED),
+        acc.borrow().contains(NoticeFlags::CHILD_LIST_CHANGED),
         "Adding a child should fire CHILDREN_CHANGED on the parent"
     );
 }
@@ -1030,7 +1030,7 @@ fn remove_child_fires_children_changed_on_parent() {
     h.tick();
 
     assert!(
-        acc.borrow().contains(NoticeFlags::CHILDREN_CHANGED),
+        acc.borrow().contains(NoticeFlags::CHILD_LIST_CHANGED),
         "Removing a child should fire CHILDREN_CHANGED on the parent"
     );
 }
@@ -1054,7 +1054,7 @@ fn add_child_does_not_fire_children_changed_on_grandparent() {
     h.tick();
 
     assert!(
-        !gp_acc.borrow().contains(NoticeFlags::CHILDREN_CHANGED),
+        !gp_acc.borrow().contains(NoticeFlags::CHILD_LIST_CHANGED),
         "Adding a child to parent should NOT fire CHILDREN_CHANGED on grandparent"
     );
 }
@@ -1079,7 +1079,7 @@ fn remove_child_does_not_fire_children_changed_on_grandparent() {
     h.tick();
 
     assert!(
-        !gp_acc.borrow().contains(NoticeFlags::CHILDREN_CHANGED),
+        !gp_acc.borrow().contains(NoticeFlags::CHILD_LIST_CHANGED),
         "Removing a child from parent should NOT fire CHILDREN_CHANGED on grandparent"
     );
 }
@@ -1100,7 +1100,7 @@ fn add_multiple_children_fires_children_changed_on_parent() {
     h.tick();
 
     assert!(
-        acc.borrow().contains(NoticeFlags::CHILDREN_CHANGED),
+        acc.borrow().contains(NoticeFlags::CHILD_LIST_CHANGED),
         "Adding multiple children should fire CHILDREN_CHANGED on the parent"
     );
 }
@@ -1118,7 +1118,7 @@ fn children_changed_is_pending_immediately_after_add() {
     assert!(
         h.tree
             .pending_notices(parent)
-            .contains(NoticeFlags::CHILDREN_CHANGED),
+            .contains(NoticeFlags::CHILD_LIST_CHANGED),
         "CHILDREN_CHANGED should be pending on parent immediately after create_child"
     );
 }
@@ -1137,7 +1137,7 @@ fn children_changed_is_pending_immediately_after_remove() {
     assert!(
         h.tree
             .pending_notices(parent)
-            .contains(NoticeFlags::CHILDREN_CHANGED),
+            .contains(NoticeFlags::CHILD_LIST_CHANGED),
         "CHILDREN_CHANGED should be pending on parent immediately after remove"
     );
 }

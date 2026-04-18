@@ -225,7 +225,7 @@ impl PanelBehavior for emSubViewPanel {
                 .SetFocused(&mut self.sub_tree, state.is_focused());
         }
         // C++ NF_VIEWING_CHANGED → SetViewGeometry(...)
-        if flags.intersects(NoticeFlags::VIEW_CHANGED | NoticeFlags::LAYOUT_CHANGED) {
+        if flags.intersects(NoticeFlags::VIEWING_CHANGED | NoticeFlags::LAYOUT_CHANGED) {
             self.sync_geometry(state);
         }
     }

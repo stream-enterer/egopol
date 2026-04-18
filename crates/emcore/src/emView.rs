@@ -1805,7 +1805,7 @@ impl emView {
                 }
                 tree.queue_notice(
                     osvp,
-                    super::emPanel::NoticeFlags::VIEW_CHANGED
+                    super::emPanel::NoticeFlags::VIEWING_CHANGED
                         | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
                         | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
                 );
@@ -1818,7 +1818,7 @@ impl emView {
                     });
                     tree.queue_notice(
                         pid,
-                        super::emPanel::NoticeFlags::VIEW_CHANGED
+                        super::emPanel::NoticeFlags::VIEWING_CHANGED
                             | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
                             | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
                     );
@@ -1861,7 +1861,7 @@ impl emView {
         }
         tree.queue_notice(
             vp,
-            super::emPanel::NoticeFlags::VIEW_CHANGED
+            super::emPanel::NoticeFlags::VIEWING_CHANGED
                 | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
                 | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
         );
@@ -1874,7 +1874,7 @@ impl emView {
             });
             tree.queue_notice(
                 pid,
-                super::emPanel::NoticeFlags::VIEW_CHANGED
+                super::emPanel::NoticeFlags::VIEWING_CHANGED
                     | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
                     | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
             );
