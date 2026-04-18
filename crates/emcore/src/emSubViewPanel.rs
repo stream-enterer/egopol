@@ -45,6 +45,7 @@ impl emSubViewPanel {
         let mut sub_tree = PanelTree::new();
         // C++ view root has an empty name; identity ":" decodes to [""].
         let root = sub_tree.create_root("");
+        // Last arg is pixel tallness; sub_view.CurrentPixelTallness starts at 1.0.
         sub_tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let sub_view = emView::new(root, 1.0, 1.0);

@@ -3348,14 +3348,14 @@ mod tests {
         //
         // factor=1.0 is excluded — known Rust-vs-C++ design gap, tracked below.
         //
-        // KNOWN GAP (TODO phase 8): At factor=1.0, root-centering
+        // KNOWN GAP (tracked in visit-stack rewrite): At factor=1.0, root-centering
         // (C++ emView.cpp:1588-1626) clamps viewed_x=0 regardless of the
         // visit-stack rel_x value.  Rust's visit stack stores rel_x explicitly
         // (it has no C++ analogue — C++ derives rel coords on-the-fly from
         // ViewedX/Y each time).  Because the clamp discards the visit-stack
         // rel_x, the Rust animator sees a nonzero get_distance_to even when
         // "at target", breaking the invariant.  This is a Rust-only artefact
-        // that does not exist in C++.  Phase 8's final alignment sweep should
+        // that does not exist in C++.  The visit-stack rewrite should
         // re-examine whether Rust should derive rel coords from ViewedX/Y on
         // every read (matching C++ semantics) instead of storing them.
         for &factor in &[2.0, 4.0, 16.0, 100.0] {

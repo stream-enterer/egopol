@@ -152,7 +152,6 @@ impl App {
         tree: &mut PanelTree,
         input_state: &mut emInputState,
     ) {
-        // Called with the RefMut derefed to &mut emWindow.
         let forward_events = win.touch_vif_mut().drain_forward_events();
         if forward_events.is_empty() {
             return;
@@ -395,7 +394,6 @@ impl ApplicationHandler for App {
         let state = &mut self.input_state;
         for rc in self.windows.values() {
             let mut win = rc.borrow_mut();
-            let win = &mut *win;
             // Layout changes from notices require viewed coordinate recomputation.
             if had_notices {
                 win.view_mut().mark_viewing_dirty();

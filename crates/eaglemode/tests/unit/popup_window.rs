@@ -21,17 +21,10 @@ fn popup_flags_include_popup_undecorated_and_auto_delete() {
 }
 
 #[test]
-fn popup_window_creation_path_is_gated_on_display() {
+fn popup_window_new_popup_is_reachable() {
     // Smoke acceptance for Phase 6: the `new_popup` symbol is reachable
     // from downstream crates. Actual OS-window creation requires an active
     // `winit::ActiveEventLoop`, which cargo tests cannot provide safely.
-    let has_display =
-        std::env::var_os("DISPLAY").is_some() || std::env::var_os("WAYLAND_DISPLAY").is_some();
-    if !has_display {
-        eprintln!("skipping display-gated portion: no DISPLAY/WAYLAND_DISPLAY");
-    }
-    // Static reachability check: take the function address to prove the
-    // symbol exists on the public API without invoking it.
     let _ctor_addr = emcore::emWindow::emWindow::new_popup as *const ();
     assert!(!_ctor_addr.is_null());
 }
