@@ -868,6 +868,32 @@ impl emView {
         self.VisitByIdentity(&identity, rel_x, rel_y, rel_a, adherent, &subject);
     }
 
+    /// Port of C++ `emView::Visit(identity, relX, relY, relA, adherent, subject)`
+    /// at emView.cpp:500-508. Three-line delegation to `VisitingVA`:
+    /// `SetAnimParamsByCoreConfig` → `SetGoalWithCoords` → `Activate`. The
+    /// animator engine (`VisitingVAEngineClass::Cycle`) observes `is_active()`
+    /// and drives the curve each scheduler tick.
+    ///
+    /// PHASE-W4-FOLLOWUP: C++ passes this view's `CoreConfig` to
+    /// `SetAnimParamsByCoreConfig`. Rust `emView` does not yet own a
+    /// `emCoreConfig`, so we hardcode the stock defaults
+    /// (`VisitSpeed=1.0`, `MaxVisitSpeed=10.0`) from emCoreConfig.cpp:53.
+    /// Full `CoreConfig` ownership is a future wave.
+    pub fn VisitByIdentity(
+        &mut self,
+        identity: &str,
+        rel_x: f64,
+        rel_y: f64,
+        rel_a: f64,
+        adherent: bool,
+        subject: &str,
+    ) {
+        let mut va = self.VisitingVA.borrow_mut();
+        va.SetAnimParamsByCoreConfig(1.0, 10.0);
+        va.SetGoalWithCoords(identity, rel_x, rel_y, rel_a, adherent, subject);
+        va.Activate();
+    }
+
     /// Port of C++ `emView::VisitFullsized(panel, adherent, utilizeView)` (emView.cpp:525-528).
     pub fn VisitFullsized(
         &mut self,
@@ -3069,32 +3095,6 @@ impl emView {
         if let (Some(id), Some(sched)) = (self.update_engine_id, &self.scheduler) {
             sched.borrow_mut().wake_up(id);
         }
-    }
-
-    /// Port of C++ `emView::Visit(identity, relX, relY, relA, adherent, subject)`
-    /// at emView.cpp:500-508. Three-line delegation to `VisitingVA`:
-    /// `SetAnimParamsByCoreConfig` → `SetGoalWithCoords` → `Activate`. The
-    /// animator engine (`VisitingVAEngineClass::Cycle`) observes `is_active()`
-    /// and drives the curve each scheduler tick.
-    ///
-    /// PHASE-W4-FOLLOWUP: C++ passes this view's `CoreConfig` to
-    /// `SetAnimParamsByCoreConfig`. Rust `emView` does not yet own a
-    /// `emCoreConfig`, so we hardcode the stock defaults
-    /// (`VisitSpeed=1.0`, `MaxVisitSpeed=10.0`) from emCoreConfig.cpp:53.
-    /// Full `CoreConfig` ownership is a future wave.
-    pub fn VisitByIdentity(
-        &mut self,
-        identity: &str,
-        rel_x: f64,
-        rel_y: f64,
-        rel_a: f64,
-        adherent: bool,
-        subject: &str,
-    ) {
-        let mut va = self.VisitingVA.borrow_mut();
-        va.SetAnimParamsByCoreConfig(1.0, 10.0);
-        va.SetGoalWithCoords(identity, rel_x, rel_y, rel_a, adherent, subject);
-        va.Activate();
     }
 
     /// Borrow the visiting view animator for inspection.
