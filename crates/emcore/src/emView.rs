@@ -1761,10 +1761,11 @@ impl emView {
                     }
                 }
                 self.PopupWindow = None;
-                // C++ emView.cpp:1678 + 1995 — GeometrySignal fires twice on
-                // popup teardown: once inside SwapViewPorts(true) above
-                // (matching emView.cpp:1995), and once explicitly here
-                // (matching emView.cpp:1678). Keep both; do not dedup.
+                // GeometrySignal fires twice on popup teardown (both intentional):
+                // once from SwapViewPorts(true) above (Rust-only: the Rust
+                // SwapViewPorts fires GeometrySignal at the end; C++ SwapViewPorts
+                // does not), and once explicitly here (mirroring C++
+                // emView.cpp:1680). Keep both; do not dedup.
                 if let (Some(sig), Some(sched)) = (self.geometry_signal, &self.scheduler) {
                     sched.borrow_mut().fire(sig);
                 }
