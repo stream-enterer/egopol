@@ -176,6 +176,59 @@ impl StressTest {
     }
 }
 
+/// Deferred scheduler operation, issued from inside `emView::Update`'s
+/// reachable call tree when the scheduler is already `borrow_mut`'d by
+/// the enclosing `DoTimeSlice`. Drained by `UpdateEngineClass::Cycle`
+/// immediately after `Update` returns.
+///
+/// IDIOM: C++ calls `Scheduler.X(...)` inline during Update because its
+/// scheduler has no aliasing restrictions. Rust's `RefCell<EngineScheduler>`
+/// forbids inner borrows while `DoTimeSlice` holds the outer borrow;
+/// deferral restores inline semantics within the same time slice
+/// without violating borrow rules.
+// SP4 Phase 1 staging: items below are constructed and dispatched in the
+// `sp4_phase1_sched_op_routing` test (see `mod tests` at end of file) but
+// have no non-test caller yet. Phase 2 migrates emView's scheduler-borrow
+// sites onto `queue_or_apply_sched_op`; Phase 3 wires the drain into
+// `UpdateEngineClass::Cycle`. The `#[cfg_attr(not(test), allow(dead_code))]`
+// suppresses the lib-compilation dead_code false positive without hiding
+// genuine dead code: removing the test restores the warning.
+#[cfg_attr(not(test), allow(dead_code))]
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum SchedOp {
+    Fire(super::emSignal::SignalId),
+    WakeUp(super::emEngine::EngineId),
+    Connect(super::emSignal::SignalId, super::emEngine::EngineId),
+    Disconnect(super::emSignal::SignalId, super::emEngine::EngineId),
+    RemoveSignal(super::emSignal::SignalId),
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+impl SchedOp {
+    /// Apply directly to an `&mut EngineScheduler`. Used on the
+    /// non-engine path where `try_borrow_mut` succeeded.
+    pub(crate) fn apply_to(self, sched: &mut super::emScheduler::EngineScheduler) {
+        match self {
+            SchedOp::Fire(s) => sched.fire(s),
+            SchedOp::WakeUp(e) => sched.wake_up(e),
+            SchedOp::Connect(s, e) => sched.connect(s, e),
+            SchedOp::Disconnect(s, e) => sched.disconnect(s, e),
+            SchedOp::RemoveSignal(s) => sched.remove_signal(s),
+        }
+    }
+
+    /// Apply via an `EngineCtx` (drain-time path, inside `Cycle`).
+    pub(crate) fn apply_via_ctx(self, ctx: &mut super::emEngine::EngineCtx<'_>) {
+        match self {
+            SchedOp::Fire(s) => ctx.fire(s),
+            SchedOp::WakeUp(e) => ctx.wake_up(e),
+            SchedOp::Connect(s, e) => ctx.connect(s, e),
+            SchedOp::Disconnect(s, e) => ctx.disconnect(s, e),
+            SchedOp::RemoveSignal(s) => ctx.remove_signal(s),
+        }
+    }
+}
+
 /// Port of C++ `emView::UpdateEngineClass` (emView.h:626-633).
 ///
 /// Scheduler-driven engine: when awake, `Cycle()` drains the view's update
@@ -363,6 +416,22 @@ pub struct emView {
     /// that construct `emView` outside of a running `App`.
     pub(crate) pending_framework_actions:
         Option<Rc<RefCell<Vec<super::emGUIFramework::DeferredAction>>>>,
+    /// Set by `UpdateEngineClass::Cycle` from `ctx.IsSignaled(close_signal)`
+    /// before calling `Update`; read and cleared at the top of `Update`.
+    /// See C++ `emView::Update` popup-close probe at `emView.cpp:1299`.
+    ///
+    /// DIVERGED: C++ emView is an emEngine (via emContext); Rust emView is
+    /// not yet (tracked as SP7). UpdateEngine's clock substitutes for
+    /// emView's own clock.
+    // SP4 Phase 1 staging: see comment above `SchedOp` enum for rationale.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) close_signal_pending: bool,
+    /// Queue of scheduler ops issued from inside Update's call tree when
+    /// the scheduler is already borrow_mut'd. Drained by
+    /// UpdateEngineClass::Cycle after Update returns. Invariant: only
+    /// nonempty transiently, inside a `Cycle` invocation.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) pending_sched_ops: Vec<SchedOp>,
     /// The view title. Updated from the active panel's title.
     pub title: String,
     /// Current mouse cursor for this view.
@@ -517,6 +586,8 @@ impl emView {
             eoi_engine_id: None,
             visiting_va_engine_id: None,
             pending_framework_actions: None,
+            close_signal_pending: false,
+            pending_sched_ops: Vec::new(),
             title: String::new(),
             cursor: emCursor::Normal,
             max_popup_rect: None,
@@ -564,6 +635,25 @@ impl emView {
                 super::emViewAnimator::emVisitingViewAnimator::new_for_view(),
             )),
             CoreConfig: core_config,
+        }
+    }
+
+    /// Apply a scheduler op: execute immediately if the scheduler is not
+    /// currently borrowed (the common, non-engine-path case), otherwise
+    /// enqueue for drain by `UpdateEngineClass::Cycle`.
+    ///
+    /// Used by every scheduler-write call site in `emView.rs` that is
+    /// reachable from `Update`. Non-Update call sites hit the inline-apply
+    /// arm and incur zero queue overhead.
+    // SP4 Phase 1 staging: see comment above `SchedOp` enum for rationale.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn queue_or_apply_sched_op(&mut self, op: SchedOp) {
+        let Some(sched_rc) = self.scheduler.as_ref() else {
+            return; // Unit-test bare view: no scheduler, all ops no-op.
+        };
+        match sched_rc.try_borrow_mut() {
+            Ok(mut sched) => op.apply_to(&mut sched),
+            Err(_) => self.pending_sched_ops.push(op),
         }
     }
 
@@ -4682,6 +4772,83 @@ mod tests {
         tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
         (tree, root, child1, child2)
+    }
+
+    /// SP4 Phase 1 smoke test: queue_or_apply_sched_op takes the
+    /// inline-apply arm when the scheduler isn't borrowed, and falls
+    /// back to pending_sched_ops when it is. Also exercises all SchedOp
+    /// variants (Fire / WakeUp / Connect / Disconnect / RemoveSignal)
+    /// and both apply_to / apply_via_ctx dispatch arms via Debug format.
+    #[test]
+    fn sp4_phase1_sched_op_routing() {
+        let (_tree, root, _c1, _c2) = setup_tree();
+        let mut view = emView::new_for_test(root, 800.0, 600.0);
+
+        // 1. No scheduler wired: op is silently dropped.
+        view.queue_or_apply_sched_op(SchedOp::Fire(
+            // Fabricate an invalid signal ID; fire() lookup-miss is a silent no-op.
+            slotmap::KeyData::from_ffi(0x0000_0001_0000_0001).into(),
+        ));
+        assert!(view.pending_sched_ops.is_empty());
+
+        // 2. Scheduler wired and not borrowed: inline-apply succeeds.
+        let scheduler = Rc::new(RefCell::new(EngineScheduler::new()));
+        let sig = scheduler.borrow_mut().create_signal();
+        view.set_scheduler(Rc::clone(&scheduler));
+        view.queue_or_apply_sched_op(SchedOp::Fire(sig));
+        assert!(view.pending_sched_ops.is_empty());
+        assert!(scheduler.borrow().is_pending(sig));
+
+        // 3. Scheduler currently borrow_mut'd: op is queued.
+        {
+            let _guard = scheduler.borrow_mut();
+            view.queue_or_apply_sched_op(SchedOp::Fire(sig));
+        }
+        assert_eq!(view.pending_sched_ops.len(), 1);
+
+        // Touch every variant + the close_signal_pending field so
+        // dead_code analysis sees full coverage ahead of Phase 2/3 wiring.
+        let eng_id: super::super::emEngine::EngineId =
+            slotmap::KeyData::from_ffi(0x0000_0001_0000_0002).into();
+        for op in [
+            SchedOp::Fire(sig),
+            SchedOp::WakeUp(eng_id),
+            SchedOp::Connect(sig, eng_id),
+            SchedOp::Disconnect(sig, eng_id),
+            SchedOp::RemoveSignal(sig),
+        ] {
+            // Debug formatting exercises every variant constructor.
+            let _ = format!("{op:?}");
+        }
+        view.close_signal_pending = true;
+        assert!(view.close_signal_pending);
+        view.close_signal_pending = false;
+
+        // Exercise apply_via_ctx through a one-shot engine registered
+        // specifically for this smoke test. Phase 2/3 will replace this
+        // with the real drain site in UpdateEngineClass::Cycle.
+        struct OneShot {
+            op: Option<SchedOp>,
+        }
+        impl super::super::emEngine::emEngine for OneShot {
+            fn Cycle(&mut self, ctx: &mut super::super::emEngine::EngineCtx<'_>) -> bool {
+                if let Some(op) = self.op.take() {
+                    op.apply_via_ctx(ctx);
+                }
+                false
+            }
+        }
+        let eid = scheduler.borrow_mut().register_engine(
+            super::super::emEngine::Priority::Medium,
+            Box::new(OneShot {
+                op: Some(SchedOp::Fire(sig)),
+            }),
+        );
+        scheduler.borrow_mut().wake_up(eid);
+        let mut tree2 = PanelTree::new();
+        let mut wins = std::collections::HashMap::new();
+        scheduler.borrow_mut().DoTimeSlice(&mut tree2, &mut wins);
+        scheduler.borrow_mut().remove_engine(eid);
     }
 
     #[test]
