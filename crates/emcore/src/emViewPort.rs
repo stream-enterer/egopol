@@ -160,6 +160,13 @@ impl emViewPort {
     /// Port of C++ `emViewPort::PaintView`.
     ///
     /// Requests a redraw on the owning `emWindow`. No-op for dummy ports.
+    ///
+    /// **Re-entrancy warning:** the back-reference is upgraded and the owning
+    /// `emWindow` is borrowed shared. Callers must NOT already hold a
+    /// `rc.borrow_mut()` on the same window (e.g. from inside `render`,
+    /// `dispatch_input`, or `handle_touch`) — the runtime `RefCell` check
+    /// would panic rather than being caught at compile time. A full audit is
+    /// required when production call sites are first wired.
     pub fn PaintView(&self) {
         debug_assert!(
             self.window.is_some() || cfg!(test),
@@ -254,6 +261,13 @@ impl emViewPort {
     ///
     /// Delegates to the owning `emWindow`'s tile cache. No-op for dummy
     /// ports.
+    ///
+    /// **Re-entrancy warning:** the back-reference is upgraded and the owning
+    /// `emWindow` is borrowed mutably (`rc.borrow_mut()`). Callers must NOT
+    /// already hold any borrow on the same window (e.g. from inside `render`,
+    /// `dispatch_input`, or `handle_touch`) — the runtime `RefCell` check
+    /// would panic rather than being caught at compile time. A full audit is
+    /// required when production call sites are first wired.
     pub fn InvalidatePainting(&mut self, x: f64, y: f64, w: f64, h: f64) {
         debug_assert!(
             self.window.is_some() || cfg!(test),
