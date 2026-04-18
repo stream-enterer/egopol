@@ -386,7 +386,7 @@ fn bp9_vct_min_ext_guard_mouse() {
     let panel_id = h.tree.create_child(root, "button");
     h.tree.set_focusable(panel_id, true);
     // Tiny layout: 0.1% of root in each dimension → ~0.8px at 800x600.
-    h.tree.Layout(panel_id, 0.0, 0.0, 0.001, 0.001);
+    h.tree.Layout(panel_id, 0.0, 0.0, 0.001, 0.001, 1.0);
     h.tree
         .set_behavior(panel_id, Box::new(ButtonPanel { widget: btn }));
 
@@ -423,7 +423,7 @@ fn bp9_vct_min_ext_guard_enter() {
 
     let panel_id = h.tree.create_child(root, "button");
     h.tree.set_focusable(panel_id, true);
-    h.tree.Layout(panel_id, 0.0, 0.0, 0.001, 0.001);
+    h.tree.Layout(panel_id, 0.0, 0.0, 0.001, 0.001, 1.0);
     h.tree
         .set_behavior(panel_id, Box::new(ButtonPanel { widget: btn }));
 

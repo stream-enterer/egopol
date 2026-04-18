@@ -759,7 +759,7 @@ pub fn setup_tree_and_view(vw: u32, vh: u32) -> (PanelTree, emView, PanelId) {
     let root = tree.create_root("bench_root");
     tree.set_behavior(root, Box::new(TestPanel::new()));
     let tallness = vh as f64 / vw as f64;
-    tree.Layout(root, 0.0, 0.0, 1.0, tallness);
+    tree.Layout(root, 0.0, 0.0, 1.0, tallness, 1.0);
     tree.set_focusable(root, true);
 
     let mut view = emView::new(root, vw as f64, vh as f64);

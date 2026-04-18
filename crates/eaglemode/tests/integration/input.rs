@@ -12,11 +12,11 @@ fn mouse_click_activates_correct_panel() {
 
     // Panel A: left half
     let a = h.add_panel(root, "a");
-    h.tree.Layout(a, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(a, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     // Panel B: right half
     let b = h.add_panel(root, "b");
-    h.tree.Layout(b, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(b, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     h.tick();
 
@@ -78,7 +78,7 @@ fn focus_change_routes_keyboard() {
         "a",
         Box::new(RecordingBehavior::new(Rc::clone(&log_a))),
     );
-    h.tree.Layout(a, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(a, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     // Panel B: right half
     let b = h.add_panel_with(
@@ -86,7 +86,7 @@ fn focus_change_routes_keyboard() {
         "b",
         Box::new(RecordingBehavior::new(Rc::clone(&log_b))),
     );
-    h.tree.Layout(b, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(b, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     h.tick();
 
@@ -128,11 +128,11 @@ fn input_without_update_returns_none() {
     let mut tree = emcore::emPanelTree::PanelTree::new();
     let root = tree.create_root("root");
     tree.set_focusable(root, true);
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
     let child = tree.create_child(root, "child");
     tree.set_focusable(child, true);
-    tree.Layout(child, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(child, 0.0, 0.0, 1.0, 1.0, 1.0);
 
     // Create view but do NOT call update_viewing
     let view = emcore::emView::emView::new(root, 800.0, 600.0);

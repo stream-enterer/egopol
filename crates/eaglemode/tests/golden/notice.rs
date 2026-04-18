@@ -48,11 +48,11 @@ fn notice_active_changed() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     // C++ emView starts unfocused; Rust emView::new starts focused.
     let mut view = emView::new(root, 800.0, 600.0);
@@ -100,11 +100,11 @@ fn notice_focus_changed() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     // Start unfocused to match C++
     let mut view = emView::new(root, 800.0, 600.0);
@@ -151,11 +151,11 @@ fn notice_layout_changed() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.SetFocused(&mut tree, false);
@@ -171,7 +171,7 @@ fn notice_layout_changed() {
     hard_reset_file_state(&acc_child2);
 
     // Action: change child1's layout rect
-    tree.Layout(child1, 0.1, 0.1, 0.3, 0.5);
+    tree.Layout(child1, 0.1, 0.1, 0.3, 0.5, 1.0);
 
     // Deliver new notices
     settle(&mut tree, &mut view);
@@ -201,9 +201,9 @@ fn notice_children_changed() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.SetFocused(&mut tree, false);
@@ -218,7 +218,7 @@ fn notice_children_changed() {
 
     // Action: add new child
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     // Attach notice behavior to child2 to capture init notices
     let acc_child2 = attach_notice(&mut tree, child2);
@@ -252,9 +252,9 @@ fn notice_window_focus_gained() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     // Start unfocused
     let mut view = emView::new(root, 800.0, 600.0);
@@ -299,9 +299,9 @@ fn notice_window_focus_lost() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     // Start unfocused, then gain focus to match C++ setup
     let mut view = emView::new(root, 800.0, 600.0);
@@ -347,11 +347,11 @@ fn notice_window_resize() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 0.75); // 600/800 tallness
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0); // 600/800 tallness
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
@@ -398,13 +398,13 @@ fn notice_recursive_enable() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let gc = tree.create_child(child1, "gc");
-    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.SetFocused(&mut tree, false);
@@ -450,13 +450,13 @@ fn notice_re_enable() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let gc = tree.create_child(child1, "gc");
-    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.SetFocused(&mut tree, false);
@@ -512,11 +512,11 @@ fn notice_remove_child() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.SetFocused(&mut tree, false);
@@ -554,11 +554,11 @@ fn notice_focus_and_layout() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.SetFocused(&mut tree, false);
@@ -574,7 +574,7 @@ fn notice_focus_and_layout() {
 
     // Two actions before settle: focus + layout change
     view.focus_panel(&mut tree, child1);
-    tree.Layout(child1, 0.1, 0.1, 0.3, 0.5);
+    tree.Layout(child1, 0.1, 0.1, 0.3, 0.5, 1.0);
 
     settle(&mut tree, &mut view);
 
@@ -603,9 +603,9 @@ fn notice_add_and_activate() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.SetFocused(&mut tree, false);
@@ -619,7 +619,7 @@ fn notice_add_and_activate() {
 
     // Add new child and activate it before settling
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
     let acc_child2 = attach_notice(&mut tree, child2);
     view.set_active_panel(&mut tree, child2, false);
 
@@ -650,11 +650,11 @@ fn notice_enable_changed() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.SetFocused(&mut tree, false);

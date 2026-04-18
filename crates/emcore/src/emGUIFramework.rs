@@ -357,9 +357,6 @@ impl ApplicationHandler for App {
             }
         }
 
-        // Run per-frame panel cycles
-        self.tree.run_panel_cycles();
-
         // Deliver notices (includes layout dispatch)
         let window_focused = self.windows.values().any(|w| w.view().IsFocused());
         let pixel_tallness = self
@@ -368,6 +365,10 @@ impl ApplicationHandler for App {
             .next()
             .map(|w| w.view().GetCurrentPixelTallness())
             .unwrap_or(1.0);
+
+        // Run per-frame panel cycles
+        self.tree.run_panel_cycles(pixel_tallness);
+
         let had_notices = self.tree.HandleNotice(window_focused, pixel_tallness);
 
         // Update views and tick animators

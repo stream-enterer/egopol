@@ -45,7 +45,7 @@ impl emSubViewPanel {
         let mut sub_tree = PanelTree::new();
         // C++ view root has an empty name; identity ":" decodes to [""].
         let root = sub_tree.create_root("");
-        sub_tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        sub_tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let sub_view = emView::new(root, 1.0, 1.0);
 
@@ -240,7 +240,7 @@ impl PanelBehavior for emSubViewPanel {
         // driven here. We interleave animator ticks, view updates, and notice
         // delivery to allow the seek mechanism to expand panels layer by layer
         // within a single frame (C++ does this across scheduler cycles).
-        self.sub_tree.run_panel_cycles();
+        self.sub_tree.run_panel_cycles(state.pixel_tallness);
         self.sub_tree
             .HandleNotice(state.is_focused(), state.pixel_tallness);
         self.sub_view.Update(&mut self.sub_tree);
@@ -265,7 +265,7 @@ impl PanelBehavior for emSubViewPanel {
             let had_notices = self
                 .sub_tree
                 .HandleNotice(state.is_focused(), state.pixel_tallness);
-            self.sub_tree.run_panel_cycles();
+            self.sub_tree.run_panel_cycles(state.pixel_tallness);
             let had_notices2 = self
                 .sub_tree
                 .HandleNotice(state.is_focused(), state.pixel_tallness);

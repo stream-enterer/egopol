@@ -87,7 +87,7 @@ fn panel_ctx_operations() {
 
     // Use PanelCtx to create a child
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         let child = ctx.create_child("child_via_ctx");
         ctx.layout_child(child, 10.0, 20.0, 100.0, 50.0);
         assert_eq!(ctx.name(), "root");
@@ -144,7 +144,7 @@ fn view_visit_and_navigation() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
     let child = tree.create_child(root, "child");
-    tree.Layout(child, 0.0, 0.0, 100.0, 100.0);
+    tree.Layout(child, 0.0, 0.0, 100.0, 100.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     assert_eq!(view.GetRootPanel(), root);
@@ -168,7 +168,7 @@ fn view_visit_and_navigation() {
 fn view_zoom_and_scroll() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.Update(&mut tree); // required: sets viewed_* on root so Scroll/Zoom work
@@ -224,7 +224,7 @@ fn layout_rect_and_canvas_color() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
 
-    tree.Layout(root, 10.0, 20.0, 300.0, 200.0);
+    tree.Layout(root, 10.0, 20.0, 300.0, 200.0, 1.0);
     tree.SetCanvasColor(root, emColor::rgb(128, 128, 128));
 
     assert_eq!(

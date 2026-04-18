@@ -82,13 +82,13 @@ fn radiobutton_select_1x_and_2x() {
     //   panel 1: y=0.33..0.66  (middle third)
     //   panel 2: y=0.66..1.00  (bottom third)
     let panel0 = h.add_panel_with(root, "radio0", Box::new(RadioButtonBehavior::new(rb0)));
-    h.tree.Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
+    h.tree.Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0, 1.0);
 
     let panel1 = h.add_panel_with(root, "radio1", Box::new(RadioButtonBehavior::new(rb1)));
-    h.tree.Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
+    h.tree.Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0, 1.0);
 
     let panel2 = h.add_panel_with(root, "radio2", Box::new(RadioButtonBehavior::new(rb2)));
-    h.tree.Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
+    h.tree.Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0, 1.0);
 
     // Settle layout and viewing Restore.
     h.tick_n(5);
@@ -199,13 +199,13 @@ impl RadioButtonHarness {
         let root = h.get_root_panel();
 
         let panel0 = h.add_panel_with(root, "radio0", Box::new(RadioButtonBehavior::new(rb0)));
-        h.tree.Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0);
+        h.tree.Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0, 1.0);
 
         let panel1 = h.add_panel_with(root, "radio1", Box::new(RadioButtonBehavior::new(rb1)));
-        h.tree.Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0);
+        h.tree.Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0, 1.0);
 
         let panel2 = h.add_panel_with(root, "radio2", Box::new(RadioButtonBehavior::new(rb2)));
-        h.tree.Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0);
+        h.tree.Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0, 1.0);
 
         h.tick_n(5);
 

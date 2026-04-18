@@ -30,9 +30,9 @@ fn remove_active_panel_reselects() {
     let root = h.get_root_panel();
 
     let a = h.add_panel(root, "a");
-    h.tree.Layout(a, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(a, 0.0, 0.0, 0.5, 1.0, 1.0);
     let b = h.add_panel(root, "b");
-    h.tree.Layout(b, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(b, 0.5, 0.0, 0.5, 1.0, 1.0);
     h.tick();
 
     // Make A active

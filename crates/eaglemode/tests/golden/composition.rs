@@ -67,7 +67,7 @@ macro_rules! require_golden {
 fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     for _ in 0..rounds {
         tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
-        tree.run_panel_cycles();
+        tree.run_panel_cycles(view.GetCurrentPixelTallness());
         view.Update(tree);
     }
 }
@@ -1007,7 +1007,7 @@ fn composition_tktest_1x() {
     let root = tree.create_root("tktest");
     tree.set_behavior(root, Box::new(TkTestPanel::new(look)));
     // C++ gen: tk->Layout(0, 0, 800.0/600.0, 1.0)
-    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0, 1.0);
     // C++ default auto-expansion threshold for TkTest
     tree.SetAutoExpansionThreshold(root, 900.0, ViewConditionType::Area);
 
@@ -1054,7 +1054,7 @@ fn composition_tktest_2x() {
     let root = tree.create_root("tktest");
     tree.set_behavior(root, Box::new(TkTestPanel::new(look)));
     // C++ gen: tk->Layout(0, 0, 800.0/600.0, 1.0)
-    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0, 1.0);
     // C++ default auto-expansion threshold for TkTest
     tree.SetAutoExpansionThreshold(root, 900.0, ViewConditionType::Area);
 

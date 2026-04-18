@@ -353,7 +353,7 @@ mod tests {
     fn setup(n: usize, w: f64, h: f64) -> (PanelTree, PanelId, Vec<PanelId>) {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, w, h);
+        tree.Layout(root, 0.0, 0.0, w, h, 1.0);
         let mut children = Vec::new();
         for i in 0..n {
             children.push(tree.create_child(root, &format!("c{i}")));
@@ -366,7 +366,7 @@ mod tests {
         let (mut tree, root, children) = setup(6, 300.0, 200.0);
         let mut layout = emRasterLayout::new().with_columns(3);
         layout.row_major = true;
-        layout.do_layout(&mut PanelCtx::new(&mut tree, root));
+        layout.do_layout(&mut PanelCtx::new(&mut tree, root, 1.0));
 
         // 3 cols, 2 rows in normalized space (w=1.0, h=2/3)
         // Each cell: 1/3 x 1/3
@@ -383,7 +383,7 @@ mod tests {
     fn auto_column_count_square() {
         let (mut tree, root, children) = setup(4, 400.0, 400.0);
         let mut layout = emRasterLayout::new().with_preferred_tallness(1.0);
-        layout.do_layout(&mut PanelCtx::new(&mut tree, root));
+        layout.do_layout(&mut PanelCtx::new(&mut tree, root, 1.0));
 
         // 4 items in normalized 1.0x1.0 with tallness 1.0 -> 2x2 grid, each 0.5x0.5
         let r0 = tree.GetRec(children[0]).unwrap().layout_rect;
@@ -404,7 +404,7 @@ mod tests {
         layout.preferred_child_tallness = 0.5;
         layout.min_child_tallness = 0.1;
         layout.max_child_tallness = 0.5;
-        layout.do_layout(&mut PanelCtx::new(&mut tree, root));
+        layout.do_layout(&mut PanelCtx::new(&mut tree, root, 1.0));
 
         let r0 = tree.GetRec(children[0]).unwrap().layout_rect;
         let r1 = tree.GetRec(children[1]).unwrap().layout_rect;
@@ -419,7 +419,7 @@ mod tests {
         let (mut tree, root, children) = setup(4, 200.0, 200.0);
         let mut layout = emRasterLayout::new().with_columns(2);
         layout.row_major = false;
-        layout.do_layout(&mut PanelCtx::new(&mut tree, root));
+        layout.do_layout(&mut PanelCtx::new(&mut tree, root, 1.0));
 
         // Column-major: child 0 at (0,0), child 1 at (0,0.5), child 2 at (0.5,0)
         let r1 = tree.GetRec(children[1]).unwrap().layout_rect;
@@ -437,7 +437,7 @@ mod tests {
         let (mut tree, root, children) = setup(2, 300.0, 200.0);
         let mut layout = emRasterLayout::new().with_columns(3).with_min_cell_count(6);
         layout.row_major = true;
-        layout.do_layout(&mut PanelCtx::new(&mut tree, root));
+        layout.do_layout(&mut PanelCtx::new(&mut tree, root, 1.0));
 
         let r0 = tree.GetRec(children[0]).unwrap().layout_rect;
         let r1 = tree.GetRec(children[1]).unwrap().layout_rect;
@@ -460,7 +460,7 @@ mod tests {
         layout.row_major = true;
         layout.min_child_tallness = 2.0;
         layout.max_child_tallness = 1e4;
-        layout.do_layout(&mut PanelCtx::new(&mut tree, root));
+        layout.do_layout(&mut PanelCtx::new(&mut tree, root, 1.0));
 
         // All children should be laid out with positive sizes
         for child in &children {

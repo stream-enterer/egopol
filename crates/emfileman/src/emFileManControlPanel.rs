@@ -549,6 +549,7 @@ mod tests {
         let mut pctx = PanelCtx {
             tree: &mut tree,
             id: PanelId::null(),
+            current_pixel_tallness: 1.0,
         };
         let changed = panel.Cycle(&mut pctx);
         assert!(changed);

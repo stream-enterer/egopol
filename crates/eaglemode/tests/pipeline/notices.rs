@@ -248,7 +248,7 @@ fn layout_change_fires_on_panel() {
     settle(&mut h);
     *flags.borrow_mut() = NoticeFlags::empty();
 
-    h.tree.Layout(panel, 0.1, 0.1, 0.8, 0.8);
+    h.tree.Layout(panel, 0.1, 0.1, 0.8, 0.8, 1.0);
     h.tick();
 
     assert!(
@@ -280,7 +280,7 @@ fn layout_change_propagates_to_child() {
     *flags_parent.borrow_mut() = NoticeFlags::empty();
     *flags_child.borrow_mut() = NoticeFlags::empty();
 
-    h.tree.Layout(parent, 0.1, 0.1, 0.8, 0.6);
+    h.tree.Layout(parent, 0.1, 0.1, 0.8, 0.6, 1.0);
     h.tick();
 
     assert!(
@@ -324,7 +324,7 @@ fn layout_change_propagates_to_grandchild() {
     *flags_child.borrow_mut() = NoticeFlags::empty();
     *flags_grandchild.borrow_mut() = NoticeFlags::empty();
 
-    h.tree.Layout(parent, 0.1, 0.1, 0.8, 0.6);
+    h.tree.Layout(parent, 0.1, 0.1, 0.8, 0.6, 1.0);
     h.tick();
 
     assert!(
@@ -354,7 +354,7 @@ fn layout_change_does_not_leak_to_sibling() {
         "sibling_a",
         Box::new(NoticeBehavior::new(flags_a.clone())),
     );
-    h.tree.Layout(sibling_a, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(sibling_a, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     let flags_b = Rc::new(RefCell::new(NoticeFlags::empty()));
     let sibling_b = h.add_panel_with(
@@ -362,13 +362,13 @@ fn layout_change_does_not_leak_to_sibling() {
         "sibling_b",
         Box::new(NoticeBehavior::new(flags_b.clone())),
     );
-    h.tree.Layout(sibling_b, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(sibling_b, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     settle(&mut h);
     *flags_a.borrow_mut() = NoticeFlags::empty();
     *flags_b.borrow_mut() = NoticeFlags::empty();
 
-    h.tree.Layout(sibling_a, 0.0, 0.0, 0.4, 1.0);
+    h.tree.Layout(sibling_a, 0.0, 0.0, 0.4, 1.0, 1.0);
     h.tick();
 
     assert!(
@@ -396,14 +396,14 @@ fn focus_change_fires_active_and_focus_changed_on_both_panels() {
         "a",
         Box::new(NamedRecordingBehavior::new("a", Rc::clone(&log))),
     );
-    h.tree.Layout(panel_a, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(panel_a, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     let panel_b = h.add_panel_with(
         root,
         "b",
         Box::new(NamedRecordingBehavior::new("b", Rc::clone(&log))),
     );
-    h.tree.Layout(panel_b, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(panel_b, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     h.tick();
     log.borrow_mut().clear();
@@ -476,14 +476,14 @@ fn focus_change_old_panel_notified_before_new_panel() {
         "a",
         Box::new(NamedRecordingBehavior::new("a", Rc::clone(&log))),
     );
-    h.tree.Layout(panel_a, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(panel_a, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     let panel_b = h.add_panel_with(
         root,
         "b",
         Box::new(NamedRecordingBehavior::new("b", Rc::clone(&log))),
     );
-    h.tree.Layout(panel_b, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(panel_b, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     h.tick();
 
@@ -528,21 +528,21 @@ fn focus_change_ancestor_receives_active_changed() {
         "parent",
         Box::new(NamedRecordingBehavior::new("parent", Rc::clone(&log))),
     );
-    h.tree.Layout(parent, 0.0, 0.0, 1.0, 1.0);
+    h.tree.Layout(parent, 0.0, 0.0, 1.0, 1.0, 1.0);
 
     let child = h.add_panel_with(
         parent,
         "child",
         Box::new(NamedRecordingBehavior::new("child", Rc::clone(&log))),
     );
-    h.tree.Layout(child, 0.0, 0.0, 1.0, 1.0);
+    h.tree.Layout(child, 0.0, 0.0, 1.0, 1.0, 1.0);
 
     let sibling = h.add_panel_with(
         root,
         "sibling",
         Box::new(NamedRecordingBehavior::new("sibling", Rc::clone(&log))),
     );
-    h.tree.Layout(sibling, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(sibling, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     h.tick();
 
@@ -594,14 +594,14 @@ fn focus_change_no_focus_changed_when_window_unfocused() {
         "a",
         Box::new(NamedRecordingBehavior::new("a", Rc::clone(&log))),
     );
-    h.tree.Layout(panel_a, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(panel_a, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     let panel_b = h.add_panel_with(
         root,
         "b",
         Box::new(NamedRecordingBehavior::new("b", Rc::clone(&log))),
     );
-    h.tree.Layout(panel_b, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(panel_b, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     h.tick();
 
@@ -646,7 +646,7 @@ fn focus_change_same_panel_is_noop() {
         "a",
         Box::new(NamedRecordingBehavior::new("a", Rc::clone(&log))),
     );
-    h.tree.Layout(panel_a, 0.0, 0.0, 1.0, 1.0);
+    h.tree.Layout(panel_a, 0.0, 0.0, 1.0, 1.0, 1.0);
 
     h.tick();
 
@@ -678,21 +678,21 @@ fn focus_change_shared_ancestor_receives_notice() {
         "mid",
         Box::new(NamedRecordingBehavior::new("mid", Rc::clone(&log))),
     );
-    h.tree.Layout(mid, 0.0, 0.0, 1.0, 1.0);
+    h.tree.Layout(mid, 0.0, 0.0, 1.0, 1.0, 1.0);
 
     let child_a = h.add_panel_with(
         mid,
         "child_a",
         Box::new(NamedRecordingBehavior::new("child_a", Rc::clone(&log))),
     );
-    h.tree.Layout(child_a, 0.0, 0.0, 0.5, 1.0);
+    h.tree.Layout(child_a, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     let child_b = h.add_panel_with(
         mid,
         "child_b",
         Box::new(NamedRecordingBehavior::new("child_b", Rc::clone(&log))),
     );
-    h.tree.Layout(child_b, 0.5, 0.0, 0.5, 1.0);
+    h.tree.Layout(child_b, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     h.tick();
 

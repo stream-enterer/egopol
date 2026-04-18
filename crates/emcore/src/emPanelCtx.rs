@@ -11,12 +11,21 @@ use crate::emPanel::Rect;
 pub struct PanelCtx<'a> {
     pub tree: &'a mut PanelTree,
     pub id: PanelId,
+    /// Current pixel tallness (height/width ratio of a single pixel) of the
+    /// owning view. Mirrors `emView::CurrentPixelTallness`. Passed at ctor
+    /// time so layout / viewed-coord computations can use it without needing
+    /// a `View&` reference (C++ `emPanel::Layout` reads it via `View&`).
+    pub current_pixel_tallness: f64,
 }
 
 impl<'a> PanelCtx<'a> {
     /// Create a context for the given panel.
-    pub fn new(tree: &'a mut PanelTree, id: PanelId) -> Self {
-        Self { tree, id }
+    pub fn new(tree: &'a mut PanelTree, id: PanelId, current_pixel_tallness: f64) -> Self {
+        Self {
+            tree,
+            id,
+            current_pixel_tallness,
+        }
     }
 
     /// Returns true if this panel is the view's current seek target.
@@ -57,7 +66,8 @@ impl<'a> PanelCtx<'a> {
 
     /// Set layout rect for a child panel.
     pub fn layout_child(&mut self, child: PanelId, x: f64, y: f64, w: f64, h: f64) {
-        self.tree.Layout(child, x, y, w, h);
+        self.tree
+            .Layout(child, x, y, w, h, self.current_pixel_tallness);
     }
 
     /// Set layout rect and canvas color for a child panel.
@@ -74,7 +84,8 @@ impl<'a> PanelCtx<'a> {
         h: f64,
         canvas_color: emColor,
     ) {
-        self.tree.Layout(child, x, y, w, h);
+        self.tree
+            .Layout(child, x, y, w, h, self.current_pixel_tallness);
         self.tree.SetCanvasColor(child, canvas_color);
     }
 
@@ -237,7 +248,7 @@ impl<'a> PanelCtx<'a> {
     /// C++: ViewedY + y * ViewedWidth / CurrentPixelTallness.
     pub fn panel_to_view_y(&self, y: f64) -> f64 {
         if let Some(p) = self.tree.GetRec(self.id) {
-            p.viewed_y + y * p.viewed_width / self.tree.current_pixel_tallness
+            p.viewed_y + y * p.viewed_width / self.current_pixel_tallness
         } else {
             0.0
         }

@@ -296,11 +296,6 @@ pub struct PanelTree {
     /// links at the tail; `HandleNotice` drains from the head.
     pub(crate) notice_ring_head_next: Option<PanelId>,
     pub(crate) notice_ring_head_prev: Option<PanelId>,
-    /// Current pixel tallness (height/width ratio of a single pixel).
-    /// Mirrors `emView::CurrentPixelTallness`. Stored here so
-    /// `Layout()` can compute viewed coordinates without a view reference
-    /// (port of C++ `emPanel::Layout` which accesses `View.CurrentPixelTallness`).
-    pub(crate) current_pixel_tallness: f64,
     /// Set by `Layout()` on the root panel (no parent). Matches C++
     /// `emPanel::Layout` `!Parent` branch which sets `View.SVPChoiceInvalid`
     /// and calls `View.RawZoomOut(true)` when zoomed out. `emView::Update`
@@ -322,12 +317,7 @@ impl PanelTree {
             notice_ring_head_next: None,
             notice_ring_head_prev: None,
             root_layout_changed: false,
-            current_pixel_tallness: 1.0,
         }
-    }
-
-    pub fn get_pixel_tallness(&self) -> f64 {
-        self.current_pixel_tallness
     }
 
     /// Link `id` into the notice ring at the tail.
@@ -1106,7 +1096,15 @@ impl PanelTree {
     ///
     /// Width and height are clamped to a minimum of `1e-100` to prevent
     /// division-by-zero when computing tallness.
-    pub fn Layout(&mut self, id: PanelId, x: f64, y: f64, w: f64, h: f64) {
+    pub fn Layout(
+        &mut self,
+        id: PanelId,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        current_pixel_tallness: f64,
+    ) {
         let rect = Rect {
             x,
             y,
@@ -1165,7 +1163,7 @@ impl PanelTree {
         };
         let _ = parent_viewed; // confirmed true above
 
-        let pt = self.current_pixel_tallness;
+        let pt = current_pixel_tallness;
         let cx = pvx + x * pvw;
         let cy = pvy + y * (pvw / pt);
         let cw = w.max(1e-100) * pvw;
@@ -1216,7 +1214,7 @@ impl PanelTree {
             self.has_pending_notices = true;
             self.add_to_notice_list(id);
             // Propagate to children (C++ emPanel.cpp:591: UpdateChildrenViewing()).
-            self.UpdateChildrenViewing(id);
+            self.UpdateChildrenViewing(id, current_pixel_tallness);
         } else {
             // Panel is outside clip. Clear viewed state if it was in viewed path.
             let was_in_viewed_path = self
@@ -1238,7 +1236,7 @@ impl PanelTree {
                 );
                 self.has_pending_notices = true;
                 self.add_to_notice_list(id);
-                self.UpdateChildrenViewing(id);
+                self.UpdateChildrenViewing(id, current_pixel_tallness);
             }
         }
     }
@@ -1455,11 +1453,11 @@ impl PanelTree {
     /// If `cycle()` returns `false` the panel is removed from the list
     /// (it has gone to sleep). If the panel was removed from the tree during
     /// the cycle it is also removed from the list.
-    pub fn run_panel_cycles(&mut self) {
+    pub fn run_panel_cycles(&mut self, current_pixel_tallness: f64) {
         let ids: Vec<PanelId> = self.cycle_list.clone();
         for id in ids {
             if let Some(mut behavior) = self.take_behavior(id) {
-                let mut ctx = PanelCtx::new(self, id);
+                let mut ctx = PanelCtx::new(self, id, current_pixel_tallness);
                 let stay_awake = behavior.Cycle(&mut ctx);
                 if self.panels.contains_key(id) {
                     self.put_behavior(id, behavior);
@@ -1570,7 +1568,7 @@ impl PanelTree {
             }
             if ae_expanded {
                 if let Some(mut behavior) = self.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(self, id);
+                    let mut ctx = PanelCtx::new(self, id, pixel_tallness);
                     behavior.AutoShrink(&mut ctx);
                     if self.panels.contains_key(id) {
                         self.put_behavior(id, behavior);
@@ -1640,7 +1638,7 @@ impl PanelTree {
             // No-behavior: treat as base Notice() no-op (C++ base is virtual no-op).
             if let Some(mut behavior) = self.take_behavior(id) {
                 let state = self.build_panel_state(id, window_focused, pixel_tallness);
-                let mut ctx = PanelCtx::new(self, id);
+                let mut ctx = PanelCtx::new(self, id, pixel_tallness);
                 behavior.notice(flags, &state, &mut ctx);
                 // "Notice() is allowed to do a 'delete this'" — C++ emPanel.cpp:1421.
                 if self.panels.contains_key(id) {
@@ -1677,7 +1675,7 @@ impl PanelTree {
                     p.ae_calling = true;
                 }
                 if let Some(mut behavior) = self.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(self, id);
+                    let mut ctx = PanelCtx::new(self, id, pixel_tallness);
                     behavior.AutoExpand(&mut ctx);
                     if self.panels.contains_key(id) {
                         self.put_behavior(id, behavior);
@@ -1701,7 +1699,7 @@ impl PanelTree {
                     p.ae_expanded = false;
                 }
                 if let Some(mut behavior) = self.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(self, id);
+                    let mut ctx = PanelCtx::new(self, id, pixel_tallness);
                     behavior.AutoShrink(&mut ctx);
                     if self.panels.contains_key(id) {
                         self.put_behavior(id, behavior);
@@ -1728,7 +1726,7 @@ impl PanelTree {
         if children_layout_invalid {
             if self.GetFirstChild(id).is_some() {
                 if let Some(mut behavior) = self.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(self, id);
+                    let mut ctx = PanelCtx::new(self, id, pixel_tallness);
                     behavior.LayoutChildren(&mut ctx);
                     if self.panels.contains_key(id) {
                         self.put_behavior(id, behavior);
@@ -2086,11 +2084,12 @@ impl PanelTree {
         id: PanelId,
         parent_arg: PanelId,
         name: &str,
+        current_pixel_tallness: f64,
     ) -> Option<PanelId> {
         let mut cur = id;
         loop {
             if let Some(mut behavior) = self.take_behavior(cur) {
-                let mut ctx = PanelCtx::new(self, parent_arg);
+                let mut ctx = PanelCtx::new(self, parent_arg, current_pixel_tallness);
                 let result = behavior.CreateControlPanel(&mut ctx, name);
                 self.put_behavior(cur, behavior);
                 if result.is_some() {
@@ -2115,11 +2114,12 @@ impl PanelTree {
         target_tree: &mut PanelTree,
         parent_arg: PanelId,
         name: &str,
+        current_pixel_tallness: f64,
     ) -> Option<PanelId> {
         let mut cur = id;
         loop {
             if let Some(mut behavior) = self.take_behavior(cur) {
-                let mut ctx = PanelCtx::new(target_tree, parent_arg);
+                let mut ctx = PanelCtx::new(target_tree, parent_arg, current_pixel_tallness);
                 let result = behavior.CreateControlPanel(&mut ctx, name);
                 self.put_behavior(cur, behavior);
                 if result.is_some() {
@@ -2420,7 +2420,7 @@ impl PanelTree {
     /// Precondition: when called, `self.panels[id].in_viewed_path` and
     /// `viewed` already reflect `id`'s own new state. The method then
     /// updates each child based on whether `id` is Viewed.
-    pub(crate) fn UpdateChildrenViewing(&mut self, id: PanelId) {
+    pub(crate) fn UpdateChildrenViewing(&mut self, id: PanelId, current_pixel_tallness: f64) {
         let (id_viewed, id_in_path, pid_vx, pid_vy, pid_vw, pid_cx1, pid_cy1, pid_cx2, pid_cy2) = {
             let p = match self.panels.get(id) {
                 Some(p) => p,
@@ -2463,7 +2463,7 @@ impl PanelTree {
                             | NoticeFlags::MEMORY_LIMIT_CHANGED,
                     );
                     if self.GetFirstChild(c).is_some() {
-                        self.UpdateChildrenViewing(c);
+                        self.UpdateChildrenViewing(c, current_pixel_tallness);
                     }
                 }
                 child_opt = next;
@@ -2471,7 +2471,7 @@ impl PanelTree {
             return;
         }
 
-        let pt = self.current_pixel_tallness;
+        let pt = current_pixel_tallness;
         let mut child_opt = self.GetFirstChild(id);
         while let Some(c) = child_opt {
             let next = self.GetNext(c);
@@ -2535,7 +2535,7 @@ impl PanelTree {
                         | NoticeFlags::MEMORY_LIMIT_CHANGED,
                 );
                 if self.GetFirstChild(c).is_some() {
-                    self.UpdateChildrenViewing(c);
+                    self.UpdateChildrenViewing(c, current_pixel_tallness);
                 }
             }
 
@@ -2680,31 +2680,31 @@ mod tests {
         let mut t = PanelTree::new();
         let root = t.create_root("root");
         t.set_focusable(root, true);
-        t.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        t.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let a = t.create_child(root, "a");
         t.set_focusable(a, false);
-        t.Layout(a, 0.0, 0.0, 0.5, 0.5);
+        t.Layout(a, 0.0, 0.0, 0.5, 0.5, 1.0);
 
         let a1 = t.create_child(a, "a1");
-        t.Layout(a1, 0.0, 0.0, 0.5, 1.0);
+        t.Layout(a1, 0.0, 0.0, 0.5, 1.0, 1.0);
 
         let a2 = t.create_child(a, "a2");
-        t.Layout(a2, 0.5, 0.0, 0.5, 1.0);
+        t.Layout(a2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
         let b = t.create_child(root, "b");
-        t.Layout(b, 0.5, 0.0, 0.5, 0.5);
+        t.Layout(b, 0.5, 0.0, 0.5, 0.5, 1.0);
 
         let c = t.create_child(root, "c");
         t.set_focusable(c, false);
-        t.Layout(c, 0.0, 0.5, 1.0, 0.5);
+        t.Layout(c, 0.0, 0.5, 1.0, 0.5, 1.0);
 
         let c1 = t.create_child(c, "c1");
         t.set_focusable(c1, false);
-        t.Layout(c1, 0.0, 0.0, 1.0, 1.0);
+        t.Layout(c1, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let c1a = t.create_child(c1, "c1a");
-        t.Layout(c1a, 0.0, 0.0, 1.0, 1.0);
+        t.Layout(c1a, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         (t, root, a1, a2, b, c1a, c)
     }
@@ -2713,7 +2713,7 @@ mod tests {
     fn test_get_height_and_tallness() {
         let mut t = PanelTree::new();
         let root = t.create_root("r");
-        t.Layout(root, 0.0, 0.0, 2.0, 6.0);
+        t.Layout(root, 0.0, 0.0, 2.0, 6.0, 1.0);
         assert!((t.get_height(root) - 3.0).abs() < 1e-12);
         assert!((t.GetTallness(root) - t.get_height(root)).abs() < 1e-15);
     }
@@ -2722,7 +2722,7 @@ mod tests {
     fn test_substance_rect_default() {
         let mut t = PanelTree::new();
         let root = t.create_root("r");
-        t.Layout(root, 0.0, 0.0, 2.0, 4.0);
+        t.Layout(root, 0.0, 0.0, 2.0, 4.0, 1.0);
         let (sx, sy, sw, sh, sr) = t.GetSubstanceRect(root);
         assert_eq!((sx, sy, sw), (0.0, 0.0, 1.0));
         assert!((sh - 2.0).abs() < 1e-12);
@@ -2733,7 +2733,7 @@ mod tests {
     fn test_point_in_substance_rect() {
         let mut t = PanelTree::new();
         let root = t.create_root("r");
-        t.Layout(root, 0.0, 0.0, 1.0, 2.0);
+        t.Layout(root, 0.0, 0.0, 1.0, 2.0, 1.0);
         assert!(t.IsPointInSubstanceRect(root, 0.5, 1.0));
         assert!(t.IsPointInSubstanceRect(root, 0.0, 0.0));
         assert!(!t.IsPointInSubstanceRect(root, 1.0, 0.0));
@@ -2745,7 +2745,7 @@ mod tests {
     fn test_essence_rect() {
         let mut t = PanelTree::new();
         let root = t.create_root("r");
-        t.Layout(root, 0.0, 0.0, 1.0, 3.0);
+        t.Layout(root, 0.0, 0.0, 1.0, 3.0, 1.0);
         let (ex, ey, ew, eh) = t.GetEssenceRect(root);
         assert_eq!((ex, ey, ew), (0.0, 0.0, 1.0));
         assert!((eh - 3.0).abs() < 1e-12);
@@ -3047,7 +3047,7 @@ mod tests {
         // child has no behavior, so create_control_panel should
         // walk up to root, which has ControlCreator.
         let ctrl_id = t
-            .CreateControlPanel(child, root, "ctrl")
+            .CreateControlPanel(child, root, "ctrl", 1.0)
             .expect("create_control_panel should succeed when root has ControlCreator");
         assert_eq!(t.name(ctrl_id), Some("ctrl"));
         // The control panel is created as a child of root (parent_arg).
@@ -3060,7 +3060,7 @@ mod tests {
         let root = t.create_root("root");
         let child = t.create_child(root, "child");
         // No behaviors at all -- should walk to root and return None
-        let result = t.CreateControlPanel(child, root, "ctrl");
+        let result = t.CreateControlPanel(child, root, "ctrl", 1.0);
         assert!(result.is_none());
     }
 
@@ -3120,7 +3120,7 @@ mod tests {
     fn test_get_view_condition() {
         let mut t = PanelTree::new();
         let root = t.create_root("r");
-        t.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        t.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         // Not viewed, not in viewed path => 0.0
         assert_eq!(t.GetViewCondition(root, ViewConditionType::Area), 0.0);
@@ -3147,7 +3147,7 @@ mod tests {
     fn test_get_update_priority() {
         let mut t = PanelTree::new();
         let root = t.create_root("r");
-        t.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        t.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let vw = 800.0;
         let vh = 600.0;
@@ -3189,7 +3189,7 @@ mod tests {
     fn test_get_memory_limit() {
         let mut t = PanelTree::new();
         let root = t.create_root("r");
-        t.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        t.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let vw = 800.0;
         let vh = 600.0;

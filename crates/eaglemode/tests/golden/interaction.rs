@@ -23,11 +23,11 @@ fn panel_state(tree: &PanelTree, id: PanelId) -> (bool, bool) {
 fn three_panel_tree() -> (PanelTree, emView, PanelId, PanelId, PanelId) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
     view.Update(&mut tree);
@@ -66,13 +66,13 @@ fn interaction_activate_path() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
     let gc = tree.create_child(child1, "gc");
-    tree.Layout(gc, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(gc, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
     view.Update(&mut tree);
@@ -237,13 +237,13 @@ fn interaction_focus_unfocusable_skip() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
     view.Update(&mut tree);
@@ -276,13 +276,13 @@ fn interaction_focus_nested() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let gc = tree.create_child(child1, "gc");
-    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
     view.Update(&mut tree);
@@ -314,13 +314,13 @@ fn interaction_focus_visit_out() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let gc = tree.create_child(child1, "gc");
-    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
     view.Update(&mut tree);
@@ -377,13 +377,13 @@ fn interaction_focus_visit_first() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
     view.Update(&mut tree);
@@ -415,13 +415,13 @@ fn interaction_focus_visit_last() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
     view.Update(&mut tree);
@@ -453,13 +453,13 @@ fn interaction_focus_visit_left() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.Update(&mut tree);
@@ -491,13 +491,13 @@ fn interaction_focus_visit_right() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.Update(&mut tree);
@@ -529,13 +529,13 @@ fn interaction_focus_visit_down() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 1.0, 0.33);
+    tree.Layout(child1, 0.0, 0.0, 1.0, 0.33, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.0, 0.33, 1.0, 0.33);
+    tree.Layout(child2, 0.0, 0.33, 1.0, 0.33, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.Layout(child3, 0.0, 0.66, 1.0, 0.34);
+    tree.Layout(child3, 0.0, 0.66, 1.0, 0.34, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.Update(&mut tree);
@@ -567,13 +567,13 @@ fn interaction_focus_visit_up() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 1.0, 0.33);
+    tree.Layout(child1, 0.0, 0.0, 1.0, 0.33, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.0, 0.33, 1.0, 0.33);
+    tree.Layout(child2, 0.0, 0.33, 1.0, 0.33, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.Layout(child3, 0.0, 0.66, 1.0, 0.34);
+    tree.Layout(child3, 0.0, 0.66, 1.0, 0.34, 1.0);
 
     let mut view = emView::new(root, 800.0, 600.0);
     view.Update(&mut tree);
@@ -630,13 +630,13 @@ fn interaction_activate_remove_middle() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0);
+    tree.Layout(child2, 0.33, 0.0, 0.33, 1.0, 1.0);
     let child3 = tree.create_child(root, "child3");
-    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0);
+    tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
     view.Update(&mut tree);
@@ -667,13 +667,13 @@ fn interaction_activate_remove_in_path() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let gc = tree.create_child(child1, "gc");
-    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(gc, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
     view.Update(&mut tree);
@@ -700,15 +700,15 @@ fn interaction_focus_tab_deep() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let gc1 = tree.create_child(child1, "gc1");
-    tree.Layout(gc1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(gc1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let gc2 = tree.create_child(child1, "gc2");
-    tree.Layout(gc2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(gc2, 0.5, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
-    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
     view.Update(&mut tree);
@@ -741,13 +741,13 @@ fn interaction_focus_tab_ascend() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
-    tree.Layout(child1, 0.0, 0.0, 1.0, 1.0);
+    tree.Layout(child1, 0.0, 0.0, 1.0, 1.0, 1.0);
     let gc1 = tree.create_child(child1, "gc1");
-    tree.Layout(gc1, 0.0, 0.0, 0.5, 1.0);
+    tree.Layout(gc1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let gc2 = tree.create_child(child1, "gc2");
-    tree.Layout(gc2, 0.5, 0.0, 0.5, 1.0);
+    tree.Layout(gc2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(root, 100.0, 100.0);
     view.Update(&mut tree);

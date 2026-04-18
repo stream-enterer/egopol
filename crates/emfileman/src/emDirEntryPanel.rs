@@ -433,7 +433,7 @@ impl PanelBehavior for emDirEntryPanel {
 
         // C++ Cycle calls UpdateContentPanel(false,true)/UpdateAltPanel(false,true)
         // on config change. Build state from tree for forceRelayout pass.
-        let pt = ctx.tree.get_pixel_tallness();
+        let pt = ctx.current_pixel_tallness;
         if ctx.tree.contains(ctx.id) {
             let state = ctx.tree.build_panel_state(ctx.id, false, pt);
             self.update_content_panel(ctx, &state, false, true);

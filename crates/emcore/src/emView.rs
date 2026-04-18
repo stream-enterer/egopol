@@ -933,7 +933,14 @@ impl emView {
         // C++ SetGeometry parity: inline-update root panel layout when
         // VF_ROOT_SAME_TALLNESS is set (mirrors RootPanel->Layout(0,0,1,GetHomeTallness())).
         if self.flags.contains(ViewFlags::ROOT_SAME_TALLNESS) {
-            tree.Layout(self.root, 0.0, 0.0, 1.0, self.GetHomeTallness());
+            tree.Layout(
+                self.root,
+                0.0,
+                0.0,
+                1.0,
+                self.GetHomeTallness(),
+                self.CurrentPixelTallness,
+            );
         }
 
         // C++ emView.cpp:1272-1277: end of SetGeometry — zoom-out or re-visit.
@@ -1301,7 +1308,14 @@ impl emView {
         if new_flags.contains(ViewFlags::ROOT_SAME_TALLNESS)
             && !old.contains(ViewFlags::ROOT_SAME_TALLNESS)
         {
-            tree.Layout(self.root, 0.0, 0.0, 1.0, self.GetHomeTallness());
+            tree.Layout(
+                self.root,
+                0.0,
+                0.0,
+                1.0,
+                self.GetHomeTallness(),
+                self.CurrentPixelTallness,
+            );
             self.RawZoomOut(tree, false);
         }
     }
@@ -1807,7 +1821,7 @@ impl emView {
                         | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
                         | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
                 );
-                tree.UpdateChildrenViewing(osvp);
+                tree.UpdateChildrenViewing(osvp, self.CurrentPixelTallness);
                 let mut cur = tree.GetRec(osvp).and_then(|p| p.parent);
                 while let Some(pid) = cur {
                     let parent_of = tree.get_mut(pid).map(|p| {
@@ -1863,7 +1877,7 @@ impl emView {
                 | super::emPanel::NoticeFlags::UPDATE_PRIORITY_CHANGED
                 | super::emPanel::NoticeFlags::MEMORY_LIMIT_CHANGED,
         );
-        tree.UpdateChildrenViewing(vp);
+        tree.UpdateChildrenViewing(vp, self.CurrentPixelTallness);
         let mut cur = tree.GetRec(vp).and_then(|p| p.parent);
         while let Some(pid) = cur {
             let parent_of = tree.get_mut(pid).map(|p| {
@@ -3439,7 +3453,13 @@ impl emView {
         name: &str,
     ) -> Option<PanelId> {
         let active = self.active?;
-        content_tree.create_control_panel_in(active, control_tree, parent, name)
+        content_tree.create_control_panel_in(
+            active,
+            control_tree,
+            parent,
+            name,
+            self.CurrentPixelTallness,
+        )
     }
 
     /// Whether the control panel signal has been raised (needs recreation).
@@ -4295,15 +4315,15 @@ mod tests {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
         tree.get_mut(root).unwrap().focusable = true;
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let child1 = tree.create_child(root, "child1");
         tree.get_mut(child1).unwrap().focusable = true;
-        tree.Layout(child1, 0.0, 0.0, 0.5, 1.0);
+        tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
 
         let child2 = tree.create_child(root, "child2");
         tree.get_mut(child2).unwrap().focusable = true;
-        tree.Layout(child2, 0.5, 0.0, 0.5, 1.0);
+        tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
         (tree, root, child1, child2)
     }
@@ -4339,10 +4359,10 @@ mod tests {
     fn test_viewed_false_outside_viewport() {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let offscreen = tree.create_child(root, "offscreen");
-        tree.Layout(offscreen, 5.0, 5.0, 0.1, 0.1);
+        tree.Layout(offscreen, 5.0, 5.0, 0.1, 0.1, 1.0);
 
         let mut view = emView::new(root, 100.0, 100.0);
         view.Update(&mut tree);
@@ -4397,7 +4417,7 @@ mod tests {
         let (mut tree, root, child1, _child2) = setup_tree();
         let grandchild = tree.create_child(child1, "gc");
         tree.get_mut(grandchild).unwrap().focusable = true;
-        tree.Layout(grandchild, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(grandchild, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let mut view = emView::new(root, 800.0, 600.0);
         view.Update(&mut tree);
@@ -4680,12 +4700,12 @@ mod tests {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
         tree.get_mut(root).unwrap().focusable = true;
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let child = tree.create_child(root, "child");
         tree.get_mut(child).unwrap().focusable = true;
         // Non-square child: w=0.5, h=0.25 → tallness = 0.5
-        tree.Layout(child, 0.1, 0.1, 0.5, 0.25);
+        tree.Layout(child, 0.1, 0.1, 0.5, 0.25, 1.0);
 
         let mut view = emView::new(root, 800.0, 600.0);
         view.set_active_panel(&mut tree, child, false);
@@ -4719,7 +4739,7 @@ mod tests {
     fn test_raw_zoom_out_computes_fit_ratio() {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+        tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
         let mut view = emView::new(root, 800.0, 600.0);
         view.RawZoomOut(&mut tree, false);
@@ -4742,7 +4762,7 @@ mod tests {
     fn test_is_zoomed_out_after_raw_zoom_out() {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+        tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
         let mut view = emView::new(root, 800.0, 600.0);
         view.RawZoomOut(&mut tree, false);
@@ -4757,7 +4777,7 @@ mod tests {
     fn test_set_view_flags_root_same_tallness_updates_layout() {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0); // starts square
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0); // starts square
 
         let mut view = emView::new(root, 800.0, 600.0);
         // pixel_tallness = 600/800 = 0.75
@@ -5087,7 +5107,7 @@ mod tests {
         // rel coords; direct visit_stack mutation is not the intended path.
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+        tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         let mut view = emView::new(root, 800.0, 600.0);
         view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
         view.Update(&mut tree);
@@ -5126,7 +5146,7 @@ mod tests {
         // check is stable across zoom levels.
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let mut view = emView::new(root, 800.0, 600.0);
         view.Update(&mut tree);
 
@@ -5181,10 +5201,10 @@ mod tests {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
         tree.get_mut(root).unwrap().focusable = true;
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let child = tree.create_child(root, "child");
         tree.get_mut(child).unwrap().focusable = true;
-        tree.Layout(child, 0.0, 0.0, 0.5, 1.0);
+        tree.Layout(child, 0.0, 0.0, 0.5, 1.0, 1.0);
 
         let mut view = emView::new(root, 800.0, 600.0);
 
@@ -5331,7 +5351,7 @@ mod tests {
         // Root-only tree: square panel (layout h == layout w → height=1.0).
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         // HomeWidth=640, HomeHeight=480 (default from emView::new).
         let mut v = emView::new(root, 640.0, 480.0);

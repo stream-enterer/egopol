@@ -598,6 +598,7 @@ fn run_splitter_layout_step(
         parent_rect.1,
         parent_rect.2,
         parent_rect.3,
+        1.0,
     );
     let c0 = tree.create_child(root, "left");
     let c1 = tree.create_child(root, "right");
@@ -605,7 +606,7 @@ fn run_splitter_layout_step(
     tree.set_behavior(root, Box::new(SplitterLayoutBehavior { splitter: sp }));
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);
@@ -767,7 +768,7 @@ fn composition_click_through_tree() {
         .with_inner(InnerBorderType::None)
         .with_caption("Root");
     root_group.border.label_in_border = true;
-    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0);
+    tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0, 1.0);
 
     let container_id = tree.create_child(root, "container");
     let mut container_group = emLinearGroup::vertical();

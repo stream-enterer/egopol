@@ -33,6 +33,7 @@ fn run_layout(
         parent_rect.1,
         parent_rect.2,
         parent_rect.3,
+        1.0,
     );
 
     let child_ids: Vec<PanelId> = (0..n_children)
@@ -42,7 +43,7 @@ fn run_layout(
     tree.set_behavior(root, behavior);
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);
@@ -75,6 +76,7 @@ fn run_linear_layout(
         parent_rect.1,
         parent_rect.2,
         parent_rect.3,
+        1.0,
     );
 
     let mut layout = if orientation_horizontal {
@@ -110,7 +112,7 @@ fn run_linear_layout(
     tree.set_behavior(root, Box::new(layout));
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);
@@ -277,7 +279,7 @@ fn layout_pack_weighted() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
+    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emPackLayout::new();
 
@@ -311,7 +313,7 @@ fn layout_pack_weighted() {
     tree.set_behavior(root, Box::new(layout));
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);
@@ -339,7 +341,7 @@ fn layout_pack_extreme() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
+    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emPackLayout::new();
     let tallnesses = [0.01, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 100.0];
@@ -362,7 +364,7 @@ fn layout_pack_extreme() {
     tree.set_behavior(root, Box::new(layout));
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);
@@ -522,7 +524,7 @@ fn layout_linear_min_cell_count() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
+    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emLinearLayout::horizontal();
     layout.min_cell_count = 6;
@@ -544,7 +546,7 @@ fn layout_linear_min_cell_count() {
     tree.set_behavior(root, Box::new(layout));
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);
@@ -572,7 +574,7 @@ fn layout_linear_min_max_tallness() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
+    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emLinearLayout::horizontal();
 
@@ -621,7 +623,7 @@ fn layout_linear_min_max_tallness() {
     tree.set_behavior(root, Box::new(layout));
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);
@@ -756,7 +758,7 @@ fn layout_pack_min_cell_count() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
+    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emPackLayout::new().with_min_cell_count(8);
 
@@ -778,7 +780,7 @@ fn layout_pack_min_cell_count() {
     tree.set_behavior(root, Box::new(layout));
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);
@@ -807,7 +809,7 @@ fn layout_pack_single() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3);
+    tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emPackLayout::new();
     let id = tree.create_child(root, "c0");
@@ -823,7 +825,7 @@ fn layout_pack_single() {
     tree.set_behavior(root, Box::new(layout));
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);
@@ -858,6 +860,7 @@ fn run_linear_layout_with_spacing(
         parent_rect.1,
         parent_rect.2,
         parent_rect.3,
+        1.0,
     );
 
     let mut layout = if orientation_horizontal {
@@ -891,7 +894,7 @@ fn run_linear_layout_with_spacing(
     tree.set_behavior(root, Box::new(layout));
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);
@@ -925,6 +928,7 @@ fn run_linear_layout_aligned(
         parent_rect.1,
         parent_rect.2,
         parent_rect.3,
+        1.0,
     );
 
     let mut layout = if orientation_horizontal {
@@ -962,7 +966,7 @@ fn run_linear_layout_aligned(
     tree.set_behavior(root, Box::new(layout));
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);
@@ -993,6 +997,7 @@ fn run_linear_layout_adaptive(
         parent_rect.1,
         parent_rect.2,
         parent_rect.3,
+        1.0,
     );
 
     let mut layout = emLinearLayout::adaptive(threshold);
@@ -1014,7 +1019,7 @@ fn run_linear_layout_adaptive(
     tree.set_behavior(root, Box::new(layout));
     let mut behavior = tree.take_behavior(root).unwrap();
     {
-        let mut ctx = PanelCtx::new(&mut tree, root);
+        let mut ctx = PanelCtx::new(&mut tree, root, 1.0);
         behavior.LayoutChildren(&mut ctx);
     }
     tree.put_behavior(root, behavior);

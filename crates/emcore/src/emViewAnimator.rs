@@ -2695,7 +2695,7 @@ mod tests {
     fn setup() -> (PanelTree, emView) {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let view = emView::new(root, 800.0, 600.0);
         (tree, view)
     }
@@ -3021,7 +3021,7 @@ mod tests {
     fn magnetic_animate_finds_focusable_panel() {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+        tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         tree.set_focusable(root, true);
 
         let mut view = emView::new(root, 800.0, 600.0);
@@ -3182,20 +3182,20 @@ mod tests {
     fn calculate_distance_finds_nearest_panel() {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         tree.set_focusable(root, true);
 
         // 3 child panels at different positions
         let left = tree.create_child(root, "left");
-        tree.Layout(left, 0.0, 0.0, 0.3, 1.0);
+        tree.Layout(left, 0.0, 0.0, 0.3, 1.0, 1.0);
         tree.set_focusable(left, true);
 
         let center = tree.create_child(root, "center");
-        tree.Layout(center, 0.35, 0.0, 0.3, 1.0);
+        tree.Layout(center, 0.35, 0.0, 0.3, 1.0, 1.0);
         tree.set_focusable(center, true);
 
         let right = tree.create_child(root, "right");
-        tree.Layout(right, 0.7, 0.0, 0.3, 1.0);
+        tree.Layout(right, 0.7, 0.0, 0.3, 1.0, 1.0);
         tree.set_focusable(right, true);
 
         let mut view = emView::new(root, 800.0, 600.0);
@@ -3220,7 +3220,7 @@ mod tests {
     fn calculate_distance_uses_log_zoom_z_axis() {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         tree.set_focusable(root, true);
 
         let mut view = emView::new(root, 800.0, 600.0);
@@ -3296,7 +3296,7 @@ mod tests {
     fn setup_scrolled(factor: f64) -> (PanelTree, emView) {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+        tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         let mut view = emView::new(root, 800.0, 600.0);
         view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
         view.Update(&mut tree);
@@ -3401,10 +3401,10 @@ mod tests {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
         tree.get_mut(root).unwrap().focusable = true;
-        tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+        tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         let child = tree.create_child(root, "child");
         tree.get_mut(child).unwrap().focusable = true;
-        tree.Layout(child, 0.1, 0.1, 0.4, 0.5);
+        tree.Layout(child, 0.1, 0.1, 0.4, 0.5, 1.0);
 
         let mut view = emView::new(root, 800.0, 600.0);
         view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);

@@ -2538,7 +2538,7 @@ mod tests {
     fn setup() -> (PanelTree, emView) {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let view = emView::new(root, 800.0, 600.0);
         (tree, view)
     }
@@ -3394,7 +3394,7 @@ mod tests {
         // "active panel changed to ..."
         let child = tree.create_child(root, "dlog_test_child");
         tree.set_focusable(child, true);
-        tree.Layout(child, 0.0, 0.0, 0.5, 1.0);
+        tree.Layout(child, 0.0, 0.0, 0.5, 1.0, 1.0);
         view.Update(&mut tree);
         view.set_active_panel(&mut tree, child, false);
 

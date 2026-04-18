@@ -41,7 +41,7 @@ impl TestHarness {
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
         tree.set_focusable(root, true);
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0);
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let mut view = emView::new(root, 800.0, 600.0);
         view.Update(&mut tree);
@@ -92,7 +92,7 @@ impl TestHarness {
     pub fn add_panel(&mut self, parent_context: PanelId, name: &str) -> PanelId {
         let id = self.tree.create_child(parent_context, name);
         self.tree.set_focusable(id, true);
-        self.tree.Layout(id, 0.0, 0.0, 1.0, 1.0);
+        self.tree.Layout(id, 0.0, 0.0, 1.0, 1.0, 1.0);
         id
     }
 

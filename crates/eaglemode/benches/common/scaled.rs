@@ -37,7 +37,7 @@ pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, emView, PanelId) {
     let mut tree = PanelTree::new();
     let root = tree.create_root("scaled_root");
     let tallness = DEFAULT_VH as f64 / DEFAULT_VW as f64;
-    tree.Layout(root, 0.0, 0.0, 1.0, tallness);
+    tree.Layout(root, 0.0, 0.0, 1.0, tallness, 1.0);
     tree.set_behavior(
         root,
         Box::new(ColorPanel {
@@ -62,7 +62,7 @@ pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, emView, PanelId) {
                     let siblings = branching.min(panel_count - created + child_idx);
                     let x = child_idx as f64 / siblings as f64;
                     let w = 1.0 / siblings as f64;
-                    tree.Layout(child, x, 0.0, w, 1.0);
+                    tree.Layout(child, x, 0.0, w, 1.0, 1.0);
                     tree.set_behavior(
                         child,
                         Box::new(ColorPanel {

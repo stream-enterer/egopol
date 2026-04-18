@@ -520,7 +520,7 @@ impl emEngine for StartupEngine {
                             // C++ control tallness matches the parent's control_tallness
                             // C++ control panel fills the control view; tallness matches
                             // ControlTallness (0.0538) set on emMainPanel.
-                            sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 0.0538);
+                            sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 0.0538, 1.0);
                         });
                 }
 
@@ -1053,7 +1053,7 @@ fn RecreateContentPanels(app: &mut App) {
             let sub_tree = svp.sub_tree_mut();
             let child_id = sub_tree.create_child(sub_root, "");
             sub_tree.set_behavior(child_id, Box::new(emMainContentPanel::new(ctx)));
-            sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 1.0);
+            sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 1.0, 1.0);
 
             // Restore visit (C++ emMainWindow.cpp:304).
             svp.visit_by_identity(&identity, rel_x, rel_y, rel_a);

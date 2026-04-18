@@ -53,7 +53,7 @@ fn compositor_single_panel() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
     // Tallness must match viewport aspect ratio (600/800 = 0.75) so root fills viewport.
-    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(
         root,
         Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255))),
@@ -80,17 +80,17 @@ fn compositor_overlap() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
     let panel_a = tree.create_child(root, "panelA");
-    tree.Layout(panel_a, 0.1, 0.1, 0.4, 0.3);
+    tree.Layout(panel_a, 0.1, 0.1, 0.4, 0.3, 1.0);
     tree.set_behavior(
         panel_a,
         Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255))),
     );
 
     let panel_b = tree.create_child(root, "panelB");
-    tree.Layout(panel_b, 0.3, 0.2, 0.4, 0.3);
+    tree.Layout(panel_b, 0.3, 0.2, 0.4, 0.3, 1.0);
     tree.set_behavior(
         panel_b,
         Box::new(ColorFillBehavior::new(emColor::rgba(0, 0, 255, 255))),
@@ -117,13 +117,13 @@ fn compositor_nested() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
     let parent = tree.create_child(root, "parent");
-    tree.Layout(parent, 0.1, 0.075, 0.8, 0.6);
+    tree.Layout(parent, 0.1, 0.075, 0.8, 0.6, 1.0);
 
     let child = tree.create_child(parent, "child");
-    tree.Layout(child, 0.1, 0.075, 0.8, 0.6);
+    tree.Layout(child, 0.1, 0.075, 0.8, 0.6, 1.0);
     tree.set_behavior(
         child,
         Box::new(ColorFillBehavior::new(emColor::rgba(0, 255, 0, 255))),
@@ -150,14 +150,14 @@ fn compositor_canvas_color() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(
         root,
         Box::new(ColorFillBehavior::new(emColor::rgba(255, 255, 255, 255))),
     );
 
     let child = tree.create_child(root, "child");
-    tree.Layout(child, 0.1, 0.075, 0.8, 0.6);
+    tree.Layout(child, 0.1, 0.075, 0.8, 0.6, 1.0);
     tree.SetCanvasColor(child, emColor::rgba(255, 255, 255, 255));
     tree.set_behavior(
         child,
@@ -185,18 +185,18 @@ fn compositor_two_children() {
 
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
-    tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
+    tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     // Root has no painting behavior — children PaintContent on top of gray background.
 
     let left = tree.create_child(root, "left");
-    tree.Layout(left, 0.0, 0.0, 0.5, 0.75);
+    tree.Layout(left, 0.0, 0.0, 0.5, 0.75, 1.0);
     tree.set_behavior(
         left,
         Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255))),
     );
 
     let right = tree.create_child(root, "right");
-    tree.Layout(right, 0.5, 0.0, 0.5, 0.75);
+    tree.Layout(right, 0.5, 0.0, 0.5, 0.75, 1.0);
     tree.set_behavior(
         right,
         Box::new(ColorFillBehavior::new(emColor::rgba(0, 0, 255, 255))),
