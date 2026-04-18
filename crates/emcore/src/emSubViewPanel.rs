@@ -167,9 +167,9 @@ impl PanelBehavior for emSubViewPanel {
                 // C++ emViewAnimator.cpp:1060: clear seek-pos so the next notice
                 // cycle doesn't fire SOUGHT_NAME_CHANGED on a stale target.
                 self.sub_view.SetSeekPos(&mut self.sub_tree, None, "");
-                // C++ emViewAnimator.cpp:1061: InvalidatePainting skipped —
-                // emView::InvalidatePainting requires a panel id not available here;
-                // the next full-view paint cycle will refresh the visiting overlay.
+                // C++ emViewAnimator.cpp:1061: whole-view InvalidatePainting() skipped.
+                // Rust has no emViewAnimator::InvalidatePainting method; the visiting
+                // overlay will repaint correctly on the next scheduled paint cycle.
             }
         }
         let event = &event_local;
