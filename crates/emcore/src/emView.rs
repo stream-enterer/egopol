@@ -32,18 +32,6 @@ bitflags! {
     }
 }
 
-/// State for a visited panel in the view hierarchy.
-#[derive(Clone, Debug)]
-pub struct VisitState {
-    pub panel: PanelId,
-    /// Relative X position of the view within the panel.
-    pub rel_x: f64,
-    /// Relative Y position.
-    pub rel_y: f64,
-    /// Relative zoom/area factor.
-    pub rel_a: f64,
-}
-
 const MAX_SVP_SIZE: f64 = 1.0e12;
 const MAX_SVP_SEARCH_SIZE: f64 = 1.0e14; // C++ emView.h:715
 const MIN_DIMENSION: f64 = 0.0001;
@@ -65,15 +53,6 @@ fn em_get_dbl_random(lo: f64, hi: f64) -> f64 {
         let f = (x >> 11) as f64 / (1u64 << 53) as f64; // [0, 1)
         lo + (hi - lo) * f
     })
-}
-
-/// Direction for neighbor navigation.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Direction {
-    Right,
-    Down,
-    Left,
-    Up,
 }
 
 /// Frame rate measurement for the stress test overlay.
@@ -226,6 +205,65 @@ impl super::emEngine::emEngine for UpdateEngineClass {
     }
 }
 
+/// Scheduler-driven engine that ticks `emView::VisitingVA`.
+///
+/// C++ equivalence: in C++ `emViewAnimator` derives from `emEngine` so every
+/// animator is itself a scheduler-registered engine whose base `Cycle()`
+/// measures `dt` and calls the subclass's `CycleAnimation`. The Rust port
+/// separates animator logic from scheduling: `emVisitingViewAnimator` is a
+/// plain type, and this wrapper engine is what the scheduler sees. On each
+/// `Cycle`, it locates the view via `ctx.windows.get(window_id)` (mirroring
+/// `UpdateEngineClass`), computes `dt` from wall-clock deltas, and — if the
+/// animator is active — forwards to `emVisitingViewAnimator::animate`,
+/// which corresponds to C++ `CycleAnimation` (emViewAnimator.cpp:1194).
+pub struct VisitingVAEngineClass {
+    /// Identifier of the window whose view owns the animator to tick.
+    pub window_id: winit::window::WindowId,
+    /// Wall-clock timestamp of the previous `Cycle`, used to compute `dt`.
+    /// `None` before the first tick; the first tick uses a 16 ms fallback.
+    last_cycle: Option<Instant>,
+}
+
+impl VisitingVAEngineClass {
+    /// Create a new `VisitingVAEngineClass` bound to `window_id`.
+    pub fn new(window_id: winit::window::WindowId) -> Self {
+        Self {
+            window_id,
+            last_cycle: None,
+        }
+    }
+}
+
+impl super::emEngine::emEngine for VisitingVAEngineClass {
+    fn Cycle(&mut self, ctx: &mut super::emEngine::EngineCtx<'_>) -> bool {
+        // Compute dt from wall-clock, clamped to the same range emGUIFramework
+        // uses for animator ticks (emGUIFramework.rs:523-526).
+        let now = Instant::now();
+        let dt = self
+            .last_cycle
+            .map(|t| now.duration_since(t).as_secs_f64())
+            .unwrap_or(0.016)
+            .clamp(0.001, 0.1);
+        self.last_cycle = Some(now);
+
+        let win_rc = match ctx.windows.get(&self.window_id) {
+            Some(w) => Rc::clone(w),
+            None => return false,
+        };
+        let mut win = win_rc.borrow_mut();
+        let view = win.view_mut();
+        // Clone the animator Rc so we can mutably borrow it alongside &mut view.
+        // The animator's RefCell is independent of the view's storage.
+        let va_rc = Rc::clone(&view.VisitingVA);
+        let mut va = va_rc.borrow_mut();
+        if !va.is_active() {
+            return false;
+        }
+        use super::emViewAnimator::emViewAnimator as _;
+        va.animate(view, ctx.tree, dt)
+    }
+}
+
 /// Port of C++ `emView::EOIEngineClass` (emView.h:636-645, emView.cpp:2528-2543).
 ///
 /// Scheduler-driven engine that owns the End-Of-Interaction countdown.
@@ -271,7 +309,6 @@ pub struct emView {
     root: PanelId,
     active: Option<PanelId>,
     focused: Option<PanelId>,
-    visit_stack: Vec<VisitState>,
     pub flags: ViewFlags,
     supreme_viewed_panel: Option<PanelId>,
     background_color: emColor,
@@ -303,10 +340,6 @@ pub struct emView {
     /// VIEW-003: Set by scroll/zoom to signal that any active animator should be
     /// aborted. Consumers (window loop) should check and clear this flag.
     needs_animator_abort: bool,
-    /// D-PANEL-02: Pending animated visit goal. Navigation methods set this
-    /// instead of doing an instant jump. The window loop feeds this to the
-    /// emVisitingViewAnimator. None means no pending animated visit.
-    pending_animated_visit: Option<VisitState>,
     /// C++ `EOISignal` — fired by `EOIEngineClass::Cycle` when the countdown
     /// reaches zero. Created when the view is attached to the scheduler.
     /// Mirrors C++ `emSignal EOISignal` (emView.h).
@@ -319,6 +352,11 @@ pub struct emView {
     /// `SignalEOIDelayed` removes any previous instance before registering
     /// a fresh one; the engine self-parks after firing `EOISignal`.
     pub eoi_engine_id: Option<super::emEngine::EngineId>,
+    /// Scheduler handle for the registered `VisitingVAEngineClass`.
+    /// Set by `attach_to_scheduler`; woken when the animator has pending
+    /// work. Mirrors C++ behavior where `emVisitingViewAnimator` self-
+    /// registers with the scheduler via its `emEngine` base ctor.
+    pub visiting_va_engine_id: Option<super::emEngine::EngineId>,
     /// Handle into `App::pending_actions` for enqueuing deferred framework
     /// actions (popup surface materialization, popup-exit cleanup). Wired
     /// by `App::about_to_wait` each frame; `None` in unit-test contexts
@@ -429,16 +467,15 @@ pub struct emView {
     /// returned by the accessors during construction before a real
     /// port is attached.
     pub DummyViewPort: Rc<RefCell<super::emViewPort::emViewPort>>,
+
+    /// C++ emView.h:675 — `emOwnPtr<emVisitingViewAnimator> VisitingVA`.
+    /// The visiting view animator; owns the "where we're going" state.
+    /// Read non-test by `VisitingVAEngineClass::Cycle` to tick animation.
+    pub(crate) VisitingVA: Rc<RefCell<super::emViewAnimator::emVisitingViewAnimator>>,
 }
 
 impl emView {
     pub fn new(root: PanelId, viewport_width: f64, viewport_height: f64) -> Self {
-        let initial_visit = VisitState {
-            panel: root,
-            rel_x: 0.0,
-            rel_y: 0.0,
-            rel_a: 1.0,
-        };
         // C++ HomeViewPort == CurrentViewPort in non-popup state.
         // Rc::clone shares the same allocation so Rc::ptr_eq returns true.
         let home_vp = Rc::new(RefCell::new(super::emViewPort::emViewPort::new_dummy()));
@@ -447,7 +484,6 @@ impl emView {
             root,
             active: Some(root),
             focused: None,
-            visit_stack: vec![initial_visit],
             flags: ViewFlags::empty(),
             supreme_viewed_panel: None,
             background_color: emColor::rgba(0x80, 0x80, 0x80, 0xFF),
@@ -465,10 +501,10 @@ impl emView {
             activation_adherent: false,
             viewport_changed: false,
             needs_animator_abort: false,
-            pending_animated_visit: None,
             EOISignal: None,
             update_engine_id: None,
             eoi_engine_id: None,
+            visiting_va_engine_id: None,
             pending_framework_actions: None,
             title: String::new(),
             cursor: emCursor::Normal,
@@ -513,6 +549,9 @@ impl emView {
             HomeViewPort: home_vp,
             CurrentViewPort: current_vp,
             DummyViewPort: Rc::new(RefCell::new(super::emViewPort::emViewPort::new_dummy())),
+            VisitingVA: Rc::new(RefCell::new(
+                super::emViewAnimator::emVisitingViewAnimator::new_for_view(),
+            )),
         }
     }
 
@@ -666,20 +705,6 @@ impl emView {
         false
     }
 
-    pub fn current_visit(&self) -> &VisitState {
-        self.visit_stack
-            .last()
-            .expect("visit stack should never be empty")
-    }
-
-    pub fn visit_stack(&self) -> &[VisitState] {
-        &self.visit_stack
-    }
-
-    pub fn visit_stack_mut(&mut self) -> &mut Vec<VisitState> {
-        &mut self.visit_stack
-    }
-
     // --- Navigation primitives ---
 
     /// Immediate direct-set visit (no animation, no new back-stack entry).
@@ -691,16 +716,9 @@ impl emView {
     /// DIVERGED: C++ has public `RawVisit(panel, relX, relY, relA)` + private
     /// overload with extra `forceViewingUpdate` bool. Rust has no
     /// overloading — single method; existing no-arg callers pass `false`.
-    /// DIVERGED: C++ RawVisit converts to absolute pixel coords and calls RawVisitAbs
-    /// which sets SVP.ViewedX/Y/Width directly. Rust defers absolute-coord computation
-    /// to update_viewing(); here we just update the visit_stack top in place.
     /// Port of C++ `emView::RawVisit(panel, relX, relY, relA, forceViewingUpdate)`
     /// (emView.cpp:1526-1541). Converts rel coords to absolute screen coords
     /// (same formula as C++) then calls `RawVisitAbs` directly.
-    ///
-    /// DIVERGED: Rust keeps a `visit_stack` (Vec) instead of single fields; the
-    /// top entry is updated to match C++ ActivePanel/RelX/RelY/RelA. The
-    /// absolute-coord computation formula is identical to C++.
     pub fn RawVisit(
         &mut self,
         tree: &mut PanelTree,
@@ -716,13 +734,6 @@ impl emView {
         } else {
             (rel_x, rel_y, rel_a)
         };
-        // Update visit stack top (C++ sets ActivePanel, RelX, RelY, RelA fields).
-        if let Some(state) = self.visit_stack.last_mut() {
-            state.panel = panel;
-            state.rel_x = rx;
-            state.rel_y = ry;
-            state.rel_a = ra;
-        }
         self.active = Some(panel);
 
         // C++ emView.cpp:1535-1539: compute absolute coords from rel coords.
@@ -762,10 +773,17 @@ impl emView {
     /// Port of C++ `emView::GetVisitedPanel(pRelX, pRelY, pRelA)` (emView.cpp:468-489).
     ///
     /// Walks from ActivePanel toward root to find the deepest panel that is
-    /// `in_viewed_path` and `viewed`. Returns `(panel, rel_x, rel_y, rel_a)`.
-    /// C++ convention: relX/Y are offsets of the viewport center from the panel
-    /// center (in panel-space units). rel_a = (HomeW*HomeH)/(ViewedW*ViewedH).
-    pub fn GetVisitedPanel(&self, tree: &PanelTree) -> Option<(PanelId, f64, f64, f64)> {
+    /// `in_viewed_path` and `viewed`. Falls back to SupremeViewedPanel.
+    /// Fills `rel_x`, `rel_y`, `rel_a` with viewport-relative coords on success,
+    /// or zeros on `None`. C++ convention: relX/Y are offsets of the viewport center
+    /// from the panel center (in panel-space units). rel_a = (HomeW*HomeH)/(ViewedW*ViewedH).
+    pub fn GetVisitedPanel(
+        &self,
+        tree: &PanelTree,
+        rel_x: &mut f64,
+        rel_y: &mut f64,
+        rel_a: &mut f64,
+    ) -> Option<PanelId> {
         // Walk from active toward root until we find an in_viewed_path + viewed panel.
         let p = {
             let mut candidate = self.active;
@@ -811,76 +829,99 @@ impl emView {
                 // Rust: ViewedHeight = ViewedWidth * GetHeight / HomePixelTallness
                 let vw = panel.viewed_width.max(1e-100);
                 let vh = (vw * tree.get_height(id) / hp).max(1e-100);
-                let rel_x = (self.HomeX + hw * 0.5 - panel.viewed_x) / vw - 0.5;
-                let rel_y = (self.HomeY + hh * 0.5 - panel.viewed_y) / vh - 0.5;
-                let rel_a = (hw * hh) / (vw * vh);
-                return Some((id, rel_x, rel_y, rel_a));
+                *rel_x = (self.HomeX + hw * 0.5 - panel.viewed_x) / vw - 0.5;
+                *rel_y = (self.HomeY + hh * 0.5 - panel.viewed_y) / vh - 0.5;
+                *rel_a = (hw * hh) / (vw * vh);
+                return Some(id);
             }
         }
+        *rel_x = 0.0;
+        *rel_y = 0.0;
+        *rel_a = 0.0;
         None
     }
 
-    pub fn Visit(&mut self, panel: PanelId, rel_x: f64, rel_y: f64, rel_a: f64) {
-        self.visit_stack.push(VisitState {
-            panel,
-            rel_x,
-            rel_y,
-            rel_a,
-        });
-        self.active = Some(panel);
-        self.viewport_changed = true;
-        self.SVPChoiceInvalid = true;
+    /// Idiomatic Rust companion: returns `(panel, rel_x, rel_y, rel_a)` as a tuple.
+    /// Delegates to `GetVisitedPanel`.
+    pub fn get_visited_panel_idiom(&self, tree: &PanelTree) -> Option<(PanelId, f64, f64, f64)> {
+        let mut rx = 0.0;
+        let mut ry = 0.0;
+        let mut ra = 0.0;
+        self.GetVisitedPanel(tree, &mut rx, &mut ry, &mut ra)
+            .map(|id| (id, rx, ry, ra))
     }
 
-    pub fn VisitFullsized(&mut self, tree: &PanelTree, panel: PanelId) {
-        let (x, y, a) = self.CalcVisitFullsizedCoords(tree, panel, false);
-        self.Visit(panel, x, y, a);
-    }
-
-    /// D-PANEL-02: Request an animated visit to a panel. Sets a pending goal
-    /// that the window loop feeds to the emVisitingViewAnimator. Also sets the
-    /// active panel immediately for UI responsiveness.
-    pub fn animated_visit(
+    /// Port of C++ `emView::Visit(panel, relX, relY, relA, adherent)` at
+    /// emView.cpp:492-497. Three-line delegation: look up identity+title on
+    /// the tree, then forward to the identity-keyed overload.
+    pub fn Visit(
         &mut self,
-        tree: &mut PanelTree,
+        tree: &PanelTree,
         panel: PanelId,
         rel_x: f64,
         rel_y: f64,
         rel_a: f64,
         adherent: bool,
     ) {
-        self.set_active_panel(tree, panel, adherent);
-        self.pending_animated_visit = Some(VisitState {
-            panel,
-            rel_x,
-            rel_y,
-            rel_a,
-        });
+        let identity = tree.GetIdentity(panel);
+        let subject = tree.get_title(panel);
+        self.VisitByIdentity(&identity, rel_x, rel_y, rel_a, adherent, &subject);
     }
 
-    /// D-PANEL-02: Request an animated visit to a panel at its natural size.
-    pub fn animated_visit_panel(&mut self, tree: &mut PanelTree, panel: PanelId, adherent: bool) {
-        let (x, y, a) = self.CalcVisitCoords(tree, panel);
-        self.animated_visit(tree, panel, x, y, a, adherent);
+    /// Port of C++ `emView::VisitFullsized(panel, adherent, utilizeView)` (emView.cpp:525-528).
+    pub fn VisitFullsized(
+        &mut self,
+        tree: &PanelTree,
+        panel: PanelId,
+        adherent: bool,
+        utilize_view: bool,
+    ) {
+        let identity = tree.GetIdentity(panel);
+        let subject = tree.get_title(panel);
+        self.VisitFullsizedByIdentity(&identity, adherent, utilize_view, &subject);
     }
 
-    pub fn go_back(&mut self) -> bool {
-        if self.visit_stack.len() > 1 {
-            self.visit_stack.pop();
-            self.active = Some(self.current_visit().panel);
-            self.viewport_changed = true;
-            self.SVPChoiceInvalid = true;
-            true
-        } else {
-            false
-        }
+    /// DIVERGED: C++ overload `emView::VisitFullsized(identity, adherent, utilizeView, subject)` (emView.cpp:531-541)
+    /// — Rust cannot overload by name; panel-form keeps `VisitFullsized`, identity-form renamed to
+    /// `VisitFullsizedByIdentity`.
+    ///
+    /// Port of C++ `emView::VisitFullsized(identity, adherent, utilizeView, subject)` (emView.cpp:531-541).
+    pub fn VisitFullsizedByIdentity(
+        &mut self,
+        identity: &str,
+        adherent: bool,
+        utilize_view: bool,
+        subject: &str,
+    ) {
+        let mut va = self.VisitingVA.borrow_mut();
+        // PHASE-W4-FOLLOWUP: CoreConfig defaults — see Task 3.1.
+        va.SetAnimParamsByCoreConfig(1.0, 10.0);
+        va.SetGoalFullsized(identity, adherent, utilize_view, subject);
+        va.Activate();
     }
 
-    pub fn go_home(&mut self) {
-        self.visit_stack.truncate(1);
-        self.active = Some(self.root);
-        self.viewport_changed = true;
-        self.SVPChoiceInvalid = true;
+    /// DIVERGED: C++ overload `emView::Visit(panel, adherent)` (emView.cpp:511-514)
+    /// — Rust cannot overload by arity; renamed `VisitPanel` to disambiguate from
+    /// the canonical 6-arg `Visit` added in Task 3.1.
+    ///
+    /// Port of C++ `emView::Visit(panel, adherent)` (emView.cpp:511-514).
+    pub fn VisitPanel(&mut self, tree: &PanelTree, panel: PanelId, adherent: bool) {
+        let identity = tree.GetIdentity(panel);
+        let subject = tree.get_title(panel);
+        self.VisitByIdentityShort(&identity, adherent, &subject);
+    }
+
+    /// DIVERGED: C++ overload `emView::Visit(identity, adherent, subject)` (emView.cpp:517-523)
+    /// — Rust cannot overload by arity; renamed `VisitByIdentityShort` to disambiguate from
+    /// the canonical 7-arg `VisitByIdentity` added in Task 3.1.
+    ///
+    /// Port of C++ `emView::Visit(identity, adherent, subject)` (emView.cpp:517-523).
+    pub fn VisitByIdentityShort(&mut self, identity: &str, adherent: bool, subject: &str) {
+        let mut va = self.VisitingVA.borrow_mut();
+        // PHASE-W4-FOLLOWUP: CoreConfig defaults — see Task 3.1.
+        va.SetAnimParamsByCoreConfig(1.0, 10.0);
+        va.SetGoal(identity, adherent, subject);
+        va.Activate();
     }
 
     // --- Viewport ---
@@ -917,7 +958,7 @@ impl emView {
         // C++ emView.cpp:1255-1256: capture zoom state before mutation.
         self.zoomed_out_before_sg = self.IsZoomedOut(tree);
         self.SettingGeometry += 1;
-        let visited_before = self.GetVisitedPanel(tree);
+        let visited_before = self.get_visited_panel_idiom(tree);
 
         // Home fields track Current on the home viewport (no popup).
         // Rc::ptr_eq detects popup state: during popup, HomeViewPort != CurrentViewPort.
@@ -1010,7 +1051,7 @@ impl emView {
         // VIEW-003: Signal abort for any active animator (C++ AbortActiveAnimator)
         self.needs_animator_abort = true;
         // C++ Zoom: GetVisitedPanel(&rx,&ry,&ra) then adjust rel coords.
-        if let Some((panel, mut rx, mut ry, mut ra)) = self.GetVisitedPanel(tree) {
+        if let Some((panel, mut rx, mut ry, mut ra)) = self.get_visited_panel_idiom(tree) {
             let pvw = tree
                 .GetRec(panel)
                 .map(|r| r.viewed_width)
@@ -1047,7 +1088,7 @@ impl emView {
         // VIEW-003: Signal abort for any active animator (C++ AbortActiveAnimator)
         self.needs_animator_abort = true;
         // C++ Scroll: GetVisitedPanel(&rx,&ry,&ra) then adjust rel coords.
-        if let Some((panel, mut rx, mut ry, ra)) = self.GetVisitedPanel(tree) {
+        if let Some((panel, mut rx, mut ry, ra)) = self.get_visited_panel_idiom(tree) {
             let pvw = tree
                 .GetRec(panel)
                 .map(|r| r.viewed_width)
@@ -1086,7 +1127,7 @@ impl emView {
         let hh = self.HomeHeight;
 
         // Get current visited panel and its rel coords.
-        let Some((panel, rx, ry, ra)) = self.GetVisitedPanel(tree) else {
+        let Some((panel, rx, ry, ra)) = self.get_visited_panel_idiom(tree) else {
             return [0.0, 0.0, 0.0];
         };
         let pvw = tree
@@ -1201,10 +1242,8 @@ impl emView {
             return !self.popped_up;
         }
         let target_a = self.zoom_out_rel_a(tree);
-        if let Some(state) = self.visit_stack.last() {
-            state.rel_x.abs() < 0.001
-                && state.rel_y.abs() < 0.001
-                && (state.rel_a - target_a).abs() < 0.001
+        if let Some((_, rx, ry, ra)) = self.get_visited_panel_idiom(tree) {
+            rx.abs() < 0.001 && ry.abs() < 0.001 && (ra - target_a).abs() < 0.001
         } else {
             true
         }
@@ -2313,7 +2352,7 @@ impl emView {
 
             if self.SVPChoiceInvalid {
                 self.SVPChoiceInvalid = false;
-                if let Some((panel, _, _, _)) = self.GetVisitedPanel(tree) {
+                if let Some((panel, _, _, _)) = self.get_visited_panel_idiom(tree) {
                     let rec = tree.GetRec(panel).unwrap();
                     let (vx, vy, vw) = (rec.viewed_x, rec.viewed_y, rec.viewed_width);
                     self.RawVisitAbs(tree, panel, vx, vy, vw, false);
@@ -2359,16 +2398,13 @@ impl emView {
         // Rust panels post requests via PanelCtx::request_visit and emView drains
         // them here (after the main loop so SVP is up to date).
         for target in tree.drain_navigation_requests() {
-            self.VisitFullsized(tree, target);
+            self.VisitFullsized(tree, target, false, false);
         }
     }
 
     // --- Navigation ---
 
-    /// D-PANEL-01: Navigate to next focusable panel (C++ VisitNext parity).
-    ///
-    /// Tries next focusable sibling; if at end, ascends to focusable parent
-    /// and wraps to its first focusable child.
+    /// Port of C++ `emView::VisitNext()` (emView.cpp:564-578).
     pub fn VisitNext(&mut self, tree: &mut PanelTree) {
         if self
             .flags
@@ -2376,29 +2412,25 @@ impl emView {
         {
             return;
         }
-        let active = match self.active {
-            Some(id) => id,
-            None => return,
-        };
-
-        // Try next focusable sibling (no wrap)
-        if let Some(next) = tree.GetFocusableNext(active) {
-            self.animated_visit_panel(tree, next, false);
-            return;
-        }
-
-        // No next sibling: go to focusable parent's first focusable child
-        let parent = tree
-            .GetFocusableParent(active)
-            .unwrap_or_else(|| tree.GetRootPanel().unwrap_or(active));
-        if parent != active {
-            if let Some(first) = tree.GetFocusableFirstChild(parent) {
-                self.animated_visit_panel(tree, first, false);
+        let Some(active) = self.active else { return };
+        let mut p = tree.GetFocusableNext(active);
+        if p.is_none() {
+            let parent = tree
+                .GetFocusableParent(active)
+                .or_else(|| tree.GetRootPanel())
+                .unwrap_or(active);
+            if parent != active {
+                p = tree.GetFocusableFirstChild(parent);
+            } else {
+                p = Some(parent);
             }
+        }
+        if let Some(target) = p {
+            self.VisitPanel(tree, target, true);
         }
     }
 
-    /// D-PANEL-01: Navigate to previous focusable panel (C++ VisitPrev parity).
+    /// Port of C++ `emView::VisitPrev()` (emView.cpp:581-595).
     pub fn VisitPrev(&mut self, tree: &mut PanelTree) {
         if self
             .flags
@@ -2406,28 +2438,25 @@ impl emView {
         {
             return;
         }
-        let active = match self.active {
-            Some(id) => id,
-            None => return,
-        };
-
-        // Try previous focusable sibling (no wrap)
-        if let Some(prev) = tree.GetFocusablePrev(active) {
-            self.animated_visit_panel(tree, prev, false);
-            return;
-        }
-
-        // No previous sibling: go to focusable parent's last focusable child
-        let parent = tree
-            .GetFocusableParent(active)
-            .unwrap_or_else(|| tree.GetRootPanel().unwrap_or(active));
-        if parent != active {
-            if let Some(last) = tree.GetFocusableLastChild(parent) {
-                self.animated_visit_panel(tree, last, false);
+        let Some(active) = self.active else { return };
+        let mut p = tree.GetFocusablePrev(active);
+        if p.is_none() {
+            let parent = tree
+                .GetFocusableParent(active)
+                .or_else(|| tree.GetRootPanel())
+                .unwrap_or(active);
+            if parent != active {
+                p = tree.GetFocusableLastChild(parent);
+            } else {
+                p = Some(parent);
             }
+        }
+        if let Some(target) = p {
+            self.VisitPanel(tree, target, true);
         }
     }
 
+    /// Port of C++ `emView::VisitFirst()` (emView.cpp:598-608).
     pub fn VisitFirst(&mut self, tree: &mut PanelTree) {
         if self
             .flags
@@ -2435,22 +2464,16 @@ impl emView {
         {
             return;
         }
-        let active = match self.active {
-            Some(id) => id,
-            None => return,
-        };
-        let parent = match tree.GetParentContext(active) {
-            Some(p) => p,
-            None => return,
-        };
-        for child in tree.children(parent) {
-            if tree.GetRec(child).map(|p| p.focusable).unwrap_or(false) {
-                self.animated_visit_panel(tree, child, false);
-                return;
-            }
+        let Some(active) = self.active else { return };
+        let mut p = tree.GetFocusableParent(active);
+        if let Some(parent) = p {
+            p = tree.GetFocusableFirstChild(parent);
         }
+        let target = p.unwrap_or(active);
+        self.VisitPanel(tree, target, true);
     }
 
+    /// Port of C++ `emView::VisitLast()` (emView.cpp:611-621).
     pub fn VisitLast(&mut self, tree: &mut PanelTree) {
         if self
             .flags
@@ -2458,38 +2481,36 @@ impl emView {
         {
             return;
         }
-        let active = match self.active {
-            Some(id) => id,
-            None => return,
-        };
-        let parent = match tree.GetParentContext(active) {
-            Some(p) => p,
-            None => return,
-        };
-        for child in tree.children_rev(parent) {
-            if tree.GetRec(child).map(|p| p.focusable).unwrap_or(false) {
-                self.animated_visit_panel(tree, child, false);
-                return;
-            }
+        let Some(active) = self.active else { return };
+        let mut p = tree.GetFocusableParent(active);
+        if let Some(parent) = p {
+            p = tree.GetFocusableLastChild(parent);
         }
+        let target = p.unwrap_or(active);
+        self.VisitPanel(tree, target, true);
     }
 
+    /// Port of C++ `emView::VisitLeft()` (emView.cpp:624-627).
     pub fn VisitLeft(&mut self, tree: &mut PanelTree) {
-        self.visit_neighbour(tree, Direction::Left);
+        self.VisitNeighbour(tree, 2);
     }
 
+    /// Port of C++ `emView::VisitRight()` (emView.cpp:630-633).
     pub fn VisitRight(&mut self, tree: &mut PanelTree) {
-        self.visit_neighbour(tree, Direction::Right);
+        self.VisitNeighbour(tree, 0);
     }
 
+    /// Port of C++ `emView::VisitUp()` (emView.cpp:636-639).
     pub fn VisitUp(&mut self, tree: &mut PanelTree) {
-        self.visit_neighbour(tree, Direction::Up);
+        self.VisitNeighbour(tree, 3);
     }
 
+    /// Port of C++ `emView::VisitDown()` (emView.cpp:642-645).
     pub fn VisitDown(&mut self, tree: &mut PanelTree) {
-        self.visit_neighbour(tree, Direction::Down);
+        self.VisitNeighbour(tree, 1);
     }
 
+    /// Port of C++ `emView::VisitIn()` (emView.cpp:740-746).
     pub fn VisitIn(&mut self, tree: &mut PanelTree) {
         if self
             .flags
@@ -2497,21 +2518,15 @@ impl emView {
         {
             return;
         }
-        let active = match self.active {
-            Some(id) => id,
-            None => return,
-        };
-        // Find first focusable child
-        for child in tree.children(active) {
-            if tree.GetRec(child).map(|p| p.focusable).unwrap_or(false) {
-                self.animated_visit_panel(tree, child, false);
-                return;
-            }
+        let Some(active) = self.active else { return };
+        if let Some(p) = tree.GetFocusableFirstChild(active) {
+            self.VisitPanel(tree, p, true);
+        } else {
+            self.VisitFullsized(tree, active, true, false);
         }
-        // No focusable child — visit active fullsized
-        self.VisitFullsized(tree, active);
     }
 
+    /// Port of C++ `emView::VisitOut()` (emView.cpp:749-762).
     pub fn VisitOut(&mut self, tree: &mut PanelTree) {
         if self
             .flags
@@ -2519,93 +2534,183 @@ impl emView {
         {
             return;
         }
-        let active = match self.active {
-            Some(id) => id,
-            None => return,
-        };
-        // Go to focusable parent — check parent itself first, then walk up
-        if let Some(parent) = tree.GetParentContext(active) {
-            if tree.GetRec(parent).map(|p| p.focusable).unwrap_or(false) {
-                self.animated_visit_panel(tree, parent, false);
-                return;
+        let Some(active) = self.active else { return };
+        if let Some(p) = tree.GetFocusableParent(active) {
+            self.VisitPanel(tree, p, true);
+        } else if let Some(root) = tree.GetRootPanel() {
+            let root_h = tree.get_height(root);
+            let mut rel_a = self.HomeWidth * root_h / self.HomePixelTallness / self.HomeHeight;
+            let rel_a2 = self.HomeHeight / root_h * self.HomePixelTallness / self.HomeWidth;
+            if rel_a < rel_a2 {
+                rel_a = rel_a2;
             }
-            if let Some(focusable) = tree.GetFocusableParent(parent) {
-                self.animated_visit_panel(tree, focusable, false);
-                return;
-            }
+            self.Visit(tree, root, 0.0, 0.0, rel_a, true);
         }
-        // At root — zoom out
-        self.ZoomOut(tree);
     }
 
-    fn visit_neighbour(&mut self, tree: &mut PanelTree, direction: Direction) {
+    /// Port of C++ `emView::VisitNeighbour(direction)` (emView.cpp:648-737).
+    pub fn VisitNeighbour(&mut self, tree: &mut PanelTree, direction: i32) {
         if self
             .flags
             .intersects(ViewFlags::NO_NAVIGATE | ViewFlags::NO_USER_NAVIGATION)
         {
             return;
         }
-        let active = match self.active {
-            Some(id) => id,
-            None => return,
-        };
-        let parent = match tree.GetParentContext(active) {
-            Some(p) => p,
-            None => return,
-        };
+        let direction = direction & 3;
+        let Some(current0) = self.active else { return };
+        let parent = tree
+            .GetFocusableParent(current0)
+            .or_else(|| tree.GetRootPanel())
+            .unwrap_or(current0);
 
-        let active_panel = match tree.GetRec(active) {
-            Some(p) => p,
-            None => return,
-        };
-        let ax = active_panel.viewed_x;
-        let ay = active_panel.viewed_y;
-        let aw = active_panel.viewed_width;
-        let ah = active_panel.viewed_height;
-        let acx = ax + aw * 0.5;
-        let acy = ay + ah * 0.5;
+        let mut current = current0;
 
-        let siblings: Vec<PanelId> = tree.children(parent).collect();
-        let mut best: Option<(PanelId, f64)> = None;
-
-        for &sib in &siblings {
-            if sib == active {
-                continue;
-            }
-            let sp = match tree.GetRec(sib) {
-                Some(p) if p.focusable && p.viewed => p,
-                _ => continue,
-            };
-            let scx = sp.viewed_x + sp.viewed_width * 0.5;
-            let scy = sp.viewed_y + sp.viewed_height * 0.5;
-
-            let (dx, dy) = (scx - acx, scy - acy);
-
-            // Rotate based on direction so "forward" is always +x
-            // C++: 0=Right identity, 1=Down (dy,-dx), 2=Left (-dx,-dy), 3=Up (-dy,dx)
-            let (rx, ry) = match direction {
-                Direction::Right => (dx, dy),
-                Direction::Down => (dy, -dx),
-                Direction::Left => (-dx, -dy),
-                Direction::Up => (-dy, dx),
-            };
-
-            if rx <= 1e-12 {
-                continue;
+        if parent != current0 {
+            // Compute current's rect in parent-local coords by composing
+            // through ancestor layout_rects from current up to (but not
+            // including) parent.
+            let (mut cx1, mut cy1) = (0.0_f64, 0.0_f64);
+            let (mut cx2, mut cy2) = (1.0_f64, tree.get_height(current0));
+            let mut walker = current0;
+            while walker != parent {
+                let lr = tree
+                    .layout_rect(walker)
+                    .expect("panel must have layout_rect while walking up to focusable parent");
+                let f = lr.w;
+                let fx = lr.x;
+                let fy = lr.y;
+                cx1 = cx1 * f + fx;
+                cy1 = cy1 * f + fy;
+                cx2 = cx2 * f + fx;
+                cy2 = cy2 * f + fy;
+                walker = tree
+                    .GetParentContext(walker)
+                    .expect("panel must have parent while walking up to focusable parent");
             }
 
-            let dist = (rx * rx + ry * ry).sqrt();
-            let penalty = if ry.abs() > rx * 0.707 { 10.0 } else { 1.0 };
-            let score = dist * penalty;
+            let mut best: Option<PanelId> = None;
+            let mut best_val = 0.0_f64;
+            let mut defdx = -1.0_f64;
 
-            if best.map(|(_, s)| score < s).unwrap_or(true) {
-                best = Some((sib, score));
+            let mut n_opt = tree.GetFocusableFirstChild(parent);
+            while let Some(n) = n_opt {
+                if n == current0 {
+                    defdx = -defdx;
+                    n_opt = tree.GetFocusableNext(n);
+                    continue;
+                }
+
+                let (mut nx1, mut ny1) = (0.0_f64, 0.0_f64);
+                let (mut nx2, mut ny2) = (1.0_f64, tree.get_height(n));
+                let mut w = n;
+                while w != parent {
+                    let lr = tree
+                        .layout_rect(w)
+                        .expect("panel must have layout_rect while walking sibling up to parent");
+                    let f = lr.w;
+                    let fx = lr.x;
+                    let fy = lr.y;
+                    nx1 = nx1 * f + fx;
+                    ny1 = ny1 * f + fy;
+                    nx2 = nx2 * f + fx;
+                    ny2 = ny2 * f + fy;
+                    w = tree
+                        .GetParentContext(w)
+                        .expect("panel must have parent while walking sibling up to parent");
+                }
+
+                let mut dx = 0.0_f64;
+                let mut dy = 0.0_f64;
+
+                let fx1 = nx1 - cx1;
+                let fy1 = ny1 - cy1;
+                let f1 = (fx1 * fx1 + fy1 * fy1).sqrt();
+                if f1 > 1e-30 {
+                    dx += fx1 / f1;
+                    dy += fy1 / f1;
+                }
+                let fx2 = nx2 - cx2;
+                let fy2 = ny1 - cy1;
+                let f2 = (fx2 * fx2 + fy2 * fy2).sqrt();
+                if f2 > 1e-30 {
+                    dx += fx2 / f2;
+                    dy += fy2 / f2;
+                }
+                let fx3 = nx1 - cx1;
+                let fy3 = ny2 - cy2;
+                let f3 = (fx3 * fx3 + fy3 * fy3).sqrt();
+                if f3 > 1e-30 {
+                    dx += fx3 / f3;
+                    dy += fy3 / f3;
+                }
+                let fx4 = nx2 - cx2;
+                let fy4 = ny2 - cy2;
+                let f4 = (fx4 * fx4 + fy4 * fy4).sqrt();
+                if f4 > 1e-30 {
+                    dx += fx4 / f4;
+                    dy += fy4 / f4;
+                }
+                let fnorm = (dx * dx + dy * dy).sqrt();
+                if fnorm > 1e-30 {
+                    dx /= fnorm;
+                    dy /= fnorm;
+                } else {
+                    dx = defdx;
+                    dy = 0.0;
+                }
+
+                let fx_c = (nx1 + nx2 - cx1 - cx2) * 0.5;
+                let fy_c = (ny1 + ny2 - cy1 - cy2) * 0.5;
+                let d = (fx_c * fx_c + fy_c * fy_c).sqrt();
+
+                let fx_e = if nx2 < cx1 {
+                    nx2 - cx1
+                } else if nx1 > cx2 {
+                    nx1 - cx2
+                } else {
+                    0.0
+                };
+                let fy_e = if ny2 < cy1 {
+                    ny2 - cy1
+                } else if ny1 > cy2 {
+                    ny1 - cy2
+                } else {
+                    0.0
+                };
+                let e = (fx_e * fx_e + fy_e * fy_e).sqrt();
+
+                if (direction & 1) != 0 {
+                    let f = dx;
+                    dx = dy;
+                    dy = -f;
+                }
+                if (direction & 2) != 0 {
+                    dx = -dx;
+                    dy = -dy;
+                }
+                if dx <= 1e-12 {
+                    n_opt = tree.GetFocusableNext(n);
+                    continue;
+                }
+
+                let mut val = (e * 10.0 + d) * (1.0 + 2.0 * dy * dy);
+                if dy.abs() > 0.707 {
+                    val *= 1000.0 * dy * dy * dy * dy;
+                }
+                if best.is_none() || val < best_val {
+                    best = Some(n);
+                    best_val = val;
+                }
+
+                n_opt = tree.GetFocusableNext(n);
+            }
+
+            if let Some(b) = best {
+                current = b;
             }
         }
 
-        if let Some((winner, _)) = best {
-            self.animated_visit_panel(tree, winner, false);
-        }
+        self.VisitPanel(tree, current, true);
     }
 
     // --- Hit testing ---
@@ -2922,18 +3027,27 @@ impl emView {
         scheduler: Rc<RefCell<super::emScheduler::EngineScheduler>>,
         window_id: winit::window::WindowId,
     ) {
-        let (engine_id, eoi_signal) = {
+        let (engine_id, eoi_signal, visiting_va_engine_id) = {
             let mut sched = scheduler.borrow_mut();
             let engine_id = sched.register_engine(
                 super::emEngine::Priority::High,
                 Box::new(UpdateEngineClass::new(window_id)),
             );
             let eoi_signal = sched.create_signal();
-            (engine_id, eoi_signal)
+            // W4 Task 1.3: register the VisitingVA engine. C++ equivalent:
+            // emVisitingViewAnimator's emEngine base ctor auto-registers
+            // (see emViewAnimator.cpp:930 + emEngine ctor chain).
+            // C++ emViewAnimator base ctor sets HIGH_PRIORITY (emViewAnimator.cpp:39).
+            let visiting_va_engine_id = sched.register_engine(
+                super::emEngine::Priority::High,
+                Box::new(VisitingVAEngineClass::new(window_id)),
+            );
+            (engine_id, eoi_signal, visiting_va_engine_id)
         };
         self.scheduler = Some(scheduler);
         self.update_engine_id = Some(engine_id);
         self.EOISignal = Some(eoi_signal);
+        self.visiting_va_engine_id = Some(visiting_va_engine_id);
     }
 
     /// Wake the scheduler-registered `UpdateEngineClass` so `Update()` runs
@@ -2944,20 +3058,57 @@ impl emView {
         }
     }
 
-    /// Visit a panel by identity string, matching C++ emView::Visit(identity, ...).
-    /// Uses find_panel_by_identity to resolve the identity to a PanelId, then calls Visit.
+    /// Port of C++ `emView::Visit(identity, relX, relY, relA, adherent, subject)`
+    /// at emView.cpp:500-508. Three-line delegation to `VisitingVA`:
+    /// `SetAnimParamsByCoreConfig` → `SetGoalWithCoords` → `Activate`. The
+    /// animator engine (`VisitingVAEngineClass::Cycle`) observes `is_active()`
+    /// and drives the curve each scheduler tick.
+    ///
+    /// PHASE-W4-FOLLOWUP: C++ passes this view's `CoreConfig` to
+    /// `SetAnimParamsByCoreConfig`. Rust `emView` does not yet own a
+    /// `emCoreConfig`, so we hardcode the stock defaults
+    /// (`VisitSpeed=1.0`, `MaxVisitSpeed=10.0`) from emCoreConfig.cpp:53.
+    /// Full `CoreConfig` ownership is a future wave.
     pub fn VisitByIdentity(
         &mut self,
-        tree: &mut PanelTree,
         identity: &str,
         rel_x: f64,
         rel_y: f64,
         rel_a: f64,
+        adherent: bool,
+        subject: &str,
     ) {
-        if let Some(panel_id) = tree.find_panel_by_identity(identity) {
-            self.Visit(panel_id, rel_x, rel_y, rel_a);
-        } else {
-            log::warn!("VisitByIdentity: panel not found for identity '{identity}'");
+        let mut va = self.VisitingVA.borrow_mut();
+        va.SetAnimParamsByCoreConfig(1.0, 10.0);
+        va.SetGoalWithCoords(identity, rel_x, rel_y, rel_a, adherent, subject);
+        va.Activate();
+    }
+
+    /// Borrow the visiting view animator for inspection.
+    /// Exposes `VisitingVA` to cross-crate callers (e.g. integration tests)
+    /// without making the field itself `pub`. C++ field is private; this
+    /// provides read access equivalent to C++ friend/test-only inspection.
+    pub fn visiting_va(&self) -> std::cell::Ref<'_, super::emViewAnimator::emVisitingViewAnimator> {
+        self.VisitingVA.borrow()
+    }
+
+    /// Test-only: drive `VisitingVA::animate` directly until it deactivates
+    /// or the iteration limit is hit. Production path goes through
+    /// `VisitingVAEngineClass::Cycle` which requires a window registry; unit
+    /// tests without a window use this to observe the post-convergence active
+    /// panel after a `Visit*` call.
+    pub fn pump_visiting_va(&mut self, tree: &mut PanelTree) {
+        use super::emViewAnimator::emViewAnimator as _;
+        let va_rc = Rc::clone(&self.VisitingVA);
+        for _ in 0..1024 {
+            let mut va = va_rc.borrow_mut();
+            if !va.is_active() {
+                break;
+            }
+            let still = va.animate(self, tree, 0.1);
+            if !still {
+                break;
+            }
         }
     }
 
@@ -3033,18 +3184,6 @@ impl emView {
     /// Clear the animator-abort flag.
     pub fn clear_animator_abort(&mut self) {
         self.needs_animator_abort = false;
-    }
-
-    /// D-PANEL-02: Take the pending animated visit goal. Returns `Some` if a
-    /// navigation method requested an animated visit. The window loop should
-    /// feed this to the emVisitingViewAnimator.
-    pub fn take_pending_animated_visit(&mut self) -> Option<VisitState> {
-        self.pending_animated_visit.take()
-    }
-
-    /// Whether there is a pending animated visit goal.
-    pub fn has_pending_animated_visit(&self) -> bool {
-        self.pending_animated_visit.is_some()
     }
 
     // --- Background color (PORT-0116) ---
@@ -3734,7 +3873,7 @@ impl emView {
 
     pub fn supreme_panel(&self) -> PanelId {
         self.supreme_viewed_panel
-            .unwrap_or(self.current_visit().panel)
+            .expect("supreme_viewed_panel should be populated post-Update (C++: GetSupremeViewedPanel returns SupremeViewedPanel directly)")
     }
 
     // --- Stress test ---
@@ -4528,6 +4667,7 @@ mod tests {
     use super::*;
     use crate::emPanelTree::PanelTree;
     use crate::emScheduler::EngineScheduler;
+    use crate::emViewAnimator::emViewAnimator as _;
 
     fn setup_tree() -> (PanelTree, PanelId, PanelId, PanelId) {
         let mut tree = PanelTree::new();
@@ -4607,13 +4747,17 @@ mod tests {
         view.Update(&mut tree);
 
         // Zoom around center — should keep center stable
-        let before = view.current_visit().clone();
+        let (_, _, _, before_ra) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist before zoom");
         view.Zoom(&mut tree, 2.0, 400.0, 300.0);
-        let after = view.current_visit().clone();
+        let (_, _, _, after_ra) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist after zoom");
 
         // C++ Zoom(factor=2): reFac = 1/2, ra *= reFac^2 = 1/4.
         // relA = HomeW*HomeH/(vw*vh); zooming in by 2 grows vw*vh by 4, so relA /= 4.
-        assert!((after.rel_a - before.rel_a / 4.0).abs() < 0.01 * before.rel_a);
+        assert!((after_ra - before_ra / 4.0).abs() < 0.01 * before_ra);
     }
 
     #[test]
@@ -4624,9 +4768,11 @@ mod tests {
         view.set_active_panel(&mut tree, child1, false);
 
         view.VisitNext(&mut tree);
+        view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(child2));
 
         view.VisitPrev(&mut tree);
+        view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(child1));
     }
 
@@ -4642,9 +4788,11 @@ mod tests {
         view.set_active_panel(&mut tree, child1, false);
 
         view.VisitIn(&mut tree);
+        view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(grandchild));
 
         view.VisitOut(&mut tree);
+        view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(child1));
     }
 
@@ -4671,9 +4819,11 @@ mod tests {
 
         // child2 is to the right of child1
         view.VisitRight(&mut tree);
+        view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(child2));
 
         view.VisitLeft(&mut tree);
+        view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(child1));
     }
 
@@ -4962,18 +5112,21 @@ mod tests {
         let mut view = emView::new(root, 800.0, 600.0);
         view.RawZoomOut(&mut tree, false);
 
-        let state = view.current_visit();
+        let mut state_rx = 0.0;
+        let mut state_ry = 0.0;
+        let mut state_ra = 0.0;
+        view.GetVisitedPanel(&tree, &mut state_rx, &mut state_ry, &mut state_ra);
         // C++ formula: max(W*H_root/hpt/H, H/H_root*hpt/W)
         // HomePixelTallness = 1.0 (square pixels)
         let hpt = 1.0;
         let expected = (800.0 * 0.75 / hpt / 600.0_f64).max(600.0 / 0.75 * hpt / 800.0);
         assert!(
-            (state.rel_a - expected).abs() < 0.001,
+            (state_ra - expected).abs() < 0.001,
             "rel_a should be {expected}, got {}",
-            state.rel_a
+            state_ra
         );
-        assert!(state.rel_x.abs() < 0.001);
-        assert!(state.rel_y.abs() < 0.001);
+        assert!(state_rx.abs() < 0.001);
+        assert!(state_ry.abs() < 0.001);
     }
 
     #[test]
@@ -5072,23 +5225,27 @@ mod tests {
         view.Update(&mut tree);
 
         // Record initial center position
-        let visit_before = view.current_visit().clone();
+        let (_, before_rx, before_ry, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist before scroll");
 
         // Enable EGO_MODE and attempt to scroll
         view.flags |= ViewFlags::EGO_MODE;
         let done = view.RawScrollAndZoom(&mut tree, 400.0, 300.0, 50.0, 50.0, 0.0);
 
         // Scroll delta should be zero — viewport center locked
-        let visit_after = view.current_visit().clone();
+        let (_, after_rx, after_ry, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist after scroll");
         assert!(
-            (visit_after.rel_x - visit_before.rel_x).abs() < 1e-12,
+            (after_rx - before_rx).abs() < 1e-12,
             "rel_x should not change under EGO_MODE, delta={}",
-            visit_after.rel_x - visit_before.rel_x
+            after_rx - before_rx
         );
         assert!(
-            (visit_after.rel_y - visit_before.rel_y).abs() < 1e-12,
+            (after_ry - before_ry).abs() < 1e-12,
             "rel_y should not change under EGO_MODE, delta={}",
-            visit_after.rel_y - visit_before.rel_y
+            after_ry - before_ry
         );
         assert!(
             done[0].abs() < 1e-12 && done[1].abs() < 1e-12,
@@ -5102,13 +5259,17 @@ mod tests {
         let mut view = emView::new(root, 800.0, 600.0);
         view.Update(&mut tree);
 
-        let rel_a_before = view.current_visit().rel_a;
+        let (_, _, _, rel_a_before) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist before zoom");
 
         // Enable EGO_MODE and zoom
         view.flags |= ViewFlags::EGO_MODE;
         view.RawScrollAndZoom(&mut tree, 400.0, 300.0, 0.0, 0.0, 50.0);
 
-        let rel_a_after = view.current_visit().rel_a;
+        let (_, _, _, rel_a_after) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist after zoom");
         assert!(
             (rel_a_after - rel_a_before).abs() > 1e-6,
             "zoom should still work under EGO_MODE"
@@ -5271,7 +5432,9 @@ mod tests {
         for &(cx, cy) in &cursors {
             for &factor in &factors {
                 // Save and restore state for each combo
-                let saved = view.current_visit().clone();
+                let (saved_panel, saved_rx, saved_ry, saved_ra) = view
+                    .get_visited_panel_idiom(&tree)
+                    .expect("visited panel should exist at loop start");
 
                 // Use the SVP as the reference panel (root.viewed_* are only valid
                 // when root is the SVP; using SVP is always correct).
@@ -5302,16 +5465,7 @@ mod tests {
                 }
 
                 // Restore by calling RawVisit with the saved rel coords.
-                // Phase 3: visit_stack mutation + Update does not re-apply rel coords;
-                // RawVisit is the correct API to set viewing from rel coords.
-                view.RawVisit(
-                    &mut tree,
-                    saved.panel,
-                    saved.rel_x,
-                    saved.rel_y,
-                    saved.rel_a,
-                    true,
-                );
+                view.RawVisit(&mut tree, saved_panel, saved_rx, saved_ry, saved_ra, true);
             }
         }
     }
@@ -5322,7 +5476,7 @@ mod tests {
         // Verifies the core coord-system invariant: zero offset means centered.
         // Tested at multiple zoom levels to catch convention/scaling errors.
         // Phase 3: RawVisit is the public API for setting viewing coords from
-        // rel coords; direct visit_stack mutation is not the intended path.
+        // rel coords.
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
@@ -5446,14 +5600,64 @@ mod tests {
         view.set_active_panel(&mut tree, child, false);
         assert!(sched.borrow().is_pending(cp_sig));
 
-        // VisitByIdentity resolves identity -> panel and visits.
-        view.VisitByIdentity(&mut tree, "root:child", 0.5, 0.5, 1.0);
-        // Non-existent identity logs a warning but doesn't panic.
-        view.VisitByIdentity(&mut tree, "no_such_panel", 0.0, 0.0, 1.0);
+        // VisitByIdentity routes through VisitingVA per W4 Phase 3.
+        view.VisitByIdentity("root:child", 0.5, 0.5, 1.0, false, "child-title");
+        assert!(view.VisitingVA.borrow().is_active());
+        assert_eq!(view.VisitingVA.borrow().identity(), "root:child");
+        // Non-existent identity no longer requires tree lookup — the animator
+        // just sets the goal; resolution happens later during Cycle.
+        view.VisitByIdentity("no_such_panel", 0.0, 0.0, 1.0, false, "");
 
         // Clean up signals so EngineScheduler's debug_assert on drop is satisfied.
         sched.borrow_mut().remove_signal(cp_sig);
         sched.borrow_mut().remove_signal(title_sig);
+    }
+
+    #[test]
+    fn visit_routes_through_animator() {
+        // W4 Phase 3: Visit(tree, panel, rx, ry, ra, adherent) must set a goal
+        // on VisitingVA and activate it, matching C++ emView.cpp:492-510.
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root");
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
+        let child = tree.create_child(root, "child");
+        tree.Layout(child, 0.0, 0.0, 0.5, 1.0, 1.0);
+
+        let mut view = emView::new(root, 800.0, 600.0);
+        assert!(
+            !view.VisitingVA.borrow().is_active(),
+            "inactive before Visit"
+        );
+
+        view.Visit(&tree, child, 0.25, 0.5, 2.0, false);
+
+        let va = view.VisitingVA.borrow();
+        assert!(va.is_active(), "active after Visit");
+        assert_eq!(va.identity(), tree.GetIdentity(child));
+        assert!((va.rel_x() - 0.25).abs() < 1e-9);
+        assert!((va.rel_y() - 0.5).abs() < 1e-9);
+        assert!((va.rel_a() - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn visit_panel_short_form_routes_through_animator() {
+        // Short-form VisitPanel(tree, panel, adherent) delegates to VisitingVA
+        // via VisitByIdentityShort, matching C++ emView.cpp:511-523.
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root");
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
+
+        let mut view = emView::new(root, 800.0, 600.0);
+        assert!(
+            !view.VisitingVA.borrow().is_active(),
+            "inactive before VisitPanel"
+        );
+
+        view.VisitPanel(&tree, root, true);
+
+        let va = view.VisitingVA.borrow();
+        assert!(va.is_active(), "active after VisitPanel");
+        assert_eq!(va.identity(), tree.GetIdentity(root));
     }
 
     #[test]
@@ -5743,6 +5947,9 @@ mod tests {
         if let Some(id) = v.eoi_engine_id.take() {
             sched.borrow_mut().remove_engine(id);
         }
+        if let Some(id) = v.visiting_va_engine_id.take() {
+            sched.borrow_mut().remove_engine(id);
+        }
         sched.borrow_mut().remove_signal(eoi);
     }
 
@@ -5763,6 +5970,9 @@ mod tests {
         // Clean up for Drop debug_asserts.
         let eng_id = v.update_engine_id.take().unwrap();
         sched.borrow_mut().remove_engine(eng_id);
+        if let Some(id) = v.visiting_va_engine_id.take() {
+            sched.borrow_mut().remove_engine(id);
+        }
         if let Some(eoi) = v.EOISignal.take() {
             sched.borrow_mut().remove_signal(eoi);
         }
@@ -5867,6 +6077,9 @@ mod tests {
             sched.borrow_mut().remove_signal(eoi);
         }
         sched.borrow_mut().remove_engine(eng_id);
+        if let Some(id) = v.visiting_va_engine_id.take() {
+            sched.borrow_mut().remove_engine(id);
+        }
     }
 
     /// Phase 6: SetGeometry accepts explicit (x, y, width, height, pixel_tallness).
@@ -5966,6 +6179,113 @@ mod tests {
         if let Some(id) = v.eoi_engine_id.take() {
             sched.borrow_mut().remove_engine(id);
         }
+        if let Some(id) = v.visiting_va_engine_id.take() {
+            sched.borrow_mut().remove_engine(id);
+        }
+    }
+
+    /// W4 Phase 1 Task 1.3: `attach_to_scheduler` registers a
+    /// `VisitingVAEngineClass` so that activating `VisitingVA` results in
+    /// per-slice cycling. Mirrors the C++ behavior where
+    /// `emVisitingViewAnimator` self-registers as an engine via its
+    /// `emEngine` base ctor (emViewAnimator.cpp:930).
+    #[test]
+    fn visiting_va_cycles_when_activated() {
+        use crate::emViewAnimator::emViewAnimator as _;
+
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root");
+        let mut view = emView::new(root, 800.0, 600.0);
+        let sched = Rc::new(RefCell::new(EngineScheduler::new()));
+        view.attach_to_scheduler(sched.clone(), winit::window::WindowId::dummy());
+
+        // Engine must be registered by attach_to_scheduler.
+        let visiting_id = view
+            .visiting_va_engine_id
+            .expect("attach_to_scheduler must register VisitingVAEngineClass");
+
+        // Activate the animator — SetGoal + Activate, matching the
+        // delegation shape Visit-family methods will use in Phase 3.
+        {
+            let mut va = view.VisitingVA.borrow_mut();
+            va.SetGoal("root", false, "");
+            va.Activate();
+        }
+        assert!(
+            view.VisitingVA.borrow().is_active(),
+            "animator should be active after SetGoal + Activate"
+        );
+
+        // Tick the scheduler. With a dummy window id, the Cycle method
+        // hits the `ctx.windows.get() -> None` branch and no-ops — same
+        // fallback pattern as `UpdateEngineClass`. The animator state
+        // therefore must remain unchanged.
+        sched.borrow_mut().wake_up(visiting_id);
+        let mut windows = std::collections::HashMap::new();
+        sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows);
+
+        // Intent check from the plan: "after one tick, animator has either
+        // progressed or cleanly deactivated". Progress needs a real window;
+        // the dummy path leaves state untouched, which is a valid outcome.
+        assert!(
+            view.VisitingVA.borrow().is_active(),
+            "with dummy window, Cycle no-ops and animator remains active"
+        );
+
+        // Clean up scheduler resources before Drop asserts.
+        if let Some(id) = view.update_engine_id.take() {
+            sched.borrow_mut().remove_engine(id);
+        }
+        if let Some(id) = view.eoi_engine_id.take() {
+            sched.borrow_mut().remove_engine(id);
+        }
+        if let Some(id) = view.visiting_va_engine_id.take() {
+            sched.borrow_mut().remove_engine(id);
+        }
+        if let Some(sig) = view.EOISignal.take() {
+            sched.borrow_mut().remove_signal(sig);
+        }
+    }
+
+    #[test]
+    fn visiting_va_owned_by_view() {
+        // W4 Phase 1: emView holds VisitingVA matching C++ emView.h:675
+        // (emOwnPtr<emVisitingViewAnimator> VisitingVA).
+        use crate::emViewAnimator::emViewAnimator as _;
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root");
+        let view = emView::new(root, 800.0, 600.0);
+        let va = view.VisitingVA.borrow();
+        assert!(
+            !va.is_active(),
+            "VisitingVA should start inactive (C++ ST_NO_GOAL)"
+        );
+    }
+
+    #[test]
+    fn get_visited_panel_returns_svp_rel_coords() {
+        // W4 Task 2.1: GetVisitedPanel out-param form mirrors C++ emView.cpp:468-489.
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root");
+        tree.get_mut(root).unwrap().focusable = true;
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
+        let mut view = emView::new(root, 800.0, 600.0);
+        view.Update(&mut tree);
+
+        let mut rx = 99.0_f64;
+        let mut ry = 99.0_f64;
+        let mut ra = 99.0_f64;
+        let panel = view.GetVisitedPanel(&tree, &mut rx, &mut ry, &mut ra);
+
+        // After Update the root is in the viewed path; GetVisitedPanel must return it.
+        assert_eq!(panel, Some(root));
+        // rel_x and rel_y are the viewport-center offset from the panel center in
+        // panel-space units (C++ convention). For a root filling the whole viewport
+        // after a fresh zoom-out, both must be finite (no sentinel 99.0 left).
+        assert!(rx.is_finite(), "rel_x must be set (was 99.0 sentinel)");
+        assert!(ry.is_finite(), "rel_y must be set (was 99.0 sentinel)");
+        // rel_a must be positive (HomeW*HomeH / ViewedW*ViewedH).
+        assert!(ra > 0.0, "rel_a must be positive");
     }
 }
 

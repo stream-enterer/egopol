@@ -182,16 +182,13 @@ impl emMainWindow {
             if let Some(rc) = self.window_id.and_then(|id| app.windows.get(&id)) {
                 let win = rc.borrow();
                 let view = win.view();
-                let visit = view.current_visit();
-                let identity = app.tree.GetIdentity(visit.panel);
+                let mut rel_x = 0.0;
+                let mut rel_y = 0.0;
+                let mut rel_a = 0.0;
+                let panel_opt = view.GetVisitedPanel(&app.tree, &mut rel_x, &mut rel_y, &mut rel_a);
+                let identity = panel_opt.map(|p| app.tree.GetIdentity(p));
                 let adherent = view.IsActivationAdherent();
-                (
-                    Some(identity),
-                    visit.rel_x,
-                    visit.rel_y,
-                    visit.rel_a,
-                    adherent,
-                )
+                (identity, rel_x, rel_y, rel_a, adherent)
             } else {
                 (None, 0.0, 0.0, 0.0, false)
             };
@@ -635,7 +632,7 @@ impl emEngine for StartupEngine {
                             if self.visit_valid {
                                 use emcore::emViewAnimator::emVisitingViewAnimator;
                                 let mut animator = emVisitingViewAnimator::new(0.0, 0.0, 0.0, 1.0);
-                                animator.set_goal_rel(
+                                animator.SetGoalWithCoords(
                                     &self.visit_identity,
                                     self.visit_rel_x,
                                     self.visit_rel_y,
@@ -709,7 +706,7 @@ impl emEngine for StartupEngine {
                     // VisitingViewAnimator with the goal).
                     use emcore::emViewAnimator::emVisitingViewAnimator;
                     let mut animator = emVisitingViewAnimator::new(0.0, 0.0, 0.0, 1.0);
-                    animator.set_goal_rel(
+                    animator.SetGoalWithCoords(
                         &self.visit_identity,
                         self.visit_rel_x,
                         self.visit_rel_y,
@@ -1043,11 +1040,23 @@ fn RecreateContentPanels(app: &mut App) {
     app.tree
         .with_behavior_as::<emSubViewPanel, _>(content_view_id, |svp| {
             // Save current visit state (C++ emMainWindow.cpp:297-301).
-            let visit = svp.GetSubView().current_visit();
-            let identity = svp.sub_tree().GetIdentity(visit.panel);
-            let rel_x = visit.rel_x;
-            let rel_y = visit.rel_y;
-            let rel_a = visit.rel_a;
+            let mut rel_x = 0.0;
+            let mut rel_y = 0.0;
+            let mut rel_a = 0.0;
+            let panel_opt = svp.GetSubView().GetVisitedPanel(
+                svp.sub_tree(),
+                &mut rel_x,
+                &mut rel_y,
+                &mut rel_a,
+            );
+            let identity = panel_opt
+                .map(|p| svp.sub_tree().GetIdentity(p))
+                .unwrap_or_default();
+            // C++ emMainWindow.cpp:297, 301, 304 — snapshot title+adherent
+            // before the content panel is rebuilt, then feed them back into
+            // the Visit call afterward.
+            let title = svp.GetSubView().GetTitle().to_string();
+            let adherent = svp.GetSubView().IsActivationAdherent();
 
             // Delete old content panel(s) — remove all children of sub-tree root
             // (C++ emMainWindow.cpp:302).
@@ -1064,7 +1073,7 @@ fn RecreateContentPanels(app: &mut App) {
             sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 1.0, 1.0);
 
             // Restore visit (C++ emMainWindow.cpp:304).
-            svp.visit_by_identity(&identity, rel_x, rel_y, rel_a);
+            svp.visit_by_identity(&identity, rel_x, rel_y, rel_a, adherent, &title);
         });
 
     log::info!("emMainWindow::RecreateContentPanels — content panels recreated");

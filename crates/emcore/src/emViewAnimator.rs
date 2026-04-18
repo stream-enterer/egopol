@@ -712,6 +712,32 @@ impl emVisitingViewAnimator {
         }
     }
 
+    /// Constructor matching C++ `emVisitingViewAnimator::emVisitingViewAnimator(emView & view)`
+    /// at `emViewAnimator.cpp:930`. Initializes to ST_NO_GOAL / inactive.
+    pub fn new_for_view() -> Self {
+        Self {
+            animated: false,
+            acceleration: 5.0,
+            max_cusp_speed: 2.0,
+            max_absolute_speed: 5.0,
+            state: VisitingState::NoGoal,
+            visit_type: VisitType::Visit,
+            identity: String::new(),
+            names: Vec::new(),
+            rel_x: 0.0,
+            rel_y: 0.0,
+            rel_a: 0.0,
+            adherent: false,
+            utilize_view: false,
+            subject: String::new(),
+            active: false,
+            max_depth_seen: -1,
+            speed: 0.0,
+            time_slices_without_hope: 0,
+            give_up_clock: 0.0,
+        }
+    }
+
     /// Configure animation parameters from a speed config value.
     ///
     /// Mirrors C++ `emVisitingViewAnimator::SetAnimParamsByCoreConfig`.
@@ -760,8 +786,11 @@ impl emVisitingViewAnimator {
         self.activate_goal(identity);
     }
 
-    /// Set goal: visit panel at explicit relative coordinates.
-    pub fn set_goal_rel(
+    /// Port of C++ `emVisitingViewAnimator::SetGoal(identity, relX, relY, relA, adherent, subject)`
+    /// at `emViewAnimator.cpp:1001-1007`.
+    /// DIVERGED: C++ name is `SetGoal` (6-arg overload). Rust cannot overload by arity;
+    /// 3-arg variant keeps bare `SetGoal`, coords-carrying variant suffixed with `WithCoords`.
+    pub fn SetGoalWithCoords(
         &mut self,
         identity: &str,
         rel_x: f64,
@@ -778,6 +807,24 @@ impl emVisitingViewAnimator {
         self.utilize_view = false;
         self.subject = subject.to_string();
         self.activate_goal(identity);
+    }
+
+    /// Goal relative X coordinate (visit-rel mode).
+    /// C++ equivalent: `emVisitingViewAnimator::GetRelX` (public accessor).
+    pub fn rel_x(&self) -> f64 {
+        self.rel_x
+    }
+
+    /// Goal relative Y coordinate (visit-rel mode).
+    /// C++ equivalent: `emVisitingViewAnimator::GetRelY` (public accessor).
+    pub fn rel_y(&self) -> f64 {
+        self.rel_y
+    }
+
+    /// Goal relative area coordinate (visit-rel mode).
+    /// C++ equivalent: `emVisitingViewAnimator::GetRelA` (public accessor).
+    pub fn rel_a(&self) -> f64 {
+        self.rel_a
     }
 
     /// Set goal: visit panel fullsized.
@@ -808,6 +855,15 @@ impl emVisitingViewAnimator {
             self.time_slices_without_hope = 0;
             self.give_up_clock = 0.0;
         }
+    }
+
+    /// Start animating toward the current goal. Mirrors C++
+    /// `emVisitingViewAnimator::Activate` (emViewAnimator.cpp:1040), which in
+    /// C++ wakes the engine via the base class. In Rust the wrapper engine
+    /// `VisitingVAEngineClass` (see `emView.rs`) observes `is_active()` and
+    /// dispatches the cycle.
+    pub fn Activate(&mut self) {
+        self.active = true;
     }
 
     /// Clear the goal and stop animation.
@@ -2735,14 +2791,19 @@ mod tests {
     fn kinetic_with_zoom() {
         let (mut tree, mut view) = setup();
         view.Update(&mut tree);
-        let initial_a = view.current_visit().rel_a;
+        let (_, _, _, initial_a) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist at initial state");
 
         let mut anim = emKineticViewAnimator::new(0.0, 0.0, 100.0, 1000.0);
         // friction_enabled defaults to false — just test that zoom scroll works
         anim.animate(&mut view, &mut tree, 0.1);
 
         // Zoom velocity should have changed rel_a (dz = 100 * 0.1 = 10)
-        assert!((view.current_visit().rel_a - initial_a).abs() > 0.001);
+        let (_, _, _, final_a) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist after animation");
+        assert!((final_a - initial_a).abs() > 0.001);
     }
 
     #[test]
@@ -2839,7 +2900,9 @@ mod tests {
     fn speeding_delegates_to_kinetic() {
         let (mut tree, mut view) = setup();
         view.Update(&mut tree);
-        let initial_a = view.current_visit().rel_a;
+        let (_, _, _, initial_a) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist at initial state");
 
         let mut anim = emSpeedingViewAnimator::new(1000.0);
         anim.SetTargetVelocity(0.0, 0.0, 2.0);
@@ -2850,7 +2913,10 @@ mod tests {
         }
 
         // Inner kinetic should have applied zoom via raw_scroll_and_zoom
-        assert!((view.current_visit().rel_a - initial_a).abs() > 0.001);
+        let (_, _, _, final_a) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist after animation");
+        assert!((final_a - initial_a).abs() > 0.001);
     }
 
     #[test]
@@ -2908,8 +2974,10 @@ mod tests {
         view.Update(&mut tree);
 
         // Target is the root at current coords — should reach goal quickly
-        let state = view.current_visit().clone();
-        let mut anim = emVisitingViewAnimator::new(state.rel_x, state.rel_y, state.rel_a, 5.0);
+        let (_, state_rx, state_ry, state_ra) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist at initial state");
+        let mut anim = emVisitingViewAnimator::new(state_rx, state_ry, state_ra, 5.0);
         anim.set_identity("root", "");
         anim.SetAnimated(true);
         anim.SetAcceleration(5.0);
@@ -3345,29 +3413,18 @@ mod tests {
         // not move: get_distance_to must return 0 at the current position.
         // Also verifies that viewed_x is consistent with the visit state
         // (catches correlated errors between Update and get_distance_to).
-        //
-        // factor=1.0 is excluded — known Rust-vs-C++ design gap, tracked below.
-        //
-        // KNOWN GAP (tracked in visit-stack rewrite): At factor=1.0, root-centering
-        // (C++ emView.cpp:1588-1626) clamps viewed_x=0 regardless of the
-        // visit-stack rel_x value.  Rust's visit stack stores rel_x explicitly
-        // (it has no C++ analogue — C++ derives rel coords on-the-fly from
-        // ViewedX/Y each time).  Because the clamp discards the visit-stack
-        // rel_x, the Rust animator sees a nonzero get_distance_to even when
-        // "at target", breaking the invariant.  This is a Rust-only artefact
-        // that does not exist in C++.  The visit-stack rewrite should
-        // re-examine whether Rust should derive rel coords from ViewedX/Y on
-        // every read (matching C++ semantics) instead of storing them.
-        for &factor in &[2.0, 4.0, 16.0, 100.0] {
+        for &factor in &[1.0, 2.0, 4.0, 16.0, 100.0] {
             let (mut tree, mut view) = setup_scrolled(factor);
             let root = view.GetRootPanel();
 
-            let state = view.current_visit().clone();
+            let (_, state_rx, state_ry, state_ra) = view
+                .get_visited_panel_idiom(&tree)
+                .expect("visited panel should exist at initial state");
             let viewed_x_before = tree.GetRec(root).unwrap().viewed_x;
             let viewed_y_before = tree.GetRec(root).unwrap().viewed_y;
 
             // Create animator targeting exactly the current state
-            let mut anim = emVisitingViewAnimator::new(state.rel_x, state.rel_y, state.rel_a, 0.0);
+            let mut anim = emVisitingViewAnimator::new(state_rx, state_ry, state_ra, 0.0);
             anim.set_identity("root", "");
             anim.SetAnimated(true);
             anim.SetAcceleration(5.0);
@@ -3376,26 +3433,28 @@ mod tests {
             // Drive several steps — view should not move
             for step in 0..10 {
                 anim.animate(&mut view, &mut tree, 1.0 / 60.0);
-                let after = view.current_visit();
+                let (_, after_rx, after_ry, after_ra) = view
+                    .get_visited_panel_idiom(&tree)
+                    .expect("visited panel should exist at step");
                 assert!(
-                    (after.rel_x - state.rel_x).abs() < 1e-10,
+                    (after_rx - state_rx).abs() < 1e-10,
                     "factor={factor} step={step}: rel_x moved from {:.15e} to {:.15e}",
-                    state.rel_x,
-                    after.rel_x
+                    state_rx,
+                    after_rx
                 );
                 assert!(
-                    (after.rel_y - state.rel_y).abs() < 1e-10,
+                    (after_ry - state_ry).abs() < 1e-10,
                     "factor={factor} step={step}: rel_y moved from {:.15e} to {:.15e}",
-                    state.rel_y,
-                    after.rel_y
+                    state_ry,
+                    after_ry
                 );
                 // Tolerance scales with rel_a magnitude (higher zoom = larger absolute drift).
-                let a_tol = 1e-10 * state.rel_a.max(1.0);
+                let a_tol = 1e-10 * state_ra.max(1.0);
                 assert!(
-                    (after.rel_a - state.rel_a).abs() < a_tol,
+                    (after_ra - state_ra).abs() < a_tol,
                     "factor={factor} step={step}: rel_a moved from {:.15e} to {:.15e} (tol={a_tol:.3e})",
-                    state.rel_a,
-                    after.rel_a
+                    state_ra,
+                    after_ra
                 );
             }
 
@@ -3767,5 +3826,34 @@ mod kani_private_proofs {
     #[kani::proof]
     fn l3_get_direct_dist_zero_at_origin() {
         assert_eq!(get_direct_dist(0.0, 0.0), 0.0);
+    }
+}
+
+#[cfg(test)]
+mod constructor_tests {
+    use super::*;
+
+    #[test]
+    fn new_for_view_matches_cpp_initial_state() {
+        // C++ emViewAnimator.cpp:930-948 initializes:
+        //   Animated=false, Acceleration=5.0, MaxCuspSpeed=2.0, MaxAbsoluteSpeed=5.0
+        //   State=ST_NO_GOAL, VisitType=VT_VISIT, RelX=RelY=RelA=0
+        //   Adherent=false, UtilizeView=false, MaxDepthSeen=-1, Speed=0.0
+        //   IsActive()=false (SetDeactivateWhenIdle + no Activate call yet).
+        let va = emVisitingViewAnimator::new_for_view();
+        assert!(!va.animated);
+        assert_eq!(va.acceleration, 5.0);
+        assert_eq!(va.max_cusp_speed, 2.0);
+        assert_eq!(va.max_absolute_speed, 5.0);
+        assert_eq!(va.state, VisitingState::NoGoal);
+        assert_eq!(va.visit_type, VisitType::Visit);
+        assert_eq!(va.rel_x, 0.0);
+        assert_eq!(va.rel_y, 0.0);
+        assert_eq!(va.rel_a, 0.0);
+        assert!(!va.adherent);
+        assert!(!va.utilize_view);
+        assert_eq!(va.max_depth_seen, -1);
+        assert_eq!(va.speed, 0.0);
+        assert!(!va.active);
     }
 }

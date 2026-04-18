@@ -1257,10 +1257,6 @@ impl emViewInputFilter for emKeyboardZoomScrollVIF {
                         self.key_state.insert(KeyState::ZOOM_OUT);
                         return true;
                     }
-                    InputKey::Home => {
-                        view.go_home();
-                        return true;
-                    }
                     _ => {}
                 },
                 InputVariant::Release => match event.key {
@@ -1649,7 +1645,7 @@ impl TouchTracker {
                     let x = self.touches[0].down_x;
                     let y = self.touches[0].down_y;
                     if let Some(panel) = view.GetFocusablePanelAt(tree, x, y) {
-                        view.VisitFullsized(tree, panel);
+                        view.VisitFullsized(tree, panel, true, false);
                     }
                     self.gesture_state = GestureState::Finish;
                 }
@@ -1672,8 +1668,7 @@ impl TouchTracker {
                     let x = self.touches[0].down_x;
                     let y = self.touches[0].down_y;
                     if let Some(panel) = view.GetFocusablePanelAt(tree, x, y) {
-                        let (rx, ry, ra) = view.CalcVisitFullsizedCoords(tree, panel, true);
-                        view.Visit(panel, rx, ry, ra);
+                        view.VisitFullsized(tree, panel, true, true);
                     }
                     self.gesture_state = GestureState::Finish;
                 }
@@ -2571,8 +2566,9 @@ mod tests {
         let root = view.GetRootPanel();
         tree.set_focusable(root, true);
         view.Update(&mut tree);
-        let rx_before = view.current_visit().rel_x;
-        let ry_before = view.current_visit().rel_y;
+        let (_, rx_before, ry_before, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist before gesture");
 
         let mut vif = emDefaultTouchVIF::new();
         vif.touch_start(1, 100.0, 100.0, &mut view, &mut tree);
@@ -2580,8 +2576,9 @@ mod tests {
         vif.touch_move(1, 110.0, 100.0, 0.016, &mut view, &mut tree);
 
         // With old system suppressed, view should NOT have scrolled
-        let rx_after = view.current_visit().rel_x;
-        let ry_after = view.current_visit().rel_y;
+        let (_, rx_after, ry_after, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist after gesture");
         assert!(
             (rx_after - rx_before).abs() < 1e-12 && (ry_after - ry_before).abs() < 1e-12,
             "View scrolled during dead zone — old SingleTouch not suppressed \
@@ -2719,6 +2716,9 @@ mod tests {
     fn test_navigate_by_program() {
         let (mut tree, mut view) = setup();
         view.Update(&mut tree);
+        // Zoom in so Scroll is not clamped by zoom-out root-centering.
+        view.Zoom(&mut tree, 4.0, 400.0, 300.0);
+        view.Update(&mut tree);
         let mut vif = emKeyboardZoomScrollVIF::new();
 
         let mut state = emInputState::new();
@@ -2734,10 +2734,14 @@ mod tests {
         assert!(vif.navigate_by_program(&event2, &state, &mut view, &mut tree));
 
         // Step 3: Shift+Alt+Right (scroll right)
-        let before = view.current_visit().rel_x;
+        let (_, before, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel before scroll");
         let event3 = emInputEvent::press(InputKey::ArrowRight);
         assert!(vif.navigate_by_program(&event3, &state, &mut view, &mut tree));
-        let after = view.current_visit().rel_x;
+        let (_, after, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel after scroll");
         assert!(after > before, "Should have scrolled right");
     }
 
@@ -2768,18 +2772,26 @@ mod tests {
     fn test_keyboard_continuous_animation() {
         let (mut tree, mut view) = setup();
         view.Update(&mut tree);
+        // Zoom in so the per-frame scroll deltas are observable via
+        // get_visited_panel_idiom (otherwise root-centering clamps rel_x=0).
+        view.Zoom(&mut tree, 4.0, 400.0, 300.0);
+        view.Update(&mut tree);
 
         let mut vif = emKeyboardZoomScrollVIF::new();
         vif.key_state.insert(KeyState::RIGHT);
 
-        let before = view.current_visit().rel_x;
+        let (_, before, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel before animate");
 
         // Animate several frames
         for _ in 0..10 {
             vif.animate(&mut view, &mut tree, 0.016);
         }
 
-        let after = view.current_visit().rel_x;
+        let (_, after, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel after animate");
         assert!(after > before, "Continuous animation should scroll right");
     }
 
@@ -2821,12 +2833,16 @@ mod tests {
         vif.set_animator_params(1.0, 0.25, 1.0, 1.0, zflpp);
         vif.key_state.insert(KeyState::ZOOM_IN);
 
-        let before = view.current_visit().rel_a;
+        let (_, _, _, before) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist before zoom animation");
         for _ in 0..20 {
             vif.animate(&mut view, &mut tree, 0.016);
         }
 
-        let after = view.current_visit().rel_a;
+        let (_, _, _, after) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel should exist after zoom animation");
         // rel_a uses C++ convention: HomeW*HomeH/(vw*vh). Zooming IN enlarges vw*vh,
         // so rel_a DECREASES when zooming in.
         assert!(after < before, "Should have zoomed in");
@@ -2857,6 +2873,10 @@ mod tests {
     fn test_touch_single_pan() {
         let (mut tree, mut view) = setup();
         view.Update(&mut tree);
+        // Zoom in so the pan motion is observable via get_visited_panel_idiom
+        // (otherwise root-centering clamps rel_x=0).
+        view.Zoom(&mut tree, 4.0, 400.0, 300.0);
+        view.Update(&mut tree);
 
         let mut vif = emDefaultTouchVIF::new();
         assert_eq!(vif.state(), TouchState::Idle);
@@ -2868,9 +2888,13 @@ mod tests {
 
         // Touch move past 20px dead zone — gesture machine transitions
         // FirstDown→Scroll and handles scrolling via do_gesture.
-        let before = view.current_visit().rel_x;
+        let (_, before, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel before touch_move");
         vif.touch_move(1, 130.0, 100.0, 0.016, &mut view, &mut tree);
-        let after = view.current_visit().rel_x;
+        let (_, after, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel after touch_move");
         assert!(
             after != before,
             "Single touch should pan after 20px dead zone"
