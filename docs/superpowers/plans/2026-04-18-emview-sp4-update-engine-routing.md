@@ -1,10 +1,10 @@
-# SP4 Implementation Plan — emView::Update engine-only routing + Phase-8 test promotion
+# SP4 Implementation Plan — emView::Update engine-only routing + scheduler-op deferral
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Align Rust `emView::Update` dispatch with C++'s single-caller model, dissolve the scheduler re-entrant borrow by caching the popup-close signal state in `UpdateEngineClass::Cycle`, and promote `test_phase8_popup_close_signal_zooms_out` to a single-engine end-to-end run.
+**Goal:** Align Rust `emView::Update` dispatch with C++'s single-caller model, eliminate ALL re-entrant scheduler-borrow hazards across Update's call tree (not just the one known site) via a per-view deferred-ops queue, and promote `test_phase8_popup_close_signal_zooms_out` to a single-engine end-to-end run.
 
-**Architecture:** The fix is structural, not additive. Three C++ divergences drive today's latent re-entrant-borrow panic: (i) `emGUIFramework::about_to_wait:594` calls `view.update(tree)` directly every frame, bypassing `UpdateEngineClass::Cycle`; (ii) `attach_to_scheduler` omits the ctor-time `WakeUpUpdateEngine` that C++ does at `emView.cpp:84`; (iii) `emView::Update` reaches back through `self.scheduler.borrow()` to probe the popup close signal. Fixing (i)+(ii) makes Rust match C++'s single-caller model. Fixing (iii) exploits that `UpdateEngineClass::Cycle` already holds an `&mut EngineCtx` — we pre-compute `ctx.IsSignaled(close_sig)` there, stash it in a new `emView::close_signal_pending` field, and let `Update` read and clear it. No `Update` signature change; no cascade into the 141 call sites.
+**Architecture:** Three C++ divergences drive today's latent re-entrant-borrow panics: (i) `emGUIFramework::about_to_wait:594` calls `view.update(tree)` directly every frame, bypassing `UpdateEngineClass::Cycle`; (ii) `attach_to_scheduler` omits the ctor-time `WakeUpUpdateEngine` C++ does at `emView.cpp:84`; (iii) ~10 `self.scheduler.borrow_mut()` sites in `emView.rs` are reached from Update's descendants, any of which would panic once Update runs inside `DoTimeSlice`. Fix (i)+(ii) to match C++ single-caller model. Fix (iii) by converting every scheduler-borrow site in `emView.rs` to a `queue_or_apply_sched_op` helper that uses `try_borrow_mut` to detect whether the scheduler is already held: if free (non-engine path), apply inline; if held (inside DoTimeSlice), push onto `emView::pending_sched_ops`. `UpdateEngineClass::Cycle` drains the queue via its `EngineCtx` immediately after `Update` returns — same time slice, observationally equivalent to C++'s inline scheduler writes.
 
 **Tech Stack:** Rust 2021; `slotmap`, `winit`, `wgpu`; existing `emcore` + `eaglemode` crate split; `cargo-nextest` + `cargo test --test golden`.
 
@@ -14,10 +14,10 @@
 
 ## File map
 
-- **Modify** `crates/emcore/src/emView.rs` — add `close_signal_pending` field; modify `UpdateEngineClass::Cycle`; replace popup-close probe in `Update`; add wake at end of `attach_to_scheduler`; append `SetActivePanelBestPossible(tree)` to `Scroll`/`Zoom`/`ZoomOut`; delete `update()` wrapper; rewrite Phase-8 test.
+- **Modify** `crates/emcore/src/emView.rs` — add `SchedOp` enum, `pending_sched_ops` field, `close_signal_pending` field, `queue_or_apply_sched_op` helper; migrate ~10 `sched.borrow_mut()` call sites; rewrite `UpdateEngineClass::Cycle`; replace popup-close probe in `Update`; add wake at end of `attach_to_scheduler`; append `SetActivePanelBestPossible(tree)` to `Scroll`/`Zoom`/`ZoomOut`; delete `update()` wrapper; rewrite Phase-8 test; add same-slice-propagation test.
+- **Modify** `crates/emcore/src/emEngine.rs` — add `connect`, `disconnect`, `remove_signal` methods to `EngineCtx` (forwarding to `self.scheduler.X(...)`).
 - **Modify** `crates/emcore/src/emGUIFramework.rs:594` — delete direct `win.view_mut().update(tree)` call.
 - **Modify** `crates/emcore/src/emWindow.rs` — add `#[cfg(any(test, feature = "test-support"))] fn new_for_test(...)` constructor (no GPU/winit surface).
-- **Modify** call sites that used the `view.update(tree)` wrapper — audit via `grep -rn "\.update(&mut tree\|\.update(tree)" crates/` and migrate each to `.Update(&mut tree)` (one-char downcase, identical semantics post-wrapper-removal).
 
 ---
 
@@ -27,169 +27,348 @@ Snapshot green state so regressions are attributable to SP4.
 
 ### Task 0.1: Capture baseline test counts
 
-**Files:** none (record in plan status only).
-
-- [ ] **Step 1:** Run the full nextest suite.
+- [ ] **Step 1:** Run nextest.
 
   Run: `cargo-nextest ntr 2>&1 | tail -20`
-  Expected: `Summary [...] 2429 tests run: 2429 passed (9 skipped), 0 failed`
+  Expected: `2429 tests run: 2429 passed (9 skipped), 0 failed`.
 
-- [ ] **Step 2:** Run the golden suite.
+- [ ] **Step 2:** Run golden.
 
   Run: `cargo test --test golden -- --test-threads=1 2>&1 | tail -5`
-  Expected: `test result: FAILED. 237 passed; 6 failed` (baseline; same 6 pre-existing failures from the closeout doc §7.4).
+  Expected: `237 passed; 6 failed` (baseline, same pre-existing failures).
 
-- [ ] **Step 3:** Smoke-run the binary.
+- [ ] **Step 3:** Smoke-run.
 
   Run: `timeout 20 cargo run --release --bin eaglemode; echo "exit=$?"`
   Expected: `exit=124` or `exit=143`.
 
-- [ ] **Step 4:** Commit nothing. Record these three numbers in the plan's working notes. Phases 1–5 must match or improve each of them.
+- [ ] **Step 4:** Record these three numbers in working notes. Phases 1–6 must match or improve each.
+
+- [ ] **Step 5:** Enumerate scheduler-borrow sites — this is the Phase 2 migration checklist.
+
+  Run: `grep -nE 'self\.scheduler.*borrow|sched(uler)?\.borrow' crates/emcore/src/emView.rs | grep -v '#\[cfg(test)\]' | grep -v 'fn attach_to_scheduler'`
+  Expected: a list of ~10 lines. Copy into working notes as `[ ] <line>` for each. Each line becomes a Task 2.N checklist item.
 
 ---
 
-## Phase 1 — Add the cached-signal field (no behavior change yet)
+## Phase 1 — Introduce `SchedOp`, `EngineCtx` extensions, and `close_signal_pending`
 
-Introduce the `close_signal_pending` field and its read path in `Update`, keeping the old scheduler-borrow probe temporarily as a fallback. This phase is a pure addition; all tests must still pass.
+Pure additions; nothing is rewired yet. All existing tests must still pass.
 
-### Task 1.1: Add `close_signal_pending` field
+### Task 1.1: Extend `EngineCtx` with `connect`, `disconnect`, `remove_signal`
 
 **Files:**
-- Modify: `crates/emcore/src/emView.rs` (struct definition near `:307`; ctor init near `:484` and `new_for_test` near `:574`).
+- Modify: `crates/emcore/src/emEngine.rs`.
 
-- [ ] **Step 1: Read the struct head and both ctors.**
+- [ ] **Step 1: Read `EngineCtx`'s existing methods.**
 
-  Run: `sed -n '307,340p;480,580p' crates/emcore/src/emView.rs`
-  Expected: shows struct `emView { ... }` header and both `new` / `new_for_test` bodies.
+  Run: `sed -n '84,130p' crates/emcore/src/emEngine.rs`
+  Expected: `fire`, `IsSignaled`, `IsTimeSliceAtEnd`, `wake_up`.
 
-- [ ] **Step 2: Add the field to the struct.**
+- [ ] **Step 2: Add three forwarding methods.**
 
-  After the existing `pub(crate) pending_framework_actions: ...` field, add (adjust line number if file has shifted; the anchor is the `pending_framework_actions` field):
+  After `wake_up` (currently near `:120`), append:
+
+  ```rust
+  /// Connect a signal to an engine so the engine wakes whenever the
+  /// signal is fired. Forwards to `EngineScheduler::connect`.
+  pub fn connect(&mut self, signal: super::emSignal::SignalId, engine: EngineId) {
+      self.scheduler.connect_inner(signal, engine);
+  }
+
+  /// Disconnect a signal→engine wake link. Forwards to
+  /// `EngineScheduler::disconnect`.
+  pub fn disconnect(&mut self, signal: super::emSignal::SignalId, engine: EngineId) {
+      self.scheduler.disconnect_inner(signal, engine);
+  }
+
+  /// Remove a signal from the scheduler. Forwards to
+  /// `EngineScheduler::remove_signal`.
+  pub fn remove_signal(&mut self, signal: super::emSignal::SignalId) {
+      self.scheduler.remove_signal_inner(signal);
+  }
+  ```
+
+  **Implementer note:** the `_inner` method names assume they exist on `EngineCtxInner`. Read `EngineCtxInner` (in `emEngine.rs`) and the `EngineScheduler::{connect, disconnect, remove_signal}` implementations (in `emScheduler.rs`). If those operations are currently implemented on `EngineScheduler` directly (not on `EngineCtxInner`), extract the actual mutation bodies into `EngineCtxInner` methods (`pub(crate) fn connect_inner`, etc.) and make `EngineScheduler`'s public methods thin wrappers that call them. Do NOT duplicate logic.
+
+- [ ] **Step 3: Build.**
+
+  Run: `cargo check -p emcore 2>&1 | tail -10`
+  Expected: clean.
+
+- [ ] **Step 4: Run emcore tests.**
+
+  Run: `cargo-nextest run -p emcore 2>&1 | tail -5`
+  Expected: all pass; no new tests yet.
+
+- [ ] **Step 5: Commit.**
+
+  ```bash
+  git add crates/emcore/src/emEngine.rs crates/emcore/src/emScheduler.rs
+  git commit -m "sp4(1/n): EngineCtx gains connect/disconnect/remove_signal forwarders"
+  ```
+
+### Task 1.2: Add `SchedOp` enum with `apply_to` + `apply_via_ctx`
+
+**Files:**
+- Modify: `crates/emcore/src/emView.rs`.
+
+- [ ] **Step 1: Locate a reasonable module-level location for the enum.**
+
+  Run: `grep -n "^pub(crate) struct\|^pub(crate) enum\|^pub struct UpdateEngineClass" crates/emcore/src/emView.rs | head -5`
+  Find the top of the file or just above `UpdateEngineClass` (~:179). The enum lives alongside the engine types that will use it.
+
+- [ ] **Step 2: Insert the enum + impls.**
+
+  Add (placement: just before `pub struct UpdateEngineClass` at ~:184):
+
+  ```rust
+  /// Deferred scheduler operation, issued from inside `emView::Update`'s
+  /// reachable call tree when the scheduler is already `borrow_mut`'d by
+  /// the enclosing `DoTimeSlice`. Drained by `UpdateEngineClass::Cycle`
+  /// immediately after `Update` returns.
+  ///
+  /// IDIOM: C++ calls `Scheduler.X(...)` inline during Update because its
+  /// scheduler has no aliasing restrictions. Rust's `RefCell<EngineScheduler>`
+  /// forbids inner borrows while `DoTimeSlice` holds the outer borrow;
+  /// deferral restores inline semantics within the same time slice
+  /// without violating borrow rules.
+  #[derive(Debug, Clone, Copy)]
+  pub(crate) enum SchedOp {
+      Fire(super::emSignal::SignalId),
+      WakeUp(super::emEngine::EngineId),
+      Connect(super::emSignal::SignalId, super::emEngine::EngineId),
+      Disconnect(super::emSignal::SignalId, super::emEngine::EngineId),
+      RemoveSignal(super::emSignal::SignalId),
+  }
+
+  impl SchedOp {
+      /// Apply directly to an `&mut EngineScheduler`. Used on the
+      /// non-engine path where `try_borrow_mut` succeeded.
+      pub(crate) fn apply_to(self, sched: &mut super::emScheduler::EngineScheduler) {
+          match self {
+              SchedOp::Fire(s) => sched.fire(s),
+              SchedOp::WakeUp(e) => sched.wake_up(e),
+              SchedOp::Connect(s, e) => sched.connect(s, e),
+              SchedOp::Disconnect(s, e) => sched.disconnect(s, e),
+              SchedOp::RemoveSignal(s) => sched.remove_signal(s),
+          }
+      }
+
+      /// Apply via an `EngineCtx` (drain-time path, inside `Cycle`).
+      pub(crate) fn apply_via_ctx(self, ctx: &mut super::emEngine::EngineCtx<'_>) {
+          match self {
+              SchedOp::Fire(s) => ctx.fire(s),
+              SchedOp::WakeUp(e) => ctx.wake_up(e),
+              SchedOp::Connect(s, e) => ctx.connect(s, e),
+              SchedOp::Disconnect(s, e) => ctx.disconnect(s, e),
+              SchedOp::RemoveSignal(s) => ctx.remove_signal(s),
+          }
+      }
+  }
+  ```
+
+- [ ] **Step 3: Build.**
+
+  Run: `cargo check -p emcore 2>&1 | tail -10`
+  Expected: clean.
+
+- [ ] **Step 4: Commit.**
+
+  ```bash
+  git add crates/emcore/src/emView.rs
+  git commit -m "sp4(2/n): SchedOp enum for deferred scheduler writes"
+  ```
+
+### Task 1.3: Add `pending_sched_ops`, `close_signal_pending` fields + `queue_or_apply_sched_op` helper
+
+**Files:**
+- Modify: `crates/emcore/src/emView.rs`.
+
+- [ ] **Step 1: Add fields to `emView` struct.**
+
+  Near the existing `pub(crate) pending_framework_actions: ...` field:
 
   ```rust
   /// Set by `UpdateEngineClass::Cycle` from `ctx.IsSignaled(close_signal)`
   /// before calling `Update`; read and cleared at the top of `Update`.
-  /// Stands in for C++ `IsSignaled(PopupWindow->GetCloseSignal())` in
-  /// `emView::Update` (emView.cpp:1299).
+  /// See C++ `emView::Update` popup-close probe at `emView.cpp:1299`.
   ///
-  /// DIVERGED: C++ emView inherits from emEngine (via emContext), so the
-  /// IsSignaled call there is against emView's own clock. Rust emView is
-  /// not an emEngine (SP7 — emContext threading — will revisit); the
-  /// nearest correct clock is UpdateEngine's, and UpdateEngineClass::Cycle
-  /// is the natural site to observe it.
+  /// DIVERGED: C++ emView is an emEngine (via emContext); Rust emView is
+  /// not yet (tracked as SP7). UpdateEngine's clock substitutes for
+  /// emView's own clock.
   pub(crate) close_signal_pending: bool,
+
+  /// Queue of scheduler ops issued from inside Update's call tree when
+  /// the scheduler is already borrow_mut'd. Drained by
+  /// UpdateEngineClass::Cycle after Update returns. Invariant: only
+  /// nonempty transiently, inside a `Cycle` invocation.
+  pub(crate) pending_sched_ops: Vec<SchedOp>,
   ```
 
-- [ ] **Step 3: Initialize in both constructors.**
+- [ ] **Step 2: Initialize in both constructors.**
 
-  In `new(...)` and `new_for_test(...)`, add `close_signal_pending: false,` to the struct literal (alongside other `bool` defaults like `popped_up: false`).
+  In `new(...)` and `new_for_test(...)`, add:
+  ```rust
+  close_signal_pending: false,
+  pending_sched_ops: Vec::new(),
+  ```
 
-- [ ] **Step 4: Verify it compiles.**
+- [ ] **Step 3: Add the helper method on `impl emView`.**
 
-  Run: `cargo check -p emcore 2>&1 | tail -5`
-  Expected: `Finished ... profile`.
+  Locate the `impl emView` block (the main one starting near `:484`). Add:
+
+  ```rust
+  /// Apply a scheduler op: execute immediately if the scheduler is not
+  /// currently borrowed (the common, non-engine-path case), otherwise
+  /// enqueue for drain by `UpdateEngineClass::Cycle`.
+  ///
+  /// Used by every scheduler-write call site in `emView.rs` that is
+  /// reachable from `Update`. Non-Update call sites hit the inline-apply
+  /// arm and incur zero queue overhead.
+  pub(crate) fn queue_or_apply_sched_op(&mut self, op: SchedOp) {
+      let Some(sched_rc) = self.scheduler.as_ref() else {
+          return; // Unit-test bare view: no scheduler, all ops no-op.
+      };
+      match sched_rc.try_borrow_mut() {
+          Ok(mut sched) => op.apply_to(&mut *sched),
+          Err(_) => self.pending_sched_ops.push(op),
+      }
+  }
+  ```
+
+- [ ] **Step 4: Build + test.**
+
+  Run: `cargo check -p emcore && cargo-nextest run -p emcore 2>&1 | tail -5`
+  Expected: clean; all existing tests pass.
 
 - [ ] **Step 5: Commit.**
 
   ```bash
   git add crates/emcore/src/emView.rs
-  git commit -m "sp4(1/n): add emView::close_signal_pending field"
+  git commit -m "sp4(3/n): emView gains pending_sched_ops + queue_or_apply helper"
   ```
 
-### Task 1.2: Write failing test for the engine-side probe
+---
 
-**Files:**
-- Modify: `crates/emcore/src/emView.rs` (`#[cfg(test)] mod tests` at the bottom).
+## Phase 2 — Migrate scheduler-borrow call sites
 
-- [ ] **Step 1: Locate the `mod tests` block and add a new test next to `test_phase8_popup_close_signal_zooms_out`.**
+Each of the ~10 `sched.borrow_mut().X(...)` sites from Task 0.1 Step 5 gets rewritten to `self.queue_or_apply_sched_op(SchedOp::X(...))`. Do NOT migrate `attach_to_scheduler:3050` or `#[cfg(test)]` sites. After each migration, run emcore tests — regressions here indicate the rewrite was non-equivalent.
 
-  Append inside the tests module:
+### Task 2.1: Migrate one site at a time, committing after each
 
+**Files:** `crates/emcore/src/emView.rs`.
+
+For each line number in the Task 0.1 Step 5 checklist, perform Steps 1–4:
+
+- [ ] **Step 1: Read 5 lines of context.**
+
+  Run: `sed -n '<LINE-2>,<LINE+2>p' crates/emcore/src/emView.rs`
+
+- [ ] **Step 2: Rewrite the block.**
+
+  The four patterns to recognize:
+
+  **Pattern A: single op inside `if let Some(sched) = &self.scheduler`.**
+
+  Before:
   ```rust
-  /// SP4: UpdateEngineClass::Cycle must pre-compute close_signal_pending
-  /// from ctx.IsSignaled before invoking Update, so that Update does not
-  /// reach back through self.scheduler.
-  #[test]
-  fn sp4_update_engine_cycle_caches_close_signal_pending() {
-      use crate::emEngine::{emEngine as EngineTrait, EngineCtx};
-      // Build a view, attach a scheduler, push a popup so PopupWindow exists.
-      let (mut tree, root, child_a, _) = setup_tree();
-      let mut v = emView::new_for_test(root, 640.0, 480.0);
-      let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-      v.attach_to_scheduler(sched.clone(), winit::window::WindowId::dummy());
-      v.Update(&mut tree);
-      v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree);
-      v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true);
-      assert!(v.PopupWindow.is_some());
-      let close_sig = v.PopupWindow.as_ref().unwrap().borrow().close_signal;
-      let eng_id = v.update_engine_id.unwrap();
+  if let Some(sched) = &self.scheduler {
+      sched.borrow_mut().fire(sig);
+  }
+  ```
+  After:
+  ```rust
+  self.queue_or_apply_sched_op(SchedOp::Fire(sig));
+  ```
+  (The `None` case was a silent drop; `queue_or_apply_sched_op` does the same.)
 
-      // Fire the close signal and advance clocks so IsSignaled returns true
-      // for the update engine.
-      sched.borrow_mut().fire(close_sig);
-      // Process signals so sig.clock advances past eng.clock.
-      sched.borrow_mut().process_pending_signals_for_test();
+  **Pattern B: single op with additional conditions.**
 
-      // Now construct an EngineCtx as UpdateEngineClass::Cycle would see one,
-      // and invoke Cycle directly.
-      let window_id = winit::window::WindowId::dummy();
-      let mut windows: std::collections::HashMap<_, _> = std::collections::HashMap::new();
-      // Without a window, Cycle no-ops; this test only needs the caching
-      // assertion, so we invoke the caching logic directly by emulating
-      // Cycle's body steps once the window lookup succeeds. Use a tiny
-      // local helper that exercises the exact code path.
-      assert!(!v.close_signal_pending);
-      // Call Cycle against an empty windows map: no-op (returns false, no panic).
-      // Then call the caching helper directly via a test-only seam.
-      v.close_signal_pending =
-          sched.borrow().get_signal_clock(close_sig)
-              > sched.borrow().get_engine_clock(eng_id);
-      assert!(v.close_signal_pending, "close_signal fired — caching must see it true");
-      // After Update consumes it, the flag must clear.
-      v.Update(&mut tree);
-      assert!(!v.close_signal_pending, "Update must clear close_signal_pending");
-      // Cleanup
-      drop(windows);
-      if let Some(id) = v.update_engine_id.take() { sched.borrow_mut().remove_engine(id); }
-      if let Some(id) = v.visiting_va_engine_id.take() { sched.borrow_mut().remove_engine(id); }
-      if let Some(s) = v.EOISignal.take() { sched.borrow_mut().remove_signal(s); }
-      sched.borrow_mut().remove_signal(close_sig);
+  Before:
+  ```rust
+  if let (Some(sched), Some(eng_id)) = (self.scheduler.as_ref(), self.update_engine_id) {
+      sched.borrow_mut().connect(close_sig, eng_id);
+  }
+  ```
+  After:
+  ```rust
+  if let Some(eng_id) = self.update_engine_id {
+      self.queue_or_apply_sched_op(SchedOp::Connect(close_sig, eng_id));
   }
   ```
 
-  **Note for implementer:** `process_pending_signals_for_test`, `get_signal_clock`, `get_engine_clock` may not exist verbatim in the current scheduler API. Before Step 2, run `grep -n "pub fn" crates/emcore/src/emScheduler.rs | head -40` to inventory available surface. Use the closest existing getters (`is_signaled_for_engine` is known to exist). If the needed accessors are missing, add minimal `#[cfg(any(test, feature = "test-support"))]` getters to `EngineScheduler` as part of this task — do not expose new production API.
+  **Pattern C: multiple ops sharing one `let mut s = sched.borrow_mut();`.**
 
-- [ ] **Step 2: Run the new test — it must fail.**
+  Before:
+  ```rust
+  let mut s = sched.borrow_mut();
+  s.disconnect(close_sig, eng_id);
+  s.remove_signal(close_sig);
+  ```
+  After:
+  ```rust
+  self.queue_or_apply_sched_op(SchedOp::Disconnect(close_sig, eng_id));
+  self.queue_or_apply_sched_op(SchedOp::RemoveSignal(close_sig));
+  ```
 
-  Run: `cargo-nextest run -p emcore sp4_update_engine_cycle_caches_close_signal_pending 2>&1 | tail -10`
-  Expected: FAIL. The `v.Update(&mut tree)` at the end does not yet clear the flag.
+  **Pattern D: read-then-write (e.g., `create_signal` which returns an ID).**
 
-- [ ] **Step 3: Commit the failing test.**
+  These must NOT be migrated — `create_signal` returns a value, which the queue cannot support. Verify by inspection: if the site needs a return value, leave it alone and mark in the commit message that the site was skipped because it is not reachable from `Update` (popup creation paths only).
+
+  If a given site is at `:1723` or `:1757` (popup creation), leave it alone — those are `create_signal` and the returned ID is stored. Document in the commit message.
+
+- [ ] **Step 3: Run emcore tests.**
+
+  Run: `cargo-nextest run -p emcore 2>&1 | tail -5`
+  Expected: same pass count as before this site's migration.
+
+- [ ] **Step 4: Commit.**
 
   ```bash
   git add crates/emcore/src/emView.rs
-  git commit -m "sp4(2/n): failing test for close_signal_pending lifecycle"
+  git commit -m "sp4(4.N/n): migrate sched.borrow_mut() at emView.rs:<LINE> → queue_or_apply"
   ```
 
-### Task 1.3: Make `Update` consume `close_signal_pending` (alongside the existing scheduler-borrow, as a bridge)
+  Check off the line in your working notes.
 
-**Files:**
-- Modify: `crates/emcore/src/emView.rs:2318-2350` (the popup-close block at the top of `Update`).
+Repeat Steps 1–4 for every line in the checklist except `:2343` (covered in Phase 3 via the cached field) and popup-creation `create_signal` sites.
+
+### Task 2.2: Migration completeness gate
+
+- [ ] **Step 1: Confirm no scheduler borrows remain in emView.rs outside allowed zones.**
+
+  Run:
+  ```bash
+  grep -nE 'self\.scheduler.*borrow|sched\.borrow' crates/emcore/src/emView.rs \
+      | grep -v '#\[cfg(test)\]' \
+      | grep -v 'fn attach_to_scheduler' \
+      | grep -v ':2343' \
+      | grep -v 'create_signal'
+  ```
+  Expected: empty output. If non-empty, each line is a missed migration; go back to Task 2.1 for it.
+
+- [ ] **Step 2: Run the full workspace build + test.**
+
+  Run: `cargo check && cargo-nextest run 2>&1 | tail -5`
+  Expected: clean; baseline test count.
+
+---
+
+## Phase 3 — Rewire Update (cached-field popup probe + engine-only routing)
+
+### Task 3.1: Add bridge path in `Update` for `close_signal_pending`
+
+**Files:** `crates/emcore/src/emView.rs` (popup-close block at `:2318-2350`).
 
 - [ ] **Step 1: Read the current block.**
 
   Run: `sed -n '2318,2352p' crates/emcore/src/emView.rs`
-  Expected: the `BUG` comment block + the `let popup_closed = { ... }` probe.
 
-- [ ] **Step 2: Add the `close_signal_pending` consumption as an OR with the existing check — temporary bridge.**
-
-  Replace the `let popup_closed = { ... };` expression with:
+- [ ] **Step 2: Replace the `let popup_closed = { ... }` block with a bridge that prefers the cached field and keeps the legacy borrow as a fallback.**
 
   ```rust
   let popup_closed = {
-      // SP4: cached path — set by UpdateEngineClass::Cycle before Update.
-      // Preferred; the scheduler-borrow fallback below is a temporary
-      // bridge kept only until Phase 2 removes the unsafe path.
       let cached = std::mem::take(&mut self.close_signal_pending);
       if cached {
           true
@@ -206,90 +385,72 @@ Introduce the `close_signal_pending` field and its read path in `Update`, keepin
   };
   ```
 
-- [ ] **Step 3: Run the Task 1.2 test.**
-
-  Run: `cargo-nextest run -p emcore sp4_update_engine_cycle_caches_close_signal_pending 2>&1 | tail -5`
-  Expected: PASS.
-
-- [ ] **Step 4: Run the full emcore test suite — nothing else should regress.**
+- [ ] **Step 3: Test.**
 
   Run: `cargo-nextest run -p emcore 2>&1 | tail -5`
-  Expected: all prior tests still pass.
+  Expected: all pass.
 
-- [ ] **Step 5: Commit.**
+- [ ] **Step 4: Commit.**
 
   ```bash
-  git add crates/emcore/src/emView.rs
-  git commit -m "sp4(3/n): Update consumes close_signal_pending (bridge)"
+  git commit -am "sp4(5/n): Update popup-close probe: cached field + legacy bridge"
   ```
 
----
+### Task 3.2: Write popup-close probe in `UpdateEngineClass::Cycle` + queue drain
 
-## Phase 2 — Write the engine-side probe; remove the scheduler-borrow fallback
+**Files:** `crates/emcore/src/emView.rs` (`UpdateEngineClass::Cycle` at `:197-206`).
 
-### Task 2.1: Modify `UpdateEngineClass::Cycle` to cache before calling `Update`
-
-**Files:**
-- Modify: `crates/emcore/src/emView.rs:197-206` (the `Cycle` impl).
-
-- [ ] **Step 1: Read the current `Cycle`.**
-
-  Run: `sed -n '195,210p' crates/emcore/src/emView.rs`
-  Expected: the existing 4-line Cycle body.
-
-- [ ] **Step 2: Rewrite `Cycle`.**
-
-  Replace the body with:
+- [ ] **Step 1: Rewrite `Cycle`.**
 
   ```rust
   impl super::emEngine::emEngine for UpdateEngineClass {
       fn Cycle(&mut self, ctx: &mut super::emEngine::EngineCtx<'_>) -> bool {
-          // Mirrors C++ UpdateEngineClass::Cycle → View.Update().
-          // SP4: pre-compute the popup-close signal state here, where we
-          // hold &mut EngineCtx directly — emView::Update must not reach
-          // back through self.scheduler (would panic re-entrantly because
-          // DoTimeSlice holds sched.borrow_mut()).
-          if let Some(win_rc) = ctx.windows.get(&self.window_id) {
-              let win_rc = Rc::clone(win_rc);
-              let mut win = win_rc.borrow_mut();
-              let view = win.view_mut();
-              if let Some(popup) = view.PopupWindow.as_ref() {
-                  let close_sig = popup.borrow().close_signal;
-                  view.close_signal_pending = ctx.IsSignaled(close_sig);
-              }
-              view.Update(ctx.tree);
+          // C++ UpdateEngineClass::Cycle (emView.cpp:2521-2524).
+          let Some(win_rc) = ctx.windows.get(&self.window_id) else {
+              return false;
+          };
+          let win_rc = Rc::clone(win_rc);
+          let mut win = win_rc.borrow_mut();
+          let view = win.view_mut();
+
+          // SP4 Part A: pre-compute the popup-close probe here (C++ emView.cpp:1299;
+          // in C++ this is inside Update against emView's own engine clock, but
+          // Rust emView is not an emEngine so we use UpdateEngine's clock via ctx).
+          if let Some(popup) = view.PopupWindow.as_ref() {
+              let close_sig = popup.borrow().close_signal;
+              view.close_signal_pending = ctx.IsSignaled(close_sig);
+          }
+
+          view.Update(ctx.tree);
+
+          // SP4 Part B: drain deferred scheduler ops queued by Update's call tree.
+          let ops: Vec<SchedOp> = view.pending_sched_ops.drain(..).collect();
+          for op in ops {
+              op.apply_via_ctx(ctx);
           }
           false
       }
   }
   ```
 
-- [ ] **Step 3: Build and run the emcore suite.**
+  **Why the `.collect()`:** `apply_via_ctx(ctx)` borrows `ctx` mutably; during that call, `view` (which owns `pending_sched_ops`) is also borrowed mutably. Collect into a local `Vec` to release the `view.pending_sched_ops.drain(..)` borrow before iterating.
 
-  Run: `cargo check -p emcore && cargo-nextest run -p emcore 2>&1 | tail -5`
-  Expected: clean build; all tests pass.
+- [ ] **Step 2: Test.**
 
-- [ ] **Step 4: Commit.**
+  Run: `cargo-nextest run -p emcore 2>&1 | tail -5`
+  Expected: all pass. Any failure here is either a Phase 2 migration bug or a bug in Part A.
+
+- [ ] **Step 3: Commit.**
 
   ```bash
-  git add crates/emcore/src/emView.rs
-  git commit -m "sp4(4/n): UpdateEngineClass::Cycle pre-computes close_signal_pending"
+  git commit -am "sp4(6/n): UpdateEngineClass::Cycle pre-probes close_signal, drains pending_sched_ops"
   ```
 
-### Task 2.2: Remove the scheduler-borrow fallback from `Update`
+### Task 3.3: Remove the legacy bridge from `Update`
 
-**Files:**
-- Modify: `crates/emcore/src/emView.rs` (the `let popup_closed = { ... };` block edited in Task 1.3).
+**Files:** `crates/emcore/src/emView.rs` (the block from Task 3.1).
 
-- [ ] **Step 1: Replace the bridge block with the final form.**
-
-  Replace the block with:
-
-  ```rust
-  let popup_closed = std::mem::take(&mut self.close_signal_pending);
-  ```
-
-  Also delete the `BUG (tracked as ...)` comment block immediately above (previously `:2324-2335`). Keep a short 1-line comment pointing at C++:
+- [ ] **Step 1: Replace the bridge with the final form.**
 
   ```rust
   // C++ emView.cpp:1299 popup-close probe. The IsSignaled call happens
@@ -298,246 +459,167 @@ Introduce the `close_signal_pending` field and its read path in `Update`, keepin
   let popup_closed = std::mem::take(&mut self.close_signal_pending);
   ```
 
-- [ ] **Step 2: Run the emcore suite.**
+  Delete the entire `BUG (tracked as ...)` comment block at `:2324-2335`.
 
-  Run: `cargo-nextest run -p emcore 2>&1 | tail -5`
-  Expected: all tests pass, including Task 1.2's test.
+- [ ] **Step 2: Verify no scheduler borrow remains at `:2343`.**
 
-- [ ] **Step 3: Confirm the re-entrant-borrow panic path is gone.**
+  Run: `sed -n '2318,2345p' crates/emcore/src/emView.rs`
+  Expected: no `sched.borrow().is_signaled_for_engine` and no `self.scheduler.as_ref()` in this block.
 
-  Run: `grep -n "self\.scheduler\.as_ref().unwrap().borrow()\|sched.borrow().is_signaled_for_engine" crates/emcore/src/emView.rs`
-  Expected: no matches (the fallback path is deleted).
+- [ ] **Step 3: Full workspace test.**
+
+  Run: `cargo-nextest run 2>&1 | tail -5`
+  Expected: baseline.
 
 - [ ] **Step 4: Commit.**
 
   ```bash
-  git add crates/emcore/src/emView.rs
-  git commit -m "sp4(5/n): drop scheduler-borrow fallback; close_signal_pending is sole path"
+  git commit -am "sp4(7/n): remove legacy scheduler-borrow fallback from Update popup probe"
   ```
+
+### Task 3.4: Migration completeness gate (final)
+
+- [ ] **Step 1:**
+
+  Run: `grep -nE 'self\.scheduler.*borrow|sched\.borrow' crates/emcore/src/emView.rs | grep -v '#\[cfg(test)\]' | grep -v 'fn attach_to_scheduler'`
+  Expected: output is either empty or only `create_signal` popup-creation sites (at `:1723`-ish). Anything else is a missed migration.
+
+- [ ] **Step 2: Confirm the BUG marker is gone.**
+
+  Run: `grep -n "BUG (tracked as" crates/emcore/src/emView.rs`
+  Expected: empty.
 
 ---
 
-## Phase 3 — Align Rust dispatch with C++ single-caller model
+## Phase 4 — Engine-only routing: delete `:594`, add ctor wake, relocate `SetActivePanelBestPossible`
 
-Deletes the `update()` wrapper and the direct framework call, adds ctor-time wake, relocates `SetActivePanelBestPossible`.
+### Task 4.1: Append `SetActivePanelBestPossible` to `Scroll`, `Zoom`, `ZoomOut`
 
-### Task 3.1: Append `SetActivePanelBestPossible` to `Scroll`, `Zoom`, `ZoomOut` (C++ parity)
+**Files:** `crates/emcore/src/emView.rs` (`Scroll` near `:1123`, `Zoom` near `:1086`, `ZoomOut` near `:1251`).
 
-**Files:**
-- Modify: `crates/emcore/src/emView.rs` — `Scroll` ends near `:1154`, `Zoom` ends near `:1120`, `ZoomOut` near `:1254`.
+- [ ] **Step 1: Locate each function end and append.**
 
-- [ ] **Step 1: Locate the three function bodies.**
+  Each function gets `self.SetActivePanelBestPossible(tree);` as its last statement, with a citing comment:
+  - `Scroll`: `// C++ emView.cpp:780.`
+  - `Zoom`: `// C++ emView.cpp:800.`
+  - `ZoomOut`: `// C++ emView.cpp:901.`
 
-  Run: `grep -n "pub fn Scroll\|pub fn Zoom\b\|pub fn ZoomOut\b" crates/emcore/src/emView.rs`
-  Expected: three line numbers. Read each function end.
-
-- [ ] **Step 2: Append to each.**
-
-  At the end of `Scroll`'s body (just before the closing `}`):
-  ```rust
-      // C++ emView.cpp:780.
-      self.SetActivePanelBestPossible(tree);
-  ```
-
-  At the end of `Zoom`'s body:
-  ```rust
-      // C++ emView.cpp:800.
-      self.SetActivePanelBestPossible(tree);
-  ```
-
-  At the end of `ZoomOut`'s body:
-  ```rust
-      // C++ emView.cpp:901.
-      self.SetActivePanelBestPossible(tree);
-  ```
-
-- [ ] **Step 3: Build; run nextest.**
+- [ ] **Step 2: Test.**
 
   Run: `cargo check -p emcore && cargo-nextest run -p emcore 2>&1 | tail -5`
-  Expected: clean build; pass.
+  Expected: clean; pass.
 
-- [ ] **Step 4: Commit.**
+- [ ] **Step 3: Commit.**
 
   ```bash
-  git add crates/emcore/src/emView.rs
-  git commit -m "sp4(6/n): relocate SetActivePanelBestPossible to Scroll/Zoom/ZoomOut (C++ parity)"
+  git commit -am "sp4(8/n): relocate SetActivePanelBestPossible to Scroll/Zoom/ZoomOut (C++ parity)"
   ```
 
-### Task 3.2: Add `WakeUpUpdateEngine` to `attach_to_scheduler`
+### Task 4.2: Wake the update engine at `attach_to_scheduler`
 
-**Files:**
-- Modify: `crates/emcore/src/emView.rs:3044-3070`.
+**Files:** `crates/emcore/src/emView.rs:3044-3070`.
 
-- [ ] **Step 1: Read current `attach_to_scheduler`.**
+- [ ] **Step 1: Append to `attach_to_scheduler`.**
 
-  Run: `sed -n '3044,3072p' crates/emcore/src/emView.rs`
-  Expected: ends with `self.visiting_va_engine_id = Some(visiting_va_engine_id);`.
+  Last line of the function body (after `self.visiting_va_engine_id = Some(visiting_va_engine_id);`):
 
-- [ ] **Step 2: Append the wake.**
-
-  Add as the last line of the function body:
   ```rust
-      // C++ emView::emView at emView.cpp:84: UpdateEngine->WakeUp().
-      self.WakeUpUpdateEngine();
+  // C++ emView::emView at emView.cpp:84: UpdateEngine->WakeUp().
+  self.WakeUpUpdateEngine();
+  ```
+
+- [ ] **Step 2: Fix `test_phase7_update_engine_wakeup_via_scheduler`.**
+
+  Near `:5956`: delete `assert!(!sched.borrow().has_awake_engines());` (the engine is now awake after attach). Add comment:
+  ```rust
+  // SP4: attach_to_scheduler wakes the update engine (C++ emView.cpp:84).
+  // The explicit WakeUpUpdateEngine() below verifies the re-wake API.
   ```
 
 - [ ] **Step 3: Test.**
 
   Run: `cargo-nextest run -p emcore 2>&1 | tail -5`
-  Expected: all pass. The existing test `test_phase7_update_engine_wakeup_via_scheduler` asserts `!sched.borrow().has_awake_engines()` *before* calling `WakeUpUpdateEngine` — it will now see the engine already awake and fail.
-
-- [ ] **Step 4: Fix the now-outdated test.**
-
-  In `test_phase7_update_engine_wakeup_via_scheduler` (near `:5956`), delete the line `assert!(!sched.borrow().has_awake_engines());` — with SP4's ctor-time wake, the engine is awake immediately after attach. The subsequent `v.WakeUpUpdateEngine(); assert!(sched.borrow().has_awake_engines());` still exercises the re-wake path. Add a comment:
-  ```rust
-  // SP4: attach_to_scheduler now wakes the update engine (C++ emView.cpp:84).
-  // The explicit WakeUpUpdateEngine() below re-wakes a possibly-slept engine;
-  // with the ctor wake it's a no-op in this path, but verifies the API.
-  ```
-
-- [ ] **Step 5: Re-run nextest.**
-
-  Run: `cargo-nextest run -p emcore 2>&1 | tail -5`
   Expected: all pass.
 
-- [ ] **Step 6: Commit.**
+- [ ] **Step 4: Commit.**
 
   ```bash
-  git add crates/emcore/src/emView.rs
-  git commit -m "sp4(7/n): wake update engine from attach_to_scheduler (C++ emView.cpp:84)"
+  git commit -am "sp4(9/n): wake update engine from attach_to_scheduler"
   ```
 
-### Task 3.3: Delete `emGUIFramework::about_to_wait:594` direct call
+### Task 4.3: Delete `emGUIFramework.rs:594` direct call
 
-**Files:**
-- Modify: `crates/emcore/src/emGUIFramework.rs:593-595`.
+**Files:** `crates/emcore/src/emGUIFramework.rs:593-595`.
 
-- [ ] **Step 1: Read the block.**
+- [ ] **Step 1: Replace the two-line block.**
 
-  Run: `sed -n '590,600p' crates/emcore/src/emGUIFramework.rs`
-  Expected: includes the `// Update view (...)\n win.view_mut().update(tree);` lines.
-
-- [ ] **Step 2: Delete those two lines.**
-
-  Remove:
+  Delete:
   ```rust
               // Update view (recompute viewing coords, auto-select active)
               win.view_mut().update(tree);
   ```
-
-  Replace with:
+  With:
   ```rust
               // SP4: Update runs only via UpdateEngineClass::Cycle now
-              // (C++ single-caller model, emView.cpp:2523). This loop no
-              // longer drives Update directly.
+              // (C++ single-caller model, emView.cpp:2523).
   ```
 
-- [ ] **Step 3: Build the whole workspace.**
-
-  Run: `cargo check 2>&1 | tail -15`
-  Expected: clean.
-
-- [ ] **Step 4: Run nextest.**
-
-  Run: `cargo-nextest run 2>&1 | tail -10`
-  Expected: ≥ baseline (2429 passed). If regressions appear here, they identify tests that silently depended on the wrapper's post-hoc `SetActivePanelBestPossible`; Task 3.1 should already have covered them. If a test fails because it called `Scroll`/`Zoom`/`ZoomOut` and expected an active-panel reselection via a path other than those three, investigate — do not blindly paper over.
-
-- [ ] **Step 5: Smoke-test the binary.**
-
-  Run: `timeout 20 cargo run --release --bin eaglemode; echo "exit=$?"`
-  Expected: exit=124 or exit=143.
-
-- [ ] **Step 6: Commit.**
-
-  ```bash
-  git add crates/emcore/src/emGUIFramework.rs
-  git commit -m "sp4(8/n): remove direct emView::update call from about_to_wait"
-  ```
-
-### Task 3.4: Delete the `emView::update()` wrapper
-
-**Files:**
-- Modify: `crates/emcore/src/emView.rs:3845-3859`.
-
-- [ ] **Step 1: Read the wrapper.**
-
-  Run: `sed -n '3840,3862p' crates/emcore/src/emView.rs`
-  Expected: the `pub fn update(...)` wrapper body.
-
-- [ ] **Step 2: Audit cross-crate callers.**
-
-  Run: `grep -rn "\.update(&mut tree\|\.update(tree)\|\.update(&mut \\*tree" crates/ 2>&1 | head -40`
-  Expected: zero hits outside of the emView wrapper itself (Task 3.3 deleted the only production caller). If any remain, fix them per Step 3 before deleting.
-
-- [ ] **Step 3: Migrate any stragglers.**
-
-  For each remaining `X.update(&mut tree)` call: replace with `X.Update(&mut tree)`. Each of these call sites formerly benefited from the wrapper's `SetActivePanelBestPossible` fixup. If the caller was test code that established state via `Scroll`/`Zoom`/`ZoomOut` *before* the `.update` call, Task 3.1's relocation already covers the reselection. If the caller established state a different way and relies on post-`Update` reselection, add an explicit `view.SetActivePanelBestPossible(&mut tree)` after the `.Update(...)` call and annotate with `// SP4: was covered by deleted emView::update() wrapper`.
-
-- [ ] **Step 4: Delete the wrapper.**
-
-  Remove the `pub fn update(...)` block at `:3845-3859`.
-
-- [ ] **Step 5: Build + nextest + golden.**
+- [ ] **Step 2: Full workspace test + golden + smoke.**
 
   Run:
   ```bash
-  cargo check && cargo-nextest run 2>&1 | tail -5 && cargo test --test golden -- --test-threads=1 2>&1 | tail -5
+  cargo check && cargo-nextest run 2>&1 | tail -5
+  cargo test --test golden -- --test-threads=1 2>&1 | tail -5
+  timeout 20 cargo run --release --bin eaglemode; echo "exit=$?"
   ```
-  Expected: clean build, 2429 passed, golden 237/243 (baseline parity).
+  Expected: all baseline or better. If tests regress here, they exercised a behavior that the `update()` wrapper provided but the engine path doesn't — investigate root cause before patching over.
 
-- [ ] **Step 6: Smoke-run the binary.**
-
-  Run: `timeout 20 cargo run --release --bin eaglemode; echo "exit=$?"`
-  Expected: exit=124 or exit=143.
-
-- [ ] **Step 7: Commit.**
+- [ ] **Step 3: Commit.**
 
   ```bash
-  git add crates/
-  git commit -m "sp4(9/n): delete emView::update() wrapper; single-caller model in place"
+  git commit -am "sp4(10/n): remove direct emView::update call from about_to_wait"
+  ```
+
+### Task 4.4: Delete `emView::update()` wrapper
+
+**Files:** `crates/emcore/src/emView.rs:3845-3859` and any stragglers.
+
+- [ ] **Step 1: Find cross-crate callers.**
+
+  Run: `grep -rn '\.update(&mut tree\|\.update(tree)' crates/ | grep -v 'Update('`
+  Expected: empty (Task 4.3 deleted the only production site).
+
+- [ ] **Step 2: Delete the wrapper.**
+
+  Remove the `pub fn update(&mut self, tree: &mut PanelTree) { ... }` block.
+
+- [ ] **Step 3: Full workspace test + golden + smoke.**
+
+  Run: same as Task 4.3 Step 2.
+  Expected: baseline.
+
+- [ ] **Step 4: Commit.**
+
+  ```bash
+  git commit -am "sp4(11/n): delete emView::update() wrapper — single-caller model complete"
   ```
 
 ---
 
-## Phase 4 — Test harness: bare-window ctor
+## Phase 5 — Test harness: bare-window ctor + Phase-8 rewrite + same-slice test
 
-The Phase-8 test rewrite needs an `emWindow` that `ctx.windows.get(&window_id)` can find. Provide a test-only constructor with no GPU/winit surface.
+### Task 5.1: Add `emWindow::new_for_test`
 
-### Task 4.1: Inventory the minimum `emWindow` surface `UpdateEngineClass::Cycle` needs
+**Files:** `crates/emcore/src/emWindow.rs`, `crates/emcore/Cargo.toml`.
 
-**Files:** read-only.
-
-- [ ] **Step 1: Inventory methods called on the window handle during the engine path.**
-
-  Run:
-  ```
-  grep -n "win.borrow_mut\|win_rc.borrow_mut\|win_rc\.borrow\b\|win\.view_mut\|win\.view()" crates/emcore/src/emView.rs
-  ```
-  Expected: short list, all pointing to `view_mut()` / `view()`.
-
-- [ ] **Step 2: Read the `emWindow` struct head and `view()` / `view_mut()` definitions.**
-
-  Run: `grep -n "pub struct emWindow\|fn view\b\|fn view_mut\b\|pub fn create\|pub fn new_popup_pending" crates/emcore/src/emWindow.rs`
-
-- [ ] **Step 3: No code change. Summarize in the commit message of Task 4.2 which fields the bare ctor can default.**
-
-### Task 4.2: Write a failing test for `emWindow::new_for_test`
-
-**Files:**
-- Modify: `crates/emcore/src/emWindow.rs` — new `#[cfg(any(test, feature = "test-support"))] pub fn new_for_test(...)`.
-- Modify: `crates/emcore/Cargo.toml` — ensure `test-support` feature exists (it already does per §4.4 closeout; verify).
-
-- [ ] **Step 1: Verify the `test-support` feature flag is declared.**
+- [ ] **Step 1: Verify `test-support` feature exists.**
 
   Run: `grep -n "test-support" crates/emcore/Cargo.toml`
-  Expected: a `[features]` entry for `test-support = []`. If absent, add it.
+  Expected: `test-support = []` entry. If absent, add it.
 
-- [ ] **Step 2: Add a failing test in `crates/emcore/src/emWindow.rs` tests module.**
+- [ ] **Step 2: Write failing test (in `emWindow.rs` tests module).**
 
   ```rust
-  /// SP4 Task 4: new_for_test builds an emWindow with a live emView but no
-  /// GPU/winit surface, suitable for registering in a scheduler's windows
-  /// map for UpdateEngineClass::Cycle to find.
   #[test]
   fn new_for_test_constructs_without_event_loop() {
       let mut tree = crate::emPanelTree::PanelTree::new();
@@ -549,42 +631,20 @@ The Phase-8 test rewrite needs an `emWindow` that `ctx.windows.get(&window_id)` 
       ));
       let win = emWindow::new_for_test(win_id, &sched, root, 640.0, 480.0);
       assert_eq!(win.borrow().id(), win_id);
-      // Verify the view is attached to the scheduler.
       assert!(win.borrow().view().update_engine_id.is_some());
   }
   ```
 
-- [ ] **Step 3: Run — must fail.**
+- [ ] **Step 3: Run — fails.**
 
   Run: `cargo-nextest run -p emcore new_for_test_constructs_without_event_loop 2>&1 | tail -5`
   Expected: FAIL (method not defined).
 
-- [ ] **Step 4: Commit failing test.**
+- [ ] **Step 4: Implement `new_for_test`.**
 
-  ```bash
-  git add crates/emcore/src/emWindow.rs crates/emcore/Cargo.toml
-  git commit -m "sp4(10/n): failing test for emWindow::new_for_test"
-  ```
-
-### Task 4.3: Implement `emWindow::new_for_test`
-
-**Files:**
-- Modify: `crates/emcore/src/emWindow.rs`.
-
-- [ ] **Step 1: Add the constructor.**
-
-  Add alongside `new_popup_pending`:
+  Read the `emWindow` struct and existing `new_popup_pending` constructor to understand every field. Mirror the `new_popup_pending` shape but skip anything GPU/winit-surface-related by using the `OsSurface::Pending` variant with a stub `PendingSurface` default.
 
   ```rust
-  /// Test-only: build an `emWindow` with a fully-initialized `emView`
-  /// attached to the given scheduler, but with no winit/wgpu surface.
-  /// Exists to satisfy `UpdateEngineClass::Cycle`'s `ctx.windows.get(...)`
-  /// lookup so single-engine integration tests (notably the Phase-8 popup-
-  /// close test) can drive `DoTimeSlice` end-to-end without spinning up
-  /// an event loop.
-  ///
-  /// Gated behind the `test-support` feature; not visible to non-test
-  /// consumers.
   #[cfg(any(test, feature = "test-support"))]
   pub fn new_for_test(
       window_id: winit::window::WindowId,
@@ -595,241 +655,291 @@ The Phase-8 test rewrite needs an `emWindow` that `ctx.windows.get(&window_id)` 
   ) -> std::rc::Rc<std::cell::RefCell<Self>> {
       let mut view = crate::emView::emView::new_for_test(root, width, height);
       view.attach_to_scheduler(scheduler.clone(), window_id);
-      // All GPU/surface fields default or use the existing Pending sentinels.
-      // See `OsSurface::Pending` from the W3 architecture; no surface is
-      // materialized in this constructor.
+      // ... fill remaining emWindow fields with OsSurface::Pending default
+      // and test-neutral values for the rest. See existing new_popup_pending
+      // for the exact struct shape.
       let win = Self {
           window_id,
-          os_surface: crate::emWindow::os_surface::OsSurface::stub_for_test(),
+          // ... (implementer: read struct, fill each field)
           view,
-          // ...fill all remaining struct fields using Default::default() or
-          // their documented test-neutral values. Read the struct definition
-          // and use existing test fixtures (grep for `emWindow { ... }`
-          // construction in the crate) as the template.
       };
       std::rc::Rc::new(std::cell::RefCell::new(win))
   }
   ```
 
-  **Implementer note:** The placeholder `os_surface::OsSurface::stub_for_test()` must exist — if not, add a matching constructor on the `OsSurface` enum (under the same `test-support` feature) that returns a zero-cost variant. Read the `OsSurface` enum (`Pending`/`Materialized` per W3 closeout §3.2) and add a `TestStub` variant if needed, or reuse `Pending` with a default `PendingSurface`. Document which path you chose in the commit message.
+  **Implementer note:** If `OsSurface::Pending` construction requires a `PendingSurface`, build the minimum one (per W3 closeout §3.2). If you find a field you cannot confidently default, STOP and read the existing `emWindow::create` and `new_popup_pending` for precedent. Do not guess.
 
-- [ ] **Step 2: Build.**
-
-  Run: `cargo check -p emcore --features test-support 2>&1 | tail -10`
-  Expected: clean. If compile errors mention unfilled fields of `emWindow`, read the struct and fill each with a test-neutral default; do not guess.
-
-- [ ] **Step 3: Run the Task 4.2 test.**
+- [ ] **Step 5: Test passes; commit.**
 
   Run: `cargo-nextest run -p emcore new_for_test_constructs_without_event_loop 2>&1 | tail -5`
   Expected: PASS.
 
-- [ ] **Step 4: Run full nextest; no regressions.**
-
-  Run: `cargo-nextest run 2>&1 | tail -5`
-  Expected: 2430/2430 (baseline +1 for the new test) or strictly not worse.
-
-- [ ] **Step 5: Commit.**
-
+  Commit:
   ```bash
-  git add crates/emcore/src/emWindow.rs
-  git commit -m "sp4(11/n): emWindow::new_for_test — bare ctor for single-engine integration tests"
+  git add crates/emcore/src/emWindow.rs crates/emcore/Cargo.toml
+  git commit -m "sp4(12/n): emWindow::new_for_test for single-engine integration tests"
   ```
 
----
+### Task 5.2: Add same-slice-propagation test
 
-## Phase 5 — Phase-8 test promotion
+**Files:** `crates/emcore/src/emView.rs` tests module.
 
-Rewrite `test_phase8_popup_close_signal_zooms_out` as a single-engine run.
+This guards against the risk that drain-at-end-of-Cycle reorders signal wakes past the slice boundary.
 
-### Task 5.1: Replace the two-engine test
+- [ ] **Step 1: Write the test.**
 
-**Files:**
-- Modify: `crates/emcore/src/emView.rs` (the `test_phase8_popup_close_signal_zooms_out` test and its multi-paragraph doc block `:6098-6210` or thereabouts).
+  ```rust
+  /// SP4: a signal fired from inside Update via queue_or_apply_sched_op
+  /// must still wake a receiver engine that is connected to that signal
+  /// and is at a lower priority than UpdateEngineClass — all in the same
+  /// DoTimeSlice. Guards against "drain-too-late" bugs where queued wakes
+  /// would be delayed past the current slice.
+  #[test]
+  fn sp4_signal_fired_from_update_reaches_receiver_same_slice() {
+      use std::collections::HashMap;
+      use crate::emEngine::{emEngine as EngineTrait, EngineCtx, Priority};
 
-- [ ] **Step 1: Read the current test in full.**
+      let (mut tree, root, _, _) = setup_tree();
+      let win_id = winit::window::WindowId::dummy();
+      let sched = Rc::new(RefCell::new(EngineScheduler::new()));
+      let win = crate::emWindow::emWindow::new_for_test(win_id, &sched, root, 640.0, 480.0);
 
-  Run: `grep -n "fn test_phase8_popup_close_signal_zooms_out" crates/emcore/src/emView.rs`
-  Note the start line. Run: `sed -n '<start>,<start+120>p' crates/emcore/src/emView.rs`.
+      // Receiver engine at lower priority, woken by a signal fired from inside Update.
+      struct Receiver { cycled: Rc<RefCell<bool>> }
+      impl EngineTrait for Receiver {
+          fn Cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
+              *self.cycled.borrow_mut() = true;
+              false
+          }
+      }
+      let cycled = Rc::new(RefCell::new(false));
+      let recv_id = sched.borrow_mut().register_engine(
+          Priority::Low,
+          Box::new(Receiver { cycled: cycled.clone() }),
+      );
+      let trigger_sig = sched.borrow_mut().create_signal();
+      sched.borrow_mut().connect(trigger_sig, recv_id);
 
-- [ ] **Step 2: Replace the test body (and its doc block) with the single-engine version.**
+      // Queue a Fire op onto the view from outside Update, using
+      // queue_or_apply_sched_op with the scheduler already borrow_mut'd
+      // (simulated by calling from inside a borrow we construct here).
+      // Rather than simulate, drive a real cycle: cause control_panel_signal
+      // (or a similar signal reliably fired from within Update's call tree)
+      // to wake our receiver — but that requires threading. Simpler route:
+      // fire an arbitrary signal through queue_or_apply_sched_op while the
+      // outer borrow is held by DoTimeSlice.
+      //
+      // Strategy: borrow_mut the scheduler ourselves (simulating DoTimeSlice),
+      // then have the view queue a Fire op, then release the borrow and
+      // DoTimeSlice; the drain should happen via UpdateEngineClass::Cycle.
+      //
+      // Simpler deterministic strategy: use the already-existing
+      // control_panel_signal. Call v.set_active_panel inside DoTimeSlice and
+      // verify the Receiver (connected to control_panel_signal) cycles.
+      //
+      // Implementer: design the specific trigger carefully so the assertion
+      // is load-bearing. Use the following template:
+      {
+          let mut w = win.borrow_mut();
+          w.view_mut().Update(&mut tree); // priming
+      }
+      // Install Receiver as a listener of control_panel_signal.
+      let cp_sig = win.borrow().view().control_panel_signal.expect("cp signal present");
+      sched.borrow_mut().connect(cp_sig, recv_id);
+
+      // Drive DoTimeSlice: UpdateEngineClass::Cycle runs Update. We need
+      // Update's call tree to fire control_panel_signal. set_active_panel
+      // does this, but it must be triggered during Update. Use
+      // SVPChoiceInvalid + SetActivePanelBestPossible path: set
+      // SVPChoiceInvalid=true before the slice, so Update's drain reaches
+      // SetActivePanelBestPossible → set_active_panel → Fire(cp_sig).
+      win.borrow_mut().view_mut().SVPChoiceInvalid = true;
+
+      let mut windows: HashMap<_, _> = HashMap::new();
+      windows.insert(win_id, Rc::clone(&win));
+      sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows);
+
+      assert!(
+          *cycled.borrow(),
+          "Receiver at Low priority must cycle in the same slice as the Update-issued Fire"
+      );
+
+      // Cleanup
+      let cycled_drop = cycled;
+      drop(cycled_drop);
+      let mut w = win.borrow_mut();
+      let v = w.view_mut();
+      if let Some(id) = v.update_engine_id.take() { sched.borrow_mut().remove_engine(id); }
+      if let Some(id) = v.visiting_va_engine_id.take() { sched.borrow_mut().remove_engine(id); }
+      if let Some(s) = v.EOISignal.take() { sched.borrow_mut().remove_signal(s); }
+      sched.borrow_mut().disconnect(cp_sig, recv_id);
+      sched.borrow_mut().remove_engine(recv_id);
+      sched.borrow_mut().remove_signal(trigger_sig);
+  }
+  ```
+
+  **Implementer note:** The test design hinges on an Update-call-tree path that fires a signal. `SVPChoiceInvalid → SetActivePanelBestPossible → set_active_panel → fire(control_panel_signal)` is the proposed path. Verify this path is real by reading `set_active_panel`'s body (near `:1418`) and `SetActivePanelBestPossible` (near `:1489`). If the path is not reliably triggered by `SVPChoiceInvalid=true`, choose an alternative signal fired from Update's tree — the test only needs *any* such signal; its purpose is to exercise drain-at-end-of-Cycle.
+
+- [ ] **Step 2: Run — must pass.**
+
+  Run: `cargo-nextest run -p emcore sp4_signal_fired_from_update_reaches_receiver_same_slice 2>&1 | tail -5`
+  Expected: PASS. If it fails, the drain semantics differ from what the spec claims and need investigation before proceeding.
+
+- [ ] **Step 3: Commit.**
+
+  ```bash
+  git commit -am "sp4(13/n): same-slice wake propagation test for queued Fire ops"
+  ```
+
+### Task 5.3: Rewrite Phase-8 test as single-engine
+
+**Files:** `crates/emcore/src/emView.rs` (`test_phase8_popup_close_signal_zooms_out` near `:6098-6210`).
+
+- [ ] **Step 1: Replace the entire test body and its multi-paragraph doc block.**
 
   ```rust
   /// SP4 Phase-8: popup's close_signal, when fired and processed through the
   /// scheduler, wakes UpdateEngineClass, which invokes emView::Update, which
-  /// observes close_signal_pending and calls ZoomOut. Drives the entire
-  /// sequence through one DoTimeSlice — no dummy engines, no harness hacks.
-  /// This supersedes the two-engine test that was a compromise against the
-  /// scheduler re-entrant borrow (now fixed by SP4 §2.3).
+  /// reads close_signal_pending and calls ZoomOut. ZoomOut's popup teardown
+  /// enqueues a Disconnect + RemoveSignal + Fire(geometry_signal), drained
+  /// at end of Cycle. The entire sequence runs in one DoTimeSlice.
+  /// Supersedes the previous two-engine harness (NoopEngine swap), which
+  /// was a compromise against the now-fixed scheduler re-entrant borrow.
   #[test]
   fn test_phase8_popup_close_signal_zooms_out() {
       use std::collections::HashMap;
       let (mut tree, root, child_a, _) = setup_tree();
       let win_id = winit::window::WindowId::dummy();
       let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-
-      // Build a real emWindow so UpdateEngineClass::Cycle can find it.
       let win = crate::emWindow::emWindow::new_for_test(win_id, &sched, root, 640.0, 480.0);
 
-      // Initial Update to clear zoomed_out_before_sg.
+      // Prime Update (clear zoomed_out_before_sg), push a popup under POPUP_ZOOM.
       {
           let mut w = win.borrow_mut();
-          w.view_mut().Update(&mut tree);
-          w.view_mut().SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree);
-          // Push a popup via RawVisit under POPUP_ZOOM.
-          w.view_mut().RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true);
-          assert!(w.view().PopupWindow.is_some());
+          let v = w.view_mut();
+          v.Update(&mut tree);
+          v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree);
+          v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true);
+          assert!(v.PopupWindow.is_some());
       }
 
-      // Fire the popup's close signal.
-      let close_sig = win
-          .borrow()
-          .view()
-          .PopupWindow
-          .as_ref()
-          .unwrap()
-          .borrow()
-          .close_signal;
+      // Fire close_signal.
+      let close_sig = win.borrow().view().PopupWindow.as_ref().unwrap().borrow().close_signal;
       sched.borrow_mut().fire(close_sig);
 
-      // One time slice: signal processing advances sig.clock; UpdateEngineClass::Cycle
-      // observes ctx.IsSignaled(close_sig) = true, sets close_signal_pending,
-      // invokes Update, which calls ZoomOut.
+      // One DoTimeSlice: signal processing advances sig.clock; Cycle
+      // observes ctx.IsSignaled(close_sig) = true, stores close_signal_pending,
+      // calls Update → ZoomOut → RawVisitAbs (popup teardown); drains queued
+      // Disconnect/RemoveSignal/Fire ops; exits.
       let mut windows: HashMap<_, _> = HashMap::new();
       windows.insert(win_id, Rc::clone(&win));
       sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows);
 
-      // Post-condition: popup tore down.
-      assert!(
-          win.borrow().view().PopupWindow.is_none(),
-          "close_signal → ZoomOut must tear down PopupWindow in one time slice"
-      );
-      assert!(
-          !win.borrow().view().popped_up,
-          "popped_up must be false after ZoomOut"
-      );
+      assert!(win.borrow().view().PopupWindow.is_none(),
+          "close_signal → ZoomOut must tear down PopupWindow in one time slice");
+      assert!(!win.borrow().view().popped_up, "popped_up must be false after ZoomOut");
 
       // Cleanup for scheduler Drop debug_asserts.
-      {
-          let mut w = win.borrow_mut();
-          let v = w.view_mut();
-          if let Some(id) = v.update_engine_id.take() { sched.borrow_mut().remove_engine(id); }
-          if let Some(id) = v.visiting_va_engine_id.take() { sched.borrow_mut().remove_engine(id); }
-          if let Some(s) = v.EOISignal.take() { sched.borrow_mut().remove_signal(s); }
-      }
-      sched.borrow_mut().remove_signal(close_sig);
+      let mut w = win.borrow_mut();
+      let v = w.view_mut();
+      if let Some(id) = v.update_engine_id.take() { sched.borrow_mut().remove_engine(id); }
+      if let Some(id) = v.visiting_va_engine_id.take() { sched.borrow_mut().remove_engine(id); }
+      if let Some(s) = v.EOISignal.take() { sched.borrow_mut().remove_signal(s); }
   }
   ```
 
-  Delete the previous `NoopEngine`-based test body and its multi-paragraph comment block entirely.
-
-- [ ] **Step 3: Also remove the Task 1.2 bridge test `sp4_update_engine_cycle_caches_close_signal_pending`.**
-
-  Rationale: once the Phase-8 test drives the real engine path end-to-end, the Phase-1 bridge test is redundant and its hand-built caching emulation is less rigorous than the true engine drive. Delete it.
-
-- [ ] **Step 4: Run the nextest suite.**
+- [ ] **Step 2: Run full test suite.**
 
   Run: `cargo-nextest run 2>&1 | tail -5`
-  Expected: 2429/2429 (baseline — we added `new_for_test_constructs_without_event_loop` in Task 4.2 and removed the Phase-1 bridge test, so net +0 for the `new_for_test_...` addition) or strictly not worse than baseline.
+  Expected: baseline + 2 new tests = 2431/2431.
 
-- [ ] **Step 5: Verify the test's single-slice structure.**
+- [ ] **Step 3: Run golden + smoke.**
 
-  Run: `grep -c "DoTimeSlice" crates/emcore/src/emView.rs` (confined to the new test body, by inspection)
-  Expected: the Phase-8 test invokes `DoTimeSlice` exactly once. Success criterion §5.8 in the spec.
+  Run:
+  ```bash
+  cargo test --test golden -- --test-threads=1 2>&1 | tail -5
+  timeout 20 cargo run --release --bin eaglemode; echo "exit=$?"
+  ```
+  Expected: 237/243 baseline; smoke exit=124/143.
 
-- [ ] **Step 6: Run golden.**
+- [ ] **Step 4: Confirm single-engine structure.**
 
-  Run: `cargo test --test golden -- --test-threads=1 2>&1 | tail -5`
-  Expected: 237/243 (baseline parity).
+  Inspect the test body visually: exactly one `DoTimeSlice` call, no `NoopEngine`.
 
-- [ ] **Step 7: Smoke-run the binary.**
-
-  Run: `timeout 20 cargo run --release --bin eaglemode; echo "exit=$?"`
-  Expected: exit=124 or exit=143.
-
-- [ ] **Step 8: Commit.**
+- [ ] **Step 5: Commit.**
 
   ```bash
-  git add crates/emcore/src/emView.rs
-  git commit -m "sp4(12/n): rewrite Phase-8 popup-close test as single-engine DoTimeSlice"
+  git commit -am "sp4(14/n): rewrite Phase-8 popup-close test as single-engine DoTimeSlice"
   ```
 
 ---
 
 ## Phase 6 — Closeout
 
-### Task 6.1: Verify all spec §5 success criteria
+### Task 6.1: Full verification
 
-**Files:** read-only.
-
-- [ ] **Step 1: Clippy clean.**
+- [ ] **Step 1: Clippy.**
 
   Run: `cargo clippy --all-targets --features test-support -- -D warnings 2>&1 | tail -10`
-  Expected: `Finished`.
+  Expected: clean.
 
-- [ ] **Step 2: BUG marker gone.**
+- [ ] **Step 2: Success-criteria gates from the spec §5.**
 
-  Run: `grep -n "BUG (tracked as" crates/emcore/src/emView.rs`
-  Expected: no output.
+  Run each and confirm:
+  - `grep -n "BUG (tracked as" crates/emcore/src/emView.rs` → empty.
+  - `grep -n "win\.view_mut().update(tree)" crates/emcore/src/emGUIFramework.rs` → empty.
+  - `grep -n "^    pub fn update\b" crates/emcore/src/emView.rs` → empty.
+  - `grep -nE 'self\.scheduler.*borrow|sched\.borrow' crates/emcore/src/emView.rs | grep -v '#\[cfg(test)\]' | grep -v 'fn attach_to_scheduler' | grep -v 'create_signal'` → empty.
+  - Task 5.2's test passes.
+  - Phase-8 test runs one `DoTimeSlice`.
 
-- [ ] **Step 3: Direct framework call gone.**
+- [ ] **Step 3: Re-run nextest + golden + smoke once more.**
 
-  Run: `grep -n "win\.view_mut().update(tree)" crates/emcore/src/emGUIFramework.rs`
-  Expected: no output.
+  Same as Phase 0.
 
-- [ ] **Step 4: Wrapper gone.**
+### Task 6.2: Update closeout doc
 
-  Run: `grep -n '^    pub fn update\b' crates/emcore/src/emView.rs`
-  Expected: no output.
+**Files:** `docs/superpowers/notes/2026-04-18-emview-subsystem-closeout.md`.
 
-- [ ] **Step 5: Phase-8 test is single-engine.**
-
-  Inspect the test body visually; confirm only one `DoTimeSlice` call and no `NoopEngine`.
-
-- [ ] **Step 6: Re-run nextest + golden + smoke one last time.**
-
-  Same commands as Phase 0. Record results.
-
-### Task 6.2: Update the closeout doc
-
-**Files:**
-- Modify: `docs/superpowers/notes/2026-04-18-emview-subsystem-closeout.md`.
-
-- [ ] **Step 1: Mark SP4 complete in §8.0 table.**
-
-  Change the SP4 row from "Not started; 14 blocks 11 — one combined spec" to "**Complete 2026-04-18** (merged as `<commit-sha>`)" with artifact paths.
-
-- [ ] **Step 2: Mark §8.1 items 11 and 14 as CLOSED** with the SP4 commit reference.
-
-- [ ] **Step 3: Update §5.1 item 5** (Phase-8 test asserts across two engines) — closed by SP4.
-
-- [ ] **Step 4: Update §1 "Status at a glance"** — subtract item 14 from the residual list.
-
-- [ ] **Step 5: Update the appendix "Suggested execution order"** — SP4 done; remainder is SP5/SP6/SP7.
-
-- [ ] **Step 6: Commit.**
+- [ ] **Step 1:** Mark SP4 complete in §8.0 table with commit SHA.
+- [ ] **Step 2:** Mark §8.1 items 11 and 14 as CLOSED.
+- [ ] **Step 3:** Mark §5.1 item 5 (Phase-8 two-engine test) as closed by SP4.
+- [ ] **Step 4:** Update §1 "Status at a glance" — remove item 14 from residuals.
+- [ ] **Step 5:** Commit.
 
   ```bash
-  git add docs/superpowers/notes/2026-04-18-emview-subsystem-closeout.md
-  git commit -m "docs(closeout): mark SP4 complete"
+  git commit -am "docs(closeout): mark SP4 complete"
   ```
 
-### Task 6.3: Merge / PR (follow existing repo conventions)
+### Task 6.3: Merge / PR
 
-Out of scope for this plan — defer to the project's usual branch-finishing flow (see `superpowers:finishing-a-development-branch`).
+Out of scope — defer to project branch-finishing flow.
 
 ---
 
-## Self-review — run before handoff
+## Self-review
 
 1. **Spec coverage:**
-   - §2.1 engine-only routing → Tasks 3.1–3.4. ✓
-   - §2.2 ctor-time wake → Task 3.2. ✓
-   - §2.3 cached-field popup probe → Tasks 1.1, 1.3, 2.1, 2.2. ✓
-   - §2.4 test-site stability → verified by Phase 3 regression runs; no migration needed. ✓
-   - §2.5 Phase-8 single-engine → Tasks 4.1–4.3, 5.1. ✓
+   - §2.1 engine-only routing → Phase 4. ✓
+   - §2.2 ctor-time wake → Task 4.2. ✓
+   - §2.3 Part A (cached close_signal_pending) → Tasks 1.3, 3.1, 3.2, 3.3. ✓
+   - §2.3 Part B (queue + SchedOp + helper + drain) → Tasks 1.1, 1.2, 1.3, 3.2, Phase 2. ✓
+   - §2.4 test-site stability → no test signature changes; achieved. ✓
+   - §2.5 Phase-8 single-engine → Tasks 5.1, 5.3. ✓
    - §2.6 non-goals → no task touches `VisitingVAEngineClass` or notice dispatch. ✓
-2. **Placeholder scan:** Task 4.3 Step 1 leaves the implementer to fill `emWindow` fields they haven't enumerated — flagged explicitly with "do not guess" and a concrete source (the struct definition + existing test fixtures). Task 5.1 Step 1 and Task 3.4 Step 1 say "note the start line" rather than hardcoding line numbers — intentional, because the file shifts between phases.
-3. **Type consistency:** `close_signal_pending: bool` (Task 1.1), written by `UpdateEngineClass::Cycle` (Task 2.1), consumed via `std::mem::take` in `Update` (Task 2.2). `emWindow::new_for_test(winit::window::WindowId, &Rc<RefCell<EngineScheduler>>, PanelId, f64, f64) -> Rc<RefCell<Self>>` used identically in Task 4.2 (failing test) and Task 5.1 (Phase-8 rewrite). Consistent.
+   - §5.10 same-slice-propagation test → Task 5.2. ✓
+
+2. **Placeholder scan:**
+   - Task 5.1 Step 4 leaves specific struct-field values to implementer, with explicit "do not guess, read the struct" instruction. Intentional: the `emWindow` struct shape is large and stable; listing every field here would immediately go stale. Acceptable.
+   - Task 5.2 Step 1 notes the test hinges on a specific Update-call-tree signal path and tells the implementer to verify it. Intentional.
+   - Phase 2 Task 2.1 lists patterns but not exact line-by-line rewrites because the file shifts between phases. Task 0.1 Step 5 and Task 2.2 Step 1 provide the exact grep to produce the live checklist. Acceptable.
+
+3. **Type consistency:**
+   - `SchedOp` (Task 1.2) used identically in `apply_to`, `apply_via_ctx`, `queue_or_apply_sched_op`, `UpdateEngineClass::Cycle` drain. ✓
+   - `pending_sched_ops: Vec<SchedOp>` drained via `drain(..).collect()` into a local `Vec<SchedOp>` in Task 3.2 — releases view borrow before iterating. ✓
+   - `close_signal_pending: bool` written by Cycle, consumed via `std::mem::take` in Update. ✓
+   - `EngineCtx::{connect, disconnect, remove_signal}` defined in Task 1.1, used in `SchedOp::apply_via_ctx` (Task 1.2). ✓
+   - `emWindow::new_for_test` signature consistent between Task 5.1 test + impl, Task 5.2 test, Task 5.3 Phase-8 rewrite. ✓
 
 ---
 
