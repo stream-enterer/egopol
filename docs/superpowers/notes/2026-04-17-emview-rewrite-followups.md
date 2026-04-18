@@ -135,3 +135,78 @@ The following surfaced during reviews but were judged correct as-shipped:
 
 Refs: `docs/superpowers/specs/2026-04-17-emview-viewing-subsystem-design.md`
       `docs/superpowers/plans/2026-04-17-emview-viewing-subsystem-rewrite.md`
+
+---
+
+## CLOSED (partial) — 2026-04-18
+
+10 of 11 follow-up items resolved across Phases 1–10 on `main`.
+Phase 11 (visit-stack removal) deferred — see below.
+
+- Spec: `docs/superpowers/specs/2026-04-17-emview-rewrite-followups-design.md` (commit `9f149ba`)
+- Plan: `docs/superpowers/plans/2026-04-17-emview-rewrite-followups.md` (commit `407b620`)
+- Delivered commits: `fc57a6a`..`4528b84` (13 commits including 3 follow-up DIVERGED cleanups)
+
+Acceptance at close: 2409/2409 nextest; 237/243 golden (same 6 pre-existing
+failures as the `68c6c59` baseline, no regression); runtime smoke alive
+≥15s on each phase.
+
+### Phases delivered
+
+| Phase | Item | Commits |
+|-------|------|---------|
+| 1 | Rename `svp_update_count` → `SVPUpdCount` | `fc57a6a` |
+| 2 | Remove `home_pixel_tallness` duplicate | `c272962`, `b5f9c42` |
+| 3 | Remove `PanelTree::current_pixel_tallness`; thread from view | `5caa1ab` |
+| 4 | Rename `ZuiWindow` → `emWindow`; drop popup stub | `386c90c`, `282cc57` |
+| 5 | `emViewPort` 7-method backend wiring | `f1f6de0`, `866d51b` |
+| 6 | Real popup `emWindow`, `Rc<RefCell<>>` windows, `GeometrySignal` | `c053689` |
+| 7 | `impl emEngine` for EOI/Update; scheduler-driven | `33a44e7` |
+| 8 | Popup-close drain + `SwapViewPorts` wake-up | `009a094` |
+| 9 | `GetMaxPopupViewRect` from current monitor | `d10c636` |
+| 10 | `InvalidateHighlight` guard tightened to C++ | `4528b84` |
+
+### Phase 11 — DEFERRED
+
+Task: delete `visit_stack`/`VisitState`; derive `rel_x/y/a` from
+`ViewedX/Y/Width/Height` on every read (C++ `emPanel.cpp:608-617`).
+
+Blocker (discovered during Phase 11 audit): the plan's helper snippet
+references `self.ViewedX/Y/Width/Height` on `emView`, but those fields
+live on `PanelTree::Panel` (as `viewed_x/y/width/height`), not on
+`emView`. Deriving on `&self` alone is not possible. Resolving the gap
+requires one of:
+
+1. Thread `&PanelTree` through ~30 call sites (including
+   `emViewInputFilter`, `emViewAnimator`, `emMainWindow`,
+   golden/unit/support tests) — invasive, breaks many signatures.
+2. Add view-level `ViewedX/Y/Width/Height` cache fields on `emView` kept
+   in sync with the supreme viewed panel — architectural change not in
+   the current plan.
+
+Additional scope friction: `Visit`/`go_back`/`go_home` is a Rust-only
+navigation API with no C++ equivalent, backed by `visit_stack`. The
+unit test `view_visit_and_back` in `crates/eaglemode/tests/unit/panel.rs`
+directly asserts on `visit_stack().len()` and `.panel`. Deleting the
+stack either breaks those APIs or demands a replacement back-stack data
+type — not specified in the plan.
+
+Known consequence of the deferral: the `invariant_equilibrium_at_target`
+animator test still skips `factor=1.0` with the existing `KNOWN GAP`
+marker at `crates/emcore/src/emViewAnimator.rs:~3320`.
+
+**Follow-up:** needs a separate plan that explicitly chooses between
+(1) or (2) above, specifies the `Visit/go_back/go_home` replacement
+API, and covers the unit-test migration.
+
+### Residual markers in the tree
+
+- `PHASE-6-FOLLOWUP:` on `PopupPlaceholder` (`emView.rs`) — popup
+  creation deadlocks because `RawVisitAbs` has no `ActiveEventLoop`
+  handle; Phase 6 kept the scaffold with these markers.
+- `PHASE-6-FOLLOWUP:` on `emView::Input` animator-forward site and the
+  VIF-chain migration note.
+- `KNOWN GAP` in `emViewAnimator.rs` at the `factor=1.0` skip (see above).
+- `UPSTREAM-GAP:` on `IsSoftKeyboardShown`/`ShowSoftKeyboard` in
+  `emViewPort.rs` — matches absence of backend override in upstream
+  Eagle Mode.
