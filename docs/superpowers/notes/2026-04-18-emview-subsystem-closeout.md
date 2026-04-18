@@ -23,7 +23,7 @@ This document is the source of truth for residual work. It catalogues the state 
 | Smoke (`timeout 20 cargo run --release --bin eaglemode`) | exits 143 / 124 — program stays alive |
 | Scaffolds still in tree | **0** (both `PopupPlaceholder` and the visit-stack scaffolding are gone) |
 | Phase-follow-up markers | ~~1 `PHASE-6-FOLLOWUP`~~ **0** (closed by SP1) + 3 `PHASE-W4-FOLLOWUP` (CoreConfig defaults) + 2 `UPSTREAM-GAP` (intentional) |
-| Known Rust-port incompletenesses remaining | `InvalidateHighlight` call sites (SP2), `CoreConfig` ownership on `emView` (SP3), `emView::Update` scheduler re-entrant borrow + Phase-8 test promotion (SP4), per-view notice dispatch (SP5, blocked on multi-window roadmap), W3 surface de-dup (SP6, optional). SP1 — animator-forward DIVERGED, re-entrancy docs, W4 polish items — closed 2026-04-18. |
+| Known Rust-port incompletenesses remaining | `CoreConfig` ownership on `emView` (SP3), `emView::Update` scheduler re-entrant borrow + Phase-8 test promotion (SP4), per-view notice dispatch (SP5, blocked on multi-window roadmap), W3 surface de-dup (SP6, optional). SP1 — animator-forward DIVERGED, re-entrancy docs, W4 polish items — closed 2026-04-18. SP2 — `InvalidateHighlight` call-site audit — closed 2026-04-18 (landed in SP1 as W1b; doc was stale). |
 
 The subsystem is structurally aligned with C++ emCore on every path the original plan targeted. Remaining debt is enumerated in §8.
 
@@ -263,18 +263,19 @@ Brainstorming on 2026-04-18 grouped the 14 residuals into six independently-sche
 | Sub-project | Items | State | Artifacts |
 |---|---|---|---|
 | **SP1 — W1+W2 cleanup bundle** | ~~1, 3, 4, 5, 6, 7, 8, 9~~ | **Complete 2026-04-18** (merged as `50d50cf`). | `specs/2026-04-18-emview-w1-w2-cleanup-bundle-design.md`, `plans/2026-04-18-emview-w1-w2-cleanup-bundle.md` |
-| **SP2 — InvalidateHighlight scoping** | 2 | Not started; standalone scoping question | — |
+| **SP2 — InvalidateHighlight scoping** | ~~2~~ | **Complete 2026-04-18** — audit found all 5 C++ call sites already mirrored in Rust as part of SP1's W1b task; no additional work needed. | `plans/2026-04-18-emview-followups-wave1.md` Task 3 |
 | **SP3 — CoreConfig ownership** | 10 | Not started; ARCH | — |
 | **SP4 — Scheduler re-entrant borrow → Phase-8 test** | 14 then 11 | Not started; 14 blocks 11 — one combined spec | — |
 | **SP5 — Per-view notice dispatch** | 12 | Blocked on multi-window roadmap decision | — |
 | **SP6 — W3 surface de-dup** | 13 | Optional; may skip entirely | — |
+| **SP7 — emContext threading through view/window subsystem** | 15 | Not started; ARCH; surfaced 2026-04-18 during SP3 brainstorming | — |
 
-**Suggested execution order:** SP1 → SP3 → SP4 → (SP5 if unblocked) → SP6 if wanted. SP2 slots anywhere or folds into SP1.
+**Suggested execution order:** SP1 → SP3 → SP4 → (SP5 if unblocked) → SP6 if wanted → SP7 when the motivation arrives. (SP2 turned out to be already done — landed in SP1 as W1b.)
 
 ### 8.1 Residual inventory
 
 1. ~~**[W1] `emView::Input` animator forward**~~ **CLOSED 2026-04-18** (`eb2f0fe`). Resolution: structural divergence promoted to formal `DIVERGED:` block at `emView.rs:3778`; `PHASE-6-FOLLOWUP:` prefix removed. Observable behavior already matched C++ via the animator-owner callers. (§5.1 item 3.)
-2. **[W1] `InvalidateHighlight` call-site audit** — the C++ equivalent is called from focus-state changes and similar; Rust has no production caller. (§5.1 item 3 residual, originally §4.8.) *(SP2 — separate sub-project, not part of SP1.)*
+2. ~~**[W1] `InvalidateHighlight` call-site audit**~~ **CLOSED 2026-04-18** — audit on 2026-04-18 found all 5 C++ call sites (`emView.cpp:284, 305, 312, 1211, 1213`) already mirrored in Rust at `emView.rs:594, 599, 1414, 1421, 1457`, each with explicit C++-line comments. Landed as part of SP1's W1b task (`plans/2026-04-18-emview-followups-wave1.md` Task 3); tests at `emView.rs:5986-6036`. The "Rust has no production caller" claim was stale at the time this doc was written.
 3. ~~**[W1] Re-entrancy doc comments**~~ **CLOSED 2026-04-18** (SP1 Task 7). Audit confirmed detailed re-entrancy warnings already present at `emViewPort.rs:164-174` (`PaintView`) and `~265-275` (`InvalidatePainting`). No code change required. Full audit still deferred until real callers wire. (§5.1 item 1.)
 4. ~~**[W1] GeometrySignal double-fire comment**~~ **CLOSED 2026-04-18** (SP1 Task 6). (§5.1 item 2.)
 5. ~~**[W1] Minor cleanups batch**~~ **CLOSED 2026-04-18** (SP1 Task 8). Original §5.2 list was five items; post-audit, the `popup_window.rs` DISPLAY-gate item was stale (file already clean) and the suffix rename became SP1 Task 5. Remaining three items addressed or confirmed already-done.
@@ -287,6 +288,37 @@ Brainstorming on 2026-04-18 grouped the 14 residuals into six independently-sche
 12. **[W5b / DEFERRED] Per-view notice dispatch (emView.cpp:1312 parity)** — successor to the multi-window-pixel-tallness item. W5b landed the classification pass (`DIVERGED:` note expanded in `emPanelTree.rs`; `TODO(per-view-notice-dispatch)` added at the `pixel_tallness` site in `emGUIFramework.rs`). The architectural fix remains open: move `NoticeList` ownership from `PanelTree` to `emView`, dispatch `HandleNotice` from `emView::Update` once per view per frame using that view's own `CurrentPixelTallness`, and establish panel→view ownership in `PanelTree` (or partition notices by walking each view's subtree from its root panel). `run_panel_cycles` is a separate Rust-only construct (C++ panels self-register as engines via `emEngine` inheritance, which the Rust port does not mirror) and stays out of this workstream. Pre-condition before scheduling: confirm multi-window support is on the near-term roadmap; until then the current global dispatch is a tolerable single-window shortcut.
 13. **[ARCH] W3 surface-creation de-duplication** (optional) — extract `build_materialized_surface(gpu, winit_window) -> MaterializedSurface` to deduplicate ~50 lines between `materialize_popup_surface` and `emWindow::create()`. (§3.5 item 1.)
 14. **[ARCH] emView::Update scheduler re-entrant borrow** — discovered during W5a investigation. `emView::Update` at `emView.rs:~2288` calls `self.scheduler.as_ref().unwrap().borrow()` to check `is_signaled_for_engine(close_signal, eng_id)`. Callers (including `emGUIFramework::about_to_wait:491` in production, and any principled single-engine test design) hold `sched.borrow_mut()` across `DoTimeSlice`, whose engine chain runs `UpdateEngineClass::Cycle` → `emView::Update`. The inner `borrow()` panics re-entrantly. In production this path fires whenever a popup's `close_signal` is pending when the update engine's cycle runs — it is not merely a test issue. Fix options: (a) add an `Option<&mut EngineCtxInner>` (or equivalent) parameter to `emView::Update` so the caller can pass scheduler context directly rather than reaching back through `self.scheduler` — cascades through ~20 call sites; (b) cache the signal's clock value in a new field on `emView` during signal processing so `Update` can check without going through the scheduler. Option (a) matches C++ structure more closely (`emView::Update` in C++ has direct access to `Scheduler` via the view context); option (b) is a smaller localized change. Blocks item 11.
+
+15. **[ARCH] `emContext` threading through view/window subsystem** — surfaced 2026-04-18 during SP3 brainstorming (expanded from what was then called "option C" for SP3 — acquiring `CoreConfig` the C++ way rather than constructing it ad-hoc). SP3 itself will construct/pass a `CoreConfig` directly at `emView::new` without routing through a context; this item covers the broader architectural gap.
+
+    **Gap.** C++ `emView::emView(emContext & parentContext, ViewFlags)` takes a parent context, calls `emCoreConfig::Acquire(GetRootContext())` at construction (`emView.cpp:35`), and participates in a tree of contexts that inherit services (clipboard, config models, the model registry). The Rust port has an `emContext` type (`crates/emcore/src/emContext.rs`, ~393 lines) with `NewRoot`, `NewChild`, scheduler lookup via parent chain, and typed-singleton model Acquire — but **no caller in the view/window/panel subsystem ever threads one through.** Specifically:
+    - `emView::new(root, w, h)` takes no context. ~15 production + test call sites.
+    - `emWindow::create` takes `&GpuContext` (wgpu) but no `emContext`; `emWindow::new_popup_pending` likewise.
+    - `emSubViewPanel.rs:51` builds a child `emView` inside a panel with no context in scope.
+    - The ~38 existing `emContext::NewRoot()` calls in `crates/emmain/`, `crates/emfileman/`, and a few unit tests all construct **ad-hoc root contexts** local to model-specific code paths (primarily for `emClipboard` and config-model `Acquire` lookups). They are not linked to each other or to a process-wide root. There is currently no single root `emContext` for an eaglemode process.
+    - `emGUIFramework` / `App` has no root context member; `emCoreConfig::Acquire` is effectively unused at runtime in the main binary.
+
+    **Why this is a separate sub-project, not a piggyback on SP3.** SP3's charter (§8.1 item 10) is to close three `PHASE-W4-FOLLOWUP:` markers. Doing that correctly requires the view to *have* a `CoreConfig`; it does not require the view to *acquire* that config from a context. Routing through `Acquire(GetRootContext())` — the way C++ does it — forces all of the following decisions, none of which are CoreConfig-specific:
+    1. **Where the root `emContext` lives.** `emGUIFramework` is the natural owner (one root per process, scheduler already attached); but that means adding an `emContext` field there and wiring `emContext::NewRootWithScheduler` into framework construction.
+    2. **How contexts relate to the panel/view tree.** C++ nests: `RootContext → WindowContext → (views and panels hang off that)`. Rust would need to decide whether each `emWindow` owns a child context, whether `emView` owns one (per C++), whether `PanelTree` does, and how `emSubViewPanel`'s inner view inherits.
+    3. **How existing ad-hoc `NewRoot()` call sites migrate.** The ~38 scattered `NewRoot` calls in `emmain`/`emfileman`/tests need to be classified: (a) production paths that should be pulled into the shared root, (b) test harnesses that can keep standalone roots, (c) cases where the ad-hoc root is masking a real missing link. Some of these are load-bearing (they serve as the registry that `Acquire` populates) and cannot be removed without a replacement.
+    4. **Clipboard and other services.** `emContext::set_clipboard` is already wired, but nothing currently installs a real clipboard at process start because there is no canonical root to install it on. Threading fixes this incidentally.
+    5. **Test ergonomics.** ~15 `emView::new` call sites across unit and integration tests don't build contexts today. A helper like `emView::new_for_tests(root, w, h)` (constructs a throwaway root context internally) keeps migration cost bounded, but is itself a small API decision.
+
+    **Scope of SP7.**
+    - Add a root `emContext` to `emGUIFramework` / `App`, created alongside the scheduler via `emContext::NewRootWithScheduler`.
+    - Change `emView::new` to take `&Rc<emContext>` (matching C++'s `emContext & parentContext`); store `CoreConfig` on `emView` by calling `emCoreConfig::Acquire` at construction. This replaces SP3's direct-injection approach.
+    - Thread contexts through `emWindow::create` and `emWindow::new_popup_pending`; decide whether popup windows nest under their parent's context (likely yes — matches C++ popup lifetime).
+    - Thread contexts through `emSubViewPanel` so inner views inherit.
+    - Migrate the ad-hoc `NewRoot()` call sites in `emmain`/`emfileman` production code to use the process root (tests can keep their own).
+    - Install a real `emClipboard` implementation at the process root as part of this wiring (currently unwired).
+    - Provide an `emView::new_for_tests(...)` or equivalent to keep the ~15 test call sites ergonomic.
+
+    **Blast radius estimate.** ~15 `emView::new` sites + ~2 `emWindow::create`/`new_popup_pending` sites + ~38 `NewRoot()` sites (not all migrate) + `emGUIFramework` constructor + `emSubViewPanel` + test-harness helpers. Roughly 50–80 touched call sites, most mechanical. The *non-mechanical* work is the three decisions above (where the root lives; how contexts nest; which ad-hoc `NewRoot`s migrate).
+
+    **Dependencies and ordering.** No hard blockers from SP3–SP6. Naturally pairs with whatever multi-window roadmap decision unblocks SP5, because per-window context nesting is the same question asked from a different direction. Defer until there is a motivating feature (real clipboard support, config persistence in the main binary, or the multi-window work for SP5); otherwise the churn buys nothing observable today.
+
+    **Discovery trail.** SP3 brainstorming (2026-04-18) proposed three scopes: (A) minimal CoreConfig field, (B) also realign `SetAnimParamsByCoreConfig` signature to match C++, (C) also route acquisition through `emContext`. Investigation of (C) found that `emContext` is not threaded anywhere in the view/window subsystem today, making (C) a sub-project in its own right. SP3 adopted (B); (C) was extracted as this item.
 
 ---
 
