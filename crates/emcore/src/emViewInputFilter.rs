@@ -1257,10 +1257,6 @@ impl emViewInputFilter for emKeyboardZoomScrollVIF {
                         self.key_state.insert(KeyState::ZOOM_OUT);
                         return true;
                     }
-                    InputKey::Home => {
-                        view.go_home();
-                        return true;
-                    }
                     _ => {}
                 },
                 InputVariant::Release => match event.key {
