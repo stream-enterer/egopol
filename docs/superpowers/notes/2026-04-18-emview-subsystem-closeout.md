@@ -23,7 +23,7 @@ This document is the source of truth for residual work. It catalogues the state 
 | Smoke (`timeout 20 cargo run --release --bin eaglemode`) | exits 143 / 124 — program stays alive |
 | Scaffolds still in tree | **0** (both `PopupPlaceholder` and the visit-stack scaffolding are gone) |
 | Phase-follow-up markers | ~~1 `PHASE-6-FOLLOWUP`~~ **0** (closed by SP1) + 3 `PHASE-W4-FOLLOWUP` (CoreConfig defaults) + 2 `UPSTREAM-GAP` (intentional) |
-| Known Rust-port incompletenesses remaining | Animator-Input forward, `InvalidateHighlight` call sites, re-entrancy doc comments, per-view notice dispatch (was: multi-window pixel tallness), `emView::Update` scheduler re-entrant borrow, `CoreConfig` ownership on `emView`, four W4 polish items |
+| Known Rust-port incompletenesses remaining | `InvalidateHighlight` call sites (SP2), `CoreConfig` ownership on `emView` (SP3), `emView::Update` scheduler re-entrant borrow + Phase-8 test promotion (SP4), per-view notice dispatch (SP5, blocked on multi-window roadmap), W3 surface de-dup (SP6, optional). SP1 — animator-forward DIVERGED, re-entrancy docs, W4 polish items — closed 2026-04-18. |
 
 The subsystem is structurally aligned with C++ emCore on every path the original plan targeted. Remaining debt is enumerated in §8.
 
@@ -90,7 +90,7 @@ Closed-out 2026-04-18. `PopupPlaceholder` stub deleted; real `emWindow` restored
 ### 3.4 `PHASE-6-FOLLOWUP:` markers
 
 - Cleared by W3: 4 (struct doc, `new_popup`, `SetViewPosSize`, `RawVisitAbs` call site).
-- Still open: 1 (VIF-chain migration at `emView.rs:3626`). Belongs to the unported `emView::Input` animator-forward work — see §8.
+- Still open at W3 close: 1 (VIF-chain migration at `emView.rs:~3626`, belonged to the unported `emView::Input` animator-forward work). **Cleared by SP1 on 2026-04-18** (`eb2f0fe`) — reclassified as structural divergence and promoted to a `DIVERGED:` block at `emView.rs:~3749`.
 
 ### 3.5 Items deferred from W3 to follow-up
 
@@ -145,7 +145,7 @@ The original wave's Phase 11 audit surfaced six subquestions that made a direct 
 ### 4.4 Scope expansions during W4
 
 - **`emMainWindow::RecreateContentPanels` snapshot.** Task 3.1 surfaced that the pre-wave Rust code was dropping `title` and `adherent` silently across content rebuild, against C++ `emMainWindow.cpp:297,301,304`. Fixed in commit `5b3a968` as a coupled C++-fidelity repair forced by the new `Visit` signature.
-- **`pump_visiting_va` test helper.** W4 Phase 3 Task 3.4 added a bounded-iteration pump (1024 × 0.1 s) on `emView` to drive the animator to completion in tests. Currently `pub` to satisfy cross-crate tests — flagged as leaked API surface (§8 item 4).
+- **`pump_visiting_va` test helper.** W4 Phase 3 Task 3.4 added a bounded-iteration pump (1024 × 0.1 s) on `emView` to drive the animator to completion in tests. ~~Currently `pub` to satisfy cross-crate tests — flagged as leaked API surface~~ **Closed by SP1 on 2026-04-18** (`509535d`): gated behind a `test-support` cargo feature.
 - **Test migration cost.** 25 pre-existing tests asserted on the old eager `set_active_panel` side-effect. Per the plan's observational-port frame, these were migrated to drive the animator to convergence (15 per-site + 7 covered by a harness-level `tick()` pump + 3 emcore tests).
 
 ### 4.5 `DIVERGED:` annotations added by W4
@@ -154,48 +154,48 @@ Four new, all forced by Rust's inability to overload by arity:
 
 - `emView::VisitFullsizedByIdentity` — C++ `VisitFullsized(identity, adherent, utilizeView, subject)` overload.
 - `emView::VisitPanel` — C++ `Visit(panel, adherent)` overload.
-- `emView::VisitByIdentityShort` — C++ `Visit(identity, adherent, subject)` overload.
-- `emVisitingViewAnimator::SetGoalWithCoords` — C++ `SetGoal(identity, relX, relY, relA, adherent, subject)` 6-arg overload.
+- `emView::VisitByIdentityBare` — C++ `Visit(identity, adherent, subject)` overload. *(Renamed from `VisitByIdentityShort` by SP1 on 2026-04-18 — `eea7269`.)*
+- `emVisitingViewAnimator::SetGoalCoords` — C++ `SetGoal(identity, relX, relY, relA, adherent, subject)` 6-arg overload. *(Renamed from `SetGoalWithCoords` by SP1 on 2026-04-18 — `eea7269`.)*
 
 Per CLAUDE.md, `DIVERGED:` is the prescribed marker for name mismatches; the W4 plan's "no new DIVERGED" clause was retroactively amended — CLAUDE.md takes precedence.
 
 ### 4.6 `PHASE-W4-FOLLOWUP:` markers — 3, all CoreConfig defaults
 
-All three mark hardcoded `SetAnimParamsByCoreConfig(1.0, 10.0)` calls where C++ would pass `emView`'s `CoreConfig` by reference. Rust `emView` does not yet own a `CoreConfig` field. Locations: `crates/emcore/src/emView.rs:897, 921, 3080`.
+All three mark hardcoded `SetAnimParamsByCoreConfig(1.0, 10.0)` calls where C++ would pass `emView`'s `CoreConfig` by reference. Rust `emView` does not yet own a `CoreConfig` field. Locations (as of 2026-04-18 post-SP1 co-location move): `crates/emcore/src/emView.rs:877, 923, 947`.
 
 ---
 
 ## 5. Reviewer findings carried forward
 
-Everything below was flagged during one of the three waves and remains open. Grouped by severity, not by wave.
+Everything below was flagged during one of the three waves. Items closed by SP1 on 2026-04-18 are marked inline; the rest are open and covered by SP2–SP6 (see §8.0).
 
 ### 5.1 Important
 
-1. **Latent re-entrancy hazard on `PaintView` / `InvalidatePainting`** (`emViewPort.rs` ~160, ~255). Both methods upgrade `self.window: Weak<RefCell<emWindow>>` and borrow. No current call site holds an existing `&mut emWindow`, but future calls from inside `render()` / `dispatch_input()` / `handle_touch()` would runtime-panic. Phase-6 mitigation (`debug_assert!(self.window.is_some() || cfg!(test), ...)`) catches the missing-backref mode, not re-entrancy. **Follow-up:** explicit doc comment on both methods; full audit when real callers are wired.
+1. **Latent re-entrancy hazard on `PaintView` / `InvalidatePainting`** (`emViewPort.rs` ~160, ~255). Both methods upgrade `self.window: Weak<RefCell<emWindow>>` and borrow. No current call site holds an existing `&mut emWindow`, but future calls from inside `render()` / `dispatch_input()` / `handle_touch()` would runtime-panic. Phase-6 mitigation (`debug_assert!(self.window.is_some() || cfg!(test), ...)`) catches the missing-backref mode, not re-entrancy. ~~**Follow-up:** explicit doc comment on both methods~~ **Closed by SP1 on 2026-04-18:** SP1 Task 7 audit confirmed detailed re-entrancy warnings already present at `emViewPort.rs:164-174` (PaintView) and `~265-275` (InvalidatePainting). Full audit still deferred until real callers wire.
 
-2. **Double-fire of `GeometrySignal` on popup teardown** (`emView.rs` ~1733). The popup-teardown branch calls `SwapViewPorts(true)` which fires once, then fires `GeometrySignal` a second time explicitly. C++ (`emView.cpp:1678 + 1995`) does the same double-fire, so behaviour matches; comment does not acknowledge `SwapViewPorts` already fired. **Follow-up:** one-line comment tying the double-fire to the C++ pair.
+2. **Double-fire of `GeometrySignal` on popup teardown** (`emView.rs` ~1733). The popup-teardown branch calls `SwapViewPorts(true)` which fires once, then fires `GeometrySignal` a second time explicitly. C++ (`emView.cpp:1678 + 1995`) does the same double-fire, so behaviour matches. ~~**Follow-up:** one-line comment tying the double-fire to the C++ pair.~~ **Closed by SP1 on 2026-04-18** (SP1 Task 6).
 
-3. **`emView::Input` animator-forward is a structural divergence** (`emView.rs:3778`). ~~"missing"~~ — **revised 2026-04-18 during W1/W2 plan-writing.** C++ `emView::Input` (`emView.cpp:1004`) forwards to the active animator first via `ActiveAnimator->Input(event, state)`, because C++ `emView` owns the `ActiveAnimator` field. The Rust port places the forward on the animator-owner callers — `emWindow::dispatch_input` (`emWindow.rs:840-862`) and `emSubViewPanel::Behavior::Input` — because Rust `emView` does not own an animator slot. Observable behavior matches C++ (animator sees input first); only the *location* of the forward differs. The existing prose comment at the call site documents this. **Resolution:** promote the comment to a formal `DIVERGED:` block; drop the `PHASE-6-FOLLOWUP:` prefix. Covered by W1/W2 bundle Task 1.
+3. **`emView::Input` animator-forward is a structural divergence** (`emView.rs:~3749`). C++ `emView::Input` (`emView.cpp:1004`) forwards to the active animator first via `ActiveAnimator->Input(event, state)`, because C++ `emView` owns the `ActiveAnimator` field. The Rust port places the forward on the animator-owner callers — `emWindow::dispatch_input` and `emSubViewPanel::Behavior::Input` — because Rust `emView` does not own an animator slot. Observable behavior matches C++ (animator sees input first); only the *location* of the forward differs. ~~**Resolution:** promote the comment to a formal `DIVERGED:` block.~~ **Closed by SP1 on 2026-04-18** (`eb2f0fe`).
 
-4. **Multi-window framework ambiguity on pixel tallness** (`emGUIFramework.rs` ~362–367). Reads pixel tallness from `windows.values().next()` with `.unwrap_or(1.0)`. Any multi-window future silently picks an arbitrary window. Phase-3's `current_pixel_tallness` threading inherited this hazard. **Follow-up:** TODO marker plus a multi-window-design decision when that feature lands.
+4. **Multi-window framework ambiguity on pixel tallness** (`emGUIFramework.rs` ~362–367). Reads pixel tallness from `windows.values().next()` with `.unwrap_or(1.0)`. Any multi-window future silently picks an arbitrary window. Phase-3's `current_pixel_tallness` threading inherited this hazard. **Open — covered by SP5** (per-view notice dispatch supersedes and resolves this).
 
-5. **Phase-8 test asserts across two engines.** (`test_phase8_popup_close_signal_zooms_out` inline in `emView.rs`.) Half A observes `SwapViewPorts` connecting `close_signal` → real update engine before the swap; Half B drains signal-vs-engine-clock using a dummy engine as `update_engine_id`. Both halves exercise production code paths, never in one integrated run. **Follow-up:** widen `PanelTree::get_mut` visibility (has other consequences) or build a test-support shim.
+5. **Phase-8 test asserts across two engines.** (`test_phase8_popup_close_signal_zooms_out` inline in `emView.rs`.) Half A observes `SwapViewPorts` connecting `close_signal` → real update engine before the swap; Half B drains signal-vs-engine-clock using a dummy engine as `update_engine_id`. Both halves exercise production code paths, never in one integrated run. **Open — covered by SP4** (blocked on the scheduler re-entrant borrow in §8 item 14).
 
-6. **`VisitByIdentity` non-adjacent placement** (W4 residual). `Visit` lives at `emView.rs:~857`; its identity-keyed partner `VisitByIdentity` (7-arg) lives at `~3072`, ~2200 lines away. C++ colocates them at `emView.cpp:492-523`. File-and-Name Correspondence expects adjacency. **Fix:** mechanical move.
+6. **`VisitByIdentity` non-adjacent placement** (W4 residual). C++ colocates `Visit` and `VisitByIdentity` at `emView.cpp:492-523`. ~~Rust port had them ~2200 lines apart.~~ **Closed by SP1 on 2026-04-18** (`93b6b04`): mechanical move; now adjacent.
 
-7. **`pub fn pump_visiting_va` leaked public API** (W4 residual, commit `6642ec5`). Currently `pub` on `emView` so cross-crate tests can call it. Doc-comment marks it "Test-only" but the symbol is visible to every `emcore` consumer. **Fix options:** (a) `#[cfg(any(test, feature = "test-support"))]` + dev-dep feature; (b) `pub(crate)` helper re-exported from a test-support submodule; (c) accept and document as a sanctioned test API.
+7. **`pub fn pump_visiting_va` leaked public API** (W4 residual, originally commit `6642ec5`). ~~Currently `pub` on `emView`; Doc-comment marks it "Test-only" but the symbol is visible to every `emcore` consumer.~~ **Closed by SP1 on 2026-04-18** (`509535d`): resolution (a) — `#[cfg(any(test, feature = "test-support"))]` + `test-support` cargo feature on `emcore`, enabled on `eaglemode`'s dev-dep.
 
-8. **Navigation methods carry undeclared Rust-only `NO_NAVIGATE` gate** (W4 residual). `VisitNext/Prev/First/Last/In/Out/Neighbour` each begin with `if self.flags.intersects(NO_NAVIGATE | NO_USER_NAVIGATION) { return; }`. C++ `emView.cpp:564-762` has no such gate — gating happens at the caller. Pre-wave behaviour, now living inside newly-authored bodies without a `DIVERGED:`. **Fix:** either remove the gate and gate at callers (matches C++) or add a cluster-level `DIVERGED:` comment.
+8. **Navigation methods carry undeclared Rust-only `NO_NAVIGATE` gate** (W4 residual). `VisitNext/Prev/First/Last/In/Out/Neighbour` each began with `if self.flags.intersects(NO_NAVIGATE | NO_USER_NAVIGATION) { return; }`. C++ `emView.cpp:564-762` has no such gate — gating happens at the caller. ~~**Fix:** either remove the gate and gate at callers, or add a cluster-level `DIVERGED:` comment.~~ **Closed by SP1 on 2026-04-18** (`4d47097`): internal gate removed from all seven methods; user-nav callers gate on `NO_USER_NAVIGATION`, matching C++ exactly.
 
 ### 5.2 Minor / style
 
-Each of these is a one-liner; batchable in a single cleanup pass.
+All items in this section closed by SP1 on 2026-04-18.
 
-1. `emSubViewPanel.rs:48` — literal `1.0` for pixel tallness not symbolically tied to `CurrentPixelTallness`'s initial value. Add one-line comment.
-2. `emGUIFramework.rs:~393` — `let mut win = rc.borrow_mut(); let win = &mut *win;` could be `&mut *rc.borrow_mut()`.
-3. `emGUIFramework.rs` `dispatch_forward_events` — added doc-comment describes caller-side usage, not the function itself. Move to the call site or drop.
-4. ~~`tests/unit/popup_window.rs` — dead `DISPLAY`/`WAYLAND_DISPLAY` gate.~~ **Stale as of 2026-04-18.** W1/W2 plan-writing re-read the file; the gate is already absent. The current test is `popup_window_creation_path_is_reachable` (a direct reachability assertion with no DISPLAY branching). Item closed without action.
-5. **W4 `DIVERGED:` suffix consistency.** Four new suffixes (`WithCoords`, `Short`, `ByIdentity`, `ByIdentityShort`). `Short` is an antonym heuristic rather than a semantic descriptor. More uniform names (`VisitBare`/`VisitByIdentityBare` or `VisitCoords`/`VisitByIdentityCoords`) would make the overload family self-describing. Cheap rename now; expensive once external consumers reference the names.
+1. ~~`emSubViewPanel.rs:48` — literal `1.0` for pixel tallness~~ **Closed by SP1 Task 8**: existing comment already ties the literal to `CurrentPixelTallness`.
+2. ~~`emGUIFramework.rs:~393` — borrow pattern collapse.~~ **Closed by SP1 Task 8**: audit found the referenced pattern does not exist in the file; item was based on a misread.
+3. ~~`emGUIFramework.rs` `dispatch_forward_events` doc placement.~~ **Closed by SP1 Task 8.**
+4. ~~`tests/unit/popup_window.rs` — dead `DISPLAY`/`WAYLAND_DISPLAY` gate.~~ **Stale as of 2026-04-18.** Gate already absent in the file. Current test: `popup_window_creation_path_is_reachable`.
+5. ~~**W4 `DIVERGED:` suffix consistency.**~~ **Closed by SP1 on 2026-04-18** (`eea7269`): `VisitByIdentityShort` → `VisitByIdentityBare`; `SetGoalWithCoords` → `SetGoalCoords`.
 
 ---
 
@@ -205,11 +205,11 @@ Each of these is a one-liner; batchable in a single cleanup pass.
 |---|---|---|
 | `PHASE-5-TODO:` | 0 | Closed by Phases 6/8 |
 | `PHASE-6-FOLLOWUP:` | ~~1~~ **0** | Closed by SP1 (2026-04-18) — promoted to `DIVERGED:` block at `emView.rs:~3778` |
-| `PHASE-W4-FOLLOWUP:` | 3 | CoreConfig defaults at `emView.rs:897, 921, 3080` |
+| `PHASE-W4-FOLLOWUP:` | 3 | CoreConfig defaults at `emView.rs:877, 923, 947` (post-SP1 co-location move) |
 | `UPSTREAM-GAP:` | 2 | Intentional — `IsSoftKeyboardShown` / `ShowSoftKeyboard` in `emViewPort.rs`; no upstream backend overrides them |
 | `backend-gap:` | 0 | Phase 8 cleared the last one |
 | `KNOWN GAP` | 0 | W4 closed the `factor=1.0` marker |
-| `DIVERGED:` (new this wave+W3+W4) | 5 | 1 W3 (`OsSurface` accessor inlining) + 4 W4 (arity-overload renames); all warranted per CLAUDE.md |
+| `DIVERGED:` (new this wave+W3+W4+SP1) | 6 | 1 W3 (`OsSurface` accessor inlining) + 4 W4 (arity-overload renames; `VisitByIdentityBare`/`SetGoalCoords` post-SP1) + 1 SP1 (`emView::Input` animator-forward location); all warranted per CLAUDE.md |
 
 ---
 
@@ -220,7 +220,7 @@ Each of these is a one-liner; batchable in a single cleanup pass.
 | Test | File | Wave |
 |---|---|---|
 | `input_routes_through_viewport` + companion | `tests/unit/input_dispatch_chain.rs` | Original (Phase 5) |
-| `popup_window_creation_path_is_gated_on_display` + companion | `tests/unit/popup_window.rs` | Original (Phase 6) |
+| `popup_window_creation_path_is_gated_on_display` + companion — W3 retargeted to `popup_window_creation_path_is_reachable` | `tests/unit/popup_window.rs` | Original (Phase 6), retargeted W3 |
 | `test_phase8_popup_close_signal_zooms_out` | inline in `emView.rs` | Original (Phase 8) |
 | `max_popup_rect_falls_back_to_home` | `tests/unit/max_popup_rect_fallback.rs` | Original (Phase 9) |
 | Popup materialization + cancellation tests (DISPLAY-gated) | W3 integration | W3 |
@@ -299,6 +299,6 @@ W1 (C++-mirror ports) ─┬─ W2 (cleanups) → W3 (popup arch) → W4 (visit-
                        │                                                        └ W5b (multi-window pixel tallness)
 ```
 
-Status against that plan: **W3 and W4 are done.** W1, W2, W5 (renamed to items 1–5, 11, 12 in §8 above) remain.
+Status against that plan: **W3, W4, W1, and W2 are done** (W1+W2 landed together as SP1 on 2026-04-18). W5 remains, now decomposed as SP4 (see §8.0); SP2, SP3, SP5, SP6 cover the additional residuals that surfaced during W3/W4 closeout.
 
 End of report.
