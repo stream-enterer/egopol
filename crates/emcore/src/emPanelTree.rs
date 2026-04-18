@@ -294,6 +294,25 @@ pub struct PanelTree {
     /// panels (arena indices replace raw pointers). Semantics: panels
     /// with queued notices form a doubly-linked list; `add_to_notice_list`
     /// links at the tail; `HandleNotice` drains from the head.
+    ///
+    /// Divergence classification per the Port Ideology (CLAUDE.md):
+    /// - **Storage shape** (global `PanelTree` owns NoticeList vs C++
+    ///   per-view `emView::NoticeList`): *Forced.* Rust ownership rules
+    ///   make per-view intrusive ring nodes impractical without
+    ///   `unsafe` and custom allocators.
+    /// - **Data structure** (`Vec`/arena-index vs `PanelRingNode*`
+    ///   sentinel): *Idiom adaptation.* Below the observable surface.
+    /// - **Dispatch driver** (global call from
+    ///   `emGUIFramework::about_to_wait` vs per-view call from
+    ///   `emView::Update`, emView.cpp:1312): *Design-intent violation.*
+    ///   C++ dispatches per-view using that view's own
+    ///   `CurrentPixelTallness`; the Rust port currently dispatches
+    ///   once globally with a single arbitrarily-chosen pixel_tallness
+    ///   (see emGUIFramework.rs `pixel_tallness` site). This is the
+    ///   load-bearing part of the divergence and is tracked as the
+    ///   successor workstream **"Per-view notice dispatch
+    ///   (emView.cpp:1312 parity)"** in the emView subsystem closeout
+    ///   doc §8.
     pub(crate) notice_ring_head_next: Option<PanelId>,
     pub(crate) notice_ring_head_prev: Option<PanelId>,
     /// Set by `Layout()` on the root panel (no parent). Matches C++
