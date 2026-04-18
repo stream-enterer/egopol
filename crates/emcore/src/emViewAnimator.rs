@@ -712,6 +712,32 @@ impl emVisitingViewAnimator {
         }
     }
 
+    /// Constructor matching C++ `emVisitingViewAnimator::emVisitingViewAnimator(emView & view)`
+    /// at `emViewAnimator.cpp:930`. Initializes to ST_NO_GOAL / inactive.
+    pub fn new_for_view() -> Self {
+        Self {
+            animated: false,
+            acceleration: 5.0,
+            max_cusp_speed: 2.0,
+            max_absolute_speed: 5.0,
+            state: VisitingState::NoGoal,
+            visit_type: VisitType::Visit,
+            identity: String::new(),
+            names: Vec::new(),
+            rel_x: 0.0,
+            rel_y: 0.0,
+            rel_a: 0.0,
+            adherent: false,
+            utilize_view: false,
+            subject: String::new(),
+            active: false,
+            max_depth_seen: -1,
+            speed: 0.0,
+            time_slices_without_hope: 0,
+            give_up_clock: 0.0,
+        }
+    }
+
     /// Configure animation parameters from a speed config value.
     ///
     /// Mirrors C++ `emVisitingViewAnimator::SetAnimParamsByCoreConfig`.
@@ -3767,5 +3793,34 @@ mod kani_private_proofs {
     #[kani::proof]
     fn l3_get_direct_dist_zero_at_origin() {
         assert_eq!(get_direct_dist(0.0, 0.0), 0.0);
+    }
+}
+
+#[cfg(test)]
+mod constructor_tests {
+    use super::*;
+
+    #[test]
+    fn new_for_view_matches_cpp_initial_state() {
+        // C++ emViewAnimator.cpp:930-948 initializes:
+        //   Animated=false, Acceleration=5.0, MaxCuspSpeed=2.0, MaxAbsoluteSpeed=5.0
+        //   State=ST_NO_GOAL, VisitType=VT_VISIT, RelX=RelY=RelA=0
+        //   Adherent=false, UtilizeView=false, MaxDepthSeen=-1, Speed=0.0
+        //   IsActive()=false (SetDeactivateWhenIdle + no Activate call yet).
+        let va = emVisitingViewAnimator::new_for_view();
+        assert!(!va.animated);
+        assert_eq!(va.acceleration, 5.0);
+        assert_eq!(va.max_cusp_speed, 2.0);
+        assert_eq!(va.max_absolute_speed, 5.0);
+        assert_eq!(va.state, VisitingState::NoGoal);
+        assert_eq!(va.visit_type, VisitType::Visit);
+        assert_eq!(va.rel_x, 0.0);
+        assert_eq!(va.rel_y, 0.0);
+        assert_eq!(va.rel_a, 0.0);
+        assert!(!va.adherent);
+        assert!(!va.utilize_view);
+        assert_eq!(va.max_depth_seen, -1);
+        assert_eq!(va.speed, 0.0);
+        assert!(!va.active);
     }
 }
