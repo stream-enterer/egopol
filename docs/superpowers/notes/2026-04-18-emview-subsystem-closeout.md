@@ -22,7 +22,7 @@ This document is the source of truth for residual work. It catalogues the state 
 | Golden | 237 passed / 6 failed (baseline parity — same 6 pre-existing failures across all waves) |
 | Smoke (`timeout 20 cargo run --release --bin eaglemode`) | exits 143 / 124 — program stays alive |
 | Scaffolds still in tree | **0** (both `PopupPlaceholder` and the visit-stack scaffolding are gone) |
-| Phase-follow-up markers | 1 `PHASE-6-FOLLOWUP` (VIF-chain migration, out of scope) + 3 `PHASE-W4-FOLLOWUP` (CoreConfig defaults) + 2 `UPSTREAM-GAP` (intentional) |
+| Phase-follow-up markers | ~~1 `PHASE-6-FOLLOWUP`~~ **0** (closed by SP1) + 3 `PHASE-W4-FOLLOWUP` (CoreConfig defaults) + 2 `UPSTREAM-GAP` (intentional) |
 | Known Rust-port incompletenesses remaining | Animator-Input forward, `InvalidateHighlight` call sites, re-entrancy doc comments, per-view notice dispatch (was: multi-window pixel tallness), `emView::Update` scheduler re-entrant borrow, `CoreConfig` ownership on `emView`, four W4 polish items |
 
 The subsystem is structurally aligned with C++ emCore on every path the original plan targeted. Remaining debt is enumerated in §8.
@@ -204,7 +204,7 @@ Each of these is a one-liner; batchable in a single cleanup pass.
 | Marker | Count | Status |
 |---|---|---|
 | `PHASE-5-TODO:` | 0 | Closed by Phases 6/8 |
-| `PHASE-6-FOLLOWUP:` | 1 | VIF-chain migration at `emView.rs:~3626` (animator-forward work) |
+| `PHASE-6-FOLLOWUP:` | ~~1~~ **0** | Closed by SP1 (2026-04-18) — promoted to `DIVERGED:` block at `emView.rs:~3778` |
 | `PHASE-W4-FOLLOWUP:` | 3 | CoreConfig defaults at `emView.rs:897, 921, 3080` |
 | `UPSTREAM-GAP:` | 2 | Intentional — `IsSoftKeyboardShown` / `ShowSoftKeyboard` in `emViewPort.rs`; no upstream backend overrides them |
 | `backend-gap:` | 0 | Phase 8 cleared the last one |
@@ -262,7 +262,7 @@ Brainstorming on 2026-04-18 grouped the 14 residuals into six independently-sche
 
 | Sub-project | Items | State | Artifacts |
 |---|---|---|---|
-| **SP1 — W1+W2 cleanup bundle** | 1, 3, 4, 5, 6, 7, 8, 9 | Spec + plan written 2026-04-18; awaiting execution | `specs/2026-04-18-emview-w1-w2-cleanup-bundle-design.md`, `plans/2026-04-18-emview-w1-w2-cleanup-bundle.md` |
+| **SP1 — W1+W2 cleanup bundle** | ~~1, 3, 4, 5, 6, 7, 8, 9~~ | **Complete 2026-04-18** (merged as `50d50cf`). | `specs/2026-04-18-emview-w1-w2-cleanup-bundle-design.md`, `plans/2026-04-18-emview-w1-w2-cleanup-bundle.md` |
 | **SP2 — InvalidateHighlight scoping** | 2 | Not started; standalone scoping question | — |
 | **SP3 — CoreConfig ownership** | 10 | Not started; ARCH | — |
 | **SP4 — Scheduler re-entrant borrow → Phase-8 test** | 14 then 11 | Not started; 14 blocks 11 — one combined spec | — |
@@ -273,15 +273,15 @@ Brainstorming on 2026-04-18 grouped the 14 residuals into six independently-sche
 
 ### 8.1 Residual inventory
 
-1. **[W1] `emView::Input` animator forward** — ~~port `emView.cpp:1004`'s `ActiveAnimator->Input(event, state)`~~ **revised 2026-04-18**: observable behavior already matches C++ via the animator-owner callers; resolution is to promote the existing in-code comment at `emView.rs:3778` to a formal `DIVERGED:` block and drop the `PHASE-6-FOLLOWUP:` prefix. Closes one `PHASE-6-FOLLOWUP:` marker. (§5.1 item 3.) Covered by W1/W2 bundle Task 1 — see `docs/superpowers/plans/2026-04-18-emview-w1-w2-cleanup-bundle.md`.
-2. **[W1] `InvalidateHighlight` call-site audit** — the C++ equivalent is called from focus-state changes and similar; Rust has no production caller. (§5.1 item 3 residual, originally §4.8.)
-3. **[W1] Re-entrancy doc comments** on `PaintView`/`InvalidatePainting`; full audit deferred until real callers wire. (§5.1 item 1.)
-4. **[W1] GeometrySignal double-fire comment** — one line at `emView.rs:~1733`. (§5.1 item 2.)
-5. **[W1] Minor cleanups batch** (§5.2, ~~five~~ four items post-stale-audit — the `popup_window.rs` gate item was closed without action on 2026-04-18).
-6. **[W2] `VisitByIdentity` co-location** — mechanical move. (§5.1 item 6.)
-7. **[W2] `pump_visiting_va` visibility fix** — pick (a)/(b)/(c). (§5.1 item 7.)
-8. **[W2] Navigation method `NO_NAVIGATE` gate** — remove or add `DIVERGED:`. (§5.1 item 8.)
-9. **[W2] `DIVERGED:` suffix rename** — while external consumers are still zero. (§5.2 item 5.)
+1. ~~**[W1] `emView::Input` animator forward**~~ **CLOSED 2026-04-18** (`eb2f0fe`). Resolution: structural divergence promoted to formal `DIVERGED:` block at `emView.rs:3778`; `PHASE-6-FOLLOWUP:` prefix removed. Observable behavior already matched C++ via the animator-owner callers. (§5.1 item 3.)
+2. **[W1] `InvalidateHighlight` call-site audit** — the C++ equivalent is called from focus-state changes and similar; Rust has no production caller. (§5.1 item 3 residual, originally §4.8.) *(SP2 — separate sub-project, not part of SP1.)*
+3. ~~**[W1] Re-entrancy doc comments**~~ **CLOSED 2026-04-18** (SP1 Task 7). Audit confirmed detailed re-entrancy warnings already present at `emViewPort.rs:164-174` (`PaintView`) and `~265-275` (`InvalidatePainting`). No code change required. Full audit still deferred until real callers wire. (§5.1 item 1.)
+4. ~~**[W1] GeometrySignal double-fire comment**~~ **CLOSED 2026-04-18** (SP1 Task 6). (§5.1 item 2.)
+5. ~~**[W1] Minor cleanups batch**~~ **CLOSED 2026-04-18** (SP1 Task 8). Original §5.2 list was five items; post-audit, the `popup_window.rs` DISPLAY-gate item was stale (file already clean) and the suffix rename became SP1 Task 5. Remaining three items addressed or confirmed already-done.
+6. ~~**[W2] `VisitByIdentity` co-location**~~ **CLOSED 2026-04-18** (`93b6b04`). Mechanical move; `VisitByIdentity` now adjacent to `Visit` in `emView.rs`. (§5.1 item 6.)
+7. ~~**[W2] `pump_visiting_va` visibility fix**~~ **CLOSED 2026-04-18** (`509535d`). Resolution: option (a) — `#[cfg(any(test, feature = "test-support"))]` gate + `test-support` cargo feature on `emcore`; `eaglemode` enables it on its dev-dep. (§5.1 item 7.)
+8. ~~**[W2] Navigation method `NO_NAVIGATE` gate**~~ **CLOSED 2026-04-18** (`4d47097`). Resolution: removed the internal gate from all seven `Visit{Next,Prev,First,Last,In,Out,Neighbour}` methods; user-nav callers gate on `NO_USER_NAVIGATION`. Matches C++ `emView.cpp:564-762` exactly. (§5.1 item 8.)
+9. ~~**[W2] `DIVERGED:` suffix rename**~~ **CLOSED 2026-04-18** (`eea7269`). `VisitByIdentityShort` → `VisitByIdentityBare`; `SetGoalWithCoords` → `SetGoalCoords`. (§5.2 item 5.)
 10. **[ARCH] `CoreConfig` ownership on `emView`** — give `emView` a real `CoreConfig` field (C++ `emView.h` holds `emRef<emCoreConfig>`); replace the three hardcoded `SetAnimParamsByCoreConfig(1.0, 10.0)` calls with real config values. Closes all 3 `PHASE-W4-FOLLOWUP:` markers. (§4.6.)
 11. **[W5a / DEFERRED] Phase-8 test promotion** — original intent: drive `close_signal` end-to-end through a single real engine. W5a investigation found this requires two production fixes, not a test-only change: (i) `UpdateEngineClass::Cycle` goes through `ctx.windows.get(&window_id)`, so bare-view tests can't receive the engine call; (ii) `emView::Update:~2288` does `sched.borrow()` while callers hold `sched.borrow_mut()` across `DoTimeSlice`, which panics re-entrantly. The single-engine rewrite is blocked on item 14 below. W5a landed a load-bearing doc comment at the test and a BUG block at the `Update` call site pointing at the successor workstream.
 12. **[W5b / DEFERRED] Per-view notice dispatch (emView.cpp:1312 parity)** — successor to the multi-window-pixel-tallness item. W5b landed the classification pass (`DIVERGED:` note expanded in `emPanelTree.rs`; `TODO(per-view-notice-dispatch)` added at the `pixel_tallness` site in `emGUIFramework.rs`). The architectural fix remains open: move `NoticeList` ownership from `PanelTree` to `emView`, dispatch `HandleNotice` from `emView::Update` once per view per frame using that view's own `CurrentPixelTallness`, and establish panel→view ownership in `PanelTree` (or partition notices by walking each view's subtree from its root panel). `run_panel_cycles` is a separate Rust-only construct (C++ panels self-register as engines via `emEngine` inheritance, which the Rust port does not mirror) and stays out of this workstream. Pre-condition before scheduling: confirm multi-window support is on the near-term roadmap; until then the current global dispatch is a tolerable single-window shortcut.
