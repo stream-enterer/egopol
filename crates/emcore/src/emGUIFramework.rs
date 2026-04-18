@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Instant;
 
 use winit::application::ApplicationHandler;
@@ -91,9 +92,13 @@ pub struct App {
     pub windows: HashMap<WindowId, Rc<RefCell<emWindow>>>,
     pub input_state: emInputState,
     /// Deferred actions queued by input handlers that need `&ActiveEventLoop`
-    /// (e.g., window creation for Duplicate/CreateControlWindow).
+    /// (e.g., window creation for Duplicate/CreateControlWindow, popup
+    /// surface materialization from `emView::RawVisitAbs`).
     /// Drained each frame in `about_to_wait`.
-    pub pending_actions: Vec<DeferredAction>,
+    ///
+    /// `Rc<RefCell<...>>` so `emView` can hold a handle and enqueue without
+    /// a borrow of `App`.
+    pub pending_actions: Rc<RefCell<Vec<DeferredAction>>>,
     /// Global file-update signal. Port of C++ `emFileModel::AcquireUpdateSignalModel`.
     /// When fired, all file models that listen to it will reload from disk.
     pub file_update_signal: SignalId,
@@ -115,7 +120,7 @@ impl App {
             tree: PanelTree::new(),
             windows: HashMap::new(),
             input_state: emInputState::new(),
-            pending_actions: Vec::new(),
+            pending_actions: Rc::new(RefCell::new(Vec::new())),
             file_update_signal,
             setup_fn: Some(setup),
             initialized: false,
@@ -186,6 +191,121 @@ impl App {
         }
         win.invalidate();
         win.request_redraw();
+    }
+
+    /// Materialize a popup window's OS surface, transitioning it from
+    /// `OsSurface::Pending` to `OsSurface::Materialized`. Called from the
+    /// `pending_actions` drain in `about_to_wait` where `&ActiveEventLoop`
+    /// is available.
+    ///
+    /// **Cancellation:** if the popup was already dropped from
+    /// `emView::PopupWindow` before this method runs (e.g. a popup-exit
+    /// happened in the same frame as popup-entry), `win_rc` is the only
+    /// remaining strong reference and the materialization is skipped.
+    /// The Rc drops at function end; no winit window is created.
+    pub(crate) fn materialize_popup_surface(
+        &mut self,
+        win_rc: Rc<RefCell<emWindow>>,
+        event_loop: &ActiveEventLoop,
+    ) {
+        use crate::emWindow::{MaterializedSurface, OsSurface};
+
+        // Cancellation check: if we're the only strong ref, the popup was
+        // dropped before materialization. Abort silently.
+        if Rc::strong_count(&win_rc) == 1 {
+            return;
+        }
+
+        // Extract Pending params.
+        let (flags, caption, requested_pos_size) = {
+            let w = win_rc.borrow();
+            match &w.os_surface {
+                OsSurface::Pending(p) => (p.flags, p.caption.clone(), p.requested_pos_size),
+                OsSurface::Materialized(_) => {
+                    log::warn!("materialize_popup_surface called on already-materialized window");
+                    return;
+                }
+            }
+        };
+
+        // Build winit window attributes — mirror `emWindow::create`.
+        let mut attrs = winit::window::WindowAttributes::default().with_title(caption.as_str());
+        if flags.contains(WindowFlags::UNDECORATED) {
+            attrs = attrs.with_decorations(false);
+        }
+        if flags.contains(WindowFlags::POPUP) {
+            attrs = attrs.with_window_level(winit::window::WindowLevel::AlwaysOnTop);
+        }
+        if flags.contains(WindowFlags::MAXIMIZED) {
+            attrs = attrs.with_maximized(true);
+        }
+        if flags.contains(WindowFlags::FULLSCREEN) {
+            attrs = attrs.with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+        }
+
+        let winit_window = Arc::new(
+            event_loop
+                .create_window(attrs)
+                .expect("failed to create popup window"),
+        );
+
+        if let Some((x, y, pw, ph)) = requested_pos_size {
+            let _ = winit_window
+                .request_inner_size(winit::dpi::PhysicalSize::new(pw as u32, ph as u32));
+            winit_window.set_outer_position(winit::dpi::PhysicalPosition::new(x, y));
+        }
+
+        let size = winit_window.inner_size();
+        let w = size.width.max(1);
+        let h = size.height.max(1);
+
+        let gpu = self.gpu.as_ref().expect("GPU not initialized");
+        let surface = gpu
+            .instance
+            .create_surface(winit_window.clone())
+            .expect("failed to create popup surface");
+        let caps = surface.get_capabilities(&gpu.adapter);
+        let format = caps
+            .formats
+            .iter()
+            .find(|f| f.is_srgb())
+            .copied()
+            .unwrap_or(caps.formats[0]);
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format,
+            width: w,
+            height: h,
+            present_mode: wgpu::PresentMode::AutoVsync,
+            alpha_mode: caps.alpha_modes[0],
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+        surface.configure(&gpu.device, &surface_config);
+
+        let compositor =
+            crate::emViewRendererCompositor::WgpuCompositor::new(&gpu.device, format, w, h);
+        let tile_cache = crate::emViewRendererTileCache::TileCache::new(w, h, 256);
+        let viewport_buffer = crate::emImage::emImage::new(w, h, 4);
+
+        {
+            let mut w_mut = win_rc.borrow_mut();
+            w_mut.os_surface = OsSurface::Materialized(Box::new(MaterializedSurface {
+                winit_window: winit_window.clone(),
+                surface,
+                surface_config,
+                compositor,
+                tile_cache,
+                viewport_buffer,
+            }));
+            w_mut
+                .view_mut()
+                .SetGeometry(&mut self.tree, 0.0, 0.0, w as f64, h as f64, 1.0);
+        }
+
+        let window_id = winit_window.id();
+        self.windows.insert(window_id, win_rc.clone());
+        winit_window.request_redraw();
     }
 }
 
@@ -318,8 +438,23 @@ impl ApplicationHandler for App {
         // Tick screensaver keepalive (pokes xscreensaver every 59s when inhibited).
         super::emWindowPlatform::tick_screensaver_keepalive();
 
-        // Process deferred actions (window creation from Duplicate/ccw, etc.).
-        let actions: Vec<DeferredAction> = self.pending_actions.drain(..).collect();
+        // Lazy-wire each view's pending_framework_actions handle so that
+        // popup-creation paths in `emView::RawVisitAbs` can enqueue back into
+        // `App::pending_actions`. Guarded by is_none() — one-shot init per view.
+        for rc in self.windows.values() {
+            let mut win = rc.borrow_mut();
+            if win.view().pending_framework_actions.is_none() {
+                win.view_mut()
+                    .set_pending_framework_actions(self.pending_actions.clone());
+            }
+        }
+
+        // Process deferred actions (window creation from Duplicate/ccw,
+        // popup surface materialization, etc.). Drain by move so that
+        // closures own their captured `Rc<RefCell<emWindow>>`; this is
+        // required by `materialize_popup_surface`'s cancellation check
+        // (`Rc::strong_count(&win_rc) == 1`).
+        let actions: Vec<DeferredAction> = self.pending_actions.borrow_mut().drain(..).collect();
         for action in actions {
             action(self, event_loop);
         }

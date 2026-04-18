@@ -209,17 +209,19 @@ impl emMainWindow {
         let dup_adherent = adherent;
 
         // Queue deferred window creation (needs &ActiveEventLoop).
-        app.pending_actions.push(Box::new(move |app, event_loop| {
-            let mut dup_config = config;
-            // Encode full visit params into the config's visit_rel fields.
-            dup_config.visit_rel_x = dup_rel_x;
-            dup_config.visit_rel_y = dup_rel_y;
-            dup_config.visit_rel_a = dup_rel_a;
-            dup_config.visit_adherent = dup_adherent;
-            let mw = create_main_window(app, event_loop, dup_config);
-            set_main_window(mw);
-            log::info!("emMainWindow::Duplicate — created new window");
-        }));
+        app.pending_actions
+            .borrow_mut()
+            .push(Box::new(move |app, event_loop| {
+                let mut dup_config = config;
+                // Encode full visit params into the config's visit_rel fields.
+                dup_config.visit_rel_x = dup_rel_x;
+                dup_config.visit_rel_y = dup_rel_y;
+                dup_config.visit_rel_a = dup_rel_a;
+                dup_config.visit_adherent = dup_adherent;
+                let mw = create_main_window(app, event_loop, dup_config);
+                set_main_window(mw);
+                log::info!("emMainWindow::Duplicate — created new window");
+            }));
     }
 
     /// Port of C++ `emMainWindow::Input` (emMainWindow.cpp:193-263).
@@ -366,7 +368,7 @@ impl emEngine for MainWindowEngine {
             } else {
                 format!("Eagle Mode - {view_title}")
             };
-            win.winit_window.set_title(&title);
+            win.winit_window().set_title(&title);
         }
 
         // Check if startup is now done.
@@ -816,7 +818,7 @@ pub fn create_main_window(
         focus_signal,
         geometry_signal,
     );
-    let window_id = window.borrow().winit_window.id();
+    let window_id = window.borrow().winit_window().id();
     app.windows.insert(window_id, window);
     mw.window_id = Some(window_id);
 
@@ -945,7 +947,7 @@ pub fn create_control_window(
     let existing_id = with_main_window(|mw| mw.control_window_id).flatten();
     if let Some(cw_id) = existing_id {
         if let Some(rc) = app.windows.get(&cw_id) {
-            rc.borrow().winit_window.focus_window();
+            rc.borrow().winit_window().focus_window();
             return Some(cw_id);
         }
         // Window was closed/removed — clear stale ID.
@@ -983,7 +985,7 @@ pub fn create_control_window(
         focus_signal,
         geometry_signal,
     );
-    let window_id = window.borrow().winit_window.id();
+    let window_id = window.borrow().winit_window().id();
     app.windows.insert(window_id, window);
 
     // Store the control window ID for raise-if-existing logic.

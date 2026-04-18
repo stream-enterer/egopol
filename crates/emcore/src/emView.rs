@@ -7,58 +7,6 @@ use bitflags::bitflags;
 
 use super::emPanelTree::{PanelId, PanelTree};
 
-/// PHASE-6-FOLLOWUP: replace with real popup window wiring.
-///
-/// Phase 4 deleted the popup-stub `emWindow` and renamed `ZuiWindow` →
-/// `emWindow` (the heavyweight windowed view). Heavyweight `emWindow`
-/// requires a `winit::ActiveEventLoop` + `GpuContext` to construct and
-/// cannot be built from inside `RawVisitAbs`. Phase 6 added
-/// `emWindow::new_popup` as the target constructor, but the routing from
-/// `RawVisitAbs` (which does not hold the event loop) to
-/// `emGUIFramework::about_to_wait` (which does) is deferred to a later
-/// sub-phase because the Phase 4 acceptance test
-/// `test_phase4_popup_zoom_creates_popup_window` requires the popup slot
-/// to be populated synchronously from `RawVisit`, and switching to a
-/// deferred-creation scheme changes that contract.
-pub struct PopupPlaceholder {
-    pub background_color: crate::emColor::emColor,
-    pub current_view_port: Rc<RefCell<super::emViewPort::emViewPort>>,
-    /// Close signal, populated when the owning view has a scheduler attached.
-    /// Mirrors `emWindow::close_signal`. Phase 8 uses this to drive the popup
-    /// close drain in `emView::Update` and wake-up wiring in `SwapViewPorts`.
-    pub close_signal: Option<super::emSignal::SignalId>,
-}
-
-impl PopupPlaceholder {
-    /// PHASE-6-FOLLOWUP: replace with real `emWindow::new_popup` once the
-    /// deferred-creation routing from `RawVisitAbs` to `about_to_wait` is
-    /// in place. `flags` and `tag` will become meaningful then; Phase 4
-    /// drops them to avoid dead-code warnings.
-    pub fn new_popup(_flags: super::emWindow::WindowFlags, _tag: &str) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(PopupPlaceholder {
-            background_color: crate::emColor::emColor::rgba(0x80, 0x80, 0x80, 0xFF),
-            current_view_port: Rc::new(RefCell::new(super::emViewPort::emViewPort::new_dummy())),
-            close_signal: None,
-        }))
-    }
-
-    pub fn SetBackgroundColor(&mut self, color: crate::emColor::emColor) {
-        self.background_color = color;
-    }
-
-    /// Return the close signal, mirroring C++ `emWindow::GetCloseSignal()`.
-    pub fn GetCloseSignal(&self) -> Option<super::emSignal::SignalId> {
-        self.close_signal
-    }
-
-    /// PHASE-6-FOLLOWUP: forward to real OS window resize once popup
-    /// windows are created by `emWindow::new_popup`.
-    pub fn SetViewPosSize(&self, x: f64, y: f64, w: f64, h: f64) {
-        self.current_view_port
-            .borrow_mut()
-            .SetViewPosSize(x, y, w, h);
-    }
-}
 use crate::emClipRects::ClipRects;
 use crate::emColor::emColor;
 use crate::emCursor::emCursor;
@@ -371,6 +319,12 @@ pub struct emView {
     /// `SignalEOIDelayed` removes any previous instance before registering
     /// a fresh one; the engine self-parks after firing `EOISignal`.
     pub eoi_engine_id: Option<super::emEngine::EngineId>,
+    /// Handle into `App::pending_actions` for enqueuing deferred framework
+    /// actions (popup surface materialization, popup-exit cleanup). Wired
+    /// by `App::about_to_wait` each frame; `None` in unit-test contexts
+    /// that construct `emView` outside of a running `App`.
+    pub(crate) pending_framework_actions:
+        Option<Rc<RefCell<Vec<super::emGUIFramework::DeferredAction>>>>,
     /// The view title. Updated from the active panel's title.
     pub title: String,
     /// Current mouse cursor for this view.
@@ -464,7 +418,7 @@ pub struct emView {
     // === C++ popup infrastructure (emView.h:708-713) ===
     /// C++ PopupWindow — owned handle to the popup window created when
     /// zooming past the home-rect edges under VF_POPUP_ZOOM.
-    pub PopupWindow: Option<Rc<RefCell<PopupPlaceholder>>>,
+    pub PopupWindow: Option<Rc<RefCell<crate::emWindow::emWindow>>>,
     /// C++ HomeViewPort — the view-port that connects the emView to its
     /// *home* window (the original non-popup window).
     pub HomeViewPort: Rc<RefCell<super::emViewPort::emViewPort>>,
@@ -515,6 +469,7 @@ impl emView {
             EOISignal: None,
             update_engine_id: None,
             eoi_engine_id: None,
+            pending_framework_actions: None,
             title: String::new(),
             cursor: emCursor::Normal,
             max_popup_rect: None,
@@ -1676,16 +1631,51 @@ impl emView {
                     // C++ (emView.cpp:1638): wasFocused=Focused;
                     let was_focused = self.window_focused;
                     // C++ (emView.cpp:1639-1643): PopupWindow=new emWindow(...)
-                    // PHASE-6-FOLLOWUP: route to real `emWindow::new_popup`
-                    // via a deferred request drained in `about_to_wait`.
-                    let popup = PopupPlaceholder::new_popup(
-                        super::emWindow::WindowFlags::POPUP,
-                        "emViewPopup",
+                    // In Rust the `emWindow` struct is constructed synchronously
+                    // in `OsSurface::Pending` (`new_popup_pending`), wired to
+                    // `self.PopupWindow`, and its winit/wgpu surface is created
+                    // one tick later by `App::materialize_popup_surface` via the
+                    // `pending_framework_actions` back-channel. Every emCore
+                    // observer sees a fully-wired popup immediately, matching
+                    // the C++ atomicity contract.
+                    let (close_sig, flags_sig, focus_sig, geom_sig) =
+                        if let Some(sched) = self.scheduler.as_ref() {
+                            let mut s = sched.borrow_mut();
+                            (
+                                s.create_signal(),
+                                s.create_signal(),
+                                s.create_signal(),
+                                s.create_signal(),
+                            )
+                        } else {
+                            // Unit-test contexts without a scheduler: use null
+                            // keys. No signal can fire without a scheduler, so
+                            // these are unreachable-by-construction.
+                            (
+                                super::emSignal::SignalId::default(),
+                                super::emSignal::SignalId::default(),
+                                super::emSignal::SignalId::default(),
+                                super::emSignal::SignalId::default(),
+                            )
+                        };
+                    let popup = super::emWindow::emWindow::new_popup_pending(
+                        self.root,
+                        super::emWindow::WindowFlags::POPUP
+                            | super::emWindow::WindowFlags::UNDECORATED
+                            | super::emWindow::WindowFlags::AUTO_DELETE,
+                        "emViewPopup".to_string(),
+                        close_sig,
+                        flags_sig,
+                        focus_sig,
+                        geom_sig,
+                        self.background_color,
                     );
-                    self.PopupWindow = Some(popup);
-                    // C++ (emView.cpp:1643): PopupWindow->SetBackgroundColor(GetBackgroundColor())
-                    if let Some(ref w) = self.PopupWindow {
-                        w.borrow_mut().SetBackgroundColor(self.background_color);
+                    self.PopupWindow = Some(popup.clone());
+                    // C++ (emView.cpp:1644): UpdateEngine->AddWakeUpSignal(PopupWindow->GetCloseSignal())
+                    if let (Some(sched), Some(eng_id)) =
+                        (self.scheduler.as_ref(), self.update_engine_id)
+                    {
+                        sched.borrow_mut().connect(close_sig, eng_id);
                     }
                     // C++ (emView.cpp:1644): SwapViewPorts(true)
                     self.SwapViewPorts(true);
@@ -1693,19 +1683,16 @@ impl emView {
                     if was_focused && !self.window_focused {
                         self.CurrentViewPort.borrow_mut().RequestFocus();
                     }
-                    // C++ (emView.cpp:1644): UpdateEngine->AddWakeUpSignal(PopupWindow->GetCloseSignal())
-                    // Allocate a close signal on the scheduler, stash it on
-                    // the popup placeholder, and connect it to the update
-                    // engine so firing wakes Update. Mirrors the C++ contract
-                    // even though the placeholder is Rust-only scaffolding.
-                    if let (Some(popup), Some(sched_weak), Some(eng_id)) = (
-                        self.PopupWindow.as_ref(),
-                        self.scheduler.as_ref(),
-                        self.update_engine_id,
-                    ) {
-                        let close_sig = sched_weak.borrow_mut().create_signal();
-                        popup.borrow_mut().close_signal = Some(close_sig);
-                        sched_weak.borrow_mut().connect(close_sig, eng_id);
+                    // Enqueue OS-surface materialization. Drained by
+                    // `App::about_to_wait` on the next tick. If the popup
+                    // is torn down before the drain (same-frame exit),
+                    // `materialize_popup_surface` detects `strong_count == 1`
+                    // and skips creation.
+                    if let Some(fw_actions) = self.pending_framework_actions.as_ref() {
+                        let popup_for_closure = popup;
+                        fw_actions.borrow_mut().push(Box::new(move |fw, el| {
+                            fw.materialize_popup_surface(popup_for_closure, el);
+                        }));
                     }
                 }
                 // C++ (emView.cpp:1647): GetMaxPopupViewRect(&sx,&sy,&sw,&sh)
@@ -1756,7 +1743,7 @@ impl emView {
                 {
                     self.SwapViewPorts(false);
                     if let Some(ref w) = self.PopupWindow {
-                        w.borrow().SetViewPosSize(x1, y1, x2 - x1, y2 - y1);
+                        w.borrow_mut().SetViewPosSize(x1, y1, x2 - x1, y2 - y1);
                     }
                     self.SwapViewPorts(false);
                     forceViewingUpdate = true;
@@ -1766,18 +1753,39 @@ impl emView {
                 self.SwapViewPorts(true);
                 // Disconnect + remove the popup's close signal (allocated on
                 // popup creation above) so the scheduler doesn't leak it.
-                if let (Some(popup), Some(sched), Some(eng_id)) = (
-                    self.PopupWindow.as_ref(),
-                    self.scheduler.as_ref(),
-                    self.update_engine_id,
-                ) {
-                    if let Some(close_sig) = popup.borrow().close_signal {
-                        let mut s = sched.borrow_mut();
-                        s.disconnect(close_sig, eng_id);
-                        s.remove_signal(close_sig);
-                    }
+                // Also enqueue a framework-side cleanup closure to drop the
+                // materialized popup window from `App::windows` so the
+                // winit/wgpu surface is released.
+                let popup = self
+                    .PopupWindow
+                    .take()
+                    .expect("PopupWindow.is_some() checked above");
+                if let (Some(sched), Some(eng_id)) =
+                    (self.scheduler.as_ref(), self.update_engine_id)
+                {
+                    let close_sig = popup.borrow().close_signal;
+                    let mut s = sched.borrow_mut();
+                    s.disconnect(close_sig, eng_id);
+                    s.remove_signal(close_sig);
                 }
-                self.PopupWindow = None;
+                let materialized_id = popup
+                    .borrow()
+                    .winit_window_if_materialized()
+                    .map(|w| w.id());
+                // Race window: `close_signal` is removed above synchronously,
+                // but `App.windows.remove(&window_id)` is deferred to the next
+                // `about_to_wait` drain. If a winit event (e.g. CloseRequested
+                // from the WM) arrives in that gap, `App::window_event` will
+                // call `scheduler.fire(close_signal)` on the already-removed
+                // signal. This is safe: `emScheduler::fire` is defensive and
+                // treats a lookup miss as a no-op (see its docstring).
+                if let (Some(window_id), Some(fw_actions)) =
+                    (materialized_id, self.pending_framework_actions.as_ref())
+                {
+                    fw_actions.borrow_mut().push(Box::new(move |fw, _el| {
+                        fw.windows.remove(&window_id);
+                    }));
+                }
                 // GeometrySignal fires twice on popup teardown (both intentional):
                 // once from SwapViewPorts(true) above (Rust-only: the Rust
                 // SwapViewPorts fires GeometrySignal at the end; C++ SwapViewPorts
@@ -2238,10 +2246,7 @@ impl emView {
                 self.update_engine_id,
             ) {
                 let close_sig = popup.borrow().close_signal;
-                match close_sig {
-                    Some(sig) => sched.borrow().is_signaled_for_engine(sig, eng_id),
-                    None => false,
-                }
+                sched.borrow().is_signaled_for_engine(close_sig, eng_id)
             } else {
                 false
             }
@@ -2897,6 +2902,16 @@ impl emView {
         self.scheduler = Some(scheduler);
     }
 
+    /// Wire the back-channel into `App::pending_actions` so that
+    /// `RawVisitAbs`'s popup-entry branch can enqueue deferred popup-surface
+    /// materialization. Called by `App::about_to_wait` each frame (idempotent).
+    pub(crate) fn set_pending_framework_actions(
+        &mut self,
+        actions: Rc<RefCell<Vec<super::emGUIFramework::DeferredAction>>>,
+    ) {
+        self.pending_framework_actions = Some(actions);
+    }
+
     /// Attach the view to a scheduler and register its `UpdateEngineClass`.
     ///
     /// Mirrors the C++ `emView` constructor, which creates and registers the
@@ -3069,9 +3084,9 @@ impl emView {
         //   PopupWindow->CurrentViewPort = CurrentViewPort;
         //   CurrentViewPort = vp;
         if let Some(ref popup) = self.PopupWindow {
-            let popup_vp = Rc::clone(&popup.borrow().current_view_port);
+            let popup_vp = Rc::clone(&popup.borrow().view().CurrentViewPort);
             let our_vp = Rc::clone(&self.CurrentViewPort);
-            popup.borrow_mut().current_view_port = our_vp;
+            popup.borrow_mut().view_mut().CurrentViewPort = our_vp;
             self.CurrentViewPort = popup_vp;
         } else {
             // Fallback if no popup exists: swap Home and Current (no-op for
@@ -5894,8 +5909,8 @@ mod tests {
         let close_sig = v
             .PopupWindow
             .as_ref()
-            .and_then(|p| p.borrow().close_signal)
-            .expect("close_signal allocated when scheduler is attached");
+            .map(|p| p.borrow().close_signal)
+            .expect("PopupWindow present when scheduler is attached");
         let eng_id = v.update_engine_id.expect("update engine registered");
         assert!(
             sched.borrow().get_signal_refs(close_sig, eng_id) >= 1,
