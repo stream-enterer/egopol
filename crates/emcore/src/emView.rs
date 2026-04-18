@@ -213,9 +213,6 @@ impl SchedOp {
     }
 
     /// Apply via an `EngineCtx` (drain-time path, inside `Cycle`).
-    // SP4 Phase 2: wired into `UpdateEngineClass::Cycle` in Phase 3.
-    // Currently exercised only by the Phase 1 smoke test.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn apply_via_ctx(self, ctx: &mut super::emEngine::EngineCtx<'_>) {
         match self {
             SchedOp::Fire(s) => ctx.fire(s),
@@ -247,10 +244,28 @@ impl UpdateEngineClass {
 
 impl super::emEngine::emEngine for UpdateEngineClass {
     fn Cycle(&mut self, ctx: &mut super::emEngine::EngineCtx<'_>) -> bool {
-        // Mirrors C++ UpdateEngineClass::Cycle → View.Update().
-        if let Some(win_rc) = ctx.windows.get(&self.window_id) {
-            let win_rc = Rc::clone(win_rc);
-            win_rc.borrow_mut().view_mut().Update(ctx.tree);
+        // C++ UpdateEngineClass::Cycle (emView.cpp:2521-2524).
+        let Some(win_rc) = ctx.windows.get(&self.window_id) else {
+            return false;
+        };
+        let win_rc = Rc::clone(win_rc);
+        let mut win = win_rc.borrow_mut();
+        let view = win.view_mut();
+
+        // SP4 Part A: pre-compute the popup-close probe here (C++ emView.cpp:1299;
+        // in C++ this is inside Update against emView's own engine clock, but
+        // Rust emView is not an emEngine so we use UpdateEngine's clock via ctx).
+        let popup_close_sig = view.PopupWindow.as_ref().map(|p| p.borrow().close_signal);
+        if let Some(close_sig) = popup_close_sig {
+            view.close_signal_pending = ctx.IsSignaled(close_sig);
+        }
+
+        view.Update(ctx.tree);
+
+        // SP4 Part B: drain deferred scheduler ops queued by Update's call tree.
+        let ops: Vec<SchedOp> = view.pending_sched_ops.drain(..).collect();
+        for op in ops {
+            op.apply_via_ctx(ctx);
         }
         false
     }
@@ -421,9 +436,6 @@ pub struct emView {
     /// DIVERGED: C++ emView is an emEngine (via emContext); Rust emView is
     /// not yet (tracked as SP7). UpdateEngine's clock substitutes for
     /// emView's own clock.
-    // SP4 Phase 2: set by `UpdateEngineClass::Cycle` (Phase 3) and read by
-    // `Update` (Phase 3). Currently only exercised by the Phase 1 smoke test.
-    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) close_signal_pending: bool,
     /// Queue of scheduler ops issued from inside Update's call tree when
     /// the scheduler is already borrow_mut'd. Drained by
