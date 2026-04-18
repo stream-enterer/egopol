@@ -52,7 +52,6 @@ pub struct emViewPort {
     pub home_y: f64,
     pub home_width: f64,
     pub home_height: f64,
-    pub home_pixel_tallness: f64,
 
     // Focus state for this port. C++ stores it on the view (Focused field);
     // here it lives on the port so SwapViewPorts can transfer it between home
@@ -75,7 +74,6 @@ impl emViewPort {
             home_y: 0.0,
             home_width: 0.0,
             home_height: 0.0,
-            home_pixel_tallness: 1.0,
             focused: false,
         }
     }
@@ -87,19 +85,12 @@ impl emViewPort {
     ///
     /// DIVERGED: registration side-effect moved to call site; geometry
     /// passed explicitly instead of read from homeView on construction.
-    pub fn new_with_geometry(
-        home_x: f64,
-        home_y: f64,
-        home_width: f64,
-        home_height: f64,
-        home_pixel_tallness: f64,
-    ) -> Self {
+    pub fn new_with_geometry(home_x: f64, home_y: f64, home_width: f64, home_height: f64) -> Self {
         Self {
             home_x,
             home_y,
             home_width,
             home_height,
-            home_pixel_tallness,
             focused: false,
         }
     }
@@ -145,12 +136,15 @@ impl emViewPort {
     /// Port of C++ `emViewPort::SetViewGeometry(x, y, w, h, pixelTallness)`.
     /// Updates the stored home geometry. Called by `SetViewPosSize` and the
     /// backend geometry callback.
-    pub fn SetViewGeometry(&mut self, x: f64, y: f64, w: f64, h: f64, pixel_tallness: f64) {
+    ///
+    /// DIVERGED: the C++ signature takes `pixelTallness`, but the Rust port
+    /// routes pixel-tallness reads through `emView::HomePixelTallness`
+    /// (there is no per-port duplicate). The parameter is therefore omitted.
+    pub fn SetViewGeometry(&mut self, x: f64, y: f64, w: f64, h: f64) {
         self.home_x = x;
         self.home_y = y;
         self.home_width = w;
         self.home_height = h;
-        self.home_pixel_tallness = pixel_tallness;
     }
 
     /// Port of C++ `emViewPort::SetViewFocused(bool focused)`.

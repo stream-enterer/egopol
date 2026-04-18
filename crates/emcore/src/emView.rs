@@ -2923,11 +2923,7 @@ impl emView {
             self.CurrentY = vp.home_y;
             self.CurrentWidth = vp.home_width;
             self.CurrentHeight = vp.home_height;
-            self.CurrentPixelTallness = if vp.home_pixel_tallness > 0.0 {
-                vp.home_pixel_tallness
-            } else {
-                self.HomePixelTallness
-            };
+            self.CurrentPixelTallness = self.HomePixelTallness;
         }
 
         if swap_focus {
@@ -4730,7 +4726,7 @@ mod tests {
 
         let state = view.current_visit();
         // C++ formula: max(W*H_root/hpt/H, H/H_root*hpt/W)
-        // home_pixel_tallness = 1.0 (square pixels)
+        // HomePixelTallness = 1.0 (square pixels)
         let hpt = 1.0;
         let expected = (800.0 * 0.75 / hpt / 600.0_f64).max(600.0 / 0.75 * hpt / 800.0);
         assert!(
