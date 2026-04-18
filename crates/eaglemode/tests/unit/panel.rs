@@ -7,7 +7,6 @@ use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::{PanelId, PanelTree};
 
 use emcore::emView::{emView, ViewFlags};
-use emcore::emViewAnimator::emViewAnimator as _;
 
 use emcore::emPainter::emPainter;
 
@@ -141,39 +140,6 @@ fn remove_subtree() {
 }
 
 #[test]
-fn view_visit_and_navigation() {
-    // W4 Phase 3: Visit now routes through VisitingVA (emView.cpp:492-510),
-    // so the observable post-call state is animator activation, not an
-    // immediate visit_stack push or synchronous active-panel change.
-    let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
-    let child = tree.create_child(root, "child");
-    tree.Layout(child, 0.0, 0.0, 100.0, 100.0, 1.0);
-
-    let mut view = emView::new(root, 800.0, 600.0);
-    assert_eq!(view.GetRootPanel(), root);
-    assert_eq!(view.current_visit().panel, root);
-
-    // Visit a child — goal is set on VisitingVA; the cycle engine will
-    // drive the camera toward it.
-    view.Visit(&tree, child, 10.0, 20.0, 0.5, false);
-
-    // After Visit, animator should be active with the target identity + coords.
-    {
-        let va = view.visiting_va();
-        assert!(va.is_active(), "animator active after Visit");
-        assert_eq!(va.identity(), tree.GetIdentity(child));
-        assert!((va.rel_x() - 10.0).abs() < 1e-9);
-        assert!((va.rel_y() - 20.0).abs() < 1e-9);
-        assert!((va.rel_a() - 0.5).abs() < 1e-9);
-    }
-
-    // go_back still operates on the (now-legacy) visit_stack; in this
-    // test only the initial root entry is pushed, so we can't go back.
-    assert!(!view.go_back());
-}
-
-#[test]
 fn view_zoom_and_scroll() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
@@ -234,8 +200,9 @@ fn view_flags_disable_zoom() {
     view.flags = ViewFlags::NO_ZOOM;
 
     view.Zoom(&mut tree, 2.0, 400.0, 300.0);
-    // Zoom should have been blocked
-    assert!((view.current_visit().rel_a - 1.0).abs() < 0.001);
+    // Zoom should have been blocked — NO_ZOOM returns early before setting
+    // needs_animator_abort (which every non-blocked Zoom/Scroll sets).
+    assert!(!view.needs_animator_abort());
 }
 
 #[test]

@@ -32,18 +32,6 @@ bitflags! {
     }
 }
 
-/// State for a visited panel in the view hierarchy.
-#[derive(Clone, Debug)]
-pub struct VisitState {
-    pub panel: PanelId,
-    /// Relative X position of the view within the panel.
-    pub rel_x: f64,
-    /// Relative Y position.
-    pub rel_y: f64,
-    /// Relative zoom/area factor.
-    pub rel_a: f64,
-}
-
 const MAX_SVP_SIZE: f64 = 1.0e12;
 const MAX_SVP_SEARCH_SIZE: f64 = 1.0e14; // C++ emView.h:715
 const MIN_DIMENSION: f64 = 0.0001;
@@ -321,7 +309,6 @@ pub struct emView {
     root: PanelId,
     active: Option<PanelId>,
     focused: Option<PanelId>,
-    visit_stack: Vec<VisitState>,
     pub flags: ViewFlags,
     supreme_viewed_panel: Option<PanelId>,
     background_color: emColor,
@@ -353,10 +340,6 @@ pub struct emView {
     /// VIEW-003: Set by scroll/zoom to signal that any active animator should be
     /// aborted. Consumers (window loop) should check and clear this flag.
     needs_animator_abort: bool,
-    /// D-PANEL-02: Pending animated visit goal. Navigation methods set this
-    /// instead of doing an instant jump. The window loop feeds this to the
-    /// emVisitingViewAnimator. None means no pending animated visit.
-    pending_animated_visit: Option<VisitState>,
     /// C++ `EOISignal` — fired by `EOIEngineClass::Cycle` when the countdown
     /// reaches zero. Created when the view is attached to the scheduler.
     /// Mirrors C++ `emSignal EOISignal` (emView.h).
@@ -493,12 +476,6 @@ pub struct emView {
 
 impl emView {
     pub fn new(root: PanelId, viewport_width: f64, viewport_height: f64) -> Self {
-        let initial_visit = VisitState {
-            panel: root,
-            rel_x: 0.0,
-            rel_y: 0.0,
-            rel_a: 1.0,
-        };
         // C++ HomeViewPort == CurrentViewPort in non-popup state.
         // Rc::clone shares the same allocation so Rc::ptr_eq returns true.
         let home_vp = Rc::new(RefCell::new(super::emViewPort::emViewPort::new_dummy()));
@@ -507,7 +484,6 @@ impl emView {
             root,
             active: Some(root),
             focused: None,
-            visit_stack: vec![initial_visit],
             flags: ViewFlags::empty(),
             supreme_viewed_panel: None,
             background_color: emColor::rgba(0x80, 0x80, 0x80, 0xFF),
@@ -525,7 +501,6 @@ impl emView {
             activation_adherent: false,
             viewport_changed: false,
             needs_animator_abort: false,
-            pending_animated_visit: None,
             EOISignal: None,
             update_engine_id: None,
             eoi_engine_id: None,
@@ -730,20 +705,6 @@ impl emView {
         false
     }
 
-    pub fn current_visit(&self) -> &VisitState {
-        self.visit_stack
-            .last()
-            .expect("visit stack should never be empty")
-    }
-
-    pub fn visit_stack(&self) -> &[VisitState] {
-        &self.visit_stack
-    }
-
-    pub fn visit_stack_mut(&mut self) -> &mut Vec<VisitState> {
-        &mut self.visit_stack
-    }
-
     // --- Navigation primitives ---
 
     /// Immediate direct-set visit (no animation, no new back-stack entry).
@@ -755,16 +716,9 @@ impl emView {
     /// DIVERGED: C++ has public `RawVisit(panel, relX, relY, relA)` + private
     /// overload with extra `forceViewingUpdate` bool. Rust has no
     /// overloading — single method; existing no-arg callers pass `false`.
-    /// DIVERGED: C++ RawVisit converts to absolute pixel coords and calls RawVisitAbs
-    /// which sets SVP.ViewedX/Y/Width directly. Rust defers absolute-coord computation
-    /// to update_viewing(); here we just update the visit_stack top in place.
     /// Port of C++ `emView::RawVisit(panel, relX, relY, relA, forceViewingUpdate)`
     /// (emView.cpp:1526-1541). Converts rel coords to absolute screen coords
     /// (same formula as C++) then calls `RawVisitAbs` directly.
-    ///
-    /// DIVERGED: Rust keeps a `visit_stack` (Vec) instead of single fields; the
-    /// top entry is updated to match C++ ActivePanel/RelX/RelY/RelA. The
-    /// absolute-coord computation formula is identical to C++.
     pub fn RawVisit(
         &mut self,
         tree: &mut PanelTree,
@@ -780,13 +734,6 @@ impl emView {
         } else {
             (rel_x, rel_y, rel_a)
         };
-        // Update visit stack top (C++ sets ActivePanel, RelX, RelY, RelA fields).
-        if let Some(state) = self.visit_stack.last_mut() {
-            state.panel = panel;
-            state.rel_x = rx;
-            state.rel_y = ry;
-            state.rel_a = ra;
-        }
         self.active = Some(panel);
 
         // C++ emView.cpp:1535-1539: compute absolute coords from rel coords.
@@ -975,57 +922,6 @@ impl emView {
         va.SetAnimParamsByCoreConfig(1.0, 10.0);
         va.SetGoal(identity, adherent, subject);
         va.Activate();
-    }
-
-    /// D-PANEL-02: Request an animated visit to a panel. Sets a pending goal
-    /// that the window loop feeds to the emVisitingViewAnimator. Also sets the
-    /// active panel immediately for UI responsiveness.
-    pub fn animated_visit(
-        &mut self,
-        tree: &mut PanelTree,
-        panel: PanelId,
-        rel_x: f64,
-        rel_y: f64,
-        rel_a: f64,
-        adherent: bool,
-    ) {
-        self.set_active_panel(tree, panel, adherent);
-        self.pending_animated_visit = Some(VisitState {
-            panel,
-            rel_x,
-            rel_y,
-            rel_a,
-        });
-    }
-
-    /// D-PANEL-02: Request an animated visit to a panel at its natural size.
-    pub fn animated_visit_panel(&mut self, tree: &mut PanelTree, panel: PanelId, adherent: bool) {
-        let (x, y, a) = self.CalcVisitCoords(tree, panel);
-        self.animated_visit(tree, panel, x, y, a, adherent);
-    }
-
-    pub fn go_back(&mut self) -> bool {
-        if self.visit_stack.len() > 1 {
-            self.visit_stack.pop();
-            self.active = Some(
-                self.visit_stack
-                    .last()
-                    .expect("visit stack should never be empty after pop in go_back")
-                    .panel,
-            );
-            self.viewport_changed = true;
-            self.SVPChoiceInvalid = true;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn go_home(&mut self) {
-        self.visit_stack.truncate(1);
-        self.active = Some(self.root);
-        self.viewport_changed = true;
-        self.SVPChoiceInvalid = true;
     }
 
     // --- Viewport ---
@@ -1346,10 +1242,8 @@ impl emView {
             return !self.popped_up;
         }
         let target_a = self.zoom_out_rel_a(tree);
-        if let Some(state) = self.visit_stack.last() {
-            state.rel_x.abs() < 0.001
-                && state.rel_y.abs() < 0.001
-                && (state.rel_a - target_a).abs() < 0.001
+        if let Some((_, rx, ry, ra)) = self.get_visited_panel_idiom(tree) {
+            rx.abs() < 0.001 && ry.abs() < 0.001 && (ra - target_a).abs() < 0.001
         } else {
             true
         }
@@ -3290,18 +3184,6 @@ impl emView {
     /// Clear the animator-abort flag.
     pub fn clear_animator_abort(&mut self) {
         self.needs_animator_abort = false;
-    }
-
-    /// D-PANEL-02: Take the pending animated visit goal. Returns `Some` if a
-    /// navigation method requested an animated visit. The window loop should
-    /// feed this to the emVisitingViewAnimator.
-    pub fn take_pending_animated_visit(&mut self) -> Option<VisitState> {
-        self.pending_animated_visit.take()
-    }
-
-    /// Whether there is a pending animated visit goal.
-    pub fn has_pending_animated_visit(&self) -> bool {
-        self.pending_animated_visit.is_some()
     }
 
     // --- Background color (PORT-0116) ---
@@ -5583,8 +5465,6 @@ mod tests {
                 }
 
                 // Restore by calling RawVisit with the saved rel coords.
-                // Phase 3: visit_stack mutation + Update does not re-apply rel coords;
-                // RawVisit is the correct API to set viewing from rel coords.
                 view.RawVisit(&mut tree, saved_panel, saved_rx, saved_ry, saved_ra, true);
             }
         }
@@ -5596,7 +5476,7 @@ mod tests {
         // Verifies the core coord-system invariant: zero offset means centered.
         // Tested at multiple zoom levels to catch convention/scaling errors.
         // Phase 3: RawVisit is the public API for setting viewing coords from
-        // rel coords; direct visit_stack mutation is not the intended path.
+        // rel coords.
         let mut tree = PanelTree::new();
         let root = tree.create_root("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);

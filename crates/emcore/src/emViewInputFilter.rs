@@ -2716,6 +2716,9 @@ mod tests {
     fn test_navigate_by_program() {
         let (mut tree, mut view) = setup();
         view.Update(&mut tree);
+        // Zoom in so Scroll is not clamped by zoom-out root-centering.
+        view.Zoom(&mut tree, 4.0, 400.0, 300.0);
+        view.Update(&mut tree);
         let mut vif = emKeyboardZoomScrollVIF::new();
 
         let mut state = emInputState::new();
@@ -2731,10 +2734,14 @@ mod tests {
         assert!(vif.navigate_by_program(&event2, &state, &mut view, &mut tree));
 
         // Step 3: Shift+Alt+Right (scroll right)
-        let before = view.current_visit().rel_x;
+        let (_, before, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel before scroll");
         let event3 = emInputEvent::press(InputKey::ArrowRight);
         assert!(vif.navigate_by_program(&event3, &state, &mut view, &mut tree));
-        let after = view.current_visit().rel_x;
+        let (_, after, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel after scroll");
         assert!(after > before, "Should have scrolled right");
     }
 
@@ -2765,18 +2772,26 @@ mod tests {
     fn test_keyboard_continuous_animation() {
         let (mut tree, mut view) = setup();
         view.Update(&mut tree);
+        // Zoom in so the per-frame scroll deltas are observable via
+        // get_visited_panel_idiom (otherwise root-centering clamps rel_x=0).
+        view.Zoom(&mut tree, 4.0, 400.0, 300.0);
+        view.Update(&mut tree);
 
         let mut vif = emKeyboardZoomScrollVIF::new();
         vif.key_state.insert(KeyState::RIGHT);
 
-        let before = view.current_visit().rel_x;
+        let (_, before, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel before animate");
 
         // Animate several frames
         for _ in 0..10 {
             vif.animate(&mut view, &mut tree, 0.016);
         }
 
-        let after = view.current_visit().rel_x;
+        let (_, after, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel after animate");
         assert!(after > before, "Continuous animation should scroll right");
     }
 
@@ -2858,6 +2873,10 @@ mod tests {
     fn test_touch_single_pan() {
         let (mut tree, mut view) = setup();
         view.Update(&mut tree);
+        // Zoom in so the pan motion is observable via get_visited_panel_idiom
+        // (otherwise root-centering clamps rel_x=0).
+        view.Zoom(&mut tree, 4.0, 400.0, 300.0);
+        view.Update(&mut tree);
 
         let mut vif = emDefaultTouchVIF::new();
         assert_eq!(vif.state(), TouchState::Idle);
@@ -2869,9 +2888,13 @@ mod tests {
 
         // Touch move past 20px dead zone — gesture machine transitions
         // FirstDown→Scroll and handles scrolling via do_gesture.
-        let before = view.current_visit().rel_x;
+        let (_, before, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel before touch_move");
         vif.touch_move(1, 130.0, 100.0, 0.016, &mut view, &mut tree);
-        let after = view.current_visit().rel_x;
+        let (_, after, _, _) = view
+            .get_visited_panel_idiom(&tree)
+            .expect("visited panel after touch_move");
         assert!(
             after != before,
             "Single touch should pan after 20px dead zone"

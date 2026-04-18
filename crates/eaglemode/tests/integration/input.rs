@@ -140,8 +140,8 @@ fn input_without_update_returns_none() {
     // Hit-test should return None since SVP is not computed
     // (SVP is set during update_viewing)
     let hit = view.GetFocusablePanelAt(&tree, 400.0, 300.0);
-    // Note: emView::new sets initial visit_stack with root, which may or may not
-    // compute SVP. This test documents the behavior either way.
+    // Note: emView::new sets active=root, which may or may not compute SVP.
+    // This test documents the behavior either way.
     // If SVP is set during new(), hit may succeed for root.
     // The key point: without update_viewing, child panels won't be hit-testable.
     if hit.is_some() {
