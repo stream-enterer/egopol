@@ -205,7 +205,7 @@ impl emDirEntryPanel {
                 let child_id = ctx.create_child_with(CONTENT_NAME, behavior);
                 ctx.be_first_child(child_id);
                 // Register for cycling so the file panel's model loads.
-                ctx.tree.Cycle(child_id);
+                ctx.wake_up_panel(child_id);
                 self.content_panel = Some(child_id);
                 force_relayout = true;
             }
