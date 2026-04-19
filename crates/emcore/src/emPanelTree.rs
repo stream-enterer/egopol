@@ -273,7 +273,7 @@ impl PanelData {
 
 /// Arena-based panel tree using SlotMap for stable handles.
 pub struct PanelTree {
-    panels: SlotMap<PanelId, PanelData>,
+    pub(crate) panels: SlotMap<PanelId, PanelData>,
     root: Option<PanelId>,
     /// Per-parent name index: (parent, child_name) → child_id.
     /// Root panels use their own id as the "parent" key.

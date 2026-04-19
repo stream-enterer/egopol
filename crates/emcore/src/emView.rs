@@ -552,6 +552,20 @@ pub struct emView {
     /// Read non-test by `VisitingVAEngineClass::Cycle` to tick animation.
     pub(crate) VisitingVA: Rc<RefCell<super::emViewAnimator::emVisitingViewAnimator>>,
 
+    /// 1:1 with C++ `emView::NoticeList` (emView.h:576).
+    ///
+    /// DIVERGED: C++ uses `PanelRingNode *` intrusive sentinel linkage
+    /// (emView.h:576, emPanel.h:823). Rust uses `Option<PanelId>` head/tail
+    /// into the panel arena. Semantics: panels with queued notices form a
+    /// doubly-linked list via `emPanel::notice_{prev,next}_in_ring`;
+    /// `AddToNoticeList` links at the tail; `HandleNotice` drains from the
+    /// head. Data-structure divergence is *forced* (Rust ownership rules
+    /// make intrusive raw-pointer rings impractical without `unsafe`);
+    /// ownership location (per-view) matches C++ exactly.
+    pub(crate) notice_ring_head_next: Option<PanelId>,
+    pub(crate) notice_ring_head_prev: Option<PanelId>,
+    pub(crate) has_pending_notices: bool,
+
     /// Port of C++ `emView.h:664` — `emRef<emCoreConfig> CoreConfig`.
     /// Acquired at construction. SP7 (emContext threading) will source
     /// this via `emCoreConfig::Acquire(ctx.GetRootContext())` once
@@ -645,6 +659,10 @@ impl emView {
                 super::emViewAnimator::emVisitingViewAnimator::new_for_view(),
             )),
             CoreConfig: core_config,
+
+            notice_ring_head_next: None,
+            notice_ring_head_prev: None,
+            has_pending_notices: false,
         }
     }
 
@@ -3441,11 +3459,42 @@ impl emView {
 
     /// Port of C++ `emView::AddToNoticeList(PanelRingNode*)` (emView.cpp:1282).
     ///
-    /// DIVERGED: Rust owns the notice ring on `PanelTree`, so this method
-    /// delegates to `tree.add_to_notice_list(panel)` and then wakes the
-    /// `UpdateEngine`.  Exists on `emView` for C++ call-site parity.
+    /// Links `panel` at the tail of the per-view notice ring, then wakes the
+    /// `UpdateEngine`.  No-op if the panel is already in the ring.
+    ///
+    /// DIVERGED: C++ uses intrusive `PanelRingNode *` sentinel linkage
+    /// (emView.h:576).  Rust uses `Option<PanelId>` head/tail with arena
+    /// access via `tree`.  Data-structure shape is forced; ownership location
+    /// (per-view `self.*`) matches C++ exactly.
     pub fn AddToNoticeList(&mut self, tree: &mut PanelTree, panel: PanelId) {
-        tree.add_to_notice_list(panel);
+        // Guard: panel must not already be linked in a notice ring.
+        {
+            let p = &tree.panels[panel];
+            if p.notice_prev_in_ring.is_some() || p.notice_next_in_ring.is_some() {
+                return;
+            }
+            // Or currently the single head of this view's ring?
+            if self.notice_ring_head_next == Some(panel) {
+                return;
+            }
+        }
+        match self.notice_ring_head_prev {
+            Some(old_tail) => {
+                // Link new node after old tail.
+                tree.panels[old_tail].notice_next_in_ring = Some(panel);
+                tree.panels[panel].notice_prev_in_ring = Some(old_tail);
+                tree.panels[panel].notice_next_in_ring = None;
+                self.notice_ring_head_prev = Some(panel);
+            }
+            None => {
+                // Ring was empty.
+                tree.panels[panel].notice_prev_in_ring = None;
+                tree.panels[panel].notice_next_in_ring = None;
+                self.notice_ring_head_next = Some(panel);
+                self.notice_ring_head_prev = Some(panel);
+            }
+        }
+        self.has_pending_notices = true;
         // C++ emView.cpp:1288: UpdateEngine->WakeUp().
         self.WakeUpUpdateEngine();
     }
