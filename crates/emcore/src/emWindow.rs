@@ -1357,6 +1357,11 @@ impl emWindow {
         self.view.borrow_mut()
     }
 
+    #[allow(dead_code)] // used by SP5 Task 2.2 (emPanel::View back-reference via Rc::downgrade)
+    pub(crate) fn view_rc(&self) -> &Rc<RefCell<emView>> {
+        &self.view
+    }
+
     /// Tick VIF animations (wheel zoom spring, grip pan spring).
     /// Returns true if any animation is still active.
     pub fn tick_vif_animations(&mut self, tree: &mut PanelTree, dt: f64) -> bool {
