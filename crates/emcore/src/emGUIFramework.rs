@@ -11,7 +11,7 @@ use winit::window::WindowId;
 
 use crate::emContext::emContext;
 use crate::emEngineCtx::DeferredAction as FrameworkDeferredAction;
-use crate::emInput::{InputKey, InputVariant};
+use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPanelTree::PanelTree;
 use crate::emScheduler::EngineScheduler;
@@ -105,6 +105,12 @@ pub struct App {
     /// passed as `&mut Vec<DeferredAction>` into `EngineScheduler::DoTimeSlice`.
     pub(crate) framework_actions: Vec<FrameworkDeferredAction>,
     pub input_state: emInputState,
+    /// Input queue drained by `InputDispatchEngine` (Phase 3) — spec §3.1
+    /// + §4 D4.9. Produced by `window_event` on each winit input; consumed
+    /// once per slice. Restored in Phase 1.5 Task 1 step 1g after being
+    /// speculatively deleted by Chunk 2 (W2 drift).
+    // TODO(phase-3): consumed by InputDispatchEngine once it lands.
+    pub(crate) pending_inputs: Vec<(WindowId, emInputEvent)>,
     /// Deferred actions queued by input handlers that need `&ActiveEventLoop`
     /// (e.g., window creation for Duplicate/CreateControlWindow, popup
     /// surface materialization from `emView::RawVisitAbs`).
@@ -136,6 +142,7 @@ impl App {
             windows: HashMap::new(),
             framework_actions: Vec::new(),
             input_state: emInputState::new(),
+            pending_inputs: Vec::new(),
             pending_actions: Rc::new(RefCell::new(Vec::new())),
             file_update_signal,
             setup_fn: Some(setup),
