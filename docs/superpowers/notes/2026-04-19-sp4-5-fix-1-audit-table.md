@@ -145,4 +145,10 @@
 | emView.rs:6842 | scheduler | borrow_mut | outermost | safe | Same test cleanup; `sched.borrow_mut().remove_engine()` for update. |
 | emView.rs:6845 | scheduler | borrow_mut | outermost | safe | Same test cleanup; `sched.borrow_mut().remove_engine()` for eoi. |
 | emView.rs:6848 | scheduler | borrow_mut | outermost | safe | Same test cleanup; `sched.borrow_mut().remove_engine()` for visiting_va. |
+| emView.rs:6310 | view | borrow_mut | outermost | safe | Test code; `attach_to_scheduler` called from test setup `test_phase7_eoi_engine_fires_after_countdown`, initiating borrow (no enclosing Cycle/Update/DoTimeSlice). |
+| emView.rs:6371 | view | borrow_mut | outermost | safe | Test code; `attach_to_scheduler` called from test setup `test_phase7_update_engine_wakeup_via_scheduler`, initiating borrow in test. |
+| emView.rs:6379 | view | borrow_mut | outermost | safe | Test code; `WakeUpUpdateEngine()` called from test `test_phase7_update_engine_wakeup_via_scheduler` after setup, no enclosing Cycle/Update. |
+| emView.rs:6382 | view | borrow_mut | outermost | safe | Test code; `borrow_mut()` in test cleanup block of `test_phase7_update_engine_wakeup_via_scheduler` to drain pending ops; outermost borrow. |
+| emView.rs:6491 | view | borrow_mut | outermost | safe | Test code; `Update(&mut tree)` called from test `test_phase7_add_to_notice_list_wakes_update_engine` directly after setup, not inside Cycle/DoTimeSlice. |
+| emView.rs:6509 | view | borrow_mut | outermost | safe | Test code; `borrow_mut()` in test cleanup block of `test_phase7_add_to_notice_list_wakes_update_engine` to drain EOI signal; outermost borrow. |
 | emView.rs:6851 | scheduler | borrow_mut | outermost | safe | Same test cleanup; `sched.borrow_mut().remove_signal()` for EOISignal. |
