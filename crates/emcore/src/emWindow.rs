@@ -1357,8 +1357,7 @@ impl emWindow {
         self.view.borrow_mut()
     }
 
-    #[allow(dead_code)] // used by SP5 Task 2.2 (emPanel::View back-reference via Rc::downgrade)
-    pub(crate) fn view_rc(&self) -> &Rc<RefCell<emView>> {
+    pub fn view_rc(&self) -> &Rc<RefCell<emView>> {
         &self.view
     }
 
@@ -1875,7 +1874,7 @@ mod tests {
     #[test]
     fn new_for_test_constructs_without_event_loop() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let win_id = winit::window::WindowId::dummy();
         let sched = std::rc::Rc::new(std::cell::RefCell::new(EngineScheduler::new()));
@@ -1903,7 +1902,7 @@ mod tests {
     fn new_popup_pending_constructs_without_event_loop() {
         let mut scheduler = EngineScheduler::new();
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
 
         let close_sig = scheduler.create_signal();
         let flags_sig = scheduler.create_signal();

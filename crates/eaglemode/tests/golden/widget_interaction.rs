@@ -591,7 +591,7 @@ fn run_splitter_layout_step(
     let clamped_pos = sp.GetPos();
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(
         root,
         parent_rect.0,
@@ -761,7 +761,7 @@ fn composition_click_through_tree() {
     let look = emLook::new();
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
 
     let mut root_group = emLinearGroup::vertical();
     root_group.border = emBorder::new(OuterBorderType::Rect)

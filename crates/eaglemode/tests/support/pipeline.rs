@@ -39,7 +39,7 @@ impl PipelineTestHarness {
     /// Create a harness with root panel (focusable, layout 0,0,1,1), 800x600 view.
     pub fn new() -> Self {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.set_focusable(root, true);
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 

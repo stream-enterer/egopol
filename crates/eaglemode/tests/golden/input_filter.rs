@@ -22,7 +22,7 @@ macro_rules! require_golden {
 /// window focused.
 fn setup_vif_view() -> (PanelTree, emView) {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     let mut view = emView::new_for_test(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);

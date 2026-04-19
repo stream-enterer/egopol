@@ -46,8 +46,10 @@ impl emSubViewPanel {
     /// [`sub_tree_mut`], and [`sub_view_mut`] to populate the sub-view.
     pub fn new() -> Self {
         let mut sub_tree = PanelTree::new();
-        // C++ view root has an empty name; identity ":" decodes to [""].
-        let root = sub_tree.create_root("");
+        // Deferred-view create: sub_view needs root, root needs view weak.
+        // Resolve chicken-and-egg: create root with empty Weak, then wire
+        // the view back after construction.
+        let root = sub_tree.create_root("", std::rc::Weak::new());
         // Last arg is pixel tallness; sub_view.CurrentPixelTallness starts at 1.0.
         sub_tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
@@ -60,6 +62,7 @@ impl emSubViewPanel {
             crate::emCoreConfig::emCoreConfig::default(),
         ));
         let sub_view = Rc::new(RefCell::new(emView::new(root, 1.0, 1.0, core_config)));
+        sub_tree.set_panel_view_internal(root, Rc::downgrade(&sub_view));
 
         Self {
             sub_tree,

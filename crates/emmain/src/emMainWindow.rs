@@ -767,9 +767,10 @@ pub fn create_main_window(
 ) -> emMainWindow {
     let mut mw = emMainWindow::new(Rc::clone(&app.context), config);
 
-    // Create root panel in the tree
+    // Create root panel in the tree. View is not yet constructed (emWindow::create
+    // happens below); wire the Weak back after the window is inserted.
     let panel = emMainPanel::new(Rc::clone(&app.context), mw.config.control_tallness);
-    let root_id = app.tree.create_root("root");
+    let root_id = app.tree.create_root("root", std::rc::Weak::new());
     app.tree.set_behavior(root_id, Box::new(panel));
     mw.main_panel_id = Some(root_id);
 
@@ -825,6 +826,12 @@ pub fn create_main_window(
     let window_id = window.borrow().winit_window().id();
     app.windows.insert(window_id, window);
     mw.window_id = Some(window_id);
+
+    // Wire the owning view's Weak onto the root panel now that the window exists.
+    if let Some(rc) = app.windows.get(&window_id) {
+        let view_weak = Rc::downgrade(rc.borrow().view_rc());
+        app.tree.set_panel_view_internal(root_id, view_weak);
+    }
 
     // Acquire bookmarks model.
     mw.bookmarks_model = Some(emBookmarksModel::Acquire(&app.context));
@@ -970,7 +977,10 @@ pub fn create_control_window(
         .flatten();
 
     let ctrl_panel = emMainControlPanel::new(Rc::clone(&app.context), content_view_id);
-    let root_id = app.tree.create_root("ctrl_window_root");
+    // View wire-back: root is created before the window, so start with empty Weak.
+    let root_id = app
+        .tree
+        .create_root("ctrl_window_root", std::rc::Weak::new());
     app.tree.set_behavior(root_id, Box::new(ctrl_panel));
 
     let flags = WindowFlags::AUTO_DELETE;
@@ -991,6 +1001,12 @@ pub fn create_control_window(
     );
     let window_id = window.borrow().winit_window().id();
     app.windows.insert(window_id, window);
+
+    // Wire the owning view's Weak onto the root panel now that the window exists.
+    if let Some(rc) = app.windows.get(&window_id) {
+        let view_weak = Rc::downgrade(rc.borrow().view_rc());
+        app.tree.set_panel_view_internal(root_id, view_weak);
+    }
 
     // Store the control window ID for raise-if-existing logic.
     with_main_window(|mw| {

@@ -231,7 +231,7 @@ fn popup_cancels_when_dropped_before_materialize() {
     let captured_for_setup = Rc::clone(&captured);
 
     let setup = Box::new(move |app: &mut App, event_loop: &ActiveEventLoop| {
-        let root = app.tree.create_root("test_root");
+        let root = app.tree.create_root_deferred_view("test_root");
         app.tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let child = app.tree.create_child(root, "child_a");
         app.tree.Layout(child, 0.0, 0.0, 0.5, 1.0, 1.0);

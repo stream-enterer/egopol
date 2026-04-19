@@ -2546,7 +2546,7 @@ fn testpanel_root() {
 
     let bg_color = Rc::new(Cell::new(DEFAULT_BG));
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.set_behavior(root, Box::new(TestPanel::new(0, bg_color)));
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     // Very high threshold prevents auto-expansion (Match C++ gen)
@@ -2579,7 +2579,7 @@ fn testpanel_expanded() {
 
     let bg_color = Rc::new(Cell::new(DEFAULT_BG));
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.set_behavior(root, Box::new(TestPanel::new(0, bg_color)));
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     // C++ default threshold: 900 (VCT_AREA). At 1000x1000, vc=1e6 > 900 → expands.

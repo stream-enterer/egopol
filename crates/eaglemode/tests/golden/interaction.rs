@@ -22,7 +22,7 @@ fn panel_state(tree: &PanelTree, id: PanelId) -> (bool, bool) {
 /// Create a standard 3-panel tree (root → child1, child2) with layout rects.
 fn three_panel_tree() -> (PanelTree, emView, PanelId, PanelId, PanelId) {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -65,7 +65,7 @@ fn interaction_activate_path() {
     let expected = load_behavioral_golden("activate_path");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -238,7 +238,7 @@ fn interaction_focus_unfocusable_skip() {
     let expected = load_behavioral_golden("focus_unfocusable_skip");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
@@ -278,7 +278,7 @@ fn interaction_focus_nested() {
     let expected = load_behavioral_golden("focus_nested");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -317,7 +317,7 @@ fn interaction_focus_visit_out() {
     let expected = load_behavioral_golden("focus_visit_out");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -382,7 +382,7 @@ fn interaction_focus_visit_first() {
     let expected = load_behavioral_golden("focus_visit_first");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
@@ -421,7 +421,7 @@ fn interaction_focus_visit_last() {
     let expected = load_behavioral_golden("focus_visit_last");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
@@ -460,7 +460,7 @@ fn interaction_focus_visit_left() {
     let expected = load_behavioral_golden("focus_visit_left");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
@@ -499,7 +499,7 @@ fn interaction_focus_visit_right() {
     let expected = load_behavioral_golden("focus_visit_right");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
@@ -538,7 +538,7 @@ fn interaction_focus_visit_down() {
     let expected = load_behavioral_golden("focus_visit_down");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 1.0, 0.33, 1.0);
@@ -577,7 +577,7 @@ fn interaction_focus_visit_up() {
     let expected = load_behavioral_golden("focus_visit_up");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 1.0, 0.33, 1.0);
@@ -641,7 +641,7 @@ fn interaction_activate_remove_middle() {
     let expected = load_behavioral_golden("activate_remove_middle");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.33, 1.0, 1.0);
@@ -678,7 +678,7 @@ fn interaction_activate_remove_in_path() {
     let expected = load_behavioral_golden("activate_remove_in_path");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -711,7 +711,7 @@ fn interaction_focus_tab_deep() {
     let expected = load_behavioral_golden("focus_tab_deep");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -753,7 +753,7 @@ fn interaction_focus_tab_ascend() {
     let expected = load_behavioral_golden("focus_tab_ascend");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 1.0, 1.0, 1.0);

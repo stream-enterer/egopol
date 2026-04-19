@@ -9,7 +9,7 @@ use emcore::emView::emView;
 #[test]
 fn max_popup_rect_falls_back_to_home() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
 
     // Construct emView without calling set_max_popup_rect.
     let view = emView::new_for_test(root, 800.0, 600.0);

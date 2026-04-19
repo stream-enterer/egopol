@@ -1004,7 +1004,7 @@ fn composition_tktest_1x() {
 
     let look = emLook::new();
     let mut tree = PanelTree::new();
-    let root = tree.create_root("tktest");
+    let root = tree.create_root_deferred_view("tktest");
     tree.set_behavior(root, Box::new(TkTestPanel::new(look)));
     // C++ gen: tk->Layout(0, 0, 800.0/600.0, 1.0)
     tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0, 1.0);
@@ -1051,7 +1051,7 @@ fn composition_tktest_2x() {
 
     let look = emLook::new();
     let mut tree = PanelTree::new();
-    let root = tree.create_root("tktest");
+    let root = tree.create_root_deferred_view("tktest");
     tree.set_behavior(root, Box::new(TkTestPanel::new(look)));
     // C++ gen: tk->Layout(0, 0, 800.0/600.0, 1.0)
     tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0, 1.0);

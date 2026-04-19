@@ -126,7 +126,7 @@ fn focus_change_routes_keyboard() {
 fn input_without_update_returns_none() {
     // Document: hit-test requires update_viewing to set SVP.
     let mut tree = emcore::emPanelTree::PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.set_focusable(root, true);
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 

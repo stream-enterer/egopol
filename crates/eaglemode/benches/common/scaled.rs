@@ -35,7 +35,7 @@ impl PanelBehavior for ColorPanel {
 /// Returns the tree with a primed emView at DEFAULT_VW x DEFAULT_VH.
 pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, emView, PanelId) {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("scaled_root");
+    let root = tree.create_root_deferred_view("scaled_root");
     let tallness = DEFAULT_VH as f64 / DEFAULT_VW as f64;
     tree.Layout(root, 0.0, 0.0, 1.0, tallness, 1.0);
     tree.set_behavior(

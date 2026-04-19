@@ -2792,7 +2792,7 @@ mod tests {
 
     fn setup() -> (PanelTree, emView) {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let view = emView::new_for_test(root, 800.0, 600.0);
         (tree, view)
@@ -3139,7 +3139,7 @@ mod tests {
     #[test]
     fn magnetic_animate_finds_focusable_panel() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         tree.set_focusable(root, true);
 
@@ -3300,7 +3300,7 @@ mod tests {
     #[test]
     fn calculate_distance_finds_nearest_panel() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         tree.set_focusable(root, true);
 
@@ -3338,7 +3338,7 @@ mod tests {
     #[test]
     fn calculate_distance_uses_log_zoom_z_axis() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         tree.set_focusable(root, true);
 
@@ -3414,7 +3414,7 @@ mod tests {
 
     fn setup_scrolled(factor: f64) -> (PanelTree, emView) {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         let mut view = emView::new_for_test(root, 800.0, 600.0);
         view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
@@ -3509,7 +3509,7 @@ mod tests {
         //
         // Convergence target chosen so root-centering does not fire at any step.
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.get_mut(root).unwrap().focusable = true;
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         let child = tree.create_child(root, "child");

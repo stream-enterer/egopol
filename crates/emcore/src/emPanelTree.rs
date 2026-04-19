@@ -459,7 +459,11 @@ impl PanelTree {
     ///
     /// # Panics
     /// Panics if a root panel already exists.
-    pub fn create_root(&mut self, name: &str) -> PanelId {
+    pub fn create_root(
+        &mut self,
+        name: &str,
+        view: std::rc::Weak<std::cell::RefCell<crate::emView::emView>>,
+    ) -> PanelId {
         assert!(
             self.root.is_none(),
             "create_root called but root panel already exists"
@@ -471,6 +475,7 @@ impl PanelTree {
         // path resolution like "::FS::..." where the first "" after the
         // initial ":" is meant to be a child of root, not root itself.
         self.root = Some(id);
+        self.panels[id].View = view;
         // C++ emPanel root ctor (emPanel.cpp:~100): Active=1; InActivePath=1;
         // View.ActivePanel=this. Root starts as the active panel.
         self.panels[id].is_active = true;
@@ -480,6 +485,58 @@ impl PanelTree {
         self.has_pending_notices = true;
         self.add_to_notice_list(id);
         id
+    }
+
+    /// Create the root panel with a deferred view (view set to `Weak::new()`).
+    ///
+    /// Use this in tests and examples where the `emView` cannot be constructed
+    /// before the root `PanelId` is known (chicken-and-egg). Follow up with
+    /// [`set_panel_view`] once the view is available.
+    ///
+    /// Not a C++ analogue — test-support only.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn create_root_deferred_view(&mut self, name: &str) -> PanelId {
+        self.create_root(name, std::rc::Weak::new())
+    }
+
+    /// Propagate a view weak reference to a panel and all its descendants.
+    ///
+    /// Internal production path: used by `emSubViewPanel::new` and
+    /// `emMainWindow::create_main_window` which must create the panel tree root
+    /// before the view exists (chicken-and-egg).
+    ///
+    /// Not a C++ analogue — Rust ownership requires this two-phase init.
+    pub fn set_panel_view_internal(
+        &mut self,
+        id: PanelId,
+        view: std::rc::Weak<std::cell::RefCell<crate::emView::emView>>,
+    ) {
+        self.panels[id].View = view.clone();
+        let mut stack = vec![id];
+        while let Some(p) = stack.pop() {
+            let mut child = self.panels[p].first_child;
+            while let Some(c) = child {
+                self.panels[c].View = view.clone();
+                stack.push(c);
+                child = self.panels[c].next_sibling;
+            }
+        }
+    }
+
+    /// Propagate a view weak reference to a panel and all its descendants.
+    ///
+    /// Use after [`create_root_deferred_view`] once the owning view is
+    /// constructed. Visits the subtree rooted at `id` and sets `View` on
+    /// every panel already in it.
+    ///
+    /// Not a C++ analogue — test-support only.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn set_panel_view(
+        &mut self,
+        id: PanelId,
+        view: std::rc::Weak<std::cell::RefCell<crate::emView::emView>>,
+    ) {
+        self.set_panel_view_internal(id, view);
     }
 
     /// Create a child panel under the given parent.
@@ -2714,7 +2771,7 @@ mod tests {
         PanelId,
     ) {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         t.set_focusable(root, true);
         t.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
@@ -2748,7 +2805,7 @@ mod tests {
     #[test]
     fn test_get_height_and_tallness() {
         let mut t = PanelTree::new();
-        let root = t.create_root("r");
+        let root = t.create_root_deferred_view("r");
         t.Layout(root, 0.0, 0.0, 2.0, 6.0, 1.0);
         assert!((t.get_height(root) - 3.0).abs() < 1e-12);
         assert!((t.GetTallness(root) - t.get_height(root)).abs() < 1e-15);
@@ -2757,7 +2814,7 @@ mod tests {
     #[test]
     fn test_substance_rect_default() {
         let mut t = PanelTree::new();
-        let root = t.create_root("r");
+        let root = t.create_root_deferred_view("r");
         t.Layout(root, 0.0, 0.0, 2.0, 4.0, 1.0);
         let (sx, sy, sw, sh, sr) = t.GetSubstanceRect(root);
         assert_eq!((sx, sy, sw), (0.0, 0.0, 1.0));
@@ -2768,7 +2825,7 @@ mod tests {
     #[test]
     fn test_point_in_substance_rect() {
         let mut t = PanelTree::new();
-        let root = t.create_root("r");
+        let root = t.create_root_deferred_view("r");
         t.Layout(root, 0.0, 0.0, 1.0, 2.0, 1.0);
         assert!(t.IsPointInSubstanceRect(root, 0.5, 1.0));
         assert!(t.IsPointInSubstanceRect(root, 0.0, 0.0));
@@ -2780,7 +2837,7 @@ mod tests {
     #[test]
     fn test_essence_rect() {
         let mut t = PanelTree::new();
-        let root = t.create_root("r");
+        let root = t.create_root_deferred_view("r");
         t.Layout(root, 0.0, 0.0, 1.0, 3.0, 1.0);
         let (ex, ey, ew, eh) = t.GetEssenceRect(root);
         assert_eq!((ex, ey, ew), (0.0, 0.0, 1.0));
@@ -2802,7 +2859,7 @@ mod tests {
     #[test]
     fn test_focusable_first_child_none() {
         let mut t = PanelTree::new();
-        let root = t.create_root("r");
+        let root = t.create_root_deferred_view("r");
         let child = t.create_child(root, "c");
         t.set_focusable(child, false);
         assert_eq!(t.GetFocusableFirstChild(root), None);
@@ -2891,7 +2948,7 @@ mod tests {
     #[test]
     fn test_be_first() {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         let a = t.create_child(root, "a");
         let b = t.create_child(root, "b");
         let c = t.create_child(root, "c");
@@ -2917,7 +2974,7 @@ mod tests {
     #[test]
     fn test_be_last() {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         let a = t.create_child(root, "a");
         let _b = t.create_child(root, "b");
         let _c = t.create_child(root, "c");
@@ -2930,7 +2987,7 @@ mod tests {
     #[test]
     fn test_be_prev_of() {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         let a = t.create_child(root, "a");
         let b = t.create_child(root, "b");
         let c = t.create_child(root, "c");
@@ -2951,7 +3008,7 @@ mod tests {
     #[test]
     fn test_be_next_of() {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         let a = t.create_child(root, "a");
         let _b = t.create_child(root, "b");
         let c = t.create_child(root, "c");
@@ -2968,7 +3025,7 @@ mod tests {
     #[test]
     fn test_be_prev_of_no_op_cases() {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         let a = t.create_child(root, "a");
         let b = t.create_child(root, "b");
 
@@ -2984,7 +3041,7 @@ mod tests {
     #[test]
     fn test_be_next_of_no_op_cases() {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         let a = t.create_child(root, "a");
         let b = t.create_child(root, "b");
 
@@ -3000,7 +3057,7 @@ mod tests {
     #[test]
     fn test_sort_children() {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         let _c = t.create_child(root, "c");
         let _a = t.create_child(root, "a");
         let _b = t.create_child(root, "b");
@@ -3017,7 +3074,7 @@ mod tests {
     #[test]
     fn test_sort_children_no_change() {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         let _a = t.create_child(root, "a");
         let _b = t.create_child(root, "b");
 
@@ -3040,7 +3097,7 @@ mod tests {
     #[test]
     fn test_sort_children_reverse() {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         let _a = t.create_child(root, "a");
         let _b = t.create_child(root, "b");
         let _c = t.create_child(root, "c");
@@ -3076,7 +3133,7 @@ mod tests {
         }
 
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         t.set_behavior(root, Box::new(ControlCreator));
 
         let child = t.create_child(root, "child");
@@ -3093,7 +3150,7 @@ mod tests {
     #[test]
     fn test_create_control_panel_returns_none_at_root_without_behavior() {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         let child = t.create_child(root, "child");
         // No behaviors at all -- should walk to root and return None
         let result = t.CreateControlPanel(child, root, "ctrl", 1.0);
@@ -3105,7 +3162,7 @@ mod tests {
     #[test]
     fn test_set_auto_expansion_threshold() {
         let mut t = PanelTree::new();
-        let root = t.create_root("r");
+        let root = t.create_root_deferred_view("r");
 
         // Initial state
         assert_eq!(
@@ -3134,7 +3191,7 @@ mod tests {
     #[test]
     fn test_invalidate_auto_expansion() {
         let mut t = PanelTree::new();
-        let root = t.create_root("r");
+        let root = t.create_root_deferred_view("r");
 
         // Not expanded => no effect
         t.InvalidateAutoExpansion(root);
@@ -3155,7 +3212,7 @@ mod tests {
     #[test]
     fn test_get_view_condition() {
         let mut t = PanelTree::new();
-        let root = t.create_root("r");
+        let root = t.create_root_deferred_view("r");
         t.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         // Not viewed, not in viewed path => 0.0
@@ -3182,7 +3239,7 @@ mod tests {
     #[test]
     fn test_get_update_priority() {
         let mut t = PanelTree::new();
-        let root = t.create_root("r");
+        let root = t.create_root_deferred_view("r");
         t.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let vw = 800.0;
@@ -3224,7 +3281,7 @@ mod tests {
     #[test]
     fn test_get_memory_limit() {
         let mut t = PanelTree::new();
-        let root = t.create_root("r");
+        let root = t.create_root_deferred_view("r");
         t.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let vw = 800.0;
@@ -3260,7 +3317,7 @@ mod tests {
     #[test]
     fn panel_data_view_defaults_none() {
         let mut t = PanelTree::new();
-        let root = t.create_root("root");
+        let root = t.create_root_deferred_view("root");
         assert!(
             t.panels[root].view().is_none(),
             "View must be Weak::new() until populated by create_root (Task 2.2)"

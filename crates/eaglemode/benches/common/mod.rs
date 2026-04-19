@@ -756,7 +756,7 @@ impl PanelBehavior for TestPanel {
 
 pub fn setup_tree_and_view(vw: u32, vh: u32) -> (PanelTree, emView, PanelId) {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("bench_root");
+    let root = tree.create_root_deferred_view("bench_root");
     tree.set_behavior(root, Box::new(TestPanel::new()));
     let tallness = vh as f64 / vw as f64;
     tree.Layout(root, 0.0, 0.0, 1.0, tallness, 1.0);

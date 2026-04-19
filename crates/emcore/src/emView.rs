@@ -4725,7 +4725,7 @@ mod tests {
 
     fn setup_tree() -> (PanelTree, PanelId, PanelId, PanelId) {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.get_mut(root).unwrap().focusable = true;
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
@@ -4847,7 +4847,7 @@ mod tests {
     #[test]
     fn test_viewed_false_outside_viewport() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let offscreen = tree.create_child(root, "offscreen");
@@ -5201,7 +5201,7 @@ mod tests {
         // Root is square so viewed_width == viewed_height for it — we need
         // to test with a child whose layout_h != layout_w.
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.get_mut(root).unwrap().focusable = true;
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
@@ -5241,7 +5241,7 @@ mod tests {
     #[test]
     fn test_raw_zoom_out_computes_fit_ratio() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
         let mut view = emView::new_for_test(root, 800.0, 600.0);
@@ -5267,7 +5267,7 @@ mod tests {
     #[test]
     fn test_is_zoomed_out_after_raw_zoom_out() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
         let mut view = emView::new_for_test(root, 800.0, 600.0);
@@ -5282,7 +5282,7 @@ mod tests {
     #[test]
     fn test_set_view_flags_root_same_tallness_updates_layout() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0); // starts square
 
         let mut view = emView::new_for_test(root, 800.0, 600.0);
@@ -5613,7 +5613,7 @@ mod tests {
         // Phase 3: RawVisit is the public API for setting viewing coords from
         // rel coords.
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         let mut view = emView::new_for_test(root, 800.0, 600.0);
         view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
@@ -5652,7 +5652,7 @@ mod tests {
         // Use a root-only tree (no children) so the SVP is always root and the
         // check is stable across zoom levels.
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let mut view = emView::new_for_test(root, 800.0, 600.0);
         view.Update(&mut tree);
@@ -5690,7 +5690,7 @@ mod tests {
     #[test]
     fn test_soft_keyboard_toggle() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         let mut view = emView::new_for_test(root, 800.0, 600.0);
         assert!(!view.IsSoftKeyboardShown());
         view.ShowSoftKeyboard(true);
@@ -5706,7 +5706,7 @@ mod tests {
         use std::rc::Rc;
 
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.get_mut(root).unwrap().focusable = true;
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let child = tree.create_child(root, "child");
@@ -5753,7 +5753,7 @@ mod tests {
         // W4 Phase 3: Visit(tree, panel, rx, ry, ra, adherent) must set a goal
         // on VisitingVA and activate it, matching C++ emView.cpp:492-510.
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let child = tree.create_child(root, "child");
         tree.Layout(child, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -5779,7 +5779,7 @@ mod tests {
         // Short-form VisitPanel(tree, panel, adherent) delegates to VisitingVA
         // via VisitByIdentityBare, matching C++ emView.cpp:511-523.
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         let mut view = emView::new_for_test(root, 800.0, 600.0);
@@ -5907,7 +5907,7 @@ mod tests {
     fn test_phase2_raw_visit_abs_root_centering() {
         // Root-only tree: square panel (layout h == layout w → height=1.0).
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
         // HomeWidth=640, HomeHeight=480 (default from emView::new).
@@ -6440,7 +6440,7 @@ mod tests {
         use crate::emViewAnimator::emViewAnimator as _;
 
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         let mut view = emView::new_for_test(root, 800.0, 600.0);
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
         view.attach_to_scheduler(sched.clone(), winit::window::WindowId::dummy());
@@ -6499,7 +6499,7 @@ mod tests {
         // (emOwnPtr<emVisitingViewAnimator> VisitingVA).
         use crate::emViewAnimator::emViewAnimator as _;
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         let view = emView::new_for_test(root, 800.0, 600.0);
         let va = view.VisitingVA.borrow();
         assert!(
@@ -6512,7 +6512,7 @@ mod tests {
     fn get_visited_panel_returns_svp_rel_coords() {
         // W4 Task 2.1: GetVisitedPanel out-param form mirrors C++ emView.cpp:468-489.
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.get_mut(root).unwrap().focusable = true;
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let mut view = emView::new_for_test(root, 800.0, 600.0);
@@ -6539,7 +6539,7 @@ mod tests {
         use crate::emCoreConfig::emCoreConfig;
 
         let mut tree = PanelTree::new();
-        let root = tree.create_root("");
+        let root = tree.create_root_deferred_view("");
         let cfg = Rc::new(RefCell::new(emCoreConfig::default()));
         let view = emView::new(root, 800.0, 600.0, Rc::clone(&cfg));
         assert!(Rc::ptr_eq(&view.CoreConfig, &cfg));
@@ -6553,7 +6553,7 @@ mod tests {
         use crate::emCoreConfig::emCoreConfig;
 
         let mut tree = PanelTree::new();
-        let root = tree.create_root("");
+        let root = tree.create_root_deferred_view("");
         tree.Layout(root, 0.0, 0.0, 800.0, 600.0, 1.0);
 
         let cfg = Rc::new(RefCell::new(emCoreConfig {

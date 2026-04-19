@@ -47,7 +47,7 @@ fn notice_active_changed() {
     let expected = load_notice_golden("notice_active_changed");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -99,7 +99,7 @@ fn notice_focus_changed() {
     let expected = load_notice_golden("notice_focus_changed");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -150,7 +150,7 @@ fn notice_layout_changed() {
     let expected = load_notice_golden("notice_layout_changed");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -200,7 +200,7 @@ fn notice_children_changed() {
     let expected = load_notice_golden("notice_children_changed");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -251,7 +251,7 @@ fn notice_window_focus_gained() {
     let expected = load_notice_golden("notice_window_focus_gained");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -298,7 +298,7 @@ fn notice_window_focus_lost() {
     let expected = load_notice_golden("notice_window_focus_lost");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -346,7 +346,7 @@ fn notice_window_resize() {
     let expected = load_notice_golden("notice_window_resize");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0); // 600/800 tallness
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -397,7 +397,7 @@ fn notice_recursive_enable() {
     let expected = load_notice_golden("notice_recursive_enable");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -449,7 +449,7 @@ fn notice_re_enable() {
     let expected = load_notice_golden("notice_re_enable");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -511,7 +511,7 @@ fn notice_remove_child() {
     let expected = load_notice_golden("notice_remove_child");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -553,7 +553,7 @@ fn notice_focus_and_layout() {
     let expected = load_notice_golden("notice_focus_and_layout");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -602,7 +602,7 @@ fn notice_add_and_activate() {
     let expected = load_notice_golden("notice_add_and_activate");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -649,7 +649,7 @@ fn notice_enable_changed() {
     let expected = load_notice_golden("notice_enable_changed");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
