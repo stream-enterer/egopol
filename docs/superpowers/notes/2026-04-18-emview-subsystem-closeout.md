@@ -17,8 +17,8 @@ This document is the source of truth for residual work. It catalogues the state 
 | Axis | Status |
 |---|---|
 | Phases delivered | **Original 10/10** + W3 + W4 |
-| Commits on main | **~51** (14 original + W3 cluster + 14 W4 + SP1 bundle + SP3 bundle + merges) |
-| Tests | 2432/2432 nextest, 9 skipped, 0 failed |
+| Commits on main | **~67** (14 original + W3 cluster + 14 W4 + SP1 bundle + SP3 bundle + SP4 bundle + merges) |
+| Tests | 2432/2432 nextest, 9 skipped, 0 failed (3 new in SP4: `new_for_test_constructs_without_event_loop`, `sp4_signal_fired_from_update_reaches_receiver_same_slice`, `test_phase8_popup_close_signal_zooms_out` unignored) |
 | Golden | 237 passed / 6 failed (baseline parity — same 6 pre-existing failures across all waves) |
 | Smoke (`timeout 20 cargo run --release --bin eaglemode`) | exits 143 / 124 — program stays alive |
 | Scaffolds still in tree | **0** (both `PopupPlaceholder` and the visit-stack scaffolding are gone) |
@@ -245,6 +245,7 @@ All items in this section closed by SP1 on 2026-04-18.
 - Post-W3: 2418/2418 (+9 from W3 additions).
 - Post-W4: 2425/2425 (+10 W4 additions, −1 for the deletion, +some test-migration consolidations).
 - Post-SP3: **2429/2429** (+2 emCoreConfig SP3 tests + 1 emViewAnimator SP3 test + 1 emView SP3 test).
+- Post-SP4: **2432/2432** (+1 `emWindow::new_for_test` smoke + 1 `sp4_signal_fired_from_update_reaches_receiver_same_slice` + Phase-8 rewrite unignored).
 - Golden: 237/243 throughout all three waves (same 6 pre-existing failures: `composition_tktest_{1x,2x}`, `notice_window_resize`, `testpanel_{expanded,root}`, `widget_file_selection_box`).
 
 ### 7.5 Smoke exit-code note
@@ -266,7 +267,7 @@ Brainstorming on 2026-04-18 grouped the residuals into seven independently-sched
 | **SP1 — W1+W2 cleanup bundle** | ~~1, 3, 4, 5, 6, 7, 8, 9~~ | **Complete 2026-04-18** (merged as `50d50cf`). | `specs/2026-04-18-emview-w1-w2-cleanup-bundle-design.md`, `plans/2026-04-18-emview-w1-w2-cleanup-bundle.md` |
 | **SP2 — InvalidateHighlight scoping** | ~~2~~ | **Complete 2026-04-18** — audit found all 5 C++ call sites already mirrored in Rust as part of SP1's W1b task; no additional work needed. | `plans/2026-04-18-emview-followups-wave1.md` Task 3 |
 | **SP3 — CoreConfig ownership** | ~~10~~ | **Complete 2026-04-18** (merged as `c6bb071`). | `specs/2026-04-18-emview-sp3-coreconfig-ownership-design.md`, `plans/2026-04-18-emview-sp3-coreconfig-ownership.md` |
-| **SP4 — Scheduler re-entrant borrow → Phase-8 test** | ~~14 then 11~~ | **Complete 2026-04-18** (merged as `c78c36b`). | `specs/2026-04-18-emview-sp4-update-engine-only-routing.md`, `plans/2026-04-18-emview-sp4-engine-only-update-routing.md` |
+| **SP4 — Scheduler re-entrant borrow → Phase-8 test** | ~~14 then 11~~ | **Complete 2026-04-18** (branch tip `c78c36b`; merge commit `2f2b1cd`). | `specs/2026-04-18-emview-sp4-update-engine-only-routing.md`, `plans/2026-04-18-emview-sp4-engine-only-update-routing.md` |
 | **SP5 — Per-view notice dispatch** | 12 | Blocked on multi-window roadmap decision | — |
 | **SP6 — W3 surface de-dup** | 13 | Optional; may skip entirely | — |
 | **SP7 — emContext threading through view/window subsystem** | 15 | Not started; ARCH; surfaced 2026-04-18 during SP3 brainstorming | — |
@@ -278,7 +279,7 @@ Brainstorming on 2026-04-18 grouped the residuals into seven independently-sched
 - **Latent-borrow fix at SVPUpdSlice throttle.** During Phase 5, `emView::Update`'s `GetTimeSliceCounter` lookup (`emView.rs:~2082`) was changed from `.borrow()` to `.try_borrow().ok()`, falling back to the cached `self.SVPUpdSlice` on contention. Not in the plan but necessary: the SVPUpdSlice path runs while the scheduler is already borrowed_mut via `DoTimeSlice`, and a plain `borrow()` panics re-entrantly. Harmless throttle-counter stall at worst (triggers only after 1000+ retries in one slice). Landed as part of `03b526d`.
 - **Test-support plumbing on `emWindow`.** To let bare-view tests register under a real `WindowId` so `UpdateEngineClass::Cycle` can route correctly, `emWindow::id()` and a `test_window_id: Option<WindowId>` field on `emView` were added (commit `61282db`), plus a `emWindow::new_for_test` constructor. Test-only (`#[cfg(any(test, feature = "test-support"))]`).
 - **Task 5.2 trigger mechanism.** The plan suggested driving the Task 5.2 same-slice signal-propagation test via the `SVPChoiceInvalid` path. Investigation showed that path does not actually reach `SetActivePanelBestPossible` under the test setup; the test was rewritten to fire `geometry_signal` via popup teardown, which does reach the queued-signal path. Observable semantics (signal fired from inside `Update` reaches its receiver in the same slice) are what matters, and are asserted identically.
-- **Phase-8 test rewrite dependency.** The Phase-8 single-engine rewrite (commit `03b526d`) required the SVPUpdSlice `try_borrow` fix above to avoid spurious panics under the new single-`DoTimeSlice` harness — originally assumed to be orthogonal.
+- **Phase-8 test rewrite dependency.** The Phase-8 single-engine rewrite (commit `c78c36b`) required the SVPUpdSlice `try_borrow` fix landed in `03b526d` to avoid spurious panics under the new single-`DoTimeSlice` harness — originally assumed to be orthogonal.
 
 ### 8.1 Residual inventory
 
