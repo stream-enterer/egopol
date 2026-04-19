@@ -61,6 +61,7 @@ pub mod emPainterScanlineAvx2;
 pub mod emPainterScanlineTool;
 pub mod emPanel;
 pub mod emPanelCtx;
+pub mod emPanelCycleEngine;
 pub mod emPanelTree;
 pub mod emPriSchedAgent;
 pub mod emProcess;
