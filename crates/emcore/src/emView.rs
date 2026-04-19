@@ -5063,7 +5063,10 @@ mod tests {
         let mut tree2 = PanelTree::new();
         let mut wins = std::collections::HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        scheduler.borrow_mut().DoTimeSlice(&mut tree2, &mut wins, &__root_ctx);
+        let mut __fw: Vec<_> = Vec::new();
+        scheduler
+            .borrow_mut()
+            .DoTimeSlice(&mut tree2, &mut wins, &__root_ctx, &mut __fw);
         scheduler.borrow_mut().remove_engine(eid);
     }
 
@@ -6279,7 +6282,7 @@ mod tests {
     #[test]
     fn test_phase7_eoi_engine_fires_via_scheduler() {
         use crate::emEngine::{emEngine as EngineTrait, Priority};
-use crate::emEngineCtx::EngineCtx;
+        use crate::emEngineCtx::EngineCtx;
 
         struct ListenEngine {
             watched: crate::emSignal::SignalId,
@@ -6324,7 +6327,10 @@ use crate::emEngineCtx::EngineCtx;
         let mut windows = std::collections::HashMap::new();
         for _ in 0..10 {
             let __root_ctx = crate::emContext::emContext::NewRoot();
-            sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows, &__root_ctx);
+            let mut __fw: Vec<_> = Vec::new();
+            sched
+                .borrow_mut()
+                .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
             if fired.get() {
                 break;
             }
@@ -6551,7 +6557,7 @@ use crate::emEngineCtx::EngineCtx;
     #[test]
     fn sp4_signal_fired_from_update_reaches_receiver_same_slice() {
         use crate::emEngine::{emEngine as EngineTrait, Priority};
-use crate::emEngineCtx::EngineCtx;
+        use crate::emEngineCtx::EngineCtx;
         use std::collections::HashMap;
 
         let (mut tree, root, child_a, _) = setup_tree();
@@ -6648,8 +6654,10 @@ use crate::emEngineCtx::EngineCtx;
         let mut windows: HashMap<_, _> = HashMap::new();
         windows.insert(win_id, Rc::clone(&win));
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows, &__root_ctx);
-
+        let mut __fw: Vec<_> = Vec::new();
+        sched
+            .borrow_mut()
+            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
         assert!(
             *cycled.borrow(),
             "Receiver at Low priority must cycle in the same slice as the \
@@ -6754,8 +6762,10 @@ use crate::emEngineCtx::EngineCtx;
         let mut windows: HashMap<_, _> = HashMap::new();
         windows.insert(win_id, Rc::clone(&win));
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows, &__root_ctx);
-
+        let mut __fw: Vec<_> = Vec::new();
+        sched
+            .borrow_mut()
+            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
         assert!(
             win.borrow().view().PopupWindow.is_none(),
             "close_signal → ZoomOut must tear down PopupWindow in one time slice"
@@ -6832,8 +6842,10 @@ use crate::emEngineCtx::EngineCtx;
         sched.borrow_mut().wake_up(visiting_id);
         let mut windows = std::collections::HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows, &__root_ctx);
-
+        let mut __fw: Vec<_> = Vec::new();
+        sched
+            .borrow_mut()
+            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
         // Either outcome is valid — we only assert that Cycle ran without panic.
         let _ = view_rc.borrow().VisitingVA.borrow().is_active();
 

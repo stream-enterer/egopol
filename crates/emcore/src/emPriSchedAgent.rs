@@ -90,7 +90,7 @@ impl PriSchedModel {
         let engine = PriSchedEngine {
             inner: Rc::clone(&inner),
         };
-        let engine_id = scheduler.register_engine( Box::new(engine),Priority::Low);
+        let engine_id = scheduler.register_engine(Box::new(engine), Priority::Low);
         inner.borrow_mut().engine_id = Some(engine_id);
 
         Self { inner, engine_id }
@@ -189,7 +189,8 @@ mod tests {
         let mut windows: HashMap<WindowId, std::rc::Rc<std::cell::RefCell<emWindow>>> =
             HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        sched.DoTimeSlice(&mut tree, &mut windows, &__root_ctx);
+        let mut __fw: Vec<_> = Vec::new();
+        sched.DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
     }
 
     #[test]

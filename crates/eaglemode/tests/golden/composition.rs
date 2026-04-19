@@ -88,7 +88,10 @@ fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     for _ in 0..rounds {
         // Drive panel cycling through the scheduler.
         let __root_ctx = emcore::emContext::emContext::NewRoot();
-        sched.borrow_mut().DoTimeSlice(tree, &mut empty_windows, &__root_ctx);
+        let mut __fw: Vec<_> = Vec::new();
+        sched
+            .borrow_mut()
+            .DoTimeSlice(tree, &mut empty_windows, &__root_ctx, &mut __fw);
         // HandleNotice + Update per-view (SP5 pattern).
         view.Update(tree);
     }

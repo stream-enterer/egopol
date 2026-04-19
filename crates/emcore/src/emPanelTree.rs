@@ -593,7 +593,7 @@ impl PanelTree {
             // post-slice catch-up sweep.
             return;
         };
-        let eid = sched.register_engine( Box::new(adapter),Priority::Medium);
+        let eid = sched.register_engine(Box::new(adapter), Priority::Medium);
         self.panels[id].engine_id = Some(eid);
     }
 
@@ -3363,10 +3363,10 @@ mod tests {
             Rc<RefCell<crate::emWindow::emWindow>>,
         > = HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
+        let mut __fw: Vec<_> = Vec::new();
         sched
             .borrow_mut()
-            .DoTimeSlice(&mut tree, &mut empty_windows, &__root_ctx);
-
+            .DoTimeSlice(&mut tree, &mut empty_windows, &__root_ctx, &mut __fw);
         let child = tree
             .GetRec(root)
             .and_then(|p| p.first_child)
@@ -3501,10 +3501,15 @@ mod tests {
         // Drive each scheduler one slice each.
         let mut windows = HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        sched_a.borrow_mut().DoTimeSlice(&mut tree_a, &mut windows, &__root_ctx);
+        let mut __fw: Vec<_> = Vec::new();
+        sched_a
+            .borrow_mut()
+            .DoTimeSlice(&mut tree_a, &mut windows, &__root_ctx, &mut __fw);
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        sched_b.borrow_mut().DoTimeSlice(&mut tree_b, &mut windows, &__root_ctx);
-
+        let mut __fw: Vec<_> = Vec::new();
+        sched_b
+            .borrow_mut()
+            .DoTimeSlice(&mut tree_b, &mut windows, &__root_ctx, &mut __fw);
         assert_eq!(
             recorded_a.get(),
             Some(1.5),
@@ -3607,7 +3612,10 @@ mod tests {
         // view.pending_sched_ops rather than applied directly.
         let mut windows = HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows, &__root_ctx);
+        let mut __fw: Vec<_> = Vec::new();
+        sched
+            .borrow_mut()
+            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
         assert_eq!(a_cycles.get(), 1, "A must have cycled once");
         assert_eq!(woke.get(), 1, "A must have called wake_up_panel");
         assert_eq!(
@@ -3632,7 +3640,10 @@ mod tests {
 
         // Slice 2: B should now run.
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows, &__root_ctx);
+        let mut __fw: Vec<_> = Vec::new();
+        sched
+            .borrow_mut()
+            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
         assert_eq!(
             b_cycles.get(),
             1,
@@ -3710,8 +3721,10 @@ mod tests {
         let mut windows: HashMap<winit::window::WindowId, Rc<RefCell<crate::emWindow::emWindow>>> =
             HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows, &__root_ctx);
-
+        let mut __fw: Vec<_> = Vec::new();
+        sched
+            .borrow_mut()
+            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
         let create_at = create_slice
             .get()
             .expect("StartupShapeEngine must have captured create_slice in slice 1");
@@ -3754,7 +3767,10 @@ mod tests {
                 }
             }
             let __root_ctx = crate::emContext::emContext::NewRoot();
-            sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows, &__root_ctx);
+            let mut __fw: Vec<_> = Vec::new();
+            sched
+                .borrow_mut()
+                .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
             tree.register_pending_engines();
         }
 
@@ -3834,9 +3850,10 @@ mod tests {
         let mut slices = 0u64;
         while probe_captured.get().is_none() {
             let __root_ctx = crate::emContext::emContext::NewRoot();
+            let mut __fw: Vec<_> = Vec::new();
             sched
                 .borrow_mut()
-                .DoTimeSlice(&mut tree, &mut empty_windows, &__root_ctx);
+                .DoTimeSlice(&mut tree, &mut empty_windows, &__root_ctx, &mut __fw);
             tree.register_pending_engines();
             slices += 1;
             assert!(

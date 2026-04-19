@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use emcore::emEngine::{emEngine};
+use emcore::emEngine::emEngine;
 use emcore::emEngineCtx::EngineCtx;
 use emcore::emProcess::{emProcess, PipeResult, StartFlags};
 

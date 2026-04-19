@@ -321,10 +321,13 @@ impl PanelBehavior for emSubViewPanel {
             std::rc::Rc<std::cell::RefCell<crate::emWindow::emWindow>>,
         > = std::collections::HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        self.sub_scheduler
-            .borrow_mut()
-            .DoTimeSlice(&mut self.sub_tree, &mut empty_windows, &__root_ctx);
-
+        let mut __fw: Vec<_> = Vec::new();
+        self.sub_scheduler.borrow_mut().DoTimeSlice(
+            &mut self.sub_tree,
+            &mut empty_windows,
+            &__root_ctx,
+            &mut __fw,
+        );
         // SP4.5 fix: register any sub-tree panels created via `create_child`
         // from inside a sub-scheduler engine's `Cycle`. Their
         // `register_engine_for` deferred while the sub-scheduler was
@@ -591,11 +594,13 @@ mod sp4_5_fix_1_tests {
         // registered (deferred because sub_scheduler borrow_mut is held during
         // DoTimeSlice).
         let __root_ctx = crate::emContext::emContext::NewRoot();
-        panel
-            .sub_scheduler
-            .borrow_mut()
-            .DoTimeSlice(&mut panel.sub_tree, &mut empty_windows, &__root_ctx);
-
+        let mut __fw: Vec<_> = Vec::new();
+        panel.sub_scheduler.borrow_mut().DoTimeSlice(
+            &mut panel.sub_tree,
+            &mut empty_windows,
+            &__root_ctx,
+            &mut __fw,
+        );
         let create_at = create_slice
             .get()
             .expect("SpawnShapeEngine must have captured create_slice in slice 1");
@@ -647,10 +652,13 @@ mod sp4_5_fix_1_tests {
                 }
             }
             let __root_ctx = crate::emContext::emContext::NewRoot();
-            panel
-                .sub_scheduler
-                .borrow_mut()
-                .DoTimeSlice(&mut panel.sub_tree, &mut empty_windows, &__root_ctx);
+            let mut __fw: Vec<_> = Vec::new();
+            panel.sub_scheduler.borrow_mut().DoTimeSlice(
+                &mut panel.sub_tree,
+                &mut empty_windows,
+                &__root_ctx,
+                &mut __fw,
+            );
             panel.sub_tree.register_pending_engines();
         }
 

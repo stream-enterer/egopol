@@ -129,17 +129,12 @@ pub fn emGetClockMS() -> u64 {
 pub struct EngineScheduler {
     pub(crate) inner: EngineCtxInner,
     terminated: bool,
-    /// Framework-level deferred actions produced during engine cycles.
-    /// Engines push via `EngineCtx::framework_action`; the framework drains
-    /// between time slices via `drain_framework_actions`.
-    framework_actions: Vec<DeferredAction>,
 }
 
 impl EngineScheduler {
     pub fn new() -> Self {
         Self {
             terminated: false,
-            framework_actions: Vec::new(),
             inner: EngineCtxInner {
                 signals: SlotMap::with_key(),
                 engines: SlotMap::with_key(),
@@ -380,6 +375,7 @@ impl EngineScheduler {
         tree: &mut PanelTree,
         windows: &mut HashMap<WindowId, Rc<RefCell<emWindow>>>,
         root_context: &Rc<crate::emContext::emContext>,
+        framework_actions: &mut Vec<DeferredAction>,
     ) {
         self.inner.time_slice_counter += 1;
         self.inner.deadline = Instant::now() + TIME_SLICE_DURATION;
@@ -456,30 +452,21 @@ impl EngineScheduler {
                 None => continue,
             };
 
-            // Call Cycle with context. `self` cannot be re-borrowed as
-            // `&mut EngineScheduler` while `self.inner.engines` has already
-            // yielded `behavior`, so we temporarily swap `self.framework_actions`
-            // and `self.inner` out through local bindings. We re-enter via a
-            // scope: the `behavior` has been detached from the engine slot, so
-            // it is safe to reconstruct a `&mut EngineScheduler` — but Rust's
-            // borrow checker cannot see that, so we route ctx through a
-            // lowered borrow path.
+            // Call Cycle with context. `behavior` has been detached from the
+            // engine slot, so `self` is re-borrowable for ctx construction.
+            // `framework_actions` comes in from the caller (`App` owns it per
+            // spec §3.1), so ctx borrows that parameter directly — no
+            // take/restore dance needed.
             let stay_awake = {
-                // Framework_actions drain-buffer: use a take/restore pattern
-                // so ctx borrows `&mut Vec<DeferredAction>` without aliasing
-                // the rest of `self`.
-                let mut actions = std::mem::take(&mut self.framework_actions);
                 let mut ctx = EngineCtx {
                     scheduler: self,
                     tree,
                     windows,
                     root_context,
-                    framework_actions: &mut actions,
+                    framework_actions,
                     engine_id,
                 };
-                let r = behavior.Cycle(&mut ctx);
-                self.framework_actions = actions;
-                r
+                behavior.Cycle(&mut ctx)
             };
 
             // Reinsert behavior and update engine state
@@ -503,13 +490,6 @@ impl EngineScheduler {
         }
     }
 
-    /// Drain framework-level deferred actions accumulated during Cycle
-    /// dispatch. Called by the framework pump (`emGUIFramework`) between
-    /// time slices.
-    pub fn drain_framework_actions(&mut self) -> Vec<DeferredAction> {
-        std::mem::take(&mut self.framework_actions)
-    }
-
     /// Check if the current time slice has exceeded its deadline.
     pub fn IsTimeSliceAtEnd(&self) -> bool {
         Instant::now() >= self.inner.deadline
@@ -528,9 +508,15 @@ impl EngineScheduler {
         let mut tree = PanelTree::new();
         let mut windows = HashMap::new();
         let root_context = crate::emContext::emContext::NewRoot();
+        let mut framework_actions: Vec<DeferredAction> = Vec::new();
         self.terminated = false;
         while !self.terminated {
-            self.DoTimeSlice(&mut tree, &mut windows, &root_context);
+            self.DoTimeSlice(
+                &mut tree,
+                &mut windows,
+                &root_context,
+                &mut framework_actions,
+            );
         }
     }
 
@@ -627,7 +613,13 @@ mod tests {
         let mut tree = PanelTree::new();
         let mut windows = HashMap::new();
         let root_context = crate::emContext::emContext::NewRoot();
-        sched.DoTimeSlice(&mut tree, &mut windows, &root_context);
+        let mut framework_actions: Vec<DeferredAction> = Vec::new();
+        sched.DoTimeSlice(
+            &mut tree,
+            &mut windows,
+            &root_context,
+            &mut framework_actions,
+        );
     }
 
     struct CountingEngine {

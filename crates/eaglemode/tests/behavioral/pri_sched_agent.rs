@@ -12,7 +12,8 @@ fn slice(sched: &mut EngineScheduler) {
     let mut tree = PanelTree::new();
     let mut windows: HashMap<WindowId, std::rc::Rc<std::cell::RefCell<emWindow>>> = HashMap::new();
     let __root_ctx = emcore::emContext::emContext::NewRoot();
-    sched.DoTimeSlice(&mut tree, &mut windows, &__root_ctx);
+    let mut __fw: Vec<_> = Vec::new();
+    sched.DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
 }
 
 #[test]

@@ -186,3 +186,63 @@ tracked workaround**. See agent report in conversation.
   `emScheduler.cpp:118-124`; self-destruction-during-Cycle detection is a
   pre-existing Rust-side gap (inherited from old `emEngine::EngineCtx`), not
   new to Chunk 1.
+
+## Chunk 2 (Task 8 + C2 fix) — DONE_WITH_CONCERNS
+
+- C2 fix: `framework_actions` moved from `EngineScheduler` to `App`. Added
+  `framework_actions: &mut Vec<DeferredAction>` parameter to `DoTimeSlice`
+  (`crates/emcore/src/emScheduler.rs:383`). Removed `EngineScheduler.framework_actions`
+  field, `drain_framework_actions()` method, and the `std::mem::take/restore`
+  swap in the Cycle dispatch loop. All 23+ DoTimeSlice call sites updated
+  (tests + production) with a local `let mut __fw: Vec<_> = Vec::new();` and
+  `&mut __fw` tail arg. `App::about_to_wait` destructures to pass
+  `&mut self.framework_actions` directly.
+- Task 8: `emContext::scheduler` field, `NewRootWithScheduler`, and
+  `GetScheduler` deleted (and the two emContext tests that exercised them).
+  `emScheduler` import in `emContext.rs` removed. No production callers
+  existed (production code always went through `App.scheduler` or the
+  EngineCtx chain); only emContext's own unit tests referenced the deleted
+  API. Grep invariant now satisfied.
+- Part D (`pending_inputs`): removed from `App` entirely. Task 2 added the
+  field speculatively for Chunk 3+ input routing; no consumer materialized,
+  clippy flagged it as dead_code, CLAUDE.md forbids `#[allow(dead_code)]`.
+  Plan deviation from Task 2 shape — redocument when a real consumer lands.
+- CARRY-FORWARD (DONE_WITH_CONCERNS): `App.scheduler` re-wrapped to
+  `Rc<RefCell<EngineScheduler>>`. Task 2's narrowing to a plain
+  `EngineScheduler` is incompatible with the current `emView::attach_to_scheduler`
+  + view-side `self.scheduler: Option<Rc<RefCell<_>>>` field, which Chunk 2
+  was explicitly forbidden to rewire (Chunk 3 scope — SchedOp deletion and
+  ctx threading through emView methods). Marked DIVERGED at the field
+  declaration with a spec-§3.1/D4.1 cross-reference and Chunk 3 closure
+  pointer. emmain call sites keep `.borrow_mut()` /
+  `Rc::clone(&app.scheduler)` — no emmain edits beyond the natural
+  DoTimeSlice tail-param update.
+- `framework_scheduler_is_plain_value` test renamed to
+  `framework_scheduler_shape`; asserts the (temporary) Rc<RefCell> shape
+  plus `framework_actions.is_empty()`.
+- emmain errors: 25 → 0 (the entire error class was `no method borrow_mut`
+  on the plain-value App.scheduler; restoring the Rc<RefCell> wrapper
+  dissolved them without touching emmain itself).
+- Workspace: `cargo check --all-targets` clean; `cargo clippy --all-targets
+  -- -D warnings` clean; `cargo-nextest ntr` 2455 passed / 9 skipped /
+  0 failed; goldens 237 pass / 6 fail (baseline preserved).
+- Invariants now satisfied:
+  - `NewRootWithScheduler = 0`, `GetScheduler = 0` (Rust code only; the
+    remaining match is a doc-comment cross-ref to C++ in emSubViewPanel.rs
+    plus the C++ gen_golden.cpp file itself).
+  - `emContext::scheduler field = 0`.
+  - `drain_framework_actions = 0`; `EngineScheduler.framework_actions = 0`.
+  - `mem::take` swap in Cycle dispatch loop = 0.
+  - `App.framework_actions` is the sole owner of `DeferredAction`s.
+- Still deferred (explicitly out of Chunk 2 scope):
+  - SchedOp / `queue_or_apply_sched_op` / `pending_sched_ops` /
+    `close_signal_pending` (Chunk 3).
+  - `sub_scheduler` / `emSubViewPanel::Cycle` (Chunk 4).
+  - `register_engine_for` / `emPanelCtx.rs` (Chunk 4).
+  - `windows: HashMap<WindowId, Rc<RefCell<emWindow>>>` narrowing
+    (pre-existing, Task 2 scope deviation).
+  - `App.scheduler` narrowing to plain `EngineScheduler` value
+    (Chunk 2 carry-forward, re-land in Chunk 3 alongside emView.scheduler
+    field deletion).
+  - Invariants I1a (SchedOp=0), I1b (pending_sched_ops=0), I1d (try_borrow=0
+    in emView) REMAIN UNSATISFIED — Chunk 3.
