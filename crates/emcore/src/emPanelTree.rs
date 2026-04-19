@@ -2849,7 +2849,14 @@ mod tests {
         let _b = t.create_child(root, "b");
 
         // Clear pending notices before sort
-        let mut view = crate::emView::emView::new_for_test(root, 800.0, 600.0);
+        let mut view = crate::emView::emView::new(
+            root,
+            800.0,
+            600.0,
+            std::rc::Rc::new(std::cell::RefCell::new(
+                crate::emCoreConfig::emCoreConfig::default(),
+            )),
+        );
         view.HandleNotice(&mut t);
 
         // Build name map
