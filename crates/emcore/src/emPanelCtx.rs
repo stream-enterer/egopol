@@ -28,6 +28,27 @@ impl<'a> PanelCtx<'a> {
         }
     }
 
+    /// Wake this panel's scheduler engine.
+    pub fn wake_up(&mut self) {
+        self.wake_up_panel(self.id);
+    }
+
+    /// Wake another panel's scheduler engine.
+    pub fn wake_up_panel(&mut self, id: crate::emPanelTree::PanelId) {
+        let Some(panel) = self.tree.GetRec(id) else {
+            return;
+        };
+        let Some(eid) = panel.engine_id else {
+            return;
+        };
+        let Some(view_rc) = panel.View.upgrade() else {
+            return;
+        };
+        view_rc
+            .borrow_mut()
+            .queue_or_apply_sched_op(crate::emView::SchedOp::WakeUp(eid));
+    }
+
     /// Returns true if this panel is the view's current seek target.
     pub fn is_seek_target(&self) -> bool {
         self.tree.is_seek_target(self.id)

@@ -1203,7 +1203,7 @@ impl emFileSelectionBox {
         }
 
         // Register for per-frame cycling so we can process events.
-        ctx.tree.Cycle(ctx.id);
+        ctx.wake_up();
     }
 
     /// Sync FSB internal selection state FROM emListBox selection indices.

@@ -126,7 +126,7 @@ impl emFileLinkPanel {
                 let parent_arg = emcore::emFpPlugin::PanelParentArg::new(Rc::clone(&self.ctx));
                 let behavior = fppl.CreateFilePanel(&parent_arg, "", &self.full_path, 0);
                 let child_id = ctx.create_child_with("", behavior);
-                ctx.tree.Cycle(child_id);
+                ctx.wake_up_panel(child_id);
                 self.child_panel = Some(child_id);
             }
         }
