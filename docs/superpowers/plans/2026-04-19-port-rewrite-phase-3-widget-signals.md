@@ -44,7 +44,7 @@ Run B1–B12 with `<N>` = `3`. Verify Phase 2 closeout status.
 - `crates/emcore/src/emColorField.rs` — `color_signal`.
 - `crates/emcore/src/emScalarField.rs` — scalar change signal.
 - `crates/emcore/src/emFileSelectionBox.rs` — `selection_signal`.
-- `crates/emcore/src/emCoreConfigPanel.rs` — the largest cluster (~40 callback install sites). Each `on_xxx = Some(Box::new(move |args| ...))` migrates to `Box::new(move |args, sched| ...)` and captures fewer `Rc<RefCell<>>` clones (the config model becomes `Rc<emConfigModel<T>>` in Phase 4d; in Phase 3 leave the capture shape alone and only migrate the closure signature).
+- `crates/emcore/src/emCoreConfigPanel.rs` — the largest single-file cluster (19 callback install sites measured 2026-04-19; ~43 across all 5 widget files in this list). Each `on_xxx = Some(Box::new(move |args| ...))` migrates to `Box::new(move |args, sched| ...)` and captures fewer `Rc<RefCell<>>` clones (the config model becomes `Rc<emConfigModel<T>>` in Phase 4d; in Phase 3 leave the capture shape alone and only migrate the closure signature).
 - `crates/emcore/src/emFpPlugin.rs` — `CreateFilePanel`, `CreateFilePanelWithStat`, `TryCreateFilePanel`, `SearchPlugin` take `&mut impl ConstructCtx`. Plugin trait + every implementor updated.
 - `crates/emcore/src/emContext.rs` — delete clipboard field and accessors.
 - `crates/emcore/src/emGUIFramework.rs` — add `clipboard: RefCell<Option<Box<dyn emClipboard>>>` field per §3.1; `SchedCtx::clipboard_mut` delegates here.
