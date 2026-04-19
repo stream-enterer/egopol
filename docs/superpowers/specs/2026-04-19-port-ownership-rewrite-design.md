@@ -132,7 +132,7 @@ pub struct EngineCtx<'a> {
     pub windows: &'a mut HashMap<WindowId, emWindow>,
     pub root_context: &'a Rc<emContext>,
     pub framework_actions: &'a mut Vec<DeferredAction>,
-    pub current_engine: Option<EngineId>,  // None during pre-DoTimeSlice construction (see §6 InitCtx)
+    pub engine_id: EngineId,  // always populated: EngineCtx exists only during DoTimeSlice dispatch
 }
 
 /// Disjoint sub-view of EngineCtx that excludes `windows`. Built by
@@ -156,7 +156,7 @@ impl<'a> EngineCtx<'a> {
             scheduler: &mut *self.scheduler,
             framework_actions: &mut *self.framework_actions,
             root_context: self.root_context,
-            current_engine: self.current_engine,
+            current_engine: Some(self.engine_id),
         };
         Some(f(&mut win.view, &mut sched))
     }
@@ -199,6 +199,8 @@ impl EngineCtx<'_> {
 **`set_engine_priority(self.engine_id, ...)` during own Cycle** is preserved from current semantics: scheduler's priority-table mutation touches `self.inner.engines.get_mut(id)` which has `behavior: None` and remains a valid slot reference. No new hazard.
 
 Priority re-ascent is unchanged — it's `EngineCtxInner::wake_up` behaviour, now reachable inline via `ctx.wake_up(new_eid)`.
+
+**2026-04-19 reconciliation:** spec previously had `current_engine: Option<EngineId>` on `EngineCtx`. Implementation (Chunk 1, `c402cf6`) established that `EngineCtx` is constructed only during engine dispatch; the `Option` never has a `None` state. Field renamed to `engine_id: EngineId` and spec updated to match. `SchedCtx::current_engine` retains `Option<EngineId>` because `SchedCtx` is also reached through `InitCtx` paths at framework boot, where no engine is dispatching.
 
 ### 3.2 Window-owned views
 

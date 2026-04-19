@@ -14,6 +14,8 @@ Goal stated as invariants:
 - **I6 full.** `NewRootWithScheduler` / `fn GetScheduler` / `emContext::scheduler` already zero (Phase 1 Chunk 2 @ 0e68a1f); re-verify.
 - **Task-10.** No pre-allocated popup signals block — `ctx.create_signal()` inline at the 4 popup-signal use sites (spec §4 D4.7).
 - **Task-11.** `sp4_5_fix_1_timing_panel_reinit_baseline_slices.rs`, `_sched_drain_baseline_slices.rs`, `_subview_reinit_baseline_slices.rs` all assert `delta == 0` (spec §4 D4.6 / D4.11).
+- **I-P15-pending-inputs.** `rg -n 'pub(crate)?\s+pending_inputs' crates/emcore/src/emGUIFramework.rs` returns at least one match (field restored by Task 1 step 1g; closes W2 drift).
+- **I-P15-W4-regression.** `rg 'mem::take.*framework_actions|drain_framework_actions' crates/emcore/src/emScheduler.rs` returns zero matches (catches reintroduction of the Chunk 1 scheduler-owned framework_actions workaround).
 
 **Tech stack:** unchanged from Phase 1. No new dependencies.
 
@@ -87,7 +89,13 @@ Concretely:
 
 **1a. Land `TestViewHarness` helper first.** A single test helper in `crates/emcore/tests/common/view_harness.rs` (or similar) that owns `EngineScheduler + Vec<DeferredAction> + Rc<emContext>` and hands out `SchedCtx<'_>` / `EngineCtx<'_>` as needed. Write it before any production edits so the later test rewires use it uniformly. Verify it compiles on its own. Commit `--no-verify`.
 
-**1b. Flip `PanelBehavior::Cycle` trait signature.** From `fn Cycle(&mut self, pctx: &mut PanelCtx<'_>)` to `fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, pctx: &mut PanelCtx<'_>)`. Update all ~50 impls with a pass-through body (do not yet consume `ectx` except in `emSubViewPanel::Cycle` which drives sub-tree — see 1f). The `PanelCycleEngine::Cycle` driver (`emPanelCycleEngine.rs:41-67`) constructs both ectx (from its own ctx parameter) and pctx. Commit `--no-verify`.
+**1b. Flip `PanelBehavior::Cycle` trait signature.**
+
+From: `fn Cycle(&mut self, pctx: &mut PanelCtx<'_>)` (or whatever the current shape is — verify in `emPanel.rs`).
+
+To: `fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, pctx: &mut PanelCtx<'_>)` per spec §3.3.
+
+Every `PanelBehavior` impl takes both ctx now. `pctx` continues to carry panel-tree context; `ectx` adds scheduler/ctx access. Impl bodies that don't use `ectx` get a `let _ = ectx;` to silence unused warnings (this is NOT an `#[allow]` — it's a deliberate no-op binding). Update all ~50 impls with a pass-through body (do not yet consume `ectx` except in `emSubViewPanel::Cycle` which drives sub-tree — see 1f). The `PanelCycleEngine::Cycle` driver (`emPanelCycleEngine.rs:41-67`) constructs both ectx (from its own ctx parameter) and pctx. Commit `--no-verify`.
 
 **1c. Thread ctx through the 12 emView methods.** Add `ctx: &mut SchedCtx<'_>` (or `&mut EngineCtx<'_>` where window/tree access is needed) parameter to each. Cascade through internal helpers. Replace every `self.queue_or_apply_sched_op(SchedOp::X(…))` with `ctx.X(…)`. Replace `self.scheduler.as_ref().map(...)` patterns with direct `ctx.*` calls. Delete the `close_signal_pending` cache (use `ctx.IsSignaled(close_sig)` at the top of `Update`). Delete the SVPUpdSlice `try_borrow().ok()` fallback at `emView.rs:2080-2095` (direct `ctx.IsSignaled(svp_sig)`). This is the largest step; budget accordingly. Commit `--no-verify` at natural method-group boundaries to preserve resumable checkpoints.
 
@@ -97,9 +105,11 @@ Concretely:
 
 **1f. Re-narrow `App.scheduler` to plain `EngineScheduler`.** Undo the Chunk 2 Ch2-A carry-forward at `emGUIFramework.rs:96`. Delete the `DIVERGED:` comment block at `emGUIFramework.rs:89-95`. Fix emmain callers (`emMainWindow.rs:882` drops the `Rc::clone(&app.scheduler)` + `attach_to_scheduler` call; the view attaches no scheduler). Fix all `self.scheduler.borrow_mut()` / `self.scheduler.borrow()` sites to direct `&mut self.scheduler`. Commit `--no-verify`.
 
-**1g. Rewire the ~150 unit tests.** Each test that constructed `emView::new(...)` and called a scheduler-touching method now uses `TestViewHarness` (from 1a) and passes `&mut harness.sched_ctx()` (or `&mut harness.engine_ctx()`) into the method under test. Do NOT duplicate harness setup across tests. If a test needs scheduler-None semantics (for methods that have ctx-is-None branches), confirm those branches actually exist post-migration — most won't, since ctx is always present once threaded. Commit `--no-verify` at natural test-module boundaries.
+**1g. Restore `App.pending_inputs` field.** Add `pub(crate) pending_inputs: Vec<(winit::window::WindowId, emInputEvent)>` to the App struct (spec §3.1 + §4 D4.9 mandate; Chunk 2 deleted this speculatively — W2 drift). Initialize to `Vec::new()` in the constructor. Leave the field unused at end of Phase 1.5 — Phase 3's `InputDispatchEngine` consumes it. To avoid clippy `dead_code` in the interim, mark the field `pub(crate)` and add one line in the App constructor's doc-comment acknowledging Phase 3 as the consumer. If clippy still warns, the field must still land; `--no-verify` the final Phase 1.5 commit with a ledger note that clippy's single `dead_code` warning is spec-mandated carry-forward to Phase 3. Re-verify removal of the warning when Phase 3 lands `InputDispatchEngine`.
 
-**1h. Final compile + full gate.** Run `cargo check --all-targets`, then `cargo fmt`, then `cargo clippy --all-targets --all-features -- -D warnings`, then `cargo-nextest ntr`, then `cargo test --test golden -- --test-threads=1`. All must pass. Final `Task 1` commit message: `phase-1-5 task-1: keystone migration — delete emView::scheduler + SchedOp + close_signal_pending; thread ctx; re-narrow App.scheduler; rewire 150 tests`. This commit may include step 1h fixes and does NOT use `--no-verify` — the gate must be green.
+**1h. Rewire the ~150 unit tests.** Each test that constructed `emView::new(...)` and called a scheduler-touching method now uses `TestViewHarness` (from 1a) and passes `&mut harness.sched_ctx()` (or `&mut harness.engine_ctx()`) into the method under test. Do NOT duplicate harness setup across tests. If a test needs scheduler-None semantics (for methods that have ctx-is-None branches), confirm those branches actually exist post-migration — most won't, since ctx is always present once threaded. Commit `--no-verify` at natural test-module boundaries.
+
+**1i. Final compile + full gate.** Run `cargo check --all-targets`, then `cargo fmt`, then `cargo clippy --all-targets --all-features -- -D warnings`, then `cargo-nextest ntr`, then `cargo test --test golden -- --test-threads=1`. All must pass. Final `Task 1` commit message: `phase-1-5 task-1: keystone migration — delete emView::scheduler + SchedOp + close_signal_pending; thread ctx; re-narrow App.scheduler; rewire 150 tests`. This commit may include step 1i fixes and does NOT use `--no-verify` — the gate must be green.
 
 **Invariants satisfied by end of Task 1:** I1 (mostly — sub_scheduler remains for Task 2), I1a, I1b, I1d. I1c still UNSAT. I6 already SAT from Phase 1.
 
@@ -206,4 +216,5 @@ Specific Phase 1.5 requirements:
 - [ ] `rg 'NewRootWithScheduler|fn GetScheduler' crates/` empty (I6 preserved).
 - [ ] All three `sp4_5_fix_1_timing_*.rs` fixtures assert `delta == 0`.
 - [ ] Goldens 237/6 (or better) preserved.
-- [ ] Phase 3 plan CI.1 (`pending_inputs` restoration) is still gated on Phase 3's own task plan, not Phase 1.5 — Phase 1.5 does not restore `pending_inputs`.
+- [ ] `rg -n 'pub(crate)?\s+pending_inputs' crates/emcore/src/emGUIFramework.rs` returns at least one match (I-P15-pending-inputs; Task 1 step 1g restored).
+- [ ] `rg 'mem::take.*framework_actions|drain_framework_actions' crates/emcore/src/emScheduler.rs` returns zero matches (I-P15-W4-regression; catches reintroduction of the Chunk 1 workaround).

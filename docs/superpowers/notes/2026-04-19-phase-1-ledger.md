@@ -317,3 +317,9 @@ Recommendation: accept R1 (reissue Chunks 3+4 as unified decomposed
 Phase 1.5) or close Phase 1 at current state with Chunk 3+4 invariants
 carried to Phase 1.5.
 
+### W3 drift annotation (2026-04-19)
+
+Identified by spec-compliance audit. `App.windows: HashMap<WindowId, Rc<RefCell<emWindow>>>` and `EngineCtx.windows: &mut HashMap<WindowId, Rc<RefCell<emWindow>>>` diverge from spec §3.1 which mandates plain `emWindow`. Pre-existing deferral from Task 2; Chunk 1 preserved it. **Scheduled for closure in Phase 2 (view/window composition)** — see phase-2 plan Task-W3. Until Phase 2 closes it, field decls carry a `DIVERGED:` annotation pointing to Phase 2.
+
+Source-code `DIVERGED:` annotation at the field decl to be added opportunistically when a code-edit task next touches the file — Phase 1.5 Task 1 will touch App but `EngineCtx.windows` field decl is untouched until Phase 2 Task-W3.
+

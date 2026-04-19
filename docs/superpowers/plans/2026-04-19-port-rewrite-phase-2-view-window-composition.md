@@ -20,11 +20,16 @@
 - **I2.** `rg 'Rc<RefCell<emView>>' crates/` returns zero matches in production (non-test) code. `#[cfg(test)]` helpers under `crates/eaglemode/tests/` may retain shape only where they model external C++-test fixtures — enumerate such holdouts in the closeout and schedule for removal by Phase 5.
 - **I2a.** `rg 'Weak<RefCell<emView>>' crates/` returns zero matches anywhere.
 - **I2b.** `rg 'Rc<RefCell<emWindow>>|Weak<RefCell<emWindow>>' crates/` returns zero matches.
+- **I2b-W3.** `rg 'Rc<RefCell<emWindow>>' crates/` returns zero matches (Task-W3 closes W3 drift carried from Phase 1).
 - **I2c.** `rg 'view_rc|sub_view_rc' crates/` returns zero matches (the accessors are deleted).
 - **I6 (partial).** Golden baseline 237/6 (or better) preserved.
 - **NoticeList location check.** `rg 'notice_list|NoticeList' crates/emcore/src/emView.rs crates/emcore/src/emPanelTree.rs` shows NoticeList on `emView` and **not** on `PanelTree`.
 
 **Entry-precondition.** Phase 1 Closeout COMPLETE. `EngineCtx::windows: &mut HashMap<WindowId, emWindow>` already carries plain-value `emWindow` in its type (Phase 1 Task 2 wrote `HashMap<WindowId, emWindow>`). Phase 2 changes what lives *inside* `emWindow`.
+
+**Ownership of spec §5 D5.5 (NoticeList ring relocation) and §5 D5.6 (focus consolidation):** this phase. These were listed under Phase 1 original scope but are view-composition items and belong here.
+
+**Ownership of W3 drift (App.windows + EngineCtx.windows Rc<RefCell<emWindow>> wrapping):** this phase. Pre-existing deferral from Phase 1 Task 2; Chunk 1 preserved the wrap. See `docs/superpowers/notes/2026-04-19-phase-1-ledger.md` W3 annotation. Closed by Task-W3 below.
 
 ---
 
@@ -64,6 +69,20 @@ Run B1–B12 with `<N>` = `2`. At B4, verify `docs/superpowers/notes/2026-04-19-
 - `emViewPort.rs:244` — "the back-reference is `Weak<RefCell<emWindow>>`" — rewrite.
 - `emViewPort.rs:53` (per spec §5 D5.6) — delete `focused: bool` field + its DIVERGED block.
 - `emSubViewPanel.rs:117–121` — "sub_view_rc for SP5 Task 2.2" accessor and comment — delete.
+
+---
+
+## Task-W3: Narrow `App.windows` + `EngineCtx.windows` to plain `emWindow`
+
+**Files:** `crates/emcore/src/emGUIFramework.rs` (App.windows field), `crates/emcore/src/emEngineCtx.rs` (EngineCtx.windows field), all call sites of `app.windows.get*` / `ctx.windows.get*` that currently do `.borrow()` / `.borrow_mut()`.
+
+Spec §3.1 mandates `HashMap<WindowId, emWindow>` (plain). Deferred from Phase 1 Task 2 (see `2026-04-19-phase-1-ledger.md` W3 annotation).
+
+- Change field type to `HashMap<WindowId, emWindow>`.
+- Drop every `.borrow()` / `.borrow_mut()` on window access.
+- Any call site that used `Rc::clone(&window)` migrates to `&mut window` or equivalent.
+
+**Invariant at Closeout:** `rg 'Rc<RefCell<emWindow>>' crates/` → zero.
 
 ---
 
@@ -459,6 +478,7 @@ git commit -m "phase-2: delete obsoleted DIVERGED blocks for emView/emViewPort/e
 rg 'Rc<RefCell<emView>>' crates/ --glob '!*/tests/*' && echo "I2 FAIL" || echo "I2 PASS"
 rg 'Weak<RefCell<emView>>' crates/ && echo "I2a FAIL" || echo "I2a PASS"
 rg 'Rc<RefCell<emWindow>>|Weak<RefCell<emWindow>>' crates/ && echo "I2b FAIL" || echo "I2b PASS"
+rg 'Rc<RefCell<emWindow>>' crates/ && echo "I2b-W3 FAIL" || echo "I2b-W3 PASS"
 rg 'view_rc|sub_view_rc' crates/ && echo "I2c FAIL" || echo "I2c PASS"
 ```
 All PASS required. If I2 has test-only holdouts, enumerate in the Closeout and defer Phase-5 removal.
