@@ -41,7 +41,7 @@ impl PanelBehavior for TestBehavior {
 #[test]
 fn create_and_remove_panels() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     assert!(tree.contains(root));
     assert_eq!(tree.len(), 1);
 
@@ -57,7 +57,7 @@ fn create_and_remove_panels() {
 #[test]
 fn child_iteration() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     let a = tree.create_child(root, "a");
     let b = tree.create_child(root, "b");
     let c = tree.create_child(root, "c");
@@ -70,7 +70,7 @@ fn child_iteration() {
 #[test]
 fn name_lookup() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     let child = tree.create_child(root, "my_panel");
 
     assert_eq!(tree.find_by_name("my_panel"), Some(child));
@@ -83,7 +83,7 @@ fn name_lookup() {
 #[test]
 fn panel_ctx_operations() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
 
     // Use PanelCtx to create a child
     {
@@ -102,7 +102,7 @@ fn panel_ctx_operations() {
 #[test]
 fn notice_flag_propagation() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.set_behavior(root, Box::new(TestBehavior::new()));
 
     // Creating a child should set CHILDREN_CHANGED on GetParentContext
@@ -114,7 +114,15 @@ fn notice_flag_propagation() {
         .contains(NoticeFlags::CHILD_LIST_CHANGED));
 
     // Deliver notices
-    tree.HandleNotice(true, 1.0);
+    let mut view = emcore::emView::emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
+    view.HandleNotice(&mut tree);
 
     // Verify notices were cleared after delivery
     assert!(tree.pending_notices(root).is_empty());
@@ -123,7 +131,7 @@ fn notice_flag_propagation() {
 #[test]
 fn remove_subtree() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     let parent = tree.create_child(root, "parent");
     let child1 = tree.create_child(parent, "child1");
     let child2 = tree.create_child(parent, "child2");
@@ -142,10 +150,17 @@ fn remove_subtree() {
 #[test]
 fn view_zoom_and_scroll() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.Update(&mut tree); // required: sets viewed_* on root so Scroll/Zoom work
 
     // Zoom in so the panel is larger than the viewport; scroll won't be clamped.
@@ -194,9 +209,16 @@ fn view_zoom_and_scroll() {
 #[test]
 fn view_flags_disable_zoom() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags = ViewFlags::NO_ZOOM;
 
     view.Zoom(&mut tree, 2.0, 400.0, 300.0);
@@ -208,7 +230,7 @@ fn view_flags_disable_zoom() {
 #[test]
 fn layout_rect_and_canvas_color() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
 
     tree.Layout(root, 10.0, 20.0, 300.0, 200.0, 1.0);
     tree.SetCanvasColor(root, emColor::rgb(128, 128, 128));

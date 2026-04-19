@@ -69,7 +69,7 @@ pub(crate) enum OsSurface {
 /// cache, and view.
 pub struct emWindow {
     pub(crate) os_surface: OsSurface,
-    view: emView,
+    view: Rc<RefCell<emView>>,
     pub flags: WindowFlags,
     pub close_signal: SignalId,
     pub flags_signal: SignalId,
@@ -89,12 +89,6 @@ pub struct emWindow {
     geometry_changed: bool,
     wm_res_name: String,
     render_pool: emRenderThreadPool,
-    /// Test-only stored window id for headless test harnesses, where
-    /// `OsSurface::Pending` means no real winit window exists yet the
-    /// scheduler dispatch still needs a stable id to look up this
-    /// window in its `HashMap<WindowId, _>`.
-    #[cfg(any(test, feature = "test-support"))]
-    test_window_id: Option<winit::window::WindowId>,
 }
 
 /// Contract for methods on `emWindow` with respect to `OsSurface` state.
@@ -220,7 +214,7 @@ impl emWindow {
                 tile_cache,
                 viewport_buffer,
             })),
-            view,
+            view: Rc::new(RefCell::new(view)),
             flags,
             close_signal,
             flags_signal,
@@ -242,8 +236,6 @@ impl emWindow {
             render_pool: emRenderThreadPool::new(
                 crate::emCoreConfig::emCoreConfig::default().max_render_threads,
             ),
-            #[cfg(any(test, feature = "test-support"))]
-            test_window_id: None,
         }));
 
         // Wire the emViewPort back-reference (Phase 6 / Phase-5 absorbed work).
@@ -253,7 +245,7 @@ impl emWindow {
         // constructor which stores &Window on the port.
         {
             let win_ref = window.borrow();
-            let vp = win_ref.view.CurrentViewPort.clone();
+            let vp = win_ref.view.borrow().CurrentViewPort.clone();
             vp.borrow_mut().window = Some(Rc::downgrade(&window));
         }
 
@@ -263,12 +255,13 @@ impl emWindow {
         // without position queries; in that case the home-rect fallback in
         // `GetMaxPopupViewRect` applies.
         {
-            let mut win_mut = window.borrow_mut();
+            let win_mut = window.borrow_mut();
             if let Some(monitor) = win_mut.winit_window().current_monitor() {
                 let pos = monitor.position();
                 let size = monitor.size();
                 win_mut
                     .view
+                    .borrow_mut()
                     .set_max_popup_rect(Some(crate::emPanel::Rect::new(
                         pos.x as f64,
                         pos.y as f64,
@@ -351,7 +344,7 @@ impl emWindow {
                 caption,
                 requested_pos_size: None,
             })),
-            view,
+            view: Rc::new(RefCell::new(view)),
             flags,
             close_signal,
             flags_signal,
@@ -373,14 +366,12 @@ impl emWindow {
             render_pool: emRenderThreadPool::new(
                 crate::emCoreConfig::emCoreConfig::default().max_render_threads,
             ),
-            #[cfg(any(test, feature = "test-support"))]
-            test_window_id: None,
         }));
 
         // Wire the emViewPort back-reference, same as `create()`.
         {
             let win_ref = window.borrow();
-            let vp = win_ref.view.CurrentViewPort.clone();
+            let vp = win_ref.view.borrow().CurrentViewPort.clone();
             vp.borrow_mut().window = Some(Rc::downgrade(&window));
         }
 
@@ -394,99 +385,6 @@ impl emWindow {
     /// scheduler and wakes the update engine (matching
     /// `attach_to_scheduler` / C++ `emView` ctor parity).
     ///
-    /// Returns `Rc<RefCell<Self>>` for the same reason as `create()` — the
-    /// emViewPort back-reference is wired immediately.
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn new_for_test(
-        window_id: winit::window::WindowId,
-        scheduler: &Rc<RefCell<crate::emScheduler::EngineScheduler>>,
-        root_panel: PanelId,
-        viewport_width: f64,
-        viewport_height: f64,
-    ) -> Rc<RefCell<Self>> {
-        let close_signal = scheduler.borrow_mut().create_signal();
-        let flags_signal = scheduler.borrow_mut().create_signal();
-        let focus_signal = scheduler.borrow_mut().create_signal();
-        let geometry_signal = scheduler.borrow_mut().create_signal();
-
-        let core_config = Rc::new(RefCell::new(emCoreConfig::default()));
-        let mut view = emView::new(root_panel, viewport_width, viewport_height, core_config);
-
-        let vif_chain: Vec<Box<dyn emViewInputFilter>> = vec![
-            {
-                let mut mouse_vif = emMouseZoomScrollVIF::new();
-                let zflpp = view.GetZoomFactorLogarithmPerPixel();
-                mouse_vif.set_mouse_anim_params(1.0, 0.25, zflpp);
-                mouse_vif.set_wheel_anim_params(1.0, 0.25, zflpp);
-                Box::new(mouse_vif)
-            },
-            Box::new(emKeyboardZoomScrollVIF::new()),
-        ];
-
-        // Register engines and wake UpdateEngineClass — mirrors
-        // `emView::attach_to_scheduler`. Done before moving `view` into
-        // the RefCell so the test harness doesn't need a second
-        // borrow-mut dance.
-        view.attach_to_scheduler(scheduler.clone(), window_id);
-
-        let window = Rc::new(RefCell::new(Self {
-            os_surface: OsSurface::Pending(Box::new(PendingSurface {
-                flags: WindowFlags::empty(),
-                caption: String::from("emWindow::new_for_test"),
-                requested_pos_size: None,
-            })),
-            view,
-            flags: WindowFlags::empty(),
-            close_signal,
-            flags_signal,
-            focus_signal,
-            geometry_signal,
-            root_panel,
-            vif_chain,
-            cheat_vif: emCheatVIF::new(),
-            touch_vif: emDefaultTouchVIF::new(),
-            active_animator: None,
-            window_icon: None,
-            last_mouse_pos: (0.0, 0.0),
-            screensaver_inhibit_count: 0,
-            screensaver_cookie: None,
-            flags_changed: false,
-            focus_changed: false,
-            geometry_changed: false,
-            wm_res_name: String::from("eaglemode-rs"),
-            render_pool: emRenderThreadPool::new(
-                crate::emCoreConfig::emCoreConfig::default().max_render_threads,
-            ),
-            test_window_id: Some(window_id),
-        }));
-
-        // Wire emViewPort back-reference, same as `create()`.
-        {
-            let win_ref = window.borrow();
-            let vp = win_ref.view.CurrentViewPort.clone();
-            vp.borrow_mut().window = Some(Rc::downgrade(&window));
-        }
-
-        window
-    }
-
-    /// Test-only: return the `WindowId` this window registers under in the
-    /// scheduler's `windows: HashMap<WindowId, _>` dispatch table. In
-    /// production, the id comes from `winit_window().id()`; headless test
-    /// construction stores a caller-provided id on the `Pending` surface.
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn id(&self) -> winit::window::WindowId {
-        if let Some(id) = self.test_window_id {
-            return id;
-        }
-        match &self.os_surface {
-            OsSurface::Materialized(m) => m.winit_window.id(),
-            OsSurface::Pending(_) => {
-                panic!("emWindow::id() called on Pending window without test_window_id")
-            }
-        }
-    }
-
     // DIVERGED: Plan listed `materialized()`/`materialized_mut()` returning 6-tuple borrows; inlined as match in callers because the multi-borrow signature is awkward in Rust.
     /// Public accessor for the materialized winit window.
     ///
@@ -533,6 +431,7 @@ impl emWindow {
             OsSurface::Pending(_) => return,
         }
         self.view
+            .borrow_mut()
             .SetGeometry(tree, 0.0, 0.0, w as f64, h as f64, 1.0);
     }
 
@@ -567,7 +466,7 @@ impl emWindow {
                 }
                 OsSurface::Pending(_) => return,
             };
-        let view = &mut self.view;
+        let mut view = self.view.borrow_mut();
 
         // Phase 5 (emview-rewrite-followups): consume cursor-dirty flag set
         // by emViewPort::InvalidateCursor and apply the cached cursor to
@@ -624,7 +523,7 @@ impl emWindow {
             // Multi-threaded rendering via display list.
             // Phase 1: Record all draw operations single-threaded.
             Self::render_parallel_inner(
-                view,
+                &mut view,
                 tile_cache,
                 compositor,
                 surface_config,
@@ -967,7 +866,7 @@ impl emWindow {
             if deactivated {
                 // C++ emViewAnimator.cpp:1060: clear seek-pos so the next notice
                 // cycle doesn't fire SOUGHT_NAME_CHANGED on a stale target.
-                self.view.SetSeekPos(tree, None, "");
+                self.view.borrow_mut().SetSeekPos(tree, None, "");
                 // C++ emViewAnimator.cpp:1061: whole-view InvalidatePainting() skipped.
                 // Rust has no emViewAnimator::InvalidatePainting method; the visiting
                 // overlay will repaint correctly on the next scheduled paint cycle.
@@ -980,15 +879,15 @@ impl emWindow {
         // VIF-chain + panel broadcast below remain the actual dispatch
         // mechanism; Phases 6/8 migrate that into emView::Input proper.
         {
-            let vp = self.view.CurrentViewPort.clone();
+            let vp = self.view.borrow().CurrentViewPort.clone();
             let mut vp = vp.borrow_mut();
             vp.input_clock_ms = crate::emScheduler::emGetClockMS();
-            vp.InputToView(&mut self.view, tree, &event, state);
+            vp.InputToView(&mut self.view.borrow_mut(), tree, &event, state);
         }
 
         // Run VIF chain
         for vif in &mut self.vif_chain {
-            if vif.filter(&event, state, &mut self.view, tree) {
+            if vif.filter(&event, state, &mut self.view.borrow_mut(), tree) {
                 return;
             }
         }
@@ -1009,7 +908,8 @@ impl emWindow {
         }
 
         // Run cheat VIF (never consumes events, but may produce actions)
-        self.cheat_vif.filter(&event, state, &mut self.view, tree);
+        self.cheat_vif
+            .filter(&event, state, &mut self.view.borrow_mut(), tree);
         for action in self.cheat_vif.drain_actions() {
             match action {
                 CheatAction::PanFunction
@@ -1038,7 +938,7 @@ impl emWindow {
                     }
                 }
                 CheatAction::TreeDump => {
-                    self.view.dump_tree(tree);
+                    self.view.borrow_mut().dump_tree(tree);
                 }
                 CheatAction::Screenshot => {
                     take_screenshot();
@@ -1053,13 +953,14 @@ impl emWindow {
         if event.key == InputKey::Tab && event.variant == InputVariant::Press {
             if !self
                 .view
+                .borrow()
                 .flags
                 .contains(crate::emView::ViewFlags::NO_USER_NAVIGATION)
             {
                 if state.GetShift() {
-                    self.view.VisitPrev(tree);
+                    self.view.borrow_mut().VisitPrev(tree);
                 } else {
-                    self.view.VisitNext(tree);
+                    self.view.borrow_mut().VisitNext(tree);
                 }
             }
             return;
@@ -1072,11 +973,12 @@ impl emWindow {
                 InputKey::MouseLeft | InputKey::MouseRight | InputKey::MouseMiddle
             )
         {
-            let panel = self
-                .view
-                .GetFocusablePanelAt(tree, event.mouse_x, event.mouse_y)
-                .unwrap_or_else(|| self.view.GetRootPanel());
-            self.view.set_active_panel(tree, panel, false);
+            let panel = {
+                let v = self.view.borrow_mut();
+                v.GetFocusablePanelAt(tree, event.mouse_x, event.mouse_y)
+                    .unwrap_or_else(|| v.GetRootPanel())
+            };
+            self.view.borrow_mut().set_active_panel(tree, panel, false);
         }
 
         // Stamp modifier keys from emInputState onto the event
@@ -1102,18 +1004,24 @@ impl emWindow {
                 ev.key, ev.variant, ev.mouse_x, ev.mouse_y
             );
         }
-        let wf = self.view.IsFocused();
+        let wf = self.view.borrow().IsFocused();
         let viewed = tree.viewed_panels_dfs();
         let mut consumed = false;
         for panel_id in viewed {
             let mut panel_ev = ev.clone();
             panel_ev.mouse_x = tree.ViewToPanelX(panel_id, ev.mouse_x);
-            panel_ev.mouse_y =
-                tree.ViewToPanelY(panel_id, ev.mouse_y, self.view.GetCurrentPixelTallness());
+            panel_ev.mouse_y = tree.ViewToPanelY(
+                panel_id,
+                ev.mouse_y,
+                self.view.borrow().GetCurrentPixelTallness(),
+            );
 
             if let Some(mut behavior) = tree.take_behavior(panel_id) {
-                let panel_state =
-                    tree.build_panel_state(panel_id, wf, self.view.GetCurrentPixelTallness());
+                let panel_state = tree.build_panel_state(
+                    panel_id,
+                    wf,
+                    self.view.borrow().GetCurrentPixelTallness(),
+                );
                 // C++ RecurseInput (emView.cpp:2055-2058): keyboard events are
                 // suppressed for panels not in the active path.
                 if panel_ev.is_keyboard_event() && !panel_state.in_active_path {
@@ -1133,7 +1041,9 @@ impl emWindow {
                 }
                 // TF-003: emProcess scroll-to-visible requests from behaviors
                 if let Some(rect) = behavior.take_scroll_to_visible() {
-                    self.view.scroll_to_panel_rect(tree, panel_id, rect);
+                    self.view
+                        .borrow_mut()
+                        .scroll_to_panel_rect(tree, panel_id, rect);
                 }
                 tree.put_behavior(panel_id, behavior);
                 if consumed {
@@ -1144,7 +1054,7 @@ impl emWindow {
                             .unwrap_or("?");
                         eprintln!("  >>> CONSUMED by {:?}", name);
                     }
-                    self.view.InvalidatePainting(tree, panel_id);
+                    self.view.borrow_mut().InvalidatePainting(tree, panel_id);
                     break;
                 }
             }
@@ -1159,34 +1069,39 @@ impl emWindow {
         // the user-nav caller (this keybinding block) gates on `NO_USER_NAVIGATION`.
         let user_nav_blocked = self
             .view
+            .borrow()
             .flags
             .contains(crate::emView::ViewFlags::NO_USER_NAVIGATION);
         if !consumed && !user_nav_blocked && event.variant == InputVariant::Press {
             match event.key {
-                InputKey::ArrowLeft if state.IsNoMod() => self.view.VisitLeft(tree),
-                InputKey::ArrowRight if state.IsNoMod() => self.view.VisitRight(tree),
-                InputKey::ArrowUp if state.IsNoMod() => self.view.VisitUp(tree),
-                InputKey::ArrowDown if state.IsNoMod() => self.view.VisitDown(tree),
+                InputKey::ArrowLeft if state.IsNoMod() => self.view.borrow_mut().VisitLeft(tree),
+                InputKey::ArrowRight if state.IsNoMod() => self.view.borrow_mut().VisitRight(tree),
+                InputKey::ArrowUp if state.IsNoMod() => self.view.borrow_mut().VisitUp(tree),
+                InputKey::ArrowDown if state.IsNoMod() => self.view.borrow_mut().VisitDown(tree),
 
                 // C++ emPanel.cpp:1168-1180: Home with modifier variants.
-                InputKey::Home if state.IsNoMod() => self.view.VisitFirst(tree),
+                InputKey::Home if state.IsNoMod() => self.view.borrow_mut().VisitFirst(tree),
                 InputKey::Home if state.IsAltMod() => {
-                    if let Some(p) = self.view.GetActivePanel() {
-                        let adherent = self.view.IsActivationAdherent();
-                        self.view.VisitFullsized(tree, p, adherent, false);
+                    if let Some(p) = self.view.borrow().GetActivePanel() {
+                        let adherent = self.view.borrow().IsActivationAdherent();
+                        self.view
+                            .borrow_mut()
+                            .VisitFullsized(tree, p, adherent, false);
                     }
                 }
                 InputKey::Home if state.IsShiftAltMod() => {
-                    if let Some(p) = self.view.GetActivePanel() {
-                        let adherent = self.view.IsActivationAdherent();
-                        self.view.VisitFullsized(tree, p, adherent, true);
+                    if let Some(p) = self.view.borrow().GetActivePanel() {
+                        let adherent = self.view.borrow().IsActivationAdherent();
+                        self.view
+                            .borrow_mut()
+                            .VisitFullsized(tree, p, adherent, true);
                     }
                 }
 
                 // C++ emPanel.cpp:1182-1198
-                InputKey::End if state.IsNoMod() => self.view.VisitLast(tree),
-                InputKey::PageUp if state.IsNoMod() => self.view.VisitOut(tree),
-                InputKey::PageDown if state.IsNoMod() => self.view.VisitIn(tree),
+                InputKey::End if state.IsNoMod() => self.view.borrow_mut().VisitLast(tree),
+                InputKey::PageUp if state.IsNoMod() => self.view.borrow_mut().VisitOut(tree),
+                InputKey::PageDown if state.IsNoMod() => self.view.borrow_mut().VisitIn(tree),
 
                 _ => {}
             }
@@ -1331,29 +1246,36 @@ impl emWindow {
         }
     }
 
-    pub fn view(&self) -> &emView {
-        &self.view
+    pub fn view(&self) -> std::cell::Ref<'_, emView> {
+        self.view.borrow()
     }
 
-    pub fn view_mut(&mut self) -> &mut emView {
-        &mut self.view
+    pub fn view_mut(&mut self) -> std::cell::RefMut<'_, emView> {
+        self.view.borrow_mut()
+    }
+
+    pub fn view_rc(&self) -> &Rc<RefCell<emView>> {
+        &self.view
     }
 
     /// Tick VIF animations (wheel zoom spring, grip pan spring).
     /// Returns true if any animation is still active.
     pub fn tick_vif_animations(&mut self, tree: &mut PanelTree, dt: f64) -> bool {
-        let view = &mut self.view;
         let mut active = false;
         for vif in &mut self.vif_chain {
-            if vif.animate(view, tree, dt) {
+            if vif.animate(&mut self.view.borrow_mut(), tree, dt) {
                 active = true;
             }
         }
         // Tick touch gesture timer (C++ emDefaultTouchVIF::Cycle)
         let dt_ms = (dt * 1000.0) as i32;
-        self.touch_vif.cycle_gesture(view, tree, dt_ms);
+        self.touch_vif
+            .cycle_gesture(&mut self.view.borrow_mut(), tree, dt_ms);
         // Tick fling animation
-        if self.touch_vif.animate_fling(view, tree, dt) {
+        if self
+            .touch_vif
+            .animate_fling(&mut self.view.borrow_mut(), tree, dt)
+        {
             active = true;
         }
         active
@@ -1368,7 +1290,7 @@ impl emWindow {
                 touch.id,
                 touch.location.x,
                 touch.location.y,
-                &mut self.view,
+                &mut self.view.borrow_mut(),
                 tree,
             ),
             TouchPhase::Moved => {
@@ -1379,12 +1301,13 @@ impl emWindow {
                     touch.location.x,
                     touch.location.y,
                     0.016,
-                    &mut self.view,
+                    &mut self.view.borrow_mut(),
                     tree,
                 )
             }
             TouchPhase::Ended | TouchPhase::Cancelled => {
-                self.touch_vif.touch_end(touch.id, &mut self.view, tree)
+                self.touch_vif
+                    .touch_end(touch.id, &mut self.view.borrow_mut(), tree)
             }
         }
     }
@@ -1845,21 +1768,40 @@ mod tests {
     use crate::emPanelTree::PanelTree;
     use crate::emScheduler::EngineScheduler;
 
+    /// Verify that a headless window constructed via `new_popup_pending` +
+    /// `attach_to_scheduler` (the SP5-native pattern) registers engines
+    /// correctly — same observable postcondition previously checked by the
+    /// deleted `new_for_test` constructor.
     #[test]
-    fn new_for_test_constructs_without_event_loop() {
+    fn headless_window_attach_to_scheduler_registers_engines() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let win_id = winit::window::WindowId::dummy();
         let sched = std::rc::Rc::new(std::cell::RefCell::new(EngineScheduler::new()));
-        let win = emWindow::new_for_test(win_id, &sched, root, 640.0, 480.0);
-        assert_eq!(win.borrow().id(), win_id);
+        let close_sig = sched.borrow_mut().create_signal();
+        let flags_sig = sched.borrow_mut().create_signal();
+        let focus_sig = sched.borrow_mut().create_signal();
+        let geom_sig = sched.borrow_mut().create_signal();
+        let win = emWindow::new_popup_pending(
+            root,
+            WindowFlags::empty(),
+            "test".to_string(),
+            close_sig,
+            flags_sig,
+            focus_sig,
+            geom_sig,
+            crate::emColor::emColor::TRANSPARENT,
+        );
+        win.borrow_mut()
+            .view_mut()
+            .attach_to_scheduler(sched.clone(), win_id);
         assert!(win.borrow().view().update_engine_id.is_some());
 
         // Scheduler cleanup for Drop debug_asserts.
         {
             let mut w = win.borrow_mut();
-            let v = w.view_mut();
+            let mut v = w.view_mut();
             if let Some(id) = v.update_engine_id.take() {
                 sched.borrow_mut().remove_engine(id);
             }
@@ -1876,7 +1818,7 @@ mod tests {
     fn new_popup_pending_constructs_without_event_loop() {
         let mut scheduler = EngineScheduler::new();
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
 
         let close_sig = scheduler.create_signal();
         let flags_sig = scheduler.create_signal();

@@ -114,7 +114,7 @@ impl ApplicationHandler for Harness {
                 {
                     let mut home = home_rc.borrow_mut();
                     let tree = &mut self.app.tree;
-                    let view = home.view_mut();
+                    let mut view = home.view_mut();
                     // Attach to scheduler so popup-entry can allocate popup
                     // signals via the real scheduler path.
                     view.set_scheduler(Rc::clone(&self.app.scheduler));
@@ -205,7 +205,7 @@ fn popup_surface_materializes_on_about_to_wait() {
         // Build a minimal home window: fresh root panel + a deep child so
         // we can trigger popup entry by visiting it with a tiny rel_a
         // (same pattern as emView::tests::test_phase4_popup_zoom_creates_popup_window).
-        let root = app.tree.create_root("test_root");
+        let root = app.tree.create_root_deferred_view("test_root");
         app.tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let child = app.tree.create_child(root, "child_a");
         app.tree.Layout(child, 0.0, 0.0, 0.5, 1.0, 1.0);

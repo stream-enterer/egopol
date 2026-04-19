@@ -35,7 +35,7 @@ impl PanelBehavior for ColorPanel {
 /// Returns the tree with a primed emView at DEFAULT_VW x DEFAULT_VH.
 pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, emView, PanelId) {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("scaled_root");
+    let root = tree.create_root_deferred_view("scaled_root");
     let tallness = DEFAULT_VH as f64 / DEFAULT_VW as f64;
     tree.Layout(root, 0.0, 0.0, 1.0, tallness, 1.0);
     tree.set_behavior(
@@ -82,7 +82,7 @@ pub fn build_scaled_tree(panel_count: usize) -> (PanelTree, emView, PanelId) {
     ));
     let mut view = emView::new(root, DEFAULT_VW as f64, DEFAULT_VH as f64, core_config);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
-    tree.HandleNotice(true, 1.0);
+    // SP5: HandleNotice is now driven from emView::Update internally.
     view.Update(&mut tree);
 
     (tree, view, root)
@@ -101,7 +101,7 @@ pub fn run_one_scaled_frame(
     let fix_y = DEFAULT_VH as f64 / 2.0;
 
     view.RawScrollAndZoom(tree, fix_x, fix_y, dx, dy, dz);
-    tree.HandleNotice(true, 1.0);
+    // SP5: HandleNotice is now driven from emView::Update internally.
     view.Update(tree);
 
     viewport_buf.fill(emColor::BLACK);

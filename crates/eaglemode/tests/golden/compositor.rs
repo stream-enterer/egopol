@@ -37,7 +37,7 @@ impl PanelBehavior for ColorFillBehavior {
 /// Settle: deliver notices and update viewing until stable.
 fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(tree);
         view.Update(tree);
     }
 }
@@ -51,7 +51,7 @@ fn compositor_single_panel() {
     let (w, h, expected) = load_compositor_golden("composite_single_panel");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     // Tallness must match viewport aspect ratio (600/800 = 0.75) so root fills viewport.
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(
@@ -59,7 +59,14 @@ fn compositor_single_panel() {
         Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 255))),
     );
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -79,7 +86,7 @@ fn compositor_overlap() {
     let (w, h, expected) = load_compositor_golden("composite_overlap");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
     let panel_a = tree.create_child(root, "panelA");
@@ -96,7 +103,14 @@ fn compositor_overlap() {
         Box::new(ColorFillBehavior::new(emColor::rgba(0, 0, 255, 255))),
     );
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -116,7 +130,7 @@ fn compositor_nested() {
     let (w, h, expected) = load_compositor_golden("composite_nested");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
     let parent = tree.create_child(root, "parent");
@@ -129,7 +143,14 @@ fn compositor_nested() {
         Box::new(ColorFillBehavior::new(emColor::rgba(0, 255, 0, 255))),
     );
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -149,7 +170,7 @@ fn compositor_canvas_color() {
     let (w, h, expected) = load_compositor_golden("composite_canvas_color");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(
         root,
@@ -164,7 +185,14 @@ fn compositor_canvas_color() {
         Box::new(ColorFillBehavior::new(emColor::rgba(255, 0, 0, 128))),
     );
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -184,7 +212,7 @@ fn compositor_two_children() {
     let (w, h, expected) = load_compositor_golden("composite_two_children");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     // Root has no painting behavior — children PaintContent on top of gray background.
 
@@ -202,7 +230,14 @@ fn compositor_two_children() {
         Box::new(ColorFillBehavior::new(emColor::rgba(0, 0, 255, 255))),
     );
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 

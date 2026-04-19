@@ -57,7 +57,7 @@ macro_rules! require_golden {
 /// Settle: deliver notices and update viewing until stable.
 fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(tree);
         view.Update(tree);
     }
 }
@@ -190,11 +190,18 @@ fn render_and_compare_tol(
     let (w, h, expected) = load_compositor_golden(name);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, behavior);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -475,7 +482,7 @@ fn widget_colorfield() {
     cf.SetColor(emcore::emColor::emColor::rgba(255, 0, 0, 255));
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     // C++ emColorField.cpp:36 — SetAutoExpansionThreshold(9, VCT_MIN_EXT)
     tree.SetAutoExpansionThreshold(root, 9.0, ViewConditionType::MinExt);
@@ -484,12 +491,19 @@ fn widget_colorfield() {
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
     );
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 30)
     for _ in 0..30 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -623,7 +637,7 @@ fn colorfield_expanded() {
     cf.SetColor(emcore::emColor::emColor::rgba(0xBB, 0x22, 0x22, 0xFF));
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     // C++ emColorField uses AE threshold 9 (VCT_MIN_EXT)
     tree.SetAutoExpansionThreshold(root, 9.0, ViewConditionType::MinExt);
@@ -632,13 +646,20 @@ fn colorfield_expanded() {
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
     );
 
-    let mut view = emView::new_for_test(root, 800.0, 800.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        800.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -704,17 +725,24 @@ fn listbox_expanded() {
     lb.auto_expand_items();
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     tree.set_behavior(root, Box::new(ListBoxExpandedBehavior { list_box: lb }));
 
-    let mut view = emView::new_for_test(root, 800.0, 800.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        800.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -741,11 +769,18 @@ fn golden_widget_border_rect_extreme_tall() {
     let behavior = BorderBehavior::new(OuterBorderType::Rect, InnerBorderType::None, "Test", look);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 8.0, 1.0);
     tree.set_behavior(root, Box::new(behavior));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -785,11 +820,18 @@ fn golden_widget_border_rect_extreme_wide() {
     let behavior = BorderBehavior::new(OuterBorderType::Rect, InnerBorderType::None, "Test", look);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.05, 1.0);
     tree.set_behavior(root, Box::new(behavior));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -834,11 +876,18 @@ fn golden_widget_border_roundrect_thin() {
     );
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.002, 1.0);
     tree.set_behavior(root, Box::new(behavior));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -884,11 +933,18 @@ fn golden_widget_border_instrument_cramped() {
     .with_description("Long description that fills space");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.15, 1.0);
     tree.set_behavior(root, Box::new(behavior));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -928,11 +984,18 @@ fn golden_widget_label_single_char() {
     let label = emLabel::new("X", look);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.1, 1.0);
     tree.set_behavior(root, Box::new(LabelBehavior { label }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -964,11 +1027,18 @@ fn golden_widget_label_empty() {
     let label = emLabel::new("", look);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, Box::new(LabelBehavior { label }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -998,11 +1068,18 @@ fn golden_widget_label_long_narrow() {
     );
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 4.0, 1.0);
     tree.set_behavior(root, Box::new(LabelBehavior { label }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1062,11 +1139,18 @@ fn widget_tunnel() {
     tunnel.SetChildTallness(0.75);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, Box::new(TunnelBehavior { tunnel }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1104,11 +1188,18 @@ fn widget_file_selection_box() {
     fsb.set_parent_directory(std::path::Path::new("/nonexistent_golden_test_dir"));
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, Box::new(fsb));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1142,11 +1233,18 @@ fn golden_widget_textfield_empty_wide() {
     tf.SetEditable(true);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.05, 1.0);
     tree.set_behavior(root, Box::new(TextFieldBehavior { text_field: tf }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1189,11 +1287,18 @@ fn golden_widget_textfield_single_char_square() {
     tf.SetText("A");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     tree.set_behavior(root, Box::new(TextFieldBehavior { text_field: tf }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1242,11 +1347,18 @@ fn golden_widget_scalarfield_min_value() {
     sf.SetValue(-1_000_000_000_000.0);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, Box::new(ScalarFieldBehavior { scalar_field: sf }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1289,11 +1401,18 @@ fn golden_widget_scalarfield_max_value() {
     sf.SetValue(1_000_000_000_000.0);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, Box::new(ScalarFieldBehavior { scalar_field: sf }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1336,11 +1455,18 @@ fn golden_widget_scalarfield_zero_range() {
     sf.SetValue(50.0);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, Box::new(ScalarFieldBehavior { scalar_field: sf }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1381,11 +1507,18 @@ fn golden_widget_listbox_empty() {
     lb.SetCaption("Items");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, Box::new(ListBoxBehavior { list_box: lb }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1414,11 +1547,18 @@ fn golden_widget_listbox_single() {
     lb.AddItem("item0".to_string(), "Solo".to_string());
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, Box::new(ListBoxBehavior { list_box: lb }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1449,11 +1589,18 @@ fn golden_widget_listbox_extreme_wide() {
     lb.AddItem("item2".to_string(), "Gamma".to_string());
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.05, 1.0);
     tree.set_behavior(root, Box::new(ListBoxBehavior { list_box: lb }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1494,11 +1641,18 @@ fn golden_widget_splitter_h_pos0() {
     sp.SetPos(0.0);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, Box::new(SplitterBehavior { splitter: sp }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1526,11 +1680,18 @@ fn golden_widget_splitter_h_pos1() {
     sp.SetPos(1.0);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, Box::new(SplitterBehavior { splitter: sp }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1558,11 +1719,18 @@ fn golden_widget_splitter_v_extreme_tall() {
     sp.SetPos(0.5);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 8.0, 1.0);
     tree.set_behavior(root, Box::new(SplitterBehavior { splitter: sp }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1607,11 +1775,18 @@ fn golden_widget_checkbox_extreme_tall() {
     let cb = emCheckBox::new("Check", look);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 4.0, 1.0);
     tree.set_behavior(root, Box::new(CheckBoxBehavior { check_box: cb }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1653,11 +1828,18 @@ fn golden_widget_tunnel_extreme_wide() {
     tunnel.SetChildTallness(0.75);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.02, 1.0);
     tree.set_behavior(root, Box::new(TunnelBehavior { tunnel }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -1699,7 +1881,7 @@ fn golden_widget_colorfield_alpha_zero() {
     cf.SetColor(emcore::emColor::emColor::rgba(255, 0, 0, 0));
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.SetAutoExpansionThreshold(root, 9.0, ViewConditionType::MinExt);
     tree.set_behavior(
@@ -1707,11 +1889,18 @@ fn golden_widget_colorfield_alpha_zero() {
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
     );
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -1753,7 +1942,7 @@ fn golden_widget_colorfield_alpha_opaque() {
     cf.SetColor(emcore::emColor::emColor::rgba(255, 0, 0, 255));
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.SetAutoExpansionThreshold(root, 9.0, ViewConditionType::MinExt);
     tree.set_behavior(
@@ -1761,11 +1950,18 @@ fn golden_widget_colorfield_alpha_opaque() {
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
     );
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -1807,7 +2003,7 @@ fn golden_widget_colorfield_alpha_near() {
     cf.SetColor(emcore::emColor::emColor::rgba(255, 0, 0, 1));
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.SetAutoExpansionThreshold(root, 9.0, ViewConditionType::MinExt);
     tree.set_behavior(
@@ -1815,11 +2011,18 @@ fn golden_widget_colorfield_alpha_near() {
         Box::new(ColorFieldExpandedBehavior { color_field: cf }),
     );
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -1861,7 +2064,7 @@ fn composition_border_nest() {
     let look = emLook::new();
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("outer");
+    let root = tree.create_root_deferred_view("outer");
 
     // Outer: emLinearGroup vertical, OBT_ROUND_RECT / IBT_NONE, caption "Outer"
     // C++: outer->SetBorderType(OBT_ROUND_RECT, IBT_NONE); outer->SetVertical();
@@ -1914,14 +2117,21 @@ fn composition_border_nest() {
     // Set outer behavior last (after children are created)
     tree.set_behavior(root, Box::new(outer));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window
     view.SetFocused(&mut tree, false);
 
     // C++: TerminateEngine ctrl(sched, 200) — 200 settle rounds
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -1981,7 +2191,7 @@ fn composition_splitter_content() {
     sp.SetPos(0.5);
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     // C++ DoLayout(0, 0, 800/600, 1.0)
     tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0, 1.0);
     tree.set_behavior(root, Box::new(SplitterCompositionBehavior { splitter: sp }));
@@ -2020,13 +2230,20 @@ fn composition_splitter_content() {
     let _cf_id = tree.create_child(right_id, "color");
     let _lb_id = tree.create_child(right_id, "list");
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -2061,7 +2278,7 @@ fn composition_scrolled_listbox_in_border() {
     let look = emLook::new();
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("border");
+    let root = tree.create_root_deferred_view("border");
 
     // C++: emBorder with OBT_ROUND_RECT/IBT_NONE, caption "Scrolled List"
     // emBorder does not layout children — use PaintContent-only BorderBehavior.
@@ -2086,13 +2303,20 @@ fn composition_scrolled_listbox_in_border() {
     lb.SetSelectedIndex(24); // Item 25 (0-based index 24)
     tree.set_behavior(lb_id, Box::new(ListBoxBehavior { list_box: lb }));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.SetFocused(&mut tree, false);
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -2127,7 +2351,7 @@ fn composition_colorfield_expansion_wide() {
     let look = emLook::new();
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
 
     // C++: border->SetBorderType(OBT_ROUND_RECT, IBT_GROUP);
     // C++: border->DoLayout(0, 0, 800.0/400.0, 1.0);
@@ -2145,13 +2369,20 @@ fn composition_colorfield_expansion_wide() {
     // C++ child: emColorField — exists in tree but not positioned by emBorder
     let _cf_id = tree.create_child(root, "color");
 
-    let mut view = emView::new_for_test(root, 800.0, 400.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        400.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.SetFocused(&mut tree, false);
 
     // C++: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -2185,7 +2416,7 @@ fn composition_colorfield_expansion_tall() {
     let look = emLook::new();
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
 
     // C++: border->SetBorderType(OBT_ROUND_RECT, IBT_GROUP);
     // C++: border->DoLayout(0, 0, 400.0/800.0, 1.0);
@@ -2203,13 +2434,20 @@ fn composition_colorfield_expansion_tall() {
     // C++ child: emColorField — exists in tree but not positioned by emBorder
     let _cf_id = tree.create_child(root, "color");
 
-    let mut view = emView::new_for_test(root, 400.0, 800.0);
+    let mut view = emView::new(
+        root,
+        400.0,
+        800.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     view.SetFocused(&mut tree, false);
 
     // C++: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -2242,11 +2480,18 @@ fn stress_test_overlay_golden() {
     let h: u32 = 600;
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
     // Render baseline (no stress test)
-    let mut view = emView::new_for_test(root, w as f64, h as f64);
+    let mut view = emView::new(
+        root,
+        w as f64,
+        h as f64,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 

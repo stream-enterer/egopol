@@ -66,7 +66,7 @@ macro_rules! require_golden {
 /// Settle: deliver notices, run panel cycles, and update viewing until stable.
 fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     for _ in 0..rounds {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(tree);
         tree.run_panel_cycles(view.GetCurrentPixelTallness());
         view.Update(tree);
     }
@@ -1004,14 +1004,21 @@ fn composition_tktest_1x() {
 
     let look = emLook::new();
     let mut tree = PanelTree::new();
-    let root = tree.create_root("tktest");
+    let root = tree.create_root_deferred_view("tktest");
     tree.set_behavior(root, Box::new(TkTestPanel::new(look)));
     // C++ gen: tk->Layout(0, 0, 800.0/600.0, 1.0)
     tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0, 1.0);
     // C++ default auto-expansion threshold for TkTest
     tree.SetAutoExpansionThreshold(root, 900.0, ViewConditionType::Area);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window
     view.SetFocused(&mut tree, false);
@@ -1051,14 +1058,21 @@ fn composition_tktest_2x() {
 
     let look = emLook::new();
     let mut tree = PanelTree::new();
-    let root = tree.create_root("tktest");
+    let root = tree.create_root_deferred_view("tktest");
     tree.set_behavior(root, Box::new(TkTestPanel::new(look)));
     // C++ gen: tk->Layout(0, 0, 800.0/600.0, 1.0)
     tree.Layout(root, 0.0, 0.0, 800.0 / 600.0, 1.0, 1.0);
     // C++ default auto-expansion threshold for TkTest
     tree.SetAutoExpansionThreshold(root, 900.0, ViewConditionType::Area);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window
     view.SetFocused(&mut tree, false);

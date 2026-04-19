@@ -1192,7 +1192,7 @@ mod tests {
     #[test]
     fn test_is_item_with_tree() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         let child = tree.create_child(root, "child");
         tree.set_focusable(child, true);
         tree.SetAutoplayHandling(child, AutoplayHandlingFlags::ITEM);
@@ -1215,7 +1215,7 @@ mod tests {
     fn test_is_cutoff_with_tree_cutoff_flag() {
         let va = emAutoplayViewAnimator::new();
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.SetAutoplayHandling(root, AutoplayHandlingFlags::CUTOFF);
         assert!(va.IsCutoff(&tree, root));
     }
@@ -1224,7 +1224,7 @@ mod tests {
     fn test_is_cutoff_directory_non_recursive() {
         let va = emAutoplayViewAnimator::new(); // Recursive=false
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.set_focusable(root, true);
         tree.SetAutoplayHandling(root, AutoplayHandlingFlags::DIRECTORY);
         assert!(va.IsCutoff(&tree, root));
@@ -1235,7 +1235,7 @@ mod tests {
         let mut va = emAutoplayViewAnimator::new();
         va.Recursive = true;
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.set_focusable(root, true);
         tree.SetAutoplayHandling(root, AutoplayHandlingFlags::DIRECTORY);
         assert!(!va.IsCutoff(&tree, root));
@@ -1245,7 +1245,7 @@ mod tests {
     fn test_is_cutoff_item_non_recursive() {
         let va = emAutoplayViewAnimator::new(); // Recursive=false
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.set_focusable(root, true);
         tree.SetAutoplayHandling(root, AutoplayHandlingFlags::ITEM);
         assert!(va.IsCutoff(&tree, root));
@@ -1256,7 +1256,7 @@ mod tests {
         let mut va = emAutoplayViewAnimator::new();
         va.Recursive = true;
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.set_focusable(root, true);
         tree.SetAutoplayHandling(root, AutoplayHandlingFlags::CUTOFF_AT_SUBITEMS);
 
@@ -1272,7 +1272,7 @@ mod tests {
         let mut va = emAutoplayViewAnimator::new();
         va.Recursive = true;
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.set_focusable(root, true);
         tree.SetAutoplayHandling(root, AutoplayHandlingFlags::DIRECTORY);
 
@@ -1287,7 +1287,7 @@ mod tests {
     fn test_go_parent() {
         let mut va = emAutoplayViewAnimator::new();
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         let child = tree.create_child(root, "child");
 
         va.go_parent(&tree, child);
@@ -1302,7 +1302,7 @@ mod tests {
     fn test_go_child() {
         let mut va = emAutoplayViewAnimator::new();
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         let child = tree.create_child(root, "child");
 
         va.go_child(&tree, child);
@@ -1386,7 +1386,7 @@ mod tests {
     ///   └── b (ITEM, focusable)
     fn make_test_tree() -> PanelTree {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         let child_a = tree.create_child(root, "a");
         let child_b = tree.create_child(root, "b");
         let grandchild = tree.create_child(child_a, "c");
@@ -1678,7 +1678,7 @@ mod tests {
     #[test]
     fn test_low_pri_cycle_finds_item() {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         let child = tree.create_child(root, "a");
         tree.set_focusable(child, true);
         tree.SetAutoplayHandling(child, AutoplayHandlingFlags::ITEM);

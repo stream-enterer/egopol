@@ -39,11 +39,18 @@ impl TestHarness {
     /// Create a harness with root panel (focusable, layout 0,0,1,1), 800x600 view.
     pub fn new() -> Self {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("root");
+        let root = tree.create_root_deferred_view("root");
         tree.set_focusable(root, true);
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
-        let mut view = emView::new_for_test(root, 800.0, 600.0);
+        let mut view = emView::new(
+            root,
+            800.0,
+            600.0,
+            std::rc::Rc::new(std::cell::RefCell::new(
+                emcore::emCoreConfig::emCoreConfig::default(),
+            )),
+        );
         view.Update(&mut tree);
 
         let vif_chain: Vec<Box<dyn emViewInputFilter>> = vec![
@@ -77,8 +84,7 @@ impl TestHarness {
         let mut windows: HashMap<WindowId, std::rc::Rc<std::cell::RefCell<emWindow>>> =
             HashMap::new();
         self.scheduler.DoTimeSlice(&mut self.tree, &mut windows);
-        self.tree
-            .HandleNotice(self.view.IsFocused(), self.view.GetCurrentPixelTallness());
+        self.view.HandleNotice(&mut self.tree);
         self.view.Update(&mut self.tree);
     }
 

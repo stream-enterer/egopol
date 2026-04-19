@@ -35,7 +35,7 @@ macro_rules! require_golden {
 
 fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(tree);
         view.Update(tree);
     }
 }
@@ -58,10 +58,17 @@ fn assert_parallel_identical(
 
     // Build the scene.
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_behavior(root, behavior);
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     settle(&mut tree, &mut view);
 
@@ -300,7 +307,7 @@ fn parallel_benchmark() {
     // Single-threaded timing.
     let single_elapsed = {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("bench");
+        let root = tree.create_root_deferred_view("bench");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         tree.set_behavior(
             root,
@@ -311,7 +318,14 @@ fn parallel_benchmark() {
                 look: Rc::clone(&look),
             }),
         );
-        let mut view = emView::new_for_test(root, 800.0, 600.0);
+        let mut view = emView::new(
+            root,
+            800.0,
+            600.0,
+            std::rc::Rc::new(std::cell::RefCell::new(
+                emcore::emCoreConfig::emCoreConfig::default(),
+            )),
+        );
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
         settle(&mut tree, &mut view);
 
@@ -326,7 +340,7 @@ fn parallel_benchmark() {
     // Multi-threaded timing (4 threads).
     let multi_elapsed = {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("bench");
+        let root = tree.create_root_deferred_view("bench");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         tree.set_behavior(
             root,
@@ -337,7 +351,14 @@ fn parallel_benchmark() {
                 look: Rc::clone(&look),
             }),
         );
-        let mut view = emView::new_for_test(root, 800.0, 600.0);
+        let mut view = emView::new(
+            root,
+            800.0,
+            600.0,
+            std::rc::Rc::new(std::cell::RefCell::new(
+                emcore::emCoreConfig::emCoreConfig::default(),
+            )),
+        );
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
         settle(&mut tree, &mut view);
 
@@ -370,7 +391,7 @@ fn parallel_benchmark() {
     // computation differs when offset_x varies between painters.
     let single_pixels = {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("verify");
+        let root = tree.create_root_deferred_view("verify");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         tree.set_behavior(
             root,
@@ -381,7 +402,14 @@ fn parallel_benchmark() {
                 look: Rc::clone(&look),
             }),
         );
-        let mut view = emView::new_for_test(root, 800.0, 600.0);
+        let mut view = emView::new(
+            root,
+            800.0,
+            600.0,
+            std::rc::Rc::new(std::cell::RefCell::new(
+                emcore::emCoreConfig::emCoreConfig::default(),
+            )),
+        );
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
         settle(&mut tree, &mut view);
         let pool_1 = emcore::emRenderThreadPool::emRenderThreadPool::new(1);
@@ -391,7 +419,7 @@ fn parallel_benchmark() {
     };
     let multi_pixels = {
         let mut tree = PanelTree::new();
-        let root = tree.create_root("verify");
+        let root = tree.create_root_deferred_view("verify");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         tree.set_behavior(
             root,
@@ -402,7 +430,14 @@ fn parallel_benchmark() {
                 look,
             }),
         );
-        let mut view = emView::new_for_test(root, 800.0, 600.0);
+        let mut view = emView::new(
+            root,
+            800.0,
+            600.0,
+            std::rc::Rc::new(std::cell::RefCell::new(
+                emcore::emCoreConfig::emCoreConfig::default(),
+            )),
+        );
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
         settle(&mut tree, &mut view);
         let pool = emcore::emRenderThreadPool::emRenderThreadPool::new(4);

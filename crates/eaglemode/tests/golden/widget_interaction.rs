@@ -591,7 +591,7 @@ fn run_splitter_layout_step(
     let clamped_pos = sp.GetPos();
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(
         root,
         parent_rect.0,
@@ -761,7 +761,7 @@ fn composition_click_through_tree() {
     let look = emLook::new();
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
 
     let mut root_group = emLinearGroup::vertical();
     root_group.border = emBorder::new(OuterBorderType::Rect)
@@ -787,10 +787,17 @@ fn composition_click_through_tree() {
 
     tree.set_behavior(root, Box::new(root_group));
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 

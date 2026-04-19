@@ -656,7 +656,7 @@ mod tests {
     // Helper for tests: build a (tree, id) to construct a PanelCtx.
     fn make_notice_ctx() -> (crate::emPanelTree::PanelTree, crate::emPanelTree::PanelId) {
         let mut tree = crate::emPanelTree::PanelTree::new();
-        let root = tree.create_root("test");
+        let root = tree.create_root_deferred_view("test");
         (tree, root)
     }
 

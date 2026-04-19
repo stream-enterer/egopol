@@ -33,7 +33,7 @@ fn hard_reset_file_state(acc: &Rc<RefCell<NoticeFlags>>) {
 /// Settle: deliver notices and update viewing, matching C++ scheduler behavior.
 fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(tree);
         view.Update(tree);
     }
 }
@@ -47,7 +47,7 @@ fn notice_active_changed() {
     let expected = load_notice_golden("notice_active_changed");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -55,7 +55,14 @@ fn notice_active_changed() {
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     // C++ emView starts unfocused; Rust emView::new starts focused.
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -99,7 +106,7 @@ fn notice_focus_changed() {
     let expected = load_notice_golden("notice_focus_changed");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -107,7 +114,14 @@ fn notice_focus_changed() {
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     // Start unfocused to match C++
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -150,14 +164,21 @@ fn notice_layout_changed() {
     let expected = load_notice_golden("notice_layout_changed");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -200,12 +221,19 @@ fn notice_children_changed() {
     let expected = load_notice_golden("notice_children_changed");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -251,13 +279,20 @@ fn notice_window_focus_gained() {
     let expected = load_notice_golden("notice_window_focus_gained");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     // Start unfocused
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -298,13 +333,20 @@ fn notice_window_focus_lost() {
     let expected = load_notice_golden("notice_window_focus_lost");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     // Start unfocused, then gain focus to match C++ setup
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -346,14 +388,21 @@ fn notice_window_resize() {
     let expected = load_notice_golden("notice_window_resize");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0); // 600/800 tallness
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.SetFocused(&mut tree, false);
 
@@ -397,7 +446,7 @@ fn notice_recursive_enable() {
     let expected = load_notice_golden("notice_recursive_enable");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -406,7 +455,14 @@ fn notice_recursive_enable() {
     let child2 = tree.create_child(root, "child2");
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -449,7 +505,7 @@ fn notice_re_enable() {
     let expected = load_notice_golden("notice_re_enable");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
@@ -458,7 +514,14 @@ fn notice_re_enable() {
     let child2 = tree.create_child(root, "child2");
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -511,14 +574,21 @@ fn notice_remove_child() {
     let expected = load_notice_golden("notice_remove_child");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -553,14 +623,21 @@ fn notice_focus_and_layout() {
     let expected = load_notice_golden("notice_focus_and_layout");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -602,12 +679,19 @@ fn notice_add_and_activate() {
     let expected = load_notice_golden("notice_add_and_activate");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);
@@ -649,14 +733,21 @@ fn notice_enable_changed() {
     let expected = load_notice_golden("notice_enable_changed");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     let child1 = tree.create_child(root, "child1");
     tree.Layout(child1, 0.0, 0.0, 0.5, 1.0, 1.0);
     let child2 = tree.create_child(root, "child2");
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.SetFocused(&mut tree, false);
 
     let acc_root = attach_notice(&mut tree, root);

@@ -89,7 +89,7 @@ macro_rules! require_golden {
 /// `rounds` Match C++ TerminateEngine Cycle GetCount from gen_golden.cpp.
 fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     for _ in 0..rounds {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(tree);
         view.Update(tree);
     }
 }
@@ -2546,13 +2546,20 @@ fn testpanel_root() {
 
     let bg_color = Rc::new(Cell::new(DEFAULT_BG));
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.set_behavior(root, Box::new(TestPanel::new(0, bg_color)));
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     // Very high threshold prevents auto-expansion (Match C++ gen)
     tree.SetAutoExpansionThreshold(root, 1e9, ViewConditionType::Area);
 
-    let mut view = emView::new_for_test(root, 1000.0, 1000.0);
+    let mut view = emView::new(
+        root,
+        1000.0,
+        1000.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window — match unfocused state
     view.SetFocused(&mut tree, false);
@@ -2579,13 +2586,20 @@ fn testpanel_expanded() {
 
     let bg_color = Rc::new(Cell::new(DEFAULT_BG));
     let mut tree = PanelTree::new();
-    let root = tree.create_root("test");
+    let root = tree.create_root_deferred_view("test");
     tree.set_behavior(root, Box::new(TestPanel::new(0, bg_color)));
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
     // C++ default threshold: 900 (VCT_AREA). At 1000x1000, vc=1e6 > 900 → expands.
     tree.SetAutoExpansionThreshold(root, 900.0, ViewConditionType::Area);
 
-    let mut view = emView::new_for_test(root, 1000.0, 1000.0);
+    let mut view = emView::new(
+        root,
+        1000.0,
+        1000.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     // C++ golden gen doesn't focus the window — match unfocused state
     view.SetFocused(&mut tree, false);

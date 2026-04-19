@@ -24,10 +24,17 @@ macro_rules! require_golden {
 /// The velocity trajectory is view-independent as long as no boundaries are hit.
 fn setup_anim_view() -> (PanelTree, emView) {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.Update(&mut tree);
 
@@ -339,10 +346,17 @@ fn animator_visiting_short() {
 /// scroll denominator fix (BUG-8) which is invisible at matching aspects.
 fn setup_anim_view_square_panel() -> (PanelTree, emView) {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0); // square panel
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.Update(&mut tree);
 
@@ -388,11 +402,18 @@ fn animator_visiting_zoom() {
 /// zoom factor 100), Activate, 60 frames of CycleAnimation, Deactivate.
 fn run_magnetic_trajectory(steps: usize) -> Vec<TrajectoryStep> {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
     tree.set_focusable(root, true);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.Update(&mut tree);
 

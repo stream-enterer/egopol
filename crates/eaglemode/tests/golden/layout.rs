@@ -26,7 +26,7 @@ fn run_layout(
     parent_rect: (f64, f64, f64, f64),
 ) -> Vec<(f64, f64, f64, f64)> {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(
         root,
         parent_rect.0,
@@ -69,7 +69,7 @@ fn run_linear_layout(
 ) -> Vec<(f64, f64, f64, f64)> {
     let n = weights.len();
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(
         root,
         parent_rect.0,
@@ -278,7 +278,7 @@ fn layout_pack_weighted() {
     let mut expected = load_layout_golden("pack_weighted");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emPackLayout::new();
@@ -340,7 +340,7 @@ fn layout_pack_extreme() {
     let mut expected = load_layout_golden("pack_extreme");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emPackLayout::new();
@@ -523,7 +523,7 @@ fn layout_linear_min_cell_count() {
     let mut expected = load_layout_golden("linear_min_cell_count");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emLinearLayout::horizontal();
@@ -573,7 +573,7 @@ fn layout_linear_min_max_tallness() {
     let mut expected = load_layout_golden("linear_min_max_tallness");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emLinearLayout::horizontal();
@@ -757,7 +757,7 @@ fn layout_pack_min_cell_count() {
     let mut expected = load_layout_golden("pack_min_cell_count");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emPackLayout::new().with_min_cell_count(8);
@@ -808,7 +808,7 @@ fn layout_pack_single() {
     let mut expected = load_layout_golden("pack_single");
 
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(root, PARENT.0, PARENT.1, PARENT.2, PARENT.3, 1.0);
 
     let mut layout = emPackLayout::new();
@@ -853,7 +853,7 @@ fn run_linear_layout_with_spacing(
 ) -> Vec<(f64, f64, f64, f64)> {
     let n = weights.len();
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(
         root,
         parent_rect.0,
@@ -921,7 +921,7 @@ fn run_linear_layout_aligned(
 ) -> Vec<(f64, f64, f64, f64)> {
     let n = weights.len();
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(
         root,
         parent_rect.0,
@@ -990,7 +990,7 @@ fn run_linear_layout_adaptive(
 ) -> Vec<(f64, f64, f64, f64)> {
     let n = weights.len();
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.Layout(
         root,
         parent_rect.0,

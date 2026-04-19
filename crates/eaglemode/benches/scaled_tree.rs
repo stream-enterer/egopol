@@ -59,7 +59,7 @@ fn bench_scaled_update(c: &mut Criterion) {
             let (mut tree, mut view, _) = build_scaled_tree(count);
 
             b.iter(|| {
-                tree.HandleNotice(true, 1.0);
+                // SP5: HandleNotice is now driven from emView::Update internally.
                 view.Update(&mut tree);
             });
         });

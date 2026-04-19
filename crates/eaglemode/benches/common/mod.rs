@@ -756,7 +756,7 @@ impl PanelBehavior for TestPanel {
 
 pub fn setup_tree_and_view(vw: u32, vh: u32) -> (PanelTree, emView, PanelId) {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("bench_root");
+    let root = tree.create_root_deferred_view("bench_root");
     tree.set_behavior(root, Box::new(TestPanel::new()));
     let tallness = vh as f64 / vw as f64;
     tree.Layout(root, 0.0, 0.0, 1.0, tallness, 1.0);
@@ -767,7 +767,7 @@ pub fn setup_tree_and_view(vw: u32, vh: u32) -> (PanelTree, emView, PanelId) {
     ));
     let mut view = emView::new(root, vw as f64, vh as f64, core_config);
     view.flags |= ViewFlags::ROOT_SAME_TALLNESS;
-    tree.HandleNotice(true, 1.0);
+    // SP5: HandleNotice is now driven from emView::Update internally.
     view.Update(&mut tree);
 
     (tree, view, root)
@@ -788,10 +788,7 @@ pub fn run_one_frame(
     // 1. Scroll/zoom
     view.RawScrollAndZoom(tree, fix_x, fix_y, scenario.dx, scenario.dy, scenario.dz);
 
-    // 2. Notices
-    tree.HandleNotice(true, 1.0);
-
-    // 3. emView update
+    // 2+3. emView::Update now drives HandleNotice internally (SP5).
     view.Update(tree);
 
     // 4. Paint

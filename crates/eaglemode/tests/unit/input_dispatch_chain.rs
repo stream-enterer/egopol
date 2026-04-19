@@ -16,11 +16,18 @@ use emcore::emView::emView;
 #[test]
 fn input_routes_through_viewport() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.set_focusable(root, true);
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.Update(&mut tree);
 
     let event = emInputEvent::press(InputKey::MouseLeft).with_mouse(10.0, 10.0);
@@ -43,11 +50,18 @@ fn input_routes_through_viewport() {
 #[test]
 fn input_to_view_updates_last_mouse_position() {
     let mut tree = PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.set_focusable(root, true);
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
-    let mut view = emView::new_for_test(root, 800.0, 600.0);
+    let mut view = emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
     view.Update(&mut tree);
 
     let event = emInputEvent::mouse_move(InputKey::MouseLeft, 42.0, 84.0);

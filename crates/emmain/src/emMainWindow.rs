@@ -163,7 +163,8 @@ impl emMainWindow {
             && let Some(rc) = self.window_id.and_then(|id| app.windows.get(&id))
         {
             let win = rc.borrow();
-            let title = win.view().GetTitle();
+            let view = win.view();
+            let title = view.GetTitle();
             if !title.is_empty() {
                 return format!("Eagle Mode - {title}");
             }
@@ -359,7 +360,8 @@ impl emEngine for MainWindowEngine {
             && let Some(rc) = ctx.windows.get(&wid)
         {
             let win = rc.borrow();
-            let view_title = win.view().GetTitle();
+            let view = win.view();
+            let view_title = view.GetTitle();
             let title = if view_title.is_empty() {
                 "Eagle Mode".to_string()
             } else {
@@ -672,8 +674,13 @@ impl emEngine for StartupEngine {
                     ctx.tree
                         .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
                             svp.active_animator = None;
-                            let (view, tree) = svp.view_and_tree_mut();
-                            view.RawZoomOut(tree, false);
+                            // Clone the Rc so the RefMut holds no borrow of
+                            // svp, allowing sub_tree_mut() (&mut self) to
+                            // coexist with the live RefMut.
+                            let sub_view_rc = svp.sub_view_rc().clone();
+                            sub_view_rc
+                                .borrow_mut()
+                                .RawZoomOut(svp.sub_tree_mut(), false);
                         });
                 }
                 let overlay_id = ctx
@@ -760,9 +767,10 @@ pub fn create_main_window(
 ) -> emMainWindow {
     let mut mw = emMainWindow::new(Rc::clone(&app.context), config);
 
-    // Create root panel in the tree
+    // Create root panel in the tree. View is not yet constructed (emWindow::create
+    // happens below); wire the Weak back after the window is inserted.
     let panel = emMainPanel::new(Rc::clone(&app.context), mw.config.control_tallness);
-    let root_id = app.tree.create_root("root");
+    let root_id = app.tree.create_root("root", std::rc::Weak::new());
     app.tree.set_behavior(root_id, Box::new(panel));
     mw.main_panel_id = Some(root_id);
 
@@ -818,6 +826,12 @@ pub fn create_main_window(
     let window_id = window.borrow().winit_window().id();
     app.windows.insert(window_id, window);
     mw.window_id = Some(window_id);
+
+    // Wire the owning view's Weak onto the root panel now that the window exists.
+    if let Some(rc) = app.windows.get(&window_id) {
+        let view_weak = Rc::downgrade(rc.borrow().view_rc());
+        app.tree.init_panel_view(root_id, view_weak);
+    }
 
     // Acquire bookmarks model.
     mw.bookmarks_model = Some(emBookmarksModel::Acquire(&app.context));
@@ -963,7 +977,10 @@ pub fn create_control_window(
         .flatten();
 
     let ctrl_panel = emMainControlPanel::new(Rc::clone(&app.context), content_view_id);
-    let root_id = app.tree.create_root("ctrl_window_root");
+    // View wire-back: root is created before the window, so start with empty Weak.
+    let root_id = app
+        .tree
+        .create_root("ctrl_window_root", std::rc::Weak::new());
     app.tree.set_behavior(root_id, Box::new(ctrl_panel));
 
     let flags = WindowFlags::AUTO_DELETE;
@@ -984,6 +1001,12 @@ pub fn create_control_window(
     );
     let window_id = window.borrow().winit_window().id();
     app.windows.insert(window_id, window);
+
+    // Wire the owning view's Weak onto the root panel now that the window exists.
+    if let Some(rc) = app.windows.get(&window_id) {
+        let view_weak = Rc::downgrade(rc.borrow().view_rc());
+        app.tree.init_panel_view(root_id, view_weak);
+    }
 
     // Store the control window ID for raise-if-existing logic.
     with_main_window(|mw| {
@@ -1043,20 +1066,17 @@ fn RecreateContentPanels(app: &mut App) {
             let mut rel_x = 0.0;
             let mut rel_y = 0.0;
             let mut rel_a = 0.0;
-            let panel_opt = svp.GetSubView().GetVisitedPanel(
-                svp.sub_tree(),
-                &mut rel_x,
-                &mut rel_y,
-                &mut rel_a,
-            );
+            let sv = svp.GetSubView();
+            let panel_opt = sv.GetVisitedPanel(svp.sub_tree(), &mut rel_x, &mut rel_y, &mut rel_a);
             let identity = panel_opt
                 .map(|p| svp.sub_tree().GetIdentity(p))
                 .unwrap_or_default();
             // C++ emMainWindow.cpp:297, 301, 304 — snapshot title+adherent
             // before the content panel is rebuilt, then feed them back into
             // the Visit call afterward.
-            let title = svp.GetSubView().GetTitle().to_string();
-            let adherent = svp.GetSubView().IsActivationAdherent();
+            let title = sv.GetTitle().to_string();
+            let adherent = sv.IsActivationAdherent();
+            drop(sv);
 
             // Delete old content panel(s) — remove all children of sub-tree root
             // (C++ emMainWindow.cpp:302).

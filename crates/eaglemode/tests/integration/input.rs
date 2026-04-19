@@ -126,7 +126,7 @@ fn focus_change_routes_keyboard() {
 fn input_without_update_returns_none() {
     // Document: hit-test requires update_viewing to set SVP.
     let mut tree = emcore::emPanelTree::PanelTree::new();
-    let root = tree.create_root("root");
+    let root = tree.create_root_deferred_view("root");
     tree.set_focusable(root, true);
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
@@ -135,7 +135,14 @@ fn input_without_update_returns_none() {
     tree.Layout(child, 0.0, 0.0, 1.0, 1.0, 1.0);
 
     // Create view but do NOT call update_viewing
-    let view = emcore::emView::emView::new_for_test(root, 800.0, 600.0);
+    let view = emcore::emView::emView::new(
+        root,
+        800.0,
+        600.0,
+        std::rc::Rc::new(std::cell::RefCell::new(
+            emcore::emCoreConfig::emCoreConfig::default(),
+        )),
+    );
 
     // Hit-test should return None since SVP is not computed
     // (SVP is set during update_viewing)

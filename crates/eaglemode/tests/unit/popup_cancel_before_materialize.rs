@@ -123,7 +123,7 @@ impl ApplicationHandler for Harness {
                 {
                     let mut home = home_rc.borrow_mut();
                     let tree = &mut self.app.tree;
-                    let view = home.view_mut();
+                    let mut view = home.view_mut();
                     view.set_scheduler(Rc::clone(&self.app.scheduler));
                     // Clear zoomed_out_before_sg so RawVisit doesn't
                     // zoom-out-and-tear-down; mirrors popup_materialization.
@@ -163,7 +163,7 @@ impl ApplicationHandler for Harness {
                 {
                     let mut home = home_rc.borrow_mut();
                     let tree = &mut self.app.tree;
-                    let view = home.view_mut();
+                    let mut view = home.view_mut();
                     // ZoomOut → RawVisit(root, 0, 0, zoom_out_rel_a)
                     // produces a rect fitting inside home. With
                     // POPUP_ZOOM still set, RawVisitAbs takes the
@@ -231,7 +231,7 @@ fn popup_cancels_when_dropped_before_materialize() {
     let captured_for_setup = Rc::clone(&captured);
 
     let setup = Box::new(move |app: &mut App, event_loop: &ActiveEventLoop| {
-        let root = app.tree.create_root("test_root");
+        let root = app.tree.create_root_deferred_view("test_root");
         app.tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let child = app.tree.create_child(root, "child_a");
         app.tree.Layout(child, 0.0, 0.0, 0.5, 1.0, 1.0);
