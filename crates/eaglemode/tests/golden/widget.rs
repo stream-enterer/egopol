@@ -57,7 +57,7 @@ macro_rules! require_golden {
 /// Settle: deliver notices and update viewing until stable.
 fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(tree);
         view.Update(tree);
     }
 }
@@ -489,7 +489,7 @@ fn widget_colorfield() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 30)
     for _ in 0..30 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -638,7 +638,7 @@ fn colorfield_expanded() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -714,7 +714,7 @@ fn listbox_expanded() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -1711,7 +1711,7 @@ fn golden_widget_colorfield_alpha_zero() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -1765,7 +1765,7 @@ fn golden_widget_colorfield_alpha_opaque() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -1819,7 +1819,7 @@ fn golden_widget_colorfield_alpha_near() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -1921,7 +1921,7 @@ fn composition_border_nest() {
 
     // C++: TerminateEngine ctrl(sched, 200) — 200 settle rounds
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -2026,7 +2026,7 @@ fn composition_splitter_content() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -2092,7 +2092,7 @@ fn composition_scrolled_listbox_in_border() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -2151,7 +2151,7 @@ fn composition_colorfield_expansion_wide() {
 
     // C++: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 
@@ -2209,7 +2209,7 @@ fn composition_colorfield_expansion_tall() {
 
     // C++: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(&mut tree);
         view.Update(&mut tree);
     }
 

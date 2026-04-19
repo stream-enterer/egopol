@@ -89,7 +89,7 @@ macro_rules! require_golden {
 /// `rounds` Match C++ TerminateEngine Cycle GetCount from gen_golden.cpp.
 fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     for _ in 0..rounds {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(tree);
         view.Update(tree);
     }
 }

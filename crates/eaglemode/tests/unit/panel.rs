@@ -114,7 +114,8 @@ fn notice_flag_propagation() {
         .contains(NoticeFlags::CHILD_LIST_CHANGED));
 
     // Deliver notices
-    tree.HandleNotice(true, 1.0);
+    let mut view = emcore::emView::emView::new_for_test(root, 800.0, 600.0);
+    view.HandleNotice(&mut tree);
 
     // Verify notices were cleared after delivery
     assert!(tree.pending_notices(root).is_empty());

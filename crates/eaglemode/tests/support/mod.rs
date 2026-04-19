@@ -77,8 +77,7 @@ impl TestHarness {
         let mut windows: HashMap<WindowId, std::rc::Rc<std::cell::RefCell<emWindow>>> =
             HashMap::new();
         self.scheduler.DoTimeSlice(&mut self.tree, &mut windows);
-        self.tree
-            .HandleNotice(self.view.IsFocused(), self.view.GetCurrentPixelTallness());
+        self.view.HandleNotice(&mut self.tree);
         self.view.Update(&mut self.tree);
     }
 

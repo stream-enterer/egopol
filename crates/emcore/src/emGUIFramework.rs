@@ -501,20 +501,10 @@ impl ApplicationHandler for App {
             }
         }
 
-        // Deliver notices (includes layout dispatch)
-        let window_focused = self
-            .windows
-            .values()
-            .any(|rc| rc.borrow().view().IsFocused());
-        // TODO(per-view-notice-dispatch): selecting one window's
-        // pixel_tallness for the whole frame is wrong when multi-window
-        // is active. C++ dispatches HandleNotice per-view from
-        // emView::Update (emView.cpp:1312), using that view's own
-        // CurrentPixelTallness. Correct fix requires moving NoticeList
-        // ownership from PanelTree to emView. Tracked as "Per-view
-        // notice dispatch (emView.cpp:1312 parity)" in
-        // docs/superpowers/notes/2026-04-18-emview-subsystem-closeout.md §8.
-        let pixel_tallness = self
+        // run_panel_cycles is a Rust-only construct (emPanel does not register
+        // per-view as an engine in the Rust port yet; SP4.5). Uses an arbitrary
+        // window's pixel_tallness — the same shortcut the notice path used before SP5.
+        let panel_cycle_pixel_tallness = self
             .windows
             .values()
             .next()
@@ -522,9 +512,10 @@ impl ApplicationHandler for App {
             .unwrap_or(1.0);
 
         // Run per-frame panel cycles
-        self.tree.run_panel_cycles(pixel_tallness);
+        self.tree.run_panel_cycles(panel_cycle_pixel_tallness);
 
-        let had_notices = self.tree.HandleNotice(window_focused, pixel_tallness);
+        // Notice dispatch now happens per-view inside emView::Update (SP5,
+        // emView.cpp:1303-1314 parity). No global HandleNotice call here.
 
         // Update views and tick animators
         let now = Instant::now();
@@ -537,11 +528,9 @@ impl ApplicationHandler for App {
         let state = &mut self.input_state;
         for rc in self.windows.values() {
             let mut win = rc.borrow_mut();
-            // Layout changes from notices require viewed coordinate recomputation.
-            if had_notices {
-                win.view_mut().mark_viewing_dirty();
-            }
-            let mut needs_full_repaint = had_notices;
+            // Notice dispatch (including mark_viewing_dirty) happens inside
+            // emView::Update via emView::HandleNotice (SP5).
+            let mut needs_full_repaint = false;
 
             // Tick animator (take out to avoid borrow conflict)
             if let Some(mut anim) = win.active_animator.take() {

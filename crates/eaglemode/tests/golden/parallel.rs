@@ -35,7 +35,7 @@ macro_rules! require_golden {
 
 fn settle(tree: &mut PanelTree, view: &mut emView) {
     for _ in 0..5 {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(tree);
         view.Update(tree);
     }
 }

@@ -66,7 +66,7 @@ macro_rules! require_golden {
 /// Settle: deliver notices, run panel cycles, and update viewing until stable.
 fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     for _ in 0..rounds {
-        tree.HandleNotice(view.IsFocused(), view.GetCurrentPixelTallness());
+        view.HandleNotice(tree);
         tree.run_panel_cycles(view.GetCurrentPixelTallness());
         view.Update(tree);
     }

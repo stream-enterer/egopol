@@ -299,9 +299,9 @@ impl PanelBehavior for emSubViewPanel {
         // driven here. We interleave animator ticks, view updates, and notice
         // delivery to allow the seek mechanism to expand panels layer by layer
         // within a single frame (C++ does this across scheduler cycles).
+        // SP5: HandleNotice is now on emView, driven per-view (emView.cpp:1303-1314).
         self.sub_tree.run_panel_cycles(state.pixel_tallness);
-        self.sub_tree
-            .HandleNotice(state.is_focused(), state.pixel_tallness);
+        self.sub_view.borrow_mut().HandleNotice(&mut self.sub_tree);
         self.sub_view.borrow_mut().Update(&mut self.sub_tree);
 
         // Run animator + expand loop: animator seeks deeper, view updates
@@ -321,13 +321,9 @@ impl PanelBehavior for emSubViewPanel {
             };
 
             self.sub_view.borrow_mut().Update(&mut self.sub_tree);
-            let had_notices = self
-                .sub_tree
-                .HandleNotice(state.is_focused(), state.pixel_tallness);
+            let had_notices = self.sub_view.borrow_mut().HandleNotice(&mut self.sub_tree);
             self.sub_tree.run_panel_cycles(state.pixel_tallness);
-            let had_notices2 = self
-                .sub_tree
-                .HandleNotice(state.is_focused(), state.pixel_tallness);
+            let had_notices2 = self.sub_view.borrow_mut().HandleNotice(&mut self.sub_tree);
 
             if !anim_active && !had_notices && !had_notices2 {
                 break;

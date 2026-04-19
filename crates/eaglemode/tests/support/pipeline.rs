@@ -85,8 +85,7 @@ impl PipelineTestHarness {
             HashMap::new();
         self.scheduler.DoTimeSlice(&mut self.tree, &mut windows);
         self.view.pump_visiting_va(&mut self.tree);
-        self.tree
-            .HandleNotice(self.view.IsFocused(), self.view.GetCurrentPixelTallness());
+        self.view.HandleNotice(&mut self.tree);
         self.view.Update(&mut self.tree);
     }
 

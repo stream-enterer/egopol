@@ -6,6 +6,8 @@ use crate::dlog;
 use bitflags::bitflags;
 
 use super::emPanelTree::{PanelId, PanelTree};
+use crate::emPanel::NoticeFlags;
+use crate::emPanelCtx::PanelCtx;
 
 use crate::emClipRects::ClipRects;
 use crate::emColor::emColor;
@@ -552,20 +554,6 @@ pub struct emView {
     /// Read non-test by `VisitingVAEngineClass::Cycle` to tick animation.
     pub(crate) VisitingVA: Rc<RefCell<super::emViewAnimator::emVisitingViewAnimator>>,
 
-    /// 1:1 with C++ `emView::NoticeList` (emView.h:576).
-    ///
-    /// DIVERGED: C++ uses `PanelRingNode *` intrusive sentinel linkage
-    /// (emView.h:576, emPanel.h:823). Rust uses `Option<PanelId>` head/tail
-    /// into the panel arena. Semantics: panels with queued notices form a
-    /// doubly-linked list via `emPanel::notice_{prev,next}_in_ring`;
-    /// `AddToNoticeList` links at the tail; `HandleNotice` drains from the
-    /// head. Data-structure divergence is *forced* (Rust ownership rules
-    /// make intrusive raw-pointer rings impractical without `unsafe`);
-    /// ownership location (per-view) matches C++ exactly.
-    pub(crate) notice_ring_head_next: Option<PanelId>,
-    pub(crate) notice_ring_head_prev: Option<PanelId>,
-    pub(crate) has_pending_notices: bool,
-
     /// Port of C++ `emView.h:664` — `emRef<emCoreConfig> CoreConfig`.
     /// Acquired at construction. SP7 (emContext threading) will source
     /// this via `emCoreConfig::Acquire(ctx.GetRootContext())` once
@@ -659,10 +647,6 @@ impl emView {
                 super::emViewAnimator::emVisitingViewAnimator::new_for_view(),
             )),
             CoreConfig: core_config,
-
-            notice_ring_head_next: None,
-            notice_ring_head_prev: None,
-            has_pending_notices: false,
         }
     }
 
@@ -2433,9 +2417,6 @@ impl emView {
     /// dispatching in priority order: popup-close → notices →
     /// SVPChoiceByOpacityInvalid → SVPChoiceInvalid → TitleInvalid →
     /// CursorInvalid.
-    ///
-    /// DIVERGED: notice-drain delegates to PanelTree::HandleNotice (ring owned
-    /// by PanelTree, per commit 75c7c68). Rest of shape is identical.
     pub fn Update(&mut self, tree: &mut PanelTree) {
         // C++ emView.cpp:1299 popup-close probe. The IsSignaled call happens
         // one frame earlier in Rust, in UpdateEngineClass::Cycle — see SP4 spec
@@ -2469,9 +2450,9 @@ impl emView {
                 continue;
             }
 
-            // Drain all pending notices (delegated to PanelTree).
+            // Drain all pending notices (C++ emView.cpp:1303-1314).
             if tree.has_pending_notices() {
-                tree.HandleNotice(self.window_focused, self.CurrentPixelTallness);
+                self.HandleNotice(tree);
                 continue;
             }
 
@@ -3457,46 +3438,260 @@ impl emView {
         ));
     }
 
-    /// Port of C++ `emView::AddToNoticeList(PanelRingNode*)` (emView.cpp:1282).
+    /// Port of C++ `emView::Update` notice-drain inner loop (emView.cpp:1303–1314).
     ///
-    /// Links `panel` at the tail of the per-view notice ring, then wakes the
-    /// `UpdateEngine`.  No-op if the panel is already in the ring.
+    /// Drains the notice ring owned by `tree`, dispatching `HandleNotice`/
+    /// `LayoutChildren` on each panel using this view's own
+    /// `CurrentPixelTallness` and `window_focused`.
     ///
-    /// DIVERGED: C++ uses intrusive `PanelRingNode *` sentinel linkage
-    /// (emView.h:576).  Rust uses `Option<PanelId>` head/tail with arena
-    /// access via `tree`.  Data-structure shape is forced; ownership location
-    /// (per-view `self.*`) matches C++ exactly.
-    pub fn AddToNoticeList(&mut self, tree: &mut PanelTree, panel: PanelId) {
-        // Guard: panel must not already be linked in a notice ring.
-        {
-            let p = &tree.panels[panel];
-            if p.notice_prev_in_ring.is_some() || p.notice_next_in_ring.is_some() {
-                return;
-            }
-            // Or currently the single head of this view's ring?
-            if self.notice_ring_head_next == Some(panel) {
-                return;
+    /// Returns `true` if any notices were handled.
+    ///
+    /// DIVERGED: C++ `emView::NoticeList` is an intrusive ring on `emView`
+    /// (emView.h:576); Rust keeps the ring fields on `PanelTree` to avoid
+    /// RefCell re-entrancy (the view is mutably borrowed during dispatch, so
+    /// callers inside callbacks cannot re-borrow it to append to a view-owned
+    /// ring).  Ring storage location is *forced*; dispatch driver (per-view,
+    /// using per-view `CurrentPixelTallness`) matches C++ exactly.
+    pub fn HandleNotice(&mut self, tree: &mut PanelTree) -> bool {
+        if !tree.has_pending_notices() {
+            return false;
+        }
+        // Safety net: enroll any panels that set pending_notices through paths
+        // that didn't call add_to_notice_list (legacy callers, external writes).
+        if tree.has_pending_notices_flag() {
+            let ids: Vec<PanelId> = tree.panels.keys().collect();
+            for id in ids {
+                let Some(p) = tree.panels.get(id) else {
+                    continue;
+                };
+                if (!p.pending_notices.is_empty()
+                    || p.ae_decision_invalid
+                    || p.children_layout_invalid)
+                    && p.notice_prev_in_ring.is_none()
+                    && p.notice_next_in_ring.is_none()
+                    && tree.notice_ring_head_next != Some(id)
+                {
+                    tree.add_to_notice_list(id);
+                }
             }
         }
-        match self.notice_ring_head_prev {
-            Some(old_tail) => {
-                // Link new node after old tail.
-                tree.panels[old_tail].notice_next_in_ring = Some(panel);
-                tree.panels[panel].notice_prev_in_ring = Some(old_tail);
-                tree.panels[panel].notice_next_in_ring = None;
-                self.notice_ring_head_prev = Some(panel);
+        let mut delivered = false;
+        // Drain the ring (port of C++ emView::Update do-while loop,
+        // emView.cpp:1303-1314). New panels appended during processing are
+        // picked up in FIFO order.
+        while let Some(id) = tree.notice_ring_head_next {
+            if !tree.panels.contains_key(id) {
+                tree.remove_from_notice_list(id);
+                continue;
             }
-            None => {
-                // Ring was empty.
-                tree.panels[panel].notice_prev_in_ring = None;
-                tree.panels[panel].notice_next_in_ring = None;
-                self.notice_ring_head_next = Some(panel);
-                self.notice_ring_head_prev = Some(panel);
+            // C++ unlinks BEFORE calling HandleNotice (emView.cpp:1307-1310).
+            tree.remove_from_notice_list(id);
+            delivered = true;
+            self.handle_notice_one(tree, id);
+        }
+        tree.clear_pending_notices_flag();
+        delivered
+    }
+
+    /// Per-panel notice processing. Port of C++ `emPanel::HandleNotice`
+    /// (emPanel.cpp:1387–1451) exactly.
+    ///
+    /// Three phases (matching C++ structure):
+    ///   Phase 1 — AEInvalid shrink (lines 1391-1397)
+    ///   Phase 2 — Notice delivery (lines 1400-1421); sets ChildrenLayoutInvalid
+    ///             and/or AEDecisionInvalid, re-adds to ring if either is set,
+    ///             then delivers Notice() and returns (so the panel re-enters
+    ///             HandleNotice for the AE/layout phase)
+    ///   Phase 3 — AE decision + AutoExpand/AutoShrink (lines 1424-1445)
+    ///   Phase 4 — LayoutChildren if ChildrenLayoutInvalid (lines 1447-1450)
+    fn handle_notice_one(&mut self, tree: &mut PanelTree, id: PanelId) {
+        let pixel_tallness = self.CurrentPixelTallness;
+        let window_focused = self.window_focused;
+        // ── Phase 1: AEInvalid shrink (C++ emPanel.cpp:1391–1397) ──────
+        let (ae_invalid, ae_expanded) = tree
+            .panels
+            .get(id)
+            .map(|p| (p.ae_invalid, p.ae_expanded))
+            .unwrap_or((false, false));
+        if ae_invalid {
+            if let Some(p) = tree.panels.get_mut(id) {
+                p.ae_invalid = false;
+                if ae_expanded {
+                    p.ae_expanded = false;
+                    p.ae_decision_invalid = true;
+                }
+            }
+            if ae_expanded {
+                if let Some(mut behavior) = tree.take_behavior(id) {
+                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    behavior.AutoShrink(&mut ctx);
+                    if tree.panels.contains_key(id) {
+                        tree.put_behavior(id, behavior);
+                    }
+                }
             }
         }
-        self.has_pending_notices = true;
-        // C++ emView.cpp:1288: UpdateEngine->WakeUp().
-        self.WakeUpUpdateEngine();
+
+        // ── Phase 2: Notice delivery (C++ emPanel.cpp:1400–1421) ───────
+        let flags = tree
+            .panels
+            .get(id)
+            .map(|p| p.pending_notices)
+            .unwrap_or_else(NoticeFlags::empty);
+        if !flags.is_empty() {
+            // Derive AEDecisionInvalid and ChildrenLayoutInvalid from flags
+            // (C++ emPanel.cpp:1402-1415).
+            let (
+                ae_decision_invalid,
+                ae_expanded,
+                ae_threshold_type,
+                ae_threshold_value,
+                children_layout_invalid,
+            ) = {
+                let Some(p) = tree.panels.get(id) else {
+                    return;
+                };
+                (
+                    p.ae_decision_invalid,
+                    p.ae_expanded,
+                    p.ae_threshold_type,
+                    p.ae_threshold_value,
+                    p.children_layout_invalid,
+                )
+            };
+            let mut new_ae_di = ae_decision_invalid;
+            let mut new_cli = children_layout_invalid;
+            // C++ checks NF_VIEWING_CHANGED|NF_SOUGHT_NAME_CHANGED (emPanel.cpp:1402).
+            // NF_VIEWING_CHANGED = Rust VISIBILITY. VIEW_CHANGED is Rust-internal (INIT + children).
+            if flags.intersects(
+                NoticeFlags::SOUGHT_NAME_CHANGED
+                    | NoticeFlags::VIEWING_CHANGED
+                    | NoticeFlags::VIEWING_CHANGED,
+            ) {
+                let should_expand = tree.is_seek_target(id)
+                    || tree.GetViewCondition(id, ae_threshold_type) >= ae_threshold_value;
+                if should_expand != ae_expanded {
+                    new_ae_di = true;
+                }
+            }
+            if flags.intersects(NoticeFlags::LAYOUT_CHANGED | NoticeFlags::CHILD_LIST_CHANGED)
+                && tree.GetFirstChild(id).is_some()
+            {
+                new_cli = true;
+            }
+            if let Some(p) = tree.panels.get_mut(id) {
+                p.ae_decision_invalid = new_ae_di;
+                p.children_layout_invalid = new_cli;
+                p.pending_notices = NoticeFlags::empty();
+            }
+            // Re-add to ring if still work to do (C++ emPanel.cpp:1416-1418).
+            if new_ae_di || new_cli {
+                tree.add_to_notice_list(id);
+            }
+
+            // Deliver notice (C++ emPanel.cpp:1419-1421).
+            // No-behavior: treat as base Notice() no-op (C++ base is virtual no-op).
+            if let Some(mut behavior) = tree.take_behavior(id) {
+                let state = tree.build_panel_state(id, window_focused, pixel_tallness);
+                let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                behavior.notice(flags, &state, &mut ctx);
+                // "Notice() is allowed to do a 'delete this'" — C++ emPanel.cpp:1421.
+                if tree.panels.contains_key(id) {
+                    tree.put_behavior(id, behavior);
+                }
+            }
+            // C++ does `return` here (line 1421). The ring re-add above ensures
+            // the AE/layout phase runs on the next HandleNotice drain iteration.
+            return;
+        }
+
+        // ── Phase 3: AE decision (C++ emPanel.cpp:1424–1445) ───────────
+        let (ae_decision_invalid, ae_expanded, ae_threshold_type, ae_threshold_value) = {
+            let Some(p) = tree.panels.get(id) else {
+                return;
+            };
+            (
+                p.ae_decision_invalid,
+                p.ae_expanded,
+                p.ae_threshold_type,
+                p.ae_threshold_value,
+            )
+        };
+        if ae_decision_invalid {
+            if let Some(p) = tree.panels.get_mut(id) {
+                p.ae_decision_invalid = false;
+            }
+            let should_expand = tree.is_seek_target(id)
+                || tree.GetViewCondition(id, ae_threshold_type) >= ae_threshold_value;
+            if should_expand && !ae_expanded {
+                // C++ emPanel.cpp:1430-1435: AEExpanded=1; AECalling=1; AutoExpand(); AECalling=0
+                if let Some(p) = tree.panels.get_mut(id) {
+                    p.ae_expanded = true;
+                    p.ae_calling = true;
+                }
+                if let Some(mut behavior) = tree.take_behavior(id) {
+                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    behavior.AutoExpand(&mut ctx);
+                    if tree.panels.contains_key(id) {
+                        tree.put_behavior(id, behavior);
+                    }
+                }
+                if let Some(p) = tree.panels.get_mut(id) {
+                    p.ae_calling = false;
+                }
+                // C++ emPanel.cpp:1435: if (PendingNoticeFlags) return;
+                if tree
+                    .panels
+                    .get(id)
+                    .map(|p| !p.pending_notices.is_empty())
+                    .unwrap_or(false)
+                {
+                    return;
+                }
+            } else if !should_expand && ae_expanded {
+                // C++ emPanel.cpp:1439-1443: AEExpanded=0; AutoShrink()
+                if let Some(p) = tree.panels.get_mut(id) {
+                    p.ae_expanded = false;
+                }
+                if let Some(mut behavior) = tree.take_behavior(id) {
+                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    behavior.AutoShrink(&mut ctx);
+                    if tree.panels.contains_key(id) {
+                        tree.put_behavior(id, behavior);
+                    }
+                }
+                // C++ emPanel.cpp:1443: if (PendingNoticeFlags) return;
+                if tree
+                    .panels
+                    .get(id)
+                    .map(|p| !p.pending_notices.is_empty())
+                    .unwrap_or(false)
+                {
+                    return;
+                }
+            }
+        }
+
+        // ── Phase 4: LayoutChildren (C++ emPanel.cpp:1447–1450) ────────
+        let children_layout_invalid = tree
+            .panels
+            .get(id)
+            .map(|p| p.children_layout_invalid)
+            .unwrap_or(false);
+        if children_layout_invalid {
+            if tree.GetFirstChild(id).is_some() {
+                if let Some(mut behavior) = tree.take_behavior(id) {
+                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    behavior.LayoutChildren(&mut ctx);
+                    if tree.panels.contains_key(id) {
+                        tree.put_behavior(id, behavior);
+                    }
+                }
+            }
+            if let Some(p) = tree.panels.get_mut(id) {
+                p.children_layout_invalid = false;
+            }
+        }
     }
 
     /// Port of C++ `emView::RecurseInput` (public overload + private panel overload,
@@ -6236,33 +6431,51 @@ mod tests {
         );
     }
 
-    /// Phase 7: AddToNoticeList delegates to the tree and wakes the scheduler-
-    /// registered `UpdateEngineClass`.
+    /// Phase 7: queuing a notice via `tree.add_to_notice_list` wakes the
+    /// scheduler-registered `UpdateEngineClass` for the panel's view.
+    ///
+    /// SP5: `AddToNoticeList` was removed from `emView`; the ring is owned by
+    /// `PanelTree` and the wakeup is driven from `PanelTree::add_to_notice_list`
+    /// (emView.cpp:1288 parity). This test verifies that path with a real View
+    /// ref-cell so the `Weak::upgrade()` in `add_to_notice_list` succeeds.
     #[test]
     fn test_phase7_add_to_notice_list_wakes_update_engine() {
         let (mut tree, root, child1, _) = setup_tree();
-        let mut v = emView::new_for_test(root, 640.0, 480.0);
+        // Wrap the view behind Rc<RefCell> so add_to_notice_list can upgrade it.
+        let v_rc = Rc::new(RefCell::new(emView::new_for_test(root, 640.0, 480.0)));
+        // Set the view on all panels (root + descendants) so add_to_notice_list
+        // can upgrade the Weak and call WakeUpUpdateEngine.
+        tree.set_panel_view(root, Rc::downgrade(&v_rc));
+
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        v.attach_to_scheduler(sched.clone(), winit::window::WindowId::dummy());
-        v.Update(&mut tree);
-        let eng_id = v.update_engine_id.expect("update_engine_id installed");
+        v_rc.borrow_mut()
+            .attach_to_scheduler(sched.clone(), winit::window::WindowId::dummy());
+        v_rc.borrow_mut().Update(&mut tree);
+        let eng_id = v_rc
+            .borrow()
+            .update_engine_id
+            .expect("update_engine_id installed");
 
         // Put the engine to sleep so we can detect the wake-up.
         sched.borrow_mut().sleep(eng_id);
         assert!(!sched.borrow().has_awake_engines());
 
-        v.AddToNoticeList(&mut tree, child1);
+        // Queueing a notice via tree.add_to_notice_list should wake the engine.
+        tree.add_to_notice_list(child1);
         assert!(
             sched.borrow().has_awake_engines(),
-            "AddToNoticeList should wake the update engine via the scheduler"
+            "add_to_notice_list should wake the update engine via the panel's View"
         );
         // Drain the scheduler to satisfy its debug_assert on drop.
-        if let Some(eoi) = v.EOISignal.take() {
-            sched.borrow_mut().remove_signal(eoi);
-        }
-        sched.borrow_mut().remove_engine(eng_id);
-        if let Some(id) = v.visiting_va_engine_id.take() {
-            sched.borrow_mut().remove_engine(id);
+        {
+            let mut v = v_rc.borrow_mut();
+            if let Some(eoi) = v.EOISignal.take() {
+                sched.borrow_mut().remove_signal(eoi);
+            }
+            sched.borrow_mut().remove_engine(eng_id);
+            if let Some(id) = v.visiting_va_engine_id.take() {
+                sched.borrow_mut().remove_engine(id);
+            }
         }
     }
 
