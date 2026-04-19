@@ -10,7 +10,8 @@ use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
 use crate::emContext::emContext;
-use crate::emInput::{InputKey, InputVariant};
+use crate::emEngineCtx::DeferredAction as FrameworkDeferredAction;
+use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPanelTree::PanelTree;
 use crate::emScheduler::EngineScheduler;
@@ -86,10 +87,20 @@ pub type DeferredAction = Box<dyn FnOnce(&mut App, &ActiveEventLoop)>;
 pub struct App {
     pub gpu: Option<GpuContext>,
     pub screen: Option<emScreen>,
-    pub scheduler: Rc<RefCell<EngineScheduler>>,
+    pub scheduler: EngineScheduler,
     pub context: Rc<emContext>,
     pub tree: PanelTree,
+    // NOTE (Phase 1 Task 2): plan calls for `HashMap<WindowId, emWindow>` (plain
+    // value) but narrowing the wrapper cascades into dozens of call sites across
+    // emWindow / materialize_popup_surface / view wiring. Deferred to a later task.
     pub windows: HashMap<WindowId, Rc<RefCell<emWindow>>>,
+    /// Framework-level deferred actions produced by scheduler/view code that
+    /// need to run back on `App` between time slices. Phase 1 Task 2 seed —
+    /// populated in later tasks.
+    pub(crate) framework_actions: Vec<FrameworkDeferredAction>,
+    /// Input events routed per-window but processed between time slices.
+    /// Phase 1 Task 2 seed.
+    pub(crate) pending_inputs: Vec<(WindowId, emInputEvent)>,
     pub input_state: emInputState,
     /// Deferred actions queued by input handlers that need `&ActiveEventLoop`
     /// (e.g., window creation for Duplicate/CreateControlWindow, popup
@@ -109,9 +120,13 @@ pub struct App {
 
 impl App {
     pub fn new(setup: SetupFn) -> Self {
-        let scheduler = Rc::new(RefCell::new(EngineScheduler::new()));
-        let file_update_signal = scheduler.borrow_mut().create_signal();
-        let context = emContext::NewRootWithScheduler(Rc::clone(&scheduler));
+        let mut scheduler = EngineScheduler::new();
+        let file_update_signal = scheduler.create_signal();
+        // TODO(Phase 1 Task 8): emContext is being ported to borrow a
+        // `&mut EngineScheduler` from its construct context rather than own
+        // `Rc<RefCell<EngineScheduler>>`. For now, construct with NewRoot;
+        // Task 8 wires the scheduler through ConstructCtx.
+        let context = emContext::NewRoot();
         Self {
             gpu: None,
             screen: None,
@@ -119,6 +134,8 @@ impl App {
             context,
             tree: PanelTree::new(),
             windows: HashMap::new(),
+            framework_actions: Vec::new(),
+            pending_inputs: Vec::new(),
             input_state: emInputState::new(),
             pending_actions: Rc::new(RefCell::new(Vec::new())),
             file_update_signal,
@@ -285,8 +302,8 @@ impl ApplicationHandler for App {
         self.gpu = Some(GpuContext::new());
 
         // Scan monitors — allocate signal IDs for geometry/window-list changes.
-        let geom_sig = self.scheduler.borrow_mut().create_signal();
-        let win_sig = self.scheduler.borrow_mut().create_signal();
+        let geom_sig = self.scheduler.create_signal();
+        let win_sig = self.scheduler.create_signal();
         self.screen = Some(emScreen::from_event_loop(event_loop, geom_sig, win_sig));
 
         // Call user setup
@@ -310,7 +327,7 @@ impl ApplicationHandler for App {
                     .unwrap_or(true);
 
                 if let Some(rc) = self.windows.get(&window_id) {
-                    self.scheduler.borrow_mut().fire(rc.borrow().close_signal);
+                    self.scheduler.fire(rc.borrow().close_signal);
                 }
 
                 if auto_delete {
@@ -447,12 +464,14 @@ impl ApplicationHandler for App {
             })
             .collect();
         for sig in changed_signals {
-            self.scheduler.borrow_mut().fire(sig);
+            self.scheduler.fire(sig);
         }
 
         // Run one scheduler time slice
+        // TODO(Phase 1 Task 3): new signature is
+        //   DoTimeSlice(&mut self.windows, &self.context, &mut self.tree, ...)
+        // For now, keep the call form and let Task 3 adjust.
         self.scheduler
-            .borrow_mut()
             .DoTimeSlice(&mut self.tree, &mut self.windows);
 
         // SP4.5 fix: register any panels created via `create_child` from
@@ -467,7 +486,7 @@ impl ApplicationHandler for App {
         // ControlFlow::Wait which only fires about_to_wait on OS events.
         // Requesting redraws ensures continuous cycling during startup,
         // animations, and any other engine activity.
-        if self.scheduler.borrow().has_awake_engines() {
+        if self.scheduler.has_awake_engines() {
             for rc in self.windows.values() {
                 rc.borrow().request_redraw();
             }
@@ -599,5 +618,20 @@ impl ApplicationHandler for App {
                 win.request_redraw();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Phase 1 Task 2: the scheduler is owned by `App` as a plain value, not
+    /// wrapped in `Rc<RefCell<...>>`.
+    #[test]
+    fn framework_scheduler_is_plain_value() {
+        let framework = App::new(Box::new(|_app, _el| {}));
+        let _: &EngineScheduler = &framework.scheduler;
+        assert!(framework.framework_actions.is_empty());
+        assert!(framework.pending_inputs.is_empty());
     }
 }
