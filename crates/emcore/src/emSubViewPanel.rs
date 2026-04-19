@@ -31,6 +31,18 @@ pub struct emSubViewPanel {
     /// C++ emView has ActiveAnimator — an animator that drives zoom/scroll
     /// within this sub-view. Ticked during Paint alongside sub-tree lifecycle.
     pub active_animator: Option<Box<dyn emViewAnimator>>,
+    /// DIVERGED: C++ shares the parent emContext's scheduler via context-chain
+    /// lookup (emContext::GetScheduler). Rust emSubViewPanel owns a nested
+    /// PanelTree and emView; EngineCtx::tree is singular, so a single scheduler
+    /// cannot cycle engines across two trees. The forced concession: this
+    /// sub-view gets its own EngineScheduler. It is ticked from the outer
+    /// PanelCycleEngine (PanelBehavior::Cycle below) once per parent-scheduler
+    /// slice, preserving C++ observable cross-frame settlement behavior.
+    /// Will be unified with the parent scheduler if/when SP7 threads emContext
+    /// through the view/window subsystem.
+    pub(crate) sub_scheduler: std::rc::Rc<std::cell::RefCell<crate::emScheduler::EngineScheduler>>,
+    /// Wall-clock timestamp of previous Cycle, used for active_animator dt.
+    last_cycle: Option<std::time::Instant>,
 }
 
 impl Default for emSubViewPanel {
@@ -64,6 +76,18 @@ impl emSubViewPanel {
         let sub_view = Rc::new(RefCell::new(emView::new(root, 1.0, 1.0, core_config)));
         sub_tree.init_panel_view(root, Rc::downgrade(&sub_view));
 
+        let sub_scheduler = std::rc::Rc::new(std::cell::RefCell::new(
+            crate::emScheduler::EngineScheduler::new(),
+        ));
+        // Attach sub-view: registers UpdateEngineClass + VisitingVAEngineClass
+        // against sub_scheduler using view-direct weak (Phase 1).
+        sub_view
+            .borrow_mut()
+            .attach_to_scheduler(sub_scheduler.clone(), std::rc::Rc::downgrade(&sub_view));
+        // Now sub_tree panels have a view with a scheduler — register
+        // PanelCycleEngine adapters for any panels already in the sub-tree.
+        sub_tree.register_pending_engines();
+
         Self {
             sub_tree,
             sub_view,
@@ -72,6 +96,8 @@ impl emSubViewPanel {
             viewed_width: 1.0,
             viewed_height: 1.0,
             active_animator: None,
+            sub_scheduler,
+            last_cycle: None,
         }
     }
 
@@ -276,6 +302,46 @@ impl PanelBehavior for emSubViewPanel {
         false
     }
 
+    fn Cycle(&mut self, _ctx: &mut PanelCtx) -> bool {
+        // Wall-clock dt for the active_animator tick (matching
+        // VisitingVAEngineClass pattern).
+        let now = std::time::Instant::now();
+        let dt = self
+            .last_cycle
+            .map(|t| now.duration_since(t).as_secs_f64())
+            .unwrap_or(0.016)
+            .clamp(0.001, 0.1);
+        self.last_cycle = Some(now);
+
+        // 1) Tick the ActiveAnimator (C++ emView::ActiveAnimator; Rust stores
+        //    on emSubViewPanel per SP1 §5.1 item 3). Take/put preserves Rust
+        //    borrow rules.
+        let animator_active = if let Some(mut anim) = self.active_animator.take() {
+            let still_active =
+                anim.animate(&mut self.sub_view.borrow_mut(), &mut self.sub_tree, dt);
+            if still_active {
+                self.active_animator = Some(anim);
+            }
+            still_active
+        } else {
+            false
+        };
+
+        // 2) Drive one sub-scheduler slice. sub-view engines never access
+        //    ctx.windows (view-direct after Phase 1), so an empty window map
+        //    is safe.
+        let mut empty_windows: std::collections::HashMap<
+            winit::window::WindowId,
+            std::rc::Rc<std::cell::RefCell<crate::emWindow::emWindow>>,
+        > = std::collections::HashMap::new();
+        self.sub_scheduler
+            .borrow_mut()
+            .DoTimeSlice(&mut self.sub_tree, &mut empty_windows);
+
+        // 3) Stay awake iff the sub-scheduler or active_animator still has work.
+        animator_active || self.sub_scheduler.borrow().has_awake_engines()
+    }
+
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState, _ctx: &mut PanelCtx) {
         // C++ NF_FOCUS_CHANGED → SetViewFocused(IsFocused())
         if flags.intersects(NoticeFlags::FOCUS_CHANGED) {
@@ -396,5 +462,62 @@ impl PanelBehavior for emSubViewPanel {
             title_invalid: title,
             cursor_invalid: cursor,
         })
+    }
+}
+
+#[cfg(test)]
+mod sp8_tests {
+    use super::*;
+
+    /// Deregister sub-view + sub-tree engines so sub_scheduler's Drop
+    /// debug_assert (engines empty) passes at end of test. Production
+    /// tears down via panel removal + view shutdown paths; tests construct
+    /// a bare emSubViewPanel and skip that, so clean up explicitly.
+    fn teardown(panel: &mut emSubViewPanel) {
+        let root = panel.sub_root();
+        panel.sub_tree.remove(root);
+        let mut view = panel.sub_view.borrow_mut();
+        let mut sched = panel.sub_scheduler.borrow_mut();
+        if let Some(eid) = view.update_engine_id.take() {
+            sched.remove_engine(eid);
+        }
+        if let Some(eid) = view.visiting_va_engine_id.take() {
+            sched.remove_engine(eid);
+        }
+        if let Some(sig) = view.EOISignal.take() {
+            sched.remove_signal(sig);
+        }
+    }
+
+    #[test]
+    fn sp8_sub_view_update_engine_registered() {
+        let mut panel = emSubViewPanel::new();
+        {
+            let sub_view = panel.GetSubView();
+            assert!(
+                sub_view.scheduler_ref().is_some(),
+                "sub_view must be attached to sub_scheduler in new()"
+            );
+        }
+        teardown(&mut panel);
+    }
+
+    #[test]
+    fn sp8_sub_tree_root_panel_engine_registered() {
+        let mut panel = emSubViewPanel::new();
+        let root = panel.sub_root();
+        let engine_id = panel.sub_tree().panel_engine_id(root);
+        assert!(
+            engine_id.is_some(),
+            "sub-tree root panel must have PanelCycleEngine registered on sub_scheduler"
+        );
+        // sub_scheduler holds the engines; must have awake engines after
+        // attach_to_scheduler woke UpdateEngineClass.
+        assert!(
+            panel.sub_scheduler.borrow().has_awake_engines(),
+            "sub_scheduler must have awake engines after construction"
+        );
+        assert!(panel.last_cycle.is_none());
+        teardown(&mut panel);
     }
 }

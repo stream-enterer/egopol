@@ -750,6 +750,12 @@ impl PanelTree {
         self.panels.get(id)
     }
 
+    /// Read a panel's scheduler engine id (test-only helper).
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn panel_engine_id(&self, id: PanelId) -> Option<EngineId> {
+        self.panels.get(id).and_then(|p| p.engine_id)
+    }
+
     /// Get a panel's data mutably (crate-internal).
     pub(crate) fn get_mut(&mut self, id: PanelId) -> Option<&mut PanelData> {
         self.panels.get_mut(id)
