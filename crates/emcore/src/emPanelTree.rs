@@ -3778,4 +3778,84 @@ mod tests {
             "SP4.5-FIX-1 top-level-startup slice delta drifted; re-run Part B measurement"
         );
     }
+
+    /// Baseline slice-delta fixture for the top-level mid-Update contention
+    /// path (Part B Path 2). Mirrors the production path:
+    ///   winit window_event → dispatch_input → emView::Update →
+    ///   emVirtualCosmosPanel::update_children → tree.create_child(...)
+    ///
+    /// The contention shape is "view borrow_mut held during create_child"
+    /// (as opposed to "scheduler borrow_mut held" in Path 1 / startup).
+    ///
+    /// Delta is measured from the scheduler counter at the moment create_child
+    /// is called (with view borrow_mut held) to the counter when the spawned
+    /// panel's PanelCycleEngine fires its first Cycle. Baseline is locked in
+    /// the assert; re-run with `panic!("MEASURED_DELTA={}", delta);` to
+    /// re-measure if the production scheduling shape changes.
+    #[test]
+    fn sp4_5_fix_1_timing_top_level_mid_update_baseline_slices() {
+        use std::cell::Cell;
+        use std::collections::HashMap;
+
+        let (mut tree, view, sched, root) = make_registered_tree();
+        let mut empty_windows: HashMap<
+            winit::window::WindowId,
+            Rc<RefCell<crate::emWindow::emWindow>>,
+        > = HashMap::new();
+
+        // Snapshot the spawning slice (scheduler counter at time of create).
+        let create_at = sched.borrow().GetTimeSliceCounter();
+
+        // Simulate the production "view borrow_mut held" state (mirrors emView::Update running).
+        let spawned = {
+            let _view_borrow = view.borrow_mut();
+            tree.create_child(root, "spawned")
+        };
+        tree.register_pending_engines();
+        let pce_eid = tree
+            .GetRec(spawned)
+            .and_then(|p| p.engine_id)
+            .expect("spawned must be registered after catch-up");
+
+        // Attach probe; wake; drive slices until first cycle.
+        let probe_captured: Rc<Cell<Option<u64>>> = Rc::new(Cell::new(None));
+        sched
+            .borrow_mut()
+            .attach_first_cycle_probe(pce_eid, probe_captured.clone());
+        sched.borrow_mut().wake_up(pce_eid);
+
+        let mut slices = 0u64;
+        while probe_captured.get().is_none() {
+            sched
+                .borrow_mut()
+                .DoTimeSlice(&mut tree, &mut empty_windows);
+            tree.register_pending_engines();
+            slices += 1;
+            assert!(
+                slices < 10,
+                "spawned panel should cycle within a few slices"
+            );
+        }
+        let cycled_at = probe_captured.get().unwrap();
+        let delta = cycled_at - create_at;
+
+        // Cleanup before assert (preserve scheduler-Drop invariant).
+        tree.remove(root);
+        let cleanup_ops: Vec<crate::emView::SchedOp> =
+            view.borrow_mut().pending_sched_ops.drain(..).collect();
+        {
+            let mut s = sched.borrow_mut();
+            for op in cleanup_ops {
+                op.apply_to(&mut s);
+            }
+        }
+
+        // Baseline locked via first-run measurement. Re-run with
+        // `panic!("MEASURED_DELTA={}", delta);` to re-measure if the
+        // production scheduling shape changes.
+        assert_eq!(
+            delta, 1u64,
+            "SP4.5-FIX-1 top-level-mid-Update slice delta drifted; re-run Part B measurement"
+        );
+    }
 }
