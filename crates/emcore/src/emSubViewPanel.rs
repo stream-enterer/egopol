@@ -324,6 +324,12 @@ impl PanelBehavior for emSubViewPanel {
             .borrow_mut()
             .DoTimeSlice(&mut self.sub_tree, &mut empty_windows);
 
+        // SP4.5 fix: register any sub-tree panels created via `create_child`
+        // from inside a sub-scheduler engine's `Cycle`. Their
+        // `register_engine_for` deferred while the sub-scheduler was
+        // `borrow_mut`'d by `DoTimeSlice`; now it's released.
+        self.sub_tree.register_pending_engines();
+
         // 3) Stay awake iff the sub-scheduler or active_animator still has work.
         animator_active || self.sub_scheduler.borrow().has_awake_engines()
     }

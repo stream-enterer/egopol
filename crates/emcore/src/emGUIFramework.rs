@@ -455,6 +455,13 @@ impl ApplicationHandler for App {
             .borrow_mut()
             .DoTimeSlice(&mut self.tree, &mut self.windows);
 
+        // SP4.5 fix: register any panels created via `create_child` from
+        // inside an engine's `Cycle` (e.g. `StartupEngine`). Their
+        // `register_engine_for` call deferred when it found the scheduler
+        // already `borrow_mut`'d by `DoTimeSlice`. Now that the borrow has
+        // been released, walk the tree and register pending engines.
+        self.tree.register_pending_engines();
+
         // Keep event loop pumping while engines are active.
         // C++ runs a tight 10ms loop; Rust uses event-driven winit with
         // ControlFlow::Wait which only fires about_to_wait on OS events.

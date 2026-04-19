@@ -546,6 +546,15 @@ impl PanelTree {
     /// Register `id`'s scheduler engine if the panel has a live view and
     /// does not already have one. Called from `init_panel_view` and its
     /// descendant walk, and from `create_child` (SP4.5).
+    ///
+    /// Uses `try_borrow_mut` on the scheduler so callers reachable from
+    /// inside an engine's `Cycle` (e.g. `StartupEngine::Cycle` →
+    /// `create_child`) don't re-entrantly borrow the scheduler that
+    /// `DoTimeSlice` is currently holding. When the scheduler is busy the
+    /// panel is left with `engine_id = None`; the post-`DoTimeSlice`
+    /// `register_pending_engines()` catch-up sweep (in
+    /// `App::about_to_wait` and `emSubViewPanel::Cycle`) registers it on
+    /// the way out of the slice.
     fn register_engine_for(&mut self, id: PanelId) {
         if self.panels.get(id).and_then(|p| p.engine_id).is_some() {
             return; // idempotent re-attachment guard
@@ -561,16 +570,28 @@ impl PanelTree {
         let Some(view_rc) = view_weak.upgrade() else {
             return;
         };
-        let Some(sched_rc) = view_rc.borrow().scheduler_ref().cloned() else {
+        // try_borrow: a panel created from inside `emView::Update` (which
+        // holds `view_rc.borrow_mut()` for the duration of its run) reaches
+        // here with the view already borrowed. Defer to the post-slice
+        // catch-up sweep (next `App::about_to_wait` tick).
+        let Ok(view_borrow) = view_rc.try_borrow() else {
+            return;
+        };
+        let Some(sched_rc) = view_borrow.scheduler_ref().cloned() else {
             return; // unit-test bare view with no scheduler
         };
+        drop(view_borrow);
         let adapter = PanelCycleEngine {
             panel_id: id,
             view: view_weak,
         };
-        let eid = sched_rc
-            .borrow_mut()
-            .register_engine(Priority::Medium, Box::new(adapter));
+        let Ok(mut sched) = sched_rc.try_borrow_mut() else {
+            // Re-entrant: scheduler is already borrowed by DoTimeSlice
+            // (e.g. caller is inside another engine's Cycle). Defer to the
+            // post-slice catch-up sweep.
+            return;
+        };
+        let eid = sched.register_engine(Priority::Medium, Box::new(adapter));
         self.panels[id].engine_id = Some(eid);
     }
 
@@ -3298,6 +3319,104 @@ mod tests {
                 sched.borrow_mut().remove_signal(sig);
             }
         }
+    }
+
+    /// Regression: a scheduler engine that creates a child panel inside its
+    /// `Cycle()` must not re-entrantly `borrow_mut` the scheduler. Before the
+    /// fix, `register_engine_for` called `sched_rc.borrow_mut()`
+    /// unconditionally; called from `create_child` from inside a `Cycle`
+    /// (e.g. `StartupEngine`) it panicked because `DoTimeSlice` already held
+    /// the scheduler `borrow_mut`. Production startup hit this immediately.
+    #[test]
+    fn sp4_5_create_child_from_inside_engine_cycle_does_not_panic() {
+        use std::collections::HashMap;
+
+        let (mut tree, _view, sched, root) = make_registered_tree();
+
+        struct ChildSpawnEngine {
+            parent: PanelId,
+            spawned: bool,
+        }
+        impl crate::emEngine::emEngine for ChildSpawnEngine {
+            fn Cycle(&mut self, ctx: &mut crate::emEngine::EngineCtx<'_>) -> bool {
+                if !self.spawned {
+                    ctx.tree.create_child(self.parent, "spawned");
+                    self.spawned = true;
+                }
+                false
+            }
+        }
+
+        let spawn_eid = sched.borrow_mut().register_engine(
+            crate::emEngine::Priority::Medium,
+            Box::new(ChildSpawnEngine {
+                parent: root,
+                spawned: false,
+            }),
+        );
+        sched.borrow_mut().wake_up(spawn_eid);
+
+        let mut empty_windows: HashMap<
+            winit::window::WindowId,
+            Rc<RefCell<crate::emWindow::emWindow>>,
+        > = HashMap::new();
+        sched
+            .borrow_mut()
+            .DoTimeSlice(&mut tree, &mut empty_windows);
+
+        let child = tree
+            .GetRec(root)
+            .and_then(|p| p.first_child)
+            .expect("spawned child must exist");
+
+        // The catch-up pass that fires after DoTimeSlice (in production: in
+        // App::about_to_wait; here we invoke it explicitly) must register
+        // the deferred panel's engine.
+        tree.register_pending_engines();
+        let child_eid = tree
+            .GetRec(child)
+            .and_then(|p| p.engine_id)
+            .expect("spawned child must have engine_id after catch-up pass");
+        assert!(
+            sched.borrow().get_engine_priority(child_eid).is_some(),
+            "scheduler must hold the deferred-registered engine",
+        );
+
+        // Cleanup.
+        tree.remove(root);
+        sched.borrow_mut().remove_engine(spawn_eid);
+    }
+
+    /// Regression: callers reaching `register_engine_for` while the view
+    /// is `borrow_mut`'d up the stack (e.g. inside `emView::Update`) must
+    /// not re-entrantly borrow the view to read its scheduler. Production
+    /// path: input → `dispatch_input` → `Update` → `update_children` →
+    /// `create_child` → `register_engine_for`.
+    #[test]
+    fn sp4_5_create_child_with_view_already_borrow_mut_does_not_panic() {
+        let (tree_owned, view, sched, root) = make_registered_tree();
+        let mut tree = tree_owned;
+
+        // Simulate the production "view is currently borrow_mut'd" state
+        // (as it is throughout `emView::Update`).
+        let _view_borrow = view.borrow_mut();
+        let child = tree.create_child(root, "spawned");
+        drop(_view_borrow);
+
+        // create_child returned without panic. Engine registration was
+        // deferred (view borrow was busy). Catch-up sweep registers it now.
+        assert!(
+            tree.GetRec(child).and_then(|p| p.engine_id).is_none(),
+            "engine_id should be deferred while view borrow_mut was held",
+        );
+        tree.register_pending_engines();
+        let eid = tree
+            .GetRec(child)
+            .and_then(|p| p.engine_id)
+            .expect("catch-up must register the deferred engine");
+        assert!(sched.borrow().get_engine_priority(eid).is_some());
+
+        tree.remove(root);
     }
 
     // ── SP4.5 Phase 5 tests: multi-view tallness + sibling wake ───────
