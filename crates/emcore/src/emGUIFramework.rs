@@ -501,12 +501,11 @@ impl ApplicationHandler for App {
             }
         }
 
-        // SP4.5: top-level panel cycling runs through the scheduler's normal
-        // engine loop (each emPanel registers a PanelCycleEngine at
-        // init_panel_view/create_child). emSubViewPanel still drives its
-        // sub-tree via PanelTree::run_panel_cycles synchronously inside Paint
-        // — that path is tied to the sub-view settlement divergence and will
-        // be resolved by its own sub-project (see closeout §8.0).
+        // SP4.5 + SP8: all panel cycling runs through the scheduler's normal
+        // engine loop. Top-level panels via PanelCycleEngine registered at
+        // init_panel_view; sub-view panels via the same path on each
+        // emSubViewPanel's own sub_scheduler, which is driven from the outer
+        // PanelCycleEngine's PanelBehavior::Cycle (SP8).
 
         // Notice dispatch now happens per-view inside emView::Update (SP5,
         // emView.cpp:1303-1314 parity). No global HandleNotice call here.
