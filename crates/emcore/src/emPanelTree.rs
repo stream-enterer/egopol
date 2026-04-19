@@ -584,6 +584,8 @@ impl PanelTree {
         let adapter = PanelCycleEngine {
             panel_id: id,
             view: view_weak,
+            #[cfg(any(test, feature = "test-support"))]
+            first_cycle_probe: None,
         };
         let Ok(mut sched) = sched_rc.try_borrow_mut() else {
             // Re-entrant: scheduler is already borrowed by DoTimeSlice
