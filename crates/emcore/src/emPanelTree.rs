@@ -577,6 +577,18 @@ impl PanelTree {
         self.panels[id].engine_id = Some(eid);
     }
 
+    /// SP4.5: catch-up pass for panels created before the owning view had
+    /// a scheduler attached; safe to call repeatedly. Walks every panel in
+    /// `self.panels` and calls `register_engine_for(id)` on each; the helper
+    /// is idempotent (early-returns if `engine_id.is_some()` or the view has
+    /// no scheduler yet).
+    pub fn register_pending_engines(&mut self) {
+        let ids: Vec<PanelId> = self.panels.keys().collect();
+        for id in ids {
+            self.register_engine_for(id);
+        }
+    }
+
     /// Deregister `id`'s scheduler engine. Uses
     /// `queue_or_apply_sched_op(SchedOp::RemoveEngine(eid))` on the owning
     /// view so a panel removed from inside a sibling's `Cycle` (scheduler
@@ -3261,5 +3273,75 @@ mod tests {
         );
         // Cleanup root engine too.
         tree.remove(root);
+    }
+
+    #[test]
+    fn sp4_5_register_pending_engines_catches_late_scheduler_attach() {
+        // Reproduces the production ordering in emMainWindow.rs:
+        //   1. init_panel_view (view exists but has no scheduler yet)
+        //   2. attach_to_scheduler (view now has a scheduler)
+        //   3. register_pending_engines (catch-up pass)
+        // After step 3, the root panel must have an engine_id.
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        let view = Rc::new(RefCell::new(emView::new(
+            root,
+            800.0,
+            600.0,
+            Rc::new(RefCell::new(crate::emCoreConfig::emCoreConfig::default())),
+        )));
+        // Step 1: init_panel_view BEFORE attach_to_scheduler. The helper
+        // early-returns with no engine_id because the view has no scheduler.
+        tree.init_panel_view(root, Rc::downgrade(&view));
+        assert!(
+            tree.GetRec(root).and_then(|p| p.engine_id).is_none(),
+            "without a scheduler attached, init_panel_view must leave engine_id=None"
+        );
+
+        // Step 2: attach_to_scheduler.
+        let sched = Rc::new(RefCell::new(EngineScheduler::new()));
+        view.borrow_mut()
+            .attach_to_scheduler(sched.clone(), winit::window::WindowId::dummy());
+
+        // Still no engine_id — register_engine_for was never re-invoked.
+        assert!(
+            tree.GetRec(root).and_then(|p| p.engine_id).is_none(),
+            "attach_to_scheduler alone must not retroactively register panel engines"
+        );
+
+        // Step 3: catch-up pass.
+        tree.register_pending_engines();
+        let eid = tree
+            .GetRec(root)
+            .and_then(|p| p.engine_id)
+            .expect("register_pending_engines must register the root panel's engine");
+        assert!(
+            sched.borrow().get_engine_priority(eid).is_some(),
+            "scheduler should hold the newly-registered engine"
+        );
+
+        // Idempotent: second call is a no-op.
+        tree.register_pending_engines();
+        assert_eq!(tree.GetRec(root).and_then(|p| p.engine_id), Some(eid));
+
+        // Cleanup.
+        tree.remove(root);
+        assert!(sched.borrow().get_engine_priority(eid).is_none());
+        // Drop attach_to_scheduler's engines so scheduler Drop passes.
+        {
+            let mut v = view.borrow_mut();
+            if let Some(id) = v.update_engine_id.take() {
+                sched.borrow_mut().remove_engine(id);
+            }
+            if let Some(id) = v.eoi_engine_id.take() {
+                sched.borrow_mut().remove_engine(id);
+            }
+            if let Some(id) = v.visiting_va_engine_id.take() {
+                sched.borrow_mut().remove_engine(id);
+            }
+            if let Some(sig) = v.EOISignal.take() {
+                sched.borrow_mut().remove_signal(sig);
+            }
+        }
     }
 }

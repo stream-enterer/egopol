@@ -880,6 +880,10 @@ pub fn create_main_window(
             .attach_to_scheduler(Rc::clone(&app.scheduler), window_id);
         win.view_mut().set_control_panel_signal(cp_signal);
     }
+    // SP4.5: init_panel_view ran before attach_to_scheduler above, so the
+    // root panel (and any children already created) missed the in-line
+    // register_engine_for pass. Catch them up now.
+    app.tree.register_pending_engines();
     // We don't yet have the sub-view panel IDs (created during LayoutChildren),
     // so use a dummy PanelId(0) for now — the bridge only uses the signal.
     let bridge = ControlPanelBridge {
