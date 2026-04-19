@@ -255,49 +255,14 @@ impl App {
             winit_window.set_outer_position(winit::dpi::PhysicalPosition::new(x, y));
         }
 
-        let size = winit_window.inner_size();
-        let w = size.width.max(1);
-        let h = size.height.max(1);
-
         let gpu = self.gpu.as_ref().expect("GPU not initialized");
-        let surface = gpu
-            .instance
-            .create_surface(winit_window.clone())
-            .expect("failed to create popup surface");
-        let caps = surface.get_capabilities(&gpu.adapter);
-        let format = caps
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(caps.formats[0]);
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format,
-            width: w,
-            height: h,
-            present_mode: wgpu::PresentMode::AutoVsync,
-            alpha_mode: caps.alpha_modes[0],
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        };
-        surface.configure(&gpu.device, &surface_config);
-
-        let compositor =
-            crate::emViewRendererCompositor::WgpuCompositor::new(&gpu.device, format, w, h);
-        let tile_cache = crate::emViewRendererTileCache::TileCache::new(w, h, 256);
-        let viewport_buffer = crate::emImage::emImage::new(w, h, 4);
+        let materialized = MaterializedSurface::build(gpu, winit_window.clone());
+        let w = materialized.surface_config.width;
+        let h = materialized.surface_config.height;
 
         {
             let mut w_mut = win_rc.borrow_mut();
-            w_mut.os_surface = OsSurface::Materialized(Box::new(MaterializedSurface {
-                winit_window: winit_window.clone(),
-                surface,
-                surface_config,
-                compositor,
-                tile_cache,
-                viewport_buffer,
-            }));
+            w_mut.os_surface = OsSurface::Materialized(Box::new(materialized));
             w_mut
                 .view_mut()
                 .SetGeometry(&mut self.tree, 0.0, 0.0, w as f64, h as f64, 1.0);

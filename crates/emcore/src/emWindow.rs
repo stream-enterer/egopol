@@ -60,6 +60,52 @@ pub(crate) struct MaterializedSurface {
     pub viewport_buffer: crate::emImage::emImage,
 }
 
+impl MaterializedSurface {
+    pub(crate) fn build(gpu: &GpuContext, winit_window: Arc<winit::window::Window>) -> Self {
+        let size = winit_window.inner_size();
+        let w = size.width.max(1);
+        let h = size.height.max(1);
+
+        let surface = gpu
+            .instance
+            .create_surface(winit_window.clone())
+            .expect("failed to create surface");
+
+        let caps = surface.get_capabilities(&gpu.adapter);
+        let format = caps
+            .formats
+            .iter()
+            .find(|f| f.is_srgb())
+            .copied()
+            .unwrap_or(caps.formats[0]);
+
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format,
+            width: w,
+            height: h,
+            present_mode: wgpu::PresentMode::AutoVsync,
+            alpha_mode: caps.alpha_modes[0],
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+        surface.configure(&gpu.device, &surface_config);
+
+        let compositor = WgpuCompositor::new(&gpu.device, format, w, h);
+        let tile_cache = TileCache::new(w, h, 256);
+        let viewport_buffer = crate::emImage::emImage::new(w, h, 4);
+
+        Self {
+            winit_window,
+            surface,
+            surface_config,
+            compositor,
+            tile_cache,
+            viewport_buffer,
+        }
+    }
+}
+
 pub(crate) enum OsSurface {
     Pending(Box<PendingSurface>),
     Materialized(Box<MaterializedSurface>),
@@ -158,39 +204,9 @@ impl emWindow {
                 .expect("failed to create window"),
         );
 
-        let size = winit_window.inner_size();
-        let w = size.width.max(1);
-        let h = size.height.max(1);
-
-        // Create surface — use Arc clone for 'static lifetime
-        let surface = gpu
-            .instance
-            .create_surface(winit_window.clone())
-            .expect("failed to create surface");
-
-        let caps = surface.get_capabilities(&gpu.adapter);
-        let format = caps
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(caps.formats[0]);
-
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format,
-            width: w,
-            height: h,
-            present_mode: wgpu::PresentMode::AutoVsync,
-            alpha_mode: caps.alpha_modes[0],
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        };
-        surface.configure(&gpu.device, &surface_config);
-
-        let compositor = WgpuCompositor::new(&gpu.device, format, w, h);
-        let tile_cache = TileCache::new(w, h, 256);
-        let viewport_buffer = crate::emImage::emImage::new(w, h, 4);
+        let materialized = MaterializedSurface::build(gpu, winit_window);
+        let w = materialized.surface_config.width;
+        let h = materialized.surface_config.height;
         let core_config = Rc::new(RefCell::new(emCoreConfig::default()));
         let view = emView::new(root_panel, w as f64, h as f64, core_config);
 
@@ -206,14 +222,7 @@ impl emWindow {
         ];
 
         let window = Rc::new(RefCell::new(Self {
-            os_surface: OsSurface::Materialized(Box::new(MaterializedSurface {
-                winit_window,
-                surface,
-                surface_config,
-                compositor,
-                tile_cache,
-                viewport_buffer,
-            })),
+            os_surface: OsSurface::Materialized(Box::new(materialized)),
             view: Rc::new(RefCell::new(view)),
             flags,
             close_signal,
