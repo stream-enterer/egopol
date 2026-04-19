@@ -63,11 +63,32 @@ macro_rules! require_golden {
     };
 }
 
-/// Settle: deliver notices, run panel cycles, and update viewing until stable.
+/// Settle: drive `rounds` scheduler slices. Matches C++ gen_golden.cpp
+/// `TerminateEngine ctrl(sched, N)` pattern — a real scheduler loop.
 fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    // Attach a scheduler on first call (idempotent — already-attached views
+    // are re-used).
+    //
+    // DIVERGED (test-only): golden tests hold emView by &mut, not Rc. To give
+    // engines a Weak<RefCell<emView>>, we'd need to thread the Rc through every
+    // test. Instead we register only PanelCycleEngines (via
+    // register_pending_engines) and drive DoTimeSlice against those; the view's
+    // Update is driven explicitly in the loop below (SP5 per-view HandleNotice
+    // drains there). No UpdateEngineClass/VisitingVAEngineClass are registered
+    // in this harness.
+    if view.scheduler_ref().is_none() {
+        let sched = Rc::new(RefCell::new(emcore::emScheduler::EngineScheduler::new()));
+        view.set_scheduler(sched);
+    }
+    let sched = view.scheduler_ref().unwrap().clone();
+    tree.register_pending_engines();
+    let mut empty_windows = std::collections::HashMap::new();
     for _ in 0..rounds {
-        view.HandleNotice(tree);
-        tree.run_panel_cycles(view.GetCurrentPixelTallness());
+        // Drive panel cycling through the scheduler.
+        sched.borrow_mut().DoTimeSlice(tree, &mut empty_windows);
+        // HandleNotice + Update per-view (SP5 pattern).
         view.Update(tree);
     }
 }
