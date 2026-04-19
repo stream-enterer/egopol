@@ -3344,4 +3344,233 @@ mod tests {
             }
         }
     }
+
+    // ── SP4.5 Phase 5 tests: multi-view tallness + sibling wake ───────
+
+    /// Phase 5 Task 5.1 — each panel's PanelCycleEngine::Cycle must read
+    /// its OWN view's CurrentPixelTallness (not an arbitrary window's
+    /// value, as the pre-SP4.5 framework pick-first-window shortcut did).
+    ///
+    /// Two independent views with distinct CurrentPixelTallness; each
+    /// hosts one cycling panel. After running each scheduler's
+    /// DoTimeSlice, every panel's recorded tallness must equal its own
+    /// view's tallness.
+    #[test]
+    fn sp4_5_panel_cycle_uses_per_view_pixel_tallness() {
+        use crate::emPanel::PanelBehavior;
+        use crate::emPanelCtx::PanelCtx;
+        use std::cell::Cell;
+        use std::collections::HashMap;
+
+        /// Behavior that captures ctx.current_pixel_tallness on Cycle.
+        struct TallnessRecordingBehavior {
+            recorded: Rc<Cell<Option<f64>>>,
+        }
+        impl PanelBehavior for TallnessRecordingBehavior {
+            fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
+                self.recorded.set(Some(ctx.current_pixel_tallness));
+                false // sleep after one cycle
+            }
+        }
+
+        // ── View A: pixel tallness 1.5 ───────────────────────────────
+        let mut tree_a = PanelTree::new();
+        let root_a = tree_a.create_root_deferred_view("rootA");
+        let view_a = Rc::new(RefCell::new(emView::new(
+            root_a,
+            800.0,
+            600.0,
+            Rc::new(RefCell::new(crate::emCoreConfig::emCoreConfig::default())),
+        )));
+        let sched_a = Rc::new(RefCell::new(EngineScheduler::new()));
+        view_a.borrow_mut().set_scheduler(sched_a.clone());
+        view_a.borrow_mut().CurrentPixelTallness = 1.5;
+        tree_a.set_panel_view(root_a, Rc::downgrade(&view_a));
+        let recorded_a = Rc::new(Cell::new(None));
+        tree_a.set_behavior(
+            root_a,
+            Box::new(TallnessRecordingBehavior {
+                recorded: recorded_a.clone(),
+            }),
+        );
+        let eid_a = tree_a.GetRec(root_a).and_then(|p| p.engine_id).unwrap();
+
+        // ── View B: pixel tallness 0.5 ───────────────────────────────
+        let mut tree_b = PanelTree::new();
+        let root_b = tree_b.create_root_deferred_view("rootB");
+        let view_b = Rc::new(RefCell::new(emView::new(
+            root_b,
+            800.0,
+            600.0,
+            Rc::new(RefCell::new(crate::emCoreConfig::emCoreConfig::default())),
+        )));
+        let sched_b = Rc::new(RefCell::new(EngineScheduler::new()));
+        view_b.borrow_mut().set_scheduler(sched_b.clone());
+        view_b.borrow_mut().CurrentPixelTallness = 0.5;
+        tree_b.set_panel_view(root_b, Rc::downgrade(&view_b));
+        let recorded_b = Rc::new(Cell::new(None));
+        tree_b.set_behavior(
+            root_b,
+            Box::new(TallnessRecordingBehavior {
+                recorded: recorded_b.clone(),
+            }),
+        );
+        let eid_b = tree_b.GetRec(root_b).and_then(|p| p.engine_id).unwrap();
+
+        // Wake both engines so the next time slice cycles them.
+        sched_a.borrow_mut().wake_up(eid_a);
+        sched_b.borrow_mut().wake_up(eid_b);
+
+        // Drive each scheduler one slice each.
+        let mut windows = HashMap::new();
+        sched_a.borrow_mut().DoTimeSlice(&mut tree_a, &mut windows);
+        sched_b.borrow_mut().DoTimeSlice(&mut tree_b, &mut windows);
+
+        assert_eq!(
+            recorded_a.get(),
+            Some(1.5),
+            "view A's panel must see view A's pixel tallness"
+        );
+        assert_eq!(
+            recorded_b.get(),
+            Some(0.5),
+            "view B's panel must see its own tallness, not view A's"
+        );
+
+        // Cleanup.
+        tree_a.remove(root_a);
+        tree_b.remove(root_b);
+    }
+
+    /// Phase 5 Task 5.2 — a panel's Cycle may call ctx.wake_up_panel(b);
+    /// because the scheduler is borrowed mid-slice, the WakeUp is queued
+    /// into view.pending_sched_ops. After the slice ends and pending ops
+    /// are drained, a subsequent slice must cycle sibling B.
+    #[test]
+    fn sp4_5_wake_up_panel_from_cycle_reaches_sibling() {
+        use crate::emPanel::PanelBehavior;
+        use crate::emPanelCtx::PanelCtx;
+        use std::cell::Cell;
+        use std::collections::HashMap;
+
+        /// Panel A: on its first Cycle, wakes its sibling B and goes to
+        /// sleep. On any subsequent Cycle it stays asleep. Records how
+        /// many times it itself has been cycled.
+        struct WakerBehavior {
+            sibling: PanelId,
+            woke_called: Rc<Cell<u32>>,
+            cycles: Rc<Cell<u32>>,
+        }
+        impl PanelBehavior for WakerBehavior {
+            fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
+                self.cycles.set(self.cycles.get() + 1);
+                if self.woke_called.get() == 0 {
+                    ctx.wake_up_panel(self.sibling);
+                    self.woke_called.set(1);
+                }
+                false
+            }
+        }
+
+        /// Panel B: counts its own Cycle invocations.
+        struct CounterBehavior {
+            cycles: Rc<Cell<u32>>,
+        }
+        impl PanelBehavior for CounterBehavior {
+            fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
+                let _ = ctx;
+                self.cycles.set(self.cycles.get() + 1);
+                false
+            }
+        }
+
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        let view = Rc::new(RefCell::new(emView::new(
+            root,
+            800.0,
+            600.0,
+            Rc::new(RefCell::new(crate::emCoreConfig::emCoreConfig::default())),
+        )));
+        let sched = Rc::new(RefCell::new(EngineScheduler::new()));
+        view.borrow_mut().set_scheduler(sched.clone());
+        tree.set_panel_view(root, Rc::downgrade(&view));
+
+        let a = tree.create_child(root, "a");
+        let b = tree.create_child(root, "b");
+
+        let b_cycles = Rc::new(Cell::new(0u32));
+        let a_cycles = Rc::new(Cell::new(0u32));
+        let woke = Rc::new(Cell::new(0u32));
+        tree.set_behavior(
+            a,
+            Box::new(WakerBehavior {
+                sibling: b,
+                woke_called: woke.clone(),
+                cycles: a_cycles.clone(),
+            }),
+        );
+        tree.set_behavior(
+            b,
+            Box::new(CounterBehavior {
+                cycles: b_cycles.clone(),
+            }),
+        );
+
+        let eid_a = tree.GetRec(a).and_then(|p| p.engine_id).unwrap();
+        let eid_b = tree.GetRec(b).and_then(|p| p.engine_id).unwrap();
+
+        // Wake A; B is asleep.
+        sched.borrow_mut().wake_up(eid_a);
+
+        // Slice 1: A cycles, calls ctx.wake_up_panel(b). Because the
+        // scheduler is borrowed, the WakeUp op is queued onto
+        // view.pending_sched_ops rather than applied directly.
+        let mut windows = HashMap::new();
+        sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows);
+        assert_eq!(a_cycles.get(), 1, "A must have cycled once");
+        assert_eq!(woke.get(), 1, "A must have called wake_up_panel");
+        assert_eq!(
+            b_cycles.get(),
+            0,
+            "B must not cycle before pending ops are drained"
+        );
+
+        // Drain pending scheduler ops queued during slice 1.
+        let ops: Vec<crate::emView::SchedOp> =
+            view.borrow_mut().pending_sched_ops.drain(..).collect();
+        assert!(
+            !ops.is_empty(),
+            "slice 1 must have queued at least one SchedOp::WakeUp"
+        );
+        {
+            let mut s = sched.borrow_mut();
+            for op in ops {
+                op.apply_to(&mut s);
+            }
+        }
+
+        // Slice 2: B should now run.
+        sched.borrow_mut().DoTimeSlice(&mut tree, &mut windows);
+        assert_eq!(
+            b_cycles.get(),
+            1,
+            "B must cycle after its WakeUp op is applied"
+        );
+
+        // Sanity: engine ids still match.
+        assert_eq!(tree.GetRec(a).and_then(|p| p.engine_id), Some(eid_a));
+        assert_eq!(tree.GetRec(b).and_then(|p| p.engine_id), Some(eid_b));
+
+        // Cleanup: remove root (deregisters engines via queued RemoveEngine
+        // ops). Drain those before dropping the scheduler so its "no
+        // dangling engines" Drop assertion passes.
+        tree.remove(root);
+        let cleanup_ops: Vec<crate::emView::SchedOp> =
+            view.borrow_mut().pending_sched_ops.drain(..).collect();
+        let mut s = sched.borrow_mut();
+        for op in cleanup_ops {
+            op.apply_to(&mut s);
+        }
+    }
 }
