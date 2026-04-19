@@ -153,8 +153,32 @@ All 169 entries show `delta=0` (no exceptions). Including `ctrl` (sub-scheduler 
 
 ## Decision
 
-Delta on all three paths is 0 in C++ vs 1 in Rust — a consistent **+1 slice drift** from SP4.5-FIX-1's deferred `register_pending_engines()` catch-up sweep. This is a forced divergence: Rust's `RefCell` borrow model makes same-slice registration impossible without re-entrancy panics when `DoTimeSlice` holds the scheduler `borrow_mut`. The 1-slice concession is the minimum cost of the SP4.5-FIX-1 fix.
+Delta on all three paths is 0 in C++ vs 1 in Rust — a consistent **+1 slice drift** from SP4.5-FIX-1's deferred `register_pending_engines()` catch-up sweep. Per spec §3.5 ("If `Rust delta > C++ delta` on any path → file the affected path(s) as a new follow-up item"), this is filed as **SP4.5-FIX-3 — same-slice panel-engine registration**.
 
-Observable impact: panels in Rust receive their first `Cycle` call one scheduler time slice (~10 ms) later than in C++. This is below the user-perceptible threshold for any interactive response (layout, painting, input) but is a structural divergence from C++ timing. No follow-up filed; the concession is documented and locked by the Rust baseline tests (commits `b4681d3`, `66decfc`, `d4238d8`).
+### Why this is not a forced divergence
 
-**Status: DONE_WITH_CONCERNS — 1-slice drift confirmed across all three paths; documented as forced divergence; no further action required unless golden tests reveal observable consequences.**
+SP4.5-FIX-1 chose the simplest correctness-preserving fix: defer registration to a post-`DoTimeSlice` sweep. That introduces a 1-slice delay because the sweep runs *between* `DoTimeSlice` calls. A *same-slice* fix is achievable without re-entrancy panics:
+
+- Add a `SchedOp::RegisterPanelEngine(panel_id)` variant that, on `apply_via_ctx(&mut EngineCtx<'_>)`, builds a `PanelCycleEngine` adapter from the panel's `View` weak (already on the panel) and inserts it into `EngineCtxInner::engines`, then writes the produced `EngineId` back into `tree.panels[panel_id].engine_id`. `EngineCtx` already exposes `tree: &mut PanelTree` for the write-back.
+- `register_engine_for`, on `try_borrow_mut` failure, enqueues the variant on the view's `pending_sched_ops` instead of returning silently.
+- The variant is drained at the end of `UpdateEngineClass::Cycle` (after `view.Update` returns) — *still inside* the same outer `DoTimeSlice`. With C++ priority re-ascent semantics already implemented in `EngineCtxInner::wake_up_engine` (`emEngine.rs:236-241`), the newly-registered engine can be picked up in the same slice if it's woken at the same or higher priority.
+
+Net effect: 0-slice drift, matching C++. The current 1-slice drift is a fix-shape choice, not a structural Rust limitation.
+
+### Why not roll same-slice into this spec
+
+Per the parent spec §3.5: "Do not design the fix in this spec." The decision is intentional — this spec measures and decides; the fix is a separate sub-project.
+
+### SP4.5-FIX-3 charter
+
+- Scope: design + implement same-slice panel-engine registration via `SchedOp::RegisterPanelEngine`.
+- Deliverables: new `SchedOp` variant + `apply_via_ctx` impl; modified `register_engine_for` to enqueue on contention; the three SP4.5-FIX-1 timing fixtures (`sp4_5_fix_1_timing_*_baseline_slices`) updated to assert `delta == 0` instead of `1`; documentation of the priority-rescent guarantee and any remaining gap.
+- Observable goal: all three baseline tests pass with `delta == 0`, matching C++.
+- Risk: priority re-ascent only fires if the new engine is woken at the same or higher priority as the currently-scanning queue. If panels register at `Priority::Medium` and `UpdateEngineClass` is also `Medium`, the re-ascent works only if registration happens before the scan steps below `Medium`. Drain-at-end-of-`Cycle` satisfies this for the common case.
+- Filed at: `docs/superpowers/notes/2026-04-18-emview-subsystem-closeout.md` §8.1 item 16, alongside the SP4.5-FIX-2 entry.
+
+### Observable impact while SP4.5-FIX-3 is unstarted
+
+Panels in Rust receive their first `Cycle` call one scheduler time slice (~10 ms) later than in C++. Below the user-perceptible threshold for layout / paint / input response, but a real structural divergence from C++ timing. Locked by the Rust baseline tests (commits `b4681d3`, `66decfc`, `d4238d8`) so any improvement (e.g., SP4.5-FIX-3 landing) will surface as a baseline-update need.
+
+**Status: DONE — measurement complete; +1 slice drift filed as SP4.5-FIX-3; no further action in this spec.**

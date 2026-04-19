@@ -359,6 +359,25 @@ Brainstorming on 2026-04-18 grouped the residuals into seven independently-sched
 
     **Status as of 2026-04-19.** Reverted commits restored pre-attempt state. Audit row marked `needs-deeper-analysis`. Filed for follow-up as SP4.5-FIX-2; not blocking the rest of the SP4.5-FIX-1 follow-ups plan (Tasks 4–9 proceed).
 
+    **Follow-up SP4.5-FIX-3 — same-slice panel-engine registration** (open as of 2026-04-19). Surfaced by Part B of the SP4.5-FIX-1 follow-ups plan; measurement results at `docs/superpowers/notes/2026-04-19-sp4-5-fix-1-timing-measurements.md`. C++ panels receive their first `Cycle` in the same `DoTimeSlice` as their construction (delta=0 measured across 169 panels at startup); Rust's SP4.5-FIX-1 fix introduces a +1 slice drift because `register_pending_engines()` is invoked between `DoTimeSlice` calls (in `App::about_to_wait` and `emSubViewPanel::Cycle`), not during.
+
+    **Why this is not a forced divergence.** SP4.5-FIX-1 chose the simplest correctness-preserving fix (defer registration to a post-`DoTimeSlice` sweep). A same-slice fix is achievable: add `SchedOp::RegisterPanelEngine(panel_id)` whose `apply_via_ctx(&mut EngineCtx<'_>)` builds the `PanelCycleEngine` adapter from the panel's `View` weak, registers it via `EngineCtxInner::engines.insert(...)`, and writes the produced `EngineId` back into `tree.panels[panel_id].engine_id` (the ctx already exposes `tree: &mut PanelTree`). `register_engine_for`, on `try_borrow_mut` failure, enqueues the variant on `view.pending_sched_ops` instead of returning silently. The variant drains at the end of `UpdateEngineClass::Cycle` (after `view.Update` returns) — *still inside* the same outer `DoTimeSlice`. C++ priority re-ascent (already in `EngineCtxInner::wake_up_engine` at `emEngine.rs:236-241`) lets the newly-registered engine run in the same slice if woken at or above the currently-scanning priority.
+
+    **Scope of SP4.5-FIX-3.**
+    - Add `SchedOp::RegisterPanelEngine(PanelId)` variant + `apply_via_ctx` impl that registers and writes back.
+    - Modify `register_engine_for` to enqueue the variant on `try_borrow_mut` failure instead of returning silently.
+    - Update the three SP4.5-FIX-1 timing fixtures (`sp4_5_fix_1_timing_*_baseline_slices`) to assert `delta == 0` instead of `1`.
+    - Confirm priority re-ascent fires for `Priority::Medium` panels registered from inside an `UpdateEngineClass::Cycle` (also `Medium`).
+    - Verify all three production paths (top-level `StartupEngine`, top-level mid-`Update`, sub-scheduler) reach 0-drift.
+
+    **Risks.**
+    - Priority re-ascent only fires if the new engine is woken at the same or higher priority than the currently-scanning queue. If the panel's `PanelCycleEngine` defaults to a lower priority, the same-slice guarantee is lost. Audit during implementation.
+    - The `apply_via_ctx` write-back to `tree.panels[panel_id].engine_id` introduces a non-trivial `SchedOp` (current variants are `Copy` and field-only). This may force boxing or non-`Copy` `SchedOp`. Acceptable.
+
+    **Blast radius estimate.** ~50–100 LOC: new `SchedOp` variant + dispatch arms, modified `register_engine_for`, baseline-test assertion updates, possibly a priority-re-ascent unit test if not already covered. No production-API changes.
+
+    **Status as of 2026-04-19.** Filed; not blocking. The +1 slice drift is below user-perceptible thresholds (~10 ms) and harmless in current usage. SP4.5-FIX-3 lands when same-slice fidelity becomes load-bearing (e.g., golden tests start exercising spawn-then-immediate-cycle scenarios).
+
 17. ~~**[ARCH / SP8] Sub-view synchronous-settlement divergence**~~ **CLOSED 2026-04-19 by SP8** (6 commits on main: `54ccc5d`..`2b3a186`). **Resolution:** `emSubViewPanel` gained a per-sub-view `sub_scheduler: Rc<RefCell<EngineScheduler>>` attached at construction; the sub-view's `UpdateEngine`/`VisitingVAEngine` register against it via the new view-direct engine shape (Phase 1: both engines now hold `Weak<RefCell<emView>>` instead of `WindowId`). Sub-tree panels register `PanelCycleEngine` adapters on `sub_scheduler` via `register_pending_engines`. A new `PanelBehavior::Cycle` on `emSubViewPanel` drives one `sub_scheduler.DoTimeSlice` per outer-scheduler tick and ticks `active_animator` with wall-clock dt — replacing the 50-iter synchronous settle loop inside Paint. `emSubViewPanel::Paint` now delegates to `paint_sub_tree` only, matching C++ `emSubViewPanel.cpp:94`. Golden `settle()` helper rewritten to drive `scheduler.DoTimeSlice` + explicit per-view `Update` (SP5-style). `PanelTree::cycle_list` / `Cycle` / `cancel_cycle` / `run_panel_cycles` deleted outright. One new `DIVERGED:` block at `emSubViewPanel::new`'s `sub_scheduler` field documenting the per-sub-view scheduler (forced by Rust's nested `PanelTree` ownership + singular `EngineCtx::tree`; unifiable only via SP7 `emContext` threading). Tests 2440 → 2443 (+3 SP8 tests); golden 237/6 unchanged.
 
     *Original item below, preserved for the historical record.*
