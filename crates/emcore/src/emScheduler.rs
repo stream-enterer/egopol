@@ -1,14 +1,109 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use slotmap::SlotMap;
 use winit::window::WindowId;
 
-use super::emEngine::{emEngine, EngineCtx, EngineCtxInner, EngineData, EngineId, Priority};
+use super::emEngine::{emEngine, EngineData, EngineId, Priority};
+use super::emEngineCtx::{DeferredAction, EngineCtx};
 use super::emPanelTree::PanelTree;
 use super::emSignal::{SignalData, SignalId};
 use super::emTimer::{TimerCentral, TimerId};
 use super::emWindow::emWindow;
+
+/// Internal mutable state owned by `EngineScheduler`. Moved here from
+/// `emEngine` during Phase 1 Task 9 so that `EngineCtx` no longer needs
+/// a borrow-splitting inner struct.
+pub(crate) struct EngineCtxInner {
+    pub signals: SlotMap<SignalId, SignalData>,
+    pub engines: SlotMap<EngineId, EngineData>,
+    pub pending_signals: Vec<SignalId>,
+    pub wake_queues: [Vec<EngineId>; 10],
+    pub time_slice: i8,
+    pub clock: u64,
+    pub time_slice_counter: u64,
+    pub deadline: Instant,
+    pub timer_central: TimerCentral,
+    /// Current priority scan index during `DoTimeSlice`, or `None` outside
+    /// a time slice. Mirrors C++ `Scheduler.CurrentAwakeList`. `wake_up_engine`
+    /// and `set_engine_priority` bump this upward so higher-priority engines
+    /// woken mid-slice are visited in the same slice.
+    pub current_awake_idx: Option<usize>,
+}
+
+impl EngineCtxInner {
+    pub(crate) fn connect_inner(&mut self, signal: SignalId, engine: EngineId) {
+        if let Some(sig) = self.signals.get_mut(signal) {
+            for conn in &mut sig.connected_engines {
+                if conn.engine == engine {
+                    conn.ref_count += 1;
+                    return;
+                }
+            }
+            sig.connected_engines
+                .push(super::emSignal::SignalConnection {
+                    engine,
+                    ref_count: 1,
+                });
+        }
+    }
+
+    pub(crate) fn disconnect_inner(&mut self, signal: SignalId, engine: EngineId) {
+        if let Some(sig) = self.signals.get_mut(signal) {
+            let mut i = 0;
+            while i < sig.connected_engines.len() {
+                if sig.connected_engines[i].engine == engine {
+                    sig.connected_engines[i].ref_count -= 1;
+                    if sig.connected_engines[i].ref_count == 0 {
+                        sig.connected_engines.swap_remove(i);
+                    }
+                    return;
+                }
+                i += 1;
+            }
+        }
+    }
+
+    pub(crate) fn remove_signal_inner(&mut self, id: SignalId) {
+        if let Some(sig) = self.signals.get_mut(id) {
+            sig.pending = false;
+            sig.clock = 0;
+        }
+        self.pending_signals.retain(|&s| s != id);
+        self.signals.remove(id);
+    }
+
+    /// Wake up an engine, moving it to the current time slice if needed.
+    /// Matches C++ `WakeUpImp()` semantics, including priority re-ascent.
+    pub(crate) fn wake_up_engine(&mut self, id: EngineId) {
+        let Some(eng) = self.engines.get_mut(id) else {
+            return;
+        };
+
+        let current_parity = self.time_slice;
+
+        if eng.awake_state == current_parity {
+            return;
+        }
+
+        if eng.awake_state >= 0 {
+            let old_queue_idx = (eng.priority as usize) * 2 + (eng.awake_state as usize);
+            self.wake_queues[old_queue_idx].retain(|&e| e != id);
+        }
+
+        eng.awake_state = current_parity;
+        let queue_idx = (eng.priority as usize) * 2 + (current_parity as usize);
+        self.wake_queues[queue_idx].push(id);
+
+        if let Some(cur) = self.current_awake_idx {
+            if queue_idx > cur {
+                self.current_awake_idx = Some(queue_idx);
+            }
+        }
+    }
+}
 
 const TIME_SLICE_DURATION: Duration = Duration::from_millis(50);
 
@@ -32,14 +127,19 @@ pub fn emGetClockMS() -> u64 {
 /// - Reference-counted signal-engine connections
 /// - FIFO ordering with alternating time-slice parity for fairness
 pub struct EngineScheduler {
-    inner: EngineCtxInner,
+    pub(crate) inner: EngineCtxInner,
     terminated: bool,
+    /// Framework-level deferred actions produced during engine cycles.
+    /// Engines push via `EngineCtx::framework_action`; the framework drains
+    /// between time slices via `drain_framework_actions`.
+    framework_actions: Vec<DeferredAction>,
 }
 
 impl EngineScheduler {
     pub fn new() -> Self {
         Self {
             terminated: false,
+            framework_actions: Vec::new(),
             inner: EngineCtxInner {
                 signals: SlotMap::with_key(),
                 engines: SlotMap::with_key(),
@@ -278,15 +378,9 @@ impl EngineScheduler {
     pub fn DoTimeSlice(
         &mut self,
         tree: &mut PanelTree,
-        windows: &mut HashMap<WindowId, std::rc::Rc<std::cell::RefCell<emWindow>>>,
-        root_context: &std::rc::Rc<crate::emContext::emContext>,
+        windows: &mut HashMap<WindowId, Rc<RefCell<emWindow>>>,
+        root_context: &Rc<crate::emContext::emContext>,
     ) {
-        // Task 3: root_context is held for the new EngineCtx dispatch that
-        // Task 9 installs when the emEngine::Cycle trait flips to the
-        // emEngineCtx::EngineCtx type. Until then, the inner Cycle call
-        // keeps using the legacy emEngine::EngineCtx and root_context is
-        // not yet consumed. Bind so the parameter is not flagged unused.
-        let _ = root_context;
         self.inner.time_slice_counter += 1;
         self.inner.deadline = Instant::now() + TIME_SLICE_DURATION;
         let next_parity = self.inner.time_slice ^ 1;
@@ -362,15 +456,30 @@ impl EngineScheduler {
                 None => continue,
             };
 
-            // Call Cycle with context
+            // Call Cycle with context. `self` cannot be re-borrowed as
+            // `&mut EngineScheduler` while `self.inner.engines` has already
+            // yielded `behavior`, so we temporarily swap `self.framework_actions`
+            // and `self.inner` out through local bindings. We re-enter via a
+            // scope: the `behavior` has been detached from the engine slot, so
+            // it is safe to reconstruct a `&mut EngineScheduler` — but Rust's
+            // borrow checker cannot see that, so we route ctx through a
+            // lowered borrow path.
             let stay_awake = {
+                // Framework_actions drain-buffer: use a take/restore pattern
+                // so ctx borrows `&mut Vec<DeferredAction>` without aliasing
+                // the rest of `self`.
+                let mut actions = std::mem::take(&mut self.framework_actions);
                 let mut ctx = EngineCtx {
-                    engine_id,
-                    scheduler: &mut self.inner,
+                    scheduler: self,
                     tree,
                     windows,
+                    root_context,
+                    framework_actions: &mut actions,
+                    engine_id,
                 };
-                behavior.Cycle(&mut ctx)
+                let r = behavior.Cycle(&mut ctx);
+                self.framework_actions = actions;
+                r
             };
 
             // Reinsert behavior and update engine state
@@ -392,6 +501,13 @@ impl EngineScheduler {
             // fired by an engine get a new clock value in the next iteration.
             // wake_up_engine may bump current_awake_idx for re-ascent.
         }
+    }
+
+    /// Drain framework-level deferred actions accumulated during Cycle
+    /// dispatch. Called by the framework pump (`emGUIFramework`) between
+    /// time slices.
+    pub fn drain_framework_actions(&mut self) -> Vec<DeferredAction> {
+        std::mem::take(&mut self.framework_actions)
     }
 
     /// Check if the current time slice has exceeded its deadline.

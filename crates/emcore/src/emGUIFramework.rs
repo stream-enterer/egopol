@@ -468,11 +468,15 @@ impl ApplicationHandler for App {
         }
 
         // Run one scheduler time slice
-        // TODO(Phase 1 Task 3): new signature is
-        //   DoTimeSlice(&mut self.windows, &self.context, &mut self.tree, ...)
-        // For now, keep the call form and let Task 3 adjust.
         self.scheduler
             .DoTimeSlice(&mut self.tree, &mut self.windows, &self.context);
+
+        // Drain framework-level deferred actions produced by engine Cycles
+        // (CloseWindow, MaterializePopup) and fold them into App state.
+        // Chunk 2+ will extend this pump to emit real window operations;
+        // for now we just accumulate into `framework_actions` for visibility.
+        let drained = self.scheduler.drain_framework_actions();
+        self.framework_actions.extend(drained);
 
         // SP4.5 fix: register any panels created via `create_child` from
         // inside an engine's `Cycle` (e.g. `StartupEngine`). Their

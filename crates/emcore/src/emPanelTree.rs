@@ -3340,7 +3340,7 @@ mod tests {
             spawned: bool,
         }
         impl crate::emEngine::emEngine for ChildSpawnEngine {
-            fn Cycle(&mut self, ctx: &mut crate::emEngine::EngineCtx<'_>) -> bool {
+            fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
                 if !self.spawned {
                     ctx.tree.create_child(self.parent, "spawned");
                     self.spawned = true;
@@ -3682,7 +3682,7 @@ mod tests {
             done: bool,
         }
         impl crate::emEngine::emEngine for StartupShapeEngine {
-            fn Cycle(&mut self, ctx: &mut crate::emEngine::EngineCtx<'_>) -> bool {
+            fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
                 if !self.done {
                     let child = ctx.tree.create_child(self.parent, "spawned");
                     self.spawned_out.set(Some(child));

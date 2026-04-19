@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::emEngine::{emEngine, EngineCtx, EngineId, Priority};
+use super::emEngine::{emEngine, EngineId, Priority};
+use super::emEngineCtx::EngineCtx;
 use super::emScheduler::EngineScheduler;
 
 /// Unique identifier for a priority-scheduled agent within a `PriSchedModel`.

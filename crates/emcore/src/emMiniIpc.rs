@@ -101,7 +101,8 @@ mod platform {
     use nix::sys::stat::Mode;
 
     use super::{decode_message, encode_message, MiniIpcError};
-    use crate::emEngine::{emEngine, EngineCtx, EngineId, Priority};
+    use crate::emEngine::{emEngine, EngineId, Priority};
+use crate::emEngineCtx::EngineCtx;
     use crate::emScheduler::EngineScheduler;
     use crate::emSignal::SignalId;
     use crate::emTimer::TimerId;

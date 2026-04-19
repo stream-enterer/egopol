@@ -4,7 +4,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use emcore::emEngine::{emEngine, EngineCtx, Priority};
+use emcore::emEngine::{emEngine, Priority};
+use emcore::emEngineCtx::EngineCtx;
 use emcore::emPanelTree::PanelTree;
 use emcore::emScheduler::EngineScheduler;
 use emcore::emSignal::SignalId;

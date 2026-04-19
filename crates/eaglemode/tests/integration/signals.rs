@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use emcore::emEngine::{emEngine, EngineCtx, Priority};
+use emcore::emEngine::{emEngine, Priority};
+use emcore::emEngineCtx::EngineCtx;
 use emcore::emSignal::SignalId;
 
 use crate::support::TestHarness;

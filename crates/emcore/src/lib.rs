@@ -24,7 +24,7 @@ pub mod emCrossPtr;
 pub mod emCursor;
 pub mod emDialog;
 pub mod emEngine;
-pub(crate) mod emEngineCtx;
+pub mod emEngineCtx;
 pub mod emErrorPanel;
 pub mod emFileDialog;
 pub mod emFileModel;
@@ -107,9 +107,3 @@ pub mod emWindow;
 pub mod emWindowPlatform;
 pub mod emWindowStateSaver;
 
-// Scaffold-phase keepalive for `emEngineCtx`. Retires when Task 6/10 land
-// real consumers; see the function's doc comment.
-#[doc(hidden)]
-pub fn __emcore_scaffold_keepalive() {
-    emEngineCtx::__scaffold_keepalive();
-}

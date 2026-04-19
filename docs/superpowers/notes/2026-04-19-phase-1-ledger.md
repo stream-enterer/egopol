@@ -101,3 +101,63 @@ in emView), and I6 (NewRootWithScheduler=0, GetScheduler=0,
 sub_scheduler=0, Rc&lt;RefCell&lt;EngineScheduler&gt;&gt;=0) REMAIN UNSATISFIED.
 emmain still red with 25 errors. emcore tests unchanged (887 pass +
 1 skipped, per Task 3). Goldens unchanged (237/6 baseline).
+
+## Chunk 1 (Tasks 9 core) — DONE
+
+- Old `emEngine::EngineCtx` (and its `EngineCtxInner` helper) deleted.
+  `EngineCtxInner` moved into `emScheduler.rs` as a private struct (was
+  pub(crate) in emEngine.rs). Deleted old EngineCtx struct entirely;
+  `emEngine.rs` now holds only the `emEngine` trait, `Priority`, `EngineId`,
+  and `EngineData`.
+- `crate::emEngineCtx::EngineCtx` is now canonical. Trait `emEngine::Cycle`
+  flipped to `fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>)`
+  at `crates/emcore/src/emEngine.rs:23`.
+- New `EngineCtx` fields added beyond the prior scaffolding: `tree: &mut PanelTree`,
+  `engine_id: EngineId` (renamed from `current_engine: Option<EngineId>` to
+  match old semantics — always populated at dispatch), and changed
+  `windows` from `HashMap<WindowId, emWindow>` to
+  `HashMap<WindowId, Rc<RefCell<emWindow>>>` (matches `App.windows`; narrowing
+  to plain value was deferred by Task 2). Scaffolding `SchedCtx` /
+  `InitCtx` / `ConstructCtx` kept intact.
+- `EngineCtx` methods added to match legacy API: `IsSignaled`, `is_signaled`
+  (pending-probe variant), `IsTimeSliceAtEnd`, `id()`, `time_slice_counter()`,
+  plus the existing signal/engine CRUD. Types promoted from `pub(crate)` to
+  `pub` so emmain / emstocks / emfileman Cycle impls can reference them
+  through `emcore::emEngineCtx::EngineCtx`.
+- `EngineScheduler::DoTimeSlice` dispatch rewritten to construct the new
+  `EngineCtx` inline: `std::mem::take(&mut self.framework_actions)` per
+  dispatch, pass `scheduler: self`, restore on return. New field
+  `EngineScheduler::framework_actions: Vec<DeferredAction>` plus
+  `drain_framework_actions()` so emGUIFramework drains between slices
+  (`emGUIFramework.rs:475`). DoTimeSlice signature unchanged (tree, windows,
+  root_context) — chose scheduler-owned framework_actions rather than a
+  new parameter to avoid churning 30+ test call sites.
+- 5+ engine impls flipped (prompt listed 5; tree has ~20). All migrated by
+  path rewrite since the new `EngineCtx` is a superset of the old API:
+  - `UpdateEngineClass` @ `crates/emcore/src/emView.rs:242`
+  - `VisitingVAEngineClass` @ `crates/emcore/src/emView.rs:291`
+  - `EOIEngineClass` @ `crates/emcore/src/emView.rs:340`
+  - `StartupEngine` @ `crates/emmain/src/emMainWindow.rs:457`
+  - `MainWindowEngine` @ `crates/emmain/src/emMainWindow.rs:348`
+  - `ControlPanelBridge` @ `crates/emmain/src/emMainWindow.rs:751`
+  - `PanelCycleEngine` @ `crates/emcore/src/emPanelCycleEngine.rs:40`
+  - `PriSchedEngine` @ `crates/emcore/src/emPriSchedAgent.rs:40`
+  - `MiniIpcEngine` (test) @ `crates/emcore/src/emMiniIpc.rs:321`
+  - `emWindowStateSaver` @ `crates/emcore/src/emWindowStateSaver.rs:237`
+  - `emStocksPricesFetcher` @ `crates/emstocks/src/emStocksPricesFetcher.rs:473`
+  - plus scheduler self-tests and test-harness engines (lifecycle, signals,
+    scheduler unit + golden tests).
+- Scaffold-keepalive deleted from both `emEngineCtx.rs` and `lib.rs`
+  (`__scaffold_keepalive` / `__emcore_scaffold_keepalive`) — the ctx types
+  are now genuinely consumed.
+- `App.framework_actions` no longer warns dead_code (now extended by
+  `scheduler.drain_framework_actions()` each `about_to_wait` tick). The
+  `pending_inputs` field remains the lone pre-existing dead_code warning
+  (Task 2 scope deviation) — to be consumed by Chunk 2+.
+- emcore build clean (1 pre-existing `pending_inputs` dead_code warning).
+  emcore tests: 887/887 pass, 1 skipped — identical to pre-Chunk-1 baseline.
+- emmain state: still red, **same 25 errors** as Chunk 1 entry state
+  (pre-existing `app.scheduler.borrow_mut()` / `Rc::clone(&app.scheduler)` /
+  `attach_to_scheduler` Rc-wrapping issues). No new breakages. Closed in Chunk 2.
+- Invariant established: `rg 'emEngine::EngineCtx\b' crates/` returns
+  only the one doc-comment reference in `emEngineCtx.rs:28`. No code sites.

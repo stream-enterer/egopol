@@ -558,7 +558,7 @@ mod sp4_5_fix_1_tests {
             done: bool,
         }
         impl crate::emEngine::emEngine for SpawnShapeEngine {
-            fn Cycle(&mut self, ctx: &mut crate::emEngine::EngineCtx<'_>) -> bool {
+            fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
                 if !self.done {
                     let child = ctx.tree.create_child(self.parent, "spawned");
                     self.spawned_out.set(Some(child));

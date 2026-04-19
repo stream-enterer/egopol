@@ -56,7 +56,8 @@ fn remove_active_panel_reselects() {
 
 #[test]
 fn remove_panel_with_engine() {
-    use emcore::emEngine::{emEngine, EngineCtx, Priority};
+    use emcore::emEngine::{emEngine, Priority};
+use emcore::emEngineCtx::EngineCtx;
 
     struct DummyEngine;
     impl emEngine for DummyEngine {

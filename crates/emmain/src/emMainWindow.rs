@@ -12,7 +12,8 @@ use std::rc::Rc;
 use winit::event_loop::ActiveEventLoop;
 
 use emcore::emContext::emContext;
-use emcore::emEngine::{EngineCtx, EngineId, Priority, emEngine};
+use emcore::emEngine::{EngineId, Priority, emEngine};
+use emcore::emEngineCtx::EngineCtx;
 use emcore::emGUIFramework::App;
 use emcore::emInput::{InputKey, emInputEvent};
 use emcore::emInputHotkey::Hotkey;

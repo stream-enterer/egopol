@@ -211,7 +211,7 @@ impl SchedOp {
     }
 
     /// Apply via an `EngineCtx` (drain-time path, inside `Cycle`).
-    pub(crate) fn apply_via_ctx(self, ctx: &mut super::emEngine::EngineCtx<'_>) {
+    pub(crate) fn apply_via_ctx(self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) {
         match self {
             SchedOp::Fire(s) => ctx.fire(s),
             SchedOp::WakeUp(e) => ctx.wake_up(e),
@@ -239,7 +239,7 @@ impl UpdateEngineClass {
 }
 
 impl super::emEngine::emEngine for UpdateEngineClass {
-    fn Cycle(&mut self, ctx: &mut super::emEngine::EngineCtx<'_>) -> bool {
+    fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
         let Some(view_rc) = self.view.upgrade() else {
             return false;
         };
@@ -288,7 +288,7 @@ impl VisitingVAEngineClass {
 }
 
 impl super::emEngine::emEngine for VisitingVAEngineClass {
-    fn Cycle(&mut self, ctx: &mut super::emEngine::EngineCtx<'_>) -> bool {
+    fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
         let now = Instant::now();
         let dt = self
             .last_cycle
@@ -337,7 +337,7 @@ impl EOIEngineClass {
 }
 
 impl super::emEngine::emEngine for EOIEngineClass {
-    fn Cycle(&mut self, ctx: &mut super::emEngine::EngineCtx<'_>) -> bool {
+    fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
         self.CountDown -= 1;
         if self.CountDown <= 0 {
             ctx.fire(self.eoi_signal);
@@ -5046,7 +5046,7 @@ mod tests {
             op: Option<SchedOp>,
         }
         impl super::super::emEngine::emEngine for OneShot {
-            fn Cycle(&mut self, ctx: &mut super::super::emEngine::EngineCtx<'_>) -> bool {
+            fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
                 if let Some(op) = self.op.take() {
                     op.apply_via_ctx(ctx);
                 }
@@ -6278,7 +6278,8 @@ mod tests {
     /// scheduler that fires EOISignal after its countdown reaches zero.
     #[test]
     fn test_phase7_eoi_engine_fires_via_scheduler() {
-        use crate::emEngine::{emEngine as EngineTrait, EngineCtx, Priority};
+        use crate::emEngine::{emEngine as EngineTrait, Priority};
+use crate::emEngineCtx::EngineCtx;
 
         struct ListenEngine {
             watched: crate::emSignal::SignalId,
@@ -6549,7 +6550,8 @@ mod tests {
     ///     the Low-priority `Receiver` and cycles it before exiting.
     #[test]
     fn sp4_signal_fired_from_update_reaches_receiver_same_slice() {
-        use crate::emEngine::{emEngine as EngineTrait, EngineCtx, Priority};
+        use crate::emEngine::{emEngine as EngineTrait, Priority};
+use crate::emEngineCtx::EngineCtx;
         use std::collections::HashMap;
 
         let (mut tree, root, child_a, _) = setup_tree();
