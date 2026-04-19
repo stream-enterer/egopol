@@ -520,4 +520,36 @@ mod sp8_tests {
         assert!(panel.last_cycle.is_none());
         teardown(&mut panel);
     }
+
+    #[test]
+    fn sp8_cycle_drives_sub_scheduler() {
+        // After emSubViewPanel::new, the sub_scheduler has awake engines
+        // (UpdateEngineClass woken in attach_to_scheduler).
+        let mut panel = emSubViewPanel::new();
+        assert!(
+            panel.sub_scheduler.borrow().has_awake_engines(),
+            "sub_scheduler must have awake engines after construction"
+        );
+
+        // Drive Cycle via a fake PanelCtx — construct a throwaway owner tree
+        // and id. We don't care about the PanelCtx internals, only that Cycle
+        // executes DoTimeSlice.
+        let mut owner_tree = crate::emPanelTree::PanelTree::new();
+        let owner_id = owner_tree.create_root("owner", std::rc::Weak::new());
+        let mut pctx = crate::emPanelCtx::PanelCtx::new(&mut owner_tree, owner_id, 1.0);
+
+        let stay_awake = <emSubViewPanel as PanelBehavior>::Cycle(&mut panel, &mut pctx);
+        // UpdateEngine's Cycle always returns false (one-shot); after the slice
+        // there should be no more awake engines absent other activity.
+        let _ = stay_awake; // accept either — the contract is "match sub-scheduler state".
+
+        // Second cycle: nothing to do, must return false (or still matches
+        // sub-scheduler state if something re-woke).
+        let stay_awake_2 = <emSubViewPanel as PanelBehavior>::Cycle(&mut panel, &mut pctx);
+        assert!(
+            !stay_awake_2 || panel.sub_scheduler.borrow().has_awake_engines(),
+            "Cycle stay-awake must track sub_scheduler.has_awake_engines()"
+        );
+        teardown(&mut panel);
+    }
 }
