@@ -190,7 +190,17 @@ mod tests {
         let mut windows: HashMap<WindowId, emWindow> = HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
-        sched.DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = crate::emInputState::emInputState::new();
+        sched.DoTimeSlice(
+            &mut tree,
+            &mut windows,
+            &__root_ctx,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
     }
 
     #[test]

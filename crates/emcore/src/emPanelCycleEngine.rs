@@ -98,6 +98,8 @@ impl emEngine for PanelCycleEngine {
                 windows: &mut *ctx.windows,
                 root_context: ctx.root_context,
                 framework_actions: &mut *ctx.framework_actions,
+                pending_inputs: &mut *ctx.pending_inputs,
+                input_state: &mut *ctx.input_state,
                 engine_id: ctx.engine_id,
             };
             let mut pctx = PanelCtx::with_scheduler(

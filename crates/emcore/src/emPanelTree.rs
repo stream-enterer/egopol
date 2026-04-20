@@ -3444,9 +3444,17 @@ mod tests {
             HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
-        sched
-            .borrow_mut()
-            .DoTimeSlice(&mut tree, &mut empty_windows, &__root_ctx, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = crate::emInputState::emInputState::new();
+        sched.borrow_mut().DoTimeSlice(
+            &mut tree,
+            &mut empty_windows,
+            &__root_ctx,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
         let child = tree
             .GetRec(root)
             .and_then(|p| p.first_child)
@@ -3588,14 +3596,30 @@ mod tests {
         let mut windows = HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
-        sched_a
-            .borrow_mut()
-            .DoTimeSlice(&mut tree_a, &mut windows, &__root_ctx, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = crate::emInputState::emInputState::new();
+        sched_a.borrow_mut().DoTimeSlice(
+            &mut tree_a,
+            &mut windows,
+            &__root_ctx,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
-        sched_b
-            .borrow_mut()
-            .DoTimeSlice(&mut tree_b, &mut windows, &__root_ctx, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = crate::emInputState::emInputState::new();
+        sched_b.borrow_mut().DoTimeSlice(
+            &mut tree_b,
+            &mut windows,
+            &__root_ctx,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
         assert_eq!(
             recorded_a.get(),
             Some(1.5),
@@ -3716,9 +3740,17 @@ mod tests {
         let mut windows = HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
-        sched
-            .borrow_mut()
-            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = crate::emInputState::emInputState::new();
+        sched.borrow_mut().DoTimeSlice(
+            &mut tree,
+            &mut windows,
+            &__root_ctx,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
         assert_eq!(a_cycles.get(), 1, "A must have cycled once");
         assert_eq!(woke.get(), 1, "A must have called wake_up_panel");
 
@@ -3726,9 +3758,17 @@ mod tests {
         if b_cycles.get() == 0 {
             let __root_ctx = crate::emContext::emContext::NewRoot();
             let mut __fw: Vec<_> = Vec::new();
-            sched
-                .borrow_mut()
-                .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
+            let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+                Vec::new();
+            let mut __input_state = crate::emInputState::emInputState::new();
+            sched.borrow_mut().DoTimeSlice(
+                &mut tree,
+                &mut windows,
+                &__root_ctx,
+                &mut __fw,
+                &mut __pending_inputs,
+                &mut __input_state,
+            );
         }
         assert_eq!(
             b_cycles.get(),
@@ -3745,9 +3785,17 @@ mod tests {
         tree.remove(root, None);
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
-        sched
-            .borrow_mut()
-            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = crate::emInputState::emInputState::new();
+        sched.borrow_mut().DoTimeSlice(
+            &mut tree,
+            &mut windows,
+            &__root_ctx,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
     }
 
     // Phase 1.75 Task 5 (continuation): deleted tests
@@ -3837,9 +3885,17 @@ mod tests {
             HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
-        sched
-            .borrow_mut()
-            .DoTimeSlice(&mut tree, &mut empty_windows, &__root_ctx, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = crate::emInputState::emInputState::new();
+        sched.borrow_mut().DoTimeSlice(
+            &mut tree,
+            &mut empty_windows,
+            &__root_ctx,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
 
         let create_at = create_slice
             .get()

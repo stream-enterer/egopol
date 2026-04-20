@@ -3286,6 +3286,9 @@ impl emView {
         // Build a throwaway SchedCtx for test-support use.
         let mut __sched = crate::emScheduler::EngineScheduler::new();
         let mut __fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = crate::emInputState::emInputState::new();
         let __ctx = self.GetRootContext();
         for _ in 0..1024 {
             let mut va = va_rc.borrow_mut();
@@ -6722,9 +6725,17 @@ mod tests {
         for _ in 0..10 {
             let __root_ctx = crate::emContext::emContext::NewRoot();
             let mut __fw: Vec<_> = Vec::new();
-            sched
-                .borrow_mut()
-                .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
+            let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+                Vec::new();
+            let mut __input_state = crate::emInputState::emInputState::new();
+            sched.borrow_mut().DoTimeSlice(
+                &mut tree,
+                &mut windows,
+                &__root_ctx,
+                &mut __fw,
+                &mut __pending_inputs,
+                &mut __input_state,
+            );
             if fired.get() {
                 break;
             }
@@ -7135,9 +7146,17 @@ mod tests {
         windows.insert(win_id, win);
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
-        sched
-            .borrow_mut()
-            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = crate::emInputState::emInputState::new();
+        sched.borrow_mut().DoTimeSlice(
+            &mut tree,
+            &mut windows,
+            &__root_ctx,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
         assert!(
             *cycled.borrow(),
             "Receiver at Low priority must cycle in the same slice as the \
@@ -7258,9 +7277,17 @@ mod tests {
         windows.insert(win_id, win);
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
-        sched
-            .borrow_mut()
-            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = crate::emInputState::emInputState::new();
+        sched.borrow_mut().DoTimeSlice(
+            &mut tree,
+            &mut windows,
+            &__root_ctx,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
         let mut win = windows.remove(&win_id).expect("win reinserted");
         assert!(
             win.view().PopupWindow.is_none(),
@@ -7353,9 +7380,17 @@ mod tests {
         let mut windows = std::collections::HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
-        sched
-            .borrow_mut()
-            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = crate::emInputState::emInputState::new();
+        sched.borrow_mut().DoTimeSlice(
+            &mut tree,
+            &mut windows,
+            &__root_ctx,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
         // Either outcome is valid — we only assert that Cycle ran without panic.
         let _ = view_rc.borrow().VisitingVA.borrow().is_active();
 

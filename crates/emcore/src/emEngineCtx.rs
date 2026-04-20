@@ -9,6 +9,8 @@ use std::rc::Rc;
 use crate::emColor::emColor;
 use crate::emContext::emContext;
 use crate::emEngine::{EngineId, Priority, TreeLocation};
+use crate::emInput::emInputEvent;
+use crate::emInputState::emInputState;
 use crate::emPanel::{PanelBehavior, Rect};
 use crate::emPanelTree::{PanelId, PanelTree};
 use crate::emScheduler::EngineScheduler;
@@ -37,6 +39,15 @@ pub struct EngineCtx<'a> {
     pub windows: &'a mut HashMap<winit::window::WindowId, emWindow>,
     pub root_context: &'a Rc<emContext>,
     pub framework_actions: &'a mut Vec<DeferredAction>,
+    /// Input-event queue drained by `InputDispatchEngine` (Phase 3,
+    /// spec §3.1 / §4 D4.9). Produced by the winit input callback,
+    /// consumed once per slice by the top-priority dispatch engine.
+    pub pending_inputs: &'a mut Vec<(winit::window::WindowId, emInputEvent)>,
+    /// Persistent input state (modifier keys, last mouse pos) maintained
+    /// across winit events. Threaded into Cycle so `InputDispatchEngine`
+    /// can pass it to `emWindow::dispatch_input` (C++ parity: emInputState
+    /// mutation on press/release/move + read during dispatch).
+    pub input_state: &'a mut emInputState,
     /// The ID of the engine currently being cycled. Populated by the
     /// scheduler at Cycle-dispatch time.
     pub engine_id: EngineId,
@@ -73,6 +84,12 @@ pub trait ConstructCtx {
 impl EngineCtx<'_> {
     pub fn framework_action(&mut self, action: DeferredAction) {
         self.framework_actions.push(action);
+    }
+
+    /// Take ownership of any pending input events, leaving the buffer empty.
+    /// Used by `InputDispatchEngine::Cycle` to drain per slice.
+    pub fn take_pending_inputs(&mut self) -> Vec<(winit::window::WindowId, emInputEvent)> {
+        std::mem::take(self.pending_inputs)
     }
 
     pub fn create_signal(&mut self) -> SignalId {

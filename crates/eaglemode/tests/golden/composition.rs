@@ -89,9 +89,17 @@ fn settle(
         // Drive panel cycling through the scheduler.
         let __root_ctx = emcore::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
-        sched
-            .borrow_mut()
-            .DoTimeSlice(tree, &mut empty_windows, &__root_ctx, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = emcore::emInputState::emInputState::new();
+        sched.borrow_mut().DoTimeSlice(
+            tree,
+            &mut empty_windows,
+            &__root_ctx,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
         register_all_panel_engines(tree, sched);
         // HandleNotice + Update per-view (SP5 pattern).
         ts.with(|sc| view.Update(tree, sc));

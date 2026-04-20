@@ -30,6 +30,8 @@ pub struct TestViewHarness {
     pub root_context: Rc<emContext>,
     pub tree: PanelTree,
     pub windows: HashMap<WindowId, emWindow>,
+    pub pending_inputs: Vec<(WindowId, crate::emInput::emInputEvent)>,
+    pub input_state: crate::emInputState::emInputState,
 }
 
 impl Default for TestViewHarness {
@@ -46,6 +48,8 @@ impl TestViewHarness {
             root_context: emContext::NewRoot(),
             tree: PanelTree::new(),
             windows: HashMap::new(),
+            pending_inputs: Vec::new(),
+            input_state: crate::emInputState::emInputState::new(),
         }
     }
 
@@ -80,6 +84,8 @@ impl TestViewHarness {
             windows: &mut self.windows,
             root_context: &self.root_context,
             framework_actions: &mut self.framework_actions,
+            pending_inputs: &mut self.pending_inputs,
+            input_state: &mut self.input_state,
             engine_id,
         }
     }

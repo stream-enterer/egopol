@@ -453,6 +453,8 @@ impl EngineScheduler {
         windows: &mut HashMap<WindowId, emWindow>,
         root_context: &Rc<crate::emContext::emContext>,
         framework_actions: &mut Vec<DeferredAction>,
+        pending_inputs: &mut Vec<(WindowId, crate::emInput::emInputEvent)>,
+        input_state: &mut crate::emInputState::emInputState,
     ) {
         self.inner.time_slice_counter += 1;
         self.inner.deadline = Instant::now() + TIME_SLICE_DURATION;
@@ -560,6 +562,8 @@ impl EngineScheduler {
                     windows,
                     root_context,
                     framework_actions,
+                    pending_inputs,
+                    input_state,
                     engine_id,
                 };
                 behavior.Cycle(&mut ctx)
@@ -605,6 +609,8 @@ impl EngineScheduler {
         let mut windows = HashMap::new();
         let root_context = crate::emContext::emContext::NewRoot();
         let mut framework_actions: Vec<DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(WindowId, crate::emInput::emInputEvent)> = Vec::new();
+        let mut input_state = crate::emInputState::emInputState::new();
         self.terminated = false;
         while !self.terminated {
             self.DoTimeSlice(
@@ -612,6 +618,8 @@ impl EngineScheduler {
                 &mut windows,
                 &root_context,
                 &mut framework_actions,
+                &mut pending_inputs,
+                &mut input_state,
             );
         }
     }
@@ -710,11 +718,15 @@ mod tests {
         let mut windows = HashMap::new();
         let root_context = crate::emContext::emContext::NewRoot();
         let mut framework_actions: Vec<DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(WindowId, crate::emInput::emInputEvent)> = Vec::new();
+        let mut input_state = crate::emInputState::emInputState::new();
         sched.DoTimeSlice(
             &mut tree,
             &mut windows,
             &root_context,
             &mut framework_actions,
+            &mut pending_inputs,
+            &mut input_state,
         );
     }
 
@@ -1217,11 +1229,15 @@ mod tests {
         );
         sched.wake_up(probe);
 
+        let mut pending_inputs: Vec<(WindowId, crate::emInput::emInputEvent)> = Vec::new();
+        let mut input_state = crate::emInputState::emInputState::new();
         sched.DoTimeSlice(
             &mut tree,
             &mut windows,
             &root_context,
             &mut framework_actions,
+            &mut pending_inputs,
+            &mut input_state,
         );
 
         let got = captured.borrow().expect("probe ran");

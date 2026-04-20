@@ -53,6 +53,11 @@ impl PipelineTestHarness {
         {
             let mut __sched = EngineScheduler::new();
             let mut __fw: Vec<DeferredAction> = Vec::new();
+            let mut __pending_inputs: Vec<(
+                winit::window::WindowId,
+                emcore::emInput::emInputEvent,
+            )> = Vec::new();
+            let mut __input_state = emcore::emInputState::emInputState::new();
             let mut sc = SchedCtx {
                 scheduler: &mut __sched,
                 framework_actions: &mut __fw,
@@ -121,8 +126,17 @@ impl PipelineTestHarness {
     pub fn tick(&mut self) {
         let mut windows: HashMap<WindowId, emWindow> = HashMap::new();
         let mut __fw: Vec<_> = Vec::new();
-        self.scheduler
-            .DoTimeSlice(&mut self.tree, &mut windows, &self.root_context, &mut __fw);
+        let mut __pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+            Vec::new();
+        let mut __input_state = emcore::emInputState::emInputState::new();
+        self.scheduler.DoTimeSlice(
+            &mut self.tree,
+            &mut windows,
+            &self.root_context,
+            &mut __fw,
+            &mut __pending_inputs,
+            &mut __input_state,
+        );
         self.view.pump_visiting_va(&mut self.tree);
         self.view.HandleNotice(&mut self.tree, &mut self.scheduler);
         let mut sc = SchedCtx {
