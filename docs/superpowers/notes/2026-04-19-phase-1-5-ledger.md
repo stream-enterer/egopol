@@ -313,3 +313,37 @@ until its own migration (7/7).
 
 **Status:** DONE. Generalized helper unlocks the remaining method
 migrations (3/7..6/7) without further refactoring.
+
+
+### Session 5 — Task 1c method 3/7: InvalidateControlPanel (@ 7de7d83)
+
+- Method signature now takes `ctx: &mut crate::emEngineCtx::SchedCtx<'_>`.
+- Internal SchedOp sites (1): `queue_or_apply_sched_op(SchedOp::Fire(sig))`
+  (where `sig = self.control_panel_signal`) → `ctx.fire(sig)`.
+- Caller count: 2 total — both inside the unit test
+  `test_invalidate_control_panel` (emView.rs:5474). No production
+  callers exist in emView bodies, App/winit paths, emmain, or
+  emstocks (verified via `rg -n 'InvalidateControlPanel' crates/`).
+- Tests rewired: 1 — `test_invalidate_control_panel` now builds a bare
+  SchedCtx via `TestViewHarness::sched_ctx()`. The test's view has no
+  scheduler attached, so `control_panel_signal` is `None` and
+  `ctx.fire` is never invoked; the ctx is purely a signature-level
+  bridge.
+- Bridge-helper usages: 0 new. Neither
+  `emView::with_local_sched_ctx` nor `App::with_sched_ctx` was
+  required — all callers were already test-scope.
+- `App::with_sched_ctx` remains unused (still `dead_code`, sanctioned);
+  expected to be consumed by later migrations.
+- cargo check: clean (only sanctioned `pending_inputs` +
+  `with_sched_ctx` dead_code warnings).
+- Nextest: 2456 pass / 0 fail / 9 skipped.
+- Goldens: 237/6 preserved.
+- Commit `7de7d83` used `--no-verify` (sanctioned dead_code warnings).
+
+**Status:** DONE. Cleanest migration of the 7 so far — the method is
+single-SchedOp-site, zero-production-caller, and required no bridge
+plumbing. Surprise: no production caller exists yet for
+InvalidateControlPanel; the method is currently reachable only from
+tests. This is consistent with `emPanel::InvalidateControlPanel`'s C++
+role (invoked from emPanel subclasses that don't yet have live Rust
+mirrors producing control-panel invalidations at runtime).
