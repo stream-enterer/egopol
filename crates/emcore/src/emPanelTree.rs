@@ -343,6 +343,13 @@ pub struct PanelTree {
     /// registered with the correct `TreeLocation` on the single outer
     /// scheduler and dispatch resolves through the sub-view chain.
     pub(crate) tree_location: TreeLocation,
+    /// Phase 1.75 Task 5 (continuation): cached copy of the owning view's
+    /// `update_engine_id`. Populated by `emView::RegisterEngines` via
+    /// [`PanelTree::set_update_engine_id`]; cleared on view detach. Read by
+    /// `add_to_notice_list` to wake the update engine WITHOUT borrowing the
+    /// view (which may be mutably borrowed by `UpdateEngineClass::Cycle`
+    /// while notice drain runs).
+    pub(crate) update_engine_id: Option<crate::emEngine::EngineId>,
 }
 
 impl PanelTree {
@@ -371,7 +378,16 @@ impl PanelTree {
             root_layout_changed: false,
             pending_engine_removals: Vec::new(),
             tree_location,
+            update_engine_id: None,
         }
+    }
+
+    /// Phase 1.75 Task 5 (continuation): set the cached update-engine id used
+    /// by `add_to_notice_list` to wake the view's update engine without
+    /// borrowing the view. Called by `emView::RegisterEngines` right after
+    /// the engine is registered; cleared by view detach paths.
+    pub fn set_update_engine_id(&mut self, id: Option<crate::emEngine::EngineId>) {
+        self.update_engine_id = id;
     }
 
     /// Link `id` into the notice ring at the tail and wake the view's update
@@ -419,19 +435,12 @@ impl PanelTree {
             }
         }
         // C++ emView::AddToNoticeList (emView.cpp:1288) calls UpdateEngine->WakeUp().
-        // Wake via the panel's View. If the caller provides a scheduler, read
-        // update_engine_id via try_borrow (view may be mutably borrowed during
-        // Update/HandleNotice — in that case the update engine is already running
-        // so no explicit wakeup is needed).
-        if let Some(sched) = sched {
-            if let Some(view_rc) = self.panels[id].View.upgrade() {
-                if let Ok(view) = view_rc.try_borrow() {
-                    if let Some(eng_id) = view.update_engine_id {
-                        drop(view);
-                        sched.wake_up(eng_id);
-                    }
-                }
-            }
+        // Phase 1.75 Task 5 (continuation): wake via cached
+        // `self.update_engine_id` (populated by `emView::RegisterEngines`)
+        // instead of borrowing the view. Wake is idempotent; always safe to
+        // issue (matches C++ unconditional `UpdateEngine->WakeUp()`).
+        if let (Some(sched), Some(eng_id)) = (sched, self.update_engine_id) {
+            sched.wake_up(eng_id);
         }
     }
 
@@ -589,9 +598,21 @@ impl PanelTree {
 
     /// Register `id`'s scheduler engine if the panel has a live view and
     /// does not already have one. When `sched` is `None` (no scheduler
-    /// available yet, e.g. before `RegisterEngines` runs), the call is a
-    /// no-op; the post-`DoTimeSlice` `register_pending_engines()` catch-up
-    /// sweep registers it later.
+    /// available yet, e.g. before the owning view has registered its engines),
+    /// the call is a no-op; the next `init_panel_view` with a live scheduler
+    /// registers it.
+    ///
+    /// Phase 1.75 Task 5 (continuation): synchronous — no view borrow taken
+    /// here, so this runs fine even when invoked from `AutoExpand` during
+    /// `UpdateEngineClass::Cycle` (which holds `view_rc.borrow_mut()`).
+    /// Phase 1.75 Task 5 (continuation): public entry point used by
+    /// `emView::RegisterEngines` to register engines for panels that pre-exist
+    /// the scheduler (e.g. root created before view.RegisterEngines runs).
+    /// Idempotent.
+    pub fn register_engine_for_public(&mut self, id: PanelId, sched: Option<&mut EngineScheduler>) {
+        self.register_engine_for(id, sched);
+    }
+
     fn register_engine_for(&mut self, id: PanelId, sched: Option<&mut EngineScheduler>) {
         if self.panels.get(id).and_then(|p| p.engine_id).is_some() {
             return; // idempotent re-attachment guard
@@ -604,19 +625,8 @@ impl PanelTree {
         else {
             return; // no view yet (or view dropped)
         };
-        let Some(view_rc) = view_weak.upgrade() else {
-            return;
-        };
-        // try_borrow: a panel created from inside `emView::Update` (which
-        // holds `view_rc.borrow_mut()` for the duration of its run) reaches
-        // here with the view already borrowed. Defer to the post-slice
-        // catch-up sweep (next `App::about_to_wait` tick).
-        let Ok(view_borrow) = view_rc.try_borrow() else {
-            return;
-        };
-        drop(view_borrow);
         let Some(sched) = sched else {
-            return; // no scheduler provided; defer to register_pending_engines
+            return; // no scheduler provided; `init_panel_view` will register once one is available
         };
         let adapter = PanelCycleEngine {
             panel_id: id,
@@ -630,18 +640,6 @@ impl PanelTree {
             self.tree_location.clone(),
         );
         self.panels[id].engine_id = Some(eid);
-    }
-
-    /// SP4.5: catch-up pass for panels created before the owning view had
-    /// a scheduler attached; safe to call repeatedly. Walks every panel in
-    /// `self.panels` and calls `register_engine_for(id)` on each; the helper
-    /// is idempotent (early-returns if `engine_id.is_some()` or the view has
-    /// no scheduler yet).
-    pub fn register_pending_engines(&mut self, sched: &mut EngineScheduler) {
-        let ids: Vec<PanelId> = self.panels.keys().collect();
-        for id in ids {
-            self.register_engine_for(id, Some(sched));
-        }
     }
 
     /// Deregister `id`'s scheduler engine.
@@ -801,8 +799,10 @@ impl PanelTree {
         self.root
     }
 
-    /// Collect all panel IDs in the tree.
-    pub(crate) fn panel_ids(&self) -> Vec<PanelId> {
+    /// Collect all panel IDs in the tree. Phase 1.75 Task 5 (continuation):
+    /// widened to `pub` for golden-test scaffolding that registers adapter
+    /// engines in bulk (production registers inline via `create_child`).
+    pub fn panel_ids(&self) -> Vec<PanelId> {
         self.panels.keys().collect()
     }
 
@@ -3286,8 +3286,12 @@ mod tests {
             600.0,
         )));
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        tree.set_panel_view(root, Rc::downgrade(&view));
-        tree.register_pending_engines(&mut sched.borrow_mut());
+        // Phase 1.75 Task 5 (continuation): register root's adapter inline via
+        // `init_panel_view` (sched supplied); replaces deleted catch-up pass.
+        {
+            let mut s = sched.borrow_mut();
+            tree.init_panel_view(root, Rc::downgrade(&view), Some(&mut s));
+        }
         (tree, view, sched, root)
     }
 
@@ -3344,12 +3348,13 @@ mod tests {
     }
 
     #[test]
-    fn sp4_5_register_pending_engines_catches_late_scheduler_attach() {
+    fn phase_1_75_task5_register_engines_registers_preexisting_panels_inline() {
+        // Phase 1.75 Task 5 (continuation): RegisterEngines now registers
+        // pre-existing panels' adapter engines inline (replaces the deleted
+        // post-slice adapter-registration catch-up pass).
         // Reproduces the production ordering in emMainWindow.rs:
         //   1. init_panel_view (view exists but has no scheduler yet)
-        //   2. RegisterEngines (view now has a scheduler)
-        //   3. register_pending_engines (catch-up pass)
-        // After step 3, the root panel must have an engine_id.
+        //   2. RegisterEngines (view now has a scheduler) — registers root inline
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
         let view = Rc::new(RefCell::new(emView::new(
@@ -3366,7 +3371,7 @@ mod tests {
             "without a scheduler attached, init_panel_view must leave engine_id=None"
         );
 
-        // Step 2: RegisterEngines.
+        // Step 2: RegisterEngines — the inline catch-up loop registers root.
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
         let view_weak = Rc::downgrade(&view);
         {
@@ -3380,28 +3385,21 @@ mod tests {
                 root_context: &root_ctx,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, view_weak, crate::emEngine::TreeLocation::Outer);
+            v.RegisterEngines(
+                &mut sc,
+                &mut tree,
+                view_weak,
+                crate::emEngine::TreeLocation::Outer,
+            );
         }
-        // Still no engine_id — register_engine_for was never re-invoked.
-        assert!(
-            tree.GetRec(root).and_then(|p| p.engine_id).is_none(),
-            "RegisterEngines alone must not retroactively register panel engines"
-        );
-
-        // Step 3: catch-up pass (replaces the old attach_scheduler → register pattern).
-        tree.register_pending_engines(&mut sched.borrow_mut());
         let eid = tree
             .GetRec(root)
             .and_then(|p| p.engine_id)
-            .expect("register_pending_engines must register the root panel's engine");
+            .expect("RegisterEngines must register the root panel's engine inline");
         assert!(
             sched.borrow().get_engine_priority(eid).is_some(),
             "scheduler should hold the newly-registered engine"
         );
-
-        // Idempotent: second call is a no-op.
-        tree.register_pending_engines(&mut sched.borrow_mut());
-        assert_eq!(tree.GetRec(root).and_then(|p| p.engine_id), Some(eid));
 
         // Cleanup.
         tree.remove(root, Some(&mut sched.borrow_mut()));
@@ -3443,7 +3441,11 @@ mod tests {
         impl crate::emEngine::emEngine for ChildSpawnEngine {
             fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
                 if !self.spawned {
-                    ctx.tree.create_child(self.parent, "spawned", None);
+                    // Phase 1.75 Task 5 (continuation): register_engine_for is now
+                    // synchronous — threading the scheduler makes adapter registration
+                    // inline, replacing the deleted adapter-registration catch-up pass.
+                    ctx.tree
+                        .create_child(self.parent, "spawned", Some(ctx.scheduler));
                     self.spawned = true;
                 }
                 false
@@ -3474,17 +3476,15 @@ mod tests {
             .and_then(|p| p.first_child)
             .expect("spawned child must exist");
 
-        // The catch-up pass that fires after DoTimeSlice (in production: in
-        // App::about_to_wait; here we invoke it explicitly) must register
-        // the deferred panel's engine.
-        tree.register_pending_engines(&mut sched.borrow_mut());
+        // Phase 1.75 Task 5 (continuation): adapter registered inline during
+        // create_child (scheduler threaded via EngineCtx); no catch-up pass.
         let child_eid = tree
             .GetRec(child)
             .and_then(|p| p.engine_id)
-            .expect("spawned child must have engine_id after catch-up pass");
+            .expect("spawned child must have engine_id registered inline");
         assert!(
             sched.borrow().get_engine_priority(child_eid).is_some(),
-            "scheduler must hold the deferred-registered engine",
+            "scheduler must hold the inline-registered engine",
         );
 
         // Cleanup.
@@ -3492,33 +3492,31 @@ mod tests {
         sched.borrow_mut().remove_engine(spawn_eid);
     }
 
-    /// Regression: callers reaching `register_engine_for` while the view
-    /// is `borrow_mut`'d up the stack (e.g. inside `emView::Update`) must
-    /// not re-entrantly borrow the view to read its scheduler. Production
-    /// path: input → `dispatch_input` → `Update` → `update_children` →
-    /// `create_child` → `register_engine_for`.
+    /// Phase 1.75 Task 5 (continuation): callers reaching
+    /// `register_engine_for` while the view is `borrow_mut`'d up the stack
+    /// (e.g. inside `emView::Update` → `AutoExpand` → `create_child`) must
+    /// register the adapter INLINE — no deferral, no catch-up pass.
+    /// Precondition for I1d / I-T3a: `register_engine_for` takes no view
+    /// borrow, so it is oblivious to the outer `view.borrow_mut()`.
     #[test]
-    fn sp4_5_create_child_with_view_already_borrow_mut_does_not_panic() {
+    fn task_5_cont_create_child_registers_inline_even_with_view_borrow_mut_held() {
         let (tree_owned, view, sched, root) = make_registered_tree();
         let mut tree = tree_owned;
 
         // Simulate the production "view is currently borrow_mut'd" state
         // (as it is throughout `emView::Update`).
         let _view_borrow = view.borrow_mut();
-        let child = tree.create_child(root, "spawned", None);
+        let child = {
+            let mut s = sched.borrow_mut();
+            tree.create_child(root, "spawned", Some(&mut s))
+        };
         drop(_view_borrow);
 
-        // create_child returned without panic. Engine registration was
-        // deferred (view borrow was busy). Catch-up sweep registers it now.
-        assert!(
-            tree.GetRec(child).and_then(|p| p.engine_id).is_none(),
-            "engine_id should be deferred while view borrow_mut was held",
-        );
-        tree.register_pending_engines(&mut sched.borrow_mut());
+        // Engine was registered inline — no deferral.
         let eid = tree
             .GetRec(child)
             .and_then(|p| p.engine_id)
-            .expect("catch-up must register the deferred engine");
+            .expect("create_child must register the adapter inline");
         assert!(sched.borrow().get_engine_priority(eid).is_some());
 
         tree.remove(root, Some(&mut sched.borrow_mut()));
@@ -3567,8 +3565,10 @@ mod tests {
         )));
         let sched_a = Rc::new(RefCell::new(EngineScheduler::new()));
         view_a.borrow_mut().CurrentPixelTallness = 1.5;
-        tree_a.set_panel_view(root_a, Rc::downgrade(&view_a));
-        tree_a.register_pending_engines(&mut sched_a.borrow_mut());
+        {
+            let mut s = sched_a.borrow_mut();
+            tree_a.init_panel_view(root_a, Rc::downgrade(&view_a), Some(&mut s));
+        }
         let recorded_a = Rc::new(Cell::new(None));
         tree_a.set_behavior(
             root_a,
@@ -3589,8 +3589,10 @@ mod tests {
         )));
         let sched_b = Rc::new(RefCell::new(EngineScheduler::new()));
         view_b.borrow_mut().CurrentPixelTallness = 0.5;
-        tree_b.set_panel_view(root_b, Rc::downgrade(&view_b));
-        tree_b.register_pending_engines(&mut sched_b.borrow_mut());
+        {
+            let mut s = sched_b.borrow_mut();
+            tree_b.init_panel_view(root_b, Rc::downgrade(&view_b), Some(&mut s));
+        }
         let recorded_b = Rc::new(Cell::new(None));
         tree_b.set_behavior(
             root_b,
@@ -3692,12 +3694,17 @@ mod tests {
             600.0,
         )));
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        tree.set_panel_view(root, Rc::downgrade(&view));
-        tree.register_pending_engines(&mut sched.borrow_mut());
+        {
+            let mut s = sched.borrow_mut();
+            tree.init_panel_view(root, Rc::downgrade(&view), Some(&mut s));
+        }
 
-        let a = tree.create_child(root, "a", None);
-        let b = tree.create_child(root, "b", None);
-        tree.register_pending_engines(&mut sched.borrow_mut());
+        let (a, b) = {
+            let mut s = sched.borrow_mut();
+            let a = tree.create_child(root, "a", Some(&mut s));
+            let b = tree.create_child(root, "b", Some(&mut s));
+            (a, b)
+        };
 
         let b_cycles = Rc::new(Cell::new(0u32));
         let a_cycles = Rc::new(Cell::new(0u32));
@@ -3765,210 +3772,13 @@ mod tests {
             .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
     }
 
-    /// SP4.5-FIX-1 Part B Path 1 — measures the slice delta between the
-    /// moment `create_child` returns inside a spawning engine's Cycle and the
-    /// spawned panel's `PanelCycleEngine::Cycle` first invocation.
-    ///
-    /// Production shape: `StartupEngine::Cycle → ctx.tree.create_child`.
-    /// After the slice, `register_pending_engines` runs (mirrors
-    /// `App::about_to_wait`), then additional slices are driven until the
-    /// probe fires. Baseline delta is locked in the assert.
-    #[test]
-    fn sp4_5_fix_1_timing_top_level_startup_baseline_slices() {
-        use std::cell::Cell;
-        use std::collections::HashMap;
-
-        let (mut tree, _view, sched, root) = make_registered_tree();
-
-        // Captured inside StartupShapeEngine::Cycle at the moment
-        // create_child returns.
-        let create_slice: Rc<Cell<Option<u64>>> = Rc::new(Cell::new(None));
-        let spawned_id: Rc<Cell<Option<PanelId>>> = Rc::new(Cell::new(None));
-
-        struct StartupShapeEngine {
-            parent: PanelId,
-            spawned_out: Rc<Cell<Option<PanelId>>>,
-            create_slice_out: Rc<Cell<Option<u64>>>,
-            done: bool,
-        }
-        impl crate::emEngine::emEngine for StartupShapeEngine {
-            fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
-                if !self.done {
-                    let child = ctx.tree.create_child(self.parent, "spawned", None);
-                    self.spawned_out.set(Some(child));
-                    self.create_slice_out.set(Some(ctx.time_slice_counter()));
-                    self.done = true;
-                }
-                false
-            }
-        }
-
-        let spawn_eid = sched.borrow_mut().register_engine(
-            Box::new(StartupShapeEngine {
-                parent: root,
-                spawned_out: spawned_id.clone(),
-                create_slice_out: create_slice.clone(),
-                done: false,
-            }),
-            crate::emEngine::Priority::Medium,
-            TreeLocation::Outer,
-        );
-        sched.borrow_mut().wake_up(spawn_eid);
-
-        // Slice 1: StartupShapeEngine::Cycle fires, calls create_child,
-        // captures create_slice. The spawned panel's PanelCycleEngine is
-        // not yet registered (deferred until register_pending_engines).
-        let mut windows: HashMap<winit::window::WindowId, Rc<RefCell<crate::emWindow::emWindow>>> =
-            HashMap::new();
-        let __root_ctx = crate::emContext::emContext::NewRoot();
-        let mut __fw: Vec<_> = Vec::new();
-        sched
-            .borrow_mut()
-            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
-        let create_at = create_slice
-            .get()
-            .expect("StartupShapeEngine must have captured create_slice in slice 1");
-        let child = spawned_id
-            .get()
-            .expect("StartupShapeEngine must have set spawned_id");
-
-        // Mirrors App::about_to_wait: register engines that were deferred
-        // because the scheduler borrow_mut was held during DoTimeSlice.
-        tree.register_pending_engines(&mut sched.borrow_mut());
-
-        // Attach the first-cycle probe to the spawned panel's engine.
-        let child_eid = tree
-            .GetRec(child)
-            .and_then(|p| p.engine_id)
-            .expect("spawned panel must have engine_id after register_pending_engines");
-        let cycled_at: Rc<Cell<Option<u64>>> = Rc::new(Cell::new(None));
-        {
-            let mut s = sched.borrow_mut();
-            s.attach_first_cycle_probe(child_eid, cycled_at.clone());
-            // Mirror C++ emPanel constructor: a freshly-created panel wakes
-            // itself immediately. In Rust the PanelCycleEngine adapter starts
-            // sleeping; wake it so it runs in the next slice.
-            s.wake_up(child_eid);
-        }
-
-        // Drive slices until the probe fires (or bail at 10 to prevent hang).
-        for _ in 0..10 {
-            if cycled_at.get().is_some() {
-                break;
-            }
-            let __root_ctx = crate::emContext::emContext::NewRoot();
-            let mut __fw: Vec<_> = Vec::new();
-            sched
-                .borrow_mut()
-                .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
-            tree.register_pending_engines(&mut sched.borrow_mut());
-        }
-
-        let cycled_at_val = cycled_at
-            .get()
-            .expect("spawned panel's PanelCycleEngine must have cycled within 10 slices");
-
-        let delta = cycled_at_val - create_at;
-
-        // Cleanup before the assertion so the scheduler Drop invariant holds
-        // even if the assert panics.
-        tree.remove(root, None);
-        // Drain pending_engine_removals queued by tree.remove(root) above.
-        {
-            let mut s = sched.borrow_mut();
-            for eid in tree.pending_engine_removals.drain(..) {
-                s.remove_engine(eid);
-            }
-            s.remove_engine(spawn_eid);
-        }
-
-        // Baseline locked via first-run measurement. Re-run with
-        // `panic!("MEASURED_DELTA={}", delta);` to re-measure if the
-        // production scheduling shape changes.
-        assert_eq!(
-            delta, 1u64,
-            "SP4.5-FIX-1 top-level-startup slice delta drifted; re-run Part B measurement"
-        );
-    }
-
-    /// Baseline slice-delta fixture for the top-level mid-Update contention
-    /// path (Part B Path 2). Mirrors the production path:
-    ///   winit window_event → dispatch_input → emView::Update →
-    ///   emVirtualCosmosPanel::update_children → tree.create_child(...)
-    ///
-    /// The contention shape is "view borrow_mut held during create_child"
-    /// (as opposed to "scheduler borrow_mut held" in Path 1 / startup).
-    ///
-    /// Delta is measured from the scheduler counter at the moment create_child
-    /// is called (with view borrow_mut held) to the counter when the spawned
-    /// panel's PanelCycleEngine fires its first Cycle. Baseline is locked in
-    /// the assert; re-run with `panic!("MEASURED_DELTA={}", delta);` to
-    /// re-measure if the production scheduling shape changes.
-    #[test]
-    fn sp4_5_fix_1_timing_top_level_mid_update_baseline_slices() {
-        use std::cell::Cell;
-        use std::collections::HashMap;
-
-        let (mut tree, view, sched, root) = make_registered_tree();
-        let mut empty_windows: HashMap<
-            winit::window::WindowId,
-            Rc<RefCell<crate::emWindow::emWindow>>,
-        > = HashMap::new();
-
-        // Snapshot the spawning slice (scheduler counter at time of create).
-        let create_at = sched.borrow().GetTimeSliceCounter();
-
-        // Simulate the production "view borrow_mut held" state (mirrors emView::Update running).
-        let spawned = {
-            let _view_borrow = view.borrow_mut();
-            tree.create_child(root, "spawned", None)
-        };
-        tree.register_pending_engines(&mut sched.borrow_mut());
-        let pce_eid = tree
-            .GetRec(spawned)
-            .and_then(|p| p.engine_id)
-            .expect("spawned must be registered after catch-up");
-
-        // Attach probe; wake; drive slices until first cycle.
-        let probe_captured: Rc<Cell<Option<u64>>> = Rc::new(Cell::new(None));
-        sched
-            .borrow_mut()
-            .attach_first_cycle_probe(pce_eid, probe_captured.clone());
-        sched.borrow_mut().wake_up(pce_eid);
-
-        let mut slices = 0u64;
-        while probe_captured.get().is_none() {
-            let __root_ctx = crate::emContext::emContext::NewRoot();
-            let mut __fw: Vec<_> = Vec::new();
-            sched
-                .borrow_mut()
-                .DoTimeSlice(&mut tree, &mut empty_windows, &__root_ctx, &mut __fw);
-            tree.register_pending_engines(&mut sched.borrow_mut());
-            slices += 1;
-            assert!(
-                slices < 10,
-                "spawned panel should cycle within a few slices"
-            );
-        }
-        let cycled_at = probe_captured.get().unwrap();
-        let delta = cycled_at - create_at;
-
-        // Cleanup before assert (preserve scheduler-Drop invariant).
-        tree.remove(root, None);
-        // Drain pending_engine_removals queued by tree.remove(root).
-        {
-            let mut s = sched.borrow_mut();
-            for eid in tree.pending_engine_removals.drain(..) {
-                s.remove_engine(eid);
-            }
-        }
-
-        // Baseline locked via first-run measurement. Re-run with
-        // `panic!("MEASURED_DELTA={}", delta);` to re-measure if the
-        // production scheduling shape changes.
-        assert_eq!(
-            delta, 1u64,
-            "SP4.5-FIX-1 top-level-mid-Update slice delta drifted; re-run Part B measurement"
-        );
-    }
+    // Phase 1.75 Task 5 (continuation): deleted tests
+    //   sp4_5_fix_1_timing_top_level_startup_baseline_slices
+    //   sp4_5_fix_1_timing_top_level_mid_update_baseline_slices
+    // They asserted delta == 1 between `create_child` and the spawned panel's
+    // first `Cycle` — the one-slice cost of the deferred-attach race. With
+    // `register_engine_for` now synchronous (no view borrow taken), the
+    // adapter registers inline on the same slice as `create_child`, so the
+    // measured delta collapses and the baselines no longer represent a real
+    // scheduling shape. See invariants I1d / I-T3a.
 }

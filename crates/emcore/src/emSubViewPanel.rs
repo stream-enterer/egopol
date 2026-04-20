@@ -79,7 +79,12 @@ impl emSubViewPanel {
         // shared queue (spec §3.3) — no per-sub-view scheduler exists.
         {
             let mut v = sub_view.borrow_mut();
-            v.RegisterEngines(ctx, std::rc::Rc::downgrade(&sub_view), sub_location);
+            v.RegisterEngines(
+                ctx,
+                &mut sub_tree,
+                std::rc::Rc::downgrade(&sub_view),
+                sub_location,
+            );
         }
 
         Self {

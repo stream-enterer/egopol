@@ -529,13 +529,13 @@ impl ApplicationHandler for App {
             scheduler.DoTimeSlice(tree, windows, context, framework_actions);
         }
 
-        // SP4.5 fix: register any panels created via `create_child` from
-        // inside an engine's `Cycle` (e.g. `StartupEngine`). Their
-        // `register_engine_for` call deferred when it found the scheduler
-        // already `borrow_mut`'d by `DoTimeSlice`. Now that the borrow has
-        // been released, walk the tree and register pending engines.
-        self.tree.register_pending_engines(&mut self.scheduler);
-
+        // Phase 1.75 Task 5 (continuation): the former post-slice
+        // adapter-registration catch-up pass has been deleted.
+        // `register_engine_for` is now synchronous (no view borrow held),
+        // so `create_child` from inside an engine's `Cycle` registers the
+        // adapter inline. Scheduler dispatch no longer borrows the
+        // tree/view in a way that blocks registration.
+        //
         // Keep event loop pumping while engines are active.
         // C++ runs a tight 10ms loop; Rust uses event-driven winit with
         // ControlFlow::Wait which only fires about_to_wait on OS events.

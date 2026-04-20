@@ -3108,6 +3108,7 @@ impl emView {
     pub fn RegisterEngines(
         &mut self,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+        tree: &mut PanelTree,
         self_view_weak: std::rc::Weak<std::cell::RefCell<emView>>,
         tree_location: super::emEngine::TreeLocation,
     ) {
@@ -3126,6 +3127,17 @@ impl emView {
         self.update_engine_id = Some(engine_id);
         self.EOISignal = Some(eoi_signal);
         self.visiting_va_engine_id = Some(visiting_va_engine_id);
+        // Phase 1.75 Task 5 (continuation): cache on the tree so
+        // `add_to_notice_list` can wake without borrowing the view.
+        tree.set_update_engine_id(Some(engine_id));
+        // Register any panels that were created before the scheduler existed
+        // (e.g. deferred-view test roots, sub-view roots created pre-register).
+        // Phase 1.75 Task 5 (continuation): replaces the deleted
+        // post-slice adapter-registration catch-up pass.
+        let ids: Vec<PanelId> = tree.panels.keys().collect();
+        for pid in ids {
+            tree.register_engine_for_public(pid, Some(ctx.scheduler));
+        }
         // C++ emView::emView at emView.cpp:84: UpdateEngine->WakeUp().
         self.WakeUpUpdateEngine(ctx);
     }
@@ -6347,7 +6359,12 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, v_weak, crate::emEngine::TreeLocation::Outer);
+            v.RegisterEngines(
+                &mut sc,
+                &mut tree,
+                v_weak,
+                crate::emEngine::TreeLocation::Outer,
+            );
         }
         let eoi = v_rc
             .borrow()
@@ -6416,7 +6433,7 @@ mod tests {
     /// EOISignal. WakeUpUpdateEngine wakes the registered engine.
     #[test]
     fn test_phase7_update_engine_wakeup_via_scheduler() {
-        let (_tree, root, _, _) = setup_tree();
+        let (mut tree, root, _, _) = setup_tree();
         let v_rc = Rc::new(RefCell::new(emView::new(
             crate::emContext::emContext::NewRoot(),
             root,
@@ -6436,7 +6453,12 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, v_weak, crate::emEngine::TreeLocation::Outer);
+            v.RegisterEngines(
+                &mut sc,
+                &mut tree,
+                v_weak,
+                crate::emEngine::TreeLocation::Outer,
+            );
         }
         {
             let v = v_rc.borrow();
@@ -6586,9 +6608,15 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, v_weak, crate::emEngine::TreeLocation::Outer);
+            v.RegisterEngines(
+                &mut sc,
+                &mut tree,
+                v_weak,
+                crate::emEngine::TreeLocation::Outer,
+            );
         }
-        tree.register_pending_engines(&mut sched.borrow_mut());
+        // Phase 1.75 Task 5 (continuation): RegisterEngines registers
+        // pre-existing panels inline; no catch-up pass needed.
         ts.with(|sc| v_rc.borrow_mut().Update(&mut tree, sc));
         let eng_id = v_rc
             .borrow()
@@ -6619,7 +6647,7 @@ mod tests {
                 sched.borrow_mut().remove_engine(id);
             }
         }
-        // Remove panel tree engines (registered via register_pending_engines above).
+        // Remove panel tree engines (registered inline by RegisterEngines).
         tree.remove(root, Some(&mut sched.borrow_mut()));
     }
 
@@ -6716,7 +6744,12 @@ mod tests {
                     root_context: &root,
                     current_engine: None,
                 };
-                v.RegisterEngines(&mut sc, view_weak, crate::emEngine::TreeLocation::Outer);
+                v.RegisterEngines(
+                    &mut sc,
+                    &mut tree,
+                    view_weak,
+                    crate::emEngine::TreeLocation::Outer,
+                );
             }
             w
         };
@@ -6876,7 +6909,12 @@ mod tests {
                     root_context: &root,
                     current_engine: None,
                 };
-                v.RegisterEngines(&mut sc, view_weak, crate::emEngine::TreeLocation::Outer);
+                v.RegisterEngines(
+                    &mut sc,
+                    &mut tree,
+                    view_weak,
+                    crate::emEngine::TreeLocation::Outer,
+                );
             }
             w
         };
@@ -6970,7 +7008,12 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, view_weak, crate::emEngine::TreeLocation::Outer);
+            v.RegisterEngines(
+                &mut sc,
+                &mut tree,
+                view_weak,
+                crate::emEngine::TreeLocation::Outer,
+            );
         }
 
         // Engine must be registered by RegisterEngines.

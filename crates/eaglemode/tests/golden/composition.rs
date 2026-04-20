@@ -68,11 +68,10 @@ macro_rules! require_golden {
 ///
 /// DIVERGED (test-only): golden tests hold emView by &mut, not Rc. To give
 /// engines a Weak<RefCell<emView>>, we'd need to thread the Rc through every
-/// test. Instead we register only PanelCycleEngines (via
-/// register_pending_engines) and drive DoTimeSlice against those; the view's
-/// Update is driven explicitly in the loop below (SP5 per-view HandleNotice
-/// drains there). No UpdateEngineClass/VisitingVAEngineClass are registered
-/// in this harness.
+/// test. Instead we register only PanelCycleEngines and drive DoTimeSlice
+/// against those; the view's Update is driven explicitly in the loop below
+/// (SP5 per-view HandleNotice drains there). No UpdateEngineClass/
+/// VisitingVAEngineClass are registered in this harness.
 fn settle(
     tree: &mut PanelTree,
     view: &mut emView,
@@ -80,7 +79,11 @@ fn settle(
     sched: &std::rc::Rc<std::cell::RefCell<emcore::emScheduler::EngineScheduler>>,
 ) {
     let mut ts = TestSched::new();
-    tree.register_pending_engines(&mut sched.borrow_mut());
+    // Phase 1.75 Task 5 (continuation): walk panels and register any
+    // pre-existing adapters inline (replaces the deleted post-slice
+    // adapter-registration catch-up pass). Subsequent `create_child` calls
+    // register inline when the scheduler is passed through.
+    register_all_panel_engines(tree, sched);
     let mut empty_windows = std::collections::HashMap::new();
     for _ in 0..rounds {
         // Drive panel cycling through the scheduler.
@@ -89,9 +92,23 @@ fn settle(
         sched
             .borrow_mut()
             .DoTimeSlice(tree, &mut empty_windows, &__root_ctx, &mut __fw);
-        tree.register_pending_engines(&mut sched.borrow_mut());
+        register_all_panel_engines(tree, sched);
         // HandleNotice + Update per-view (SP5 pattern).
         ts.with(|sc| view.Update(tree, sc));
+    }
+}
+
+/// Walk every panel in the tree and call `register_engine_for_public` (the
+/// idempotent single-panel helper). Test-only golden scaffolding; production
+/// registers panels inline via `create_child` passing its scheduler.
+fn register_all_panel_engines(
+    tree: &mut PanelTree,
+    sched: &std::rc::Rc<std::cell::RefCell<emcore::emScheduler::EngineScheduler>>,
+) {
+    let ids = tree.panel_ids();
+    let mut s = sched.borrow_mut();
+    for id in ids {
+        tree.register_engine_for_public(id, Some(&mut s));
     }
 }
 
