@@ -339,11 +339,6 @@ pub struct emView {
     /// `emPanelTree` and `emPanelCtx`. Analogous to C++ `emEngine::Scheduler`
     /// pointer which allows engines to self-wake outside `Cycle`.
     ///
-    /// DIVERGED: C++ stores the scheduler on `emEngine` objects; Rust stores it
-    /// here so `PanelTree::register_engine_for` / `add_to_notice_list` can reach
-    /// the `Rc` for `try_borrow_mut` without a `SchedCtx` in scope.  Set by
-    /// callers immediately before `RegisterEngines`; never exposed publicly.
-    pub(crate) scheduler: Option<Rc<RefCell<super::emScheduler::EngineScheduler>>>,
     /// Whether the current activation is adherent (indirect, via a descendant).
     activation_adherent: bool,
     /// Set by scroll/zoom/navigate operations that change the viewport and need
@@ -525,7 +520,6 @@ impl emView {
             control_panel_invalid: false,
             control_panel_signal: None,
             title_signal: None,
-            scheduler: None,
             activation_adherent: false,
             viewport_changed: false,
             needs_animator_abort: false,
@@ -2043,19 +2037,9 @@ impl emView {
         }
 
         // SVPUpdSlice fp-instability throttle (emView.cpp:1734-1751).
-        //
-        // SP4 Phase 5: Update now runs from inside UpdateEngineClass::Cycle
-        // while `EngineScheduler` is borrowed_mut via DoTimeSlice. A plain
-        // `self.scheduler.borrow()` here would reentrantly panic. Fall
-        // through try_borrow; on failure (scheduler in use), leave
-        // SVPUpdSlice unchanged — at worst the throttle's retry counter
-        // stays stable for one extra slice, which is harmless given the
-        // fallback only triggers after 1000+ retries in a single slice.
-        let slice = self
-            .scheduler
-            .as_ref()
-            .and_then(|s| s.try_borrow().ok().map(|b| b.GetTimeSliceCounter()))
-            .unwrap_or(self.SVPUpdSlice);
+        // `ctx.scheduler` is `&mut EngineScheduler` — already exclusively held
+        // by the caller chain, so `GetTimeSliceCounter` can be called directly.
+        let slice = ctx.scheduler.GetTimeSliceCounter();
         if self.SVPUpdSlice != slice {
             self.SVPUpdSlice = slice;
             self.SVPUpdCount = 0;
@@ -3103,34 +3087,12 @@ impl emView {
         self.pending_framework_actions = Some(actions);
     }
 
-    /// Attach a scheduler `Rc` so `PanelTree`/`PanelCtx` deferred-wakeup paths
-    /// can reach the `Rc` without a `SchedCtx` in scope.  Golden tests that hold
-    /// `emView` by `&mut` (not `Rc`) call this before `tree.register_pending_engines()`
-    /// instead of `RegisterEngines`.
-    ///
-    /// DIVERGED: Test-only helper; production code uses `RegisterEngines`.
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn attach_scheduler_rc(
-        &mut self,
-        sched: Rc<RefCell<super::emScheduler::EngineScheduler>>,
-    ) {
-        self.scheduler = Some(sched);
-    }
-
-    /// Get the attached scheduler `Rc` if any (test-support only).
-    #[cfg(any(test, feature = "test-support"))]
-    pub fn scheduler_rc(&self) -> Option<&Rc<RefCell<super::emScheduler::EngineScheduler>>> {
-        self.scheduler.as_ref()
-    }
-
     /// Register `UpdateEngineClass`, `EOISignal`, and `VisitingVAEngineClass`
     /// with the scheduler and wake `UpdateEngineClass`.
     ///
     /// DIVERGED: C++ performs this work inline in `emView::emView` (emView.cpp:75–84).
     /// Rust separates it into a named method because construction happens before the
     /// caller owns the `Rc<RefCell<emView>>` needed for `Weak` engine references.
-    /// Stores `sched_rc` so `PanelTree`/`PanelCtx` deferred-wakeup paths can reach the
-    /// `Rc` without a `SchedCtx` in scope (analogous to C++ `emEngine::Scheduler` pointer).
     ///
     /// Corresponds to C++ `emView` constructor engine-registration block
     /// (emView.cpp:75–84): `UpdateEngine` HIGH_PRIORITY + `EOISignal` +
@@ -3138,10 +3100,8 @@ impl emView {
     pub fn RegisterEngines(
         &mut self,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
-        sched_rc: Rc<RefCell<super::emScheduler::EngineScheduler>>,
         self_view_weak: std::rc::Weak<std::cell::RefCell<emView>>,
     ) {
-        self.scheduler = Some(sched_rc);
         let engine_id = ctx.scheduler.register_engine(
             Box::new(UpdateEngineClass::new(self_view_weak.clone())),
             super::emEngine::Priority::High,
@@ -5986,7 +5946,7 @@ mod tests {
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
         let cp_sig = sched.borrow_mut().create_signal();
         let title_sig = sched.borrow_mut().create_signal();
-        view.scheduler = Some(sched.clone());
+        tree.attach_scheduler(sched.clone());
         view.set_control_panel_signal(cp_sig);
         view.set_title_signal(title_sig);
 
@@ -6355,7 +6315,7 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, sched.clone(), v_weak);
+            v.RegisterEngines(&mut sc, v_weak);
         }
         let eoi = v_rc
             .borrow()
@@ -6443,7 +6403,7 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, sched.clone(), v_weak);
+            v.RegisterEngines(&mut sc, v_weak);
         }
         {
             let v = v_rc.borrow();
@@ -6593,8 +6553,9 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, sched.clone(), v_weak);
+            v.RegisterEngines(&mut sc, v_weak);
         }
+        tree.attach_scheduler(sched.clone());
         ts.with(|sc| v_rc.borrow_mut().Update(&mut tree, sc));
         let eng_id = v_rc
             .borrow()
@@ -6709,7 +6670,7 @@ mod tests {
                     root_context: &root,
                     current_engine: None,
                 };
-                v.RegisterEngines(&mut sc, sched.clone(), view_weak);
+                v.RegisterEngines(&mut sc, view_weak);
             }
             w
         };
@@ -6868,7 +6829,7 @@ mod tests {
                     root_context: &root,
                     current_engine: None,
                 };
-                v.RegisterEngines(&mut sc, sched.clone(), view_weak);
+                v.RegisterEngines(&mut sc, view_weak);
             }
             w
         };
@@ -6962,7 +6923,7 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, sched.clone(), view_weak);
+            v.RegisterEngines(&mut sc, view_weak);
         }
 
         // Engine must be registered by RegisterEngines.

@@ -885,8 +885,9 @@ pub fn create_main_window(
                 root_context: &root_ctx,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, Rc::clone(&app.scheduler), view_weak);
+            v.RegisterEngines(&mut sc, view_weak);
         }
+        app.tree.attach_scheduler(Rc::clone(&app.scheduler));
         win.view_mut().set_control_panel_signal(cp_signal);
     }
     // SP4.5: init_panel_view ran before RegisterEngines above, so the

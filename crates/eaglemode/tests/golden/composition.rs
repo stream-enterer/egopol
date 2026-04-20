@@ -69,7 +69,7 @@ fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     let mut ts = TestSched::new();
     use std::cell::RefCell;
     use std::rc::Rc;
-    // Attach a scheduler on first call (idempotent — already-attached views
+    // Attach a scheduler on first call (idempotent — already-attached trees
     // are re-used).
     //
     // DIVERGED (test-only): golden tests hold emView by &mut, not Rc. To give
@@ -79,11 +79,11 @@ fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     // Update is driven explicitly in the loop below (SP5 per-view HandleNotice
     // drains there). No UpdateEngineClass/VisitingVAEngineClass are registered
     // in this harness.
-    if view.scheduler_rc().is_none() {
+    if tree.sched_rc.is_none() {
         let sched = Rc::new(RefCell::new(emcore::emScheduler::EngineScheduler::new()));
-        view.attach_scheduler_rc(sched);
+        tree.attach_scheduler(sched);
     }
-    let sched = view.scheduler_rc().unwrap().clone();
+    let sched = tree.sched_rc.clone().unwrap();
     tree.register_pending_engines();
     let mut empty_windows = std::collections::HashMap::new();
     for _ in 0..rounds {

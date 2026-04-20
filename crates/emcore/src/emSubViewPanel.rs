@@ -77,8 +77,9 @@ impl emSubViewPanel {
                 root_context: &root_ctx,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, sub_scheduler.clone(), std::rc::Rc::downgrade(&sub_view));
+            v.RegisterEngines(&mut sc, std::rc::Rc::downgrade(&sub_view));
         }
+        sub_tree.attach_scheduler(sub_scheduler.clone());
         // Now sub_tree panels have a view with a scheduler — register
         // PanelCycleEngine adapters for any panels already in the sub-tree.
         sub_tree.register_pending_engines();

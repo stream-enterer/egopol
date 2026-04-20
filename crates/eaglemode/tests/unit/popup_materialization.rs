@@ -117,9 +117,6 @@ impl ApplicationHandler for Harness {
                     let mut home = home_rc.borrow_mut();
                     let tree = &mut self.app.tree;
                     let mut view = home.view_mut();
-                    // Attach to scheduler so popup-entry can allocate popup
-                    // signals via the real scheduler path.
-                    view.attach_scheduler_rc(Rc::clone(&self.app.scheduler));
                     // Update first — mirrors test_phase4: clears
                     // zoomed_out_before_sg so RawVisit doesn't immediately
                     // zoom out and tear down the popup.

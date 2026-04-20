@@ -339,6 +339,12 @@ pub struct PanelTree {
     /// by `DoTimeSlice`) at the time `wake_up_panel` or `add_to_notice_list`
     /// ran. Drained at the start of each `DoTimeSlice` before the main loop.
     pub(crate) pending_engine_wakeups: Vec<crate::emEngine::EngineId>,
+    /// Shared scheduler handle. Set by `RegisterEngines` (via
+    /// `attach_scheduler`) so `register_engine_for`, `deregister_engine_for`,
+    /// and `add_to_notice_list` can wake/register/remove engines without
+    /// going through the owning `emView`. Mirrors the C++ pattern where every
+    /// `emEngine` carries a pointer to its `emScheduler`.
+    pub sched_rc: Option<std::rc::Rc<std::cell::RefCell<crate::emScheduler::EngineScheduler>>>,
 }
 
 impl PanelTree {
@@ -356,7 +362,18 @@ impl PanelTree {
             root_layout_changed: false,
             pending_engine_removals: Vec::new(),
             pending_engine_wakeups: Vec::new(),
+            sched_rc: None,
         }
+    }
+
+    /// Attach the scheduler `Rc` so panel engine registration and wakeup
+    /// can proceed without going through the owning `emView`.
+    /// Called from `RegisterEngines` (or from test harnesses directly).
+    pub fn attach_scheduler(
+        &mut self,
+        sched: std::rc::Rc<std::cell::RefCell<crate::emScheduler::EngineScheduler>>,
+    ) {
+        self.sched_rc = Some(sched);
     }
 
     /// Link `id` into the notice ring at the tail.
@@ -403,12 +420,12 @@ impl PanelTree {
             }
         }
         // C++ emView::AddToNoticeList (emView.cpp:1288) calls UpdateEngine->WakeUp().
-        // Since the ring is now on PanelTree, wake via the panel's View.
-        // Use try_borrow (immutable) to get the scheduler Rc without conflicting
-        // with a mutable borrow held by the view's own engine cycle.
+        // Wake via the panel's View. Use try_borrow (immutable) to read
+        // update_engine_id without conflicting with a mutable borrow held by
+        // the view's own engine cycle. The scheduler Rc lives on self.sched_rc.
         if let Some(view_rc) = self.panels[id].View.upgrade() {
-            if let Ok(view) = view_rc.try_borrow() {
-                if let Some(sched_rc) = view.scheduler.clone() {
+            if let Some(sched_rc) = self.sched_rc.clone() {
+                if let Ok(view) = view_rc.try_borrow() {
                     if let Some(eng_id) = view.update_engine_id {
                         drop(view); // release immutable borrow before mutably borrowing sched
                         match sched_rc.try_borrow_mut() {
@@ -421,10 +438,10 @@ impl PanelTree {
                         }
                     }
                 }
+                // If try_borrow fails, we are inside the view's Update/HandleNotice
+                // (view is mutably borrowed); the update engine is already running,
+                // so no explicit wakeup is needed.
             }
-            // If try_borrow fails, we are inside the view's Update/HandleNotice
-            // (view is mutably borrowed); the update engine is already running,
-            // so no explicit wakeup is needed.
         }
     }
 
@@ -600,10 +617,10 @@ impl PanelTree {
         let Ok(view_borrow) = view_rc.try_borrow() else {
             return;
         };
-        let Some(sched_rc) = view_borrow.scheduler.clone() else {
-            return; // unit-test bare view with no scheduler
-        };
         drop(view_borrow);
+        let Some(sched_rc) = self.sched_rc.clone() else {
+            return; // no scheduler attached yet
+        };
         let adapter = PanelCycleEngine {
             panel_id: id,
             view: view_weak,
@@ -641,24 +658,23 @@ impl PanelTree {
         let Some(eid) = self.panels.get_mut(id).and_then(|p| p.engine_id.take()) else {
             return;
         };
-        let Some(view_rc) = self.panels.get(id).and_then(|p| p.View.upgrade()) else {
+        if self.panels.get(id).is_none() {
             // View gone; scheduler teardown will drain engines.
             return;
-        };
-        // Reach the scheduler via an immutable view borrow (safe even when the
-        // view's engine cycle is running because try_borrow does not conflict
-        // with &mut self held by DoTimeSlice on the scheduler).
-        // Collect the scheduler Rc in a single expression so view_rc borrow is dropped.
-        let sched_rc_opt: Option<std::rc::Rc<std::cell::RefCell<crate::emScheduler::EngineScheduler>>> = {
-            let Ok(view) = view_rc.try_borrow() else {
-                // View is mutably borrowed. Queue for deferred removal.
-                self.pending_engine_removals.push(eid);
-                return;
-            };
-            view.scheduler.clone()
-        };
-        let Some(sched_rc) = sched_rc_opt else {
-            return; // unit-test bare view with no scheduler
+        }
+        // Check if the view is mutably borrowed (engine cycle running).
+        let view_mutably_borrowed = self
+            .panels
+            .get(id)
+            .and_then(|p| p.View.upgrade())
+            .map(|rc| rc.try_borrow().is_err())
+            .unwrap_or(false);
+        if view_mutably_borrowed {
+            self.pending_engine_removals.push(eid);
+            return;
+        }
+        let Some(sched_rc) = self.sched_rc.clone() else {
+            return; // no scheduler attached
         };
         let remove_deferred = sched_rc.try_borrow_mut().is_err();
         if remove_deferred {
@@ -3238,7 +3254,7 @@ mod tests {
             600.0,
         )));
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        view.borrow_mut().scheduler = Some(sched.clone());
+        tree.attach_scheduler(sched.clone());
         tree.set_panel_view(root, Rc::downgrade(&view));
         (tree, view, sched, root)
     }
@@ -3332,8 +3348,9 @@ mod tests {
                 root_context: &root_ctx,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, sched.clone(), view_weak);
+            v.RegisterEngines(&mut sc, view_weak);
         }
+        tree.attach_scheduler(sched.clone());
 
         // Still no engine_id — register_engine_for was never re-invoked.
         assert!(
@@ -3518,7 +3535,7 @@ mod tests {
             600.0,
         )));
         let sched_a = Rc::new(RefCell::new(EngineScheduler::new()));
-        view_a.borrow_mut().scheduler = Some(sched_a.clone());
+        tree_a.attach_scheduler(sched_a.clone());
         view_a.borrow_mut().CurrentPixelTallness = 1.5;
         tree_a.set_panel_view(root_a, Rc::downgrade(&view_a));
         let recorded_a = Rc::new(Cell::new(None));
@@ -3540,7 +3557,7 @@ mod tests {
             600.0,
         )));
         let sched_b = Rc::new(RefCell::new(EngineScheduler::new()));
-        view_b.borrow_mut().scheduler = Some(sched_b.clone());
+        tree_b.attach_scheduler(sched_b.clone());
         view_b.borrow_mut().CurrentPixelTallness = 0.5;
         tree_b.set_panel_view(root_b, Rc::downgrade(&view_b));
         let recorded_b = Rc::new(Cell::new(None));
@@ -3644,7 +3661,7 @@ mod tests {
             600.0,
         )));
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        view.borrow_mut().scheduler = Some(sched.clone());
+        tree.attach_scheduler(sched.clone());
         tree.set_panel_view(root, Rc::downgrade(&view));
 
         let a = tree.create_child(root, "a");
