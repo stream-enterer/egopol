@@ -247,3 +247,54 @@ Keystone changes beyond C-notes:
   written by `emView::SetGeometry`.
 - `emSubViewPanel::sub_view_and_tree_mut()` helper added for
   engines that need both halves.
+
+### Task 8 — Popup ownership + winit event routing — DONE
+Commit: 82aa240d
+
+**Path chosen: B (popup owned by launching emView).**
+Rationale from C++ reference: `emView.h:670` declares
+`emWindow * PopupWindow;` as a plain owned pointer on emView,
+allocated in `emView.cpp:1636` (`PopupWindow = new emWindow(...)`)
+and deleted in `emView.cpp:1678` during zoom-back-inside-home.
+There is no framework-level pending-popups registry in C++; the
+backend dispatches OS events to each emWindow via its own
+callback. Path A (framework pending_popups map) would be a
+structural divergence from C++ ownership for no behavioral gain,
+so Path B wins.
+
+Changes:
+- `App::find_window_mut` — new helper that resolves a winit
+  `WindowId` to `&mut emWindow`, first looking in `self.windows`
+  and, on miss, scanning parent views' `PopupWindow.as_ref()`
+  for a materialized match. O(N_windows) — acceptable for
+  normal UIs. This is the forced Rust-side adaptation for
+  winit's single-ApplicationHandler dispatch model.
+- `App::window_event` branches (CloseRequested, Resized, Moved,
+  RedrawRequested, Focused, Touch, input) all route through
+  `find_window_mut`. CloseRequested distinguishes top-level
+  (auto-delete) vs popup (no auto-delete — teardown is driven
+  by emView::RawVisitAbs on zoom-back-inside-home).
+- `emView::PopupWindow` DIVERGED annotation rewritten to
+  document Path B + the routing adaptation.
+- Task-8 deferred comments on `App::windows` and
+  `materialize_pending_popup` updated to reflect final model.
+
+Tests restored:
+- `popup_materialization::popup_allocated_in_pending_state_owned_by_view`:
+  POPUP_ZOOM + outside-home RawVisit allocates a Pending popup
+  owned by emView (no App required). Asserts
+  `!popup.is_materialized()` and `PopupCloseSignal.is_some()`.
+- `popup_cancel_before_materialize::popup_torn_down_before_materialize_leaves_no_observable_state`:
+  After Pending popup allocation, `ZoomOut` triggers the
+  `else if PopupWindow.is_some()` teardown branch in RawVisitAbs
+  (emView.cpp:1676-1680). Asserts `PopupWindow.is_none()` and
+  `PopupCloseSignal.is_none()`.
+
+Gate:
+- cargo fmt / clippy -D warnings clean.
+- nextest: 2457 / 0 fail / 9 skipped.
+- goldens: 237 pass / 6 fail (unchanged baseline).
+
+PopupCloseSignal mirror retained (Path B keeps popup on emView;
+borrow-conflict rationale still applies). DIVERGED annotation
+remains accurate as-is.
