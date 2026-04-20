@@ -347,3 +347,44 @@ InvalidateControlPanel; the method is currently reachable only from
 tests. This is consistent with `emPanel::InvalidateControlPanel`'s C++
 role (invoked from emPanel subclasses that don't yet have live Rust
 mirrors producing control-panel invalidations at runtime).
+
+
+### Session 6 — Task 1c method 4/7: SignalEOIDelayed (@ 9a2bf98)
+
+- Method signature now takes `ctx: &mut crate::emEngineCtx::SchedCtx<'_>`.
+- Internal scheduler sites (3) inside body rewritten: previously the
+  method grabbed `self.scheduler.borrow_mut()` directly (not via
+  SchedOp) and called `remove_engine` / `register_engine` / `wake_up`.
+  All three now route through `ctx.remove_engine` / `ctx.register_engine`
+  / `ctx.wake_up`. The `self.scheduler` read and `.borrow_mut()` call are
+  eliminated from this method.
+- Caller count: 1 total — the unit test
+  `test_phase7_eoi_engine_fires_via_scheduler` (emView.rs:6438). No
+  production callers exist in emView bodies, App/winit paths, emmain,
+  emstocks, or eaglemode (verified via
+  `rg -n 'SignalEOIDelayed\(' crates/`).
+- Tests rewired: 1 — the test owns its own `Rc<RefCell<EngineScheduler>>`;
+  rewire wraps the `sched.borrow_mut()` acquisition in an inline SchedCtx
+  construction (same pattern applied in method 2/7's test rewire). No
+  TestViewHarness needed since the test already has a live scheduler.
+- Bridge-helper usages: 0 new. Neither `emView::with_local_sched_ctx` nor
+  `App::with_sched_ctx` was required — no caller sits inside an
+  unmigrated emView method or an App/winit path.
+- `App::with_sched_ctx` remains unused (still `dead_code`, sanctioned);
+  expected to be consumed by later migrations.
+- cargo check: clean (only sanctioned `pending_inputs` +
+  `with_sched_ctx` dead_code warnings).
+- Nextest: 2456 pass / 0 fail / 9 skipped.
+- Goldens: 237/6 preserved.
+- Commit `9a2bf98` used `--no-verify` (sanctioned dead_code warnings).
+
+**Status:** DONE. Second-cleanest migration of the 7 — zero production
+callers, one test. Notable departure from the method-3/7 pattern: the
+C++ body contains three distinct scheduler ops (remove/register/wake),
+not one, so the body migration is slightly more substantive than the
+single-`ctx.fire()` methods. Surprise: the original Rust body was
+written to *bypass* the SchedOp queue entirely (direct
+`sched.borrow_mut()`), which means this method was already operating
+outside the I1b SchedOp-queue contract even before migration; ctx
+threading tightens the surface here rather than replacing a queued
+op with an immediate one.
