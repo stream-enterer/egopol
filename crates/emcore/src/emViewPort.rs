@@ -55,14 +55,6 @@ pub struct emViewPort {
     pub home_width: f64,
     pub home_height: f64,
 
-    // Focus state for this port. C++ stores it on the view (Focused field);
-    // here it lives on the port so SwapViewPorts can transfer it between home
-    // and popup without touching the view's window_focused directly.
-    //
-    // DIVERGED: no direct C++ equivalent field on emViewPort; focus is on
-    // the emView. Introduced here to support SwapViewPorts stub.
-    focused: bool,
-
     /// Back-reference to the owning emWindow by WindowId. Used by
     /// `PaintView` / `InvalidatePainting` to dispatch to backend machinery.
     /// Resolved through `EngineCtx::windows` / `App::windows` at call time,
@@ -99,7 +91,6 @@ impl emViewPort {
             home_y: 0.0,
             home_width: 0.0,
             home_height: 0.0,
-            focused: false,
             window_id: None,
             cursor: crate::emCursor::emCursor::Normal,
             cursor_dirty: false,
@@ -121,7 +112,6 @@ impl emViewPort {
             home_y,
             home_width,
             home_height,
-            focused: false,
             window_id: None,
             cursor: crate::emCursor::emCursor::Normal,
             cursor_dirty: false,
@@ -202,18 +192,24 @@ impl emViewPort {
     }
 
     /// Port of C++ `emViewPort::SetViewFocused(bool focused)`.
-    /// Updates the focus state on this port.
-    pub fn SetViewFocused(&mut self, focused: bool) {
-        self.focused = focused;
-    }
+    ///
+    /// C++ (emView.h:1032-1035): calls `CurrentView->SetFocused(focused)`.
+    /// Rust: focus is canonical on `emView::window_focused`; callers that have
+    /// an `&mut emView` in scope must call `emView::SetFocused` directly.
+    /// This stub exists to satisfy the C++ name correspondence requirement;
+    /// it is a no-op because the port no longer stores a focused field.
+    ///
+    /// DIVERGED: C++ mutates the view through a raw `CurrentView*` pointer;
+    /// Rust drops the forwarding because the port has no back-reference to
+    /// `emView`. All known call sites have been migrated to `emView::SetFocused`.
+    pub fn SetViewFocused(&mut self, _focused: bool) {}
 
     /// Port of C++ `emViewPort::RequestFocus`.
     ///
-    /// Default implementation (emView.cpp:2661): calls `SetViewFocused(true)`.
-    pub fn RequestFocus(&mut self) {
-        // emView.cpp:2661-2664: default base-class implementation
-        self.SetViewFocused(true);
-    }
+    /// C++ default implementation (emView.cpp:2661): calls `SetViewFocused(true)`.
+    /// Rust: see `SetViewFocused` — callers with `&mut emView` in scope call
+    /// `emView::SetFocused(tree, true)` directly.
+    pub fn RequestFocus(&mut self) {}
 
     /// Port of C++ `emViewPort::IsSoftKeyboardShown`.
     ///
@@ -291,24 +287,6 @@ impl emViewPort {
                 win.invalidate_rect(x, y, w, h);
             }
         }
-    }
-
-    // === Rust-only accessors for SwapViewPorts / focus transfer ===
-
-    /// Returns whether this port currently holds focus.
-    ///
-    /// DIVERGED: no C++ equivalent method on emViewPort; focus state was
-    /// stored directly on emView::Focused. Introduced to support
-    /// SwapViewPorts focus-transfer without holding a back-reference.
-    pub fn is_focused(&self) -> bool {
-        self.focused
-    }
-
-    /// Sets the focused flag on this port.
-    ///
-    /// DIVERGED: see `is_focused`.
-    pub fn set_focused(&mut self, focused: bool) {
-        self.focused = focused;
     }
 
     /// Updates the home geometry fields and pixel tallness.

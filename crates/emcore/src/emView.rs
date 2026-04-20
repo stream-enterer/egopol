@@ -1856,8 +1856,10 @@ impl emView {
                     // C++ (emView.cpp:1644): SwapViewPorts(true)
                     self.SwapViewPorts(true, ctx);
                     // C++ (emView.cpp:1645): if (wasFocused && !Focused) CurrentViewPort->RequestFocus()
+                    // C++ RequestFocus → SetViewFocused(true) → CurrentView->SetFocused(true).
+                    // Rust calls SetFocused directly (port has no view back-reference).
                     if was_focused && !self.window_focused {
-                        self.CurrentViewPort.borrow_mut().RequestFocus();
+                        self.SetFocused(tree, true);
                     }
                     // Enqueue OS-surface materialization. Drained by
                     // `App::about_to_wait` on the next tick. If the popup
@@ -3344,14 +3346,16 @@ impl emView {
         if swap_focus {
             // C++ (emView.cpp:1990-1994):
             //   fcs = Focused; SetFocused(w->Focused); w->SetFocused(fcs);
-            // Phase 4: transfer focus between ports; emView::window_focused
-            // is NOT changed here because no PanelTree is available and focus
-            // notification is a Phase-5 concern.
-            let vp_focus = self.CurrentViewPort.borrow().is_focused();
-            self.CurrentViewPort
-                .borrow_mut()
-                .set_focused(self.window_focused);
-            self.HomeViewPort.borrow_mut().set_focused(vp_focus);
+            // Swap window_focused between this view and the popup view.
+            // Full SetFocused (with panel-tree notification) is Phase-5;
+            // for now swap the raw bool so the focus state tracks correctly
+            // across port exchanges.
+            if let Some(ref mut popup) = self.PopupWindow {
+                let popup_focused = popup.view().window_focused;
+                let our_focused = self.window_focused;
+                popup.view_mut().window_focused = our_focused;
+                self.window_focused = popup_focused;
+            }
         }
 
         // C++ emView.cpp:1995: Signal(GeometrySignal) — viewport swap changes
