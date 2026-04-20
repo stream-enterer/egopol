@@ -625,3 +625,53 @@ Phase 1.5's spec destination requires both to drop. The plan has been amended (s
 **Scope of 1e.1:** ctx-thread `PanelTree::add_to_notice_list`, `register_engine_for`, `deregister_engine_for`, `emPanelCtx::wake_up_panel`. Delete `PanelTree::sched_rc` field. Delete `pending_engine_wakeups` deferral (no longer needed once `ctx.scheduler` is always in hand). Cascade into all callers across `emView`, `emPanelTree`, `emPanelCtx`, `emSubViewPanel`, tests.
 
 **Status:** PENDING. Scheduled after substep 1f, before Task 2. User acknowledged the shuffle-not-delete drift and opted for plan-edit over revert.
+
+---
+
+## Task 1f — App.scheduler narrowed — 61d0f60
+
+**Date:** 2026-04-19
+**Commit:** 61d0f60
+**Status:** BLOCKED (see below)
+
+### Metrics
+
+| metric | before | after |
+|---|---|---|
+| rc_refcell_total | 286 | 282 |
+| try_borrow_total | 13 | 13 |
+
+### What changed
+
+- `App.scheduler: Rc<RefCell<EngineScheduler>>` → `App.scheduler: EngineScheduler`.
+- DIVERGED comment block at emGUIFramework.rs:89-95 deleted.
+- Constructor: removed `Rc::new(RefCell::new(...))` wrapping.
+- All `self.scheduler.borrow_mut()` / `self.scheduler.borrow()` / `self.scheduler.clone()` sites in `emGUIFramework.rs` converted to direct field borrows.
+- `about_to_wait` animator loop: struct-destructured `self` before the `windows.values()` loop to produce disjoint `&mut scheduler`, `&mut tree`, `&mut framework_actions`, `&ref context`, `&ref windows`.
+- `DoTimeSlice` disjoint-borrow: `ref scheduler` + `.borrow_mut()` → `ref mut scheduler` + direct method call.
+- `materialize_popup_surface`: `sched_rc = self.scheduler.clone()` pattern removed; uses `&mut self.scheduler` directly.
+- `Touch` / `input_event` / `Resized` handlers: `.cloned()` on window get to release immutable borrow before constructing SchedCtx with `&mut self.scheduler`.
+- Test `framework_scheduler_shape`: asserts `&EngineScheduler` (was `&Rc<RefCell<EngineScheduler>>`).
+- `eaglemode/tests/unit/popup_materialization.rs` + `popup_cancel_before_materialize.rs`: 4 sites each `app.scheduler.borrow_mut().create_signal()` → `app.scheduler.create_signal()`.
+- `emmain/src/emMainWindow.rs`: all `app.scheduler.borrow_mut().method()` / multi-line `.borrow_mut()` chains converted to direct `app.scheduler.method()`. `ReloadFiles` / `Quit` signatures changed from `&App` to `&mut App`.
+
+### Sites touched per file
+
+| file | sites |
+|---|---|
+| emcore/src/emGUIFramework.rs | 12 |
+| eaglemode/tests/unit/popup_materialization.rs | 4 |
+| eaglemode/tests/unit/popup_cancel_before_materialize.rs | 4 |
+| emmain/src/emMainWindow.rs | 20 |
+
+### Blocker
+
+`emmain/src/emMainWindow.rs:883`:
+```
+app.tree.attach_scheduler(Rc::clone(&app.scheduler));
+```
+`PanelTree::attach_scheduler` still takes `Rc<RefCell<EngineScheduler>>`. With `app.scheduler` now plain, this cannot compile. Resolving requires substep 1e.1 (delete/change `PanelTree::sched_rc` + `attach_scheduler`). No Rc shim was added per task rules.
+
+emmain regresses from green to red (1 error). All other crates are green.
+
+**Required next step:** substep 1e.1 must run before 1f can be declared DONE. 1e.1 unblocks this line by removing the `PanelTree::sched_rc` field and changing or removing `attach_scheduler`.
