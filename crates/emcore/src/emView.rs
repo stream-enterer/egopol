@@ -516,15 +516,16 @@ pub struct emView {
     /// C++ PopupWindow — owned handle to the popup window created when
     /// zooming past the home-rect edges under VF_POPUP_ZOOM.
     ///
-    /// DIVERGED: C++ holds an `emWindow*` that the screen's window list
-    /// refers to via raw pointers. In Rust, prior to the Phase-2
-    /// port-ownership-rewrite, this was `Option<Rc<RefCell<emWindow>>>`
-    /// with a cloned Rc also living in `App::windows`. Now that `App::windows`
-    /// holds plain `emWindow` values, the popup cannot be cloned into both
-    /// places. The popup is stored here (by owned value) for its entire
-    /// lifetime — `App::windows` deliberately does NOT hold the popup.
-    /// Winit events destined for the popup's WindowId are currently not
-    /// routed; full popup OS-event handling is Task 8 territory.
+    /// Task-8 Path B: matches C++ ownership exactly (emView.h:670
+    /// `emWindow * PopupWindow`; allocated in emView.cpp:1636). The popup
+    /// is owned by the launching `emView` for its entire lifetime;
+    /// `App::windows` deliberately does NOT hold a copy. Winit events
+    /// destined for the popup's `WindowId` are routed by
+    /// `App::find_window_mut`, which scans parent views' `PopupWindow`
+    /// handles — the forced Rust-side adaptation for winit's single
+    /// `ApplicationHandler` dispatch model. C++ has no registry because
+    /// the backend dispatches OS events to each `emWindow` via its own
+    /// callback registration.
     // DIVERGED (Phase 2 Task 2): Box<emWindow> instead of emWindow. Now
     // that emWindow::view is a plain emView (not Rc<RefCell>), storing
     // emWindow inline here would create infinite-sized recursion

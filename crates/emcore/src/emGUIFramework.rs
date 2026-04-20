@@ -92,8 +92,10 @@ pub struct App {
     pub tree: PanelTree,
     // Phase-2 port-ownership-rewrite: narrowed from
     // `HashMap<WindowId, Rc<RefCell<emWindow>>>` to plain `emWindow`.
-    // Popups under Phase-2 live in `emView::PopupWindow` instead of here
-    // (Task 8 will redesign the full pending_popups flow).
+    // Top-level windows only. Popups live on `emView::PopupWindow`,
+    // matching C++ ownership (emView.h:670 `emWindow * PopupWindow`).
+    // Winit events to popup WindowIds are resolved via `find_window_mut`
+    // which scans parent views' PopupWindow handles.
     pub windows: HashMap<WindowId, emWindow>,
     /// Framework-level deferred actions produced by scheduler/view code that
     /// need to run back on `App` between time slices. Spec §3.1 / §3.7 —
@@ -215,23 +217,60 @@ impl App {
         win.request_redraw();
     }
 
+    /// Resolve a winit `WindowId` to an `&mut emWindow`, searching both the
+    /// top-level `self.windows` map and any popup held by a top-level
+    /// window's view (`emView::PopupWindow`).
+    ///
+    /// C++ reference (emView.cpp:1634-1642 + emView.h:670): the popup
+    /// `emWindow*` is owned by the launching `emView`, not a framework
+    /// registry. The C++ backend dispatches OS events to each `emWindow`
+    /// via its own callback registration; Rust must look up by `WindowId`
+    /// because winit delivers events through a single `ApplicationHandler`.
+    /// The scan is O(N_windows) which is fine for normal UIs (handful of
+    /// windows). This is Task-8 Path B — matches C++ ownership exactly.
+    pub(crate) fn find_window_mut(
+        windows: &mut HashMap<WindowId, emWindow>,
+        window_id: WindowId,
+    ) -> Option<&mut emWindow> {
+        if windows.contains_key(&window_id) {
+            return windows.get_mut(&window_id);
+        }
+        // Popup path: scan for a parent window whose view holds a popup
+        // whose materialized WindowId matches.
+        for win in windows.values_mut() {
+            let matches = win
+                .view()
+                .PopupWindow
+                .as_ref()
+                .and_then(|p| {
+                    p.winit_window_if_materialized()
+                        .map(|w| w.id() == window_id)
+                })
+                .unwrap_or(false);
+            if matches {
+                return win.view_mut().PopupWindow.as_deref_mut();
+            }
+        }
+        None
+    }
+
     /// Materialize the currently-pending popup window's OS surface.
     ///
-    /// DIVERGED (Phase-2 port-ownership-rewrite): since `App::windows` holds
-    /// plain `emWindow` (no `Rc`) the popup can no longer be shared between
-    /// the closure and `emView::PopupWindow`. Instead the popup lives in
-    /// `emView::PopupWindow` and this method walks `App::windows` to find
-    /// the home view holding a `Pending` popup, materializes the OS surface
-    /// in place, and wires the new WindowId onto the view-port back-reference.
+    /// Since `App::windows` holds plain `emWindow` (no `Rc`) the popup
+    /// cannot be shared between a closure and `emView::PopupWindow` — it
+    /// lives in `emView::PopupWindow` for its entire lifetime (Task-8
+    /// Path B, mirroring C++ `emView::PopupWindow` ownership from
+    /// `emView.cpp:1636`). This method walks `App::windows` to find the
+    /// home view holding a `Pending` popup, materializes the OS surface
+    /// in place, and wires the new WindowId onto the view-port
+    /// back-reference.
     ///
     /// **Cancellation:** if no view holds a `Pending` popup at drain time,
     /// the popup was torn down between enqueue and drain (same-frame
     /// popup-enter/exit). We silently return.
     ///
-    /// NOTE (Task 8 territory): The popup continues to live in
-    /// `emView::PopupWindow` after materialization rather than moving into
-    /// `App::windows`. This means winit events addressed to the popup's
-    /// WindowId are NOT routed here. Full popup OS-event handling is Task 8.
+    /// Winit events addressed to the popup's WindowId are routed via
+    /// `find_window_mut` (see above).
     pub(crate) fn materialize_pending_popup(&mut self, event_loop: &ActiveEventLoop) {
         use crate::emWindow::{MaterializedSurface, OsSurface};
 
@@ -369,22 +408,29 @@ impl ApplicationHandler for App {
     ) {
         match event {
             WindowEvent::CloseRequested => {
-                let (auto_delete, sig) = self
-                    .windows
-                    .get(&window_id)
-                    .map(|win| {
-                        (
-                            win.flags.contains(WindowFlags::AUTO_DELETE),
-                            Some(win.close_signal),
-                        )
-                    })
-                    .unwrap_or((true, None));
+                // Top-level close: auto-delete from `windows` and fire its
+                // close signal. Popup close: fire the popup's close signal
+                // but do NOT remove it here — teardown happens in
+                // `emView::RawVisitAbs`'s pop path when the view zooms
+                // back inside home (C++ emView.cpp:1676-1680). Popup is
+                // always AUTO_DELETE but ownership lives on emView.
+                let (is_popup, auto_delete, sig) = if let Some(win) = self.windows.get(&window_id) {
+                    (
+                        false,
+                        win.flags.contains(WindowFlags::AUTO_DELETE),
+                        Some(win.close_signal),
+                    )
+                } else if let Some(popup) = Self::find_window_mut(&mut self.windows, window_id) {
+                    (true, false, Some(popup.close_signal))
+                } else {
+                    (false, true, None)
+                };
 
                 if let Some(sig) = sig {
                     self.scheduler.fire(sig);
                 }
 
-                if auto_delete {
+                if !is_popup && auto_delete {
                     self.windows.remove(&window_id);
                 }
 
@@ -393,7 +439,7 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::Resized(size) => {
-                if let Some(win) = self.windows.get_mut(&window_id) {
+                if let Some(win) = Self::find_window_mut(&mut self.windows, window_id) {
                     let gpu = self.gpu.as_ref().unwrap();
                     let root = self.context.clone();
                     let mut sc = crate::emEngineCtx::SchedCtx {
@@ -410,18 +456,18 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::Moved(_) => {
-                if let Some(win) = self.windows.get_mut(&window_id) {
+                if let Some(win) = Self::find_window_mut(&mut self.windows, window_id) {
                     win.set_geometry_changed();
                 }
             }
             WindowEvent::RedrawRequested => {
-                if let Some(win) = self.windows.get_mut(&window_id) {
+                if let Some(win) = Self::find_window_mut(&mut self.windows, window_id) {
                     let gpu = self.gpu.as_ref().unwrap();
                     win.render(&mut self.tree, gpu);
                 }
             }
             WindowEvent::Focused(focused) => {
-                if let Some(win) = self.windows.get_mut(&window_id) {
+                if let Some(win) = Self::find_window_mut(&mut self.windows, window_id) {
                     win.view_mut().SetFocused(&mut self.tree, focused);
                     win.set_focus_changed();
                     win.invalidate();
@@ -429,7 +475,7 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::Touch(ref touch) => {
-                if let Some(win) = self.windows.get_mut(&window_id) {
+                if let Some(win) = Self::find_window_mut(&mut self.windows, window_id) {
                     let mut sc = crate::emEngineCtx::SchedCtx {
                         scheduler: &mut self.scheduler,
                         framework_actions: &mut self.framework_actions,
@@ -472,7 +518,7 @@ impl ApplicationHandler for App {
                         input.mouse_y = self.input_state.mouse_y;
                     }
 
-                    if let Some(win) = self.windows.get_mut(&window_id) {
+                    if let Some(win) = Self::find_window_mut(&mut self.windows, window_id) {
                         let mut sc = crate::emEngineCtx::SchedCtx {
                             scheduler: &mut self.scheduler,
                             framework_actions: &mut self.framework_actions,
@@ -506,7 +552,9 @@ impl ApplicationHandler for App {
         // Phase-2 port-ownership-rewrite: closures no longer carry a captured
         // `Rc<RefCell<emWindow>>`; `App::windows` holds plain `emWindow`.
         // Popup materialization finds its target by walking `App::windows`
-        // and `emView::PopupWindow` (see `materialize_pending_popup`).
+        // for a view whose `emView::PopupWindow` is in `Pending` state
+        // (see `materialize_pending_popup`). Task-8 Path B — matches C++
+        // `emView.cpp:1636` ownership (popup owned by launching view).
         let actions: Vec<DeferredAction> = self.pending_actions.borrow_mut().drain(..).collect();
         for action in actions {
             action(self, event_loop);
