@@ -2,8 +2,11 @@
 //
 // DIVERGED: not a class hierarchy but a concrete struct with optional backend
 // hooks. Rust has no dummy-base-class pattern; the "default implementation
-// connects to nothing" model becomes a `Weak<RefCell<emWindow>>` back-reference
-// which is `None` for dummy instances.
+// connects to nothing" model becomes an `Option<WindowId>` back-reference
+// (resolved through `EngineCtx::windows` / `App::windows`) which is `None`
+// for dummy instances. Earlier versions used `Weak<RefCell<emWindow>>`;
+// Phase-2 port-ownership-rewrite narrowed windows to plain `emWindow` so
+// Weak is no longer expressible.
 //
 // C++ emViewPort has two constructors:
 //   emViewPort(emView & homeView) — real port, registers itself on the view
@@ -25,14 +28,14 @@
 //   InvalidateCursor      — set cursor-dirty flag (consumed by emWindow on next frame)
 //   InvalidatePainting    — delegate to emWindow::invalidate_rect (tile cache)
 
-use std::cell::RefCell;
-use std::rc::Weak;
+use winit::window::WindowId;
 
 /// Port of C++ `emViewPort` (emView.h:719-794).
 ///
 /// Connects an `emView` to its OS/hardware backend. The default ("dummy")
 /// instance connects to nothing (back-reference is `None`). A real instance
-/// has a `Weak<emWindow>` back-reference set by `emWindow::create`.
+/// has a `WindowId` back-reference set by `emWindow::create`; callers resolve
+/// it through `EngineCtx::windows` / `App::windows`.
 #[allow(non_snake_case)]
 pub struct emViewPort {
     // === C++ private fields (emView.h:789-793) ===
@@ -60,10 +63,12 @@ pub struct emViewPort {
     // the emView. Introduced here to support SwapViewPorts stub.
     focused: bool,
 
-    /// Back-reference to the owning emWindow. Used by `PaintView`,
-    /// `InvalidatePainting` to dispatch to backend machinery. `Weak` to
-    /// avoid `Rc` cycles. `None` for dummy ports.
-    pub(crate) window: Option<Weak<RefCell<crate::emWindow::emWindow>>>,
+    /// Back-reference to the owning emWindow by WindowId. Used by
+    /// `PaintView` / `InvalidatePainting` to dispatch to backend machinery.
+    /// Resolved through `EngineCtx::windows` / `App::windows` at call time,
+    /// so no `Weak` back-reference is needed. `None` for dummy ports and
+    /// for popup ports while the OS surface is still `Pending`.
+    pub(crate) window_id: Option<WindowId>,
 
     /// Cursor reported by the view; `emWindow` consumes it on each frame.
     /// (C++ stores the cursor on `emView`, not `emViewPort`; the Rust
@@ -95,7 +100,7 @@ impl emViewPort {
             home_width: 0.0,
             home_height: 0.0,
             focused: false,
-            window: None,
+            window_id: None,
             cursor: crate::emCursor::emCursor::Normal,
             cursor_dirty: false,
             input_clock_ms: 0,
@@ -117,7 +122,7 @@ impl emViewPort {
             home_width,
             home_height,
             focused: false,
-            window: None,
+            window_id: None,
             cursor: crate::emCursor::emCursor::Normal,
             cursor_dirty: false,
             input_clock_ms: 0,
@@ -165,22 +170,21 @@ impl emViewPort {
 
     /// Port of C++ `emViewPort::PaintView`.
     ///
-    /// Requests a redraw on the owning `emWindow`. No-op for dummy ports.
-    ///
-    /// **Re-entrancy warning:** the back-reference is upgraded and the owning
-    /// `emWindow` is borrowed shared. Callers must NOT already hold a
-    /// `rc.borrow_mut()` on the same window (e.g. from inside `render`,
-    /// `dispatch_input`, or `handle_touch`) — the runtime `RefCell` check
-    /// would panic rather than being caught at compile time. A full audit is
-    /// required when production call sites are first wired.
-    pub fn PaintView(&self) {
+    /// Requests a redraw on the owning `emWindow`, resolved via
+    /// `windows[self.window_id]`. No-op for dummy ports (`window_id` is
+    /// `None`) and for popup ports whose OS surface is still `Pending`
+    /// (WindowId not yet in `windows`).
+    pub fn PaintView(
+        &self,
+        windows: &std::collections::HashMap<WindowId, crate::emWindow::emWindow>,
+    ) {
         debug_assert!(
-            self.window.is_some() || cfg!(test),
+            self.window_id.is_some() || cfg!(test),
             "emViewPort::PaintView called on viewport without back-reference"
         );
-        if let Some(weak) = &self.window {
-            if let Some(rc) = weak.upgrade() {
-                rc.borrow().request_redraw();
+        if let Some(wid) = self.window_id {
+            if let Some(win) = windows.get(&wid) {
+                win.request_redraw();
             }
         }
     }
@@ -241,9 +245,10 @@ impl emViewPort {
     ///
     /// Routes an input event to the home view. C++ dispatches via
     /// `CurrentView->Input(event, state)`; Rust takes `view` and `tree` as
-    /// parameters because the back-reference is `Weak<RefCell<emWindow>>`
-    /// and `emView` lives inside `emWindow`. The dispatch site in
-    /// `emWindow::dispatch_input` already holds borrows to both.
+    /// parameters because the back-reference is `Option<WindowId>` (resolved
+    /// through `EngineCtx::windows`) and `emView` lives inside `emWindow`.
+    /// The dispatch site in `emWindow::dispatch_input` already holds borrows
+    /// to both.
     pub fn InputToView(
         &mut self,
         view: &mut crate::emView::emView,
@@ -266,23 +271,24 @@ impl emViewPort {
 
     /// Port of C++ `emViewPort::InvalidatePainting(x, y, w, h)`.
     ///
-    /// Delegates to the owning `emWindow`'s tile cache. No-op for dummy
-    /// ports.
-    ///
-    /// **Re-entrancy warning:** the back-reference is upgraded and the owning
-    /// `emWindow` is borrowed mutably (`rc.borrow_mut()`). Callers must NOT
-    /// already hold any borrow on the same window (e.g. from inside `render`,
-    /// `dispatch_input`, or `handle_touch`) — the runtime `RefCell` check
-    /// would panic rather than being caught at compile time. A full audit is
-    /// required when production call sites are first wired.
-    pub fn InvalidatePainting(&mut self, x: f64, y: f64, w: f64, h: f64) {
+    /// Delegates to the owning `emWindow`'s tile cache, resolved via
+    /// `windows[self.window_id]`. No-op for dummy ports and for popup
+    /// ports whose OS surface is still `Pending`.
+    pub fn InvalidatePainting(
+        &mut self,
+        windows: &mut std::collections::HashMap<WindowId, crate::emWindow::emWindow>,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+    ) {
         debug_assert!(
-            self.window.is_some() || cfg!(test),
+            self.window_id.is_some() || cfg!(test),
             "emViewPort::InvalidatePainting called on viewport without back-reference"
         );
-        if let Some(weak) = &self.window {
-            if let Some(rc) = weak.upgrade() {
-                rc.borrow_mut().invalidate_rect(x, y, w, h);
+        if let Some(wid) = self.window_id {
+            if let Some(win) = windows.get_mut(&wid) {
+                win.invalidate_rect(x, y, w, h);
             }
         }
     }

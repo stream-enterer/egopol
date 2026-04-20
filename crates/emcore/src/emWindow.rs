@@ -168,9 +168,9 @@ pub struct emWindow {
 impl emWindow {
     /// Create a new window with a wgpu surface and rendering pipeline.
     ///
-    /// Returns `Rc<RefCell<Self>>` so that `emViewPort::window` (a
-    /// `Weak<RefCell<emWindow>>`) can be wired immediately after construction
-    /// without requiring a second pass from the caller.
+    /// Returns a plain `emWindow`. The caller inserts it into `App::windows`
+    /// under the winit `WindowId` returned by `winit_window().id()`, then
+    /// wires the view-port back-reference via `wire_viewport_window_id()`.
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         event_loop: &winit::event_loop::ActiveEventLoop,
@@ -182,7 +182,7 @@ impl emWindow {
         flags_signal: SignalId,
         focus_signal: SignalId,
         geometry_signal: SignalId,
-    ) -> Rc<RefCell<Self>> {
+    ) -> Self {
         let mut attrs = winit::window::WindowAttributes::default().with_title("eaglemode-rs");
 
         if flags.contains(WindowFlags::UNDECORATED) {
@@ -221,7 +221,7 @@ impl emWindow {
             Box::new(emKeyboardZoomScrollVIF::new()),
         ];
 
-        let window = Rc::new(RefCell::new(Self {
+        let window = Self {
             os_surface: OsSurface::Materialized(Box::new(materialized)),
             view: Rc::new(RefCell::new(view)),
             flags,
@@ -243,17 +243,19 @@ impl emWindow {
             geometry_changed: false,
             wm_res_name: String::from("eaglemode-rs"),
             render_pool: emRenderThreadPool::new(max_render_threads),
-        }));
+        };
 
-        // Wire the emViewPort back-reference (Phase 6 / Phase-5 absorbed work).
-        // The current view-port (initially the home port) gets a Weak pointer
-        // back to the owning window so PaintView and InvalidatePainting can
-        // dispatch to backend machinery. Matches the C++ emWindowPort
-        // constructor which stores &Window on the port.
+        // Wire the emViewPort back-reference (Phase 6 / Phase-5 absorbed work;
+        // Phase-2 port-ownership-rewrite: WindowId instead of Weak). The
+        // current view-port (initially the home port) stores the owning
+        // window's WindowId so PaintView and InvalidatePainting can dispatch
+        // to backend machinery by resolving through `EngineCtx::windows`.
+        // Matches the C++ emWindowPort constructor which stores &Window on
+        // the port.
+        let window_id = window.winit_window().id();
         {
-            let win_ref = window.borrow();
-            let vp = win_ref.view.borrow().CurrentViewPort.clone();
-            vp.borrow_mut().window = Some(Rc::downgrade(&window));
+            let vp = window.view.borrow().CurrentViewPort.clone();
+            vp.borrow_mut().window_id = Some(window_id);
         }
 
         // Phase 9 (emview-rewrite-followups): seed the view's max_popup_rect
@@ -261,21 +263,18 @@ impl emWindow {
         // screen dimensions. `current_monitor()` may return None on Wayland
         // without position queries; in that case the home-rect fallback in
         // `GetMaxPopupViewRect` applies.
-        {
-            let win_mut = window.borrow_mut();
-            if let Some(monitor) = win_mut.winit_window().current_monitor() {
-                let pos = monitor.position();
-                let size = monitor.size();
-                win_mut
-                    .view
-                    .borrow_mut()
-                    .set_max_popup_rect(Some(crate::emPanel::Rect::new(
-                        pos.x as f64,
-                        pos.y as f64,
-                        size.width as f64,
-                        size.height as f64,
-                    )));
-            }
+        if let Some(monitor) = window.winit_window().current_monitor() {
+            let pos = monitor.position();
+            let size = monitor.size();
+            window
+                .view
+                .borrow_mut()
+                .set_max_popup_rect(Some(crate::emPanel::Rect::new(
+                    pos.x as f64,
+                    pos.y as f64,
+                    size.width as f64,
+                    size.height as f64,
+                )));
         }
 
         window
@@ -294,7 +293,7 @@ impl emWindow {
         flags_signal: SignalId,
         focus_signal: SignalId,
         geometry_signal: SignalId,
-    ) -> Rc<RefCell<Self>> {
+    ) -> Self {
         Self::create(
             event_loop,
             gpu,
@@ -330,7 +329,7 @@ impl emWindow {
         focus_signal: SignalId,
         geometry_signal: SignalId,
         background_color: crate::emColor::emColor,
-    ) -> Rc<RefCell<Self>> {
+    ) -> Self {
         // Placeholder geometry — real position/size lands via
         // `SetViewPosSize` before materialization.
         let mut view = emView::new(parent_context, root_panel, 1.0, 1.0);
@@ -348,7 +347,7 @@ impl emWindow {
             Box::new(emKeyboardZoomScrollVIF::new()),
         ];
 
-        let window = Rc::new(RefCell::new(Self {
+        Self {
             os_surface: OsSurface::Pending(Box::new(PendingSurface {
                 flags,
                 caption,
@@ -374,16 +373,20 @@ impl emWindow {
             geometry_changed: false,
             wm_res_name: String::from("eaglemode-rs"),
             render_pool: emRenderThreadPool::new(max_render_threads),
-        }));
-
-        // Wire the emViewPort back-reference, same as `create()`.
-        {
-            let win_ref = window.borrow();
-            let vp = win_ref.view.borrow().CurrentViewPort.clone();
-            vp.borrow_mut().window = Some(Rc::downgrade(&window));
         }
+        // NOTE: `emViewPort::window_id` is wired once the popup acquires a
+        // winit WindowId — i.e. on materialization (`materialize_popup_surface`).
+        // Until then `window_id` remains `None`; PaintView / InvalidatePainting
+        // are no-ops, which matches the "Pending state is observable but has
+        // no OS surface" contract.
+    }
 
-        window
+    /// Set the `window_id` back-reference on the current view-port. Called
+    /// by the framework once a pending popup's OS surface has been
+    /// materialized and its winit WindowId is known.
+    pub(crate) fn wire_viewport_window_id(&self, window_id: winit::window::WindowId) {
+        let vp = self.view.borrow().CurrentViewPort.clone();
+        vp.borrow_mut().window_id = Some(window_id);
     }
 
     // DIVERGED: Plan listed `materialized()`/`materialized_mut()` returning 6-tuple borrows; inlined as match in callers because the multi-borrow signature is awkward in Rust.
@@ -1812,7 +1815,7 @@ mod tests {
         let flags_sig = sched.borrow_mut().create_signal();
         let focus_sig = sched.borrow_mut().create_signal();
         let geom_sig = sched.borrow_mut().create_signal();
-        let win = emWindow::new_popup_pending(
+        let mut win = emWindow::new_popup_pending(
             crate::emContext::emContext::NewRoot(),
             root,
             WindowFlags::empty(),
@@ -1823,14 +1826,10 @@ mod tests {
             geom_sig,
             crate::emColor::emColor::TRANSPARENT,
         );
-        let view_weak = {
-            let w = win.borrow();
-            std::rc::Rc::downgrade(w.view_rc())
-        };
+        let view_weak = std::rc::Rc::downgrade(win.view_rc());
         let _ = win_id;
         {
-            let mut w = win.borrow_mut();
-            let mut v = w.view_mut();
+            let mut v = win.view_mut();
             let root = v.Context.GetRootContext();
             let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
             let mut s = sched.borrow_mut();
@@ -1847,12 +1846,11 @@ mod tests {
                 crate::emEngine::TreeLocation::Outer,
             );
         }
-        assert!(win.borrow().view().update_engine_id.is_some());
+        assert!(win.view().update_engine_id.is_some());
 
         // Scheduler cleanup for Drop debug_asserts.
         {
-            let mut w = win.borrow_mut();
-            let mut v = w.view_mut();
+            let mut v = win.view_mut();
             if let Some(id) = v.update_engine_id.take() {
                 sched.borrow_mut().remove_engine(id);
             }
@@ -1889,12 +1887,11 @@ mod tests {
             bg_color,
         );
 
-        let p = popup.borrow();
         assert!(
-            !p.is_materialized(),
+            !popup.is_materialized(),
             "new_popup_pending must start in Pending state"
         );
-        match &p.os_surface {
+        match &popup.os_surface {
             OsSurface::Pending(ps) => {
                 assert!(ps.flags.contains(WindowFlags::POPUP));
                 assert!(ps.flags.contains(WindowFlags::UNDECORATED));
@@ -1904,13 +1901,13 @@ mod tests {
             }
             OsSurface::Materialized(_) => panic!("expected Pending"),
         }
-        assert_eq!(p.close_signal, close_sig);
-        assert_eq!(p.flags_signal, flags_sig);
-        assert_eq!(p.focus_signal, focus_sig);
-        assert_eq!(p.geometry_signal, geom_sig);
-        assert_eq!(p.root_panel, root);
-        assert_eq!(p.view().GetBackgroundColor(), bg_color);
-        assert!(p.winit_window_if_materialized().is_none());
+        assert_eq!(popup.close_signal, close_sig);
+        assert_eq!(popup.flags_signal, flags_sig);
+        assert_eq!(popup.focus_signal, focus_sig);
+        assert_eq!(popup.geometry_signal, geom_sig);
+        assert_eq!(popup.root_panel, root);
+        assert_eq!(popup.view().GetBackgroundColor(), bg_color);
+        assert!(popup.winit_window_if_materialized().is_none());
     }
 
     #[test]

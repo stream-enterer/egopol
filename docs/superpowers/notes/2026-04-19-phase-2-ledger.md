@@ -21,6 +21,51 @@ B4 condition satisfied by the Phase 1.76 closeout's `Status: COMPLETE` line.
 
 Following the ritual's `2026-04-19-phase-<N>-*.md` stem (not the Phase-1.75/1.76 execution-date stem) to maintain grep-ability with the ritual's example patterns. Handoff recommendation.
 
+## Plan reshuffle (recorded 2026-04-20)
+
+Task-W3's first dispatch returned BLOCKED with a sound finding: narrowing `App.windows` + `EngineCtx.windows` to plain `emWindow` is inseparable from migrating `emViewPort::window: Option<Weak<RefCell<emWindow>>>` → `Option<WindowId>` (Task 4's back-ref portion) and rewriting `emWindow::create` to return plain `emWindow`. The `Weak<RefCell<emWindow>>` can only upgrade from an Rc that outlives it, and removing the Rc owner in `App.windows` extinguishes the allocation.
+
+**Decision (user-approved):** Bundle Task-W3 + Task 4's back-ref migration into a single atomic dispatch/commit. Task 4 *retains* the non-back-ref work: delete `focused: bool` field (D5.6), delete DIVERGED blocks at emViewPort.rs:5/43/244, update focus-consolidation callers. Those stay in Task 4 proper, which still happens after Tasks 1–3.
+
+Revised dispatch order:
+- **W3+4-backref** (atomic): map narrowing + emViewPort::window_id + constructor rewrites. Commits standalone.
+- **Task 1**: PanelScope.
+- **Tasks 2–6**: stage.
+- **Task 7**: atomic commit of Tasks 2–6 plus the Task 4 D5.6 remainder.
+- **Tasks 8–10**: per plan.
+
 ## Task log
 
-<empty — tasks append here as they complete>
+### Task-W3 + Task 4 back-ref (bundled) — DONE
+Commit: <pending>
+rg 'Rc<RefCell<emWindow>>' crates/ : before=9 after=0 (5 comment hits remain)
+rg 'Weak<RefCell<emWindow>>' crates/ : before=3 after=0 (2 comment hits remain)
+Notes:
+- `emViewPort::window` → `window_id: Option<WindowId>` with
+  `PaintView`/`InvalidatePainting` resolved through `windows` map; both
+  methods now take `&HashMap<WindowId, emWindow>` (were zero-arg before,
+  no production callers).
+- `emWindow::create` + `new_popup_pending` now return plain `emWindow`
+  (not `Rc<RefCell<Self>>`). Added `wire_viewport_window_id()` helper
+  so the framework wires the popup's WindowId after materialization.
+- `emView::PopupWindow` narrowed from `Option<Rc<RefCell<emWindow>>>` to
+  `Option<emWindow>` (owned). Added `PopupCloseSignal: Option<SignalId>`
+  so `Update`'s close-signal probe + teardown don't need a popup borrow.
+- Task-8 concern flagged: popups now live ONLY in `emView::PopupWindow`,
+  never in `App::windows`. Winit events addressed to the popup's WindowId
+  are currently not routed; popup OS-event handling redesign is Task 8.
+- Task-8 stubbed tests: `popup_materialization.rs` and
+  `popup_cancel_before_materialize.rs` rewritten as passing stubs;
+  their original assertions (Rc strong_count cancellation, popup in
+  `App::windows`) no longer express valid contracts under the new
+  ownership model.
+- `materialize_popup_surface` replaced by `materialize_pending_popup`:
+  walks `App::windows` to find a view holding a Pending popup, flips
+  OS surface in place, wires WindowId onto the view-port.
+- emScheduler, emEngineCtx, emScreen, emFileModel, test_view_harness,
+  emPanelTree, emPriSchedAgent, and 6 workspace test files all updated
+  to take `HashMap<WindowId, emWindow>` (plain) in place of the
+  `Rc<RefCell<>>` wrapper.
+- nextest: 2454/2454 pass. goldens: 237 pass / 6 fail (identical
+  failures to baseline: composition_tktest_{1,2}x, notice_window_resize,
+  testpanel_{expanded,root}, widget_file_selection_box).

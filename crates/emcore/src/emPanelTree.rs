@@ -3478,10 +3478,8 @@ mod tests {
         );
         sched.borrow_mut().wake_up(spawn_eid);
 
-        let mut empty_windows: HashMap<
-            winit::window::WindowId,
-            Rc<RefCell<crate::emWindow::emWindow>>,
-        > = HashMap::new();
+        let mut empty_windows: HashMap<winit::window::WindowId, crate::emWindow::emWindow> =
+            HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
         sched
@@ -3871,10 +3869,8 @@ mod tests {
         );
         sched.borrow_mut().wake_up(spawn_eid);
 
-        let mut empty_windows: HashMap<
-            winit::window::WindowId,
-            Rc<RefCell<crate::emWindow::emWindow>>,
-        > = HashMap::new();
+        let mut empty_windows: HashMap<winit::window::WindowId, crate::emWindow::emWindow> =
+            HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
         sched

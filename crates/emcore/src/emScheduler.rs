@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -451,7 +450,7 @@ impl EngineScheduler {
     pub fn DoTimeSlice(
         &mut self,
         tree: &mut PanelTree,
-        windows: &mut HashMap<WindowId, Rc<RefCell<emWindow>>>,
+        windows: &mut HashMap<WindowId, emWindow>,
         root_context: &Rc<crate::emContext::emContext>,
         framework_actions: &mut Vec<DeferredAction>,
     ) {

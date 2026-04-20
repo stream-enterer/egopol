@@ -460,7 +460,21 @@ pub struct emView {
     // === C++ popup infrastructure (emView.h:708-713) ===
     /// C++ PopupWindow — owned handle to the popup window created when
     /// zooming past the home-rect edges under VF_POPUP_ZOOM.
-    pub PopupWindow: Option<Rc<RefCell<crate::emWindow::emWindow>>>,
+    ///
+    /// DIVERGED: C++ holds an `emWindow*` that the screen's window list
+    /// refers to via raw pointers. In Rust, prior to the Phase-2
+    /// port-ownership-rewrite, this was `Option<Rc<RefCell<emWindow>>>`
+    /// with a cloned Rc also living in `App::windows`. Now that `App::windows`
+    /// holds plain `emWindow` values, the popup cannot be cloned into both
+    /// places. The popup is stored here (by owned value) for its entire
+    /// lifetime — `App::windows` deliberately does NOT hold the popup.
+    /// Winit events destined for the popup's WindowId are currently not
+    /// routed; full popup OS-event handling is Task 8 territory.
+    pub PopupWindow: Option<crate::emWindow::emWindow>,
+    /// Close-signal of the popup (mirrored from `PopupWindow.close_signal`)
+    /// so that `Update`'s close-signal probe and `RawVisitAbs` teardown can
+    /// access it without borrowing the popup emWindow.
+    pub PopupCloseSignal: Option<super::emSignal::SignalId>,
     /// C++ HomeViewPort — the view-port that connects the emView to its
     /// *home* window (the original non-popup window).
     pub HomeViewPort: Rc<RefCell<super::emViewPort::emViewPort>>,
@@ -567,6 +581,7 @@ impl emView {
             geometry_signal: None,
 
             PopupWindow: None,
+            PopupCloseSignal: None,
             HomeViewPort: home_vp,
             CurrentViewPort: current_vp,
             DummyViewPort: Rc::new(RefCell::new(super::emViewPort::emViewPort::new_dummy())),
@@ -1822,7 +1837,8 @@ impl emView {
                         geom_sig,
                         self.background_color,
                     );
-                    self.PopupWindow = Some(popup.clone());
+                    self.PopupWindow = Some(popup);
+                    self.PopupCloseSignal = Some(close_sig);
                     // C++ (emView.cpp:1644): UpdateEngine->AddWakeUpSignal(PopupWindow->GetCloseSignal())
                     if let Some(eng_id) = self.update_engine_id {
                         ctx.connect(close_sig, eng_id);
@@ -1836,12 +1852,17 @@ impl emView {
                     // Enqueue OS-surface materialization. Drained by
                     // `App::about_to_wait` on the next tick. If the popup
                     // is torn down before the drain (same-frame exit),
-                    // `materialize_popup_surface` detects `strong_count == 1`
-                    // and skips creation.
+                    // `materialize_popup_surface` observes no Pending popup
+                    // in any view and skips creation (natural cancellation).
+                    //
+                    // DIVERGED (Phase-2 port-ownership-rewrite): the popup
+                    // `emWindow` is owned by `emView::PopupWindow` rather
+                    // than by the closure (plain values can't be split
+                    // between two owners). The framework-side materializer
+                    // walks `App::windows` to find the Pending popup.
                     if let Some(fw_actions) = self.pending_framework_actions.as_ref() {
-                        let popup_for_closure = popup;
                         fw_actions.borrow_mut().push(Box::new(move |fw, el| {
-                            fw.materialize_popup_surface(popup_for_closure, el);
+                            fw.materialize_pending_popup(el);
                         }));
                     }
                 }
@@ -1892,8 +1913,8 @@ impl emView {
                     || (y2 - self.CurrentY - self.CurrentHeight).abs() > 0.01
                 {
                     self.SwapViewPorts(false, ctx);
-                    if let Some(ref w) = self.PopupWindow {
-                        w.borrow_mut().SetViewPosSize(x1, y1, x2 - x1, y2 - y1);
+                    if let Some(ref mut w) = self.PopupWindow {
+                        w.SetViewPosSize(x1, y1, x2 - x1, y2 - y1);
                     }
                     self.SwapViewPorts(false, ctx);
                     forceViewingUpdate = true;
@@ -1903,35 +1924,20 @@ impl emView {
                 self.SwapViewPorts(true, ctx);
                 // Disconnect + remove the popup's close signal (allocated on
                 // popup creation above) so the scheduler doesn't leak it.
-                // Also enqueue a framework-side cleanup closure to drop the
-                // materialized popup window from `App::windows` so the
-                // winit/wgpu surface is released.
-                let popup = self
+                // The popup `emWindow` is dropped here (the `Option::take`
+                // below moves it out of `self.PopupWindow` and the binding
+                // goes out of scope). Since Phase-2 port-ownership-rewrite
+                // the popup lives only in `emView::PopupWindow` (never in
+                // `App::windows`), so no framework-side removal is needed.
+                let _popup = self
                     .PopupWindow
                     .take()
                     .expect("PopupWindow.is_some() checked above");
-                if let Some(eng_id) = self.update_engine_id {
-                    let close_sig = popup.borrow().close_signal;
-                    ctx.disconnect(close_sig, eng_id);
+                if let Some(close_sig) = self.PopupCloseSignal.take() {
+                    if let Some(eng_id) = self.update_engine_id {
+                        ctx.disconnect(close_sig, eng_id);
+                    }
                     ctx.remove_signal(close_sig);
-                }
-                let materialized_id = popup
-                    .borrow()
-                    .winit_window_if_materialized()
-                    .map(|w| w.id());
-                // Race window: `close_signal` is removed above synchronously,
-                // but `App.windows.remove(&window_id)` is deferred to the next
-                // `about_to_wait` drain. If a winit event (e.g. CloseRequested
-                // from the WM) arrives in that gap, `App::window_event` will
-                // call `scheduler.fire(close_signal)` on the already-removed
-                // signal. This is safe: `emScheduler::fire` is defensive and
-                // treats a lookup miss as a no-op (see its docstring).
-                if let (Some(window_id), Some(fw_actions)) =
-                    (materialized_id, self.pending_framework_actions.as_ref())
-                {
-                    fw_actions.borrow_mut().push(Box::new(move |fw, _el| {
-                        fw.windows.remove(&window_id);
-                    }));
                 }
                 // GeometrySignal fires twice on popup teardown (both intentional):
                 // once from SwapViewPorts(true) above (Rust-only: the Rust
@@ -2385,9 +2391,8 @@ impl emView {
         // just calls View.Update() and Update itself calls IsSignaled on the close signal.
         // Here ctx.IsSignaled uses current_engine (set by UpdateEngineClass::Cycle).
         let popup_closed = self
-            .PopupWindow
-            .as_ref()
-            .map(|p| ctx.IsSignaled(p.borrow().close_signal))
+            .PopupCloseSignal
+            .map(|s| ctx.IsSignaled(s))
             .unwrap_or(false);
         if popup_closed {
             self.ZoomOut(tree, ctx);
@@ -3303,10 +3308,10 @@ impl emView {
         //   vp = PopupWindow->CurrentViewPort;
         //   PopupWindow->CurrentViewPort = CurrentViewPort;
         //   CurrentViewPort = vp;
-        if let Some(ref popup) = self.PopupWindow {
-            let popup_vp = Rc::clone(&popup.borrow().view().CurrentViewPort);
+        if let Some(popup) = self.PopupWindow.as_mut() {
+            let popup_vp = Rc::clone(&popup.view().CurrentViewPort);
             let our_vp = Rc::clone(&self.CurrentViewPort);
-            popup.borrow_mut().view_mut().CurrentViewPort = our_vp;
+            popup.view_mut().CurrentViewPort = our_vp;
             self.CurrentViewPort = popup_vp;
         } else {
             // Fallback if no popup exists: swap Home and Current (no-op for
@@ -6698,14 +6703,14 @@ mod tests {
         let (mut tree, root, child_a, _) = setup_tree();
         let win_id = winit::window::WindowId::dummy();
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        let win = {
+        let mut win = {
             use crate::emColor::emColor;
             use crate::emWindow::{emWindow, WindowFlags};
             let cs = sched.borrow_mut().create_signal();
             let fs = sched.borrow_mut().create_signal();
             let fos = sched.borrow_mut().create_signal();
             let gs = sched.borrow_mut().create_signal();
-            let w = emWindow::new_popup_pending(
+            let mut w = emWindow::new_popup_pending(
                 crate::emContext::emContext::NewRoot(),
                 root,
                 WindowFlags::empty(),
@@ -6726,15 +6731,13 @@ mod tests {
                     root_context: &root_ctx,
                     current_engine: None,
                 };
-                w.borrow_mut()
-                    .view_mut()
+                w.view_mut()
                     .SetGeometry(&mut tree, 0.0, 0.0, 640.0, 480.0, 1.0, &mut sc);
             }
-            let view_weak = Rc::downgrade(w.borrow().view_rc());
+            let view_weak = Rc::downgrade(w.view_rc());
             let _ = win_id;
             {
-                let mut win_borrow = w.borrow_mut();
-                let mut v = win_borrow.view_mut();
+                let mut v = w.view_mut();
                 let root = v.Context.GetRootContext();
                 let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
                 let mut s = sched.borrow_mut();
@@ -6777,17 +6780,13 @@ mod tests {
 
         // Prime Update once so the view is in a stable "after-first-Update"
         // state (clears zoomed_out_before_sg, populates SVP).
-        {
-            let mut w = win.borrow_mut();
-            ts.with(|sc| w.view_mut().Update(&mut tree, sc));
-        }
+        ts.with(|sc| win.view_mut().Update(&mut tree, sc));
 
         // Put the view into POPUP_ZOOM and push a popup. RawVisit under
         // POPUP_ZOOM creates a PopupWindow; its tear-down on ZoomOut is
         // what fires geometry_signal from inside Update.
         {
-            let mut w = win.borrow_mut();
-            let mut v = w.view_mut();
+            let mut v = win.view_mut();
             ts.with(|sc| v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree, sc));
             ts.with(|sc| v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true, sc));
             assert!(v.PopupWindow.is_some(), "popup created under POPUP_ZOOM");
@@ -6797,7 +6796,7 @@ mod tests {
         // The view's geometry_signal field is used by SwapViewPorts and
         // the popup-teardown path inside RawVisitAbs.
         let geom_sig = sched.borrow_mut().create_signal();
-        win.borrow_mut().view_mut().geometry_signal = Some(geom_sig);
+        win.view_mut().geometry_signal = Some(geom_sig);
         sched.borrow_mut().connect(geom_sig, recv_id);
 
         // Fire the popup's close_signal. DoTimeSlice below will observe it
@@ -6805,17 +6804,13 @@ mod tests {
         // Update will run ZoomOut → RawVisitAbs teardown → queue a Fire of
         // geometry_signal, drained at the end of Cycle.
         let close_sig = win
-            .borrow()
             .view()
-            .PopupWindow
-            .as_ref()
-            .unwrap()
-            .borrow()
-            .close_signal;
+            .PopupCloseSignal
+            .expect("popup must have close signal after creation");
         sched.borrow_mut().fire(close_sig);
 
         let mut windows: HashMap<_, _> = HashMap::new();
-        windows.insert(win_id, Rc::clone(&win));
+        let _ = win_id;
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
         sched
@@ -6832,8 +6827,7 @@ mod tests {
         sched.borrow_mut().remove_signal(geom_sig);
         sched.borrow_mut().remove_engine(recv_id);
         {
-            let mut w = win.borrow_mut();
-            let mut v = w.view_mut();
+            let mut v = win.view_mut();
             v.geometry_signal = None;
             if let Some(id) = v.update_engine_id.take() {
                 sched.borrow_mut().remove_engine(id);
@@ -6863,14 +6857,14 @@ mod tests {
         let (mut tree, root, child_a, _) = setup_tree();
         let win_id = winit::window::WindowId::dummy();
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        let win = {
+        let mut win = {
             use crate::emColor::emColor;
             use crate::emWindow::{emWindow, WindowFlags};
             let cs = sched.borrow_mut().create_signal();
             let fs = sched.borrow_mut().create_signal();
             let fos = sched.borrow_mut().create_signal();
             let gs = sched.borrow_mut().create_signal();
-            let w = emWindow::new_popup_pending(
+            let mut w = emWindow::new_popup_pending(
                 crate::emContext::emContext::NewRoot(),
                 root,
                 WindowFlags::empty(),
@@ -6891,15 +6885,13 @@ mod tests {
                     root_context: &root_ctx,
                     current_engine: None,
                 };
-                w.borrow_mut()
-                    .view_mut()
+                w.view_mut()
                     .SetGeometry(&mut tree, 0.0, 0.0, 640.0, 480.0, 1.0, &mut sc);
             }
-            let view_weak = Rc::downgrade(w.borrow().view_rc());
+            let view_weak = Rc::downgrade(w.view_rc());
             let _ = win_id;
             {
-                let mut win_borrow = w.borrow_mut();
-                let mut v = win_borrow.view_mut();
+                let mut v = w.view_mut();
                 let root = v.Context.GetRootContext();
                 let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
                 let mut s = sched.borrow_mut();
@@ -6923,8 +6915,7 @@ mod tests {
         // POPUP_ZOOM. RawVisit wires close_signal to UpdateEngineClass via
         // SwapViewPorts.
         {
-            let mut w = win.borrow_mut();
-            let mut v = w.view_mut();
+            let mut v = win.view_mut();
             ts.with(|sc| v.Update(&mut tree, sc));
             ts.with(|sc| v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree, sc));
             ts.with(|sc| v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true, sc));
@@ -6932,37 +6923,32 @@ mod tests {
         }
 
         let close_sig = win
-            .borrow()
             .view()
-            .PopupWindow
-            .as_ref()
-            .unwrap()
-            .borrow()
-            .close_signal;
+            .PopupCloseSignal
+            .expect("popup must have close signal after creation");
         sched.borrow_mut().fire(close_sig);
 
         // One DoTimeSlice: Cycle observes close_sig, calls Update → ZoomOut →
         // RawVisitAbs popup teardown.
         let mut windows: HashMap<_, _> = HashMap::new();
-        windows.insert(win_id, Rc::clone(&win));
+        let _ = win_id;
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
         sched
             .borrow_mut()
             .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
         assert!(
-            win.borrow().view().PopupWindow.is_none(),
+            win.view().PopupWindow.is_none(),
             "close_signal → ZoomOut must tear down PopupWindow in one time slice"
         );
         assert!(
-            !win.borrow().view().popped_up,
+            !win.view().popped_up,
             "popped_up must be false after ZoomOut"
         );
 
         // Cleanup for scheduler Drop debug_asserts.
         {
-            let mut w = win.borrow_mut();
-            let mut v = w.view_mut();
+            let mut v = win.view_mut();
             if let Some(id) = v.update_engine_id.take() {
                 sched.borrow_mut().remove_engine(id);
             }
