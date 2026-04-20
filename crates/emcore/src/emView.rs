@@ -6,8 +6,8 @@ use crate::dlog;
 use bitflags::bitflags;
 
 use super::emPanelTree::{PanelId, PanelTree};
+use crate::emEngineCtx::PanelCtx;
 use crate::emPanel::NoticeFlags;
-use crate::emPanelCtx::PanelCtx;
 
 use crate::emClipRects::ClipRects;
 use crate::emColor::emColor;
@@ -2419,7 +2419,7 @@ impl emView {
 
             // Drain all pending notices (C++ emView.cpp:1303-1314).
             if tree.has_pending_notices() {
-                self.HandleNotice(tree);
+                self.HandleNotice(tree, ctx.scheduler);
                 continue;
             }
 
@@ -3108,21 +3108,36 @@ impl emView {
     pub fn RegisterEngines(
         &mut self,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+        tree: &mut PanelTree,
         self_view_weak: std::rc::Weak<std::cell::RefCell<emView>>,
+        tree_location: super::emEngine::TreeLocation,
     ) {
         let engine_id = ctx.scheduler.register_engine(
             Box::new(UpdateEngineClass::new(self_view_weak.clone())),
             super::emEngine::Priority::High,
+            tree_location.clone(),
         );
         let eoi_signal = ctx.scheduler.create_signal();
         // C++ emViewAnimator base ctor sets HIGH_PRIORITY (emViewAnimator.cpp:39).
         let visiting_va_engine_id = ctx.scheduler.register_engine(
             Box::new(VisitingVAEngineClass::new(self_view_weak)),
             super::emEngine::Priority::High,
+            tree_location,
         );
         self.update_engine_id = Some(engine_id);
         self.EOISignal = Some(eoi_signal);
         self.visiting_va_engine_id = Some(visiting_va_engine_id);
+        // Phase 1.75 Task 5 (continuation): cache on the tree so
+        // `add_to_notice_list` can wake without borrowing the view.
+        tree.set_update_engine_id(Some(engine_id));
+        // Register any panels that were created before the scheduler existed
+        // (e.g. deferred-view test roots, sub-view roots created pre-register).
+        // Phase 1.75 Task 5 (continuation): replaces the deleted
+        // post-slice adapter-registration catch-up pass.
+        let ids: Vec<PanelId> = tree.panels.keys().collect();
+        for pid in ids {
+            tree.register_engine_for_public(pid, Some(ctx.scheduler));
+        }
         // C++ emView::emView at emView.cpp:84: UpdateEngine->WakeUp().
         self.WakeUpUpdateEngine(ctx);
     }
@@ -3394,6 +3409,7 @@ impl emView {
         let eng_id = ctx.register_engine(
             Box::new(EOIEngineClass::new(sig)),
             super::emEngine::Priority::High,
+            super::emEngine::TreeLocation::Outer,
         );
         ctx.wake_up(eng_id);
         self.eoi_engine_id = Some(eng_id);
@@ -3442,7 +3458,11 @@ impl emView {
     /// callers inside callbacks cannot re-borrow it to append to a view-owned
     /// ring).  Ring storage location is *forced*; dispatch driver (per-view,
     /// using per-view `CurrentPixelTallness`) matches C++ exactly.
-    pub fn HandleNotice(&mut self, tree: &mut PanelTree) -> bool {
+    pub fn HandleNotice(
+        &mut self,
+        tree: &mut PanelTree,
+        sched: &mut crate::emScheduler::EngineScheduler,
+    ) -> bool {
         if !tree.has_pending_notices() {
             return false;
         }
@@ -3477,7 +3497,7 @@ impl emView {
             // C++ unlinks BEFORE calling HandleNotice (emView.cpp:1307-1310).
             tree.remove_from_notice_list(id);
             delivered = true;
-            self.handle_notice_one(tree, id);
+            self.handle_notice_one(tree, id, sched);
         }
         tree.clear_pending_notices_flag();
         delivered
@@ -3494,7 +3514,12 @@ impl emView {
     ///             HandleNotice for the AE/layout phase)
     ///   Phase 3 — AE decision + AutoExpand/AutoShrink (lines 1424-1445)
     ///   Phase 4 — LayoutChildren if ChildrenLayoutInvalid (lines 1447-1450)
-    fn handle_notice_one(&mut self, tree: &mut PanelTree, id: PanelId) {
+    fn handle_notice_one(
+        &mut self,
+        tree: &mut PanelTree,
+        id: PanelId,
+        sched: &mut crate::emScheduler::EngineScheduler,
+    ) {
         let pixel_tallness = self.CurrentPixelTallness;
         let window_focused = self.window_focused;
         // ── Phase 1: AEInvalid shrink (C++ emPanel.cpp:1391–1397) ──────
@@ -3513,7 +3538,7 @@ impl emView {
             }
             if ae_expanded {
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     behavior.AutoShrink(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -3578,7 +3603,7 @@ impl emView {
             // No-behavior: treat as base Notice() no-op (C++ base is virtual no-op).
             if let Some(mut behavior) = tree.take_behavior(id) {
                 let state = tree.build_panel_state(id, window_focused, pixel_tallness);
-                let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                 behavior.notice(flags, &state, &mut ctx);
                 // "Notice() is allowed to do a 'delete this'" — C++ emPanel.cpp:1421.
                 if tree.panels.contains_key(id) {
@@ -3615,7 +3640,7 @@ impl emView {
                     p.ae_calling = true;
                 }
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     behavior.AutoExpand(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -3639,7 +3664,7 @@ impl emView {
                     p.ae_expanded = false;
                 }
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     behavior.AutoShrink(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -3666,7 +3691,7 @@ impl emView {
         if children_layout_invalid {
             if tree.GetFirstChild(id).is_some() {
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     behavior.LayoutChildren(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -6334,7 +6359,12 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, v_weak);
+            v.RegisterEngines(
+                &mut sc,
+                &mut tree,
+                v_weak,
+                crate::emEngine::TreeLocation::Outer,
+            );
         }
         let eoi = v_rc
             .borrow()
@@ -6349,6 +6379,7 @@ mod tests {
                 fired: Rc::clone(&fired),
             }),
             Priority::Low,
+            crate::emEngine::TreeLocation::Outer,
         );
         sched.borrow_mut().connect(eoi, listener_id);
 
@@ -6402,7 +6433,7 @@ mod tests {
     /// EOISignal. WakeUpUpdateEngine wakes the registered engine.
     #[test]
     fn test_phase7_update_engine_wakeup_via_scheduler() {
-        let (_tree, root, _, _) = setup_tree();
+        let (mut tree, root, _, _) = setup_tree();
         let v_rc = Rc::new(RefCell::new(emView::new(
             crate::emContext::emContext::NewRoot(),
             root,
@@ -6422,7 +6453,12 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, v_weak);
+            v.RegisterEngines(
+                &mut sc,
+                &mut tree,
+                v_weak,
+                crate::emEngine::TreeLocation::Outer,
+            );
         }
         {
             let v = v_rc.borrow();
@@ -6572,9 +6608,15 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, v_weak);
+            v.RegisterEngines(
+                &mut sc,
+                &mut tree,
+                v_weak,
+                crate::emEngine::TreeLocation::Outer,
+            );
         }
-        tree.register_pending_engines(&mut sched.borrow_mut());
+        // Phase 1.75 Task 5 (continuation): RegisterEngines registers
+        // pre-existing panels inline; no catch-up pass needed.
         ts.with(|sc| v_rc.borrow_mut().Update(&mut tree, sc));
         let eng_id = v_rc
             .borrow()
@@ -6605,7 +6647,7 @@ mod tests {
                 sched.borrow_mut().remove_engine(id);
             }
         }
-        // Remove panel tree engines (registered via register_pending_engines above).
+        // Remove panel tree engines (registered inline by RegisterEngines).
         tree.remove(root, Some(&mut sched.borrow_mut()));
     }
 
@@ -6702,7 +6744,12 @@ mod tests {
                     root_context: &root,
                     current_engine: None,
                 };
-                v.RegisterEngines(&mut sc, view_weak);
+                v.RegisterEngines(
+                    &mut sc,
+                    &mut tree,
+                    view_weak,
+                    crate::emEngine::TreeLocation::Outer,
+                );
             }
             w
         };
@@ -6725,6 +6772,7 @@ mod tests {
                 cycled: Rc::clone(&cycled),
             }),
             Priority::Low,
+            crate::emEngine::TreeLocation::Outer,
         );
 
         // Prime Update once so the view is in a stable "after-first-Update"
@@ -6861,7 +6909,12 @@ mod tests {
                     root_context: &root,
                     current_engine: None,
                 };
-                v.RegisterEngines(&mut sc, view_weak);
+                v.RegisterEngines(
+                    &mut sc,
+                    &mut tree,
+                    view_weak,
+                    crate::emEngine::TreeLocation::Outer,
+                );
             }
             w
         };
@@ -6955,7 +7008,12 @@ mod tests {
                 root_context: &root,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, view_weak);
+            v.RegisterEngines(
+                &mut sc,
+                &mut tree,
+                view_weak,
+                crate::emEngine::TreeLocation::Outer,
+            );
         }
 
         // Engine must be registered by RegisterEngines.
@@ -7138,7 +7196,7 @@ mod tests {
         );
 
         // Drive view_a's HandleNotice independently.
-        view_a.HandleNotice(&mut tree_a);
+        view_a.HandleNotice(&mut tree_a, &mut h.scheduler);
         // tree_a is drained; tree_b still has its notice.
         assert!(
             !tree_a.has_pending_notices(),
@@ -7150,7 +7208,7 @@ mod tests {
         );
 
         // Drive view_b's HandleNotice.
-        view_b.HandleNotice(&mut tree_b);
+        view_b.HandleNotice(&mut tree_b, &mut h.scheduler);
         assert!(
             !tree_b.has_pending_notices(),
             "tree_b drained after HandleNotice"

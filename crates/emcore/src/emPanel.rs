@@ -10,7 +10,7 @@ use crate::emPainter::emPainter;
 
 use super::emPanelTree::{PanelId, PlaybackState};
 use crate::emEngineCtx::EngineCtx;
-use crate::emPanelCtx::PanelCtx;
+use crate::emEngineCtx::PanelCtx;
 
 // RUST_ONLY: rect.rs -- Consolidates C++ pattern of passing 4 separate
 // doubles (GetLayoutX/Y/Width/Height in emPanel.h) into a typed struct.
@@ -359,5 +359,15 @@ pub trait PanelBehavior: AsAny {
     /// Defaults to `std::any::type_name_of_val(self)`.
     fn type_name(&self) -> &str {
         std::any::type_name_of_val(self)
+    }
+
+    /// Downcast to `emSubViewPanel` without `Any`. Phase 1.75 uses this in
+    /// the scheduler dispatch walk to reach a sub-view's `sub_tree` when
+    /// resolving a `TreeLocation::SubView` owner.
+    ///
+    /// The default returns `None`; only [`emSubViewPanel`](super::emSubViewPanel::emSubViewPanel)
+    /// overrides this to return `Some(self)`.
+    fn as_sub_view_panel_mut(&mut self) -> Option<&mut crate::emSubViewPanel::emSubViewPanel> {
+        None
     }
 }

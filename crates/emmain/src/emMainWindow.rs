@@ -12,7 +12,7 @@ use std::rc::Rc;
 use winit::event_loop::ActiveEventLoop;
 
 use emcore::emContext::emContext;
-use emcore::emEngine::{EngineId, Priority, emEngine};
+use emcore::emEngine::{EngineId, Priority, TreeLocation, emEngine};
 use emcore::emEngineCtx::EngineCtx;
 use emcore::emGUIFramework::App;
 use emcore::emInput::{InputKey, emInputEvent};
@@ -676,12 +676,18 @@ impl emEngine for StartupEngine {
                 // Clean up animator and zoom out on content sub-view.
                 // C++: VisitingVA.Reset(); ContentView.RawZoomOut();
                 if let Some(svp_id) = self.content_svp_id {
-                    ctx.tree
-                        .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
+                    // `with_behavior_as` borrows `ctx.tree`, so we can't build
+                    // a SchedCtx from `ctx` inside the closure. Pull the
+                    // behavior out explicitly, build the SchedCtx, then put
+                    // it back — matches the take/put pattern used elsewhere.
+                    if let Some(mut behavior) = ctx.tree.take_behavior(svp_id) {
+                        if let Some(svp) = behavior.as_any_mut().downcast_mut::<emSubViewPanel>() {
                             svp.active_animator = None;
-                            // C++: VisitingVA.Reset(); ContentView.RawZoomOut();
-                            svp.raw_zoom_out(false);
-                        });
+                            let mut sc = ctx.as_sched_ctx();
+                            svp.raw_zoom_out(false, &mut sc);
+                        }
+                        ctx.tree.put_behavior(svp_id, behavior);
+                    }
                 }
                 let overlay_id = ctx
                     .tree
@@ -778,16 +784,44 @@ pub fn create_main_window(
     // (emMainPanel.cpp:39-41): create control view, content view, and slider
     // children immediately at construction time. C++ has these as emView
     // members instantiated inline; in Rust the creator has tree access here.
-    let mut ctrl_svp = emSubViewPanel::new(Rc::clone(&app.context));
-    ctrl_svp.set_sub_view_flags(
-        ViewFlags::POPUP_ZOOM | ViewFlags::ROOT_SAME_TALLNESS | ViewFlags::NO_ACTIVE_HIGHLIGHT,
-    );
+    //
+    // Phase 1.75 Task 3: `emSubViewPanel::new` needs `outer_panel_id` + a
+    // SchedCtx on the outer scheduler to register the sub-view's engines on
+    // the outer scheduler with `SubView` location. So: create the outer child
+    // slot first, then build a SchedCtx, then construct the emSubViewPanel,
+    // then install it.
     let ctrl_id = app.tree.create_child(root_id, "control view", None);
+    let content_id = app.tree.create_child(root_id, "content view", None);
+    let ctrl_svp = {
+        let root_ctx = app.context.GetRootContext();
+        let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut sc = emcore::emEngineCtx::SchedCtx {
+            scheduler: &mut app.scheduler,
+            framework_actions: &mut fw,
+            root_context: &root_ctx,
+            current_engine: None,
+        };
+        let mut svp = emSubViewPanel::new(Rc::clone(&app.context), ctrl_id, &mut sc);
+        svp.set_sub_view_flags(
+            ViewFlags::POPUP_ZOOM | ViewFlags::ROOT_SAME_TALLNESS | ViewFlags::NO_ACTIVE_HIGHLIGHT,
+        );
+        svp
+    };
     app.tree.set_behavior(ctrl_id, Box::new(ctrl_svp));
 
-    let mut content_svp = emSubViewPanel::new(Rc::clone(&app.context));
-    content_svp.set_sub_view_flags(ViewFlags::ROOT_SAME_TALLNESS);
-    let content_id = app.tree.create_child(root_id, "content view", None);
+    let content_svp = {
+        let root_ctx = app.context.GetRootContext();
+        let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut sc = emcore::emEngineCtx::SchedCtx {
+            scheduler: &mut app.scheduler,
+            framework_actions: &mut fw,
+            root_context: &root_ctx,
+            current_engine: None,
+        };
+        let mut svp = emSubViewPanel::new(Rc::clone(&app.context), content_id, &mut sc);
+        svp.set_sub_view_flags(ViewFlags::ROOT_SAME_TALLNESS);
+        svp
+    };
     app.tree.set_behavior(content_id, Box::new(content_svp));
 
     let slider_id = app.tree.create_child(root_id, "slider", None);
@@ -840,9 +874,9 @@ pub fn create_main_window(
     // Register StartupEngine with the scheduler.
     let startup_engine =
         StartupEngine::new(Rc::clone(&app.context), root_id, window_id, &mw.config);
-    let engine_id = app
-        .scheduler
-        .register_engine(Box::new(startup_engine), Priority::Low);
+    let engine_id =
+        app.scheduler
+            .register_engine(Box::new(startup_engine), Priority::Low, TreeLocation::Outer);
     app.scheduler.wake_up(engine_id);
     mw.startup_engine_id = Some(engine_id);
 
@@ -859,9 +893,9 @@ pub fn create_main_window(
         window_id: Some(window_id),
         startup_done: false,
     };
-    let mw_engine_id = app
-        .scheduler
-        .register_engine(Box::new(mw_engine), Priority::Low);
+    let mw_engine_id =
+        app.scheduler
+            .register_engine(Box::new(mw_engine), Priority::Low, TreeLocation::Outer);
     app.scheduler.connect(close_signal, mw_engine_id);
     app.scheduler.connect(title_signal, mw_engine_id);
 
@@ -882,14 +916,18 @@ pub fn create_main_window(
                 root_context: &root_ctx,
                 current_engine: None,
             };
-            v.RegisterEngines(&mut sc, view_weak);
+            v.RegisterEngines(
+                &mut sc,
+                &mut app.tree,
+                view_weak,
+                emcore::emEngine::TreeLocation::Outer,
+            );
         }
         win.view_mut().set_control_panel_signal(cp_signal);
     }
-    // SP4.5: init_panel_view ran before RegisterEngines above, so the
-    // root panel (and any children already created) missed the in-line
-    // register_engine_for pass. Catch them up now.
-    app.tree.register_pending_engines(&mut app.scheduler);
+    // Phase 1.75 Task 5 (continuation): RegisterEngines now registers any
+    // pre-existing panels' adapters inline via tree.register_engine_for_public,
+    // subsuming the old post-slice adapter-registration catch-up pass.
     // We don't yet have the sub-view panel IDs (created during LayoutChildren),
     // so use a dummy PanelId(0) for now — the bridge only uses the signal.
     let bridge = ControlPanelBridge {
@@ -897,9 +935,9 @@ pub fn create_main_window(
         _ctrl_view_id: root_id,
         _content_view_id: root_id,
     };
-    let bridge_id = app
-        .scheduler
-        .register_engine(Box::new(bridge), Priority::Low);
+    let bridge_id =
+        app.scheduler
+            .register_engine(Box::new(bridge), Priority::Low, TreeLocation::Outer);
     app.scheduler.connect(cp_signal, bridge_id);
 
     // Register emWindowStateSaver engine — persists window geometry.
@@ -935,9 +973,9 @@ pub fn create_main_window(
             saver.Restore(&mut rc.borrow_mut(), screen);
         }
 
-        let saver_id = app
-            .scheduler
-            .register_engine(Box::new(saver), Priority::Low);
+        let saver_id =
+            app.scheduler
+                .register_engine(Box::new(saver), Priority::Low, TreeLocation::Outer);
         app.scheduler.connect(flags_signal, saver_id);
         app.scheduler.connect(focus_signal, saver_id);
         app.scheduler.connect(geometry_signal, saver_id);

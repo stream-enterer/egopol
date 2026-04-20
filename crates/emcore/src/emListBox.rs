@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::emColor::emColor;
+use crate::emEngineCtx::PanelCtx;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPainter::emPainter;
 use crate::emPanel::Rect;
 use crate::emPanel::{PanelBehavior, PanelState};
-use crate::emPanelCtx::PanelCtx;
 use crate::emRasterLayout::emRasterLayout;
 
 use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};

@@ -4,7 +4,7 @@ use emcore::emLinearGroup::emLinearGroup;
 use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emTiling::Orientation;
 
-use emcore::emPanelCtx::PanelCtx;
+use emcore::emEngineCtx::PanelCtx;
 
 use emcore::emPanelTree::{PanelTree, ViewConditionType};
 
@@ -58,7 +58,7 @@ macro_rules! require_golden {
 fn settle(tree: &mut PanelTree, view: &mut emView) {
     let mut ts = TestSched::new();
     for _ in 0..5 {
-        view.HandleNotice(tree);
+        view.HandleNotice(tree, ts.sched_mut());
         ts.with(|sc| view.Update(tree, sc));
     }
 }
@@ -491,7 +491,7 @@ fn widget_colorfield() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 30)
     for _ in 0..30 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 
@@ -641,7 +641,7 @@ fn colorfield_expanded() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 
@@ -718,7 +718,7 @@ fn listbox_expanded() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 
@@ -1716,7 +1716,7 @@ fn golden_widget_colorfield_alpha_zero() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 
@@ -1771,7 +1771,7 @@ fn golden_widget_colorfield_alpha_opaque() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 
@@ -1826,7 +1826,7 @@ fn golden_widget_colorfield_alpha_near() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
 
     for _ in 0..30 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 
@@ -1929,7 +1929,7 @@ fn composition_border_nest() {
 
     // C++: TerminateEngine ctrl(sched, 200) — 200 settle rounds
     for _ in 0..200 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 
@@ -2035,7 +2035,7 @@ fn composition_splitter_content() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 
@@ -2102,7 +2102,7 @@ fn composition_scrolled_listbox_in_border() {
 
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 
@@ -2162,7 +2162,7 @@ fn composition_colorfield_expansion_wide() {
 
     // C++: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 
@@ -2221,7 +2221,7 @@ fn composition_colorfield_expansion_tall() {
 
     // C++: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 

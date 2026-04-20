@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
 use crate::emColor::emColor;
+use crate::emEngineCtx::PanelCtx;
 use crate::emPainter::emPainter;
 use crate::emPanel::Rect;
 use crate::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use crate::emPanelCtx::PanelCtx;
 
 use super::emBorder::{emBorder, with_toolkit_images, OuterBorderType};
 use crate::emLook::emLook;

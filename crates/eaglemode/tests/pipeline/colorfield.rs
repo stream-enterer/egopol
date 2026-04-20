@@ -11,12 +11,12 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emColorField::emColorField;
 use emcore::emCursor::emCursor;
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
 use emcore::emLook::emLook;
 use emcore::emPainter::emPainter;
 use emcore::emPanel::{PanelBehavior, PanelState};
-use emcore::emPanelCtx::PanelCtx;
 
 use super::support::pipeline::PipelineTestHarness;
 

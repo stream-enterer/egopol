@@ -7,11 +7,11 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use emcore::emContext::emContext;
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emEngineCtx::{DeferredAction, SchedCtx};
 use emcore::emInput::{emInputEvent, InputKey, InputVariant};
 use emcore::emInputState::emInputState;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::{PanelId, PanelTree};
 use emcore::emScheduler::EngineScheduler;
 use emcore::emView::emView;
@@ -101,7 +101,7 @@ impl TestHarness {
         let mut __fw: Vec<_> = Vec::new();
         self.scheduler
             .DoTimeSlice(&mut self.tree, &mut windows, &self.root_context, &mut __fw);
-        self.view.HandleNotice(&mut self.tree);
+        self.view.HandleNotice(&mut self.tree, &mut self.scheduler);
         let mut sc = SchedCtx {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.framework_actions,

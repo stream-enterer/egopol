@@ -27,7 +27,7 @@ use emcore::emRasterLayout::emRasterLayout;
 use emcore::emResTga::load_tga;
 use emcore::emTiling::{ChildConstraint, Orientation};
 
-use emcore::emPanelCtx::PanelCtx;
+use emcore::emEngineCtx::PanelCtx;
 
 use emcore::emPanelTree::{PanelId, PanelTree, ViewConditionType};
 
@@ -90,7 +90,7 @@ macro_rules! require_golden {
 fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
     let mut ts = TestSched::new();
     for _ in 0..rounds {
-        view.HandleNotice(tree);
+        view.HandleNotice(tree, ts.sched_mut());
         ts.with(|sc| view.Update(tree, sc));
     }
 }

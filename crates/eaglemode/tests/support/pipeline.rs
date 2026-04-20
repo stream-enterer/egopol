@@ -125,7 +125,7 @@ impl PipelineTestHarness {
         self.scheduler
             .DoTimeSlice(&mut self.tree, &mut windows, &self.root_context, &mut __fw);
         self.view.pump_visiting_va(&mut self.tree);
-        self.view.HandleNotice(&mut self.tree);
+        self.view.HandleNotice(&mut self.tree, &mut self.scheduler);
         let mut sc = SchedCtx {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.framework_actions,

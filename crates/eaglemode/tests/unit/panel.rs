@@ -3,7 +3,7 @@ use emcore::emPanel::Rect;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::test_view_harness::TestSched;
 
-use emcore::emPanelCtx::PanelCtx;
+use emcore::emEngineCtx::PanelCtx;
 
 use emcore::emPanelTree::{PanelId, PanelTree};
 
@@ -117,7 +117,8 @@ fn notice_flag_propagation() {
     // Deliver notices
     let mut view =
         emcore::emView::emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-    view.HandleNotice(&mut tree);
+    let mut sched = emcore::emScheduler::EngineScheduler::new();
+    view.HandleNotice(&mut tree, &mut sched);
 
     // Verify notices were cleared after delivery
     assert!(tree.pending_notices(root).is_empty());

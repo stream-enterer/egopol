@@ -4,12 +4,12 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emFpPlugin::{FileStatMode, PanelParentArg, emFpPluginList};
 use emcore::emImage::emImage;
 use emcore::emInstallInfo::{InstallDirType, emGetConfigDirOverloadable, emGetInstallPath};
 use emcore::emPainter::{TextAlignment, VAlign, emPainter};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::{AutoplayHandlingFlags, PanelId};
 use emcore::emRec::{RecError, RecStruct, RecValue};
 use emcore::emRecRecTypes::emColorRec;

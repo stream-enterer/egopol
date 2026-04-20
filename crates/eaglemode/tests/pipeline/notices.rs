@@ -9,8 +9,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
 
 use super::support::pipeline::PipelineTestHarness;

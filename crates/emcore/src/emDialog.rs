@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
+use crate::emEngineCtx::PanelCtx;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPainter::emPainter;
 use crate::emPanel::PanelState;
 use crate::emPanel::Rect;
-use crate::emPanelCtx::PanelCtx;
 
 use super::emBorder::{emBorder, OuterBorderType};
 use crate::emLook::emLook;

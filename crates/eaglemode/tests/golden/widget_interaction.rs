@@ -3,13 +3,13 @@ use std::rc::Rc;
 
 use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
 use emcore::emCursor::emCursor;
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emInput::{emInputEvent, InputKey, InputVariant};
 use emcore::emInputState::emInputState;
 use emcore::emLinearGroup::emLinearGroup;
 use emcore::emPainter::emPainter;
 use emcore::emPanel::Rect;
 use emcore::emPanel::{PanelBehavior, PanelState};
-use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelTree;
 use emcore::emTiling::Orientation;
 use emcore::emView::{emView, ViewFlags};
@@ -793,7 +793,7 @@ fn composition_click_through_tree() {
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     for _ in 0..200 {
-        view.HandleNotice(&mut tree);
+        view.HandleNotice(&mut tree, ts.sched_mut());
         ts.with(|sc| view.Update(&mut tree, sc));
     }
 

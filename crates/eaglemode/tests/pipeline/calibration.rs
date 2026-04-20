@@ -9,13 +9,13 @@ use std::rc::Rc;
 use emcore::emButton::emButton;
 use emcore::emColorField::emColorField;
 use emcore::emCursor::emCursor;
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
 use emcore::emListBox::{emListBox, SelectionMode};
 use emcore::emLook::emLook;
 use emcore::emPainter::emPainter;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emPanelCtx::PanelCtx;
 use emcore::emScalarField::emScalarField;
 use emcore::emViewRenderer::SoftwareCompositor;
 

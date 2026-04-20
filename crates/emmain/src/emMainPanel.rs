@@ -8,13 +8,13 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emCursor::emCursor;
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emImage::emImage;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
 use emcore::emPainter::emPainter;
 use emcore::emPainter::{TextAlignment, VAlign};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
 use emcore::emResTga::load_tga;
 

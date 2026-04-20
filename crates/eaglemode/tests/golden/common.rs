@@ -19,6 +19,9 @@ impl TestSched {
             ctx: emcore::emContext::emContext::NewRoot(),
         }
     }
+    pub fn sched_mut(&mut self) -> &mut emcore::emScheduler::EngineScheduler {
+        &mut self.sched
+    }
     pub fn with<R>(&mut self, f: impl FnOnce(&mut emcore::emEngineCtx::SchedCtx<'_>) -> R) -> R {
         let mut sc = emcore::emEngineCtx::SchedCtx {
             scheduler: &mut self.sched,
