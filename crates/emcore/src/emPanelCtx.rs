@@ -44,9 +44,26 @@ impl<'a> PanelCtx<'a> {
         let Some(view_rc) = panel.View.upgrade() else {
             return;
         };
-        view_rc
-            .borrow_mut()
-            .queue_or_apply_sched_op(crate::emView::SchedOp::WakeUp(eid));
+        // Reach the scheduler via an immutable view borrow.  This succeeds
+        // from inside `PanelBehavior::Cycle` (the view is not borrowed there).
+        // If the view is already mutably borrowed (rare — PanelCtx constructed
+        // directly inside `emView::Update`) the wakeup is silently skipped;
+        // the update engine is already running in that case so the panel will
+        // be visited on the next notice cycle anyway.
+        // C++ equivalent: panel->GetView().UpdateEngine->WakeUp().
+        let sched_rc_opt: Option<std::rc::Rc<std::cell::RefCell<crate::emScheduler::EngineScheduler>>> =
+            view_rc.try_borrow().ok().and_then(|v| v.scheduler_ref().cloned());
+        // view_rc borrow is released above (temporary dropped before this line)
+        if let Some(sched_rc) = sched_rc_opt {
+            match sched_rc.try_borrow_mut() {
+                Ok(mut sched) => sched.wake_up(eid),
+                Err(_) => {
+                    // Scheduler is borrowed by DoTimeSlice. Queue for deferred
+                    // wakeup at the start of the next time slice.
+                    self.tree.pending_engine_wakeups.push(eid);
+                }
+            }
+        }
     }
 
     /// Returns true if this panel is the view's current seek target.

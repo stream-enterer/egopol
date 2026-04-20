@@ -849,6 +849,7 @@ impl emWindow {
         tree: &mut PanelTree,
         event: &emInputEvent,
         state: &mut emInputState,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) {
         // Track mouse position for cursor warping (skip wheel events).
         if !matches!(
@@ -891,12 +892,12 @@ impl emWindow {
             let vp = self.view.borrow().CurrentViewPort.clone();
             let mut vp = vp.borrow_mut();
             vp.input_clock_ms = crate::emScheduler::emGetClockMS();
-            vp.InputToView(&mut self.view.borrow_mut(), tree, &event, state);
+            vp.InputToView(&mut self.view.borrow_mut(), tree, &event, state, ctx);
         }
 
         // Run VIF chain
         for vif in &mut self.vif_chain {
-            if vif.filter(&event, state, &mut self.view.borrow_mut(), tree) {
+            if vif.filter(&event, state, &mut self.view.borrow_mut(), tree, ctx) {
                 return;
             }
         }
@@ -918,7 +919,7 @@ impl emWindow {
 
         // Run cheat VIF (never consumes events, but may produce actions)
         self.cheat_vif
-            .filter(&event, state, &mut self.view.borrow_mut(), tree);
+            .filter(&event, state, &mut self.view.borrow_mut(), tree, ctx);
         for action in self.cheat_vif.drain_actions() {
             match action {
                 CheatAction::PanFunction
@@ -987,10 +988,9 @@ impl emWindow {
                 v.GetFocusablePanelAt(tree, event.mouse_x, event.mouse_y)
                     .unwrap_or_else(|| v.GetRootPanel())
             };
-            self.view.borrow_mut().with_local_sched_ctx(
-                |_v| {},
-                |v, sc| v.set_active_panel(tree, panel, false, sc),
-            );
+            self.view
+                .borrow_mut()
+                .set_active_panel(tree, panel, false, ctx);
         }
 
         // Stamp modifier keys from emInputState onto the event
@@ -1055,7 +1055,7 @@ impl emWindow {
                 if let Some(rect) = behavior.take_scroll_to_visible() {
                     self.view
                         .borrow_mut()
-                        .scroll_to_panel_rect(tree, panel_id, rect);
+                        .scroll_to_panel_rect(tree, panel_id, rect, ctx);
                 }
                 tree.put_behavior(panel_id, behavior);
                 if consumed {
@@ -1272,21 +1272,26 @@ impl emWindow {
 
     /// Tick VIF animations (wheel zoom spring, grip pan spring).
     /// Returns true if any animation is still active.
-    pub fn tick_vif_animations(&mut self, tree: &mut PanelTree, dt: f64) -> bool {
+    pub fn tick_vif_animations(
+        &mut self,
+        tree: &mut PanelTree,
+        dt: f64,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) -> bool {
         let mut active = false;
         for vif in &mut self.vif_chain {
-            if vif.animate(&mut self.view.borrow_mut(), tree, dt) {
+            if vif.animate(&mut self.view.borrow_mut(), tree, dt, ctx) {
                 active = true;
             }
         }
         // Tick touch gesture timer (C++ emDefaultTouchVIF::Cycle)
         let dt_ms = (dt * 1000.0) as i32;
         self.touch_vif
-            .cycle_gesture(&mut self.view.borrow_mut(), tree, dt_ms);
+            .cycle_gesture(&mut self.view.borrow_mut(), tree, dt_ms, ctx);
         // Tick fling animation
         if self
             .touch_vif
-            .animate_fling(&mut self.view.borrow_mut(), tree, dt)
+            .animate_fling(&mut self.view.borrow_mut(), tree, dt, ctx)
         {
             active = true;
         }
@@ -1295,7 +1300,12 @@ impl emWindow {
 
     /// Handle a winit Touch event by routing to the emDefaultTouchVIF.
     /// Returns true if the event was consumed.
-    pub fn handle_touch(&mut self, touch: &winit::event::Touch, tree: &mut PanelTree) -> bool {
+    pub fn handle_touch(
+        &mut self,
+        touch: &winit::event::Touch,
+        tree: &mut PanelTree,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) -> bool {
         use winit::event::TouchPhase;
         match touch.phase {
             TouchPhase::Started => self.touch_vif.touch_start(
@@ -1304,6 +1314,7 @@ impl emWindow {
                 touch.location.y,
                 &mut self.view.borrow_mut(),
                 tree,
+                ctx,
             ),
             TouchPhase::Moved => {
                 // dt=0.016 is a reasonable default; the real frame delta is
@@ -1315,11 +1326,12 @@ impl emWindow {
                     0.016,
                     &mut self.view.borrow_mut(),
                     tree,
+                    ctx,
                 )
             }
             TouchPhase::Ended | TouchPhase::Cancelled => {
                 self.touch_vif
-                    .touch_end(touch.id, &mut self.view.borrow_mut(), tree)
+                    .touch_end(touch.id, &mut self.view.borrow_mut(), tree, ctx)
             }
         }
     }

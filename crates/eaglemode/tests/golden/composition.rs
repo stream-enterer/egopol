@@ -66,6 +66,7 @@ macro_rules! require_golden {
 /// Settle: drive `rounds` scheduler slices. Matches C++ gen_golden.cpp
 /// `TerminateEngine ctrl(sched, N)` pattern — a real scheduler loop.
 fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
+    let mut ts = TestSched::new();
     use std::cell::RefCell;
     use std::rc::Rc;
     // Attach a scheduler on first call (idempotent — already-attached views
@@ -93,7 +94,7 @@ fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
             .borrow_mut()
             .DoTimeSlice(tree, &mut empty_windows, &__root_ctx, &mut __fw);
         // HandleNotice + Update per-view (SP5 pattern).
-        view.Update(tree);
+        ts.with(|sc| view.Update(tree, sc));
     }
 }
 
@@ -1070,6 +1071,7 @@ fn composition_tktest_1x() {
 /// to show the middle 50% of the panel. Catches Restore rounding at non-1x zoom.
 #[test]
 fn composition_tktest_2x() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_compositor_golden("tktest_2x");
     let (w, h, ref expected_data) = expected;
@@ -1093,7 +1095,7 @@ fn composition_tktest_2x() {
 
     // C++ gen_golden.cpp: view.Zoom(400, 300, 2.0)
     // Rust emView::Zoom(factor, center_x, center_y)
-    view.Zoom(&mut tree, 2.0, 400.0, 300.0);
+    ts.with(|sc| view.Zoom(&mut tree, 2.0, 400.0, 300.0, sc));
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 10)
     settle(&mut tree, &mut view, 10);
 

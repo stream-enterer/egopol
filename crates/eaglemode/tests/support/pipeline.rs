@@ -50,7 +50,17 @@ impl PipelineTestHarness {
 
         let root_context = emcore::emContext::emContext::NewRoot();
         let mut view = emView::new(Rc::clone(&root_context), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        {
+            let mut __sched = EngineScheduler::new();
+            let mut __fw: Vec<DeferredAction> = Vec::new();
+            let mut sc = SchedCtx {
+                scheduler: &mut __sched,
+                framework_actions: &mut __fw,
+                root_context: &root_context,
+                current_engine: None,
+            };
+            view.Update(&mut tree, &mut sc);
+        }
 
         let vif_chain: Vec<Box<dyn emViewInputFilter>> = vec![
             {
@@ -115,7 +125,13 @@ impl PipelineTestHarness {
             .DoTimeSlice(&mut self.tree, &mut windows, &self.root_context, &mut __fw);
         self.view.pump_visiting_va(&mut self.tree);
         self.view.HandleNotice(&mut self.tree);
-        self.view.Update(&mut self.tree);
+        let mut sc = SchedCtx {
+            scheduler: &mut self.scheduler,
+            framework_actions: &mut self.framework_actions,
+            root_context: &self.root_context,
+            current_engine: None,
+        };
+        self.view.Update(&mut self.tree, &mut sc);
     }
 
     /// Run n frames.
@@ -159,18 +175,40 @@ impl PipelineTestHarness {
     pub fn set_zoom(&mut self, level: f64) {
         // Step 1: HardResetFileState to the 1x baseline (raw_zoom_out sets rel_a to
         // zoom_out_rel_a and calls update_viewing internally).
-        self.view.RawZoomOut(&mut self.tree, false);
+        {
+            let mut sc = SchedCtx {
+                scheduler: &mut self.scheduler,
+                framework_actions: &mut self.framework_actions,
+                root_context: &self.root_context,
+                current_engine: None,
+            };
+            self.view.RawZoomOut(&mut self.tree, false, &mut sc);
+        }
 
         // Step 2: apply the magnification factor. Zoom(factor) squares
         // internally (ra *= 1/factor^2), so passing `level` directly gives
         // level-x linear magnification.
         if (level - 1.0).abs() > 1e-12 {
             let (vw, vh) = self.view.viewport_size();
-            self.view.Zoom(&mut self.tree, level, vw * 0.5, vh * 0.5);
+            let mut sc = SchedCtx {
+                scheduler: &mut self.scheduler,
+                framework_actions: &mut self.framework_actions,
+                root_context: &self.root_context,
+                current_engine: None,
+            };
+            self.view.Zoom(&mut self.tree, level, vw * 0.5, vh * 0.5, &mut sc);
         }
 
         // Step 3: refresh viewed Restore for all panels.
-        self.view.Update(&mut self.tree);
+        {
+            let mut sc = SchedCtx {
+                scheduler: &mut self.scheduler,
+                framework_actions: &mut self.framework_actions,
+                root_context: &self.root_context,
+                current_engine: None,
+            };
+            self.view.Update(&mut self.tree, &mut sc);
+        }
     }
 
     // ── Auto-expansion ─────────────────────────────────────────
@@ -203,7 +241,13 @@ impl PipelineTestHarness {
     pub fn dispatch(&mut self, event: &emInputEvent) {
         // Run VIF chain
         for vif in &mut self.vif_chain {
-            if vif.filter(event, &self.input_state, &mut self.view, &mut self.tree) {
+            let mut sc = SchedCtx {
+                scheduler: &mut self.scheduler,
+                framework_actions: &mut self.framework_actions,
+                root_context: &self.root_context,
+                current_engine: None,
+            };
+            if vif.filter(event, &self.input_state, &mut self.view, &mut self.tree, &mut sc) {
                 return;
             }
         }

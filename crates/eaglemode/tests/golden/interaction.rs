@@ -26,6 +26,7 @@ fn panel_state(tree: &PanelTree, id: PanelId) -> (bool, bool) {
 
 /// Create a standard 3-panel tree (root → child1, child2) with layout rects.
 fn three_panel_tree() -> (PanelTree, emView, PanelId, PanelId, PanelId) {
+    let mut ts = TestSched::new();
     let mut tree = PanelTree::new();
     let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
@@ -35,7 +36,7 @@ fn three_panel_tree() -> (PanelTree, emView, PanelId, PanelId, PanelId) {
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     (tree, view, root, child1, child2)
 }
@@ -66,6 +67,7 @@ fn interaction_activate_click() {
 // ─── Test 2: activate_path ─────────────────────────────────────
 #[test]
 fn interaction_activate_path() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("activate_path");
 
@@ -80,7 +82,7 @@ fn interaction_activate_path() {
     tree.Layout(gc, 0.0, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
     sap(&mut view, &mut tree, gc, false);
 
     let actual = vec![
@@ -150,11 +152,12 @@ fn interaction_focus_click() {
 #[test]
 fn interaction_activate_remove() {
     require_golden!();
+    let mut ts = TestSched::new();
     let expected = load_behavioral_golden("activate_remove");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
 
     sap(&mut view, &mut tree, child1, false);
-    view.remove_panel(&mut tree, child1);
+    ts.with(|sc| view.remove_panel(&mut tree, child1, sc));
 
     let actual = vec![panel_state(&tree, root), panel_state(&tree, child2)];
     compare_behavioral("activate_remove", &actual, &expected, &["root", "child2"]).unwrap();
@@ -239,6 +242,7 @@ fn interaction_focus_tab_backward() {
 // ─── Test 9: focus_unfocusable_skip ───────────────────────────
 #[test]
 fn interaction_focus_unfocusable_skip() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("focus_unfocusable_skip");
 
@@ -253,7 +257,7 @@ fn interaction_focus_unfocusable_skip() {
     tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     tree.set_focusable(child2, false);
     view.SetFocused(&mut tree, true);
@@ -279,6 +283,7 @@ fn interaction_focus_unfocusable_skip() {
 // ─── Test 10: focus_nested ────────────────────────────────────
 #[test]
 fn interaction_focus_nested() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("focus_nested");
 
@@ -293,7 +298,7 @@ fn interaction_focus_nested() {
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
@@ -318,6 +323,7 @@ fn interaction_focus_nested() {
 // ─── Test 10b: focus_visit_out ──────────────────────────────────
 #[test]
 fn interaction_focus_visit_out() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("focus_visit_out");
 
@@ -332,7 +338,7 @@ fn interaction_focus_visit_out() {
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, gc, true);
@@ -383,6 +389,7 @@ fn interaction_focus_tab_wrap() {
 // ─── Phase 1: focus_visit_first ──────────────────────────────
 #[test]
 fn interaction_focus_visit_first() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("focus_visit_first");
 
@@ -397,7 +404,7 @@ fn interaction_focus_visit_first() {
     tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child2, true);
@@ -422,6 +429,7 @@ fn interaction_focus_visit_first() {
 // ─── Phase 1: focus_visit_last ───────────────────────────────
 #[test]
 fn interaction_focus_visit_last() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("focus_visit_last");
 
@@ -436,7 +444,7 @@ fn interaction_focus_visit_last() {
     tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
@@ -461,6 +469,7 @@ fn interaction_focus_visit_last() {
 // ─── Phase 1: focus_visit_left ───────────────────────────────
 #[test]
 fn interaction_focus_visit_left() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("focus_visit_left");
 
@@ -475,7 +484,7 @@ fn interaction_focus_visit_left() {
     tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child3, true);
@@ -500,6 +509,7 @@ fn interaction_focus_visit_left() {
 // ─── Phase 1: focus_visit_right ──────────────────────────────
 #[test]
 fn interaction_focus_visit_right() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("focus_visit_right");
 
@@ -514,7 +524,7 @@ fn interaction_focus_visit_right() {
     tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
@@ -539,6 +549,7 @@ fn interaction_focus_visit_right() {
 // ─── Phase 1: focus_visit_down ───────────────────────────────
 #[test]
 fn interaction_focus_visit_down() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("focus_visit_down");
 
@@ -553,7 +564,7 @@ fn interaction_focus_visit_down() {
     tree.Layout(child3, 0.0, 0.66, 1.0, 0.34, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
@@ -578,6 +589,7 @@ fn interaction_focus_visit_down() {
 // ─── Phase 1: focus_visit_up ─────────────────────────────────
 #[test]
 fn interaction_focus_visit_up() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("focus_visit_up");
 
@@ -592,7 +604,7 @@ fn interaction_focus_visit_up() {
     tree.Layout(child3, 0.0, 0.66, 1.0, 0.34, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child3, true);
@@ -642,6 +654,7 @@ fn interaction_focus_disabled_panel() {
 // ─── Phase 3: activate_remove_middle ─────────────────────────
 #[test]
 fn interaction_activate_remove_middle() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("activate_remove_middle");
 
@@ -656,11 +669,11 @@ fn interaction_activate_remove_middle() {
     tree.Layout(child3, 0.66, 0.0, 0.34, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
-    view.remove_panel(&mut tree, child2);
+    ts.with(|sc| view.remove_panel(&mut tree, child2, sc));
 
     let actual = vec![
         panel_state(&tree, root),
@@ -679,6 +692,7 @@ fn interaction_activate_remove_middle() {
 // ─── Phase 3: activate_remove_in_path ────────────────────────
 #[test]
 fn interaction_activate_remove_in_path() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("activate_remove_in_path");
 
@@ -693,11 +707,11 @@ fn interaction_activate_remove_in_path() {
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, gc, true);
-    view.remove_panel(&mut tree, child1);
+    ts.with(|sc| view.remove_panel(&mut tree, child1, sc));
 
     let actual = vec![panel_state(&tree, root), panel_state(&tree, child2)];
     compare_behavioral(
@@ -712,6 +726,7 @@ fn interaction_activate_remove_in_path() {
 // ─── Phase 4: focus_tab_deep ─────────────────────────────────
 #[test]
 fn interaction_focus_tab_deep() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("focus_tab_deep");
 
@@ -728,7 +743,7 @@ fn interaction_focus_tab_deep() {
     tree.Layout(child2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, gc1, true);
@@ -754,6 +769,7 @@ fn interaction_focus_tab_deep() {
 // ─── Phase 4: focus_tab_ascend ───────────────────────────────
 #[test]
 fn interaction_focus_tab_ascend() {
+    let mut ts = TestSched::new();
     require_golden!();
     let expected = load_behavioral_golden("focus_tab_ascend");
 
@@ -768,7 +784,7 @@ fn interaction_focus_tab_ascend() {
     tree.Layout(gc2, 0.5, 0.0, 0.5, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, gc2, true);
@@ -820,12 +836,13 @@ fn interaction_focus_visit_out_to_root() {
 #[test]
 fn interaction_focus_remove_focused() {
     require_golden!();
+    let mut ts = TestSched::new();
     let expected = load_behavioral_golden("focus_remove_focused");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
-    view.remove_panel(&mut tree, child1);
+    ts.with(|sc| view.remove_panel(&mut tree, child1, sc));
 
     let actual = vec![panel_state(&tree, root), panel_state(&tree, child2)];
     compare_behavioral(

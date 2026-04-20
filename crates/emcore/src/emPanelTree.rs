@@ -331,6 +331,14 @@ pub struct PanelTree {
     /// and calls `View.RawZoomOut(true)` when zoomed out. `emView::Update`
     /// drains this flag and calls `RawZoomOut` when it is true.
     pub(crate) root_layout_changed: bool,
+    /// Engine IDs queued for removal when the scheduler was busy (borrowed
+    /// by `DoTimeSlice`) at the time `deregister_engine_for` ran.
+    /// Drained at the start of each `DoTimeSlice` before the main loop.
+    pub(crate) pending_engine_removals: Vec<crate::emEngine::EngineId>,
+    /// Engine IDs queued for wakeup when the scheduler was busy (borrowed
+    /// by `DoTimeSlice`) at the time `wake_up_panel` or `add_to_notice_list`
+    /// ran. Drained at the start of each `DoTimeSlice` before the main loop.
+    pub(crate) pending_engine_wakeups: Vec<crate::emEngine::EngineId>,
 }
 
 impl PanelTree {
@@ -346,6 +354,8 @@ impl PanelTree {
             notice_ring_head_next: None,
             notice_ring_head_prev: None,
             root_layout_changed: false,
+            pending_engine_removals: Vec::new(),
+            pending_engine_wakeups: Vec::new(),
         }
     }
 
@@ -394,26 +404,27 @@ impl PanelTree {
         }
         // C++ emView::AddToNoticeList (emView.cpp:1288) calls UpdateEngine->WakeUp().
         // Since the ring is now on PanelTree, wake via the panel's View.
-        // Use try_borrow_mut: if the view is already mutably borrowed (we are inside
-        // HandleNotice dispatch), the engine is already awake — no wakeup needed.
+        // Use try_borrow (immutable) to get the scheduler Rc without conflicting
+        // with a mutable borrow held by the view's own engine cycle.
         if let Some(view_rc) = self.panels[id].View.upgrade() {
-            if let Ok(mut view) = view_rc.try_borrow_mut() {
-                // Bridge: add_to_notice_list runs under PanelTree's own
-                // &mut self and has no SchedCtx. Use the view's local
-                // SchedCtx constructor; the re-entrant fallback pushes a
-                // SchedOp::WakeUp to be drained by the engine cycle.
-                view.with_local_sched_ctx(
-                    |v| {
-                        if let Some(eng_id) = v.update_engine_id {
-                            v.pending_sched_ops
-                                .push(crate::emView::SchedOp::WakeUp(eng_id));
+            if let Ok(view) = view_rc.try_borrow() {
+                if let Some(sched_rc) = view.scheduler_ref().cloned() {
+                    if let Some(eng_id) = view.update_engine_id {
+                        drop(view); // release immutable borrow before mutably borrowing sched
+                        match sched_rc.try_borrow_mut() {
+                            Ok(mut sched) => sched.wake_up(eng_id),
+                            Err(_) => {
+                                // Scheduler is borrowed by DoTimeSlice. Queue for
+                                // deferred wakeup at the start of the next slice.
+                                self.pending_engine_wakeups.push(eng_id);
+                            }
                         }
-                    },
-                    |v, sc| v.WakeUpUpdateEngine(sc),
-                );
+                    }
+                }
             }
-            // If try_borrow_mut fails, we are inside the view's Update/HandleNotice;
-            // the engine is already running, so no explicit wakeup is needed.
+            // If try_borrow fails, we are inside the view's Update/HandleNotice
+            // (view is mutably borrowed); the update engine is already running,
+            // so no explicit wakeup is needed.
         }
     }
 
@@ -621,10 +632,11 @@ impl PanelTree {
         }
     }
 
-    /// Deregister `id`'s scheduler engine. Uses
-    /// `queue_or_apply_sched_op(SchedOp::RemoveEngine(eid))` on the owning
-    /// view so a panel removed from inside a sibling's `Cycle` (scheduler
-    /// already borrowed) defers the removal to after the slice.
+    /// Deregister `id`'s scheduler engine.
+    /// When the scheduler is not borrowed, removes the engine immediately.
+    /// When the scheduler is already borrowed (DoTimeSlice is running),
+    /// queues the engine id in `pending_engine_removals` for deferred removal
+    /// at the start of the next DoTimeSlice.
     fn deregister_engine_for(&mut self, id: PanelId) {
         let Some(eid) = self.panels.get_mut(id).and_then(|p| p.engine_id.take()) else {
             return;
@@ -633,9 +645,29 @@ impl PanelTree {
             // View gone; scheduler teardown will drain engines.
             return;
         };
-        view_rc
-            .borrow_mut()
-            .queue_or_apply_sched_op(crate::emView::SchedOp::RemoveEngine(eid));
+        // Reach the scheduler via an immutable view borrow (safe even when the
+        // view's engine cycle is running because try_borrow does not conflict
+        // with &mut self held by DoTimeSlice on the scheduler).
+        // Collect the scheduler Rc in a single expression so view_rc borrow is dropped.
+        let sched_rc_opt: Option<std::rc::Rc<std::cell::RefCell<crate::emScheduler::EngineScheduler>>> = {
+            let Ok(view) = view_rc.try_borrow() else {
+                // View is mutably borrowed. Queue for deferred removal.
+                self.pending_engine_removals.push(eid);
+                return;
+            };
+            view.scheduler_ref().cloned()
+        };
+        let Some(sched_rc) = sched_rc_opt else {
+            return; // unit-test bare view with no scheduler
+        };
+        let remove_deferred = sched_rc.try_borrow_mut().is_err();
+        if remove_deferred {
+            // Scheduler is borrowed by DoTimeSlice. Queue for deferred removal.
+            self.pending_engine_removals.push(eid);
+        } else {
+            // try_borrow_mut succeeded above; borrow it again now that the temporary is dropped.
+            sched_rc.borrow_mut().remove_engine(eid);
+        }
     }
 
     /// Propagate a view weak reference to a panel and all its descendants.
@@ -3543,9 +3575,10 @@ mod tests {
     }
 
     /// Phase 5 Task 5.2 — a panel's Cycle may call ctx.wake_up_panel(b);
-    /// because the scheduler is borrowed mid-slice, the WakeUp is queued
-    /// into view.pending_sched_ops. After the slice ends and pending ops
-    /// are drained, a subsequent slice must cycle sibling B.
+    /// because the scheduler is borrowed mid-slice (DoTimeSlice holds
+    /// `&mut EngineScheduler`), the WakeUp is queued into
+    /// `tree.pending_engine_wakeups`. The wakeup is applied at the start of
+    /// the next DoTimeSlice, so a subsequent slice cycles sibling B.
     #[test]
     fn sp4_5_wake_up_panel_from_cycle_reaches_sibling() {
         use crate::emPanel::PanelBehavior;
@@ -3632,8 +3665,8 @@ mod tests {
         sched.borrow_mut().wake_up(eid_a);
 
         // Slice 1: A cycles, calls ctx.wake_up_panel(b). Because the
-        // scheduler is borrowed, the WakeUp op is queued onto
-        // view.pending_sched_ops rather than applied directly.
+        // scheduler is borrowed by DoTimeSlice, the WakeUp is queued into
+        // tree.pending_engine_wakeups rather than applied directly.
         let mut windows = HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
@@ -3645,24 +3678,16 @@ mod tests {
         assert_eq!(
             b_cycles.get(),
             0,
-            "B must not cycle before pending ops are drained"
+            "B must not cycle in slice 1 — wakeup is deferred to next slice"
         );
-
-        // Drain pending scheduler ops queued during slice 1.
-        let ops: Vec<crate::emView::SchedOp> =
-            view.borrow_mut().pending_sched_ops.drain(..).collect();
+        // The wakeup for B must be in the pending queue.
         assert!(
-            !ops.is_empty(),
-            "slice 1 must have queued at least one SchedOp::WakeUp"
+            tree.pending_engine_wakeups.contains(&eid_b),
+            "eid_b must be in pending_engine_wakeups after slice 1"
         );
-        {
-            let mut s = sched.borrow_mut();
-            for op in ops {
-                op.apply_to(&mut s);
-            }
-        }
 
-        // Slice 2: B should now run.
+        // Slice 2: DoTimeSlice drains pending_engine_wakeups at its start,
+        // waking B, which then cycles.
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
         sched
@@ -3671,23 +3696,21 @@ mod tests {
         assert_eq!(
             b_cycles.get(),
             1,
-            "B must cycle after its WakeUp op is applied"
+            "B must cycle in slice 2 after its deferred wakeup is applied"
         );
 
         // Sanity: engine ids still match.
         assert_eq!(tree.GetRec(a).and_then(|p| p.engine_id), Some(eid_a));
         assert_eq!(tree.GetRec(b).and_then(|p| p.engine_id), Some(eid_b));
 
-        // Cleanup: remove root (deregisters engines via queued RemoveEngine
-        // ops). Drain those before dropping the scheduler so its "no
-        // dangling engines" Drop assertion passes.
+        // Cleanup: remove root (deregisters engines; scheduler busy so
+        // pending_engine_removals is populated). DoTimeSlice drains it.
         tree.remove(root);
-        let cleanup_ops: Vec<crate::emView::SchedOp> =
-            view.borrow_mut().pending_sched_ops.drain(..).collect();
-        let mut s = sched.borrow_mut();
-        for op in cleanup_ops {
-            op.apply_to(&mut s);
-        }
+        let __root_ctx = crate::emContext::emContext::NewRoot();
+        let mut __fw: Vec<_> = Vec::new();
+        sched
+            .borrow_mut()
+            .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
     }
 
     /// SP4.5-FIX-1 Part B Path 1 — measures the slice delta between the
@@ -3780,16 +3803,8 @@ mod tests {
             if cycled_at.get().is_some() {
                 break;
             }
-            // Drain any pending view ops queued during the previous slice
-            // (mirrors App::about_to_wait SchedOp drain).
-            let ops: Vec<crate::emView::SchedOp> =
-                _view.borrow_mut().pending_sched_ops.drain(..).collect();
-            {
-                let mut s = sched.borrow_mut();
-                for op in ops {
-                    op.apply_to(&mut s);
-                }
-            }
+            // pending_engine_wakeups and pending_engine_removals are drained
+            // automatically at the start of each DoTimeSlice (SP1.5-1c).
             let __root_ctx = crate::emContext::emContext::NewRoot();
             let mut __fw: Vec<_> = Vec::new();
             sched
@@ -3807,12 +3822,11 @@ mod tests {
         // Cleanup before the assertion so the scheduler Drop invariant holds
         // even if the assert panics.
         tree.remove(root);
-        let cleanup_ops: Vec<crate::emView::SchedOp> =
-            _view.borrow_mut().pending_sched_ops.drain(..).collect();
+        // Drain pending_engine_removals queued by tree.remove(root) above.
         {
             let mut s = sched.borrow_mut();
-            for op in cleanup_ops {
-                op.apply_to(&mut s);
+            for eid in tree.pending_engine_removals.drain(..) {
+                s.remove_engine(eid);
             }
             s.remove_engine(spawn_eid);
         }
@@ -3890,12 +3904,11 @@ mod tests {
 
         // Cleanup before assert (preserve scheduler-Drop invariant).
         tree.remove(root);
-        let cleanup_ops: Vec<crate::emView::SchedOp> =
-            view.borrow_mut().pending_sched_ops.drain(..).collect();
+        // Drain pending_engine_removals queued by tree.remove(root).
         {
             let mut s = sched.borrow_mut();
-            for op in cleanup_ops {
-                op.apply_to(&mut s);
+            for eid in tree.pending_engine_removals.drain(..) {
+                s.remove_engine(eid);
             }
         }
 

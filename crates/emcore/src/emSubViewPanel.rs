@@ -146,23 +146,39 @@ impl emSubViewPanel {
         self.sub_view.borrow_mut().flags = flags;
     }
 
+    /// Call `RawZoomOut` on the sub-view, building a SchedCtx from the
+    /// sub-view's own scheduler. Exposed as a public method so external crates
+    /// can invoke it without needing direct access to `sub_scheduler`
+    /// (`pub(crate)`).
+    ///
+    /// C++ equivalent: `ContentView.RawZoomOut()` called from
+    /// emMainWindow::Cycle (state 10).
+    pub fn raw_zoom_out(&mut self, force_viewing_update: bool) {
+        let root_ctx = self.sub_view.borrow().GetRootContext();
+        let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+        let mut sched = self.sub_scheduler.borrow_mut();
+        let mut sc = crate::emEngineCtx::SchedCtx {
+            scheduler: &mut sched,
+            framework_actions: &mut fw,
+            root_context: &root_ctx,
+            current_engine: None,
+        };
+        self.sub_view
+            .borrow_mut()
+            .RawZoomOut(&mut self.sub_tree, force_viewing_update, &mut sc);
+    }
+
     /// Update the sub-view geometry to match the parent panel's viewed area.
     ///
     /// In C++ this delegates to `emViewPort::SetViewGeometry`. The sub-view's
     /// viewport size is set to match the parent panel's pixel dimensions.
     fn sync_geometry(&mut self, state: &PanelState) {
-        if state.viewed {
+        let (w, h) = if state.viewed {
             self.viewed_x = state.viewed_rect.x;
             self.viewed_y = state.viewed_rect.y;
             self.viewed_width = state.viewed_rect.w;
             self.viewed_height = state.viewed_rect.h;
-            let sub_tree = &mut self.sub_tree;
-            let w = self.viewed_width;
-            let h = self.viewed_height;
-            self.sub_view.borrow_mut().with_local_sched_ctx(
-                |_v| {},
-                |v, sc| v.SetGeometry(sub_tree, 0.0, 0.0, w, h, 1.0, sc),
-            );
+            (self.viewed_width, self.viewed_height)
         } else {
             // Not viewed — give the sub-view a default geometry.
             // C++ uses (0, 0, 1, GetHeight(), 1.0).
@@ -170,13 +186,23 @@ impl emSubViewPanel {
             self.viewed_y = 0.0;
             self.viewed_width = 1.0;
             self.viewed_height = state.height;
-            let sub_tree = &mut self.sub_tree;
-            let h = state.height;
-            self.sub_view.borrow_mut().with_local_sched_ctx(
-                |_v| {},
-                |v, sc| v.SetGeometry(sub_tree, 0.0, 0.0, 1.0, h, 1.0, sc),
-            );
-        }
+            (1.0_f64, state.height)
+        };
+        // Build a SchedCtx from the sub-view's own scheduler.
+        // sub_scheduler is independent of the parent scheduler so borrow_mut
+        // does not conflict with the parent DoTimeSlice.
+        let root_ctx = self.sub_view.borrow().GetRootContext();
+        let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+        let mut sched = self.sub_scheduler.borrow_mut();
+        let mut sc = crate::emEngineCtx::SchedCtx {
+            scheduler: &mut sched,
+            framework_actions: &mut fw,
+            root_context: &root_ctx,
+            current_engine: None,
+        };
+        self.sub_view
+            .borrow_mut()
+            .SetGeometry(&mut self.sub_tree, 0.0, 0.0, w, h, 1.0, &mut sc);
     }
 }
 
@@ -239,6 +265,10 @@ impl PanelBehavior for emSubViewPanel {
         let sub_vx = event.mouse_x * self.viewed_width;
         let sub_vy = event.mouse_y * self.viewed_width / state.pixel_tallness;
 
+        // Build a SchedCtx from the sub-view's own scheduler for method calls below.
+        let root_ctx_for_input = self.sub_view.borrow().GetRootContext();
+        let mut fw_input: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+
         // Hit-test and set active panel on mouse press (mirrors parent window logic).
         if event.is_mouse_event() && event.variant == crate::emInput::InputVariant::Press {
             let panel = self
@@ -246,16 +276,31 @@ impl PanelBehavior for emSubViewPanel {
                 .borrow()
                 .GetFocusablePanelAt(&self.sub_tree, sub_vx, sub_vy)
                 .unwrap_or_else(|| self.sub_view.borrow().GetRootPanel());
+            let mut sched = self.sub_scheduler.borrow_mut();
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut sched,
+                framework_actions: &mut fw_input,
+                root_context: &root_ctx_for_input,
+                current_engine: None,
+            };
             self.sub_view
                 .borrow_mut()
-                .with_local_sched_ctx(
-                    |_v| {},
-                    |v, sc| v.set_active_panel(&mut self.sub_tree, panel, false, sc),
-                );
+                .set_active_panel(&mut self.sub_tree, panel, false, &mut sc);
         }
 
         // Ensure sub-view viewing state is current for coordinate transforms.
-        self.sub_view.borrow_mut().Update(&mut self.sub_tree);
+        {
+            let mut sched = self.sub_scheduler.borrow_mut();
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut sched,
+                framework_actions: &mut fw_input,
+                root_context: &root_ctx_for_input,
+                current_engine: None,
+            };
+            self.sub_view
+                .borrow_mut()
+                .Update(&mut self.sub_tree, &mut sc);
+        }
 
         // Dispatch to sub-tree panels (DFS order, matching C++ RecurseInput).
         let wf = self.sub_view.borrow().IsFocused();
@@ -307,8 +352,18 @@ impl PanelBehavior for emSubViewPanel {
         //    on emSubViewPanel per SP1 §5.1 item 3). Take/put preserves Rust
         //    borrow rules.
         let animator_active = if let Some(mut anim) = self.active_animator.take() {
+            let root_ctx_for_anim = self.sub_view.borrow().GetRootContext();
+            let mut fw_anim: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+            let mut sched_anim = self.sub_scheduler.borrow_mut();
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut sched_anim,
+                framework_actions: &mut fw_anim,
+                root_context: &root_ctx_for_anim,
+                current_engine: None,
+            };
             let still_active =
-                anim.animate(&mut self.sub_view.borrow_mut(), &mut self.sub_tree, dt);
+                anim.animate(&mut self.sub_view.borrow_mut(), &mut self.sub_tree, dt, &mut sc);
+            drop(sched_anim);
             if still_active {
                 self.active_animator = Some(anim);
             }
@@ -661,20 +716,8 @@ mod sp4_5_fix_1_tests {
             if cycled_at.get().is_some() {
                 break;
             }
-            // Drain any pending view ops queued during the previous slice
-            // (mirrors App::about_to_wait SchedOp drain).
-            let ops: Vec<crate::emView::SchedOp> = panel
-                .sub_view
-                .borrow_mut()
-                .pending_sched_ops
-                .drain(..)
-                .collect();
-            {
-                let mut s = panel.sub_scheduler.borrow_mut();
-                for op in ops {
-                    op.apply_to(&mut s);
-                }
-            }
+            // pending_engine_wakeups/removals are drained automatically at the
+            // start of each DoTimeSlice (SP1.5-1c).
             let __root_ctx = crate::emContext::emContext::NewRoot();
             let mut __fw: Vec<_> = Vec::new();
             panel.sub_scheduler.borrow_mut().DoTimeSlice(

@@ -178,50 +178,6 @@ impl StressTest {
     }
 }
 
-/// Deferred scheduler operation, issued from inside `emView::Update`'s
-/// reachable call tree when the scheduler is already `borrow_mut`'d by
-/// the enclosing `DoTimeSlice`. Drained by `UpdateEngineClass::Cycle`
-/// immediately after `Update` returns.
-// TODO(phase-1 task-9): delete when emEngine::Cycle trait migration lands; see 2026-04-19-phase-1-task-4-5-blocked.md
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum SchedOp {
-    Fire(super::emSignal::SignalId),
-    WakeUp(super::emEngine::EngineId),
-    Connect(super::emSignal::SignalId, super::emEngine::EngineId),
-    Disconnect(super::emSignal::SignalId, super::emEngine::EngineId),
-    RemoveSignal(super::emSignal::SignalId),
-    /// Remove an engine from the scheduler. Panels deregister through this
-    /// on tree removal (SP4.5). Queued when the scheduler is already
-    /// borrowed (e.g. a panel deleting a sibling from inside `Cycle`).
-    RemoveEngine(super::emEngine::EngineId),
-}
-
-impl SchedOp {
-    /// Apply directly to an `&mut EngineScheduler`. Used on the
-    /// non-engine path where `try_borrow_mut` succeeded.
-    pub(crate) fn apply_to(self, sched: &mut super::emScheduler::EngineScheduler) {
-        match self {
-            SchedOp::Fire(s) => sched.fire(s),
-            SchedOp::WakeUp(e) => sched.wake_up(e),
-            SchedOp::Connect(s, e) => sched.connect(s, e),
-            SchedOp::Disconnect(s, e) => sched.disconnect(s, e),
-            SchedOp::RemoveSignal(s) => sched.remove_signal(s),
-            SchedOp::RemoveEngine(e) => sched.remove_engine(e),
-        }
-    }
-
-    /// Apply via an `EngineCtx` (drain-time path, inside `Cycle`).
-    pub(crate) fn apply_via_ctx(self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) {
-        match self {
-            SchedOp::Fire(s) => ctx.fire(s),
-            SchedOp::WakeUp(e) => ctx.wake_up(e),
-            SchedOp::Connect(s, e) => ctx.connect(s, e),
-            SchedOp::Disconnect(s, e) => ctx.disconnect(s, e),
-            SchedOp::RemoveSignal(s) => ctx.remove_signal(s),
-            SchedOp::RemoveEngine(e) => ctx.remove_engine(e),
-        }
-    }
-}
 
 /// Scheduler-driven engine that calls `emView::Update` once per slice.
 ///
@@ -244,20 +200,14 @@ impl super::emEngine::emEngine for UpdateEngineClass {
             return false;
         };
         let mut view = view_rc.borrow_mut();
-
-        // SP4 Part A: pre-compute popup-close probe (C++ emView.cpp:1299).
-        let popup_close_sig = view.PopupWindow.as_ref().map(|p| p.borrow().close_signal);
-        if let Some(close_sig) = popup_close_sig {
-            view.close_signal_pending = ctx.IsSignaled(close_sig);
-        }
-
-        view.Update(ctx.tree);
-
-        // SP4 Part B: drain deferred scheduler ops queued by Update's call tree.
-        let ops: Vec<SchedOp> = view.pending_sched_ops.drain(..).collect();
-        for op in ops {
-            op.apply_via_ctx(ctx);
-        }
+        let engine_id = ctx.engine_id;
+        let mut sc = crate::emEngineCtx::SchedCtx {
+            scheduler: ctx.scheduler,
+            framework_actions: ctx.framework_actions,
+            root_context: ctx.root_context,
+            current_engine: Some(engine_id),
+        };
+        view.Update(ctx.tree, &mut sc);
         false
     }
 }
@@ -307,7 +257,15 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
             return false;
         }
         use super::emViewAnimator::emViewAnimator as _;
-        va.animate(&mut view, ctx.tree, dt)
+        // Build SchedCtx using disjoint field borrows (ctx.tree is borrowed separately above).
+        let engine_id = ctx.engine_id;
+        let mut sc = crate::emEngineCtx::SchedCtx {
+            scheduler: ctx.scheduler,
+            framework_actions: ctx.framework_actions,
+            root_context: ctx.root_context,
+            current_engine: Some(engine_id),
+        };
+        va.animate(&mut view, ctx.tree, dt, &mut sc)
     }
 }
 
@@ -410,21 +368,6 @@ pub struct emView {
     /// that construct `emView` outside of a running `App`.
     pub(crate) pending_framework_actions:
         Option<Rc<RefCell<Vec<super::emGUIFramework::DeferredAction>>>>,
-    /// Set by `UpdateEngineClass::Cycle` from `ctx.IsSignaled(close_signal)`
-    /// before calling `Update`; read and cleared at the top of `Update`.
-    /// See C++ `emView::Update` popup-close probe at `emView.cpp:1299`.
-    ///
-    /// DIVERGED: C++ emView is an emEngine (via emContext); Rust emView is
-    /// not yet (tracked as SP7). UpdateEngine's clock substitutes for
-    /// emView's own clock.
-    // TODO(phase-1 task-9): delete when emEngine::Cycle trait migration lands; see 2026-04-19-phase-1-task-4-5-blocked.md
-    pub(crate) close_signal_pending: bool,
-    /// Queue of scheduler ops issued from inside Update's call tree when
-    /// the scheduler is already borrow_mut'd. Drained by
-    /// UpdateEngineClass::Cycle after Update returns. Invariant: only
-    /// nonempty transiently, inside a `Cycle` invocation.
-    // TODO(phase-1 task-9): delete when emEngine::Cycle trait migration lands; see 2026-04-19-phase-1-task-4-5-blocked.md
-    pub(crate) pending_sched_ops: Vec<SchedOp>,
     /// The view title. Updated from the active panel's title.
     pub title: String,
     /// Current mouse cursor for this view.
@@ -586,8 +529,6 @@ impl emView {
             eoi_engine_id: None,
             visiting_va_engine_id: None,
             pending_framework_actions: None,
-            close_signal_pending: false,
-            pending_sched_ops: Vec::new(),
             title: String::new(),
             cursor: emCursor::Normal,
             max_popup_rect: None,
@@ -639,80 +580,6 @@ impl emView {
         }
     }
 
-    /// Apply a scheduler op: execute immediately if the scheduler is not
-    /// currently borrowed (the common, non-engine-path case), otherwise
-    /// enqueue for drain by `UpdateEngineClass::Cycle`.
-    ///
-    /// Used by every scheduler-write call site in `emView.rs` that is
-    /// reachable from `Update`. Non-Update call sites hit the inline-apply
-    /// arm and incur zero queue overhead.
-    // TODO(phase-1 task-9): delete when emEngine::Cycle trait migration lands; see 2026-04-19-phase-1-task-4-5-blocked.md
-    pub(crate) fn queue_or_apply_sched_op(&mut self, op: SchedOp) {
-        let Some(sched_rc) = self.scheduler.as_ref() else {
-            return; // Unit-test bare view: no scheduler, all ops no-op.
-        };
-        match sched_rc.try_borrow_mut() {
-            Ok(mut sched) => op.apply_to(&mut sched),
-            Err(_) => self.pending_sched_ops.push(op),
-        }
-    }
-
-    /// Phase 1.5 Task 1c: local SchedCtx constructor used by yet-unmigrated
-    /// emView methods to call ctx-threaded methods without propagating ctx up
-    /// their own signatures.
-    ///
-    /// Fallback policy mirrors `queue_or_apply_sched_op`:
-    ///   - No scheduler attached (bare unit-test view) → skip the call.
-    ///   - Scheduler already borrowed re-entrantly → run the caller-supplied
-    ///     `on_reentrant` closure, which must push the equivalent
-    ///     `SchedOp`(s) onto `pending_sched_ops` so the engine-cycle drain
-    ///     reproduces the scheduler side-effects.
-    ///   - Scheduler borrow available → construct a `SchedCtx` over a
-    ///     scratch `Vec<DeferredAction>` (callers that need framework-action
-    ///     visibility must migrate fully, not go through this helper) and
-    ///     run `f`.
-    ///
-    /// TODO(phase-1-5 task-1c/7of7): deleted when all emView methods become
-    /// ctx-threaded — at that point outer callers supply the real SchedCtx
-    /// directly.
-    pub(crate) fn with_local_sched_ctx<R>(
-        &mut self,
-        on_reentrant: impl FnOnce(&mut Self),
-        f: impl FnOnce(&mut Self, &mut crate::emEngineCtx::SchedCtx<'_>) -> R,
-    ) -> Option<R> {
-        if let Some(sched_rc) = self.scheduler.as_ref().cloned() {
-            let mut sched = match sched_rc.try_borrow_mut() {
-                Ok(s) => s,
-                Err(_) => {
-                    on_reentrant(self);
-                    return None;
-                }
-            };
-            let root = self.Context.GetRootContext();
-            let mut scratch: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
-            let mut sc = crate::emEngineCtx::SchedCtx {
-                scheduler: &mut sched,
-                framework_actions: &mut scratch,
-                root_context: &root,
-                current_engine: None,
-            };
-            Some(f(self, &mut sc))
-        } else {
-            // No scheduler attached (e.g. test-harness-less callers).
-            // Fire with a throwaway scheduler; any signals on control_panel_signal
-            // fire into it and are silently discarded.
-            let mut sched = crate::emScheduler::EngineScheduler::new();
-            let root = self.Context.GetRootContext();
-            let mut scratch: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
-            let mut sc = crate::emEngineCtx::SchedCtx {
-                scheduler: &mut sched,
-                framework_actions: &mut scratch,
-                root_context: &root,
-                current_engine: None,
-            };
-            Some(f(self, &mut sc))
-        }
-    }
 
     // --- Accessors ---
 
@@ -891,6 +758,7 @@ impl emView {
     /// Port of C++ `emView::RawVisit(panel, relX, relY, relA, forceViewingUpdate)`
     /// (emView.cpp:1526-1541). Converts rel coords to absolute screen coords
     /// (same formula as C++) then calls `RawVisitAbs` directly.
+    #[allow(clippy::too_many_arguments)]
     pub fn RawVisit(
         &mut self,
         tree: &mut PanelTree,
@@ -899,6 +767,7 @@ impl emView {
         rel_y: f64,
         rel_a: f64,
         forceViewingUpdate: bool,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) {
         let (rx, ry, ra) = if rel_a <= 0.0 {
             // C++ emView.cpp:1534: if (relA<=0.0) CalcVisitFullsizedCoords(panel,&relX,&relY,&relA,relA<-0.9)
@@ -926,12 +795,18 @@ impl emView {
         let vx = self.HomeX + self.HomeWidth * 0.5 - (rx + 0.5) * vw;
         let vy = self.HomeY + self.HomeHeight * 0.5 - (ry + 0.5) * vh;
 
-        self.RawVisitAbs(tree, panel, vx, vy, vw, forceViewingUpdate);
+        self.RawVisitAbs(tree, panel, vx, vy, vw, forceViewingUpdate, ctx);
     }
 
     /// Port of C++ `emView::RawVisitFullsized(panel, utilizeView)` (emView.cpp:558-560):
     ///   `RawVisit(panel, 0.0, 0.0, utilizeView ? -1.0 : 0.0)`
-    pub fn RawVisitFullsized(&mut self, tree: &mut PanelTree, panel: PanelId, utilize_view: bool) {
+    pub fn RawVisitFullsized(
+        &mut self,
+        tree: &mut PanelTree,
+        panel: PanelId,
+        utilize_view: bool,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
         self.RawVisit(
             tree,
             panel,
@@ -939,6 +814,7 @@ impl emView {
             0.0,
             if utilize_view { -1.0 } else { 0.0 },
             false,
+            ctx,
         );
     }
 
@@ -1129,6 +1005,7 @@ impl emView {
     /// DIVERGED: C++ `SetGeometry(x,y,w,h,pt)` — Rust signature identical.
     /// Internally writes both Home* and Current* (home = current when no popup).
     /// Ctx-threaded per Phase 1.5 Task 1c (method 5/7). Other unmigrated emView methods use `with_local_sched_ctx` to bridge.
+    #[allow(clippy::too_many_arguments)]
     pub fn SetGeometry(
         &mut self,
         tree: &mut PanelTree,
@@ -1194,9 +1071,9 @@ impl emView {
 
         // C++ emView.cpp:1272-1277: end of SetGeometry — zoom-out or re-visit.
         if self.zoomed_out_before_sg {
-            self.RawZoomOut(tree, true);
+            self.RawZoomOut(tree, true, ctx);
         } else if let Some((panel, rx, ry, ra)) = visited_before {
-            self.RawVisit(tree, panel, rx, ry, ra, true);
+            self.RawVisit(tree, panel, rx, ry, ra, true, ctx);
         }
 
         self.SettingGeometry -= 1;
@@ -1243,7 +1120,14 @@ impl emView {
     ///
     /// DIVERGED: C++ signature is `Zoom(fixX, fixY, factor)`; Rust keeps factor first
     /// for call-site consistency with earlier Rust API — marked here for record.
-    pub fn Zoom(&mut self, tree: &mut PanelTree, factor: f64, center_x: f64, center_y: f64) {
+    pub fn Zoom(
+        &mut self,
+        tree: &mut PanelTree,
+        factor: f64,
+        center_x: f64,
+        center_y: f64,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
         if self.flags.contains(ViewFlags::NO_ZOOM) {
             return;
         }
@@ -1274,18 +1158,21 @@ impl emView {
             rx += (center_x - hmx) * (1.0 - re_fac) / pvw;
             ry += (center_y - hmy) * (1.0 - re_fac) / pvh;
             ra *= re_fac * re_fac;
-            self.RawVisit(tree, panel, rx, ry, ra, true);
+            self.RawVisit(tree, panel, rx, ry, ra, true, ctx);
         }
         // C++ emView.cpp:800.
-        self.with_local_sched_ctx(
-            |_v| {},
-            |v, sc| v.SetActivePanelBestPossible(tree, sc),
-        );
+        self.SetActivePanelBestPossible(tree, ctx);
     }
 
     /// Port of C++ `emView::Scroll(deltaX, deltaY)` (emView.cpp:765-782).
     /// Calls RawVisit(..., true) directly.
-    pub fn Scroll(&mut self, tree: &mut PanelTree, dx: f64, dy: f64) {
+    pub fn Scroll(
+        &mut self,
+        tree: &mut PanelTree,
+        dx: f64,
+        dy: f64,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
         if self.flags.contains(ViewFlags::NO_SCROLL) {
             return;
         }
@@ -1311,18 +1198,16 @@ impl emView {
             //   ry += deltaY / p->ViewedHeight
             rx += dx / pvw;
             ry += dy / pvh;
-            self.RawVisit(tree, panel, rx, ry, ra, true);
+            self.RawVisit(tree, panel, rx, ry, ra, true, ctx);
         }
         // C++ emView.cpp:780.
-        self.with_local_sched_ctx(
-            |_v| {},
-            |v, sc| v.SetActivePanelBestPossible(tree, sc),
-        );
+        self.SetActivePanelBestPossible(tree, ctx);
     }
 
     /// Port of C++ `emView::RawScrollAndZoom(fixX, fixY, dX, dY, dZ, panel, ...)`
     /// (emView.cpp:803-855). Atomic scroll+zoom with done-distance feedback.
     /// Calls RawVisit directly (no intermediate Update call).
+    #[allow(clippy::too_many_arguments)]
     pub fn RawScrollAndZoom(
         &mut self,
         tree: &mut PanelTree,
@@ -1331,6 +1216,7 @@ impl emView {
         dx: f64,
         dy: f64,
         dz: f64,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) -> [f64; 3] {
         let zflpp = self.GetZoomFactorLogarithmPerPixel();
         let hmx = self.HomeX + self.HomeWidth * 0.5;
@@ -1369,7 +1255,7 @@ impl emView {
         };
         let ra2 = ra * re_fac * re_fac;
 
-        self.RawVisit(tree, panel, rx2, ry2, ra2, false);
+        self.RawVisit(tree, panel, rx2, ry2, ra2, false, ctx);
 
         // Done-distance: C++ emView.cpp:856-875.
         // After RawVisit, re-read the actual viewed coords of panel (post-clamp).
@@ -1418,24 +1304,30 @@ impl emView {
 
     // --- Zoom out ---
 
-    pub fn ZoomOut(&mut self, tree: &mut PanelTree) {
-        self.RawZoomOut(tree, false);
+    pub fn ZoomOut(
+        &mut self,
+        tree: &mut PanelTree,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
+        self.RawZoomOut(tree, false, ctx);
         // C++ emView.cpp:901.
-        self.with_local_sched_ctx(
-            |_v| {},
-            |v, sc| v.SetActivePanelBestPossible(tree, sc),
-        );
+        self.SetActivePanelBestPossible(tree, ctx);
     }
 
     /// DIVERGED: C++ has public `RawZoomOut()` + private overload
     /// `RawZoomOut(forceViewingUpdate)`. Rust: single method, callers pass bool.
-    pub fn RawZoomOut(&mut self, tree: &mut PanelTree, forceViewingUpdate: bool) {
+    pub fn RawZoomOut(
+        &mut self,
+        tree: &mut PanelTree,
+        forceViewingUpdate: bool,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
         // C++ emView::RawZoomOut:
         //   RawVisit(RootPanel, 0.0, 0.0, relA, forceViewingUpdate);
         // Always target the ROOT panel, not the current visit target.
         let rel_a = self.zoom_out_rel_a(tree);
         let root = self.root;
-        self.RawVisit(tree, root, 0.0, 0.0, rel_a, forceViewingUpdate);
+        self.RawVisit(tree, root, 0.0, 0.0, rel_a, forceViewingUpdate, ctx);
     }
 
     /// Compute the C++ relA that makes the viewport fully contain the root panel.
@@ -1550,7 +1442,12 @@ impl emView {
 
     // --- ViewFlags with side effects ---
 
-    pub fn SetViewFlags(&mut self, flags: ViewFlags, tree: &mut PanelTree) {
+    pub fn SetViewFlags(
+        &mut self,
+        flags: ViewFlags,
+        tree: &mut PanelTree,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
         let old = self.flags;
         let mut new_flags = flags;
 
@@ -1566,11 +1463,11 @@ impl emView {
         self.flags = new_flags;
 
         if new_flags.contains(ViewFlags::POPUP_ZOOM) && !old.contains(ViewFlags::POPUP_ZOOM) {
-            self.RawZoomOut(tree, false);
+            self.RawZoomOut(tree, false, ctx);
         }
 
         if new_flags.contains(ViewFlags::NO_ZOOM) && !old.contains(ViewFlags::NO_ZOOM) {
-            self.RawZoomOut(tree, false);
+            self.RawZoomOut(tree, false, ctx);
         }
 
         if new_flags.contains(ViewFlags::ROOT_SAME_TALLNESS)
@@ -1584,7 +1481,7 @@ impl emView {
                 self.GetHomeTallness(),
                 self.CurrentPixelTallness,
             );
-            self.RawZoomOut(tree, false);
+            self.RawZoomOut(tree, false, ctx);
         }
     }
 
@@ -1774,6 +1671,7 @@ impl emView {
         mut vy: f64,
         mut vw: f64,
         mut forceViewingUpdate: bool,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) {
         // emView.cpp:1554-1555
         self.SVPChoiceByOpacityInvalid = false;
@@ -1907,26 +1805,10 @@ impl emView {
                     // `pending_framework_actions` back-channel. Every emCore
                     // observer sees a fully-wired popup immediately, matching
                     // the C++ atomicity contract.
-                    let (close_sig, flags_sig, focus_sig, geom_sig) =
-                        if let Some(sched) = self.scheduler.as_ref() {
-                            let mut s = sched.borrow_mut();
-                            (
-                                s.create_signal(),
-                                s.create_signal(),
-                                s.create_signal(),
-                                s.create_signal(),
-                            )
-                        } else {
-                            // Unit-test contexts without a scheduler: use null
-                            // keys. No signal can fire without a scheduler, so
-                            // these are unreachable-by-construction.
-                            (
-                                super::emSignal::SignalId::default(),
-                                super::emSignal::SignalId::default(),
-                                super::emSignal::SignalId::default(),
-                                super::emSignal::SignalId::default(),
-                            )
-                        };
+                    let close_sig = ctx.create_signal();
+                    let flags_sig = ctx.create_signal();
+                    let focus_sig = ctx.create_signal();
+                    let geom_sig = ctx.create_signal();
                     let popup = super::emWindow::emWindow::new_popup_pending(
                         Rc::clone(&self.Context),
                         self.root,
@@ -1943,17 +1825,10 @@ impl emView {
                     self.PopupWindow = Some(popup.clone());
                     // C++ (emView.cpp:1644): UpdateEngine->AddWakeUpSignal(PopupWindow->GetCloseSignal())
                     if let Some(eng_id) = self.update_engine_id {
-                        self.queue_or_apply_sched_op(SchedOp::Connect(close_sig, eng_id));
+                        ctx.connect(close_sig, eng_id);
                     }
                     // C++ (emView.cpp:1644): SwapViewPorts(true)
-                    self.with_local_sched_ctx(
-                        |v| {
-                            if let Some(sig) = v.geometry_signal {
-                                v.pending_sched_ops.push(SchedOp::Fire(sig));
-                            }
-                        },
-                        |v, sc| v.SwapViewPorts(true, sc),
-                    );
+                    self.SwapViewPorts(true, ctx);
                     // C++ (emView.cpp:1645): if (wasFocused && !Focused) CurrentViewPort->RequestFocus()
                     if was_focused && !self.window_focused {
                         self.CurrentViewPort.borrow_mut().RequestFocus();
@@ -2016,37 +1891,16 @@ impl emView {
                     || (y1 - self.CurrentY).abs() > 0.01
                     || (y2 - self.CurrentY - self.CurrentHeight).abs() > 0.01
                 {
-                    self.with_local_sched_ctx(
-                        |v| {
-                            if let Some(sig) = v.geometry_signal {
-                                v.pending_sched_ops.push(SchedOp::Fire(sig));
-                            }
-                        },
-                        |v, sc| v.SwapViewPorts(false, sc),
-                    );
+                    self.SwapViewPorts(false, ctx);
                     if let Some(ref w) = self.PopupWindow {
                         w.borrow_mut().SetViewPosSize(x1, y1, x2 - x1, y2 - y1);
                     }
-                    self.with_local_sched_ctx(
-                        |v| {
-                            if let Some(sig) = v.geometry_signal {
-                                v.pending_sched_ops.push(SchedOp::Fire(sig));
-                            }
-                        },
-                        |v, sc| v.SwapViewPorts(false, sc),
-                    );
+                    self.SwapViewPorts(false, ctx);
                     forceViewingUpdate = true;
                 }
             } else if self.PopupWindow.is_some() {
                 // C++ (emView.cpp:1674-1680): tear down popup on return inside home
-                self.with_local_sched_ctx(
-                    |v| {
-                        if let Some(sig) = v.geometry_signal {
-                            v.pending_sched_ops.push(SchedOp::Fire(sig));
-                        }
-                    },
-                    |v, sc| v.SwapViewPorts(true, sc),
-                );
+                self.SwapViewPorts(true, ctx);
                 // Disconnect + remove the popup's close signal (allocated on
                 // popup creation above) so the scheduler doesn't leak it.
                 // Also enqueue a framework-side cleanup closure to drop the
@@ -2058,8 +1912,8 @@ impl emView {
                     .expect("PopupWindow.is_some() checked above");
                 if let Some(eng_id) = self.update_engine_id {
                     let close_sig = popup.borrow().close_signal;
-                    self.queue_or_apply_sched_op(SchedOp::Disconnect(close_sig, eng_id));
-                    self.queue_or_apply_sched_op(SchedOp::RemoveSignal(close_sig));
+                    ctx.disconnect(close_sig, eng_id);
+                    ctx.remove_signal(close_sig);
                 }
                 let materialized_id = popup
                     .borrow()
@@ -2085,7 +1939,7 @@ impl emView {
                 // does not), and once explicitly here (mirroring C++
                 // emView.cpp:1680). Keep both; do not dedup.
                 if let Some(sig) = self.geometry_signal {
-                    self.queue_or_apply_sched_op(SchedOp::Fire(sig));
+                    ctx.fire(sig);
                 }
                 forceViewingUpdate = true;
             }
@@ -2305,15 +2159,7 @@ impl emView {
         self.RestartInputRecursion = true;
         self.cursor_invalid = true;
         // C++ emView.cpp:1805: UpdateEngine->WakeUp().
-        // Bridge: RawVisitAbs is migration 7/7 and not yet ctx-threaded.
-        self.with_local_sched_ctx(
-            |v| {
-                if let Some(id) = v.update_engine_id {
-                    v.pending_sched_ops.push(SchedOp::WakeUp(id));
-                }
-            },
-            |v, sc| v.WakeUpUpdateEngine(sc),
-        );
+        self.WakeUpUpdateEngine(ctx);
         // InvalidatePainting() whole-view — use Current rect (Phase 0 audit
         // verdict). During non-popup Current == Home, so rect = whole view.
         self.dirty_rects.push(Rect::new(
@@ -2540,13 +2386,17 @@ impl emView {
     /// dispatching in priority order: popup-close → notices →
     /// SVPChoiceByOpacityInvalid → SVPChoiceInvalid → TitleInvalid →
     /// CursorInvalid.
-    pub fn Update(&mut self, tree: &mut PanelTree) {
-        // C++ emView.cpp:1299 popup-close probe. The IsSignaled call happens
-        // one frame earlier in Rust, in UpdateEngineClass::Cycle — see SP4 spec
-        // docs/superpowers/specs/2026-04-18-emview-sp4-update-engine-routing-design.md §2.3.
-        let popup_closed = std::mem::take(&mut self.close_signal_pending);
+    pub fn Update(&mut self, tree: &mut PanelTree, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) {
+        // C++ emView.cpp:1299 popup-close probe. In C++, emView::UpdateEngineClass::Cycle
+        // just calls View.Update() and Update itself calls IsSignaled on the close signal.
+        // Here ctx.IsSignaled uses current_engine (set by UpdateEngineClass::Cycle).
+        let popup_closed = self
+            .PopupWindow
+            .as_ref()
+            .map(|p| ctx.IsSignaled(p.borrow().close_signal))
+            .unwrap_or(false);
         if popup_closed {
-            self.ZoomOut(tree);
+            self.ZoomOut(tree, ctx);
         }
 
         // First-frame zoom-out: C++ ZoomedOutBeforeSG.
@@ -2556,7 +2406,7 @@ impl emView {
         // already populated, which they are not on the first frame).
         if self.zoomed_out_before_sg {
             self.zoomed_out_before_sg = false;
-            self.RawZoomOut(tree, false);
+            self.RawZoomOut(tree, false, ctx);
         }
 
         loop {
@@ -2610,7 +2460,7 @@ impl emView {
                 if let Some((panel, _, _, _)) = self.get_visited_panel_idiom(tree) {
                     let rec = tree.GetRec(panel).unwrap();
                     let (vx, vy, vw) = (rec.viewed_x, rec.viewed_y, rec.viewed_width);
-                    self.RawVisitAbs(tree, panel, vx, vy, vw, false);
+                    self.RawVisitAbs(tree, panel, vx, vy, vw, false, ctx);
                 }
                 continue;
             }
@@ -2652,7 +2502,8 @@ impl emView {
         // DIVERGED: Rust-only navigation request drain. C++ uses callbacks;
         // Rust panels post requests via PanelCtx::request_visit and emView drains
         // them here (after the main loop so SVP is up to date).
-        for target in tree.drain_navigation_requests() {
+        let nav_requests = tree.drain_navigation_requests();
+        for target in nav_requests {
             self.VisitFullsized(tree, target, false, false);
         }
     }
@@ -2981,13 +2832,15 @@ impl emView {
     /// Remove a panel from the tree, moving activation to its parent if needed.
     /// Matches C++ `~emPanel` which calls `SetFocusable(false)` before unlinking,
     /// causing `emView.SetActivePanel(Parent, false)`.
-    pub fn remove_panel(&mut self, tree: &mut PanelTree, id: PanelId) {
+    pub fn remove_panel(
+        &mut self,
+        tree: &mut PanelTree,
+        id: PanelId,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
         if tree.GetRec(id).map(|p| p.in_active_path).unwrap_or(false) {
             if let Some(parent) = tree.GetParentContext(id) {
-                self.with_local_sched_ctx(
-                    |_v| {},
-                    |v, sc| v.set_active_panel(tree, parent, false, sc),
-                );
+                self.set_active_panel(tree, parent, false, ctx);
             } else {
                 self.active = None;
             }
@@ -2998,20 +2851,24 @@ impl emView {
     // --- Panel-level wrappers ---
 
     /// Activate a panel (delegate to set_active_panel).
-    pub fn activate_panel(&mut self, tree: &mut PanelTree, panel: PanelId) {
-        self.with_local_sched_ctx(
-            |_v| {},
-            |v, sc| v.set_active_panel(tree, panel, false, sc),
-        );
+    pub fn activate_panel(
+        &mut self,
+        tree: &mut PanelTree,
+        panel: PanelId,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
+        self.set_active_panel(tree, panel, false, ctx);
     }
 
     /// Focus the view and activate a panel.
-    pub fn focus_panel(&mut self, tree: &mut PanelTree, panel: PanelId) {
+    pub fn focus_panel(
+        &mut self,
+        tree: &mut PanelTree,
+        panel: PanelId,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
         self.SetFocused(tree, true);
-        self.with_local_sched_ctx(
-            |_v| {},
-            |v, sc| v.set_active_panel(tree, panel, false, sc),
-        );
+        self.set_active_panel(tree, panel, false, ctx);
     }
 
     /// Whether a panel is focused: it is the active panel and the view's
@@ -3287,22 +3144,22 @@ impl emView {
             );
             (engine_id, eoi_signal, visiting_va_engine_id)
         };
-        self.scheduler = Some(scheduler);
+        self.scheduler = Some(scheduler.clone());
         self.update_engine_id = Some(engine_id);
         self.EOISignal = Some(eoi_signal);
         self.visiting_va_engine_id = Some(visiting_va_engine_id);
         // C++ emView::emView at emView.cpp:84: UpdateEngine->WakeUp().
-        // Bridge: attach_to_scheduler is entered without a SchedCtx; build
-        // one locally. At attach time the scheduler is always borrow-free,
-        // so the re-entrant fallback is a safety net only.
-        self.with_local_sched_ctx(
-            |v| {
-                if let Some(id) = v.update_engine_id {
-                    v.pending_sched_ops.push(SchedOp::WakeUp(id));
-                }
-            },
-            |v, sc| v.WakeUpUpdateEngine(sc),
-        );
+        // At attach time the scheduler borrow was released above, so we can borrow again.
+        let root = self.Context.GetRootContext();
+        let mut scratch: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+        let mut sched = scheduler.borrow_mut();
+        let mut sc = crate::emEngineCtx::SchedCtx {
+            scheduler: &mut sched,
+            framework_actions: &mut scratch,
+            root_context: &root,
+            current_engine: None,
+        };
+        self.WakeUpUpdateEngine(&mut sc);
     }
 
     /// Wake the scheduler-registered `UpdateEngineClass` so `Update()` runs
@@ -3337,12 +3194,22 @@ impl emView {
     pub fn pump_visiting_va(&mut self, tree: &mut PanelTree) {
         use super::emViewAnimator::emViewAnimator as _;
         let va_rc = Rc::clone(&self.VisitingVA);
+        // Build a throwaway SchedCtx for test-support use.
+        let mut __sched = crate::emScheduler::EngineScheduler::new();
+        let mut __fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+        let __ctx = self.GetRootContext();
         for _ in 0..1024 {
             let mut va = va_rc.borrow_mut();
             if !va.is_active() {
                 break;
             }
-            let still = va.animate(self, tree, 0.1);
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut __sched,
+                framework_actions: &mut __fw,
+                root_context: &__ctx,
+                current_engine: None,
+            };
+            let still = va.animate(self, tree, 0.1, &mut sc);
             if !still {
                 break;
             }
@@ -4109,6 +3976,7 @@ impl emView {
         tree: &mut PanelTree,
         panel: PanelId,
         rect: (f64, f64, f64, f64),
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) {
         let p = match tree.GetRec(panel) {
             Some(p) if p.viewed => p,
@@ -4150,7 +4018,7 @@ impl emView {
         if need {
             // Scroll() divides by ViewedWidth/Height. dx/dy are already in
             // screen pixels, so pass them directly.
-            self.Scroll(tree, dx, dy);
+            self.Scroll(tree, dx, dy, ctx);
         }
     }
 
@@ -4260,6 +4128,7 @@ impl emView {
         _tree: &mut PanelTree,
         _event: &crate::emInput::emInputEvent,
         state: &crate::emInputState::emInputState,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) {
         // emView.cpp:1006-1014: cursor-invalid on mouse move.
         let mx = state.GetMouseX();
@@ -4268,15 +4137,7 @@ impl emView {
             self.LastMouseX = mx;
             self.LastMouseY = my;
             self.cursor_invalid = true;
-            // Bridge: Input() is not yet ctx-threaded.
-            self.with_local_sched_ctx(
-                |v| {
-                    if let Some(id) = v.update_engine_id {
-                        v.pending_sched_ops.push(SchedOp::WakeUp(id));
-                    }
-                },
-                |v, sc| v.WakeUpUpdateEngine(sc),
-            );
+            self.WakeUpUpdateEngine(ctx);
         }
     }
 
@@ -5134,6 +4995,32 @@ mod tests {
     use crate::emScheduler::EngineScheduler;
     use crate::emViewAnimator::emViewAnimator as _;
 
+    /// Test helper: owns the data needed to construct a `SchedCtx`.
+    /// Use `.with(|sc| ...)` to call ctx-taking methods inside a closure.
+    struct TestSched {
+        sched: EngineScheduler,
+        fw: Vec<crate::emEngineCtx::DeferredAction>,
+        ctx: std::rc::Rc<crate::emContext::emContext>,
+    }
+    impl TestSched {
+        fn new() -> Self {
+            Self {
+                sched: EngineScheduler::new(),
+                fw: Vec::new(),
+                ctx: crate::emContext::emContext::NewRoot(),
+            }
+        }
+        fn with<R>(&mut self, f: impl FnOnce(&mut crate::emEngineCtx::SchedCtx<'_>) -> R) -> R {
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut self.sched,
+                framework_actions: &mut self.fw,
+                root_context: &self.ctx,
+                current_engine: None,
+            };
+            f(&mut sc)
+        }
+    }
+
     fn setup_tree() -> (PanelTree, PanelId, PanelId, PanelId) {
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
@@ -5151,92 +5038,13 @@ mod tests {
         (tree, root, child1, child2)
     }
 
-    /// SP4 Phase 1 smoke test: queue_or_apply_sched_op takes the
-    /// inline-apply arm when the scheduler isn't borrowed, and falls
-    /// back to pending_sched_ops when it is. Also exercises all SchedOp
-    /// variants (Fire / WakeUp / Connect / Disconnect / RemoveSignal)
-    /// and both apply_to / apply_via_ctx dispatch arms via Debug format.
-    #[test]
-    fn sp4_phase1_sched_op_routing() {
-        let (_tree, root, _c1, _c2) = setup_tree();
-        let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-
-        // 1. No scheduler wired: op is silently dropped.
-        view.queue_or_apply_sched_op(SchedOp::Fire(
-            // Fabricate an invalid signal ID; fire() lookup-miss is a silent no-op.
-            slotmap::KeyData::from_ffi(0x0000_0001_0000_0001).into(),
-        ));
-        assert!(view.pending_sched_ops.is_empty());
-
-        // 2. Scheduler wired and not borrowed: inline-apply succeeds.
-        let scheduler = Rc::new(RefCell::new(EngineScheduler::new()));
-        let sig = scheduler.borrow_mut().create_signal();
-        view.set_scheduler(Rc::clone(&scheduler));
-        view.queue_or_apply_sched_op(SchedOp::Fire(sig));
-        assert!(view.pending_sched_ops.is_empty());
-        assert!(scheduler.borrow().is_pending(sig));
-
-        // 3. Scheduler currently borrow_mut'd: op is queued.
-        {
-            let _guard = scheduler.borrow_mut();
-            view.queue_or_apply_sched_op(SchedOp::Fire(sig));
-        }
-        assert_eq!(view.pending_sched_ops.len(), 1);
-
-        // Touch every variant + the close_signal_pending field so
-        // dead_code analysis sees full coverage ahead of Phase 2/3 wiring.
-        let eng_id: super::super::emEngine::EngineId =
-            slotmap::KeyData::from_ffi(0x0000_0001_0000_0002).into();
-        for op in [
-            SchedOp::Fire(sig),
-            SchedOp::WakeUp(eng_id),
-            SchedOp::Connect(sig, eng_id),
-            SchedOp::Disconnect(sig, eng_id),
-            SchedOp::RemoveSignal(sig),
-        ] {
-            // Debug formatting exercises every variant constructor.
-            let _ = format!("{op:?}");
-        }
-        view.close_signal_pending = true;
-        assert!(view.close_signal_pending);
-        view.close_signal_pending = false;
-
-        // Exercise apply_via_ctx through a one-shot engine registered
-        // specifically for this smoke test. Phase 2/3 will replace this
-        // with the real drain site in UpdateEngineClass::Cycle.
-        struct OneShot {
-            op: Option<SchedOp>,
-        }
-        impl super::super::emEngine::emEngine for OneShot {
-            fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
-                if let Some(op) = self.op.take() {
-                    op.apply_via_ctx(ctx);
-                }
-                false
-            }
-        }
-        let eid = scheduler.borrow_mut().register_engine(
-            Box::new(OneShot {
-                op: Some(SchedOp::Fire(sig)),
-            }),
-            super::super::emEngine::Priority::Medium,
-        );
-        scheduler.borrow_mut().wake_up(eid);
-        let mut tree2 = PanelTree::new();
-        let mut wins = std::collections::HashMap::new();
-        let __root_ctx = crate::emContext::emContext::NewRoot();
-        let mut __fw: Vec<_> = Vec::new();
-        scheduler
-            .borrow_mut()
-            .DoTimeSlice(&mut tree2, &mut wins, &__root_ctx, &mut __fw);
-        scheduler.borrow_mut().remove_engine(eid);
-    }
 
     #[test]
     fn test_update_viewing_sets_coords() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         // Root should be viewed
         let rp = tree.GetRec(root).unwrap();
@@ -5251,9 +5059,10 @@ mod tests {
 
     #[test]
     fn test_svp_selection() {
+        let mut ts = TestSched::new();
         let (mut tree, root, _child1, _child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         // SVP should be set
         assert!(view.GetSupremeViewedPanel().is_some());
@@ -5261,6 +5070,7 @@ mod tests {
 
     #[test]
     fn test_viewed_false_outside_viewport() {
+        let mut ts = TestSched::new();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
@@ -5269,18 +5079,19 @@ mod tests {
         tree.Layout(offscreen, 5.0, 5.0, 0.1, 0.1, 1.0);
 
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 100.0, 100.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         assert!(!tree.GetRec(offscreen).unwrap().viewed);
     }
 
     #[test]
     fn test_active_path_flags() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         assert!(tree.GetRec(child1).unwrap().is_active);
         assert!(tree.GetRec(child1).unwrap().in_active_path);
@@ -5289,9 +5100,10 @@ mod tests {
 
     #[test]
     fn test_fix_point_zoom() {
+        let mut ts = TestSched::new();
         let (mut tree, root, _c1, _c2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         // Read root's viewed_width pre/post; ra = HomeW*HomeH/(vw*vh).
         // Zoom(factor=2) grows vw by 2 and vh by 2, so relA /= 4.
@@ -5302,7 +5114,7 @@ mod tests {
         let before_vw = tree.GetRec(root).unwrap().viewed_width;
         let before_vh = tree.GetRec(root).unwrap().viewed_height;
         let before_ra = (view.HomeWidth * view.HomeHeight) / (before_vw * before_vh);
-        view.Zoom(&mut tree, 2.0, 400.0, 300.0);
+        ts.with(|sc| view.Zoom(&mut tree, 2.0, 400.0, 300.0, sc));
         let after_vw = tree.GetRec(root).unwrap().viewed_width;
         let after_vh = tree.GetRec(root).unwrap().viewed_height;
         let after_ra = (view.HomeWidth * view.HomeHeight) / (after_vw * after_vh);
@@ -5313,10 +5125,11 @@ mod tests {
 
     #[test]
     fn test_visit_next_prev() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
 
         view.VisitNext(&mut tree);
@@ -5330,6 +5143,7 @@ mod tests {
 
     #[test]
     fn test_visit_in_out() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _child2) = setup_tree();
         let grandchild = tree.create_child(child1, "gc");
         tree.get_mut(grandchild).unwrap().focusable = true;
@@ -5337,7 +5151,7 @@ mod tests {
 
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
 
         view.VisitIn(&mut tree);
@@ -5351,9 +5165,10 @@ mod tests {
 
     #[test]
     fn test_hit_testing() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         // Hit test in left half should find child1, right half child2
         let left_hit = view.GetFocusablePanelAt(&tree, 100.0, 300.0);
@@ -5365,10 +5180,11 @@ mod tests {
 
     #[test]
     fn test_directional_navigation() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
 
         // child2 is to the right of child1
@@ -5383,21 +5199,23 @@ mod tests {
 
     #[test]
     fn test_focus_panel() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         view.SetFocused(&mut tree, false);
 
-        view.focus_panel(&mut tree, child1);
+        ts.with(|sc| view.focus_panel(&mut tree, child1, sc));
         assert!(view.IsFocused());
         assert_eq!(view.GetActivePanel(), Some(child1));
     }
 
     #[test]
     fn test_is_panel_focused() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
 
         assert!(view.is_panel_focused(&tree, child1));
@@ -5409,10 +5227,11 @@ mod tests {
 
     #[test]
     fn test_is_panel_in_focused_path() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
 
         assert!(view.is_panel_in_focused_path(&tree, child1));
@@ -5436,9 +5255,10 @@ mod tests {
 
     #[test]
     fn test_invalidate_painting_whole() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
         view.take_dirty_rects(); // drain change-block invalidation
 
         // child1 should be viewed after update_viewing
@@ -5453,9 +5273,10 @@ mod tests {
 
     #[test]
     fn test_invalidate_painting_rect() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
         view.take_dirty_rects(); // drain change-block invalidation
 
         // Invalidate a sub-rect of child1 in panel coordinates
@@ -5474,10 +5295,11 @@ mod tests {
 
     #[test]
     fn test_invalidate_title_and_cursor() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
         view.clear_cursor_invalid(); // drain change-block side effect
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
 
@@ -5501,10 +5323,11 @@ mod tests {
 
     #[test]
     fn test_update_change_block_side_effects() {
+        let mut ts = TestSched::new();
         let (mut tree, root, _child_a, _child_b) = setup_tree();
         let mut v = emView::new(crate::emContext::emContext::NewRoot(), root, 640.0, 480.0);
         // Update triggers zoomed_out_before_sg → RawZoomOut → RawVisitAbs.
-        v.Update(&mut tree);
+        ts.with(|sc| v.Update(&mut tree, sc));
 
         // Verdict per Phase 0 audit: dirty_rects must contain a rect covering
         // the Current rect (not the viewport rect — these differ only under
@@ -5534,10 +5357,11 @@ mod tests {
 
     #[test]
     fn test_invalidate_control_panel() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
 
         // set_active_panel unconditionally invalidates the control panel
@@ -5577,10 +5401,11 @@ mod tests {
 
     #[test]
     fn test_activation_adherent() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         // Direct activation is not adherent
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
@@ -5599,10 +5424,11 @@ mod tests {
 
     #[test]
     fn test_activation_adherent_early_return_update() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         // Set active non-adherent
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
@@ -5628,6 +5454,7 @@ mod tests {
 
     #[test]
     fn test_highlight_rect_uses_viewed_width_for_y() {
+        let mut ts = TestSched::new();
         // Create a non-square child panel so viewed_height != viewed_width.
         // Root is square so viewed_width == viewed_height for it — we need
         // to test with a child whose layout_h != layout_w.
@@ -5644,7 +5471,7 @@ mod tests {
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
         view.set_active_panel(&mut tree, child, false, &mut h.sched_ctx());
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         let panel = tree.GetRec(child).unwrap();
         assert!(panel.viewed, "child should be viewed");
@@ -5672,12 +5499,13 @@ mod tests {
 
     #[test]
     fn test_raw_zoom_out_computes_fit_ratio() {
+        let mut ts = TestSched::new();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.RawZoomOut(&mut tree, false);
+        ts.with(|sc| view.RawZoomOut(&mut tree, false, sc));
 
         let mut state_rx = 0.0;
         let mut state_ry = 0.0;
@@ -5698,21 +5526,23 @@ mod tests {
 
     #[test]
     fn test_is_zoomed_out_after_raw_zoom_out() {
+        let mut ts = TestSched::new();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
 
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.RawZoomOut(&mut tree, false);
+        ts.with(|sc| view.RawZoomOut(&mut tree, false, sc));
         assert!(view.IsZoomedOut(&tree));
 
         // After zooming in, should not be zoomed out
-        view.Zoom(&mut tree, 2.0, 400.0, 300.0);
+        ts.with(|sc| view.Zoom(&mut tree, 2.0, 400.0, 300.0, sc));
         assert!(!view.IsZoomedOut(&tree));
     }
 
     #[test]
     fn test_set_view_flags_root_same_tallness_updates_layout() {
+        let mut ts = TestSched::new();
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0); // starts square
@@ -5720,7 +5550,7 @@ mod tests {
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         // pixel_tallness = 600/800 = 0.75
         let flags = view.flags | ViewFlags::ROOT_SAME_TALLNESS;
-        view.SetViewFlags(flags, &mut tree);
+        ts.with(|sc| view.SetViewFlags(flags, &mut tree, sc));
 
         let rect = tree.layout_rect(root).unwrap();
         assert!(
@@ -5763,9 +5593,10 @@ mod tests {
 
     #[test]
     fn ego_mode_cursor_override() {
+        let mut ts = TestSched::new();
         let (mut tree, root, _, _) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         // Default cursor is Normal
         view.set_cursor(emCursor::Normal);
@@ -5787,9 +5618,10 @@ mod tests {
 
     #[test]
     fn ego_mode_scroll_locked() {
+        let mut ts = TestSched::new();
         let (mut tree, root, _, _) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         // Record initial center position
         let (_, before_rx, before_ry, _) = view
@@ -5798,7 +5630,7 @@ mod tests {
 
         // Enable EGO_MODE and attempt to scroll
         view.flags |= ViewFlags::EGO_MODE;
-        let done = view.RawScrollAndZoom(&mut tree, 400.0, 300.0, 50.0, 50.0, 0.0);
+        let done = ts.with(|sc| view.RawScrollAndZoom(&mut tree, 400.0, 300.0, 50.0, 50.0, 0.0, sc));
 
         // Scroll delta should be zero — viewport center locked
         let (_, after_rx, after_ry, _) = view
@@ -5822,9 +5654,10 @@ mod tests {
 
     #[test]
     fn ego_mode_zoom_still_works() {
+        let mut ts = TestSched::new();
         let (mut tree, root, _, _) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         let (_, _, _, rel_a_before) = view
             .get_visited_panel_idiom(&tree)
@@ -5832,7 +5665,7 @@ mod tests {
 
         // Enable EGO_MODE and zoom
         view.flags |= ViewFlags::EGO_MODE;
-        view.RawScrollAndZoom(&mut tree, 400.0, 300.0, 0.0, 0.0, 50.0);
+        ts.with(|sc| view.RawScrollAndZoom(&mut tree, 400.0, 300.0, 0.0, 0.0, 50.0, sc));
 
         let (_, _, _, rel_a_after) = view
             .get_visited_panel_idiom(&tree)
@@ -5845,9 +5678,10 @@ mod tests {
 
     #[test]
     fn ego_mode_toggle_invalidates_cursor() {
+        let mut ts = TestSched::new();
         let (mut tree, root, _, _) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
         view.clear_cursor_invalid(); // drain change-block side effect
 
         assert!(!view.is_cursor_invalid());
@@ -5858,9 +5692,10 @@ mod tests {
 
     #[test]
     fn stress_test_sync_creates_and_destroys() {
+        let mut ts = TestSched::new();
         let (mut tree, root, _, _) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         // Initially no stress test
         assert!(!view.is_stress_test_active());
@@ -5881,9 +5716,10 @@ mod tests {
 
     #[test]
     fn stress_test_ring_buffer_accumulates() {
+        let mut ts = TestSched::new();
         let (mut tree, root, _, _) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         view.flags |= ViewFlags::STRESS_TEST;
         // Sync multiple times to accumulate entries
@@ -5896,11 +5732,12 @@ mod tests {
 
     #[test]
     fn stress_test_paint_overlay() {
+        let mut ts = TestSched::new();
         use crate::emImage::emImage;
 
         let (mut tree, root, _, _) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         view.flags |= ViewFlags::STRESS_TEST;
         view.sync_stress_test();
@@ -5976,16 +5813,17 @@ mod tests {
 
     #[test]
     fn invariant_zoom_fixpoint() {
+        let mut ts = TestSched::new();
         // The pixel under the cursor maps to the same panel-space point
         // before and after zoom, at various cursor positions and zoom factors.
         let (mut tree, root, _child1, _child2) = setup_tree();
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         // Start at a moderate zoom so there's room to zoom in and out
-        view.Zoom(&mut tree, 4.0, 400.0, 300.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Zoom(&mut tree, 4.0, 400.0, 300.0, sc));
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         let cursors = [(200.0, 150.0), (400.0, 300.0), (700.0, 50.0), (50.0, 550.0)];
         // Factor 0.01 is excluded: at that extreme zoom-out the root panel
@@ -6007,7 +5845,7 @@ mod tests {
                 // when root is the SVP; using SVP is always correct).
                 let svp_before = view.supreme_panel();
                 let before = panel_space_at_pixel(&tree, svp_before, cx, cy);
-                view.Zoom(&mut tree, factor, cx, cy);
+                ts.with(|sc| view.Zoom(&mut tree, factor, cx, cy, sc));
                 let svp_after = view.supreme_panel();
                 // After zoom, the SVP may change. The fixpoint only holds within
                 // a single SVP coordinate frame; check only when SVP is stable.
@@ -6032,13 +5870,14 @@ mod tests {
                 }
 
                 // Restore by calling RawVisit with the saved rel coords.
-                view.RawVisit(&mut tree, saved_panel, saved_rx, saved_ry, saved_ra, true);
+                ts.with(|sc| view.RawVisit(&mut tree, saved_panel, saved_rx, saved_ry, saved_ra, true, sc));
             }
         }
     }
 
     #[test]
     fn invariant_calc_visit_round_trip() {
+        let mut ts = TestSched::new();
         // rel_x=0, rel_y=0 → RawVisit → panel center at viewport center.
         // Verifies the core coord-system invariant: zero offset means centered.
         // Tested at multiple zoom levels to catch convention/scaling errors.
@@ -6049,13 +5888,13 @@ mod tests {
         tree.Layout(root, 0.0, 0.0, 1.0, 0.75, 1.0);
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         let (vw, vh) = view.viewport_size();
 
         // relA in C++ convention: HomeW*HomeH/(vw*vh). Larger = more zoomed out.
         for &rel_a in &[0.5, 1.0, 2.0, 8.0] {
-            view.RawVisit(&mut tree, root, 0.0, 0.0, rel_a, true);
+            ts.with(|sc| view.RawVisit(&mut tree, root, 0.0, 0.0, rel_a, true, sc));
 
             let rec = tree.GetRec(root).unwrap();
             let panel_cx = rec.viewed_x + rec.viewed_width * 0.5;
@@ -6080,6 +5919,7 @@ mod tests {
 
     #[test]
     fn invariant_scroll_direction() {
+        let mut ts = TestSched::new();
         // Scroll(+dx, 0) moves the viewport rightward: panel viewed_x decreases.
         // Use a root-only tree (no children) so the SVP is always root and the
         // check is stable across zoom levels.
@@ -6087,15 +5927,15 @@ mod tests {
         let root = tree.create_root_deferred_view("root");
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         let mut deltas = Vec::new();
         for &rel_a_level in &[1.0_f64, 0.5, 0.1] {
             // Set a specific zoom level via RawVisit.
-            view.RawVisit(&mut tree, root, 0.0, 0.0, rel_a_level, true);
+            ts.with(|sc| view.RawVisit(&mut tree, root, 0.0, 0.0, rel_a_level, true, sc));
 
             let before_vx = tree.GetRec(root).unwrap().viewed_x;
-            view.Scroll(&mut tree, 50.0, 0.0);
+            ts.with(|sc| view.Scroll(&mut tree, 50.0, 0.0, sc));
             // SVP must still be root (no children to change to).
             assert_eq!(view.supreme_panel(), root, "SVP changed during Scroll");
             let after_vx = tree.GetRec(root).unwrap().viewed_x;
@@ -6162,12 +6002,30 @@ mod tests {
         assert_eq!(view.GetControlPanelSignal(), Some(cp_sig));
         assert_eq!(view.GetTitleSignal(), Some(title_sig));
 
-        // set_active_panel fires ControlPanelSignal.
-        view.Update(&mut tree);
-        view.with_local_sched_ctx(
-            |_v| {},
-            |v, sc| v.set_active_panel(&mut tree, child, false, sc),
-        );
+        // set_active_panel fires ControlPanelSignal on the view's own scheduler.
+        // Build SchedCtx from the same `sched` so the fired signal is observable.
+        let root_ctx = view.GetRootContext();
+        let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+        {
+            let mut sched_guard = sched.borrow_mut();
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut sched_guard,
+                framework_actions: &mut fw,
+                root_context: &root_ctx,
+                current_engine: None,
+            };
+            view.Update(&mut tree, &mut sc);
+        }
+        {
+            let mut sched_guard = sched.borrow_mut();
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut sched_guard,
+                framework_actions: &mut fw,
+                root_context: &root_ctx,
+                current_engine: None,
+            };
+            view.set_active_panel(&mut tree, child, false, &mut sc);
+        }
         assert!(sched.borrow().is_pending(cp_sig));
 
         // VisitByIdentity routes through VisitingVA per W4 Phase 3.
@@ -6276,12 +6134,13 @@ mod tests {
 
     #[test]
     fn test_phase2_raw_visit_abs_matches_inline_update() {
+        let mut ts = TestSched::new();
         // Build the standard test tree: root with two children, one focused.
         let (mut tree, root, child_a, _child_b) = setup_tree();
         let mut v = emView::new(crate::emContext::emContext::NewRoot(), root, 640.0, 480.0);
         v.SetActivePanel(child_a);
         // Run Update to populate SVP + viewed rects the old way.
-        v.Update(&mut tree);
+        ts.with(|sc| v.Update(&mut tree, sc));
         let expected_svp = v.GetSupremeViewedPanel();
         let expected_vx = tree.GetRec(expected_svp.unwrap()).unwrap().viewed_x;
         let expected_vy = tree.GetRec(expected_svp.unwrap()).unwrap().viewed_y;
@@ -6293,14 +6152,15 @@ mod tests {
         let root2 = tree2.GetRootPanel().unwrap();
         let mut v2 = emView::new(crate::emContext::emContext::NewRoot(), root2, 640.0, 480.0);
         v2.SetActivePanel(tree2.GetFirstChild(root2).unwrap());
-        v2.RawVisitAbs(
+        ts.with(|sc| v2.RawVisitAbs(
             &mut tree2,
             expected_svp.unwrap(),
             expected_vx,
             expected_vy,
             expected_vw,
             false,
-        );
+            sc,
+        ));
         assert_eq!(v2.GetSupremeViewedPanel(), expected_svp);
         let svp = tree2.GetRec(expected_svp.unwrap()).unwrap();
         assert!((svp.viewed_x - expected_vx).abs() < 1e-9);
@@ -6340,6 +6200,7 @@ mod tests {
     ///   Final: vx=80, vy=0, vw=480.
     #[test]
     fn test_phase2_raw_visit_abs_root_centering() {
+        let mut ts = TestSched::new();
         // Root-only tree: square panel (layout h == layout w → height=1.0).
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
@@ -6352,7 +6213,7 @@ mod tests {
         let vx_in = 200.0_f64;
         let vy_in = 100.0_f64;
         let vw_in = 300.0_f64;
-        v.RawVisitAbs(&mut tree, root, vx_in, vy_in, vw_in, false);
+        ts.with(|sc| v.RawVisitAbs(&mut tree, root, vx_in, vy_in, vw_in, false, sc));
 
         let svp = v
             .GetSupremeViewedPanel()
@@ -6388,23 +6249,25 @@ mod tests {
 
     #[test]
     fn test_phase3_update_drains_title_then_cursor() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child_a, _child_b) = setup_tree();
         let mut v = emView::new(crate::emContext::emContext::NewRoot(), root, 640.0, 480.0);
         v.SetActivePanel(child_a);
         // Bring viewing to steady state.
         v.SVPChoiceInvalid = true;
-        v.Update(&mut tree);
+        ts.with(|sc| v.Update(&mut tree, sc));
         // Now flag title + cursor invalid; both should clear in a single
         // Update call per the drain loop.
         v.title_invalid = true; // set the field directly — no view-level mark helper today
         v.mark_cursor_invalid();
-        v.Update(&mut tree);
+        ts.with(|sc| v.Update(&mut tree, sc));
         assert!(!v.is_title_invalid());
         assert!(!v.is_cursor_invalid());
     }
 
     #[test]
     fn test_phase3_update_does_not_touch_active_path_per_frame() {
+        let mut ts = TestSched::new();
         // C++ Update() does not mutate in_active_path. Only set_active_panel
         // does. Verify that Update after set_active_panel leaves in_active_path
         // unchanged across repeated calls.
@@ -6413,10 +6276,10 @@ mod tests {
         let mut h = crate::test_view_harness::TestViewHarness::new();
         // Use set_active_panel (lowercase) which actually sets in_active_path.
         v.set_active_panel(&mut tree, child_a, false, &mut h.sched_ctx());
-        v.Update(&mut tree);
+        ts.with(|sc| v.Update(&mut tree, sc));
         let before = tree.GetRec(child_a).unwrap().in_active_path;
         // Second Update — no active-path mutation path should run.
-        v.Update(&mut tree);
+        ts.with(|sc| v.Update(&mut tree, sc));
         let after = tree.GetRec(child_a).unwrap().in_active_path;
         assert_eq!(before, after);
         assert!(after, "active panel should still be in active path");
@@ -6443,16 +6306,17 @@ mod tests {
     /// sized identically to the home viewport, so CurrentWidth == HomeWidth.
     #[test]
     fn test_phase4_popup_zoom_creates_popup_window() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child_a, _) = setup_tree();
         let mut v = emView::new(crate::emContext::emContext::NewRoot(), root, 640.0, 480.0);
         // First Update handles zoomed_out_before_sg (zoom to root).
-        v.Update(&mut tree);
+        ts.with(|sc| v.Update(&mut tree, sc));
         // Enable popup zoom mode.
-        v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree);
+        ts.with(|sc| v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree, sc));
         // Visit child_a with rel_a=0.1 — produces a zoom rect far larger
         // than the home rect. The ancestor-clamp loop ascends to root with
         // vw≈3504 >> HomeWidth=640, triggering outside_home → popup branch.
-        v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true);
+        ts.with(|sc| v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true, sc));
 
         // Expected: PopupWindow is Some immediately after RawVisit.
         assert!(v.PopupWindow.is_some(), "PopupWindow should be created");
@@ -6601,9 +6465,10 @@ mod tests {
     /// Phase 7: InvalidateHighlight marks the view dirty.
     #[test]
     fn test_phase7_invalidate_highlight_dirties_view() {
+        let mut ts = TestSched::new();
         let (mut tree, root, _, _) = setup_tree();
         let mut v = emView::new(crate::emContext::emContext::NewRoot(), root, 640.0, 480.0);
-        v.Update(&mut tree);
+        ts.with(|sc| v.Update(&mut tree, sc));
         let before = v.dirty_rects.len();
         v.InvalidateHighlight(&tree);
         assert!(
@@ -6617,10 +6482,11 @@ mod tests {
     /// active). Checks the transition case where both branches contribute.
     #[test]
     fn set_active_panel_transition_invalidates_highlight() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, child2) = setup_tree();
         let mut v = emView::new(crate::emContext::emContext::NewRoot(), root, 640.0, 480.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        v.Update(&mut tree);
+        ts.with(|sc| v.Update(&mut tree, sc));
         // Establish child1 as active first.
         v.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
         v.dirty_rects.clear();
@@ -6636,10 +6502,11 @@ mod tests {
     /// still push a dirty rect, matching C++ emView.cpp:312.
     #[test]
     fn set_active_panel_adherent_only_invalidates_highlight() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut v = emView::new(crate::emContext::emContext::NewRoot(), root, 640.0, 480.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        v.Update(&mut tree);
+        ts.with(|sc| v.Update(&mut tree, sc));
         v.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
         v.dirty_rects.clear();
         // Same panel, different adherent — only C++ emView.cpp:312 branch fires.
@@ -6655,10 +6522,11 @@ mod tests {
     /// emView.cpp:1213). Observed as at least one dirty rect post-call.
     #[test]
     fn set_focused_invalidates_highlight() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut v = emView::new(crate::emContext::emContext::NewRoot(), root, 640.0, 480.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        v.Update(&mut tree);
+        ts.with(|sc| v.Update(&mut tree, sc));
         v.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
         v.SetFocused(&mut tree, true);
         v.dirty_rects.clear();
@@ -6684,6 +6552,7 @@ mod tests {
     /// ref-cell so the `Weak::upgrade()` in `add_to_notice_list` succeeds.
     #[test]
     fn test_phase7_add_to_notice_list_wakes_update_engine() {
+        let mut ts = TestSched::new();
         let (mut tree, root, child1, _) = setup_tree();
         // Wrap the view behind Rc<RefCell> so add_to_notice_list can upgrade it.
         let v_rc = Rc::new(RefCell::new(emView::new(
@@ -6699,7 +6568,7 @@ mod tests {
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
         let v_weak = Rc::downgrade(&v_rc);
         v_rc.borrow_mut().attach_to_scheduler(sched.clone(), v_weak);
-        v_rc.borrow_mut().Update(&mut tree);
+        ts.with(|sc| v_rc.borrow_mut().Update(&mut tree, sc));
         let eng_id = v_rc
             .borrow()
             .update_engine_id
@@ -6765,6 +6634,7 @@ mod tests {
     ///     the Low-priority `Receiver` and cycles it before exiting.
     #[test]
     fn sp4_signal_fired_from_update_reaches_receiver_same_slice() {
+        let mut ts = TestSched::new();
         use crate::emEngine::{emEngine as EngineTrait, Priority};
         use crate::emEngineCtx::EngineCtx;
         use std::collections::HashMap;
@@ -6836,7 +6706,7 @@ mod tests {
         // state (clears zoomed_out_before_sg, populates SVP).
         {
             let mut w = win.borrow_mut();
-            w.view_mut().Update(&mut tree);
+            ts.with(|sc| w.view_mut().Update(&mut tree, sc));
         }
 
         // Put the view into POPUP_ZOOM and push a popup. RawVisit under
@@ -6845,8 +6715,8 @@ mod tests {
         {
             let mut w = win.borrow_mut();
             let mut v = w.view_mut();
-            v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree);
-            v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true);
+            ts.with(|sc| v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree, sc));
+            ts.with(|sc| v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true, sc));
             assert!(v.PopupWindow.is_some(), "popup created under POPUP_ZOOM");
         }
 
@@ -6919,6 +6789,7 @@ mod tests {
     /// now-fixed (SP4 Phases 2–5) scheduler re-entrant borrow.
     #[test]
     fn test_phase8_popup_close_signal_zooms_out() {
+        let mut ts = TestSched::new();
         use std::collections::HashMap;
 
         let (mut tree, root, child_a, _) = setup_tree();
@@ -6970,9 +6841,9 @@ mod tests {
         {
             let mut w = win.borrow_mut();
             let mut v = w.view_mut();
-            v.Update(&mut tree);
-            v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree);
-            v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true);
+            ts.with(|sc| v.Update(&mut tree, sc));
+            ts.with(|sc| v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree, sc));
+            ts.with(|sc| v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true, sc));
             assert!(v.PopupWindow.is_some());
         }
 
@@ -7113,13 +6984,14 @@ mod tests {
 
     #[test]
     fn get_visited_panel_returns_svp_rel_coords() {
+        let mut ts = TestSched::new();
         // W4 Task 2.1: GetVisitedPanel out-param form mirrors C++ emView.cpp:468-489.
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
         tree.get_mut(root).unwrap().focusable = true;
         tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
         let mut view = emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
 
         let mut rx = 99.0_f64;
         let mut ry = 99.0_f64;

@@ -33,6 +33,7 @@
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
+use emcore::test_view_harness::TestSched;
 use emcore::emGUIFramework::App;
 use emcore::emWindow::{emWindow, WindowFlags};
 use winit::application::ApplicationHandler;
@@ -100,6 +101,7 @@ impl ApplicationHandler for Harness {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let mut ts = TestSched::new();
         match self.phase {
             0 => {
                 // Lazy-wire `pending_framework_actions` onto the view.
@@ -127,10 +129,10 @@ impl ApplicationHandler for Harness {
                     view.set_scheduler(Rc::clone(&self.app.scheduler));
                     // Clear zoomed_out_before_sg so RawVisit doesn't
                     // zoom-out-and-tear-down; mirrors popup_materialization.
-                    view.Update(tree);
-                    view.SetViewFlags(emcore::emView::ViewFlags::POPUP_ZOOM, tree);
+                    ts.with(|sc| view.Update(tree, sc));
+                    ts.with(|sc| view.SetViewFlags(emcore::emView::ViewFlags::POPUP_ZOOM, tree, sc));
                     // Small rel_a → vw >> HomeWidth → outside_home → popup branch.
-                    view.RawVisit(tree, child, 0.0, 0.0, 0.1, true);
+                    ts.with(|sc| view.RawVisit(tree, child, 0.0, 0.0, 0.1, true, sc));
                 }
 
                 // Invariant: popup Pending + one action queued.
@@ -171,7 +173,7 @@ impl ApplicationHandler for Harness {
                     // dropping the view's strong ref on the popup. The
                     // only remaining strong ref is the one captured by
                     // the deferred materialize closure.
-                    view.ZoomOut(tree);
+                    ts.with(|sc| view.ZoomOut(tree, sc));
                 }
 
                 // Invariant: PopupWindow cleared.

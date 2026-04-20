@@ -24,6 +24,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use emcore::test_view_harness::TestSched;
 use emcore::emGUIFramework::App;
 use emcore::emWindow::{emWindow, WindowFlags};
 use winit::application::ApplicationHandler;
@@ -85,6 +86,7 @@ impl ApplicationHandler for Harness {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let mut ts = TestSched::new();
         match self.phase {
             0 => {
                 // Delegate to App::about_to_wait so the lazy-wire step
@@ -121,13 +123,13 @@ impl ApplicationHandler for Harness {
                     // Update first — mirrors test_phase4: clears
                     // zoomed_out_before_sg so RawVisit doesn't immediately
                     // zoom out and tear down the popup.
-                    view.Update(tree);
+                    ts.with(|sc| view.Update(tree, sc));
                     // Enable popup zoom mode.
-                    view.SetViewFlags(emcore::emView::ViewFlags::POPUP_ZOOM, tree);
+                    ts.with(|sc| view.SetViewFlags(emcore::emView::ViewFlags::POPUP_ZOOM, tree, sc));
                     // Visit `child` with very small rel_a — the ancestor
                     // clamp loop ascends to root with vw >> HomeWidth,
                     // triggering outside_home → popup branch.
-                    view.RawVisit(tree, child, 0.0, 0.0, 0.1, true);
+                    ts.with(|sc| view.RawVisit(tree, child, 0.0, 0.0, 0.1, true, sc));
                 }
 
                 // Synchronous W3 invariant: PopupWindow present, Pending.

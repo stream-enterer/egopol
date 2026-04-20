@@ -37,9 +37,10 @@ fn hard_reset_file_state(acc: &Rc<RefCell<NoticeFlags>>) {
 
 /// Settle: deliver notices and update viewing, matching C++ scheduler behavior.
 fn settle(tree: &mut PanelTree, view: &mut emView) {
+    let mut ts = TestSched::new();
     for _ in 0..5 {
         view.HandleNotice(tree);
-        view.Update(tree);
+        ts.with(|sc| view.Update(tree, sc));
     }
 }
 
@@ -101,6 +102,7 @@ fn notice_active_changed() {
 #[test]
 fn notice_focus_changed() {
     require_golden!();
+    let mut ts = TestSched::new();
     let expected = load_notice_golden("notice_focus_changed");
 
     let mut tree = PanelTree::new();
@@ -126,7 +128,7 @@ fn notice_focus_changed() {
     hard_reset_file_state(&acc_child2);
 
     // Action: focus child1 (sets view focused + activates)
-    view.focus_panel(&mut tree, child1);
+    ts.with(|sc| view.focus_panel(&mut tree, child1, sc));
 
     // Deliver new notices
     settle(&mut tree, &mut view);
@@ -564,6 +566,7 @@ fn notice_remove_child() {
 #[test]
 fn notice_focus_and_layout() {
     require_golden!();
+    let mut ts = TestSched::new();
     let expected = load_notice_golden("notice_focus_and_layout");
 
     let mut tree = PanelTree::new();
@@ -587,7 +590,7 @@ fn notice_focus_and_layout() {
     hard_reset_file_state(&acc_child2);
 
     // Two actions before settle: focus + layout change
-    view.focus_panel(&mut tree, child1);
+    ts.with(|sc| view.focus_panel(&mut tree, child1, sc));
     tree.Layout(child1, 0.1, 0.1, 0.3, 0.5, 1.0);
 
     settle(&mut tree, &mut view);

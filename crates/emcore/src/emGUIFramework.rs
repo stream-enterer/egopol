@@ -114,7 +114,7 @@ pub struct App {
     /// carry-forward — see `2026-04-19-phase-1-5-ledger.md`. Phase 3's
     /// `InputDispatchEngine` consumes this; the warning disappears when it
     /// lands.
-    pub(crate) pending_inputs: Vec<(WindowId, emInputEvent)>,
+    pub(crate) _pending_inputs: Vec<(WindowId, emInputEvent)>,
     /// Deferred actions queued by input handlers that need `&ActiveEventLoop`
     /// (e.g., window creation for Duplicate/CreateControlWindow, popup
     /// surface materialization from `emView::RawVisitAbs`).
@@ -146,7 +146,7 @@ impl App {
             windows: HashMap::new(),
             framework_actions: Vec::new(),
             input_state: emInputState::new(),
-            pending_inputs: Vec::new(),
+            _pending_inputs: Vec::new(),
             pending_actions: Rc::new(RefCell::new(Vec::new())),
             file_update_signal,
             setup_fn: Some(setup),
@@ -167,30 +167,6 @@ impl App {
         std::process::exit(0);
     }
 
-    /// Phase 1.5 Task 1c (method 1/7): construct a `SchedCtx` scoped to the
-    /// App's scheduler / framework_actions / root_context. Callable from
-    /// framework-level code (event handlers, about_to_wait drain) that has
-    /// `&mut App` and needs to invoke ctx-threaded emView methods.
-    ///
-    /// While `App.scheduler` is still `Rc<RefCell<EngineScheduler>>` (Chunk 2
-    /// carry-forward — see DIVERGED block on `App.scheduler`), this helper
-    /// uses `borrow_mut`. Phase 1.5 step 1f narrows the scheduler back to a
-    /// plain value and this helper's body simplifies accordingly.
-    pub(crate) fn with_sched_ctx<R>(
-        &mut self,
-        f: impl FnOnce(&mut crate::emEngineCtx::SchedCtx<'_>) -> R,
-    ) -> R {
-        let sched_rc = self.scheduler.clone();
-        let mut sched = sched_rc.borrow_mut();
-        let mut sc = crate::emEngineCtx::SchedCtx {
-            scheduler: &mut sched,
-            framework_actions: &mut self.framework_actions,
-            root_context: &self.context,
-            current_engine: None,
-        };
-        f(&mut sc)
-    }
-
     /// Get the GPU context (panics if not yet initialized).
     pub fn gpu(&self) -> &GpuContext {
         self.gpu.as_ref().expect("GPU not initialized yet")
@@ -207,6 +183,7 @@ impl App {
         win: &mut emWindow,
         tree: &mut PanelTree,
         input_state: &mut emInputState,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) {
         let forward_events = win.touch_vif_mut().drain_forward_events();
         if forward_events.is_empty() {
@@ -238,7 +215,7 @@ impl App {
             let mut ev = event.clone();
             ev.mouse_x = input_state.mouse_x;
             ev.mouse_y = input_state.mouse_y;
-            win.dispatch_input(tree, &ev, input_state);
+            win.dispatch_input(tree, &ev, input_state, ctx);
         }
         win.invalidate();
         win.request_redraw();
@@ -318,7 +295,7 @@ impl App {
             let mut sched = sched_rc.borrow_mut();
             let root = self.context.clone();
             let mut sc = crate::emEngineCtx::SchedCtx {
-                scheduler: &mut *sched,
+                scheduler: &mut sched,
                 framework_actions: &mut self.framework_actions,
                 root_context: &root,
                 current_engine: None,
@@ -388,7 +365,7 @@ impl ApplicationHandler for App {
                     let mut sched = sched_rc.borrow_mut();
                     let root = self.context.clone();
                     let mut sc = crate::emEngineCtx::SchedCtx {
-                        scheduler: &mut *sched,
+                        scheduler: &mut sched,
                         framework_actions: &mut self.framework_actions,
                         root_context: &root,
                         current_engine: None,
@@ -425,8 +402,21 @@ impl ApplicationHandler for App {
             WindowEvent::Touch(ref touch) => {
                 if let Some(rc) = self.windows.get(&window_id) {
                     let mut win = rc.borrow_mut();
-                    win.handle_touch(touch, &mut self.tree);
-                    Self::dispatch_forward_events(&mut win, &mut self.tree, &mut self.input_state);
+                    let sched_rc = self.scheduler.clone();
+                    let mut sched = sched_rc.borrow_mut();
+                    let mut sc = crate::emEngineCtx::SchedCtx {
+                        scheduler: &mut sched,
+                        framework_actions: &mut self.framework_actions,
+                        root_context: &self.context,
+                        current_engine: None,
+                    };
+                    win.handle_touch(touch, &mut self.tree, &mut sc);
+                    Self::dispatch_forward_events(
+                        &mut win,
+                        &mut self.tree,
+                        &mut self.input_state,
+                        &mut sc,
+                    );
                     win.invalidate();
                     win.request_redraw();
                 }
@@ -457,10 +447,19 @@ impl ApplicationHandler for App {
                     }
 
                     if let Some(rc) = self.windows.get(&window_id) {
+                        let sched_rc = self.scheduler.clone();
+                        let mut sched = sched_rc.borrow_mut();
+                        let mut sc = crate::emEngineCtx::SchedCtx {
+                            scheduler: &mut sched,
+                            framework_actions: &mut self.framework_actions,
+                            root_context: &self.context,
+                            current_engine: None,
+                        };
                         rc.borrow_mut().dispatch_input(
                             &mut self.tree,
                             &input,
                             &mut self.input_state,
+                            &mut sc,
                         );
                     }
                 }
@@ -578,22 +577,32 @@ impl ApplicationHandler for App {
         self.last_frame_time = now;
         let tree = &mut self.tree;
         let state = &mut self.input_state;
+        let sched_rc_outer = self.scheduler.clone();
         for rc in self.windows.values() {
             let mut win = rc.borrow_mut();
             // Notice dispatch (including mark_viewing_dirty) happens inside
             // emView::Update via emView::HandleNotice (SP5).
             let mut needs_full_repaint = false;
 
+            // Build SchedCtx for this window's VIF and animator ticks.
+            let mut sched_outer = sched_rc_outer.borrow_mut();
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut sched_outer,
+                framework_actions: &mut self.framework_actions,
+                root_context: &self.context,
+                current_engine: None,
+            };
+
             // Tick animator (take out to avoid borrow conflict)
             if let Some(mut anim) = win.active_animator.take() {
-                if anim.animate(&mut win.view_mut(), tree, dt) {
+                if anim.animate(&mut win.view_mut(), tree, dt, &mut sc) {
                     win.active_animator = Some(anim);
                     needs_full_repaint = true;
                 }
             }
 
             // Tick VIF animations (wheel zoom spring, grip pan spring)
-            if win.tick_vif_animations(tree, dt) {
+            if win.tick_vif_animations(tree, dt, &mut sc) {
                 needs_full_repaint = true;
             }
 
@@ -625,7 +634,7 @@ impl ApplicationHandler for App {
                     let mut ev = event.clone();
                     ev.mouse_x = state.mouse_x;
                     ev.mouse_y = state.mouse_y;
-                    win.dispatch_input(tree, &ev, state);
+                    win.dispatch_input(tree, &ev, state, &mut sc);
                 }
                 win.invalidate();
                 win.request_redraw();

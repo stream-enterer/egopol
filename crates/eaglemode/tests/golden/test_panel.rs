@@ -88,9 +88,10 @@ macro_rules! require_golden {
 /// Settle: deliver notices and update viewing until stable.
 /// `rounds` Match C++ TerminateEngine Cycle GetCount from gen_golden.cpp.
 fn settle(tree: &mut PanelTree, view: &mut emView, rounds: usize) {
+    let mut ts = TestSched::new();
     for _ in 0..rounds {
         view.HandleNotice(tree);
-        view.Update(tree);
+        ts.with(|sc| view.Update(tree, sc));
     }
 }
 

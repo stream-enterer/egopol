@@ -56,9 +56,10 @@ macro_rules! require_golden {
 
 /// Settle: deliver notices and update viewing until stable.
 fn settle(tree: &mut PanelTree, view: &mut emView) {
+    let mut ts = TestSched::new();
     for _ in 0..5 {
         view.HandleNotice(tree);
-        view.Update(tree);
+        ts.with(|sc| view.Update(tree, sc));
     }
 }
 
@@ -466,6 +467,7 @@ impl PanelBehavior for SplitterBehavior {
 /// The golden includes child ScalarFields (RGB/HSV) on the right half.
 #[test]
 fn widget_colorfield() {
+    let mut ts = TestSched::new();
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_colorfield");
 
@@ -490,7 +492,7 @@ fn widget_colorfield() {
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 30)
     for _ in 0..30 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
@@ -611,6 +613,7 @@ impl PanelBehavior for ColorFieldExpandedBehavior {
 /// C++ renders emRasterLayout with 8 ScalarFields + emTextField on right half.
 #[test]
 fn colorfield_expanded() {
+    let mut ts = TestSched::new();
     require_golden!();
     let (w, h, expected) = load_compositor_golden("colorfield_expanded");
 
@@ -639,7 +642,7 @@ fn colorfield_expanded() {
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
@@ -685,6 +688,7 @@ impl PanelBehavior for ListBoxExpandedBehavior {
 /// C++ renders child DefaultItemPanel panels laid out by emRasterGroup grid.
 #[test]
 fn listbox_expanded() {
+    let mut ts = TestSched::new();
     require_golden!();
     let (w, h, expected) = load_compositor_golden("listbox_expanded");
 
@@ -715,7 +719,7 @@ fn listbox_expanded() {
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
@@ -1690,6 +1694,7 @@ fn golden_widget_tunnel_extreme_wide() {
 
 #[test]
 fn golden_widget_colorfield_alpha_zero() {
+    let mut ts = TestSched::new();
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_colorfield_alpha_zero");
 
@@ -1712,7 +1717,7 @@ fn golden_widget_colorfield_alpha_zero() {
 
     for _ in 0..30 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
@@ -1744,6 +1749,7 @@ fn golden_widget_colorfield_alpha_zero() {
 
 #[test]
 fn golden_widget_colorfield_alpha_opaque() {
+    let mut ts = TestSched::new();
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_colorfield_alpha_opaque");
 
@@ -1766,7 +1772,7 @@ fn golden_widget_colorfield_alpha_opaque() {
 
     for _ in 0..30 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
@@ -1798,6 +1804,7 @@ fn golden_widget_colorfield_alpha_opaque() {
 
 #[test]
 fn golden_widget_colorfield_alpha_near() {
+    let mut ts = TestSched::new();
     require_golden!();
     let (w, h, expected) = load_compositor_golden("widget_colorfield_alpha_near");
 
@@ -1820,7 +1827,7 @@ fn golden_widget_colorfield_alpha_near() {
 
     for _ in 0..30 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
@@ -1855,6 +1862,7 @@ fn golden_widget_colorfield_alpha_near() {
 /// Matches C++ gen_composed_border_nest().
 #[test]
 fn composition_border_nest() {
+    let mut ts = TestSched::new();
     require_golden!();
     let (w, h, expected) = load_compositor_golden("composed_border_nest");
 
@@ -1922,7 +1930,7 @@ fn composition_border_nest() {
     // C++: TerminateEngine ctrl(sched, 200) — 200 settle rounds
     for _ in 0..200 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
@@ -1971,6 +1979,7 @@ impl PanelBehavior for SplitterCompositionBehavior {
 /// only the border fill + frame chrome, with children invisible.
 #[test]
 fn composition_splitter_content() {
+    let mut ts = TestSched::new();
     require_golden!();
     let (w, h, expected) = load_compositor_golden("composed_splitter_content");
 
@@ -2027,7 +2036,7 @@ fn composition_splitter_content() {
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
@@ -2055,6 +2064,7 @@ fn composition_splitter_content() {
 /// positions, so the golden data shows only the border chrome.
 #[test]
 fn composition_scrolled_listbox_in_border() {
+    let mut ts = TestSched::new();
     require_golden!();
     let (w, h, expected) = load_compositor_golden("composed_scrolled_listbox");
 
@@ -2093,7 +2103,7 @@ fn composition_scrolled_listbox_in_border() {
     // C++ gen_golden.cpp: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
@@ -2121,6 +2131,7 @@ fn composition_scrolled_listbox_in_border() {
 /// correctly between wide and tall aspects after GetSubstanceRect fixes.
 #[test]
 fn composition_colorfield_expansion_wide() {
+    let mut ts = TestSched::new();
     require_golden!();
     let (w, h, expected) = load_compositor_golden("composed_colorfield_wide");
 
@@ -2152,7 +2163,7 @@ fn composition_colorfield_expansion_wide() {
     // C++: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);
@@ -2179,6 +2190,7 @@ fn composition_colorfield_expansion_wide() {
 /// border shape adapts correctly to tall Restore.
 #[test]
 fn composition_colorfield_expansion_tall() {
+    let mut ts = TestSched::new();
     require_golden!();
     let (w, h, expected) = load_compositor_golden("composed_colorfield_tall");
 
@@ -2210,7 +2222,7 @@ fn composition_colorfield_expansion_tall() {
     // C++: TerminateEngine ctrl(sched, 200)
     for _ in 0..200 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(w, h);

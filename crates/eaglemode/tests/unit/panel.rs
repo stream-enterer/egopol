@@ -1,3 +1,4 @@
+use emcore::test_view_harness::TestSched;
 use emcore::emColor::emColor;
 use emcore::emPanel::Rect;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
@@ -143,16 +144,17 @@ fn remove_subtree() {
 
 #[test]
 fn view_zoom_and_scroll() {
+    let mut ts = TestSched::new();
     let mut tree = PanelTree::new();
     let root = tree.create_root_deferred_view("root");
     tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0);
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-    view.Update(&mut tree); // required: sets viewed_* on root so Scroll/Zoom work
+    ts.with(|sc| view.Update(&mut tree, sc)); // required: sets viewed_* on root so Scroll/Zoom work
 
     // Zoom in so the panel is larger than the viewport; scroll won't be clamped.
-    view.Zoom(&mut tree, 4.0, 400.0, 300.0);
-    view.Update(&mut tree);
+    ts.with(|sc| view.Zoom(&mut tree, 4.0, 400.0, 300.0, sc));
+    ts.with(|sc| view.Update(&mut tree, sc));
 
     // C++ rel_a = HomeW*HomeH/(vw*vh). Zoom(factor=4): vw *= 4, rel_a /= 16.
     // Starting from zoom-out rel_a (≈1.333 for 800x600 with 1x1 panel), /= 16.
@@ -169,7 +171,7 @@ fn view_zoom_and_scroll() {
     let (_, rx_before, _, _) = view
         .get_visited_panel_idiom(&tree)
         .expect("visited panel should exist before scroll");
-    view.Scroll(&mut tree, 10.0, 0.0);
+    ts.with(|sc| view.Scroll(&mut tree, 10.0, 0.0, sc));
     let (_, rx_after, _, _) = view
         .get_visited_panel_idiom(&tree)
         .expect("visited panel should exist after scroll");
@@ -182,7 +184,7 @@ fn view_zoom_and_scroll() {
     let (_, _, _, ra_before_zoom) = view
         .get_visited_panel_idiom(&tree)
         .expect("visited panel should exist before second zoom");
-    view.Zoom(&mut tree, 2.0, 400.0, 300.0);
+    ts.with(|sc| view.Zoom(&mut tree, 2.0, 400.0, 300.0, sc));
     let (_, _, _, ra_after_zoom) = view
         .get_visited_panel_idiom(&tree)
         .expect("visited panel should exist after second zoom");
@@ -195,13 +197,14 @@ fn view_zoom_and_scroll() {
 
 #[test]
 fn view_flags_disable_zoom() {
+    let mut ts = TestSched::new();
     let mut tree = PanelTree::new();
     let root = tree.create_root_deferred_view("root");
 
     let mut view = emView::new(emcore::emContext::emContext::NewRoot(), root, 800.0, 600.0);
     view.flags = ViewFlags::NO_ZOOM;
 
-    view.Zoom(&mut tree, 2.0, 400.0, 300.0);
+    ts.with(|sc| view.Zoom(&mut tree, 2.0, 400.0, 300.0, sc));
     // Zoom should have been blocked — NO_ZOOM returns early before setting
     // needs_animator_abort (which every non-blocked Zoom/Scroll sets).
     assert!(!view.needs_animator_abort());

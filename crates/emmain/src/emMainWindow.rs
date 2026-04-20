@@ -675,13 +675,8 @@ impl emEngine for StartupEngine {
                     ctx.tree
                         .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
                             svp.active_animator = None;
-                            // Clone the Rc so the RefMut holds no borrow of
-                            // svp, allowing sub_tree_mut() (&mut self) to
-                            // coexist with the live RefMut.
-                            let sub_view_rc = svp.sub_view_rc().clone();
-                            sub_view_rc
-                                .borrow_mut()
-                                .RawZoomOut(svp.sub_tree_mut(), false);
+                            // C++: VisitingVA.Reset(); ContentView.RawZoomOut();
+                            svp.raw_zoom_out(false);
                         });
                 }
                 let overlay_id = ctx

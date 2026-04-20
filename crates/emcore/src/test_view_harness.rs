@@ -96,6 +96,41 @@ impl TestViewHarness {
     }
 }
 
+/// Lightweight test helper: owns the data needed to construct a `SchedCtx`.
+/// Use `.with(|sc| ...)` to call ctx-taking emView / emViewAnimator methods in
+/// tests that don't need a full `TestViewHarness`.
+pub struct TestSched {
+    sched: EngineScheduler,
+    fw: Vec<DeferredAction>,
+    ctx: Rc<emContext>,
+}
+
+impl Default for TestSched {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TestSched {
+    pub fn new() -> Self {
+        Self {
+            sched: EngineScheduler::new(),
+            fw: Vec::new(),
+            ctx: emContext::NewRoot(),
+        }
+    }
+
+    pub fn with<R>(&mut self, f: impl FnOnce(&mut SchedCtx<'_>) -> R) -> R {
+        let mut sc = SchedCtx {
+            scheduler: &mut self.sched,
+            framework_actions: &mut self.fw,
+            root_context: &self.ctx,
+            current_engine: None,
+        };
+        f(&mut sc)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

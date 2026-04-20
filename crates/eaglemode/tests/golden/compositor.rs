@@ -36,9 +36,10 @@ impl PanelBehavior for ColorFillBehavior {
 
 /// Settle: deliver notices and update viewing until stable.
 fn settle(tree: &mut PanelTree, view: &mut emView) {
+    let mut ts = TestSched::new();
     for _ in 0..5 {
         view.HandleNotice(tree);
-        view.Update(tree);
+        ts.with(|sc| view.Update(tree, sc));
     }
 }
 

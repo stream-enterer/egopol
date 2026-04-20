@@ -756,6 +756,7 @@ fn dispatch_event(
 
 #[test]
 fn composition_click_through_tree() {
+    let mut ts = TestSched::new();
     let click_count = Rc::new(Cell::new(0u32));
     let clicked_clone = click_count.clone();
 
@@ -792,7 +793,7 @@ fn composition_click_through_tree() {
     view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
     for _ in 0..200 {
         view.HandleNotice(&mut tree);
-        view.Update(&mut tree);
+        ts.with(|sc| view.Update(&mut tree, sc));
     }
 
     let mut compositor = SoftwareCompositor::new(800, 600);
