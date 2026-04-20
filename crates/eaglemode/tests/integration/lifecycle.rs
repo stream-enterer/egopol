@@ -73,7 +73,7 @@ fn remove_active_panel_reselects() {
 
 #[test]
 fn remove_panel_with_engine() {
-    use emcore::emEngine::{emEngine, Priority};
+    use emcore::emEngine::{emEngine, Priority, TreeLocation};
     use emcore::emEngineCtx::EngineCtx;
 
     struct DummyEngine;
@@ -88,9 +88,9 @@ fn remove_panel_with_engine() {
     let child = h.add_panel(root, "child");
 
     // Register an engine associated with this panel
-    let eng = h
-        .scheduler
-        .register_engine(Box::new(DummyEngine), Priority::Medium);
+    let eng =
+        h.scheduler
+            .register_engine(Box::new(DummyEngine), Priority::Medium, TreeLocation::Outer);
     h.scheduler.wake_up(eng);
     h.tick();
 

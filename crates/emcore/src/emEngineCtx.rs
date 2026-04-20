@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::emContext::emContext;
-use crate::emEngine::{EngineId, Priority};
+use crate::emEngine::{EngineId, Priority, TreeLocation};
 use crate::emPanelTree::PanelTree;
 use crate::emScheduler::EngineScheduler;
 use crate::emSignal::SignalId;
@@ -64,6 +64,7 @@ pub trait ConstructCtx {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
+        tree_location: TreeLocation,
     ) -> EngineId;
     fn wake_up(&mut self, eng: EngineId);
 }
@@ -105,8 +106,9 @@ impl EngineCtx<'_> {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
+        tree_location: TreeLocation,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri)
+        self.scheduler.register_engine(behavior, pri, tree_location)
     }
 
     /// Check whether a specific signal has been signaled since the last
@@ -178,8 +180,9 @@ impl SchedCtx<'_> {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
+        tree_location: TreeLocation,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri)
+        self.scheduler.register_engine(behavior, pri, tree_location)
     }
 
     pub fn wake_up(&mut self, eng: EngineId) {
@@ -207,8 +210,9 @@ impl ConstructCtx for EngineCtx<'_> {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
+        tree_location: TreeLocation,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri)
+        self.scheduler.register_engine(behavior, pri, tree_location)
     }
 
     fn wake_up(&mut self, eng: EngineId) {
@@ -225,8 +229,9 @@ impl ConstructCtx for SchedCtx<'_> {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
+        tree_location: TreeLocation,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri)
+        self.scheduler.register_engine(behavior, pri, tree_location)
     }
 
     fn wake_up(&mut self, eng: EngineId) {
@@ -243,8 +248,9 @@ impl ConstructCtx for InitCtx<'_> {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
+        tree_location: TreeLocation,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri)
+        self.scheduler.register_engine(behavior, pri, tree_location)
     }
 
     fn wake_up(&mut self, eng: EngineId) {
@@ -309,7 +315,7 @@ mod tests {
         };
 
         let sig = sc.create_signal();
-        let eng = sc.register_engine(Box::new(NoopEngine), Priority::Medium);
+        let eng = sc.register_engine(Box::new(NoopEngine), Priority::Medium, TreeLocation::Outer);
 
         sc.connect(sig, eng);
         sc.disconnect(sig, eng);
@@ -337,6 +343,7 @@ mod tests {
             &mut ic,
             Box::new(NoopEngine),
             Priority::High,
+            TreeLocation::Outer,
         );
         <InitCtx as ConstructCtx>::wake_up(&mut ic, eng);
 
@@ -358,7 +365,11 @@ mod tests {
         };
         let cc: &mut dyn ConstructCtx = &mut sc;
         let _sig = cc.create_signal();
-        let eng = cc.register_engine(Box::new(NoopEngine), Priority::VeryHigh);
+        let eng = cc.register_engine(
+            Box::new(NoopEngine),
+            Priority::VeryHigh,
+            TreeLocation::Outer,
+        );
         cc.wake_up(eng);
 
         sc.remove_engine(eng);

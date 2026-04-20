@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::emEngine::{emEngine, EngineId, Priority};
+use super::emEngine::{emEngine, EngineId, Priority, TreeLocation};
 use super::emEngineCtx::EngineCtx;
 use super::emScheduler::EngineScheduler;
 
@@ -90,7 +90,8 @@ impl PriSchedModel {
         let engine = PriSchedEngine {
             inner: Rc::clone(&inner),
         };
-        let engine_id = scheduler.register_engine(Box::new(engine), Priority::Low);
+        let engine_id =
+            scheduler.register_engine(Box::new(engine), Priority::Low, TreeLocation::Outer);
         inner.borrow_mut().engine_id = Some(engine_id);
 
         Self { inner, engine_id }

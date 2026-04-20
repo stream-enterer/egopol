@@ -577,9 +577,11 @@ mod sp8_tests {
 
         // Harness supplies the EngineCtx scaffolding for the Cycle call.
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        let dummy_eid = h
-            .scheduler
-            .register_engine(Box::new(NoopEngine), crate::emEngine::Priority::Medium);
+        let dummy_eid = h.scheduler.register_engine(
+            Box::new(NoopEngine),
+            crate::emEngine::Priority::Medium,
+            crate::emEngine::TreeLocation::Outer,
+        );
 
         let stay_awake = {
             let mut ectx = h.engine_ctx(dummy_eid);
@@ -681,6 +683,7 @@ mod sp4_5_fix_1_tests {
                 done: false,
             }),
             crate::emEngine::Priority::Medium,
+            crate::emEngine::TreeLocation::Outer,
         );
         panel.sub_scheduler.borrow_mut().wake_up(spawn_eid);
 

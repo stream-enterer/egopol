@@ -567,6 +567,7 @@ mod tests {
         let dummy_eid = h.scheduler.register_engine(
             Box::new(NoopEngineForTest),
             emcore::emEngine::Priority::Medium,
+            emcore::emEngine::TreeLocation::Outer,
         );
         let changed = {
             let mut ectx = h.engine_ctx(dummy_eid);

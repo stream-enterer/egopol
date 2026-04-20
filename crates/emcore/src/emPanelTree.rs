@@ -6,7 +6,7 @@ use slotmap::{new_key_type, SlotMap};
 
 use crate::dlog;
 
-use super::emEngine::{EngineId, Priority};
+use super::emEngine::{EngineId, Priority, TreeLocation};
 use super::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use super::emPanelCycleEngine::PanelCycleEngine;
 use crate::emColor::emColor;
@@ -605,7 +605,7 @@ impl PanelTree {
             #[cfg(any(test, feature = "test-support"))]
             first_cycle_probe: None,
         };
-        let eid = sched.register_engine(Box::new(adapter), Priority::Medium);
+        let eid = sched.register_engine(Box::new(adapter), Priority::Medium, TreeLocation::Outer);
         self.panels[id].engine_id = Some(eid);
     }
 
@@ -3429,6 +3429,7 @@ mod tests {
                 spawned: false,
             }),
             crate::emEngine::Priority::Medium,
+            TreeLocation::Outer,
         );
         sched.borrow_mut().wake_up(spawn_eid);
 
@@ -3783,6 +3784,7 @@ mod tests {
                 done: false,
             }),
             crate::emEngine::Priority::Medium,
+            TreeLocation::Outer,
         );
         sched.borrow_mut().wake_up(spawn_eid);
 

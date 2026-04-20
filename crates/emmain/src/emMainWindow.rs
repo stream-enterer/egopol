@@ -12,7 +12,7 @@ use std::rc::Rc;
 use winit::event_loop::ActiveEventLoop;
 
 use emcore::emContext::emContext;
-use emcore::emEngine::{EngineId, Priority, emEngine};
+use emcore::emEngine::{EngineId, Priority, TreeLocation, emEngine};
 use emcore::emEngineCtx::EngineCtx;
 use emcore::emGUIFramework::App;
 use emcore::emInput::{InputKey, emInputEvent};
@@ -840,9 +840,9 @@ pub fn create_main_window(
     // Register StartupEngine with the scheduler.
     let startup_engine =
         StartupEngine::new(Rc::clone(&app.context), root_id, window_id, &mw.config);
-    let engine_id = app
-        .scheduler
-        .register_engine(Box::new(startup_engine), Priority::Low);
+    let engine_id =
+        app.scheduler
+            .register_engine(Box::new(startup_engine), Priority::Low, TreeLocation::Outer);
     app.scheduler.wake_up(engine_id);
     mw.startup_engine_id = Some(engine_id);
 
@@ -859,9 +859,9 @@ pub fn create_main_window(
         window_id: Some(window_id),
         startup_done: false,
     };
-    let mw_engine_id = app
-        .scheduler
-        .register_engine(Box::new(mw_engine), Priority::Low);
+    let mw_engine_id =
+        app.scheduler
+            .register_engine(Box::new(mw_engine), Priority::Low, TreeLocation::Outer);
     app.scheduler.connect(close_signal, mw_engine_id);
     app.scheduler.connect(title_signal, mw_engine_id);
 
@@ -897,9 +897,9 @@ pub fn create_main_window(
         _ctrl_view_id: root_id,
         _content_view_id: root_id,
     };
-    let bridge_id = app
-        .scheduler
-        .register_engine(Box::new(bridge), Priority::Low);
+    let bridge_id =
+        app.scheduler
+            .register_engine(Box::new(bridge), Priority::Low, TreeLocation::Outer);
     app.scheduler.connect(cp_signal, bridge_id);
 
     // Register emWindowStateSaver engine — persists window geometry.
@@ -935,9 +935,9 @@ pub fn create_main_window(
             saver.Restore(&mut rc.borrow_mut(), screen);
         }
 
-        let saver_id = app
-            .scheduler
-            .register_engine(Box::new(saver), Priority::Low);
+        let saver_id =
+            app.scheduler
+                .register_engine(Box::new(saver), Priority::Low, TreeLocation::Outer);
         app.scheduler.connect(flags_signal, saver_id);
         app.scheduler.connect(focus_signal, saver_id);
         app.scheduler.connect(geometry_signal, saver_id);

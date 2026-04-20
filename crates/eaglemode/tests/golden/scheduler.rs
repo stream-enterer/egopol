@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use emcore::emEngine::{emEngine, Priority};
+use emcore::emEngine::{emEngine, Priority, TreeLocation};
 use emcore::emEngineCtx::EngineCtx;
 use emcore::emPanelTree::PanelTree;
 use emcore::emScheduler::EngineScheduler;
@@ -97,6 +97,7 @@ fn signal_abort() {
             stay_awake: false,
         }),
         Priority::Medium,
+        TreeLocation::Outer,
     );
     sched.connect(sig, eng);
 
@@ -129,6 +130,7 @@ fn timer_oneshot() {
             stay_awake: false,
         }),
         Priority::Medium,
+        TreeLocation::Outer,
     );
     sched.connect(sig, eng);
 
@@ -165,6 +167,7 @@ fn timer_periodic() {
             stay_awake: false,
         }),
         Priority::Medium,
+        TreeLocation::Outer,
     );
     sched.connect(sig, eng);
 
@@ -205,6 +208,7 @@ fn timer_cancel() {
             stay_awake: false,
         }),
         Priority::Medium,
+        TreeLocation::Outer,
     );
     sched.connect(sig, eng);
 
@@ -259,6 +263,7 @@ fn engine_basic() {
             stay_awake: false,
         }),
         Priority::Medium,
+        TreeLocation::Outer,
     );
     sched.connect(sig, eng);
 
@@ -285,6 +290,7 @@ fn engine_priority() {
             stay_awake: false,
         }),
         Priority::VeryLow,
+        TreeLocation::Outer,
     );
     let med = sched.register_engine(
         Box::new(RecordingEngine {
@@ -293,6 +299,7 @@ fn engine_priority() {
             stay_awake: false,
         }),
         Priority::Medium,
+        TreeLocation::Outer,
     );
     let vh = sched.register_engine(
         Box::new(RecordingEngine {
@@ -301,6 +308,7 @@ fn engine_priority() {
             stay_awake: false,
         }),
         Priority::VeryHigh,
+        TreeLocation::Outer,
     );
 
     sched.wake_up(vl);
@@ -329,6 +337,7 @@ fn engine_wake_sleep() {
             stay_awake: true, // stays awake each Cycle
         }),
         Priority::Medium,
+        TreeLocation::Outer,
     );
 
     // Wake → should Cycle
@@ -393,6 +402,7 @@ fn engine_multi_signal() {
             c_seen: Rc::clone(&c_seen),
         }),
         Priority::Medium,
+        TreeLocation::Outer,
     );
     sched.connect(sig_a, eng);
     sched.connect(sig_b, eng);
