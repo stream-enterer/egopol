@@ -657,36 +657,34 @@ impl emView {
         }
     }
 
-    /// Phase 1.5 Task 1c (method 1/7): local SchedCtx constructor used by
-    /// `RawVisitAbs` to call the newly ctx-threaded `SwapViewPorts` without
-    /// propagating ctx up its own signature (RawVisitAbs is migration 7/7).
+    /// Phase 1.5 Task 1c: local SchedCtx constructor used by yet-unmigrated
+    /// emView methods to call ctx-threaded methods without propagating ctx up
+    /// their own signatures.
     ///
-    /// Mirrors `queue_or_apply_sched_op`'s fallback policy:
+    /// Fallback policy mirrors `queue_or_apply_sched_op`:
     ///   - No scheduler attached (bare unit-test view) → skip the call.
-    ///   - Scheduler already borrowed re-entrantly → enqueue a `Fire` op
-    ///     for the sole scheduler side-effect of `SwapViewPorts`
-    ///     (`geometry_signal`) via `pending_sched_ops`.
+    ///   - Scheduler already borrowed re-entrantly → run the caller-supplied
+    ///     `on_reentrant` closure, which must push the equivalent
+    ///     `SchedOp`(s) onto `pending_sched_ops` so the engine-cycle drain
+    ///     reproduces the scheduler side-effects.
     ///   - Scheduler borrow available → construct a `SchedCtx` over a
-    ///     scratch `Vec<DeferredAction>` (SwapViewPorts does not enqueue
-    ///     framework actions) and run `f`.
+    ///     scratch `Vec<DeferredAction>` (callers that need framework-action
+    ///     visibility must migrate fully, not go through this helper) and
+    ///     run `f`.
     ///
-    /// TODO(phase-1-5 task-1c/7of7): deleted when `RawVisitAbs` itself
-    /// becomes ctx-threaded — at that point the outer caller supplies the
-    /// real SchedCtx directly.
+    /// TODO(phase-1-5 task-1c/7of7): deleted when all emView methods become
+    /// ctx-threaded — at that point outer callers supply the real SchedCtx
+    /// directly.
     pub(crate) fn with_local_sched_ctx<R>(
         &mut self,
+        on_reentrant: impl FnOnce(&mut Self),
         f: impl FnOnce(&mut Self, &mut crate::emEngineCtx::SchedCtx<'_>) -> R,
     ) -> Option<R> {
         let sched_rc = self.scheduler.as_ref()?.clone();
         let mut sched = match sched_rc.try_borrow_mut() {
             Ok(s) => s,
             Err(_) => {
-                // Re-entrant path: the only scheduler effect of SwapViewPorts
-                // is firing `geometry_signal`. Queue it so the engine-cycle
-                // pending-ops drain applies it.
-                if let Some(sig) = self.geometry_signal {
-                    self.pending_sched_ops.push(SchedOp::Fire(sig));
-                }
+                on_reentrant(self);
                 return None;
             }
         };
@@ -1904,7 +1902,14 @@ impl emView {
                         self.queue_or_apply_sched_op(SchedOp::Connect(close_sig, eng_id));
                     }
                     // C++ (emView.cpp:1644): SwapViewPorts(true)
-                    self.with_local_sched_ctx(|v, sc| v.SwapViewPorts(true, sc));
+                    self.with_local_sched_ctx(
+                        |v| {
+                            if let Some(sig) = v.geometry_signal {
+                                v.pending_sched_ops.push(SchedOp::Fire(sig));
+                            }
+                        },
+                        |v, sc| v.SwapViewPorts(true, sc),
+                    );
                     // C++ (emView.cpp:1645): if (wasFocused && !Focused) CurrentViewPort->RequestFocus()
                     if was_focused && !self.window_focused {
                         self.CurrentViewPort.borrow_mut().RequestFocus();
@@ -1967,16 +1972,37 @@ impl emView {
                     || (y1 - self.CurrentY).abs() > 0.01
                     || (y2 - self.CurrentY - self.CurrentHeight).abs() > 0.01
                 {
-                    self.with_local_sched_ctx(|v, sc| v.SwapViewPorts(false, sc));
+                    self.with_local_sched_ctx(
+                        |v| {
+                            if let Some(sig) = v.geometry_signal {
+                                v.pending_sched_ops.push(SchedOp::Fire(sig));
+                            }
+                        },
+                        |v, sc| v.SwapViewPorts(false, sc),
+                    );
                     if let Some(ref w) = self.PopupWindow {
                         w.borrow_mut().SetViewPosSize(x1, y1, x2 - x1, y2 - y1);
                     }
-                    self.with_local_sched_ctx(|v, sc| v.SwapViewPorts(false, sc));
+                    self.with_local_sched_ctx(
+                        |v| {
+                            if let Some(sig) = v.geometry_signal {
+                                v.pending_sched_ops.push(SchedOp::Fire(sig));
+                            }
+                        },
+                        |v, sc| v.SwapViewPorts(false, sc),
+                    );
                     forceViewingUpdate = true;
                 }
             } else if self.PopupWindow.is_some() {
                 // C++ (emView.cpp:1674-1680): tear down popup on return inside home
-                self.with_local_sched_ctx(|v, sc| v.SwapViewPorts(true, sc));
+                self.with_local_sched_ctx(
+                    |v| {
+                        if let Some(sig) = v.geometry_signal {
+                            v.pending_sched_ops.push(SchedOp::Fire(sig));
+                        }
+                    },
+                    |v, sc| v.SwapViewPorts(true, sc),
+                );
                 // Disconnect + remove the popup's close signal (allocated on
                 // popup creation above) so the scheduler doesn't leak it.
                 // Also enqueue a framework-side cleanup closure to drop the
@@ -2235,7 +2261,15 @@ impl emView {
         self.RestartInputRecursion = true;
         self.cursor_invalid = true;
         // C++ emView.cpp:1805: UpdateEngine->WakeUp().
-        self.WakeUpUpdateEngine();
+        // Bridge: RawVisitAbs is migration 7/7 and not yet ctx-threaded.
+        self.with_local_sched_ctx(
+            |v| {
+                if let Some(id) = v.update_engine_id {
+                    v.pending_sched_ops.push(SchedOp::WakeUp(id));
+                }
+            },
+            |v, sc| v.WakeUpUpdateEngine(sc),
+        );
         // InvalidatePainting() whole-view — use Current rect (Phase 0 audit
         // verdict). During non-popup Current == Home, so rect = whole view.
         self.dirty_rects.push(Rect::new(
@@ -3197,14 +3231,27 @@ impl emView {
         self.EOISignal = Some(eoi_signal);
         self.visiting_va_engine_id = Some(visiting_va_engine_id);
         // C++ emView::emView at emView.cpp:84: UpdateEngine->WakeUp().
-        self.WakeUpUpdateEngine();
+        // Bridge: attach_to_scheduler is entered without a SchedCtx; build
+        // one locally. At attach time the scheduler is always borrow-free,
+        // so the re-entrant fallback is a safety net only.
+        self.with_local_sched_ctx(
+            |v| {
+                if let Some(id) = v.update_engine_id {
+                    v.pending_sched_ops.push(SchedOp::WakeUp(id));
+                }
+            },
+            |v, sc| v.WakeUpUpdateEngine(sc),
+        );
     }
 
     /// Wake the scheduler-registered `UpdateEngineClass` so `Update()` runs
     /// in the current time slice. Mirrors C++ `UpdateEngine->WakeUp()`.
-    pub fn WakeUpUpdateEngine(&mut self) {
+    ///
+    /// Phase 1.5 Task 1c (method 2/7): ctx-threaded. Callers inside yet-
+    /// unmigrated emView methods use `with_local_sched_ctx` to bridge.
+    pub fn WakeUpUpdateEngine(&mut self, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) {
         if let Some(id) = self.update_engine_id {
-            self.queue_or_apply_sched_op(SchedOp::WakeUp(id));
+            ctx.wake_up(id);
         }
     }
 
@@ -4158,7 +4205,15 @@ impl emView {
             self.LastMouseX = mx;
             self.LastMouseY = my;
             self.cursor_invalid = true;
-            self.WakeUpUpdateEngine();
+            // Bridge: Input() is not yet ctx-threaded.
+            self.with_local_sched_ctx(
+                |v| {
+                    if let Some(id) = v.update_engine_id {
+                        v.pending_sched_ops.push(SchedOp::WakeUp(id));
+                    }
+                },
+                |v, sc| v.WakeUpUpdateEngine(sc),
+            );
         }
     }
 
@@ -6423,7 +6478,18 @@ mod tests {
         }
         // SP4: attach_to_scheduler wakes the update engine (C++ emView.cpp:84).
         // The explicit WakeUpUpdateEngine() below verifies the re-wake API.
-        v_rc.borrow_mut().WakeUpUpdateEngine();
+        {
+            let mut sched_borrow = sched.borrow_mut();
+            let root = v_rc.borrow().Context.GetRootContext();
+            let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut sched_borrow,
+                framework_actions: &mut fw,
+                root_context: &root,
+                current_engine: None,
+            };
+            v_rc.borrow_mut().WakeUpUpdateEngine(&mut sc);
+        }
         assert!(sched.borrow().has_awake_engines());
         // Clean up for Drop debug_asserts.
         let mut v = v_rc.borrow_mut();

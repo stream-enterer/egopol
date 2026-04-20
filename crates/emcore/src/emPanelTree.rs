@@ -398,7 +398,19 @@ impl PanelTree {
         // HandleNotice dispatch), the engine is already awake — no wakeup needed.
         if let Some(view_rc) = self.panels[id].View.upgrade() {
             if let Ok(mut view) = view_rc.try_borrow_mut() {
-                view.WakeUpUpdateEngine();
+                // Bridge: add_to_notice_list runs under PanelTree's own
+                // &mut self and has no SchedCtx. Use the view's local
+                // SchedCtx constructor; the re-entrant fallback pushes a
+                // SchedOp::WakeUp to be drained by the engine cycle.
+                view.with_local_sched_ctx(
+                    |v| {
+                        if let Some(eng_id) = v.update_engine_id {
+                            v.pending_sched_ops
+                                .push(crate::emView::SchedOp::WakeUp(eng_id));
+                        }
+                    },
+                    |v, sc| v.WakeUpUpdateEngine(sc),
+                );
             }
             // If try_borrow_mut fails, we are inside the view's Update/HandleNotice;
             // the engine is already running, so no explicit wakeup is needed.
