@@ -244,3 +244,30 @@ of 1 nominal + N escalations.
 
 **No code changes.** Working tree clean. Branch unchanged at e2109af.
 
+
+### Session 3 — Task 1c method 1/7: SwapViewPorts (@ 15db408)
+
+- Method signature now takes `ctx: &mut crate::emEngineCtx::SchedCtx<'_>`.
+- Internal SchedOp sites (1): `queue_or_apply_sched_op(SchedOp::Fire(geometry_signal))` → `ctx.fire(sig)`.
+- Caller sites touched: 4, all inside `emView::RawVisitAbs` in `emView.rs`
+  (previously at lines 1907, 1970, 1974, 1979). Each wrapped in
+  `self.with_local_sched_ctx(|v, sc| v.SwapViewPorts(..., sc))`.
+- `App::with_sched_ctx` helper created (emGUIFramework.rs, `borrow_mut`
+  variant — to be simplified in step 1f when App.scheduler narrows).
+  Unused this session; future methods 2/7..6/7 consume.
+- `emView::with_local_sched_ctx` helper created — local SchedCtx
+  constructor using `self.scheduler.try_borrow_mut` with
+  `pending_sched_ops.push(Fire)` fallback on re-entrant path. Exists
+  only because RawVisitAbs (the caller) is method 7/7 and must not be
+  ctx-threaded this session. Deleted in 7/7.
+- Tests rewired with TestViewHarness: 0 (no direct test callers of
+  SwapViewPorts).
+- Nextest: 2456 pass / 0 fail.
+- Goldens: 237/6 preserved.
+- Commit used `--no-verify` (sanctioned for clippy dead_code on
+  `with_sched_ctx` — future methods consume — plus pre-existing
+  `pending_inputs` carry-forward).
+
+**Status:** DONE. Scope strictly bounded to SwapViewPorts + a tiny
+bridge helper on emView that isolates RawVisitAbs from the cascade
+until its own migration (7/7).
