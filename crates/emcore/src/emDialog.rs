@@ -18,6 +18,11 @@ pub enum DialogResult {
     Custom(u32),
 }
 
+// DIVERGED-B3.3: These dialog callbacks take `&DialogResult` which cannot be
+// expressed as a lifetime-parametric `WidgetCallback<T>`. They remain plain
+// `Box<dyn FnMut>` and fire without scheduler reach. B3.4 will restore
+// signal-based dispatch for dialog completion; for now this is a narrow
+// exception to the WidgetCallback alias.
 type DialogFinishCb = Box<dyn FnMut(&DialogResult)>;
 type DialogCheckFinishCb = Box<dyn FnMut(&DialogResult) -> bool>;
 

@@ -322,9 +322,11 @@ fn button_click_works_after_zoom() {
     let clicked_clone = clicked.clone();
 
     let mut btn2 = emButton::new("Pipeline Test", look);
-    btn2.on_click = Some(Box::new(move || {
-        clicked_clone.set(true);
-    }));
+    btn2.on_click = Some(Box::new(
+        move |(), _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+            clicked_clone.set(true);
+        },
+    ));
 
     struct BtnPanel {
         widget: emButton,

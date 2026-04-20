@@ -248,7 +248,9 @@ impl TestHarness {
 /// A behavior that records calls via shared log. Optional closures for custom actions.
 pub struct RecordingBehavior {
     pub log: Rc<RefCell<Vec<String>>>,
+    // Non-widget: test harness adapter.
     pub on_input: Option<Box<dyn FnMut(&emInputEvent) -> bool>>,
+    // Non-widget: test harness adapter.
     pub on_layout: Option<Box<dyn FnMut(&mut PanelCtx)>>,
 }
 
@@ -335,7 +337,9 @@ impl PanelBehavior for InputTrackingBehavior {
 
 /// Behavior that calls closures on notice/LayoutChildren for tree mutation tests.
 pub struct MutatingBehavior {
+    // Non-widget: test harness adapter.
     pub on_layout: Option<Box<dyn FnMut(&mut PanelCtx)>>,
+    // Non-widget: test harness adapter.
     pub on_notice: Option<Box<dyn FnMut(NoticeFlags)>>,
 }
 

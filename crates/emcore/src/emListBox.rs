@@ -19,7 +19,13 @@ const ROW_HEIGHT: f64 = 17.0;
 /// Timeout in milliseconds for keywalk type-to-search accumulation.
 const KEYWALK_TIMEOUT_MS: u128 = 1000;
 
+// DIVERGED-B3.3: SelectionCb takes `&[usize]` which cannot be expressed as a
+// lifetime-parametric `WidgetCallback<T>`. It remains a plain `Box<dyn FnMut>`
+// and fires without scheduler reach. B3.4 may refactor or accept as exception.
 type SelectionCb = Box<dyn FnMut(&[usize])>;
+// DIVERGED-B3.3: TriggerCb left as plain Box<dyn FnMut> for symmetry with
+// SelectionCb in this widget (both fire together from listbox paths). B3.4
+// will restore proper callback dispatch via async signal routing.
 type TriggerCb = Box<dyn FnMut(usize)>;
 type ItemPanelFactory = Box<dyn Fn(usize, String, bool) -> Box<dyn ItemPanelInterface>>;
 type ItemBehaviorFactory =

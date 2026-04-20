@@ -196,12 +196,14 @@ impl KBGroup {
             false,
         );
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        zoom.scalar_field.on_value = Some(Box::new(move |val| {
-            let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.keyboard_zoom_speed = cfg_val);
-            let _ = cm.Save();
-        }));
+        zoom.scalar_field.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.keyboard_zoom_speed = cfg_val);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("zoom", Box::new(zoom));
 
         let mut scroll = make_factor_field(
@@ -214,12 +216,14 @@ impl KBGroup {
             false,
         );
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        scroll.scalar_field.on_value = Some(Box::new(move |val| {
-            let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.keyboard_scroll_speed = cfg_val);
-            let _ = cm.Save();
-        }));
+        scroll.scalar_field.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.keyboard_scroll_speed = cfg_val);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("scroll", Box::new(scroll));
     }
 }
@@ -308,13 +312,15 @@ impl MouseMiscGroup {
         // C++ emCoreConfigPanel.cpp:295: StickBox->SetEnableSwitch(StickPossible)
         // Disabled when the screen cannot move the mouse pointer.
         let mut stick = emCheckBox::new("Stick mouse\nwhen navigating", self.look.clone());
-        stick.SetChecked(c.stick_mouse_when_navigating);
+        stick.SetChecked(c.stick_mouse_when_navigating, ctx);
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        stick.on_check = Some(Box::new(move |checked| {
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.stick_mouse_when_navigating = checked);
-            let _ = cm.Save();
-        }));
+        stick.on_check = Some(Box::new(
+            move |checked, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.stick_mouse_when_navigating = checked);
+                let _ = cm.Save();
+            },
+        ));
         let stick_id = ctx.create_child_with("stick", Box::new(CheckBoxPanel { check_box: stick }));
         if !self.stick_possible {
             ctx.tree
@@ -322,23 +328,27 @@ impl MouseMiscGroup {
         }
 
         let mut emu = emCheckBox::new("Emulate\nmiddle button", self.look.clone());
-        emu.SetChecked(c.emulate_middle_button);
+        emu.SetChecked(c.emulate_middle_button, ctx);
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        emu.on_check = Some(Box::new(move |checked| {
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.emulate_middle_button = checked);
-            let _ = cm.Save();
-        }));
+        emu.on_check = Some(Box::new(
+            move |checked, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.emulate_middle_button = checked);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("emu", Box::new(CheckBoxPanel { check_box: emu }));
 
         let mut pan = emCheckBox::new("Pan\nfunction", self.look.clone());
-        pan.SetChecked(c.pan_function);
+        pan.SetChecked(c.pan_function, ctx);
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        pan.on_check = Some(Box::new(move |checked| {
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.pan_function = checked);
-            let _ = cm.Save();
-        }));
+        pan.on_check = Some(Box::new(
+            move |checked, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.pan_function = checked);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("pan", Box::new(CheckBoxPanel { check_box: pan }));
     }
 }
@@ -440,12 +450,14 @@ impl KineticGroup {
             true,
         );
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        kinetic.scalar_field.on_value = Some(Box::new(move |val| {
-            let cfg_val = factor_val_to_cfg(val, 0.25, 2.0);
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.kinetic_zooming_and_scrolling = cfg_val);
-            let _ = cm.Save();
-        }));
+        kinetic.scalar_field.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let cfg_val = factor_val_to_cfg(val, 0.25, 2.0);
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.kinetic_zooming_and_scrolling = cfg_val);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("KineticZoomingAndScrolling", Box::new(kinetic));
 
         // MagnetismRadius
@@ -459,12 +471,14 @@ impl KineticGroup {
             true,
         );
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        mag_radius.scalar_field.on_value = Some(Box::new(move |val| {
-            let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.magnetism_radius = cfg_val);
-            let _ = cm.Save();
-        }));
+        mag_radius.scalar_field.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.magnetism_radius = cfg_val);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("MagnetismRadius", Box::new(mag_radius));
 
         // MagnetismSpeed
@@ -478,12 +492,14 @@ impl KineticGroup {
             false,
         );
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        mag_speed.scalar_field.on_value = Some(Box::new(move |val| {
-            let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.magnetism_speed = cfg_val);
-            let _ = cm.Save();
-        }));
+        mag_speed.scalar_field.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.magnetism_speed = cfg_val);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("MagnetismSpeed", Box::new(mag_speed));
 
         // VisitSpeed
@@ -497,12 +513,14 @@ impl KineticGroup {
             false,
         );
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        visit.scalar_field.on_value = Some(Box::new(move |val| {
-            let cfg_val = factor_val_to_cfg(val, 0.1, 10.0);
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.visit_speed = cfg_val);
-            let _ = cm.Save();
-        }));
+        visit.scalar_field.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let cfg_val = factor_val_to_cfg(val, 0.1, 10.0);
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.visit_speed = cfg_val);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("VisitSpeed", Box::new(visit));
     }
 }
@@ -713,12 +731,14 @@ impl MemFieldLayoutPanel {
         sf.border_mut().SetBorderScaling(1.5);
         sf.SetTextOfValueFunc(Box::new(mem_text_of_value));
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        sf.on_value = Some(Box::new(move |val| {
-            let mb = mem_val_to_cfg(val);
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.max_megabytes_per_view = mb.clamp(8, 16384));
-            let _ = cm.Save();
-        }));
+        sf.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let mb = mem_val_to_cfg(val);
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.max_megabytes_per_view = mb.clamp(8, 16384));
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("mem", Box::new(ScalarFieldPanel { scalar_field: sf }));
     }
 }
@@ -922,12 +942,14 @@ impl CpuGroup {
         sf.border_mut().inner = InnerBorderType::InputField;
         sf.border_mut().SetBorderScaling(1.5);
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        sf.on_value = Some(Box::new(move |val| {
-            let threads = (val + 0.5) as i32;
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.max_render_threads = threads.clamp(1, 32));
-            let _ = cm.Save();
-        }));
+        sf.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let threads = (val + 0.5) as i32;
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.max_render_threads = threads.clamp(1, 32));
+                let _ = cm.Save();
+            },
+        ));
         let threads_id = ctx.create_child_with(
             "MaxRenderThreads",
             Box::new(ScalarFieldPanel { scalar_field: sf }),
@@ -942,13 +964,15 @@ impl CpuGroup {
 
         // AllowSIMD checkbox
         let mut cb = emCheckBox::new("Allow SIMD", self.look.clone());
-        cb.SetChecked(c.allow_simd);
+        cb.SetChecked(c.allow_simd, ctx);
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        cb.on_check = Some(Box::new(move |checked| {
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.allow_simd = checked);
-            let _ = cm.Save();
-        }));
+        cb.on_check = Some(Box::new(
+            move |checked, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.allow_simd = checked);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("allowSIMD", Box::new(CheckBoxPanel { check_box: cb }));
     }
 }
@@ -1070,12 +1094,14 @@ impl PerformanceGroup {
         ds_sf.border_mut().SetBorderScaling(1.5);
         ds_sf.SetTextOfValueFunc(Box::new(downscale_text));
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        ds_sf.on_value = Some(Box::new(move |val| {
-            let q = (val + 0.5) as i32;
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.downscale_quality = q.clamp(2, 6));
-            let _ = cm.Save();
-        }));
+        ds_sf.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let q = (val + 0.5) as i32;
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.downscale_quality = q.clamp(2, 6));
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with(
             "downscaleQuality",
             Box::new(ScalarFieldPanel {
@@ -1093,12 +1119,14 @@ impl PerformanceGroup {
         us_sf.border_mut().SetBorderScaling(1.5);
         us_sf.SetTextOfValueFunc(Box::new(upscale_text));
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        us_sf.on_value = Some(Box::new(move |val| {
-            let q = (val + 0.5) as i32;
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.upscale_quality = q.clamp(0, 5));
-            let _ = cm.Save();
-        }));
+        us_sf.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let q = (val + 0.5) as i32;
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.upscale_quality = q.clamp(0, 5));
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with(
             "upscaleQuality",
             Box::new(ScalarFieldPanel {
@@ -1208,12 +1236,14 @@ impl MouseGroup {
             false,
         );
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        wz.scalar_field.on_value = Some(Box::new(move |val| {
-            let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.mouse_wheel_zoom_speed = cfg_val);
-            let _ = cm.Save();
-        }));
+        wz.scalar_field.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.mouse_wheel_zoom_speed = cfg_val);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("wheelzoom", Box::new(wz));
 
         // wheelaccel
@@ -1227,12 +1257,14 @@ impl MouseGroup {
             true,
         );
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        wa.scalar_field.on_value = Some(Box::new(move |val| {
-            let cfg_val = factor_val_to_cfg(val, 0.25, 2.0);
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.mouse_wheel_zoom_acceleration = cfg_val);
-            let _ = cm.Save();
-        }));
+        wa.scalar_field.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let cfg_val = factor_val_to_cfg(val, 0.25, 2.0);
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.mouse_wheel_zoom_acceleration = cfg_val);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("wheelaccel", Box::new(wa));
 
         // zoom
@@ -1246,12 +1278,14 @@ impl MouseGroup {
             false,
         );
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        zoom.scalar_field.on_value = Some(Box::new(move |val| {
-            let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.mouse_zoom_speed = cfg_val);
-            let _ = cm.Save();
-        }));
+        zoom.scalar_field.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.mouse_zoom_speed = cfg_val);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("zoom", Box::new(zoom));
 
         // scroll
@@ -1265,12 +1299,14 @@ impl MouseGroup {
             false,
         );
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
-        scroll.scalar_field.on_value = Some(Box::new(move |val| {
-            let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
-            let mut cm = config.borrow_mut();
-            cm.modify(|c| c.mouse_scroll_speed = cfg_val);
-            let _ = cm.Save();
-        }));
+        scroll.scalar_field.on_value = Some(Box::new(
+            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
+                let mut cm = config.borrow_mut();
+                cm.modify(|c| c.mouse_scroll_speed = cfg_val);
+                let _ = cm.Save();
+            },
+        ));
         ctx.create_child_with("scroll", Box::new(scroll));
 
         // MouseMiscGroup
@@ -1363,12 +1399,14 @@ impl ButtonsPanel {
         let mut btn = emButton::new("Reset To Defaults", self.look.clone());
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         let generation = Rc::clone(&self.generation);
-        btn.on_click = Some(Box::new(move || {
-            let mut cm = config.borrow_mut();
-            cm.SetToDefault();
-            let _ = cm.Save();
-            generation.set(generation.get() + 1);
-        }));
+        btn.on_click = Some(Box::new(
+            move |(), _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let mut cm = config.borrow_mut();
+                cm.SetToDefault();
+                let _ = cm.Save();
+                generation.set(generation.get() + 1);
+            },
+        ));
         ctx.create_child_with("reset", Box::new(ButtonPanel { button: btn }));
     }
 }

@@ -1001,7 +1001,7 @@ impl TkTestPanel {
                 let id = ctx.tree.create_child(rl_id, name, None);
                 let mut cb = emCheckBox::new(caption, look.clone());
                 if checked {
-                    cb.SetChecked(true);
+                    cb.SetChecked(true, ctx);
                 }
                 ctx.tree
                     .set_behavior(id, Box::new(CheckBoxPanel { widget: cb }));

@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::emColor::emColor;
-use crate::emEngineCtx::PanelCtx;
+use crate::emEngineCtx::{PanelCtx, WidgetCallback};
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPainter::{emPainter, TextAlignment, VAlign};
@@ -85,7 +85,7 @@ pub struct emColorField {
     /// Expansion child data, created during auto-expand.
     /// Port of C++ `emOwnPtr<Expansion> Exp`.
     expansion: Option<Box<Expansion>>,
-    pub on_color: Option<Box<dyn FnMut(emColor)>>,
+    pub on_color: Option<WidgetCallback<emColor>>,
 }
 
 const SWATCH_SIZE: f64 = 20.0;
@@ -129,9 +129,8 @@ impl emColorField {
                 self.UpdateHSVOutput(false);
                 self.UpdateNameOutput();
             }
-            if let Some(cb) = &mut self.on_color {
-                cb(color);
-            }
+            // DIVERGED-B3.3: callback deferred to B3.4 signal dispatch.
+            let _ = &self.on_color;
         }
     }
 
@@ -161,9 +160,8 @@ impl emColorField {
             self.alpha_enabled = alpha_enabled;
             if !alpha_enabled && self.color.GetAlpha() != 255 {
                 self.color = self.color.SetAlpha(255);
-                if let Some(cb) = &mut self.on_color {
-                    cb(self.color);
-                }
+                // DIVERGED-B3.3: callback deferred to B3.4 signal dispatch.
+                let _ = &self.on_color;
             }
         }
     }
@@ -284,9 +282,8 @@ impl emColorField {
             self.UpdateNameOutput();
         }
 
-        if let Some(cb) = &mut self.on_color {
-            cb(self.color);
-        }
+        // DIVERGED-B3.3: callback deferred to B3.4 signal dispatch.
+        let _ = &self.on_color;
 
         true
     }

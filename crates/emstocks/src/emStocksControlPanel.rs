@@ -496,6 +496,7 @@ impl emStocksControlPanel {
         config: &emStocksConfig,
         rec: &emStocksRec,
         list_box: &emStocksListBox,
+        ctx: &mut emcore::emEngineCtx::PanelCtx<'_>,
     ) {
         self.update_controls_needed = false;
 
@@ -512,10 +513,10 @@ impl emStocksControlPanel {
 
         widgets
             .auto_update_dates
-            .SetChecked(config.auto_update_dates);
+            .SetChecked(config.auto_update_dates, ctx);
         widgets
             .triggering_opens_web_page
-            .SetChecked(config.triggering_opens_web_page);
+            .SetChecked(config.triggering_opens_web_page, ctx);
         let cp_idx = chart_period_to_index(config.chart_period);
         widgets.chart_period.SetValue(cp_idx);
         widgets.chart_period_text = ChartPeriodTextOfValue(config.chart_period);
@@ -544,7 +545,7 @@ impl emStocksControlPanel {
         widgets.sorting_group.borrow_mut().SetChecked(sorting_idx);
         widgets
             .owned_shares_first
-            .SetChecked(config.owned_shares_first);
+            .SetChecked(config.owned_shares_first, ctx);
 
         // History navigation enabled state
         widgets.go_back_in_history_enabled = !rec
@@ -634,6 +635,16 @@ mod tests {
 
     fn make_panel() -> emStocksControlPanel {
         emStocksControlPanel::new(emLook::new())
+    }
+
+    /// Scratch `PanelCtx` for tests that call setters requiring a ctx param.
+    /// Returns a ctx with no scheduler reach — setters will update state but
+    /// callbacks will silently not fire (B3.3 semantics).
+    fn with_scratch_ctx<F: FnOnce(&mut emcore::emEngineCtx::PanelCtx<'_>)>(f: F) {
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("t", false);
+        let mut ctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+        f(&mut ctx);
     }
 
     #[test]
@@ -771,7 +782,7 @@ mod tests {
         let rec = emStocksRec::default();
         let list_box = emStocksListBox::new();
 
-        panel.UpdateControls(&config, &rec, &list_box);
+        with_scratch_ctx(|ctx| panel.UpdateControls(&config, &rec, &list_box, ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert_eq!(w.api_key.GetText(), "test-key");
@@ -805,7 +816,7 @@ mod tests {
         let rec = emStocksRec::default();
         let list_box = emStocksListBox::new();
 
-        panel.UpdateControls(&config, &rec, &list_box);
+        with_scratch_ctx(|ctx| panel.UpdateControls(&config, &rec, &list_box, ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert!(!w.find_next_enabled);
@@ -822,7 +833,7 @@ mod tests {
         let list_box = emStocksListBox::new();
 
         // No selection
-        panel.UpdateControls(&config, &rec, &list_box);
+        with_scratch_ctx(|ctx| panel.UpdateControls(&config, &rec, &list_box, ctx));
         let w = panel.widgets.as_ref().unwrap();
         assert!(!w.cut_stocks_enabled);
         assert!(!w.copy_stocks_enabled);
@@ -846,7 +857,7 @@ mod tests {
         list_box.visible_items = vec![0, 1];
         list_box.Select(0);
 
-        panel.UpdateControls(&config, &rec, &list_box);
+        with_scratch_ctx(|ctx| panel.UpdateControls(&config, &rec, &list_box, ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert!(w.cut_stocks_enabled);
@@ -875,7 +886,7 @@ mod tests {
         list_box.visible_items = vec![0];
         list_box.Select(0);
 
-        panel.UpdateControls(&config, &rec, &list_box);
+        with_scratch_ctx(|ctx| panel.UpdateControls(&config, &rec, &list_box, ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert!(!w.select_all_enabled); // all already selected
@@ -903,7 +914,7 @@ mod tests {
         list_box.visible_items = vec![0];
         list_box.SetSelectedDate("2024-06-15");
 
-        panel.UpdateControls(&config, &rec, &list_box);
+        with_scratch_ctx(|ctx| panel.UpdateControls(&config, &rec, &list_box, ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         // trade_value = 10 * 5.00 = 50.00
@@ -925,7 +936,7 @@ mod tests {
         let mut list_box = emStocksListBox::new();
         list_box.visible_items = vec![0];
 
-        panel.UpdateControls(&config, &rec, &list_box);
+        with_scratch_ctx(|ctx| panel.UpdateControls(&config, &rec, &list_box, ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         // No owned stocks, so totals are valid but 0
@@ -943,7 +954,7 @@ mod tests {
         let rec = emStocksRec::default();
         let list_box = emStocksListBox::new();
 
-        panel.UpdateControls(&config, &rec, &list_box);
+        with_scratch_ctx(|ctx| panel.UpdateControls(&config, &rec, &list_box, ctx));
         // Should not panic, just returns early
         assert!(!panel.update_controls_needed);
         assert!(panel.widgets.is_none());
@@ -1022,7 +1033,7 @@ mod tests {
         let rec = emStocksRec::default();
         let list_box = emStocksListBox::new();
 
-        panel.UpdateControls(&original, &rec, &list_box);
+        with_scratch_ctx(|ctx| panel.UpdateControls(&original, &rec, &list_box, ctx));
 
         let mut readback = emStocksConfig::default();
         panel.ReadFromWidgets(&mut readback);
@@ -1064,7 +1075,7 @@ mod tests {
             };
             let rec = emStocksRec::default();
             let list_box = emStocksListBox::new();
-            panel.UpdateControls(&config_in, &rec, &list_box);
+            with_scratch_ctx(|ctx| panel.UpdateControls(&config_in, &rec, &list_box, ctx));
 
             let mut config_out = emStocksConfig::default();
             panel.ReadFromWidgets(&mut config_out);
@@ -1085,7 +1096,7 @@ mod tests {
             };
             let rec = emStocksRec::default();
             let list_box = emStocksListBox::new();
-            panel.UpdateControls(&config_in, &rec, &list_box);
+            with_scratch_ctx(|ctx| panel.UpdateControls(&config_in, &rec, &list_box, ctx));
 
             let mut config_out = emStocksConfig::default();
             panel.ReadFromWidgets(&mut config_out);
@@ -1112,7 +1123,7 @@ mod tests {
             };
             let rec = emStocksRec::default();
             let list_box = emStocksListBox::new();
-            panel.UpdateControls(&config_in, &rec, &list_box);
+            with_scratch_ctx(|ctx| panel.UpdateControls(&config_in, &rec, &list_box, ctx));
 
             let mut config_out = emStocksConfig::default();
             panel.ReadFromWidgets(&mut config_out);

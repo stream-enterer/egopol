@@ -246,7 +246,11 @@ fn parallel_checkbox() {
     require_golden!();
     let look = emLook::new();
     let mut cb = emCheckBox::new("Check Option", look);
-    cb.SetChecked(true);
+    // Scratch ctx — no scheduler reach; cb has no callback so SetChecked is pure state.
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("t", false);
+    let mut ctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, root, 1.0);
+    cb.SetChecked(true, &mut ctx);
     assert_parallel_identical(
         "widget_checkbox_checked",
         Box::new(CheckBoxBehavior { check_box: cb }),

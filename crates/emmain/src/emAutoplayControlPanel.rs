@@ -284,9 +284,11 @@ impl SettingsPanel {
         sf.SetEditable(true);
         sf.SetScaleMarkIntervals(&[100, 20, 5]);
         sf.SetTextOfValueFunc(Box::new(DurationTextOfValue));
-        sf.on_value = Some(Box::new(move |v| {
-            flags.duration_value.set(Some(v));
-        }));
+        sf.on_value = Some(Box::new(
+            move |v, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                flags.duration_value.set(Some(v));
+            },
+        ));
         let sf_id = ctx.create_child_with(
             "duration",
             Box::new(AutoplayScalarFieldPanel { scalar_field: sf }),
@@ -305,9 +307,11 @@ impl SettingsPanel {
         let flags = Rc::clone(&self.flags);
         let mut cb_recursive = emCheckBox::new("Recursive", Rc::clone(&look));
         cb_recursive.SetDescription("Whether autoplay shall play subdirectories recursively.");
-        cb_recursive.on_check = Some(Box::new(move |checked| {
-            flags.recursive.set(Some(checked));
-        }));
+        cb_recursive.on_check = Some(Box::new(
+            move |checked, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                flags.recursive.set(Some(checked));
+            },
+        ));
         let recursive_id = ctx.create_child_with(
             "recursive",
             Box::new(AutoplayCheckBoxPanel {
@@ -331,9 +335,11 @@ impl SettingsPanel {
             "Whether autoplay shall start from the beginning\n\
              after reaching the end.",
         );
-        cb_loop.on_check = Some(Box::new(move |checked| {
-            flags.loop_toggle.set(Some(checked));
-        }));
+        cb_loop.on_check = Some(Box::new(
+            move |checked, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                flags.loop_toggle.set(Some(checked));
+            },
+        ));
         let loop_id = ctx.create_child_with(
             "loop",
             Box::new(AutoplayCheckBoxPanel { check_box: cb_loop }),
@@ -421,9 +427,11 @@ impl PrevNextPanel {
              when autoplay is off, for a manual show.\n\n\
              Hotkey: Shift+F12, backward button of the mouse",
         );
-        btn_prev.on_click = Some(Box::new(move || {
-            flags.prev.set(true);
-        }));
+        btn_prev.on_click = Some(Box::new(
+            move |(), _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                flags.prev.set(true);
+            },
+        ));
         ctx.create_child_with("prev", Box::new(AutoplayButtonPanel { button: btn_prev }));
 
         // ── BtNext ──
@@ -434,9 +442,11 @@ impl PrevNextPanel {
              when autoplay is off, for a manual show.\n\n\
              Hotkeys: F12, forward button of the mouse",
         );
-        btn_next.on_click = Some(Box::new(move || {
-            flags.next.set(true);
-        }));
+        btn_next.on_click = Some(Box::new(
+            move |(), _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                flags.next.set(true);
+            },
+        ));
         ctx.create_child_with("next", Box::new(AutoplayButtonPanel { button: btn_next }));
 
         self.children_created = true;
@@ -512,9 +522,11 @@ impl emAutoplayControlPanel {
              the thing you have zoomed in) and follows the visual order.\n\n\
              Hotkey: Ctrl+F12",
         );
-        btn_autoplay.on_check = Some(Box::new(move |checked| {
-            toggle_flags.toggle.set(Some(checked));
-        }));
+        btn_autoplay.on_check = Some(Box::new(
+            move |checked, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                toggle_flags.toggle.set(Some(checked));
+            },
+        ));
         let autoplay_id = ctx.create_child_with(
             "autoplay",
             Box::new(AutoplayCheckButtonPanel {
@@ -552,9 +564,11 @@ impl emAutoplayControlPanel {
             "Start autoplay where it has stopped for the last time.\n\n\
              Hotkey: Shift+Ctrl+F12",
         );
-        btn_cont.on_click = Some(Box::new(move || {
-            cont_flags.continue_last.set(true);
-        }));
+        btn_cont.on_click = Some(Box::new(
+            move |(), _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                cont_flags.continue_last.set(true);
+            },
+        ));
         let cont_id =
             ctx.create_child_with("cont", Box::new(AutoplayButtonPanel { button: btn_cont }));
         self.layout.set_child_constraint(

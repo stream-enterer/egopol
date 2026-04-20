@@ -19,6 +19,11 @@ use crate::emScheduler::EngineScheduler;
 use crate::emSignal::SignalId;
 use crate::emWindow::emWindow;
 
+/// Widget callback carried by emCheckButton, emButton, etc. Takes the
+/// widget's event payload plus a `SchedCtx` so the callback can fire
+/// signals / register engines / access clipboard. Spec §3.5 D6.1.
+pub type WidgetCallback<Args> = Box<dyn for<'a, 'b> FnMut(Args, &'b mut SchedCtx<'a>)>;
+
 pub enum DeferredAction {
     /// Close a winit window after the current time slice. Drained by the
     /// framework's post-cycle action pump so that window teardown does not

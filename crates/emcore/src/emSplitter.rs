@@ -1,5 +1,5 @@
 use crate::emCursor::emCursor;
-use crate::emEngineCtx::PanelCtx;
+use crate::emEngineCtx::{PanelCtx, WidgetCallback};
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPainter::{emPainter, BORDER_EDGES_ONLY};
@@ -32,7 +32,7 @@ pub struct emSplitter {
     /// Cached dimensions from the last paint call.
     last_w: f64,
     last_h: f64,
-    pub on_position: Option<Box<dyn FnMut(f64)>>,
+    pub on_position: Option<WidgetCallback<f64>>,
 }
 
 impl emSplitter {
@@ -90,9 +90,10 @@ impl emSplitter {
         let clamped = pos.clamp(self.min_position, self.max_position);
         if (self.position - clamped).abs() > f64::EPSILON {
             self.position = clamped;
-            if let Some(cb) = &mut self.on_position {
-                cb(self.position);
-            }
+            // DIVERGED-B3.3: SetPos is called from non-ctx-bearing contexts
+            // (SetMinMaxPos, tests, external callers). Callback fire deferred
+            // to B3.4 signal dispatch. B3.3 preserves the state mutation.
+            let _ = &self.on_position;
         }
     }
 

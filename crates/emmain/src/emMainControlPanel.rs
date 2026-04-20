@@ -690,18 +690,22 @@ impl CommandsPanel {
         let flag = Rc::clone(&flags);
         let mut btn_nw = emButton::new("New Window", Rc::clone(&look));
         btn_nw.SetDescription("Create a new window showing the same location.\n\nHotkey: F4");
-        btn_nw.on_click = Some(Box::new(move || {
-            flag.new_window.set(true);
-        }));
+        btn_nw.on_click = Some(Box::new(
+            move |(), _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                flag.new_window.set(true);
+            },
+        ));
         let nw_id =
             ctx.create_child_with("new window", Box::new(MainButtonPanel { button: btn_nw }));
 
         // ── BtFullscreen ──
         let flag = Rc::clone(&flags);
         let mut btn_fs = emCheckButton::new("Fullscreen", Rc::clone(&look));
-        btn_fs.on_check = Some(Box::new(move |_checked| {
-            flag.fullscreen.set(true);
-        }));
+        btn_fs.on_check = Some(Box::new(
+            move |_checked, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                flag.fullscreen.set(true);
+            },
+        ));
         let fs_id = ctx.create_child_with(
             "fullscreen",
             Box::new(MainCheckButtonPanel {
@@ -715,9 +719,11 @@ impl CommandsPanel {
         btn_reload.SetDescription(
             "Reload files and directories which are currently shown by this program.\n\nHotkey: F5",
         );
-        btn_reload.on_click = Some(Box::new(move || {
-            flag.reload.set(true);
-        }));
+        btn_reload.on_click = Some(Box::new(
+            move |(), _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                flag.reload.set(true);
+            },
+        ));
         let reload_id =
             ctx.create_child_with("reload", Box::new(MainButtonPanel { button: btn_reload }));
 
@@ -732,9 +738,11 @@ impl CommandsPanel {
         let flag_close = Rc::clone(&flags);
         let mut btn_close = emButton::new("Close", Rc::clone(&look));
         btn_close.SetDescription("Close this window.\n\nHotkey: Alt+F4");
-        btn_close.on_click = Some(Box::new(move || {
-            flag_close.close.set(true);
-        }));
+        btn_close.on_click = Some(Box::new(
+            move |(), _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                flag_close.close.set(true);
+            },
+        ));
         let close_id =
             ctx.create_child_with("close", Box::new(MainButtonPanel { button: btn_close }));
 
@@ -743,9 +751,11 @@ impl CommandsPanel {
         btn_quit.SetDescription(
             "Close all windows of this process (and terminate this process).\n\nHotkey: Shift+Alt+F4",
         );
-        btn_quit.on_click = Some(Box::new(move || {
-            flag_quit.quit.set(true);
-        }));
+        btn_quit.on_click = Some(Box::new(
+            move |(), _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                flag_quit.quit.set(true);
+            },
+        ));
         let quit_id = ctx.create_child_with("quit", Box::new(MainButtonPanel { button: btn_quit }));
 
         // C++ grCommands child weights:

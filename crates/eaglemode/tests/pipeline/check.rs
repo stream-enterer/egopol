@@ -268,9 +268,11 @@ fn setup_checkbutton_with_recorder() -> CheckButtonRecorder {
     let mut cb = emCheckButton::new("Test", look);
     let states = Rc::new(RefCell::new(Vec::new()));
     let states_clone = states.clone();
-    cb.on_check = Some(Box::new(move |checked| {
-        states_clone.borrow_mut().push(checked);
-    }));
+    cb.on_check = Some(Box::new(
+        move |checked, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+            states_clone.borrow_mut().push(checked);
+        },
+    ));
     let cb_ref = Rc::new(RefCell::new(cb));
     let panel_id = h.add_panel_with(
         root,
@@ -315,16 +317,21 @@ fn checkbutton_set_checked_fires_callback() {
 
     let look = emLook::new();
     let mut cb = emCheckButton::new("Test", look);
-    cb.on_check = Some(Box::new(move |checked| {
-        states_clone.borrow_mut().push(checked);
-    }));
+    cb.on_check = Some(Box::new(
+        move |checked, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+            states_clone.borrow_mut().push(checked);
+        },
+    ));
 
-    // set_checked(true) from false -> fires callback with true
-    cb.SetChecked(true);
+    // Build a sched-reach ctx via PipelineTestHarness so the callback can fire.
+    let mut h = PipelineTestHarness::new();
+    h.with_panel_ctx_sched(|ctx| {
+        cb.SetChecked(true, ctx);
+    });
     assert_eq!(*states.borrow(), vec![true]);
-
-    // set_checked(false) from true -> fires callback with false
-    cb.SetChecked(false);
+    h.with_panel_ctx_sched(|ctx| {
+        cb.SetChecked(false, ctx);
+    });
     assert_eq!(*states.borrow(), vec![true, false]);
 }
 
@@ -340,19 +347,28 @@ fn checkbutton_set_checked_noop_same_value() {
 
     let look = emLook::new();
     let mut cb = emCheckButton::new("Test", look);
-    cb.on_check = Some(Box::new(move |checked| {
-        states_clone.borrow_mut().push(checked);
-    }));
+    cb.on_check = Some(Box::new(
+        move |checked, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+            states_clone.borrow_mut().push(checked);
+        },
+    ));
 
-    // Setting to false when already false -> no callback
-    cb.SetChecked(false);
+    let mut h = PipelineTestHarness::new();
+    h.with_panel_ctx_sched(|ctx| {
+        // Setting to false when already false -> no callback
+        cb.SetChecked(false, ctx);
+    });
     assert!(states.borrow().is_empty(), "no callback for same value");
 
-    cb.SetChecked(true);
+    h.with_panel_ctx_sched(|ctx| {
+        cb.SetChecked(true, ctx);
+    });
     assert_eq!(states.borrow().len(), 1);
 
     // Setting to true when already true -> no callback
-    cb.SetChecked(true);
+    h.with_panel_ctx_sched(|ctx| {
+        cb.SetChecked(true, ctx);
+    });
     assert_eq!(
         states.borrow().len(),
         1,

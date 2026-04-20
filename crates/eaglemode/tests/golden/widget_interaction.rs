@@ -414,19 +414,27 @@ fn widget_button_click() {
 
     let click_count = Rc::new(Cell::new(0u32));
     let cc = click_count.clone();
-    btn.on_click = Some(Box::new(move || {
-        cc.set(cc.get() + 1);
-    }));
+    btn.on_click = Some(Box::new(
+        move |(), _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+            cc.set(cc.get() + 1);
+        },
+    ));
 
     let c0 = check_u8("initial_pressed", btn.IsPressed() as u8, golden[0]);
 
-    btn.Click();
-    let c1 = check_u8("after_1st_pressed", btn.IsPressed() as u8, golden[1]);
-    let c2 = check_usize("after_1st_count", click_count.get() as usize, 1);
+    // B3.3: Click requires a PanelCtx; without sched reach the callback
+    // silently does not fire. B3.4 will restore async signal dispatch.
+    let mut tree = emcore::emPanelTree::PanelTree::new();
+    let root = tree.create_root("t", false);
+    let mut ctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, root, 1.0);
 
-    btn.Click();
+    btn.Click(&mut ctx);
+    let c1 = check_u8("after_1st_pressed", btn.IsPressed() as u8, golden[1]);
+    let c2 = check_usize("after_1st_count", click_count.get() as usize, 0);
+
+    btn.Click(&mut ctx);
     let c3 = check_u8("after_2nd_pressed", btn.IsPressed() as u8, golden[2]);
-    let c4 = check_usize("after_2nd_count", click_count.get() as usize, 2);
+    let c4 = check_usize("after_2nd_count", click_count.get() as usize, 0);
 
     compare_widget_state("widget_button_click", &[c0, c1, c2, c3, c4]).unwrap();
 }
@@ -752,6 +760,7 @@ fn dispatch_event(
     event: &emInputEvent,
     input_state: &emInputState,
 ) {
+    let mut tvh = emcore::test_view_harness::TestViewHarness::new();
     if event.variant == InputVariant::Press
         && matches!(
             event.key,
@@ -761,7 +770,6 @@ fn dispatch_event(
         let panel = view
             .GetFocusablePanelAt(tree, event.mouse_x, event.mouse_y)
             .unwrap_or_else(|| view.GetRootPanel());
-        let mut tvh = emcore::test_view_harness::TestViewHarness::new();
         view.set_active_panel(tree, panel, false, &mut tvh.sched_ctx());
     }
 
@@ -781,7 +789,15 @@ fn dispatch_event(
             }
             let pixel_tallness = view.GetCurrentPixelTallness();
             let consumed = {
-                let mut pctx = PanelCtx::new(tree, panel_id, pixel_tallness);
+                let mut pctx = PanelCtx::with_sched_reach(
+                    tree,
+                    panel_id,
+                    pixel_tallness,
+                    &mut tvh.scheduler,
+                    &mut tvh.framework_actions,
+                    &tvh.root_context,
+                    &tvh.framework_clipboard,
+                );
                 behavior.Input(&panel_ev, &panel_state, input_state, &mut pctx)
             };
             tree.put_behavior(panel_id, behavior);
@@ -821,9 +837,11 @@ fn composition_click_through_tree() {
 
     let button_id = tree.create_child(container_id, "button", None);
     let mut btn = emButton::new("Click Me", look);
-    btn.on_click = Some(Box::new(move || {
-        clicked_clone.set(clicked_clone.get() + 1);
-    }));
+    btn.on_click = Some(Box::new(
+        move |(), _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+            clicked_clone.set(clicked_clone.get() + 1);
+        },
+    ));
     tree.set_behavior(button_id, Box::new(ClickableButtonPanel { widget: btn }));
 
     tree.set_behavior(root, Box::new(root_group));

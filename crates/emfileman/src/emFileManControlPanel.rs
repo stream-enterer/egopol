@@ -183,12 +183,21 @@ impl emFileManControlPanel {
             last_config_gen,
             dir_path: None,
         };
-        panel.sync_from_config();
+
+        // Initial sync at construction time with a scratch PanelCtx (no
+        // scheduler reach). State is updated; callbacks silently don't fire,
+        // which is exactly what we want during construction.
+        {
+            let mut tree = emcore::emPanelTree::PanelTree::new();
+            let id = tree.create_root("init", false);
+            let mut ctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            panel.sync_from_config(&mut ctx);
+        }
         panel
     }
 
     /// Read current config state into widget state.
-    fn sync_from_config(&mut self) {
+    fn sync_from_config(&mut self, ctx: &mut emcore::emEngineCtx::PanelCtx<'_>) {
         let cfg = self.config.borrow();
         self.sort_group
             .borrow_mut()
@@ -197,9 +206,10 @@ impl emFileManControlPanel {
             .borrow_mut()
             .SetChecked(cfg.GetNameSortingStyle() as usize);
         self.dirs_first_check
-            .SetChecked(cfg.GetSortDirectoriesFirst());
-        self.show_hidden_check.SetChecked(cfg.GetShowHiddenFiles());
-        self.autosave_check.SetChecked(cfg.GetAutosave());
+            .SetChecked(cfg.GetSortDirectoriesFirst(), ctx);
+        self.show_hidden_check
+            .SetChecked(cfg.GetShowHiddenFiles(), ctx);
+        self.autosave_check.SetChecked(cfg.GetAutosave(), ctx);
 
         // Sync theme style and AR from current theme name
         let theme_name = cfg.GetThemeName().to_string();
@@ -293,7 +303,7 @@ impl PanelBehavior for emFileManControlPanel {
         let gen = self.config.borrow().GetChangeSignal();
         if gen != self.last_config_gen {
             self.last_config_gen = gen;
-            self.sync_from_config();
+            self.sync_from_config(_ctx);
             true
         } else {
             false
@@ -435,7 +445,7 @@ impl PanelBehavior for emFileManControlPanel {
                     drop(tn);
                     if let Some(name) = name {
                         self.config.borrow_mut().SetThemeName(&name);
-                        self.sync_from_config();
+                        self.sync_from_config(_ctx);
                     }
                 }
                 return true;

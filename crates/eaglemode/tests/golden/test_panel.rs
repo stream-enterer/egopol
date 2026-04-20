@@ -1366,9 +1366,11 @@ impl PanelBehavior for TestPanel {
         cf.SetEditable(true);
         cf.SetAlphaEnabled(true);
         cf.SetColor(bg_shared.get());
-        cf.on_color = Some(Box::new(move |color| {
-            bg_for_cf.set(color);
-        }));
+        cf.on_color = Some(Box::new(
+            move |color, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                bg_for_cf.set(color);
+            },
+        ));
         ctx.create_child_with("bgcf", Box::new(ColorFieldPanel { widget: cf }));
 
         ctx.create_child_with("polydraw", Box::new(PolyDrawPanel::new()));
@@ -2012,7 +2014,7 @@ impl TkTestPanel {
                 let id = ctx.tree.create_child(rl_id, name, None);
                 let mut cb = emCheckBox::new(caption, look.clone());
                 if checked {
-                    cb.SetChecked(true);
+                    cb.SetChecked(true, ctx);
                 }
                 ctx.tree
                     .set_behavior(id, Box::new(CheckBoxPanel { widget: cb }));

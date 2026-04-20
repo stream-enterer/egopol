@@ -357,7 +357,11 @@ fn widget_checkbox_checked() {
     require_golden!();
     let look = emLook::new();
     let mut cb = emCheckBox::new("Check Option", look);
-    cb.SetChecked(true);
+    // Scratch ctx — no scheduler reach needed; cb has no callback installed.
+    let mut tree = emcore::emPanelTree::PanelTree::new();
+    let root = tree.create_root("t", false);
+    let mut ctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, root, 1.0);
+    cb.SetChecked(true, &mut ctx);
     // Residual from checkbox GetImage + text rendering diffs (~5.1%)
     render_and_compare_tol(
         "widget_checkbox_checked",

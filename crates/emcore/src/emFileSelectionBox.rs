@@ -678,6 +678,11 @@ impl PanelBehavior for TextFilePanel {
     }
 }
 
+// DIVERGED-B3.3: FileTriggerCb takes `&str` which cannot be expressed as a
+// lifetime-parametric `WidgetCallback<T>`. SelectionChangedCb is zero-arg
+// but is paired with FileTriggerCb on the same widget and fires from the
+// same cycle context, so it keeps the plain form for symmetry. Both remain
+// plain `Box<dyn FnMut>` and fire without scheduler reach until B3.4.
 type SelectionChangedCb = Box<dyn FnMut()>;
 type FileTriggerCb = Box<dyn FnMut(&str)>;
 
@@ -1091,12 +1096,14 @@ impl emFileSelectionBox {
         // 2. HiddenCheckBox
         if !self.hidden_check_box_hidden {
             let mut cb = emCheckBox::new("Show\nHidden\nFiles", self.look.clone());
-            cb.SetChecked(self.hidden_files_shown);
+            cb.SetChecked(self.hidden_files_shown, ctx);
             let events = self.events.clone();
-            cb.on_check = Some(Box::new(move |checked: bool| {
-                let mut e = events.borrow_mut();
-                e.hidden_toggled = Some(checked);
-            }));
+            cb.on_check = Some(Box::new(
+                move |checked: bool, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                    let mut e = events.borrow_mut();
+                    e.hidden_toggled = Some(checked);
+                },
+            ));
             let id =
                 ctx.create_child_with("showHiddenFiles", Box::new(CheckBoxPanel { check_box: cb }));
             self.hidden_cb_id = Some(id);

@@ -22,6 +22,7 @@ pub struct PriSchedModel {
 struct AgentEntry {
     priority: f64,
     waiting: bool,
+    // Non-widget callback — scheduler bookkeeping (got_access); no scheduler reach required.
     callback: Option<Box<dyn FnMut()>>,
 }
 
@@ -99,6 +100,7 @@ impl PriSchedModel {
 
     /// Register a new agent with the given priority and callback.
     /// Returns an ID that can be used to interact with this agent.
+    // Non-widget callback — scheduler bookkeeping; no scheduler reach required.
     pub fn add_agent(&mut self, priority: f64, got_access: Box<dyn FnMut()>) -> PriSchedAgentId {
         let mut model = self.inner.borrow_mut();
         let id = PriSchedAgentId(model.agents.len());

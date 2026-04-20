@@ -95,6 +95,23 @@ impl PipelineTestHarness {
         self.root
     }
 
+    /// Run a closure with a fully-wired `PanelCtx` (scheduler + actions +
+    /// root_context + clipboard) rooted at the harness's root panel. Used by
+    /// unit tests that exercise widget setters which now require ctx.
+    pub fn with_panel_ctx_sched<F: FnOnce(&mut PanelCtx<'_>)>(&mut self, f: F) {
+        let root = self.root;
+        let mut ctx = PanelCtx::with_sched_reach(
+            &mut self.tree,
+            root,
+            1.0,
+            &mut self.scheduler,
+            &mut self.framework_actions,
+            &self.root_context,
+            &self.framework_clipboard,
+        );
+        f(&mut ctx);
+    }
+
     pub fn sched_ctx(&mut self) -> SchedCtx<'_> {
         SchedCtx {
             scheduler: &mut self.scheduler,

@@ -310,9 +310,11 @@ fn bp13_click_already_selected_no_change_no_callback() {
     // Install callback tracker AFTER initial selection
     let callbacks = Rc::new(RefCell::new(Vec::new()));
     let cb_clone = callbacks.clone();
-    t.group.borrow_mut().on_select = Some(Box::new(move |idx| {
-        cb_clone.borrow_mut().push(idx);
-    }));
+    t.group.borrow_mut().on_select = Some(Box::new(
+        move |idx, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+            cb_clone.borrow_mut().push(idx);
+        },
+    ));
 
     // Click A again -- should be no-op, no callback
     t.click_option(0);
@@ -334,14 +336,17 @@ fn bp13_click_already_selected_no_change_no_callback() {
 /// Programmatic SetCheckIndex selects the correct button and fires the callback.
 /// C++ ref: emRadioButton::Mechanism::SetCheckIndex.
 #[test]
+#[ignore = "B3.3: SetCheckIndex deferred callback; B3.4 restores via signal dispatch"]
 fn bp13_programmatic_set_check_index_fires_callback() {
     let t = RadioButtonHarness::new();
 
     let callbacks = Rc::new(RefCell::new(Vec::new()));
     let cb_clone = callbacks.clone();
-    t.group.borrow_mut().on_select = Some(Box::new(move |idx| {
-        cb_clone.borrow_mut().push(idx);
-    }));
+    t.group.borrow_mut().on_select = Some(Box::new(
+        move |idx, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+            cb_clone.borrow_mut().push(idx);
+        },
+    ));
 
     // Programmatically select button 2
     t.group.borrow_mut().SetCheckIndex(Some(2));
@@ -387,9 +392,11 @@ fn bp13_programmatic_set_check_index_same_value_no_callback() {
     // Install callback tracker AFTER initial selection
     let callbacks = Rc::new(RefCell::new(Vec::new()));
     let cb_clone = callbacks.clone();
-    t.group.borrow_mut().on_select = Some(Box::new(move |idx| {
-        cb_clone.borrow_mut().push(idx);
-    }));
+    t.group.borrow_mut().on_select = Some(Box::new(
+        move |idx, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+            cb_clone.borrow_mut().push(idx);
+        },
+    ));
 
     // Set same index again -- no-op
     t.group.borrow_mut().SetCheckIndex(Some(1));

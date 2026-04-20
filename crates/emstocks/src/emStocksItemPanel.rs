@@ -293,7 +293,12 @@ impl emStocksItemPanel {
     /// Port of C++ emStocksItemPanel::UpdateControls.
     /// Syncs stock record data to widget instances.
     // C++ reads stock/selected_date from owned FileModel/ListBox. Rust passes explicitly — avoids shared mutable state.
-    pub fn UpdateControls(&mut self, stock: &StockRec, selected_date: &str) {
+    pub fn UpdateControls(
+        &mut self,
+        stock: &StockRec,
+        selected_date: &str,
+        ctx: &mut emcore::emEngineCtx::PanelCtx<'_>,
+    ) {
         self.update_controls_needed = false;
 
         let w = match self.widgets.as_mut() {
@@ -327,7 +332,7 @@ impl emStocksItemPanel {
         w.isin.SetText(&stock.isin);
 
         // OwningShares
-        w.owning_shares.SetChecked(stock.owning_shares);
+        w.owning_shares.SetChecked(stock.owning_shares, ctx);
 
         // OwnShares
         w.own_shares.SetText(&stock.own_shares);
@@ -581,6 +586,16 @@ mod tests {
         emLook::new()
     }
 
+    /// Scratch `PanelCtx` for tests that call setters requiring a ctx param.
+    /// Returns a ctx with no scheduler reach — setters will update state but
+    /// callbacks will silently not fire (B3.3 semantics).
+    fn with_scratch_ctx<F: FnOnce(&mut emcore::emEngineCtx::PanelCtx<'_>)>(f: F) {
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("t", false);
+        let mut ctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+        f(&mut ctx);
+    }
+
     #[test]
     fn item_panel_new() {
         let panel = emStocksItemPanel::new(make_look());
@@ -762,7 +777,7 @@ mod tests {
     fn update_controls_without_widgets_is_noop() {
         let mut panel = emStocksItemPanel::new(make_look());
         let stock = StockRec::default();
-        panel.UpdateControls(&stock, "2024-03-15");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "2024-03-15", ctx));
         assert!(!panel.update_controls_needed);
         assert!(panel.widgets.is_none());
     }
@@ -775,7 +790,7 @@ mod tests {
         stock.name = "ACME Corp".to_string();
         stock.owning_shares = true;
 
-        panel.UpdateControls(&stock, "");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert_eq!(w.name_label.caption(), "ACME Corp");
@@ -788,7 +803,7 @@ mod tests {
         panel.AutoExpand();
         let stock = StockRec::default(); // owning_shares = false by default
 
-        panel.UpdateControls(&stock, "");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert_eq!(w.name_label.caption(), "<unnamed>");
@@ -802,7 +817,7 @@ mod tests {
         let mut stock = StockRec::default();
         stock.owning_shares = true;
 
-        panel.UpdateControls(&stock, "");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert_eq!(w.trade_price.GetCaption(), "Purchase Price");
@@ -817,7 +832,7 @@ mod tests {
         panel.AutoExpand();
         let stock = StockRec::default();
 
-        panel.UpdateControls(&stock, "");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert_eq!(w.trade_price.GetCaption(), "Sale Price");
@@ -838,7 +853,7 @@ mod tests {
         stock.last_price_date = "2024-03-15".to_string();
         stock.prices = "100.50".to_string();
 
-        panel.UpdateControls(&stock, "2024-03-15");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "2024-03-15", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert_eq!(w.trade_value.GetText(), "1500.00");
@@ -852,7 +867,7 @@ mod tests {
         panel.AutoExpand();
         let stock = StockRec::default();
 
-        panel.UpdateControls(&stock, "2024-03-15");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "2024-03-15", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert!(w.trade_value.GetText().is_empty());
@@ -878,7 +893,7 @@ mod tests {
         stock.interest = Interest::High;
         stock.comment = "Good stock".to_string();
 
-        panel.UpdateControls(&stock, "");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert_eq!(w.name.GetText(), "Test Stock");
@@ -908,7 +923,7 @@ mod tests {
             "http://test.com".to_string(),
         ];
 
-        panel.UpdateControls(&stock, "");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert_eq!(w.web_pages[0].GetText(), "http://example.com");
@@ -929,7 +944,7 @@ mod tests {
         let mut stock = StockRec::default();
         stock.symbol = "TST".to_string();
 
-        panel.UpdateControls(&stock, "");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert!(w.fetch_share_price_enabled);
@@ -941,7 +956,7 @@ mod tests {
         panel.AutoExpand();
         let stock = StockRec::default();
 
-        panel.UpdateControls(&stock, "");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert!(!w.fetch_share_price_enabled);
@@ -955,7 +970,7 @@ mod tests {
         stock.last_price_date = "2024-03-15".to_string();
         stock.prices = "100.50".to_string();
 
-        panel.UpdateControls(&stock, "2024-03-15");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "2024-03-15", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert_eq!(w.price.GetText(), "100.50");
@@ -968,7 +983,7 @@ mod tests {
         panel.AutoExpand();
         let stock = StockRec::default();
 
-        panel.UpdateControls(&stock, "2024-03-15");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "2024-03-15", ctx));
 
         let w = panel.widgets.as_ref().unwrap();
         assert!(w.price.GetText().is_empty());
@@ -982,7 +997,7 @@ mod tests {
         assert!(panel.update_controls_needed);
 
         let stock = StockRec::default();
-        panel.UpdateControls(&stock, "");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "", ctx));
         assert!(!panel.update_controls_needed);
     }
 
@@ -1052,7 +1067,7 @@ mod tests {
         stock.prices = "100.00|200.00".to_string();
 
         // UpdateControls pushes stock → widgets
-        panel.UpdateControls(&stock, "");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "", ctx));
 
         // Change symbol in widget
         panel.widgets.as_mut().unwrap().symbol.SetText("NEW");
@@ -1076,7 +1091,7 @@ mod tests {
         stock.symbol = "SAME".to_string();
         stock.prices = "100.00".to_string();
 
-        panel.UpdateControls(&stock, "");
+        with_scratch_ctx(|ctx| panel.UpdateControls(&stock, "", ctx));
         panel.ReadFromWidgets(&mut stock, &config);
 
         assert_eq!(stock.symbol, "SAME");
@@ -1133,12 +1148,14 @@ mod tests {
         panel.AutoExpand();
         let config = make_config();
 
-        panel
-            .widgets
-            .as_mut()
-            .unwrap()
-            .owning_shares
-            .SetChecked(true);
+        with_scratch_ctx(|ctx| {
+            panel
+                .widgets
+                .as_mut()
+                .unwrap()
+                .owning_shares
+                .SetChecked(true, ctx);
+        });
 
         let mut stock = StockRec::default();
         stock.owning_shares = false;

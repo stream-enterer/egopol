@@ -12,6 +12,7 @@ use crate::emStroke::{emStroke, emStrokeEnd, LineCap, LineJoin, StrokeEndType};
 use super::emBorder::{emBorder, OuterBorderType};
 use crate::emBorder::with_toolkit_images;
 use crate::emButton::{HOWTO_BUTTON, HOWTO_EOI_BUTTON};
+use crate::emEngineCtx::{PanelCtx, WidgetCallback};
 use crate::emLook::emLook;
 
 /// emCheckBox widget — Margin border with ShownBoxed paint path.
@@ -32,7 +33,7 @@ pub struct emCheckBox {
     last_h: f64,
     // DIVERGED: GetCheckSignal — replaced by callback field `on_check` (inherited from emCheckButton)
     // DIVERGED: CheckChanged — folded into `on_check` callback invocation
-    pub on_check: Option<Box<dyn FnMut(bool)>>,
+    pub on_check: Option<WidgetCallback<bool>>,
 }
 
 impl emCheckBox {
@@ -63,11 +64,13 @@ impl emCheckBox {
         self.checked
     }
 
-    pub fn SetChecked(&mut self, checked: bool) {
+    pub fn SetChecked(&mut self, checked: bool, ctx: &mut PanelCtx<'_>) {
         if self.checked != checked {
             self.checked = checked;
-            if let Some(cb) = &mut self.on_check {
-                cb(self.checked);
+            if let Some(cb) = self.on_check.as_mut() {
+                if let Some(mut sched) = ctx.as_sched_ctx() {
+                    cb(self.checked, &mut sched);
+                }
             }
         }
     }
@@ -316,7 +319,7 @@ impl emCheckBox {
         event: &emInputEvent,
         state: &PanelState,
         _input_state: &emInputState,
-        _ctx: &mut crate::emEngineCtx::PanelCtx,
+        ctx: &mut crate::emEngineCtx::PanelCtx,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -373,7 +376,7 @@ impl emCheckBox {
                     self.pressed = false;
                     self.box_pressed = false;
                     if hit {
-                        self.toggle();
+                        self.toggle(ctx);
                     }
                     true
                 }
@@ -388,7 +391,7 @@ impl emCheckBox {
                     && !event.ctrl
                     && state.viewed_rect.w.min(state.viewed_rect.h) >= 8.0 =>
             {
-                self.toggle();
+                self.toggle(ctx);
                 true
             }
             _ => false,
@@ -423,10 +426,12 @@ impl emCheckBox {
     }
 
     // DIVERGED: Clicked — renamed to toggle (private); C++ Clicked is protected virtual
-    fn toggle(&mut self) {
+    fn toggle(&mut self, ctx: &mut PanelCtx<'_>) {
         self.checked = !self.checked;
-        if let Some(cb) = &mut self.on_check {
-            cb(self.checked);
+        if let Some(cb) = self.on_check.as_mut() {
+            if let Some(mut sched) = ctx.as_sched_ctx() {
+                cb(self.checked, &mut sched);
+            }
         }
     }
 }
