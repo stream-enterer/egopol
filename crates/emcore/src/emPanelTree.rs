@@ -3781,4 +3781,109 @@ mod tests {
     // adapter registers inline on the same slice as `create_child`, so the
     // measured delta collapses and the baselines no longer represent a real
     // scheduling shape. See invariants I1d / I-T3a.
+    //
+    // Phase 1.75 Task 3 also deleted
+    //   sp4_5_fix_1_timing_sub_scheduler_baseline_slices
+    // which measured the same create-then-first-Cycle delta across the
+    // now-deleted `emSubViewPanel::sub_scheduler`. The outer-scheduler
+    // equivalent under Phase 1.75's unified dispatch is the test immediately
+    // below (`phase_1_75_task6_spawn_and_wake_child_in_same_slice_delta_zero`),
+    // which asserts delta == 0 — the post-Task-4/5 invariant that a spawned
+    // panel's `PanelCycleEngine` registers AND fires in the same slice as the
+    // `create_child` call when the spawn engine also wakes the child.
+    //
+    // Phase 1.75 Task 6 — acceptance for Task-11: the sole surviving
+    // sp4_5_fix_1_timing_* equivalent asserts `delta == 0`. The three plan-
+    // specified names (`panel_reinit`, `sched_drain`, `subview_reinit`) never
+    // existed in the codebase; the only fixtures with matching shape were the
+    // three deleted above. This test covers the observable invariant they
+    // collectively protected (create→first-Cycle slice delta) under the
+    // post-Phase-1.75 shape.
+    #[test]
+    fn phase_1_75_task6_spawn_and_wake_child_in_same_slice_delta_zero() {
+        use std::cell::Cell;
+        use std::collections::HashMap;
+
+        let (mut tree, _view, sched, root) = make_registered_tree();
+
+        // Captured inside SpawnEngineWithProbe::Cycle at the moment
+        // create_child returns (i.e. after inline registration of the
+        // child's adapter). SpawnEngine then attaches a first-cycle probe
+        // to the child's PanelCycleEngine and wakes it. Because same-
+        // priority wake-ups append to the current wake queue, the child
+        // Cycles later in the SAME DoTimeSlice call — delta == 0.
+        let create_slice: Rc<Cell<Option<u64>>> = Rc::new(Cell::new(None));
+        let spawned_id: Rc<Cell<Option<PanelId>>> = Rc::new(Cell::new(None));
+        let cycled_at: Rc<Cell<Option<u64>>> = Rc::new(Cell::new(None));
+
+        struct SpawnEngineWithProbe {
+            parent: PanelId,
+            spawned_out: Rc<Cell<Option<PanelId>>>,
+            create_slice_out: Rc<Cell<Option<u64>>>,
+            cycled_at: Rc<Cell<Option<u64>>>,
+            done: bool,
+        }
+        impl crate::emEngine::emEngine for SpawnEngineWithProbe {
+            fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
+                if !self.done {
+                    let child = ctx
+                        .tree
+                        .create_child(self.parent, "spawned", Some(ctx.scheduler));
+                    self.spawned_out.set(Some(child));
+                    self.create_slice_out.set(Some(ctx.time_slice_counter()));
+                    if let Some(eid) = ctx.tree.GetRec(child).and_then(|p| p.engine_id) {
+                        ctx.scheduler
+                            .attach_first_cycle_probe(eid, self.cycled_at.clone());
+                        ctx.scheduler.wake_up(eid);
+                    }
+                    self.done = true;
+                }
+                false
+            }
+        }
+
+        let spawn_eid = sched.borrow_mut().register_engine(
+            Box::new(SpawnEngineWithProbe {
+                parent: root,
+                spawned_out: spawned_id.clone(),
+                create_slice_out: create_slice.clone(),
+                cycled_at: cycled_at.clone(),
+                done: false,
+            }),
+            crate::emEngine::Priority::Medium,
+            TreeLocation::Outer,
+        );
+        sched.borrow_mut().wake_up(spawn_eid);
+
+        let mut empty_windows: HashMap<
+            winit::window::WindowId,
+            Rc<RefCell<crate::emWindow::emWindow>>,
+        > = HashMap::new();
+        let __root_ctx = crate::emContext::emContext::NewRoot();
+        let mut __fw: Vec<_> = Vec::new();
+        sched
+            .borrow_mut()
+            .DoTimeSlice(&mut tree, &mut empty_windows, &__root_ctx, &mut __fw);
+
+        let create_at = create_slice
+            .get()
+            .expect("SpawnEngineWithProbe must have captured create_slice");
+        let _child = spawned_id
+            .get()
+            .expect("SpawnEngineWithProbe must have set spawned_id via create_child");
+        let cycled = cycled_at
+            .get()
+            .expect("spawned child's PanelCycleEngine must have Cycled in the same DoTimeSlice");
+
+        // Phase 1.75 Task 6 / Task-11 invariant: create→first-Cycle delta == 0.
+        let delta = cycled - create_at;
+        assert_eq!(
+            delta, 0,
+            "post-Phase-1.75 synchronous registration: spawned child must Cycle in the SAME slice as create_child (delta=0); observed create_at={create_at}, cycled={cycled}"
+        );
+
+        // Cleanup.
+        tree.remove(root, Some(&mut sched.borrow_mut()));
+        sched.borrow_mut().remove_engine(spawn_eid);
+    }
 }
