@@ -358,23 +358,16 @@ impl<'a> PanelCtx<'a> {
         }
     }
 
-    /// Like `with_scheduler` but also attaches the framework-level clipboard
-    /// slot. Used by `PanelCycleEngine` so behaviors can build `SchedCtx`
-    /// without losing clipboard access.
-    pub fn with_scheduler_and_clipboard(
-        tree: &'a mut PanelTree,
-        id: PanelId,
-        current_pixel_tallness: f64,
-        scheduler: &'a mut EngineScheduler,
+    /// Attach the framework-level clipboard slot. Builder-style config per
+    /// CLAUDE.md Code Rules (`with_*(self) -> Self`): chain after
+    /// `with_scheduler` so behaviors can build `SchedCtx` without losing
+    /// clipboard access.
+    pub fn with_clipboard(
+        mut self,
         framework_clipboard: &'a RefCell<Option<Box<dyn emClipboard>>>,
     ) -> Self {
-        Self {
-            tree,
-            id,
-            current_pixel_tallness,
-            scheduler: Some(scheduler),
-            framework_clipboard: Some(framework_clipboard),
-        }
+        self.framework_clipboard = Some(framework_clipboard);
+        self
     }
 
     /// Wake this panel's scheduler engine.

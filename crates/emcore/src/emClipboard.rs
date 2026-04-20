@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 /// Abstract clipboard interface matching C++ emClipboard.
 ///
 /// Provides clipboard and selection buffer operations. Concrete
@@ -42,10 +40,11 @@ impl emPrivateClipboard {
     /// DIVERGED (Phase-3 Task-2): C++ `emPrivateClipboard::Install(emContext&)`
     /// installs into `emContext` via `LookupInherited`. Rust relocates the
     /// clipboard to `emGUIFramework::clipboard` (spec §3.4 / §3.6(a)), so
-    /// `Install` takes the framework-owned `RefCell<Option<Box<dyn emClipboard>>>`
-    /// directly. Callers pass `&app.clipboard` or the equivalent test fixture.
-    pub fn Install(slot: &RefCell<Option<Box<dyn emClipboard>>>) {
-        *slot.borrow_mut() = Some(Box::new(Self::new()));
+    /// `Install` takes the framework-owned `Option<Box<dyn emClipboard>>` slot
+    /// directly by mutable reference. Callers borrow the framework's RefCell
+    /// once at the call site (e.g. `Install(&mut app.clipboard.borrow_mut())`).
+    pub fn Install(slot: &mut Option<Box<dyn emClipboard>>) {
+        *slot = Some(Box::new(Self::new()));
     }
 }
 

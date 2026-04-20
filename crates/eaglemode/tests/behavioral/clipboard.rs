@@ -24,7 +24,7 @@ fn install_populates_framework_slot() {
     // Phase-3 Task-2: clipboard lives on the framework, not emContext. The
     // "lookup" pattern becomes a direct borrow of the framework-owned slot.
     let slot = make_slot();
-    emPrivateClipboard::Install(&slot);
+    emPrivateClipboard::Install(&mut slot.borrow_mut());
     slot.borrow_mut()
         .as_mut()
         .expect("installed")
@@ -94,7 +94,7 @@ fn get_text_independent_buffers() {
 fn install_populates_empty_slot() {
     let slot = make_slot();
     assert!(slot.borrow().is_none());
-    emPrivateClipboard::Install(&slot);
+    emPrivateClipboard::Install(&mut slot.borrow_mut());
     assert!(slot.borrow().is_some());
 }
 
@@ -116,11 +116,11 @@ fn private_clipboard_separate_buffers() {
 #[test]
 fn private_clipboard_install_replaces() {
     let slot = make_slot();
-    emPrivateClipboard::Install(&slot);
+    emPrivateClipboard::Install(&mut slot.borrow_mut());
     slot.borrow_mut().as_mut().unwrap().PutText("test", false);
 
     // Re-Install replaces (matching C++ behavior where re-Install overwrites)
-    emPrivateClipboard::Install(&slot);
+    emPrivateClipboard::Install(&mut slot.borrow_mut());
     // New clipboard has empty state
     assert_eq!(slot.borrow().as_ref().unwrap().GetText(false), "");
 }

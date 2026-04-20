@@ -285,18 +285,20 @@ impl PanelBehavior for emSubViewPanel {
         // required because `Option<&mut EngineScheduler>` admits only one live
         // mutable borrow at a time.
 
+        // Borrow-split: pull framework_clipboard and scheduler disjointly.
+        // When PanelCtx carries no framework clipboard (test construction paths
+        // pass None), fall back to a local empty slot so SchedCtx can still be
+        // built — matches the graceful pattern used in `HandleNotice` below.
+        let fallback_cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        let cb_ref = ctx.framework_clipboard.unwrap_or(&fallback_cb);
+
         // Hit-test and set active panel on mouse press (mirrors parent window logic).
         if event.is_mouse_event() && event.variant == crate::emInput::InputVariant::Press {
             let panel = self
                 .sub_view
                 .GetFocusablePanelAt(&self.sub_tree, sub_vx, sub_vy)
                 .unwrap_or_else(|| self.sub_view.GetRootPanel());
-            // Borrow-split: pull framework_clipboard and scheduler disjointly.
-            let cb_ref = ctx.framework_clipboard.unwrap_or_else(|| {
-                panic!(
-                    "emSubViewPanel::Input requires PanelCtx with framework_clipboard (Phase 3 Task 2)"
-                )
-            });
             let mut sc = crate::emEngineCtx::SchedCtx {
                 scheduler: ctx.scheduler.as_deref_mut().expect(
                     "emSubViewPanel::Input requires PanelCtx with a scheduler (Phase 1.76)",
@@ -312,12 +314,6 @@ impl PanelBehavior for emSubViewPanel {
 
         // Ensure sub-view viewing state is current for coordinate transforms.
         {
-            // Borrow-split: pull framework_clipboard and scheduler disjointly.
-            let cb_ref = ctx.framework_clipboard.unwrap_or_else(|| {
-                panic!(
-                    "emSubViewPanel::Input requires PanelCtx with framework_clipboard (Phase 3 Task 2)"
-                )
-            });
             let mut sc = crate::emEngineCtx::SchedCtx {
                 scheduler: ctx.scheduler.as_deref_mut().expect(
                     "emSubViewPanel::Input requires PanelCtx with a scheduler (Phase 1.76)",
