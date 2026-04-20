@@ -1136,7 +1136,7 @@ mod tests {
         let root_context = crate::emContext::emContext::NewRoot();
         let mut framework_actions: Vec<DeferredAction> = Vec::new();
 
-        let outer_root = tree.create_root("outer_root", std::rc::Weak::new());
+        let outer_root = tree.create_root("outer_root", false);
         let outer_child = tree.create_child(outer_root, "outer_sv", None);
 
         // Phase 1.75 Task 3: `emSubViewPanel::new` needs outer_panel_id + a
@@ -1251,7 +1251,7 @@ mod tests {
                     inner_sv
                         .sub_tree_mut()
                         .remove(inner_sub_root, Some(&mut sched));
-                    let mut v = inner_sv.sub_view_mut();
+                    let v = inner_sv.sub_view_mut();
                     if let Some(eid) = v.update_engine_id.take() {
                         sched.remove_engine(eid);
                     }
@@ -1269,7 +1269,7 @@ mod tests {
             outer_sv_ref
                 .sub_tree_mut()
                 .remove(outer_sub_root, Some(&mut sched));
-            let mut v = outer_sv_ref.sub_view_mut();
+            let v = outer_sv_ref.sub_view_mut();
             if let Some(eid) = v.update_engine_id.take() {
                 sched.remove_engine(eid);
             }

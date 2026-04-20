@@ -222,10 +222,15 @@ pub(crate) struct PanelData {
     pub(crate) notice_prev_in_ring: Option<PanelId>,
     pub(crate) notice_next_in_ring: Option<PanelId>,
 
-    /// 1:1 with C++ `emPanel::View &` (emPanel.h).
-    /// Set at construction by `PanelTree::create_root` / `create_child`;
-    /// never mutated thereafter.
-    pub(crate) View: std::rc::Weak<std::cell::RefCell<crate::emView::emView>>,
+    /// Phase 2 Task 7 (keystone): replaces
+    /// `Weak<RefCell<emView>>` — `emView` is now plain on `emWindow` and
+    /// `emSubViewPanel`, so a `Weak` has nothing to reference. The former
+    /// field was only ever queried for presence (`strong_count() > 0`)
+    /// before registering a panel's engine with the scheduler, so a plain
+    /// bool suffices. The identity of the owning view is now carried by
+    /// the tree's `tree_location` plus (for Toplevel) a `WindowId` on the
+    /// registering `PanelCycleEngine`/`UpdateEngineClass`.
+    pub(crate) has_view: bool,
 
     /// Scheduler engine handle for this panel (SP4.5).
     ///
@@ -277,7 +282,7 @@ impl PanelData {
             pending_input: false,
             notice_prev_in_ring: None,
             notice_next_in_ring: None,
-            View: std::rc::Weak::new(),
+            has_view: false,
             engine_id: None,
         }
     }
@@ -330,6 +335,13 @@ pub struct PanelTree {
     /// cleared on view detach.  Read by `add_to_notice_list` to wake the
     /// update engine without borrowing the view.
     pub(crate) update_engine_id: Option<crate::emEngine::EngineId>,
+    /// Phase 2 Task 7: cached mirror of the owning view's
+    /// `CurrentPixelTallness`.  Written by `emView::SetGeometry` every
+    /// time the view's tallness changes; read by `PanelCycleEngine::Cycle`
+    /// to build a `PanelCtx::current_pixel_tallness` without resolving
+    /// back to the view.  Starts at `1.0` to match
+    /// `emView::CurrentPixelTallness` default.
+    pub(crate) cached_pixel_tallness: f64,
 }
 
 impl PanelTree {
@@ -358,6 +370,7 @@ impl PanelTree {
             pending_engine_removals: Vec::new(),
             tree_location,
             update_engine_id: None,
+            cached_pixel_tallness: 1.0,
         }
     }
 
@@ -463,11 +476,7 @@ impl PanelTree {
     ///
     /// # Panics
     /// Panics if a root panel already exists.
-    pub fn create_root(
-        &mut self,
-        name: &str,
-        view: std::rc::Weak<std::cell::RefCell<crate::emView::emView>>,
-    ) -> PanelId {
+    pub fn create_root(&mut self, name: &str, has_view: bool) -> PanelId {
         assert!(
             self.root.is_none(),
             "create_root called but root panel already exists"
@@ -479,7 +488,7 @@ impl PanelTree {
         // path resolution like "::FS::..." where the first "" after the
         // initial ":" is meant to be a child of root, not root itself.
         self.root = Some(id);
-        self.panels[id].View = view;
+        self.panels[id].has_view = has_view;
         // C++ emPanel root ctor (emPanel.cpp:~100): Active=1; InActivePath=1;
         // View.ActivePanel=this. Root starts as the active panel.
         self.panels[id].is_active = true;
@@ -500,7 +509,7 @@ impl PanelTree {
     /// Not a C++ analogue — test-support only.
     #[cfg(any(test, feature = "test-support"))]
     pub fn create_root_deferred_view(&mut self, name: &str) -> PanelId {
-        self.create_root(name, std::rc::Weak::new())
+        self.create_root(name, false)
     }
 
     /// Propagate a view weak reference to a panel and all its descendants.
@@ -510,20 +519,15 @@ impl PanelTree {
     /// before the view exists (chicken-and-egg).
     ///
     /// Not a C++ analogue — Rust ownership requires this two-phase init.
-    pub fn init_panel_view(
-        &mut self,
-        id: PanelId,
-        view: std::rc::Weak<std::cell::RefCell<crate::emView::emView>>,
-        sched: Option<&mut EngineScheduler>,
-    ) {
-        self.panels[id].View = view.clone();
+    pub fn init_panel_view(&mut self, id: PanelId, sched: Option<&mut EngineScheduler>) {
+        self.panels[id].has_view = true;
         // Split sched borrow: collect ids, then iterate with sched.
         let mut ids_to_register = vec![id];
         let mut stack = vec![id];
         while let Some(p) = stack.pop() {
             let mut child = self.panels[p].first_child;
             while let Some(c) = child {
-                self.panels[c].View = view.clone();
+                self.panels[c].has_view = true;
                 ids_to_register.push(c);
                 stack.push(c);
                 child = self.panels[c].next_sibling;
@@ -568,11 +572,7 @@ impl PanelTree {
         // null, the panel has no live view yet (same condition as pre-Task-5).
         // The adapter itself no longer stores the weak; it stores a
         // `PanelScope` derived from this tree's `tree_location`.
-        let has_view = self
-            .panels
-            .get(id)
-            .map(|p| p.View.strong_count() > 0)
-            .unwrap_or(false);
+        let has_view = self.panels.get(id).map(|p| p.has_view).unwrap_or(false);
         if !has_view {
             return; // no view yet (or view dropped)
         }
@@ -587,9 +587,9 @@ impl PanelTree {
             crate::emEngine::TreeLocation::Outer => {
                 crate::emPanelScope::PanelScope::Toplevel(winit::window::WindowId::dummy())
             }
-            crate::emEngine::TreeLocation::SubView {
-                outer_panel_id, ..
-            } => crate::emPanelScope::PanelScope::SubView(*outer_panel_id),
+            crate::emEngine::TreeLocation::SubView { outer_panel_id, .. } => {
+                crate::emPanelScope::PanelScope::SubView(*outer_panel_id)
+            }
         };
         let adapter = PanelCycleEngine {
             panel_id: id,
@@ -614,12 +614,8 @@ impl PanelTree {
     ///
     /// Not a C++ analogue — test-support only.
     #[cfg(any(test, feature = "test-support"))]
-    pub fn set_panel_view(
-        &mut self,
-        id: PanelId,
-        view: std::rc::Weak<std::cell::RefCell<crate::emView::emView>>,
-    ) {
-        self.init_panel_view(id, view, None);
+    pub fn set_panel_view(&mut self, id: PanelId) {
+        self.init_panel_view(id, None);
     }
 
     /// Create a child panel under the given parent.
@@ -631,10 +627,10 @@ impl PanelTree {
     ) -> PanelId {
         // C++ emPanel ctor: CreatedByAE = Parent->AECalling
         let created_by_ae = self.panels[parent].ae_calling;
-        let parent_view = self.panels[parent].View.clone();
+        let parent_has_view = self.panels[parent].has_view;
 
         let id = self.panels.insert(PanelData::new(name.to_string()));
-        self.panels[id].View = parent_view;
+        self.panels[id].has_view = parent_has_view;
         self.name_index.insert((parent, name.to_string()), id);
 
         // Link into parent's child list
@@ -653,7 +649,7 @@ impl PanelTree {
         // Inherit parent's enabled state
         self.recompute_enabled(id, None);
 
-        if self.panels[id].View.strong_count() > 0 {
+        if self.panels[id].has_view {
             self.register_engine_for(id, sched.as_deref_mut());
         }
 
@@ -3228,8 +3224,8 @@ mod tests {
         let mut t = PanelTree::new();
         let root = t.create_root_deferred_view("root");
         assert!(
-            t.panels[root].View.upgrade().is_none(),
-            "View must be Weak::new() until populated by create_root (Task 2.2)"
+            !t.panels[root].has_view,
+            "has_view must be false until populated by create_root (Task 2.2)"
         );
     }
 
@@ -3272,7 +3268,7 @@ mod tests {
         // `init_panel_view` (sched supplied); replaces deleted catch-up pass.
         {
             let mut s = sched.borrow_mut();
-            tree.init_panel_view(root, Rc::downgrade(&view), Some(&mut s));
+            tree.init_panel_view(root, Some(&mut s));
         }
         (tree, view, sched, root)
     }
@@ -3347,7 +3343,7 @@ mod tests {
         )));
         // Step 1: init_panel_view BEFORE RegisterEngines. The helper
         // early-returns with no engine_id because the view has no scheduler.
-        tree.init_panel_view(root, Rc::downgrade(&view), None);
+        tree.init_panel_view(root, None);
         assert!(
             tree.GetRec(root).and_then(|p| p.engine_id).is_none(),
             "without a scheduler attached, init_panel_view must leave engine_id=None"
@@ -3355,7 +3351,7 @@ mod tests {
 
         // Step 2: RegisterEngines — the inline catch-up loop registers root.
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        let view_weak = Rc::downgrade(&view);
+        let scope = crate::emPanelScope::PanelScope::Toplevel(winit::window::WindowId::dummy());
         {
             let mut v = view.borrow_mut();
             let root_ctx = v.Context.GetRootContext();
@@ -3370,7 +3366,7 @@ mod tests {
             v.RegisterEngines(
                 &mut sc,
                 &mut tree,
-                view_weak,
+                scope,
                 crate::emEngine::TreeLocation::Outer,
             );
         }
@@ -3545,9 +3541,10 @@ mod tests {
         )));
         let sched_a = Rc::new(RefCell::new(EngineScheduler::new()));
         view_a.borrow_mut().CurrentPixelTallness = 1.5;
+        tree_a.cached_pixel_tallness = 1.5;
         {
             let mut s = sched_a.borrow_mut();
-            tree_a.init_panel_view(root_a, Rc::downgrade(&view_a), Some(&mut s));
+            tree_a.init_panel_view(root_a, Some(&mut s));
         }
         let recorded_a = Rc::new(Cell::new(None));
         tree_a.set_behavior(
@@ -3569,9 +3566,10 @@ mod tests {
         )));
         let sched_b = Rc::new(RefCell::new(EngineScheduler::new()));
         view_b.borrow_mut().CurrentPixelTallness = 0.5;
+        tree_b.cached_pixel_tallness = 0.5;
         {
             let mut s = sched_b.borrow_mut();
-            tree_b.init_panel_view(root_b, Rc::downgrade(&view_b), Some(&mut s));
+            tree_b.init_panel_view(root_b, Some(&mut s));
         }
         let recorded_b = Rc::new(Cell::new(None));
         tree_b.set_behavior(
@@ -3667,7 +3665,7 @@ mod tests {
 
         let mut tree = PanelTree::new();
         let root = tree.create_root_deferred_view("root");
-        let view = Rc::new(RefCell::new(emView::new(
+        let _view = Rc::new(RefCell::new(emView::new(
             crate::emContext::emContext::NewRoot(),
             root,
             800.0,
@@ -3676,7 +3674,7 @@ mod tests {
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
         {
             let mut s = sched.borrow_mut();
-            tree.init_panel_view(root, Rc::downgrade(&view), Some(&mut s));
+            tree.init_panel_view(root, Some(&mut s));
         }
 
         let (a, b) = {

@@ -616,7 +616,7 @@ impl ApplicationHandler for App {
 
             // Tick animator (take out to avoid borrow conflict)
             if let Some(mut anim) = win.active_animator.take() {
-                if anim.animate(&mut win.view_mut(), tree, dt, &mut sc) {
+                if anim.animate(win.view_mut(), tree, dt, &mut sc) {
                     win.active_animator = Some(anim);
                     needs_full_repaint = true;
                 }

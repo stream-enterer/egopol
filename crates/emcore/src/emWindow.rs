@@ -980,8 +980,7 @@ impl emWindow {
                 v.GetFocusablePanelAt(tree, event.mouse_x, event.mouse_y)
                     .unwrap_or_else(|| v.GetRootPanel())
             };
-            self.view
-                .set_active_panel(tree, panel, false, ctx);
+            self.view.set_active_panel(tree, panel, false, ctx);
         }
 
         // Stamp modifier keys from emInputState onto the event
@@ -1013,18 +1012,12 @@ impl emWindow {
         for panel_id in viewed {
             let mut panel_ev = ev.clone();
             panel_ev.mouse_x = tree.ViewToPanelX(panel_id, ev.mouse_x);
-            panel_ev.mouse_y = tree.ViewToPanelY(
-                panel_id,
-                ev.mouse_y,
-                self.view.GetCurrentPixelTallness(),
-            );
+            panel_ev.mouse_y =
+                tree.ViewToPanelY(panel_id, ev.mouse_y, self.view.GetCurrentPixelTallness());
 
             if let Some(mut behavior) = tree.take_behavior(panel_id) {
-                let panel_state = tree.build_panel_state(
-                    panel_id,
-                    wf,
-                    self.view.GetCurrentPixelTallness(),
-                );
+                let panel_state =
+                    tree.build_panel_state(panel_id, wf, self.view.GetCurrentPixelTallness());
                 // C++ RecurseInput (emView.cpp:2055-2058): keyboard events are
                 // suppressed for panels not in the active path.
                 if panel_ev.is_keyboard_event() && !panel_state.in_active_path {
@@ -1057,8 +1050,7 @@ impl emWindow {
                 }
                 // TF-003: emProcess scroll-to-visible requests from behaviors
                 if let Some(rect) = behavior.take_scroll_to_visible() {
-                    self.view
-                        .scroll_to_panel_rect(tree, panel_id, rect, ctx);
+                    self.view.scroll_to_panel_rect(tree, panel_id, rect, ctx);
                 }
                 tree.put_behavior(panel_id, behavior);
                 if consumed {
@@ -1098,15 +1090,13 @@ impl emWindow {
                 InputKey::Home if state.IsAltMod() => {
                     if let Some(p) = self.view.GetActivePanel() {
                         let adherent = self.view.IsActivationAdherent();
-                        self.view
-                            .VisitFullsized(tree, p, adherent, false);
+                        self.view.VisitFullsized(tree, p, adherent, false);
                     }
                 }
                 InputKey::Home if state.IsShiftAltMod() => {
                     if let Some(p) = self.view.GetActivePanel() {
                         let adherent = self.view.IsActivationAdherent();
-                        self.view
-                            .VisitFullsized(tree, p, adherent, true);
+                        self.view.VisitFullsized(tree, p, adherent, true);
                     }
                 }
 
@@ -1285,10 +1275,7 @@ impl emWindow {
         self.touch_vif
             .cycle_gesture(&mut self.view, tree, dt_ms, ctx);
         // Tick fling animation
-        if self
-            .touch_vif
-            .animate_fling(&mut self.view, tree, dt, ctx)
-        {
+        if self.touch_vif.animate_fling(&mut self.view, tree, dt, ctx) {
             active = true;
         }
         active
@@ -1840,14 +1827,11 @@ mod tests {
             geom_sig,
             crate::emColor::emColor::TRANSPARENT,
         );
-        // Phase 2 Task 2: emWindow::view is now plain emView; the self-view
-        // Weak<RefCell<emView>> wiring migrates in Tasks 5–7. Use a null Weak
-        // here — the test only asserts `update_engine_id.is_some()`, which is
-        // set by RegisterEngines regardless of whether the Weak upgrades.
-        let view_weak: std::rc::Weak<std::cell::RefCell<emView>> = std::rc::Weak::new();
-        let _ = win_id;
+        // Phase 2 Task 7: engines identify their owning view via
+        // `PanelScope::Toplevel(win_id)`.
+        let scope = crate::emPanelScope::PanelScope::Toplevel(win_id);
         {
-            let mut v = win.view_mut();
+            let v = win.view_mut();
             let root = v.Context.GetRootContext();
             let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
             let mut s = sched.borrow_mut();
@@ -1860,7 +1844,7 @@ mod tests {
             v.RegisterEngines(
                 &mut sc,
                 &mut tree,
-                view_weak,
+                scope,
                 crate::emEngine::TreeLocation::Outer,
             );
         }
@@ -1868,7 +1852,7 @@ mod tests {
 
         // Scheduler cleanup for Drop debug_asserts.
         {
-            let mut v = win.view_mut();
+            let v = win.view_mut();
             if let Some(id) = v.update_engine_id.take() {
                 sched.borrow_mut().remove_engine(id);
             }

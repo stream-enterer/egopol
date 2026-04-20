@@ -181,33 +181,60 @@ impl StressTest {
 /// Scheduler-driven engine that calls `emView::Update` once per slice.
 ///
 /// Ported from C++ `emView::UpdateEngineClass` (inner class of `emView`,
-/// holds direct pointer to view). Rust holds `Weak<RefCell<emView>>` since
-/// `emView` lives in `Rc<RefCell<>>`.
+/// holds direct pointer to view). Phase 2 Task 7 (keystone): Rust now
+/// identifies the owning view by `PanelScope` (top-level `WindowId` or
+/// sub-view outer-panel id) and resolves through `EngineCtx::windows` /
+/// `ctx.tree` at Cycle time, since `emView` is no longer in
+/// `Rc<RefCell<>>`.
 pub struct UpdateEngineClass {
-    pub view: std::rc::Weak<std::cell::RefCell<emView>>,
+    pub scope: crate::emPanelScope::PanelScope,
 }
 
 impl UpdateEngineClass {
-    pub fn new(view: std::rc::Weak<std::cell::RefCell<emView>>) -> Self {
-        Self { view }
+    pub fn new(scope: crate::emPanelScope::PanelScope) -> Self {
+        Self { scope }
     }
 }
 
 impl super::emEngine::emEngine for UpdateEngineClass {
     fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
-        let Some(view_rc) = self.view.upgrade() else {
-            return false;
-        };
-        let mut view = view_rc.borrow_mut();
+        let scope = self.scope;
         let engine_id = ctx.engine_id;
-        let mut sc = crate::emEngineCtx::SchedCtx {
-            scheduler: ctx.scheduler,
-            framework_actions: ctx.framework_actions,
-            root_context: ctx.root_context,
-            current_engine: Some(engine_id),
-        };
-        view.Update(ctx.tree, &mut sc);
-        false
+        match scope {
+            crate::emPanelScope::PanelScope::Toplevel(wid) => {
+                let Some(window) = ctx.windows.get_mut(&wid) else {
+                    return false;
+                };
+                let mut sc = crate::emEngineCtx::SchedCtx {
+                    scheduler: ctx.scheduler,
+                    framework_actions: ctx.framework_actions,
+                    root_context: ctx.root_context,
+                    current_engine: Some(engine_id),
+                };
+                window.view.Update(ctx.tree, &mut sc);
+                false
+            }
+            crate::emPanelScope::PanelScope::SubView(pid) => {
+                let Some(svp) = ctx
+                    .tree
+                    .panels
+                    .get_mut(pid)
+                    .and_then(|p| p.behavior.as_mut())
+                    .and_then(|b| b.as_sub_view_panel_mut())
+                else {
+                    return false;
+                };
+                let mut sc = crate::emEngineCtx::SchedCtx {
+                    scheduler: ctx.scheduler,
+                    framework_actions: ctx.framework_actions,
+                    root_context: ctx.root_context,
+                    current_engine: Some(engine_id),
+                };
+                let (sub_view, sub_tree) = svp.sub_view_and_tree_mut();
+                sub_view.Update(sub_tree, &mut sc);
+                false
+            }
+        }
     }
 }
 
@@ -223,14 +250,14 @@ impl super::emEngine::emEngine for UpdateEngineClass {
 /// animator is active — forwards to `emVisitingViewAnimator::animate`,
 /// which corresponds to C++ `CycleAnimation` (emViewAnimator.cpp:1194).
 pub struct VisitingVAEngineClass {
-    pub view: std::rc::Weak<std::cell::RefCell<emView>>,
+    pub scope: crate::emPanelScope::PanelScope,
     last_cycle: Option<Instant>,
 }
 
 impl VisitingVAEngineClass {
-    pub fn new(view: std::rc::Weak<std::cell::RefCell<emView>>) -> Self {
+    pub fn new(scope: crate::emPanelScope::PanelScope) -> Self {
         Self {
-            view,
+            scope,
             last_cycle: None,
         }
     }
@@ -246,25 +273,53 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
             .clamp(0.001, 0.1);
         self.last_cycle = Some(now);
 
-        let Some(view_rc) = self.view.upgrade() else {
-            return false;
-        };
-        let mut view = view_rc.borrow_mut();
-        let va_rc = Rc::clone(&view.VisitingVA);
-        let mut va = va_rc.borrow_mut();
-        if !va.is_active() {
-            return false;
-        }
         use super::emViewAnimator::emViewAnimator as _;
-        // Build SchedCtx using disjoint field borrows (ctx.tree is borrowed separately above).
+        let scope = self.scope;
         let engine_id = ctx.engine_id;
-        let mut sc = crate::emEngineCtx::SchedCtx {
-            scheduler: ctx.scheduler,
-            framework_actions: ctx.framework_actions,
-            root_context: ctx.root_context,
-            current_engine: Some(engine_id),
-        };
-        va.animate(&mut view, ctx.tree, dt, &mut sc)
+        match scope {
+            crate::emPanelScope::PanelScope::Toplevel(wid) => {
+                let Some(window) = ctx.windows.get_mut(&wid) else {
+                    return false;
+                };
+                let view = &mut window.view;
+                let va_rc = Rc::clone(&view.VisitingVA);
+                let mut va = va_rc.borrow_mut();
+                if !va.is_active() {
+                    return false;
+                }
+                let mut sc = crate::emEngineCtx::SchedCtx {
+                    scheduler: ctx.scheduler,
+                    framework_actions: ctx.framework_actions,
+                    root_context: ctx.root_context,
+                    current_engine: Some(engine_id),
+                };
+                va.animate(view, ctx.tree, dt, &mut sc)
+            }
+            crate::emPanelScope::PanelScope::SubView(pid) => {
+                let Some(svp) = ctx
+                    .tree
+                    .panels
+                    .get_mut(pid)
+                    .and_then(|p| p.behavior.as_mut())
+                    .and_then(|b| b.as_sub_view_panel_mut())
+                else {
+                    return false;
+                };
+                let (sub_view, sub_tree) = svp.sub_view_and_tree_mut();
+                let va_rc = Rc::clone(&sub_view.VisitingVA);
+                let mut va = va_rc.borrow_mut();
+                if !va.is_active() {
+                    return false;
+                }
+                let mut sc = crate::emEngineCtx::SchedCtx {
+                    scheduler: ctx.scheduler,
+                    framework_actions: ctx.framework_actions,
+                    root_context: ctx.root_context,
+                    current_engine: Some(engine_id),
+                };
+                va.animate(sub_view, sub_tree, dt, &mut sc)
+            }
+        }
     }
 }
 
@@ -1099,6 +1154,10 @@ impl emView {
         self.CurrentWidth = width;
         self.CurrentHeight = height;
         self.CurrentPixelTallness = pixel_tallness;
+        // Phase 2 Task 7: mirror tallness onto the panel tree so
+        // `PanelCycleEngine::Cycle` can read it without resolving back to
+        // the view (which requires WindowId lookup).
+        tree.cached_pixel_tallness = pixel_tallness;
 
         // C++ Signal(GeometrySignal).
         if let Some(sig) = self.geometry_signal {
@@ -3146,18 +3205,18 @@ impl emView {
         &mut self,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
         tree: &mut PanelTree,
-        self_view_weak: std::rc::Weak<std::cell::RefCell<emView>>,
+        scope: crate::emPanelScope::PanelScope,
         tree_location: super::emEngine::TreeLocation,
     ) {
         let engine_id = ctx.scheduler.register_engine(
-            Box::new(UpdateEngineClass::new(self_view_weak.clone())),
+            Box::new(UpdateEngineClass::new(scope)),
             super::emEngine::Priority::High,
             tree_location.clone(),
         );
         let eoi_signal = ctx.scheduler.create_signal();
         // C++ emViewAnimator base ctor sets HIGH_PRIORITY (emViewAnimator.cpp:39).
         let visiting_va_engine_id = ctx.scheduler.register_engine(
-            Box::new(VisitingVAEngineClass::new(self_view_weak)),
+            Box::new(VisitingVAEngineClass::new(scope)),
             super::emEngine::Priority::High,
             tree_location,
         );
@@ -3653,22 +3712,57 @@ impl emView {
         // Drain the ring (port of C++ emView::Update do-while loop,
         // emView.cpp:1303-1314). New panels appended during processing are
         // picked up in FIFO order.
-        while let Some(id) = self.notice_ring_head_next {
-            if !tree.panels.contains_key(id) {
-                // Stale ring entry (panel was deleted without proper unlink).
-                // Drain cleanup entries first to try to advance the head.
-                self.drain_pending_ring_cleanup(tree);
-                // If still stale, reset ring.
-                if self.notice_ring_head_next == Some(id) {
-                    self.notice_ring_head_next = None;
-                    self.notice_ring_head_prev = None;
+        //
+        // Phase 2 Task 7: `handle_notice_one` may call tree methods
+        // (`Layout`, `SetCanvasColor`, …) that call `tree.add_to_notice_list`
+        // which only sets `has_pending_notices=true` — it does NOT enroll
+        // into the ring (E006 relocation). Outer loop re-scans while the
+        // flag is set, so newly-pending panels land in the ring and drain
+        // in the same HandleNotice call.
+        loop {
+            while let Some(id) = self.notice_ring_head_next {
+                if !tree.panels.contains_key(id) {
+                    // Stale ring entry (panel deleted without proper unlink).
+                    // Drain cleanup entries first to try to advance the head.
+                    self.drain_pending_ring_cleanup(tree);
+                    // If still stale, reset ring.
+                    if self.notice_ring_head_next == Some(id) {
+                        self.notice_ring_head_next = None;
+                        self.notice_ring_head_prev = None;
+                    }
+                    continue;
                 }
-                continue;
+                // C++ unlinks BEFORE calling HandleNotice (emView.cpp:1307-1310).
+                self.remove_from_notice_list(id, tree);
+                delivered = true;
+                self.handle_notice_one(tree, id, sched);
             }
-            // C++ unlinks BEFORE calling HandleNotice (emView.cpp:1307-1310).
-            self.remove_from_notice_list(id, tree);
-            delivered = true;
-            self.handle_notice_one(tree, id, sched);
+            // Re-scan if any tree-internal path set `has_pending_notices`
+            // during the drain.
+            if !tree.has_pending_notices_flag() {
+                break;
+            }
+            self.drain_pending_ring_cleanup(tree);
+            let ids: Vec<PanelId> = tree.panels.keys().collect();
+            let mut enrolled_any = false;
+            for id in ids {
+                let Some(p) = tree.panels.get(id) else {
+                    continue;
+                };
+                if (!p.pending_notices.is_empty()
+                    || p.ae_decision_invalid
+                    || p.children_layout_invalid)
+                    && p.notice_prev_in_ring.is_none()
+                    && p.notice_next_in_ring.is_none()
+                    && self.notice_ring_head_next != Some(id)
+                {
+                    self.AddToNoticeList(id, tree);
+                    enrolled_any = true;
+                }
+            }
+            if !enrolled_any {
+                break; // nothing new to enroll — avoid infinite loop
+            }
         }
         tree.clear_pending_notices_flag();
         delivered
@@ -6518,7 +6612,7 @@ mod tests {
             480.0,
         )));
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        let v_weak = Rc::downgrade(&v_rc);
+        let scope = crate::emPanelScope::PanelScope::Toplevel(winit::window::WindowId::dummy());
         {
             let mut v = v_rc.borrow_mut();
             let root = v.Context.GetRootContext();
@@ -6533,7 +6627,7 @@ mod tests {
             v.RegisterEngines(
                 &mut sc,
                 &mut tree,
-                v_weak,
+                scope,
                 crate::emEngine::TreeLocation::Outer,
             );
         }
@@ -6612,7 +6706,7 @@ mod tests {
             480.0,
         )));
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        let v_weak = Rc::downgrade(&v_rc);
+        let scope = crate::emPanelScope::PanelScope::Toplevel(winit::window::WindowId::dummy());
         {
             let mut v = v_rc.borrow_mut();
             let root = v.Context.GetRootContext();
@@ -6627,7 +6721,7 @@ mod tests {
             v.RegisterEngines(
                 &mut sc,
                 &mut tree,
-                v_weak,
+                scope,
                 crate::emEngine::TreeLocation::Outer,
             );
         }
@@ -6763,10 +6857,10 @@ mod tests {
             480.0,
         )));
         // Set the view on all panels so the engine-ID cache is populated.
-        tree.set_panel_view(root, Rc::downgrade(&v_rc));
+        tree.set_panel_view(root);
 
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        let v_weak = Rc::downgrade(&v_rc);
+        let scope = crate::emPanelScope::PanelScope::Toplevel(winit::window::WindowId::dummy());
         {
             let mut v = v_rc.borrow_mut();
             let root = v.Context.GetRootContext();
@@ -6781,7 +6875,7 @@ mod tests {
             v.RegisterEngines(
                 &mut sc,
                 &mut tree,
-                v_weak,
+                scope,
                 crate::emEngine::TreeLocation::Outer,
             );
         }
@@ -6900,10 +6994,10 @@ mod tests {
                 w.view_mut()
                     .SetGeometry(&mut tree, 0.0, 0.0, 640.0, 480.0, 1.0, &mut sc);
             }
-            let view_weak = Rc::downgrade(w.view_rc());
+            let scope = crate::emPanelScope::PanelScope::Toplevel(win_id);
             let _ = win_id;
             {
-                let mut v = w.view_mut();
+                let v = w.view_mut();
                 let root = v.Context.GetRootContext();
                 let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
                 let mut s = sched.borrow_mut();
@@ -6916,7 +7010,7 @@ mod tests {
                 v.RegisterEngines(
                     &mut sc,
                     &mut tree,
-                    view_weak,
+                    scope,
                     crate::emEngine::TreeLocation::Outer,
                 );
             }
@@ -6952,7 +7046,7 @@ mod tests {
         // POPUP_ZOOM creates a PopupWindow; its tear-down on ZoomOut is
         // what fires geometry_signal from inside Update.
         {
-            let mut v = win.view_mut();
+            let v = win.view_mut();
             ts.with(|sc| v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree, sc));
             ts.with(|sc| v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true, sc));
             assert!(v.PopupWindow.is_some(), "popup created under POPUP_ZOOM");
@@ -6975,8 +7069,12 @@ mod tests {
             .expect("popup must have close signal after creation");
         sched.borrow_mut().fire(close_sig);
 
+        // Phase 2 Task 7: `UpdateEngineClass` resolves the view via
+        // `ctx.windows.get_mut(win_id)` now that view is plain on emWindow;
+        // insert `win` so the update engine can actually run `Update()` and
+        // fire the signal whose reception the test asserts.
         let mut windows: HashMap<_, _> = HashMap::new();
-        let _ = win_id;
+        windows.insert(win_id, win);
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
         sched
@@ -6992,8 +7090,9 @@ mod tests {
         sched.borrow_mut().disconnect(geom_sig, recv_id);
         sched.borrow_mut().remove_signal(geom_sig);
         sched.borrow_mut().remove_engine(recv_id);
+        let mut win = windows.remove(&win_id).expect("win reinserted");
         {
-            let mut v = win.view_mut();
+            let v = win.view_mut();
             v.geometry_signal = None;
             if let Some(id) = v.update_engine_id.take() {
                 sched.borrow_mut().remove_engine(id);
@@ -7054,10 +7153,10 @@ mod tests {
                 w.view_mut()
                     .SetGeometry(&mut tree, 0.0, 0.0, 640.0, 480.0, 1.0, &mut sc);
             }
-            let view_weak = Rc::downgrade(w.view_rc());
+            let scope = crate::emPanelScope::PanelScope::Toplevel(win_id);
             let _ = win_id;
             {
-                let mut v = w.view_mut();
+                let v = w.view_mut();
                 let root = v.Context.GetRootContext();
                 let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
                 let mut s = sched.borrow_mut();
@@ -7070,7 +7169,7 @@ mod tests {
                 v.RegisterEngines(
                     &mut sc,
                     &mut tree,
-                    view_weak,
+                    scope,
                     crate::emEngine::TreeLocation::Outer,
                 );
             }
@@ -7081,7 +7180,7 @@ mod tests {
         // POPUP_ZOOM. RawVisit wires close_signal to UpdateEngineClass via
         // SwapViewPorts.
         {
-            let mut v = win.view_mut();
+            let v = win.view_mut();
             ts.with(|sc| v.Update(&mut tree, sc));
             ts.with(|sc| v.SetViewFlags(ViewFlags::POPUP_ZOOM, &mut tree, sc));
             ts.with(|sc| v.RawVisit(&mut tree, child_a, 0.0, 0.0, 0.1, true, sc));
@@ -7095,14 +7194,16 @@ mod tests {
         sched.borrow_mut().fire(close_sig);
 
         // One DoTimeSlice: Cycle observes close_sig, calls Update → ZoomOut →
-        // RawVisitAbs popup teardown.
+        // RawVisitAbs popup teardown.  Phase 2 Task 7: insert the window so
+        // `UpdateEngineClass` can resolve the view via `Toplevel(win_id)`.
         let mut windows: HashMap<_, _> = HashMap::new();
-        let _ = win_id;
+        windows.insert(win_id, win);
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
         sched
             .borrow_mut()
             .DoTimeSlice(&mut tree, &mut windows, &__root_ctx, &mut __fw);
+        let mut win = windows.remove(&win_id).expect("win reinserted");
         assert!(
             win.view().PopupWindow.is_none(),
             "close_signal → ZoomOut must tear down PopupWindow in one time slice"
@@ -7114,7 +7215,7 @@ mod tests {
 
         // Cleanup for scheduler Drop debug_asserts.
         {
-            let mut v = win.view_mut();
+            let v = win.view_mut();
             if let Some(id) = v.update_engine_id.take() {
                 sched.borrow_mut().remove_engine(id);
             }
@@ -7148,7 +7249,7 @@ mod tests {
             600.0,
         )));
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
-        let view_weak = Rc::downgrade(&view_rc);
+        let scope = crate::emPanelScope::PanelScope::Toplevel(winit::window::WindowId::dummy());
         {
             let mut v = view_rc.borrow_mut();
             let root = v.Context.GetRootContext();
@@ -7163,7 +7264,7 @@ mod tests {
             v.RegisterEngines(
                 &mut sc,
                 &mut tree,
-                view_weak,
+                scope,
                 crate::emEngine::TreeLocation::Outer,
             );
         }

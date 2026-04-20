@@ -48,15 +48,15 @@ impl emEngine for PanelCycleEngine {
             }
         }
 
-        // Resolve the owning view via scope. `None` = view gone (window
-        // closed) or scope unresolvable → sleep, matching the legacy
-        // `Weak::upgrade` failure path.
-        let Some(tallness) =
-            self.scope
-                .resolve_view(ctx, |view, _sched| view.GetCurrentPixelTallness())
-        else {
-            return false;
-        };
+        // Phase 2 Task 7: tallness is now cached on `PanelTree`
+        // (`cached_pixel_tallness`, kept in sync by `emView::SetGeometry`).
+        // Previously this went through `scope.resolve_view` just to read
+        // the view's tallness; that coupling is gone now that engines no
+        // longer hold `Weak<RefCell<emView>>`.  Scope remains load-bearing
+        // for `UpdateEngineClass`/`VisitingVAEngineClass` (which need the
+        // live view itself), but `PanelCycleEngine` does not.
+        let _ = &self.scope;
+        let tallness = ctx.tree.cached_pixel_tallness;
 
         // Take the behavior off the tree, build a PanelCtx, drive Cycle,
         // put it back (if the panel still exists — behavior may have called

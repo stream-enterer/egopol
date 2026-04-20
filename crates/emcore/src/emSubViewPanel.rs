@@ -66,27 +66,22 @@ impl emSubViewPanel {
         };
         let mut sub_tree = PanelTree::new_with_location(sub_location.clone());
 
-        // Phase 2 Task 3: sub_view is now a plain emView (not Rc<RefCell<>>).
-        // init_panel_view and RegisterEngines still take Weak<RefCell<emView>>;
-        // pass a null Weak placeholder here — Tasks 5–7 will wire the real Weak.
-        let root = sub_tree.create_root("", std::rc::Weak::new());
+        // Phase 2 Task 7: sub_view is plain; engines identify their owning
+        // view via `PanelScope::SubView(outer_panel_id)`, resolved at Cycle
+        // entry through `EngineCtx::tree.panels[..].behavior.as_sub_view_panel_mut()`.
+        let root = sub_tree.create_root("", true);
         // Last arg is pixel tallness; sub_view.CurrentPixelTallness starts at 1.0.
         sub_tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
 
-        let view_weak: std::rc::Weak<std::cell::RefCell<emView>> = std::rc::Weak::new();
         let mut sub_view = emView::new(parent_context, root, 1.0, 1.0);
-        sub_tree.init_panel_view(root, view_weak.clone(), Some(ctx.scheduler));
+        sub_tree.init_panel_view(root, Some(ctx.scheduler));
 
         // Register sub_view engines on the OUTER scheduler (via ctx) tagged
         // with SubView location. The outer scheduler's priority-queue dispatch
         // resolves these engines through this panel's `sub_tree` on a single
         // shared queue (spec §3.3) — no per-sub-view scheduler exists.
-        sub_view.RegisterEngines(
-            ctx,
-            &mut sub_tree,
-            view_weak,
-            sub_location,
-        );
+        let scope = crate::emPanelScope::PanelScope::SubView(outer_panel_id);
+        sub_view.RegisterEngines(ctx, &mut sub_tree, scope, sub_location);
 
         Self {
             sub_tree,
@@ -125,6 +120,14 @@ impl emSubViewPanel {
     /// Get a mutable reference to the sub-view.
     pub fn sub_view_mut(&mut self) -> &mut emView {
         &mut self.sub_view
+    }
+
+    /// Borrow `sub_view` and `sub_tree` simultaneously via disjoint
+    /// field borrows. Used by engines whose `Cycle` needs both (e.g.
+    /// `UpdateEngineClass`, `VisitingVAEngineClass`) in the sub-view
+    /// branch of `PanelScope::resolve_view`.
+    pub fn sub_view_and_tree_mut(&mut self) -> (&mut emView, &mut PanelTree) {
+        (&mut self.sub_view, &mut self.sub_tree)
     }
 
     /// Visit a panel in the sub-view by identity string.
@@ -241,8 +244,7 @@ impl PanelBehavior for emSubViewPanel {
             if deactivated {
                 // C++ emViewAnimator.cpp:1060: clear seek-pos so the next notice
                 // cycle doesn't fire SOUGHT_NAME_CHANGED on a stale target.
-                self.sub_view
-                    .SetSeekPos(&mut self.sub_tree, None, "");
+                self.sub_view.SetSeekPos(&mut self.sub_tree, None, "");
                 // C++ emViewAnimator.cpp:1061: whole-view InvalidatePainting() skipped.
                 // Rust has no emViewAnimator::InvalidatePainting method; the visiting
                 // overlay will repaint correctly on the next scheduled paint cycle.
@@ -310,8 +312,7 @@ impl PanelBehavior for emSubViewPanel {
                 root_context: &root_ctx_for_input,
                 current_engine: None,
             };
-            self.sub_view
-                .Update(&mut self.sub_tree, &mut sc);
+            self.sub_view.Update(&mut self.sub_tree, &mut sc);
         }
 
         // Dispatch to sub-tree panels (DFS order, matching C++ RecurseInput).
@@ -353,8 +354,7 @@ impl PanelBehavior for emSubViewPanel {
                 };
                 self.sub_tree.put_behavior(panel_id, behavior);
                 if consumed {
-                    self.sub_view
-                        .InvalidatePainting(&self.sub_tree, panel_id);
+                    self.sub_view.InvalidatePainting(&self.sub_tree, panel_id);
                     return true;
                 }
             }
@@ -384,12 +384,7 @@ impl PanelBehavior for emSubViewPanel {
 
         let animator_active = if let Some(mut anim) = self.active_animator.take() {
             let mut sc = ectx.as_sched_ctx();
-            let still_active = anim.animate(
-                &mut self.sub_view,
-                &mut self.sub_tree,
-                dt,
-                &mut sc,
-            );
+            let still_active = anim.animate(&mut self.sub_view, &mut self.sub_tree, dt, &mut sc);
             if still_active {
                 self.active_animator = Some(anim);
             }
@@ -428,13 +423,8 @@ impl PanelBehavior for emSubViewPanel {
         let base_offset = painter.origin();
         let bg = self.sub_view.GetBackgroundColor();
         let root = self.sub_root();
-        self.sub_view.paint_sub_tree(
-            &mut self.sub_tree,
-            painter,
-            root,
-            base_offset,
-            bg,
-        );
+        self.sub_view
+            .paint_sub_tree(&mut self.sub_tree, painter, root, base_offset, bg);
     }
 
     fn GetCursor(&self) -> emCursor {
@@ -491,24 +481,13 @@ mod sp8_tests {
     /// (no `Rc<RefCell<>>` wrapper). Compiles iff the field has type `emView`.
     #[test]
     fn sub_view_is_plain() {
-        let mut outer_tree = crate::emPanelTree::PanelTree::new();
-        let _root = outer_tree.create_root("owner_root", std::rc::Weak::new());
-        let owner_id =
-            outer_tree.create_child(outer_tree.GetRootPanel().unwrap(), "owner_sv", None);
-        let mut outer_sched = crate::emScheduler::EngineScheduler::new();
-        let root_ctx = crate::emContext::emContext::NewRoot();
-        let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
-        let panel = {
-            let mut sc = crate::emEngineCtx::SchedCtx {
-                scheduler: &mut outer_sched,
-                framework_actions: &mut fw,
-                root_context: &root_ctx,
-                current_engine: None,
-            };
-            emSubViewPanel::new(root_ctx.clone(), owner_id, &mut sc)
-        };
+        // Phase 2 Task 7: share the test harness with the other `sp8_*`
+        // tests so the outer scheduler's Drop-time "no dangling engines"
+        // assert passes. (Previously the test leaked engines.)
+        let h = SvpTestHarness::new();
         // Type assertion: compiles iff sub_view is plain emView.
-        let _: &emView = &panel.sub_view;
+        let _: &emView = &h.panel.sub_view;
+        h.teardown();
     }
 
     struct NoopEngine;
@@ -531,7 +510,7 @@ mod sp8_tests {
     impl SvpTestHarness {
         fn new() -> Self {
             let mut outer_tree = crate::emPanelTree::PanelTree::new();
-            let _root = outer_tree.create_root("owner_root", std::rc::Weak::new());
+            let _root = outer_tree.create_root("owner_root", false);
             let owner_id =
                 outer_tree.create_child(outer_tree.GetRootPanel().unwrap(), "owner_sv", None);
             let mut outer_sched = crate::emScheduler::EngineScheduler::new();
@@ -622,7 +601,7 @@ mod sp8_tests {
         // and id. We don't care about the PanelCtx internals, only that Cycle
         // executes.
         let mut owner_tree = crate::emPanelTree::PanelTree::new();
-        let owner_id = owner_tree.create_root("owner", std::rc::Weak::new());
+        let owner_id = owner_tree.create_root("owner", false);
         let mut pctx = crate::emEngineCtx::PanelCtx::new(&mut owner_tree, owner_id, 1.0);
 
         // Harness supplies the EngineCtx scaffolding for the Cycle call.

@@ -165,3 +165,85 @@ Notes:
   misses and the engine sleeps. Spec §13 Q1 resolution deferred.
 - No Any/downcast introduced, no new Rc/RefCell/Weak.
 - `cargo check -p emcore`: clean.
+
+### Task 7 KEYSTONE — DONE
+Commit: <filled post-commit>
+Files: (see commit)
+nextest: 2457 passed / 0 failed / 9 skipped
+goldens: 237 passed / 6 failed (same six as baseline:
+  composition_tktest_{1,2}x, notice_window_resize,
+  testpanel_{expanded,root}, widget_file_selection_box)
+
+Invariants (from plan):
+- `Rc<RefCell<emView>>` production: 0 (tests + comments only)
+- `Weak<RefCell<emView>>`: 0 code hits (comments/DIVERGED notes only)
+- `Rc<RefCell<emWindow>>|Weak<RefCell<emWindow>>`: 0 code hits
+  (comments documenting the migration only)
+- `view_rc()|sub_view_rc()` method calls: 0
+- `NoticeList/notice_ring_head_*` on `emView`: confirmed
+  (PanelTree only keeps `has_pending_notices` flag and
+  `pending_ring_cleanup` Vec per Task 6)
+
+C1-C9 resolution:
+- C1 resolved: 3 `win.view_rc()` sites in emMainWindow — root
+  `init_panel_view` drops its unused `view_weak`; control-window
+  `init_panel_view` same.  `RegisterEngines` call replaces
+  `Rc::downgrade(win.view_rc())` with
+  `PanelScope::Toplevel(window_id)`.
+- C2 resolved: `emPanelCycleEngine::scope` no longer needs a real
+  `WindowId` to resolve — `Cycle` now reads
+  `ctx.tree.cached_pixel_tallness` directly (written by
+  `emView::SetGeometry`).  Scope is retained only for
+  `UpdateEngineClass`/`VisitingVAEngineClass`, which receive a
+  real WindowId from `emMainWindow::create_main_window` /
+  `create_control_window`.  The `WindowId::dummy()` placeholder in
+  `register_engine_for` is now observably benign because
+  `PanelCycleEngine::Cycle` never calls `resolve_view`.
+- C3 resolved alongside C2: sub-tree `PanelCycleEngine` dispatch
+  no longer looks up the outer svp — tallness comes from the
+  sub-tree's own cached mirror, set when the sub-view's
+  `SetGeometry` runs.
+- C4 resolved: `PanelScope::resolve_view` SubView branch was not
+  touched further — its unsafe split-borrow remains the single
+  safety-documented site in `emPanelScope.rs`.  The Update /
+  VisitingVA engines now resolve inline in their own `Cycle`
+  impls (not through `resolve_view`), so the SubView branch has
+  effectively one caller — straight-line to
+  `sub_view_and_tree_mut`.  Task 7's inline form uses no unsafe.
+- C5 resolved: `PanelCycleEngine::Cycle` body (take/put on
+  `ctx.tree`) unchanged — correct for both Toplevel and SubView
+  since dispatch places the relevant tree at `ctx.tree`.
+- C6 resolved implicitly: stub `SetViewFocused`/`RequestFocus`
+  on `emViewPort` produced no dead-code warning under
+  `clippy -D warnings`; left in place (matches C++ API shape).
+- C7 resolved: `emView::HandleNotice` drain loop now re-scans
+  `tree.has_pending_notices_flag()` after each pass; tree-internal
+  `add_to_notice_list` paths (which do not link into the ring,
+  per Task 6) are enrolled by the safety-net scan on the next
+  loop iteration, so notices propagate within one HandleNotice
+  call.  Fixes the pipeline/integration regressions introduced
+  by the E006 ring relocation.
+- C8 resolved: `emWindow::view()` / `view_mut()` wrappers kept
+  (callers are many; method-syntax is cleaner than `&win.view`
+  for the full emmain path).
+- C9 invariants: see above.
+
+Keystone changes beyond C-notes:
+- `emView::UpdateEngineClass` and `VisitingVAEngineClass` no
+  longer hold `Weak<RefCell<emView>>`; each stores a
+  `PanelScope` and dispatches Toplevel/SubView inline (no
+  scope.resolve_view closure — it can't express the borrow of
+  both view and tree simultaneously).
+- `emView::RegisterEngines` signature: `self_view_weak:
+  Weak<RefCell<emView>>` → `scope: PanelScope`.
+- `PanelData::View: Weak<RefCell<emView>>` →
+  `has_view: bool` (the Weak was only ever checked for presence
+  before registering panel engines).
+- `PanelTree::create_root` signature: `(name, view_weak)` →
+  `(name, has_view)`.
+- `PanelTree::init_panel_view` / `set_panel_view`: drop
+  `view_weak` arg entirely.
+- `PanelTree::cached_pixel_tallness: f64` added as a view mirror,
+  written by `emView::SetGeometry`.
+- `emSubViewPanel::sub_view_and_tree_mut()` helper added for
+  engines that need both halves.

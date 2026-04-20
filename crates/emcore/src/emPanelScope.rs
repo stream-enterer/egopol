@@ -58,8 +58,7 @@ impl PanelScope {
                 // this lookup returns `None` — the engine sleeps for that
                 // slice. Tasks 6/7 finalize the dispatch/resolution shape.
                 let engine_id = ctx.engine_id;
-                let sched_ptr: *mut crate::emScheduler::EngineScheduler =
-                    &mut *ctx.scheduler;
+                let sched_ptr: *mut crate::emScheduler::EngineScheduler = &mut *ctx.scheduler;
                 let fw_ptr: *mut Vec<crate::emEngineCtx::DeferredAction> =
                     &mut *ctx.framework_actions;
                 let svp_opt: Option<&mut crate::emSubViewPanel::emSubViewPanel> = ctx
