@@ -167,8 +167,8 @@ Notes:
 - `cargo check -p emcore`: clean.
 
 ### Task 7 KEYSTONE — DONE
-Commit: <filled post-commit>
-Files: (see commit)
+Commit: cb5129e1
+Files: 12 (11 src + 1 ledger)
 nextest: 2457 passed / 0 failed / 9 skipped
 goldens: 237 passed / 6 failed (same six as baseline:
   composition_tktest_{1,2}x, notice_window_resize,
