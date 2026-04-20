@@ -101,3 +101,23 @@ Notes:
   to eliminate the emView self-Weak. Left broken per plan.
 - Added Task 2 test `window_view_is_plain` that binds `&emView` to
   `&win.view` — compiles iff the field is plain.
+
+### Task 3 — STAGED (tree red, Task 7 will green)
+Commit: <sha>
+Files: 1 (emSubViewPanel.rs)
+Notes:
+- `emSubViewPanel::sub_view` narrowed from `Rc<RefCell<emView>>` to plain
+  `emView`. All in-file `.borrow()` / `.borrow_mut()` sites replaced with
+  direct field / method access.
+- `sub_view_rc()` deleted. `GetSubView()` returns `&emView`, `sub_view_mut()`
+  returns `&mut emView` (changed from `&self` to `&mut self`).
+- `new()`: `Rc::downgrade(&sub_view)` → null `Weak::new()` placeholder for
+  `init_panel_view` and `RegisterEngines`; real Weak wiring deferred to
+  Tasks 5–7 (same pattern as Task 2).
+- `emScheduler.rs` callers of `sub_view_mut()` compile unchanged — they
+  bind the result to `v` and call `v.field.take()`, which works on
+  `&mut emView` exactly as it did on `RefMut<emView>`.
+- No infinite-size recursion: `emView` does not contain `emSubViewPanel`
+  inline (panels are `Box<dyn PanelBehavior>` in PanelTree).
+- Added `sub_view_is_plain` test (compile-time type assertion).
+- `cargo check -p emcore`: clean.
