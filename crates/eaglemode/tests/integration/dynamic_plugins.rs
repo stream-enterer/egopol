@@ -9,7 +9,9 @@
 //!   - cargo build (to produce .so files)
 
 use emcore::emContext::emContext;
+use emcore::emEngineCtx::{DeferredAction, InitCtx};
 use emcore::emFpPlugin::{emFpPlugin, PanelParentArg};
+use emcore::emScheduler::EngineScheduler;
 
 /// Helper: create a plugin pointing at a specific library/function.
 fn plugin_for(library: &str, function: &str) -> emFpPlugin {
@@ -19,12 +21,37 @@ fn plugin_for(library: &str, function: &str) -> emFpPlugin {
     p
 }
 
+struct InitHarness {
+    sched: EngineScheduler,
+    actions: Vec<DeferredAction>,
+    root: std::rc::Rc<emContext>,
+}
+
+impl InitHarness {
+    fn new() -> Self {
+        Self {
+            sched: EngineScheduler::new(),
+            actions: Vec::new(),
+            root: emContext::NewRoot(),
+        }
+    }
+    fn ctx(&mut self) -> InitCtx<'_> {
+        InitCtx {
+            scheduler: &mut self.sched,
+            framework_actions: &mut self.actions,
+            root_context: &self.root,
+        }
+    }
+}
+
 #[test]
 fn dynamic_load_dir_panel() {
     let ctx = emContext::NewRoot();
     let parent = PanelParentArg::new(ctx);
     let plugin = plugin_for("emFileMan", "emDirFpPluginFunc");
-    let result = plugin.TryCreateFilePanel(&parent, "test", "/tmp");
+    let mut h = InitHarness::new();
+    let mut ic = h.ctx();
+    let result = plugin.TryCreateFilePanel(&mut ic, &parent, "test", "/tmp");
     assert!(
         result.is_ok(),
         "emDirFpPluginFunc failed: {:?}",
@@ -37,7 +64,9 @@ fn dynamic_load_dir_stat_panel() {
     let ctx = emContext::NewRoot();
     let parent = PanelParentArg::new(ctx);
     let plugin = plugin_for("emFileMan", "emDirStatFpPluginFunc");
-    let result = plugin.TryCreateFilePanel(&parent, "test", "/tmp");
+    let mut h = InitHarness::new();
+    let mut ic = h.ctx();
+    let result = plugin.TryCreateFilePanel(&mut ic, &parent, "test", "/tmp");
     assert!(
         result.is_ok(),
         "emDirStatFpPluginFunc failed: {:?}",
@@ -50,9 +79,11 @@ fn dynamic_load_file_link_panel() {
     let ctx = emContext::NewRoot();
     let parent = PanelParentArg::new(ctx);
     let plugin = plugin_for("emFileMan", "emFileLinkFpPluginFunc");
+    let mut h = InitHarness::new();
+    let mut ic = h.ctx();
     // emFileLink panels expect an .emFileLink file; missing file returns error panel.
     // What matters is that the symbol resolved — not that the panel content is valid.
-    let result = plugin.TryCreateFilePanel(&parent, "test", "/tmp/nonexistent.emFileLink");
+    let result = plugin.TryCreateFilePanel(&mut ic, &parent, "test", "/tmp/nonexistent.emFileLink");
     assert!(
         result.is_ok(),
         "emFileLinkFpPluginFunc failed: {:?}",
@@ -65,7 +96,9 @@ fn dynamic_load_stocks_panel() {
     let ctx = emContext::NewRoot();
     let parent = PanelParentArg::new(ctx);
     let plugin = plugin_for("emStocks", "emStocksFpPluginFunc");
-    let result = plugin.TryCreateFilePanel(&parent, "test", "/tmp/test.emStocks");
+    let mut h = InitHarness::new();
+    let mut ic = h.ctx();
+    let result = plugin.TryCreateFilePanel(&mut ic, &parent, "test", "/tmp/test.emStocks");
     assert!(
         result.is_ok(),
         "emStocksFpPluginFunc failed: {:?}",
