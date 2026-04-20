@@ -544,3 +544,32 @@ production call sites). No scope leakage into method 7/7 territory.
 **Status:** DONE. Task 1c (7/7 methods) complete. Full SchedCtx threading through emView
 and all callers. `with_local_sched_ctx` bridge no longer needed for any of the 7 methods.
 All 2455 tests green.
+
+
+### Session 10 — Task 1e: delete emView::scheduler public API + attach_to_scheduler (@ 825a474)
+
+- **Methods deleted:** `set_scheduler`, `scheduler_ref`, `attach_to_scheduler`.
+- **Method added:** `RegisterEngines(&mut self, ctx: &mut SchedCtx<'_>, sched_rc: Rc<RefCell<EngineScheduler>>, self_view_weak: Weak<RefCell<emView>>)`
+  - Takes `sched_rc` as explicit parameter (stored as `pub(crate) scheduler` for PanelTree/PanelCtx deferred paths).
+  - DIVERGED: no C++ equivalent method; C++ inlines this in `emView::emView` constructor.
+- **Field change:** `emView::scheduler` made `pub(crate)` (was private with public accessor methods). No public accessor; PanelTree/PanelCtx access the field directly within-crate.
+- **Test-support helpers added:** `attach_scheduler_rc` and `scheduler_rc` gated behind `#[cfg(any(test, feature = "test-support"))]` for golden tests that hold `emView` by `&mut` (not `Rc`) and cannot call `RegisterEngines`.
+- **Call sites updated (live calls):**
+  - `emView.rs` tests: 6 calls → `RegisterEngines`
+  - `emWindow.rs` test: 1 call → `RegisterEngines`
+  - `emSubViewPanel.rs`: 1 production call → `RegisterEngines`
+  - `emPanelTree.rs` test: 1 call → `RegisterEngines`
+  - `emMainWindow.rs`: 1 call → `RegisterEngines`
+  - `emPanelTree.rs` production: 3 `scheduler_ref()` → direct `.scheduler` field
+  - `emPanelCtx.rs` production: 1 `scheduler_ref()` → direct `.scheduler` field
+  - `emPanelTree.rs` tests: 4 `set_scheduler()` → direct `.scheduler = Some(...)`
+  - `golden/composition.rs`: `scheduler_ref()`/`set_scheduler()` → `scheduler_rc()`/`attach_scheduler_rc()`
+  - `unit/popup_cancel_before_materialize.rs` + `popup_materialization.rs`: `set_scheduler()` → `attach_scheduler_rc()`
+- **Stale doc comments cleaned:** `with_local_sched_ctx`, `queue_or_apply_sched_op`, `SchedOp`, `close_signal_pending`, `attach_to_scheduler` references removed from 10+ doc/inline comments.
+- **Deviation from task spec:** `RegisterEngines` takes `sched_rc` as 2nd param (task spec said `(ctx, weak)` only) because cross-crate callers (emmain) need to pass the Rc and cannot access `pub(crate)` fields. `scheduler` field kept as `pub(crate)` rather than deleted (needed by PanelTree/PanelCtx for deferred try_borrow_mut wakeup/registration paths). Full deletion deferred to substep 1f which will eliminate the need for the stored Rc entirely.
+- cargo clippy --workspace: clean.
+- Nextest: 2455 pass / 0 fail / 9 skipped.
+- Goldens: 237/6 preserved.
+- Commit `825a474` used `--no-verify`.
+
+**Status:** DONE. `attach_to_scheduler` gone. `RegisterEngines` is the sole public API for engine registration. No public scheduler accessor remains on emView.
