@@ -53,11 +53,6 @@ impl PipelineTestHarness {
         {
             let mut __sched = EngineScheduler::new();
             let mut __fw: Vec<DeferredAction> = Vec::new();
-            let mut __pending_inputs: Vec<(
-                winit::window::WindowId,
-                emcore::emInput::emInputEvent,
-            )> = Vec::new();
-            let mut __input_state = emcore::emInputState::emInputState::new();
             let mut sc = SchedCtx {
                 scheduler: &mut __sched,
                 framework_actions: &mut __fw,

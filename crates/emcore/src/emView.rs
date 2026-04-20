@@ -3286,9 +3286,6 @@ impl emView {
         // Build a throwaway SchedCtx for test-support use.
         let mut __sched = crate::emScheduler::EngineScheduler::new();
         let mut __fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
-        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
-            Vec::new();
-        let mut __input_state = crate::emInputState::emInputState::new();
         let __ctx = self.GetRootContext();
         for _ in 0..1024 {
             let mut va = va_rc.borrow_mut();
