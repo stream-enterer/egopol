@@ -38,11 +38,14 @@ fn remove_active_panel_reselects() {
     // Make A active
     h.set_active_panel(a);
     {
-
-        let mut sc = emcore::emEngineCtx::SchedCtx { scheduler: &mut h.scheduler, framework_actions: &mut h.framework_actions, root_context: &h.root_context, current_engine: None };
+        let mut sc = emcore::emEngineCtx::SchedCtx {
+            scheduler: &mut h.scheduler,
+            framework_actions: &mut h.framework_actions,
+            root_context: &h.root_context,
+            current_engine: None,
+        };
 
         h.view.Update(&mut h.tree, &mut sc);
-
     }
     assert_eq!(h.view.GetActivePanel(), Some(a));
 

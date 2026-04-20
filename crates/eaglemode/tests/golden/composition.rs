@@ -97,7 +97,9 @@ fn settle(
 
 /// Create a fresh scheduler for a golden test `settle` loop.
 fn make_settle_sched() -> std::rc::Rc<std::cell::RefCell<emcore::emScheduler::EngineScheduler>> {
-    std::rc::Rc::new(std::cell::RefCell::new(emcore::emScheduler::EngineScheduler::new()))
+    std::rc::Rc::new(std::cell::RefCell::new(
+        emcore::emScheduler::EngineScheduler::new(),
+    ))
 }
 
 /// Returns true if DUMP_PANEL_TREE=1 is set in the environment.

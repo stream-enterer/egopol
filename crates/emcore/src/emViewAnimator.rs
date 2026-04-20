@@ -364,7 +364,13 @@ impl emKineticViewAnimator {
 }
 
 impl emViewAnimator for emKineticViewAnimator {
-    fn animate(&mut self, view: &mut emView, tree: &mut PanelTree, dt: f64, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) -> bool {
+    fn animate(
+        &mut self,
+        view: &mut emView,
+        tree: &mut PanelTree,
+        dt: f64,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) -> bool {
         if !self.active {
             return false;
         }
@@ -542,7 +548,13 @@ fn accelerate_dim(
 }
 
 impl emViewAnimator for emSpeedingViewAnimator {
-    fn animate(&mut self, view: &mut emView, tree: &mut PanelTree, dt: f64, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) -> bool {
+    fn animate(
+        &mut self,
+        view: &mut emView,
+        tree: &mut PanelTree,
+        dt: f64,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) -> bool {
         if !self.active {
             return false;
         }
@@ -2094,7 +2106,13 @@ impl emVisitingViewAnimator {
 }
 
 impl emViewAnimator for emVisitingViewAnimator {
-    fn animate(&mut self, view: &mut emView, tree: &mut PanelTree, dt: f64, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) -> bool {
+    fn animate(
+        &mut self,
+        view: &mut emView,
+        tree: &mut PanelTree,
+        dt: f64,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) -> bool {
         if !self.active {
             return false;
         }
@@ -2390,7 +2408,13 @@ impl emSwipingViewAnimator {
 }
 
 impl emViewAnimator for emSwipingViewAnimator {
-    fn animate(&mut self, view: &mut emView, tree: &mut PanelTree, dt: f64, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) -> bool {
+    fn animate(
+        &mut self,
+        view: &mut emView,
+        tree: &mut PanelTree,
+        dt: f64,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) -> bool {
         let base_busy;
 
         if self.busy && self.gripped {
@@ -2673,7 +2697,13 @@ impl emMagneticViewAnimator {
 
 impl emViewAnimator for emMagneticViewAnimator {
     /// C++ emMagneticViewAnimator::CycleAnimation (emViewAnimator.cpp:716-806).
-    fn animate(&mut self, view: &mut emView, tree: &mut PanelTree, dt: f64, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) -> bool {
+    fn animate(
+        &mut self,
+        view: &mut emView,
+        tree: &mut PanelTree,
+        dt: f64,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) -> bool {
         if !self.inner.active {
             return false;
         }

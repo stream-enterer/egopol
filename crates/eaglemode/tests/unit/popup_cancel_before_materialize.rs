@@ -33,9 +33,9 @@
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-use emcore::test_view_harness::TestSched;
 use emcore::emGUIFramework::App;
 use emcore::emWindow::{emWindow, WindowFlags};
+use emcore::test_view_harness::TestSched;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -129,7 +129,9 @@ impl ApplicationHandler for Harness {
                     // Clear zoomed_out_before_sg so RawVisit doesn't
                     // zoom-out-and-tear-down; mirrors popup_materialization.
                     ts.with(|sc| view.Update(tree, sc));
-                    ts.with(|sc| view.SetViewFlags(emcore::emView::ViewFlags::POPUP_ZOOM, tree, sc));
+                    ts.with(|sc| {
+                        view.SetViewFlags(emcore::emView::ViewFlags::POPUP_ZOOM, tree, sc)
+                    });
                     // Small rel_a → vw >> HomeWidth → outside_home → popup branch.
                     ts.with(|sc| view.RawVisit(tree, child, 0.0, 0.0, 0.1, true, sc));
                 }

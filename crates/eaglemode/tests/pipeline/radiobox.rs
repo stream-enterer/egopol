@@ -93,10 +93,12 @@ impl RadioBoxHarness {
         h.tree.Layout(panel0, 0.0, 0.0, 1.0, 1.0 / 3.0, 1.0, None);
 
         let panel1 = h.add_panel_with(root, "rbox1", Box::new(RadioBoxBehavior::new(rb1)));
-        h.tree.Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0, 1.0, None);
+        h.tree
+            .Layout(panel1, 0.0, 1.0 / 3.0, 1.0, 1.0 / 3.0, 1.0, None);
 
         let panel2 = h.add_panel_with(root, "rbox2", Box::new(RadioBoxBehavior::new(rb2)));
-        h.tree.Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0, 1.0, None);
+        h.tree
+            .Layout(panel2, 0.0, 2.0 / 3.0, 1.0, 1.0 / 3.0, 1.0, None);
 
         // Settle layout and viewing Restore.
         h.tick_n(5);

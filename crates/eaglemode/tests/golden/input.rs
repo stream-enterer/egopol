@@ -97,11 +97,14 @@ fn input_key_to_focused() {
 
     // Focus child1
     {
-
-        let mut sc = emcore::emEngineCtx::SchedCtx { scheduler: &mut h.scheduler, framework_actions: &mut h.framework_actions, root_context: &h.root_context, current_engine: None };
+        let mut sc = emcore::emEngineCtx::SchedCtx {
+            scheduler: &mut h.scheduler,
+            framework_actions: &mut h.framework_actions,
+            root_context: &h.root_context,
+            current_engine: None,
+        };
 
         h.view.focus_panel(&mut h.tree, child1, &mut sc);
-
     }
 
     let recv_root = attach_input(&mut h.tree, root);

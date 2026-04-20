@@ -1243,8 +1243,11 @@ impl emFileSelectionBox {
             // Items changed — notify the listbox panel to re-run LayoutChildren
             // so it creates/updates item panels. C++ does this implicitly via
             // CreateItemPanel() in InsertItem() when IsAutoExpanded().
-            ctx.tree
-                .queue_notice(lb_id, super::emPanel::NoticeFlags::LAYOUT_CHANGED, ctx.scheduler.as_deref_mut());
+            ctx.tree.queue_notice(
+                lb_id,
+                super::emPanel::NoticeFlags::LAYOUT_CHANGED,
+                ctx.scheduler.as_deref_mut(),
+            );
         }
     }
 

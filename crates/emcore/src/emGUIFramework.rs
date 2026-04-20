@@ -291,9 +291,15 @@ impl App {
                 root_context: &root,
                 current_engine: None,
             };
-            w_mut
-                .view_mut()
-                .SetGeometry(&mut self.tree, 0.0, 0.0, w as f64, h as f64, 1.0, &mut sc);
+            w_mut.view_mut().SetGeometry(
+                &mut self.tree,
+                0.0,
+                0.0,
+                w as f64,
+                h as f64,
+                1.0,
+                &mut sc,
+            );
         }
 
         let window_id = winit_window.id();

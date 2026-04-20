@@ -792,7 +792,15 @@ pub fn run_one_frame(
     // 1. Scroll/zoom + Update
     let mut ts = TestSched::new();
     ts.with(|sc| {
-        view.RawScrollAndZoom(tree, fix_x, fix_y, scenario.dx, scenario.dy, scenario.dz, sc);
+        view.RawScrollAndZoom(
+            tree,
+            fix_x,
+            fix_y,
+            scenario.dx,
+            scenario.dy,
+            scenario.dz,
+            sc,
+        );
         view.Update(tree, sc);
     });
 

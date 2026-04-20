@@ -8,11 +8,11 @@
 //! escalation clause, the test instantiates `emViewPort` and `emView`
 //! directly and verifies the dispatch path.
 
-use emcore::test_view_harness::TestSched;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
 use emcore::emPanelTree::PanelTree;
 use emcore::emView::emView;
+use emcore::test_view_harness::TestSched;
 
 #[test]
 fn input_routes_through_viewport() {

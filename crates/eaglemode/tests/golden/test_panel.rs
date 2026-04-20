@@ -1278,8 +1278,12 @@ impl PanelBehavior for TestPanel {
 
         let tktest_id = ctx.create_child_with("tktest", Box::new(TkTestGrpPanel::new()));
         // C++ TkTestGrp constructor: SetAutoExpansionThreshold(900.0)
-        ctx.tree
-            .SetAutoExpansionThreshold(tktest_id, 900.0, ViewConditionType::Area, ctx.scheduler.as_deref_mut());
+        ctx.tree.SetAutoExpansionThreshold(
+            tktest_id,
+            900.0,
+            ViewConditionType::Area,
+            ctx.scheduler.as_deref_mut(),
+        );
 
         if self.depth < MAX_DEPTH {
             for i in 1..=4 {
@@ -1288,8 +1292,12 @@ impl PanelBehavior for TestPanel {
                     &format!("tp{i}"),
                     Box::new(TestPanel::new(self.depth + 1, child_bg)),
                 );
-                ctx.tree
-                    .SetAutoExpansionThreshold(tp_id, 900.0, ViewConditionType::Area, ctx.scheduler.as_deref_mut());
+                ctx.tree.SetAutoExpansionThreshold(
+                    tp_id,
+                    900.0,
+                    ViewConditionType::Area,
+                    ctx.scheduler.as_deref_mut(),
+                );
             }
         }
 
@@ -1735,8 +1743,12 @@ impl TkTestPanel {
             let id = ctx.tree.create_child(gid, "cf1", None);
             ctx.tree
                 .set_behavior(id, Box::new(ColorFieldPanel { widget: cf1 }));
-            ctx.tree
-                .SetAutoExpansionThreshold(id, 9.0, ViewConditionType::MinExt, ctx.scheduler.as_deref_mut());
+            ctx.tree.SetAutoExpansionThreshold(
+                id,
+                9.0,
+                ViewConditionType::MinExt,
+                ctx.scheduler.as_deref_mut(),
+            );
 
             let mut cf2 = emColorField::new(look.clone());
             cf2.SetCaption("Editable");
@@ -1745,8 +1757,12 @@ impl TkTestPanel {
             let id = ctx.tree.create_child(gid, "cf2", None);
             ctx.tree
                 .set_behavior(id, Box::new(ColorFieldPanel { widget: cf2 }));
-            ctx.tree
-                .SetAutoExpansionThreshold(id, 9.0, ViewConditionType::MinExt, ctx.scheduler.as_deref_mut());
+            ctx.tree.SetAutoExpansionThreshold(
+                id,
+                9.0,
+                ViewConditionType::MinExt,
+                ctx.scheduler.as_deref_mut(),
+            );
 
             let mut cf3 = emColorField::new(look.clone());
             cf3.SetCaption("Editable, Alpha Enabled");
@@ -1756,8 +1772,12 @@ impl TkTestPanel {
             let id = ctx.tree.create_child(gid, "cf3", None);
             ctx.tree
                 .set_behavior(id, Box::new(ColorFieldPanel { widget: cf3 }));
-            ctx.tree
-                .SetAutoExpansionThreshold(id, 9.0, ViewConditionType::MinExt, ctx.scheduler.as_deref_mut());
+            ctx.tree.SetAutoExpansionThreshold(
+                id,
+                9.0,
+                ViewConditionType::MinExt,
+                ctx.scheduler.as_deref_mut(),
+            );
         }
 
         // 7. Tunnels (C++ emTestPanel.cpp:662-680)

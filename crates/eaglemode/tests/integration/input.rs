@@ -47,11 +47,14 @@ fn vif_consumes_prevents_behavior() {
     // Set child as active
     h.set_active_panel(_child);
     {
-
-        let mut sc = emcore::emEngineCtx::SchedCtx { scheduler: &mut h.scheduler, framework_actions: &mut h.framework_actions, root_context: &h.root_context, current_engine: None };
+        let mut sc = emcore::emEngineCtx::SchedCtx {
+            scheduler: &mut h.scheduler,
+            framework_actions: &mut h.framework_actions,
+            root_context: &h.root_context,
+            current_engine: None,
+        };
 
         h.view.Update(&mut h.tree, &mut sc);
-
     }
 
     // Alt+ArrowUp should be consumed by emKeyboardZoomScrollVIF (zoom/scroll)
@@ -99,11 +102,14 @@ fn focus_change_routes_keyboard() {
     // Activate A and type a key
     h.set_active_panel(a);
     {
-
-        let mut sc = emcore::emEngineCtx::SchedCtx { scheduler: &mut h.scheduler, framework_actions: &mut h.framework_actions, root_context: &h.root_context, current_engine: None };
+        let mut sc = emcore::emEngineCtx::SchedCtx {
+            scheduler: &mut h.scheduler,
+            framework_actions: &mut h.framework_actions,
+            root_context: &h.root_context,
+            current_engine: None,
+        };
 
         h.view.Update(&mut h.tree, &mut sc);
-
     }
     let key_x = emInputEvent::press(InputKey::Key('x'));
     h.inject_input(&key_x);

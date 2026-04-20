@@ -468,9 +468,11 @@ impl emEngine for StartupEngine {
             // child directly on the main panel. In Rust the engine has tree
             // access, so we create the child here and hand its id to emMainPanel.
             3 => {
-                let overlay_id =
-                    ctx.tree
-                        .create_child(self.main_panel_id, "startupOverlay", Some(&mut *ctx.scheduler));
+                let overlay_id = ctx.tree.create_child(
+                    self.main_panel_id,
+                    "startupOverlay",
+                    Some(&mut *ctx.scheduler),
+                );
                 ctx.tree
                     .set_behavior(overlay_id, Box::new(StartupOverlayPanel));
                 ctx.tree

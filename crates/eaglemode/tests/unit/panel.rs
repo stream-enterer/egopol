@@ -1,7 +1,7 @@
-use emcore::test_view_harness::TestSched;
 use emcore::emColor::emColor;
 use emcore::emPanel::Rect;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use emcore::test_view_harness::TestSched;
 
 use emcore::emPanelCtx::PanelCtx;
 

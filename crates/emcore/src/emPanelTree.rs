@@ -704,7 +704,11 @@ impl PanelTree {
         // We can't pass sched multiple times via Option<&mut>, so collect eids.
         let mut eids_to_remove: Vec<EngineId> = Vec::new();
         for &desc_id in &descendants {
-            if let Some(eid) = self.panels.get_mut(desc_id).and_then(|p| p.engine_id.take()) {
+            if let Some(eid) = self
+                .panels
+                .get_mut(desc_id)
+                .and_then(|p| p.engine_id.take())
+            {
                 eids_to_remove.push(eid);
             }
         }
@@ -854,12 +858,7 @@ impl PanelTree {
     // ── Public write accessors ─────────────────────────────────────────
 
     /// Set whether the panel is visible.
-    pub fn set_visible(
-        &mut self,
-        id: PanelId,
-        visible: bool,
-        sched: Option<&mut EngineScheduler>,
-    ) {
+    pub fn set_visible(&mut self, id: PanelId, visible: bool, sched: Option<&mut EngineScheduler>) {
         let changed = if let Some(panel) = self.panels.get_mut(id) {
             if panel.visible != visible {
                 panel.visible = visible;

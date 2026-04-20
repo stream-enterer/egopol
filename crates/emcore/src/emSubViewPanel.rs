@@ -369,8 +369,12 @@ impl PanelBehavior for emSubViewPanel {
                 root_context: &root_ctx_for_anim,
                 current_engine: None,
             };
-            let still_active =
-                anim.animate(&mut self.sub_view.borrow_mut(), &mut self.sub_tree, dt, &mut sc);
+            let still_active = anim.animate(
+                &mut self.sub_view.borrow_mut(),
+                &mut self.sub_tree,
+                dt,
+                &mut sc,
+            );
             drop(sched_anim);
             if still_active {
                 self.active_animator = Some(anim);
@@ -502,7 +506,9 @@ mod sp8_tests {
     /// a bare emSubViewPanel and skip that, so clean up explicitly.
     fn teardown(panel: &mut emSubViewPanel) {
         let root = panel.sub_root();
-        panel.sub_tree.remove(root, Some(&mut panel.sub_scheduler.borrow_mut()));
+        panel
+            .sub_tree
+            .remove(root, Some(&mut panel.sub_scheduler.borrow_mut()));
         let mut view = panel.sub_view.borrow_mut();
         let mut sched = panel.sub_scheduler.borrow_mut();
         if let Some(eid) = view.update_engine_id.take() {
@@ -605,7 +611,9 @@ mod sp4_5_fix_1_tests {
     /// sub-tree engines so the sub_scheduler Drop debug_assert passes.
     fn teardown(panel: &mut emSubViewPanel) {
         let root = panel.sub_root();
-        panel.sub_tree.remove(root, Some(&mut panel.sub_scheduler.borrow_mut()));
+        panel
+            .sub_tree
+            .remove(root, Some(&mut panel.sub_scheduler.borrow_mut()));
         let mut view = panel.sub_view.borrow_mut();
         let mut sched = panel.sub_scheduler.borrow_mut();
         if let Some(eid) = view.update_engine_id.take() {
@@ -699,7 +707,8 @@ mod sp4_5_fix_1_tests {
         // Mirrors emSubViewPanel::Cycle (SP4.5-FIX-1 fix): register engines
         // that were deferred because sub_scheduler.borrow_mut was held during
         // DoTimeSlice.
-        panel.sub_tree
+        panel
+            .sub_tree
             .register_pending_engines(&mut panel.sub_scheduler.borrow_mut());
 
         // Attach the first-cycle probe to the spawned panel's engine.
@@ -736,7 +745,8 @@ mod sp4_5_fix_1_tests {
                 &__root_ctx,
                 &mut __fw,
             );
-            panel.sub_tree
+            panel
+                .sub_tree
                 .register_pending_engines(&mut panel.sub_scheduler.borrow_mut());
         }
 

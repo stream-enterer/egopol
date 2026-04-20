@@ -125,7 +125,8 @@ impl TestHarness {
             root_context: &self.root_context,
             current_engine: None,
         };
-        self.view.set_active_panel(&mut self.tree, panel, false, &mut sc);
+        self.view
+            .set_active_panel(&mut self.tree, panel, false, &mut sc);
     }
 
     /// Create a focusable child panel with a layout rect.
@@ -160,7 +161,13 @@ impl TestHarness {
                 root_context: &self.root_context,
                 current_engine: None,
             };
-            if vif.filter(event, &self.input_state, &mut self.view, &mut self.tree, &mut sc) {
+            if vif.filter(
+                event,
+                &self.input_state,
+                &mut self.view,
+                &mut self.tree,
+                &mut sc,
+            ) {
                 return;
             }
         }
@@ -182,7 +189,8 @@ impl TestHarness {
                 root_context: &self.root_context,
                 current_engine: None,
             };
-            self.view.set_active_panel(&mut self.tree, panel, false, &mut sc);
+            self.view
+                .set_active_panel(&mut self.tree, panel, false, &mut sc);
         }
 
         // Stamp modifier keys from emInputState onto the event

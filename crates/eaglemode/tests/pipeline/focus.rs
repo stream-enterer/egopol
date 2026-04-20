@@ -65,11 +65,14 @@ fn two_branch_tree() -> (
 
     // Update viewing so panels have computed screen rects for hit testing.
     {
-
-        let mut sc = emcore::emEngineCtx::SchedCtx { scheduler: &mut h.scheduler, framework_actions: &mut h.framework_actions, root_context: &h.root_context, current_engine: None };
+        let mut sc = emcore::emEngineCtx::SchedCtx {
+            scheduler: &mut h.scheduler,
+            framework_actions: &mut h.framework_actions,
+            root_context: &h.root_context,
+            current_engine: None,
+        };
 
         h.view.Update(&mut h.tree, &mut sc);
-
     }
     h.tick();
 
@@ -373,14 +376,14 @@ fn deep_tree_activation_propagates_in_active_path() {
     h.tree.Layout(leaf, 0.0, 0.0, 1.0, 1.0, 1.0, None);
 
     {
-
-
-        let mut sc = emcore::emEngineCtx::SchedCtx { scheduler: &mut h.scheduler, framework_actions: &mut h.framework_actions, root_context: &h.root_context, current_engine: None };
-
+        let mut sc = emcore::emEngineCtx::SchedCtx {
+            scheduler: &mut h.scheduler,
+            framework_actions: &mut h.framework_actions,
+            root_context: &h.root_context,
+            current_engine: None,
+        };
 
         h.view.Update(&mut h.tree, &mut sc);
-
-
     }
     h.tick();
 

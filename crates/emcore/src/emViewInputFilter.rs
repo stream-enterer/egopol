@@ -3013,22 +3013,24 @@ mod tests {
         // Rapid drag
         ts.with(|sc| vif.touch_start(1, 100.0, 100.0, &mut view, &mut tree, sc));
         for i in 1..10 {
-            ts.with(|sc| vif.touch_move(
-                1,
-                100.0 + i as f64 * 50.0,
-                100.0,
-                0.016,
-                &mut view,
-                &mut tree,
-                sc,
-            ));
+            ts.with(|sc| {
+                vif.touch_move(
+                    1,
+                    100.0 + i as f64 * 50.0,
+                    100.0,
+                    0.016,
+                    &mut view,
+                    &mut tree,
+                    sc,
+                )
+            });
         }
         ts.with(|sc| vif.touch_end(1, &mut view, &mut tree, sc));
         assert_eq!(vif.state(), TouchState::Fling);
 
         // Animate fling until stopped
         let mut frames = 0;
-        while ts.with(|sc| vif.animate_fling(&mut view, &mut tree, 0.016, sc))  {
+        while ts.with(|sc| vif.animate_fling(&mut view, &mut tree, 0.016, sc)) {
             frames += 1;
             if frames > 1000 {
                 break;
@@ -3048,15 +3050,17 @@ mod tests {
         // Create fling
         ts.with(|sc| vif.touch_start(1, 100.0, 100.0, &mut view, &mut tree, sc));
         for i in 1..10 {
-            ts.with(|sc| vif.touch_move(
-                1,
-                100.0 + i as f64 * 50.0,
-                100.0,
-                0.016,
-                &mut view,
-                &mut tree,
-                sc,
-            ));
+            ts.with(|sc| {
+                vif.touch_move(
+                    1,
+                    100.0 + i as f64 * 50.0,
+                    100.0,
+                    0.016,
+                    &mut view,
+                    &mut tree,
+                    sc,
+                )
+            });
         }
         ts.with(|sc| vif.touch_end(1, &mut view, &mut tree, sc));
         assert_eq!(vif.state(), TouchState::Fling);
@@ -3300,7 +3304,8 @@ mod tests {
         assert!(consumed);
 
         // Call animate via the trait — should return true (animation active)
-        let active = ts.with(|sc| emViewInputFilter::animate(&mut vif, &mut view, &mut tree, 1.0 / 60.0, sc));
+        let active = ts
+            .with(|sc| emViewInputFilter::animate(&mut vif, &mut view, &mut tree, 1.0 / 60.0, sc));
         assert!(active, "animate() should return true when wheel is active");
     }
 
@@ -3311,7 +3316,8 @@ mod tests {
         let mut vif = emMouseZoomScrollVIF::new();
 
         // No events fed — animate should return false
-        let active = ts.with(|sc| emViewInputFilter::animate(&mut vif, &mut view, &mut tree, 1.0 / 60.0, sc));
+        let active = ts
+            .with(|sc| emViewInputFilter::animate(&mut vif, &mut view, &mut tree, 1.0 / 60.0, sc));
         assert!(!active, "animate() should return false when idle");
     }
 

@@ -24,9 +24,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use emcore::test_view_harness::TestSched;
 use emcore::emGUIFramework::App;
 use emcore::emWindow::{emWindow, WindowFlags};
+use emcore::test_view_harness::TestSched;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -122,7 +122,9 @@ impl ApplicationHandler for Harness {
                     // zoom out and tear down the popup.
                     ts.with(|sc| view.Update(tree, sc));
                     // Enable popup zoom mode.
-                    ts.with(|sc| view.SetViewFlags(emcore::emView::ViewFlags::POPUP_ZOOM, tree, sc));
+                    ts.with(|sc| {
+                        view.SetViewFlags(emcore::emView::ViewFlags::POPUP_ZOOM, tree, sc)
+                    });
                     // Visit `child` with very small rel_a — the ancestor
                     // clamp loop ascends to root with vw >> HomeWidth,
                     // triggering outside_home → popup branch.

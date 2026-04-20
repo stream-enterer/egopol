@@ -106,7 +106,8 @@ impl PipelineTestHarness {
             root_context: &self.root_context,
             current_engine: None,
         };
-        self.view.set_active_panel(&mut self.tree, panel, false, &mut sc);
+        self.view
+            .set_active_panel(&mut self.tree, panel, false, &mut sc);
     }
 
     // ── Frame / tick ─────────────────────────────────────────────
@@ -196,7 +197,8 @@ impl PipelineTestHarness {
                 root_context: &self.root_context,
                 current_engine: None,
             };
-            self.view.Zoom(&mut self.tree, level, vw * 0.5, vh * 0.5, &mut sc);
+            self.view
+                .Zoom(&mut self.tree, level, vw * 0.5, vh * 0.5, &mut sc);
         }
 
         // Step 3: refresh viewed Restore for all panels.
@@ -247,7 +249,13 @@ impl PipelineTestHarness {
                 root_context: &self.root_context,
                 current_engine: None,
             };
-            if vif.filter(event, &self.input_state, &mut self.view, &mut self.tree, &mut sc) {
+            if vif.filter(
+                event,
+                &self.input_state,
+                &mut self.view,
+                &mut self.tree,
+                &mut sc,
+            ) {
                 return;
             }
         }
@@ -286,7 +294,8 @@ impl PipelineTestHarness {
                 root_context: &self.root_context,
                 current_engine: None,
             };
-            self.view.set_active_panel(&mut self.tree, panel, false, &mut sc);
+            self.view
+                .set_active_panel(&mut self.tree, panel, false, &mut sc);
         }
 
         // Stamp modifier keys from emInputState onto the event

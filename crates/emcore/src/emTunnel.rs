@@ -297,8 +297,11 @@ impl PanelBehavior for emTunnel {
             self.layout_invalid = false;
             ctx.tree
                 .InvalidateChildrenLayout(ctx.id, ctx.scheduler.as_deref_mut());
-            ctx.tree
-                .queue_notice(ctx.id, NoticeFlags::LAYOUT_CHANGED, ctx.scheduler.as_deref_mut());
+            ctx.tree.queue_notice(
+                ctx.id,
+                NoticeFlags::LAYOUT_CHANGED,
+                ctx.scheduler.as_deref_mut(),
+            );
         }
 
         let rect = ctx.layout_rect();

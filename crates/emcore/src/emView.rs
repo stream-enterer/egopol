@@ -178,7 +178,6 @@ impl StressTest {
     }
 }
 
-
 /// Scheduler-driven engine that calls `emView::Update` once per slice.
 ///
 /// Ported from C++ `emView::UpdateEngineClass` (inner class of `emView`,
@@ -579,7 +578,6 @@ impl emView {
         }
     }
 
-
     // --- Accessors ---
 
     pub fn GetContext(&self) -> &Rc<crate::emContext::emContext> {
@@ -685,7 +683,11 @@ impl emView {
         if self.seek_pos_panel != panel {
             // Notify old panel that sought name is cleared
             if let Some(old_id) = self.seek_pos_panel {
-                tree.queue_notice(old_id, super::emPanel::NoticeFlags::SOUGHT_NAME_CHANGED, None);
+                tree.queue_notice(
+                    old_id,
+                    super::emPanel::NoticeFlags::SOUGHT_NAME_CHANGED,
+                    None,
+                );
             }
 
             self.seek_pos_panel = panel;
@@ -699,7 +701,11 @@ impl emView {
             // checks if this panel should now expand (C++ AutoExpand
             // triggers when View.SeekPosPanel==this).
             if let Some(new_id) = self.seek_pos_panel {
-                tree.queue_notice(new_id, super::emPanel::NoticeFlags::SOUGHT_NAME_CHANGED, None);
+                tree.queue_notice(
+                    new_id,
+                    super::emPanel::NoticeFlags::SOUGHT_NAME_CHANGED,
+                    None,
+                );
                 if let Some(p) = tree.get_mut(new_id) {
                     p.ae_decision_invalid = true;
                 }
@@ -1303,11 +1309,7 @@ impl emView {
 
     // --- Zoom out ---
 
-    pub fn ZoomOut(
-        &mut self,
-        tree: &mut PanelTree,
-        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
-    ) {
+    pub fn ZoomOut(&mut self, tree: &mut PanelTree, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) {
         self.RawZoomOut(tree, false, ctx);
         // C++ emView.cpp:901.
         self.SetActivePanelBestPossible(tree, ctx);
@@ -4995,7 +4997,6 @@ mod tests {
         (tree, root, child1, child2)
     }
 
-
     #[test]
     fn test_update_viewing_sets_coords() {
         let mut ts = TestSched::new();
@@ -5587,7 +5588,8 @@ mod tests {
 
         // Enable EGO_MODE and attempt to scroll
         view.flags |= ViewFlags::EGO_MODE;
-        let done = ts.with(|sc| view.RawScrollAndZoom(&mut tree, 400.0, 300.0, 50.0, 50.0, 0.0, sc));
+        let done =
+            ts.with(|sc| view.RawScrollAndZoom(&mut tree, 400.0, 300.0, 50.0, 50.0, 0.0, sc));
 
         // Scroll delta should be zero — viewport center locked
         let (_, after_rx, after_ry, _) = view
@@ -5827,7 +5829,17 @@ mod tests {
                 }
 
                 // Restore by calling RawVisit with the saved rel coords.
-                ts.with(|sc| view.RawVisit(&mut tree, saved_panel, saved_rx, saved_ry, saved_ra, true, sc));
+                ts.with(|sc| {
+                    view.RawVisit(
+                        &mut tree,
+                        saved_panel,
+                        saved_rx,
+                        saved_ry,
+                        saved_ra,
+                        true,
+                        sc,
+                    )
+                });
             }
         }
     }
@@ -6108,15 +6120,17 @@ mod tests {
         let root2 = tree2.GetRootPanel().unwrap();
         let mut v2 = emView::new(crate::emContext::emContext::NewRoot(), root2, 640.0, 480.0);
         v2.SetActivePanel(tree2.GetFirstChild(root2).unwrap());
-        ts.with(|sc| v2.RawVisitAbs(
-            &mut tree2,
-            expected_svp.unwrap(),
-            expected_vx,
-            expected_vy,
-            expected_vw,
-            false,
-            sc,
-        ));
+        ts.with(|sc| {
+            v2.RawVisitAbs(
+                &mut tree2,
+                expected_svp.unwrap(),
+                expected_vx,
+                expected_vy,
+                expected_vw,
+                false,
+                sc,
+            )
+        });
         assert_eq!(v2.GetSupremeViewedPanel(), expected_svp);
         let svp = tree2.GetRec(expected_svp.unwrap()).unwrap();
         assert!((svp.viewed_x - expected_vx).abs() < 1e-9);
@@ -6601,7 +6615,15 @@ mod tests {
         let (mut tree, root, _, _) = setup_tree();
         let mut v = emView::new(crate::emContext::emContext::NewRoot(), root, 640.0, 480.0);
         let mut h = crate::test_view_harness::TestViewHarness::new();
-        v.SetGeometry(&mut tree, 100.0, 50.0, 800.0, 600.0, 1.25, &mut h.sched_ctx());
+        v.SetGeometry(
+            &mut tree,
+            100.0,
+            50.0,
+            800.0,
+            600.0,
+            1.25,
+            &mut h.sched_ctx(),
+        );
         assert_eq!(v.HomeX, 100.0);
         assert_eq!(v.HomeY, 50.0);
         assert_eq!(v.HomeWidth, 800.0);
@@ -7088,7 +7110,15 @@ mod tests {
         let mut h = crate::test_view_harness::TestViewHarness::new();
         // Distinct pixel tallness via SetGeometry.
         view_a.SetGeometry(&mut tree_a, 0.0, 0.0, 800.0, 600.0, 1.0, &mut h.sched_ctx());
-        view_b.SetGeometry(&mut tree_b, 0.0, 0.0, 1920.0, 1080.0, 2.0, &mut h.sched_ctx());
+        view_b.SetGeometry(
+            &mut tree_b,
+            0.0,
+            0.0,
+            1920.0,
+            1080.0,
+            2.0,
+            &mut h.sched_ctx(),
+        );
 
         assert_eq!(view_a.GetCurrentPixelTallness(), 1.0);
         assert_eq!(view_b.GetCurrentPixelTallness(), 2.0);

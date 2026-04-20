@@ -573,7 +573,9 @@ impl emColorField {
         create_pct_sf(ctx.tree, layout_id, "b", "Blue", exp.sf_blue);
         // Alpha field: C++ has description "The lower the more transparent."
         let alpha_id = {
-            let child = ctx.tree.create_child(layout_id, "a", ctx.scheduler.as_deref_mut());
+            let child = ctx
+                .tree
+                .create_child(layout_id, "a", ctx.scheduler.as_deref_mut());
             let mut panel = ScalarFieldPanel::new(
                 "Alpha",
                 0.0,
@@ -600,7 +602,9 @@ impl emColorField {
 
         // Hue field: different intervals, text formatter, and tallness.
         {
-            let child = ctx.tree.create_child(layout_id, "h", ctx.scheduler.as_deref_mut());
+            let child = ctx
+                .tree
+                .create_child(layout_id, "h", ctx.scheduler.as_deref_mut());
             let mut panel = ScalarFieldPanel::new(
                 "Hue",
                 0.0,
@@ -636,7 +640,9 @@ impl emColorField {
         // emTextField child for color name/hex.
         // C++ description: "Here you can enter a color name like 'powder blue',\n
         //                    or a hexadecimal RGB value like '#c88' or '#73c81D'."
-        let tf_child = ctx.tree.create_child(layout_id, "n", ctx.scheduler.as_deref_mut());
+        let tf_child = ctx
+            .tree
+            .create_child(layout_id, "n", ctx.scheduler.as_deref_mut());
         let mut tf_panel = TextFieldPanel::new("Name", &exp.tf_name, child_look, editable);
         tf_panel.text_field.border_mut().description =
             "Here you can enter a color name like 'powder blue',\n\
