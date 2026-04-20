@@ -18,6 +18,8 @@
 
 **Entry-precondition.** Phase 3 Closeout COMPLETE.
 
+> **Drift note (2026-04-20, post-phase-1.76):** A file `crates/emcore/src/emRec.rs` already exists (905 lines; `RecStruct`, `RecValue`, `parse_rec`, `write_rec`). Task 2's "Create `emRec.rs`" cannot drop the `emRec<T>` trait into that file without a pre-work restructure. Before Task 2, either (a) move the existing `RecStruct`/`RecValue`/parser contents into a new file (candidate: `emRecRecord.rs` or `emRecParser.rs`) with a `SPLIT:` comment documenting the rationale, OR (b) place the new `pub trait emRec<T>` in a differently-named file (candidate: `emRecTrait.rs`) with a `SPLIT:` comment tying it back to the C++ `emRec.h` header. Decide at Bootstrap B10 (brainstorm note) and carry the decision into Task 2. Do not silently merge into the existing file.
+
 ---
 
 ## Bootstrap (per shared ritual)
@@ -92,6 +94,8 @@ git commit -m "phase-4a: emRecNode base trait"
 
 **Files:**
 - Create: `crates/emcore/src/emRec.rs`.
+
+**Pre-step (per Drift note):** resolve the `emRec.rs` file-naming collision before writing the trait. Do not proceed until the target filename is decided and, if option (a) is chosen, the existing file has been split.
 
 - [ ] **Step 1: Write failing test.**
 ```rust

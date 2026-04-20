@@ -18,6 +18,13 @@
 
 **Entry-precondition.** Phase 4b Closeout COMPLETE.
 
+> **Drift note (2026-04-20, post-phase-1.76):** Significant pre-existing Rust persistence code exists that this plan was written without knowledge of:
+> - `crates/emcore/src/emRec.rs` already implements C++-text-format parsing (`parse_rec`, `write_rec`).
+> - `crates/emcore/src/emRecFileModel.rs` already implements file-backed load/save.
+> - `crates/emcore/src/emConfigModel.rs` already implements `TryLoad`, `Save`, `TryLoadOrInstall`, `Set`/`modify`.
+>
+> Before Tasks 2–6 execute, each task must begin with a **pre-audit beat**: compare the proposed work against what's already implemented and identify the delta. The C++-fidelity direction is correct; the implementation gap is likely smaller than the plan assumes. Decide per-task whether to (a) port-new types alongside existing code (e.g. add `emRecFileReader`/`emRecFileWriter` as new types, keeping `emRecFileModel` separate), or (b) rewrite existing types to match C++ shape. Document the per-task decision in the phase ledger at task-start.
+
 ---
 
 ## Bootstrap
@@ -60,6 +67,8 @@ pub trait emRecWriter { /* symmetric */ }
 ---
 
 ## Task 2: `emRecMemWriter` + `emRecMemReader` (byte-format compatible)
+
+**Pre-audit (per Drift note):** read the existing implementation before writing the failing test. The delta may be narrower than the task prose suggests.
 
 Mirror the C++ text format exactly. Start with a round-trip test for `emBoolRec` → bytes → `emBoolRec` check.
 
@@ -115,6 +124,8 @@ Wraps the Mem variants with a file handle. Buffers to memory, reads from disk on
 ---
 
 ## Task 6: `emConfigModel::LoadAndSave`
+
+**Pre-audit (per Drift note):** read the existing implementation before writing the failing test. The delta may be narrower than the task prose suggests.
 
 **Files:**
 - Create or modify: `crates/emcore/src/emConfigModel.rs`.

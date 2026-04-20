@@ -18,6 +18,10 @@
 
 **Entry-precondition.** Phase 4a Closeout COMPLETE.
 
+> **Drift note (2026-04-20, post-phase-1.76):** Two pre-execution verifications required at Bootstrap B3:
+> 1. The plan assumes a standalone `emAlignment` type for `emAlignmentRec: value: emAlignment`. No `crates/emcore/src/emAlignment.rs` currently exists — alignment is split across `emBorderAlignment.rs`, `emBorder.rs`, and `emTiling::Alignment`. Before Task 1, confirm C++ `emAlignmentRec`'s actual stored type (check `include/emCore/emAlignmentRec.h` and `src/emCore/emAlignmentRec.cpp`) and identify or create the matching Rust type.
+> 2. Task 4's `emStructRec` typed-index API sketch (`s.add_field::<emBoolRec>(...)`, `s.SetChildBool(idx, ...)`) presumes a specific resolution of spec §13 Q2 (erasure vs monomorphization). Phase 3 is expected to resolve Q2. At Phase 4b Bootstrap, inherit Phase 3's Q2 resolution and re-validate the Task 4 sketch against it. If Phase 3 chooses differently, Task 4's design must be revised before execution.
+
 ---
 
 ## Bootstrap
