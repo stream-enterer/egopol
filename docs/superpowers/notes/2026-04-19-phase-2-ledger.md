@@ -121,3 +121,47 @@ Notes:
   inline (panels are `Box<dyn PanelBehavior>` in PanelTree).
 - Added `sub_view_is_plain` test (compile-time type assertion).
 - `cargo check -p emcore`: clean.
+
+### Task 4 D5.6 remainder — DONE
+Commit: aea6f3db
+Files: 2 (emViewPort.rs, emView.rs)
+Notes:
+- Deleted `focused: bool` field from `emViewPort` struct (DIVERGED duplicate of emView::Focused)
+- Deleted the 7-line DIVERGED block explaining the duplicate field
+- Deleted `is_focused()` and `set_focused()` Rust-only accessors from emViewPort
+- `SetViewFocused` and `RequestFocus` are now no-op stubs; canonical focus is `emView::window_focused`
+- `SwapViewPorts` focus-swap: directly swaps `self.window_focused` ↔ `popup.view_mut().window_focused`
+  (no port intermediary; full SetFocused notification remains Phase-5)
+- `RawVisitAbs` line 1860 (`CurrentViewPort.borrow_mut().RequestFocus()`): replaced with
+  `self.SetFocused(tree, true)` (tree is in scope; matches C++ emViewPort::SetViewFocused →
+  CurrentView->SetFocused path directly)
+- 3 caller sites consolidated: SwapViewPorts (2 port ops), RawVisitAbs RequestFocus call
+- `cargo check -p emcore`: clean
+
+### Task 5 — STAGED
+Commit: 911a5a21
+Files: 3 (emPanelCycleEngine.rs, emPanelScope.rs, emPanelTree.rs)
+Notes:
+- `PanelCycleEngine::view: Weak<RefCell<emView>>` replaced with
+  `scope: PanelScope`. `Cycle` resolves the view via
+  `PanelScope::resolve_view`, reads `GetCurrentPixelTallness`, and
+  falls through the legacy take/put path unchanged.
+- `register_engine_for` derives scope from `self.tree_location`:
+  `Outer → Toplevel(WindowId::dummy())`,
+  `SubView{outer_panel_id, ..} → SubView(outer_panel_id)`.
+  The dummy `WindowId` is a pre-Task-7 placeholder — the framework's
+  shared outer tree has no single owning window, so resolve-time
+  lookup via `ctx.windows` cannot succeed until WindowId threading
+  lands. `PanelCycleEngine`s for outer-tree panels therefore sleep
+  this phase. Task 7's nextest run will expose regressions.
+- `PanelScope::SubView` resolver wired: searches `ctx.tree.panels`
+  for the outer emSubViewPanel and reaches `sub_view` via the typed
+  `as_sub_view_panel_mut` accessor (no `Any` / `downcast`). Borrow
+  split uses disjoint raw pointers for scheduler/framework_actions
+  to avoid re-borrowing `ctx` while holding the `panels` borrow.
+- Known runtime limitation: when a sub-tree `PanelCycleEngine` cycles,
+  `ctx.tree` is already the inner sub-tree (the outer svp's behavior
+  is held by the scheduler's dispatch walk), so the SubView search
+  misses and the engine sleeps. Spec §13 Q1 resolution deferred.
+- No Any/downcast introduced, no new Rc/RefCell/Weak.
+- `cargo check -p emcore`: clean.

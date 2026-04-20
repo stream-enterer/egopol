@@ -37,10 +37,51 @@ impl PanelScope {
                 };
                 Some(f(view, &mut sched_ctx))
             }
-            PanelScope::SubView(_pid) => {
-                // Sub-view resolution threads through the owning panel's sub_view.
-                // Phase 2 Task 5 wires this; stubbed here so callers compile.
-                None
+            PanelScope::SubView(pid) => {
+                // Phase 2 Task 5: wire sub-view resolution.
+                //
+                // `pid` is the outer-tree panel id of an `emSubViewPanel`.
+                // We search the outer-most reachable `PanelTree` (via
+                // `ctx.tree`) for that panel, then reach its `sub_view`
+                // through the typed `as_sub_view_panel_mut` accessor (no
+                // `Any` / `downcast_mut` — spec rule).
+                //
+                // Borrow shape: the search takes `&mut ctx.tree`, the
+                // `SchedCtx` we build is disjoint (only scheduler /
+                // framework_actions / root_context / engine_id). This
+                // mirrors the `Toplevel` branch pattern.
+                //
+                // Known limitation (pre-Task-7): when `PanelCycleEngine`
+                // for a panel *inside* a sub-tree cycles, `ctx.tree` is
+                // already the inner sub-tree (the outer emSubViewPanel's
+                // behavior is held by the scheduler's dispatch walk), so
+                // this lookup returns `None` — the engine sleeps for that
+                // slice. Tasks 6/7 finalize the dispatch/resolution shape.
+                let engine_id = ctx.engine_id;
+                let sched_ptr: *mut crate::emScheduler::EngineScheduler =
+                    &mut *ctx.scheduler;
+                let fw_ptr: *mut Vec<crate::emEngineCtx::DeferredAction> =
+                    &mut *ctx.framework_actions;
+                let svp_opt: Option<&mut crate::emSubViewPanel::emSubViewPanel> = ctx
+                    .tree
+                    .panels
+                    .get_mut(pid)
+                    .and_then(|p| p.behavior.as_mut())
+                    .and_then(|b| b.as_sub_view_panel_mut());
+                let svp = svp_opt?;
+                let mut sched_ctx = crate::emEngineCtx::SchedCtx {
+                    // SAFETY: `ctx.scheduler` and `ctx.framework_actions`
+                    // are disjoint from `ctx.tree.panels` (the borrow that
+                    // produced `svp`). Reifying them as raw pointers here
+                    // only avoids the compiler's overly coarse borrow
+                    // check on `ctx: &mut EngineCtx`; single-threaded
+                    // use, no aliasing with `svp`.
+                    scheduler: unsafe { &mut *sched_ptr },
+                    framework_actions: unsafe { &mut *fw_ptr },
+                    root_context: ctx.root_context,
+                    current_engine: Some(engine_id),
+                };
+                Some(f(&mut svp.sub_view, &mut sched_ctx))
             }
         }
     }

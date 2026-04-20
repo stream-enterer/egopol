@@ -11,15 +11,12 @@
 // scheduler's normal engine loop, uses the panel's own view's
 // `CurrentPixelTallness`).
 
-use std::cell::RefCell;
-use std::rc::Weak;
-
 use super::emEngine::emEngine;
 use super::emEngineCtx::EngineCtx;
 use super::emEngineCtx::PanelCtx;
+use super::emPanelScope::PanelScope;
 use super::emPanelTree::PanelId;
 use super::emScheduler::EngineScheduler;
-use super::emView::emView;
 
 /// Probe attached to a `PanelCycleEngine` in test/test-support builds.
 /// Records the scheduler's `time_slice_counter` on the engine's first
@@ -33,7 +30,11 @@ pub(crate) struct PanelCycleEngineFirstCycleProbe {
 
 pub(crate) struct PanelCycleEngine {
     pub(crate) panel_id: PanelId,
-    pub(crate) view: Weak<RefCell<emView>>,
+    /// Phase 2 Task 5: replaces `view: Weak<RefCell<emView>>`. The engine
+    /// now identifies its owning view by scope (top-level `WindowId` or
+    /// sub-view panel id), resolved at `Cycle` entry through
+    /// `PanelScope::resolve_view`.
+    pub(crate) scope: PanelScope,
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) first_cycle_probe: Option<PanelCycleEngineFirstCycleProbe>,
 }
@@ -47,11 +48,15 @@ impl emEngine for PanelCycleEngine {
             }
         }
 
-        // View gone (test teardown / window closed) → sleep.
-        let Some(view_rc) = self.view.upgrade() else {
+        // Resolve the owning view via scope. `None` = view gone (window
+        // closed) or scope unresolvable → sleep, matching the legacy
+        // `Weak::upgrade` failure path.
+        let Some(tallness) =
+            self.scope
+                .resolve_view(ctx, |view, _sched| view.GetCurrentPixelTallness())
+        else {
             return false;
         };
-        let tallness = view_rc.borrow().GetCurrentPixelTallness();
 
         // Take the behavior off the tree, build a PanelCtx, drive Cycle,
         // put it back (if the panel still exists — behavior may have called

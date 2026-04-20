@@ -617,20 +617,36 @@ impl PanelTree {
         if self.panels.get(id).and_then(|p| p.engine_id).is_some() {
             return; // idempotent re-attachment guard
         }
-        let Some(view_weak) = self
+        // Phase 2 Task 5: `View` weak still gates registration — when it is
+        // null, the panel has no live view yet (same condition as pre-Task-5).
+        // The adapter itself no longer stores the weak; it stores a
+        // `PanelScope` derived from this tree's `tree_location`.
+        let has_view = self
             .panels
             .get(id)
-            .map(|p| p.View.clone())
-            .filter(|w| w.strong_count() > 0)
-        else {
+            .map(|p| p.View.strong_count() > 0)
+            .unwrap_or(false);
+        if !has_view {
             return; // no view yet (or view dropped)
-        };
+        }
         let Some(sched) = sched else {
             return; // no scheduler provided; `init_panel_view` will register once one is available
         };
+        // Derive scope from this tree's TreeLocation. Outer trees use a
+        // placeholder WindowId; resolve-time lookup walks `ctx.windows` to
+        // find the matching emWindow. Tasks 6–7 will thread the real
+        // WindowId through window/tree construction.
+        let scope = match &self.tree_location {
+            crate::emEngine::TreeLocation::Outer => {
+                crate::emPanelScope::PanelScope::Toplevel(winit::window::WindowId::dummy())
+            }
+            crate::emEngine::TreeLocation::SubView {
+                outer_panel_id, ..
+            } => crate::emPanelScope::PanelScope::SubView(*outer_panel_id),
+        };
         let adapter = PanelCycleEngine {
             panel_id: id,
-            view: view_weak,
+            scope,
             #[cfg(any(test, feature = "test-support"))]
             first_cycle_probe: None,
         };
