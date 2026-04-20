@@ -48,7 +48,7 @@ impl PanelBehavior for ScalarFieldBehavior {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        let consumed = self.sf.Input(event, state, input_state);
+        let consumed = self.sf.Input(event, state, input_state, _ctx);
         // Sync the shared value so the test can observe it.
         *self.value.borrow_mut() = self.sf.GetValue();
         consumed
@@ -156,7 +156,7 @@ impl PanelBehavior for ColorFieldBehavior {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.color_field.Input(event, state, input_state)
+        self.color_field.Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {
@@ -342,7 +342,7 @@ fn button_click_works_after_zoom() {
             input_state: &emInputState,
             _ctx: &mut PanelCtx,
         ) -> bool {
-            self.widget.Input(event, state, input_state)
+            self.widget.Input(event, state, input_state, _ctx)
         }
         fn GetCursor(&self) -> emCursor {
             emCursor::Normal
@@ -411,7 +411,9 @@ impl PanelBehavior for SharedListBoxPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.inner.borrow_mut().Input(event, state, input_state)
+        self.inner
+            .borrow_mut()
+            .Input(event, state, input_state, _ctx)
     }
 
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState, _ctx: &mut PanelCtx) {

@@ -131,7 +131,7 @@ impl PanelBehavior for ButtonPanel {
         _is: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(e, _s, _is)
+        self.widget.Input(e, _s, _is, _ctx)
     }
     fn GetCursor(&self) -> emCursor {
         self.widget.GetCursor()
@@ -156,7 +156,7 @@ impl PanelBehavior for CheckButtonPanel {
         _is: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(e, _s, _is)
+        self.widget.Input(e, _s, _is, _ctx)
     }
     fn GetCursor(&self) -> emCursor {
         self.widget.GetCursor()
@@ -181,7 +181,7 @@ impl PanelBehavior for CheckBoxPanel {
         _is: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(e, _s, _is)
+        self.widget.Input(e, _s, _is, _ctx)
     }
     fn GetCursor(&self) -> emCursor {
         self.widget.GetCursor()
@@ -206,7 +206,7 @@ impl PanelBehavior for RadioButtonPanel {
         _is: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(e, _s, _is)
+        self.widget.Input(e, _s, _is, _ctx)
     }
     fn GetCursor(&self) -> emCursor {
         self.widget.GetCursor()
@@ -231,7 +231,7 @@ impl PanelBehavior for RadioBoxPanel {
         _is: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(e, _s, _is)
+        self.widget.Input(e, _s, _is, _ctx)
     }
     fn GetCursor(&self) -> emCursor {
         self.widget.GetCursor()
@@ -257,7 +257,7 @@ impl PanelBehavior for TextFieldPanel {
         _is: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(e, _s, _is)
+        self.widget.Input(e, _s, _is, _ctx)
     }
     fn GetCursor(&self) -> emCursor {
         self.widget.GetCursor()
@@ -287,7 +287,7 @@ impl PanelBehavior for ScalarFieldPanel {
         _is: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(e, _s, _is)
+        self.widget.Input(e, _s, _is, _ctx)
     }
     fn GetCursor(&self) -> emCursor {
         self.widget.GetCursor()
@@ -312,7 +312,7 @@ impl PanelBehavior for ColorFieldPanel {
         _is: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(e, _s, _is)
+        self.widget.Input(e, _s, _is, _ctx)
     }
     fn IsOpaque(&self) -> bool {
         true
@@ -344,7 +344,7 @@ impl PanelBehavior for ListBoxPanel {
         _is: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(e, _s, _is)
+        self.widget.Input(e, _s, _is, _ctx)
     }
     fn IsOpaque(&self) -> bool {
         true
@@ -463,7 +463,7 @@ impl PanelBehavior for SplitterPanel {
         _is: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(e, _s, _is)
+        self.widget.Input(e, _s, _is, _ctx)
     }
     fn GetCursor(&self) -> emCursor {
         self.widget.GetCursor()

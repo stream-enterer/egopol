@@ -316,6 +316,7 @@ impl emCheckBox {
         event: &emInputEvent,
         state: &PanelState,
         _input_state: &emInputState,
+        _ctx: &mut crate::emEngineCtx::PanelCtx,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -449,9 +450,16 @@ const HOWTO_NOT_CHECKED: &str = "\n\n\
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::emEngineCtx::PanelCtx;
     use crate::emPanel::Rect;
-    use crate::emPanelTree::PanelId;
+    use crate::emPanelTree::{PanelId, PanelTree};
     use slotmap::Key as _;
+
+    fn test_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let id = tree.create_root("t", false);
+        (tree, id)
+    }
 
     fn default_panel_state() -> PanelState {
         PanelState {
@@ -480,11 +488,13 @@ mod tests {
         let mut cb = emCheckBox::new("Enable", look);
         let ps = default_panel_state();
         let is = default_input_state();
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         assert!(!cb.IsChecked());
         // Enter is instant: toggles on press, no release needed.
-        cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(cb.IsChecked()); // Toggled immediately on press
-        cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(!cb.IsChecked());
     }
 
@@ -495,8 +505,10 @@ mod tests {
         let mut cb = emCheckBox::new("Enable", look);
         let ps = default_panel_state();
         let is = default_input_state();
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         assert!(!cb.pressed);
-        cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(!cb.pressed); // Enter toggles instantly, no press state
         assert!(cb.IsChecked()); // But the toggle did happen
     }

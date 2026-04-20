@@ -313,6 +313,7 @@ impl emButton {
         event: &emInputEvent,
         state: &PanelState,
         _input_state: &emInputState,
+        _ctx: &mut crate::emEngineCtx::PanelCtx,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -473,10 +474,17 @@ pub(crate) const HOWTO_EOI_BUTTON: &str = "\n\n\
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::emEngineCtx::PanelCtx;
     use crate::emPanel::Rect;
-    use crate::emPanelTree::PanelId;
+    use crate::emPanelTree::{PanelId, PanelTree};
     use slotmap::Key as _;
     use std::cell::RefCell;
+
+    fn test_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let id = tree.create_root("t", false);
+        (tree, id)
+    }
 
     fn default_panel_state() -> PanelState {
         PanelState {
@@ -511,9 +519,11 @@ mod tests {
         }));
         let ps = default_panel_state();
         let is = default_input_state();
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
 
         // C++ Enter: instant Click() on press, no visual press state.
-        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(*fired.borrow());
     }
 
@@ -529,12 +539,14 @@ mod tests {
         }));
         let ps = default_panel_state();
         let is = default_input_state();
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
 
         // C++: only Enter activates, instant on press. Space is not handled.
-        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert_eq!(*count.borrow(), 1);
         // Space should NOT activate
-        btn.Input(&emInputEvent::press(InputKey::Space), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Space), &ps, &is, &mut ctx);
         assert_eq!(*count.borrow(), 1);
     }
 

@@ -474,6 +474,7 @@ impl emColorField {
         event: &emInputEvent,
         _state: &PanelState,
         _input_state: &emInputState,
+        _ctx: &mut PanelCtx,
     ) -> bool {
         match event.key {
             InputKey::MouseLeft if event.variant == InputVariant::Release => {

@@ -42,7 +42,9 @@ impl PanelBehavior for SharedSplitterPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.inner.borrow_mut().Input(event, state, input_state)
+        self.inner
+            .borrow_mut()
+            .Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {

@@ -502,6 +502,7 @@ impl emScalarField {
         event: &emInputEvent,
         state: &PanelState,
         _input_state: &emInputState,
+        _ctx: &mut crate::emEngineCtx::PanelCtx,
     ) -> bool {
         // C++ emScalarField.cpp:246-268: gates on IsEditable() && IsEnabled().
         if !self.editable || !self.enabled {
@@ -759,10 +760,17 @@ impl emScalarField {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::emEngineCtx::PanelCtx;
     use crate::emPanel::Rect;
-    use crate::emPanelTree::PanelId;
+    use crate::emPanelTree::{PanelId, PanelTree};
     use slotmap::Key as _;
     use std::cell::RefCell;
+
+    fn test_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let id = tree.create_root("t", false);
+        (tree, id)
+    }
 
     fn default_panel_state() -> PanelState {
         PanelState {
@@ -802,6 +810,8 @@ mod tests {
 
     #[test]
     fn arrow_key_stepping() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut sf = emScalarField::new(0.0, 100.0, look);
         sf.SetEditable(true);
@@ -816,6 +826,7 @@ mod tests {
             &emInputEvent::press(InputKey::Key('+')),
             &default_panel_state(),
             &default_input_state(),
+            &mut ctx,
         );
         assert!(sf.GetValue() > 50.0);
 
@@ -823,6 +834,7 @@ mod tests {
             &emInputEvent::press(InputKey::Key('-')),
             &default_panel_state(),
             &default_input_state(),
+            &mut ctx,
         );
         // Should be roughly back to 50
         assert!((sf.GetValue() - 50.0).abs() < 2.0);
@@ -830,6 +842,8 @@ mod tests {
 
     #[test]
     fn callback_on_change() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let values = Rc::new(RefCell::new(Vec::new()));
         let val_clone = values.clone();
@@ -847,6 +861,7 @@ mod tests {
             &emInputEvent::press(InputKey::Key('+')),
             &default_panel_state(),
             &default_input_state(),
+            &mut ctx,
         );
         assert_eq!(values.borrow().len(), 1);
         assert!(values.borrow()[0] > 5.0);
@@ -854,6 +869,8 @@ mod tests {
 
     #[test]
     fn editable_toggle() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut sf = emScalarField::new(0.0, 100.0, look);
 
@@ -876,6 +893,7 @@ mod tests {
             &emInputEvent::press(InputKey::Key('+')),
             &default_panel_state(),
             &default_input_state(),
+            &mut ctx,
         );
         assert!(!handled);
         assert!((sf.GetValue() - 50.0).abs() < 0.001);
@@ -984,6 +1002,8 @@ mod tests {
 
     #[test]
     fn step_by_keyboard_with_explicit_interval() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut sf = emScalarField::new(0.0, 100.0, look);
         sf.SetEditable(true);
@@ -996,6 +1016,7 @@ mod tests {
             &emInputEvent::press(InputKey::Key('+')),
             &default_panel_state(),
             &default_input_state(),
+            &mut ctx,
         );
         assert!((sf.GetValue() - 60.0).abs() < 1.0);
 
@@ -1003,6 +1024,7 @@ mod tests {
             &emInputEvent::press(InputKey::Key('-')),
             &default_panel_state(),
             &default_input_state(),
+            &mut ctx,
         );
         assert!((sf.GetValue() - 50.0).abs() < 1.0);
     }
@@ -1019,6 +1041,8 @@ mod tests {
 
     #[test]
     fn plus_minus_keys_work() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut sf = emScalarField::new(0.0, 100.0, look);
         sf.SetEditable(true);
@@ -1030,6 +1054,7 @@ mod tests {
             &emInputEvent::press(InputKey::Key('+')),
             &default_panel_state(),
             &default_input_state(),
+            &mut ctx,
         );
         assert!(handled);
         assert!(sf.GetValue() > 50.0);

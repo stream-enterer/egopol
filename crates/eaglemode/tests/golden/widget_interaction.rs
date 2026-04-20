@@ -35,6 +35,12 @@ fn default_input_state() -> emInputState {
     emInputState::new()
 }
 
+fn test_tree() -> (PanelTree, emcore::emPanelTree::PanelId) {
+    let mut tree = PanelTree::new();
+    let id = tree.create_root("t", false);
+    (tree, id)
+}
+
 /// Skip test if golden data hasn't been generated yet.
 macro_rules! require_golden {
     () => {
@@ -116,6 +122,8 @@ fn check_option_usize(field: &str, actual: Option<usize>, expected: usize) -> (&
 
 #[test]
 fn widget_checkbox_toggle() {
+    let (mut tree, tid) = test_tree();
+    let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
     require_golden!();
     let golden = load_widget_state_golden("widget_checkbox_toggle");
     assert_eq!(golden.len(), 3, "unexpected golden file size");
@@ -127,10 +135,10 @@ fn widget_checkbox_toggle() {
 
     let c0 = check_u8("initial", cb.IsChecked() as u8, golden[0]);
 
-    cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+    cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
     let c1 = check_u8("after_1st_click", cb.IsChecked() as u8, golden[1]);
 
-    cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+    cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
     let c2 = check_u8("after_2nd_click", cb.IsChecked() as u8, golden[2]);
 
     compare_widget_state("widget_checkbox_toggle", &[c0, c1, c2]).unwrap();
@@ -140,6 +148,8 @@ fn widget_checkbox_toggle() {
 
 #[test]
 fn widget_checkbutton_toggle() {
+    let (mut tree, tid) = test_tree();
+    let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
     require_golden!();
     let golden = load_widget_state_golden("widget_checkbutton_toggle");
     assert_eq!(golden.len(), 3, "unexpected golden file size");
@@ -151,10 +161,10 @@ fn widget_checkbutton_toggle() {
 
     let c0 = check_u8("initial", cb.IsChecked() as u8, golden[0]);
 
-    cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+    cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
     let c1 = check_u8("after_1st_click", cb.IsChecked() as u8, golden[1]);
 
-    cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+    cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
     let c2 = check_u8("after_2nd_click", cb.IsChecked() as u8, golden[2]);
 
     compare_widget_state("widget_checkbutton_toggle", &[c0, c1, c2]).unwrap();
@@ -164,6 +174,8 @@ fn widget_checkbutton_toggle() {
 
 #[test]
 fn widget_radiobutton_switch() {
+    let (mut tree, tid) = test_tree();
+    let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
     require_golden!();
     let golden = load_widget_state_golden("widget_radiobutton_switch");
     assert_eq!(golden.len(), 8, "unexpected golden file size");
@@ -180,7 +192,7 @@ fn widget_radiobutton_switch() {
 
     let ps = default_panel_state();
     let is = default_input_state();
-    rb_b.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+    rb_b.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
     let after = u32::from_le_bytes(golden[4..8].try_into().unwrap()) as usize;
     let c1 = check_option_usize("after_switch", group.borrow().GetChecked(), after);
 
@@ -255,6 +267,8 @@ fn widget_splitter_setpos() {
 
 #[test]
 fn widget_textfield_type() {
+    let (mut tree, tid) = test_tree();
+    let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
     require_golden!();
     let golden = load_widget_state_golden("widget_textfield_type");
     assert!(golden.len() >= 8, "golden file too short");
@@ -267,7 +281,7 @@ fn widget_textfield_type() {
 
     for ch in ['a', 'b', 'c'] {
         let event = emInputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
-        tf.Input(&event, &ps, &is);
+        tf.Input(&event, &ps, &is, &mut ctx);
     }
 
     let text_len = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
@@ -285,6 +299,8 @@ fn widget_textfield_type() {
 
 #[test]
 fn widget_textfield_backspace() {
+    let (mut tree, tid) = test_tree();
+    let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
     require_golden!();
     let golden = load_widget_state_golden("widget_textfield_backspace");
     assert!(golden.len() >= 8, "golden file too short");
@@ -297,9 +313,14 @@ fn widget_textfield_backspace() {
 
     for ch in ['a', 'b', 'c'] {
         let event = emInputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
-        tf.Input(&event, &ps, &is);
+        tf.Input(&event, &ps, &is, &mut ctx);
     }
-    tf.Input(&emInputEvent::press(InputKey::Backspace), &ps, &is);
+    tf.Input(
+        &emInputEvent::press(InputKey::Backspace),
+        &ps,
+        &is,
+        &mut ctx,
+    );
 
     let text_len = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
     let text = std::str::from_utf8(&golden[4..4 + text_len]).expect("invalid UTF-8 in golden");
@@ -316,6 +337,8 @@ fn widget_textfield_backspace() {
 
 #[test]
 fn widget_textfield_select() {
+    let (mut tree, tid) = test_tree();
+    let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
     require_golden!();
     let golden = load_widget_state_golden("widget_textfield_select");
     assert_eq!(golden.len(), 12, "unexpected golden file size");
@@ -328,13 +351,14 @@ fn widget_textfield_select() {
 
     for ch in ['a', 'b', 'c', 'd', 'e', 'f'] {
         let event = emInputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
-        tf.Input(&event, &ps, &is);
+        tf.Input(&event, &ps, &is, &mut ctx);
     }
     for _ in 0..3 {
         tf.Input(
             &emInputEvent::press(InputKey::ArrowLeft).with_shift(),
             &ps,
             &is,
+            &mut ctx,
         );
     }
 
@@ -352,6 +376,8 @@ fn widget_textfield_select() {
 
 #[test]
 fn widget_scalarfield_inc() {
+    let (mut tree, tid) = test_tree();
+    let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
     require_golden!();
     let golden = load_widget_state_golden("widget_scalarfield_inc");
     assert_eq!(golden.len(), 16, "unexpected golden file size");
@@ -364,11 +390,11 @@ fn widget_scalarfield_inc() {
     let is = default_input_state();
     let eps = 1e-9;
 
-    sf.Input(&emInputEvent::press(InputKey::Key('+')), &ps, &is);
+    sf.Input(&emInputEvent::press(InputKey::Key('+')), &ps, &is, &mut ctx);
     let expected_inc = f64::from_le_bytes(golden[0..8].try_into().unwrap());
     let c0 = check_f64("after_inc", sf.GetValue(), expected_inc, eps);
 
-    sf.Input(&emInputEvent::press(InputKey::Key('-')), &ps, &is);
+    sf.Input(&emInputEvent::press(InputKey::Key('-')), &ps, &is, &mut ctx);
     let expected_dec = f64::from_le_bytes(golden[8..16].try_into().unwrap());
     let c1 = check_f64("after_dec", sf.GetValue(), expected_dec, eps);
 
@@ -495,6 +521,8 @@ fn widget_listbox_toggle() {
 
 #[test]
 fn widget_textfield_cursor_nav() {
+    let (mut tree, tid) = test_tree();
+    let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
     require_golden!();
     let golden = load_widget_state_golden("widget_textfield_cursor_nav");
     assert_eq!(golden.len(), 8, "unexpected golden file size");
@@ -511,7 +539,7 @@ fn widget_textfield_cursor_nav() {
     let cursor_before = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
     let c0 = check_usize("cursor_before", tf.GetCursorIndex(), cursor_before);
 
-    tf.Input(&emInputEvent::press(InputKey::ArrowUp), &ps, &is);
+    tf.Input(&emInputEvent::press(InputKey::ArrowUp), &ps, &is, &mut ctx);
     let cursor_after = u32::from_le_bytes(golden[4..8].try_into().unwrap()) as usize;
     let c1 = check_usize("cursor_after", tf.GetCursorIndex(), cursor_after);
 
@@ -707,7 +735,7 @@ impl PanelBehavior for ClickableButtonPanel {
         is: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(e, s, is)
+        self.widget.Input(e, s, is, _ctx)
     }
     fn GetCursor(&self) -> emCursor {
         self.widget.GetCursor()

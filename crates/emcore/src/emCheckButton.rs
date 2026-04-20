@@ -218,6 +218,7 @@ impl emCheckButton {
         event: &emInputEvent,
         state: &PanelState,
         _input_state: &emInputState,
+        _ctx: &mut crate::emEngineCtx::PanelCtx,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -353,10 +354,17 @@ const HOWTO_NOT_CHECKED: &str = "\n\n\
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::emEngineCtx::PanelCtx;
     use crate::emPanel::Rect;
-    use crate::emPanelTree::PanelId;
+    use crate::emPanelTree::{PanelId, PanelTree};
     use slotmap::Key as _;
     use std::cell::RefCell;
+
+    fn test_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let id = tree.create_root("t", false);
+        (tree, id)
+    }
 
     fn default_panel_state() -> PanelState {
         PanelState {
@@ -385,11 +393,13 @@ mod tests {
         let mut btn = emCheckButton::new("Toggle", look);
         let ps = default_panel_state();
         let is = default_input_state();
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         assert!(!btn.IsChecked());
         // Enter is instant: toggles on press, no release needed.
-        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(btn.IsChecked()); // Toggled immediately on press
-        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(!btn.IsChecked());
     }
 
@@ -400,8 +410,10 @@ mod tests {
         let mut btn = emCheckButton::new("CB", look);
         let ps = default_panel_state();
         let is = default_input_state();
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         assert!(!btn.pressed);
-        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(!btn.pressed); // Enter toggles instantly, no press state
         assert!(btn.IsChecked()); // But the toggle did happen
     }
@@ -419,9 +431,11 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
 
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         // Enter is instant: each press fires the callback immediately.
-        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
-        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert_eq!(*states.borrow(), vec![true, false]);
     }
 }

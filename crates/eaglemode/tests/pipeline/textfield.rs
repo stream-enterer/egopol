@@ -44,7 +44,9 @@ impl PanelBehavior for SharedTextFieldPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.inner.borrow_mut().Input(event, state, input_state)
+        self.inner
+            .borrow_mut()
+            .Input(event, state, input_state, _ctx)
     }
 
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState, _ctx: &mut PanelCtx) {

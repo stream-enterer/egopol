@@ -1221,6 +1221,7 @@ impl emListBox {
         event: &emInputEvent,
         state: &PanelState,
         _input_state: &emInputState,
+        _ctx: &mut PanelCtx,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -1731,9 +1732,15 @@ const HOWTO_TOGGLE_SELECTION: &str = concat!(
 mod tests {
     use super::*;
     use crate::emPanel::Rect;
-    use crate::emPanelTree::PanelId;
+    use crate::emPanelTree::{PanelId, PanelTree};
     use slotmap::Key as _;
     use std::cell::RefCell;
+
+    fn test_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let id = tree.create_root("t", false);
+        (tree, id)
+    }
 
     fn default_panel_state() -> PanelState {
         PanelState {
@@ -1762,6 +1769,8 @@ mod tests {
 
     #[test]
     fn single_selection_arrow_keys() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut lb = emListBox::new(look);
         let ps = default_panel_state();
@@ -1770,25 +1779,42 @@ mod tests {
 
         assert_eq!(lb.focus_index(), 0);
 
-        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::ArrowDown),
+            &ps,
+            &is,
+            &mut ctx,
+        );
         assert_eq!(lb.focus_index(), 1);
         assert_eq!(lb.GetChecked(), &[1]);
 
-        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::ArrowDown),
+            &ps,
+            &is,
+            &mut ctx,
+        );
         assert_eq!(lb.focus_index(), 2);
         assert_eq!(lb.GetChecked(), &[2]);
 
         // Won't go past end
-        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::ArrowDown),
+            &ps,
+            &is,
+            &mut ctx,
+        );
         assert_eq!(lb.focus_index(), 2);
 
-        lb.Input(&emInputEvent::press(InputKey::ArrowUp), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::ArrowUp), &ps, &is, &mut ctx);
         assert_eq!(lb.focus_index(), 1);
         assert_eq!(lb.GetChecked(), &[1]);
     }
 
     #[test]
     fn multi_selection_toggle() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut lb = emListBox::new(look);
         let ps = default_panel_state();
@@ -1797,33 +1823,55 @@ mod tests {
         lb.set_items(make_items(&["X", "Y", "Z"]));
 
         // In multi mode, ArrowDown doesn't auto-select
-        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::ArrowDown),
+            &ps,
+            &is,
+            &mut ctx,
+        );
         assert_eq!(lb.focus_index(), 1);
         assert!(lb.GetChecked().is_empty());
 
         // Space toggles selection (via select_by_input with no modifiers -> select solely)
         // In Multi mode without modifiers, space selects solely
-        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is, &mut ctx);
         assert_eq!(lb.GetChecked(), &[1]);
 
-        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::ArrowDown),
+            &ps,
+            &is,
+            &mut ctx,
+        );
         // Space without ctrl in multi mode selects solely (replaces)
-        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is, &mut ctx);
         assert_eq!(lb.GetChecked(), &[2]);
 
         // With ctrl, toggle
         lb.focus_index = 1;
-        lb.Input(&emInputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::Space).with_ctrl(),
+            &ps,
+            &is,
+            &mut ctx,
+        );
         assert!(lb.GetChecked().contains(&1));
         assert!(lb.GetChecked().contains(&2));
 
         // Toggle off with ctrl
-        lb.Input(&emInputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::Space).with_ctrl(),
+            &ps,
+            &is,
+            &mut ctx,
+        );
         assert_eq!(lb.GetChecked(), &[2]);
     }
 
     #[test]
     fn trigger_callback() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let triggered = Rc::new(RefCell::new(None));
         let trig_clone = triggered.clone();
@@ -1836,13 +1884,20 @@ mod tests {
             *trig_clone.borrow_mut() = Some(idx);
         }));
 
-        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
-        lb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::ArrowDown),
+            &ps,
+            &is,
+            &mut ctx,
+        );
+        lb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert_eq!(*triggered.borrow(), Some(1));
     }
 
     #[test]
     fn selection_callback() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let selections = Rc::new(RefCell::new(Vec::new()));
         let sel_clone = selections.clone();
@@ -1857,13 +1912,23 @@ mod tests {
 
         // First ArrowDown: selects item 1 solely. No prior selection to deselect.
         // Fires 1 callback (select).
-        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::ArrowDown),
+            &ps,
+            &is,
+            &mut ctx,
+        );
         assert_eq!(selections.borrow().len(), 1);
         assert_eq!(selections.borrow()[0], vec![1]);
 
         // Second ArrowDown: selects item 2 solely. Deselects item 1 first (1 cb),
         // then selects item 2 (1 cb). Total: 3 callbacks.
-        lb.Input(&emInputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.Input(
+            &emInputEvent::press(InputKey::ArrowDown),
+            &ps,
+            &is,
+            &mut ctx,
+        );
         assert_eq!(selections.borrow().len(), 3);
         // Last callback should have item 2 selected.
         assert_eq!(selections.borrow()[2], vec![2]);
@@ -2008,6 +2073,8 @@ mod tests {
 
     #[test]
     fn read_only_mode_no_selection() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut lb = emListBox::new(look);
         let ps = default_panel_state();
@@ -2018,12 +2085,14 @@ mod tests {
 
         // Mouse click: select_by_input is called, but ReadOnly blocks selection.
         let ev = emInputEvent::press(InputKey::MouseLeft).with_mouse(0.0, 5.0);
-        lb.Input(&ev, &ps, &is);
+        lb.Input(&ev, &ps, &is, &mut ctx);
         assert!(lb.GetChecked().is_empty());
     }
 
     #[test]
     fn toggle_mode_selection() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut lb = emListBox::new(look);
         let ps = default_panel_state();
@@ -2033,15 +2102,17 @@ mod tests {
         lb.AddItem("b".into(), "B".into());
 
         // Space toggles
-        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is, &mut ctx);
         assert_eq!(lb.GetChecked(), &[0]);
 
-        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is);
+        lb.Input(&emInputEvent::press(InputKey::Space), &ps, &is, &mut ctx);
         assert!(lb.GetChecked().is_empty());
     }
 
     #[test]
     fn ctrl_a_selects_all_in_multi_mode() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut lb = emListBox::new(look);
         let ps = default_panel_state();
@@ -2056,6 +2127,7 @@ mod tests {
             &emInputEvent::press(InputKey::Key('a')).with_ctrl(),
             &ps,
             &is,
+            &mut ctx,
         );
         assert_eq!(lb.GetSelectedIndices(), &[0, 1, 2]);
 
@@ -2064,6 +2136,7 @@ mod tests {
             &emInputEvent::press(InputKey::Key('a')).with_shift_ctrl(),
             &ps,
             &is,
+            &mut ctx,
         );
         assert!(lb.GetSelectedIndices().is_empty());
     }
@@ -2106,6 +2179,8 @@ mod tests {
 
     #[test]
     fn keywalk_prefix_match() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut lb = emListBox::new(look);
         let ps = default_panel_state();
@@ -2115,12 +2190,14 @@ mod tests {
         lb.AddItem("c".into(), "Cherry".into());
 
         let ev = emInputEvent::press(InputKey::Key('b')).with_chars("b");
-        lb.Input(&ev, &ps, &is);
+        lb.Input(&ev, &ps, &is, &mut ctx);
         assert_eq!(lb.GetSelectedIndex(), Some(1));
     }
 
     #[test]
     fn keywalk_substring_search() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut lb = emListBox::new(look);
         let ps = default_panel_state();
@@ -2130,18 +2207,20 @@ mod tests {
 
         // Type '*nan' to do substring search — "nan" is unique to "Banana".
         let ev1 = emInputEvent::press(InputKey::Key('*')).with_chars("*");
-        lb.Input(&ev1, &ps, &is);
+        lb.Input(&ev1, &ps, &is, &mut ctx);
         let ev2 = emInputEvent::press(InputKey::Key('n')).with_chars("n");
-        lb.Input(&ev2, &ps, &is);
+        lb.Input(&ev2, &ps, &is, &mut ctx);
         let ev3 = emInputEvent::press(InputKey::Key('a')).with_chars("a");
-        lb.Input(&ev3, &ps, &is);
+        lb.Input(&ev3, &ps, &is, &mut ctx);
         let ev4 = emInputEvent::press(InputKey::Key('n')).with_chars("n");
-        lb.Input(&ev4, &ps, &is);
+        lb.Input(&ev4, &ps, &is, &mut ctx);
         assert_eq!(lb.GetSelectedIndex(), Some(1)); // "Banana" contains "nan"
     }
 
     #[test]
     fn keywalk_fuzzy_match() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut lb = emListBox::new(look);
         let ps = default_panel_state();
@@ -2152,9 +2231,9 @@ mod tests {
         // Type "ra" — fuzzy matches "Red-Apple" (skips '-')
         // 'r' -> 'R' match, 'a' -> skip '-', match 'A'
         let ev = emInputEvent::press(InputKey::Key('r')).with_chars("r");
-        lb.Input(&ev, &ps, &is);
+        lb.Input(&ev, &ps, &is, &mut ctx);
         let ev2 = emInputEvent::press(InputKey::Key('a')).with_chars("a");
-        lb.Input(&ev2, &ps, &is);
+        lb.Input(&ev2, &ps, &is, &mut ctx);
         assert_eq!(lb.GetSelectedIndex(), Some(0));
     }
 

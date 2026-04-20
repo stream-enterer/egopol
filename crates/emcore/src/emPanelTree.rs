@@ -1629,19 +1629,13 @@ impl PanelTree {
     ) {
         let state = self.build_panel_state(id, window_focused, pixel_tallness);
         if let Some(mut behavior) = self.take_behavior(id) {
-            // Phase 1.76 Task 2: `PanelBehavior::Input` now takes `&mut PanelCtx`.
-            // `emView::RecurseInput` (sole caller of this method) does not
-            // carry a scheduler, so the ctx's scheduler is `None` — the same
-            // observable behavior as the pre-1.76 throwaway. Calls that
-            // require a scheduler (e.g. emSubViewPanel::Input) will panic via
-            // `expect`; the production input path routes through
-            // `emWindow::dispatch_input` instead, which builds a ctx with a
-            // real scheduler.
-            //
-            // INVARIANT (Phase 1.76): no scheduler-requiring PanelBehavior::Input
-            // override may be dispatched via this path — emView::RecurseInput carries
-            // no scheduler (test-harness-only entry). Any future live caller must
-            // thread a scheduler through and switch to PanelCtx::with_scheduler.
+            // Phase 3 B3.2 supersedes Phase-1.76: SchedCtx (via PanelCtx) now
+            // threads through Input dispatch. Concrete widget `Input` free
+            // functions take `&mut PanelCtx` (B3.2 plumbing); B3.3 migrates
+            // their callback invocations to use the ctx's scheduler reach.
+            // This path still constructs a scheduler-less ctx — live input
+            // dispatch continues to flow through `emWindow::dispatch_input`
+            // with a full-reach ctx via `with_sched_reach`.
             {
                 let mut panel_ctx = super::emEngineCtx::PanelCtx::new(self, id, pixel_tallness);
                 behavior.Input(event, &state, input_state, &mut panel_ctx);

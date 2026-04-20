@@ -193,6 +193,7 @@ impl emDialog {
         event: &emInputEvent,
         _state: &PanelState,
         _input_state: &emInputState,
+        _ctx: &mut PanelCtx,
     ) -> bool {
         if event.variant != InputVariant::Press {
             return false;
@@ -225,9 +226,15 @@ impl emDialog {
 mod tests {
     use super::*;
     use crate::emPanel::Rect;
-    use crate::emPanelTree::PanelId;
+    use crate::emPanelTree::{PanelId, PanelTree};
     use slotmap::Key as _;
     use std::cell::RefCell;
+
+    fn test_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let id = tree.create_root("t", false);
+        (tree, id)
+    }
 
     fn default_panel_state() -> PanelState {
         PanelState {
@@ -293,30 +300,36 @@ mod tests {
 
     #[test]
     fn enter_finishes_with_ok() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut dlg = emDialog::new("Test", look);
         let ps = default_panel_state();
         let is = default_input_state();
 
-        let consumed = dlg.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        let consumed = dlg.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(consumed);
         assert_eq!(dlg.GetResult(), Some(&DialogResult::Ok));
     }
 
     #[test]
     fn escape_finishes_with_cancel() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut dlg = emDialog::new("Test", look);
         let ps = default_panel_state();
         let is = default_input_state();
 
-        let consumed = dlg.Input(&emInputEvent::press(InputKey::Escape), &ps, &is);
+        let consumed = dlg.Input(&emInputEvent::press(InputKey::Escape), &ps, &is, &mut ctx);
         assert!(consumed);
         assert_eq!(dlg.GetResult(), Some(&DialogResult::Cancel));
     }
 
     #[test]
     fn enter_with_modifier_is_ignored() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut dlg = emDialog::new("Test", look);
         let ps = default_panel_state();
@@ -324,19 +337,21 @@ mod tests {
 
         let mut ev = emInputEvent::press(InputKey::Enter);
         ev.ctrl = true;
-        let consumed = dlg.Input(&ev, &ps, &is);
+        let consumed = dlg.Input(&ev, &ps, &is, &mut ctx);
         assert!(!consumed);
         assert!(dlg.GetResult().is_none());
     }
 
     #[test]
     fn release_event_is_ignored() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut dlg = emDialog::new("Test", look);
         let ps = default_panel_state();
         let is = default_input_state();
 
-        let consumed = dlg.Input(&emInputEvent::release(InputKey::Enter), &ps, &is);
+        let consumed = dlg.Input(&emInputEvent::release(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(!consumed);
         assert!(dlg.GetResult().is_none());
     }

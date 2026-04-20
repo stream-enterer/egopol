@@ -66,7 +66,7 @@ impl PanelBehavior for MainButtonPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.button.Input(event, state, input_state)
+        self.button.Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {
@@ -99,7 +99,7 @@ impl PanelBehavior for MainCheckButtonPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.check_button.Input(event, state, input_state)
+        self.check_button.Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {

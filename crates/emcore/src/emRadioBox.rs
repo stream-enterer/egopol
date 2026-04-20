@@ -280,6 +280,7 @@ impl emRadioBox {
         event: &emInputEvent,
         state: &PanelState,
         _input_state: &emInputState,
+        _ctx: &mut crate::emEngineCtx::PanelCtx,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -378,9 +379,16 @@ impl Drop for emRadioBox {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::emEngineCtx::PanelCtx;
     use crate::emPanel::Rect;
-    use crate::emPanelTree::PanelId;
+    use crate::emPanelTree::{PanelId, PanelTree};
     use slotmap::Key as _;
+
+    fn test_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let id = tree.create_root("t", false);
+        (tree, id)
+    }
 
     fn default_panel_state() -> PanelState {
         PanelState {
@@ -405,6 +413,8 @@ mod tests {
 
     #[test]
     fn radio_box_selection() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let group = RadioGroup::new();
 
@@ -417,17 +427,19 @@ mod tests {
         assert!(!rb1.IsSelected());
 
         // Enter is instant: selects on press, no release needed.
-        rb0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        rb0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(rb0.IsSelected()); // Selected immediately on press
         assert!(!rb1.IsSelected());
 
-        rb1.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        rb1.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(!rb0.IsSelected());
         assert!(rb1.IsSelected());
     }
 
     #[test]
     fn pressed_state_tracks_press_release() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         // Enter is instant — no visual press state. Verify pressed stays false.
         let look = emLook::new();
         let group = RadioGroup::new();
@@ -435,7 +447,7 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!rb.pressed);
-        rb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        rb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(!rb.pressed); // Enter selects instantly, no press state
         assert!(rb.IsSelected()); // But the selection did happen
     }

@@ -443,6 +443,7 @@ impl emRadioButton {
         event: &emInputEvent,
         state: &PanelState,
         _input_state: &emInputState,
+        _ctx: &mut crate::emEngineCtx::PanelCtx,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -627,9 +628,16 @@ impl Drop for emRadioButton {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::emEngineCtx::PanelCtx;
     use crate::emPanel::Rect;
-    use crate::emPanelTree::PanelId;
+    use crate::emPanelTree::{PanelId, PanelTree};
     use slotmap::Key as _;
+
+    fn test_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let id = tree.create_root("t", false);
+        (tree, id)
+    }
 
     fn default_panel_state() -> PanelState {
         PanelState {
@@ -654,6 +662,8 @@ mod tests {
 
     #[test]
     fn radio_group_mutual_exclusion() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let group = RadioGroup::new();
 
@@ -668,15 +678,15 @@ mod tests {
         assert!(!r2.IsSelected());
 
         // Enter is instant: selects on press, no release needed.
-        r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(r0.IsSelected()); // Selected immediately on press
         assert!(!r1.IsSelected());
 
-        r2.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        r2.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(!r0.IsSelected());
         assert!(r2.IsSelected());
 
-        r1.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        r1.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(!r0.IsSelected());
         assert!(r1.IsSelected());
         assert!(!r2.IsSelected());
@@ -684,6 +694,8 @@ mod tests {
 
     #[test]
     fn pressed_state_tracks_press_release() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         // Enter is instant -- no visual press state. Verify pressed stays false.
         let look = emLook::new();
         let group = RadioGroup::new();
@@ -691,13 +703,15 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!r0.pressed);
-        r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert!(!r0.pressed); // Enter selects instantly, no press state
         assert!(r0.IsSelected()); // But the selection did happen
     }
 
     #[test]
     fn radio_group_callback() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let group = RadioGroup::new();
         let selections = Rc::new(RefCell::new(Vec::new()));
         let sel_clone = selections.clone();
@@ -712,8 +726,8 @@ mod tests {
         let is = default_input_state();
 
         // Enter is instant: each press fires the callback immediately.
-        r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
-        r1.Input(&emInputEvent::press(InputKey::Enter), &ps, &is);
+        r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        r1.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
         assert_eq!(*selections.borrow(), vec![Some(0), Some(1)]);
     }
 

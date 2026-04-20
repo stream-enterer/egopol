@@ -48,7 +48,7 @@ impl PanelBehavior for ScalarFieldPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        let consumed = self.sf.Input(event, state, input_state);
+        let consumed = self.sf.Input(event, state, input_state, _ctx);
         *self.value.borrow_mut() = self.sf.GetValue();
         consumed
     }

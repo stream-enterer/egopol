@@ -140,7 +140,7 @@ impl PanelBehavior for AutoplayButtonPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.button.Input(event, state, input_state)
+        self.button.Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {
@@ -182,7 +182,7 @@ impl PanelBehavior for AutoplayCheckButtonPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.check_button.Input(event, state, input_state)
+        self.check_button.Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {
@@ -209,7 +209,7 @@ impl PanelBehavior for AutoplayCheckBoxPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.check_box.Input(event, state, input_state)
+        self.check_box.Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {
@@ -236,7 +236,7 @@ impl PanelBehavior for AutoplayScalarFieldPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.scalar_field.Input(event, state, input_state)
+        self.scalar_field.Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {

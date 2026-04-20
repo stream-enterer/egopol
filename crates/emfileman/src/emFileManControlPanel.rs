@@ -388,7 +388,7 @@ impl PanelBehavior for emFileManControlPanel {
     ) -> bool {
         // Delegate to sort criterion radios
         for radio in &mut self.sort_radios {
-            if radio.Input(event, state, input_state) {
+            if radio.Input(event, state, input_state, _ctx) {
                 if let Some(idx) = self.sort_group.borrow().GetChecked() {
                     let sc = match idx {
                         0 => SortCriterion::ByName,
@@ -407,7 +407,7 @@ impl PanelBehavior for emFileManControlPanel {
 
         // Delegate to name sorting style radios
         for radio in &mut self.nss_radios {
-            if radio.Input(event, state, input_state) {
+            if radio.Input(event, state, input_state, _ctx) {
                 if let Some(idx) = self.nss_group.borrow().GetChecked() {
                     let nss = match idx {
                         0 => NameSortingStyle::PerLocale,
@@ -423,7 +423,7 @@ impl PanelBehavior for emFileManControlPanel {
 
         // Delegate to theme style radios
         for radio in &mut self.theme_style_radios {
-            if radio.Input(event, state, input_state) {
+            if radio.Input(event, state, input_state, _ctx) {
                 let style_idx = self.theme_style_group.borrow().GetChecked();
                 if let Some(style_idx) = style_idx {
                     let ar_idx = self.theme_ar_group.borrow().GetChecked().unwrap_or(0);
@@ -444,7 +444,7 @@ impl PanelBehavior for emFileManControlPanel {
 
         // Delegate to theme AR radios
         for radio in &mut self.theme_ar_radios {
-            if radio.Input(event, state, input_state) {
+            if radio.Input(event, state, input_state, _ctx) {
                 if let Some(ar_idx) = self.theme_ar_group.borrow().GetChecked() {
                     let style_idx = self.theme_style_group.borrow().GetChecked().unwrap_or(0);
                     let tn = self.theme_names.borrow();
@@ -458,19 +458,22 @@ impl PanelBehavior for emFileManControlPanel {
         }
 
         // Delegate to checkboxes
-        if self.dirs_first_check.Input(event, state, input_state) {
+        if self.dirs_first_check.Input(event, state, input_state, _ctx) {
             self.config
                 .borrow_mut()
                 .SetSortDirectoriesFirst(self.dirs_first_check.IsChecked());
             return true;
         }
-        if self.show_hidden_check.Input(event, state, input_state) {
+        if self
+            .show_hidden_check
+            .Input(event, state, input_state, _ctx)
+        {
             self.config
                 .borrow_mut()
                 .SetShowHiddenFiles(self.show_hidden_check.IsChecked());
             return true;
         }
-        if self.autosave_check.Input(event, state, input_state) {
+        if self.autosave_check.Input(event, state, input_state, _ctx) {
             self.config
                 .borrow_mut()
                 .SetAutosave(self.autosave_check.IsChecked());
@@ -478,7 +481,7 @@ impl PanelBehavior for emFileManControlPanel {
         }
 
         // Delegate to action buttons
-        if self.save_button.Input(event, state, input_state) {
+        if self.save_button.Input(event, state, input_state, _ctx) {
             if self.save_button.IsPressed() {
                 // Press tracked; actual save on release via on_click
             } else {
@@ -486,23 +489,32 @@ impl PanelBehavior for emFileManControlPanel {
             }
             return true;
         }
-        if self.select_all_button.Input(event, state, input_state) {
+        if self
+            .select_all_button
+            .Input(event, state, input_state, _ctx)
+        {
             self.select_all();
             return true;
         }
-        if self.clear_sel_button.Input(event, state, input_state) {
+        if self.clear_sel_button.Input(event, state, input_state, _ctx) {
             self.file_man.borrow_mut().ClearTargetSelection();
             return true;
         }
-        if self.swap_sel_button.Input(event, state, input_state) {
+        if self.swap_sel_button.Input(event, state, input_state, _ctx) {
             self.file_man.borrow_mut().SwapSelection();
             return true;
         }
-        if self.paths_clip_button.Input(event, state, input_state) {
+        if self
+            .paths_clip_button
+            .Input(event, state, input_state, _ctx)
+        {
             let _text = self.file_man.borrow().SelectionToClipboard(false, false);
             return true;
         }
-        if self.names_clip_button.Input(event, state, input_state) {
+        if self
+            .names_clip_button
+            .Input(event, state, input_state, _ctx)
+        {
             let _text = self.file_man.borrow().SelectionToClipboard(false, true);
             return true;
         }

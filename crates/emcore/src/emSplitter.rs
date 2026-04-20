@@ -207,6 +207,7 @@ impl emSplitter {
         event: &emInputEvent,
         _state: &PanelState,
         _input_state: &emInputState,
+        _ctx: &mut PanelCtx,
     ) -> bool {
         if self.last_w <= 0.0 || self.last_h <= 0.0 {
             return false;
@@ -383,8 +384,14 @@ impl emSplitter {
 mod tests {
     use super::*;
     use crate::emPanel::Rect;
-    use crate::emPanelTree::PanelId;
+    use crate::emPanelTree::{PanelId, PanelTree};
     use slotmap::Key as _;
+
+    fn test_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let id = tree.create_root("t", false);
+        (tree, id)
+    }
 
     fn default_panel_state() -> PanelState {
         PanelState {
@@ -423,6 +430,8 @@ mod tests {
 
     #[test]
     fn splitter_drag() {
+        let (mut tree, tid) = test_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let mut sp = emSplitter::new(Orientation::Horizontal, look);
         sp.SetPos(0.5);
@@ -437,7 +446,7 @@ mod tests {
         // Press at the divider center in normalized space (tallness = 0.5).
         // Grip center: gx = 0.5 * (1.0 - 0.015) + 0.015/2 ≈ 0.5.
         let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(0.5, 0.1);
-        assert!(sp.Input(&press, &ps, &is));
+        assert!(sp.Input(&press, &ps, &is, &mut ctx));
         assert!(sp.dragging);
 
         // Drag to x = 0.7 in normalized space.
@@ -455,12 +464,12 @@ mod tests {
             meta: false,
             eaten: false,
         };
-        sp.Input(&drag, &ps, &is);
+        sp.Input(&drag, &ps, &is, &mut ctx);
         assert!((sp.GetPos() - 0.7).abs() < 0.01);
 
         // Release
         let release = emInputEvent::release(InputKey::MouseLeft);
-        sp.Input(&release, &ps, &is);
+        sp.Input(&release, &ps, &is, &mut ctx);
         assert!(!sp.dragging);
     }
 }

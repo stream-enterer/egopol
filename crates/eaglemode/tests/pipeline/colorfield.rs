@@ -53,7 +53,7 @@ impl PanelBehavior for ColorFieldBehavior {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.color_field.Input(event, state, input_state)
+        self.color_field.Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {

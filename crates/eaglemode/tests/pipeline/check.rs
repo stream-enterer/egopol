@@ -43,7 +43,9 @@ impl PanelBehavior for SharedCheckButtonPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.inner.borrow_mut().Input(event, state, input_state)
+        self.inner
+            .borrow_mut()
+            .Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {
@@ -78,7 +80,9 @@ impl PanelBehavior for SharedCheckBoxPanel {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.inner.borrow_mut().Input(event, state, input_state)
+        self.inner
+            .borrow_mut()
+            .Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {

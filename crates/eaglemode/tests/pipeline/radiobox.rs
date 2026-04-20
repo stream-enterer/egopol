@@ -49,7 +49,7 @@ impl PanelBehavior for RadioBoxBehavior {
         input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        self.widget.Input(event, state, input_state)
+        self.widget.Input(event, state, input_state, _ctx)
     }
 
     fn GetCursor(&self) -> emCursor {
