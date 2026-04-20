@@ -6,8 +6,8 @@ use crate::dlog;
 use bitflags::bitflags;
 
 use super::emPanelTree::{PanelId, PanelTree};
-use crate::emPanel::NoticeFlags;
 use crate::emEngineCtx::PanelCtx;
+use crate::emPanel::NoticeFlags;
 
 use crate::emClipRects::ClipRects;
 use crate::emColor::emColor;
@@ -2419,7 +2419,7 @@ impl emView {
 
             // Drain all pending notices (C++ emView.cpp:1303-1314).
             if tree.has_pending_notices() {
-                self.HandleNotice(tree);
+                self.HandleNotice(tree, ctx.scheduler);
                 continue;
             }
 
@@ -3446,7 +3446,11 @@ impl emView {
     /// callers inside callbacks cannot re-borrow it to append to a view-owned
     /// ring).  Ring storage location is *forced*; dispatch driver (per-view,
     /// using per-view `CurrentPixelTallness`) matches C++ exactly.
-    pub fn HandleNotice(&mut self, tree: &mut PanelTree) -> bool {
+    pub fn HandleNotice(
+        &mut self,
+        tree: &mut PanelTree,
+        sched: &mut crate::emScheduler::EngineScheduler,
+    ) -> bool {
         if !tree.has_pending_notices() {
             return false;
         }
@@ -3481,7 +3485,7 @@ impl emView {
             // C++ unlinks BEFORE calling HandleNotice (emView.cpp:1307-1310).
             tree.remove_from_notice_list(id);
             delivered = true;
-            self.handle_notice_one(tree, id);
+            self.handle_notice_one(tree, id, sched);
         }
         tree.clear_pending_notices_flag();
         delivered
@@ -3498,7 +3502,12 @@ impl emView {
     ///             HandleNotice for the AE/layout phase)
     ///   Phase 3 — AE decision + AutoExpand/AutoShrink (lines 1424-1445)
     ///   Phase 4 — LayoutChildren if ChildrenLayoutInvalid (lines 1447-1450)
-    fn handle_notice_one(&mut self, tree: &mut PanelTree, id: PanelId) {
+    fn handle_notice_one(
+        &mut self,
+        tree: &mut PanelTree,
+        id: PanelId,
+        sched: &mut crate::emScheduler::EngineScheduler,
+    ) {
         let pixel_tallness = self.CurrentPixelTallness;
         let window_focused = self.window_focused;
         // ── Phase 1: AEInvalid shrink (C++ emPanel.cpp:1391–1397) ──────
@@ -3517,7 +3526,7 @@ impl emView {
             }
             if ae_expanded {
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     behavior.AutoShrink(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -3582,7 +3591,7 @@ impl emView {
             // No-behavior: treat as base Notice() no-op (C++ base is virtual no-op).
             if let Some(mut behavior) = tree.take_behavior(id) {
                 let state = tree.build_panel_state(id, window_focused, pixel_tallness);
-                let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                 behavior.notice(flags, &state, &mut ctx);
                 // "Notice() is allowed to do a 'delete this'" — C++ emPanel.cpp:1421.
                 if tree.panels.contains_key(id) {
@@ -3619,7 +3628,7 @@ impl emView {
                     p.ae_calling = true;
                 }
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     behavior.AutoExpand(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -3643,7 +3652,7 @@ impl emView {
                     p.ae_expanded = false;
                 }
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     behavior.AutoShrink(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -3670,7 +3679,7 @@ impl emView {
         if children_layout_invalid {
             if tree.GetFirstChild(id).is_some() {
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::new(tree, id, pixel_tallness);
+                    let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     behavior.LayoutChildren(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -7144,7 +7153,7 @@ mod tests {
         );
 
         // Drive view_a's HandleNotice independently.
-        view_a.HandleNotice(&mut tree_a);
+        view_a.HandleNotice(&mut tree_a, &mut h.scheduler);
         // tree_a is drained; tree_b still has its notice.
         assert!(
             !tree_a.has_pending_notices(),
@@ -7156,7 +7165,7 @@ mod tests {
         );
 
         // Drive view_b's HandleNotice.
-        view_b.HandleNotice(&mut tree_b);
+        view_b.HandleNotice(&mut tree_b, &mut h.scheduler);
         assert!(
             !tree_b.has_pending_notices(),
             "tree_b drained after HandleNotice"

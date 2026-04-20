@@ -5,12 +5,12 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emFilePanel::emFilePanel;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
 use emcore::emPainter::emPainter;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emEngineCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
 
 use crate::emDirEntry::emDirEntry;

@@ -16,13 +16,13 @@ use emcore::emCheckButton::emCheckButton;
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emCursor::emCursor;
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
 use emcore::emLinearLayout::emLinearLayout;
 use emcore::emLook::emLook;
 use emcore::emPainter::emPainter;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emEngineCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
 use emcore::emTiling::{ChildConstraint, Orientation, Spacing};
 

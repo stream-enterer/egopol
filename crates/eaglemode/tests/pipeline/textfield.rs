@@ -8,12 +8,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use emcore::emCursor::emCursor;
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
 use emcore::emLook::emLook;
 use emcore::emPainter::emPainter;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use emcore::emEngineCtx::PanelCtx;
 use emcore::emTextField::emTextField;
 use emcore::emViewRenderer::SoftwareCompositor;
 

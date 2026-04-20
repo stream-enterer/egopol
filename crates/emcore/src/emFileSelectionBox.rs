@@ -4,10 +4,10 @@ use std::rc::Rc;
 
 use crate::dlog;
 use crate::emColor::emColor;
+use crate::emEngineCtx::PanelCtx;
 use crate::emPainter::emPainter;
 use crate::emPanel::NoticeFlags;
 use crate::emPanel::{PanelBehavior, PanelState};
-use crate::emEngineCtx::PanelCtx;
 use crate::emPanelTree::PanelId;
 use crate::emStroke::emStroke;
 

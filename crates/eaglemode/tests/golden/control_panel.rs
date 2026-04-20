@@ -5,8 +5,8 @@
 use std::rc::Rc;
 
 use emcore::emContext::emContext;
-use emcore::emPanel::PanelBehavior;
 use emcore::emEngineCtx::PanelCtx;
+use emcore::emPanel::PanelBehavior;
 use emcore::emPanelTree::PanelTree;
 
 use emMain::emMainControlPanel::emMainControlPanel;

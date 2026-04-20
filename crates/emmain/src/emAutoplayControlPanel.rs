@@ -14,6 +14,7 @@ use emcore::emCheckBox::emCheckBox;
 use emcore::emCheckButton::emCheckButton;
 use emcore::emColor::emColor;
 use emcore::emCursor::emCursor;
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
 use emcore::emLinearLayout::emLinearLayout;
@@ -21,7 +22,6 @@ use emcore::emLook::emLook;
 use emcore::emPackLayout::emPackLayout;
 use emcore::emPainter::emPainter;
 use emcore::emPanel::{PanelBehavior, PanelState};
-use emcore::emEngineCtx::PanelCtx;
 use emcore::emScalarField::emScalarField;
 use emcore::emTiling::ChildConstraint;
 

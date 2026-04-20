@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emEngineCtx::PanelCtx;
+use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emPanelTree::PanelId;
 
 use crate::support::{RecordingBehavior, TestHarness};

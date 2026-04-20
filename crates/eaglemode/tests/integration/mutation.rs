@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use emcore::emPanel::NoticeFlags;
 use emcore::emEngineCtx::PanelCtx;
+use emcore::emPanel::NoticeFlags;
 use emcore::emPanelTree::PanelId;
 
 use crate::support::{MutatingBehavior, RecordingBehavior, TestHarness};

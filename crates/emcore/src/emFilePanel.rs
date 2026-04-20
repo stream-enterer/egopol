@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::emColor::emColor;
+use crate::emEngineCtx::PanelCtx;
 use crate::emFileModel::{FileModelState, FileState};
 use crate::emPainter::{emPainter, TextAlignment, VAlign};
 use crate::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use crate::emEngineCtx::PanelCtx;
 
 /// Extended file state for a file panel, adding custom error and no-model states.
 ///

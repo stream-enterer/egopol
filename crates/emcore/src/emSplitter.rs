@@ -1,9 +1,9 @@
 use crate::emCursor::emCursor;
+use crate::emEngineCtx::PanelCtx;
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPainter::{emPainter, BORDER_EDGES_ONLY};
 use crate::emPanel::PanelState;
-use crate::emEngineCtx::PanelCtx;
 use crate::emPanelTree::PanelId;
 use crate::emTiling::{Orientation, ResolvedOrientation};
 

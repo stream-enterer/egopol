@@ -3,10 +3,10 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
+use emcore::emEngineCtx::PanelCtx;
 use emcore::emFilePanel::{emFilePanel, VirtualFileState};
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{PanelBehavior, PanelState};
-use emcore::emEngineCtx::PanelCtx;
 
 use crate::emDirEntry::emDirEntry;
 use crate::emFileManViewConfig::emFileManViewConfig;

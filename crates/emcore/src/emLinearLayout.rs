@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use crate::emEngineCtx::PanelCtx;
 use crate::emPanel::Rect;
 use crate::emPanel::{NoticeFlags, PanelBehavior, PanelState};
-use crate::emEngineCtx::PanelCtx;
 use crate::emPanelTree::PanelId;
 
 use super::emTiling::{

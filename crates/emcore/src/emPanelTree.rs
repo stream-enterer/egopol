@@ -10,8 +10,8 @@ use super::emEngine::{EngineId, Priority, TreeLocation};
 use super::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use super::emPanelCycleEngine::PanelCycleEngine;
 use crate::emColor::emColor;
-use crate::emPanel::Rect;
 use crate::emEngineCtx::PanelCtx;
+use crate::emPanel::Rect;
 use crate::emScheduler::EngineScheduler;
 
 // ── Autoplay handling flags ─────────────────────────────────────────
@@ -3005,7 +3005,8 @@ mod tests {
         // Clear pending notices before sort
         let mut view =
             crate::emView::emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
-        view.HandleNotice(&mut t);
+        let mut _dummy_sched = EngineScheduler::new();
+        view.HandleNotice(&mut t, &mut _dummy_sched);
 
         // Build name map
         let names: HashMap<PanelId, String> = t
@@ -3535,8 +3536,8 @@ mod tests {
     /// view's tallness.
     #[test]
     fn sp4_5_panel_cycle_uses_per_view_pixel_tallness() {
-        use crate::emPanel::PanelBehavior;
         use crate::emEngineCtx::PanelCtx;
+        use crate::emPanel::PanelBehavior;
         use std::cell::Cell;
         use std::collections::HashMap;
 
@@ -3638,8 +3639,8 @@ mod tests {
     /// the next DoTimeSlice, so a subsequent slice cycles sibling B.
     #[test]
     fn sp4_5_wake_up_panel_from_cycle_reaches_sibling() {
-        use crate::emPanel::PanelBehavior;
         use crate::emEngineCtx::PanelCtx;
+        use crate::emPanel::PanelBehavior;
         use std::cell::Cell;
         use std::collections::HashMap;
 

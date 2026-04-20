@@ -7,8 +7,8 @@ use crate::emInputState::emInputState;
 use crate::emPainter::emPainter;
 use crate::emViewAnimator::emViewAnimator;
 
-use super::emPanel::{NoticeFlags, PanelBehavior, PanelState, ParentInvalidation};
 use super::emEngineCtx::PanelCtx;
+use super::emPanel::{NoticeFlags, PanelBehavior, PanelState, ParentInvalidation};
 use super::emPanelTree::{PanelId, PanelTree};
 use super::emView::{emView, ViewFlags};
 
@@ -175,18 +175,16 @@ impl emSubViewPanel {
     /// In C++ this delegates to `emViewPort::SetViewGeometry`. The sub-view's
     /// viewport size is set to match the parent panel's pixel dimensions.
     ///
-    /// Phase 1.75 Task 4: Called from `notice(…, PanelCtx)` which does not
-    /// thread a scheduler (see `emView::HandleNotice` — `PanelCtx::new` with
-    /// no scheduler). A local throwaway `EngineScheduler` backs the `SchedCtx`
-    /// passed into `emView::SetGeometry`; sub-view engines live on the OUTER
-    /// scheduler, so any `wake_up` / `fire` emitted here lands on a dropped
-    /// scheduler (observationally no-op). Threading notice-dispatch scheduler
-    /// down to `PanelCtx::with_scheduler` and here is Task-5 scope — updating
-    /// `PanelBehavior::notice`'s caller at `emView::HandleNotice` is an
-    /// observable-API change that falls outside Task 4's per-sub-view
-    /// scheduler deletion remit. Goldens stay 237/6 at this fidelity (the wakes
-    /// lost were already lost during Task 3's transitional window).
-    fn sync_geometry(&mut self, state: &PanelState) {
+    /// Phase 1.75 Task 5: `notice` now receives a `PanelCtx` that carries the
+    /// outer scheduler (threaded via `emView::HandleNotice(tree, sched)`),
+    /// so the prior throwaway `EngineScheduler::new()` hack is gone — wakes
+    /// emitted by `emView::SetGeometry` land on the real outer scheduler where
+    /// sub-view engines live (`TreeLocation::SubView`).
+    fn sync_geometry(
+        &mut self,
+        state: &PanelState,
+        sched: &mut crate::emScheduler::EngineScheduler,
+    ) {
         let (w, h) = if state.viewed {
             self.viewed_x = state.viewed_rect.x;
             self.viewed_y = state.viewed_rect.y;
@@ -204,9 +202,8 @@ impl emSubViewPanel {
         };
         let root_ctx = self.sub_view.borrow().GetRootContext();
         let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
-        let mut throwaway_sched = crate::emScheduler::EngineScheduler::new();
         let mut sc = crate::emEngineCtx::SchedCtx {
-            scheduler: &mut throwaway_sched,
+            scheduler: sched,
             framework_actions: &mut fw,
             root_context: &root_ctx,
             current_engine: None,
@@ -284,19 +281,18 @@ impl PanelBehavior for emSubViewPanel {
         let root_ctx_for_input = self.sub_view.borrow().GetRootContext();
         let mut fw_input: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
 
-        // Phase 1.75 Task 4: `PanelBehavior::Input` takes no ctx — by design
-        // the observable-API surface does not expose a scheduler to input
-        // handlers (the outer `emWindow::dispatch_input` dispatch mirrors this
-        // at emWindow.rs:1036). Sub-view engines live on the OUTER scheduler,
-        // but we have no handle here. Build `SchedCtx` over a local throwaway
-        // `EngineScheduler` — any `wake_up`/`fire` emitted by `set_active_panel`
-        // / `Update` lands on the dropped scheduler (observationally no-op).
-        // Threading a scheduler handle into `PanelBehavior::Input` is a
-        // signature change on the observable API; explicitly out of Task 4
-        // scope per plan text ("STOP and escalate — that's Task-5-scope
-        // creep"). Gold tests stayed 237/6 through Task 3 with the same
-        // silent-drop pattern; Task 4 preserves the invariant and flags this
-        // explicitly for Task 5+.
+        // Phase 1.75 Task 5 BLOCKED scope-fork: `PanelBehavior::Input` signature
+        // change to thread a scheduler cascades into >100 Input impls (widgets
+        // forwarding to inner widgets, test panels, etc.) — far beyond the
+        // "8-10 non-mechanical adjustments" escalation threshold stated in
+        // Task 5 prompt. The notice path (sync_geometry) was successfully
+        // de-throwaway'd in Task 5 via `emView::HandleNotice(tree, sched)`
+        // threading; the Input path requires a separate plan task widening
+        // `PanelBehavior::Input` (or providing an `InputWithCtx` sibling).
+        // Until then: wakes emitted by `set_active_panel`/`Update` here land
+        // on a dropped local scheduler (observationally no-op). Goldens held
+        // 237/6 through Tasks 3, 4, and 5 with this silent-drop; reopening
+        // it requires a dedicated task.
         let mut throwaway_sched_input = crate::emScheduler::EngineScheduler::new();
 
         // Hit-test and set active panel on mouse press (mirrors parent window logic).
@@ -399,7 +395,7 @@ impl PanelBehavior for emSubViewPanel {
         animator_active
     }
 
-    fn notice(&mut self, flags: NoticeFlags, state: &PanelState, _ctx: &mut PanelCtx) {
+    fn notice(&mut self, flags: NoticeFlags, state: &PanelState, ctx: &mut PanelCtx) {
         // C++ NF_FOCUS_CHANGED → SetViewFocused(IsFocused())
         if flags.intersects(NoticeFlags::FOCUS_CHANGED) {
             self.sub_view
@@ -408,7 +404,11 @@ impl PanelBehavior for emSubViewPanel {
         }
         // C++ NF_VIEWING_CHANGED → SetViewGeometry(...)
         if flags.intersects(NoticeFlags::VIEWING_CHANGED | NoticeFlags::LAYOUT_CHANGED) {
-            self.sync_geometry(state);
+            let sched = ctx
+                .scheduler
+                .as_deref_mut()
+                .expect("emSubViewPanel::notice requires PanelCtx with a scheduler (Phase 1.75)");
+            self.sync_geometry(state, sched);
         }
     }
 
