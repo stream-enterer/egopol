@@ -3500,21 +3500,23 @@ impl emView {
     /// it cycles each slice until its countdown reaches zero, at which point
     /// it fires `EOISignal`. Matches C++ `emView::SignalEOIDelayed`
     /// (emView.cpp:940-943).
-    pub fn SignalEOIDelayed(&mut self) {
-        let (Some(sched), Some(sig)) = (&self.scheduler, self.EOISignal) else {
+    ///
+    /// Phase 1.5 Task 1c (method 4/7): ctx-threaded. Callers inside yet-
+    /// unmigrated emView methods use `with_local_sched_ctx` to bridge.
+    pub fn SignalEOIDelayed(&mut self, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) {
+        let Some(sig) = self.EOISignal else {
             return;
         };
-        let mut sched = sched.borrow_mut();
         // Replace any prior EOI engine — matches C++ where SignalEOIDelayed
         // resets the countdown on a fresh EOIEngineClass.
         if let Some(old) = self.eoi_engine_id.take() {
-            sched.remove_engine(old);
+            ctx.remove_engine(old);
         }
-        let eng_id = sched.register_engine(
+        let eng_id = ctx.register_engine(
             Box::new(EOIEngineClass::new(sig)),
             super::emEngine::Priority::High,
         );
-        sched.wake_up(eng_id);
+        ctx.wake_up(eng_id);
         self.eoi_engine_id = Some(eng_id);
     }
 
@@ -6435,7 +6437,18 @@ mod tests {
         );
         sched.borrow_mut().connect(eoi, listener_id);
 
-        v_rc.borrow_mut().SignalEOIDelayed();
+        {
+            let mut sched_borrow = sched.borrow_mut();
+            let root = v_rc.borrow().Context.GetRootContext();
+            let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut sched_borrow,
+                framework_actions: &mut fw,
+                root_context: &root,
+                current_engine: None,
+            };
+            v_rc.borrow_mut().SignalEOIDelayed(&mut sc);
+        }
         let mut windows = std::collections::HashMap::new();
         for _ in 0..10 {
             let __root_ctx = crate::emContext::emContext::NewRoot();
