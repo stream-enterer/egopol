@@ -3785,7 +3785,7 @@ mod tests {
     // Phase 1.75 Task 3 also deleted
     //   sp4_5_fix_1_timing_sub_scheduler_baseline_slices
     // which measured the same create-then-first-Cycle delta across the
-    // now-deleted `emSubViewPanel::sub_scheduler`. The outer-scheduler
+    // now-deleted per-sub-view scheduler field. The outer-scheduler
     // equivalent under Phase 1.75's unified dispatch is the test immediately
     // below (`phase_1_75_task6_spawn_and_wake_child_in_same_slice_delta_zero`),
     // which asserts delta == 0 — the post-Task-4/5 invariant that a spawned
