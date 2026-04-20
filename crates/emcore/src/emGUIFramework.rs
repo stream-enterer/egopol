@@ -167,6 +167,30 @@ impl App {
         std::process::exit(0);
     }
 
+    /// Phase 1.5 Task 1c (method 1/7): construct a `SchedCtx` scoped to the
+    /// App's scheduler / framework_actions / root_context. Callable from
+    /// framework-level code (event handlers, about_to_wait drain) that has
+    /// `&mut App` and needs to invoke ctx-threaded emView methods.
+    ///
+    /// While `App.scheduler` is still `Rc<RefCell<EngineScheduler>>` (Chunk 2
+    /// carry-forward — see DIVERGED block on `App.scheduler`), this helper
+    /// uses `borrow_mut`. Phase 1.5 step 1f narrows the scheduler back to a
+    /// plain value and this helper's body simplifies accordingly.
+    pub(crate) fn with_sched_ctx<R>(
+        &mut self,
+        f: impl FnOnce(&mut crate::emEngineCtx::SchedCtx<'_>) -> R,
+    ) -> R {
+        let sched_rc = self.scheduler.clone();
+        let mut sched = sched_rc.borrow_mut();
+        let mut sc = crate::emEngineCtx::SchedCtx {
+            scheduler: &mut sched,
+            framework_actions: &mut self.framework_actions,
+            root_context: &self.context,
+            current_engine: None,
+        };
+        f(&mut sc)
+    }
+
     /// Get the GPU context (panics if not yet initialized).
     pub fn gpu(&self) -> &GpuContext {
         self.gpu.as_ref().expect("GPU not initialized yet")

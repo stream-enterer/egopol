@@ -657,6 +657,50 @@ impl emView {
         }
     }
 
+    /// Phase 1.5 Task 1c (method 1/7): local SchedCtx constructor used by
+    /// `RawVisitAbs` to call the newly ctx-threaded `SwapViewPorts` without
+    /// propagating ctx up its own signature (RawVisitAbs is migration 7/7).
+    ///
+    /// Mirrors `queue_or_apply_sched_op`'s fallback policy:
+    ///   - No scheduler attached (bare unit-test view) → skip the call.
+    ///   - Scheduler already borrowed re-entrantly → enqueue a `Fire` op
+    ///     for the sole scheduler side-effect of `SwapViewPorts`
+    ///     (`geometry_signal`) via `pending_sched_ops`.
+    ///   - Scheduler borrow available → construct a `SchedCtx` over a
+    ///     scratch `Vec<DeferredAction>` (SwapViewPorts does not enqueue
+    ///     framework actions) and run `f`.
+    ///
+    /// TODO(phase-1-5 task-1c/7of7): deleted when `RawVisitAbs` itself
+    /// becomes ctx-threaded — at that point the outer caller supplies the
+    /// real SchedCtx directly.
+    pub(crate) fn with_local_sched_ctx<R>(
+        &mut self,
+        f: impl FnOnce(&mut Self, &mut crate::emEngineCtx::SchedCtx<'_>) -> R,
+    ) -> Option<R> {
+        let sched_rc = self.scheduler.as_ref()?.clone();
+        let mut sched = match sched_rc.try_borrow_mut() {
+            Ok(s) => s,
+            Err(_) => {
+                // Re-entrant path: the only scheduler effect of SwapViewPorts
+                // is firing `geometry_signal`. Queue it so the engine-cycle
+                // pending-ops drain applies it.
+                if let Some(sig) = self.geometry_signal {
+                    self.pending_sched_ops.push(SchedOp::Fire(sig));
+                }
+                return None;
+            }
+        };
+        let root = self.Context.GetRootContext();
+        let mut scratch: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+        let mut sc = crate::emEngineCtx::SchedCtx {
+            scheduler: &mut sched,
+            framework_actions: &mut scratch,
+            root_context: &root,
+            current_engine: None,
+        };
+        Some(f(self, &mut sc))
+    }
+
     // --- Accessors ---
 
     pub fn GetContext(&self) -> &Rc<crate::emContext::emContext> {
@@ -1860,7 +1904,7 @@ impl emView {
                         self.queue_or_apply_sched_op(SchedOp::Connect(close_sig, eng_id));
                     }
                     // C++ (emView.cpp:1644): SwapViewPorts(true)
-                    self.SwapViewPorts(true);
+                    self.with_local_sched_ctx(|v, sc| v.SwapViewPorts(true, sc));
                     // C++ (emView.cpp:1645): if (wasFocused && !Focused) CurrentViewPort->RequestFocus()
                     if was_focused && !self.window_focused {
                         self.CurrentViewPort.borrow_mut().RequestFocus();
@@ -1923,16 +1967,16 @@ impl emView {
                     || (y1 - self.CurrentY).abs() > 0.01
                     || (y2 - self.CurrentY - self.CurrentHeight).abs() > 0.01
                 {
-                    self.SwapViewPorts(false);
+                    self.with_local_sched_ctx(|v, sc| v.SwapViewPorts(false, sc));
                     if let Some(ref w) = self.PopupWindow {
                         w.borrow_mut().SetViewPosSize(x1, y1, x2 - x1, y2 - y1);
                     }
-                    self.SwapViewPorts(false);
+                    self.with_local_sched_ctx(|v, sc| v.SwapViewPorts(false, sc));
                     forceViewingUpdate = true;
                 }
             } else if self.PopupWindow.is_some() {
                 // C++ (emView.cpp:1674-1680): tear down popup on return inside home
-                self.SwapViewPorts(true);
+                self.with_local_sched_ctx(|v, sc| v.SwapViewPorts(true, sc));
                 // Disconnect + remove the popup's close signal (allocated on
                 // popup creation above) so the scheduler doesn't leak it.
                 // Also enqueue a framework-side cleanup closure to drop the
@@ -3301,7 +3345,7 @@ impl emView {
     /// `CurrentViewPort->HomeView->Home*` fields. Phase 4 approximates this
     /// by reading the geometry from the exchanged `emViewPort` directly
     /// (since the stub port stores home_* instead of a HomeView back-ref).
-    pub fn SwapViewPorts(&mut self, swap_focus: bool) {
+    pub fn SwapViewPorts(&mut self, swap_focus: bool, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) {
         // Swap the popup window's current_view_port with our CurrentViewPort.
         // This mirrors C++:
         //   vp = PopupWindow->CurrentViewPort;
@@ -3346,7 +3390,7 @@ impl emView {
         // C++ emView.cpp:1995: Signal(GeometrySignal) — viewport swap changes
         // the current geometry, so wake listeners (e.g. emWindowStateSaver).
         if let Some(sig) = self.geometry_signal {
-            self.queue_or_apply_sched_op(SchedOp::Fire(sig));
+            ctx.fire(sig);
         }
     }
 
