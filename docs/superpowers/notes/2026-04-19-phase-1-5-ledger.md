@@ -433,3 +433,67 @@ Mechanics: 3 production-code threads (emWindow::resize + 2 App event handlers),
 disjoint-borrow SchedCtx pattern is required at both App sites because
 `with_sched_ctx` takes `&mut self` exclusively — incompatible when `self.tree`
 is also borrowed by the `SetGeometry` call.
+
+
+### Session 8 — Task 1c method 6/7: set_active_panel + SetActivePanelBestPossible (@ cf83668)
+
+- **Methods migrated (2):**
+  - `set_active_panel(&mut self, tree, panel, adherent, ctx: &mut SchedCtx<'_>)` — sole SchedOp site: `queue_or_apply_sched_op(SchedOp::Fire(sig))` → `ctx.fire(sig)`.
+  - `SetActivePanelBestPossible(&mut self, tree, ctx: &mut SchedCtx<'_>)` — no direct SchedOp; threads `ctx` into two nested `set_active_panel` calls.
+
+- **Internal emView bridges (6 sites, via `with_local_sched_ctx`):**
+  - `Zoom` (emView.cpp:800 → `SetActivePanelBestPossible`)
+  - `Scroll` (emView.cpp:780 → `SetActivePanelBestPossible`)
+  - `ZoomOut` (emView.cpp:901 → `SetActivePanelBestPossible`)
+  - `remove_panel` (line 2971 → `set_active_panel`)
+  - `activate_panel` (line 2983 → `set_active_panel`)
+  - `focus_panel` (line 2990 → `set_active_panel`)
+
+- **`with_local_sched_ctx` updated:** Previously returned `None` when no scheduler
+  was attached to the view. Now falls back to a throwaway `EngineScheduler` so
+  public wrappers (`activate_panel`, `focus_panel`, `remove_panel`) work in
+  test-harness-less contexts. Throwaway `fire` calls are no-ops since the signal
+  ID is unknown to the fresh scheduler (safe: `EngineScheduler::fire` does a
+  `get_mut` that returns `None` for unknown IDs; drop asserts `pending_signals.is_empty()`
+  which holds because no signal was registered).
+
+- **External production callers (3 files):**
+  - `emViewAnimator.rs` (line 415: `SetActivePanelBestPossible`; line 2131: `set_active_panel`) — `animate(&mut emView, ...)` trait method not ctx-threaded; bridged via `view.with_local_sched_ctx(...)`.
+  - `emSubViewPanel.rs` (line 251: `set_active_panel`) — `borrow_mut().with_local_sched_ctx(...)`.
+  - `emWindow.rs` (line 990: `set_active_panel`) — `borrow_mut().with_local_sched_ctx(...)`.
+
+- **Test infrastructure upgraded:**
+  - `TestHarness` (tests/support/mod.rs) gains `framework_actions: Vec<DeferredAction>`,
+    `root_context: Rc<emContext>`, `sched_ctx() -> SchedCtx<'_>`, and
+    `set_active_panel(panel: PanelId)` helper.
+  - `PipelineTestHarness` (tests/support/pipeline.rs) same additions.
+  - Both harnesses' `tick()` updated to use `self.root_context` instead of a
+    throwaway `emContext::NewRoot()`.
+
+- **Test rewires (~95 call sites across 9 files):**
+  - `emView.rs` internal tests (22 sites): `TestViewHarness::new()` / `h.sched_ctx()`.
+    Special case: `test_signal_fields_and_visit_by_identity` already owns a real
+    scheduler — bridged via `view.with_local_sched_ctx(...)` so firing reaches the
+    test's scheduler for assertion.
+  - `emViewInputFilter.rs` test (1 site): `TestViewHarness::new()` / `h.sched_ctx()`.
+  - `golden/interaction.rs` (26 sites): module-level `sap(view, tree, panel, adherent)` helper using `TestViewHarness`.
+  - `golden/notice.rs` (4 sites): module-level `sap(view, tree, panel)` helper.
+  - `golden/widget_interaction.rs` (1 site, in `dispatch_event` helper): inline `TestViewHarness`.
+  - `golden/input.rs` (1 site): `h.set_active_panel(panel)` via `TestHarness` helper.
+  - `integration/lifecycle.rs` (1 `set_active_panel` + 1 `SetActivePanelBestPossible`): harness helper + inline SchedCtx.
+  - `integration/input.rs` (2 sites): harness helper.
+  - `pipeline/focus.rs` (26 sites), `pipeline/notices.rs` (33 sites), `pipeline/button.rs` (1 site): `h.set_active_panel(panel)` via `PipelineTestHarness` helper.
+
+- **Notable pattern:** `activate_panel`/`focus_panel`/`remove_panel` public wrappers
+  bridge via `with_local_sched_ctx`; the fallback-scheduler path is load-bearing for
+  tests that call these methods without attaching a scheduler to the view. Method 7/7
+  (`RawVisitAbs`) will move these wrappers to ctx-threaded once the outer `Visit`/
+  `Zoom`/`Scroll` methods also gain `ctx`.
+
+- cargo check: clean (only sanctioned `pending_inputs` + `with_sched_ctx` warnings).
+- Nextest: 2456 pass / 0 fail / 9 skipped (emcore: 885 pass).
+- Goldens: 237/6 preserved (same failing set as baseline).
+- Commit `cf83668` used `--no-verify` (sanctioned dead_code warnings).
+
+**Status:** DONE. Largest single migration in the 7-method series (~95 test + 6
+production call sites). No scope leakage into method 7/7 territory.
