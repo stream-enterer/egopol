@@ -1102,7 +1102,10 @@ impl emFileSelectionBox {
 
         // 2. HiddenCheckBox
         if !self.hidden_check_box_hidden {
-            let mut cb = emCheckBox::new("Show\nHidden\nFiles", self.look.clone());
+            let mut cb = {
+                let mut sched = ctx.as_sched_ctx().expect("sched");
+                emCheckBox::new(&mut sched, "Show\nHidden\nFiles", self.look.clone())
+            };
             cb.SetChecked(self.hidden_files_shown, ctx);
             let events = self.events.clone();
             cb.on_check = Some(Box::new(
@@ -1481,9 +1484,13 @@ impl PanelBehavior for emFileSelectionBox {
                 self.parent_dir = new_dir;
                 self.triggered_file_name.clear();
                 self.invalidate_listing();
-                if let Some(ref mut cb) = self.on_selection {
+                // C++ emFileSelectionBox.cpp:401: Signal(SelectionSignal).
+                {
                     let mut sched = ectx.as_sched_ctx();
-                    cb((), &mut sched);
+                    sched.fire(self.selection_signal);
+                    if let Some(ref mut cb) = self.on_selection {
+                        cb((), &mut sched);
+                    }
                 }
             }
         }
@@ -1505,9 +1512,13 @@ impl PanelBehavior for emFileSelectionBox {
             self.selection_from_list_box(&events.selection_indices);
             // Update name field.
             self.sync_name_field(ctx);
-            if let Some(ref mut cb) = self.on_selection {
+            // C++ emFileSelectionBox.cpp:413+417 area: Signal(SelectionSignal).
+            {
                 let mut sched = ectx.as_sched_ctx();
-                cb((), &mut sched);
+                sched.fire(self.selection_signal);
+                if let Some(ref mut cb) = self.on_selection {
+                    cb((), &mut sched);
+                }
             }
         }
 
@@ -1526,9 +1537,14 @@ impl PanelBehavior for emFileSelectionBox {
                         self.sync_dir_field(ctx);
                     } else {
                         self.triggered_file_name = name.clone();
-                        if let Some(ref mut cb) = self.on_trigger {
+                        // C++ emFileSelectionBox::TriggerFile
+                        // (emFileSelectionBox.cpp:305-309): Signal(FileTriggerSignal).
+                        {
                             let mut sched = ectx.as_sched_ctx();
-                            cb(&name, &mut sched);
+                            sched.fire(self.file_trigger_signal);
+                            if let Some(ref mut cb) = self.on_trigger {
+                                cb(&name, &mut sched);
+                            }
                         }
                     }
                 }
@@ -1552,9 +1568,13 @@ impl PanelBehavior for emFileSelectionBox {
                 // Sync name field back to just the filename.
                 self.sync_name_field(ctx);
                 self.sync_dir_field(ctx);
-                if let Some(ref mut cb) = self.on_selection {
+                // C++ emFileSelectionBox.cpp name-field path: Signal(SelectionSignal).
+                {
                     let mut sched = ectx.as_sched_ctx();
-                    cb((), &mut sched);
+                    sched.fire(self.selection_signal);
+                    if let Some(ref mut cb) = self.on_selection {
+                        cb((), &mut sched);
+                    }
                 }
             } else {
                 self.set_selected_name(&name_text);
@@ -1590,6 +1610,13 @@ mod tests {
         fw: Vec<DeferredAction>,
         root: Rc<crate::emContext::emContext>,
     }
+    impl Drop for TestInit {
+        fn drop(&mut self) {
+            // B3.4c: clear pending signals accumulated during Input-path tests
+            self.sched.clear_pending_for_tests();
+        }
+    }
+
     impl TestInit {
         fn new() -> Self {
             Self {

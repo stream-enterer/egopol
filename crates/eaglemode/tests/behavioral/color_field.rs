@@ -63,7 +63,7 @@ fn cycle_returns_false_when_not_expanded() {
     let mut h = TestHarness::new();
     let look = emLook::new();
     let mut cf = emColorField::new(&mut h.sched_ctx(), look);
-    assert!(!cf.Cycle());
+    assert!(!cf.Cycle(&mut h.panel_ctx()));
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn cycle_returns_false_when_no_changes() {
     let mut cf = emColorField::new(&mut h.sched_ctx(), look);
     cf.set_expanded(true);
     // No changes since expansion was initialized
-    assert!(!cf.Cycle());
+    assert!(!cf.Cycle(&mut h.panel_ctx()));
 }
 
 #[test]
@@ -86,7 +86,7 @@ fn cycle_detects_rgba_change() {
 
     // Modify red channel
     cf.expansion_mut().unwrap().sf_red = 10000; // max = 255
-    assert!(cf.Cycle());
+    assert!(cf.Cycle(&mut h.panel_ctx()));
     assert_eq!(cf.GetColor().GetRed(), 255);
 }
 
@@ -102,7 +102,7 @@ fn cycle_detects_hsv_change() {
     exp.sf_hue = 12000; // 120.00°
     exp.sf_sat = 10000; // 100%
     exp.sf_val = 10000; // 100%
-    assert!(cf.Cycle());
+    assert!(cf.Cycle(&mut h.panel_ctx()));
 
     // Should be green
     assert!(cf.GetColor().GetGreen() > 200);
@@ -116,7 +116,7 @@ fn cycle_detects_text_change() {
     cf.set_expanded(true);
 
     cf.expansion_mut().unwrap().tf_name = "#00FF00".to_string();
-    assert!(cf.Cycle());
+    assert!(cf.Cycle(&mut h.panel_ctx()));
     assert_eq!(cf.GetColor(), emColor::rgba(0, 255, 0, 255));
 }
 
@@ -130,7 +130,7 @@ fn cycle_syncs_sibling_fields_on_rgba_change() {
 
     // Set pure red via RGBA
     cf.expansion_mut().unwrap().sf_red = 10000;
-    cf.Cycle();
+    cf.Cycle(&mut h.panel_ctx());
 
     // HSV and name should have been synced
     let exp = cf.expansion().unwrap();

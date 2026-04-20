@@ -308,7 +308,10 @@ impl SettingsPanel {
         // ── CbRecursive ──
         // C++ SetPrefChildTallness(1, 0.15), SetChildWeight(1, 0.75)
         let flags = Rc::clone(&self.flags);
-        let mut cb_recursive = emCheckBox::new("Recursive", Rc::clone(&look));
+        let mut cb_recursive = {
+            let mut sched = ctx.as_sched_ctx().expect("sched");
+            emCheckBox::new(&mut sched, "Recursive", Rc::clone(&look))
+        };
         cb_recursive.SetDescription("Whether autoplay shall play subdirectories recursively.");
         cb_recursive.on_check = Some(Box::new(
             move |checked, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
@@ -333,7 +336,10 @@ impl SettingsPanel {
         // ── CbLoop ──
         // C++ SetPrefChildTallness(2, 0.15), SetChildWeight(2, 0.75)
         let flags = Rc::clone(&self.flags);
-        let mut cb_loop = emCheckBox::new("Loop", Rc::clone(&look));
+        let mut cb_loop = {
+            let mut sched = ctx.as_sched_ctx().expect("sched");
+            emCheckBox::new(&mut sched, "Loop", Rc::clone(&look))
+        };
         cb_loop.SetDescription(
             "Whether autoplay shall start from the beginning\n\
              after reaching the end.",

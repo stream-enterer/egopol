@@ -281,8 +281,12 @@ impl ControlWidgets {
             ),
             api_key: emTextField::new(cc, look.clone()),
             web_browser: FileFieldPanel::new(cc, FileFieldType::Browser, "Web Browser"),
-            auto_update_dates: emCheckBox::new("Auto Update Dates", look.clone()),
-            triggering_opens_web_page: emCheckBox::new("Triggering Opens Web Page", look.clone()),
+            auto_update_dates: emCheckBox::new(cc, "Auto Update Dates", look.clone()),
+            triggering_opens_web_page: emCheckBox::new(
+                cc,
+                "Triggering Opens Web Page",
+                look.clone(),
+            ),
             chart_period: chart_period_field,
             chart_period_text: ChartPeriodTextOfValue(ChartPeriod::default()),
 
@@ -300,7 +304,7 @@ impl ControlWidgets {
 
             sorting_group,
             _sorting_buttons: sorting_buttons,
-            owned_shares_first: emCheckBox::new("Owned Shares First", look.clone()),
+            owned_shares_first: emCheckBox::new(cc, "Owned Shares First", look.clone()),
 
             go_back_in_history_enabled: false,
             go_forward_in_history_enabled: false,

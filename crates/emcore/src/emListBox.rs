@@ -304,6 +304,14 @@ pub struct emListBox {
     pub selection_signal: SignalId,
     /// Allocated per C++ `emListBox::GetItemTriggerSignal()`.
     pub item_trigger_signal: SignalId,
+    /// B3.4c: per-mutation snapshots drained at end of Input by
+    /// `drain_pending_fires`. Each `fire_selection` push a snapshot of the
+    /// selection; drain invokes `on_selection` once per snapshot — matching
+    /// C++ per-SelectionChanged callback cadence. `selection_signal` is
+    /// scheduler-coalesced (one pending fire regardless).
+    pending_selection_snapshots: Vec<Vec<usize>>,
+    pending_item_trigger_fire: bool,
+    pending_trigger_index: Option<usize>,
 }
 
 impl emListBox {
@@ -338,6 +346,36 @@ impl emListBox {
             in_focused_path: false,
             selection_signal: ctx.create_signal(),
             item_trigger_signal: ctx.create_signal(),
+            pending_selection_snapshots: Vec::new(),
+            pending_item_trigger_fire: false,
+            pending_trigger_index: None,
+        }
+    }
+
+    /// Drain pending signal fires accumulated during Input. Phase-3 B3.4c.
+    fn drain_pending_fires(&mut self, ctx: &mut PanelCtx<'_>) {
+        let snapshots = std::mem::take(&mut self.pending_selection_snapshots);
+        let trig = std::mem::replace(&mut self.pending_item_trigger_fire, false);
+        let trig_index = self.pending_trigger_index.take();
+        if snapshots.is_empty() && !trig {
+            return;
+        }
+        let Some(mut sched) = ctx.as_sched_ctx() else {
+            return;
+        };
+        if !snapshots.is_empty() {
+            sched.fire(self.selection_signal);
+            if let Some(cb) = self.on_selection.as_mut() {
+                for snap in &snapshots {
+                    cb(snap, &mut sched);
+                }
+            }
+        }
+        if trig {
+            sched.fire(self.item_trigger_signal);
+            if let (Some(idx), Some(cb)) = (trig_index, self.on_trigger.as_mut()) {
+                cb(idx, &mut sched);
+            }
         }
     }
 
@@ -880,11 +918,11 @@ impl emListBox {
     pub fn TriggerItem(&mut self, index: usize) {
         if index < self.items.len() {
             self.triggered_index = Some(index);
-            // DIVERGED-B3.4b: `on_trigger` is now `WidgetCallback<usize>`
-            // requiring a `SchedCtx`, but `TriggerItem` is called from both
-            // public-setter paths and Input paths; not all callers have
-            // sched reach. B3.4b/c restore dispatch via async signal.
-            let _ = &self.on_trigger;
+            // B3.4c: latch for `drain_pending_fires` to fire with ctx at
+            // end of Input. Setter-path callers leave the latch set until
+            // B3.4d's setter-path migration drains them.
+            self.pending_item_trigger_fire = true;
+            self.pending_trigger_index = Some(index);
         }
     }
 
@@ -1229,8 +1267,19 @@ impl emListBox {
         &mut self,
         event: &emInputEvent,
         state: &PanelState,
+        input_state: &emInputState,
+        ctx: &mut PanelCtx,
+    ) -> bool {
+        let consumed = self.input_impl(event, state, input_state);
+        self.drain_pending_fires(ctx);
+        consumed
+    }
+
+    fn input_impl(
+        &mut self,
+        event: &emInputEvent,
+        state: &PanelState,
         _input_state: &emInputState,
-        _ctx: &mut PanelCtx,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -1389,6 +1438,8 @@ impl emListBox {
     // ── Private helpers ─────────────────────────────────────────────
 
     fn fire_selection(&mut self) {
+        self.pending_selection_snapshots
+            .push(self.selected_indices.clone());
         // DIVERGED-B3.4b: `on_selection` is now `WidgetCallbackRef<[usize]>`
         // requiring a `SchedCtx`, but `fire_selection` is called from many
         // non-sched-reach setter/input paths. B3.4b/c restore dispatch via
@@ -1785,6 +1836,13 @@ mod tests {
         fw: Vec<DeferredAction>,
         root: Rc<crate::emContext::emContext>,
     }
+    impl Drop for TestInit {
+        fn drop(&mut self) {
+            // B3.4c: clear pending signals accumulated during Input-path tests
+            self.sched.clear_pending_for_tests();
+        }
+    }
+
     impl TestInit {
         fn new() -> Self {
             Self {
@@ -1906,11 +1964,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.4b: on_trigger deferred dispatch; B3.4c restores via signal"]
     fn trigger_callback() {
         let mut __init = TestInit::new();
         let (mut tree, tid) = test_tree();
-        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let triggered = Rc::new(RefCell::new(None));
         let trig_clone = triggered.clone();
@@ -1925,22 +1981,32 @@ mod tests {
             },
         ));
 
-        lb.Input(
-            &emInputEvent::press(InputKey::ArrowDown),
-            &ps,
-            &is,
-            &mut ctx,
-        );
-        lb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            lb.Input(
+                &emInputEvent::press(InputKey::ArrowDown),
+                &ps,
+                &is,
+                &mut ctx,
+            );
+            lb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        }
         assert_eq!(*triggered.borrow(), Some(1));
     }
 
     #[test]
-    #[ignore = "B3.4b: on_selection deferred dispatch; B3.4c restores via signal"]
     fn selection_callback() {
         let mut __init = TestInit::new();
         let (mut tree, tid) = test_tree();
-        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let selections = Rc::new(RefCell::new(Vec::new()));
         let sel_clone = selections.clone();
@@ -1955,28 +2021,104 @@ mod tests {
             },
         ));
 
-        // First ArrowDown: selects item 1 solely. No prior selection to deselect.
-        // Fires 1 callback (select).
-        lb.Input(
-            &emInputEvent::press(InputKey::ArrowDown),
-            &ps,
-            &is,
-            &mut ctx,
-        );
-        assert_eq!(selections.borrow().len(), 1);
-        assert_eq!(selections.borrow()[0], vec![1]);
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
 
-        // Second ArrowDown: selects item 2 solely. Deselects item 1 first (1 cb),
-        // then selects item 2 (1 cb). Total: 3 callbacks.
-        lb.Input(
-            &emInputEvent::press(InputKey::ArrowDown),
-            &ps,
-            &is,
-            &mut ctx,
-        );
+            // First ArrowDown: selects item 1 solely. No prior selection to deselect.
+            // Fires 1 callback (select).
+            lb.Input(
+                &emInputEvent::press(InputKey::ArrowDown),
+                &ps,
+                &is,
+                &mut ctx,
+            );
+            assert_eq!(selections.borrow().len(), 1);
+            assert_eq!(selections.borrow()[0], vec![1]);
+
+            // Second ArrowDown: selects item 2 solely. Deselects item 1 first (1 cb),
+            // then selects item 2 (1 cb). Total: 3 callbacks.
+            lb.Input(
+                &emInputEvent::press(InputKey::ArrowDown),
+                &ps,
+                &is,
+                &mut ctx,
+            );
+        }
         assert_eq!(selections.borrow().len(), 3);
         // Last callback should have item 2 selected.
         assert_eq!(selections.borrow()[2], vec![2]);
+    }
+
+    #[test]
+    fn list_box_fires_selection_signal_on_input_arrow_down() {
+        let mut __init = TestInit::new();
+        let (mut tree, tid) = test_tree();
+        let look = emLook::new();
+        let mut lb = emListBox::new(&mut __init.ctx(), look);
+        lb.set_items(make_items(&["A", "B"]));
+        let sig = lb.selection_signal;
+        let ps = default_panel_state();
+        let is = default_input_state();
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            lb.Input(
+                &emInputEvent::press(InputKey::ArrowDown),
+                &ps,
+                &is,
+                &mut ctx,
+            );
+        }
+        assert!(__init.sched.is_pending(sig));
+    }
+
+    #[test]
+    fn list_box_fires_item_trigger_signal_on_enter() {
+        let mut __init = TestInit::new();
+        let (mut tree, tid) = test_tree();
+        let look = emLook::new();
+        let mut lb = emListBox::new(&mut __init.ctx(), look);
+        lb.set_items(make_items(&["A", "B"]));
+        let sig = lb.item_trigger_signal;
+        let ps = default_panel_state();
+        let is = default_input_state();
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            lb.Input(
+                &emInputEvent::press(InputKey::ArrowDown),
+                &ps,
+                &is,
+                &mut ctx,
+            );
+            lb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        }
+        assert!(__init.sched.is_pending(sig));
     }
 
     // ── New tests for added APIs ────────────────────────────────────
@@ -2197,7 +2339,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.4b: on_trigger deferred dispatch; B3.4c restores via signal"]
+    #[ignore = "B3.4d: TriggerItem non-ctx setter path; B3.4d setter-path migration restores dispatch"]
     fn trigger_item_fires_callback() {
         let mut __init = TestInit::new();
         let look = emLook::new();

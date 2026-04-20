@@ -79,8 +79,11 @@ impl RadioGroup {
             return;
         }
         self.selected = Some(index);
-        if let Some(cb) = self.on_select.as_mut() {
-            if let Some(mut sched) = ctx.as_sched_ctx() {
+        // C++ emRadioButton::Mechanism::SetCheckIndex (emRadioButton.cpp:112-115):
+        // CheckSignal.Signal(*scheduler) → CheckChanged.
+        if let Some(mut sched) = ctx.as_sched_ctx() {
+            sched.fire(self.check_signal);
+            if let Some(cb) = self.on_select.as_mut() {
                 cb(Some(index), &mut sched);
             }
         }
@@ -112,8 +115,11 @@ impl RadioGroup {
             return;
         }
         self.selected = normalized;
-        if let Some(cb) = self.on_select.as_mut() {
-            if let Some(mut sched) = ctx.as_sched_ctx() {
+        // C++ emRadioButton::Mechanism::SetCheckIndex (emRadioButton.cpp:112-115):
+        // CheckSignal.Signal(*scheduler) → CheckChanged.
+        if let Some(mut sched) = ctx.as_sched_ctx() {
+            sched.fire(self.check_signal);
+            if let Some(cb) = self.on_select.as_mut() {
                 cb(normalized, &mut sched);
             }
         }
@@ -698,6 +704,13 @@ mod tests {
         fw: Vec<DeferredAction>,
         root: Rc<crate::emContext::emContext>,
     }
+    impl Drop for TestInit {
+        fn drop(&mut self) {
+            // B3.4c: clear pending signals accumulated during Input-path tests
+            self.sched.clear_pending_for_tests();
+        }
+    }
+
     impl TestInit {
         fn new() -> Self {
             Self {
@@ -766,11 +779,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.3: callback requires scheduler reach; B3.4 restores dispatch"]
     fn radio_group_callback() {
         let mut __init = TestInit::new();
         let (mut tree, tid) = test_tree();
-        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let group = RadioGroup::new(&mut __init.ctx());
         let selections = Rc::new(RefCell::new(Vec::new()));
         let sel_clone = selections.clone();
@@ -786,10 +797,48 @@ mod tests {
         let ps = default_panel_state();
         let is = default_input_state();
 
-        // Enter is instant: each press fires the callback immediately.
-        r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
-        r1.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            // Enter is instant: each press fires the callback immediately.
+            r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+            r1.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        }
         assert_eq!(*selections.borrow(), vec![Some(0), Some(1)]);
+    }
+
+    #[test]
+    fn radio_group_fires_check_signal_on_input() {
+        let mut __init = TestInit::new();
+        let (mut tree, tid) = test_tree();
+        let group = RadioGroup::new(&mut __init.ctx());
+        let sig = group.borrow().check_signal;
+        let look = emLook::new();
+        let mut r0 = emRadioButton::new("A", look, group.clone(), 0);
+        let ps = default_panel_state();
+        let is = default_input_state();
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            r0.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        }
+        assert!(__init.sched.is_pending(sig));
     }
 
     #[test]
@@ -933,7 +982,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.3: callback requires scheduler reach; B3.4 restores dispatch"]
+    #[ignore = "B3.4d: RadioGroup non-ctx setter path (RemoveByIndex/RemoveAll); B3.4d setter-path migration restores dispatch"]
     fn remove_by_index_fires_callback() {
         let mut __init = TestInit::new();
         let group = RadioGroup::new(&mut __init.ctx());
@@ -956,7 +1005,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.3: callback requires scheduler reach; B3.4 restores dispatch"]
+    #[ignore = "B3.4d: RadioGroup non-ctx setter path (RemoveByIndex/RemoveAll); B3.4d setter-path migration restores dispatch"]
     fn remove_all_clears_everything() {
         let mut __init = TestInit::new();
         let group = RadioGroup::new(&mut __init.ctx());

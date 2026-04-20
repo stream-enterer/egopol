@@ -66,8 +66,11 @@ impl emCheckButton {
     pub fn SetChecked(&mut self, checked: bool, ctx: &mut PanelCtx<'_>) {
         if self.checked != checked {
             self.checked = checked;
-            if let Some(cb) = self.on_check.as_mut() {
-                if let Some(mut sched) = ctx.as_sched_ctx() {
+            // C++ emCheckButton::SetChecked (emCheckButton.cpp:39-48):
+            // InvalidatePainting → Signal(CheckSignal) → CheckChanged.
+            if let Some(mut sched) = ctx.as_sched_ctx() {
+                sched.fire(self.check_signal);
+                if let Some(cb) = self.on_check.as_mut() {
                     cb(self.checked, &mut sched);
                 }
             }
@@ -337,8 +340,12 @@ impl emCheckButton {
     // DIVERGED: Clicked — renamed to toggle (private); C++ Clicked is protected virtual
     fn toggle(&mut self, ctx: &mut PanelCtx<'_>) {
         self.checked = !self.checked;
-        if let Some(cb) = self.on_check.as_mut() {
-            if let Some(mut sched) = ctx.as_sched_ctx() {
+        // C++ emCheckButton::SetChecked (emCheckButton.cpp:39-48):
+        // InvalidatePainting → Signal(CheckSignal) → CheckChanged.
+        // Rust fires signal then invokes callback (the Rust analog of CheckChanged).
+        if let Some(mut sched) = ctx.as_sched_ctx() {
+            sched.fire(self.check_signal);
+            if let Some(cb) = self.on_check.as_mut() {
                 cb(self.checked, &mut sched);
             }
         }
@@ -383,6 +390,13 @@ mod tests {
         fw: Vec<DeferredAction>,
         root: Rc<crate::emContext::emContext>,
     }
+    impl Drop for TestInit {
+        fn drop(&mut self) {
+            // B3.4c: clear pending signals accumulated during Input-path tests
+            self.sched.clear_pending_for_tests();
+        }
+    }
+
     impl TestInit {
         fn new() -> Self {
             Self {
@@ -455,7 +469,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.3: callback requires scheduler reach; B3.4 restores dispatch"]
     fn callback_receives_state() {
         let look = emLook::new();
         let states = Rc::new(RefCell::new(Vec::new()));
@@ -472,10 +485,49 @@ mod tests {
         let is = default_input_state();
 
         let (mut tree, tid) = test_tree();
-        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
-        // Enter is instant: each press fires the callback immediately.
-        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
-        btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut init.sched,
+                &mut init.fw,
+                &init.root,
+                &fw_cb,
+            );
+            // Enter is instant: each press fires the callback immediately.
+            btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+            btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        }
         assert_eq!(*states.borrow(), vec![true, false]);
+    }
+
+    #[test]
+    fn check_button_fires_check_signal_on_toggle() {
+        let look = emLook::new();
+        let mut init = TestInit::new();
+        let mut btn = emCheckButton::new(&mut init.ctx(), "CB", look);
+        let check_sig = btn.check_signal;
+        let ps = default_panel_state();
+        let is = default_input_state();
+        let (mut tree, tid) = test_tree();
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut init.sched,
+                &mut init.fw,
+                &init.root,
+                &fw_cb,
+            );
+            btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        }
+        assert!(
+            init.sched.is_pending(check_sig),
+            "check_signal should be pending after toggle via Input"
+        );
     }
 }

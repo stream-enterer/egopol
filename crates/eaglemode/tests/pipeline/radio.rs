@@ -337,7 +337,7 @@ fn bp13_click_already_selected_no_change_no_callback() {
 /// Programmatic SetCheckIndex selects the correct button and fires the callback.
 /// C++ ref: emRadioButton::Mechanism::SetCheckIndex.
 #[test]
-#[ignore = "B3.3: SetCheckIndex deferred callback; B3.4 restores via signal dispatch"]
+#[ignore = "B3.4d: SetCheckIndex non-ctx setter path; B3.4d setter-path migration restores dispatch"]
 fn bp13_programmatic_set_check_index_fires_callback() {
     let t = RadioButtonHarness::new();
 

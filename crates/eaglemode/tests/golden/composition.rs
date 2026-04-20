@@ -615,12 +615,12 @@ impl TkTestPanel {
             }
             for i in 4..=6 {
                 let id = ctx.tree.create_child(gid, &format!("c{i}"), None);
-                ctx.tree.set_behavior(
-                    id,
-                    Box::new(CheckBoxPanel {
-                        widget: emCheckBox::new("Check Box", look.clone()),
-                    }),
-                );
+                let __w = {
+                    let mut __sched = ctx.as_sched_ctx().expect("sched");
+                    emCheckBox::new(&mut __sched, "Check Box", look.clone())
+                };
+                ctx.tree
+                    .set_behavior(id, Box::new(CheckBoxPanel { widget: __w }));
             }
         }
 
@@ -1038,7 +1038,10 @@ impl TkTestPanel {
             ];
             for &(name, caption, checked) in cb_items {
                 let id = ctx.tree.create_child(rl_id, name, None);
-                let mut cb = emCheckBox::new(caption, look.clone());
+                let mut cb = {
+                    let mut __sched = ctx.as_sched_ctx().expect("sched");
+                    emCheckBox::new(&mut __sched, caption, look.clone())
+                };
                 if checked {
                     cb.SetChecked(true, ctx);
                 }

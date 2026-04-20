@@ -340,11 +340,12 @@ fn widget_button_normal() {
 fn widget_checkbox_unchecked() {
     require_golden!();
     let look = emLook::new();
+    let mut ts = TestSched::new();
     // Residual from checkbox GetImage 9-slice section boundary rounding (~4.8%)
     render_and_compare_tol(
         "widget_checkbox_unchecked",
         Box::new(CheckBoxBehavior {
-            check_box: emCheckBox::new("Check Option", look),
+            check_box: emCheckBox::new(&mut ts.cc(), "Check Option", look),
         }),
         0,
         0.0,
@@ -357,7 +358,8 @@ fn widget_checkbox_unchecked() {
 fn widget_checkbox_checked() {
     require_golden!();
     let look = emLook::new();
-    let mut cb = emCheckBox::new("Check Option", look);
+    let mut ts = TestSched::new();
+    let mut cb = emCheckBox::new(&mut ts.cc(), "Check Option", look);
     // Scratch ctx — no scheduler reach needed; cb has no callback installed.
     let mut tree = emcore::emPanelTree::PanelTree::new();
     let root = tree.create_root("t", false);
@@ -1642,7 +1644,8 @@ fn golden_widget_checkbox_extreme_tall() {
     let (w, h, expected) = load_compositor_golden("widget_checkbox_extreme_tall");
 
     let look = emLook::new();
-    let cb = emCheckBox::new("Check", look);
+    let mut ts = TestSched::new();
+    let cb = emCheckBox::new(&mut ts.cc(), "Check", look);
 
     let mut tree = PanelTree::new();
     let root = tree.create_root_deferred_view("test");

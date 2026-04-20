@@ -7,7 +7,7 @@ use crate::emPainter::emPainter;
 use crate::emPanel::PanelState;
 
 use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
-use crate::emEngineCtx::ConstructCtx;
+use crate::emEngineCtx::{ConstructCtx, PanelCtx};
 use crate::emLook::emLook;
 use crate::emSignal::SignalId;
 
@@ -134,6 +134,16 @@ pub struct emTextField {
     pub selection_signal: SignalId,
     /// Allocated per C++ `emTextField::GetCanUndoRedoSignal()`.
     pub can_undo_redo_signal: SignalId,
+    /// B3.4c: fire latches. `fire_change` / `fire_selection_change` /
+    /// `fire_can_undo_redo` set these; the Input path drains them at the end
+    /// to fire the matching signals + invoke callbacks via `SchedCtx`. Matches
+    /// C++ pattern where each mutating method calls `Signal(...)` inline; Rust
+    /// must batch because `&mut self` paths have no ctx reach. Non-Input
+    /// (setter-path) callers leave the latches set until the next Input or
+    /// B3.4d setter-path migration drains them.
+    pending_text_fire: bool,
+    pending_selection_fire: bool,
+    pending_can_undo_redo_fire: bool,
 }
 
 const MAX_UNDO: usize = 100;
@@ -194,6 +204,46 @@ impl emTextField {
             text_signal: ctx.create_signal(),
             selection_signal: ctx.create_signal(),
             can_undo_redo_signal: ctx.create_signal(),
+            pending_text_fire: false,
+            pending_selection_fire: false,
+            pending_can_undo_redo_fire: false,
+        }
+    }
+
+    /// Drain the pending fire latches set by `fire_change` /
+    /// `fire_selection_change` / `fire_can_undo_redo` during this Input call.
+    /// Fires the matching signals on `ctx` and invokes the matching callbacks
+    /// (except `on_text`, which is a `WidgetCallbackRef<str>` and must be
+    /// invoked with a payload — that remains DIVERGED-B3.4d pending setter-path
+    /// migration that carries the `&str` through ctx).
+    /// Phase-3 B3.4c.
+    fn drain_pending_fires(&mut self, ctx: &mut PanelCtx<'_>) {
+        let text = std::mem::replace(&mut self.pending_text_fire, false);
+        let sel = std::mem::replace(&mut self.pending_selection_fire, false);
+        let cur = std::mem::replace(&mut self.pending_can_undo_redo_fire, false);
+        if !(text || sel || cur) {
+            return;
+        }
+        let Some(mut sched) = ctx.as_sched_ctx() else {
+            return;
+        };
+        if text {
+            sched.fire(self.text_signal);
+            // `on_text` payload fire remains deferred — see B3.4d.
+        }
+        if sel {
+            sched.fire(self.selection_signal);
+            if let Some(cb) = self.on_selection_signal.as_mut() {
+                cb((), &mut sched);
+            }
+        }
+        if cur {
+            sched.fire(self.can_undo_redo_signal);
+            let can_undo = self.CanUndo();
+            let can_redo = self.CanRedo();
+            if let Some(cb) = self.on_can_undo_redo.as_mut() {
+                cb((can_undo, can_redo), &mut sched);
+            }
         }
     }
 
@@ -421,6 +471,7 @@ impl emTextField {
 
     fn fire_selection_change(&mut self) {
         self.selection_published = false;
+        self.pending_selection_fire = true;
         // DIVERGED-B3.3: WidgetCallback requires a SchedCtx which is not
         // available at this call site (selection changes ripple from many
         // setters/input paths). B3.4 will restore dispatch via async signals.
@@ -1411,8 +1462,22 @@ impl emTextField {
         &mut self,
         event: &emInputEvent,
         state: &PanelState,
+        input_state: &emInputState,
+        ctx: &mut crate::emEngineCtx::PanelCtx,
+    ) -> bool {
+        let consumed = self.input_impl(event, state, input_state);
+        // B3.4c: drain text/selection/can-undo-redo fire latches set during
+        // this Input pass. Matches C++ per-mutation Signal(...) semantics —
+        // Rust batches because `&mut self` paths can't reach the scheduler.
+        self.drain_pending_fires(ctx);
+        consumed
+    }
+
+    fn input_impl(
+        &mut self,
+        event: &emInputEvent,
+        state: &PanelState,
         _input_state: &emInputState,
-        _ctx: &mut crate::emEngineCtx::PanelCtx,
     ) -> bool {
         // C++ emTextField: GetViewCondition(VCT_MIN_EXT) >= 10.0
         let min_ext = state.viewed_rect.w.min(state.viewed_rect.h);
@@ -2177,18 +2242,17 @@ impl emTextField {
     }
 
     fn fire_change(&mut self) {
-        // DIVERGED-B3.4b: `on_text` is now `WidgetCallbackRef<str>` requiring
-        // a `SchedCtx`, but `fire_change` is called from non-sched-reach
-        // paths (`SetText`, edit-input paths that have `PanelCtx` but do not
-        // thread it here). B3.4b/c will restore dispatch via async signals.
-        let _ = &self.on_text;
+        // B3.4c: latches the text signal for `drain_pending_fires` to fire
+        // with ctx at end of Input. Non-Input setter-path callers leave the
+        // latch set for B3.4d's setter-path migration.
+        self.pending_text_fire = true;
     }
 
     /// Fires the can-undo-redo callback when undo/redo availability changes.
     /// Matches C++ `CanUndoRedoSignal`.
     fn fire_can_undo_redo(&mut self) {
-        // DIVERGED-B3.3: callback deferred to B3.4 signal dispatch.
-        let _ = &self.on_can_undo_redo;
+        // B3.4c: latches the can-undo-redo signal for `drain_pending_fires`.
+        self.pending_can_undo_redo_fire = true;
     }
 
     // ── emCursor blink ───────────────────────────────────────────────────
@@ -2497,6 +2561,13 @@ mod tests {
         fw: Vec<DeferredAction>,
         root: Rc<crate::emContext::emContext>,
     }
+    impl Drop for TestInit {
+        fn drop(&mut self) {
+            // B3.4c: clear pending signals accumulated during Input-path tests
+            self.sched.clear_pending_for_tests();
+        }
+    }
+
     impl TestInit {
         fn new() -> Self {
             Self {
@@ -2586,7 +2657,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.4b: on_text deferred dispatch; B3.4c restores via signal"]
+    #[ignore = "B3.4d: on_text carries a &str payload that the fire-latch drain cannot forward; B3.4d setter-path migration restores dispatch"]
     fn callback_fires_on_change() {
         let mut __init = TestInit::new();
         let (mut tree, tid) = test_tree();
@@ -3522,7 +3593,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.3: callback requires scheduler reach; B3.4 restores dispatch"]
+    #[ignore = "B3.4d: Select non-ctx setter path; B3.4d setter-path migration restores dispatch"]
     fn selection_signal_fires() {
         let mut __init = TestInit::new();
         let look = emLook::new();
@@ -3542,7 +3613,59 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.3: callback requires scheduler reach; B3.4 restores dispatch"]
+    fn text_field_fires_text_signal_on_input_insert() {
+        let mut __init = TestInit::new();
+        let (mut tree, tid) = test_tree();
+        let look = emLook::new();
+        let mut tf = emTextField::new(&mut __init.ctx(), look);
+        tf.SetEditable(true);
+        let sig = tf.text_signal;
+        let ps = default_panel_state();
+        let is = default_input_state();
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            tf.Input(&char_press('A'), &ps, &is, &mut ctx);
+        }
+        assert!(__init.sched.is_pending(sig));
+    }
+
+    #[test]
+    fn text_field_fires_can_undo_redo_signal_on_input_insert() {
+        let mut __init = TestInit::new();
+        let (mut tree, tid) = test_tree();
+        let look = emLook::new();
+        let mut tf = emTextField::new(&mut __init.ctx(), look);
+        tf.SetEditable(true);
+        let sig = tf.can_undo_redo_signal;
+        let ps = default_panel_state();
+        let is = default_input_state();
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            tf.Input(&char_press('A'), &ps, &is, &mut ctx);
+        }
+        assert!(__init.sched.is_pending(sig));
+    }
+
+    #[test]
+    #[ignore = "B3.4d: Undo/Redo non-ctx setter path; B3.4d setter-path migration restores dispatch"]
     fn can_undo_redo_signal_fires() {
         let mut __init = TestInit::new();
         let (mut tree, tid) = test_tree();

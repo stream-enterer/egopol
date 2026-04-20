@@ -8,7 +8,7 @@ use crate::emPainter::{emPainter, TextAlignment, VAlign};
 use crate::emPanel::PanelState;
 
 use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
-use crate::emEngineCtx::{ConstructCtx, WidgetCallback};
+use crate::emEngineCtx::{ConstructCtx, PanelCtx, WidgetCallback};
 use crate::emLook::emLook;
 use crate::emSignal::SignalId;
 
@@ -187,6 +187,23 @@ impl emScalarField {
         if (clamped - self.value).abs() > f64::EPSILON {
             self.value = clamped;
             self.fire_change();
+        }
+    }
+
+    /// Ctx-bearing variant of `SetValue` that fires the value signal and the
+    /// `on_value` callback. Mirrors C++ `emScalarField::SetValue`
+    /// (emScalarField.cpp:102-111): InvalidatePainting → Signal(ValueSignal)
+    /// → ValueChanged. Called from Input-driven paths (drag, keyboard step).
+    pub fn SetValueCtx(&mut self, val: f64, ctx: &mut PanelCtx<'_>) {
+        let clamped = val.clamp(self.min, self.max);
+        if (clamped - self.value).abs() > f64::EPSILON {
+            self.value = clamped;
+            if let Some(mut sched) = ctx.as_sched_ctx() {
+                sched.fire(self.value_signal);
+                if let Some(cb) = self.on_value.as_mut() {
+                    cb(self.value, &mut sched);
+                }
+            }
         }
     }
 
@@ -507,7 +524,7 @@ impl emScalarField {
         event: &emInputEvent,
         state: &PanelState,
         _input_state: &emInputState,
-        _ctx: &mut crate::emEngineCtx::PanelCtx,
+        ctx: &mut crate::emEngineCtx::PanelCtx,
     ) -> bool {
         // C++ emScalarField.cpp:246-268: gates on IsEditable() && IsEnabled().
         if !self.editable || !self.enabled {
@@ -527,7 +544,7 @@ impl emScalarField {
         // C++ absolute drag model: pressed state continuously sets value
         // to wherever the mouse points on the scale.
         if self.dragging && (mv - self.value).abs() > f64::EPSILON {
-            self.SetValue(mv);
+            self.SetValueCtx(mv, ctx);
         }
 
         match event.key {
@@ -540,7 +557,7 @@ impl emScalarField {
                     self.dragging = true;
                     // Immediately position needle at click location.
                     if (mv - self.value).abs() > f64::EPSILON {
-                        self.SetValue(mv);
+                        self.SetValueCtx(mv, ctx);
                     }
                     true
                 }
@@ -560,11 +577,11 @@ impl emScalarField {
             // C++ emScalarField.cpp:261-272: only '+' and '-' character keys.
             // Arrow keys are NOT in C++ (would conflict with focus navigation).
             InputKey::Key('+') if event.variant == InputVariant::Press => {
-                self.StepByKeyboard(1);
+                self.StepByKeyboard(1, ctx);
                 true
             }
             InputKey::Key('-') if event.variant == InputVariant::Press => {
-                self.StepByKeyboard(-1);
+                self.StepByKeyboard(-1, ctx);
                 true
             }
             _ => false,
@@ -711,7 +728,7 @@ impl emScalarField {
     /// as step. Otherwise computes `range/129` (min 1) and finds the best
     /// matching scale mark interval. Snaps to grid with direction-dependent
     /// rounding using integer division.
-    fn StepByKeyboard(&mut self, dir: i32) {
+    fn StepByKeyboard(&mut self, dir: i32, ctx: &mut PanelCtx<'_>) {
         let range_f = self.max - self.min;
         let range = range_f as i64;
 
@@ -752,7 +769,7 @@ impl emScalarField {
             }
         };
 
-        self.SetValue(v as f64);
+        self.SetValueCtx(v as f64, ctx);
     }
 
     fn fire_change(&mut self) {
@@ -806,6 +823,13 @@ mod tests {
         fw: Vec<DeferredAction>,
         root: Rc<crate::emContext::emContext>,
     }
+    impl Drop for TestInit {
+        fn drop(&mut self) {
+            // B3.4c: clear pending signals accumulated during Input-path tests
+            self.sched.clear_pending_for_tests();
+        }
+    }
+
     impl TestInit {
         fn new() -> Self {
             Self {
@@ -873,11 +897,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.3: callback requires scheduler reach; B3.4 restores dispatch"]
     fn callback_on_change() {
         let mut __init = TestInit::new();
         let (mut tree, tid) = test_tree();
-        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let values = Rc::new(RefCell::new(Vec::new()));
         let val_clone = values.clone();
@@ -893,14 +915,58 @@ mod tests {
             },
         ));
 
-        sf.Input(
-            &emInputEvent::press(InputKey::Key('+')),
-            &default_panel_state(),
-            &default_input_state(),
-            &mut ctx,
-        );
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            sf.Input(
+                &emInputEvent::press(InputKey::Key('+')),
+                &default_panel_state(),
+                &default_input_state(),
+                &mut ctx,
+            );
+        }
         assert_eq!(values.borrow().len(), 1);
         assert!(values.borrow()[0] > 5.0);
+    }
+
+    #[test]
+    fn scalar_field_fires_value_signal_on_input_step() {
+        let mut __init = TestInit::new();
+        let (mut tree, tid) = test_tree();
+        let look = emLook::new();
+        let mut sf = emScalarField::new(&mut __init.ctx(), 0.0, 10.0, look);
+        sf.SetEditable(true);
+        sf.SetValue(5.0);
+        sf.last_w = 200.0;
+        sf.last_h = 40.0;
+        let sig = sf.value_signal;
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            sf.Input(
+                &emInputEvent::press(InputKey::Key('+')),
+                &default_panel_state(),
+                &default_input_state(),
+                &mut ctx,
+            );
+        }
+        assert!(__init.sched.is_pending(sig));
     }
 
     #[test]
@@ -1121,7 +1187,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.3: callback requires scheduler reach; B3.4 restores dispatch"]
+    #[ignore = "B3.4d: SetValue non-ctx setter path; B3.4d setter-path migration restores dispatch"]
     fn set_value_fires_callback() {
         let mut __init = TestInit::new();
         let look = emLook::new();

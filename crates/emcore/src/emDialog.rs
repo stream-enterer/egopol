@@ -89,11 +89,28 @@ impl emDialog {
             }
         }
         self.result = Some(result.clone());
-        // DIVERGED-B3.4b: `on_finish` is now `WidgetCallbackRef<DialogResult>`
-        // requiring a `SchedCtx`, but `Finish` is a public API called from
-        // non-sched-reach paths. B3.4b/c will restore dispatch via async
-        // signals routed through the dialog close path.
+        // DIVERGED-B3.4d: non-ctx setter path; signal/callback fire deferred
+        // to B3.4d setter-path migration.
         let _ = &self.on_finish;
+    }
+
+    /// Ctx-bearing variant of `Finish` that fires the finish signal and the
+    /// `on_finish` callback. Mirrors C++ `emDialog::PrivateEngine::Cycle`
+    /// finishing branch (emDialog.cpp:200-206): Signal(FinishSignal) →
+    /// Finished(Result). Called from the Input-driven Enter/Escape path.
+    pub fn FinishCtx(&mut self, result: DialogResult, ctx: &mut PanelCtx<'_>) {
+        if let Some(cb) = &mut self.on_check_finish {
+            if !cb(&result) {
+                return;
+            }
+        }
+        self.result = Some(result.clone());
+        if let Some(mut sched) = ctx.as_sched_ctx() {
+            sched.fire(self.finish_signal);
+            if let Some(cb) = self.on_finish.as_mut() {
+                cb(&result, &mut sched);
+            }
+        }
     }
 
     pub fn Paint(&self, painter: &mut emPainter, w: f64, h: f64, pixel_scale: f64) {
@@ -203,7 +220,7 @@ impl emDialog {
         event: &emInputEvent,
         _state: &PanelState,
         _input_state: &emInputState,
-        _ctx: &mut PanelCtx,
+        ctx: &mut PanelCtx,
     ) -> bool {
         if event.variant != InputVariant::Press {
             return false;
@@ -213,11 +230,11 @@ impl emDialog {
         }
         match event.key {
             InputKey::Enter => {
-                self.Finish(DialogResult::Ok);
+                self.FinishCtx(DialogResult::Ok, ctx);
                 true
             }
             InputKey::Escape => {
-                self.Finish(DialogResult::Cancel);
+                self.FinishCtx(DialogResult::Cancel, ctx);
                 true
             }
             _ => false,
@@ -247,6 +264,13 @@ mod tests {
         fw: Vec<DeferredAction>,
         root: Rc<crate::emContext::emContext>,
     }
+    impl Drop for TestInit {
+        fn drop(&mut self) {
+            // B3.4c: clear pending signals accumulated during Input-path tests
+            self.sched.clear_pending_for_tests();
+        }
+    }
+
     impl TestInit {
         fn new() -> Self {
             Self {
@@ -292,7 +316,35 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "B3.4b: on_finish deferred dispatch; B3.4c restores via signal"]
+    fn dialog_fires_finish_signal_on_input_enter() {
+        let mut __init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut __init.ctx(), "Test", look);
+        let sig = dlg.finish_signal;
+        let (mut tree, tid) = test_tree();
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            dlg.Input(
+                &emInputEvent::press(InputKey::Enter),
+                &default_panel_state(),
+                &default_input_state(),
+                &mut ctx,
+            );
+        }
+        assert!(__init.sched.is_pending(sig));
+    }
+
+    #[test]
+    #[ignore = "B3.4d: Finish non-ctx setter path; B3.4d setter-path migration restores dispatch"]
     fn dialog_finish_fires_callback() {
         let mut __init = TestInit::new();
         let look = emLook::new();

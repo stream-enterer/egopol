@@ -357,8 +357,11 @@ impl emButton {
                         return false;
                     }
                     self.pressed = true;
-                    if let Some(cb) = self.on_press_state.as_mut() {
-                        if let Some(mut sched) = ctx.as_sched_ctx() {
+                    // C++ emButton::Input press branch (emButton.cpp:84-91):
+                    // InvalidatePainting → Signal(PressStateSignal) → PressStateChanged.
+                    if let Some(mut sched) = ctx.as_sched_ctx() {
+                        sched.fire(self.press_state_signal);
+                        if let Some(cb) = self.on_press_state.as_mut() {
                             cb(true, &mut sched);
                         }
                     }
@@ -380,8 +383,11 @@ impl emButton {
                         );
                     }
                     self.pressed = false;
-                    if let Some(cb) = self.on_press_state.as_mut() {
-                        if let Some(mut sched) = ctx.as_sched_ctx() {
+                    // C++ emButton::Input release branch (emButton.cpp:94-99):
+                    // InvalidatePainting → Signal(PressStateSignal) → PressStateChanged.
+                    if let Some(mut sched) = ctx.as_sched_ctx() {
+                        sched.fire(self.press_state_signal);
+                        if let Some(cb) = self.on_press_state.as_mut() {
                             cb(false, &mut sched);
                         }
                     }
@@ -396,7 +402,10 @@ impl emButton {
                         let vmx = event.mouse_x * vr.w + vr.x;
                         let vmy = event.mouse_y * vr.w / state.pixel_tallness + vr.y;
                         if vmx >= cr.x && vmx < cr.x + cr.w && vmy >= cr.y && vmy < cr.y + cr.h {
+                            // C++ emButton::Click (emButton.cpp:54-58):
+                            // SignalEOIDelayed (unless shift/noEOI) → Signal(ClickSignal) → Clicked.
                             if let Some(mut sched) = ctx.as_sched_ctx() {
+                                sched.fire(self.click_signal);
                                 if let Some(cb) = self.on_click.as_mut() {
                                     cb((), &mut sched);
                                 }
@@ -423,7 +432,10 @@ impl emButton {
                     && !event.ctrl
                     && state.viewed_rect.w.min(state.viewed_rect.h) >= 8.0 =>
             {
+                // C++ Click (emButton.cpp:54-58) via Enter key:
+                // SignalEOIDelayed → Signal(ClickSignal) → Clicked.
                 if let Some(mut sched) = ctx.as_sched_ctx() {
+                    sched.fire(self.click_signal);
                     if let Some(cb) = self.on_click.as_mut() {
                         cb((), &mut sched);
                     }
@@ -448,6 +460,7 @@ impl emButton {
             return;
         }
         if let Some(mut sched) = ctx.as_sched_ctx() {
+            sched.fire(self.click_signal);
             if let Some(cb) = self.on_click.as_mut() {
                 cb((), &mut sched);
             }
@@ -511,6 +524,13 @@ mod tests {
         fw: Vec<DeferredAction>,
         root: Rc<crate::emContext::emContext>,
     }
+    impl Drop for TestInit {
+        fn drop(&mut self) {
+            // B3.4c: clear pending signals accumulated during Input-path tests
+            self.sched.clear_pending_for_tests();
+        }
+    }
+
     impl TestInit {
         fn new() -> Self {
             Self {
@@ -606,6 +626,31 @@ mod tests {
         let look = emLook::new();
         let btn = emButton::new(&mut __init.ctx(), "X", look);
         assert_eq!(btn.GetCursor(), emCursor::Normal);
+    }
+
+    #[test]
+    fn button_fires_click_signal_on_input_enter() {
+        let mut __init = TestInit::new();
+        let look = emLook::new();
+        let mut btn = emButton::new(&mut __init.ctx(), "OK", look);
+        let sig = btn.click_signal;
+        let ps = default_panel_state();
+        let is = default_input_state();
+        let (mut tree, tid) = test_tree();
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            btn.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        }
+        assert!(__init.sched.is_pending(sig));
     }
 
     #[test]

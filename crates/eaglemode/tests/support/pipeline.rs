@@ -41,6 +41,14 @@ pub struct PipelineTestHarness {
     root: PanelId,
 }
 
+impl Drop for PipelineTestHarness {
+    fn drop(&mut self) {
+        // Phase-3 B3.4c: fire latches on Input-path widgets accumulate into
+        // pending signals; clear them before scheduler Drop's debug_assert.
+        self.scheduler.clear_pending_for_tests();
+    }
+}
+
 impl PipelineTestHarness {
     /// Create a harness with root panel (focusable, layout 0,0,1,1), 800x600 view.
     pub fn new() -> Self {
@@ -98,7 +106,7 @@ impl PipelineTestHarness {
     /// Run a closure with a fully-wired `PanelCtx` (scheduler + actions +
     /// root_context + clipboard) rooted at the harness's root panel. Used by
     /// unit tests that exercise widget setters which now require ctx.
-    pub fn with_panel_ctx_sched<F: FnOnce(&mut PanelCtx<'_>)>(&mut self, f: F) {
+    pub fn with_panel_ctx_sched<R, F: FnOnce(&mut PanelCtx<'_>) -> R>(&mut self, f: F) -> R {
         let root = self.root;
         let mut ctx = PanelCtx::with_sched_reach(
             &mut self.tree,
@@ -109,7 +117,22 @@ impl PipelineTestHarness {
             &self.root_context,
             &self.framework_clipboard,
         );
-        f(&mut ctx);
+        f(&mut ctx)
+    }
+
+    /// Scheduler-reach `PanelCtx` rooted at the harness's root panel.
+    /// Used by tests that call widget methods which now require `&mut PanelCtx`.
+    pub fn panel_ctx(&mut self) -> PanelCtx<'_> {
+        let root = self.root;
+        PanelCtx::with_sched_reach(
+            &mut self.tree,
+            root,
+            1.0,
+            &mut self.scheduler,
+            &mut self.framework_actions,
+            &self.root_context,
+            &self.framework_clipboard,
+        )
     }
 
     pub fn sched_ctx(&mut self) -> SchedCtx<'_> {

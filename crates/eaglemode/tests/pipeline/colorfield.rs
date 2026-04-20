@@ -75,7 +75,7 @@ impl PanelBehavior for ColorFieldBehavior {
         ctx: &mut PanelCtx,
     ) -> bool {
         self.color_field.sync_from_children(ctx);
-        self.color_field.Cycle()
+        self.color_field.Cycle(ctx)
     }
 }
 
@@ -464,7 +464,7 @@ fn colorfield_cycle_red_slider_updates_color_and_syncs() {
 
     // Set red to 50% (5000 out of 10000).
     cfb.color_field.expansion_mut().unwrap().sf_red = 5000;
-    let changed = cfb.color_field.Cycle();
+    let changed = cfb.color_field.Cycle(&mut h.panel_ctx());
     assert!(
         changed,
         "cycle() should return true when red slider changes"
@@ -521,7 +521,7 @@ fn colorfield_cycle_green_slider_updates_color() {
         .expect("should be ColorFieldBehavior");
 
     cfb.color_field.expansion_mut().unwrap().sf_green = 7500;
-    let changed = cfb.color_field.Cycle();
+    let changed = cfb.color_field.Cycle(&mut h.panel_ctx());
     assert!(
         changed,
         "cycle() should return true when green slider changes"
@@ -563,7 +563,7 @@ fn colorfield_cycle_blue_slider_updates_color() {
         .expect("should be ColorFieldBehavior");
 
     cfb.color_field.expansion_mut().unwrap().sf_blue = 2500;
-    let changed = cfb.color_field.Cycle();
+    let changed = cfb.color_field.Cycle(&mut h.panel_ctx());
     assert!(
         changed,
         "cycle() should return true when blue slider changes"
@@ -606,7 +606,7 @@ fn colorfield_cycle_hex_text_updates_color() {
         .expect("should be ColorFieldBehavior");
 
     cfb.color_field.expansion_mut().unwrap().tf_name = "#00FF80".to_string();
-    let changed = cfb.color_field.Cycle();
+    let changed = cfb.color_field.Cycle(&mut h.panel_ctx());
     assert!(changed, "cycle() should return true when text changes");
 
     let c = cfb.color_field.GetColor();
@@ -668,7 +668,7 @@ fn colorfield_cycle_hsv_change_syncs_rgb_fields() {
         exp.sf_sat = 10000;
         exp.sf_val = 10000;
     }
-    let changed = cfb.color_field.Cycle();
+    let changed = cfb.color_field.Cycle(&mut h.panel_ctx());
     assert!(changed, "cycle() should return true when HSV changes");
 
     // After HSV change, RGBA fields should be synced to green.
@@ -733,7 +733,7 @@ fn colorfield_cycle_rgb_change_syncs_hsv_fields() {
         exp.sf_green = 0;
         exp.sf_blue = 0;
     }
-    let changed = cfb.color_field.Cycle();
+    let changed = cfb.color_field.Cycle(&mut h.panel_ctx());
     assert!(changed, "cycle() should return true when RGBA changes");
 
     // HSV fields should be synced: hue~0 (red), sat~10000, val~10000.
@@ -768,7 +768,6 @@ fn colorfield_cycle_rgb_change_syncs_hsv_fields() {
 /// verify the callback fires with the new color.
 /// C++ ref: emColorField.cpp:207 (Signal(ColorSignal)).
 #[test]
-#[ignore = "B3.3: on_color callback fires deferred to B3.4 signal dispatch"]
 fn colorfield_cycle_fires_on_color_callback() {
     let mut h = PipelineTestHarness::new();
     let root = h.get_root_panel();
@@ -797,7 +796,7 @@ fn colorfield_cycle_fires_on_color_callback() {
 
     // Mutate green channel and Cycle.
     cfb.color_field.expansion_mut().unwrap().sf_green = 10000;
-    cfb.color_field.Cycle();
+    cfb.color_field.Cycle(&mut h.panel_ctx());
 
     let cb_color = received.borrow();
     let cb_color =
@@ -838,7 +837,7 @@ fn colorfield_cycle_no_change_returns_false() {
         .downcast_mut::<ColorFieldBehavior>()
         .expect("should be ColorFieldBehavior");
 
-    let changed = cfb.color_field.Cycle();
+    let changed = cfb.color_field.Cycle(&mut h.panel_ctx());
     assert!(
         !changed,
         "cycle() should return false when no expansion fields have changed"
@@ -880,7 +879,7 @@ fn colorfield_cycle_invalid_hex_preserves_color() {
 
     // Set an invalid hex string.
     cfb.color_field.expansion_mut().unwrap().tf_name = "not-a-color".to_string();
-    cfb.color_field.Cycle();
+    cfb.color_field.Cycle(&mut h.panel_ctx());
 
     // emColor should remain unchanged since parsing failed.
     // The Rust code only updates color if try_parse succeeds, so invalid text

@@ -551,7 +551,6 @@ fn double_click(h: &mut PipelineTestHarness, view_x: f64, view_y: f64) {
 }
 
 #[test]
-#[ignore = "B3.4b: on_trigger deferred dispatch; B3.4c restores via signal"]
 fn listbox_single_mode_double_click_triggers() {
     // C++ ref: SINGLE_SELECTION — if (trigger) TriggerItem(itemIndex)
     let (mut h, lb, _pid, cx, ys) = setup_listbox_harness(SelectionMode::Single);
@@ -574,7 +573,6 @@ fn listbox_single_mode_double_click_triggers() {
 }
 
 #[test]
-#[ignore = "B3.4b: on_trigger deferred dispatch; B3.4c restores via signal"]
 fn listbox_multi_mode_double_click_triggers() {
     // C++ ref: MULTI_SELECTION — if (trigger) TriggerItem(itemIndex)
     let (mut h, lb, _pid, cx, ys) = setup_listbox_harness(SelectionMode::Multi);
@@ -596,7 +594,6 @@ fn listbox_multi_mode_double_click_triggers() {
 }
 
 #[test]
-#[ignore = "B3.4b: on_trigger deferred dispatch; B3.4c restores via signal"]
 fn listbox_toggle_mode_double_click_triggers() {
     // C++ ref: TOGGLE_SELECTION — if (trigger) TriggerItem(itemIndex)
     let (mut h, lb, _pid, cx, ys) = setup_listbox_harness(SelectionMode::Toggle);
@@ -618,7 +615,6 @@ fn listbox_toggle_mode_double_click_triggers() {
 }
 
 #[test]
-#[ignore = "B3.4b: on_trigger deferred dispatch; B3.4c restores via signal"]
 fn listbox_readonly_double_click_no_trigger() {
     // C++ ref: READ_ONLY_SELECTION branch does NOT call TriggerItem.
     let (mut h, lb, _pid, cx, ys) = setup_listbox_harness(SelectionMode::ReadOnly);
@@ -646,7 +642,6 @@ fn listbox_readonly_double_click_no_trigger() {
 // ── Enter key trigger (all modes) ────────────────────────────────────────
 
 #[test]
-#[ignore = "B3.4b: on_trigger deferred dispatch; B3.4c restores via signal"]
 fn listbox_single_mode_enter_triggers() {
     // C++ ref: ProcessItemInput EM_KEY_ENTER -> SelectByInput(..., trigger=true)
     let (mut h, lb, _pid, cx, ys) = setup_listbox_harness(SelectionMode::Single);
@@ -673,7 +668,6 @@ fn listbox_single_mode_enter_triggers() {
 }
 
 #[test]
-#[ignore = "B3.4b: on_trigger deferred dispatch; B3.4c restores via signal"]
 fn listbox_readonly_enter_no_trigger() {
     // C++ ref: READ_ONLY_SELECTION -> no trigger
     let (mut h, lb, _pid, _cx, _ys) = setup_listbox_harness(SelectionMode::ReadOnly);

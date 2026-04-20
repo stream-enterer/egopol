@@ -129,7 +129,8 @@ fn widget_checkbox_toggle() {
     assert_eq!(golden.len(), 3, "unexpected golden file size");
 
     let look = emLook::new();
-    let mut cb = emCheckBox::new("Check Option", look);
+    let mut ts = TestSched::new();
+    let mut cb = emCheckBox::new(&mut ts.cc(), "Check Option", look);
     let ps = default_panel_state();
     let is = default_input_state();
 

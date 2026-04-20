@@ -173,7 +173,10 @@ fn checkbox_toggle_1x_and_2x() {
 
     // 2. Create emCheckBox (initially unchecked).
     let look = emLook::new();
-    let cb = emCheckBox::new("Enable Option", look);
+    let cb = h.with_panel_ctx_sched(|ctx| {
+        let mut sched = ctx.as_sched_ctx().expect("sched");
+        emCheckBox::new(&mut sched, "Enable Option", look)
+    });
     let cb_ref = Rc::new(RefCell::new(cb));
 
     // 3. Wrap in PanelBehavior, add to tree, tick + render.

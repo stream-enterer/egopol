@@ -12,8 +12,9 @@ use crate::emStroke::{emStroke, emStrokeEnd, LineCap, LineJoin, StrokeEndType};
 use super::emBorder::{emBorder, OuterBorderType};
 use crate::emBorder::with_toolkit_images;
 use crate::emButton::{HOWTO_BUTTON, HOWTO_EOI_BUTTON};
-use crate::emEngineCtx::{PanelCtx, WidgetCallback};
+use crate::emEngineCtx::{ConstructCtx, PanelCtx, WidgetCallback};
 use crate::emLook::emLook;
+use crate::emSignal::SignalId;
 
 /// emCheckBox widget — Margin border with ShownBoxed paint path.
 /// Matches C++ `emCheckBox` (which extends `emCheckButton` extends `emButton`).
@@ -34,10 +35,19 @@ pub struct emCheckBox {
     // DIVERGED: GetCheckSignal — replaced by callback field `on_check` (inherited from emCheckButton)
     // DIVERGED: CheckChanged — folded into `on_check` callback invocation
     pub on_check: Option<WidgetCallback<bool>>,
+    /// Mirrors emCheckButton's CheckSignal.
+    ///
+    /// DIVERGED (forced): C++ `emCheckBox` inherits `GetCheckSignal()` from
+    /// `emCheckButton` (public inheritance chain emCheckBox → emCheckButton
+    /// → emButton → emBorder → emPanel). Rust lacks C++ inheritance, so we
+    /// mirror `emCheckButton::CheckSignal` explicitly on `emCheckBox` to
+    /// preserve observable signal-dispatch behavior. Spec §3.5 D6.1. Phase-3
+    /// B3.4c: allocated and fired at Input-driven toggle sites.
+    pub check_signal: SignalId,
 }
 
 impl emCheckBox {
-    pub fn new(label: &str, look: Rc<emLook>) -> Self {
+    pub fn new<C: ConstructCtx>(ctx: &mut C, label: &str, look: Rc<emLook>) -> Self {
         Self {
             border: emBorder::new(OuterBorderType::Margin)
                 .with_caption(label)
@@ -52,6 +62,7 @@ impl emCheckBox {
             last_w: 0.0,
             last_h: 0.0,
             on_check: None,
+            check_signal: ctx.create_signal(),
         }
     }
 
@@ -67,8 +78,10 @@ impl emCheckBox {
     pub fn SetChecked(&mut self, checked: bool, ctx: &mut PanelCtx<'_>) {
         if self.checked != checked {
             self.checked = checked;
-            if let Some(cb) = self.on_check.as_mut() {
-                if let Some(mut sched) = ctx.as_sched_ctx() {
+            // Mirrors emCheckButton::SetChecked C++ order.
+            if let Some(mut sched) = ctx.as_sched_ctx() {
+                sched.fire(self.check_signal);
+                if let Some(cb) = self.on_check.as_mut() {
                     cb(self.checked, &mut sched);
                 }
             }
@@ -428,8 +441,11 @@ impl emCheckBox {
     // DIVERGED: Clicked — renamed to toggle (private); C++ Clicked is protected virtual
     fn toggle(&mut self, ctx: &mut PanelCtx<'_>) {
         self.checked = !self.checked;
-        if let Some(cb) = self.on_check.as_mut() {
-            if let Some(mut sched) = ctx.as_sched_ctx() {
+        // Mirrors emCheckButton::SetChecked C++ order
+        // (invalidate → Signal(CheckSignal) → CheckChanged).
+        if let Some(mut sched) = ctx.as_sched_ctx() {
+            sched.fire(self.check_signal);
+            if let Some(cb) = self.on_check.as_mut() {
                 cb(self.checked, &mut sched);
             }
         }
@@ -455,15 +471,46 @@ const HOWTO_NOT_CHECKED: &str = "\n\n\
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::emEngineCtx::PanelCtx;
+    use crate::emEngineCtx::{DeferredAction, InitCtx, PanelCtx};
     use crate::emPanel::Rect;
     use crate::emPanelTree::{PanelId, PanelTree};
+    use crate::emScheduler::EngineScheduler;
     use slotmap::Key as _;
 
     fn test_tree() -> (PanelTree, PanelId) {
         let mut tree = PanelTree::new();
         let id = tree.create_root("t", false);
         (tree, id)
+    }
+
+    /// Minimal construction-ctx bundle for widget unit tests.
+    struct TestInit {
+        sched: EngineScheduler,
+        fw: Vec<DeferredAction>,
+        root: Rc<crate::emContext::emContext>,
+    }
+    impl Drop for TestInit {
+        fn drop(&mut self) {
+            // B3.4c: clear pending signals accumulated during Input-path tests
+            self.sched.clear_pending_for_tests();
+        }
+    }
+
+    impl TestInit {
+        fn new() -> Self {
+            Self {
+                sched: EngineScheduler::new(),
+                fw: Vec::new(),
+                root: crate::emContext::emContext::NewRoot(),
+            }
+        }
+        fn ctx(&mut self) -> InitCtx<'_> {
+            InitCtx {
+                scheduler: &mut self.sched,
+                framework_actions: &mut self.fw,
+                root_context: &self.root,
+            }
+        }
     }
 
     fn default_panel_state() -> PanelState {
@@ -490,7 +537,8 @@ mod tests {
     #[test]
     fn checkbox_toggle() {
         let look = emLook::new();
-        let mut cb = emCheckBox::new("Enable", look);
+        let mut init = TestInit::new();
+        let mut cb = emCheckBox::new(&mut init.ctx(), "Enable", look);
         let ps = default_panel_state();
         let is = default_input_state();
         let (mut tree, tid) = test_tree();
@@ -507,7 +555,8 @@ mod tests {
     fn pressed_state_tracks_press_release() {
         // Enter is instant — no visual press state. Verify pressed stays false.
         let look = emLook::new();
-        let mut cb = emCheckBox::new("Enable", look);
+        let mut init = TestInit::new();
+        let mut cb = emCheckBox::new(&mut init.ctx(), "Enable", look);
         let ps = default_panel_state();
         let is = default_input_state();
         let (mut tree, tid) = test_tree();
@@ -519,9 +568,36 @@ mod tests {
     }
 
     #[test]
+    fn check_box_fires_check_signal_on_toggle() {
+        let look = emLook::new();
+        let mut init = TestInit::new();
+        let mut cb = emCheckBox::new(&mut init.ctx(), "Enable", look);
+        let sig = cb.check_signal;
+        let ps = default_panel_state();
+        let is = default_input_state();
+        let (mut tree, tid) = test_tree();
+        let fw_cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut init.sched,
+                &mut init.fw,
+                &init.root,
+                &fw_cb,
+            );
+            cb.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
+        }
+        assert!(init.sched.is_pending(sig));
+    }
+
+    #[test]
     fn checkbox_preferred_size() {
         let look = emLook::new();
-        let cb = emCheckBox::new("Hi", look);
+        let mut init = TestInit::new();
+        let cb = emCheckBox::new(&mut init.ctx(), "Hi", look);
         let (w, h) = cb.preferred_size();
         assert!(w > 0.0, "Should have positive width");
         assert!(h > 0.0, "Should have positive height");

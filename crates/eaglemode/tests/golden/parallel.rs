@@ -245,7 +245,8 @@ fn parallel_border_small_tiles() {
 fn parallel_checkbox() {
     require_golden!();
     let look = emLook::new();
-    let mut cb = emCheckBox::new("Check Option", look);
+    let mut ts = TestSched::new();
+    let mut cb = emCheckBox::new(&mut ts.cc(), "Check Option", look);
     // Scratch ctx — no scheduler reach; cb has no callback so SetChecked is pure state.
     let mut tree = PanelTree::new();
     let root = tree.create_root("t", false);

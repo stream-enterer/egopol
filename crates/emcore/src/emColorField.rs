@@ -133,7 +133,8 @@ impl emColorField {
                 self.UpdateHSVOutput(false);
                 self.UpdateNameOutput();
             }
-            // DIVERGED-B3.3: callback deferred to B3.4 signal dispatch.
+            // DIVERGED-B3.4d: non-ctx setter path; signal/callback fire
+            // deferred to B3.4d setter-path migration.
             let _ = &self.on_color;
         }
     }
@@ -164,7 +165,8 @@ impl emColorField {
             self.alpha_enabled = alpha_enabled;
             if !alpha_enabled && self.color.GetAlpha() != 255 {
                 self.color = self.color.SetAlpha(255);
-                // DIVERGED-B3.3: callback deferred to B3.4 signal dispatch.
+                // DIVERGED-B3.4d: non-ctx setter path; signal/callback fire
+                // deferred to B3.4d setter-path migration.
                 let _ = &self.on_color;
             }
         }
@@ -234,7 +236,7 @@ impl emColorField {
     /// Port of C++ `emColorField::Cycle()`.
     ///
     /// Returns `true` if the color changed.
-    pub fn Cycle(&mut self) -> bool {
+    pub fn Cycle(&mut self, ctx: &mut PanelCtx<'_>) -> bool {
         let exp = match &mut self.expansion {
             Some(exp) => exp,
             None => return false,
@@ -286,8 +288,14 @@ impl emColorField {
             self.UpdateNameOutput();
         }
 
-        // DIVERGED-B3.3: callback deferred to B3.4 signal dispatch.
-        let _ = &self.on_color;
+        // C++ emColorField::Cycle (emColorField.cpp:205-207):
+        // on any recomputed color change → Signal(ColorSignal) → ColorChanged.
+        if let Some(mut sched) = ctx.as_sched_ctx() {
+            sched.fire(self.color_signal);
+            if let Some(cb) = self.on_color.as_mut() {
+                cb(self.color, &mut sched);
+            }
+        }
 
         true
     }
@@ -736,13 +744,27 @@ const HOWTO_READ_ONLY: &str = "\n\n\
 mod tests {
     use super::*;
     use crate::emEngineCtx::{DeferredAction, InitCtx};
+    use crate::emPanelTree::{PanelId, PanelTree};
     use crate::emScheduler::EngineScheduler;
+
+    fn scratch_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let id = tree.create_root("t", false);
+        (tree, id)
+    }
 
     struct TestInit {
         sched: EngineScheduler,
         fw: Vec<DeferredAction>,
         root: Rc<crate::emContext::emContext>,
     }
+    impl Drop for TestInit {
+        fn drop(&mut self) {
+            // B3.4c: clear pending signals accumulated during Input-path tests
+            self.sched.clear_pending_for_tests();
+        }
+    }
+
     impl TestInit {
         fn new() -> Self {
             Self {
@@ -828,7 +850,12 @@ mod tests {
         cf.set_expanded(true);
         // Modify red via expansion
         cf.expansion_mut().unwrap().sf_red = 5000; // ~50% = 127
-        assert!(cf.Cycle());
+        let (mut tree, tid) = scratch_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
+        assert!(cf.Cycle(&mut ctx));
+        // Fire path is exercised by `color_field_fires_color_signal_on_cycle`
+        // below; scratch ctx here has no scheduler reach so the signal is not
+        // actually fired. The boolean return value is the observable under test.
         // emColor should have updated red channel
         let r = cf.GetColor().GetRed();
         assert!((r as i64 - 127).abs() <= 1, "expected ~127, got {}", r);
@@ -846,7 +873,9 @@ mod tests {
         exp.sf_hue = 0;
         exp.sf_sat = 10000;
         exp.sf_val = 10000;
-        assert!(cf.Cycle());
+        let (mut tree, tid) = scratch_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
+        assert!(cf.Cycle(&mut ctx));
         // Should be red
         assert_eq!(cf.GetColor().GetRed(), 255);
         assert!(cf.GetColor().GetGreen() < 5);
@@ -860,7 +889,9 @@ mod tests {
         let mut cf = emColorField::new(&mut __init.ctx(), look);
         cf.set_expanded(true);
         cf.expansion_mut().unwrap().tf_name = "#FF0000".to_string();
-        assert!(cf.Cycle());
+        let (mut tree, tid) = scratch_tree();
+        let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
+        assert!(cf.Cycle(&mut ctx));
         assert_eq!(cf.GetColor(), emColor::rgba(255, 0, 0, 255));
     }
 
@@ -873,6 +904,33 @@ mod tests {
         cf.set_expanded(true);
         let exp = cf.expansion().unwrap();
         assert_eq!(exp.tf_name, "#ABCDEF");
+    }
+
+    #[test]
+    fn color_field_fires_color_signal_on_cycle() {
+        let mut __init = TestInit::new();
+        let look = emLook::new();
+        let mut cf = emColorField::new(&mut __init.ctx(), look);
+        cf.SetColor(emColor::BLACK);
+        cf.set_expanded(true);
+        cf.expansion_mut().unwrap().sf_red = 5000;
+        let sig = cf.color_signal;
+        let (mut tree, tid) = scratch_tree();
+        let fw_cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            assert!(cf.Cycle(&mut ctx));
+        }
+        assert!(__init.sched.is_pending(sig));
     }
 
     #[test]

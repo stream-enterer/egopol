@@ -94,10 +94,26 @@ impl emSplitter {
         let clamped = pos.clamp(self.min_position, self.max_position);
         if (self.position - clamped).abs() > f64::EPSILON {
             self.position = clamped;
-            // DIVERGED-B3.3: SetPos is called from non-ctx-bearing contexts
-            // (SetMinMaxPos, tests, external callers). Callback fire deferred
-            // to B3.4 signal dispatch. B3.3 preserves the state mutation.
+            // DIVERGED-B3.4d: non-ctx setter path; signal/callback fire
+            // deferred to B3.4d setter-path migration.
             let _ = &self.on_position;
+        }
+    }
+
+    /// Ctx-bearing variant of `SetPos` that fires the pos signal and
+    /// `on_position` callback. Mirrors C++ `emSplitter::SetPos`
+    /// (emSplitter.cpp:82-91): Signal(PosSignal) → InvalidatePainting →
+    /// InvalidateChildrenLayout. Called from the Input-driven drag path.
+    pub fn SetPosCtx(&mut self, pos: f64, ctx: &mut PanelCtx<'_>) {
+        let clamped = pos.clamp(self.min_position, self.max_position);
+        if (self.position - clamped).abs() > f64::EPSILON {
+            self.position = clamped;
+            if let Some(mut sched) = ctx.as_sched_ctx() {
+                sched.fire(self.pos_signal);
+                if let Some(cb) = self.on_position.as_mut() {
+                    cb(self.position, &mut sched);
+                }
+            }
         }
     }
 
@@ -212,7 +228,7 @@ impl emSplitter {
         event: &emInputEvent,
         _state: &PanelState,
         _input_state: &emInputState,
-        _ctx: &mut PanelCtx,
+        ctx: &mut PanelCtx,
     ) -> bool {
         if self.last_w <= 0.0 || self.last_h <= 0.0 {
             return false;
@@ -271,7 +287,7 @@ impl emSplitter {
                         let travel = size - gs;
                         if travel > 0.0 {
                             let new_pos = (pos - self.drag_offset - gs * 0.5) / travel;
-                            self.SetPos(new_pos);
+                            self.SetPosCtx(new_pos, ctx);
                         }
                         return true;
                     }
@@ -426,6 +442,13 @@ mod tests {
         fw: Vec<DeferredAction>,
         root: Rc<crate::emContext::emContext>,
     }
+    impl Drop for TestInit {
+        fn drop(&mut self) {
+            // B3.4c: clear pending signals accumulated during Input-path tests
+            self.sched.clear_pending_for_tests();
+        }
+    }
+
     impl TestInit {
         fn new() -> Self {
             Self {
@@ -502,5 +525,50 @@ mod tests {
         let release = emInputEvent::release(InputKey::MouseLeft);
         sp.Input(&release, &ps, &is, &mut ctx);
         assert!(!sp.dragging);
+    }
+
+    #[test]
+    fn splitter_fires_pos_signal_on_drag() {
+        let mut __init = TestInit::new();
+        let (mut tree, tid) = test_tree();
+        let look = emLook::new();
+        let mut sp = emSplitter::new(&mut __init.ctx(), Orientation::Horizontal, look);
+        let sig = sp.pos_signal;
+        sp.SetPos(0.5);
+        sp.last_w = 100.0;
+        sp.last_h = 50.0;
+        let ps = default_panel_state();
+        let is = default_input_state();
+        let fw_cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+            );
+            let press = emInputEvent::press(InputKey::MouseLeft).with_mouse(0.5, 0.1);
+            sp.Input(&press, &ps, &is, &mut ctx);
+            let drag = emInputEvent {
+                key: InputKey::MouseLeft,
+                variant: InputVariant::Repeat,
+                chars: String::new(),
+                repeat: 0,
+                source_variant: 0,
+                mouse_x: 0.7,
+                mouse_y: 0.1,
+                shift: false,
+                ctrl: false,
+                alt: false,
+                meta: false,
+                eaten: false,
+            };
+            sp.Input(&drag, &ps, &is, &mut ctx);
+        }
+        assert!(__init.sched.is_pending(sig));
     }
 }

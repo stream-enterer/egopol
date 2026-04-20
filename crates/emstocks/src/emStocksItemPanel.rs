@@ -139,7 +139,7 @@ impl ItemWidgets {
             symbol: emTextField::new(cc, look.clone()),
             wkn: emTextField::new(cc, look.clone()),
             isin: emTextField::new(cc, look.clone()),
-            owning_shares: emCheckBox::new("Owning Shares", look.clone()),
+            owning_shares: emCheckBox::new(cc, "Owning Shares", look.clone()),
             own_shares: emTextField::new(cc, look.clone()),
             trade_price: emTextField::new(cc, look.clone()),
             trade_date: emTextField::new(cc, look.clone()),

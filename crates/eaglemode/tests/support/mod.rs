@@ -37,6 +37,14 @@ pub struct TestHarness {
     root: PanelId,
 }
 
+impl Drop for TestHarness {
+    fn drop(&mut self) {
+        // Phase-3 B3.4c: fire latches on Input-path widgets accumulate into
+        // pending signals; clear them before scheduler Drop's debug_assert.
+        self.scheduler.clear_pending_for_tests();
+    }
+}
+
 impl TestHarness {
     /// Create a harness with root panel (focusable, layout 0,0,1,1), 800x600 view.
     pub fn new() -> Self {
@@ -98,6 +106,21 @@ impl TestHarness {
             framework_clipboard: &self.framework_clipboard,
             current_engine: None,
         }
+    }
+
+    /// Scheduler-reach `PanelCtx` rooted at the harness's root panel.
+    /// Used by tests that call widget methods which now require `&mut PanelCtx`.
+    pub fn panel_ctx(&mut self) -> emcore::emEngineCtx::PanelCtx<'_> {
+        let root = self.root;
+        emcore::emEngineCtx::PanelCtx::with_sched_reach(
+            &mut self.tree,
+            root,
+            1.0,
+            &mut self.scheduler,
+            &mut self.framework_actions,
+            &self.root_context,
+            &self.framework_clipboard,
+        )
     }
 
     /// Run one frame: scheduler time slice → deliver notices → update viewing.

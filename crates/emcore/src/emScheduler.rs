@@ -672,6 +672,19 @@ impl EngineScheduler {
 
 #[cfg(any(test, feature = "test-support"))]
 impl EngineScheduler {
+    /// Test helper: mark all pending signals as processed without waking
+    /// engines. Used by unit tests that fire signals but do not run a time
+    /// slice, so the Drop-time debug assert does not panic.
+    /// Phase-3 B3.4c.
+    pub fn clear_pending_for_tests(&mut self) {
+        let pending = std::mem::take(&mut self.inner.pending_signals);
+        for id in pending {
+            if let Some(sig) = self.inner.signals.get_mut(id) {
+                sig.pending = false;
+            }
+        }
+    }
+
     /// Attach a first-cycle slice probe to a registered `PanelCycleEngine`.
     /// Used by SP4.5-FIX-1 timing fixtures (Tasks 5-7).
     pub fn attach_first_cycle_probe(

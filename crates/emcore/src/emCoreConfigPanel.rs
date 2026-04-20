@@ -318,7 +318,14 @@ impl MouseMiscGroup {
 
         // C++ emCoreConfigPanel.cpp:295: StickBox->SetEnableSwitch(StickPossible)
         // Disabled when the screen cannot move the mouse pointer.
-        let mut stick = emCheckBox::new("Stick mouse\nwhen navigating", self.look.clone());
+        let mut stick = {
+            let mut sched = ctx.as_sched_ctx().expect("sched");
+            emCheckBox::new(
+                &mut sched,
+                "Stick mouse\nwhen navigating",
+                self.look.clone(),
+            )
+        };
         stick.SetChecked(c.stick_mouse_when_navigating, ctx);
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         stick.on_check = Some(Box::new(
@@ -334,7 +341,10 @@ impl MouseMiscGroup {
                 .SetEnableSwitch(stick_id, false, ctx.scheduler.as_deref_mut());
         }
 
-        let mut emu = emCheckBox::new("Emulate\nmiddle button", self.look.clone());
+        let mut emu = {
+            let mut sched = ctx.as_sched_ctx().expect("sched");
+            emCheckBox::new(&mut sched, "Emulate\nmiddle button", self.look.clone())
+        };
         emu.SetChecked(c.emulate_middle_button, ctx);
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         emu.on_check = Some(Box::new(
@@ -346,7 +356,10 @@ impl MouseMiscGroup {
         ));
         ctx.create_child_with("emu", Box::new(CheckBoxPanel { check_box: emu }));
 
-        let mut pan = emCheckBox::new("Pan\nfunction", self.look.clone());
+        let mut pan = {
+            let mut sched = ctx.as_sched_ctx().expect("sched");
+            emCheckBox::new(&mut sched, "Pan\nfunction", self.look.clone())
+        };
         pan.SetChecked(c.pan_function, ctx);
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         pan.on_check = Some(Box::new(
@@ -980,7 +993,10 @@ impl CpuGroup {
         );
 
         // AllowSIMD checkbox
-        let mut cb = emCheckBox::new("Allow SIMD", self.look.clone());
+        let mut cb = {
+            let mut sched = ctx.as_sched_ctx().expect("sched");
+            emCheckBox::new(&mut sched, "Allow SIMD", self.look.clone())
+        };
         cb.SetChecked(c.allow_simd, ctx);
         let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         cb.on_check = Some(Box::new(
