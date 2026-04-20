@@ -37,7 +37,7 @@ Revised dispatch order:
 ## Task log
 
 ### Task-W3 + Task 4 back-ref (bundled) — DONE
-Commit: <pending>
+Commit: 6fdf5096
 rg 'Rc<RefCell<emWindow>>' crates/ : before=9 after=0 (5 comment hits remain)
 rg 'Weak<RefCell<emWindow>>' crates/ : before=3 after=0 (2 comment hits remain)
 Notes:
