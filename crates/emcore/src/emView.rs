@@ -3112,7 +3112,15 @@ impl emView {
     /// when the panel is in the active path.
     ///
     /// Corresponds to `emPanel::InvalidateControlPanel`.
-    pub fn InvalidateControlPanel(&mut self, tree: &PanelTree, panel: PanelId) {
+    ///
+    /// Phase 1.5 Task 1c (method 3/7): ctx-threaded. Callers inside yet-
+    /// unmigrated emView methods use `with_local_sched_ctx` to bridge.
+    pub fn InvalidateControlPanel(
+        &mut self,
+        tree: &PanelTree,
+        panel: PanelId,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
         let in_active_path = tree
             .GetRec(panel)
             .map(|p| p.in_active_path)
@@ -3120,7 +3128,7 @@ impl emView {
         if in_active_path {
             self.control_panel_invalid = true;
             if let Some(sig) = self.control_panel_signal {
-                self.queue_or_apply_sched_op(SchedOp::Fire(sig));
+                ctx.fire(sig);
             }
         }
     }
@@ -5473,13 +5481,18 @@ mod tests {
         assert!(view.is_control_panel_invalid());
         view.clear_control_panel_invalid();
 
+        // Phase 1.5 Task 1c (method 3/7): InvalidateControlPanel takes &mut SchedCtx.
+        // View has no scheduler attached; control_panel_signal is None so ctx.fire is
+        // never invoked. Build a bare SchedCtx via TestViewHarness.
+        let mut h = crate::test_view_harness::TestViewHarness::new();
+
         // child1 is in active path — invalidate_control_panel sets flag
-        view.InvalidateControlPanel(&tree, child1);
+        view.InvalidateControlPanel(&tree, child1, &mut h.sched_ctx());
         assert!(view.is_control_panel_invalid());
         view.clear_control_panel_invalid();
 
         // child2 is NOT in active path — flag stays clear
-        view.InvalidateControlPanel(&tree, child2);
+        view.InvalidateControlPanel(&tree, child2, &mut h.sched_ctx());
         assert!(!view.is_control_panel_invalid());
     }
 
