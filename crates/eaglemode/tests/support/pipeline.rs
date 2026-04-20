@@ -350,13 +350,15 @@ impl PipelineTestHarness {
 
                 let pixel_tallness = self.view.GetCurrentPixelTallness();
                 consumed = {
-                    let mut pctx = PanelCtx::with_scheduler(
+                    let mut pctx = PanelCtx::with_sched_reach(
                         &mut self.tree,
                         panel_id,
                         pixel_tallness,
                         &mut self.scheduler,
-                    )
-                    .with_clipboard(&self.framework_clipboard);
+                        &mut self.framework_actions,
+                        &self.root_context,
+                        &self.framework_clipboard,
+                    );
                     behavior.Input(&panel_ev, &panel_state, &self.input_state, &mut pctx)
                 };
                 self.tree.put_behavior(panel_id, behavior);

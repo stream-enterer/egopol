@@ -1030,11 +1030,14 @@ impl emWindow {
                 // `Update` via emSubViewPanel) propagate to the real scheduler.
                 consumed = {
                     let pixel_tallness = self.view.GetCurrentPixelTallness();
-                    let mut panel_ctx = crate::emEngineCtx::PanelCtx::with_scheduler(
+                    let mut panel_ctx = crate::emEngineCtx::PanelCtx::with_sched_reach(
                         tree,
                         panel_id,
                         pixel_tallness,
                         ctx.scheduler,
+                        ctx.framework_actions,
+                        ctx.root_context,
+                        ctx.framework_clipboard,
                     );
                     behavior.Input(&panel_ev, &panel_state, state, &mut panel_ctx)
                 };

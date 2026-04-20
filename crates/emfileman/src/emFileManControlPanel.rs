@@ -564,6 +564,8 @@ mod tests {
             current_pixel_tallness: 1.0,
             scheduler: None,
             framework_clipboard: None,
+            framework_actions: None,
+            root_context: None,
         };
         let mut h = emcore::test_view_harness::TestViewHarness::new();
         let dummy_eid = h.scheduler.register_engine(

@@ -225,13 +225,15 @@ impl TestHarness {
             if let Some(mut behavior) = self.tree.take_behavior(panel_id) {
                 let state = self.tree.build_panel_state(panel_id, wf, pixel_tallness);
                 let consumed = {
-                    let mut pctx = PanelCtx::with_scheduler(
+                    let mut pctx = PanelCtx::with_sched_reach(
                         &mut self.tree,
                         panel_id,
                         pixel_tallness,
                         &mut self.scheduler,
-                    )
-                    .with_clipboard(&self.framework_clipboard);
+                        &mut self.framework_actions,
+                        &self.root_context,
+                        &self.framework_clipboard,
+                    );
                     behavior.Input(&ev, &state, &self.input_state, &mut pctx)
                 };
                 self.tree.put_behavior(panel_id, behavior);

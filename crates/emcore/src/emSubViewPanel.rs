@@ -361,6 +361,15 @@ impl PanelBehavior for emSubViewPanel {
                             pixel_tallness,
                         ),
                     };
+                    // Phase-3 B3.1: propagate framework_clipboard (pre-existing)
+                    // through the sub-panel ctx. framework_actions/root_context
+                    // are not threaded here because the outer PanelCtx's
+                    // borrow of those handles would conflict with the scheduler
+                    // re-borrow above; sub-view Input currently routes SchedCtx
+                    // synthesis through its own fw_input buffer (see above).
+                    if let Some(cb) = ctx.framework_clipboard {
+                        panel_ctx = panel_ctx.with_clipboard(cb);
+                    }
                     behavior.Input(&panel_ev, &panel_state, input_state, &mut panel_ctx)
                 };
                 self.sub_tree.put_behavior(panel_id, behavior);

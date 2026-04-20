@@ -327,6 +327,16 @@ pub struct PanelCtx<'a> {
     /// `PanelCycleEngine` before cycling behaviors so they can build
     /// `SchedCtx`/`EngineCtx` while preserving the clipboard reference.
     pub framework_clipboard: Option<&'a RefCell<Option<Box<dyn emClipboard>>>>,
+    /// Deferred-action drain (spec §3.1). `None` in layout-only / unit tests
+    /// that do not need to synthesize a `SchedCtx`. Set by `PanelCycleEngine`
+    /// (and other full-reach call sites) so behaviors can build a SchedCtx
+    /// via `as_sched_ctx()` without losing access to framework actions.
+    /// Phase-3 B3.1.
+    pub framework_actions: Option<&'a mut Vec<DeferredAction>>,
+    /// Root context (spec §3.1). `None` in layout-only / unit tests. Set by
+    /// `PanelCycleEngine` and other full-reach call sites so behaviors can
+    /// build a `SchedCtx` via `as_sched_ctx()`. Phase-3 B3.1.
+    pub root_context: Option<&'a Rc<emContext>>,
 }
 
 impl<'a> PanelCtx<'a> {
@@ -339,6 +349,8 @@ impl<'a> PanelCtx<'a> {
             current_pixel_tallness,
             scheduler: None,
             framework_clipboard: None,
+            framework_actions: None,
+            root_context: None,
         }
     }
 
@@ -355,6 +367,8 @@ impl<'a> PanelCtx<'a> {
             current_pixel_tallness,
             scheduler: Some(scheduler),
             framework_clipboard: None,
+            framework_actions: None,
+            root_context: None,
         }
     }
 
@@ -368,6 +382,50 @@ impl<'a> PanelCtx<'a> {
     ) -> Self {
         self.framework_clipboard = Some(framework_clipboard);
         self
+    }
+
+    /// Attach all four scheduler-reach handles at once (scheduler,
+    /// framework_actions, root_context, framework_clipboard). Production
+    /// call sites that cycle or input-dispatch a panel from inside an
+    /// `EngineCtx` context have all four available and should prefer this
+    /// over chaining individual builders. Phase-3 B3.1.
+    pub fn with_sched_reach(
+        tree: &'a mut PanelTree,
+        id: PanelId,
+        current_pixel_tallness: f64,
+        scheduler: &'a mut EngineScheduler,
+        framework_actions: &'a mut Vec<DeferredAction>,
+        root_context: &'a Rc<emContext>,
+        framework_clipboard: &'a RefCell<Option<Box<dyn emClipboard>>>,
+    ) -> Self {
+        Self {
+            tree,
+            id,
+            current_pixel_tallness,
+            scheduler: Some(scheduler),
+            framework_clipboard: Some(framework_clipboard),
+            framework_actions: Some(framework_actions),
+            root_context: Some(root_context),
+        }
+    }
+
+    /// Synthesize a `SchedCtx` from this `PanelCtx`'s scheduler-reach
+    /// handles. Returns `None` if any of the four required handles
+    /// (`scheduler`, `framework_actions`, `root_context`,
+    /// `framework_clipboard`) is absent. Callers must handle `None`
+    /// explicitly — there is no panic landmine. Phase-3 B3.1.
+    pub fn as_sched_ctx(&mut self) -> Option<SchedCtx<'_>> {
+        let scheduler = self.scheduler.as_deref_mut()?;
+        let framework_actions = self.framework_actions.as_deref_mut()?;
+        let root_context = self.root_context?;
+        let framework_clipboard = self.framework_clipboard?;
+        Some(SchedCtx {
+            scheduler,
+            framework_actions,
+            root_context,
+            framework_clipboard,
+            current_engine: None,
+        })
     }
 
     /// Wake this panel's scheduler engine.
