@@ -199,54 +199,93 @@ impl emDialog {
         self.AddCustomButton(ctx, label, DialogResult::Cancel);
     }
 
-    /// Update the dialog title. Pre-show only.
+    /// Update the dialog title.
     ///
     /// Port of C++ `emDialog::SetRootTitle` (emDialog.cpp:49-52).
-    pub fn SetRootTitle(&mut self, title: &str) {
-        self.with_dlg_panel_mut("SetRootTitle", |p| p.SetTitle(title));
+    /// Pre-show: mutates DlgPanel directly via `with_dlg_panel_mut`.
+    /// Post-show: routes through `pending_actions` → `App::mutate_dialog_by_id`.
+    pub fn SetRootTitle<C: ConstructCtx>(&mut self, ctx: &mut C, title: &str) {
+        if self.pending.is_some() {
+            self.with_dlg_panel_mut("SetRootTitle", |p| p.SetTitle(title));
+        } else {
+            let did = self.dialog_id;
+            let title = title.to_string();
+            ctx.pending_actions()
+                .borrow_mut()
+                .push(Box::new(move |app, _el| {
+                    app.mutate_dialog_by_id(did, |p| p.SetTitle(&title));
+                }));
+        }
     }
 
-    /// Update label of the first button whose result matches `result`. Pre-show only.
+    /// Update label of the first button whose result matches `result`.
     ///
     /// Port of C++ `emDialog::SetButtonLabel` (emDialog.cpp:55-62). Walks the
     /// DlgButton children of the DlgPanel root to find the first button whose
     /// result payload matches, then updates its caption.
-    pub fn set_button_label_for_result(&mut self, result: &DialogResult, label: &str) {
-        let pending = self
-            .pending
-            .as_mut()
-            .expect("set_button_label_for_result after show");
-        let tree = pending.window.tree_mut();
-        // Collect child ids to avoid holding a reference into `tree` while
-        // mutably borrowing per-child behaviors.
-        let children: Vec<crate::emPanelTree::PanelId> =
-            tree.children(self.root_panel_id).collect();
-        for cid in children {
-            let mut behavior = match tree.take_behavior(cid) {
-                Some(b) => b,
-                None => continue,
-            };
-            let matched = if let Some(btn) = behavior.as_dlg_button_mut() {
-                if *btn.result() == *result {
-                    btn.SetCaption(label);
-                    true
+    /// Pre-show: walks DlgButton children directly in the pending tree.
+    /// Post-show: pushes a `(DialogResult, label)` pair onto
+    /// `DlgPanel::pending_label_updates` via `App::mutate_dialog_by_id`;
+    /// `DialogPrivateEngine::Cycle` drains the queue (step 0.5) with tree
+    /// access to walk DlgButton children.
+    pub fn set_button_label_for_result<C: ConstructCtx>(
+        &mut self,
+        ctx: &mut C,
+        result: &DialogResult,
+        label: &str,
+    ) {
+        if let Some(pending) = self.pending.as_mut() {
+            let tree = pending.window.tree_mut();
+            // Collect child ids to avoid holding a reference into `tree` while
+            // mutably borrowing per-child behaviors.
+            let children: Vec<crate::emPanelTree::PanelId> =
+                tree.children(self.root_panel_id).collect();
+            for cid in children {
+                let mut behavior = match tree.take_behavior(cid) {
+                    Some(b) => b,
+                    None => continue,
+                };
+                let matched = if let Some(btn) = behavior.as_dlg_button_mut() {
+                    if *btn.result() == *result {
+                        btn.SetCaption(label);
+                        true
+                    } else {
+                        false
+                    }
                 } else {
                     false
+                };
+                tree.put_behavior(cid, behavior);
+                if matched {
+                    break;
                 }
-            } else {
-                false
-            };
-            tree.put_behavior(cid, behavior);
-            if matched {
-                break;
             }
+        } else {
+            let did = self.dialog_id;
+            let result = *result;
+            let label = label.to_string();
+            ctx.pending_actions()
+                .borrow_mut()
+                .push(Box::new(move |app, _el| {
+                    app.mutate_dialog_by_id(did, |p| p.push_label_update(result, label));
+                }));
         }
     }
 
     /// Port of C++ `emDialog::EnableAutoDeletion` (emDialog.cpp:156-159).
-    /// Pre-show only. Panics if called after `show()`.
-    pub fn EnableAutoDeletion(&mut self, enabled: bool) {
-        self.with_dlg_panel_mut("EnableAutoDeletion", |p| p.auto_delete = enabled);
+    /// Pre-show: mutates DlgPanel directly via `with_dlg_panel_mut`.
+    /// Post-show: routes through `pending_actions` → `App::mutate_dialog_by_id`.
+    pub fn EnableAutoDeletion<C: ConstructCtx>(&mut self, ctx: &mut C, enabled: bool) {
+        if self.pending.is_some() {
+            self.with_dlg_panel_mut("EnableAutoDeletion", |p| p.auto_delete = enabled);
+        } else {
+            let did = self.dialog_id;
+            ctx.pending_actions()
+                .borrow_mut()
+                .push(Box::new(move |app, _el| {
+                    app.mutate_dialog_by_id(did, |p| p.auto_delete = enabled);
+                }));
+        }
     }
 
     /// Set the finish callback — invoked once when the dialog result is
@@ -396,6 +435,12 @@ pub struct DlgPanel {
     /// observe button clicks, mirroring C++ `emDialog::PrivateEngineClass`
     /// observing button signals via `AddWakeUpSignal` (emDialog.cpp:38).
     pub(crate) button_signals: Vec<(SignalId, DialogResult)>,
+    /// Deferred button-label updates queued by post-show
+    /// `emDialog::set_button_label_for_result` calls via
+    /// `App::mutate_dialog_by_id`. Drained by `DialogPrivateEngine::Cycle`
+    /// (step 0.5) which has simultaneous access to both the DlgPanel and
+    /// the PanelTree (needed to walk DlgButton children).
+    pub(crate) pending_label_updates: Vec<(DialogResult, String)>,
 }
 
 impl DlgPanel {
@@ -414,11 +459,18 @@ impl DlgPanel {
             content_panel_id: None,
             buttons_panel_id: None,
             button_signals: Vec::new(),
+            pending_label_updates: Vec::new(),
         }
     }
 
     pub(crate) fn SetTitle(&mut self, title: &str) {
         self.border.SetCaption(title);
+    }
+
+    /// Queue a button-label update for post-show delivery.
+    /// Consumed by `DialogPrivateEngine::Cycle` step 0.5.
+    pub(crate) fn push_label_update(&mut self, result: DialogResult, label: String) {
+        self.pending_label_updates.push((result, label));
     }
 }
 
@@ -652,6 +704,45 @@ impl crate::emEngine::emEngine for DialogPrivateEngine {
             // Panel gone — nothing to do.
             return false;
         };
+
+        // Step 0.5: drain pending_label_updates (Phase 3.6 Prereq B).
+        // DlgPanel behavior is detached; children remain in the tree.
+        // Drain now while we hold both `behavior` (dlg) and `ctx.tree`
+        // (needed to walk DlgButton children by panel id).
+        if let Some(dlg) = behavior.as_dlg_panel_mut() {
+            if !dlg.pending_label_updates.is_empty() {
+                let updates: Vec<(DialogResult, String)> =
+                    std::mem::take(&mut dlg.pending_label_updates);
+                let root_id = self.root_panel_id;
+                let tree = ctx
+                    .tree
+                    .as_deref_mut()
+                    .expect("DialogPrivateEngine: tree is Some (step 0.5)");
+                let children: Vec<crate::emPanelTree::PanelId> = tree.children(root_id).collect();
+                for (target_result, label) in &updates {
+                    for &cid in &children {
+                        let mut cbeh = match tree.take_behavior(cid) {
+                            Some(b) => b,
+                            None => continue,
+                        };
+                        let matched = if let Some(btn) = cbeh.as_dlg_button_mut() {
+                            if btn.result() == target_result {
+                                btn.SetCaption(label);
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+                        tree.put_behavior(cid, cbeh);
+                        if matched {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
         let stay_awake = {
             let Some(dlg) = behavior.as_dlg_panel_mut() else {
@@ -1296,7 +1387,7 @@ mod tests {
         let mut init = TestInit::new();
         let look = emLook::new();
         let mut dlg = emDialog::new(&mut init.ctx(), "Old", look);
-        dlg.SetRootTitle("New");
+        dlg.SetRootTitle(&mut init.ctx(), "New");
 
         let pending = dlg.pending.as_mut().unwrap();
         let tree = pending.window.tree_mut();
@@ -1306,14 +1397,73 @@ mod tests {
         assert_eq!(caption, "New");
     }
 
+    /// Post-show SetRootTitle routes through pending_actions → mutate_dialog_by_id.
+    /// Prereq B replaces the former #[should_panic] test.
     #[test]
-    #[should_panic(expected = "SetRootTitle after show")]
-    fn set_root_title_after_show_panics() {
-        let mut init = TestInit::new();
-        let look = emLook::new();
-        let mut dlg = emDialog::new(&mut init.ctx(), "Old", look);
-        let _ = dlg.pending.take();
-        dlg.SetRootTitle("New");
+    fn set_root_title_post_show_routes_via_pending_actions() {
+        use crate::emEngineCtx::InitCtx;
+        use crate::emGUIFramework::App;
+        use winit::window::WindowId;
+
+        let mut app = App::new(Box::new(|_app, _el| {}));
+
+        let (dlg_id, root_id) = {
+            let mut ctx = InitCtx {
+                scheduler: &mut app.scheduler,
+                framework_actions: &mut app.framework_actions,
+                root_context: &app.context,
+                pending_actions: &app.pending_actions,
+            };
+            let look = emLook::new();
+            let mut dlg = emDialog::new(&mut ctx, "Old", look);
+            let dlg_id = dlg.dialog_id;
+            let root_id = dlg.root_panel_id;
+            app.pending_top_level.push(dlg.pending.take().unwrap());
+            (dlg_id, root_id)
+        };
+
+        let wid = WindowId::dummy();
+        let engine_id = app
+            .install_pending_top_level_headless(wid)
+            .expect("install registers DialogPrivateEngine");
+
+        // Build a post-show handle (pending = None) and call SetRootTitle.
+        let dummy_sig = app.scheduler.create_signal();
+        let mut handle = emDialog {
+            dialog_id: dlg_id,
+            finish_signal: dummy_sig,
+            close_signal: dummy_sig,
+            root_panel_id: root_id,
+            look: emLook::new(),
+            pending: None,
+        };
+        {
+            let mut ctx = InitCtx {
+                scheduler: &mut app.scheduler,
+                framework_actions: &mut app.framework_actions,
+                root_context: &app.context,
+                pending_actions: &app.pending_actions,
+            };
+            handle.SetRootTitle(&mut ctx, "Changed");
+        }
+
+        // Drain pending_actions so mutate_dialog_by_id fires.
+        app.drain_pending_actions_headless();
+
+        // Read back the title from the materialized DlgPanel.
+        let win = app.windows.get_mut(&wid).expect("window present");
+        let mut tree = win.take_tree();
+        let mut b = tree.take_behavior(root_id).expect("DlgPanel present");
+        let caption = b.as_dlg_panel_mut().unwrap().border.caption.clone();
+        tree.put_behavior(root_id, b);
+        win.put_tree(tree);
+        assert_eq!(
+            caption, "Changed",
+            "SetRootTitle post-show must land on DlgPanel"
+        );
+
+        app.scheduler.remove_engine(engine_id);
+        app.scheduler.clear_pending_for_tests();
     }
 
     #[test]
@@ -1322,7 +1472,7 @@ mod tests {
         let look = emLook::new();
         let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
         dlg.AddCustomButton(&mut init.ctx(), "OK", DialogResult::Ok);
-        dlg.set_button_label_for_result(&DialogResult::Ok, "Accept");
+        dlg.set_button_label_for_result(&mut init.ctx(), &DialogResult::Ok, "Accept");
 
         let pending = dlg.pending.as_mut().unwrap();
         let tree = pending.window.tree_mut();
@@ -1338,14 +1488,100 @@ mod tests {
         assert_eq!(caption, "Accept");
     }
 
+    /// Post-show set_button_label_for_result queues a pending_label_update on
+    /// DlgPanel via mutate_dialog_by_id; DialogPrivateEngine::Cycle step 0.5
+    /// drains it by walking DlgButton children.
+    /// Prereq B replaces the former #[should_panic] test.
     #[test]
-    #[should_panic(expected = "set_button_label_for_result after show")]
-    fn set_button_label_for_result_after_show_panics() {
-        let mut init = TestInit::new();
-        let look = emLook::new();
-        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
-        let _ = dlg.pending.take();
-        dlg.set_button_label_for_result(&DialogResult::Ok, "Accept");
+    fn set_button_label_for_result_post_show_routes_via_pending_actions() {
+        use crate::emEngineCtx::InitCtx;
+        use crate::emGUIFramework::App;
+        use crate::emInputState::emInputState;
+        use winit::window::WindowId;
+
+        let mut app = App::new(Box::new(|_app, _el| {}));
+
+        let (dlg_id, root_id) = {
+            let mut ctx = InitCtx {
+                scheduler: &mut app.scheduler,
+                framework_actions: &mut app.framework_actions,
+                root_context: &app.context,
+                pending_actions: &app.pending_actions,
+            };
+            let look = emLook::new();
+            let mut dlg = emDialog::new(&mut ctx, "Test", look);
+            dlg.AddCustomButton(&mut ctx, "OK", DialogResult::Ok);
+            let dlg_id = dlg.dialog_id;
+            let root_id = dlg.root_panel_id;
+            app.pending_top_level.push(dlg.pending.take().unwrap());
+            (dlg_id, root_id)
+        };
+
+        let wid = WindowId::dummy();
+        let engine_id = app
+            .install_pending_top_level_headless(wid)
+            .expect("install registers DialogPrivateEngine");
+
+        // Post-show handle.
+        let dummy_sig = app.scheduler.create_signal();
+        let mut handle = emDialog {
+            dialog_id: dlg_id,
+            finish_signal: dummy_sig,
+            close_signal: dummy_sig,
+            root_panel_id: root_id,
+            look: emLook::new(),
+            pending: None,
+        };
+        {
+            let mut ctx = InitCtx {
+                scheduler: &mut app.scheduler,
+                framework_actions: &mut app.framework_actions,
+                root_context: &app.context,
+                pending_actions: &app.pending_actions,
+            };
+            handle.set_button_label_for_result(&mut ctx, &DialogResult::Ok, "Accept");
+        }
+
+        // Drain pending_actions: mutate_dialog_by_id pushes the label update
+        // onto DlgPanel::pending_label_updates and wakes engines.
+        app.drain_pending_actions_headless();
+
+        // Run one DoTimeSlice so DialogPrivateEngine::Cycle fires (step 0.5
+        // drains pending_label_updates by walking DlgButton children).
+        let mut pending_inputs: Vec<(WindowId, crate::emInput::emInputEvent)> = Vec::new();
+        let mut input_state = emInputState::new();
+        let fc: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        app.scheduler.DoTimeSlice(
+            &mut app.windows,
+            &app.context,
+            &mut app.framework_actions,
+            &mut pending_inputs,
+            &mut input_state,
+            &fc,
+            &app.pending_actions,
+        );
+
+        // Read back the button caption.
+        let win = app.windows.get_mut(&wid).expect("window present");
+        let mut tree = win.take_tree();
+        let children: Vec<_> = tree.children(root_id).collect();
+        let mut b = tree.take_behavior(children[0]).expect("DlgButton present");
+        let caption = b
+            .as_dlg_button_mut()
+            .unwrap()
+            .button
+            .GetCaption()
+            .to_string();
+        tree.put_behavior(children[0], b);
+        win.put_tree(tree);
+        assert_eq!(
+            caption, "Accept",
+            "set_button_label_for_result post-show must land via Cycle"
+        );
+
+        app.scheduler.remove_engine(engine_id);
+        app.scheduler.clear_pending_for_tests();
     }
 
     #[test]
@@ -1353,7 +1589,7 @@ mod tests {
         let mut init = TestInit::new();
         let look = emLook::new();
         let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
-        dlg.EnableAutoDeletion(true);
+        dlg.EnableAutoDeletion(&mut init.ctx(), true);
 
         let pending = dlg.pending.as_mut().unwrap();
         let tree = pending.window.tree_mut();
@@ -1363,14 +1599,81 @@ mod tests {
         assert!(flag);
     }
 
+    /// Post-show EnableAutoDeletion routes through pending_actions → mutate_dialog_by_id.
+    /// Prereq B replaces the former #[should_panic] test.
     #[test]
-    #[should_panic(expected = "EnableAutoDeletion after show")]
-    fn enable_auto_deletion_after_show_panics() {
-        let mut init = TestInit::new();
-        let look = emLook::new();
-        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
-        let _ = dlg.pending.take();
-        dlg.EnableAutoDeletion(true);
+    fn enable_auto_deletion_post_show_routes_via_pending_actions() {
+        use crate::emEngineCtx::InitCtx;
+        use crate::emGUIFramework::App;
+        use winit::window::WindowId;
+
+        let mut app = App::new(Box::new(|_app, _el| {}));
+
+        let (dlg_id, root_id) = {
+            let mut ctx = InitCtx {
+                scheduler: &mut app.scheduler,
+                framework_actions: &mut app.framework_actions,
+                root_context: &app.context,
+                pending_actions: &app.pending_actions,
+            };
+            let look = emLook::new();
+            let mut dlg = emDialog::new(&mut ctx, "Test", look);
+            let dlg_id = dlg.dialog_id;
+            let root_id = dlg.root_panel_id;
+            app.pending_top_level.push(dlg.pending.take().unwrap());
+            (dlg_id, root_id)
+        };
+
+        let wid = WindowId::dummy();
+        let engine_id = app
+            .install_pending_top_level_headless(wid)
+            .expect("install registers DialogPrivateEngine");
+
+        // Confirm auto_delete starts false.
+        {
+            let win = app.windows.get_mut(&wid).unwrap();
+            let mut tree = win.take_tree();
+            let mut b = tree.take_behavior(root_id).unwrap();
+            let flag = b.as_dlg_panel_mut().unwrap().auto_delete;
+            tree.put_behavior(root_id, b);
+            win.put_tree(tree);
+            assert!(!flag, "auto_delete must start false");
+        }
+
+        // Post-show handle.
+        let dummy_sig = app.scheduler.create_signal();
+        let mut handle = emDialog {
+            dialog_id: dlg_id,
+            finish_signal: dummy_sig,
+            close_signal: dummy_sig,
+            root_panel_id: root_id,
+            look: emLook::new(),
+            pending: None,
+        };
+        {
+            let mut ctx = InitCtx {
+                scheduler: &mut app.scheduler,
+                framework_actions: &mut app.framework_actions,
+                root_context: &app.context,
+                pending_actions: &app.pending_actions,
+            };
+            handle.EnableAutoDeletion(&mut ctx, true);
+        }
+
+        // Drain pending_actions so mutate_dialog_by_id fires.
+        app.drain_pending_actions_headless();
+
+        // Read back auto_delete.
+        let win = app.windows.get_mut(&wid).expect("window present");
+        let mut tree = win.take_tree();
+        let mut b = tree.take_behavior(root_id).expect("DlgPanel present");
+        let flag = b.as_dlg_panel_mut().unwrap().auto_delete;
+        tree.put_behavior(root_id, b);
+        win.put_tree(tree);
+        assert!(flag, "EnableAutoDeletion post-show must land on DlgPanel");
+
+        app.scheduler.remove_engine(engine_id);
+        app.scheduler.clear_pending_for_tests();
     }
 
     #[test]

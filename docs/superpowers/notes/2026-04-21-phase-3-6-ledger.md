@@ -66,3 +66,17 @@ See plan §"Bootstrap decisions" (B3.6a–B3.6d).
   (title mutation lands + engine still registered after wake) and
   `mutate_dialog_by_id_unknown_id_is_noop` (silent no-op guard).
   Gate green — nextest 2512/0/9.
+
+- **Prereq Task B — post-show mutator routing:** COMPLETE. SetRootTitle,
+  EnableAutoDeletion, set_button_label_for_result gain a ctx parameter
+  and branch on self.pending.is_some(): pre-show stays direct via
+  with_dlg_panel_mut; post-show routes through pending_actions →
+  App::mutate_dialog_by_id. For set_button_label_for_result, post-show
+  queues a (DialogResult, String) pair on DlgPanel::pending_label_updates
+  via mutate_dialog_by_id; DialogPrivateEngine::Cycle step 0.5 drains the
+  queue by walking DlgButton children while holding simultaneous DlgPanel
+  + tree access. Three #[should_panic] post-show tests replaced by
+  positive routing tests (title/flag read back via materialized tree;
+  button label read back after one DoTimeSlice). AddCustomButton /
+  set_on_finish / set_on_check_finish untouched per plan. Gate green —
+  nextest 2512/0/9.
