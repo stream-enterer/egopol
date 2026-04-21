@@ -774,14 +774,6 @@ pub(crate) struct DialogPrivateEngine {
     /// without a reverse-lookup.
     pub(crate) dialog_id: crate::emGUIFramework::DialogId,
     pub(crate) root_panel_id: crate::emPanelTree::PanelId,
-    /// Phase 3.5 Task 5: no longer `Option<WindowId>` — the engine is
-    /// constructed at install time with `materialized_wid` known, so
-    /// the field is always populated.
-    /// Phase 3.5 Task 10: the auto-delete branch now uses `dialog_id` +
-    /// `close_dialog_by_id` instead of `CloseWindow(window_id)`, so the
-    /// field is structurally present (C++ `PrivateEngineClass` back-ref) but
-    /// not directly read in Rust. Prefixed `_` to suppress dead_code lint.
-    pub(crate) _window_id: winit::window::WindowId,
     pub(crate) close_signal: SignalId,
 }
 

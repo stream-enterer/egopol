@@ -563,7 +563,6 @@ impl App {
             let engine = Box::new(crate::emDialog::DialogPrivateEngine {
                 dialog_id: pending.dialog_id,
                 root_panel_id: pending.private_engine_root_panel_id,
-                _window_id: new_wid,
                 close_signal: pending.close_signal,
             });
             let engine_id = self.scheduler.register_engine(
@@ -642,7 +641,6 @@ impl App {
         let engine = Box::new(crate::emDialog::DialogPrivateEngine {
             dialog_id: pending.dialog_id,
             root_panel_id: pending.private_engine_root_panel_id,
-            _window_id: wid,
             close_signal: pending.close_signal,
         });
         let engine_id =
