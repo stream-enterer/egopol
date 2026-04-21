@@ -4,6 +4,8 @@ use crate::emEngineCtx::{ConstructCtx, PanelCtx};
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPainter::emPainter;
+#[cfg(test)]
+use crate::emPanel::PanelBehavior;
 use crate::emPanel::PanelState;
 use crate::emPanel::Rect;
 use crate::emSignal::SignalId;
@@ -42,6 +44,162 @@ pub struct emDialog {
 const BUTTON_HEIGHT: f64 = 22.0;
 const BUTTON_SPACING: f64 = 4.0;
 const BOTTOM_MARGIN: f64 = 4.0;
+
+/// Root-panel PanelBehavior for an `emDialog`.
+///
+/// Port of C++ `emDialog::DlgPanel : public emBorder` (emDialog.h:186-204).
+/// Lives as the root panel of the dialog's owned `emWindow`. Holds the
+/// dialog's mutable state (result, buttons, finish-state, auto-delete
+/// countdown) because `DialogPrivateEngine::Cycle` reaches state through
+/// `tree.take_behavior(root_panel_id)` — the Rust analog of the C++
+/// `PrivateEngineClass::Dlg&` back-reference (B3.5e).
+///
+/// `#[cfg(test)]`-gated in Task 2 — Task 5 removes the gate when
+/// DialogPrivateEngine becomes the real consumer. Without the gate, the
+/// lib build's dead-code lint would fire on fields unused until Task 5.
+#[cfg(test)]
+pub(crate) struct DlgPanel {
+    border: emBorder,
+    look: Rc<emLook>,
+    /// Dialog buttons: (caption string, result payload). Rendered in the
+    /// bottom button row as `DlgButton` child panels.
+    pub(crate) buttons: Vec<(String, DialogResult)>,
+    /// Set by `Finish` once CheckFinish permits. `DialogPrivateEngine`
+    /// observes this on Cycle and fires `finish_signal`.
+    pub(crate) pending_result: Option<DialogResult>,
+    /// Stored after the finish signal has fired. Read via `GetResult`.
+    pub(crate) finalized_result: Option<DialogResult>,
+    /// Incremented by `DialogPrivateEngine::Cycle` after close_signal fires,
+    /// when auto_delete is enabled. At 3, the engine emits
+    /// `DeferredAction::CloseWindow`. C++ parity: emDialog.cpp FinishState.
+    pub(crate) finish_state: u8,
+    pub(crate) auto_delete: bool,
+    pub(crate) finish_signal: SignalId,
+    pub(crate) on_finish: Option<DialogFinishCb>,
+    pub(crate) on_check_finish: Option<DialogCheckFinishCb>,
+    /// Port of C++ `virtual void emDialog::Finished(int result)` (D1 — callback,
+    /// not trait method). Fires from `DialogPrivateEngine::Cycle` after
+    /// finish_signal fires. Default `None` matches C++ default (no-op).
+    pub(crate) on_finished: Option<DialogFinishCb>,
+    /// PanelId of the emLinearLayout content panel, set by Task 7.
+    pub(crate) content_panel_id: Option<crate::emPanelTree::PanelId>,
+    /// PanelId of the emLinearLayout button-row panel, set by Task 7.
+    pub(crate) buttons_panel_id: Option<crate::emPanelTree::PanelId>,
+}
+
+#[cfg(test)]
+impl DlgPanel {
+    pub(crate) fn new(title: &str, look: Rc<emLook>, finish_signal: SignalId) -> Self {
+        Self {
+            border: emBorder::new(OuterBorderType::PopupRoot).with_caption(title),
+            look,
+            buttons: Vec::new(),
+            pending_result: None,
+            finalized_result: None,
+            finish_state: 0,
+            auto_delete: false,
+            finish_signal,
+            on_finish: None,
+            on_check_finish: None,
+            on_finished: None,
+            content_panel_id: None,
+            buttons_panel_id: None,
+        }
+    }
+
+    pub(crate) fn SetTitle(&mut self, title: &str) {
+        self.border.SetCaption(title);
+    }
+}
+
+#[cfg(test)]
+impl PanelBehavior for DlgPanel {
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
+        let pixel_scale = 1.0; // DlgPanel is the view root; no enclosing scaling
+        self.border
+            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
+    }
+
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        // Port of C++ DlgPanel::LayoutChildren (emDialog.cpp:302-322).
+        // Same operation order as C++:
+        //   GetContentRectUnobscured(&x,&y,&w,&h,&cc);
+        //   bh = emMin(w*0.08, h*0.3);
+        //   sp = bh * 0.25;
+        //   x += sp; y += sp; w -= 2*sp; h -= 2*sp;
+        //   ContentPanel->Layout(x, y, w, h-sp-bh, cc);
+        //   ButtonsPanel->Layout(x, y+h-bh, w, bh, cc);
+        let Rect { w: pw, h: ph, .. } = ctx.layout_rect();
+        let Rect {
+            mut x,
+            mut y,
+            mut w,
+            mut h,
+        } = self.border.GetContentRectUnobscured(pw, ph, &self.look);
+        let bh = f64::min(w * 0.08, h * 0.3);
+        let sp = bh * 0.25;
+        x += sp;
+        y += sp;
+        w -= 2.0 * sp;
+        h -= 2.0 * sp;
+        if let Some(content_id) = self.content_panel_id {
+            ctx.layout_child(content_id, x, y, w, h - sp - bh);
+        }
+        if let Some(buttons_id) = self.buttons_panel_id {
+            ctx.layout_child(buttons_id, x, y + h - bh, w, bh);
+        }
+
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        ctx.set_all_children_canvas_color(cc);
+    }
+
+    fn GetCanvasColor(&self) -> crate::emColor::emColor {
+        // PopupRoot border paints opaque background; canvas = content.
+        self.border
+            .content_canvas_color(crate::emColor::emColor::TRANSPARENT, &self.look, true)
+    }
+
+    fn IsOpaque(&self) -> bool {
+        true // PopupRoot covers the whole dialog viewport
+    }
+
+    fn Input(
+        &mut self,
+        event: &emInputEvent,
+        _state: &PanelState,
+        _input_state: &emInputState,
+        _ctx: &mut PanelCtx,
+    ) -> bool {
+        // Port of C++ emDialog::DlgPanel::Input (emDialog.cpp:277-299).
+        // DIVERGED: emBorder has no Input in Rust; C++ emBorder::Input called
+        // here handles focus traversal. Track as latent gap — revisit if
+        // emBorder gains Input.
+        if event.variant != InputVariant::Press {
+            return false;
+        }
+        // C++ uses state.IsNoMod() (emInput.h:293): treats Shift as a blocking
+        // modifier too. Inline-expanded since Rust emInputState has no IsNoMod.
+        if event.shift || event.ctrl || event.alt || event.meta {
+            return false;
+        }
+        match event.key {
+            InputKey::Enter => {
+                // Set pending result; DialogPrivateEngine observes on next Cycle,
+                // runs on_check_finish, fires finish_signal. Not a direct Finish
+                // call: Finish semantics live in the private engine per C++.
+                self.pending_result = Some(DialogResult::Ok);
+                true
+            }
+            InputKey::Escape => {
+                self.pending_result = Some(DialogResult::Cancel);
+                true
+            }
+            _ => false,
+        }
+    }
+}
 
 impl emDialog {
     pub fn new<C: ConstructCtx>(ctx: &mut C, title: &str, look: Rc<emLook>) -> Self {
@@ -509,6 +667,151 @@ mod tests {
         assert!(!dlg.CheckFinish());
         dlg.Finish(DialogResult::Ok, &mut ctx);
         assert!(dlg.CheckFinish());
+    }
+
+    #[test]
+    fn dlg_panel_enter_sets_pending_ok() {
+        let mut tree = PanelTree::new();
+        let pid = tree.create_root("dlg", false);
+        let mut pctx = PanelCtx::new(&mut tree, pid, 1.0);
+
+        let mut __init = TestInit::new();
+        let finish_sig = __init.sched.create_signal();
+        let mut panel = DlgPanel::new("Title", emLook::new(), finish_sig);
+
+        let ev = emInputEvent::press(InputKey::Enter);
+        let ps = PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+            height: 1.0,
+        };
+        let is = emInputState::new();
+
+        let consumed = panel.Input(&ev, &ps, &is, &mut pctx);
+        assert!(consumed, "Enter should be consumed");
+        assert_eq!(panel.pending_result, Some(DialogResult::Ok));
+        // Read remaining fields so dead-code doesn't fire before Task 5 wires
+        // DlgPanel into emDialog. All of these are observed by
+        // DialogPrivateEngine::Cycle (Task 4) per plan §B3.5e.
+        assert!(panel.buttons.is_empty());
+        assert!(panel.finalized_result.is_none());
+        assert_eq!(panel.finish_state, 0);
+        assert!(!panel.auto_delete);
+        let _ = panel.finish_signal;
+        assert!(panel.on_finish.is_none());
+        assert!(panel.on_check_finish.is_none());
+        assert!(panel.on_finished.is_none());
+        assert!(panel.content_panel_id.is_none());
+        assert!(panel.buttons_panel_id.is_none());
+        panel.SetTitle("New");
+    }
+
+    #[test]
+    fn dlg_panel_escape_sets_pending_cancel() {
+        let mut tree = PanelTree::new();
+        let pid = tree.create_root("dlg", false);
+        let mut pctx = PanelCtx::new(&mut tree, pid, 1.0);
+
+        let mut __init = TestInit::new();
+        let finish_sig = __init.sched.create_signal();
+        let mut panel = DlgPanel::new("Title", emLook::new(), finish_sig);
+
+        let ev = emInputEvent::press(InputKey::Escape);
+        let ps = PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+            height: 1.0,
+        };
+        let is = emInputState::new();
+
+        let consumed = panel.Input(&ev, &ps, &is, &mut pctx);
+        assert!(consumed, "Escape should be consumed");
+        assert_eq!(panel.pending_result, Some(DialogResult::Cancel));
+    }
+
+    #[test]
+    fn dlg_panel_modified_enter_is_ignored() {
+        let mut tree = PanelTree::new();
+        let pid = tree.create_root("dlg", false);
+        let mut pctx = PanelCtx::new(&mut tree, pid, 1.0);
+
+        let mut __init = TestInit::new();
+        let finish_sig = __init.sched.create_signal();
+        let mut panel = DlgPanel::new("Title", emLook::new(), finish_sig);
+
+        let mut ev = emInputEvent::press(InputKey::Enter);
+        ev.ctrl = true;
+        let ps = PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+            height: 1.0,
+        };
+        let is = emInputState::new();
+
+        let consumed = panel.Input(&ev, &ps, &is, &mut pctx);
+        assert!(!consumed, "Ctrl-Enter should not be consumed");
+        assert_eq!(panel.pending_result, None);
+    }
+
+    #[test]
+    fn dlg_panel_shift_enter_is_ignored() {
+        // C++ parity: state.IsNoMod() rejects Shift (emInput.h:293).
+        let mut tree = PanelTree::new();
+        let pid = tree.create_root("dlg", false);
+        let mut pctx = PanelCtx::new(&mut tree, pid, 1.0);
+
+        let mut init = TestInit::new();
+        let finish_sig = init.sched.create_signal();
+        let mut panel = DlgPanel::new("Title", emLook::new(), finish_sig);
+
+        let mut ev = emInputEvent::press(InputKey::Enter);
+        ev.shift = true;
+        let ps = PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+            height: 1.0,
+        };
+        let is = emInputState::new();
+
+        let consumed = panel.Input(&ev, &ps, &is, &mut pctx);
+        assert!(!consumed, "Shift-Enter should not be consumed");
+        assert_eq!(panel.pending_result, None);
     }
 
     #[test]
