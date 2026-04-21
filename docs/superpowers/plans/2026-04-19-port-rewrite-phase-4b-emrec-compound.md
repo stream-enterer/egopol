@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans.
 
-**Goal:** Port the compound emRec concrete types: `emFlagsRec`, `emAlignmentRec`, `emColorRec`, `emStructRec`, `emUnionRec`, `emTArrayRec<T>`. Each composes change-notification from child recs (structural) or maintains its own signal (atomic).
+**Goal:** Port the compound emRec concrete types: `emFlagsRec`, `emStructRec`, `emUnionRec`, `emTArrayRec<T>`. Each composes change-notification from child recs (structural) or maintains its own signal (atomic).
+
+> **Scope amendment (2026-04-21).** `emAlignmentRec` and `emColorRec` were originally bundled into Tasks 2–3 of this plan. Pre-execution audit found that legacy parser-era `emAlignmentRec`/`emColorRec` already live in `crates/emcore/src/emRecRecTypes.rs` with three downstream consumers (`emVirtualCosmos`, `emBookmarks`, `emFileManTheme`) plus generated kani harnesses. The legacy types use a different value model (`emTiling::Alignment` enum vs C++ `emByte` bitset) and a different change-notification mechanism (`RecListenerList` vs `SignalId`). Adding new canonical files alongside the legacy ones would violate File-and-Name Correspondence and the no-backcompat-shims rule; migrating the consumers in-phase would balloon scope and depends on persistence APIs deferred to Phase 4d. The split-out work is planned as **Phase 4b'** (`docs/superpowers/plans/2026-04-21-port-rewrite-phase-4b-prime-color-alignment-rec.md`). Phase 4b ships only the four types listed above. Tasks 2 and 3 below are **REMOVED** from this plan; subsequent task numbers preserved for ledger continuity.
 
 **Architecture:** Compound types are nodes that own child `emRec`s (structural: `emStructRec`, `emUnionRec`, `emTArrayRec<T>`) or are themselves atomic values with structured representation (`emFlagsRec`, `emAlignmentRec`, `emColorRec`). Atomic compounds behave like primitives with typed value. Structural compounds propagate child-signals upward per C++ `emRec::SetValue` composite behavior.
 
@@ -11,7 +13,7 @@
 **JSON entries closed:** none (E026 at Phase 4d).
 
 **Phase-specific invariants (C4):**
-- **I4b-1.** Files `emFlagsRec.rs`, `emAlignmentRec.rs`, `emColorRec.rs`, `emStructRec.rs`, `emUnionRec.rs`, `emTArrayRec.rs` exist with concrete impls.
+- **I4b-1.** Files `emFlagsRec.rs`, `emStructRec.rs`, `emUnionRec.rs`, `emTArrayRec.rs` exist with concrete impls. (`emAlignmentRec.rs`, `emColorRec.rs` deferred to Phase 4b'.)
 - **I4b-2.** For each, a signal-fire test parallel to Phase 4a's pattern.
 - **I4b-3.** For `emStructRec`, a composition test: setting a child value fires the child signal *and* propagates an aggregate-change signal (matching C++ behaviour — confirm against emRec.cpp).
 - **I4b-4.** No golden regressions.
@@ -33,34 +35,37 @@ Run B1–B12 with `<N>` = `4b`.
 ## File Structure
 
 **New files** (1:1 with C++):
-- `crates/emcore/src/emFlagsRec.rs` — bitset: u32 value with identifier table.
-- `crates/emcore/src/emAlignmentRec.rs` — emAlignment value (a u32 packed alignment).
-- `crates/emcore/src/emColorRec.rs` — emColor value.
+- `crates/emcore/src/emFlagsRec.rs` — bitset: i32 value (matches C++ `int Value`) with identifier table.
 - `crates/emcore/src/emStructRec.rs` — named field collection of child emRecs.
 - `crates/emcore/src/emUnionRec.rs` — tagged union of alternative child emRecs.
 - `crates/emcore/src/emTArrayRec.rs` — `emTArrayRec<T: emRec>` dynamic list of child recs.
+
+**Deferred to Phase 4b':** `emAlignmentRec.rs`, `emColorRec.rs` — see the Phase 4b' plan for migration of the three legacy consumers (`emVirtualCosmos`, `emBookmarks`, `emFileManTheme`) and removal of the legacy stubs from `emRecRecTypes.rs`.
 
 **Modified:** `crates/emcore/src/lib.rs`.
 
 ---
 
-## Task 1–3: Atomic compounds (`emFlagsRec`, `emAlignmentRec`, `emColorRec`)
+## Task 1: Atomic compound (`emFlagsRec`)
 
-Each follows the Phase-4a primitive pattern.
+Follows the Phase-4a primitive pattern.
 
-- [ ] **For each:**
-    - **Step 1:** Failing signal-fire + no-fire-on-no-change tests.
-    - **Step 2:** Implement parallel to `emBoolRec`, substituting the value type:
-      - `emFlagsRec`: `value: u32`, `identifiers: Vec<String>`, `GetFlagId/SetFlag` helpers.
-      - `emAlignmentRec`: `value: emAlignment` (ported type from `emAlignment.rs`).
-      - `emColorRec`: `value: emColor` (existing `Color` type in `emColor.rs`).
-    - **Step 3:** Tests pass.
-    - **Step 4:** Commit.
+- **Step 1:** Failing signal-fire + no-fire-on-no-change tests.
+- **Step 2:** Implement parallel to `emBoolRec`:
+  - `value: i32` (C++ `int Value`), `default: i32`, `identifiers: Vec<Option<String>>` indexed by bit (0..31, sparse — bits without an identifier hold `None`).
+  - Helpers: `GetIdentifierCount`, `GetIdentifierOf(bit) -> Option<&str>`, `GetBitOf(name) -> Option<i32>`.
+  - SetValue masks undefined bits to zero per emRec.cpp `Set` (only bits with defined identifiers may be set).
+- **Step 3:** Tests pass.
+- **Step 4:** Commit.
 
 ```bash
-git add crates/emcore/src/emFlagsRec.rs crates/emcore/src/emAlignmentRec.rs crates/emcore/src/emColorRec.rs crates/emcore/src/lib.rs
-git commit -m "phase-4b: atomic compound recs (Flags/Alignment/Color)"
+git add crates/emcore/src/emFlagsRec.rs crates/emcore/src/lib.rs
+git commit -m "phase-4b: emFlagsRec atomic compound"
 ```
+
+## Tasks 2–3: REMOVED (deferred to Phase 4b')
+
+See scope amendment at the top of this plan.
 
 ---
 
