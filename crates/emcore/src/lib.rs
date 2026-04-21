@@ -45,6 +45,7 @@ pub mod emInputDispatchEngine;
 pub mod emInputHotkey;
 pub mod emInputState;
 pub mod emInstallInfo;
+pub mod emIntRec;
 pub mod emJob;
 pub mod emLabel;
 pub mod emLinearGroup;
