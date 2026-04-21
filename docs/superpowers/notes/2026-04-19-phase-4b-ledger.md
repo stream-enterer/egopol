@@ -16,4 +16,8 @@ Pre-Task-1 audit found legacy `emAlignmentRec` and `emColorRec` in `crates/emcor
 
 ## Task log
 
-<empty — tasks append here as they complete>
+- **Task 1 (emFlagsRec):** COMPLETE.
+  - `280a23b3` — initial impl: i32 value, ≤32 dense identifiers, mask-then-compare SetValue, case-insensitive backwards GetBitOf. Mirrors `emBoolRec` structurally. 8 tests; nextest 2535 → 2543.
+  - `7223846c` — code review fix: added full `check_identifier` predicate (`[A-Za-z_][A-Za-z0-9_]*`) per `emRec.cpp:173-194`. 7 grammar tests; nextest 2543 → 2550. CheckIdentifier centralization deferred to phase-4b+ when emEnumRec/emStructRec varIdentifiers need it.
+- **Tasks 2-3:** REMOVED per scope amendment (deferred to Phase 4b').
+
