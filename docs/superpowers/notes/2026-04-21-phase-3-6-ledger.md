@@ -87,3 +87,10 @@ See plan §"Bootstrap decisions" (B3.6a–B3.6d).
   step 0.5 drain. `set_button_label_for_result` post-show walks DlgButton
   children inline through the tree arg. Single post-show rail restored.
   Gate green — nextest 2512/0/9.
+
+- **Prereq Task C — finish_post_show retired to wrapper:** COMPLETE.
+  emDialog::finish_post_show is now a thin wrapper over the Prereq A
+  App::mutate_dialog_by_id rail. Old inlined dialog_windows → windows →
+  take_tree → ... walk deleted. 2 production callers in emFileDialog::Cycle
+  unchanged — they die in Task 4. 2 unit tests unchanged.
+  Gate green — nextest 2512/0/9.
