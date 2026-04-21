@@ -15,7 +15,7 @@ use super::emBorder::{emBorder, OuterBorderType};
 use crate::emLook::emLook;
 
 /// Result of a dialog interaction.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DialogResult {
     Ok,
     Cancel,
@@ -149,7 +149,7 @@ impl emDialog {
     ) {
         // Build the DlgButton (needs ctx for click_signal allocation via emButton::new).
         let look = Rc::clone(&self.look);
-        let btn = DlgButton::new(ctx, label, look, result.clone(), self.root_panel_id);
+        let btn = DlgButton::new(ctx, label, look, result, self.root_panel_id);
         let click_signal = btn.button.click_signal;
 
         let pending = self.pending.as_mut().expect("AddCustomButton after show");
@@ -657,7 +657,7 @@ impl crate::emEngine::emEngine for DialogPrivateEngine {
                 .iter()
                 .filter_map(|(sig, result)| {
                     if ctx.IsSignaled(*sig) {
-                        Some(result.clone())
+                        Some(*result)
                     } else {
                         None
                     }
@@ -710,7 +710,6 @@ impl crate::emEngine::emEngine for DialogPrivateEngine {
                 let finish_signal = dlg.finish_signal;
                 let result = dlg
                     .finalized_result
-                    .clone()
                     .expect("finish_state==1 implies finalized_result is set");
                 // Take callbacks to avoid aliasing with ctx.as_sched_ctx();
                 // leave None afterwards — C++ invokes `Finished(Result)`
@@ -1219,7 +1218,7 @@ mod tests {
             .unwrap()
             .button_signals
             .iter()
-            .map(|(_, r)| r.clone())
+            .map(|(_, r)| *r)
             .collect();
         tree.put_behavior(dlg.root_panel_id, behavior);
 
@@ -1243,12 +1242,12 @@ mod tests {
 
         // Verify first child is named "0" and has Ok result.
         let mut b0 = tree.take_behavior(children[0]).unwrap();
-        let btn0_result = b0.as_dlg_button_mut().unwrap().result().clone();
+        let btn0_result = *b0.as_dlg_button_mut().unwrap().result();
         tree.put_behavior(children[0], b0);
         assert_eq!(btn0_result, DialogResult::Ok);
 
         let mut b1 = tree.take_behavior(children[1]).unwrap();
-        let btn1_result = b1.as_dlg_button_mut().unwrap().result().clone();
+        let btn1_result = *b1.as_dlg_button_mut().unwrap().result();
         tree.put_behavior(children[1], b1);
         assert_eq!(btn1_result, DialogResult::Cancel);
     }
@@ -1607,7 +1606,7 @@ mod tests {
             let mut dlg = emDialog::new(&mut ctx, "Test", look);
             dlg.AddCustomButton(&mut ctx, "OK", DialogResult::Ok);
             dlg.set_on_finish(Box::new(move |r, _sched| {
-                *result_clone.borrow_mut() = Some(r.clone());
+                *result_clone.borrow_mut() = Some(*r);
             }));
 
             // Extract button click_signal before consuming `pending`.
@@ -1693,7 +1692,7 @@ mod tests {
                 *n > 1 // false on first call, true on subsequent
             }));
             dlg.set_on_finish(Box::new(move |r, _sched| {
-                *finish_clone.borrow_mut() = Some(r.clone());
+                *finish_clone.borrow_mut() = Some(*r);
             }));
 
             let close_sig = dlg.close_signal;

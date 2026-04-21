@@ -1,5 +1,6 @@
 // Port of C++ emStocksListBox.h / emStocksListBox.cpp
 
+use std::cell::Cell;
 use std::cmp::Ordering;
 use std::rc::Rc;
 
@@ -48,6 +49,11 @@ pub struct emStocksListBox {
     pub(crate) paste_stocks_dialog: Option<emDialog>,
     pub(crate) delete_stocks_dialog: Option<emDialog>,
     pub(crate) interest_dialog: Option<emDialog>,
+    // Phase 3.5 Task 14: result slots written by on_finish closures.
+    pub(crate) cut_stocks_result: Rc<Cell<Option<DialogResult>>>,
+    pub(crate) paste_stocks_result: Rc<Cell<Option<DialogResult>>>,
+    pub(crate) delete_stocks_result: Rc<Cell<Option<DialogResult>>>,
+    pub(crate) interest_result: Rc<Cell<Option<DialogResult>>>,
     pub(crate) interest_to_set: Option<Interest>,
 }
 
@@ -74,6 +80,10 @@ impl emStocksListBox {
             paste_stocks_dialog: None,
             delete_stocks_dialog: None,
             interest_dialog: None,
+            cut_stocks_result: Rc::new(Cell::new(None)),
+            paste_stocks_result: Rc::new(Cell::new(None)),
+            delete_stocks_result: Rc::new(Cell::new(None)),
+            interest_result: Rc::new(Cell::new(None)),
             interest_to_set: None,
         }
     }
@@ -492,6 +502,8 @@ impl emStocksListBox {
                 );
                 dialog.AddCustomButton(cc, "Delete", DialogResult::Ok);
                 dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
+                let cell = Rc::clone(&self.delete_stocks_result);
+                dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
                 self.delete_stocks_dialog = Some(dialog);
             }
             return; // Defer until Cycle() observes dialog confirmation.
@@ -537,6 +549,8 @@ impl emStocksListBox {
                     emDialog::new(cc, &format!("Really cut {} stock(s)?", count), look.clone());
                 dialog.AddCustomButton(cc, "Cut", DialogResult::Ok);
                 dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
+                let cell = Rc::clone(&self.cut_stocks_result);
+                dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
                 self.cut_stocks_dialog = Some(dialog);
             }
             return; // Defer until Cycle() observes dialog confirmation.
@@ -573,6 +587,8 @@ impl emStocksListBox {
                 let mut dialog = emDialog::new(cc, "Really paste stocks?", look.clone());
                 dialog.AddCustomButton(cc, "Paste", DialogResult::Ok);
                 dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
+                let cell = Rc::clone(&self.paste_stocks_result);
+                dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
                 self.paste_stocks_dialog = Some(dialog);
             }
             return Ok(Vec::new()); // Defer until Cycle() observes dialog confirmation.
@@ -663,6 +679,8 @@ impl emStocksListBox {
                 let mut dialog = emDialog::new(cc, "Really change interest?", look.clone());
                 dialog.AddCustomButton(cc, "Change", DialogResult::Ok);
                 dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
+                let cell = Rc::clone(&self.interest_result);
+                dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
                 self.interest_dialog = Some(dialog);
                 self.interest_to_set = Some(interest);
             }
@@ -1479,5 +1497,15 @@ mod tests {
 
         lb.ClearSelection();
         assert_eq!(lb.GetSelectionCount(), 0);
+    }
+
+    // Phase 3.5 Task 14: verify result slots are initialized to None.
+    #[test]
+    fn result_slots_initialize_to_none() {
+        let lb = emStocksListBox::new();
+        assert!(lb.cut_stocks_result.get().is_none());
+        assert!(lb.paste_stocks_result.get().is_none());
+        assert!(lb.delete_stocks_result.get().is_none());
+        assert!(lb.interest_result.get().is_none());
     }
 }
