@@ -22,3 +22,4 @@
 ## Task ledger
 
 - **Task 1 — Entry audit + ledger open:** COMPLETE. Branch created off port-rewrite-phase-3-5-a-complete (586d6af5). Entry audit recorded. Gate green — nextest 2492/0/9.
+- **Task 2 — Extend ConstructCtx + pending_actions closure rail:** COMPLETE. Added `FrameworkDeferredAction` re-export, extended `ConstructCtx` trait with `pending_actions()` / `root_context()` / `allocate_dialog_id()`, added `pending_actions` required field to `InitCtx`/`EngineCtx`/`SchedCtx` and `Option` field to `PanelCtx`, added `EngineScheduler::allocate_dialog_id()` stub, threaded `pending_actions` through `DoTimeSlice` and all engine dispatch paths, updated `with_sched_reach` to 8 args, updated all test harnesses and 47 call-site files. Gate green — nextest 2493/0/9.
