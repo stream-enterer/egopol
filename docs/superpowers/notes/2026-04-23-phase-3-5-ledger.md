@@ -63,3 +63,7 @@ COMPLETE. 4 construct sites (`DeleteStocks`, `CutStocks`, `PasteStocks`, `SetInt
 ### Keystone: Task 5.2 emStocksListBox migration COMPLETE
 
 Tasks 14–15 landed the consumer migration: Rc<Cell<Option<DialogResult>>> result slots, on_finish Cell-writer closures at 4 construct sites, Cell::take polling in Cycle, closure-rail close_dialog_by_id replacing silent_cancel. DialogResult gained Copy. Goldens preserved 237/6. Nextest 2496/0/9.
+
+## Task 17 — emFileDialog dead-code delete
+
+COMPLETE. Removed `set_mode` and `dialog_mut` (zero live callers, non-public-API concern). Stale comment block referencing `dialog_mut()` in the `#[cfg(any())]` test module replaced with a one-liner. Gate green — nextest 2496/0/9, `cargo clippy --all-targets --all-features -- -D warnings` clean.
