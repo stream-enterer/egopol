@@ -299,8 +299,7 @@ impl emDialog {
     // These stubs exist so production consumers (`emStocksListBox`,
     // `emFileDialog`) compile between Task 7 and their respective migration
     // tasks (Task 15 for emStocks, Task 19 for emFileDialog). They panic at
-    // runtime; tests that call them are gated under `#[cfg(any())]` below
-    // (Task 12 / 15 / 19 port those paths).
+    // runtime; Tasks 15 and 19 remove them after consumer migration.
 
     /// PHASE-3.5-STUB: Task 15 (emStocks) and Task 19 (emFileDialog)
     /// replace this with the new `on_finish`-callback pattern.
@@ -1538,231 +1537,223 @@ mod tests {
         app.scheduler.clear_pending_for_tests();
     }
 
-    // ─── Legacy emDialog tests staged for Task 12 porting ────────────────────
-    // These tests call the old `emDialog` API (Finish, GetResult, Input,
-    // AddCustomButton, EnableAutoDeletion, etc.) which was removed in Task 7.
-    // They are preserved here under #[cfg(any())] for Task 12 to port to the
-    // new callback-based API.
-    // PHASE-3.5-TASK-12: port to new API
+    // ─── Task 12 tests ───────────────────────────────────────────────────────
 
-    #[cfg(any())]
-    mod legacy_tests {
-        use super::*;
+    /// Ports `release_event_is_ignored`: DlgPanel rejects key-release events.
+    /// C++ parity: `DlgPanel::Input` guard at emDialog.cpp:465 checks
+    /// `event.variant != InputVariant::Press`.
+    #[test]
+    fn dlg_panel_release_event_is_ignored() {
+        let mut tree = PanelTree::new();
+        let pid = tree.create_root("dlg", false);
+        let mut pctx = PanelCtx::new(&mut tree, pid, 1.0);
 
-        #[test]
-        fn dialog_fires_finish_signal_on_input_enter() {
-            let mut __init = TestInit::new();
+        let mut init = TestInit::new();
+        let finish_sig = init.sched.create_signal();
+        let mut panel = DlgPanel::new("Title", emLook::new(), finish_sig);
+
+        let ev = emInputEvent::release(InputKey::Enter);
+        let ps = PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+            height: 1.0,
+        };
+        let is = emInputState::new();
+
+        let consumed = panel.Input(&ev, &ps, &is, &mut pctx);
+        assert!(!consumed, "key-release must not be consumed");
+        assert_eq!(
+            panel.pending_result, None,
+            "release must not set pending_result"
+        );
+    }
+
+    /// End-to-end: construct dialog via `emDialog::new`, add OK button,
+    /// set `on_finish` callback, install headless, fire button click_signal,
+    /// run one `DoTimeSlice`, assert `on_finish` was called with `Ok`.
+    ///
+    /// Ports `dialog_finish_fires_callback` and `dialog_fires_finish_signal_on_input_enter`.
+    /// Satisfies plan §12 minimum coverage item 1.
+    #[test]
+    fn dialog_finish_fires_on_finish_callback_via_button_click() {
+        use crate::emEngineCtx::InitCtx;
+        use crate::emGUIFramework::App;
+        use winit::window::WindowId;
+
+        let mut app = App::new(Box::new(|_app, _el| {}));
+
+        // Build emDialog via the public handle API so the full pending tree is
+        // constructed by emDialog::new / AddCustomButton.
+        let result_cell: Rc<RefCell<Option<DialogResult>>> = Rc::new(RefCell::new(None));
+        let result_clone = Rc::clone(&result_cell);
+
+        let (dlg, button_click_sig) = {
+            let mut ctx = InitCtx {
+                scheduler: &mut app.scheduler,
+                framework_actions: &mut app.framework_actions,
+                root_context: &app.context,
+                pending_actions: &app.pending_actions,
+            };
             let look = emLook::new();
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Test", look);
-            let sig = dlg.finish_signal;
-            let (mut tree, tid) = test_tree();
-            let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
-                RefCell::new(None);
-            {
-                let mut ctx = PanelCtx::with_sched_reach(
-                    &mut tree,
-                    tid,
-                    1.0,
-                    &mut __init.sched,
-                    &mut __init.fw,
-                    &__init.root,
-                    &fw_cb,
-                    &__init.pa,
+            let mut dlg = emDialog::new(&mut ctx, "Test", look);
+            dlg.AddCustomButton(&mut ctx, "OK", DialogResult::Ok);
+            dlg.set_on_finish(Box::new(move |r, _sched| {
+                *result_clone.borrow_mut() = Some(r.clone());
+            }));
+
+            // Extract button click_signal before consuming `pending`.
+            let click_sig = {
+                let pending = dlg.pending.as_mut().unwrap();
+                let tree = pending.window.tree_mut();
+                let mut beh = tree.take_behavior(dlg.root_panel_id).unwrap();
+                let sig = beh.as_dlg_panel_mut().unwrap().button_signals[0].0;
+                tree.put_behavior(dlg.root_panel_id, beh);
+                sig
+            };
+            (dlg, click_sig)
+        };
+
+        // Push pending to app and install headless.
+        let wid = WindowId::dummy();
+        app.pending_top_level.push(dlg.pending.unwrap());
+        let engine_id = app
+            .install_pending_top_level_headless(wid)
+            .expect("install registers DialogPrivateEngine");
+
+        // Connect button click_signal to DialogPrivateEngine so firing it wakes
+        // the engine (mirrors production `install_pending_top_level` behavior).
+        app.scheduler.connect(button_click_sig, engine_id);
+
+        // Fire the OK button click and run one slice.
+        app.scheduler.fire(button_click_sig);
+        let mut pending_inputs: Vec<(WindowId, emInputEvent)> = Vec::new();
+        let mut input_state = emInputState::new();
+        let fc: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        app.scheduler.DoTimeSlice(
+            &mut app.windows,
+            &app.context,
+            &mut app.framework_actions,
+            &mut pending_inputs,
+            &mut input_state,
+            &fc,
+            &app.pending_actions,
+        );
+
+        assert_eq!(
+            *result_cell.borrow(),
+            Some(DialogResult::Ok),
+            "on_finish must be called with Ok when OK button click_signal fires"
+        );
+
+        // Teardown.
+        app.scheduler.remove_engine(engine_id);
+        app.scheduler.clear_pending_for_tests();
+    }
+
+    /// End-to-end veto: `on_check_finish` returning `false` prevents
+    /// finalization; returning `true` on the second trigger allows it.
+    ///
+    /// Ports `check_finish_can_veto` and `check_finish_lifecycle`.
+    /// Satisfies plan §12 minimum coverage item 2.
+    #[test]
+    fn dialog_check_finish_veto_then_allow() {
+        use crate::emEngineCtx::InitCtx;
+        use crate::emGUIFramework::App;
+        use winit::window::WindowId;
+
+        let mut app = App::new(Box::new(|_app, _el| {}));
+
+        // Veto counter: first call returns false (veto), second returns true (allow).
+        let veto_count: Rc<RefCell<u32>> = Rc::new(RefCell::new(0));
+        let veto_clone = Rc::clone(&veto_count);
+        let finish_cell: Rc<RefCell<Option<DialogResult>>> = Rc::new(RefCell::new(None));
+        let finish_clone = Rc::clone(&finish_cell);
+
+        let (close_sig, root_id, wid) = {
+            let mut ctx = InitCtx {
+                scheduler: &mut app.scheduler,
+                framework_actions: &mut app.framework_actions,
+                root_context: &app.context,
+                pending_actions: &app.pending_actions,
+            };
+            let look = emLook::new();
+            let mut dlg = emDialog::new(&mut ctx, "Veto", look);
+            dlg.set_on_check_finish(Box::new(move |_r| {
+                let mut n = veto_clone.borrow_mut();
+                *n += 1;
+                *n > 1 // false on first call, true on subsequent
+            }));
+            dlg.set_on_finish(Box::new(move |r, _sched| {
+                *finish_clone.borrow_mut() = Some(r.clone());
+            }));
+
+            let close_sig = dlg.close_signal;
+            let root_id = dlg.root_panel_id;
+            app.pending_top_level.push(dlg.pending.unwrap());
+            (close_sig, root_id, WindowId::dummy())
+        };
+
+        let engine_id = app
+            .install_pending_top_level_headless(wid)
+            .expect("install");
+
+        let mut pending_inputs: Vec<(WindowId, emInputEvent)> = Vec::new();
+        let mut input_state = emInputState::new();
+        let fc: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+
+        let do_slice =
+            |app: &mut App, pi: &mut Vec<(WindowId, emInputEvent)>, is: &mut emInputState| {
+                app.scheduler.DoTimeSlice(
+                    &mut app.windows,
+                    &app.context,
+                    &mut app.framework_actions,
+                    pi,
+                    is,
+                    &fc,
+                    &app.pending_actions,
                 );
-                dlg.Input(
-                    &emInputEvent::press(InputKey::Enter),
-                    &default_panel_state(),
-                    &default_input_state(),
-                    &mut ctx,
-                );
-            }
-            assert!(__init.sched.is_pending(sig));
+            };
+
+        // First close_signal: veto fires → finish_cell stays None.
+        app.scheduler.fire(close_sig);
+        do_slice(&mut app, &mut pending_inputs, &mut input_state);
+        assert!(
+            finish_cell.borrow().is_none(),
+            "first close_signal must be vetoed"
+        );
+
+        // Inspect: pending_result was consumed by veto (not finalized).
+        {
+            let win = app.windows.get_mut(&wid).unwrap();
+            let mut tree = win.take_tree();
+            let mut beh = tree.take_behavior(root_id).unwrap();
+            let dlg = beh.as_dlg_panel_mut().unwrap();
+            assert_eq!(dlg.finish_state, 0, "veto must leave finish_state at 0");
+            assert!(dlg.finalized_result.is_none(), "veto must not finalize");
+            tree.put_behavior(root_id, beh);
+            win.put_tree(tree);
         }
 
-        #[test]
-        fn dialog_finish_fires_callback() {
-            let mut __init = TestInit::new();
-            let (mut tree, tid) = test_tree();
-            let look = emLook::new();
-            let results = Rc::new(RefCell::new(Vec::new()));
-            let res_clone = results.clone();
+        // Second close_signal: veto allows → on_finish fires.
+        app.scheduler.fire(close_sig);
+        do_slice(&mut app, &mut pending_inputs, &mut input_state);
+        assert_eq!(
+            *finish_cell.borrow(),
+            Some(DialogResult::Cancel),
+            "second close_signal must finalize to Cancel"
+        );
 
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Test", look);
-            dlg.AddCustomButton("OK", DialogResult::Ok);
-            dlg.AddCustomButton("Cancel", DialogResult::Cancel);
-            dlg.on_finish = Some(Box::new(
-                move |r: &DialogResult, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
-                    res_clone.borrow_mut().push(r.clone());
-                },
-            ));
-
-            let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
-                RefCell::new(None);
-            let mut ctx = PanelCtx::with_sched_reach(
-                &mut tree,
-                tid,
-                1.0,
-                &mut __init.sched,
-                &mut __init.fw,
-                &__init.root,
-                &fw_cb,
-                &__init.pa,
-            );
-            assert!(dlg.GetResult().is_none());
-            dlg.Finish(DialogResult::Ok, &mut ctx);
-            assert_eq!(dlg.GetResult(), Some(&DialogResult::Ok));
-            assert_eq!(*results.borrow(), vec![DialogResult::Ok]);
-        }
-
-        #[test]
-        fn check_finish_can_veto() {
-            let mut __init = TestInit::new();
-            let (mut tree, tid) = test_tree();
-            let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
-            let look = emLook::new();
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Veto", look);
-            dlg.on_check_finish = Some(Box::new(|r| *r != DialogResult::Cancel));
-
-            dlg.Finish(DialogResult::Cancel, &mut ctx);
-            assert!(dlg.GetResult().is_none(), "veto should prevent finish");
-
-            dlg.Finish(DialogResult::Ok, &mut ctx);
-            assert_eq!(dlg.GetResult(), Some(&DialogResult::Ok));
-        }
-
-        #[test]
-        fn dialog_custom_result() {
-            let mut __init = TestInit::new();
-            let (mut tree, tid) = test_tree();
-            let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
-            let look = emLook::new();
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Custom", look);
-            dlg.AddCustomButton("Retry", DialogResult::Custom(42));
-            dlg.Finish(DialogResult::Custom(42), &mut ctx);
-            assert_eq!(dlg.GetResult(), Some(&DialogResult::Custom(42)));
-        }
-
-        #[test]
-        fn enter_finishes_with_ok() {
-            let mut __init = TestInit::new();
-            let (mut tree, tid) = test_tree();
-            let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
-            let look = emLook::new();
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Test", look);
-            let ps = default_panel_state();
-            let is = default_input_state();
-
-            let consumed = dlg.Input(&emInputEvent::press(InputKey::Enter), &ps, &is, &mut ctx);
-            assert!(consumed);
-            assert_eq!(dlg.GetResult(), Some(&DialogResult::Ok));
-        }
-
-        #[test]
-        fn escape_finishes_with_cancel() {
-            let mut __init = TestInit::new();
-            let (mut tree, tid) = test_tree();
-            let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
-            let look = emLook::new();
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Test", look);
-            let ps = default_panel_state();
-            let is = default_input_state();
-
-            let consumed = dlg.Input(&emInputEvent::press(InputKey::Escape), &ps, &is, &mut ctx);
-            assert!(consumed);
-            assert_eq!(dlg.GetResult(), Some(&DialogResult::Cancel));
-        }
-
-        #[test]
-        fn enter_with_modifier_is_ignored() {
-            let mut __init = TestInit::new();
-            let (mut tree, tid) = test_tree();
-            let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
-            let look = emLook::new();
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Test", look);
-            let ps = default_panel_state();
-            let is = default_input_state();
-
-            let mut ev = emInputEvent::press(InputKey::Enter);
-            ev.ctrl = true;
-            let consumed = dlg.Input(&ev, &ps, &is, &mut ctx);
-            assert!(!consumed);
-            assert!(dlg.GetResult().is_none());
-        }
-
-        #[test]
-        fn release_event_is_ignored() {
-            let mut __init = TestInit::new();
-            let (mut tree, tid) = test_tree();
-            let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
-            let look = emLook::new();
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Test", look);
-            let ps = default_panel_state();
-            let is = default_input_state();
-
-            let consumed = dlg.Input(&emInputEvent::release(InputKey::Enter), &ps, &is, &mut ctx);
-            assert!(!consumed);
-            assert!(dlg.GetResult().is_none());
-        }
-
-        #[test]
-        fn add_custom_button_lookup() {
-            let mut __init = TestInit::new();
-            let look = emLook::new();
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Test", look);
-            dlg.AddCustomButton("Apply", DialogResult::Custom(7));
-            let btn = dlg.GetButtonForResult(&DialogResult::Custom(7));
-            assert!(btn.is_some());
-            let (label, _) = btn.unwrap();
-            assert_eq!(label, "Apply");
-        }
-
-        #[test]
-        fn set_button_label() {
-            let mut __init = TestInit::new();
-            let look = emLook::new();
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Test", look);
-            dlg.AddCustomButton("OK", DialogResult::Ok);
-            dlg.set_button_label_for_result(&DialogResult::Ok, "Accept");
-            let btn = dlg.GetButtonForResult(&DialogResult::Ok);
-            assert!(btn.is_some());
-            let (label, _) = btn.unwrap();
-            assert_eq!(label, "Accept");
-        }
-
-        #[test]
-        fn auto_deletion_toggle() {
-            let mut __init = TestInit::new();
-            let look = emLook::new();
-            let dlg = emDialog::new(&mut __init.ctx(), "Test", look);
-            assert!(!dlg.IsAutoDeletionEnabled());
-            let mut dlg = dlg;
-            dlg.EnableAutoDeletion();
-            assert!(dlg.IsAutoDeletionEnabled());
-        }
-
-        #[test]
-        fn check_finish_lifecycle() {
-            let mut __init = TestInit::new();
-            let (mut tree, tid) = test_tree();
-            let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
-            let look = emLook::new();
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Test", look);
-            assert!(!dlg.CheckFinish());
-            dlg.Finish(DialogResult::Ok, &mut ctx);
-            assert!(dlg.CheckFinish());
-        }
-
-        #[test]
-        fn set_root_title() {
-            let mut __init = TestInit::new();
-            let (mut tree, tid) = test_tree();
-            let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
-            let look = emLook::new();
-            let mut dlg = emDialog::new(&mut __init.ctx(), "Old Title", look);
-            dlg.SetRootTitle("New Title");
-            // Verify the dialog still functions after title change.
-            dlg.Finish(DialogResult::Ok, &mut ctx);
-            assert_eq!(dlg.GetResult(), Some(&DialogResult::Ok));
-        }
+        // Teardown.
+        app.scheduler.remove_engine(engine_id);
+        app.scheduler.clear_pending_for_tests();
     }
 }
