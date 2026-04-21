@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -44,6 +45,10 @@ pub struct emFileDialog {
     fsb: emFileSelectionBox,
     mode: FileDialogMode,
     dir_allowed: bool,
+    /// Written by the `on_finish` closure when the overwrite dialog finishes;
+    /// read in `Cycle` (Task 20). Shared via `Rc<Cell<_>>` so the closure can
+    /// hold a clone. Added in Task 19; Task 20 reads it.
+    pub(crate) overwrite_result: Rc<Cell<Option<DialogResult>>>,
     /// The pending overwrite-confirmation dialog (C++ `OverwriteDialog`,
     /// `emCrossPtr<emDialog>`). Owned as `Option<emDialog>` here; identical
     /// lifetime semantics — created inside `CheckFinish` when Save-mode
@@ -82,6 +87,7 @@ impl emFileDialog {
             fsb,
             mode,
             dir_allowed: false,
+            overwrite_result: Rc::new(Cell::new(None)),
             overwrite_dialog: None,
             overwrite_asked: String::new(),
             overwrite_confirmed: String::new(),
@@ -261,10 +267,14 @@ impl emFileDialog {
                     if text != self.overwrite_confirmed {
                         // Create the overwrite confirmation dialog, matching
                         // C++ CheckFinish lines 186-197 (new emDialog, set
-                        // title, add OK/Cancel buttons).
+                        // title, add OK/Cancel buttons). Task 19: wire
+                        // set_on_finish + show per new handle API.
                         let mut dlg = emDialog::new(ctx, "File Exists", self.look.clone());
                         dlg.AddCustomButton(ctx, "OK", DialogResult::Ok);
                         dlg.AddCustomButton(ctx, "Cancel", DialogResult::Cancel);
+                        let cell = Rc::clone(&self.overwrite_result);
+                        dlg.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
+                        dlg.show(ctx);
                         self.overwrite_dialog = Some(dlg);
                         self.overwrite_asked = text;
                         return FileDialogCheckResult::ConfirmOverwrite(paths_to_overwrite);
