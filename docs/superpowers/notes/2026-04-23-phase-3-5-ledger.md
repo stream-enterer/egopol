@@ -131,3 +131,18 @@ COMPLETE. Both `#[cfg(any())]` gates removed from `emFileDialog.rs`: one on `tes
 **Assertion migration rationale:** `emDialog::GetResult` is `unimplemented!()` (dead stub); `finish_signal` fires only after App processes `pending_actions` queue via `DialogPrivateEngine::Cycle`. In unit tests with no App event loop, "dialog finished" is observable as `pending_actions` gaining entries; "dialog NOT finished" as Cell value confirming Cycle branched correctly. Gate green — nextest 2510/0/9 (12 new emFileDialog tests; +12 vs 2498 baseline), `cargo clippy --all-targets --all-features -- -D warnings` clean.
 
 **Fix (post-COMPLETE):** `cycle_overwrite_dialog_negative_cancels_overwrite_only` strengthened: added `assert_eq!(__init.pa.borrow().len(), 1, ...)` after the `overwrite_result.get().is_none()` check. The original assertion only verified the Cell was taken; it would have passed even if Cycle had incorrectly called `finish_post_show` (enqueuing a second action). The exact-length check enforces that only the close-overwrite-dialog closure is enqueued on the cancel path. Gate green — nextest 2510/0/9, clippy clean.
+
+## Task 23 — emWindow pub visibility audit
+
+COMPLETE. No narrowings feasible — cross-crate emmain callers documented in `project_phase35a_pub_narrow.md` remain. Visibility surface unchanged. `tree_mut()` added in Task 7 as `pub(crate)` — already narrow.
+
+**Audit table:**
+
+| Method | emcore callers | emmain callers | Decision |
+|---|---|---|---|
+| `tree()` | yes (emView, emDialog, emGUIFramework, emScheduler, emPanelTree) | yes (emMainWindow.rs:190) | keep `pub` |
+| `take_tree()` | yes (many — emView, emDialog, emGUIFramework, emScheduler, emPanelTree) | yes (emMainWindow.rs:982, 1128) | keep `pub` |
+| `put_tree()` | yes (many — emView, emDialog, emGUIFramework, emScheduler, emPanelTree) | yes (emMainWindow.rs:924, 997, 1128) | keep `pub` |
+| `tree_mut()` | yes (emDialog.rs only) | none | already `pub(crate)` — correct, no change |
+
+No code changes. Ledger-only commit.
