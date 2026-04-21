@@ -71,3 +71,7 @@ COMPLETE. Removed `set_mode` and `dialog_mut` (zero live callers, non-public-API
 ## Task 18 — emFileDialog construction via new emDialog handle + show
 
 COMPLETE. `look: Rc<emLook>` field added to `emFileDialog` struct. `emFileDialog::new` updated: calls `emDialog::new(ctx, title, Rc::clone(&look))`, `AddCustomButton` (ok label + Cancel), and `dialog.show(ctx)`; stores `look` on the struct. `self.dialog.look().clone()` at the overwrite-dialog construction site replaced with `self.look.clone()`. No live callers of `emFileDialog::new` outside the `#[cfg(any())]`-gated test module — no call-site updates needed. Gate green — nextest 2496/0/9, `cargo clippy --all-targets --all-features -- -D warnings` clean.
+
+## Task 19 — emFileDialog CheckFinish overwrite dialog
+
+COMPLETE. `overwrite_result: Rc<Cell<Option<DialogResult>>>` field added to `emFileDialog` struct (Task 18 did not add it); initialized to `Rc::new(Cell::new(None))` in `new()`. Overwrite dialog construction in `CheckFinish` migrated: `set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))))` + `show(ctx)` added. `*r` used (Copy, not clone). `emDialog::look()` stub confirmed zero live callers; retained per task spec. `Cycle` polling of `od.GetResult()` and stub `Finish` calls left intact (Task 20 scope). Gate green — nextest 2496/0/9, `cargo clippy --all-targets --all-features -- -D warnings` clean.
