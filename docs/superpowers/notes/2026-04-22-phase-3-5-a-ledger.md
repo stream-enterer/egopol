@@ -32,3 +32,8 @@ See plan §"Bootstrap decisions" (B3.5a.a–B3.5a.g).
   - Total `impl emEngine for` sites: 39 (matches `rg` at HEAD 75ae0428).
   - Total `register_engine` call-sites counted: 69 (code + tests).
   - Deviations from plan's starting-point tables: EOIEngineClass reclassified Toplevel→Framework (no tree access in Cycle); ProbePointerEngine reclassified Framework→Toplevel (Cycle captures `ctx.tree as *mut PanelTree`); added StartupEngine / MainWindowEngine / ControlPanelBridge / emStocksPricesFetcher to production table; added 11 test engines outside emcore. See sheet §Deviations for full rationale.
+- **Task 3 — PanelTree::Default:** COMPLETE. impl Default for PanelTree
+  returns PanelTree::new() (empty tree). Used by Task 6's scheduler dispatch
+  as the mem::take sentinel. One unit test (default_produces_empty_tree —
+  populate, mem::take, assert source empty + dest populated). Gate green —
+  nextest 2484/0/9.

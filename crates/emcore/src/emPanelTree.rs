@@ -2607,6 +2607,13 @@ impl PanelTree {
 }
 
 impl Default for PanelTree {
+    /// Returns an empty tree with no root. Used by scheduler dispatch as
+    /// the `mem::take` sentinel during per-window tree take/put swap
+    /// (Phase 3.5.A). Correct code never reads a tree that's been swapped
+    /// out for this sentinel — the invariant is enforced at dispatch level.
+    ///
+    /// Same shape as `PanelTree::new()`, exposed via the `Default` trait
+    /// to compose with `std::mem::take`.
     fn default() -> Self {
         Self::new()
     }
@@ -3935,5 +3942,29 @@ mod tests {
         // Cleanup.
         tree.remove(root, Some(&mut sched.borrow_mut()));
         sched.borrow_mut().remove_engine(spawn_eid);
+    }
+
+    #[test]
+    fn default_produces_empty_tree() {
+        let t = PanelTree::default();
+        assert!(t.GetRootPanel().is_none(), "Default PanelTree has no root");
+
+        // mem::take leaves source as Default (empty), moves content to taken.
+        let mut container = PanelTree::new();
+        container.create_root("sentinel_test", true);
+        assert!(
+            container.GetRootPanel().is_some(),
+            "populated container has root"
+        );
+
+        let taken = std::mem::take(&mut container);
+        assert!(
+            container.GetRootPanel().is_none(),
+            "after mem::take, source is Default (empty)"
+        );
+        assert!(
+            taken.GetRootPanel().is_some(),
+            "after mem::take, destination holds the original content"
+        );
     }
 }
