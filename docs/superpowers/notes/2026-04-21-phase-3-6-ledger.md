@@ -1,0 +1,56 @@
+# Phase 3.6 — emFileDialog rides 3.5; E024 closure — Ledger
+
+**Started:** 2026-04-21
+**Branch:** port-rewrite/phase-3-6-emfiledialog-e024 (off `port-rewrite-phase-3-5-complete`, SHA `74bb14ce`)
+**Baseline:** nextest 2510/0/9, clippy clean, goldens 237/6 (pre-existing).
+**Plan:** docs/superpowers/plans/2026-04-21-port-rewrite-phase-3-6-emfiledialog-e024.md
+**Spec:** docs/superpowers/specs/2026-04-21-phase-3-5-deferred-dialog-construction-design.md §Deferred to Phase 3.6
+**JSON entry to close:** E024 (open → resolved-phase-3-6).
+
+## Baseline audit (pre-dispatch)
+
+Confirmed current state of `main` post-3.5-merge against Phase 3.6 plan expectations:
+
+### Prereq infrastructure present from 3.5
+- `emGUIFramework.rs`: `DialogId`, `dialog_windows: HashMap<DialogId, WindowId>`, `dialog_window_mut()`, `close_dialog_by_id(did)`, `allocate_dialog_id()`, `DialogWindow<'_>` all present. No `mutate_dialog_by_id` yet — Prereq Task A adds it.
+- `emScheduler.rs`: `engines_for_scope(scope) -> Vec<EngineId>` + `wake_up(id)` present.
+- `emDialog.rs`: `dialog_id`, `root_panel_id`, `ConstructCtx::pending_actions()` all present.
+- `emDialog::finish_post_show` (emDialog.rs:318) manually inlines `dialog_windows → windows → take_tree → take_behavior → apply → put → put`. Prereq Task C folds that walk into `App::mutate_dialog_by_id`.
+
+### Prereq Task B call-site survey (pre-show-only mutators)
+- `SetRootTitle` callers: 4 in emDialog.rs tests (lines 1299, 1316, two `should_panic` post-show tests).
+- `set_button_label_for_result` callers: 4 in emDialog.rs tests (1325, 1348, two `should_panic`).
+- `EnableAutoDeletion` callers: 4 in emDialog.rs tests (1356, 1373, two `should_panic`).
+- No production callers outside tests — all ctx threading lives inside the test-only call sites.
+
+### Prereq Task C scope
+- `finish_post_show` production callers: `emFileDialog.rs:359, 372` (the two overwrite-path Cycle branches, to be deleted in Phase 3.6 Task 4).
+- Test callers: `emDialog.rs:1851, 1955` (the two `finish_post_show_*` unit tests).
+- Decision point: retire or thin-wrap — defer to Task C design.
+
+### Phase 3.6 Task 4 deletion targets — all present
+- `emFileDialog.rs:316` — `pub fn Cycle(&mut self, ctx: &mut PanelCtx<'_>) -> bool`. Deleted at Task 4.
+- `emFileDialog.rs:64, 82, 94` — `fsb_file_trigger_signal` cached field. Deleted at Task 4.
+- `emFileDialog.rs:425` — `test_force_overwrite_result` test helper. Deleted at Task 4.
+- Cycle-path tests at `:639, :685, :766` all still rely on these helpers.
+
+### Stale line-number drift in plan
+Plan written pre-3.5-merge; a few line references have drifted:
+- Plan Task 3.1 cites emFileDialog.rs:40-58 for struct; now closer to the beginning of the file.
+- Plan Task 4.3 cites emFileDialog.rs:401-416 for `test_force_overwrite_result`; actual at :425.
+- Plan Task 4.1 cites emFileDialog.rs:322-371 for Cycle; actual at :316.
+Implementers must grep rather than trust line numbers.
+
+### Invariants pre-dispatch
+- I5b (`impl emEngine for DialogPrivateEngine`) — confirmed 1 match.
+- I5d (`pub fn Cycle.*PanelCtx` in emDialog.rs) — confirmed 0 matches.
+- I5e (`silent_cancel` in crates/) — confirmed 0 matches.
+- I5h (E024.status) — confirmed still `open`.
+
+## Bootstrap decisions
+
+See plan §"Bootstrap decisions" (B3.6a–B3.6d).
+
+## Task log
+
+(Entries appended by each task's commit.)
