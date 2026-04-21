@@ -1,9 +1,8 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::emButton::emButton;
 use crate::emCursor::emCursor;
-use crate::emEngineCtx::{ConstructCtx, FrameworkDeferredAction, PanelCtx};
+use crate::emEngineCtx::{ConstructCtx, PanelCtx};
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPainter::emPainter;
@@ -316,48 +315,41 @@ impl emDialog {
     /// says this lands in Phase 3.6. `emFileDialog::Cycle` has live
     /// `Finish(Ok)` calls that force a minimal path into 3.5. The general
     /// `App::mutate_dialog_by_id` is still Phase 3.6 scope.
-    ///
-    /// Takes `pending_actions` directly (not a `ConstructCtx`) so callers
-    /// from `PanelCtx`-based code paths (e.g. `emFileDialog::Cycle`) can
-    /// use it without a full `ConstructCtx`. A `ConstructCtx` wrapper is
-    /// provided by `finish_post_show_ctx` for call sites that have one.
-    pub fn finish_post_show(
-        &self,
-        pending_actions: &Rc<RefCell<Vec<FrameworkDeferredAction>>>,
-        result: DialogResult,
-    ) {
+    pub fn finish_post_show<C: ConstructCtx>(&self, ctx: &mut C, result: DialogResult) {
         let did = self.dialog_id;
         let root_panel_id = self.root_panel_id;
-        pending_actions.borrow_mut().push(Box::new(move |app, _el| {
-            if let Some(&wid) = app.dialog_windows.get(&did) {
-                if let Some(win) = app.windows.get_mut(&wid) {
-                    let mut tree = win.take_tree();
-                    if let Some(mut b) = tree.take_behavior(root_panel_id) {
-                        if let Some(dlg) = b.as_dlg_panel_mut() {
-                            if dlg.pending_result.is_none() && dlg.finalized_result.is_none() {
-                                dlg.pending_result = Some(result);
+        ctx.pending_actions()
+            .borrow_mut()
+            .push(Box::new(move |app, _el| {
+                if let Some(&wid) = app.dialog_windows.get(&did) {
+                    if let Some(win) = app.windows.get_mut(&wid) {
+                        let mut tree = win.take_tree();
+                        if let Some(mut b) = tree.take_behavior(root_panel_id) {
+                            if let Some(dlg) = b.as_dlg_panel_mut() {
+                                if dlg.pending_result.is_none() && dlg.finalized_result.is_none() {
+                                    dlg.pending_result = Some(result);
+                                }
                             }
+                            tree.put_behavior(root_panel_id, b);
                         }
-                        tree.put_behavior(root_panel_id, b);
+                        win.put_tree(tree);
                     }
-                    win.put_tree(tree);
+                    // Wake DialogPrivateEngine: after FinishState==0 /
+                    // !ADEnabled branch returns false, the engine sleeps until
+                    // a connected signal fires. Direct mutation of
+                    // pending_result via finish_post_show does not fire any
+                    // connected signal, so the engine would never observe the
+                    // mutation. Call wake_up on all engines scoped to
+                    // Toplevel(wid) — exactly one for a dialog window
+                    // (DialogPrivateEngine) — to force one cycle.
+                    let eids = app
+                        .scheduler
+                        .engines_for_scope(crate::emPanelScope::PanelScope::Toplevel(wid));
+                    for eid in eids {
+                        app.scheduler.wake_up(eid);
+                    }
                 }
-                // Wake DialogPrivateEngine: after FinishState==0 /
-                // !ADEnabled branch returns false, the engine sleeps until
-                // a connected signal fires. Direct mutation of
-                // pending_result via finish_post_show does not fire any
-                // connected signal, so the engine would never observe the
-                // mutation. Call wake_up on all engines scoped to
-                // Toplevel(wid) — exactly one for a dialog window
-                // (DialogPrivateEngine) — to force one cycle.
-                let eids = app
-                    .scheduler
-                    .engines_for_scope(crate::emPanelScope::PanelScope::Toplevel(wid));
-                for eid in eids {
-                    app.scheduler.wake_up(eid);
-                }
-            }
-        }));
+            }));
     }
 
     // ─── Legacy-compatibility stubs ─────────────────────────────────────────
@@ -1878,7 +1870,15 @@ mod tests {
             look: emLook::new(),
             pending: None, // post-show
         };
-        handle.finish_post_show(&app.pending_actions, DialogResult::Ok);
+        {
+            let mut ctx = InitCtx {
+                scheduler: &mut app.scheduler,
+                framework_actions: &mut app.framework_actions,
+                root_context: &app.context,
+                pending_actions: &app.pending_actions,
+            };
+            handle.finish_post_show(&mut ctx, DialogResult::Ok);
+        }
 
         // Drain pending_actions (the finish_post_show closure + wake).
         app.drain_pending_actions_headless();
@@ -1974,7 +1974,15 @@ mod tests {
             look: emLook::new(),
             pending: None,
         };
-        handle2.finish_post_show(&app.pending_actions, DialogResult::Cancel);
+        {
+            let mut ctx = InitCtx {
+                scheduler: &mut app.scheduler,
+                framework_actions: &mut app.framework_actions,
+                root_context: &app.context,
+                pending_actions: &app.pending_actions,
+            };
+            handle2.finish_post_show(&mut ctx, DialogResult::Cancel);
+        }
 
         // Drain pending_actions.
         app.drain_pending_actions_headless();

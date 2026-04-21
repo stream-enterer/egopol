@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use super::emDialog::{emDialog, DialogResult};
-use crate::emEngineCtx::PanelCtx;
+use crate::emEngineCtx::{ConstructCtx, PanelCtx};
 use crate::emFileSelectionBox::emFileSelectionBox;
 use crate::emLook::emLook;
 use crate::emSignal::SignalId;
@@ -346,37 +346,37 @@ impl emFileDialog {
             }
         };
 
-        // Get the pending_actions ref once (PanelCtx exposes it as an
+        // Require pending_actions to be present (PanelCtx exposes it as an
         // Option field; Cycle's contract requires it to be Some — if it's
         // None we have no closure rail and must return false).
-        let Some(pa) = ctx.pending_actions else {
+        if ctx.pending_actions.is_none() {
             return false;
-        };
+        }
 
         match action {
             Action::None => false,
             Action::FinishOk => {
-                self.dialog.finish_post_show(pa, DialogResult::Ok);
+                self.dialog.finish_post_show(ctx, DialogResult::Ok);
                 true
             }
             Action::OverwriteConfirmed => {
                 self.overwrite_confirmed = std::mem::take(&mut self.overwrite_asked);
                 if let Some(od) = self.overwrite_dialog.take() {
                     let did = od.dialog_id;
-                    pa.borrow_mut().push(Box::new(
+                    ctx.pending_actions().borrow_mut().push(Box::new(
                         move |app: &mut crate::emGUIFramework::App, _el| {
                             app.close_dialog_by_id(did);
                         },
                     ));
                 }
-                self.dialog.finish_post_show(pa, DialogResult::Ok);
+                self.dialog.finish_post_show(ctx, DialogResult::Ok);
                 true
             }
             Action::OverwriteCancelled => {
                 self.overwrite_asked.clear();
                 if let Some(od) = self.overwrite_dialog.take() {
                     let did = od.dialog_id;
-                    pa.borrow_mut().push(Box::new(
+                    ctx.pending_actions().borrow_mut().push(Box::new(
                         move |app: &mut crate::emGUIFramework::App, _el| {
                             app.close_dialog_by_id(did);
                         },
