@@ -28,6 +28,7 @@ pub struct emIntRec {
     min: i64,
     max: i64,
     signal: SignalId,
+    // TODO(phase-4b+): SetToDefault, IsSetToDefault, TryStartReading, serialization hooks per emRec.h.
 }
 
 impl emIntRec {

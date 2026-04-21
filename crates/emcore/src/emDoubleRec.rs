@@ -30,6 +30,7 @@ pub struct emDoubleRec {
     min: f64,
     max: f64,
     signal: SignalId,
+    // TODO(phase-4b+): SetToDefault, IsSetToDefault, TryStartReading, serialization hooks per emRec.h.
 }
 
 impl emDoubleRec {

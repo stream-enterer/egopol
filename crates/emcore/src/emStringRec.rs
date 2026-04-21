@@ -17,6 +17,7 @@ pub struct emStringRec {
     value: String,
     default: String,
     signal: SignalId,
+    // TODO(phase-4b+): SetToDefault, IsSetToDefault, TryStartReading, serialization hooks per emRec.h.
 }
 
 impl emStringRec {

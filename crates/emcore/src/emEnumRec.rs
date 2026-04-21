@@ -35,6 +35,7 @@ pub struct emEnumRec {
     /// Cached `identifiers.len() - 1` for O(1) GetMaxValue; set at construction.
     max_index: u32,
     signal: SignalId,
+    // TODO(phase-4b+): SetToDefault, IsSetToDefault, TryStartReading, serialization hooks per emRec.h.
 }
 
 impl emEnumRec {

@@ -15,6 +15,7 @@ pub struct emBoolRec {
     value: bool,
     default: bool,
     signal: SignalId,
+    // TODO(phase-4b+): SetToDefault, IsSetToDefault, TryStartReading, serialization hooks per emRec.h.
 }
 
 impl emBoolRec {
@@ -54,6 +55,8 @@ impl emRec<bool> for emBoolRec {
     fn GetValueSignal(&self) -> SignalId {
         self.signal
     }
+
+    // TODO(phase-4b+): Invert() per emRec.cpp:315-319.
 }
 
 #[cfg(test)]

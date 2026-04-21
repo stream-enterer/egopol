@@ -21,4 +21,4 @@ Phase 4a plan has no stage-only tasks — every task has its own Step 5 commit b
 
 ## Task log
 
-<empty — tasks append here as they complete>
+- **Task 1 — emRecNode base trait** — COMPLETE. Commits `24839ea3` (initial), `3027e4af` (fixup: expanded doc, DIVERGED annotation on `parent()` citing `UpperNode` field + no-public-`GetParent`-on-emRecNode in C++). Spec review ✅; code-quality review flagged 3 Important items; 2 addressed in fixup, 1 (non_camel_case_types) already handled by crate-level attribute in `lib.rs`. Invariant I4a-1 / I4a-2 progress: `emRecNode.rs` exists with trait.
