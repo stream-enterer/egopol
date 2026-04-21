@@ -57,3 +57,17 @@ See plan §"Bootstrap decisions" (B3.5a.a–B3.5a.g).
   Call-sites pass WindowId::dummy() for now; Task 7 backfills real
   WindowIds through window/tree construction. Framework variant not
   yet dispatched (Task 6). Gate green — nextest 2486/0/9.
+- **Task 6.1 spike — scope-based dispatch compiles clean:** COMPLETE.
+  Parallel engine_scopes SecondaryMap + register_engine_with_scope method
+  added; dispatch branches on PanelScope when the new map has an entry;
+  legacy engine_locations path retained for non-migrated callers. Clean
+  borrow-checker path (windows.get_mut(&wid).map(|w| w.take_tree())
+  .unwrap_or_default() onto the stack, then EngineCtx { windows,
+  tree: &mut local_tree, ... }) compiles with no unsafe and no
+  destructuring gymnastics — the HashMap entry borrow releases at the
+  statement boundary, so `windows` is free for ctx construction. All
+  three PanelScope arms (Framework / Toplevel / SubView) implemented.
+  SubView arm mirrors dispatch_with_resolved_tree's take/put shape but
+  rooted at the target window's tree. Two spike tests
+  (spike_framework_dispatch_via_scope, spike_toplevel_dispatch_via_scope)
+  green. Gate 2488/0/9.

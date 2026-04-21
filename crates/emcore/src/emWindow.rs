@@ -130,7 +130,7 @@ pub struct emWindow {
     /// Task 6: scheduler dispatch take/put uses this field.
     /// Task 7: home window starts building its real tree here on startup.
     /// Task 8: popup path migrates to own this tree.
-    pub tree: PanelTree,
+    pub(crate) tree: PanelTree,
     vif_chain: Vec<Box<dyn emViewInputFilter>>,
     cheat_vif: emCheatVIF,
     touch_vif: emDefaultTouchVIF,
@@ -1353,12 +1353,12 @@ impl emWindow {
     /// `self.tree` on this window. Mirrors the `tree.take_behavior` /
     /// `tree.put_behavior` invariant already used for SubView dispatch
     /// (emScheduler.rs:138-169).
-    pub fn take_tree(&mut self) -> PanelTree {
+    pub(crate) fn take_tree(&mut self) -> PanelTree {
         std::mem::take(&mut self.tree)
     }
 
     /// Restore a panel tree previously taken via `take_tree`.
-    pub fn put_tree(&mut self, tree: PanelTree) {
+    pub(crate) fn put_tree(&mut self, tree: PanelTree) {
         self.tree = tree;
     }
 

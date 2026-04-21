@@ -7,6 +7,7 @@ use winit::window::WindowId;
 
 use super::emEngine::{emEngine, EngineData, EngineId, Priority, TreeLocation};
 use super::emEngineCtx::{DeferredAction, EngineCtx};
+use super::emPanelScope::PanelScope;
 use super::emPanelTree::PanelTree;
 use super::emSignal::{SignalData, SignalId};
 use super::emTimer::{TimerCentral, TimerId};
@@ -22,6 +23,12 @@ pub(crate) struct EngineCtxInner {
     /// engine's panel tree from the outer tree. Populated on
     /// `register_engine`, cleared on `remove_engine`. Phase 1.75 Task 2.
     pub engine_locations: SecondaryMap<EngineId, TreeLocation>,
+    /// Phase 3.5.A Task 6.1 spike: parallel scope map alongside
+    /// `engine_locations`. Populated by `register_engine_with_scope`;
+    /// when present for an engine, the scheduler uses scope-directed
+    /// dispatch (take/put the target window's tree) instead of the
+    /// legacy `TreeLocation` walk. Task 6.2 will replace the legacy map.
+    pub engine_scopes: SecondaryMap<EngineId, PanelScope>,
     pub pending_signals: Vec<SignalId>,
     pub wake_queues: [Vec<EngineId>; 10],
     pub time_slice: i8,
@@ -200,6 +207,7 @@ impl EngineScheduler {
                 signals: SlotMap::with_key(),
                 engines: SlotMap::with_key(),
                 engine_locations: SecondaryMap::new(),
+                engine_scopes: SecondaryMap::new(),
                 pending_signals: Vec::new(),
                 wake_queues: Default::default(),
                 time_slice: 0,
@@ -326,6 +334,32 @@ impl EngineScheduler {
         id
     }
 
+    /// Phase 3.5.A Task 6.1 spike: parallel registration using `PanelScope`
+    /// instead of `TreeLocation`. Populates `engine_scopes` only — does
+    /// NOT populate `engine_locations`. The per-engine dispatch loop
+    /// checks `engine_scopes` first and falls through to the legacy
+    /// location-based walk when absent.
+    ///
+    /// This is intentionally additive: Task 6.2 will delete
+    /// `register_engine` + `engine_locations` + `TreeLocation` wholesale
+    /// after all ~100 call-sites migrate. Do not mix: a given engine is
+    /// registered via exactly one of the two paths.
+    pub fn register_engine_with_scope(
+        &mut self,
+        behavior: Box<dyn emEngine>,
+        priority: Priority,
+        scope: PanelScope,
+    ) -> EngineId {
+        let id = self.inner.engines.insert(EngineData {
+            priority,
+            awake_state: -1,
+            behavior: Some(behavior),
+            clock: self.inner.clock,
+        });
+        self.inner.engine_scopes.insert(id, scope);
+        id
+    }
+
     /// Remove an engine from the scheduler.
     pub fn remove_engine(&mut self, id: EngineId) {
         // Remove from wake queues
@@ -338,6 +372,7 @@ impl EngineScheduler {
         }
         self.inner.engines.remove(id);
         self.inner.engine_locations.remove(id);
+        self.inner.engine_scopes.remove(id);
     }
 
     /// Wake up an engine so it runs in the current time slice.
@@ -547,30 +582,156 @@ impl EngineScheduler {
             //
             // Clone the TreeLocation (shallow chain of PanelId+Box) so we
             // don't alias `self.inner` during the walk.
-            let tree_location = self.inner.engine_locations.get(engine_id).cloned().expect(
-                "engine has no TreeLocation — register_engine always populates \
-                     engine_locations; missing entry indicates a scheduler bug",
-            );
+            // Phase 3.5.A Task 6.1 spike: check the parallel `engine_scopes`
+            // map first. If populated, use scope-directed dispatch (Task 6
+            // target shape). Otherwise fall through to the legacy
+            // `TreeLocation` walk.
+            let stay_awake = if let Some(scope) = self.inner.engine_scopes.get(engine_id).copied() {
+                match scope {
+                    PanelScope::Framework => {
+                        // Framework-scoped engines do not resolve to a
+                        // specific tree. For the spike, hand the outer
+                        // `tree` through unchanged — `EngineCtx::tree` is
+                        // still `&mut PanelTree` (not `Option`) at this
+                        // task; Task 6.2.6 flips to `Option<&mut>` and
+                        // Framework callers must not deref it.
+                        let mut ctx = EngineCtx {
+                            scheduler: self,
+                            tree,
+                            windows,
+                            root_context,
+                            framework_actions,
+                            pending_inputs,
+                            input_state,
+                            framework_clipboard,
+                            engine_id,
+                        };
+                        behavior.Cycle(&mut ctx)
+                    }
+                    PanelScope::Toplevel(wid) => {
+                        // Take the window's tree onto the stack, hand it
+                        // to Cycle as `ctx.tree`, put it back after. If
+                        // the window no longer exists, the engine sleeps
+                        // this slice: put the behavior back into its
+                        // slot (so it's retried next slice) and skip
+                        // Cycle entirely. Masking a missing window with
+                        // a default tree would silently drop any work
+                        // the engine did in Cycle.
+                        let Some(win) = windows.get_mut(&wid) else {
+                            if let Some(eng) = self.inner.engines.get_mut(engine_id) {
+                                eng.behavior = Some(behavior);
+                                eng.clock = self.inner.clock;
+                            }
+                            continue;
+                        };
+                        let mut local_tree = win.take_tree();
+                        let result = {
+                            let mut ctx = EngineCtx {
+                                scheduler: self,
+                                tree: &mut local_tree,
+                                windows,
+                                root_context,
+                                framework_actions,
+                                pending_inputs,
+                                input_state,
+                                framework_clipboard,
+                                engine_id,
+                            };
+                            behavior.Cycle(&mut ctx)
+                        };
+                        if let Some(win) = windows.get_mut(&wid) {
+                            win.put_tree(local_tree);
+                        } else {
+                            drop(local_tree);
+                        }
+                        result
+                    }
+                    PanelScope::SubView {
+                        window_id,
+                        outer_panel_id,
+                    } => {
+                        // Single-level sub-tree walk: take the window's
+                        // tree, then take the outer panel's behavior,
+                        // reach the inner `sub_tree` through
+                        // `emSubViewPanel::sub_tree_mut`, pass to Cycle.
+                        // Mirrors the legacy `dispatch_with_resolved_tree`
+                        // SubView shape, but rooted at the target
+                        // window's tree instead of the outer App tree.
+                        // If the window is gone, the engine sleeps this
+                        // slice: put the behavior back and continue.
+                        let Some(win) = windows.get_mut(&window_id) else {
+                            if let Some(eng) = self.inner.engines.get_mut(engine_id) {
+                                eng.behavior = Some(behavior);
+                                eng.clock = self.inner.clock;
+                            }
+                            continue;
+                        };
+                        let mut local_tree = win.take_tree();
+                        let result = {
+                            let Some(mut behavior_owner) = local_tree.take_behavior(outer_panel_id)
+                            else {
+                                panic!(
+                                    "SubView dispatch: outer panel {:?} missing from window {:?}",
+                                    outer_panel_id, window_id
+                                );
+                            };
+                            let cycle_result = {
+                                let sv = behavior_owner
+                                    .as_sub_view_panel_mut()
+                                    .expect(
+                                        "SubView dispatch: outer panel behavior is not an emSubViewPanel",
+                                    );
+                                let sub = sv.sub_tree_mut();
+                                let mut ctx = EngineCtx {
+                                    scheduler: self,
+                                    tree: sub,
+                                    windows,
+                                    root_context,
+                                    framework_actions,
+                                    pending_inputs,
+                                    input_state,
+                                    framework_clipboard,
+                                    engine_id,
+                                };
+                                behavior.Cycle(&mut ctx)
+                            };
+                            local_tree.put_behavior(outer_panel_id, behavior_owner);
+                            cycle_result
+                        };
+                        if let Some(win) = windows.get_mut(&window_id) {
+                            win.put_tree(local_tree);
+                        } else {
+                            drop(local_tree);
+                        }
+                        result
+                    }
+                }
+            } else {
+                let tree_location = self.inner.engine_locations.get(engine_id).cloned().expect(
+                    "engine has no TreeLocation — register_engine always populates \
+                         engine_locations; missing entry indicates a scheduler bug",
+                );
 
-            // Call Cycle with context. `behavior` has been detached from the
-            // engine slot, so `self` is re-borrowable for ctx construction.
-            // `framework_actions` comes in from the caller (`App` owns it per
-            // spec §3.1), so ctx borrows that parameter directly — no
-            // take/restore dance needed.
-            let stay_awake = dispatch_with_resolved_tree(tree, &tree_location, |resolved_tree| {
-                let mut ctx = EngineCtx {
-                    scheduler: self,
-                    tree: resolved_tree,
-                    windows,
-                    root_context,
-                    framework_actions,
-                    pending_inputs,
-                    input_state,
-                    framework_clipboard,
-                    engine_id,
-                };
-                behavior.Cycle(&mut ctx)
-            });
+                // Call Cycle with context. `behavior` has been detached from the
+                // engine slot, so `self` is re-borrowable for ctx construction.
+                // `framework_actions` comes in from the caller (`App` owns it per
+                // spec §3.1), so ctx borrows that parameter directly — no
+                // take/restore dance needed.
+                dispatch_with_resolved_tree(tree, &tree_location, |resolved_tree| {
+                    let mut ctx = EngineCtx {
+                        scheduler: self,
+                        tree: resolved_tree,
+                        windows,
+                        root_context,
+                        framework_actions,
+                        pending_inputs,
+                        input_state,
+                        framework_clipboard,
+                        engine_id,
+                    };
+                    behavior.Cycle(&mut ctx)
+                })
+            };
 
             // Reinsert behavior and update engine state
             if let Some(eng) = self.inner.engines.get_mut(engine_id) {
@@ -1329,5 +1490,175 @@ mod tests {
         // Remove outer panels' adapter engines.
         tree.remove(outer_child, Some(&mut sched));
         tree.remove(outer_root, Some(&mut sched));
+    }
+
+    // ── Phase 3.5.A Task 6.1 spike — scope-based dispatch ───────────
+
+    /// Framework-scoped engine dispatch via `register_engine_with_scope`.
+    /// Proves the scheduler's scope branch runs Cycle and does not touch
+    /// the outer tree (it is passed through unchanged).
+    #[test]
+    fn spike_framework_dispatch_via_scope() {
+        let mut sched = EngineScheduler::new();
+        let count = Rc::new(RefCell::new(0u32));
+        let id = sched.register_engine_with_scope(
+            Box::new(CountingEngine {
+                count: Rc::clone(&count),
+            }),
+            Priority::Medium,
+            PanelScope::Framework,
+        );
+        // Scope map populated; location map left empty for this engine.
+        assert!(sched.inner.engine_scopes.contains_key(id));
+        assert!(!sched.inner.engine_locations.contains_key(id));
+        sched.wake_up(id);
+        slice(&mut sched);
+        assert_eq!(*count.borrow(), 1);
+        sched.remove_engine(id);
+    }
+
+    /// Toplevel-scoped engine dispatch via `register_engine_with_scope`.
+    /// Builds a headless `emWindow` via `new_popup_pending`, registers a
+    /// counting engine scoped to its `WindowId`, runs one slice, and
+    /// verifies (a) Cycle ran and (b) the window's tree is restored
+    /// post-Cycle (not left as the `Default` sentinel).
+    #[test]
+    fn spike_toplevel_dispatch_via_scope() {
+        use crate::emWindow::WindowFlags;
+
+        let mut sched = EngineScheduler::new();
+        let mut dummy_tree = PanelTree::new();
+        let root = dummy_tree.create_root_deferred_view("root");
+        let close_sig = sched.create_signal();
+        let flags_sig = sched.create_signal();
+        let focus_sig = sched.create_signal();
+        let geom_sig = sched.create_signal();
+        let win = crate::emWindow::emWindow::new_popup_pending(
+            crate::emContext::emContext::NewRoot(),
+            root,
+            WindowFlags::empty(),
+            "spike_toplevel".to_string(),
+            close_sig,
+            flags_sig,
+            focus_sig,
+            geom_sig,
+            crate::emColor::emColor::TRANSPARENT,
+        );
+        let wid = WindowId::dummy();
+        let mut windows: HashMap<WindowId, crate::emWindow::emWindow> = HashMap::new();
+        windows.insert(wid, win);
+
+        // Install a populated tree in the window so we can assert
+        // that put_tree restored the same (non-sentinel) tree.
+        {
+            let mut populated = PanelTree::new();
+            let _r = populated.create_root_deferred_view("win_root");
+            let w = windows.get_mut(&wid).unwrap();
+            // take_tree to drop the pending-state default tree, then put
+            // our populated tree.
+            let _ = w.take_tree();
+            w.put_tree(populated);
+        }
+
+        let count = Rc::new(RefCell::new(0u32));
+        let id = sched.register_engine_with_scope(
+            Box::new(CountingEngine {
+                count: Rc::clone(&count),
+            }),
+            Priority::Medium,
+            PanelScope::Toplevel(wid),
+        );
+        sched.wake_up(id);
+
+        let mut tree = PanelTree::new();
+        let root_context = crate::emContext::emContext::NewRoot();
+        let mut framework_actions: Vec<DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(WindowId, crate::emInput::emInputEvent)> = Vec::new();
+        let mut input_state = crate::emInputState::emInputState::new();
+        let fc: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        sched.DoTimeSlice(
+            &mut tree,
+            &mut windows,
+            &root_context,
+            &mut framework_actions,
+            &mut pending_inputs,
+            &mut input_state,
+            &fc,
+        );
+
+        assert_eq!(*count.borrow(), 1, "Cycle must have run once");
+        // Window's tree must be restored (the populated tree we put in).
+        let w = windows.get_mut(&wid).unwrap();
+        assert!(
+            w.tree.GetRootPanel().is_some(),
+            "window tree must be restored with the populated root after Cycle"
+        );
+
+        sched.remove_engine(id);
+        // Drop the dummy outer tree's adapter engines before dropping
+        // the scheduler (Drop assert requires no remaining engines).
+        dummy_tree.remove(root, Some(&mut sched));
+        // Drain the window so its tree's engines go away too.
+        let mut w = windows.remove(&wid).unwrap();
+        let t = w.take_tree();
+        drop(t);
+    }
+
+    /// Toplevel-scoped engine whose WindowId is NOT present in the windows
+    /// HashMap. The engine must sleep this slice: Cycle must not run, and
+    /// behavior must be put back so a future slice can retry once the
+    /// window reappears. Mirrors the legacy "missing location" bail-out.
+    #[test]
+    fn spike_toplevel_dispatch_missing_window_sleeps() {
+        let mut sched = EngineScheduler::new();
+        let count = Rc::new(RefCell::new(0u32));
+        let missing_wid = WindowId::dummy();
+        let id = sched.register_engine_with_scope(
+            Box::new(CountingEngine {
+                count: Rc::clone(&count),
+            }),
+            Priority::Medium,
+            PanelScope::Toplevel(missing_wid),
+        );
+        sched.wake_up(id);
+
+        let mut tree = PanelTree::new();
+        // Empty windows map — the registered WindowId is absent.
+        let mut windows: HashMap<WindowId, crate::emWindow::emWindow> = HashMap::new();
+        let root_context = crate::emContext::emContext::NewRoot();
+        let mut framework_actions: Vec<DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(WindowId, crate::emInput::emInputEvent)> = Vec::new();
+        let mut input_state = crate::emInputState::emInputState::new();
+        let fc: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        sched.DoTimeSlice(
+            &mut tree,
+            &mut windows,
+            &root_context,
+            &mut framework_actions,
+            &mut pending_inputs,
+            &mut input_state,
+            &fc,
+        );
+
+        assert_eq!(
+            *count.borrow(),
+            0,
+            "Cycle must NOT have run when Toplevel window is missing"
+        );
+        // Behavior must be restored in the engine slot so a future slice
+        // can retry once the window reappears.
+        let eng = sched
+            .inner
+            .engines
+            .get(id)
+            .expect("engine slot must still exist after missing-window bail");
+        assert!(
+            eng.behavior.is_some(),
+            "behavior must be put back after missing-window bail"
+        );
+
+        sched.remove_engine(id);
     }
 }
