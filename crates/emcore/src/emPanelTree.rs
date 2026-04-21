@@ -229,7 +229,7 @@ pub(crate) struct PanelData {
     /// field was only ever queried for presence (`strong_count() > 0`)
     /// before registering a panel's engine with the scheduler, so a plain
     /// bool suffices. The identity of the owning view is now carried by
-    /// the tree's `tree_location` plus (for Toplevel) a `WindowId` on the
+    /// the tree's `scope` plus (for Toplevel) a `WindowId` on the
     /// registering `PanelCycleEngine`/`UpdateEngineClass`.
     pub(crate) has_view: bool,
 
@@ -575,7 +575,7 @@ impl PanelTree {
         // Phase 2 Task 5: `View` weak still gates registration — when it is
         // null, the panel has no live view yet (same condition as pre-Task-5).
         // The adapter itself no longer stores the weak; it stores a
-        // `PanelScope` derived from this tree's `tree_location`.
+        // `PanelScope` directly stored as `self.scope`.
         let has_view = self.panels.get(id).map(|p| p.has_view).unwrap_or(false);
         if !has_view {
             return; // no view yet (or view dropped)

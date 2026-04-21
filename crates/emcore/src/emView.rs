@@ -7202,7 +7202,6 @@ mod tests {
             .get_mut(&win_id)
             .expect("win reinserted")
             .take_tree();
-        let _ = &mut tree;
         assert!(
             *cycled.borrow(),
             "Receiver at Low priority must cycle in the same slice as the \

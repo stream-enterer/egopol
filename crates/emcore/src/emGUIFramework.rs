@@ -90,7 +90,6 @@ pub struct App {
     pub screen: Option<emScreen>,
     pub scheduler: EngineScheduler,
     pub context: Rc<emContext>,
-    pub tree: PanelTree,
     // Phase-2 port-ownership-rewrite: narrowed from
     // `HashMap<WindowId, Rc<RefCell<emWindow>>>` to plain `emWindow`.
     // Top-level windows only. Popups live on `emView::PopupWindow`,
@@ -98,6 +97,12 @@ pub struct App {
     // Winit events to popup WindowIds are resolved via `find_window_mut`
     // which scans parent views' PopupWindow handles.
     pub windows: HashMap<WindowId, emWindow>,
+    /// Phase 3.5.A Task 7: the home window's WindowId, set once by the
+    /// setup callback when the home `emWindow` is inserted. `None` until
+    /// setup runs. The home window owns its `PanelTree` — reach it via
+    /// `self.windows.get_mut(&home_window_id.unwrap()).unwrap().tree` or
+    /// the `home_tree_mut()` helper. Formerly `App::tree`.
+    pub home_window_id: Option<WindowId>,
     /// Framework-level deferred actions produced by scheduler/view code that
     /// need to run back on `App` between time slices. Spec §3.1 / §3.7 —
     /// passed as `&mut Vec<DeferredAction>` into `EngineScheduler::DoTimeSlice`.
@@ -157,8 +162,8 @@ impl App {
             screen: None,
             scheduler,
             context,
-            tree: PanelTree::new(),
             windows: HashMap::new(),
+            home_window_id: None,
             framework_actions: Vec::new(),
             input_state: emInputState::new(),
             pending_inputs: Vec::new(),
@@ -228,6 +233,35 @@ impl App {
             }
         }
         None
+    }
+
+    /// Mutable access to the home window's panel tree.
+    ///
+    /// Phase 3.5.A Task 7: `App::tree` is gone; the home window owns its
+    /// tree. This helper looks up the home window via `home_window_id`.
+    /// Panics if the home window has not been created yet (setup callback
+    /// has not run) — same precondition as the former `App::tree`.
+    pub fn home_tree_mut(&mut self) -> &mut PanelTree {
+        let id = self
+            .home_window_id
+            .expect("home window not yet created (setup callback has not run)");
+        &mut self
+            .windows
+            .get_mut(&id)
+            .expect("home window present in App::windows")
+            .tree
+    }
+
+    /// Immutable view of the home window's panel tree. See `home_tree_mut`.
+    pub fn home_tree(&self) -> &PanelTree {
+        let id = self
+            .home_window_id
+            .expect("home window not yet created (setup callback has not run)");
+        &self
+            .windows
+            .get(&id)
+            .expect("home window present in App::windows")
+            .tree
     }
 
     /// Materialize the currently-pending popup window's OS surface.
@@ -327,13 +361,16 @@ impl App {
             let root = self.context.clone();
             let App {
                 scheduler,
-                tree,
                 framework_actions,
                 windows,
                 clipboard,
                 ..
             } = self;
             let home = windows.get_mut(&home_key).expect("home_key still present");
+            // Phase 3.5.A Task 7: home window owns its tree; take it out so
+            // we can both mutate the window's popup field and pass the tree
+            // to SetGeometry below. Put it back at scope exit.
+            let mut home_tree = home.take_tree();
             let view = home.view_mut();
             let popup = view
                 .PopupWindow
@@ -348,9 +385,16 @@ impl App {
                 framework_clipboard: clipboard,
                 current_engine: None,
             };
-            popup
-                .view_mut()
-                .SetGeometry(tree, 0.0, 0.0, w as f64, h as f64, 1.0, &mut sc);
+            popup.view_mut().SetGeometry(
+                &mut home_tree,
+                0.0,
+                0.0,
+                w as f64,
+                h as f64,
+                1.0,
+                &mut sc,
+            );
+            home.put_tree(home_tree);
         }
 
         winit_window.request_redraw();
@@ -438,7 +482,10 @@ impl ApplicationHandler for App {
                         framework_clipboard: &self.clipboard,
                         current_engine: None,
                     };
-                    win.resize(gpu, &mut self.tree, size.width, size.height, &mut sc);
+                    // Phase 3.5.A Task 7: emWindow::resize drops its external
+                    // tree param; the window uses its own `self.tree` via
+                    // internal destructure.
+                    win.resize(gpu, size.width, size.height, &mut sc);
                     win.set_geometry_changed();
                     // Don't request_redraw here — about_to_wait will detect the
                     // layout change from the new tallness and issue a single
@@ -453,12 +500,17 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 if let Some(win) = Self::find_window_mut(&mut self.windows, window_id) {
                     let gpu = self.gpu.as_ref().unwrap();
-                    win.render(&mut self.tree, gpu);
+                    // Phase 3.5.A Task 7: render uses `self.tree` internally.
+                    win.render(gpu);
                 }
             }
             WindowEvent::Focused(focused) => {
                 if let Some(win) = Self::find_window_mut(&mut self.windows, window_id) {
-                    win.view_mut().SetFocused(&mut self.tree, focused);
+                    // Phase 3.5.A Task 7: window owns its tree; take it out
+                    // for the SetFocused call, then put it back.
+                    let mut tree = win.take_tree();
+                    win.view_mut().SetFocused(&mut tree, focused);
+                    win.put_tree(tree);
                     win.set_focus_changed();
                     win.invalidate();
                     win.request_redraw();
@@ -476,7 +528,9 @@ impl ApplicationHandler for App {
                         framework_clipboard: &self.clipboard,
                         current_engine: None,
                     };
-                    win.handle_touch(touch, &mut self.tree, &mut sc);
+                    // Phase 3.5.A Task 7: window owns its tree; handle_touch
+                    // splits internally.
+                    win.handle_touch(touch, &mut sc);
                     win.touch_vif_mut().drain_forward_events()
                 };
                 // Phase 3: enqueue forward events for the
@@ -661,7 +715,7 @@ impl ApplicationHandler for App {
         // scheduler's normal engine loop. Top-level panels via
         // PanelCycleEngine registered at init_panel_view; sub-view panels
         // register on the SAME outer scheduler with
-        // `TreeLocation::SubView(outer_id, Outer)` so cross-tree dispatch
+        // `PanelScope::SubView(outer_id, Outer)` so cross-tree dispatch
         // resolves via take/put on the sub-view's behavior (spec §3.3).
 
         // Notice dispatch now happens per-view inside emView::Update (SP5,
@@ -676,7 +730,6 @@ impl ApplicationHandler for App {
         self.last_frame_time = now;
         let App {
             ref mut scheduler,
-            ref mut tree,
             ref mut input_state,
             ref mut framework_actions,
             ref context,
@@ -701,18 +754,25 @@ impl ApplicationHandler for App {
                 current_engine: None,
             };
 
+            // Phase 3.5.A Task 7: each window owns its tree. Take it out for
+            // the animator + view-side calls below that require `&mut tree`
+            // alongside `&mut view`, then put it back.
+            let mut tree = win.take_tree();
+
             // Tick animator (take out to avoid borrow conflict)
             if let Some(mut anim) = win.active_animator.take() {
-                if anim.animate(win.view_mut(), tree, dt, &mut sc) {
+                if anim.animate(win.view_mut(), &mut tree, dt, &mut sc) {
                     win.active_animator = Some(anim);
                     needs_full_repaint = true;
                 }
             }
 
             // Tick VIF animations (wheel zoom spring, grip pan spring)
-            if win.tick_vif_animations(tree, dt, &mut sc) {
+            win.put_tree(tree);
+            if win.tick_vif_animations(dt, &mut sc) {
                 needs_full_repaint = true;
             }
+            let mut tree = win.take_tree();
 
             // Dispatch synthetic events from gesture timer transitions
             // (cycle_gesture may have fired 250ms timeouts → EmuMouse/Visit/Menu)
@@ -761,7 +821,7 @@ impl ApplicationHandler for App {
             // Collect invalidation from sub-view panels (C++ invalidation chain:
             // SubViewClass::InvalidateTitle, SubViewPortClass::InvalidateCursor,
             // SubViewPortClass::InvalidatePainting → SuperPanel → parent view).
-            win.view_mut().collect_parent_invalidation(tree);
+            win.view_mut().collect_parent_invalidation(&mut tree);
 
             // Invalidate the active (focused) panel every frame so that
             // cursor blink and other clock-driven updates repaint. This
@@ -770,8 +830,11 @@ impl ApplicationHandler for App {
             // when the blink timer fires.
             let active_id = win.view().GetActivePanel();
             if let Some(active_id) = active_id {
-                win.view_mut().InvalidatePainting(tree, active_id);
+                win.view_mut().InvalidatePainting(&tree, active_id);
             }
+
+            // Phase 3.5.A Task 7: put the tree back on the window.
+            win.put_tree(tree);
 
             // Check for pending dirty rects from invalidate_painting calls.
             // Convert each dirty rect to tile grid coordinates and mark only

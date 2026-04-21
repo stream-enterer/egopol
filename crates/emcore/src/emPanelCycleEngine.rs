@@ -72,14 +72,10 @@ impl emEngine for PanelCycleEngine {
 
         // SAFETY / borrow split: `tree` is held exclusively by `pctx`; the
         // other ctx fields are re-borrowed into a fresh `EngineCtx` whose
-        // `tree` field points at a throwaway tree (we intentionally do NOT
-        // hand the original tree twice). Since `Cycle` impls must reach the
-        // tree via `pctx`, not `ectx.tree`, swapping in a dummy is sound.
-        //
-        // We use `PanelTree` default for the dummy; it's discarded after the
-        // call. The cost is one PanelTree allocation per cycled panel, which
-        // matches the pre-Phase-1.5 path's per-cycle take/put cost profile.
-        let mut dummy_tree = crate::emPanelTree::PanelTree::new();
+        // `tree` field is `None` — engines dispatched from inside a Cycle
+        // callback must reach the tree via `pctx`, not `ectx.tree`. Any
+        // engine that tries `ectx.tree.expect(...)` will panic with a clear
+        // message, which is the correct failure mode.
         let stay_awake = {
             // SAFETY: `ectx.scheduler` and `pctx.scheduler` alias the same
             // `EngineScheduler`. This is sound because:
@@ -95,11 +91,10 @@ impl emEngine for PanelCycleEngine {
             let mut ectx = crate::emEngineCtx::EngineCtx {
                 // SAFETY: see above — aliased borrow of scheduler is sound here.
                 scheduler: unsafe { &mut *sched_ptr },
-                // Phase 3.5.A Task 6.2: `tree` is `Option<&mut PanelTree>`.
-                // We hand the dummy tree through so nested Cycle callers
-                // that happen to inspect `ectx.tree` see a live tree; the
-                // real tree is carried via `pctx` below.
-                tree: Some(&mut dummy_tree),
+                // Phase 3.5.A Task 6.2: `tree` is `None` for the nested ctx —
+                // engines inside a Cycle callback must use `pctx` to reach the
+                // tree, never `ectx.tree`.
+                tree: None,
                 windows: &mut *ctx.windows,
                 root_context: ctx.root_context,
                 // SAFETY: `framework_actions` is aliased with `pctx` below.
@@ -129,7 +124,6 @@ impl emEngine for PanelCycleEngine {
             );
             behavior.Cycle(&mut ectx, &mut pctx)
         };
-        drop(dummy_tree);
         // Re-borrow ctx.tree (lifetime reset after the `ctx_tree` borrow ended
         // with `pctx`'s scope).
         let ctx_tree = ctx

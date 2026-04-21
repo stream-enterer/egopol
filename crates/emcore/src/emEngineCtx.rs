@@ -50,7 +50,7 @@ pub enum DeferredAction {
 pub struct EngineCtx<'a> {
     pub scheduler: &'a mut EngineScheduler,
     /// Resolved tree for this engine's `PanelScope`:
-    /// - `Framework`: `None` — engine reaches trees via `ctx.windows[wid].tree_mut()`.
+    /// - `Framework`: `None` — engine reaches trees via `take_tree` / `put_tree` on the window.
     /// - `Toplevel(wid)`: `Some(&mut windows[wid].tree)` (detached by scheduler).
     /// - `SubView{wid,pid}`: `Some(&mut sub_tree)` under outer panel `pid`.
     ///

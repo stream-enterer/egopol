@@ -503,7 +503,7 @@ impl EngineScheduler {
                 PanelScope::Framework => {
                     // Framework-scoped engines do not resolve to a specific
                     // tree. `ctx.tree` is `None`; the engine reaches any
-                    // target tree via `ctx.windows[wid].tree_mut()`.
+                    // target tree via `take_tree` / `put_tree` on the window.
                     let mut ctx = EngineCtx {
                         scheduler: self,
                         tree: None,

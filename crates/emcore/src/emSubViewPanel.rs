@@ -48,7 +48,7 @@ impl emSubViewPanel {
     /// `create_child` (or `create_root`) the outer slot first to obtain the
     /// id, then pass it here — the sub_view's engines (`UpdateEngineClass`,
     /// `VisitingVAEngineClass`) and the sub-tree's `PanelCycleEngine` adapters
-    /// register with the OUTER scheduler at `TreeLocation::SubView(outer_panel_id,
+    /// register with the OUTER scheduler at `PanelScope::SubView(outer_panel_id,
     /// Outer)`, so dispatch resolves through this panel's `sub_tree` on the
     /// single shared priority queue (spec §3.3).
     pub fn new(
@@ -180,7 +180,7 @@ impl emSubViewPanel {
     /// outer scheduler (threaded via `emView::HandleNotice(tree, sched)`),
     /// so the prior throwaway `EngineScheduler::new()` hack is gone — wakes
     /// emitted by `emView::SetGeometry` land on the real outer scheduler where
-    /// sub-view engines live (`TreeLocation::SubView`).
+    /// sub-view engines live (`PanelScope::SubView`).
     fn sync_geometry(
         &mut self,
         state: &PanelState,
@@ -389,7 +389,7 @@ impl PanelBehavior for emSubViewPanel {
     fn Cycle(&mut self, ectx: &mut crate::emEngineCtx::EngineCtx<'_>, _ctx: &mut PanelCtx) -> bool {
         // Phase 1.75 Task 4 keystone: no per-sub-view scheduler. Sub-view and
         // sub-tree engines register on the OUTER scheduler with
-        // `TreeLocation::SubView(outer_id, Outer)`; outer `DoTimeSlice` walks
+        // `PanelScope::SubView(outer_id, Outer)`; outer `DoTimeSlice` walks
         // them in the same priority-queue pass as outer engines (spec §3.3).
         // `emSubViewPanel::Cycle` therefore has no sub-slice drive —
         // it just ticks the `active_animator` (which C++ `emView` ticks as
@@ -447,7 +447,7 @@ impl PanelBehavior for emSubViewPanel {
         // C++ emSubViewPanel::Paint (src/emCore/emSubViewPanel.cpp:94) just
         // delegates to SubViewPort->PaintView. No settlement inside Paint —
         // sub-view settlement happens across frames via the outer scheduler's
-        // priority-queue dispatch of `TreeLocation::SubView` engines.
+        // priority-queue dispatch of `PanelScope::SubView` engines.
         let base_offset = painter.origin();
         let bg = self.sub_view.GetBackgroundColor();
         let root = self.sub_root();
@@ -624,7 +624,7 @@ mod sp8_tests {
     fn sp8_cycle_returns_animator_active_only() {
         // Phase 1.75 Task 4: `emSubViewPanel::Cycle` reduces to an animator
         // tick — no sub-scheduler drive (sub-view engines are dispatched by
-        // the OUTER scheduler's priority queue via `TreeLocation::SubView`).
+        // the OUTER scheduler's priority queue via `PanelScope::SubView`).
         // With no `active_animator` set, `Cycle` returns `false` immediately.
         let mut h = SvpTestHarness::new();
 

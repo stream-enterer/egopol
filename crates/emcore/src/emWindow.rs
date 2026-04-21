@@ -428,7 +428,6 @@ impl emWindow {
     pub fn resize(
         &mut self,
         gpu: &GpuContext,
-        tree: &mut crate::emPanelTree::PanelTree,
         width: u32,
         height: u32,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
@@ -446,8 +445,14 @@ impl emWindow {
             }
             OsSurface::Pending(_) => return,
         }
-        self.view
-            .SetGeometry(tree, 0.0, 0.0, w as f64, h as f64, 1.0, ctx);
+        // Phase 3.5.A Task 7: tree is owned by this window; split-borrow via
+        // destructure so view and tree can both be reached.
+        let Self {
+            ref mut view,
+            ref mut tree,
+            ..
+        } = *self;
+        view.SetGeometry(tree, 0.0, 0.0, w as f64, h as f64, 1.0, ctx);
     }
 
     /// Update the render thread pool from emCoreConfig.
@@ -456,11 +461,20 @@ impl emWindow {
     }
 
     /// Render a frame: paint dirty tiles on CPU, upload to GPU, composite.
-    pub fn render(&mut self, tree: &mut crate::emPanelTree::PanelTree, gpu: &GpuContext) {
+    pub fn render(&mut self, gpu: &GpuContext) {
         use crate::emPainter::emPainter;
 
+        // Phase 3.5.A Task 7: tree is owned by this window; destructure `self`
+        // so os_surface, view, tree, and render_pool can be borrowed disjointly.
+        let Self {
+            ref mut os_surface,
+            ref mut view,
+            ref mut tree,
+            ref mut render_pool,
+            ..
+        } = *self;
         let (winit_window, surface, surface_config, compositor, tile_cache, viewport_buffer) =
-            match &mut self.os_surface {
+            match os_surface {
                 OsSurface::Materialized(m) => {
                     let MaterializedSurface {
                         winit_window,
@@ -481,7 +495,6 @@ impl emWindow {
                 }
                 OsSurface::Pending(_) => return,
             };
-        let view = &mut self.view;
 
         // Phase 5 (emview-rewrite-followups): consume cursor-dirty flag set
         // by emViewPort::InvalidateCursor and apply the cached cursor to
@@ -534,7 +547,7 @@ impl emWindow {
                     }
                 }
             }
-        } else if self.render_pool.GetThreadCount() > 1 && dirty_count > 1 {
+        } else if render_pool.GetThreadCount() > 1 && dirty_count > 1 {
             // Multi-threaded rendering via display list.
             // Phase 1: Record all draw operations single-threaded.
             Self::render_parallel_inner(
@@ -542,7 +555,7 @@ impl emWindow {
                 tile_cache,
                 compositor,
                 surface_config,
-                &mut self.render_pool,
+                render_pool,
                 tree,
                 gpu,
                 cols,
@@ -1295,22 +1308,29 @@ impl emWindow {
     /// Returns true if any animation is still active.
     pub fn tick_vif_animations(
         &mut self,
-        tree: &mut PanelTree,
         dt: f64,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) -> bool {
+        // Phase 3.5.A Task 7: tree owned by this window; destructure so
+        // view, tree, vif_chain, and touch_vif can all be borrowed disjointly.
+        let Self {
+            ref mut view,
+            ref mut tree,
+            ref mut vif_chain,
+            ref mut touch_vif,
+            ..
+        } = *self;
         let mut active = false;
-        for vif in &mut self.vif_chain {
-            if vif.animate(&mut self.view, tree, dt, ctx) {
+        for vif in vif_chain {
+            if vif.animate(view, tree, dt, ctx) {
                 active = true;
             }
         }
         // Tick touch gesture timer (C++ emDefaultTouchVIF::Cycle)
         let dt_ms = (dt * 1000.0) as i32;
-        self.touch_vif
-            .cycle_gesture(&mut self.view, tree, dt_ms, ctx);
+        touch_vif.cycle_gesture(view, tree, dt_ms, ctx);
         // Tick fling animation
-        if self.touch_vif.animate_fling(&mut self.view, tree, dt, ctx) {
+        if touch_vif.animate_fling(view, tree, dt, ctx) {
             active = true;
         }
         active
@@ -1321,35 +1341,41 @@ impl emWindow {
     pub fn handle_touch(
         &mut self,
         touch: &winit::event::Touch,
-        tree: &mut PanelTree,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) -> bool {
         use winit::event::TouchPhase;
+        // Phase 3.5.A Task 7: tree owned by this window; destructure for
+        // disjoint borrows of view, tree, and touch_vif.
+        let Self {
+            ref mut view,
+            ref mut tree,
+            ref mut touch_vif,
+            ..
+        } = *self;
         match touch.phase {
-            TouchPhase::Started => self.touch_vif.touch_start(
+            TouchPhase::Started => touch_vif.touch_start(
                 touch.id,
                 touch.location.x,
                 touch.location.y,
-                &mut self.view,
+                view,
                 tree,
                 ctx,
             ),
             TouchPhase::Moved => {
                 // dt=0.016 is a reasonable default; the real frame delta is
                 // applied in cycle_gesture which runs each frame.
-                self.touch_vif.touch_move(
+                touch_vif.touch_move(
                     touch.id,
                     touch.location.x,
                     touch.location.y,
                     0.016,
-                    &mut self.view,
+                    view,
                     tree,
                     ctx,
                 )
             }
             TouchPhase::Ended | TouchPhase::Cancelled => {
-                self.touch_vif
-                    .touch_end(touch.id, &mut self.view, tree, ctx)
+                touch_vif.touch_end(touch.id, view, tree, ctx)
             }
         }
     }
@@ -1362,6 +1388,18 @@ impl emWindow {
         self.root_panel
     }
 
+    /// Immutable access to the window's owned panel tree.
+    ///
+    /// Phase 3.5.A Task 7: per-window tree ownership replaces the former
+    /// single `App::tree`. Downstream crates (emmain, examples, tests) read
+    /// a window's tree via this accessor.
+    ///
+    /// pub: cross-crate — emmain reads the tree at emMainWindow.rs:190 and
+    /// other App-level inspection paths cross the emcore/emmain boundary.
+    pub fn tree(&self) -> &PanelTree {
+        &self.tree
+    }
+
     /// Take the panel tree out of this window, leaving an empty sentinel
     /// behind. Used exclusively by the scheduler's per-window dispatch
     /// (Phase 3.5.A Task 6) to let engine Cycles access the tree without
@@ -1372,12 +1410,16 @@ impl emWindow {
     /// `self.tree` on this window. Mirrors the `tree.take_behavior` /
     /// `tree.put_behavior` invariant already used for SubView dispatch
     /// (emScheduler.rs:138-169).
-    pub(crate) fn take_tree(&mut self) -> PanelTree {
+    ///
+    /// pub: cross-crate — emmain::create_main_window and other App-level
+    /// lifecycle paths call take/put across the emcore/emmain boundary
+    /// (emMainWindow.rs:922, 979, 993, 1124).
+    pub fn take_tree(&mut self) -> PanelTree {
         std::mem::take(&mut self.tree)
     }
 
-    /// Restore a panel tree previously taken via `take_tree`.
-    pub(crate) fn put_tree(&mut self, tree: PanelTree) {
+    /// Restore a panel tree previously taken via `take_tree`. See [`take_tree`].
+    pub fn put_tree(&mut self, tree: PanelTree) {
         self.tree = tree;
     }
 

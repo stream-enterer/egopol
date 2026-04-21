@@ -123,3 +123,27 @@ See plan §"Bootstrap decisions" (B3.5a.a–B3.5a.g).
   pre-Task-7 startup. Once App::tree is migrated into emWindow::tree
   (Task 7), these four methods' callers will switch to self.windows[home_wid].tree,
   completing the migration alongside App::tree deletion.
+- **Task 7 — Home window owns its tree:** COMPLETE. App::tree field
+  deleted. App::home_window_id: Option<WindowId> added (set by
+  create_main_window on first home insert). emMainWindow's
+  create_main_window builds a local PanelTree, populates it, then
+  put_tree's it onto the emWindow before insertion into App::windows.
+  create_control_window follows the same per-window pattern (its own
+  tree, not home's). Carry-over emWindow methods resize, render,
+  tick_vif_animations, handle_touch dropped their external `tree`
+  parameter; each uses `self.tree` internally via destructure. Added
+  `pub fn tree()` / `pub fn tree_mut()` accessors on emWindow for
+  cross-crate reads (emmain::Duplicate). take_tree/put_tree promoted
+  from pub(crate) to pub so emmain can migrate the initial home tree
+  onto the window. App::home_tree / App::home_tree_mut helpers added
+  for legacy App-level tree access sites (ToggleControlView,
+  RecreateContentPanels, create_control_window read of MainPanel).
+  In about_to_wait's per-window loop, `tree` is sourced via
+  `win.take_tree()` (put back at end of iteration) so each window
+  operates on its own tree — previous single App::tree borrow is gone.
+  WindowEvent::Focused uses inline take/put for SetFocused;
+  materialize_pending_popup uses take/put across the SetGeometry
+  callsite. StartupEngine (Toplevel(home_wid)) now dispatches on the
+  real home tree post-Task-7 (previously saw the empty default tree
+  on windows[home_wid] while the real tree was on App::tree).
+  Gate green — nextest 2487/0/10, clippy clean, fmt clean.

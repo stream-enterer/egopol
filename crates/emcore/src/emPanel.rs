@@ -364,7 +364,7 @@ pub trait PanelBehavior: AsAny {
 
     /// Downcast to `emSubViewPanel` without `Any`. Phase 1.75 uses this in
     /// the scheduler dispatch walk to reach a sub-view's `sub_tree` when
-    /// resolving a `TreeLocation::SubView` owner.
+    /// resolving a `PanelScope::SubView` owner.
     ///
     /// The default returns `None`; only [`emSubViewPanel`](super::emSubViewPanel::emSubViewPanel)
     /// overrides this to return `Some(self)`.
