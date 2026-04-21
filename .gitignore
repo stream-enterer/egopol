@@ -10,3 +10,6 @@ src/.rustc_info.json
 
 # Golden test generated artifacts
 crates/eaglemode/target/
+
+# Local Claude Code harness state (scheduled_tasks.lock, settings.local.json).
+.claude/
