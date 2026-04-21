@@ -48,27 +48,27 @@ impl emEngine for PanelCycleEngine {
             }
         }
 
-        // Phase 2 Task 7: tallness is now cached on `PanelTree`
+        // Phase 2 Task 7: tallness is cached on `PanelTree`
         // (`cached_pixel_tallness`, kept in sync by `emView::SetGeometry`).
-        // Previously this went through `scope.resolve_view` just to read
-        // the view's tallness; that coupling is gone now that engines no
-        // longer hold `Weak<RefCell<emView>>`.  Scope remains load-bearing
-        // for `UpdateEngineClass`/`VisitingVAEngineClass` (which need the
-        // live view itself), but `PanelCycleEngine` does not.
+        // Phase 3.5.A Task 6.2: `ctx.tree` is now `Option<&mut PanelTree>`;
+        // a PanelCycleEngine is always registered with a window-scoped
+        // `PanelScope` (Toplevel or SubView), so `ctx.tree` is Some.
         let _ = &self.scope;
-        let tallness = ctx.tree.cached_pixel_tallness;
-
-        // Take the behavior off the tree, build a PanelCtx, drive Cycle,
-        // put it back (if the panel still exists — behavior may have called
-        // delete_self via ctx).
-        //
-        // Field-disjoint split: `pctx` borrows `ctx.tree`; the outer `ectx`
-        // forwarded into `Cycle` below is built by re-borrowing the other
-        // fields of `ctx` — scheduler / windows / root_context /
-        // framework_actions — into a new `EngineCtx` that excludes `tree`.
-        let Some(mut behavior) = ctx.tree.take_behavior(self.panel_id) else {
-            return false;
+        // Phase 3.5.A Task 6.2: `ctx.tree` is `Option<&mut PanelTree>`;
+        // a PanelCycleEngine is always registered with a window-scoped
+        // `PanelScope` (Toplevel or SubView), so `ctx.tree` is Some.
+        let (tallness, behavior) = {
+            let ctx_tree = ctx
+                .tree
+                .as_deref_mut()
+                .expect("PanelCycleEngine: tree is Some for window-scoped engines");
+            let tallness = ctx_tree.cached_pixel_tallness;
+            let Some(behavior) = ctx_tree.take_behavior(self.panel_id) else {
+                return false;
+            };
+            (tallness, behavior)
         };
+        let mut behavior = behavior;
 
         // SAFETY / borrow split: `tree` is held exclusively by `pctx`; the
         // other ctx fields are re-borrowed into a fresh `EngineCtx` whose
@@ -95,7 +95,11 @@ impl emEngine for PanelCycleEngine {
             let mut ectx = crate::emEngineCtx::EngineCtx {
                 // SAFETY: see above — aliased borrow of scheduler is sound here.
                 scheduler: unsafe { &mut *sched_ptr },
-                tree: &mut dummy_tree,
+                // Phase 3.5.A Task 6.2: `tree` is `Option<&mut PanelTree>`.
+                // We hand the dummy tree through so nested Cycle callers
+                // that happen to inspect `ectx.tree` see a live tree; the
+                // real tree is carried via `pctx` below.
+                tree: Some(&mut dummy_tree),
                 windows: &mut *ctx.windows,
                 root_context: ctx.root_context,
                 // SAFETY: `framework_actions` is aliased with `pctx` below.
@@ -108,8 +112,12 @@ impl emEngine for PanelCycleEngine {
                 framework_clipboard: ctx.framework_clipboard,
                 engine_id: ctx.engine_id,
             };
+            let pctx_tree = ctx
+                .tree
+                .as_deref_mut()
+                .expect("PanelCycleEngine: tree is Some for window-scoped engines");
             let mut pctx = PanelCtx::with_sched_reach(
-                ctx.tree,
+                pctx_tree,
                 self.panel_id,
                 tallness,
                 // SAFETY: see above — aliased borrow of scheduler is sound here.
@@ -122,8 +130,14 @@ impl emEngine for PanelCycleEngine {
             behavior.Cycle(&mut ectx, &mut pctx)
         };
         drop(dummy_tree);
-        if ctx.tree.panels.contains_key(self.panel_id) {
-            ctx.tree.put_behavior(self.panel_id, behavior);
+        // Re-borrow ctx.tree (lifetime reset after the `ctx_tree` borrow ended
+        // with `pctx`'s scope).
+        let ctx_tree = ctx
+            .tree
+            .as_deref_mut()
+            .expect("PanelCycleEngine: tree is Some for window-scoped engines");
+        if ctx_tree.panels.contains_key(self.panel_id) {
+            ctx_tree.put_behavior(self.panel_id, behavior);
         }
         stay_awake
     }

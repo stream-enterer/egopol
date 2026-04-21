@@ -200,6 +200,10 @@ impl super::emEngine::emEngine for UpdateEngineClass {
     fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
         let scope = self.scope;
         let engine_id = ctx.engine_id;
+        let tree = ctx
+            .tree
+            .as_deref_mut()
+            .expect("UpdateEngineClass: tree is Some for window-scoped engines");
         match scope {
             crate::emPanelScope::PanelScope::Toplevel(wid) => {
                 let Some(window) = ctx.windows.get_mut(&wid) else {
@@ -212,15 +216,14 @@ impl super::emEngine::emEngine for UpdateEngineClass {
                     framework_clipboard: ctx.framework_clipboard,
                     current_engine: Some(engine_id),
                 };
-                window.view.Update(ctx.tree, &mut sc);
+                window.view.Update(tree, &mut sc);
                 false
             }
             crate::emPanelScope::PanelScope::SubView {
                 window_id: _,
                 outer_panel_id: pid,
             } => {
-                let Some(svp) = ctx
-                    .tree
+                let Some(svp) = tree
                     .panels
                     .get_mut(pid)
                     .and_then(|p| p.behavior.as_mut())
@@ -286,6 +289,10 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
         use super::emViewAnimator::emViewAnimator as _;
         let scope = self.scope;
         let engine_id = ctx.engine_id;
+        let tree = ctx
+            .tree
+            .as_deref_mut()
+            .expect("VisitingVAEngineClass: tree is Some for window-scoped engines");
         match scope {
             crate::emPanelScope::PanelScope::Toplevel(wid) => {
                 let Some(window) = ctx.windows.get_mut(&wid) else {
@@ -304,14 +311,13 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
                     framework_clipboard: ctx.framework_clipboard,
                     current_engine: Some(engine_id),
                 };
-                va.animate(view, ctx.tree, dt, &mut sc)
+                va.animate(view, tree, dt, &mut sc)
             }
             crate::emPanelScope::PanelScope::SubView {
                 window_id: _,
                 outer_panel_id: pid,
             } => {
-                let Some(svp) = ctx
-                    .tree
+                let Some(svp) = tree
                     .panels
                     .get_mut(pid)
                     .and_then(|p| p.behavior.as_mut())
@@ -3242,19 +3248,18 @@ impl emView {
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
         tree: &mut PanelTree,
         scope: crate::emPanelScope::PanelScope,
-        tree_location: super::emEngine::TreeLocation,
     ) {
         let engine_id = ctx.scheduler.register_engine(
             Box::new(UpdateEngineClass::new(scope)),
             super::emEngine::Priority::High,
-            tree_location.clone(),
+            scope,
         );
         let eoi_signal = ctx.scheduler.create_signal();
         // C++ emViewAnimator base ctor sets HIGH_PRIORITY (emViewAnimator.cpp:39).
         let visiting_va_engine_id = ctx.scheduler.register_engine(
             Box::new(VisitingVAEngineClass::new(scope)),
             super::emEngine::Priority::High,
-            tree_location,
+            scope,
         );
         self.update_engine_id = Some(engine_id);
         self.EOISignal = Some(eoi_signal);
@@ -3588,7 +3593,7 @@ impl emView {
         let eng_id = ctx.register_engine(
             Box::new(EOIEngineClass::new(sig)),
             super::emEngine::Priority::High,
-            super::emEngine::TreeLocation::Outer,
+            crate::emPanelScope::PanelScope::Framework,
         );
         ctx.wake_up(eng_id);
         self.eoi_engine_id = Some(eng_id);
@@ -6717,12 +6722,7 @@ mod tests {
                 framework_clipboard: &__cb,
                 current_engine: None,
             };
-            v.RegisterEngines(
-                &mut sc,
-                &mut tree,
-                scope,
-                crate::emEngine::TreeLocation::Outer,
-            );
+            v.RegisterEngines(&mut sc, &mut tree, scope);
         }
         let eoi = v_rc
             .borrow()
@@ -6737,7 +6737,7 @@ mod tests {
                 fired: Rc::clone(&fired),
             }),
             Priority::Low,
-            crate::emEngine::TreeLocation::Outer,
+            crate::emPanelScope::PanelScope::Framework,
         );
         sched.borrow_mut().connect(eoi, listener_id);
 
@@ -6766,7 +6766,6 @@ mod tests {
             let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
                 std::cell::RefCell::new(None);
             sched.borrow_mut().DoTimeSlice(
-                &mut tree,
                 &mut windows,
                 &__root_ctx,
                 &mut __fw,
@@ -6828,12 +6827,7 @@ mod tests {
                 framework_clipboard: &__cb,
                 current_engine: None,
             };
-            v.RegisterEngines(
-                &mut sc,
-                &mut tree,
-                scope,
-                crate::emEngine::TreeLocation::Outer,
-            );
+            v.RegisterEngines(&mut sc, &mut tree, scope);
         }
         {
             let v = v_rc.borrow();
@@ -6988,12 +6982,7 @@ mod tests {
                 framework_clipboard: &__cb,
                 current_engine: None,
             };
-            v.RegisterEngines(
-                &mut sc,
-                &mut tree,
-                scope,
-                crate::emEngine::TreeLocation::Outer,
-            );
+            v.RegisterEngines(&mut sc, &mut tree, scope);
         }
         // Phase 1.75 Task 5 (continuation): RegisterEngines registers
         // pre-existing panels inline; no catch-up pass needed.
@@ -7129,12 +7118,7 @@ mod tests {
                     framework_clipboard: &__cb,
                     current_engine: None,
                 };
-                v.RegisterEngines(
-                    &mut sc,
-                    &mut tree,
-                    scope,
-                    crate::emEngine::TreeLocation::Outer,
-                );
+                v.RegisterEngines(&mut sc, &mut tree, scope);
             }
             w
         };
@@ -7157,7 +7141,7 @@ mod tests {
                 cycled: Rc::clone(&cycled),
             }),
             Priority::Low,
-            crate::emEngine::TreeLocation::Outer,
+            crate::emPanelScope::PanelScope::Framework,
         );
 
         // Prime Update once so the view is in a stable "after-first-Update"
@@ -7191,10 +7175,11 @@ mod tests {
             .expect("popup must have close signal after creation");
         sched.borrow_mut().fire(close_sig);
 
-        // Phase 2 Task 7: `UpdateEngineClass` resolves the view via
-        // `ctx.windows.get_mut(win_id)` now that view is plain on emWindow;
-        // insert `win` so the update engine can actually run `Update()` and
-        // fire the signal whose reception the test asserts.
+        // Phase 3.5.A Task 6.2: move the test's `tree` into `win.tree` so
+        // the scheduler's Toplevel(win_id) dispatch hands the correct tree
+        // to UpdateEngineClass. Task 7 makes this move permanent.
+        let _ = win.take_tree();
+        win.put_tree(tree);
         let mut windows: HashMap<_, _> = HashMap::new();
         windows.insert(win_id, win);
         let __root_ctx = crate::emContext::emContext::NewRoot();
@@ -7205,7 +7190,6 @@ mod tests {
         let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
         sched.borrow_mut().DoTimeSlice(
-            &mut tree,
             &mut windows,
             &__root_ctx,
             &mut __fw,
@@ -7213,6 +7197,12 @@ mod tests {
             &mut __input_state,
             &__cb,
         );
+        // Reclaim tree for teardown.
+        let mut tree = windows
+            .get_mut(&win_id)
+            .expect("win reinserted")
+            .take_tree();
+        let _ = &mut tree;
         assert!(
             *cycled.borrow(),
             "Receiver at Low priority must cycle in the same slice as the \
@@ -7223,6 +7213,8 @@ mod tests {
         sched.borrow_mut().disconnect(geom_sig, recv_id);
         sched.borrow_mut().remove_signal(geom_sig);
         sched.borrow_mut().remove_engine(recv_id);
+        // Clean tree panels' PanelCycleEngine adapters.
+        tree.remove(root, Some(&mut sched.borrow_mut()));
         let mut win = windows.remove(&win_id).expect("win reinserted");
         {
             let v = win.view_mut();
@@ -7305,12 +7297,7 @@ mod tests {
                     framework_clipboard: &__cb,
                     current_engine: None,
                 };
-                v.RegisterEngines(
-                    &mut sc,
-                    &mut tree,
-                    scope,
-                    crate::emEngine::TreeLocation::Outer,
-                );
+                v.RegisterEngines(&mut sc, &mut tree, scope);
             }
             w
         };
@@ -7333,8 +7320,11 @@ mod tests {
         sched.borrow_mut().fire(close_sig);
 
         // One DoTimeSlice: Cycle observes close_sig, calls Update → ZoomOut →
-        // RawVisitAbs popup teardown.  Phase 2 Task 7: insert the window so
-        // `UpdateEngineClass` can resolve the view via `Toplevel(win_id)`.
+        // RawVisitAbs popup teardown. Phase 3.5.A Task 6.2: move `tree`
+        // into `win.tree` so the scheduler's Toplevel(win_id) dispatch
+        // hands the correct tree.
+        let _ = win.take_tree();
+        win.put_tree(tree);
         let mut windows: HashMap<_, _> = HashMap::new();
         windows.insert(win_id, win);
         let __root_ctx = crate::emContext::emContext::NewRoot();
@@ -7345,7 +7335,6 @@ mod tests {
         let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
         sched.borrow_mut().DoTimeSlice(
-            &mut tree,
             &mut windows,
             &__root_ctx,
             &mut __fw,
@@ -7354,6 +7343,7 @@ mod tests {
             &__cb,
         );
         let mut win = windows.remove(&win_id).expect("win reinserted");
+        let mut tree = win.take_tree();
         assert!(
             win.view().PopupWindow.is_none(),
             "close_signal → ZoomOut must tear down PopupWindow in one time slice"
@@ -7362,6 +7352,8 @@ mod tests {
             !win.view().popped_up,
             "popped_up must be false after ZoomOut"
         );
+        // Clean tree panels' adapter engines for Drop assert.
+        tree.remove(root, Some(&mut sched.borrow_mut()));
 
         // Cleanup for scheduler Drop debug_asserts.
         {
@@ -7414,12 +7406,7 @@ mod tests {
                 framework_clipboard: &__cb,
                 current_engine: None,
             };
-            v.RegisterEngines(
-                &mut sc,
-                &mut tree,
-                scope,
-                crate::emEngine::TreeLocation::Outer,
-            );
+            v.RegisterEngines(&mut sc, &mut tree, scope);
         }
 
         // Engine must be registered by RegisterEngines.
@@ -7454,7 +7441,6 @@ mod tests {
         let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
         sched.borrow_mut().DoTimeSlice(
-            &mut tree,
             &mut windows,
             &__root_ctx,
             &mut __fw,

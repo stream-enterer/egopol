@@ -890,11 +890,9 @@ mod tests {
 
         ps_model.RequestAccess(agent, &mut sched);
         {
-            use crate::emPanelTree::PanelTree;
             use crate::emWindow::emWindow;
             use std::collections::HashMap;
             use winit::window::WindowId;
-            let mut tree = PanelTree::new();
             let mut windows: HashMap<WindowId, emWindow> = HashMap::new();
             let __root_ctx = crate::emContext::emContext::NewRoot();
             let mut __fw: Vec<_> = Vec::new();
@@ -904,7 +902,6 @@ mod tests {
             let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
                 std::cell::RefCell::new(None);
             sched.DoTimeSlice(
-                &mut tree,
                 &mut windows,
                 &__root_ctx,
                 &mut __fw,

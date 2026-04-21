@@ -131,7 +131,6 @@ impl TestHarness {
             Vec::new();
         let mut __input_state = emcore::emInputState::emInputState::new();
         self.scheduler.DoTimeSlice(
-            &mut self.tree,
             &mut windows,
             &self.root_context,
             &mut __fw,

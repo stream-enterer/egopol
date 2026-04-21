@@ -2,14 +2,12 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use emcore::emPanelTree::PanelTree;
 use emcore::emPriSchedAgent::PriSchedModel;
 use emcore::emScheduler::EngineScheduler;
 use emcore::emWindow::emWindow;
 use winit::window::WindowId;
 
 fn slice(sched: &mut EngineScheduler) {
-    let mut tree = PanelTree::new();
     let mut windows: HashMap<WindowId, emWindow> = HashMap::new();
     let __root_ctx = emcore::emContext::emContext::NewRoot();
     let mut __fw: Vec<_> = Vec::new();
@@ -19,7 +17,6 @@ fn slice(sched: &mut EngineScheduler) {
     let __cb: std::cell::RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
         std::cell::RefCell::new(None);
     sched.DoTimeSlice(
-        &mut tree,
         &mut windows,
         &__root_ctx,
         &mut __fw,

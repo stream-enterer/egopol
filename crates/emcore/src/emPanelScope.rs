@@ -128,6 +128,7 @@ impl PanelScope {
                     &mut *ctx.framework_actions;
                 let svp_opt: Option<&mut crate::emSubViewPanel::emSubViewPanel> = ctx
                     .tree
+                    .as_deref_mut()?
                     .panels
                     .get_mut(outer_panel_id)
                     .and_then(|p| p.behavior.as_mut())

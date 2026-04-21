@@ -84,7 +84,11 @@ impl TestViewHarness {
     pub fn engine_ctx(&mut self, engine_id: EngineId) -> EngineCtx<'_> {
         EngineCtx {
             scheduler: &mut self.scheduler,
-            tree: &mut self.tree,
+            // Phase 3.5.A Task 6.2: tests using this harness simulate
+            // engine dispatch; hand the tree as Some so Framework-
+            // classified test engines that DO touch ctx.tree (pre-6.2
+            // style) still work. Framework-true engines ignore `_ctx`.
+            tree: Some(&mut self.tree),
             windows: &mut self.windows,
             root_context: &self.root_context,
             framework_actions: &mut self.framework_actions,
@@ -183,6 +187,48 @@ impl TestSched {
         };
         f(&mut sc)
     }
+}
+
+/// Phase 3.5.A Task 6.2 test helper: wrap a detached `PanelTree` in a
+/// headless (Pending) `emWindow` so tests that register `Toplevel(wid)`
+/// engines have a tree the scheduler can take/put. Returns
+/// `(WindowId::dummy(), emWindow)`; caller is expected to insert into a
+/// `HashMap<WindowId, emWindow>` and later drain for teardown.
+pub fn headless_emwindow_with_tree(
+    root_ctx: &Rc<emContext>,
+    scheduler: &mut EngineScheduler,
+    mut tree: PanelTree,
+) -> (WindowId, emWindow) {
+    use crate::emColor::emColor;
+    use crate::emWindow::WindowFlags;
+    let close_sig = scheduler.create_signal();
+    let flags_sig = scheduler.create_signal();
+    let focus_sig = scheduler.create_signal();
+    let geom_sig = scheduler.create_signal();
+    // new_popup_pending requires a PanelId for the view's root. If the
+    // caller's tree has no root (e.g. after a teardown removed it), inject
+    // a throwaway root so the helper can still build a window. The root
+    // panel id stored on the view is not read by Framework engines in
+    // practice for this test helper.
+    let root_panel = match tree.GetRootPanel() {
+        Some(p) => p,
+        None => tree.create_root("__headless_root", false),
+    };
+    let mut win = emWindow::new_popup_pending(
+        Rc::clone(root_ctx),
+        root_panel,
+        WindowFlags::empty(),
+        "headless".to_string(),
+        close_sig,
+        flags_sig,
+        focus_sig,
+        geom_sig,
+        emColor::TRANSPARENT,
+    );
+    // Replace the default empty tree with the caller's.
+    let _ = win.take_tree();
+    win.put_tree(tree);
+    (WindowId::dummy(), win)
 }
 
 #[cfg(test)]

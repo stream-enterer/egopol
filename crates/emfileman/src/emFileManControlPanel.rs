@@ -622,7 +622,7 @@ mod tests {
         let dummy_eid = h.scheduler.register_engine(
             Box::new(NoopEngineForTest),
             emcore::emEngine::Priority::Medium,
-            emcore::emEngine::TreeLocation::Outer,
+            emcore::emPanelScope::PanelScope::Framework,
         );
         let changed = {
             let mut ectx = h.engine_ctx(dummy_eid);

@@ -10,10 +10,11 @@ use std::rc::Rc;
 use crate::emClipboard::emClipboard;
 use crate::emColor::emColor;
 use crate::emContext::emContext;
-use crate::emEngine::{EngineId, Priority, TreeLocation};
+use crate::emEngine::{EngineId, Priority};
 use crate::emInput::emInputEvent;
 use crate::emInputState::emInputState;
 use crate::emPanel::{PanelBehavior, Rect};
+use crate::emPanelScope::PanelScope;
 use crate::emPanelTree::{PanelId, PanelTree};
 use crate::emScheduler::EngineScheduler;
 use crate::emSignal::SignalId;
@@ -48,7 +49,14 @@ pub enum DeferredAction {
 /// window registry, root context, and the framework-action drain.
 pub struct EngineCtx<'a> {
     pub scheduler: &'a mut EngineScheduler,
-    pub tree: &'a mut PanelTree,
+    /// Resolved tree for this engine's `PanelScope`:
+    /// - `Framework`: `None` — engine reaches trees via `ctx.windows[wid].tree_mut()`.
+    /// - `Toplevel(wid)`: `Some(&mut windows[wid].tree)` (detached by scheduler).
+    /// - `SubView{wid,pid}`: `Some(&mut sub_tree)` under outer panel `pid`.
+    ///
+    /// Phase 3.5.A Task 6.2: migrated from `&'a mut PanelTree` to `Option`
+    /// so Framework-scoped engines have no implicit tree aliasing.
+    pub tree: Option<&'a mut PanelTree>,
     pub windows: &'a mut HashMap<winit::window::WindowId, emWindow>,
     pub root_context: &'a Rc<emContext>,
     pub framework_actions: &'a mut Vec<DeferredAction>,
@@ -97,7 +105,7 @@ pub trait ConstructCtx {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
-        tree_location: TreeLocation,
+        scope: PanelScope,
     ) -> EngineId;
     fn wake_up(&mut self, eng: EngineId);
 }
@@ -145,9 +153,9 @@ impl EngineCtx<'_> {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
-        tree_location: TreeLocation,
+        scope: PanelScope,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri, tree_location)
+        self.scheduler.register_engine(behavior, pri, scope)
     }
 
     /// Check whether a specific signal has been signaled since the last
@@ -226,9 +234,9 @@ impl SchedCtx<'_> {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
-        tree_location: TreeLocation,
+        scope: PanelScope,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri, tree_location)
+        self.scheduler.register_engine(behavior, pri, scope)
     }
 
     pub fn wake_up(&mut self, eng: EngineId) {
@@ -262,9 +270,9 @@ impl ConstructCtx for EngineCtx<'_> {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
-        tree_location: TreeLocation,
+        scope: PanelScope,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri, tree_location)
+        self.scheduler.register_engine(behavior, pri, scope)
     }
 
     fn wake_up(&mut self, eng: EngineId) {
@@ -281,9 +289,9 @@ impl ConstructCtx for SchedCtx<'_> {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
-        tree_location: TreeLocation,
+        scope: PanelScope,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri, tree_location)
+        self.scheduler.register_engine(behavior, pri, scope)
     }
 
     fn wake_up(&mut self, eng: EngineId) {
@@ -300,9 +308,9 @@ impl ConstructCtx for InitCtx<'_> {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
-        tree_location: TreeLocation,
+        scope: PanelScope,
     ) -> EngineId {
-        self.scheduler.register_engine(behavior, pri, tree_location)
+        self.scheduler.register_engine(behavior, pri, scope)
     }
 
     fn wake_up(&mut self, eng: EngineId) {
@@ -327,12 +335,12 @@ impl ConstructCtx for PanelCtx<'_> {
         &mut self,
         behavior: Box<dyn crate::emEngine::emEngine>,
         pri: Priority,
-        tree_location: TreeLocation,
+        scope: PanelScope,
     ) -> EngineId {
         self.scheduler
             .as_deref_mut()
             .expect("PanelCtx: scheduler required for ConstructCtx::register_engine")
-            .register_engine(behavior, pri, tree_location)
+            .register_engine(behavior, pri, scope)
     }
 
     fn wake_up(&mut self, eng: EngineId) {
@@ -824,7 +832,11 @@ mod tests {
         };
 
         let sig = sc.create_signal();
-        let eng = sc.register_engine(Box::new(NoopEngine), Priority::Medium, TreeLocation::Outer);
+        let eng = sc.register_engine(
+            Box::new(NoopEngine),
+            Priority::Medium,
+            PanelScope::Framework,
+        );
 
         sc.connect(sig, eng);
         sc.disconnect(sig, eng);
@@ -852,7 +864,7 @@ mod tests {
             &mut ic,
             Box::new(NoopEngine),
             Priority::High,
-            TreeLocation::Outer,
+            PanelScope::Framework,
         );
         <InitCtx as ConstructCtx>::wake_up(&mut ic, eng);
 
@@ -879,7 +891,7 @@ mod tests {
         let eng = cc.register_engine(
             Box::new(NoopEngine),
             Priority::VeryHigh,
-            TreeLocation::Outer,
+            PanelScope::Framework,
         );
         cc.wake_up(eng);
 

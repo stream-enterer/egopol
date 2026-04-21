@@ -2,16 +2,15 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use emcore::emEngine::{emEngine, Priority, TreeLocation};
+use emcore::emEngine::{emEngine, Priority};
 use emcore::emEngineCtx::EngineCtx;
-use emcore::emPanelTree::PanelTree;
+use emcore::emPanelScope::PanelScope;
 use emcore::emScheduler::EngineScheduler;
 use emcore::emSignal::SignalId;
 use emcore::emWindow::emWindow;
 use winit::window::WindowId;
 
 fn slice(sched: &mut EngineScheduler) {
-    let mut tree = PanelTree::new();
     let mut windows: HashMap<WindowId, emWindow> = HashMap::new();
     let __root_ctx = emcore::emContext::emContext::NewRoot();
     let mut __fw: Vec<_> = Vec::new();
@@ -21,7 +20,6 @@ fn slice(sched: &mut EngineScheduler) {
     let __cb: std::cell::RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
         std::cell::RefCell::new(None);
     sched.DoTimeSlice(
-        &mut tree,
         &mut windows,
         &__root_ctx,
         &mut __fw,
@@ -56,7 +54,7 @@ fn engines_execute_in_priority_order() {
             stay_awake: false,
         }),
         Priority::VeryLow,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     let med = sched.register_engine(
         Box::new(RecordingEngine {
@@ -65,7 +63,7 @@ fn engines_execute_in_priority_order() {
             stay_awake: false,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     let high = sched.register_engine(
         Box::new(RecordingEngine {
@@ -74,7 +72,7 @@ fn engines_execute_in_priority_order() {
             stay_awake: false,
         }),
         Priority::VeryHigh,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
 
     sched.wake_up(low);
@@ -106,7 +104,7 @@ fn signal_chaining_within_time_slice() {
             stay_awake: false,
         }),
         Priority::Low,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.connect(sig, eng_b);
 
@@ -133,7 +131,7 @@ fn timer_fires_signal() {
             stay_awake: false,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.connect(sig, eng);
 
@@ -160,7 +158,7 @@ fn remove_engine_cleans_up() {
             stay_awake: false,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.wake_up(eng);
     sched.remove_engine(eng);
@@ -196,7 +194,7 @@ fn instant_signal_chaining_via_engine() {
             stay_awake: false,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.connect(sig, eng_b);
 
@@ -206,7 +204,7 @@ fn instant_signal_chaining_via_engine() {
             log: Rc::clone(&log),
         }),
         Priority::High,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.wake_up(eng_a);
 
@@ -249,7 +247,7 @@ fn is_signaled_distinguishes_signals() {
             b_fired: Rc::clone(&b_fired),
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.connect(sig_a, eng);
     sched.connect(sig_b, eng);

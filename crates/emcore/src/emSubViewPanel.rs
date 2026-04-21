@@ -56,14 +56,17 @@ impl emSubViewPanel {
         outer_panel_id: PanelId,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) -> Self {
-        // Tag the sub_tree's TreeLocation so `register_engine_for` tags every
-        // sub-tree `PanelCycleEngine` adapter with `SubView(outer_panel_id,
-        // Outer)` for dispatch through the outer scheduler.
-        let sub_location = crate::emEngine::TreeLocation::SubView {
+        // Tag the sub_tree's scope so `register_engine_for` tags every
+        // sub-tree `PanelCycleEngine` adapter with
+        // `PanelScope::SubView { window_id: dummy, outer_panel_id }` for
+        // dispatch through the outer scheduler's SubView arm. Task 7
+        // backfills the real WindowId when window/tree construction
+        // carries it.
+        let sub_scope = crate::emPanelScope::PanelScope::SubView {
+            window_id: winit::window::WindowId::dummy(),
             outer_panel_id,
-            rest: Box::new(crate::emEngine::TreeLocation::Outer),
         };
-        let mut sub_tree = PanelTree::new_with_location(sub_location.clone());
+        let mut sub_tree = PanelTree::new_with_scope(sub_scope);
 
         // Phase 2 Task 7: sub_view is plain; engines identify their owning
         // view via `PanelScope::SubView { window_id, outer_panel_id }`,
@@ -80,16 +83,7 @@ impl emSubViewPanel {
         // with SubView location. The outer scheduler's priority-queue dispatch
         // resolves these engines through this panel's `sub_tree` on a single
         // shared queue (spec §3.3) — no per-sub-view scheduler exists.
-        // Phase 3.5.A Task 5: `window_id` for SubView scopes isn't threaded
-        // through emSubViewPanel construction yet; use a placeholder
-        // matching `PanelTree::register_engine_for`'s Outer path. Task 7
-        // backfills the real WindowId when window/tree construction
-        // carries it.
-        let scope = crate::emPanelScope::PanelScope::SubView {
-            window_id: winit::window::WindowId::dummy(),
-            outer_panel_id,
-        };
-        sub_view.RegisterEngines(ctx, &mut sub_tree, scope, sub_location);
+        sub_view.RegisterEngines(ctx, &mut sub_tree, sub_scope);
 
         Self {
             sub_tree,
@@ -646,7 +640,7 @@ mod sp8_tests {
         let dummy_eid = th.scheduler.register_engine(
             Box::new(NoopEngine),
             crate::emEngine::Priority::Medium,
-            crate::emEngine::TreeLocation::Outer,
+            crate::emPanelScope::PanelScope::Framework,
         );
 
         let stay_awake = {

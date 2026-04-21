@@ -850,7 +850,26 @@ impl emWindow {
     }
 
     /// Dispatch an input event through VIF chain, then to panel behavior.
+    ///
+    /// Phase 3.5.A Task 6.2: drops the external `tree` parameter; splits
+    /// `self.tree` and the rest of `self` via disjoint-field destructuring
+    /// and forwards to the legacy implementation.
     pub fn dispatch_input(
+        &mut self,
+        event: &emInputEvent,
+        state: &mut emInputState,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
+        // Disjoint-field split: the legacy body expects `tree` as a
+        // distinct `&mut PanelTree` from `&mut self`. Using
+        // `std::mem::take` + restore to fulfill the legacy shape without
+        // aliasing self.tree with &mut self.
+        let mut tree = std::mem::take(&mut self.tree);
+        self.dispatch_input_with_tree(&mut tree, event, state, ctx);
+        self.tree = tree;
+    }
+
+    fn dispatch_input_with_tree(
         &mut self,
         tree: &mut PanelTree,
         event: &emInputEvent,
@@ -1879,12 +1898,7 @@ mod tests {
                 framework_clipboard: &__cb,
                 current_engine: None,
             };
-            v.RegisterEngines(
-                &mut sc,
-                &mut tree,
-                scope,
-                crate::emEngine::TreeLocation::Outer,
-            );
+            v.RegisterEngines(&mut sc, &mut tree, scope);
         }
         assert!(win.view().update_engine_id.is_some());
 

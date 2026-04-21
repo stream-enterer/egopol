@@ -1546,6 +1546,8 @@ Gate green - nextest 2487/0/~10."
 
 **Scope:** `App::tree` field is deleted. Home window constructs its own tree at startup (previously built externally and passed in). Every App-level site that did `self.tree` now does `self.windows.get_mut(&home_wid).unwrap().tree` or destructures. The home WindowId is known after startup (recorded somewhere — see Step 7.1 for existing pattern).
 
+Four emWindow dispatch-side methods — `resize`, `render`, `tick_vif_animations`, `handle_touch` — retain external `tree: &mut PanelTree` params at Task 6 exit (carry-over from Task 6.2). Their migration is included in this task: once App::tree is deleted, their callers switch to the home window's internal tree.
+
 **Precedent:** popup's emWindow holds its own tree post-Task-8. This task does the same for the home window first (simpler — home exists at startup).
 
 - [ ] **Step 7.1: Identify `App::tree` write + read sites.**

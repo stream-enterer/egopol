@@ -149,7 +149,7 @@ impl App {
         let input_dispatch_engine_id = scheduler.register_engine(
             Box::new(crate::emInputDispatchEngine::InputDispatchEngine),
             crate::emEngine::Priority::VeryHigh,
-            crate::emEngine::TreeLocation::Outer,
+            crate::emPanelScope::PanelScope::Framework,
         );
         let context = emContext::NewRoot();
         Self {
@@ -621,7 +621,6 @@ impl ApplicationHandler for App {
         {
             let App {
                 ref mut scheduler,
-                ref mut tree,
                 ref mut windows,
                 ref context,
                 ref mut framework_actions,
@@ -631,7 +630,6 @@ impl ApplicationHandler for App {
                 ..
             } = *self;
             scheduler.DoTimeSlice(
-                tree,
                 windows,
                 context,
                 framework_actions,

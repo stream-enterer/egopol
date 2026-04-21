@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::emEngine::{emEngine, EngineId, Priority, TreeLocation};
+use super::emEngine::{emEngine, EngineId, Priority};
 use super::emEngineCtx::EngineCtx;
+use super::emPanelScope::PanelScope;
 use super::emScheduler::EngineScheduler;
 
 /// Unique identifier for a priority-scheduled agent within a `PriSchedModel`.
@@ -92,7 +93,7 @@ impl PriSchedModel {
             inner: Rc::clone(&inner),
         };
         let engine_id =
-            scheduler.register_engine(Box::new(engine), Priority::Low, TreeLocation::Outer);
+            scheduler.register_engine(Box::new(engine), Priority::Low, PanelScope::Framework);
         inner.borrow_mut().engine_id = Some(engine_id);
 
         Self { inner, engine_id }
@@ -181,14 +182,12 @@ impl PriSchedModel {
 
 #[cfg(test)]
 mod tests {
-    use super::super::emPanelTree::PanelTree;
     use super::super::emWindow::emWindow;
     use super::*;
     use std::collections::HashMap;
     use winit::window::WindowId;
 
     fn slice(sched: &mut EngineScheduler) {
-        let mut tree = PanelTree::new();
         let mut windows: HashMap<WindowId, emWindow> = HashMap::new();
         let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
@@ -198,7 +197,6 @@ mod tests {
         let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
         sched.DoTimeSlice(
-            &mut tree,
             &mut windows,
             &__root_ctx,
             &mut __fw,

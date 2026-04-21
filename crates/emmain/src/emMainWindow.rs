@@ -12,12 +12,13 @@ use std::rc::Rc;
 use winit::event_loop::ActiveEventLoop;
 
 use emcore::emContext::emContext;
-use emcore::emEngine::{EngineId, Priority, TreeLocation, emEngine};
+use emcore::emEngine::{EngineId, Priority, emEngine};
 use emcore::emEngineCtx::EngineCtx;
 use emcore::emGUIFramework::App;
 use emcore::emInput::{InputKey, emInputEvent};
 use emcore::emInputHotkey::Hotkey;
 use emcore::emInputState::emInputState;
+use emcore::emPanelScope::PanelScope;
 use emcore::emPanelTree::PanelId;
 use emcore::emSignal::SignalId;
 use emcore::emWindow::{WindowFlags, emWindow};
@@ -450,6 +451,12 @@ impl StartupEngine {
     }
 }
 
+/// Phase 3.5.A Task 6.2: StartupEngine is classified Toplevel, so
+/// `ctx.tree` is Some at dispatch. NOTE: Task 7 migrates App's home
+/// tree into `emWindow::tree`; at Task 6 exit, `windows[wid].tree` is
+/// the empty default, NOT the home tree — StartupEngine's panel
+/// construction operates on the empty tree. Production startup is
+/// expected to be non-functional between Task 6 and Task 7.
 impl emEngine for StartupEngine {
     fn Cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
         match self.state {
@@ -464,14 +471,22 @@ impl emEngine for StartupEngine {
             // child directly on the main panel. In Rust the engine has tree
             // access, so we create the child here and hand its id to emMainPanel.
             3 => {
-                let overlay_id = ctx.tree.create_child(
-                    self.main_panel_id,
-                    "startupOverlay",
-                    Some(&mut *ctx.scheduler),
-                );
+                let overlay_id = ctx
+                    .tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
+                    .create_child(
+                        self.main_panel_id,
+                        "startupOverlay",
+                        Some(&mut *ctx.scheduler),
+                    );
                 ctx.tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .set_behavior(overlay_id, Box::new(StartupOverlayPanel));
                 ctx.tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.set_startup_overlay(overlay_id);
                     });
@@ -502,12 +517,16 @@ impl emEngine for StartupEngine {
             5 => {
                 let ctrl_view_id = ctx
                     .tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.GetControlViewPanelId()
                     })
                     .flatten();
                 let content_view_id = ctx
                     .tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.GetContentViewPanelId()
                     })
@@ -515,6 +534,8 @@ impl emEngine for StartupEngine {
                 if let Some(ctrl_id) = ctrl_view_id {
                     let ctrl_ctx = Rc::clone(&self.context);
                     ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
                         .with_behavior_as::<emSubViewPanel, _>(ctrl_id, |svp| {
                             let sub_tree = svp.sub_tree_mut();
                             let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
@@ -539,6 +560,8 @@ impl emEngine for StartupEngine {
             6 => {
                 let content_view_id = ctx
                     .tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.GetContentViewPanelId()
                     })
@@ -549,6 +572,8 @@ impl emEngine for StartupEngine {
                     let content_ctx = Rc::clone(&self.context);
                     let content_ctx2 = Rc::clone(&self.context);
                     ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
                         .with_behavior_as::<emSubViewPanel, _>(content_id, |svp| {
                             let sub_tree = svp.sub_tree_mut();
                             let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
@@ -594,6 +619,8 @@ impl emEngine for StartupEngine {
                     animator.SetAnimated(false);
                     animator.SetGoalFullsized(":", false, false, "");
                     ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
                         .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
                             svp.active_animator = Some(Box::new(animator));
                         });
@@ -609,12 +636,15 @@ impl emEngine for StartupEngine {
                 let still_active = self
                     .content_svp_id
                     .and_then(|id| {
-                        ctx.tree.with_behavior_as::<emSubViewPanel, _>(id, |svp| {
-                            svp.active_animator
-                                .as_ref()
-                                .map(|a| a.is_active())
-                                .unwrap_or(false)
-                        })
+                        ctx.tree
+                            .as_deref_mut()
+                            .expect("StartupEngine: Toplevel scope")
+                            .with_behavior_as::<emSubViewPanel, _>(id, |svp| {
+                                svp.active_animator
+                                    .as_ref()
+                                    .map(|a| a.is_active())
+                                    .unwrap_or(false)
+                            })
                     })
                     .unwrap_or(false);
                 if self.clock.elapsed().as_millis() < 2000 && still_active {
@@ -628,6 +658,8 @@ impl emEngine for StartupEngine {
             9 => {
                 if let Some(svp_id) = self.content_svp_id {
                     ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
                         .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
                             if let Some(ref mut anim) = svp.active_animator {
                                 anim.stop();
@@ -658,12 +690,15 @@ impl emEngine for StartupEngine {
                 let still_active = self
                     .content_svp_id
                     .and_then(|id| {
-                        ctx.tree.with_behavior_as::<emSubViewPanel, _>(id, |svp| {
-                            svp.active_animator
-                                .as_ref()
-                                .map(|a| a.is_active())
-                                .unwrap_or(false)
-                        })
+                        ctx.tree
+                            .as_deref_mut()
+                            .expect("StartupEngine: Toplevel scope")
+                            .with_behavior_as::<emSubViewPanel, _>(id, |svp| {
+                                svp.active_animator
+                                    .as_ref()
+                                    .map(|a| a.is_active())
+                                    .unwrap_or(false)
+                            })
                     })
                     .unwrap_or(false);
                 if self.clock.elapsed().as_millis() < 2000 && still_active {
@@ -676,24 +711,37 @@ impl emEngine for StartupEngine {
                     // a SchedCtx from `ctx` inside the closure. Pull the
                     // behavior out explicitly, build the SchedCtx, then put
                     // it back — matches the take/put pattern used elsewhere.
-                    if let Some(mut behavior) = ctx.tree.take_behavior(svp_id) {
+                    if let Some(mut behavior) = ctx
+                        .tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
+                        .take_behavior(svp_id)
+                    {
                         if let Some(svp) = behavior.as_any_mut().downcast_mut::<emSubViewPanel>() {
                             svp.active_animator = None;
                             let mut sc = ctx.as_sched_ctx();
                             svp.raw_zoom_out(false, &mut sc);
                         }
-                        ctx.tree.put_behavior(svp_id, behavior);
+                        ctx.tree
+                            .as_deref_mut()
+                            .expect("StartupEngine: Toplevel scope")
+                            .put_behavior(svp_id, behavior);
                     }
                 }
                 let overlay_id = ctx
                     .tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.ClearStartupOverlay()
                     })
                     .flatten();
                 // C++ does `delete StartupOverlay` — remove from tree.
                 if let Some(id) = overlay_id {
-                    ctx.tree.remove(id, Some(&mut *ctx.scheduler));
+                    ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
+                        .remove(id, Some(&mut *ctx.scheduler));
                 }
                 self.clock = std::time::Instant::now();
                 self.state += 1;
@@ -724,6 +772,8 @@ impl emEngine for StartupEngine {
                         &self.visit_subject,
                     );
                     ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
                         .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
                             svp.active_animator = Some(Box::new(animator));
                         });
@@ -869,9 +919,11 @@ pub fn create_main_window(
     // Register StartupEngine with the scheduler.
     let startup_engine =
         StartupEngine::new(Rc::clone(&app.context), root_id, window_id, &mw.config);
-    let engine_id =
-        app.scheduler
-            .register_engine(Box::new(startup_engine), Priority::Low, TreeLocation::Outer);
+    let engine_id = app.scheduler.register_engine(
+        Box::new(startup_engine),
+        Priority::Low,
+        PanelScope::Toplevel(window_id),
+    );
     app.scheduler.wake_up(engine_id);
     mw.startup_engine_id = Some(engine_id);
 
@@ -890,7 +942,7 @@ pub fn create_main_window(
     };
     let mw_engine_id =
         app.scheduler
-            .register_engine(Box::new(mw_engine), Priority::Low, TreeLocation::Outer);
+            .register_engine(Box::new(mw_engine), Priority::Low, PanelScope::Framework);
     app.scheduler.connect(close_signal, mw_engine_id);
     app.scheduler.connect(title_signal, mw_engine_id);
 
@@ -919,7 +971,7 @@ pub fn create_main_window(
                     framework_clipboard: clipboard,
                     current_engine: None,
                 };
-                v.RegisterEngines(&mut sc, tree, scope, emcore::emEngine::TreeLocation::Outer);
+                v.RegisterEngines(&mut sc, tree, scope);
             }
             win.view_mut().set_control_panel_signal(cp_signal);
         }
@@ -936,7 +988,7 @@ pub fn create_main_window(
     };
     let bridge_id =
         app.scheduler
-            .register_engine(Box::new(bridge), Priority::Low, TreeLocation::Outer);
+            .register_engine(Box::new(bridge), Priority::Low, PanelScope::Framework);
     app.scheduler.connect(cp_signal, bridge_id);
 
     // Register emWindowStateSaver engine — persists window geometry.
@@ -974,7 +1026,7 @@ pub fn create_main_window(
 
         let saver_id =
             app.scheduler
-                .register_engine(Box::new(saver), Priority::Low, TreeLocation::Outer);
+                .register_engine(Box::new(saver), Priority::Low, PanelScope::Framework);
         app.scheduler.connect(flags_signal, saver_id);
         app.scheduler.connect(focus_signal, saver_id);
         app.scheduler.connect(geometry_signal, saver_id);

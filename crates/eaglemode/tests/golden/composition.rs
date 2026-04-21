@@ -95,7 +95,6 @@ fn settle(
         let __cb: std::cell::RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
         sched.borrow_mut().DoTimeSlice(
-            tree,
             &mut empty_windows,
             &__root_ctx,
             &mut __fw,

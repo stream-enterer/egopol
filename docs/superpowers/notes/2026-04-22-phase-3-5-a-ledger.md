@@ -71,3 +71,55 @@ See plan §"Bootstrap decisions" (B3.5a.a–B3.5a.g).
   rooted at the target window's tree. Two spike tests
   (spike_framework_dispatch_via_scope, spike_toplevel_dispatch_via_scope)
   green. Gate 2488/0/9.
+- **Task 6.2 — atomic signature break:** COMPLETE. Keystone migration.
+  TreeLocation enum DELETED (crates/emcore/src/emEngine.rs). register_engine
+  signature: TreeLocation → PanelScope (crates/emcore/src/emScheduler.rs;
+  ConstructCtx trait + all impls in emEngineCtx.rs). DoTimeSlice signature
+  dropped `tree: &mut PanelTree` parameter; per-window trees reached via
+  windows[wid].tree. EngineCtx::tree: &mut PanelTree → Option<&mut PanelTree>.
+  PanelTree::new_with_location(TreeLocation) → new_with_scope(PanelScope);
+  PanelTree field `tree_location` → `scope` (stored PanelScope directly).
+  emSubViewPanel::new migrated — sub_tree constructed with
+  PanelScope::SubView { window_id: dummy, outer_panel_id }. register_engine
+  call-sites migrated across 69 sites: MiniIpcEngine / PriSchedEngine /
+  InputDispatchEngine / emWindowStateSaver / MainWindowEngine /
+  ControlPanelBridge / EOIEngineClass → Framework; StartupEngine →
+  Toplevel(window_id); ChildSpawnEngine / SpawnEngineWithProbe test engines
+  → Toplevel(dummy wid); emView Update/VisitingVA engines keep
+  per-registration-site scope. DialogPrivateEngine registered as
+  Framework PLACEHOLDER with its only test #[ignore]d (Task 10 will
+  re-register as Toplevel post-materialize).
+  Dispatch branches on PanelScope: Framework → ctx.tree = None, no detach;
+  Toplevel(wid) → mem::take windows[wid].tree, pass ctx.tree = Some,
+  restore on exit (or sleep-and-retry if window is missing); SubView{wid,
+  pid} → mem::take windows[wid].tree, hand outer tree through unchanged —
+  engine's Cycle walks `ctx.tree.as_deref_mut()?.panels[pid].behavior
+  .as_sub_view_panel_mut()` to reach sub_view/sub_tree (scheduler does
+  NOT pre-walk, because the take-behavior-off-outer shape would hide
+  sub_view from the Cycle body; UpdateEngineClass SubView arm and
+  VisitingVAEngineClass SubView arm both depend on this). emPanelScope's
+  resolve_view SubView arm updated for `ctx.tree.as_deref_mut()?`.
+  emWindow::dispatch_input dropped its external `tree` parameter; inner
+  take/put-tree split plus private helper `dispatch_input_with_tree` on
+  the legacy shape. resize/render/handle_touch/tick_vif_animations retain
+  external tree param (unchanged; App::tree feeds them pre-Task-7).
+  Depth-2 `task2_dispatch_walks_depth_2_subview_location` test DELETED —
+  PanelScope::SubView is flat (no `rest` chain); no production call-site
+  requires multi-level nesting. Test helper
+  `test_view_harness::headless_emwindow_with_tree` added to wrap rooted
+  trees in a pending emWindow for Toplevel(wid)-registered test engines
+  (consumed by 4 emPanelTree tests + 2 emView popup tests). StartupEngine
+  Cycle body uses `ctx.tree.as_deref_mut().expect("...")` inline; a doc
+  comment notes that windows[wid].tree is the empty-default at Task-6
+  exit (Task 7 migrates App's home tree into it) — production startup is
+  expected non-functional between Task 6 and Task 7. Gate green — nextest
+  2487/0/10 (baseline 2488/0/9 + one new #[ignore] on Dialog test − one
+  deleted depth-2 test = net same). Clippy clean, fmt clean. Goldens not
+  re-run (Task 8 is the popup risk gate).
+  
+  **Carry-over to Task 7:** Four emWindow dispatch-side methods retain
+  external `tree: &mut PanelTree` param pending migration: resize, render,
+  tick_vif_animations, handle_touch. Their callsites feed App::tree
+  pre-Task-7 startup. Once App::tree is migrated into emWindow::tree
+  (Task 7), these four methods' callers will switch to self.windows[home_wid].tree,
+  completing the migration alongside App::tree deletion.
