@@ -43,4 +43,4 @@ Per reviewer notes (see per-task ledger entries):
 
 ## Next phase
 
-Phase 4b — see plan under `docs/superpowers/plans/2026-04-19-port-rewrite-phase-4b-*.md` (not yet written; Phase 4a's closeout does not gate its creation).
+Phase 4b — `docs/superpowers/plans/2026-04-19-port-rewrite-phase-4b-emrec-compound.md` (compound types). Plans for 4c (persistence) and 4d (emCoreConfig migration) also already exist.
