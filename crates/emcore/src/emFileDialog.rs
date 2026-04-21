@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use super::emDialog::{emDialog, DialogResult};
 use crate::emEngineCtx::PanelCtx;
@@ -39,6 +40,7 @@ pub enum FileDialogCheckResult {
 /// overwrite confirmation for Save).
 pub struct emFileDialog {
     dialog: emDialog,
+    look: Rc<emLook>,
     fsb: emFileSelectionBox,
     mode: FileDialogMode,
     dir_allowed: bool,
@@ -61,12 +63,13 @@ impl emFileDialog {
     pub fn new<C: crate::emEngineCtx::ConstructCtx>(
         ctx: &mut C,
         mode: FileDialogMode,
-        look: std::rc::Rc<emLook>,
+        look: Rc<emLook>,
     ) -> Self {
         let (title, ok_label) = mode_title_and_ok(mode);
-        let mut dialog = emDialog::new(ctx, title, look);
+        let mut dialog = emDialog::new(ctx, title, Rc::clone(&look));
         dialog.AddCustomButton(ctx, ok_label, DialogResult::Ok);
         dialog.AddCustomButton(ctx, "Cancel", DialogResult::Cancel);
+        dialog.show(ctx);
 
         let mut fsb = emFileSelectionBox::new(ctx, "");
         fsb.border_mut().outer = super::emBorder::OuterBorderType::None;
@@ -75,6 +78,7 @@ impl emFileDialog {
 
         Self {
             dialog,
+            look,
             fsb,
             mode,
             dir_allowed: false,
@@ -258,7 +262,7 @@ impl emFileDialog {
                         // Create the overwrite confirmation dialog, matching
                         // C++ CheckFinish lines 186-197 (new emDialog, set
                         // title, add OK/Cancel buttons).
-                        let mut dlg = emDialog::new(ctx, "File Exists", self.dialog.look().clone());
+                        let mut dlg = emDialog::new(ctx, "File Exists", self.look.clone());
                         dlg.AddCustomButton(ctx, "OK", DialogResult::Ok);
                         dlg.AddCustomButton(ctx, "Cancel", DialogResult::Cancel);
                         self.overwrite_dialog = Some(dlg);
