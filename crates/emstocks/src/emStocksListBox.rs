@@ -490,8 +490,8 @@ impl emStocksListBox {
                     &format!("Really delete {} stock(s)?", count),
                     look.clone(),
                 );
-                dialog.AddCustomButton("Delete", DialogResult::Ok);
-                dialog.AddCustomButton("Cancel", DialogResult::Cancel);
+                dialog.AddCustomButton(cc, "Delete", DialogResult::Ok);
+                dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
                 self.delete_stocks_dialog = Some(dialog);
             }
             return; // Defer until Cycle() observes dialog confirmation.
@@ -535,8 +535,8 @@ impl emStocksListBox {
                 let count = self.GetSelectionCount();
                 let mut dialog =
                     emDialog::new(cc, &format!("Really cut {} stock(s)?", count), look.clone());
-                dialog.AddCustomButton("Cut", DialogResult::Ok);
-                dialog.AddCustomButton("Cancel", DialogResult::Cancel);
+                dialog.AddCustomButton(cc, "Cut", DialogResult::Ok);
+                dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
                 self.cut_stocks_dialog = Some(dialog);
             }
             return; // Defer until Cycle() observes dialog confirmation.
@@ -571,8 +571,8 @@ impl emStocksListBox {
                     d.silent_cancel();
                 }
                 let mut dialog = emDialog::new(cc, "Really paste stocks?", look.clone());
-                dialog.AddCustomButton("Paste", DialogResult::Ok);
-                dialog.AddCustomButton("Cancel", DialogResult::Cancel);
+                dialog.AddCustomButton(cc, "Paste", DialogResult::Ok);
+                dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
                 self.paste_stocks_dialog = Some(dialog);
             }
             return Ok(Vec::new()); // Defer until Cycle() observes dialog confirmation.
@@ -661,8 +661,8 @@ impl emStocksListBox {
                     d.silent_cancel();
                 }
                 let mut dialog = emDialog::new(cc, "Really change interest?", look.clone());
-                dialog.AddCustomButton("Change", DialogResult::Ok);
-                dialog.AddCustomButton("Cancel", DialogResult::Cancel);
+                dialog.AddCustomButton(cc, "Change", DialogResult::Ok);
+                dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
                 self.interest_dialog = Some(dialog);
                 self.interest_to_set = Some(interest);
             }

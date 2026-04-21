@@ -111,17 +111,17 @@ impl emDialog {
     // ─── Pre-show mutator helper ────────────────────────────────────────────
 
     /// Reach into the pending DlgPanel and apply a closure. Panics if called
-    /// after `show()`. Used by pre-show mutators (`SetRootTitle`,
-    /// `set_button_label_for_result`, Task 8's `AddCustomButton`, etc.).
-    ///
-    /// Phase 3.5 Task 7 forward-stub: partially fills spec §3's
-    /// `with_dlg_panel_mut` shape. Compiles but requires `emWindow::tree_mut`
-    /// (added in this task).
-    fn with_dlg_panel_mut<R>(&mut self, f: impl FnOnce(&mut DlgPanel) -> R) -> R {
+    /// after `show()`. Used by all pre-show mutators — spec §3
+    /// (phase-3-5-deferred-dialog-construction-design.md §3).
+    fn with_dlg_panel_mut<R>(
+        &mut self,
+        label: &'static str,
+        f: impl FnOnce(&mut DlgPanel) -> R,
+    ) -> R {
         let pending = self
             .pending
             .as_mut()
-            .expect("emDialog mutator called after show()");
+            .unwrap_or_else(|| panic!("{} after show", label));
         let tree = pending.window.tree_mut();
         let mut behavior = tree
             .take_behavior(self.root_panel_id)
@@ -135,31 +135,142 @@ impl emDialog {
 
     // ─── Pre-show mutators ───────────────────────────────────────────────────
 
+    /// Port of C++ `emDialog::AddCustomButton` (emDialog.cpp:86-98).
+    /// Allocates a DlgButton child panel under the DlgPanel root, records its
+    /// click_signal + result pair on DlgPanel.button_signals so
+    /// DialogPrivateEngine::Cycle observes clicks.
+    ///
+    /// Pre-show only. Panics if called after `show()`.
+    pub fn AddCustomButton<C: ConstructCtx>(
+        &mut self,
+        ctx: &mut C,
+        label: &str,
+        result: DialogResult,
+    ) {
+        // Build the DlgButton (needs ctx for click_signal allocation via emButton::new).
+        let look = Rc::clone(&self.look);
+        let btn = DlgButton::new(ctx, label, look, result.clone(), self.root_panel_id);
+        let click_signal = btn.button.click_signal;
+
+        let pending = self.pending.as_mut().expect("AddCustomButton after show");
+        let tree = pending.window.tree_mut();
+
+        // Take DlgPanel behavior to record the (click_signal, result) pair.
+        let mut behavior = tree
+            .take_behavior(self.root_panel_id)
+            .expect("DlgPanel root present in pending tree");
+        let button_num = {
+            let dlg = behavior.as_dlg_panel_mut().expect("root is DlgPanel");
+            let n = dlg.button_signals.len();
+            dlg.button_signals.push((click_signal, result));
+            n
+        };
+        tree.put_behavior(self.root_panel_id, behavior);
+
+        // Create the DlgButton child panel. C++ emDialog.cpp:63 names buttons
+        // by ButtonNum: `emString::Format("%d", ButtonNum)`.
+        let btn_id = tree.create_child(self.root_panel_id, &button_num.to_string(), None);
+        tree.set_behavior(btn_id, Box::new(btn));
+    }
+
+    /// Port of C++ `emDialog::AddOKButton` — `AddPositiveButton("OK")`.
+    pub fn AddOKButton<C: ConstructCtx>(&mut self, ctx: &mut C) {
+        self.AddCustomButton(ctx, "OK", DialogResult::Ok);
+    }
+
+    /// Port of C++ `emDialog::AddCancelButton` — `AddNegativeButton("Cancel")`.
+    pub fn AddCancelButton<C: ConstructCtx>(&mut self, ctx: &mut C) {
+        self.AddCustomButton(ctx, "Cancel", DialogResult::Cancel);
+    }
+
+    /// Port of C++ `emDialog::AddOKCancelButtons`.
+    pub fn AddOKCancelButtons<C: ConstructCtx>(&mut self, ctx: &mut C) {
+        self.AddOKButton(ctx);
+        self.AddCancelButton(ctx);
+    }
+
+    /// Port of C++ `emDialog::AddPositiveButton`. Generalization of `AddOKButton`.
+    pub fn AddPositiveButton<C: ConstructCtx>(&mut self, ctx: &mut C, label: &str) {
+        self.AddCustomButton(ctx, label, DialogResult::Ok);
+    }
+
+    /// Port of C++ `emDialog::AddNegativeButton`. Generalization of `AddCancelButton`.
+    pub fn AddNegativeButton<C: ConstructCtx>(&mut self, ctx: &mut C, label: &str) {
+        self.AddCustomButton(ctx, label, DialogResult::Cancel);
+    }
+
     /// Update the dialog title. Pre-show only.
     ///
-    /// Port of C++ `emDialog::SetRootTitle` via `DlgPanel::SetTitle`.
-    /// Task 8 expands this pattern to `AddCustomButton` etc.
+    /// Port of C++ `emDialog::SetRootTitle` (emDialog.cpp:49-52).
     pub fn SetRootTitle(&mut self, title: &str) {
-        self.with_dlg_panel_mut(|p| p.SetTitle(title));
+        self.with_dlg_panel_mut("SetRootTitle", |p| p.SetTitle(title));
     }
 
     /// Update label of the first button whose result matches `result`. Pre-show only.
     ///
-    /// Port of C++ `emDialog::SetButtonLabel`.
+    /// Port of C++ `emDialog::SetButtonLabel` (emDialog.cpp:55-62). Walks the
+    /// DlgButton children of the DlgPanel root to find the first button whose
+    /// result payload matches, then updates its caption.
     pub fn set_button_label_for_result(&mut self, result: &DialogResult, label: &str) {
-        self.with_dlg_panel_mut(|p| {
-            if let Some((lbl, _)) = p.buttons.iter_mut().find(|(_, r)| r == result) {
-                *lbl = label.to_string();
+        let pending = self
+            .pending
+            .as_mut()
+            .expect("set_button_label_for_result after show");
+        let tree = pending.window.tree_mut();
+        // Collect child ids to avoid holding a reference into `tree` while
+        // mutably borrowing per-child behaviors.
+        let children: Vec<crate::emPanelTree::PanelId> =
+            tree.children(self.root_panel_id).collect();
+        for cid in children {
+            let mut behavior = match tree.take_behavior(cid) {
+                Some(b) => b,
+                None => continue,
+            };
+            let matched = if let Some(btn) = behavior.as_dlg_button_mut() {
+                if *btn.result() == *result {
+                    btn.SetCaption(label);
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+            tree.put_behavior(cid, behavior);
+            if matched {
+                break;
             }
-        });
+        }
+    }
+
+    /// Port of C++ `emDialog::EnableAutoDeletion` (emDialog.cpp:156-159).
+    /// Pre-show only. Panics if called after `show()`.
+    pub fn EnableAutoDeletion(&mut self, enabled: bool) {
+        self.with_dlg_panel_mut("EnableAutoDeletion", |p| p.auto_delete = enabled);
+    }
+
+    /// Set the finish callback — invoked once when the dialog result is
+    /// finalized, from `DialogPrivateEngine::Cycle`.
+    ///
+    /// Pre-show only. Panics if called after `show()`.
+    pub fn set_on_finish(&mut self, cb: DialogFinishCb) {
+        self.with_dlg_panel_mut("set_on_finish", |p| p.on_finish = Some(cb));
+    }
+
+    /// Set the check-finish veto — invoked from `DialogPrivateEngine::Cycle`
+    /// before finalizing the result; returning `false` vetoes finalization.
+    ///
+    /// Pre-show only. Panics if called after `show()`.
+    pub fn set_on_check_finish(&mut self, cb: DialogCheckFinishCb) {
+        self.with_dlg_panel_mut("set_on_check_finish", |p| p.on_check_finish = Some(cb));
     }
 
     // ─── Legacy-compatibility stubs ─────────────────────────────────────────
     // These stubs exist so production consumers (`emStocksListBox`,
     // `emFileDialog`) compile between Task 7 and their respective migration
-    // tasks (Tasks 8/9 for mutators, Task 15 for emStocks, Task 19 for
-    // emFileDialog). They panic at runtime; tests that call them are gated
-    // under `#[cfg(any())]` below (Task 12 / 15 / 19 port those paths).
+    // tasks (Task 15 for emStocks, Task 19 for emFileDialog). They panic at
+    // runtime; tests that call them are gated under `#[cfg(any())]` below
+    // (Task 12 / 15 / 19 port those paths).
 
     /// PHASE-3.5-STUB: Task 15 (emStocks) and Task 19 (emFileDialog)
     /// replace this with the new `on_finish`-callback pattern.
@@ -176,19 +287,6 @@ impl emDialog {
     /// the new `pending_actions`-based cancel rail.
     pub fn silent_cancel(&mut self) {
         unimplemented!("Task 15: silent_cancel replaced by new cancel rail")
-    }
-
-    /// PHASE-3.5-STUB: Task 8 implements the real pre-show mutator.
-    /// Old signature (no ctx) kept here so emFileDialog / emStocksListBox callers compile.
-    /// Task 8 will add the real `AddCustomButton<C: ConstructCtx>` with ctx param.
-    pub fn AddCustomButton(&mut self, label: &str, result: DialogResult) {
-        // Placeholder: record the button in DlgPanel.buttons so the field
-        // is read from production code. Task 8 also creates DlgButton children
-        // (DlgButton::new requires a ConstructCtx, which the old callers don't
-        // provide — Task 8 adds the ctx-based API and migrates callers).
-        self.with_dlg_panel_mut(|p| {
-            p.buttons.push((label.to_string(), result));
-        });
     }
 
     /// PHASE-3.5-STUB: Task 19 (emFileDialog) removes this; look is
@@ -383,11 +481,8 @@ mod legacy_emdialog_impl {
 /// `PrivateEngineClass::Dlg&` back-reference (B3.5e).
 ///
 pub struct DlgPanel {
-    border: emBorder,
+    pub(crate) border: emBorder,
     look: Rc<emLook>,
-    /// Dialog buttons: (caption string, result payload). Rendered in the
-    /// bottom button row as `DlgButton` child panels.
-    pub(crate) buttons: Vec<(String, DialogResult)>,
     /// Set by `Finish` once CheckFinish permits. `DialogPrivateEngine`
     /// observes this on Cycle and fires `finish_signal`.
     pub(crate) pending_result: Option<DialogResult>,
@@ -426,7 +521,6 @@ impl DlgPanel {
         Self {
             border: emBorder::new(OuterBorderType::PopupRoot).with_caption(title),
             look,
-            buttons: Vec::new(),
             pending_result: None,
             finalized_result: None,
             finish_state: 0,
@@ -554,13 +648,10 @@ impl PanelBehavior for DlgPanel {
 ///
 /// Precedent: `ButtonPanel` adapter in `emColorFieldFieldPanel.rs:187-210`.
 ///
-/// `DlgButton` struct and its methods remain `pub` (not narrowed to
-/// `pub(crate)`) in Task 7 because `AddCustomButton`'s real implementation
-/// (Task 8) has not yet been written — `DlgButton::new`, `caption`, `result`,
-/// and `SetCaption` have no production callers until Task 8. Narrowing to
-/// `pub(crate)` here would trigger dead_code lint since `cargo clippy` runs
-/// lib-only (no `--tests` flag). Task 8 narrows these when it fills in the
-/// `AddCustomButton` body that constructs `DlgButton` instances.
+/// `DlgButton` struct is `pub` (not `pub(crate)`) because `PanelBehavior`
+/// is a `pub` trait and its `as_dlg_button_mut` method names this type in
+/// its return type — the same `private_interfaces` forced divergence as
+/// `DlgPanel`. All methods and fields are `pub(crate)`.
 pub struct DlgButton {
     pub(crate) button: emButton,
     /// Dialog result payload carried by this button. C++ parity: `int Result`
@@ -570,11 +661,13 @@ pub struct DlgButton {
     /// (Task 4+7) uses this to reach the `DlgPanel` and write
     /// `pending_result`. Rust analog of the C++ back-edge
     /// `((emDialog*)GetWindow())->Finish(Result)` (emDialog.cpp:236).
-    pub dlg_panel_id: crate::emPanelTree::PanelId,
+    /// Prefixed `_` because Phase 3.5 Tasks 8–14 do not yet wire the
+    /// engine-side connect; retained as design documentation for Task 15+.
+    pub(crate) _dlg_panel_id: crate::emPanelTree::PanelId,
 }
 
 impl DlgButton {
-    pub fn new<C: ConstructCtx>(
+    pub(crate) fn new<C: ConstructCtx>(
         ctx: &mut C,
         caption: &str,
         look: Rc<emLook>,
@@ -584,21 +677,16 @@ impl DlgButton {
         Self {
             button: emButton::new(ctx, caption, look),
             result,
-            dlg_panel_id,
+            _dlg_panel_id: dlg_panel_id,
         }
     }
 
-    /// Port of C++ `emBorder::GetCaption` (via `emButton` inheritance).
-    pub fn caption(&self) -> &str {
-        self.button.GetCaption()
-    }
-
     /// Port of C++ `DlgButton::GetResult` (emDialog.h:249-252).
-    pub fn result(&self) -> &DialogResult {
+    pub(crate) fn result(&self) -> &DialogResult {
         &self.result
     }
 
-    pub fn SetCaption(&mut self, text: &str) {
+    pub(crate) fn SetCaption(&mut self, text: &str) {
         self.button.SetCaption(text);
     }
 }
@@ -628,6 +716,10 @@ impl PanelBehavior for DlgButton {
 
     fn GetCursor(&self) -> emCursor {
         self.button.GetCursor()
+    }
+
+    fn as_dlg_button_mut(&mut self) -> Option<&mut crate::emDialog::DlgButton> {
+        Some(self)
     }
 }
 
@@ -915,7 +1007,6 @@ mod tests {
         // Read remaining fields so dead-code doesn't fire before Task 5 wires
         // DlgPanel into emDialog. All of these are observed by
         // DialogPrivateEngine::Cycle (Task 4) per plan §B3.5e.
-        assert!(panel.buttons.is_empty());
         assert!(panel.finalized_result.is_none());
         assert_eq!(panel.finish_state, 0);
         assert!(!panel.auto_delete);
@@ -1039,9 +1130,9 @@ mod tests {
             DialogResult::Ok,
             tid,
         );
-        assert_eq!(btn.caption(), "OK");
+        assert_eq!(btn.button.GetCaption(), "OK");
         assert_eq!(btn.result(), &DialogResult::Ok);
-        assert_eq!(btn.dlg_panel_id, tid);
+        assert_eq!(btn._dlg_panel_id, tid);
         // click_signal is allocated by emButton::new; engine-side connect
         // happens in Task 4+7. Prove the signal exists (non-null).
         let _ = btn.button.click_signal;
@@ -1059,9 +1150,8 @@ mod tests {
             DialogResult::Custom(9),
             tid,
         );
-        assert_eq!(btn.caption(), "OK");
+        assert_eq!(btn.button.GetCaption(), "OK");
         btn.SetCaption("Accept");
-        assert_eq!(btn.caption(), "Accept");
         assert_eq!(btn.button.GetCaption(), "Accept");
         let _ = &tree;
     }
@@ -1250,6 +1340,211 @@ mod tests {
         app.scheduler.remove_engine(engine_id);
         app.scheduler.remove_engine(probe_id);
         app.scheduler.clear_pending_for_tests();
+    }
+
+    // ─── Task 8 tests ────────────────────────────────────────────────────────
+
+    #[test]
+    fn add_custom_button_appends_to_button_signals() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
+        dlg.AddCustomButton(&mut init.ctx(), "OK", DialogResult::Ok);
+        dlg.AddCustomButton(&mut init.ctx(), "Cancel", DialogResult::Cancel);
+
+        let pending = dlg.pending.as_mut().unwrap();
+        let tree = pending.window.tree_mut();
+        let mut behavior = tree.take_behavior(dlg.root_panel_id).unwrap();
+        let results: Vec<DialogResult> = behavior
+            .as_dlg_panel_mut()
+            .unwrap()
+            .button_signals
+            .iter()
+            .map(|(_, r)| r.clone())
+            .collect();
+        tree.put_behavior(dlg.root_panel_id, behavior);
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0], DialogResult::Ok);
+        assert_eq!(results[1], DialogResult::Cancel);
+    }
+
+    #[test]
+    fn add_custom_button_creates_dlg_button_children() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
+        dlg.AddCustomButton(&mut init.ctx(), "OK", DialogResult::Ok);
+        dlg.AddCustomButton(&mut init.ctx(), "Cancel", DialogResult::Cancel);
+
+        let pending = dlg.pending.as_mut().unwrap();
+        let tree = pending.window.tree_mut();
+        let children: Vec<_> = tree.children(dlg.root_panel_id).collect();
+        assert_eq!(children.len(), 2, "two DlgButton children created");
+
+        // Verify first child is named "0" and has Ok result.
+        let mut b0 = tree.take_behavior(children[0]).unwrap();
+        let btn0_result = b0.as_dlg_button_mut().unwrap().result().clone();
+        tree.put_behavior(children[0], b0);
+        assert_eq!(btn0_result, DialogResult::Ok);
+
+        let mut b1 = tree.take_behavior(children[1]).unwrap();
+        let btn1_result = b1.as_dlg_button_mut().unwrap().result().clone();
+        tree.put_behavior(children[1], b1);
+        assert_eq!(btn1_result, DialogResult::Cancel);
+    }
+
+    #[test]
+    #[should_panic(expected = "AddCustomButton after show")]
+    fn add_custom_button_after_show_panics() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
+        // Simulate show() by taking pending.
+        let _ = dlg.pending.take();
+        dlg.AddCustomButton(&mut init.ctx(), "OK", DialogResult::Ok);
+    }
+
+    #[test]
+    fn set_root_title_updates_dlg_panel_border_caption() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Old", look);
+        dlg.SetRootTitle("New");
+
+        let pending = dlg.pending.as_mut().unwrap();
+        let tree = pending.window.tree_mut();
+        let mut behavior = tree.take_behavior(dlg.root_panel_id).unwrap();
+        let caption = behavior.as_dlg_panel_mut().unwrap().border.caption.clone();
+        tree.put_behavior(dlg.root_panel_id, behavior);
+        assert_eq!(caption, "New");
+    }
+
+    #[test]
+    #[should_panic(expected = "SetRootTitle after show")]
+    fn set_root_title_after_show_panics() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Old", look);
+        let _ = dlg.pending.take();
+        dlg.SetRootTitle("New");
+    }
+
+    #[test]
+    fn set_button_label_for_result_updates_dlg_button_caption() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
+        dlg.AddCustomButton(&mut init.ctx(), "OK", DialogResult::Ok);
+        dlg.set_button_label_for_result(&DialogResult::Ok, "Accept");
+
+        let pending = dlg.pending.as_mut().unwrap();
+        let tree = pending.window.tree_mut();
+        let children: Vec<_> = tree.children(dlg.root_panel_id).collect();
+        let mut b = tree.take_behavior(children[0]).unwrap();
+        let caption = b
+            .as_dlg_button_mut()
+            .unwrap()
+            .button
+            .GetCaption()
+            .to_string();
+        tree.put_behavior(children[0], b);
+        assert_eq!(caption, "Accept");
+    }
+
+    #[test]
+    #[should_panic(expected = "set_button_label_for_result after show")]
+    fn set_button_label_for_result_after_show_panics() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
+        let _ = dlg.pending.take();
+        dlg.set_button_label_for_result(&DialogResult::Ok, "Accept");
+    }
+
+    #[test]
+    fn enable_auto_deletion_sets_flag() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
+        dlg.EnableAutoDeletion(true);
+
+        let pending = dlg.pending.as_mut().unwrap();
+        let tree = pending.window.tree_mut();
+        let mut behavior = tree.take_behavior(dlg.root_panel_id).unwrap();
+        let flag = behavior.as_dlg_panel_mut().unwrap().auto_delete;
+        tree.put_behavior(dlg.root_panel_id, behavior);
+        assert!(flag);
+    }
+
+    #[test]
+    #[should_panic(expected = "EnableAutoDeletion after show")]
+    fn enable_auto_deletion_after_show_panics() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
+        let _ = dlg.pending.take();
+        dlg.EnableAutoDeletion(true);
+    }
+
+    #[test]
+    fn set_on_finish_stores_callback() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
+        let called = Rc::new(RefCell::new(false));
+        let called_clone = Rc::clone(&called);
+        dlg.set_on_finish(Box::new(move |_r, _s| {
+            *called_clone.borrow_mut() = true;
+        }));
+
+        let pending = dlg.pending.as_mut().unwrap();
+        let tree = pending.window.tree_mut();
+        let mut behavior = tree.take_behavior(dlg.root_panel_id).unwrap();
+        let has_cb = behavior.as_dlg_panel_mut().unwrap().on_finish.is_some();
+        tree.put_behavior(dlg.root_panel_id, behavior);
+        assert!(has_cb);
+        // Silence unused-variable warning from `called`.
+        let _ = called;
+    }
+
+    #[test]
+    #[should_panic(expected = "set_on_finish after show")]
+    fn set_on_finish_after_show_panics() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
+        let _ = dlg.pending.take();
+        dlg.set_on_finish(Box::new(|_r, _s| {}));
+    }
+
+    #[test]
+    fn set_on_check_finish_stores_callback() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
+        dlg.set_on_check_finish(Box::new(|_r| true));
+
+        let pending = dlg.pending.as_mut().unwrap();
+        let tree = pending.window.tree_mut();
+        let mut behavior = tree.take_behavior(dlg.root_panel_id).unwrap();
+        let has_cb = behavior
+            .as_dlg_panel_mut()
+            .unwrap()
+            .on_check_finish
+            .is_some();
+        tree.put_behavior(dlg.root_panel_id, behavior);
+        assert!(has_cb);
+    }
+
+    #[test]
+    #[should_panic(expected = "set_on_check_finish after show")]
+    fn set_on_check_finish_after_show_panics() {
+        let mut init = TestInit::new();
+        let look = emLook::new();
+        let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
+        let _ = dlg.pending.take();
+        dlg.set_on_check_finish(Box::new(|_r| true));
     }
 
     // ─── Legacy emDialog tests staged for Task 12 porting ────────────────────

@@ -65,8 +65,8 @@ impl emFileDialog {
     ) -> Self {
         let (title, ok_label) = mode_title_and_ok(mode);
         let mut dialog = emDialog::new(ctx, title, look);
-        dialog.AddCustomButton(ok_label, DialogResult::Ok);
-        dialog.AddCustomButton("Cancel", DialogResult::Cancel);
+        dialog.AddCustomButton(ctx, ok_label, DialogResult::Ok);
+        dialog.AddCustomButton(ctx, "Cancel", DialogResult::Cancel);
 
         let mut fsb = emFileSelectionBox::new(ctx, "");
         fsb.border_mut().outer = super::emBorder::OuterBorderType::None;
@@ -271,8 +271,8 @@ impl emFileDialog {
                         // C++ CheckFinish lines 186-197 (new emDialog, set
                         // title, add OK/Cancel buttons).
                         let mut dlg = emDialog::new(ctx, "File Exists", self.dialog.look().clone());
-                        dlg.AddCustomButton("OK", DialogResult::Ok);
-                        dlg.AddCustomButton("Cancel", DialogResult::Cancel);
+                        dlg.AddCustomButton(ctx, "OK", DialogResult::Ok);
+                        dlg.AddCustomButton(ctx, "Cancel", DialogResult::Cancel);
                         self.overwrite_dialog = Some(dlg);
                         self.overwrite_asked = text;
                         return FileDialogCheckResult::ConfirmOverwrite(paths_to_overwrite);
