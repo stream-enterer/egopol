@@ -94,3 +94,13 @@ See plan §"Bootstrap decisions" (B3.6a–B3.6d).
   take_tree → ... walk deleted. 2 production callers in emFileDialog::Cycle
   unchanged — they die in Task 4. 2 unit tests unchanged.
   Gate green — nextest 2512/0/9.
+
+- **Task 2 — on_cycle_ext callback slot:** COMPLETE. Added
+  `pub(crate) type DialogCycleExt = Box<dyn FnMut(&mut DlgPanel,
+  &mut EngineCtx) -> bool>` and `DlgPanel.on_cycle_ext:
+  Option<DialogCycleExt>` field. DialogPrivateEngine::Cycle
+  takes-calls-puts the extension after the base cycle body using the
+  swap-out pattern (avoids double &mut dlg_panel borrow). One unit
+  test asserts the extension is called exactly once per Cycle slice.
+  Extension is None today — Task 3 installs it for emFileDialog.
+  Gate green — nextest 2513/0/9.
