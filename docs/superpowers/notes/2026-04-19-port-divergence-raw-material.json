@@ -1369,6 +1369,15 @@
       "inference": "Phase 1.75 Tasks 3/4 removed the per-sub-view scheduler but left Input dispatch synthesizing a local EngineScheduler to satisfy SchedCtx lifetimes. This is not a forced divergence \u2014 the trait signature is malleable \u2014 but is out of Phase 1.75 scope.",
       "status": "resolved-phase-1-76",
       "resolution_commit": "48466f41"
+    },
+    {
+      "id": "E040",
+      "title": "emFileDialog POSITIVE overwrite-confirm end-to-end test deferred",
+      "origin": "Phase 3.6 Task 5",
+      "status": "open",
+      "context": "Task 3's livelock fix (commit d99cedea) ensures OD POSITIVE promotes overwrite_asked→overwrite_confirmed + sets outer pending_result=Ok. Mechanical-arbiter end-to-end test deferred because install_pending_top_level_headless takes no WindowId parameter and collides when two dialogs (outer + OD) both try to install headlessly. Source-read evidence exists; end-to-end test requires parameterizing headless-install with a caller-supplied WindowId.",
+      "resolution_path": "Parameterize install_pending_top_level_headless with WindowId argument; write end-to-end test that (1) builds Save-mode FD on an existing file, (2) drives CheckFinish to spawn OD, (3) drives OD POSITIVE via a helper that sets OD-DlgPanel.pending_result, (4) runs slices, (5) asserts outer.finish_signal pending + outer.GetResult == Ok + outer.DlgPanel.overwrite_confirmed == asked-text.",
+      "phase_3_6_progress": "Task 5 wrote scheduler-driven tests for fsb-trigger, OD-finish observation + teardown, OD-NEGATIVE, and no-signal baseline. POSITIVE path covered by source-read only."
     }
   ]
 }

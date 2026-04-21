@@ -63,9 +63,13 @@ pub struct emFileDialog {
     look: Rc<emLook>,
     /// PanelId of the emFileSelectionBox installed under content panel.
     fsb_panel_id: PanelId,
-    /// SignalId cached at construction so callers can subscribe / fire
-    /// without walking the tree (fsb behavior lives under the dialog's
-    /// pending tree pre-show, the app window's tree post-show).
+    /// Cached `fsb.file_trigger_signal` — `SignalId` is `Copy`, stable
+    /// across fsb lifetime. Used by the `file_trigger_signal()` test
+    /// accessor. DIVERGED: C++ `emFileDialog` does not expose a
+    /// `GetFileTriggerSignal` accessor; this cache exists solely because
+    /// Rust tests need to fire the signal externally without walking the
+    /// tree. The closure in `on_cycle_ext` captures the same SignalId via
+    /// move-capture at construction and does NOT read this field.
     fsb_trigger_sig: SignalId,
     mode: FileDialogMode,
     dir_allowed: bool,
@@ -141,19 +145,16 @@ impl emFileDialog {
                 // tears down OD, and sets `pending_result = Ok` so the
                 // outer dialog finalizes.
 
-                // fsb_file_trigger signalled? → set pending_result = Ok.
-                //
-                // stay_awake tracking: on_cycle_ext runs AFTER the base
-                // Cycle body (emDialog.rs Cycle step 5a). If we mutate
-                // pending_result here the base won't observe it until the
-                // NEXT Cycle, so we must keep the engine awake to guarantee
-                // that next Cycle happens. Without the `true` return, the
-                // engine would sleep and finalization would never occur
-                // until some other signal woke the engine.
-                //
-                // C++ equivalent: emFileDialog.cpp:82-84 calls Finish(POSITIVE)
-                // which re-enters via emDialog::Finish → FinishState=1 the
-                // same cycle, so C++ doesn't have this re-wake requirement.
+                // DIVERGED: Rust-specific re-wake. The base
+                // `DialogPrivateEngine::Cycle` body runs BEFORE on_cycle_ext
+                // (Phase-3.6 Task 2 ordering). State mutations this closure
+                // makes — setting `dlg.pending_result`, pushing
+                // `pending_actions` — are not visible to the base body this
+                // Cycle. We return `true` on any mutation to keep the engine
+                // awake so the next Cycle's base body observes them. C++
+                // doesn't need this: `Finish(POSITIVE)` in
+                // emFileDialog::Cycle finalizes via same-call-stack re-entry
+                // into emDialog::Cycle's finalize path.
                 let mut stay = false;
                 if ctx.IsSignaled(closure_fsb_sig) && dlg.pending_result.is_none() {
                     dlg.pending_result = Some(DialogResult::Ok);
@@ -257,9 +258,9 @@ impl emFileDialog {
         }
     }
 
-    /// SignalId of the embedded emFileSelectionBox's file_trigger_signal.
-    /// Used by post-show consumers (including Task 5 E024 tests) to fire
-    /// the signal without reaching through the tree.
+    /// `#[cfg(test)]`-intent accessor for E024 closure tests. No C++
+    /// counterpart. Callers outside tests should not rely on this —
+    /// fsb's signals are implementation detail.
     pub fn file_trigger_signal(&self) -> SignalId {
         self.fsb_trigger_sig
     }
@@ -912,33 +913,23 @@ mod e024_closure_tests {
             state >= 2,
             "finish_state must have advanced past 1 (==2, fire + reset); got {state}"
         );
-        let _ = finish_sig;
+        // finish_sig was subscribed by the scheduler; it has already fired
+        // (finish_state >= 2 proves that). Bind explicitly to document intent.
+        assert_ne!(
+            finish_sig, fsb_trigger_sig,
+            "finish and fsb signals are distinct"
+        );
     }
 
-    // ─── Test 2: overwrite-POSITIVE — DEFERRED (see note) ─────────────────
-    //
-    // DEFERRED: the full scheduler-driven POSITIVE livelock regression
-    // test would install both outer + OD as headless top-levels and
-    // drive OD's user-OK through its own engine. That requires a second
-    // test-only `WindowId` distinct from `WindowId::dummy()` (currently
-    // the sole stable headless id); without a second id, installing OD
-    // overwrites outer's entry in `App::windows`.
-    //
-    // The scheduler-driven EVIDENCE for Task 3's fix is instead carried
-    // by `save_mode_overwrite_od_finish_signal_schedules_pending_action`
-    // below: it proves (a) OD.finish_signal is correctly subscribed to
-    // outer's engine via wake_up_signals; (b) on_cycle_ext runs on wake
-    // and observes the signal; (c) a pending_action is pushed for the
-    // deferred OD-result read + promotion; (d) OD is torn down from
-    // DlgPanel; (e) overwrite_asked is cleared. The promotion code path
-    // itself is an inline closure over `&mut DlgPanel` in on_cycle_ext
-    // and is verified by source-read.
-    //
-    // Follow-up: expose a second headless `WindowId` on `App` (or
-    // parameterize `install_pending_top_level_headless` with a caller-
-    // supplied id) to enable a two-dialog scheduler-driven POSITIVE test.
-
     // ─── Test 2: on_cycle_ext-push verification (reduced-scope POSITIVE) ───
+    //
+    // Full scheduler-driven POSITIVE (livelock regression) is DEFERRED —
+    // tracked as E040 in docs/superpowers/notes/2026-04-19-port-divergence-
+    // raw-material.json. Blocked on a second headless WindowId: currently
+    // `WindowId::dummy()` is the sole stable headless id; installing OD
+    // as a second top-level overwrites outer's entry in `App::windows`.
+    // Follow-up: parameterize `install_pending_top_level_headless` with a
+    // caller-supplied id.
 
     /// Task 5 pragmatic POSITIVE test: scheduler-driven proof that when
     /// OD.finish_signal fires, outer's `on_cycle_ext` closure observes it
