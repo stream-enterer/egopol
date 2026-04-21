@@ -192,3 +192,39 @@ See plan §"Bootstrap decisions" (B3.5a.a–B3.5a.g).
 
   Gate green — nextest 2487/0/10, goldens 237/6 preserved, clippy
   clean, fmt clean.
+- **Task 9 — Top-level install path:** COMPLETE. Added `DialogId` type
+  (pub — part of public API for Phase 3.5 Task 5 consumer),
+  `PendingTopLevel` struct, `DialogWindow<'a>` lookup enum. App fields:
+  `pending_top_level: Vec<PendingTopLevel>`, `dialog_windows:
+  HashMap<DialogId, WindowId>`, `next_dialog_id: u64`. Helpers:
+  `App::allocate_dialog_id` (monotonic u64 counter,
+  `checked_add`-guarded), `App::install_pending_top_level` (mirrors
+  `materialize_pending_popup` drain: winit attrs from pending flags
+  including UNDECORATED/MAXIMIZED/FULLSCREEN; create_window failure
+  pops + fires close_signal; deferred DialogPrivateEngine register at
+  `Priority::High` + `PanelScope::Toplevel(new_wid)` with
+  `scheduler.connect(close_signal, engine_id)`; SetGeometry via
+  take/put_tree on the dialog's own tree), and
+  `App::dialog_window_mut` returning `DialogWindow::Pending { idx,
+  entry }` or `DialogWindow::Materialized { window_id, window }`.
+  `emWindow::new_top_level_pending` ctor mirrors `new_popup_pending`
+  (own PanelTree + `create_root("dialog_root", false)` for two-phase
+  init, fresh vif_chain, PendingSurface OsSurface) but with
+  caller-supplied top-level flags and `wm_res_name`
+  "eaglemode-rs-dialog". Four unit tests (`allocate_dialog_id_monotonic`,
+  `dialog_window_mut_resolves_pending`,
+  `dialog_window_mut_resolves_materialized`,
+  `dialog_window_mut_unknown_id_returns_none`). `install_pending_top_level`
+  itself is not directly tested (needs ActiveEventLoop); Task 10 un-ignores
+  the Phase 3.5 Task 4 DialogPrivateEngine test and exercises the install
+  path headlessly. **Visibility divergence:** plan called for
+  `pub(crate)` on `PendingTopLevel`, `DialogWindow`, `pending_top_level`,
+  `dialog_windows`, `install_pending_top_level`, `dialog_window_mut`.
+  Widened to `pub` because pre-consumer dead_code under `-D warnings`
+  forbids narrower visibility before Phase 3.5 Task 5 lands. Task 4
+  precedent (see memory `project_phase35a_pub_narrow.md`) allows
+  the widening with a per-site rationale comment. Narrow back once the
+  `emDialog::new` consumer wires through. Gate green — nextest 2491/0/10
+  (baseline 2487 + 4 new = 2491), clippy clean, fmt clean. Goldens not
+  re-run — Task 9 only adds new code paths; no change to existing popup
+  or home install flow.

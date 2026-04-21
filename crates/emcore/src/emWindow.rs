@@ -407,6 +407,78 @@ impl emWindow {
         // no OS surface" contract.
     }
 
+    /// Construct a top-level `emWindow` in `Pending` state — no winit/wgpu
+    /// objects yet. Analogous to `new_popup_pending` but with top-level
+    /// `WindowFlags` (not `WF_POPUP`). Used by Phase 3.5 Task 5's
+    /// `emDialog::new` to queue a dialog window for materialization on
+    /// the next event-loop tick via `App::install_pending_top_level`.
+    ///
+    /// Constructs its own `PanelTree` + root panel (no caller-supplied
+    /// `root_panel` — matches Task 8 popup migration shape). Mirrors C++
+    /// `emWindow` ctor (`emWindow.cpp:31-33`) which forwards to
+    /// `emView::emView(parentContext, viewFlags)` constructing a fresh
+    /// RootPanel.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_top_level_pending(
+        parent_context: Rc<crate::emContext::emContext>,
+        flags: WindowFlags,
+        caption: String,
+        close_signal: SignalId,
+        flags_signal: SignalId,
+        focus_signal: SignalId,
+        geometry_signal: SignalId,
+        background_color: crate::emColor::emColor,
+    ) -> Self {
+        // Mirrors `new_popup_pending` construction. See that ctor for the
+        // rationale (`has_view=false`, tree ownership, vif chain, view-port
+        // wiring deferred to materialize).
+        let mut tree = PanelTree::new();
+        let root_panel = tree.create_root("dialog_root", false);
+        let mut view = emView::new(parent_context, root_panel, 1.0, 1.0);
+        view.SetBackgroundColor(background_color);
+        let max_render_threads = view.CoreConfig.borrow().GetRec().max_render_threads;
+
+        let vif_chain: Vec<Box<dyn emViewInputFilter>> = vec![
+            {
+                let mut mouse_vif = emMouseZoomScrollVIF::new();
+                let zflpp = view.GetZoomFactorLogarithmPerPixel();
+                mouse_vif.set_mouse_anim_params(1.0, 0.25, zflpp);
+                mouse_vif.set_wheel_anim_params(1.0, 0.25, zflpp);
+                Box::new(mouse_vif)
+            },
+            Box::new(emKeyboardZoomScrollVIF::new()),
+        ];
+
+        Self {
+            os_surface: OsSurface::Pending(Box::new(PendingSurface {
+                flags,
+                caption,
+                requested_pos_size: None,
+            })),
+            view,
+            flags,
+            close_signal,
+            flags_signal,
+            focus_signal,
+            geometry_signal,
+            root_panel,
+            tree,
+            vif_chain,
+            cheat_vif: emCheatVIF::new(),
+            touch_vif: emDefaultTouchVIF::new(),
+            active_animator: None,
+            window_icon: None,
+            last_mouse_pos: (0.0, 0.0),
+            screensaver_inhibit_count: 0,
+            screensaver_cookie: None,
+            flags_changed: false,
+            focus_changed: false,
+            geometry_changed: false,
+            wm_res_name: String::from("eaglemode-rs-dialog"),
+            render_pool: emRenderThreadPool::new(max_render_threads),
+        }
+    }
+
     /// Set the `window_id` back-reference on the current view-port. Called
     /// by the framework once a pending popup's OS surface has been
     /// materialized and its winit WindowId is known.

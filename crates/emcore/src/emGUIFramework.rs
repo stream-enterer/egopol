@@ -19,7 +19,53 @@ use crate::emScheduler::EngineScheduler;
 use crate::emSignal::SignalId;
 
 use super::emWindow::{emWindow, WindowFlags};
+use crate::emEngine::{emEngine, Priority};
+use crate::emPanelScope::PanelScope;
 use crate::emScreen::emScreen;
+
+/// Stable identifier for a dialog (or other runtime-installed top-level
+/// window) across the pending-vs-materialized lifecycle. Allocated by
+/// `App::allocate_dialog_id` at dialog-construction time; resolved to
+/// the materialized `WindowId` via `App::dialog_windows` after
+/// `install_pending_top_level` runs.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct DialogId(pub u64);
+
+/// A top-level window awaiting materialization. `emDialog::new` (Phase 3.5
+/// Task 5 consumer) constructs these; the framework drains them on the
+/// next event-loop tick via `App::install_pending_top_level`.
+///
+/// Phase 3.5.A Task 9 note: widened from `pub(crate)` to `pub` because
+/// the consumer (Phase 3.5 `emDialog` reshape, Task 10+) has not yet
+/// wired through. Dead-code lint under `-D warnings` requires public
+/// reachability until the consumer lands; Task 4 precedent (see memory
+/// `project_phase35a_pub_narrow.md`) allows the widening with a note.
+/// Narrow back to `pub(crate)` once Phase 3.5 Task 5 consumes this.
+pub struct PendingTopLevel {
+    pub dialog_id: DialogId,
+    pub window: emWindow,
+    pub close_signal: SignalId,
+    /// DialogPrivateEngine behavior, not yet registered with the scheduler.
+    /// Registered post-materialize in `install_pending_top_level` with
+    /// `PanelScope::Toplevel(materialized_wid)`.
+    pub pending_private_engine: Option<Box<dyn emEngine>>,
+}
+
+/// Result of `App::dialog_window_mut`: the dialog's `emWindow` may either
+/// still be queued in `pending_top_level` (pre-materialize) or already
+/// live in `App::windows` keyed by a real `WindowId`.
+///
+/// Phase 3.5.A Task 9 visibility note: see `PendingTopLevel`.
+pub enum DialogWindow<'a> {
+    Pending {
+        idx: usize,
+        entry: &'a mut PendingTopLevel,
+    },
+    Materialized {
+        window_id: WindowId,
+        window: &'a mut emWindow,
+    },
+}
 
 /// Shared GPU resources created once and used by all windows.
 pub struct GpuContext {
@@ -103,6 +149,21 @@ pub struct App {
     /// `self.windows.get_mut(&home_window_id.unwrap()).unwrap().tree` or
     /// the `home_tree_mut()` helper. Formerly `App::tree`.
     pub home_window_id: Option<WindowId>,
+    /// Phase 3.5.A Task 9: top-level windows queued for materialization on
+    /// the next event-loop tick. `emDialog::new` (Phase 3.5 Task 5
+    /// consumer) pushes entries here; `install_pending_top_level` drains
+    /// one per call. Analogue of `emView::PopupWindow` for dialogs (i.e.
+    /// framework-managed top-level windows rather than view-owned popups).
+    /// Visibility note: widened to `pub` until the Phase 3.5 Task 5
+    /// `emDialog` consumer lands — see `PendingTopLevel` doc.
+    pub pending_top_level: Vec<PendingTopLevel>,
+    /// Phase 3.5.A Task 9: `DialogId` → `WindowId` mapping recorded by
+    /// `install_pending_top_level` once the OS surface is built. Lets
+    /// callers that hold a `DialogId` locate the materialized `emWindow`
+    /// in `self.windows`.
+    pub dialog_windows: HashMap<DialogId, WindowId>,
+    /// Phase 3.5.A Task 9: monotonic counter feeding `allocate_dialog_id`.
+    pub(crate) next_dialog_id: u64,
     /// Framework-level deferred actions produced by scheduler/view code that
     /// need to run back on `App` between time slices. Spec §3.1 / §3.7 —
     /// passed as `&mut Vec<DeferredAction>` into `EngineScheduler::DoTimeSlice`.
@@ -164,6 +225,9 @@ impl App {
             context,
             windows: HashMap::new(),
             home_window_id: None,
+            pending_top_level: Vec::new(),
+            dialog_windows: HashMap::new(),
+            next_dialog_id: 0,
             framework_actions: Vec::new(),
             input_state: emInputState::new(),
             pending_inputs: Vec::new(),
@@ -400,6 +464,165 @@ impl App {
         }
 
         winit_window.request_redraw();
+    }
+
+    /// Allocate a fresh `DialogId`. Monotonic counter.
+    ///
+    /// Phase 3.5.A Task 9. Called by `emDialog::new` (Phase 3.5 Task 5
+    /// consumer) before pushing onto `pending_top_level`.
+    pub fn allocate_dialog_id(&mut self) -> DialogId {
+        let id = DialogId(self.next_dialog_id);
+        self.next_dialog_id = self
+            .next_dialog_id
+            .checked_add(1)
+            .expect("DialogId overflow — u64 exhausted");
+        id
+    }
+
+    /// Materialize the first pending top-level window.
+    ///
+    /// Mirrors `materialize_pending_popup` but drains `pending_top_level`
+    /// (framework-managed dialog queue) instead of scanning for a view
+    /// with a `Pending` popup. Called from a `pending_actions` closure
+    /// enqueued by `emDialog::new`; if multiple dialogs are pending,
+    /// each closure fires this once.
+    ///
+    /// Post-materialize, the deferred `DialogPrivateEngine` behavior
+    /// (shipped on the `PendingTopLevel` entry) is registered at
+    /// `PanelScope::Toplevel(materialized_wid)` and connected to the
+    /// dialog's close signal — resolving the spec's
+    /// "engine-registration chicken-and-egg" (option a: deferred
+    /// registration) for runtime-installed top-level windows.
+    /// Visibility: `pub` awaiting Phase 3.5 Task 5 consumer — see
+    /// `PendingTopLevel` doc.
+    pub fn install_pending_top_level(&mut self, event_loop: &ActiveEventLoop) {
+        use crate::emWindow::{MaterializedSurface, OsSurface};
+
+        if self.pending_top_level.is_empty() {
+            // Cancelled before drain (dialog torn down between enqueue
+            // and this tick).
+            return;
+        }
+
+        // Extract flags/caption for winit attrs without holding a long
+        // borrow across `create_window`.
+        let (flags, caption) = match &self.pending_top_level[0].window.os_surface {
+            OsSurface::Pending(p) => (p.flags, p.caption.clone()),
+            OsSurface::Materialized(_) => {
+                // Already materialized — structurally impossible given
+                // the ctor always produces `Pending`, but drain + return
+                // rather than panic to preserve framework progress.
+                let _ = self.pending_top_level.remove(0);
+                return;
+            }
+        };
+
+        let mut attrs = winit::window::WindowAttributes::default().with_title(caption.as_str());
+        if flags.contains(WindowFlags::UNDECORATED) {
+            attrs = attrs.with_decorations(false);
+        }
+        if flags.contains(WindowFlags::MAXIMIZED) {
+            attrs = attrs.with_maximized(true);
+        }
+        if flags.contains(WindowFlags::FULLSCREEN) {
+            attrs = attrs.with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+        }
+        // `WF_MODAL` has no winit counterpart; modality is the window
+        // manager's concern (or enforced by input-routing discipline in
+        // the engine layer).
+
+        let winit_window = match event_loop.create_window(attrs) {
+            Ok(w) => Arc::new(w),
+            Err(e) => {
+                // Materialization failed — pop the pending entry and fire
+                // close_signal so DialogPrivateEngine (once registered)
+                // observes termination. Match popup parity: log +
+                // graceful abort.
+                eprintln!(
+                    "install_pending_top_level: winit create_window failed: {:?}",
+                    e
+                );
+                let pending = self.pending_top_level.remove(0);
+                self.scheduler.fire(pending.close_signal);
+                return;
+            }
+        };
+
+        let gpu = self.gpu.as_ref().expect("GPU not initialized");
+        let materialized = MaterializedSurface::build(gpu, winit_window.clone());
+        let w = materialized.surface_config.width;
+        let h = materialized.surface_config.height;
+        let new_wid = winit_window.id();
+
+        // Pop the pending entry; materialize in place.
+        let mut pending = self.pending_top_level.remove(0);
+        pending.window.os_surface = OsSurface::Materialized(Box::new(materialized));
+        pending.window.wire_viewport_window_id(new_wid);
+
+        // Register DialogPrivateEngine now that we have a real WindowId.
+        if let Some(engine_behavior) = pending.pending_private_engine.take() {
+            let engine_id = self.scheduler.register_engine(
+                engine_behavior,
+                Priority::High,
+                PanelScope::Toplevel(new_wid),
+            );
+            self.scheduler.connect(pending.close_signal, engine_id);
+        }
+
+        // Set initial view geometry. Take the dialog's tree out for the
+        // SetGeometry call, put it back before inserting into
+        // `self.windows`. Mirrors `materialize_pending_popup`.
+        let root = Rc::clone(&self.context);
+        let App {
+            scheduler,
+            framework_actions,
+            clipboard,
+            ..
+        } = self;
+        let mut tree = pending.window.take_tree();
+        {
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler,
+                framework_actions,
+                root_context: &root,
+                framework_clipboard: clipboard,
+                current_engine: None,
+            };
+            pending
+                .window
+                .view_mut()
+                .SetGeometry(&mut tree, 0.0, 0.0, w as f64, h as f64, 1.0, &mut sc);
+        }
+        pending.window.put_tree(tree);
+
+        // Move the emWindow into App::windows under its real WindowId,
+        // and record the DialogId → WindowId mapping.
+        self.windows.insert(new_wid, pending.window);
+        self.dialog_windows.insert(pending.dialog_id, new_wid);
+
+        winit_window.request_redraw();
+    }
+
+    /// Look up the `emWindow` backing a `DialogId`. Returns `Pending` if
+    /// the dialog is still queued in `pending_top_level`, or
+    /// `Materialized` once `install_pending_top_level` has moved it
+    /// into `self.windows`. Phase 3.5.A Task 9.
+    /// Visibility: `pub` awaiting Phase 3.5 Task 5 consumer — see
+    /// `PendingTopLevel` doc.
+    pub fn dialog_window_mut(&mut self, did: DialogId) -> Option<DialogWindow<'_>> {
+        if let Some(wid) = self.dialog_windows.get(&did).copied() {
+            let window = self.windows.get_mut(&wid)?;
+            return Some(DialogWindow::Materialized {
+                window_id: wid,
+                window,
+            });
+        }
+        for (idx, entry) in self.pending_top_level.iter_mut().enumerate() {
+            if entry.dialog_id == did {
+                return Some(DialogWindow::Pending { idx, entry });
+            }
+        }
+        None
     }
 }
 
@@ -887,5 +1110,99 @@ mod tests {
         let framework = App::new(Box::new(|_app, _el| {}));
         let _: &EngineScheduler = &framework.scheduler;
         assert!(framework.framework_actions.is_empty());
+    }
+
+    /// Phase 3.5.A Task 9 tests for the pending-top-level install path.
+    /// `install_pending_top_level` itself requires an `ActiveEventLoop`
+    /// so it is exercised indirectly — these tests cover the allocation
+    /// counter, the queue, and `dialog_window_mut`'s Pending vs
+    /// Materialized resolution.
+    mod pending_top_level_tests {
+        use super::*;
+        use crate::emColor::emColor;
+
+        fn test_app() -> App {
+            App::new(Box::new(|_app, _el| {}))
+        }
+
+        fn make_pending_window(app: &mut App) -> emWindow {
+            let close_sig = app.scheduler.create_signal();
+            let flags_sig = app.scheduler.create_signal();
+            let focus_sig = app.scheduler.create_signal();
+            let geom_sig = app.scheduler.create_signal();
+            emWindow::new_top_level_pending(
+                Rc::clone(&app.context),
+                WindowFlags::empty(),
+                "test-dialog".to_string(),
+                close_sig,
+                flags_sig,
+                focus_sig,
+                geom_sig,
+                emColor::TRANSPARENT,
+            )
+        }
+
+        #[test]
+        fn allocate_dialog_id_monotonic() {
+            let mut app = test_app();
+            let a = app.allocate_dialog_id();
+            let b = app.allocate_dialog_id();
+            let c = app.allocate_dialog_id();
+            assert_eq!(a, DialogId(0));
+            assert_eq!(b, DialogId(1));
+            assert_eq!(c, DialogId(2));
+        }
+
+        #[test]
+        fn dialog_window_mut_resolves_pending() {
+            let mut app = test_app();
+            let did = app.allocate_dialog_id();
+            let close_sig = app.scheduler.create_signal();
+            let window = make_pending_window(&mut app);
+            app.pending_top_level.push(PendingTopLevel {
+                dialog_id: did,
+                window,
+                close_signal: close_sig,
+                pending_private_engine: None,
+            });
+
+            match app.dialog_window_mut(did) {
+                Some(DialogWindow::Pending { idx, entry }) => {
+                    assert_eq!(idx, 0);
+                    assert_eq!(entry.dialog_id, did);
+                }
+                _ => panic!("expected Pending variant"),
+            }
+        }
+
+        #[test]
+        fn dialog_window_mut_resolves_materialized() {
+            // Simulate post-install state: DialogId → WindowId recorded,
+            // emWindow moved into App::windows. We build a headless
+            // emWindow (still Pending OsSurface — good enough; the test
+            // only checks map resolution, not OS surface state) and
+            // insert under a dummy WindowId.
+            let mut app = test_app();
+            let did = app.allocate_dialog_id();
+            let wid = WindowId::dummy();
+            let window = make_pending_window(&mut app);
+            app.windows.insert(wid, window);
+            app.dialog_windows.insert(did, wid);
+
+            match app.dialog_window_mut(did) {
+                Some(DialogWindow::Materialized { window_id, .. }) => {
+                    assert_eq!(window_id, wid);
+                }
+                _ => panic!("expected Materialized variant"),
+            }
+        }
+
+        #[test]
+        fn dialog_window_mut_unknown_id_returns_none() {
+            let mut app = test_app();
+            // Allocate to advance counter, then query a different id.
+            let _ = app.allocate_dialog_id();
+            assert!(app.dialog_window_mut(DialogId(999)).is_none());
+        }
     }
 }
