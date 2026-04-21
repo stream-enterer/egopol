@@ -487,7 +487,7 @@ impl emDialog {
 ///
 pub struct DlgPanel {
     pub(crate) border: emBorder,
-    look: Rc<emLook>,
+    pub(crate) look: Rc<emLook>,
     /// Set by `DlgPanel::on_finish` once `CheckFinish` permits. `DialogPrivateEngine`
     /// observes this on Cycle and fires `finish_signal`.
     pub(crate) pending_result: Option<DialogResult>,
@@ -574,6 +574,28 @@ pub struct DlgPanel {
     /// without reaching back into `emFileDialog`. Placement rationale
     /// matches `overwrite_dialog` / `overwrite_asked`.
     pub(crate) overwrite_confirmed: String,
+    /// DIVERGED (Phase 3.6.1 Task 2): file-dialog mode mirrored from
+    /// `emFileDialog::mode` onto DlgPanel so the `'static + FnMut`
+    /// `on_check_finish` closure — which has only `&mut DlgPanel` +
+    /// `&mut EngineCtx`, not `&mut emFileDialog` — reads fresh state per
+    /// fire. `None` for plain emDialogs (no file-dialog validation).
+    /// Rust-only consolidation: C++ subclass `emFileDialog` stores `Mode`
+    /// directly on itself and reaches it via `this` inside virtual
+    /// `CheckFinish`; Rust callback slot can't reach across struct
+    /// boundaries, so the read path lives on DlgPanel. Writes are mirrored
+    /// from `emFileDialog` (authoritative outward API) via
+    /// `with_dlg_panel_mut` pre-show / `App::mutate_dialog_by_id` post-show.
+    pub(crate) file_dialog_mode: Option<crate::emFileDialog::FileDialogMode>,
+    /// DIVERGED (Phase 3.6.1 Task 2): mirrors `emFileDialog::dir_allowed`
+    /// onto DlgPanel for the `on_check_finish` closure's read path. Same
+    /// rationale as `file_dialog_mode` above. `false` default matches
+    /// `emFileDialog::new` default.
+    pub(crate) file_dialog_dir_allowed: bool,
+    /// DIVERGED (Phase 3.6.1 Task 2): mirrors `emFileDialog::fsb_panel_id`
+    /// onto DlgPanel so the `on_check_finish` closure can reach the
+    /// emFileSelectionBox child via `take_behavior(fsb_panel_id)` through
+    /// its `&mut EngineCtx` tree. `None` for plain emDialogs.
+    pub(crate) fsb_panel_id_for_check_finish: Option<crate::emPanelTree::PanelId>,
 }
 
 impl DlgPanel {
@@ -597,6 +619,9 @@ impl DlgPanel {
             private_engine_id: None,
             overwrite_asked: String::new(),
             overwrite_confirmed: String::new(),
+            file_dialog_mode: None,
+            file_dialog_dir_allowed: false,
+            fsb_panel_id_for_check_finish: None,
         }
     }
 
