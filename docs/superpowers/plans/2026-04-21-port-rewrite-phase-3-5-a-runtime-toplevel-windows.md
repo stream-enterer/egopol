@@ -646,6 +646,8 @@ Gate green — nextest 2485/0/9."
 
 **Not yet a breaking change for consumers:** existing `PanelCycleEngine`, `UpdateEngineClass`, `VisitingVAEngineClass` carry a `scope: PanelScope` field. In this task their registration argument shape changes only where they use `SubView` (new field), and none currently use `SubView` at call-sites (SubView support was the Phase 1.75 Task 3 groundwork; live SubView usage is rare). Framework variant is new — zero existing sites use it yet.
 
+**Design decision — SubView is flat, no `rest` chain.** The spec sketched `SubView { window_id, outer_panel_id, rest: Box<PanelScope> }` to allow nested SubView walks. Current code has no multi-level SubView nesting; `TreeLocation::SubView` was single-level too. To avoid a Box-owned enum (forces dropping `Copy`, complicates Task 6 dispatch) and an ambiguous base case (what terminates the chain?), `PanelScope::SubView` ships flat: `SubView { window_id, outer_panel_id }`. If multi-level nesting is needed later, reintroduce `rest` then. This design is fixed here and does NOT change mid-Task 6.
+
 - [ ] **Step 5.1: Read the current `PanelScope` + `resolve_view`.**
 
 ```bash
@@ -671,7 +673,7 @@ use winit::window::WindowId;
 
 use crate::emPanelTree::PanelId;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PanelScope {
     /// Engine spans windows or is tree-agnostic. Scheduler dispatch does NOT
     /// detach any tree for this engine; `ctx.tree` is `None` during its Cycle.
@@ -684,13 +686,13 @@ pub enum PanelScope {
     Toplevel(WindowId),
 
     /// Engine belongs to a sub-view nested inside a `Toplevel` window's tree.
-    /// Scheduler detaches `windows[window_id].tree`, then walks via
-    /// `take_behavior(outer_panel_id)` → `as_sub_view_panel_mut().sub_tree_mut()`
-    /// → recurse on `rest`.
+    /// Scheduler detaches `windows[window_id].tree`, then walks one level via
+    /// `take_behavior(outer_panel_id)` → `as_sub_view_panel_mut().sub_tree_mut()`.
+    /// Single-level only (no `rest` chain) — matches current codebase usage;
+    /// multi-level nesting can be reintroduced by adding a `rest` field later.
     SubView {
         window_id: WindowId,
         outer_panel_id: PanelId,
-        rest: Box<PanelScope>,
     },
 }
 
@@ -732,7 +734,6 @@ impl PanelScope {
             PanelScope::SubView {
                 window_id,
                 outer_panel_id,
-                rest: _,
             } => {
                 // Phase 3.5.A: SubView resolution now starts from the
                 // specified window's tree (via ctx.tree, which the scheduler
@@ -770,8 +771,12 @@ impl PanelScope {
                 // always the outer App::tree, and SubView.PanelId was
                 // uniquely present in it. Post-3.5.A, same invariant holds
                 // via the scheduler's scope-directed walk.
-                let tree = ctx.tree.as_deref_mut()?;
-                let svp_opt: Option<&mut crate::emSubViewPanel::emSubViewPanel> = tree
+                // Note: at Task 5, `ctx.tree` is still `&mut PanelTree`
+                // (Task 6 changes it to `Option<&mut PanelTree>`). Use
+                // direct field access; when Task 6 migrates, this becomes
+                // `ctx.tree.as_deref_mut()?`.
+                let svp_opt: Option<&mut crate::emSubViewPanel::emSubViewPanel> = ctx
+                    .tree
                     .panels
                     .get_mut(*outer_panel_id)
                     .and_then(|p| p.behavior.as_mut())
@@ -808,7 +813,6 @@ mod tests {
         let _ = PanelScope::SubView {
             window_id: WindowId::dummy(),
             outer_panel_id: PanelId::null(),
-            rest: Box::new(PanelScope::Framework),
         };
     }
 
@@ -821,7 +825,6 @@ mod tests {
             PanelScope::SubView {
                 window_id: wid,
                 outer_panel_id: PanelId::null(),
-                rest: Box::new(PanelScope::Framework),
             }
             .window_id(),
             Some(wid)
@@ -830,7 +833,7 @@ mod tests {
 }
 ```
 
-Note: the old version derived `PartialEq, Eq` via `Copy, Clone, Debug, PartialEq, Eq` on a simpler enum. The new enum has a boxed field so can't be Copy. `PartialEq, Eq` work with Box fields. Adjust derives accordingly — use `Clone, Debug, PartialEq, Eq` (no Copy).
+Note: the current `PanelScope` derives `Copy, Clone, Debug, PartialEq, Eq`. The new enum has no boxed fields (SubView is flat), all variant payloads are `Copy` (WindowId, PanelId) or unit (Framework), so keep the full derive set `#[derive(Copy, Clone, Debug, PartialEq, Eq)]`.
 
 - [ ] **Step 5.3: Migrate existing `PanelScope::SubView(PanelId)` call-sites.**
 
@@ -845,9 +848,9 @@ For each site, determine:
 
 **Migration sub-choice:** since this is a narrow surface, directly read each site and thread `window_id` through its construction. Common shape:
 
-- `emSubViewPanel` constructs its sub-view's engines with `PanelScope::SubView(outer_id)` → change to `PanelScope::SubView { window_id: <SOMETHING>, outer_panel_id: outer_id, rest: Box::new(inner_scope) }` where `inner_scope` is the previous TreeLocation's `rest` chain.
+- `emSubViewPanel` constructs its sub-view's engines with `PanelScope::SubView(outer_id)` → change to `PanelScope::SubView { window_id: <SOMETHING>, outer_panel_id: outer_id }`.
 - If the outer scope itself is `Toplevel(wid)`, `window_id = wid` for the SubView.
-- If the outer scope is already `SubView { window_id, ... }`, `window_id` inherits.
+- If the outer scope is already `SubView { window_id, .. }`, `window_id` inherits.
 
 Implementation hint: Grep for `TreeLocation::SubView` too — both `TreeLocation::SubView` and `PanelScope::SubView` exist today (TreeLocation for scheduler dispatch; PanelScope for engine-view resolution). Task 6 unifies them; for Task 5 we only fix PanelScope's new shape.
 
@@ -991,7 +994,7 @@ let stay_awake = match scope {
         }
         result
     }
-    PanelScope::SubView { window_id, outer_panel_id, rest } => {
+    PanelScope::SubView { window_id, outer_panel_id } => {
         let Some(win) = windows.get_mut(&window_id) else {
             if let Some(eng) = self.inner.engines.get_mut(engine_id) {
                 eng.behavior = Some(behavior);
@@ -1000,20 +1003,37 @@ let stay_awake = match scope {
             continue;
         };
         let mut tree = win.take_tree();
-        let result = dispatch_sub_resolved(&mut tree, &*rest, |resolved| {
-            let mut ctx = EngineCtx {
-                scheduler: self,
-                tree: Some(resolved),
-                windows,
-                root_context,
-                framework_actions,
-                pending_inputs,
-                input_state,
-                framework_clipboard,
-                engine_id,
+        let result = {
+            // Single-level SubView walk: take emSubViewPanel's behavior,
+            // reach its sub_tree, pass to Cycle. Matches pre-3.5.A
+            // single-level usage in the codebase.
+            let Some(mut behavior_owner) = tree.take_behavior(outer_panel_id) else {
+                panic!(
+                    "SubView dispatch: outer panel {:?} missing from window tree",
+                    outer_panel_id
+                );
             };
-            behavior.Cycle(&mut ctx)
-        });
+            let cycle_result = {
+                let sv = behavior_owner.as_sub_view_panel_mut().expect(
+                    "SubView dispatch: outer panel behavior is not an emSubViewPanel",
+                );
+                let sub = sv.sub_tree_mut();
+                let mut ctx = EngineCtx {
+                    scheduler: self,
+                    tree: Some(sub),
+                    windows,
+                    root_context,
+                    framework_actions,
+                    pending_inputs,
+                    input_state,
+                    framework_clipboard,
+                    engine_id,
+                };
+                behavior.Cycle(&mut ctx)
+            };
+            tree.put_behavior(outer_panel_id, behavior_owner);
+            cycle_result
+        };
         if let Some(win) = windows.get_mut(&window_id) {
             win.put_tree(tree);
         } else {
@@ -1024,65 +1044,7 @@ let stay_awake = match scope {
 };
 ```
 
-`dispatch_sub_resolved` is the SubView-chain portion of the old `dispatch_with_resolved_tree`:
-```rust
-fn dispatch_sub_resolved<R>(
-    tree: &mut PanelTree,
-    loc: &PanelScope,
-    f: impl FnOnce(&mut PanelTree) -> R,
-) -> R {
-    match loc {
-        // At the innermost level, the "rest" is conceptually "Outer" within
-        // the window we're already detached from. Base case:
-        PanelScope::Framework => unreachable!("SubView rest cannot be Framework"),
-        PanelScope::Toplevel(_) => unreachable!("SubView rest cannot be Toplevel"),
-        // The `rest` chain bottoms out at a sub_tree walk.
-        // This is the SubView recursion from the pre-3.5.A dispatcher.
-        PanelScope::SubView { outer_panel_id, rest, .. } => {
-            let Some(mut behavior) = tree.take_behavior(*outer_panel_id) else {
-                panic!(
-                    "dispatch_sub_resolved: outer panel {:?} missing from tree",
-                    outer_panel_id
-                );
-            };
-            let result = {
-                let sv = behavior.as_sub_view_panel_mut().expect(
-                    "dispatch_sub_resolved: outer panel behavior is not an emSubViewPanel",
-                );
-                // Recurse or bottom out.
-                match &**rest {
-                    PanelScope::SubView { .. } => {
-                        dispatch_sub_resolved(sv.sub_tree_mut(), rest, f)
-                    }
-                    _ => f(sv.sub_tree_mut()),
-                }
-            };
-            tree.put_behavior(*outer_panel_id, behavior);
-            result
-        }
-    }
-}
-```
-
-Wait — this has a problem: `rest: Box<PanelScope>` in the new scope can be Framework/Toplevel/SubView. What terminates the walk? In the pre-3.5.A shape, TreeLocation::SubView's `rest` was `Box<TreeLocation>` bottoming out at `TreeLocation::Outer` (base case: `f(tree)`). In the new PanelScope shape, what's the base case?
-
-**Design clarification:** the `rest` in `PanelScope::SubView { rest }` is conceptually "how to walk *within* the sub-tree once we're in it." It should be either another `PanelScope::SubView` (further nesting) or a new base-case value. Since PanelScope is a flat enum, we need a terminator.
-
-**Fix:** replace `rest: Box<PanelScope>` with an explicit terminal variant `PanelScope::TreeRoot` (or just omit rest and enforce flatness — SubView nesting one level deep is all that's used today). The cleanest shape: keep the `rest` box, but define the base case as a marker.
-
-Alternative simpler shape (recommended): drop the `rest` chain for now. If SubView nesting is needed later, extend then. The single-level shape:
-
-```rust
-PanelScope::SubView { window_id: WindowId, outer_panel_id: PanelId }
-```
-
-No recursion; the scheduler walks exactly one level: take the emSubViewPanel's behavior, reach its sub_tree, pass sub_tree to Cycle. Matches current SubView usage in the codebase (Phase 1.75 SubView was single-level).
-
-Adjust Step 5.2's enum definition accordingly (the rest field goes away). If you've already committed Task 5 with the Box<PanelScope> rest, that's fine — this task amends it. If Task 5 is still open, go back and drop the rest.
-
-**Decision here:** drop `rest` from PanelScope. Single-level SubView only. If multi-level is needed in future, reintroduce then.
-
-**Implementer note:** update Task 5 commit to omit `rest`. In the interest of one-task-one-commit, if Task 5 is already committed, amend it or add a commit in Task 6 that removes `rest`. Either way, the final state has flat single-level SubView.
+`PanelScope::SubView` is flat (single-level) by the Task 5 design decision. The scheduler walks exactly one `take_behavior` / `put_behavior` pair on the detached window tree — no recursion needed. If multi-level nesting is reintroduced later (via a `rest: Box<PanelScope>` field), the inner recursion shape mirrors pre-3.5.A `dispatch_with_resolved_tree` at emScheduler.rs:138-169.
 
 - [ ] **Step 6.1.2: Spike the minimal dispatch change.**
 
@@ -1207,6 +1169,19 @@ Update every `impl ConstructCtx for ...` block (`InitCtx`, `EngineCtx`, `SchedCt
 
 Add `use crate::emPanelScope::PanelScope;` to `emEngineCtx.rs` and `emEngine.rs`.
 
+- [ ] **Step 6.2.2b: Migrate `PanelTree::new_with_location` signature.**
+
+`PanelTree::new_with_location(TreeLocation)` exists at emPanelTree.rs:359. When `TreeLocation` is deleted (Step 6.2.3), this constructor must change. Two options:
+
+- **Preferred**: drop `new_with_location` entirely. Its sole consumer today (emSubViewPanel.rs:66) stores the TreeLocation for later use. Under the per-window scheme, the sub-tree no longer needs a pre-baked location — the scheduler resolves via `PanelScope`. Audit all call-sites; most collapse to `PanelTree::new()`.
+- **Fallback**: replace `TreeLocation` argument with `PanelScope`, store it on the tree.
+
+Grep all call-sites before choosing:
+```bash
+rg -n 'PanelTree::new_with_location' crates/emcore/
+```
+Preferred path is cleanest; migrate now in Step 6.2.2b so Step 6.2.3's `TreeLocation` deletion compiles.
+
 - [ ] **Step 6.2.3: Delete `TreeLocation`.**
 
 In `crates/emcore/src/emEngine.rs`:
@@ -1282,6 +1257,18 @@ pub fn DoTimeSlice(
 
 Delete the `tree: &mut PanelTree` parameter. Internals no longer dereference `tree` directly — dispatch gets trees from `windows[wid].tree` per-engine.
 
+**Note on `pending_engine_removals`:** emScheduler.rs:467 drains `tree.pending_engine_removals` at slice start. With per-window trees, the drain must iterate every window's tree:
+
+```rust
+let mut pending_removals: Vec<EngineId> = Vec::new();
+for win in windows.values_mut() {
+    pending_removals.extend(win.tree.pending_engine_removals.drain(..));
+}
+for eid in pending_removals { self.remove_engine(eid); }
+```
+
+Do this before the per-engine dispatch loop.
+
 Now migrate every DoTimeSlice call-site:
 
 ```bash
@@ -1356,6 +1343,12 @@ Expected: ~40-60 sites. Each gets a `.as_deref_mut().expect("...")` or is moved 
   tree.foo(...)
   ```
 - SubView engines: same as Toplevel; ctx.tree is the resolved sub-tree.
+
+- [ ] **Step 6.2.6b: Update `PanelScope::resolve_view` for `Option<&mut PanelTree>`.**
+
+Task 5 wrote `resolve_view` against `ctx.tree: &mut PanelTree` (old shape). Now that Step 6.2.6 changed it to `Option<&mut PanelTree>`, the SubView arm's `ctx.tree.panels.get_mut(pid)` must become `ctx.tree.as_deref_mut()?.panels.get_mut(pid)`. Same `?` short-circuit on the raw-pointer `sched_ptr` / `fw_ptr` reborrow pattern — no other changes.
+
+Framework arm of `resolve_view` already returns None, unaffected.
 
 - [ ] **Step 6.2.7: Add `tree_mut_safe` (or similar) on emWindow for Framework engines.**
 
@@ -1588,7 +1581,7 @@ self.windows.insert(home_wid, home_window);
 
 After:
 ```rust
-let mut home_tree = PanelTree::new_with_location(TreeLocation::Outer); // or whatever today's call does
+let mut home_tree = PanelTree::new(); // TreeLocation retired in Task 6 (Step 6.2.2b)
 let root_panel = home_tree.create_root("home_root", true);
 /* ... build home_window, passing root_panel ... */
 home_window.put_tree(home_tree);  // move tree into the window
@@ -1618,9 +1611,9 @@ impl emWindow {
         let focus_signal = /* ... */;
         let geometry_signal = /* ... */;
         
-        let mut tree = PanelTree::new_with_location(TreeLocation::Outer);
+        let mut tree = PanelTree::new();
         let root_panel = tree.create_root("root", true);
-        
+
         let mut win = Self::create(event_loop, gpu, parent_context, root_panel, flags, close_signal, flags_signal, focus_signal, geometry_signal);
         win.put_tree(tree);
         win
@@ -1772,19 +1765,16 @@ pub fn new_popup_pending(
     background_color: emColor,
 ) -> Self {
     // Build the popup's own tree + root.
-    let mut tree = PanelTree::new_with_location(TreeLocation::Outer);
-    // Hmm — TreeLocation was deleted in Task 6. PanelTree::new_with_location's
-    // arg is... what? Check the current signature.
-    // [read crates/emcore/src/emPanelTree.rs]
-    // Likely it took TreeLocation and needs to be ported to PanelScope or
-    // to drop the arg entirely. Adapt here.
+    // Task 6 Step 6.2.2b migrated PanelTree construction: TreeLocation is
+    // retired; use the no-arg `PanelTree::new()`.
+    let mut tree = PanelTree::new();
     let root_panel = tree.create_root("popup_root", true);
     let view = emView::new(parent_context, root_panel, 1.0, 1.0);
     // ... build Self with tree: tree, root_panel: root_panel, ...
 }
 ```
 
-Note on `PanelTree::new_with_location`: Task 6 deleted `TreeLocation`. This call (at emSubViewPanel.rs:66) might have migrated to a different arg type (PanelScope?) or been simplified. Check Task 6's output and adapt.
+Note on `PanelTree::new_with_location`: Task 6 Step 6.2.2b retired it in favor of `PanelTree::new()`. Use the no-arg constructor throughout 3.5.A.
 
 - [ ] **Step 8.3: Update `emView::RawVisitAbs` popup-enter code.**
 
@@ -2239,7 +2229,7 @@ mod pending_top_level_tests {
 }
 ```
 
-If `App::test_instance` doesn't exist, add a cfg(test) constructor that builds a minimal App without winit/wgpu — borrowing from existing test helpers in `test_view_harness.rs`.
+If `App::test_instance` doesn't exist (likely — this plan introduces it), add a `#[cfg(any(test, feature = "test-support"))] pub(crate) fn test_instance() -> Self` constructor that builds a minimal App without winit/wgpu: empty `windows` / `pending_top_level` / `dialog_windows`, fresh scheduler (`EngineScheduler::new()`), a root `emContext::NewRoot()`, empty framework_actions / pending_inputs / input_state, no GPU (wrap in `Option<GpuContext>` if not already). Borrow the existing pattern from `crates/emcore/src/test_view_harness.rs` where possible.
 
 - [ ] **Step 9.8: Gate + commit.**
 
@@ -2572,6 +2562,6 @@ git merge --no-ff port-rewrite/phase-3-5-a-runtime-toplevel-windows \
 
 - **Spec coverage:** each of the spec's 12 migration tasks maps to a plan task (Tasks 2-10 cover migration 1-12; Tasks 1+11 are audit bookends).
 - **Placeholder scan:** searched for TBD/TODO/fill-in-details; none remain in actionable-code steps. A few "adapt to current code" phrases exist — each is placed next to exact-path guidance making adaptation mechanical.
-- **Type consistency:** `PanelScope::SubView { window_id, outer_panel_id }` is flat (rest field dropped per Step 6.1.1 decision; Task 5 amended accordingly). `EngineCtx::tree: Option<&'a mut PanelTree>` used consistently. `DialogId` is `(pub u64)` throughout.
+- **Type consistency:** `PanelScope::SubView { window_id, outer_panel_id }` is flat (no `rest` field — fixed up-front in Task 5 design decision). `EngineCtx::tree: Option<&'a mut PanelTree>` used consistently (Task 6 introduces; Task 5 `resolve_view` migrates in Step 6.2.6b). `DialogId` is `(pub u64)` throughout.
 - **Risk balance:** HIGH-RISK tasks (6, 8) have spike sub-steps or checkpoint gates; fallbacks documented (unsafe reborrow; Option<PanelTree> split).
 - **Exit criteria:** every task has scriptable rg + nextest targets.
