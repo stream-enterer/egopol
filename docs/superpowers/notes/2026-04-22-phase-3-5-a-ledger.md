@@ -256,3 +256,52 @@ See plan §"Bootstrap decisions" (B3.5a.a–B3.5a.g).
   clippy clean, fmt clean. Goldens not re-run — change is test-only +
   a cfg(test) helper; no paint or scheduler-dispatch runtime code
   touched.
+
+## Closeout
+
+**Completed:** 2026-04-21
+**Commits:** 10 tasks on top of Phase 3.5 at 1e393d2f (Tasks 1-10; plan tasks 6.1/6.2 are a two-part spike+dispatch pair → 11 commits total).
+
+### Summary
+
+Phase 3.5.A added runtime top-level window install path + per-emWindow
+PanelTree. Scheduler dispatch is now PanelScope-directed (Framework /
+Toplevel / SubView). emWindow owns its tree; App::tree retired. Popup
+migration restored C++-parity at emView::RootPanel ownership level.
+DialogPrivateEngine now registers at PanelScope::Toplevel through the
+pending → install drain (not a Framework placeholder), un-ignoring the
+Phase 3.5 Task 4 test end-to-end.
+
+### Metrics
+
+| Metric | Baseline (1e393d2f) | Exit | Δ |
+|---|---|---|---|
+| nextest passed | 2483 | 2492 | +9 |
+| nextest failed | 0 | 0 | 0 |
+| nextest skipped | 10 | 9 | -1 (Task 10 un-ignore) |
+| goldens passed | 237 | 237 | 0 |
+| goldens failed | 6 | 6 | 0 |
+
+### Invariants verified
+
+- I-3.5a: `App::tree` deleted (`pub tree: PanelTree` in `emGUIFramework.rs` — 0 hits). PASS.
+- I-3.5b: every emWindow owns `tree: PanelTree` (`emWindow.rs:133`). PASS.
+- I-3.5c: `TreeLocation` retired in code (remaining 3 hits are historical comments in `emScheduler.rs` documenting the Phase 1.75 removal — not live code). PASS.
+- I-3.5d: `PanelScope` has Framework / Toplevel / SubView variants (35 match sites across scheduler + engines). PASS.
+- I-3.5e: `DoTimeSlice` signature dropped `tree` arg (scope-directed dispatch supplies `ctx.tree`). PASS.
+- I-3.5f: `install_pending_top_level` drain path present + tested via `install_pending_top_level_headless` (Task 10). PASS.
+- I-3.5g: popup migration preserves goldens (237/6 unchanged). PASS.
+- Extra: `#[ignore = "Task 10"]`, `register_engine_with_scope`, `engine_locations` (code), and "Framework placeholder" DialogPrivateEngine registration — all 0 hits in live code. PASS.
+
+### JSON entries
+
+- No entries opened/closed in 3.5.A.
+- Unblocks E024 (Phase 3.5 → Phase 3.6 path) via Phase 3.5 Task 5 resumption.
+
+### Next phase
+
+Resume Phase 3.5 Task 5 (`emDialog` reshape) on branch
+`port-rewrite/phase-3-5-emdialog-as-emwindow` at the merge of 3.5.A.
+Merge is deferred — tag `port-rewrite-phase-3-5-a-complete` marks the
+closeout commit. Pending visibility narrowing (see
+`project_phase35a_pub_narrow.md`) is consumed by Task 5 wiring.
