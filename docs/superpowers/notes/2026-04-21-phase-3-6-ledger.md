@@ -230,3 +230,29 @@ See plan §"Bootstrap decisions" (B3.6a–B3.6d).
 
   Gate green — nextest 2512/0/9, clippy clean, no new `#[allow]`,
   `unsafe`, or `Rc<RefCell>`.
+
+## Closeout
+
+- **Task 6 — closeout:** COMPLETE. Invariants I5a–I5j all green per the
+  grep table below. E024 flipped to `resolved-phase-3-6` with
+  resolution_commit=9eb7ff03. E040 opened tracking the deferred POSITIVE
+  end-to-end test. Phase closeout note at
+  docs/superpowers/notes/2026-04-21-phase-3-6-closeout.md.
+  Gate green — nextest 2512/0/9, clippy clean, goldens preserved.
+
+### Invariant grep results
+
+| ID | Check | Result |
+|----|-------|--------|
+| I5a | `window_id:` in emDialog.rs | PASS (≥1 hit) |
+| I5b | `impl.*emEngine.*for DialogPrivateEngine` in emDialog.rs | PASS (1 hit — line 816) |
+| I5c | `scheduler.connect` wiring (emGUIFramework.rs: close_signal + wake_up_signals drain) | PASS (4 hits: lines 590, 597, 688, 692) |
+| I5d | `pub fn Cycle.*PanelCtx` in emDialog.rs + emFileDialog.rs | PASS (0 matches) |
+| I5e | `silent_cancel` in crates/ live code | PASS (1 doc-comment ref only — no live use) |
+| I5f | `Rc<RefCell<` in emDialog.rs + emFileDialog.rs | PASS (all hits are comments or test-only; 0 new production uses) |
+| I5g | `unsafe {` in emDialog.rs + emFileDialog.rs | PASS (0 matches) |
+| I5h | E024.status (pre-flip) | PASS (was open; flipped to resolved-phase-3-6) |
+| I5i | Goldens preserved | PASS (237/6 pre-existing baseline) |
+| I5j | Nextest | PASS (2512/0/9) |
+| E024.closure | `.Cycle(` in emFileDialog.rs | PASS (0 matches) |
+| wake_up_signals | refs in emGUIFramework.rs | PASS (8 hits — ≥4) |
