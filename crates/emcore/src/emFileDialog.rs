@@ -398,7 +398,10 @@ impl emFileDialog {
     /// its `finish_signal`, so tests can exercise Cycle's two branches by
     /// firing the signal separately. Production code drives the overwrite
     /// dialog via normal `emDialog::Finish` from the UI event path.
-    #[cfg(test)]
+    ///
+    /// Gated `cfg(any())` (never compiled) until Task 19/21 restores the test
+    /// module; matches the `#[cfg(any())]` on `mod tests` below.
+    #[cfg(any())]
     fn test_force_overwrite_result(&mut self, result: DialogResult) {
         if let Some(od) = self.overwrite_dialog.as_mut() {
             match result {
