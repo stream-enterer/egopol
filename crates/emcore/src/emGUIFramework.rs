@@ -19,7 +19,9 @@ use crate::emScheduler::EngineScheduler;
 use crate::emSignal::SignalId;
 
 use super::emWindow::{emWindow, WindowFlags};
-use crate::emEngine::{emEngine, Priority};
+#[cfg(test)]
+use crate::emEngine::Priority;
+#[cfg(test)]
 use crate::emPanelScope::PanelScope;
 use crate::emScreen::emScreen;
 
@@ -45,10 +47,12 @@ pub struct PendingTopLevel {
     pub dialog_id: DialogId,
     pub window: emWindow,
     pub close_signal: SignalId,
-    /// DialogPrivateEngine behavior, not yet registered with the scheduler.
-    /// Registered post-materialize in `install_pending_top_level` with
-    /// `PanelScope::Toplevel(materialized_wid)`.
-    pub pending_private_engine: Option<Box<dyn emEngine>>,
+    /// Phase 3.5 Task 5: root panel id for the soon-to-be-constructed
+    /// `DialogPrivateEngine`. Replaces the 3.5.A `pending_private_engine:
+    /// Option<Box<dyn emEngine>>` — we no longer pre-box the engine, we
+    /// build it at `install_pending_top_level` time with the known
+    /// `materialized_wid`.
+    pub private_engine_root_panel_id: crate::emPanelTree::PanelId,
 }
 
 /// Result of `App::dialog_window_mut`: the dialog's `emWindow` may either
@@ -553,10 +557,19 @@ impl App {
         pending.window.os_surface = OsSurface::Materialized(Box::new(materialized));
         pending.window.wire_viewport_window_id(new_wid);
 
-        // Register DialogPrivateEngine now that we have a real WindowId.
-        if let Some(engine_behavior) = pending.pending_private_engine.take() {
+        // Phase 3.5 Task 5: construct DialogPrivateEngine here, not in emDialog::new.
+        // `new_wid` is known at this point; pass it to the engine.
+        // `#[cfg(test)]`-gated because `DialogPrivateEngine` is still test-gated
+        // in Task 5; Task 6 un-gates the struct and removes this gate.
+        #[cfg(test)]
+        {
+            let engine = Box::new(crate::emDialog::DialogPrivateEngine {
+                root_panel_id: pending.private_engine_root_panel_id,
+                window_id: new_wid,
+                close_signal: pending.close_signal,
+            });
             let engine_id = self.scheduler.register_engine(
-                engine_behavior,
+                engine,
                 Priority::High,
                 PanelScope::Toplevel(new_wid),
             );
@@ -623,23 +636,22 @@ impl App {
         if self.pending_top_level.is_empty() {
             return None;
         }
-        let mut pending = self.pending_top_level.remove(0);
+        let pending = self.pending_top_level.remove(0);
         pending.window.wire_viewport_window_id(wid);
-        let engine_id = pending
-            .pending_private_engine
-            .take()
-            .map(|engine_behavior| {
-                let id = self.scheduler.register_engine(
-                    engine_behavior,
-                    Priority::High,
-                    PanelScope::Toplevel(wid),
-                );
-                self.scheduler.connect(pending.close_signal, id);
-                id
-            });
+        // Phase 3.5 Task 5: construct DialogPrivateEngine here, not in emDialog::new.
+        // Mirrors `install_pending_top_level` but skips winit surface creation.
+        let engine = Box::new(crate::emDialog::DialogPrivateEngine {
+            root_panel_id: pending.private_engine_root_panel_id,
+            window_id: wid,
+            close_signal: pending.close_signal,
+        });
+        let engine_id =
+            self.scheduler
+                .register_engine(engine, Priority::High, PanelScope::Toplevel(wid));
+        self.scheduler.connect(pending.close_signal, engine_id);
         self.dialog_windows.insert(pending.dialog_id, wid);
         self.windows.insert(wid, pending.window);
-        engine_id
+        Some(engine_id)
     }
 
     /// Look up the `emWindow` backing a `DialogId`. Returns `Pending` if
@@ -1204,11 +1216,13 @@ mod tests {
             let did = app.allocate_dialog_id();
             let close_sig = app.scheduler.create_signal();
             let window = make_pending_window(&mut app);
+            let mut tree = crate::emPanelTree::PanelTree::new();
+            let root_id = tree.create_root("dlg", false);
             app.pending_top_level.push(PendingTopLevel {
                 dialog_id: did,
                 window,
                 close_signal: close_sig,
-                pending_private_engine: None,
+                private_engine_root_panel_id: root_id,
             });
 
             match app.dialog_window_mut(did) {
@@ -1248,6 +1262,41 @@ mod tests {
             // Allocate to advance counter, then query a different id.
             let _ = app.allocate_dialog_id();
             assert!(app.dialog_window_mut(DialogId(999)).is_none());
+        }
+
+        #[test]
+        fn pending_top_level_carries_private_engine_root_panel_id() {
+            let mut app = test_app();
+            let did = app.allocate_dialog_id();
+            let close_sig = app.scheduler.create_signal();
+            let flags_sig = app.scheduler.create_signal();
+            let focus_sig = app.scheduler.create_signal();
+            let geom_sig = app.scheduler.create_signal();
+            let mut window = crate::emWindow::emWindow::new_top_level_pending(
+                Rc::clone(&app.context),
+                crate::emWindow::WindowFlags::empty(),
+                "test-dialog".to_string(),
+                close_sig,
+                flags_sig,
+                focus_sig,
+                geom_sig,
+                emColor::TRANSPARENT,
+            );
+            // Give the window a tree with a root (mimics emDialog::new).
+            let mut tree = crate::emPanelTree::PanelTree::new();
+            let root_id = tree.create_root("dlg", false);
+            let _ = window.take_tree();
+            window.put_tree(tree);
+            app.pending_top_level.push(PendingTopLevel {
+                dialog_id: did,
+                window,
+                close_signal: close_sig,
+                private_engine_root_panel_id: root_id,
+            });
+            assert_eq!(
+                app.pending_top_level[0].private_engine_root_panel_id,
+                root_id
+            );
         }
     }
 }

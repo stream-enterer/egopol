@@ -332,7 +332,10 @@ impl PanelBehavior for DlgButton {
 #[cfg(test)]
 pub(crate) struct DialogPrivateEngine {
     pub(crate) root_panel_id: crate::emPanelTree::PanelId,
-    pub(crate) window_id: Option<winit::window::WindowId>,
+    /// Phase 3.5 Task 5: no longer `Option<WindowId>` — the engine is
+    /// constructed at install time with `materialized_wid` known, so
+    /// the field is always populated.
+    pub(crate) window_id: winit::window::WindowId,
     pub(crate) close_signal: SignalId,
 }
 
@@ -470,9 +473,12 @@ impl crate::emEngine::emEngine for DialogPrivateEngine {
                 true
             } else {
                 // state == 3 (or greater): `delete this` in C++.
-                if let Some(wid) = self.window_id {
-                    ctx.framework_action(crate::emEngineCtx::DeferredAction::CloseWindow(wid));
-                }
+                // Post-Task-5: window_id always populated (not Option).
+                ctx.framework_action(crate::emEngineCtx::DeferredAction::CloseWindow(
+                    self.window_id,
+                ));
+                // NOTE: this emission still uses the undrained enum rail; Task 12 rewrites
+                // to the closure rail via App::close_dialog_by_id.
                 false
             }
         };
@@ -1228,20 +1234,17 @@ mod tests {
         );
         app.scheduler.connect(finish_sig, probe_id);
 
-        // Enqueue the pending top-level + deferred DialogPrivateEngine
-        // behavior and drive the headless install path.
+        // Enqueue the pending top-level entry and drive the headless install
+        // path. Phase 3.5 Task 5: DialogPrivateEngine is constructed at
+        // install time by `install_pending_top_level_headless`; the
+        // PendingTopLevel carries only the construction inputs.
         let wid = WindowId::dummy();
         let dialog_id = app.allocate_dialog_id();
-        let private_engine = Box::new(DialogPrivateEngine {
-            root_panel_id: root_id,
-            window_id: Some(wid),
-            close_signal: close_sig,
-        });
         app.pending_top_level.push(PendingTopLevel {
             dialog_id,
             window,
             close_signal: close_sig,
-            pending_private_engine: Some(private_engine),
+            private_engine_root_panel_id: root_id,
         });
         let engine_id = app
             .install_pending_top_level_headless(wid)
