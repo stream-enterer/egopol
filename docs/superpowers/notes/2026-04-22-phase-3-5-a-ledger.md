@@ -1,0 +1,307 @@
+# Phase 3.5.A — Runtime Top-Level Windows + Per-emWindow PanelTree — Ledger
+
+**Started:** 2026-04-22
+**Branch:** port-rewrite/phase-3-5-a-runtime-toplevel-windows
+**Parent:** port-rewrite/phase-3-5-emdialog-as-emwindow at 1e393d2f (tagged port-rewrite/phase-3-5-partial-checkpoint-before-3-5-a)
+**Baseline:** nextest 2483/0/9; goldens 237/6; clippy clean. Measured at 1e393d2f.
+**Spec:** docs/superpowers/specs/2026-04-21-phase-3-5-a-runtime-toplevel-windows-design.md (a7678e22)
+**Plan:** docs/superpowers/plans/2026-04-21-port-rewrite-phase-3-5-a-runtime-toplevel-windows.md
+**JSON entries:** none opened/closed directly; unblocks E024 via Phase 3.5. E026 opened only on spec §R7 contingency (popup migration split — avoid).
+
+## Bootstrap decisions
+
+See plan §"Bootstrap decisions" (B3.5a.a–B3.5a.g).
+
+## Task log
+
+(Entries appended by each task's commit.)
+- **Task 1 — Entry audit:** COMPLETE.
+  - Baseline 2483/0/9; fmt + clippy green.
+  - Precondition A (App::tree singular) confirmed.
+  - Precondition B (create_root asserts single-root) confirmed.
+  - Precondition C (PopupWindow single-slot) confirmed.
+  - Precondition D (no runtime top-level install path) confirmed.
+  - Spec matches current code state — no drift correction needed.
+- **Task 2 — Engine classification audit:** COMPLETE.
+  - Deliverable: docs/superpowers/notes/2026-04-22-phase-3-5-a-engine-classification.md
+  - Production engines classified: 12 (plus DialogPrivateEngine — impl currently `#[cfg(test)]`, production registration deferred per §B3.5a.f).
+  - Test engines classified: 27 (16 emcore src + 1 emfileman + 4 eaglemode integration + 3 eaglemode unit + 2 eaglemode golden + 1 examples).
+  - Framework count: 32 (8 production + 24 test).
+  - Toplevel count: 5 (2 production [StartupEngine, DialogPrivateEngine] + 3 test [ProbePointerEngine, ChildSpawnEngine, SpawnEngineWithProbe]).
+  - scope-based (Toplevel or SubView per registered scope) count: 3 production (PanelCycleEngine, UpdateEngineClass, VisitingVAEngineClass).
+  - Total `impl emEngine for` sites: 39 (matches `rg` at HEAD 75ae0428).
+  - Total `register_engine` call-sites counted: 69 (code + tests).
+  - Deviations from plan's starting-point tables: EOIEngineClass reclassified Toplevel→Framework (no tree access in Cycle); ProbePointerEngine reclassified Framework→Toplevel (Cycle captures `ctx.tree as *mut PanelTree`); added StartupEngine / MainWindowEngine / ControlPanelBridge / emStocksPricesFetcher to production table; added 11 test engines outside emcore. See sheet §Deviations for full rationale.
+- **Task 3 — PanelTree::Default:** COMPLETE. impl Default for PanelTree
+  returns PanelTree::new() (empty tree). Used by Task 6's scheduler dispatch
+  as the mem::take sentinel. One unit test (default_produces_empty_tree —
+  populate, mem::take, assert source empty + dest populated). Gate green —
+  nextest 2484/0/9.
+- **Task 4 — emWindow::tree field + take/put:** COMPLETE. Added
+  tree: PanelTree field to emWindow struct; all ctors construct
+  PanelTree::default() (empty, unused). take_tree (mem::take) / put_tree
+  helpers added with dispatch-invariant doc. Field not yet consumed —
+  Task 6 wires into scheduler dispatch, Task 7 migrates home tree into it,
+  Task 8 migrates popup tree into it. One roundtrip unit test. Gate
+  green — nextest 2485/0/9.
+- **Task 5 — PanelScope extension:** COMPLETE. Added Framework variant;
+  SubView gains window_id field (struct variant, flat — no `rest` chain).
+  Added window_id() accessor. resolve_view updated: Framework → None;
+  SubView walk now WindowId-aware (ctx.tree still &mut PanelTree at this
+  task — Option migration in Task 6). One new unit test
+  (window_id_extraction); pre-existing scope_variants_exist expanded to
+  cover all three variants including struct-variant SubView. Migrated
+  existing SubView call-sites to new struct shape (emSubViewPanel.rs,
+  emPanelTree.rs, emView.rs — UpdateEngine + VisitingVA match arms plus
+  defensive Framework no-op arms since those engines are panel-bound).
+  Call-sites pass WindowId::dummy() for now; Task 7 backfills real
+  WindowIds through window/tree construction. Framework variant not
+  yet dispatched (Task 6). Gate green — nextest 2486/0/9.
+- **Task 6.1 spike — scope-based dispatch compiles clean:** COMPLETE.
+  Parallel engine_scopes SecondaryMap + register_engine_with_scope method
+  added; dispatch branches on PanelScope when the new map has an entry;
+  legacy engine_locations path retained for non-migrated callers. Clean
+  borrow-checker path (windows.get_mut(&wid).map(|w| w.take_tree())
+  .unwrap_or_default() onto the stack, then EngineCtx { windows,
+  tree: &mut local_tree, ... }) compiles with no unsafe and no
+  destructuring gymnastics — the HashMap entry borrow releases at the
+  statement boundary, so `windows` is free for ctx construction. All
+  three PanelScope arms (Framework / Toplevel / SubView) implemented.
+  SubView arm mirrors dispatch_with_resolved_tree's take/put shape but
+  rooted at the target window's tree. Two spike tests
+  (spike_framework_dispatch_via_scope, spike_toplevel_dispatch_via_scope)
+  green. Gate 2488/0/9.
+- **Task 6.2 — atomic signature break:** COMPLETE. Keystone migration.
+  TreeLocation enum DELETED (crates/emcore/src/emEngine.rs). register_engine
+  signature: TreeLocation → PanelScope (crates/emcore/src/emScheduler.rs;
+  ConstructCtx trait + all impls in emEngineCtx.rs). DoTimeSlice signature
+  dropped `tree: &mut PanelTree` parameter; per-window trees reached via
+  windows[wid].tree. EngineCtx::tree: &mut PanelTree → Option<&mut PanelTree>.
+  PanelTree::new_with_location(TreeLocation) → new_with_scope(PanelScope);
+  PanelTree field `tree_location` → `scope` (stored PanelScope directly).
+  emSubViewPanel::new migrated — sub_tree constructed with
+  PanelScope::SubView { window_id: dummy, outer_panel_id }. register_engine
+  call-sites migrated across 69 sites: MiniIpcEngine / PriSchedEngine /
+  InputDispatchEngine / emWindowStateSaver / MainWindowEngine /
+  ControlPanelBridge / EOIEngineClass → Framework; StartupEngine →
+  Toplevel(window_id); ChildSpawnEngine / SpawnEngineWithProbe test engines
+  → Toplevel(dummy wid); emView Update/VisitingVA engines keep
+  per-registration-site scope. DialogPrivateEngine registered as
+  Framework PLACEHOLDER with its only test #[ignore]d (Task 10 will
+  re-register as Toplevel post-materialize).
+  Dispatch branches on PanelScope: Framework → ctx.tree = None, no detach;
+  Toplevel(wid) → mem::take windows[wid].tree, pass ctx.tree = Some,
+  restore on exit (or sleep-and-retry if window is missing); SubView{wid,
+  pid} → mem::take windows[wid].tree, hand outer tree through unchanged —
+  engine's Cycle walks `ctx.tree.as_deref_mut()?.panels[pid].behavior
+  .as_sub_view_panel_mut()` to reach sub_view/sub_tree (scheduler does
+  NOT pre-walk, because the take-behavior-off-outer shape would hide
+  sub_view from the Cycle body; UpdateEngineClass SubView arm and
+  VisitingVAEngineClass SubView arm both depend on this). emPanelScope's
+  resolve_view SubView arm updated for `ctx.tree.as_deref_mut()?`.
+  emWindow::dispatch_input dropped its external `tree` parameter; inner
+  take/put-tree split plus private helper `dispatch_input_with_tree` on
+  the legacy shape. resize/render/handle_touch/tick_vif_animations retain
+  external tree param (unchanged; App::tree feeds them pre-Task-7).
+  Depth-2 `task2_dispatch_walks_depth_2_subview_location` test DELETED —
+  PanelScope::SubView is flat (no `rest` chain); no production call-site
+  requires multi-level nesting. Test helper
+  `test_view_harness::headless_emwindow_with_tree` added to wrap rooted
+  trees in a pending emWindow for Toplevel(wid)-registered test engines
+  (consumed by 4 emPanelTree tests + 2 emView popup tests). StartupEngine
+  Cycle body uses `ctx.tree.as_deref_mut().expect("...")` inline; a doc
+  comment notes that windows[wid].tree is the empty-default at Task-6
+  exit (Task 7 migrates App's home tree into it) — production startup is
+  expected non-functional between Task 6 and Task 7. Gate green — nextest
+  2487/0/10 (baseline 2488/0/9 + one new #[ignore] on Dialog test − one
+  deleted depth-2 test = net same). Clippy clean, fmt clean. Goldens not
+  re-run (Task 8 is the popup risk gate).
+  
+  **Carry-over to Task 7:** Four emWindow dispatch-side methods retain
+  external `tree: &mut PanelTree` param pending migration: resize, render,
+  tick_vif_animations, handle_touch. Their callsites feed App::tree
+  pre-Task-7 startup. Once App::tree is migrated into emWindow::tree
+  (Task 7), these four methods' callers will switch to self.windows[home_wid].tree,
+  completing the migration alongside App::tree deletion.
+- **Task 7 — Home window owns its tree:** COMPLETE. App::tree field
+  deleted. App::home_window_id: Option<WindowId> added (set by
+  create_main_window on first home insert). emMainWindow's
+  create_main_window builds a local PanelTree, populates it, then
+  put_tree's it onto the emWindow before insertion into App::windows.
+  create_control_window follows the same per-window pattern (its own
+  tree, not home's). Carry-over emWindow methods resize, render,
+  tick_vif_animations, handle_touch dropped their external `tree`
+  parameter; each uses `self.tree` internally via destructure. Added
+  `pub fn tree()` / `pub fn tree_mut()` accessors on emWindow for
+  cross-crate reads (emmain::Duplicate). take_tree/put_tree promoted
+  from pub(crate) to pub so emmain can migrate the initial home tree
+  onto the window. App::home_tree / App::home_tree_mut helpers added
+  for legacy App-level tree access sites (ToggleControlView,
+  RecreateContentPanels, create_control_window read of MainPanel).
+  In about_to_wait's per-window loop, `tree` is sourced via
+  `win.take_tree()` (put back at end of iteration) so each window
+  operates on its own tree — previous single App::tree borrow is gone.
+  WindowEvent::Focused uses inline take/put for SetFocused;
+  materialize_pending_popup uses take/put across the SetGeometry
+  callsite. StartupEngine (Toplevel(home_wid)) now dispatches on the
+  real home tree post-Task-7 (previously saw the empty default tree
+  on windows[home_wid] while the real tree was on App::tree).
+  Gate green — nextest 2487/0/10, clippy clean, fmt clean.
+- **Task 8 — Popup migration:** COMPLETE. `emWindow::new_popup_pending`
+  signature drops `root_panel: PanelId` and builds the popup's own
+  `PanelTree` + root (`create_root("popup_root", false)`, `has_view=false`
+  mirroring `emMainWindow::create_main_window`'s two-phase init). The
+  built tree is placed into `emWindow::tree` via direct struct-init (not
+  `PanelTree::default()` sentinel). `emView` is constructed over the
+  popup-internal root. `emView::RawVisitAbs` drops the `self.root`
+  pass-through.
+
+  `App::materialize_pending_popup` no longer pulls `home.take_tree()`
+  for the popup's `SetGeometry`; it now takes the popup's own tree
+  (`popup.take_tree`/`popup.put_tree`) — consistent with the new
+  ownership: popup panels live in popup's own tree.
+
+  Test call-sites migrated: `emScheduler.rs` spike (dummy_tree+cleanup
+  removed), `emWindow.rs` four unit tests (window_view_is_plain,
+  headless_window_register_engines_registers_engines,
+  new_popup_pending_constructs_without_event_loop,
+  take_tree_put_tree_roundtrip — the latter now asserts the initial
+  take_tree returns the popup's internal rooted tree, not the empty
+  sentinel), `emView.rs` three tests (sp4, phase8, swap_view_ports —
+  now build popup first, take its internal tree, extend with
+  setup_children_on helper on top of the popup's internal root),
+  `test_view_harness::headless_emwindow_with_tree` (ctor sig drop;
+  discarded internal tree; same Framework/Toplevel harness contract).
+
+  New test helper `setup_children_on(tree, root)` extracts sp4/phase8's
+  child-hierarchy builder so popup-harness tests can extend the popup's
+  internal root in place.
+
+  This closes the popup-shares-launching-view-tree implicit divergence
+  from C++'s `emWindow : emView` (emWindow.cpp:31-33 — popup ctor
+  forwards to `emView::emView(parentContext, viewFlags)`, which
+  constructs a fresh RootPanel). C++ parity restored at the
+  window-tree ownership level; symmetric with home window (Task 7)
+  and future dialog windows (Task 10).
+
+  Golden suite re-verified: 237/6 preserved (identical failing set —
+  composition_tktest_1x, composition_tktest_2x, notice_window_resize,
+  testpanel_expanded, testpanel_root, widget_file_selection_box —
+  confirmed pre-existing by git-stash A/B against HEAD^). No
+  paint-path regression. Spec §R7 contingency NOT invoked.
+
+  Gate green — nextest 2487/0/10, goldens 237/6 preserved, clippy
+  clean, fmt clean.
+- **Task 9 — Top-level install path:** COMPLETE. Added `DialogId` type
+  (pub — part of public API for Phase 3.5 Task 5 consumer),
+  `PendingTopLevel` struct, `DialogWindow<'a>` lookup enum. App fields:
+  `pending_top_level: Vec<PendingTopLevel>`, `dialog_windows:
+  HashMap<DialogId, WindowId>`, `next_dialog_id: u64`. Helpers:
+  `App::allocate_dialog_id` (monotonic u64 counter,
+  `checked_add`-guarded), `App::install_pending_top_level` (mirrors
+  `materialize_pending_popup` drain: winit attrs from pending flags
+  including UNDECORATED/MAXIMIZED/FULLSCREEN; create_window failure
+  pops + fires close_signal; deferred DialogPrivateEngine register at
+  `Priority::High` + `PanelScope::Toplevel(new_wid)` with
+  `scheduler.connect(close_signal, engine_id)`; SetGeometry via
+  take/put_tree on the dialog's own tree), and
+  `App::dialog_window_mut` returning `DialogWindow::Pending { idx,
+  entry }` or `DialogWindow::Materialized { window_id, window }`.
+  `emWindow::new_top_level_pending` ctor mirrors `new_popup_pending`
+  (own PanelTree + `create_root("dialog_root", false)` for two-phase
+  init, fresh vif_chain, PendingSurface OsSurface) but with
+  caller-supplied top-level flags and `wm_res_name`
+  "eaglemode-rs-dialog". Four unit tests (`allocate_dialog_id_monotonic`,
+  `dialog_window_mut_resolves_pending`,
+  `dialog_window_mut_resolves_materialized`,
+  `dialog_window_mut_unknown_id_returns_none`). `install_pending_top_level`
+  itself is not directly tested (needs ActiveEventLoop); Task 10 un-ignores
+  the Phase 3.5 Task 4 DialogPrivateEngine test and exercises the install
+  path headlessly. **Visibility divergence:** plan called for
+  `pub(crate)` on `PendingTopLevel`, `DialogWindow`, `pending_top_level`,
+  `dialog_windows`, `install_pending_top_level`, `dialog_window_mut`.
+  Widened to `pub` because pre-consumer dead_code under `-D warnings`
+  forbids narrower visibility before Phase 3.5 Task 5 lands. Task 4
+  precedent (see memory `project_phase35a_pub_narrow.md`) allows
+  the widening with a per-site rationale comment. Narrow back once the
+  `emDialog::new` consumer wires through. Gate green — nextest 2491/0/10
+  (baseline 2487 + 4 new = 2491), clippy clean, fmt clean. Goldens not
+  re-run — Task 9 only adds new code paths; no change to existing popup
+  or home install flow.
+- **Task 10 — DialogPrivateEngine registration fix:** COMPLETE.
+  Phase 3.5 Task 4's `private_engine_observes_close_signal_sets_pending_cancel`
+  test un-ignored. Rewritten to build an `App`, wrap the populated dialog
+  tree (DlgPanel-on-root) in an `emWindow::new_top_level_pending` (discarding
+  the ctor's internal default tree via `take_tree`), push a
+  `PendingTopLevel` with a deferred `DialogPrivateEngine` behavior, and
+  drive registration through the new
+  `App::install_pending_top_level_headless(wid)` test helper (cfg(test)).
+  That helper mirrors `install_pending_top_level`'s scheduler +
+  bookkeeping ops without winit surface creation: registers the engine
+  at `PanelScope::Toplevel(wid)`, connects `close_signal`, records
+  `dialog_windows[did] = wid`, and moves `emWindow` into `App::windows`.
+  Returns the registered `EngineId` so test teardown can remove it
+  (drop-time no-engines invariant). Stale `DialogPrivateEngine::install`
+  helper removed (Task 6.2 placeholder-register path) — the production +
+  test install paths both now go through the pending → install flow.
+  `DialogPrivateEngine::Cycle` comment updated: the "Framework
+  placeholder, will panic" note is replaced with a "Toplevel scope,
+  ctx.tree is always Some" statement matching actual registration.
+  `ctx.tree.as_deref_mut().expect(...)` sites unchanged (they were
+  already the correct Toplevel-scope pattern). All assertion semantics
+  of the original test preserved (finalized_result == Cancel,
+  finish_state==2 after first slice, finish_signal fired exactly once,
+  re-fire of close_signal is no-op, !ADEnabled branch resets state to
+  0). Skip count returned to baseline 9. Gate green — nextest 2492/0/9,
+  clippy clean, fmt clean. Goldens not re-run — change is test-only +
+  a cfg(test) helper; no paint or scheduler-dispatch runtime code
+  touched.
+
+## Closeout
+
+**Completed:** 2026-04-21
+**Commits:** 10 tasks on top of Phase 3.5 at 1e393d2f (Tasks 1-10; plan tasks 6.1/6.2 are a two-part spike+dispatch pair → 11 commits total).
+
+### Summary
+
+Phase 3.5.A added runtime top-level window install path + per-emWindow
+PanelTree. Scheduler dispatch is now PanelScope-directed (Framework /
+Toplevel / SubView). emWindow owns its tree; App::tree retired. Popup
+migration restored C++-parity at emView::RootPanel ownership level.
+DialogPrivateEngine now registers at PanelScope::Toplevel through the
+pending → install drain (not a Framework placeholder), un-ignoring the
+Phase 3.5 Task 4 test end-to-end.
+
+### Metrics
+
+| Metric | Baseline (1e393d2f) | Exit | Δ |
+|---|---|---|---|
+| nextest passed | 2483 | 2492 | +9 |
+| nextest failed | 0 | 0 | 0 |
+| nextest skipped | 10 | 9 | -1 (Task 10 un-ignore) |
+| goldens passed | 237 | 237 | 0 |
+| goldens failed | 6 | 6 | 0 |
+
+### Invariants verified
+
+- I-3.5a: `App::tree` deleted (`pub tree: PanelTree` in `emGUIFramework.rs` — 0 hits). PASS.
+- I-3.5b: every emWindow owns `tree: PanelTree` (`emWindow.rs:133`). PASS.
+- I-3.5c: `TreeLocation` retired in code (remaining 3 hits are historical comments in `emScheduler.rs` documenting the Phase 1.75 removal — not live code). PASS.
+- I-3.5d: `PanelScope` has Framework / Toplevel / SubView variants (35 match sites across scheduler + engines). PASS.
+- I-3.5e: `DoTimeSlice` signature dropped `tree` arg (scope-directed dispatch supplies `ctx.tree`). PASS.
+- I-3.5f: `install_pending_top_level` drain path present + tested via `install_pending_top_level_headless` (Task 10). PASS.
+- I-3.5g: popup migration preserves goldens (237/6 unchanged). PASS.
+- Extra: `#[ignore = "Task 10"]`, `register_engine_with_scope`, `engine_locations` (code), and "Framework placeholder" DialogPrivateEngine registration — all 0 hits in live code. PASS.
+
+### JSON entries
+
+- No entries opened/closed in 3.5.A.
+- Unblocks E024 (Phase 3.5 → Phase 3.6 path) via Phase 3.5 Task 5 resumption.
+
+### Next phase
+
+Resume Phase 3.5 Task 5 (`emDialog` reshape) on branch
+`port-rewrite/phase-3-5-emdialog-as-emwindow` at the merge of 3.5.A.
+Merge is deferred — tag `port-rewrite-phase-3-5-a-complete` marks the
+closeout commit. Pending visibility narrowing (see
+`project_phase35a_pub_narrow.md`) is consumed by Task 5 wiring.

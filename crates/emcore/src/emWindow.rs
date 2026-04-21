@@ -120,6 +120,17 @@ pub struct emWindow {
     pub focus_signal: SignalId,
     pub geometry_signal: SignalId,
     root_panel: PanelId,
+    /// The panel tree owned by this emWindow. Matches C++ emView::RootPanel
+    /// ownership (each emView has its own root panel). Phase 3.5.A precedent:
+    /// lifts emSubViewPanel::sub_tree (emSubViewPanel.rs:23) from sub-view
+    /// container to window container.
+    ///
+    /// Task 4: field added, constructed by every ctor via
+    /// `PanelTree::default()` (an empty sentinel); not yet used.
+    /// Task 6: scheduler dispatch take/put uses this field.
+    /// Task 7: home window starts building its real tree here on startup.
+    /// Task 8: popup path migrates to own this tree.
+    pub(crate) tree: PanelTree,
     vif_chain: Vec<Box<dyn emViewInputFilter>>,
     cheat_vif: emCheatVIF,
     touch_vif: emDefaultTouchVIF,
@@ -229,6 +240,7 @@ impl emWindow {
             focus_signal,
             geometry_signal,
             root_panel,
+            tree: PanelTree::default(),
             vif_chain,
             cheat_vif: emCheatVIF::new(),
             touch_vif: emDefaultTouchVIF::new(),
@@ -319,7 +331,6 @@ impl emWindow {
     #[allow(clippy::too_many_arguments)]
     pub fn new_popup_pending(
         parent_context: Rc<crate::emContext::emContext>,
-        root_panel: PanelId,
         flags: WindowFlags,
         caption: String,
         close_signal: SignalId,
@@ -328,6 +339,22 @@ impl emWindow {
         geometry_signal: SignalId,
         background_color: crate::emColor::emColor,
     ) -> Self {
+        // Phase 3.5.A Task 8: the popup owns its own PanelTree + RootPanel,
+        // mirroring C++ `emWindow` (which IS-A `emView` — `emWindow.cpp:31`
+        // forwards `(parentContext, viewFlags)` to `emView::emView(...)`
+        // which constructs a fresh RootPanel). The popup's panels must not
+        // be entangled with the launching view's tree.
+        //
+        // Build the tree + root here; the window takes ownership via
+        // `put_tree` below. The `view`'s `root: PanelId` is the index into
+        // this popup-owned tree.
+        let mut tree = PanelTree::new();
+        // `has_view=false` here mirrors `emMainWindow::create_main_window`
+        // (emMainWindow.rs:833): the `emView` is constructed just below and
+        // is wired via `init_panel_view` once the window is installed and a
+        // scheduler is available. Production popup path (RawVisitAbs)
+        // performs that wiring through `SetGeometry` + scheduler dispatch.
+        let root_panel = tree.create_root("popup_root", false);
         // Placeholder geometry — real position/size lands via
         // `SetViewPosSize` before materialization.
         let mut view = emView::new(parent_context, root_panel, 1.0, 1.0);
@@ -358,6 +385,7 @@ impl emWindow {
             focus_signal,
             geometry_signal,
             root_panel,
+            tree,
             vif_chain,
             cheat_vif: emCheatVIF::new(),
             touch_vif: emDefaultTouchVIF::new(),
@@ -377,6 +405,78 @@ impl emWindow {
         // Until then `window_id` remains `None`; PaintView / InvalidatePainting
         // are no-ops, which matches the "Pending state is observable but has
         // no OS surface" contract.
+    }
+
+    /// Construct a top-level `emWindow` in `Pending` state — no winit/wgpu
+    /// objects yet. Analogous to `new_popup_pending` but with top-level
+    /// `WindowFlags` (not `WF_POPUP`). Used by Phase 3.5 Task 5's
+    /// `emDialog::new` to queue a dialog window for materialization on
+    /// the next event-loop tick via `App::install_pending_top_level`.
+    ///
+    /// Constructs its own `PanelTree` + root panel (no caller-supplied
+    /// `root_panel` — matches Task 8 popup migration shape). Mirrors C++
+    /// `emWindow` ctor (`emWindow.cpp:31-33`) which forwards to
+    /// `emView::emView(parentContext, viewFlags)` constructing a fresh
+    /// RootPanel.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_top_level_pending(
+        parent_context: Rc<crate::emContext::emContext>,
+        flags: WindowFlags,
+        caption: String,
+        close_signal: SignalId,
+        flags_signal: SignalId,
+        focus_signal: SignalId,
+        geometry_signal: SignalId,
+        background_color: crate::emColor::emColor,
+    ) -> Self {
+        // Mirrors `new_popup_pending` construction. See that ctor for the
+        // rationale (`has_view=false`, tree ownership, vif chain, view-port
+        // wiring deferred to materialize).
+        let mut tree = PanelTree::new();
+        let root_panel = tree.create_root("dialog_root", false);
+        let mut view = emView::new(parent_context, root_panel, 1.0, 1.0);
+        view.SetBackgroundColor(background_color);
+        let max_render_threads = view.CoreConfig.borrow().GetRec().max_render_threads;
+
+        let vif_chain: Vec<Box<dyn emViewInputFilter>> = vec![
+            {
+                let mut mouse_vif = emMouseZoomScrollVIF::new();
+                let zflpp = view.GetZoomFactorLogarithmPerPixel();
+                mouse_vif.set_mouse_anim_params(1.0, 0.25, zflpp);
+                mouse_vif.set_wheel_anim_params(1.0, 0.25, zflpp);
+                Box::new(mouse_vif)
+            },
+            Box::new(emKeyboardZoomScrollVIF::new()),
+        ];
+
+        Self {
+            os_surface: OsSurface::Pending(Box::new(PendingSurface {
+                flags,
+                caption,
+                requested_pos_size: None,
+            })),
+            view,
+            flags,
+            close_signal,
+            flags_signal,
+            focus_signal,
+            geometry_signal,
+            root_panel,
+            tree,
+            vif_chain,
+            cheat_vif: emCheatVIF::new(),
+            touch_vif: emDefaultTouchVIF::new(),
+            active_animator: None,
+            window_icon: None,
+            last_mouse_pos: (0.0, 0.0),
+            screensaver_inhibit_count: 0,
+            screensaver_cookie: None,
+            flags_changed: false,
+            focus_changed: false,
+            geometry_changed: false,
+            wm_res_name: String::from("eaglemode-rs-dialog"),
+            render_pool: emRenderThreadPool::new(max_render_threads),
+        }
     }
 
     /// Set the `window_id` back-reference on the current view-port. Called
@@ -415,7 +515,6 @@ impl emWindow {
     pub fn resize(
         &mut self,
         gpu: &GpuContext,
-        tree: &mut crate::emPanelTree::PanelTree,
         width: u32,
         height: u32,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
@@ -433,8 +532,14 @@ impl emWindow {
             }
             OsSurface::Pending(_) => return,
         }
-        self.view
-            .SetGeometry(tree, 0.0, 0.0, w as f64, h as f64, 1.0, ctx);
+        // Phase 3.5.A Task 7: tree is owned by this window; split-borrow via
+        // destructure so view and tree can both be reached.
+        let Self {
+            ref mut view,
+            ref mut tree,
+            ..
+        } = *self;
+        view.SetGeometry(tree, 0.0, 0.0, w as f64, h as f64, 1.0, ctx);
     }
 
     /// Update the render thread pool from emCoreConfig.
@@ -443,11 +548,20 @@ impl emWindow {
     }
 
     /// Render a frame: paint dirty tiles on CPU, upload to GPU, composite.
-    pub fn render(&mut self, tree: &mut crate::emPanelTree::PanelTree, gpu: &GpuContext) {
+    pub fn render(&mut self, gpu: &GpuContext) {
         use crate::emPainter::emPainter;
 
+        // Phase 3.5.A Task 7: tree is owned by this window; destructure `self`
+        // so os_surface, view, tree, and render_pool can be borrowed disjointly.
+        let Self {
+            ref mut os_surface,
+            ref mut view,
+            ref mut tree,
+            ref mut render_pool,
+            ..
+        } = *self;
         let (winit_window, surface, surface_config, compositor, tile_cache, viewport_buffer) =
-            match &mut self.os_surface {
+            match os_surface {
                 OsSurface::Materialized(m) => {
                     let MaterializedSurface {
                         winit_window,
@@ -468,7 +582,6 @@ impl emWindow {
                 }
                 OsSurface::Pending(_) => return,
             };
-        let view = &mut self.view;
 
         // Phase 5 (emview-rewrite-followups): consume cursor-dirty flag set
         // by emViewPort::InvalidateCursor and apply the cached cursor to
@@ -521,7 +634,7 @@ impl emWindow {
                     }
                 }
             }
-        } else if self.render_pool.GetThreadCount() > 1 && dirty_count > 1 {
+        } else if render_pool.GetThreadCount() > 1 && dirty_count > 1 {
             // Multi-threaded rendering via display list.
             // Phase 1: Record all draw operations single-threaded.
             Self::render_parallel_inner(
@@ -529,7 +642,7 @@ impl emWindow {
                 tile_cache,
                 compositor,
                 surface_config,
-                &mut self.render_pool,
+                render_pool,
                 tree,
                 gpu,
                 cols,
@@ -837,7 +950,26 @@ impl emWindow {
     }
 
     /// Dispatch an input event through VIF chain, then to panel behavior.
+    ///
+    /// Phase 3.5.A Task 6.2: drops the external `tree` parameter; splits
+    /// `self.tree` and the rest of `self` via disjoint-field destructuring
+    /// and forwards to the legacy implementation.
     pub fn dispatch_input(
+        &mut self,
+        event: &emInputEvent,
+        state: &mut emInputState,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) {
+        // Disjoint-field split: the legacy body expects `tree` as a
+        // distinct `&mut PanelTree` from `&mut self`. Using
+        // `std::mem::take` + restore to fulfill the legacy shape without
+        // aliasing self.tree with &mut self.
+        let mut tree = std::mem::take(&mut self.tree);
+        self.dispatch_input_with_tree(&mut tree, event, state, ctx);
+        self.tree = tree;
+    }
+
+    fn dispatch_input_with_tree(
         &mut self,
         tree: &mut PanelTree,
         event: &emInputEvent,
@@ -1038,6 +1170,7 @@ impl emWindow {
                         ctx.framework_actions,
                         ctx.root_context,
                         ctx.framework_clipboard,
+                        ctx.pending_actions,
                     );
                     behavior.Input(&panel_ev, &panel_state, state, &mut panel_ctx)
                 };
@@ -1263,22 +1396,29 @@ impl emWindow {
     /// Returns true if any animation is still active.
     pub fn tick_vif_animations(
         &mut self,
-        tree: &mut PanelTree,
         dt: f64,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) -> bool {
+        // Phase 3.5.A Task 7: tree owned by this window; destructure so
+        // view, tree, vif_chain, and touch_vif can all be borrowed disjointly.
+        let Self {
+            ref mut view,
+            ref mut tree,
+            ref mut vif_chain,
+            ref mut touch_vif,
+            ..
+        } = *self;
         let mut active = false;
-        for vif in &mut self.vif_chain {
-            if vif.animate(&mut self.view, tree, dt, ctx) {
+        for vif in vif_chain {
+            if vif.animate(view, tree, dt, ctx) {
                 active = true;
             }
         }
         // Tick touch gesture timer (C++ emDefaultTouchVIF::Cycle)
         let dt_ms = (dt * 1000.0) as i32;
-        self.touch_vif
-            .cycle_gesture(&mut self.view, tree, dt_ms, ctx);
+        touch_vif.cycle_gesture(view, tree, dt_ms, ctx);
         // Tick fling animation
-        if self.touch_vif.animate_fling(&mut self.view, tree, dt, ctx) {
+        if touch_vif.animate_fling(view, tree, dt, ctx) {
             active = true;
         }
         active
@@ -1289,35 +1429,41 @@ impl emWindow {
     pub fn handle_touch(
         &mut self,
         touch: &winit::event::Touch,
-        tree: &mut PanelTree,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) -> bool {
         use winit::event::TouchPhase;
+        // Phase 3.5.A Task 7: tree owned by this window; destructure for
+        // disjoint borrows of view, tree, and touch_vif.
+        let Self {
+            ref mut view,
+            ref mut tree,
+            ref mut touch_vif,
+            ..
+        } = *self;
         match touch.phase {
-            TouchPhase::Started => self.touch_vif.touch_start(
+            TouchPhase::Started => touch_vif.touch_start(
                 touch.id,
                 touch.location.x,
                 touch.location.y,
-                &mut self.view,
+                view,
                 tree,
                 ctx,
             ),
             TouchPhase::Moved => {
                 // dt=0.016 is a reasonable default; the real frame delta is
                 // applied in cycle_gesture which runs each frame.
-                self.touch_vif.touch_move(
+                touch_vif.touch_move(
                     touch.id,
                     touch.location.x,
                     touch.location.y,
                     0.016,
-                    &mut self.view,
+                    view,
                     tree,
                     ctx,
                 )
             }
             TouchPhase::Ended | TouchPhase::Cancelled => {
-                self.touch_vif
-                    .touch_end(touch.id, &mut self.view, tree, ctx)
+                touch_vif.touch_end(touch.id, view, tree, ctx)
             }
         }
     }
@@ -1328,6 +1474,51 @@ impl emWindow {
 
     pub fn root_panel(&self) -> PanelId {
         self.root_panel
+    }
+
+    /// Immutable access to the window's owned panel tree.
+    ///
+    /// Phase 3.5.A Task 7: per-window tree ownership replaces the former
+    /// single `App::tree`. Downstream crates (emmain, examples, tests) read
+    /// a window's tree via this accessor.
+    ///
+    /// pub: cross-crate — emmain reads the tree at emMainWindow.rs:190 and
+    /// other App-level inspection paths cross the emcore/emmain boundary.
+    pub fn tree(&self) -> &PanelTree {
+        &self.tree
+    }
+
+    /// Take the panel tree out of this window, leaving an empty sentinel
+    /// behind. Used exclusively by the scheduler's per-window dispatch
+    /// (Phase 3.5.A Task 6) to let engine Cycles access the tree without
+    /// aliasing `ctx.windows`. Callers outside the scheduler MUST pair this
+    /// with a `put_tree` call before returning control to App code.
+    ///
+    /// Invariant: between `take_tree` and `put_tree`, no code reads
+    /// `self.tree` on this window. Mirrors the `tree.take_behavior` /
+    /// `tree.put_behavior` invariant already used for SubView dispatch
+    /// (emScheduler.rs:138-169).
+    ///
+    /// pub: cross-crate — emmain::create_main_window and other App-level
+    /// lifecycle paths call take/put across the emcore/emmain boundary
+    /// (emMainWindow.rs:922, 979, 993, 1124).
+    pub fn take_tree(&mut self) -> PanelTree {
+        std::mem::take(&mut self.tree)
+    }
+
+    /// Restore a panel tree previously taken via `take_tree`. See [`take_tree`].
+    pub fn put_tree(&mut self, tree: PanelTree) {
+        self.tree = tree;
+    }
+
+    /// Borrow the panel tree mutably without a take/put cycle.
+    ///
+    /// Phase 3.5 Task 7: used by `emDialog` pre-show mutators
+    /// (`AddCustomButton`, `SetRootTitle`, etc.) that need to reach the
+    /// `DlgPanel` root behavior inside the pending window's tree. Avoids
+    /// the take/put boilerplate in the common non-concurrent pre-show path.
+    pub(crate) fn tree_mut(&mut self) -> &mut crate::emPanelTree::PanelTree {
+        &mut self.tree
     }
 
     pub fn request_redraw(&self) {
@@ -1785,15 +1976,12 @@ mod tests {
     #[test]
     fn window_view_is_plain() {
         let mut scheduler = EngineScheduler::new();
-        let mut tree = PanelTree::new();
-        let root = tree.create_root_deferred_view("root");
         let close_sig = scheduler.create_signal();
         let flags_sig = scheduler.create_signal();
         let focus_sig = scheduler.create_signal();
         let geom_sig = scheduler.create_signal();
         let win = emWindow::new_popup_pending(
             crate::emContext::emContext::NewRoot(),
-            root,
             WindowFlags::empty(),
             "test".to_string(),
             close_sig,
@@ -1810,9 +1998,6 @@ mod tests {
     /// postcondition previously checked by the deleted `new_for_test` constructor.
     #[test]
     fn headless_window_register_engines_registers_engines() {
-        let mut tree = PanelTree::new();
-        let root = tree.create_root_deferred_view("root");
-        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
         let win_id = winit::window::WindowId::dummy();
         let sched = std::rc::Rc::new(std::cell::RefCell::new(EngineScheduler::new()));
         let close_sig = sched.borrow_mut().create_signal();
@@ -1821,7 +2006,6 @@ mod tests {
         let geom_sig = sched.borrow_mut().create_signal();
         let mut win = emWindow::new_popup_pending(
             crate::emContext::emContext::NewRoot(),
-            root,
             WindowFlags::empty(),
             "test".to_string(),
             close_sig,
@@ -1830,6 +2014,13 @@ mod tests {
             geom_sig,
             crate::emColor::emColor::TRANSPARENT,
         );
+        // Phase 3.5.A Task 8: popup now owns its tree + root internally.
+        // Use the popup's own tree for RegisterEngines' tree-walks.
+        let mut tree = win.take_tree();
+        let root = tree
+            .GetRootPanel()
+            .expect("popup tree has internal root from new_popup_pending");
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
         // Phase 2 Task 7: engines identify their owning view via
         // `PanelScope::Toplevel(win_id)`.
         let scope = crate::emPanelScope::PanelScope::Toplevel(win_id);
@@ -1840,19 +2031,18 @@ mod tests {
             let mut s = sched.borrow_mut();
             let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
                 std::cell::RefCell::new(None);
+            let __pa: std::rc::Rc<
+                std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>,
+            > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
             let mut sc = crate::emEngineCtx::SchedCtx {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root,
                 framework_clipboard: &__cb,
                 current_engine: None,
+                pending_actions: &__pa,
             };
-            v.RegisterEngines(
-                &mut sc,
-                &mut tree,
-                scope,
-                crate::emEngine::TreeLocation::Outer,
-            );
+            v.RegisterEngines(&mut sc, &mut tree, scope);
         }
         assert!(win.view().update_engine_id.is_some());
 
@@ -1874,8 +2064,6 @@ mod tests {
     #[test]
     fn new_popup_pending_constructs_without_event_loop() {
         let mut scheduler = EngineScheduler::new();
-        let mut tree = PanelTree::new();
-        let root = tree.create_root_deferred_view("root");
 
         let close_sig = scheduler.create_signal();
         let flags_sig = scheduler.create_signal();
@@ -1885,7 +2073,6 @@ mod tests {
 
         let popup = emWindow::new_popup_pending(
             crate::emContext::emContext::NewRoot(),
-            root,
             WindowFlags::POPUP | WindowFlags::UNDECORATED | WindowFlags::AUTO_DELETE,
             "emViewPopup".to_string(),
             close_sig,
@@ -1913,7 +2100,13 @@ mod tests {
         assert_eq!(popup.flags_signal, flags_sig);
         assert_eq!(popup.focus_signal, focus_sig);
         assert_eq!(popup.geometry_signal, geom_sig);
-        assert_eq!(popup.root_panel, root);
+        // Phase 3.5.A Task 8: popup owns its internal tree + root_panel;
+        // the internal root must be the popup tree's sole root.
+        assert_eq!(
+            popup.tree.GetRootPanel(),
+            Some(popup.root_panel),
+            "internal root_panel must be the popup tree's root"
+        );
         assert_eq!(popup.view().GetBackgroundColor(), bg_color);
         assert!(popup.winit_window_if_materialized().is_none());
     }
@@ -1956,5 +2149,51 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Task 4 (Phase 3.5.A): verifies take_tree/put_tree roundtrip.
+    /// - take on an empty-sentinel window returns an empty tree.
+    /// - put_tree then take_tree round-trips a populated tree.
+    ///
+    /// Uses public API (GetRootPanel) for emptiness checks — matching
+    /// Task 3 pattern in emPanelTree tests.
+    #[test]
+    fn take_tree_put_tree_roundtrip() {
+        let mut scheduler = EngineScheduler::new();
+        let close_sig = scheduler.create_signal();
+        let flags_sig = scheduler.create_signal();
+        let focus_sig = scheduler.create_signal();
+        let geom_sig = scheduler.create_signal();
+        let mut win = emWindow::new_popup_pending(
+            crate::emContext::emContext::NewRoot(),
+            WindowFlags::empty(),
+            "test".to_string(),
+            close_sig,
+            flags_sig,
+            focus_sig,
+            geom_sig,
+            crate::emColor::emColor::TRANSPARENT,
+        );
+
+        // Phase 3.5.A Task 8: popup `new_popup_pending` constructs its own
+        // internal tree + root (not the empty Task-4-era sentinel). The
+        // first take_tree returns that internal popup tree.
+        let taken = win.take_tree();
+        assert!(
+            taken.GetRootPanel().is_some(),
+            "popup's internal tree must have a root from new_popup_pending"
+        );
+        win.put_tree(taken);
+
+        // Build a populated tree, put it in, take it out — root must survive.
+        let mut populated = PanelTree::new();
+        let _r = populated.create_root_deferred_view("populated_root");
+        win.put_tree(populated);
+        let taken2 = win.take_tree();
+        assert!(
+            taken2.GetRootPanel().is_some(),
+            "populated tree must have a root after roundtrip"
+        );
+        win.put_tree(taken2);
     }
 }

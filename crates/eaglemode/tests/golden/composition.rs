@@ -94,14 +94,16 @@ fn settle(
         let mut __input_state = emcore::emInputState::emInputState::new();
         let __cb: std::cell::RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
+        let __pa: std::rc::Rc<std::cell::RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         sched.borrow_mut().DoTimeSlice(
-            tree,
             &mut empty_windows,
             &__root_ctx,
             &mut __fw,
             &mut __pending_inputs,
             &mut __input_state,
             &__cb,
+            &__pa,
         );
         register_all_panel_engines(tree, sched);
         // HandleNotice + Update per-view (SP5 pattern).

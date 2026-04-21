@@ -12,12 +12,13 @@ use std::rc::Rc;
 use winit::event_loop::ActiveEventLoop;
 
 use emcore::emContext::emContext;
-use emcore::emEngine::{EngineId, Priority, TreeLocation, emEngine};
+use emcore::emEngine::{EngineId, Priority, emEngine};
 use emcore::emEngineCtx::EngineCtx;
 use emcore::emGUIFramework::App;
 use emcore::emInput::{InputKey, emInputEvent};
 use emcore::emInputHotkey::Hotkey;
 use emcore::emInputState::emInputState;
+use emcore::emPanelScope::PanelScope;
 use emcore::emPanelTree::PanelId;
 use emcore::emSignal::SignalId;
 use emcore::emWindow::{WindowFlags, emWindow};
@@ -136,9 +137,10 @@ impl emMainWindow {
     /// toggles between ControlView.Activate() and ContentView.Activate().
     pub fn ToggleControlView(&mut self, app: &mut App) {
         if let Some(main_id) = self.main_panel_id {
-            app.tree.with_behavior_as::<emMainPanel, _>(main_id, |mp| {
-                mp.DoubleClickSlider();
-            });
+            app.home_tree_mut()
+                .with_behavior_as::<emMainPanel, _>(main_id, |mp| {
+                    mp.DoubleClickSlider();
+                });
             log::debug!("ToggleControlView");
         }
     }
@@ -184,8 +186,10 @@ impl emMainWindow {
                 let mut rel_x = 0.0;
                 let mut rel_y = 0.0;
                 let mut rel_a = 0.0;
-                let panel_opt = view.GetVisitedPanel(&app.tree, &mut rel_x, &mut rel_y, &mut rel_a);
-                let identity = panel_opt.map(|p| app.tree.GetIdentity(p));
+                // Phase 3.5.A Task 7: read from the home window's own tree.
+                let tree = win.tree();
+                let panel_opt = view.GetVisitedPanel(tree, &mut rel_x, &mut rel_y, &mut rel_a);
+                let identity = panel_opt.map(|p| tree.GetIdentity(p));
                 let adherent = view.IsActivationAdherent();
                 (identity, rel_x, rel_y, rel_a, adherent)
             } else {
@@ -450,6 +454,12 @@ impl StartupEngine {
     }
 }
 
+/// Phase 3.5.A Task 6.2: StartupEngine is classified Toplevel, so
+/// `ctx.tree` is Some at dispatch. NOTE: Task 7 migrates App's home
+/// tree into `emWindow::tree`; at Task 6 exit, `windows[wid].tree` is
+/// the empty default, NOT the home tree — StartupEngine's panel
+/// construction operates on the empty tree. Production startup is
+/// expected to be non-functional between Task 6 and Task 7.
 impl emEngine for StartupEngine {
     fn Cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
         match self.state {
@@ -464,14 +474,22 @@ impl emEngine for StartupEngine {
             // child directly on the main panel. In Rust the engine has tree
             // access, so we create the child here and hand its id to emMainPanel.
             3 => {
-                let overlay_id = ctx.tree.create_child(
-                    self.main_panel_id,
-                    "startupOverlay",
-                    Some(&mut *ctx.scheduler),
-                );
+                let overlay_id = ctx
+                    .tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
+                    .create_child(
+                        self.main_panel_id,
+                        "startupOverlay",
+                        Some(&mut *ctx.scheduler),
+                    );
                 ctx.tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .set_behavior(overlay_id, Box::new(StartupOverlayPanel));
                 ctx.tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.set_startup_overlay(overlay_id);
                     });
@@ -502,12 +520,16 @@ impl emEngine for StartupEngine {
             5 => {
                 let ctrl_view_id = ctx
                     .tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.GetControlViewPanelId()
                     })
                     .flatten();
                 let content_view_id = ctx
                     .tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.GetContentViewPanelId()
                     })
@@ -515,6 +537,8 @@ impl emEngine for StartupEngine {
                 if let Some(ctrl_id) = ctrl_view_id {
                     let ctrl_ctx = Rc::clone(&self.context);
                     ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
                         .with_behavior_as::<emSubViewPanel, _>(ctrl_id, |svp| {
                             let sub_tree = svp.sub_tree_mut();
                             let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
@@ -539,6 +563,8 @@ impl emEngine for StartupEngine {
             6 => {
                 let content_view_id = ctx
                     .tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.GetContentViewPanelId()
                     })
@@ -549,6 +575,8 @@ impl emEngine for StartupEngine {
                     let content_ctx = Rc::clone(&self.context);
                     let content_ctx2 = Rc::clone(&self.context);
                     ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
                         .with_behavior_as::<emSubViewPanel, _>(content_id, |svp| {
                             let sub_tree = svp.sub_tree_mut();
                             let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
@@ -594,6 +622,8 @@ impl emEngine for StartupEngine {
                     animator.SetAnimated(false);
                     animator.SetGoalFullsized(":", false, false, "");
                     ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
                         .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
                             svp.active_animator = Some(Box::new(animator));
                         });
@@ -609,12 +639,15 @@ impl emEngine for StartupEngine {
                 let still_active = self
                     .content_svp_id
                     .and_then(|id| {
-                        ctx.tree.with_behavior_as::<emSubViewPanel, _>(id, |svp| {
-                            svp.active_animator
-                                .as_ref()
-                                .map(|a| a.is_active())
-                                .unwrap_or(false)
-                        })
+                        ctx.tree
+                            .as_deref_mut()
+                            .expect("StartupEngine: Toplevel scope")
+                            .with_behavior_as::<emSubViewPanel, _>(id, |svp| {
+                                svp.active_animator
+                                    .as_ref()
+                                    .map(|a| a.is_active())
+                                    .unwrap_or(false)
+                            })
                     })
                     .unwrap_or(false);
                 if self.clock.elapsed().as_millis() < 2000 && still_active {
@@ -628,6 +661,8 @@ impl emEngine for StartupEngine {
             9 => {
                 if let Some(svp_id) = self.content_svp_id {
                     ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
                         .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
                             if let Some(ref mut anim) = svp.active_animator {
                                 anim.stop();
@@ -658,12 +693,15 @@ impl emEngine for StartupEngine {
                 let still_active = self
                     .content_svp_id
                     .and_then(|id| {
-                        ctx.tree.with_behavior_as::<emSubViewPanel, _>(id, |svp| {
-                            svp.active_animator
-                                .as_ref()
-                                .map(|a| a.is_active())
-                                .unwrap_or(false)
-                        })
+                        ctx.tree
+                            .as_deref_mut()
+                            .expect("StartupEngine: Toplevel scope")
+                            .with_behavior_as::<emSubViewPanel, _>(id, |svp| {
+                                svp.active_animator
+                                    .as_ref()
+                                    .map(|a| a.is_active())
+                                    .unwrap_or(false)
+                            })
                     })
                     .unwrap_or(false);
                 if self.clock.elapsed().as_millis() < 2000 && still_active {
@@ -676,24 +714,37 @@ impl emEngine for StartupEngine {
                     // a SchedCtx from `ctx` inside the closure. Pull the
                     // behavior out explicitly, build the SchedCtx, then put
                     // it back — matches the take/put pattern used elsewhere.
-                    if let Some(mut behavior) = ctx.tree.take_behavior(svp_id) {
+                    if let Some(mut behavior) = ctx
+                        .tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
+                        .take_behavior(svp_id)
+                    {
                         if let Some(svp) = behavior.as_any_mut().downcast_mut::<emSubViewPanel>() {
                             svp.active_animator = None;
                             let mut sc = ctx.as_sched_ctx();
                             svp.raw_zoom_out(false, &mut sc);
                         }
-                        ctx.tree.put_behavior(svp_id, behavior);
+                        ctx.tree
+                            .as_deref_mut()
+                            .expect("StartupEngine: Toplevel scope")
+                            .put_behavior(svp_id, behavior);
                     }
                 }
                 let overlay_id = ctx
                     .tree
+                    .as_deref_mut()
+                    .expect("StartupEngine: Toplevel scope")
                     .with_behavior_as::<emMainPanel, _>(self.main_panel_id, |mp| {
                         mp.ClearStartupOverlay()
                     })
                     .flatten();
                 // C++ does `delete StartupOverlay` — remove from tree.
                 if let Some(id) = overlay_id {
-                    ctx.tree.remove(id, Some(&mut *ctx.scheduler));
+                    ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
+                        .remove(id, Some(&mut *ctx.scheduler));
                 }
                 self.clock = std::time::Instant::now();
                 self.state += 1;
@@ -724,6 +775,8 @@ impl emEngine for StartupEngine {
                         &self.visit_subject,
                     );
                     ctx.tree
+                        .as_deref_mut()
+                        .expect("StartupEngine: Toplevel scope")
                         .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
                             svp.active_animator = Some(Box::new(animator));
                         });
@@ -769,11 +822,16 @@ pub fn create_main_window(
 ) -> emMainWindow {
     let mut mw = emMainWindow::new(Rc::clone(&app.context), config);
 
+    // Phase 3.5.A Task 7: home window owns its panel tree. Build the tree
+    // locally, populate it, then move it onto the emWindow via `put_tree`
+    // before inserting into `App::windows`. Formerly built into `App::tree`.
+    let mut home_tree = emcore::emPanelTree::PanelTree::new();
+
     // Create root panel in the tree. View is not yet constructed (emWindow::create
     // happens below); wire the Weak back after the window is inserted.
     let panel = emMainPanel::new(Rc::clone(&app.context), mw.config.control_tallness);
-    let root_id = app.tree.create_root("root", false);
-    app.tree.set_behavior(root_id, Box::new(panel));
+    let root_id = home_tree.create_root("root", false);
+    home_tree.set_behavior(root_id, Box::new(panel));
     mw.main_panel_id = Some(root_id);
 
     // Port of C++ `emMainPanel::emMainPanel` constructor
@@ -786,8 +844,8 @@ pub fn create_main_window(
     // the outer scheduler with `SubView` location. So: create the outer child
     // slot first, then build a SchedCtx, then construct the emSubViewPanel,
     // then install it.
-    let ctrl_id = app.tree.create_child(root_id, "control view", None);
-    let content_id = app.tree.create_child(root_id, "content view", None);
+    let ctrl_id = home_tree.create_child(root_id, "control view", None);
+    let content_id = home_tree.create_child(root_id, "content view", None);
     let ctrl_svp = {
         let root_ctx = app.context.GetRootContext();
         let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
@@ -797,6 +855,7 @@ pub fn create_main_window(
             root_context: &root_ctx,
             framework_clipboard: &app.clipboard,
             current_engine: None,
+            pending_actions: &app.pending_actions,
         };
         let mut svp = emSubViewPanel::new(Rc::clone(&app.context), ctrl_id, &mut sc);
         svp.set_sub_view_flags(
@@ -804,7 +863,7 @@ pub fn create_main_window(
         );
         svp
     };
-    app.tree.set_behavior(ctrl_id, Box::new(ctrl_svp));
+    home_tree.set_behavior(ctrl_id, Box::new(ctrl_svp));
 
     let content_svp = {
         let root_ctx = app.context.GetRootContext();
@@ -815,18 +874,18 @@ pub fn create_main_window(
             root_context: &root_ctx,
             framework_clipboard: &app.clipboard,
             current_engine: None,
+            pending_actions: &app.pending_actions,
         };
         let mut svp = emSubViewPanel::new(Rc::clone(&app.context), content_id, &mut sc);
         svp.set_sub_view_flags(ViewFlags::ROOT_SAME_TALLNESS);
         svp
     };
-    app.tree.set_behavior(content_id, Box::new(content_svp));
+    home_tree.set_behavior(content_id, Box::new(content_svp));
 
-    let slider_id = app.tree.create_child(root_id, "slider", None);
-    app.tree
-        .set_behavior(slider_id, Box::new(SliderPanel::new()));
+    let slider_id = home_tree.create_child(root_id, "slider", None);
+    home_tree.set_behavior(slider_id, Box::new(SliderPanel::new()));
 
-    app.tree.with_behavior_as::<emMainPanel, _>(root_id, |mp| {
+    home_tree.with_behavior_as::<emMainPanel, _>(root_id, |mp| {
         mp.set_control_view_panel(ctrl_id);
         mp.set_content_view_panel(content_id);
         mp.set_slider_panel(slider_id);
@@ -845,7 +904,7 @@ pub fn create_main_window(
     mw._close_signal = Some(close_signal);
 
     // Create the window
-    let window = emWindow::create(
+    let mut window = emWindow::create(
         event_loop,
         app.gpu(),
         Rc::clone(&app.context),
@@ -857,11 +916,19 @@ pub fn create_main_window(
         geometry_signal,
     );
     let window_id = window.winit_window().id();
+
+    // Phase 3.5.A Task 7: mark the root panel as view-owned and hand the
+    // tree to the window (it owns it from here on). Formerly this ran as
+    // `app.tree.init_panel_view(root_id, None)` after `app.windows.insert`.
+    home_tree.init_panel_view(root_id, None);
+    window.put_tree(home_tree);
+
     app.windows.insert(window_id, window);
     mw.window_id = Some(window_id);
-
-    // Mark the root panel as view-owned now that the window exists.
-    app.tree.init_panel_view(root_id, None);
+    // First top-level emMainWindow owns the home panel tree.
+    if app.home_window_id.is_none() {
+        app.home_window_id = Some(window_id);
+    }
 
     // Acquire bookmarks model.
     mw.bookmarks_model = Some(emBookmarksModel::Acquire(&app.context));
@@ -869,9 +936,11 @@ pub fn create_main_window(
     // Register StartupEngine with the scheduler.
     let startup_engine =
         StartupEngine::new(Rc::clone(&app.context), root_id, window_id, &mw.config);
-    let engine_id =
-        app.scheduler
-            .register_engine(Box::new(startup_engine), Priority::Low, TreeLocation::Outer);
+    let engine_id = app.scheduler.register_engine(
+        Box::new(startup_engine),
+        Priority::Low,
+        PanelScope::Toplevel(window_id),
+    );
     app.scheduler.wake_up(engine_id);
     mw.startup_engine_id = Some(engine_id);
 
@@ -890,7 +959,7 @@ pub fn create_main_window(
     };
     let mw_engine_id =
         app.scheduler
-            .register_engine(Box::new(mw_engine), Priority::Low, TreeLocation::Outer);
+            .register_engine(Box::new(mw_engine), Priority::Low, PanelScope::Framework);
     app.scheduler.connect(close_signal, mw_engine_id);
     app.scheduler.connect(title_signal, mw_engine_id);
 
@@ -901,13 +970,16 @@ pub fn create_main_window(
     {
         let App {
             ref mut scheduler,
-            ref mut tree,
             ref mut windows,
             ref clipboard,
+            ref pending_actions,
             ..
         } = *app;
         if let Some(win) = windows.get_mut(&window_id) {
             let scope = emcore::emPanelScope::PanelScope::Toplevel(window_id);
+            // Phase 3.5.A Task 7: window owns its tree — take it out for the
+            // RegisterEngines call, then put it back.
+            let mut tree = win.take_tree();
             {
                 let v = win.view_mut();
                 let root_ctx = v.GetRootContext();
@@ -918,9 +990,11 @@ pub fn create_main_window(
                     root_context: &root_ctx,
                     framework_clipboard: clipboard,
                     current_engine: None,
+                    pending_actions,
                 };
-                v.RegisterEngines(&mut sc, tree, scope, emcore::emEngine::TreeLocation::Outer);
+                v.RegisterEngines(&mut sc, &mut tree, scope);
             }
+            win.put_tree(tree);
             win.view_mut().set_control_panel_signal(cp_signal);
         }
     }
@@ -936,7 +1010,7 @@ pub fn create_main_window(
     };
     let bridge_id =
         app.scheduler
-            .register_engine(Box::new(bridge), Priority::Low, TreeLocation::Outer);
+            .register_engine(Box::new(bridge), Priority::Low, PanelScope::Framework);
     app.scheduler.connect(cp_signal, bridge_id);
 
     // Register emWindowStateSaver engine — persists window geometry.
@@ -974,7 +1048,7 @@ pub fn create_main_window(
 
         let saver_id =
             app.scheduler
-                .register_engine(Box::new(saver), Priority::Low, TreeLocation::Outer);
+                .register_engine(Box::new(saver), Priority::Low, PanelScope::Framework);
         app.scheduler.connect(flags_signal, saver_id);
         app.scheduler.connect(focus_signal, saver_id);
         app.scheduler.connect(geometry_signal, saver_id);
@@ -1013,16 +1087,22 @@ pub fn create_control_window(
     // C++ emMainWindow.cpp:315-326: Create new control window if MainPanel exists.
     let main_panel_id = with_main_window(|mw| mw.main_panel_id).flatten()?;
 
-    // Get the content sub-view panel ID from emMainPanel.
+    // Get the content sub-view panel ID from emMainPanel (from the home
+    // window's tree — the control window is a detached peer but reads the
+    // main panel's state).
     let content_view_id = app
-        .tree
+        .home_tree_mut()
         .with_behavior_as::<emMainPanel, _>(main_panel_id, |mp| mp.GetContentViewPanelId())
         .flatten();
 
     let ctrl_panel = emMainControlPanel::new(Rc::clone(&app.context), content_view_id);
-    // View wire-back: root is created before the window, so start with empty Weak.
-    let root_id = app.tree.create_root("ctrl_window_root", false);
-    app.tree.set_behavior(root_id, Box::new(ctrl_panel));
+
+    // Phase 3.5.A Task 7: the control window owns its own tree (detached peer
+    // of the home window — follows the same per-window pattern). Build locally,
+    // populate, then `put_tree` onto the new emWindow.
+    let mut ctrl_tree = emcore::emPanelTree::PanelTree::new();
+    let root_id = ctrl_tree.create_root("ctrl_window_root", false);
+    ctrl_tree.set_behavior(root_id, Box::new(ctrl_panel));
 
     let flags = WindowFlags::AUTO_DELETE;
     let close_signal = app.scheduler.create_signal();
@@ -1030,7 +1110,7 @@ pub fn create_control_window(
     let focus_signal = app.scheduler.create_signal();
     let geometry_signal = app.scheduler.create_signal();
 
-    let window = emWindow::create(
+    let mut window = emWindow::create(
         event_loop,
         app.gpu(),
         Rc::clone(&app.context),
@@ -1042,10 +1122,12 @@ pub fn create_control_window(
         geometry_signal,
     );
     let window_id = window.winit_window().id();
-    app.windows.insert(window_id, window);
 
-    // Mark the root panel as view-owned now that the window exists.
-    app.tree.init_panel_view(root_id, None);
+    // Mark the root panel as view-owned and hand the tree to the window.
+    ctrl_tree.init_panel_view(root_id, None);
+    window.put_tree(ctrl_tree);
+
+    app.windows.insert(window_id, window);
 
     // Store the control window ID for raise-if-existing logic.
     with_main_window(|mw| {
@@ -1089,7 +1171,7 @@ fn RecreateContentPanels(app: &mut App) {
     };
 
     let content_view_id = match app
-        .tree
+        .home_tree_mut()
         .with_behavior_as::<emMainPanel, _>(main_panel_id, |mp| mp.GetContentViewPanelId())
         .flatten()
     {
@@ -1099,7 +1181,7 @@ fn RecreateContentPanels(app: &mut App) {
 
     let ctx = Rc::clone(&app.context);
 
-    app.tree
+    app.home_tree_mut()
         .with_behavior_as::<emSubViewPanel, _>(content_view_id, |svp| {
             // Save current visit state (C++ emMainWindow.cpp:297-301).
             let mut rel_x = 0.0;

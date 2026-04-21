@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use emcore::emEngine::{emEngine, Priority, TreeLocation};
+use emcore::emEngine::{emEngine, Priority};
 use emcore::emEngineCtx::EngineCtx;
+use emcore::emPanelScope::PanelScope;
 use emcore::emSignal::SignalId;
 
 use super::support::TestHarness;
@@ -55,7 +56,7 @@ fn engine_modifies_panel_on_signal() {
             delta: 1,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     h.scheduler.connect(sig, eng);
 
@@ -86,7 +87,7 @@ fn timer_drives_engine_wake() {
             flag: engine_ran_clone,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     h.scheduler.connect(sig, eng);
 
@@ -123,7 +124,7 @@ fn signal_removal_while_pending() {
             delta: 1,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     h.scheduler.connect(sig, eng);
 
@@ -153,7 +154,7 @@ fn engine_fires_signal_waking_sibling() {
             fired: false,
         }),
         Priority::High,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     h.scheduler.wake_up(_eng_a);
 
@@ -166,7 +167,7 @@ fn engine_fires_signal_waking_sibling() {
             fired: false,
         }),
         Priority::Low,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     h.scheduler.connect(sig, eng_b);
 

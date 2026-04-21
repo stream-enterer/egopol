@@ -48,7 +48,7 @@ impl emSubViewPanel {
     /// `create_child` (or `create_root`) the outer slot first to obtain the
     /// id, then pass it here — the sub_view's engines (`UpdateEngineClass`,
     /// `VisitingVAEngineClass`) and the sub-tree's `PanelCycleEngine` adapters
-    /// register with the OUTER scheduler at `TreeLocation::SubView(outer_panel_id,
+    /// register with the OUTER scheduler at `PanelScope::SubView(outer_panel_id,
     /// Outer)`, so dispatch resolves through this panel's `sub_tree` on the
     /// single shared priority queue (spec §3.3).
     pub fn new(
@@ -56,18 +56,22 @@ impl emSubViewPanel {
         outer_panel_id: PanelId,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) -> Self {
-        // Tag the sub_tree's TreeLocation so `register_engine_for` tags every
-        // sub-tree `PanelCycleEngine` adapter with `SubView(outer_panel_id,
-        // Outer)` for dispatch through the outer scheduler.
-        let sub_location = crate::emEngine::TreeLocation::SubView {
+        // Tag the sub_tree's scope so `register_engine_for` tags every
+        // sub-tree `PanelCycleEngine` adapter with
+        // `PanelScope::SubView { window_id: dummy, outer_panel_id }` for
+        // dispatch through the outer scheduler's SubView arm. Task 7
+        // backfills the real WindowId when window/tree construction
+        // carries it.
+        let sub_scope = crate::emPanelScope::PanelScope::SubView {
+            window_id: winit::window::WindowId::dummy(),
             outer_panel_id,
-            rest: Box::new(crate::emEngine::TreeLocation::Outer),
         };
-        let mut sub_tree = PanelTree::new_with_location(sub_location.clone());
+        let mut sub_tree = PanelTree::new_with_scope(sub_scope);
 
         // Phase 2 Task 7: sub_view is plain; engines identify their owning
-        // view via `PanelScope::SubView(outer_panel_id)`, resolved at Cycle
-        // entry through `EngineCtx::tree.panels[..].behavior.as_sub_view_panel_mut()`.
+        // view via `PanelScope::SubView { window_id, outer_panel_id }`,
+        // resolved at Cycle entry through
+        // `EngineCtx::tree.panels[..].behavior.as_sub_view_panel_mut()`.
         let root = sub_tree.create_root("", true);
         // Last arg is pixel tallness; sub_view.CurrentPixelTallness starts at 1.0.
         sub_tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
@@ -79,8 +83,7 @@ impl emSubViewPanel {
         // with SubView location. The outer scheduler's priority-queue dispatch
         // resolves these engines through this panel's `sub_tree` on a single
         // shared queue (spec §3.3) — no per-sub-view scheduler exists.
-        let scope = crate::emPanelScope::PanelScope::SubView(outer_panel_id);
-        sub_view.RegisterEngines(ctx, &mut sub_tree, scope, sub_location);
+        sub_view.RegisterEngines(ctx, &mut sub_tree, sub_scope);
 
         Self {
             sub_tree,
@@ -177,12 +180,15 @@ impl emSubViewPanel {
     /// outer scheduler (threaded via `emView::HandleNotice(tree, sched)`),
     /// so the prior throwaway `EngineScheduler::new()` hack is gone — wakes
     /// emitted by `emView::SetGeometry` land on the real outer scheduler where
-    /// sub-view engines live (`TreeLocation::SubView`).
+    /// sub-view engines live (`PanelScope::SubView`).
     fn sync_geometry(
         &mut self,
         state: &PanelState,
         sched: &mut crate::emScheduler::EngineScheduler,
         framework_clipboard: &std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>>,
+        pending_actions: &std::rc::Rc<
+            std::cell::RefCell<Vec<crate::emGUIFramework::DeferredAction>>,
+        >,
     ) {
         let (w, h) = if state.viewed {
             self.viewed_x = state.viewed_rect.x;
@@ -207,6 +213,7 @@ impl emSubViewPanel {
             root_context: &root_ctx,
             framework_clipboard,
             current_engine: None,
+            pending_actions,
         };
         self.sub_view
             .SetGeometry(&mut self.sub_tree, 0.0, 0.0, w, h, 1.0, &mut sc);
@@ -291,7 +298,11 @@ impl PanelBehavior for emSubViewPanel {
         // built — matches the graceful pattern used in `HandleNotice` below.
         let fallback_cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
+        let fallback_pa: std::rc::Rc<
+            std::cell::RefCell<Vec<crate::emGUIFramework::DeferredAction>>,
+        > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         let cb_ref = ctx.framework_clipboard.unwrap_or(&fallback_cb);
+        let pa_ref = ctx.pending_actions.unwrap_or(&fallback_pa);
 
         // Hit-test and set active panel on mouse press (mirrors parent window logic).
         if event.is_mouse_event() && event.variant == crate::emInput::InputVariant::Press {
@@ -307,6 +318,7 @@ impl PanelBehavior for emSubViewPanel {
                 root_context: &root_ctx_for_input,
                 framework_clipboard: cb_ref,
                 current_engine: None,
+                pending_actions: pa_ref,
             };
             self.sub_view
                 .set_active_panel(&mut self.sub_tree, panel, false, &mut sc);
@@ -322,6 +334,7 @@ impl PanelBehavior for emSubViewPanel {
                 root_context: &root_ctx_for_input,
                 framework_clipboard: cb_ref,
                 current_engine: None,
+                pending_actions: pa_ref,
             };
             self.sub_view.Update(&mut self.sub_tree, &mut sc);
         }
@@ -386,7 +399,7 @@ impl PanelBehavior for emSubViewPanel {
     fn Cycle(&mut self, ectx: &mut crate::emEngineCtx::EngineCtx<'_>, _ctx: &mut PanelCtx) -> bool {
         // Phase 1.75 Task 4 keystone: no per-sub-view scheduler. Sub-view and
         // sub-tree engines register on the OUTER scheduler with
-        // `TreeLocation::SubView(outer_id, Outer)`; outer `DoTimeSlice` walks
+        // `PanelScope::SubView(outer_id, Outer)`; outer `DoTimeSlice` walks
         // them in the same priority-queue pass as outer engines (spec §3.3).
         // `emSubViewPanel::Cycle` therefore has no sub-slice drive —
         // it just ticks the `active_animator` (which C++ `emView` ticks as
@@ -428,12 +441,16 @@ impl PanelBehavior for emSubViewPanel {
             // scheduler, so both references can live simultaneously.
             let fallback_cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
                 std::cell::RefCell::new(None);
+            let fallback_pa: std::rc::Rc<
+                std::cell::RefCell<Vec<crate::emGUIFramework::DeferredAction>>,
+            > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
             let cb_ref = ctx.framework_clipboard.unwrap_or(&fallback_cb);
+            let pa_ref = ctx.pending_actions.unwrap_or(&fallback_pa);
             let sched = ctx
                 .scheduler
                 .as_deref_mut()
                 .expect("emSubViewPanel::notice requires PanelCtx with a scheduler (Phase 1.75)");
-            self.sync_geometry(state, sched, cb_ref);
+            self.sync_geometry(state, sched, cb_ref, pa_ref);
         }
     }
 
@@ -444,7 +461,7 @@ impl PanelBehavior for emSubViewPanel {
         // C++ emSubViewPanel::Paint (src/emCore/emSubViewPanel.cpp:94) just
         // delegates to SubViewPort->PaintView. No settlement inside Paint —
         // sub-view settlement happens across frames via the outer scheduler's
-        // priority-queue dispatch of `TreeLocation::SubView` engines.
+        // priority-queue dispatch of `PanelScope::SubView` engines.
         let base_offset = painter.origin();
         let bg = self.sub_view.GetBackgroundColor();
         let root = self.sub_root();
@@ -544,12 +561,16 @@ mod sp8_tests {
             let cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
                 std::cell::RefCell::new(None);
             let panel = {
+                let __pa: std::rc::Rc<
+                    std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>,
+                > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
                 let mut sc = crate::emEngineCtx::SchedCtx {
                     scheduler: &mut outer_sched,
                     framework_actions: &mut fw,
                     root_context: &root_ctx,
                     framework_clipboard: &cb,
                     current_engine: None,
+                    pending_actions: &__pa,
                 };
                 emSubViewPanel::new(root_ctx.clone(), owner_id, &mut sc)
             };
@@ -621,7 +642,7 @@ mod sp8_tests {
     fn sp8_cycle_returns_animator_active_only() {
         // Phase 1.75 Task 4: `emSubViewPanel::Cycle` reduces to an animator
         // tick — no sub-scheduler drive (sub-view engines are dispatched by
-        // the OUTER scheduler's priority queue via `TreeLocation::SubView`).
+        // the OUTER scheduler's priority queue via `PanelScope::SubView`).
         // With no `active_animator` set, `Cycle` returns `false` immediately.
         let mut h = SvpTestHarness::new();
 
@@ -637,7 +658,7 @@ mod sp8_tests {
         let dummy_eid = th.scheduler.register_engine(
             Box::new(NoopEngine),
             crate::emEngine::Priority::Medium,
-            crate::emEngine::TreeLocation::Outer,
+            crate::emPanelScope::PanelScope::Framework,
         );
 
         let stay_awake = {

@@ -102,8 +102,9 @@ mod platform {
     use nix::sys::stat::Mode;
 
     use super::{decode_message, encode_message, MiniIpcError};
-    use crate::emEngine::{emEngine, EngineId, Priority, TreeLocation};
+    use crate::emEngine::{emEngine, EngineId, Priority};
     use crate::emEngineCtx::EngineCtx;
+    use crate::emPanelScope::PanelScope;
     use crate::emScheduler::EngineScheduler;
     use crate::emSignal::SignalId;
     use crate::emTimer::TimerId;
@@ -361,7 +362,7 @@ mod platform {
                 timer_signal,
             };
             let engine_id =
-                scheduler.register_engine(Box::new(engine), Priority::Low, TreeLocation::Outer);
+                scheduler.register_engine(Box::new(engine), Priority::Low, PanelScope::Framework);
             scheduler.connect(timer_signal, engine_id);
 
             Self {

@@ -1,7 +1,9 @@
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use super::emDialog::{emDialog, DialogResult};
-use crate::emEngineCtx::PanelCtx;
+use crate::emEngineCtx::{ConstructCtx, PanelCtx};
 use crate::emFileSelectionBox::emFileSelectionBox;
 use crate::emLook::emLook;
 use crate::emSignal::SignalId;
@@ -39,9 +41,14 @@ pub enum FileDialogCheckResult {
 /// overwrite confirmation for Save).
 pub struct emFileDialog {
     dialog: emDialog,
+    look: Rc<emLook>,
     fsb: emFileSelectionBox,
     mode: FileDialogMode,
     dir_allowed: bool,
+    /// Written by the `on_finish` closure when the overwrite dialog finishes;
+    /// read in `Cycle` (Task 20). Shared via `Rc<Cell<_>>` so the closure can
+    /// hold a clone. Added in Task 19; Task 20 reads it.
+    pub(crate) overwrite_result: Rc<Cell<Option<DialogResult>>>,
     /// The pending overwrite-confirmation dialog (C++ `OverwriteDialog`,
     /// `emCrossPtr<emDialog>`). Owned as `Option<emDialog>` here; identical
     /// lifetime semantics — created inside `CheckFinish` when Save-mode
@@ -61,12 +68,13 @@ impl emFileDialog {
     pub fn new<C: crate::emEngineCtx::ConstructCtx>(
         ctx: &mut C,
         mode: FileDialogMode,
-        look: std::rc::Rc<emLook>,
+        look: Rc<emLook>,
     ) -> Self {
         let (title, ok_label) = mode_title_and_ok(mode);
-        let mut dialog = emDialog::new(ctx, title, look);
-        dialog.AddCustomButton(ok_label, DialogResult::Ok);
-        dialog.AddCustomButton("Cancel", DialogResult::Cancel);
+        let mut dialog = emDialog::new(ctx, title, Rc::clone(&look));
+        dialog.AddCustomButton(ctx, ok_label, DialogResult::Ok);
+        dialog.AddCustomButton(ctx, "Cancel", DialogResult::Cancel);
+        dialog.show(ctx);
 
         let mut fsb = emFileSelectionBox::new(ctx, "");
         fsb.border_mut().outer = super::emBorder::OuterBorderType::None;
@@ -75,9 +83,11 @@ impl emFileDialog {
 
         Self {
             dialog,
+            look,
             fsb,
             mode,
             dir_allowed: false,
+            overwrite_result: Rc::new(Cell::new(None)),
             overwrite_dialog: None,
             overwrite_asked: String::new(),
             overwrite_confirmed: String::new(),
@@ -87,14 +97,6 @@ impl emFileDialog {
 
     pub fn GetMode(&self) -> FileDialogMode {
         self.mode
-    }
-
-    pub fn set_mode(&mut self, mode: FileDialogMode) {
-        self.mode = mode;
-        let (title, ok_label) = mode_title_and_ok(mode);
-        self.dialog.SetRootTitle(title);
-        self.dialog
-            .set_button_label_for_result(&DialogResult::Ok, ok_label);
     }
 
     pub fn is_directory_result_allowed(&self) -> bool {
@@ -177,24 +179,12 @@ impl emFileDialog {
         &self.dialog
     }
 
-    pub fn dialog_mut(&mut self) -> &mut emDialog {
-        &mut self.dialog
-    }
-
     pub fn file_selection_box(&self) -> &emFileSelectionBox {
         &self.fsb
     }
 
     pub fn file_selection_box_mut(&mut self) -> &mut emFileSelectionBox {
         &mut self.fsb
-    }
-
-    pub fn Finish(&mut self, result: DialogResult, ctx: &mut PanelCtx<'_>) {
-        self.dialog.Finish(result, ctx);
-    }
-
-    pub fn GetResult(&self) -> Option<&DialogResult> {
-        self.dialog.GetResult()
     }
 
     /// Check whether the dialog can finish with the given result.
@@ -269,10 +259,14 @@ impl emFileDialog {
                     if text != self.overwrite_confirmed {
                         // Create the overwrite confirmation dialog, matching
                         // C++ CheckFinish lines 186-197 (new emDialog, set
-                        // title, add OK/Cancel buttons).
-                        let mut dlg = emDialog::new(ctx, "File Exists", self.dialog.look().clone());
-                        dlg.AddCustomButton("OK", DialogResult::Ok);
-                        dlg.AddCustomButton("Cancel", DialogResult::Cancel);
+                        // title, add OK/Cancel buttons). Task 19: wire
+                        // set_on_finish + show per new handle API.
+                        let mut dlg = emDialog::new(ctx, "File Exists", self.look.clone());
+                        dlg.AddCustomButton(ctx, "OK", DialogResult::Ok);
+                        dlg.AddCustomButton(ctx, "Cancel", DialogResult::Cancel);
+                        let cell = Rc::clone(&self.overwrite_result);
+                        dlg.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
+                        dlg.show(ctx);
                         self.overwrite_dialog = Some(dlg);
                         self.overwrite_asked = text;
                         return FileDialogCheckResult::ConfirmOverwrite(paths_to_overwrite);
@@ -321,8 +315,8 @@ impl emFileDialog {
     /// wake-up-signal subscription plumbing. Tracked by raw-material entry E024.
     pub fn Cycle(&mut self, ctx: &mut PanelCtx<'_>) -> bool {
         // Decide what transition to execute based on currently-pending
-        // signals, then drop the SchedCtx borrow before mutating ctx via
-        // Finish (which itself synthesizes a SchedCtx to fire finish_signal).
+        // signals, then drop the SchedCtx borrow before enqueueing closures
+        // via finish_post_show / pending_actions (which borrow ctx mutably).
         enum Action {
             None,
             FinishOk,
@@ -337,10 +331,12 @@ impl emFileDialog {
                 Action::FinishOk
             } else if let Some(od) = self.overwrite_dialog.as_ref() {
                 if sched.is_signaled(od.finish_signal) {
-                    match od.GetResult() {
+                    // Read from the Cell shim populated by the overwrite
+                    // dialog's on_finish closure (Task 19/20).
+                    match self.overwrite_result.take() {
                         Some(DialogResult::Ok) => Action::OverwriteConfirmed,
                         Some(DialogResult::Cancel) => Action::OverwriteCancelled,
-                        _ => Action::None,
+                        Some(DialogResult::Custom(_)) | None => Action::None,
                     }
                 } else {
                     Action::None
@@ -350,21 +346,43 @@ impl emFileDialog {
             }
         };
 
+        // Require pending_actions to be present (PanelCtx exposes it as an
+        // Option field; Cycle's contract requires it to be Some — if it's
+        // None we have no closure rail and must return false).
+        if ctx.pending_actions.is_none() {
+            return false;
+        }
+
         match action {
             Action::None => false,
             Action::FinishOk => {
-                self.dialog.Finish(DialogResult::Ok, ctx);
+                self.dialog.finish_post_show(ctx, DialogResult::Ok);
                 true
             }
             Action::OverwriteConfirmed => {
                 self.overwrite_confirmed = std::mem::take(&mut self.overwrite_asked);
-                self.overwrite_dialog = None;
-                self.dialog.Finish(DialogResult::Ok, ctx);
+                if let Some(od) = self.overwrite_dialog.take() {
+                    let did = od.dialog_id;
+                    ctx.pending_actions().borrow_mut().push(Box::new(
+                        move |app: &mut crate::emGUIFramework::App, _el| {
+                            app.close_dialog_by_id(did);
+                        },
+                    ));
+                }
+                self.dialog.finish_post_show(ctx, DialogResult::Ok);
                 true
             }
             Action::OverwriteCancelled => {
                 self.overwrite_asked.clear();
-                self.overwrite_dialog = None;
+                if let Some(od) = self.overwrite_dialog.take() {
+                    let did = od.dialog_id;
+                    ctx.pending_actions().borrow_mut().push(Box::new(
+                        move |app: &mut crate::emGUIFramework::App, _el| {
+                            app.close_dialog_by_id(did);
+                        },
+                    ));
+                }
+                // Outer dialog stays open; user may try save again.
                 true
             }
         }
@@ -394,25 +412,18 @@ impl emFileDialog {
         self.overwrite_dialog.as_ref().map(|d| d.finish_signal)
     }
 
-    /// Test-only: set the overwrite-dialog's internal result without firing
-    /// its `finish_signal`, so tests can exercise Cycle's two branches by
-    /// firing the signal separately. Production code drives the overwrite
-    /// dialog via normal `emDialog::Finish` from the UI event path.
+    /// Test-only: populate the `overwrite_result` Cell as if the overwrite
+    /// dialog's `on_finish` callback fired with `result`. The caller then fires
+    /// `overwrite_finish_signal` manually so `Cycle` can observe both the Cell
+    /// value and the signal in one shot.
+    ///
+    /// Ported from the `cfg(any())`-gated version (Task 21): the old body
+    /// called `od.Finish` / `od.silent_cancel`, both of which are
+    /// `unimplemented!` stubs in the new handle-based emDialog API. The Cell
+    /// shim (`overwrite_result`) is the correct observable interface.
     #[cfg(test)]
     fn test_force_overwrite_result(&mut self, result: DialogResult) {
-        if let Some(od) = self.overwrite_dialog.as_mut() {
-            match result {
-                DialogResult::Cancel => od.silent_cancel(),
-                other => {
-                    let mut tree = crate::emPanelTree::PanelTree::new();
-                    let tid = tree.create_root("tt", false);
-                    let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
-                    // No scheduler on this PanelCtx → Finish cannot fire
-                    // signals, which is what we want: only the result is set.
-                    od.Finish(other, &mut ctx);
-                }
-            }
-        }
+        self.overwrite_result.set(Some(result));
     }
 }
 
@@ -429,11 +440,14 @@ mod tests {
     use super::*;
     use crate::emEngineCtx::{DeferredAction, InitCtx};
     use crate::emScheduler::EngineScheduler;
+    use std::cell::RefCell;
+    use std::rc::Rc;
 
     struct TestInit {
         sched: EngineScheduler,
         fw: Vec<DeferredAction>,
-        root: std::rc::Rc<crate::emContext::emContext>,
+        root: Rc<crate::emContext::emContext>,
+        pa: Rc<RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>>,
     }
     impl Drop for TestInit {
         fn drop(&mut self) {
@@ -448,6 +462,7 @@ mod tests {
                 sched: EngineScheduler::new(),
                 fw: Vec::new(),
                 root: crate::emContext::emContext::NewRoot(),
+                pa: Rc::new(RefCell::new(Vec::new())),
             }
         }
         fn ctx(&mut self) -> InitCtx<'_> {
@@ -455,6 +470,7 @@ mod tests {
                 scheduler: &mut self.sched,
                 framework_actions: &mut self.fw,
                 root_context: &self.root,
+                pending_actions: &self.pa,
             }
         }
     }
@@ -523,9 +539,19 @@ mod tests {
     }
 
     // ─── Signal-driven Cycle tests (Phase-3 Task 6 / E024) ──────────────────
+    //
+    // In the new handle-based emDialog model, `Cycle` calls `finish_post_show`
+    // which queues a closure onto `pending_actions` (rather than directly
+    // setting a result field or firing `finish_signal`). The `finish_signal`
+    // is subsequently fired by `DialogPrivateEngine` after the App processes
+    // `pending_actions`. In unit tests there is no App event loop, so:
+    //   - "dialog finished" is observable as `pending_actions` gaining ≥1 entry.
+    //   - "dialog NOT finished" is observable as `pending_actions` staying empty.
+    // The old assertions `dlg.GetResult()` and `sched.is_pending(finish)` are
+    // replaced accordingly. `GetResult()` on emDialog is `unimplemented!` (dead
+    // stub); `finish_signal` won't be pending until App processes the queue.
 
     use crate::emPanelTree::PanelTree;
-    use std::cell::RefCell;
 
     fn test_panel_tree() -> (PanelTree, crate::emPanelTree::PanelId) {
         let mut tree = PanelTree::new();
@@ -537,6 +563,9 @@ mod tests {
     fn cycle_no_signals_is_no_op() {
         let mut __init = TestInit::new();
         let mut dlg = make_dialog(&mut __init, FileDialogMode::Open);
+        // Drain any show-dialog actions queued by the constructor (AddCustomButton
+        // / show) so the count is unambiguous after Cycle.
+        __init.pa.borrow_mut().clear();
         let (mut tree, tid) = test_panel_tree();
         let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
         let mut ctx = PanelCtx::with_sched_reach(
@@ -547,17 +576,20 @@ mod tests {
             &mut __init.fw,
             &__init.root,
             &fw_cb,
+            &__init.pa,
         );
         assert!(!dlg.Cycle(&mut ctx));
-        assert!(dlg.GetResult().is_none());
+        // No action queued by Cycle: pending_actions stays empty.
+        assert_eq!(__init.pa.borrow().len(), 0, "no pending actions expected");
     }
 
     #[test]
     fn cycle_file_trigger_signal_finishes_ok() {
         let mut __init = TestInit::new();
         let mut dlg = make_dialog(&mut __init, FileDialogMode::Open);
+        // Drain constructor-queued show-dialog actions before counting.
+        __init.pa.borrow_mut().clear();
         let trig = dlg.file_trigger_signal();
-        let finish = dlg.finish_signal();
         __init.sched.fire(trig);
 
         let (mut tree, tid) = test_panel_tree();
@@ -571,23 +603,25 @@ mod tests {
                 &mut __init.fw,
                 &__init.root,
                 &fw_cb,
+                &__init.pa,
             );
             let acted = dlg.Cycle(&mut ctx);
             assert!(acted);
         }
-        assert_eq!(dlg.GetResult(), Some(&DialogResult::Ok));
-        // Finish fires the outer dialog's finish_signal (C++ parity).
-        assert!(__init.sched.is_pending(finish));
+        // finish_post_show enqueues a closure: pending_actions must be non-empty.
+        // The finish_signal itself fires only after App processes the queue.
+        assert!(
+            !__init.pa.borrow().is_empty(),
+            "finish_post_show must enqueue a pending action"
+        );
     }
 
     #[test]
     fn cycle_overwrite_dialog_positive_confirms_and_finishes() {
         // Build a Save-mode dialog and force an overwrite_dialog via
-        // CheckFinish against a path that exists (use current working dir
-        // so the check triggers deterministically).
+        // CheckFinish against a path that exists.
         let mut __init = TestInit::new();
         let mut dlg = make_dialog(&mut __init, FileDialogMode::Save);
-        // Point fsb at /tmp and pretend the selected name is an existing file.
         let tmp = std::env::temp_dir();
         let f = tmp.join("emcore_filedialog_overwrite_test.tmp");
         std::fs::write(&f, b"x").expect("write tmp file");
@@ -600,22 +634,14 @@ mod tests {
             .overwrite_finish_signal()
             .expect("overwrite dialog created");
 
-        // Simulate the user clicking OK on the overwrite dialog: set its
-        // result to Ok and fire its finish_signal.
-        let finish = dlg.finish_signal();
-        // Drive overwrite dialog's Finish via its internal API. We set the
-        // result directly by invoking Finish on a &mut borrow of the inner
-        // emDialog field. Use the public accessor + internal route:
-        {
-            // We need &mut access to the inner overwrite emDialog. It's
-            // private — tunnel through a mini helper: manually mimic what
-            // the UI does by just firing the signal and setting the result.
-            // Since overwrite_dialog is private, we use the Finish path:
-            // build a PanelCtx and call dlg.dialog_mut() — no, that's the
-            // outer. Use a dedicated test helper.
-            dlg.test_force_overwrite_result(DialogResult::Ok);
-        }
+        // Simulate user clicking OK on the overwrite dialog: populate the Cell
+        // shim and fire the overwrite dialog's finish_signal.
+        dlg.test_force_overwrite_result(DialogResult::Ok);
         __init.sched.fire(od_sig);
+
+        // Drain show-dialog actions queued by CheckFinish (AddCustomButton →
+        // show) before calling Cycle, so pending_actions is clean going in.
+        __init.pa.borrow_mut().clear();
 
         let (mut tree, tid) = test_panel_tree();
         let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
@@ -628,12 +654,18 @@ mod tests {
                 &mut __init.fw,
                 &__init.root,
                 &fw_cb,
+                &__init.pa,
             );
             assert!(dlg.Cycle(&mut ctx));
         }
+        // Overwrite dialog must be gone from the handle.
         assert!(dlg.overwrite_finish_signal().is_none(), "od destroyed");
-        assert_eq!(dlg.GetResult(), Some(&DialogResult::Ok));
-        assert!(__init.sched.is_pending(finish));
+        // Cycle enqueues: (a) close overwrite dialog closure, (b) finish_post_show
+        // closure for the outer dialog. At least one pending action required.
+        assert!(
+            !__init.pa.borrow().is_empty(),
+            "Cycle must enqueue pending actions on overwrite-confirmed path"
+        );
 
         let _ = std::fs::remove_file(&f);
     }
@@ -650,9 +682,11 @@ mod tests {
 
         let _ = dlg.CheckFinish(&mut __init.ctx(), &DialogResult::Ok);
         let od_sig = dlg.overwrite_finish_signal().expect("od created");
-        let finish = dlg.finish_signal();
         dlg.test_force_overwrite_result(DialogResult::Cancel);
         __init.sched.fire(od_sig);
+
+        // Drain show-dialog actions queued by CheckFinish before calling Cycle.
+        __init.pa.borrow_mut().clear();
 
         let (mut tree, tid) = test_panel_tree();
         let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
@@ -665,12 +699,118 @@ mod tests {
                 &mut __init.fw,
                 &__init.root,
                 &fw_cb,
+                &__init.pa,
             );
             assert!(dlg.Cycle(&mut ctx));
         }
+        // Overwrite dialog handle cleared.
         assert!(dlg.overwrite_finish_signal().is_none(), "od destroyed");
-        assert!(dlg.GetResult().is_none(), "outer dialog NOT finished");
-        assert!(!__init.sched.is_pending(finish));
+        // Cancel path: outer dialog stays open — Cycle enqueues only the
+        // close-overwrite-dialog action, NOT a finish_post_show for the outer
+        // dialog. The outer dialog remains live (no finish closure).
+        // We verify by checking the overwrite_result Cell is empty (taken by
+        // Cycle) and the outer dialog's finish_signal has NOT been scheduled
+        // (finish_post_show not called).
+        assert!(
+            dlg.overwrite_result.get().is_none(),
+            "overwrite_result Cell must be empty after Cycle takes it"
+        );
+        assert_eq!(
+            __init.pa.borrow().len(),
+            1,
+            "cancel path must enqueue exactly 1 action (close-od), not a finish"
+        );
+
+        let _ = std::fs::remove_file(&f);
+    }
+
+    // ─── End-to-end overwrite-confirm test (Task 21) ─────────────────────────
+    //
+    // Full e2e test verifying the overwrite-confirm path from CheckFinish →
+    // Cell-shim → Cycle → finish_post_show pending action.
+    //
+    // Infrastructure note: the heavy e2e shape described in the plan
+    // (fire button click-signal → App processes pending_actions → outer dialog
+    // finalized_result == Some(Ok)) requires a live App + DialogPrivateEngine
+    // event loop, which is App-level integration test infrastructure not yet
+    // available at this scope. Per the plan's lighter-test fallback, this test
+    // verifies the observable Cell-shim path: after CheckFinish creates the
+    // overwrite dialog, after we populate the Cell and fire the signal, Cycle
+    // correctly reads the Cell and enqueues pending actions for both the
+    // close-overwrite-dialog step and the outer finish_post_show step.
+    #[test]
+    fn save_existing_file_triggers_overwrite_dialog_and_confirms() {
+        let mut __init = TestInit::new();
+        let mut dlg = make_dialog(&mut __init, FileDialogMode::Save);
+
+        // Create a real temp file so CheckFinish detects it as existing.
+        let tmp = std::env::temp_dir();
+        let f = tmp.join("emcore_e2e_overwrite_confirm.tmp");
+        std::fs::write(&f, b"existing").expect("write tmp file");
+        dlg.set_parent_directory(&tmp);
+        dlg.set_selected_name("emcore_e2e_overwrite_confirm.tmp");
+
+        // Step 1: CheckFinish → ConfirmOverwrite (overwrite dialog created).
+        let check = dlg.CheckFinish(&mut __init.ctx(), &DialogResult::Ok);
+        assert!(
+            matches!(check, FileDialogCheckResult::ConfirmOverwrite(_)),
+            "expected ConfirmOverwrite, got {check:?}"
+        );
+        let od_sig = dlg
+            .overwrite_finish_signal()
+            .expect("overwrite dialog must exist after ConfirmOverwrite");
+
+        // Step 2: Simulate the user clicking OK on the overwrite dialog —
+        // populate the Cell shim (mirrors what the on_finish closure does in
+        // production) and fire the overwrite dialog's finish_signal.
+        dlg.test_force_overwrite_result(DialogResult::Ok);
+        assert_eq!(
+            dlg.overwrite_result.get(),
+            Some(DialogResult::Ok),
+            "Cell must hold Ok before Cycle reads it"
+        );
+        __init.sched.fire(od_sig);
+
+        // Drain show-dialog actions accumulated during CheckFinish so the
+        // pending_actions count is unambiguous after Cycle.
+        __init.pa.borrow_mut().clear();
+
+        // Step 3: Cycle observes the signal + Cell → OverwriteConfirmed path.
+        let (mut tree, tid) = test_panel_tree();
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        let acted = {
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                tid,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+                &__init.pa,
+            );
+            dlg.Cycle(&mut ctx)
+        };
+        assert!(acted, "Cycle must return true on OverwriteConfirmed");
+
+        // Step 4: Verify observable post-Cycle state.
+        //   (a) overwrite_result Cell consumed (taken to None by Cycle).
+        assert!(
+            dlg.overwrite_result.get().is_none(),
+            "Cell must be empty after Cycle takes it"
+        );
+        //   (b) overwrite dialog handle cleared.
+        assert!(
+            dlg.overwrite_finish_signal().is_none(),
+            "overwrite dialog handle must be None after Cycle"
+        );
+        //   (c) pending_actions has at least 2 entries: close-overwrite-dialog
+        //       closure + finish_post_show closure for the outer dialog.
+        let pa_count = __init.pa.borrow().len();
+        assert!(
+            pa_count >= 2,
+            "expected ≥2 pending actions (close od + finish outer), got {pa_count}"
+        );
 
         let _ = std::fs::remove_file(&f);
     }

@@ -364,11 +364,36 @@ pub trait PanelBehavior: AsAny {
 
     /// Downcast to `emSubViewPanel` without `Any`. Phase 1.75 uses this in
     /// the scheduler dispatch walk to reach a sub-view's `sub_tree` when
-    /// resolving a `TreeLocation::SubView` owner.
+    /// resolving a `PanelScope::SubView` owner.
     ///
     /// The default returns `None`; only [`emSubViewPanel`](super::emSubViewPanel::emSubViewPanel)
     /// overrides this to return `Some(self)`.
     fn as_sub_view_panel_mut(&mut self) -> Option<&mut crate::emSubViewPanel::emSubViewPanel> {
+        None
+    }
+
+    /// Downcast to `emDialog::DlgPanel` without `Any`. Used by
+    /// `DialogPrivateEngine::Cycle` (phase 3.5 task 4) to reach the dialog's
+    /// mutable state (pending_result, finalized_result, finish_state, …) via
+    /// the standard `take_behavior` / `put_behavior` cycle-path — Rust analog
+    /// of the C++ `PrivateEngineClass::Dlg&` back-reference.
+    ///
+    /// The default returns `None`; only `DlgPanel` overrides this to return `Some(self)`.
+    fn as_dlg_panel_mut(&mut self) -> Option<&mut crate::emDialog::DlgPanel> {
+        None
+    }
+
+    /// Downcast to `emDialog::DlgButton` without `Any`. Used by
+    /// `emDialog::set_button_label_for_result` (phase 3.5 task 8) to walk
+    /// child panels and find the button whose result matches, then update its
+    /// caption. Rust analog of C++ `emDialog::SetButtonLabel` walking the
+    /// dialog's button list (emDialog.cpp:55-62).
+    ///
+    /// The default returns `None`; only `DlgButton` overrides this to return
+    /// `Some(self)`. `DlgButton` must remain `pub` (not `pub(crate)`) because
+    /// this `pub` trait method names it — same `private_interfaces` forced
+    /// divergence as `DlgPanel`.
+    fn as_dlg_button_mut(&mut self) -> Option<&mut crate::emDialog::DlgButton> {
         None
     }
 }

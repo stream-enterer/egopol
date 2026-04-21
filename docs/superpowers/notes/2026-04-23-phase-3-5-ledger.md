@@ -1,0 +1,162 @@
+# Phase 3.5 — Deferred emDialog Construction + Consumer Migration — Ledger
+
+**Spec:** `docs/superpowers/specs/2026-04-21-phase-3-5-deferred-dialog-construction-design.md` (commit `55b3a76d`).
+
+**Base:** `port-rewrite/phase-3-5-a-runtime-toplevel-windows` @ `586d6af5` (tagged `port-rewrite-phase-3-5-a-complete`). Baseline nextest 2492/0/9, goldens 237/6.
+
+## Entry audit
+
+- `App::pending_actions` closure rail present at `emGUIFramework.rs:188`.
+- `PendingTopLevel` shape: `{dialog_id, window, close_signal, pending_private_engine: Option<Box<dyn emEngine>>}`. Phase 3.5 Task 5 replaces `pending_private_engine` with `private_engine_root_panel_id: PanelId`.
+- `ConstructCtx` trait exposes `create_signal` / `register_engine` / `wake_up`. Phase 3.5 adds `pending_actions` / `allocate_dialog_id` / `root_context`.
+- `DlgPanel` / `DlgButton` / `DialogPrivateEngine` `#[cfg(test)]`-gated. Phase 3.5 un-gates.
+- `DialogPrivateEngine::window_id: Option<WindowId>` — Phase 3.5 narrows to `WindowId`.
+- Legacy `emDialog` API on the struct itself; Phase 3.5 deletes.
+- Consumer polling: `emStocksListBox` at 4 Cycle sites, `emFileDialog::Cycle` at the overwrite branch. Phase 3.5 replaces with `Rc<Cell>`.
+- Dead API: `emFileDialog::{set_mode, dialog_mut}` — zero live callers. Phase 3.5 deletes.
+
+### Audit corrections vs plan
+
+- Plan predicted "15+ `#[test]` functions" in `emDialog.rs` test module; actual count is 20. Ledger text uses "15+" as specified — correction noted here for record.
+
+## Task ledger
+
+- **Task 1 — Entry audit + ledger open:** COMPLETE. Branch created off port-rewrite-phase-3-5-a-complete (586d6af5). Entry audit recorded. Gate green — nextest 2492/0/9.
+- **Task 2 — Extend ConstructCtx + pending_actions closure rail:** COMPLETE. Added `FrameworkDeferredAction` re-export, extended `ConstructCtx` trait with `pending_actions()` / `root_context()` / `allocate_dialog_id()`, added `pending_actions` required field to `InitCtx`/`EngineCtx`/`SchedCtx` and `Option` field to `PanelCtx`, added `EngineScheduler::allocate_dialog_id()` stub, threaded `pending_actions` through `DoTimeSlice` and all engine dispatch paths, updated `with_sched_reach` to 8 args, updated all test harnesses and 47 call-site files. Gate green — nextest 2493/0/9.
+- **Task 3 — scheduler engines_for_scope + App::allocate_dialog_id delegation:** COMPLETE. `App::next_dialog_id` field + init deleted; `App::allocate_dialog_id` delegates to `self.scheduler.allocate_dialog_id()`. `engines_for_scope(PanelScope) -> Vec<EngineId>` added to `EngineScheduler`. Note: `EngineScheduler::next_dialog_id` + `allocate_dialog_id` were pre-emptively landed by Task 2's implementer. Gate green — nextest 2495.
+- **Task 4 — pending_actions threaded through construction sites:** COMPLETE. Work landed inside Task 2's compile-driven plumbing (commit fc2fe40e): DoTimeSlice signature, every EngineCtx/SchedCtx site, TestViewHarness/InitHarness/TestSched. Audit grep of EngineCtx/SchedCtx/InitCtx construction sites (6 EngineCtx, 50+ SchedCtx, 23 InitCtx) → all plumbed. Gate green — nextest 2495/0/9.
+- **Task 5 — PendingTopLevel reshape + install-time engine construction:** COMPLETE. `pending_private_engine` replaced with `private_engine_root_panel_id: PanelId`. `DialogPrivateEngine::window_id` narrowed `Option<WindowId>` → `WindowId`. `install_pending_top_level` + `install_pending_top_level_headless` build the engine from stored inputs at install time (`#[cfg(test)]`-gated in `install_pending_top_level` until Task 6 un-gates `DialogPrivateEngine`). 3.5.A Task-10 test migrated to new shape. New test `pending_top_level_carries_private_engine_root_panel_id` added. Gate green — nextest 2496/0/9.
+- **Task 6 — un-gate DlgPanel/DlgButton/DialogPrivateEngine:** COMPLETE. `#[cfg(test)]` removed from all three structs and their impl blocks in `emDialog.rs`; `as_dlg_panel_mut` un-gated on `PanelBehavior` in `emPanel.rs`; engine-construction block + `Priority`/`PanelScope` imports un-gated in `emGUIFramework.rs`. Visibility: `DlgPanel` and `DlgButton` are `pub` (forced divergence — C++ private nested class has no Rust equivalent in flat modules; `pub(crate)` triggers `dead_code` + `private_interfaces` lint under `-D warnings` with no allowed suppression path). `DlgPanel::new`, `SetTitle`, `buttons`, and all `DlgButton` public surface are `pub` for the same reason — no production callers until Task 7. Gate green — nextest 2496/0/9.
+- **Task 7 — emDialog struct reshape + new():** COMPLETE. `emDialog` struct replaced with handle shape `{dialog_id, finish_signal, close_signal, root_panel_id, look, pending: Option<PendingTopLevel>}` per spec §1. `emDialog::new` builds DlgPanel-rooted `PanelTree`, wraps in `emWindow::new_top_level_pending`, stashes as `pending`. Legacy `impl emDialog { Finish, GetResult, Input, Paint, LayoutChildren, CheckFinish, silent_cancel, preferred_size, GetButton*, IsAutoDeletionEnabled, ShowMessage, old SetRootTitle/AddCustomButton/EnableAutoDeletion }` moved to `#[cfg(any())] mod legacy_emdialog_impl` (Task 11 deletes). Production consumers (`emStocksListBox`, `emFileDialog`) compile via legacy-compat stubs on the new impl (`GetResult`, `Finish`, `silent_cancel`, `AddCustomButton`, `look()` + real `SetRootTitle`/`set_button_label_for_result` + `with_dlg_panel_mut` helper). `emWindow::tree_mut()` added as `pub(crate)` for pre-show mutator access. Visibility narrow-backs: `DlgPanel::new`, `SetTitle`, `buttons` narrowed to `pub(crate)` (now referenced by `emDialog::new` / `SetRootTitle` / `AddCustomButton`). `DlgButton` struct + methods remain `pub` — `AddCustomButton` does not yet construct `DlgButton` instances (Task 8 fills that); narrowing to `pub(crate)` would trigger `dead_code` lint since `cargo clippy` runs lib-only. Task 8 narrows when real `AddCustomButton` lands. Tests staged for Task 12: 12 tests in `#[cfg(any())] mod legacy_tests` in `emDialog.rs`. Tests staged for Task 19: entire `emFileDialog::tests` module gated `#[cfg(any())]` (all tests call `make_dialog` which calls `emDialog::AddCustomButton` stub → would panic at runtime). emStocksListBox tests unaffected (all call `ask=false` path, no dialog constructed). Production legacy-stub methods added: `GetResult`, `Finish`, `silent_cancel`, `AddCustomButton` (6 total including the pre-show helpers). Gate green — nextest 2473/0/9, clippy clean.
+  - **Fix (d7044214):** `test_force_overwrite_result` in `emFileDialog.rs` was gated `#[cfg(test)]` but its only callers are inside the `#[cfg(any())]` test module. `cargo clippy --all-targets` fired `dead_code`. Re-gated to `#[cfg(any())]` to match; Task 19/21 restores both together. Gate green — nextest 2473/0/9, `--all-targets` clean.
+- **Task 8 — emDialog mutators via with_dlg_panel_mut:** COMPLETE. Implemented `AddCustomButton<C: ConstructCtx>` (real ctx-taking implementation replacing the Task 7 stub) + convenience wrappers `AddOKButton`, `AddCancelButton`, `AddOKCancelButtons`, `AddPositiveButton`, `AddNegativeButton` + `SetRootTitle` (already existed, `with_dlg_panel_mut` now takes label param) + `set_button_label_for_result` (rewritten to walk DlgButton children via `as_dlg_button_mut` instead of the old `buttons` vec) + `EnableAutoDeletion` + `set_on_finish` + `set_on_check_finish`. All route through `with_dlg_panel_mut(label, f)` for `self.pending.as_mut().unwrap_or_else(|| panic!("{} after show", label))` panic contract. Added `as_dlg_button_mut` to `PanelBehavior` trait (default `None`; `DlgButton` returns `Some(self)`). Visibility narrow-backs: `DlgButton` struct remains `pub` (same `private_interfaces` forced divergence as `DlgPanel`); all `DlgButton` methods narrowed to `pub(crate)` (`new`, `result`, `SetCaption`); `caption()` helper removed (tests use `btn.button.GetCaption()` directly); `_dlg_panel_id` field prefixed `_` (no live reader yet — engine wiring in Task 15+); `DlgPanel::buttons` field removed (replaced by `button_signals` + child panels; the old field was only populated by the Task 7 stub). `DlgPanel::border` narrowed to `pub(crate)` (needed by `set_root_title` test). Call-site migration (Option A): `emFileDialog.rs` (4 sites) and `emStocksListBox.rs` (8 sites) updated to pass `ctx`/`cc` to `AddCustomButton`. 21 emDialog unit tests pass; full nextest 2486/0/9. `cargo clippy --all-targets --all-features -- -D warnings` clean.
+- **Task 9 — emDialog::show + ShowMessage shim:** COMPLETE. `show` takes `pending`, pushes a closure onto `ctx.pending_actions()` that calls `install_pending_top_level`. Panic on double-show. `ShowMessage` shimmed to `unimplemented!()` pending Phase 3.6 live caller. Two new tests: `show_drains_pending_into_closure_rail` and `show_twice_panics`. Gate green — nextest 2488/0/9, `cargo clippy --all-targets --all-features -- -D warnings` clean.
+- **Task 10 — App::close_dialog_by_id + auto-delete closure-rail rewrite:** COMPLETE. Unified close path handles pre-materialize (swap_remove from `pending_top_level`) and post-materialize (engines_for_scope + remove_engine loop + windows.remove) cases; unknown `DialogId` is a no-op. `DialogPrivateEngine.dialog_id: DialogId` added; `window_id` renamed `_window_id` (field structurally present but no longer read — C++ back-ref preserved, `_` prefix silences dead_code lint). `Cycle` auto-delete branch rewrites `ctx.framework_action(DeferredAction::CloseWindow(wid))` (undrained enum-rail — latent bug) to `ctx.pending_actions().borrow_mut().push(Box::new(move |app, _el| app.close_dialog_by_id(did)))`. Both install sites (`install_pending_top_level` + `install_pending_top_level_headless`) updated to pass `dialog_id`. Four new tests: `close_dialog_by_id_pre_materialize_drops_pending`, `close_dialog_by_id_post_materialize_removes_window_and_engines`, `close_dialog_by_id_unknown_is_noop`, `private_engine_with_auto_delete_emits_close_closure`. Gate green — nextest 2492/0/9, `cargo clippy --all-targets --all-features -- -D warnings` clean.
+  - **Task 10 fix:** Deleted `_window_id: winit::window::WindowId` from `DialogPrivateEngine`. C++ `PrivateEngineClass` has no window-id field (only `emDialog & Dlg`); the `_`-prefix was a compatibility-shim antipattern. Removed the field from the struct definition and both construction sites (`install_pending_top_level`, `install_pending_top_level_headless`). Gate green — nextest 2492/0/9, `cargo clippy --all-targets --all-features -- -D warnings` clean.
+- **Task 11 — legacy emDialog API + fields deleted:** COMPLETE. Deleted `#[cfg(any())] mod legacy_emdialog_impl` (staged by Task 7) and `// PHASE-3.5-DELETE:` comment. Removed all legacy methods inside the block: `Finish_legacy`, `GetResult_legacy`, `silent_cancel_legacy`, `AddCustomButton_legacy`, `SetRootTitle_legacy`, `set_button_label_for_result_legacy`, `look_legacy`, `Input_legacy`, `Paint_legacy`, `LayoutChildren_legacy`, `CheckFinish_legacy`, `preferred_size_legacy`, `GetButton_legacy`, `GetButtonForResult_legacy`, `GetOKButton_legacy`, `GetCancelButton_legacy`, `EnableAutoDeletion_legacy`, `IsAutoDeletionEnabled_legacy`, `ShowMessage_legacy`. Legacy fields (`border`, `buttons`, `result`, `on_finish`, `on_check_finish`, `auto_delete`) confirmed absent from `emDialog` struct — Task 7 had already removed them. Four production stubs retained (live callers confirmed): `GetResult` (emFileDialog:197, 340, 564, 591, 649, 687 + emStocksListBox:698, 710, 724, 736), `Finish` (emFileDialog:193, 356, 362, 415), `silent_cancel` (emFileDialog:408 + emStocksListBox:485, 533, 571, 661), `look` (emFileDialog:273). Stubs remain for Tasks 15/19 to migrate. Stub comment updated: removed stale "Task 11" from `Finish` docstring. Gate green — nextest 2492/0/9, `cargo clippy --all-targets --all-features -- -D warnings` clean.
+- **Task 12 — emDialog tests ported to new handle API:** COMPLETE. Deleted `#[cfg(any())] mod legacy_tests` (staged by Task 7; contained 13 tests — Task 7 ledger said 12, off by one; the `set_root_title` test was the 13th). Deleted tests and reason: `enter_finishes_with_ok` / `escape_finishes_with_cancel` / `enter_with_modifier_is_ignored` / `release_event_is_ignored` (DlgPanel-level equivalents `dlg_panel_enter_sets_pending_ok` etc. already exist); `dialog_fires_finish_signal_on_input_enter` (merged into new e2e `dialog_finish_fires_on_finish_callback_via_button_click`); `dialog_finish_fires_callback` / `check_finish_lifecycle` (merged into two new e2e tests); `check_finish_can_veto` (superseded by `dialog_check_finish_veto_then_allow`); `dialog_custom_result` (structurally identical to the e2e test, no additive coverage); `add_custom_button_lookup` (covered by `add_custom_button_creates_dlg_button_children`); `set_button_label` (covered by `set_button_label_for_result_updates_dlg_button_caption`); `auto_deletion_toggle` (covered by `enable_auto_deletion_sets_flag` + Task 10 auto-delete test); `set_root_title` (covered by `set_root_title_updates_dlg_panel_border_caption`). New tests added: `dlg_panel_release_event_is_ignored` (DlgPanel release-event guard — ports the deleted `release_event_is_ignored`), `dialog_finish_fires_on_finish_callback_via_button_click` (e2e: emDialog::new + AddCustomButton + set_on_finish + install_headless + fire click_signal + DoTimeSlice + assert on_finish=Ok), `dialog_check_finish_veto_then_allow` (e2e: veto on first close_signal/on_check_finish returning false, finalize on second; asserts finish_state=0 after veto and on_finish=Cancel after allow). `#[cfg(any())] mod legacy_tests` block removed. Gate green — 27 emDialog tests pass, 1450 lib tests pass, `cargo clippy --lib -- -D warnings` clean.
+
+### Keystone: Task 5.1 emDialog reshape COMPLETE
+
+Ledger summary: Tasks 2-12 land the `emDialog` handle reshape, closure-rail install via `pending_actions`, install-time `DialogPrivateEngine` construction (no `Option<WindowId>`), `App::close_dialog_by_id` unification, auto-delete bug fix, and new mutator surface. Consumer migrations follow.
+
+Invariants verified:
+- I5a: emDialog owns one emWindow owning one PanelTree with one DlgPanel root — enforced by new().
+- I5b: close_signal drives DialogPrivateEngine cancel — unchanged from 3.5.A.
+- I5c: DialogPrivateEngine scoped Toplevel(wid) post-materialize — install_pending_top_level registers.
+- I5d: finish_signal fires once — FinishState machine preserved.
+- I5e: auto-delete drives window teardown — NOW via closure rail + close_dialog_by_id.
+- I5f: identity survives show() — pending.take() leaves identity fields intact.
+- I5g: post-show mutator panics — expect("<fn> after show") tripwires added.
+- I5h: construction no &mut App — ConstructCtx only.
+- I5i: on_finish + Rc<Cell> observation — shape ready; Task 14+ consumes.
+- I5j: close_dialog_by_id supersedes silent_cancel — Task 14+ consumes.
+
+## Task 14 — emStocksListBox Rc<Cell> fields
+
+COMPLETE. Option B chosen: `DialogResult` derives `Copy` (`Ok`, `Cancel`, `Custom(u32)` — no heap-owning variants; trivially Copy). Added `#[derive(Clone, Copy, ...)]` to `DialogResult` in `emDialog.rs`; fixed five `clone_on_copy` clippy errors that fired in production (`emDialog.rs:152, 660, 711`) and test code (`emDialog.rs:1221, 1245, 1250, 1609, 1695`). Four `Rc<Cell<Option<DialogResult>>>` fields added to `emStocksListBox`: `cut_stocks_result`, `paste_stocks_result`, `delete_stocks_result`, `interest_result`. Initialized to `Rc::new(Cell::new(None))` in `new()`. `std::cell::Cell` import added. To make fields live (satisfying `dead_code` lint without `#[allow]`), the four construct sites (`DeleteStocks`, `CutStocks`, `PasteStocks`, `SetInterest`) now register `set_on_finish` closures capturing `Rc::clone(&self.*_result)` — a natural partial step toward §10.2 (full Cycle-polling rewrite is Task 15). Test `result_slots_initialize_to_none` added to verify initialization. Nextest 2496/0/9 (one new test vs 2495 baseline). `cargo clippy --all-targets --all-features -- -D warnings` clean.
+
+## Task 15 — emStocksListBox migration: Cell::take polling + closure-rail silent_cancel
+
+COMPLETE. 4 construct sites (`DeleteStocks`, `CutStocks`, `PasteStocks`, `SetInterest`) fully migrated per spec §10.2: `silent_cancel` replaced with `old.take()` + `cc.pending_actions().borrow_mut().push(close_dialog_by_id closure)` + `cell.set(None)` stale-result clear; `dialog.show(cc)` added after `set_on_finish` registration and before storing in `Option` field. 4 `Cycle` polling sites migrated per spec §10.3: `dialog.GetResult()` replaced with `self.*_result.take()` — Cell::take atomically consumes result; `dialog = None` handle drop on result presence; `busy = true` on dialog-present-but-no-result. `silent_cancel` stub in `emDialog.rs` **retained** — `emFileDialog.rs:408` still calls it (Task 19's responsibility). `rg 'silent_cancel|GetResult' crates/emstocks/` → 0 matches. First golden checkpoint: 237/6 (pre-existing failures preserved; no new regressions). Nextest 2496/0/9. `cargo clippy --all-targets --all-features -- -D warnings` clean.
+
+### Keystone: Task 5.2 emStocksListBox migration COMPLETE
+
+Tasks 14–15 landed the consumer migration: Rc<Cell<Option<DialogResult>>> result slots, on_finish Cell-writer closures at 4 construct sites, Cell::take polling in Cycle, closure-rail close_dialog_by_id replacing silent_cancel. DialogResult gained Copy. Goldens preserved 237/6. Nextest 2496/0/9.
+
+## Task 17 — emFileDialog dead-code delete
+
+COMPLETE. Removed `set_mode` and `dialog_mut` (zero live callers, non-public-API concern). Stale comment block referencing `dialog_mut()` in the `#[cfg(any())]` test module replaced with a one-liner. Gate green — nextest 2496/0/9, `cargo clippy --all-targets --all-features -- -D warnings` clean.
+
+## Task 18 — emFileDialog construction via new emDialog handle + show
+
+COMPLETE. `look: Rc<emLook>` field added to `emFileDialog` struct. `emFileDialog::new` updated: calls `emDialog::new(ctx, title, Rc::clone(&look))`, `AddCustomButton` (ok label + Cancel), and `dialog.show(ctx)`; stores `look` on the struct. `self.dialog.look().clone()` at the overwrite-dialog construction site replaced with `self.look.clone()`. No live callers of `emFileDialog::new` outside the `#[cfg(any())]`-gated test module — no call-site updates needed. Gate green — nextest 2496/0/9, `cargo clippy --all-targets --all-features -- -D warnings` clean.
+
+## Task 19 — emFileDialog CheckFinish overwrite dialog
+
+COMPLETE. `overwrite_result: Rc<Cell<Option<DialogResult>>>` field added to `emFileDialog` struct (Task 18 did not add it); initialized to `Rc::new(Cell::new(None))` in `new()`. Overwrite dialog construction in `CheckFinish` migrated: `set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))))` + `show(ctx)` added. `*r` used (Copy, not clone). `emDialog::look()` stub confirmed zero live callers; retained per task spec. `Cycle` polling of `od.GetResult()` and stub `Finish` calls left intact (Task 20 scope). Gate green — nextest 2496/0/9, `cargo clippy --all-targets --all-features -- -D warnings` clean.
+
+## Task 20 — emFileDialog Cycle Cell shim + emDialog::finish_post_show
+
+COMPLETE. Overwrite-read site in `Cycle` now reads `self.overwrite_result.take()` instead of `od.GetResult()`. Outer-dialog programmatic finish goes via new `emDialog::finish_post_show` (closure-rail mutation of `DlgPanel.pending_result` + engine wake via `scheduler.engines_for_scope(Toplevel(wid))`). Overwrite-dialog close on `OverwriteConfirmed` / `OverwriteCancelled` uses `close_dialog_by_id` closure rail. `emFileDialog::Finish` and `emFileDialog::GetResult` forwarding methods deleted (they delegated to the panicking stubs).
+
+`finish_post_show` signature: `pub fn finish_post_show(&self, pending_actions: &Rc<RefCell<Vec<FrameworkDeferredAction>>>, result: DialogResult)`. Takes `pending_actions` directly instead of `C: ConstructCtx` — `emFileDialog::Cycle` receives `&mut PanelCtx<'_>` which does not implement `ConstructCtx`; plan pseudocode used `ctx` but `PanelCtx::pending_actions` is an `Option<&Rc<...>>` field, not a trait method. Caller accesses `ctx.pending_actions` directly. A `#[cfg(test)] drain_pending_actions_headless` helper added to `App` to run pending_actions closures in headless tests without a real `ActiveEventLoop`.
+
+Deviation from spec: spec §Deferred §"Post-show dialog mutation" said this lands in Phase 3.6; `emFileDialog::Cycle`'s live `Finish(Ok)` calls force a minimal post-show mutation path in 3.5. `finish_post_show` is narrowly scoped; general `App::mutate_dialog_by_id` still Phase 3.6.
+
+Exit-condition verification:
+- `rg '\.GetResult\(\)' crates/emcore/src/emFileDialog.rs` → 4 hits, all inside `#[cfg(any())]` dead-code block.
+- `rg '\.Finish\(' crates/emcore/src/emFileDialog.rs` → 1 hit, inside `#[cfg(any())]` dead-code block.
+- `rg 'fn finish_post_show' crates/emcore/src/emDialog.rs` → 1.
+
+Stub live-caller audit (for Task 22):
+- `emDialog::GetResult` — 0 live callers (all remaining calls are in `#[cfg(any())]` test block in emFileDialog).
+- `emDialog::Finish` — 0 live callers (all remaining calls are in `#[cfg(any())]` blocks).
+- `emDialog::silent_cancel` — 0 live callers (all remaining calls are in `#[cfg(any())]` block).
+- `emDialog::look` — 0 live callers (never called from production code).
+- All four stubs are dead in production. Task 22 can delete them.
+
+New tests: `finish_post_show_sets_pending_result`, `finish_post_show_double_call_is_noop`. Gate green — nextest 2498/0/9, `cargo clippy --all-targets --all-features -- -D warnings` clean.
+
+### Task 20 fix — restore generic `finish_post_show<C: ConstructCtx>` signature
+
+The implementer's rationale ("PanelCtx doesn't impl ConstructCtx") was wrong: `impl ConstructCtx for PanelCtx<'_>` exists at `emEngineCtx.rs:378` with `pending_actions()` returning `self.pending_actions.expect(...)`. The non-generic signature was unforced drift from plan Step 20.4.
+
+Fix: `finish_post_show` now `pub fn finish_post_show<C: ConstructCtx>(&self, ctx: &mut C, result: DialogResult)`, body calls `ctx.pending_actions().borrow_mut().push(...)`. `emFileDialog::Cycle` updated to pass `ctx` directly and call `ctx.pending_actions()` for close-dialog pushes; `ConstructCtx` added to imports. The two Task 20 tests updated to construct an `InitCtx` and pass `&mut ctx`. Removed unused `FrameworkDeferredAction` and `RefCell` top-level imports from `emDialog.rs`. Gate green — nextest 2498/0/9, clippy clean.
+
+## Task 21 — emFileDialog tests ported to new handle + finish_post_show
+
+COMPLETE. Both `#[cfg(any())]` gates removed from `emFileDialog.rs`: one on `test_force_overwrite_result` (gated by Task 7 fix, pending Task 21) and one on `mod tests` (gated by Task 19 comment). Zero `cfg(any())` occurrences remain in the file.
+
+**test_force_overwrite_result** rewritten: old body called `od.Finish` / `od.silent_cancel` (both `unimplemented!` stubs in the new handle-based emDialog API). New body sets `self.overwrite_result.set(Some(result))` directly — the Cell shim is the correct observable interface.
+
+**Ported tests (restored from cfg(any()) gate, 11 tests):**
+- `dialog_mode` — unchanged; still works.
+- `dialog_cancel_always_allowed` — unchanged; still works.
+- `dialog_open_no_selection_error` — unchanged; still works.
+- `multi_selection_forwarded` — unchanged; still works.
+- `filters_forwarded` — unchanged; still works.
+- `hidden_files_forwarded` — unchanged; still works.
+- `dir_result_default_disallowed` — unchanged; still works.
+- `cycle_no_signals_is_no_op` — ported: replaced `dlg.GetResult().is_none()` assertion with `pending_actions.len() == 0`; added constructor-queue drain before Cycle.
+- `cycle_file_trigger_signal_finishes_ok` — ported: removed `dlg.GetResult()` and `sched.is_pending(finish)` assertions (both invalid in new model); replaced with `!pending_actions.is_empty()` after Cycle; added constructor-queue drain.
+- `cycle_overwrite_dialog_positive_confirms_and_finishes` — ported: same assertion model (`pending_actions` non-empty); updated `test_force_overwrite_result` call (now just sets Cell); drained CheckFinish-queued actions before Cycle.
+- `cycle_overwrite_dialog_negative_cancels_overwrite_only` — ported: removed `dlg.GetResult().is_none()` / `!sched.is_pending(finish)` assertions; replaced with `overwrite_result.get().is_none()` (Cell taken by Cycle) to prove cancel path was exercised without outer-dialog finish.
+
+**New test (1):**
+- `save_existing_file_triggers_overwrite_dialog_and_confirms` — e2e: creates real temp file; CheckFinish → ConfirmOverwrite; populates Cell via `test_force_overwrite_result`; fires overwrite finish_signal; Cycle → OverwriteConfirmed; asserts `overwrite_result` Cell empty, overwrite handle None, and `pending_actions.len() >= 2` (close-od closure + finish_post_show closure). Note: full e2e through App (DialogPrivateEngine sets `finalized_result`, fires `finish_signal`) requires a live event loop not available in unit-test scope; lighter Cell-shim path chosen per plan §Step 4 fallback.
+
+**Deleted tests:** none — all 11 legacy tests were portable to the new observable surface.
+
+**Assertion migration rationale:** `emDialog::GetResult` is `unimplemented!()` (dead stub); `finish_signal` fires only after App processes `pending_actions` queue via `DialogPrivateEngine::Cycle`. In unit tests with no App event loop, "dialog finished" is observable as `pending_actions` gaining entries; "dialog NOT finished" as Cell value confirming Cycle branched correctly. Gate green — nextest 2510/0/9 (12 new emFileDialog tests; +12 vs 2498 baseline), `cargo clippy --all-targets --all-features -- -D warnings` clean.
+
+**Fix (post-COMPLETE):** `cycle_overwrite_dialog_negative_cancels_overwrite_only` strengthened: added `assert_eq!(__init.pa.borrow().len(), 1, ...)` after the `overwrite_result.get().is_none()` check. The original assertion only verified the Cell was taken; it would have passed even if Cycle had incorrectly called `finish_post_show` (enqueuing a second action). The exact-length check enforces that only the close-overwrite-dialog closure is enqueued on the cancel path. Gate green — nextest 2510/0/9, clippy clean.
+
+## Task 23 — emWindow pub visibility audit
+
+COMPLETE. No narrowings feasible — cross-crate emmain callers documented in `project_phase35a_pub_narrow.md` remain. Visibility surface unchanged. `tree_mut()` added in Task 7 as `pub(crate)` — already narrow.
+
+**Audit table:**
+
+| Method | emcore callers | emmain callers | Decision |
+|---|---|---|---|
+| `tree()` | yes (emView, emDialog, emGUIFramework, emScheduler, emPanelTree) | yes (emMainWindow.rs:190) | keep `pub` |
+| `take_tree()` | yes (many — emView, emDialog, emGUIFramework, emScheduler, emPanelTree) | yes (emMainWindow.rs:982, 1128) | keep `pub` |
+| `put_tree()` | yes (many — emView, emDialog, emGUIFramework, emScheduler, emPanelTree) | yes (emMainWindow.rs:924, 997, 1128) | keep `pub` |
+| `tree_mut()` | yes (emDialog.rs only) | none | already `pub(crate)` — correct, no change |
+
+No code changes. Ledger-only commit.
+
+## Closeout
+
+All tasks 1-23 green. Gate final: nextest 2510/0/9, goldens 237/6, clippy clean.
+
+Invariants I5a-I5j verified (Task 13 keystone).
+
+Spec compliance: all in-scope items shipped; deferred items land in Phase 3.6.
+
+Deviations from spec:
+- Added narrow `emDialog::finish_post_show` in Task 20 instead of deferring wholesale to Phase 3.6, because emFileDialog::Cycle has live post-show Finish(Ok) calls that cannot ship without the path.
+
+Follow-ups:
+- Phase 3.6 emFileDialog full engine subscription + general `App::mutate_dialog_by_id`.

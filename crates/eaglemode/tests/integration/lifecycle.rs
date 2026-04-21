@@ -46,6 +46,7 @@ fn remove_active_panel_reselects() {
             root_context: &h.root_context,
             framework_clipboard: &__cb,
             current_engine: None,
+            pending_actions: &h.pending_actions,
         };
 
         h.view.Update(&mut h.tree, &mut sc);
@@ -67,6 +68,7 @@ fn remove_active_panel_reselects() {
             root_context: &h.root_context,
             framework_clipboard: &__cb,
             current_engine: None,
+            pending_actions: &h.pending_actions,
         };
         h.view.SetActivePanelBestPossible(&mut h.tree, &mut sc);
     }
@@ -79,8 +81,9 @@ fn remove_active_panel_reselects() {
 
 #[test]
 fn remove_panel_with_engine() {
-    use emcore::emEngine::{emEngine, Priority, TreeLocation};
+    use emcore::emEngine::{emEngine, Priority};
     use emcore::emEngineCtx::EngineCtx;
+    use emcore::emPanelScope::PanelScope;
 
     struct DummyEngine;
     impl emEngine for DummyEngine {
@@ -94,9 +97,11 @@ fn remove_panel_with_engine() {
     let child = h.add_panel(root, "child");
 
     // Register an engine associated with this panel
-    let eng =
-        h.scheduler
-            .register_engine(Box::new(DummyEngine), Priority::Medium, TreeLocation::Outer);
+    let eng = h.scheduler.register_engine(
+        Box::new(DummyEngine),
+        Priority::Medium,
+        PanelScope::Framework,
+    );
     h.scheduler.wake_up(eng);
     h.tick();
 

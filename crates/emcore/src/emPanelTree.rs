@@ -6,9 +6,10 @@ use slotmap::{new_key_type, SlotMap};
 
 use crate::dlog;
 
-use super::emEngine::{EngineId, Priority, TreeLocation};
+use super::emEngine::{EngineId, Priority};
 use super::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use super::emPanelCycleEngine::PanelCycleEngine;
+use super::emPanelScope::PanelScope;
 use crate::emColor::emColor;
 use crate::emEngineCtx::PanelCtx;
 use crate::emPanel::Rect;
@@ -228,7 +229,7 @@ pub(crate) struct PanelData {
     /// field was only ever queried for presence (`strong_count() > 0`)
     /// before registering a panel's engine with the scheduler, so a plain
     /// bool suffices. The identity of the owning view is now carried by
-    /// the tree's `tree_location` plus (for Toplevel) a `WindowId` on the
+    /// the tree's `scope` plus (for Toplevel) a `WindowId` on the
     /// registering `PanelCycleEngine`/`UpdateEngineClass`.
     pub(crate) has_view: bool,
 
@@ -323,13 +324,14 @@ pub struct PanelTree {
     /// by `DoTimeSlice`) at the time `deregister_engine_for` ran.
     /// Drained at the start of each `DoTimeSlice` before the main loop.
     pub(crate) pending_engine_removals: Vec<crate::emEngine::EngineId>,
-    /// Phase 1.75 Task 3: where this tree sits relative to the outer scheduler.
-    /// The outer tree is `Outer`; an `emSubViewPanel::sub_tree` is
-    /// `SubView(outer_panel_id, Box::new(Outer))` (or nested deeper). Used by
-    /// `register_engine_for` so sub-tree `PanelCycleEngine` adapters are
-    /// registered with the correct `TreeLocation` on the single outer
-    /// scheduler and dispatch resolves through the sub-view chain.
-    pub(crate) tree_location: TreeLocation,
+    /// Phase 3.5.A Task 6.2 (replaces Phase 1.75 `tree_location`):
+    /// `PanelScope` assigned to `PanelCycleEngine` adapters registered
+    /// through this tree's `register_engine_for`. An outer (top-level)
+    /// tree carries `PanelScope::Toplevel(wid)`; an
+    /// `emSubViewPanel::sub_tree` carries
+    /// `PanelScope::SubView { window_id, outer_panel_id }` — one flat
+    /// level (no `rest` chain; multi-level nesting not supported).
+    pub(crate) scope: PanelScope,
     /// Cached copy of the owning view's `update_engine_id`.
     /// Populated by `emView::RegisterEngines` via [`PanelTree::set_update_engine_id`];
     /// cleared on view detach.  Read by `add_to_notice_list` to wake the
@@ -346,17 +348,19 @@ pub struct PanelTree {
 
 impl PanelTree {
     /// Construct an outer-tree `PanelTree`. Shorthand for
-    /// `new_with_location(TreeLocation::Outer)`.
+    /// `new_with_scope(PanelScope::Toplevel(WindowId::dummy()))`.
+    /// Tasks 7/8 will thread a real `WindowId` through construction.
     pub fn new() -> Self {
-        Self::new_with_location(TreeLocation::Outer)
+        Self::new_with_scope(PanelScope::Toplevel(winit::window::WindowId::dummy()))
     }
 
-    /// Phase 1.75 Task 4: Construct a `PanelTree` whose
-    /// `register_engine_for` tags every `PanelCycleEngine` adapter with the
-    /// given `TreeLocation`. `emSubViewPanel::new` passes
-    /// `SubView(outer_panel_id, Outer)` so sub-tree adapters register with
-    /// the OUTER scheduler for cross-tree priority-queue dispatch (spec §3.3).
-    pub fn new_with_location(tree_location: TreeLocation) -> Self {
+    /// Phase 3.5.A Task 6.2 (replaces Phase 1.75 `new_with_location`):
+    /// construct a `PanelTree` whose `register_engine_for` registers every
+    /// `PanelCycleEngine` adapter with the given `PanelScope`.
+    /// `emSubViewPanel::new` passes
+    /// `PanelScope::SubView { window_id, outer_panel_id }` so sub-tree
+    /// adapters dispatch through the scheduler's SubView arm.
+    pub fn new_with_scope(scope: PanelScope) -> Self {
         Self {
             panels: SlotMap::with_key(),
             root: None,
@@ -368,7 +372,7 @@ impl PanelTree {
             pending_ring_cleanup: Vec::new(),
             root_layout_changed: false,
             pending_engine_removals: Vec::new(),
-            tree_location,
+            scope,
             update_engine_id: None,
             cached_pixel_tallness: 1.0,
         }
@@ -571,7 +575,7 @@ impl PanelTree {
         // Phase 2 Task 5: `View` weak still gates registration — when it is
         // null, the panel has no live view yet (same condition as pre-Task-5).
         // The adapter itself no longer stores the weak; it stores a
-        // `PanelScope` derived from this tree's `tree_location`.
+        // `PanelScope` directly stored as `self.scope`.
         let has_view = self.panels.get(id).map(|p| p.has_view).unwrap_or(false);
         if !has_view {
             return; // no view yet (or view dropped)
@@ -579,29 +583,15 @@ impl PanelTree {
         let Some(sched) = sched else {
             return; // no scheduler provided; `init_panel_view` will register once one is available
         };
-        // Derive scope from this tree's TreeLocation. Outer trees use a
-        // placeholder WindowId; resolve-time lookup walks `ctx.windows` to
-        // find the matching emWindow. Tasks 6–7 will thread the real
-        // WindowId through window/tree construction.
-        let scope = match &self.tree_location {
-            crate::emEngine::TreeLocation::Outer => {
-                crate::emPanelScope::PanelScope::Toplevel(winit::window::WindowId::dummy())
-            }
-            crate::emEngine::TreeLocation::SubView { outer_panel_id, .. } => {
-                crate::emPanelScope::PanelScope::SubView(*outer_panel_id)
-            }
-        };
+        // Phase 3.5.A Task 6.2: this tree's scope directly drives dispatch.
+        let scope = self.scope;
         let adapter = PanelCycleEngine {
             panel_id: id,
             scope,
             #[cfg(any(test, feature = "test-support"))]
             first_cycle_probe: None,
         };
-        let eid = sched.register_engine(
-            Box::new(adapter),
-            Priority::Medium,
-            self.tree_location.clone(),
-        );
+        let eid = sched.register_engine(Box::new(adapter), Priority::Medium, scope);
         self.panels[id].engine_id = Some(eid);
     }
 
@@ -2607,6 +2597,13 @@ impl PanelTree {
 }
 
 impl Default for PanelTree {
+    /// Returns an empty tree with no root. Used by scheduler dispatch as
+    /// the `mem::take` sentinel during per-window tree take/put swap
+    /// (Phase 3.5.A). Correct code never reads a tree that's been swapped
+    /// out for this sentinel — the invariant is enforced at dispatch level.
+    ///
+    /// Same shape as `PanelTree::new()`, exposed via the `Default` trait
+    /// to compose with `std::mem::take`.
     fn default() -> Self {
         Self::new()
     }
@@ -3353,19 +3350,18 @@ mod tests {
             let mut s = sched.borrow_mut();
             let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
                 std::cell::RefCell::new(None);
+            let __pa: std::rc::Rc<
+                std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>,
+            > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
             let mut sc = crate::emEngineCtx::SchedCtx {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
                 framework_clipboard: &__cb,
                 current_engine: None,
+                pending_actions: &__pa,
             };
-            v.RegisterEngines(
-                &mut sc,
-                &mut tree,
-                scope,
-                crate::emEngine::TreeLocation::Outer,
-            );
+            v.RegisterEngines(&mut sc, &mut tree, scope);
         }
         let eid = tree
             .GetRec(root)
@@ -3407,7 +3403,7 @@ mod tests {
     fn sp4_5_create_child_from_inside_engine_cycle_does_not_panic() {
         use std::collections::HashMap;
 
-        let (mut tree, _view, sched, root) = make_registered_tree();
+        let (tree, _view, sched, root) = make_registered_tree();
 
         struct ChildSpawnEngine {
             parent: PanelId,
@@ -3420,6 +3416,8 @@ mod tests {
                     // synchronous — threading the scheduler makes adapter registration
                     // inline, replacing the deleted adapter-registration catch-up pass.
                     ctx.tree
+                        .as_deref_mut()
+                        .expect("ChildSpawnEngine: Toplevel scope")
                         .create_child(self.parent, "spawned", Some(ctx.scheduler));
                     self.spawned = true;
                 }
@@ -3427,34 +3425,48 @@ mod tests {
             }
         }
 
+        let __root_ctx = crate::emContext::emContext::NewRoot();
+        // Phase 3.5.A Task 6.2: wrap the rooted tree in a headless emWindow
+        // so the Toplevel(wid) scope dispatches cleanly.
+        let (wid, win) = {
+            let mut s = sched.borrow_mut();
+            crate::test_view_harness::headless_emwindow_with_tree(&__root_ctx, &mut s, tree)
+        };
+        let mut windows: HashMap<winit::window::WindowId, crate::emWindow::emWindow> =
+            HashMap::new();
+        windows.insert(wid, win);
+
         let spawn_eid = sched.borrow_mut().register_engine(
             Box::new(ChildSpawnEngine {
                 parent: root,
                 spawned: false,
             }),
             crate::emEngine::Priority::Medium,
-            TreeLocation::Outer,
+            crate::emPanelScope::PanelScope::Toplevel(wid),
         );
         sched.borrow_mut().wake_up(spawn_eid);
 
-        let mut empty_windows: HashMap<winit::window::WindowId, crate::emWindow::emWindow> =
-            HashMap::new();
-        let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
         let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
             Vec::new();
         let mut __input_state = crate::emInputState::emInputState::new();
         let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
+        let __pa: std::rc::Rc<std::cell::RefCell<Vec<crate::emGUIFramework::DeferredAction>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         sched.borrow_mut().DoTimeSlice(
-            &mut tree,
-            &mut empty_windows,
+            &mut windows,
             &__root_ctx,
             &mut __fw,
             &mut __pending_inputs,
             &mut __input_state,
             &__cb,
+            &__pa,
         );
+        // Reclaim the tree for assertions.
+        let mut win = windows.remove(&wid).unwrap();
+        let mut tree = win.take_tree();
+
         let child = tree
             .GetRec(root)
             .and_then(|p| p.first_child)
@@ -3592,39 +3604,52 @@ mod tests {
         sched_a.borrow_mut().wake_up(eid_a);
         sched_b.borrow_mut().wake_up(eid_b);
 
-        // Drive each scheduler one slice each.
-        let mut windows = HashMap::new();
+        // Drive each scheduler one slice each. Phase 3.5.A Task 6.2:
+        // each tree goes into its own headless emWindow so the
+        // Toplevel(wid) adapter-engine dispatch finds the tree.
         let __root_ctx = crate::emContext::emContext::NewRoot();
+        let (wid_a, win_a) = {
+            let mut s = sched_a.borrow_mut();
+            crate::test_view_harness::headless_emwindow_with_tree(&__root_ctx, &mut s, tree_a)
+        };
+        let (wid_b, win_b) = {
+            let mut s = sched_b.borrow_mut();
+            crate::test_view_harness::headless_emwindow_with_tree(&__root_ctx, &mut s, tree_b)
+        };
+        let mut windows_a: HashMap<winit::window::WindowId, crate::emWindow::emWindow> =
+            HashMap::new();
+        windows_a.insert(wid_a, win_a);
+        let mut windows_b: HashMap<winit::window::WindowId, crate::emWindow::emWindow> =
+            HashMap::new();
+        windows_b.insert(wid_b, win_b);
+
         let mut __fw: Vec<_> = Vec::new();
         let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
             Vec::new();
         let mut __input_state = crate::emInputState::emInputState::new();
         let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
+        let __pa: std::rc::Rc<std::cell::RefCell<Vec<crate::emGUIFramework::DeferredAction>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         sched_a.borrow_mut().DoTimeSlice(
-            &mut tree_a,
-            &mut windows,
+            &mut windows_a,
             &__root_ctx,
             &mut __fw,
             &mut __pending_inputs,
             &mut __input_state,
             &__cb,
+            &__pa,
         );
-        let __root_ctx = crate::emContext::emContext::NewRoot();
-        let mut __fw: Vec<_> = Vec::new();
-        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
-            Vec::new();
-        let mut __input_state = crate::emInputState::emInputState::new();
-        let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
-            std::cell::RefCell::new(None);
+        let __pa: std::rc::Rc<std::cell::RefCell<Vec<crate::emGUIFramework::DeferredAction>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         sched_b.borrow_mut().DoTimeSlice(
-            &mut tree_b,
-            &mut windows,
+            &mut windows_b,
             &__root_ctx,
             &mut __fw,
             &mut __pending_inputs,
             &mut __input_state,
             &__cb,
+            &__pa,
         );
         assert_eq!(
             recorded_a.get(),
@@ -3638,6 +3663,10 @@ mod tests {
         );
 
         // Cleanup.
+        let mut win_a = windows_a.remove(&wid_a).unwrap();
+        let mut tree_a = win_a.take_tree();
+        let mut win_b = windows_b.remove(&wid_b).unwrap();
+        let mut tree_b = win_b.take_tree();
         tree_a.remove(root_a, Some(&mut sched_a.borrow_mut()));
         tree_b.remove(root_b, Some(&mut sched_b.borrow_mut()));
     }
@@ -3738,48 +3767,49 @@ mod tests {
         // Wake A; B is asleep.
         sched.borrow_mut().wake_up(eid_a);
 
-        // Slice 1: A cycles, calls ctx.wake_up_panel(b). With the new
-        // direct-wakeup implementation, wake_up is called on the scheduler
-        // immediately via raw pointer (no deferred pending_engine_wakeups queue).
-        // B may cycle in slice 1 (if the scheduler scan hasn't passed B's
-        // priority slot yet) or in slice 2.
-        let mut windows = HashMap::new();
+        // Phase 3.5.A Task 6.2: wrap the tree in a headless emWindow so
+        // Toplevel(wid) dispatch can take/put the tree.
         let __root_ctx = crate::emContext::emContext::NewRoot();
+        let (wid, win) = {
+            let mut s = sched.borrow_mut();
+            crate::test_view_harness::headless_emwindow_with_tree(&__root_ctx, &mut s, tree)
+        };
+        let mut windows: HashMap<winit::window::WindowId, crate::emWindow::emWindow> =
+            HashMap::new();
+        windows.insert(wid, win);
+
+        // Slice 1
         let mut __fw: Vec<_> = Vec::new();
         let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
             Vec::new();
         let mut __input_state = crate::emInputState::emInputState::new();
         let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
+        let __pa: std::rc::Rc<std::cell::RefCell<Vec<crate::emGUIFramework::DeferredAction>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         sched.borrow_mut().DoTimeSlice(
-            &mut tree,
             &mut windows,
             &__root_ctx,
             &mut __fw,
             &mut __pending_inputs,
             &mut __input_state,
             &__cb,
+            &__pa,
         );
         assert_eq!(a_cycles.get(), 1, "A must have cycled once");
         assert_eq!(woke.get(), 1, "A must have called wake_up_panel");
 
-        // Drive at most one additional slice to give B a chance to cycle.
         if b_cycles.get() == 0 {
-            let __root_ctx = crate::emContext::emContext::NewRoot();
-            let mut __fw: Vec<_> = Vec::new();
-            let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
-                Vec::new();
-            let mut __input_state = crate::emInputState::emInputState::new();
-            let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
-                std::cell::RefCell::new(None);
+            let __pa: std::rc::Rc<std::cell::RefCell<Vec<crate::emGUIFramework::DeferredAction>>> =
+                std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
             sched.borrow_mut().DoTimeSlice(
-                &mut tree,
                 &mut windows,
                 &__root_ctx,
                 &mut __fw,
                 &mut __pending_inputs,
                 &mut __input_state,
                 &__cb,
+                &__pa,
             );
         }
         assert_eq!(
@@ -3788,28 +3818,30 @@ mod tests {
             "B must cycle within one or two slices after wake_up_panel"
         );
 
-        // Sanity: engine ids still match.
+        // Reclaim tree for further asserts.
+        let mut win = windows.remove(&wid).unwrap();
+        let mut tree = win.take_tree();
         assert_eq!(tree.GetRec(a).and_then(|p| p.engine_id), Some(eid_a));
         assert_eq!(tree.GetRec(b).and_then(|p| p.engine_id), Some(eid_b));
 
-        // Cleanup: remove root (deregisters engines; scheduler busy so
-        // pending_engine_removals is populated). DoTimeSlice drains it.
+        // Cleanup.
         tree.remove(root, None);
-        let __root_ctx = crate::emContext::emContext::NewRoot();
-        let mut __fw: Vec<_> = Vec::new();
-        let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
-            Vec::new();
-        let mut __input_state = crate::emInputState::emInputState::new();
-        let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
-            std::cell::RefCell::new(None);
+        // Put tree back and drain pending_engine_removals.
+        let (wid, win) = {
+            let mut s = sched.borrow_mut();
+            crate::test_view_harness::headless_emwindow_with_tree(&__root_ctx, &mut s, tree)
+        };
+        windows.insert(wid, win);
+        let __pa: std::rc::Rc<std::cell::RefCell<Vec<crate::emGUIFramework::DeferredAction>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         sched.borrow_mut().DoTimeSlice(
-            &mut tree,
             &mut windows,
             &__root_ctx,
             &mut __fw,
             &mut __pending_inputs,
             &mut __input_state,
             &__cb,
+            &__pa,
         );
     }
 
@@ -3845,7 +3877,7 @@ mod tests {
         use std::cell::Cell;
         use std::collections::HashMap;
 
-        let (mut tree, _view, sched, root) = make_registered_tree();
+        let (tree, _view, sched, root) = make_registered_tree();
 
         // Captured inside SpawnEngineWithProbe::Cycle at the moment
         // create_child returns (i.e. after inline registration of the
@@ -3867,12 +3899,19 @@ mod tests {
         impl crate::emEngine::emEngine for SpawnEngineWithProbe {
             fn Cycle(&mut self, ctx: &mut crate::emEngineCtx::EngineCtx<'_>) -> bool {
                 if !self.done {
-                    let child = ctx
-                        .tree
-                        .create_child(self.parent, "spawned", Some(ctx.scheduler));
+                    let slice_counter = ctx.time_slice_counter();
+                    let (child, eid) = {
+                        let tree = ctx
+                            .tree
+                            .as_deref_mut()
+                            .expect("SpawnEngineWithProbe: Toplevel scope");
+                        let child = tree.create_child(self.parent, "spawned", Some(ctx.scheduler));
+                        let eid = tree.GetRec(child).and_then(|p| p.engine_id);
+                        (child, eid)
+                    };
                     self.spawned_out.set(Some(child));
-                    self.create_slice_out.set(Some(ctx.time_slice_counter()));
-                    if let Some(eid) = ctx.tree.GetRec(child).and_then(|p| p.engine_id) {
+                    self.create_slice_out.set(Some(slice_counter));
+                    if let Some(eid) = eid {
                         ctx.scheduler
                             .attach_first_cycle_probe(eid, self.cycled_at.clone());
                         ctx.scheduler.wake_up(eid);
@@ -3883,6 +3922,15 @@ mod tests {
             }
         }
 
+        let __root_ctx = crate::emContext::emContext::NewRoot();
+        let (wid, win) = {
+            let mut s = sched.borrow_mut();
+            crate::test_view_harness::headless_emwindow_with_tree(&__root_ctx, &mut s, tree)
+        };
+        let mut windows: HashMap<winit::window::WindowId, crate::emWindow::emWindow> =
+            HashMap::new();
+        windows.insert(wid, win);
+
         let spawn_eid = sched.borrow_mut().register_engine(
             Box::new(SpawnEngineWithProbe {
                 parent: root,
@@ -3892,27 +3940,26 @@ mod tests {
                 done: false,
             }),
             crate::emEngine::Priority::Medium,
-            TreeLocation::Outer,
+            crate::emPanelScope::PanelScope::Toplevel(wid),
         );
         sched.borrow_mut().wake_up(spawn_eid);
 
-        let mut empty_windows: HashMap<winit::window::WindowId, crate::emWindow::emWindow> =
-            HashMap::new();
-        let __root_ctx = crate::emContext::emContext::NewRoot();
         let mut __fw: Vec<_> = Vec::new();
         let mut __pending_inputs: Vec<(winit::window::WindowId, crate::emInput::emInputEvent)> =
             Vec::new();
         let mut __input_state = crate::emInputState::emInputState::new();
         let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
+        let __pa: std::rc::Rc<std::cell::RefCell<Vec<crate::emGUIFramework::DeferredAction>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         sched.borrow_mut().DoTimeSlice(
-            &mut tree,
-            &mut empty_windows,
+            &mut windows,
             &__root_ctx,
             &mut __fw,
             &mut __pending_inputs,
             &mut __input_state,
             &__cb,
+            &__pa,
         );
 
         let create_at = create_slice
@@ -3932,8 +3979,34 @@ mod tests {
             "post-Phase-1.75 synchronous registration: spawned child must Cycle in the SAME slice as create_child (delta=0); observed create_at={create_at}, cycled={cycled}"
         );
 
-        // Cleanup.
+        // Reclaim the tree for cleanup.
+        let mut win = windows.remove(&wid).unwrap();
+        let mut tree = win.take_tree();
         tree.remove(root, Some(&mut sched.borrow_mut()));
         sched.borrow_mut().remove_engine(spawn_eid);
+    }
+
+    #[test]
+    fn default_produces_empty_tree() {
+        let t = PanelTree::default();
+        assert!(t.GetRootPanel().is_none(), "Default PanelTree has no root");
+
+        // mem::take leaves source as Default (empty), moves content to taken.
+        let mut container = PanelTree::new();
+        container.create_root("sentinel_test", true);
+        assert!(
+            container.GetRootPanel().is_some(),
+            "populated container has root"
+        );
+
+        let taken = std::mem::take(&mut container);
+        assert!(
+            container.GetRootPanel().is_none(),
+            "after mem::take, source is Default (empty)"
+        );
+        assert!(
+            taken.GetRootPanel().is_some(),
+            "after mem::take, destination holds the original content"
+        );
     }
 }

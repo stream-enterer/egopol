@@ -10,6 +10,7 @@
 
 #![cfg(any(test, feature = "test-support"))]
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -17,7 +18,7 @@ use winit::window::WindowId;
 
 use crate::emContext::emContext;
 use crate::emEngine::EngineId;
-use crate::emEngineCtx::{DeferredAction, EngineCtx, InitCtx, SchedCtx};
+use crate::emEngineCtx::{DeferredAction, EngineCtx, FrameworkDeferredAction, InitCtx, SchedCtx};
 use crate::emPanelTree::PanelTree;
 use crate::emScheduler::EngineScheduler;
 use crate::emWindow::emWindow;
@@ -33,6 +34,8 @@ pub struct TestViewHarness {
     pub windows: HashMap<WindowId, emWindow>,
     pub pending_inputs: Vec<(WindowId, crate::emInput::emInputEvent)>,
     pub input_state: crate::emInputState::emInputState,
+    /// Phase 3.5 Task 2: closure-rail handle threaded through ctx constructors.
+    pub pending_actions: Rc<RefCell<Vec<FrameworkDeferredAction>>>,
 }
 
 impl Default for TestViewHarness {
@@ -52,6 +55,7 @@ impl TestViewHarness {
             windows: HashMap::new(),
             pending_inputs: Vec::new(),
             input_state: crate::emInputState::emInputState::new(),
+            pending_actions: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -65,6 +69,7 @@ impl TestViewHarness {
             root_context: &self.root_context,
             framework_clipboard: &self.framework_clipboard,
             current_engine: None,
+            pending_actions: &self.pending_actions,
         }
     }
 
@@ -76,6 +81,7 @@ impl TestViewHarness {
             root_context: &self.root_context,
             framework_clipboard: &self.framework_clipboard,
             current_engine: Some(engine),
+            pending_actions: &self.pending_actions,
         }
     }
 
@@ -84,7 +90,11 @@ impl TestViewHarness {
     pub fn engine_ctx(&mut self, engine_id: EngineId) -> EngineCtx<'_> {
         EngineCtx {
             scheduler: &mut self.scheduler,
-            tree: &mut self.tree,
+            // Phase 3.5.A Task 6.2: tests using this harness simulate
+            // engine dispatch; hand the tree as Some so Framework-
+            // classified test engines that DO touch ctx.tree (pre-6.2
+            // style) still work. Framework-true engines ignore `_ctx`.
+            tree: Some(&mut self.tree),
             windows: &mut self.windows,
             root_context: &self.root_context,
             framework_actions: &mut self.framework_actions,
@@ -92,6 +102,7 @@ impl TestViewHarness {
             input_state: &mut self.input_state,
             framework_clipboard: &self.framework_clipboard,
             engine_id,
+            pending_actions: &self.pending_actions,
         }
     }
 
@@ -102,6 +113,7 @@ impl TestViewHarness {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.framework_actions,
             root_context: &self.root_context,
+            pending_actions: &self.pending_actions,
         }
     }
 }
@@ -121,6 +133,8 @@ pub struct InitHarness {
     pub scheduler: EngineScheduler,
     pub actions: Vec<DeferredAction>,
     pub root: Rc<emContext>,
+    /// Phase 3.5 Task 2: closure-rail handle threaded through InitCtx.
+    pub pending_actions: Rc<RefCell<Vec<FrameworkDeferredAction>>>,
 }
 
 impl Default for InitHarness {
@@ -135,6 +149,7 @@ impl InitHarness {
             scheduler: EngineScheduler::new(),
             actions: Vec::new(),
             root: emContext::NewRoot(),
+            pending_actions: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -143,6 +158,7 @@ impl InitHarness {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.actions,
             root_context: &self.root,
+            pending_actions: &self.pending_actions,
         }
     }
 }
@@ -155,6 +171,8 @@ pub struct TestSched {
     fw: Vec<DeferredAction>,
     ctx: Rc<emContext>,
     cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>>,
+    /// Phase 3.5 Task 2: closure-rail handle threaded through SchedCtx.
+    pa: Rc<RefCell<Vec<FrameworkDeferredAction>>>,
 }
 
 impl Default for TestSched {
@@ -170,6 +188,7 @@ impl TestSched {
             fw: Vec::new(),
             ctx: emContext::NewRoot(),
             cb: std::cell::RefCell::new(None),
+            pa: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -180,9 +199,47 @@ impl TestSched {
             root_context: &self.ctx,
             framework_clipboard: &self.cb,
             current_engine: None,
+            pending_actions: &self.pa,
         };
         f(&mut sc)
     }
+}
+
+/// Phase 3.5.A Task 6.2 test helper: wrap a detached `PanelTree` in a
+/// headless (Pending) `emWindow` so tests that register `Toplevel(wid)`
+/// engines have a tree the scheduler can take/put. Returns
+/// `(WindowId::dummy(), emWindow)`; caller is expected to insert into a
+/// `HashMap<WindowId, emWindow>` and later drain for teardown.
+pub fn headless_emwindow_with_tree(
+    root_ctx: &Rc<emContext>,
+    scheduler: &mut EngineScheduler,
+    tree: PanelTree,
+) -> (WindowId, emWindow) {
+    use crate::emColor::emColor;
+    use crate::emWindow::WindowFlags;
+    let close_sig = scheduler.create_signal();
+    let flags_sig = scheduler.create_signal();
+    let focus_sig = scheduler.create_signal();
+    let geom_sig = scheduler.create_signal();
+    // Phase 3.5.A Task 8: `new_popup_pending` now builds its own internal
+    // tree + root. For this harness we discard that internal tree and
+    // install the caller's rooted tree. The view's `root: PanelId` still
+    // points at the discarded internal root — acceptable for Framework and
+    // Toplevel test engines that only read `ctx.tree` (not view.root) per
+    // the classification sheet's engine contracts.
+    let mut win = emWindow::new_popup_pending(
+        Rc::clone(root_ctx),
+        WindowFlags::empty(),
+        "headless".to_string(),
+        close_sig,
+        flags_sig,
+        focus_sig,
+        geom_sig,
+        emColor::TRANSPARENT,
+    );
+    let _ = win.take_tree();
+    win.put_tree(tree);
+    (WindowId::dummy(), win)
 }
 
 #[cfg(test)]

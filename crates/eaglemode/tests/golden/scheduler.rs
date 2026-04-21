@@ -4,16 +4,15 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use emcore::emEngine::{emEngine, Priority, TreeLocation};
+use emcore::emEngine::{emEngine, Priority};
 use emcore::emEngineCtx::EngineCtx;
-use emcore::emPanelTree::PanelTree;
+use emcore::emPanelScope::PanelScope;
 use emcore::emScheduler::EngineScheduler;
 use emcore::emSignal::SignalId;
 use emcore::emWindow::emWindow;
 use winit::window::WindowId;
 
 fn slice(sched: &mut EngineScheduler) {
-    let mut tree = PanelTree::new();
     let mut windows: HashMap<WindowId, emWindow> = HashMap::new();
     let __root_ctx = emcore::emContext::emContext::NewRoot();
     let mut __fw: Vec<_> = Vec::new();
@@ -22,14 +21,16 @@ fn slice(sched: &mut EngineScheduler) {
     let mut __input_state = emcore::emInputState::emInputState::new();
     let __cb: std::cell::RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
         std::cell::RefCell::new(None);
+    let __pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+        Rc::new(RefCell::new(Vec::new()));
     sched.DoTimeSlice(
-        &mut tree,
         &mut windows,
         &__root_ctx,
         &mut __fw,
         &mut __pending_inputs,
         &mut __input_state,
         &__cb,
+        &__pa,
     );
 }
 
@@ -110,7 +111,7 @@ fn signal_abort() {
             stay_awake: false,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.connect(sig, eng);
 
@@ -143,7 +144,7 @@ fn timer_oneshot() {
             stay_awake: false,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.connect(sig, eng);
 
@@ -180,7 +181,7 @@ fn timer_periodic() {
             stay_awake: false,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.connect(sig, eng);
 
@@ -221,7 +222,7 @@ fn timer_cancel() {
             stay_awake: false,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.connect(sig, eng);
 
@@ -276,7 +277,7 @@ fn engine_basic() {
             stay_awake: false,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.connect(sig, eng);
 
@@ -303,7 +304,7 @@ fn engine_priority() {
             stay_awake: false,
         }),
         Priority::VeryLow,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     let med = sched.register_engine(
         Box::new(RecordingEngine {
@@ -312,7 +313,7 @@ fn engine_priority() {
             stay_awake: false,
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     let vh = sched.register_engine(
         Box::new(RecordingEngine {
@@ -321,7 +322,7 @@ fn engine_priority() {
             stay_awake: false,
         }),
         Priority::VeryHigh,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
 
     sched.wake_up(vl);
@@ -350,7 +351,7 @@ fn engine_wake_sleep() {
             stay_awake: true, // stays awake each Cycle
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
 
     // Wake → should Cycle
@@ -415,7 +416,7 @@ fn engine_multi_signal() {
             c_seen: Rc::clone(&c_seen),
         }),
         Priority::Medium,
-        TreeLocation::Outer,
+        PanelScope::Framework,
     );
     sched.connect(sig_a, eng);
     sched.connect(sig_b, eng);

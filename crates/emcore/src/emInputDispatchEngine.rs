@@ -37,12 +37,12 @@ impl emEngine for InputDispatchEngine {
             // not alias `ctx.windows` or `ctx.tree` / `ctx.input_state`.
             let EngineCtx {
                 scheduler,
-                tree,
                 windows,
                 root_context,
                 framework_actions,
                 input_state,
                 framework_clipboard,
+                pending_actions,
                 ..
             } = ctx;
 
@@ -78,8 +78,9 @@ impl emEngine for InputDispatchEngine {
                 root_context,
                 framework_clipboard,
                 current_engine: None,
+                pending_actions,
             };
-            win.dispatch_input(tree, &event, input_state, &mut sc);
+            win.dispatch_input(&event, input_state, &mut sc);
         }
 
         // Sleep until next winit callback wakes us.
@@ -90,18 +91,17 @@ impl emEngine for InputDispatchEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::emEngine::{Priority, TreeLocation};
+    use crate::emEngine::Priority;
     use crate::emEngineCtx::DeferredAction;
     use crate::emInput::{emInputEvent, InputKey};
     use crate::emInputState::emInputState;
-    use crate::emPanelTree::PanelTree;
+    use crate::emPanelScope::PanelScope;
     use crate::emScheduler::EngineScheduler;
     use std::collections::HashMap;
 
     #[test]
     fn input_dispatch_drains_pending_inputs() {
         let mut sched = EngineScheduler::new();
-        let mut tree = PanelTree::new();
         let mut windows = HashMap::new();
         let root_context = crate::emContext::emContext::NewRoot();
         let mut framework_actions: Vec<DeferredAction> = Vec::new();
@@ -114,7 +114,7 @@ mod tests {
         let eid = sched.register_engine(
             Box::new(InputDispatchEngine),
             Priority::VeryHigh,
-            TreeLocation::Outer,
+            PanelScope::Framework,
         );
 
         // Seed an event for an unknown (dummy) window. The engine must
@@ -126,14 +126,16 @@ mod tests {
         pending_inputs.push((dummy_wid, event));
         sched.wake_up(eid);
 
+        let __pa: std::rc::Rc<std::cell::RefCell<Vec<crate::emGUIFramework::DeferredAction>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         sched.DoTimeSlice(
-            &mut tree,
             &mut windows,
             &root_context,
             &mut framework_actions,
             &mut pending_inputs,
             &mut input_state,
             &framework_clipboard,
+            &__pa,
         );
 
         assert!(
