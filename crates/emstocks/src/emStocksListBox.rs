@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emDialog::{emDialog, DialogResult};
+use emcore::emGUIFramework::DialogId;
 use emcore::emListBox::emListBox;
 use emcore::emLook::emLook;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
@@ -491,8 +492,14 @@ impl emStocksListBox {
         if ask {
             if let Some(ref look) = self.look {
                 // Cancel any in-flight dialog before creating a new one.
-                if let Some(ref mut d) = self.delete_stocks_dialog {
-                    d.silent_cancel();
+                if let Some(old) = self.delete_stocks_dialog.take() {
+                    let did: DialogId = old.dialog_id;
+                    cc.pending_actions()
+                        .borrow_mut()
+                        .push(Box::new(move |app, _el| {
+                            app.close_dialog_by_id(did);
+                        }));
+                    self.delete_stocks_result.set(None);
                 }
                 let count = self.GetSelectionCount();
                 let mut dialog = emDialog::new(
@@ -504,6 +511,7 @@ impl emStocksListBox {
                 dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
                 let cell = Rc::clone(&self.delete_stocks_result);
                 dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
+                dialog.show(cc);
                 self.delete_stocks_dialog = Some(dialog);
             }
             return; // Defer until Cycle() observes dialog confirmation.
@@ -541,8 +549,14 @@ impl emStocksListBox {
         if ask {
             if let Some(ref look) = self.look {
                 // Cancel any in-flight dialog before creating a new one.
-                if let Some(ref mut d) = self.cut_stocks_dialog {
-                    d.silent_cancel();
+                if let Some(old) = self.cut_stocks_dialog.take() {
+                    let did: DialogId = old.dialog_id;
+                    cc.pending_actions()
+                        .borrow_mut()
+                        .push(Box::new(move |app, _el| {
+                            app.close_dialog_by_id(did);
+                        }));
+                    self.cut_stocks_result.set(None);
                 }
                 let count = self.GetSelectionCount();
                 let mut dialog =
@@ -551,6 +565,7 @@ impl emStocksListBox {
                 dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
                 let cell = Rc::clone(&self.cut_stocks_result);
                 dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
+                dialog.show(cc);
                 self.cut_stocks_dialog = Some(dialog);
             }
             return; // Defer until Cycle() observes dialog confirmation.
@@ -581,14 +596,21 @@ impl emStocksListBox {
         if ask {
             if let Some(ref look) = self.look {
                 // Cancel any in-flight dialog before creating a new one.
-                if let Some(ref mut d) = self.paste_stocks_dialog {
-                    d.silent_cancel();
+                if let Some(old) = self.paste_stocks_dialog.take() {
+                    let did: DialogId = old.dialog_id;
+                    cc.pending_actions()
+                        .borrow_mut()
+                        .push(Box::new(move |app, _el| {
+                            app.close_dialog_by_id(did);
+                        }));
+                    self.paste_stocks_result.set(None);
                 }
                 let mut dialog = emDialog::new(cc, "Really paste stocks?", look.clone());
                 dialog.AddCustomButton(cc, "Paste", DialogResult::Ok);
                 dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
                 let cell = Rc::clone(&self.paste_stocks_result);
                 dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
+                dialog.show(cc);
                 self.paste_stocks_dialog = Some(dialog);
             }
             return Ok(Vec::new()); // Defer until Cycle() observes dialog confirmation.
@@ -673,14 +695,21 @@ impl emStocksListBox {
         if ask {
             if let Some(ref look) = self.look {
                 // Cancel any in-flight dialog before creating a new one.
-                if let Some(ref mut d) = self.interest_dialog {
-                    d.silent_cancel();
+                if let Some(old) = self.interest_dialog.take() {
+                    let did: DialogId = old.dialog_id;
+                    cc.pending_actions()
+                        .borrow_mut()
+                        .push(Box::new(move |app, _el| {
+                            app.close_dialog_by_id(did);
+                        }));
+                    self.interest_result.set(None);
                 }
                 let mut dialog = emDialog::new(cc, "Really change interest?", look.clone());
                 dialog.AddCustomButton(cc, "Change", DialogResult::Ok);
                 dialog.AddCustomButton(cc, "Cancel", DialogResult::Cancel);
                 let cell = Rc::clone(&self.interest_result);
                 dialog.set_on_finish(Box::new(move |r, _sched| cell.set(Some(*r))));
+                dialog.show(cc);
                 self.interest_dialog = Some(dialog);
                 self.interest_to_set = Some(interest);
             }
@@ -710,12 +739,8 @@ impl emStocksListBox {
         let mut busy = false;
 
         // Poll delete dialog.
-        if let Some(result) = self
-            .delete_stocks_dialog
-            .as_ref()
-            .and_then(|d| d.GetResult())
-        {
-            let confirmed = *result == DialogResult::Ok;
+        if let Some(result) = self.delete_stocks_result.take() {
+            let confirmed = result == DialogResult::Ok;
             self.delete_stocks_dialog = None;
             if confirmed {
                 self.DeleteStocks(cc, rec, false);
@@ -725,8 +750,8 @@ impl emStocksListBox {
         }
 
         // Poll cut dialog.
-        if let Some(result) = self.cut_stocks_dialog.as_ref().and_then(|d| d.GetResult()) {
-            let confirmed = *result == DialogResult::Ok;
+        if let Some(result) = self.cut_stocks_result.take() {
+            let confirmed = result == DialogResult::Ok;
             self.cut_stocks_dialog = None;
             if confirmed {
                 self.CutStocks(cc, rec, false);
@@ -736,12 +761,8 @@ impl emStocksListBox {
         }
 
         // Poll paste dialog.
-        if let Some(result) = self
-            .paste_stocks_dialog
-            .as_ref()
-            .and_then(|d| d.GetResult())
-        {
-            let confirmed = *result == DialogResult::Ok;
+        if let Some(result) = self.paste_stocks_result.take() {
+            let confirmed = result == DialogResult::Ok;
             self.paste_stocks_dialog = None;
             if confirmed {
                 let _ = self.PasteStocks(cc, rec, config, false);
@@ -751,8 +772,8 @@ impl emStocksListBox {
         }
 
         // Poll interest dialog.
-        if let Some(result) = self.interest_dialog.as_ref().and_then(|d| d.GetResult()) {
-            let confirmed = *result == DialogResult::Ok;
+        if let Some(result) = self.interest_result.take() {
+            let confirmed = result == DialogResult::Ok;
             self.interest_dialog = None;
             if confirmed {
                 if let Some(interest) = self.interest_to_set.take() {
