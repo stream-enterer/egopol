@@ -182,3 +182,16 @@ See plan §"Bootstrap decisions" (B3.6a–B3.6d).
   Added `PanelBehavior::as_dlg_panel` (immutable downcast) +
   `DlgPanel` override. No new `#[allow]`, `unsafe`, or `Rc<RefCell>`.
   Gate green — nextest 2508/0/9, clippy clean.
+
+- **Task 4 — delete emFileDialog::Cycle + vestigial helpers:** COMPLETE
+  (no-op). All Task-4 deletions were absorbed into Task 3 by controller
+  authorization (adaptation (e)): `pub fn Cycle(&mut self, ctx: &mut
+  PanelCtx<'_>)` + its `DIVERGED:` block, `fsb_file_trigger_signal`
+  cached field, `test_force_overwrite_result` test helper, and the 4
+  Cycle-path tests are all gone. Verified:
+    - `rg -n 'pub fn Cycle.*PanelCtx' crates/emcore/src/emFileDialog.rs` → 0
+    - `rg -n 'test_force_overwrite_result' crates/` → 0
+    - `rg -n 'fsb_file_trigger_signal' crates/emcore/src/emFileDialog.rs` → 0
+  Task 4's exit condition (all three greps = 0) is met by the Task 3
+  landing. No code commit required — this ledger entry is the Task 4
+  closeout on record.
