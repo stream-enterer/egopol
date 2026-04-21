@@ -52,10 +52,12 @@ pub enum FileDialogCheckResult {
 /// `on_cycle_ext` callback installed on the dialog's `DlgPanel`.
 ///
 /// Overwrite-confirmation transient state (the popped-up "File Exists"
-/// sub-dialog + its asked-text) lives on `DlgPanel` (see `on_cycle_ext`
-/// closure access pattern) — NOT on this struct. This avoids
-/// `Rc<RefCell<...>>` because the `'static + FnMut` closure cannot borrow
-/// from `emFileDialog`.
+/// sub-dialog, its asked-text, AND its confirmed-text) lives on `DlgPanel`
+/// (see `on_cycle_ext` closure access pattern) — NOT on this struct. This
+/// avoids `Rc<RefCell<...>>` because the `'static + FnMut` closure cannot
+/// borrow from `emFileDialog`. Phase 3.6 Task 3 fix: `overwrite_confirmed`
+/// moved to `DlgPanel` alongside `overwrite_asked` so the closure can
+/// promote `asked → confirmed` on OD POSITIVE (C++ emFileDialog.cpp:93).
 pub struct emFileDialog {
     dialog: emDialog,
     look: Rc<emLook>,
@@ -63,10 +65,6 @@ pub struct emFileDialog {
     fsb_panel_id: PanelId,
     mode: FileDialogMode,
     dir_allowed: bool,
-    /// Last-confirmed overwrite text (matches C++ `OverwriteConfirmed`).
-    /// Used by CheckFinish to short-circuit a re-prompt when the user
-    /// has already confirmed overwriting the same set of paths.
-    overwrite_confirmed: String,
 }
 
 impl emFileDialog {
@@ -104,9 +102,11 @@ impl emFileDialog {
         dialog.add_pre_show_wake_up_signal(fsb_trigger_sig);
 
         // 5. Install on_cycle_ext on DlgPanel — the file-dialog Cycle logic.
-        //    Capture the fsb signal id; observe via ctx.IsSignaled which
-        //    dispatches via the engine-scoped pending-signal table.
+        //    Capture the fsb signal id + outer DialogId; observe via
+        //    ctx.IsSignaled which dispatches via the engine-scoped
+        //    pending-signal table.
         let closure_fsb_sig = fsb_trigger_sig;
+        let outer_did = dialog.dialog_id;
         let on_cycle_ext: crate::emDialog::DialogCycleExt = Box::new(
             move |dlg: &mut crate::emDialog::DlgPanel,
                   ctx: &mut crate::emEngineCtx::EngineCtx<'_>|
@@ -125,15 +125,17 @@ impl emFileDialog {
                 //   }
                 //
                 // DIVERGED (validation-funnel, Phase 3.6 Task 3, P3):
-                // C++ `Finish(POSITIVE)` re-enters `CheckFinish` for
-                // validation. Rust shape sets `pending_result` directly
-                // without validation re-entry because `DialogCheckFinishCb`'s
-                // signature (`&DialogResult -> bool`) lacks the ctx needed
-                // for an OD spawn. File-trigger-path validation and
-                // button-click-OK-path validation are both deferred —
-                // Task 3 scope is the structural reshape (E024 closure);
-                // widening the check-finish-callback signature is a later
-                // phase.
+                // C++ `Finish(POSITIVE)` on the fsb file-trigger path
+                // re-enters `CheckFinish` for validation. Rust shape sets
+                // `pending_result` directly without that re-entry because
+                // `DialogCheckFinishCb`'s signature (`&DialogResult -> bool`)
+                // lacks the ctx needed for an OD spawn. Widening the
+                // check-finish callback signature is a later phase. The
+                // OD-POSITIVE path (below) now matches C++: the closure
+                // reads OD's `finalized_result`, promotes
+                // `overwrite_asked → overwrite_confirmed` on POSITIVE,
+                // tears down OD, and sets `pending_result = Ok` so the
+                // outer dialog finalizes.
 
                 // fsb_file_trigger signalled? → set pending_result = Ok.
                 if ctx.IsSignaled(closure_fsb_sig) && dlg.pending_result.is_none() {
@@ -141,36 +143,71 @@ impl emFileDialog {
                 }
 
                 // Overwrite dialog finished? Observe via the cached
-                // finish_signal on `dlg.overwrite_dialog`. On fire, tear
-                // down OD (close its window via pending_actions) and clear
-                // the DlgPanel-side overwrite state.
+                // finish_signal on `dlg.overwrite_dialog`.
                 //
-                // DIVERGED (P3, Task 3): we do NOT read OD's finalized
-                // result here to decide positive-vs-negative. Reading
-                // requires routing through App to walk OD's own tree, and
-                // the decision is only consumed by `overwrite_confirmed`
-                // promotion which lives on `emFileDialog` (out of this
-                // closure's reach). Task-3 scope is the structural reshape;
-                // OD-result propagation is deferred to the phase that
-                // widens the closure's reach to `emFileDialog`.
-                //
-                // Observable effect: on OD-finish the outer dialog stays
-                // open (no pending_result set); the user must click the
-                // outer OK again, which re-enters `CheckFinish`, which
-                // sees `overwrite_confirmed` still empty and re-spawns the
-                // OD. Loop-terminating correctness is deferred.
+                // Reading OD's `finalized_result` requires crossing
+                // windows (OD is a separate top-level). We defer the
+                // read + promotion + teardown to a single pending_actions
+                // closure (runs with `&mut App` after this time slice),
+                // which uses `App::mutate_dialog_by_id` for both OD and
+                // outer. Promotion is committed in that closure via
+                // mutate_dialog_by_id(outer_did, ...), matching C++
+                // emFileDialog.cpp:93-96 (POSITIVE) / :98-101 (NEGATIVE).
                 let od_finish_sig = dlg.overwrite_dialog.as_ref().map(|od| od.finish_signal);
                 if let Some(od_sig) = od_finish_sig {
                     if ctx.IsSignaled(od_sig) {
                         let od = dlg.overwrite_dialog.take().expect("od present");
-                        dlg.overwrite_asked.clear();
                         let od_did = od.dialog_id;
+                        // Take asked out of DlgPanel — it is consumed by
+                        // the deferred closure regardless of branch.
+                        let asked = std::mem::take(&mut dlg.overwrite_asked);
+                        // Drop the OD handle here; the winit surface is
+                        // torn down by `close_dialog_by_id` below.
+                        drop(od);
+
                         ctx.pending_actions().borrow_mut().push(Box::new(
                             move |app: &mut crate::emGUIFramework::App, _el| {
+                                // Read OD's finalized_result by walking
+                                // its own window's tree.
+                                let mut od_result: Option<DialogResult> = None;
+                                app.mutate_dialog_by_id(od_did, |od_dlg, _tree| {
+                                    od_result = od_dlg.finalized_result;
+                                });
+                                match od_result {
+                                    Some(DialogResult::Ok) => {
+                                        // C++ emFileDialog.cpp:93-96:
+                                        //   OverwriteConfirmed = OverwriteAsked;
+                                        //   OverwriteAsked.Clear();
+                                        //   delete OverwriteDialog;
+                                        //   Finish(POSITIVE);
+                                        app.mutate_dialog_by_id(outer_did, |outer_dlg, _tree| {
+                                            outer_dlg.overwrite_confirmed = asked;
+                                            // overwrite_asked was
+                                            // already cleared by
+                                            // mem::take in the closure.
+                                            if outer_dlg.pending_result.is_none()
+                                                && outer_dlg.finalized_result.is_none()
+                                            {
+                                                outer_dlg.pending_result = Some(DialogResult::Ok);
+                                            }
+                                        });
+                                    }
+                                    _ => {
+                                        // C++ emFileDialog.cpp:98-101:
+                                        //   OverwriteAsked.Clear();
+                                        //   delete OverwriteDialog;
+                                        // (outer stays open — user can
+                                        // change filename). overwrite_asked
+                                        // already cleared above. NEGATIVE
+                                        // (Cancel), None (OD still not
+                                        // finalized — shouldn't happen
+                                        // given finish_signal fired), and
+                                        // any Custom result all fall here.
+                                    }
+                                }
                                 app.close_dialog_by_id(od_did);
                             },
                         ));
-                        drop(od);
                     }
                 }
 
@@ -197,7 +234,6 @@ impl emFileDialog {
             fsb_panel_id,
             mode,
             dir_allowed: false,
-            overwrite_confirmed: String::new(),
         }
     }
 
@@ -406,7 +442,33 @@ impl emFileDialog {
                         }
                         msg
                     };
-                    if text != self.overwrite_confirmed {
+                    // Read `overwrite_confirmed` from the outer DlgPanel
+                    // via the pre-show tree-take pattern (Phase 3.6 Task 3
+                    // fix: field moved from emFileDialog to DlgPanel so
+                    // the on_cycle_ext closure can promote it on OD
+                    // POSITIVE). Post-show read is not a sync path here;
+                    // the post-show OD parking below is already deferred
+                    // via pending_actions / mutate_dialog_by_id.
+                    let confirmed: String = if self.dialog.pending.is_some() {
+                        let root_panel_id = self.dialog.root_panel_id();
+                        let pending = self.dialog.pending_mut();
+                        let tree = pending.window.tree_mut();
+                        let mut s = String::new();
+                        if let Some(behavior) = tree.take_behavior(root_panel_id) {
+                            if let Some(p) = behavior.as_dlg_panel() {
+                                s = p.overwrite_confirmed.clone();
+                            }
+                            tree.put_behavior(root_panel_id, behavior);
+                        }
+                        s
+                    } else {
+                        // Post-show sync read is unavailable here (no
+                        // &mut App). Conservative: treat as empty so the
+                        // OD respawns; the OD-POSITIVE closure path will
+                        // promote on confirm. Task 5 exercises end-to-end.
+                        String::new()
+                    };
+                    if text != confirmed {
                         // Spawn a transient "File Exists" emDialog.
                         let mut od = emDialog::new(ctx, "File Exists", self.look.clone());
                         od.AddCustomButton(ctx, "OK", DialogResult::Ok);
@@ -456,7 +518,35 @@ impl emFileDialog {
                         return FileDialogCheckResult::ConfirmOverwrite(paths_to_overwrite);
                     }
                 }
-                self.overwrite_confirmed.clear();
+                // No conflicts: clear overwrite_confirmed on outer
+                // DlgPanel (C++ emFileDialog.cpp: OverwriteConfirmed is
+                // not re-cleared there because CheckFinish returns
+                // Allow without touching it; Rust keeps the explicit
+                // clear for safety when a prior save-session left stale
+                // state — matches the legacy `self.overwrite_confirmed
+                // .clear()` write site). Route through the same pre-show
+                // tree-take / post-show mutate_dialog_by_id as OD
+                // parking.
+                if self.dialog.pending.is_some() {
+                    let root_panel_id = self.dialog.root_panel_id();
+                    let pending = self.dialog.pending_mut();
+                    let tree = pending.window.tree_mut();
+                    if let Some(mut behavior) = tree.take_behavior(root_panel_id) {
+                        if let Some(p) = behavior.as_dlg_panel_mut() {
+                            p.overwrite_confirmed.clear();
+                        }
+                        tree.put_behavior(root_panel_id, behavior);
+                    }
+                } else {
+                    let outer_did = self.dialog.dialog_id;
+                    ctx.pending_actions().borrow_mut().push(Box::new(
+                        move |app: &mut crate::emGUIFramework::App, _el| {
+                            app.mutate_dialog_by_id(outer_did, |p, _tree| {
+                                p.overwrite_confirmed.clear();
+                            });
+                        },
+                    ));
+                }
             }
             FileDialogMode::Select => {}
         }

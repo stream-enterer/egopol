@@ -563,6 +563,14 @@ pub struct DlgPanel {
     /// DlgPanel mirrors `overwrite_dialog` for the same closure-reach
     /// reason.
     pub(crate) overwrite_asked: String,
+    /// DIVERGED (Phase 3.6 Task 3 fix): last-confirmed overwrite text.
+    /// C++ `emFileDialog::OverwriteConfirmed` (emFileDialog.h:203).
+    /// Lives on `DlgPanel` (not on `emFileDialog`) so the `on_cycle_ext`
+    /// closure — which has only `&mut DlgPanel` + `&mut EngineCtx` — can
+    /// promote `overwrite_asked → overwrite_confirmed` on OD POSITIVE
+    /// without reaching back into `emFileDialog`. Placement rationale
+    /// matches `overwrite_dialog` / `overwrite_asked`.
+    pub(crate) overwrite_confirmed: String,
 }
 
 impl DlgPanel {
@@ -585,6 +593,7 @@ impl DlgPanel {
             overwrite_dialog: None,
             private_engine_id: None,
             overwrite_asked: String::new(),
+            overwrite_confirmed: String::new(),
         }
     }
 
@@ -595,6 +604,10 @@ impl DlgPanel {
 
 impl PanelBehavior for DlgPanel {
     fn as_dlg_panel_mut(&mut self) -> Option<&mut DlgPanel> {
+        Some(self)
+    }
+
+    fn as_dlg_panel(&self) -> Option<&DlgPanel> {
         Some(self)
     }
 

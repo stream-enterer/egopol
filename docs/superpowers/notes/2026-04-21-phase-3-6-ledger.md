@@ -159,3 +159,26 @@ See plan §"Bootstrap decisions" (B3.6a–B3.6d).
       in production code.
 
   Gate green — nextest 2508/0/9 (was 2513; 5 tests deleted per plan).
+
+- **Task 3 fix — OD-POSITIVE livelock closed:** COMPLETE. Moved
+  `overwrite_confirmed` from `emFileDialog` struct to `DlgPanel`
+  alongside `overwrite_dialog` / `overwrite_asked`, unblocking the
+  `on_cycle_ext` closure (which has only `&mut DlgPanel + &mut EngineCtx`)
+  to perform POSITIVE promotion. Closure now reads OD's
+  `finalized_result` via a deferred `pending_actions` closure
+  (using `App::mutate_dialog_by_id` on both OD and outer DlgPanel
+  since OD lives in a separate window's PanelTree — SlotMap keys
+  cannot cross trees). On POSITIVE: promotes `overwrite_asked →
+  overwrite_confirmed` and sets `pending_result = Ok` on outer so the
+  outer dialog finalizes (matches C++ emFileDialog.cpp:93-96). On
+  NEGATIVE / Custom / None: outer stays open, OverwriteAsked already
+  cleared inline via `mem::take`, OD torn down via
+  `close_dialog_by_id` (matches C++ emFileDialog.cpp:98-101).
+  `CheckFinish` Save-mode path reads/writes `overwrite_confirmed` via
+  the same pre-show tree-take pattern used for `overwrite_dialog`;
+  post-show write routed via `mutate_dialog_by_id` (read conservatively
+  empty — post-show read has no sync path; re-prompt then confirms,
+  which is correct albeit with an extra OD flash — Task 5 end-to-end).
+  Added `PanelBehavior::as_dlg_panel` (immutable downcast) +
+  `DlgPanel` override. No new `#[allow]`, `unsafe`, or `Rc<RefCell>`.
+  Gate green — nextest 2508/0/9, clippy clean.

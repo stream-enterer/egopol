@@ -383,6 +383,13 @@ pub trait PanelBehavior: AsAny {
         None
     }
 
+    /// Immutable variant of `as_dlg_panel_mut`. Used by `on_cycle_ext`
+    /// closures that need to read DlgPanel state (e.g. OD's
+    /// `finalized_result`) without taking behavior mutably.
+    fn as_dlg_panel(&self) -> Option<&crate::emDialog::DlgPanel> {
+        None
+    }
+
     /// Downcast to `emDialog::DlgButton` without `Any`. Used by
     /// `emDialog::set_button_label_for_result` (phase 3.5 task 8) to walk
     /// child panels and find the button whose result matches, then update its
