@@ -38,10 +38,6 @@ impl emColorRec {
             signal: ctx.create_signal(),
         }
     }
-
-    pub fn HaveAlpha(&self) -> bool {
-        self.have_alpha
-    }
 }
 
 impl emRecNode for emColorRec {
