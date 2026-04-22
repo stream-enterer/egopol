@@ -28,15 +28,9 @@
 //! args) and the choice is logged here.
 
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
-use crate::emRec::CheckIdentifier;
+use crate::emRec::{emRecAllocator, CheckIdentifier};
 use crate::emRecNode::emRecNode;
 use crate::emSignal::SignalId;
-
-/// Allocator closure for one variant. Produces a fresh child record
-/// (with its own signals) when called. Corresponds to C++ `emRecAllocator`
-/// (function pointer in emRec.h). Takes `&mut SchedCtx` so the constructed
-/// child can register its value signal during `SetValue` / listeners.
-pub type emRecAllocator = Box<dyn FnMut(&mut SchedCtx<'_>) -> Box<dyn emRecNode>>;
 
 /// One entry in the variant-type table. Mirrors C++ `emUnionRec::VariantType`
 /// (emRec.h:1109-1112): a `(Identifier, Allocator)` pair.
