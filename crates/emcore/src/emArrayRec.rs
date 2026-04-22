@@ -28,6 +28,8 @@
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRec::emRecAllocator;
 use crate::emRecNode::emRecNode;
+use crate::emRecReader::{emRecReader, ElementType, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 /// Dynamic homogeneous array of child records.
@@ -234,6 +236,67 @@ impl emRecNode for emArrayRec {
     fn listened_signal(&self) -> SignalId {
         self.aggregate_signal
     }
+
+    /// Port of C++ `emArrayRec::TryStartReading` + `TryContinueReading`
+    /// (emRec.cpp:1820-1874). Reset to min_count, consume `{`, loop reading
+    /// each child body until `}`, enforcing min/max element count.
+    ///
+    // DIVERGED: fusion into one atomic call. The C++ driver yields between
+    // elements; Rust runs the whole body synchronously.
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        // C++ emRec.cpp:1821 — SetCount(MinCount) before reading.
+        self.SetCount(self.min_count, ctx);
+        reader.TryReadCertainDelimiter('{')?;
+
+        let mut pos: i32 = 0;
+        loop {
+            // Check for `}` delimiter. C++ emRec.cpp:1842-1849.
+            let peek = reader.TryPeekNext()?;
+            if let crate::emRecReader::PeekResult::Delimiter(c) = peek {
+                if c == '}' {
+                    reader.TryReadCertainDelimiter('}')?;
+                    if pos < self.min_count {
+                        return Err(reader.ThrowElemError("Too few elements."));
+                    }
+                    return Ok(());
+                }
+            }
+            if peek.element_type() == ElementType::End {
+                return Err(reader.ThrowSyntaxError());
+            }
+            if pos >= self.max_count {
+                return Err(reader.ThrowElemError("Too many elements."));
+            }
+            // Grow to accommodate this element if needed.
+            if pos >= self.items.len() as i32 {
+                self.SetCount(pos + 1, ctx);
+            }
+            self.items[pos as usize].TryRead(reader, ctx)?;
+            pos += 1;
+        }
+    }
+
+    /// Port of C++ `emArrayRec::TryStartWriting` + `TryContinueWriting`
+    /// (emRec.cpp:1886-1918). Emit `{ \n\t<body>\n\t<body>\n }`.
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        writer.TryWriteDelimiter('{')?;
+        writer.IncIndent();
+        for item in self.items.iter() {
+            writer.TryWriteNewLine()?;
+            writer.TryWriteIndent()?;
+            item.TryWrite(writer)?;
+        }
+        writer.DecIndent();
+        if !self.items.is_empty() {
+            writer.TryWriteNewLine()?;
+            writer.TryWriteIndent()?;
+        }
+        writer.TryWriteDelimiter('}')
+    }
 }
 
 #[cfg(test)]
@@ -401,6 +464,16 @@ mod tests {
         fn listened_signal(&self) -> SignalId {
             self.own_signal
         }
+        fn TryRead(
+            &mut self,
+            reader: &mut dyn emRecReader,
+            _ctx: &mut SchedCtx<'_>,
+        ) -> Result<(), RecIoError> {
+            Err(reader.ThrowSyntaxError())
+        }
+        fn TryWrite(&self, _writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+            Ok(())
+        }
     }
 
     /// Prove `SetCount` splices the aggregate signal onto each freshly-
@@ -535,6 +608,31 @@ mod tests {
         fn listened_signal(&self) -> SignalId {
             self.inner.listened_signal()
         }
+        fn TryRead(
+            &mut self,
+            reader: &mut dyn emRecReader,
+            ctx: &mut SchedCtx<'_>,
+        ) -> Result<(), RecIoError> {
+            let members = self.inner.member_identifiers();
+            crate::emStructRec::emStructRec::try_read_body(&members, reader, |idx, r| match idx {
+                0 => self.flag.TryRead(r, ctx),
+                1 => self.items.TryRead(r, ctx),
+                _ => unreachable!(),
+            })
+        }
+        fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+            let members = self.inner.member_identifiers();
+            crate::emStructRec::emStructRec::try_write_body(
+                &members,
+                writer,
+                |_| true,
+                |idx, w| match idx {
+                    0 => self.flag.TryWrite(w),
+                    1 => self.items.TryWrite(w),
+                    _ => unreachable!(),
+                },
+            )
+        }
     }
 
     #[test]
@@ -603,6 +701,16 @@ mod tests {
                 .borrow()
                 .own_signal
                 .expect("own_signal set at construction")
+        }
+        fn TryRead(
+            &mut self,
+            reader: &mut dyn emRecReader,
+            _ctx: &mut SchedCtx<'_>,
+        ) -> Result<(), RecIoError> {
+            Err(reader.ThrowSyntaxError())
+        }
+        fn TryWrite(&self, _writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+            Ok(())
         }
     }
 

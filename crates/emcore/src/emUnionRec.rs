@@ -30,6 +30,8 @@
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRec::{emRecAllocator, CheckIdentifier};
 use crate::emRecNode::emRecNode;
+use crate::emRecReader::{emRecReader, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 /// One entry in the variant-type table. Mirrors C++ `emUnionRec::VariantType`
@@ -288,6 +290,49 @@ impl emRecNode for emUnionRec {
     fn listened_signal(&self) -> SignalId {
         self.aggregate_signal
     }
+
+    /// Port of C++ `emUnionRec::TryStartReading` + `TryContinueReading`
+    /// (emRec.cpp:1610-1631). Read `identifier:<child-body>` — look up the
+    /// variant by identifier (ThrowElemError on unknown), `SetVariant`,
+    /// consume the `:` delimiter, then dispatch the child body through
+    /// `dyn emRecNode::TryRead`.
+    ///
+    // DIVERGED: fusion of TryStartReading / TryContinueReading into one
+    // atomic call, same rationale as primitive TryRead.
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        let idf = reader.TryReadIdentifier()?;
+        let v = self.GetVariantOf(&idf);
+        if v < 0 {
+            return Err(reader.ThrowElemError("Unknown identifier."));
+        }
+        self.SetVariant(v, ctx);
+        reader.TryReadCertainDelimiter(':')?;
+        let child = self
+            .child
+            .as_deref_mut()
+            .expect("SetVariant materialises child");
+        child.TryRead(reader, ctx)
+    }
+
+    /// Port of C++ `emUnionRec::TryStartWriting` + `TryContinueWriting`
+    /// (emRec.cpp:1639-1655). Emit `identifier: <child-body>`.
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        let idf = self
+            .GetIdentifierOf(self.variant)
+            .expect("variant in range once a child is materialised");
+        writer.TryWriteIdentifier(idf)?;
+        writer.TryWriteDelimiter(':')?;
+        writer.TryWriteSpace()?;
+        let child = self
+            .child
+            .as_deref()
+            .expect("child present after SetToDefaultVariant / SetVariant");
+        child.TryWrite(writer)
+    }
 }
 
 #[cfg(test)]
@@ -430,6 +475,16 @@ mod tests {
         }
         fn listened_signal(&self) -> SignalId {
             self.own_signal
+        }
+        fn TryRead(
+            &mut self,
+            reader: &mut dyn emRecReader,
+            _ctx: &mut SchedCtx<'_>,
+        ) -> Result<(), RecIoError> {
+            Err(reader.ThrowSyntaxError())
+        }
+        fn TryWrite(&self, _writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+            Ok(())
         }
     }
 
@@ -624,6 +679,31 @@ mod tests {
         }
         fn listened_signal(&self) -> SignalId {
             self.inner.listened_signal()
+        }
+        fn TryRead(
+            &mut self,
+            reader: &mut dyn emRecReader,
+            ctx: &mut SchedCtx<'_>,
+        ) -> Result<(), RecIoError> {
+            let members = self.inner.member_identifiers();
+            crate::emStructRec::emStructRec::try_read_body(&members, reader, |idx, r| match idx {
+                0 => self.flag.TryRead(r, ctx),
+                1 => self.choice.TryRead(r, ctx),
+                _ => unreachable!(),
+            })
+        }
+        fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+            let members = self.inner.member_identifiers();
+            crate::emStructRec::emStructRec::try_write_body(
+                &members,
+                writer,
+                |_| true,
+                |idx, w| match idx {
+                    0 => self.flag.TryWrite(w),
+                    1 => self.choice.TryWrite(w),
+                    _ => unreachable!(),
+                },
+            )
         }
     }
 

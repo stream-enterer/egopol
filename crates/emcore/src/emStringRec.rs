@@ -67,6 +67,18 @@ impl emRecNode for emStringRec {
     fn listened_signal(&self) -> SignalId {
         self.signal
     }
+
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        emStringRec::TryRead(self, reader, ctx)
+    }
+
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        emStringRec::TryWrite(self, writer)
+    }
 }
 
 impl emRec<String> for emStringRec {

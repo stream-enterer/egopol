@@ -31,9 +31,11 @@
 //! they belong to the emRecReader/emRecWriter serialization machinery that
 //! ships in Phase 4d.
 
-use crate::emEngineCtx::ConstructCtx;
+use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRec::CheckIdentifier;
 use crate::emRecNode::emRecNode;
+use crate::emRecReader::{emRecReader, ElementType, PeekResult, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 /// Member registry entry. Stores only the identifier — the child record
@@ -155,9 +157,107 @@ impl emStructRec {
         self.aggregate_signal
     }
 
+    /// Snapshot of the registered member identifiers in insertion order.
+    ///
+    /// DIVERGED: new-to-Rust accessor. C++ reads `Members[i].Identifier`
+    /// directly from the linear array; Rust cannot lend `&[String]` while
+    /// also calling user closures that may borrow the outer derived struct
+    /// (borrow-checker conflict — see `try_read_body` / `try_write_body`
+    /// signatures which take `members: &[String]` explicitly). Callers
+    /// snapshot via `member_identifiers().to_vec()` before IO.
+    pub fn member_identifiers(&self) -> Vec<String> {
+        self.members.iter().map(|m| m.identifier.clone()).collect()
+    }
+
+    /// Port of C++ `emStructRec::TryStartReading` + `TryContinueReading`
+    /// (emRec.cpp:1361-1414). Reads `{` + `(identifier = <body>)*` + `}`,
+    /// dispatching each named member's body through the supplied closure.
+    /// The closure receives the member's registered index (0-based, matches
+    /// `GetIndexOf`) and the reader positioned just after `=` (plus any
+    /// ambient whitespace, which the lexer skips).
+    ///
+    /// Caller supplies `members` explicitly (snapshot of
+    /// `member_identifiers()`) so the closure can mutably borrow the
+    /// derived struct's sibling fields without conflicting with `&self`.
+    ///
+    /// Re-assignment to the same member raises `"re-assignment"`, matching
+    /// C++ emRec.cpp:1407.
+    ///
+    // DIVERGED: fused Start/Continue, associated function taking an explicit
+    // identifier slice (see sibling-field architecture note in module docs).
+    pub fn try_read_body(
+        members: &[String],
+        reader: &mut dyn emRecReader,
+        mut read_member: impl FnMut(usize, &mut dyn emRecReader) -> Result<(), RecIoError>,
+    ) -> Result<(), RecIoError> {
+        reader.TryReadCertainDelimiter('{')?;
+        let mut seen = vec![false; members.len()];
+        loop {
+            let peek = reader.TryPeekNext()?;
+            if let PeekResult::Delimiter(c) = peek {
+                if c == '}' {
+                    reader.TryReadCertainDelimiter('}')?;
+                    return Ok(());
+                }
+            }
+            if peek.element_type() == ElementType::End {
+                return Err(reader.ThrowSyntaxError());
+            }
+            let idf = reader.TryReadIdentifier()?;
+            let pos = members.iter().position(|m| m == &idf);
+            let pos = match pos {
+                Some(p) => p,
+                None => return Err(reader.ThrowElemError("Unknown identifier.")),
+            };
+            if seen[pos] {
+                return Err(reader.ThrowElemError("re-assignment"));
+            }
+            seen[pos] = true;
+            reader.TryReadCertainDelimiter('=')?;
+            read_member(pos, reader)?;
+        }
+    }
+
+    /// Port of C++ `emStructRec::TryStartWriting` + `TryContinueWriting`
+    /// (emRec.cpp:1428-1489). Emits `{` + newline + indented `ident = <body>`
+    /// for each member where `should_emit(i)` returns true, + final `}`.
+    ///
+    /// `should_emit` mirrors C++'s
+    /// `!Members[i].Record->IsSetToDefault() || !ShallWriteOptionalOnly(...)`
+    /// gate (emRec.cpp:1469-1472). Default callers pass `|_| true` to emit
+    /// every member (matching C++'s default `ShallWriteOptionalOnly → false`).
+    pub fn try_write_body(
+        members: &[String],
+        writer: &mut dyn emRecWriter,
+        mut should_emit: impl FnMut(usize) -> bool,
+        mut write_member: impl FnMut(usize, &mut dyn emRecWriter) -> Result<(), RecIoError>,
+    ) -> Result<(), RecIoError> {
+        writer.TryWriteDelimiter('{')?;
+        writer.IncIndent();
+        let mut empty = true;
+        for (i, idf) in members.iter().enumerate() {
+            if !should_emit(i) {
+                continue;
+            }
+            writer.TryWriteNewLine()?;
+            writer.TryWriteIndent()?;
+            writer.TryWriteIdentifier(idf)?;
+            writer.TryWriteSpace()?;
+            writer.TryWriteDelimiter('=')?;
+            writer.TryWriteSpace()?;
+            write_member(i, writer)?;
+            empty = false;
+        }
+        writer.DecIndent();
+        if !empty {
+            writer.TryWriteNewLine()?;
+            writer.TryWriteIndent()?;
+        }
+        writer.TryWriteDelimiter('}')
+    }
+
     // TODO(phase-4d): ShallWriteOptionalOnly, SetToDefault, IsSetToDefault,
-    // TryStartReading, TryContinueReading, QuitReading, TryStartWriting,
-    // TryContinueWriting, QuitWriting, CalcRecMemNeed per emRec.h:980-991.
+    // QuitReading, QuitWriting, CalcRecMemNeed per emRec.h:980-991.
     //
     // DIVERGED: C++ `Get(int)` / `operator[]` (emRec.h:957-962) return
     // `emRec&` by index. Rust cannot port this overload because the struct
@@ -190,6 +290,53 @@ impl emRecNode for emStructRec {
     fn listened_signal(&self) -> SignalId {
         self.aggregate_signal
     }
+
+    /// Default trait impl — the bare `emStructRec` owns no sibling fields,
+    /// so `TryRead` can only succeed against an input matching its current
+    /// identifier list (which, when used standalone, is empty — produces
+    /// `{}` bytes). Real callers implement `TryRead` on their own derived
+    /// struct and dispatch each member to its sibling field; see the
+    /// `Person` example in this module's test mod.
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        _ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        let members = self.member_identifiers();
+        emStructRec::try_read_body(&members, reader, |_idx, _r| {
+            // A bare emStructRec has no sibling-field dispatch; if any
+            // member identifier actually appears in the input this is an
+            // error path by design.
+            Err(reader_syntax_error())
+        })
+    }
+
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        let members = self.member_identifiers();
+        emStructRec::try_write_body(
+            &members,
+            writer,
+            |_i| true,
+            |_i, _w| {
+                // Same rationale as the TryRead stub: bare emStructRec has
+                // no member bodies to emit.
+                Err(RecIoError::with_location(
+                    None,
+                    None,
+                    "bare emStructRec cannot TryWrite member bodies; \
+                     use a derived struct's emRecNode impl",
+                ))
+            },
+        )
+    }
+}
+
+/// Helper for the bare-emStructRec TryRead stub — the closure can't call
+/// `reader.ThrowSyntaxError()` because it captures `reader` mutably from the
+/// outer `try_read_body` call. Constructing the error locally sidesteps
+/// that aliasing.
+fn reader_syntax_error() -> RecIoError {
+    RecIoError::with_location(None, None, "syntax error")
 }
 
 #[cfg(test)]
@@ -268,6 +415,35 @@ mod tests {
         fn listened_signal(&self) -> SignalId {
             self.inner.listened_signal()
         }
+
+        fn TryRead(
+            &mut self,
+            reader: &mut dyn emRecReader,
+            ctx: &mut SchedCtx<'_>,
+        ) -> Result<(), RecIoError> {
+            let members = self.inner.member_identifiers();
+            emStructRec::try_read_body(&members, reader, |idx, r| match idx {
+                0 => self.name.TryRead(r, ctx),
+                1 => self.age.TryRead(r, ctx),
+                2 => self.male.TryRead(r, ctx),
+                _ => unreachable!(),
+            })
+        }
+
+        fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+            let members = self.inner.member_identifiers();
+            emStructRec::try_write_body(
+                &members,
+                writer,
+                |_| true,
+                |idx, w| match idx {
+                    0 => self.name.TryWrite(w),
+                    1 => self.age.TryWrite(w),
+                    2 => self.male.TryWrite(w),
+                    _ => unreachable!(),
+                },
+            )
+        }
     }
 
     /// Invariant I4c-4: aggregate signal fires on any field mutation.
@@ -337,6 +513,31 @@ mod tests {
         fn listened_signal(&self) -> SignalId {
             self.inner.listened_signal()
         }
+        fn TryRead(
+            &mut self,
+            reader: &mut dyn emRecReader,
+            ctx: &mut SchedCtx<'_>,
+        ) -> Result<(), RecIoError> {
+            let members = self.inner.member_identifiers();
+            emStructRec::try_read_body(&members, reader, |idx, r| match idx {
+                0 => self.street.TryRead(r, ctx),
+                1 => self.zip.TryRead(r, ctx),
+                _ => unreachable!(),
+            })
+        }
+        fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+            let members = self.inner.member_identifiers();
+            emStructRec::try_write_body(
+                &members,
+                writer,
+                |_| true,
+                |idx, w| match idx {
+                    0 => self.street.TryWrite(w),
+                    1 => self.zip.TryWrite(w),
+                    _ => unreachable!(),
+                },
+            )
+        }
     }
 
     struct PersonWithAddr {
@@ -376,6 +577,33 @@ mod tests {
         }
         fn listened_signal(&self) -> SignalId {
             self.inner.listened_signal()
+        }
+        fn TryRead(
+            &mut self,
+            reader: &mut dyn emRecReader,
+            ctx: &mut SchedCtx<'_>,
+        ) -> Result<(), RecIoError> {
+            let members = self.inner.member_identifiers();
+            emStructRec::try_read_body(&members, reader, |idx, r| match idx {
+                0 => self.name.TryRead(r, ctx),
+                1 => self.addr.TryRead(r, ctx),
+                2 => self.age.TryRead(r, ctx),
+                _ => unreachable!(),
+            })
+        }
+        fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+            let members = self.inner.member_identifiers();
+            emStructRec::try_write_body(
+                &members,
+                writer,
+                |_| true,
+                |idx, w| match idx {
+                    0 => self.name.TryWrite(w),
+                    1 => self.addr.TryWrite(w),
+                    2 => self.age.TryWrite(w),
+                    _ => unreachable!(),
+                },
+            )
         }
     }
 

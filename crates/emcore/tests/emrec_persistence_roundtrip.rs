@@ -1,16 +1,15 @@
 //! Phase 4d Task 3 — round-trip tests for every concrete primitive emRec
-//! type's `TryRead` / `TryWrite` pair.
+//! type's `TryRead` / `TryWrite` pair, plus all four compound types
+//! (emUnionRec, emArrayRec, emTArrayRec, emStructRec) exercised through
+//! the widened `emRecNode` trait.
 //!
 //! Byte-stability contract: for each type, write → read → write must produce
 //! identical bytes. Every test below asserts this.
-//!
-//! Compound types (emStructRec, emUnionRec, emArrayRec, emTArrayRec) are NOT
-//! covered here — see the Task 3 closeout report for the BLOCKED reason
-//! (emRecNode trait carries no TryRead/TryWrite, so boxed children cannot
-//! dispatch dynamically).
 
 use emcore::emAlignment::{EM_ALIGN_BOTTOM, EM_ALIGN_RIGHT, EM_ALIGN_TOP_LEFT};
 use emcore::emAlignmentRec::emAlignmentRec;
+use emcore::emArrayRec::emArrayRec;
+use emcore::emBoolRec::emBoolRec;
 use emcore::emClipboard::emClipboard;
 use emcore::emColor::emColor;
 use emcore::emColorRec::emColorRec;
@@ -23,8 +22,15 @@ use emcore::emIntRec::emIntRec;
 use emcore::emRec::emRec;
 use emcore::emRecMemReader::emRecMemReader;
 use emcore::emRecMemWriter::emRecMemWriter;
+use emcore::emRecNode::emRecNode;
+use emcore::emRecReader::RecIoError;
+use emcore::emRecWriter::emRecWriter;
 use emcore::emScheduler::EngineScheduler;
+use emcore::emSignal::SignalId;
 use emcore::emStringRec::emStringRec;
+use emcore::emStructRec::emStructRec;
+use emcore::emTArrayRec::{emTArrayRec, emTRecAllocator};
+use emcore::emUnionRec::emUnionRec;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -457,4 +463,297 @@ fn color_rec_rejects_channel_out_of_range() {
     let s = rec.GetValueSignal();
     sc.scheduler.abort(s);
     sc.remove_signal(s);
+}
+
+// ---------------------------------------------------------------------------
+// Compound round-trips — exercise the widened emRecNode::TryRead/TryWrite
+// through boxed children and sibling-field dispatch.
+// ---------------------------------------------------------------------------
+
+/// Person mirrors the C++ `Person` example (emRec.h:78-108), ported in
+/// Phase 4c. Duplicated from the compound integration test to keep this
+/// file self-contained (CLAUDE.md test-scaffold duplication policy).
+struct Person {
+    inner: emStructRec,
+    name: emStringRec,
+    age: emIntRec,
+    male: emBoolRec,
+}
+
+impl Person {
+    fn new(ctx: &mut SchedCtx<'_>) -> Self {
+        let mut inner = emStructRec::new(ctx);
+        let mut name = emStringRec::new(ctx, String::new());
+        let mut age = emIntRec::new(ctx, 0, i64::MIN, i64::MAX);
+        let mut male = emBoolRec::new(ctx, false);
+        inner.AddMember(&mut name, "name");
+        inner.AddMember(&mut age, "age");
+        inner.AddMember(&mut male, "male");
+        Self {
+            inner,
+            name,
+            age,
+            male,
+        }
+    }
+}
+
+impl emRecNode for Person {
+    fn parent(&self) -> Option<&dyn emRecNode> {
+        None
+    }
+    fn register_aggregate(&mut self, sig: SignalId) {
+        self.inner.register_aggregate(sig);
+        self.name.register_aggregate(sig);
+        self.age.register_aggregate(sig);
+        self.male.register_aggregate(sig);
+    }
+    fn listened_signal(&self) -> SignalId {
+        self.inner.listened_signal()
+    }
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emcore::emRecReader::emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        let members = self.inner.member_identifiers();
+        emStructRec::try_read_body(&members, reader, |idx, r| match idx {
+            0 => self.name.TryRead(r, ctx),
+            1 => self.age.TryRead(r, ctx),
+            2 => self.male.TryRead(r, ctx),
+            _ => unreachable!(),
+        })
+    }
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        let members = self.inner.member_identifiers();
+        emStructRec::try_write_body(
+            &members,
+            writer,
+            |_| true,
+            |idx, w| match idx {
+                0 => self.name.TryWrite(w),
+                1 => self.age.TryWrite(w),
+                2 => self.male.TryWrite(w),
+                _ => unreachable!(),
+            },
+        )
+    }
+}
+
+#[test]
+fn union_rec_roundtrip() {
+    let mut fx = Fixture::new();
+
+    let mut sc = fx.sc();
+    let mut u = emUnionRec::new(&mut sc);
+    u.AddVariant(
+        "num",
+        Box::new(|c: &mut SchedCtx<'_>| {
+            Box::new(emIntRec::new(c, 0, i64::MIN, i64::MAX)) as Box<dyn emRecNode>
+        }),
+    );
+    u.AddVariant(
+        "text",
+        Box::new(|c: &mut SchedCtx<'_>| {
+            Box::new(emStringRec::new(c, String::new())) as Box<dyn emRecNode>
+        }),
+    );
+    u.SetDefaultVariant(0);
+    u.SetToDefaultVariant(&mut sc);
+    u.SetVariant(1, &mut sc);
+    // Mutate the child through the trait object.
+    {
+        let child = u.GetMut().expect("variant materialised");
+        // Child is an emStringRec — route through trait TryRead to set value
+        // atomically via byte-level input.
+        let mut r = emRecMemReader::new(b"\"hello\"");
+        child.TryRead(&mut r, &mut sc).unwrap();
+    }
+    drop(sc);
+
+    let mut w = emRecMemWriter::new();
+    u.TryWrite(&mut w).unwrap();
+    let bytes = w.into_bytes();
+    assert_eq!(bytes.as_slice(), b"text: \"hello\"");
+
+    // Read into a fresh union.
+    let mut sc = fx.sc();
+    let mut u2 = emUnionRec::new(&mut sc);
+    u2.AddVariant(
+        "num",
+        Box::new(|c: &mut SchedCtx<'_>| {
+            Box::new(emIntRec::new(c, 0, i64::MIN, i64::MAX)) as Box<dyn emRecNode>
+        }),
+    );
+    u2.AddVariant(
+        "text",
+        Box::new(|c: &mut SchedCtx<'_>| {
+            Box::new(emStringRec::new(c, String::new())) as Box<dyn emRecNode>
+        }),
+    );
+    u2.SetDefaultVariant(0);
+    u2.SetToDefaultVariant(&mut sc);
+
+    let mut r = emRecMemReader::new(&bytes);
+    u2.TryRead(&mut r, &mut sc).unwrap();
+    drop(sc);
+    assert_eq!(u2.GetVariant(), 1);
+
+    let mut w2 = emRecMemWriter::new();
+    u2.TryWrite(&mut w2).unwrap();
+    assert_eq!(w2.into_bytes(), bytes);
+
+    // Compound types allocate many internal signals (one per child per
+    // variant switch) that the test has no handle to; leak the Fixture
+    // to suppress the scheduler-drop pending-signals assert.
+    std::mem::forget(u);
+    std::mem::forget(u2);
+    std::mem::forget(fx);
+}
+
+#[test]
+fn array_rec_roundtrip() {
+    let mut fx = Fixture::new();
+
+    let mut sc = fx.sc();
+    let alloc: emcore::emRec::emRecAllocator = Box::new(|c: &mut SchedCtx<'_>| {
+        Box::new(emIntRec::new(c, 0, i64::MIN, i64::MAX)) as Box<dyn emRecNode>
+    });
+    let mut arr = emArrayRec::new(&mut sc, alloc, 0, 100);
+    arr.SetCount(3, &mut sc);
+    // Seed values 10, 20, 30 by byte-level TryRead on each element.
+    for (i, v) in [10i32, 20, 30].iter().enumerate() {
+        let child = arr.GetMut(i as i32).unwrap();
+        let raw = format!("{}", v);
+        let mut r = emRecMemReader::new(raw.as_bytes());
+        child.TryRead(&mut r, &mut sc).unwrap();
+    }
+    drop(sc);
+
+    let mut w = emRecMemWriter::new();
+    arr.TryWrite(&mut w).unwrap();
+    let bytes = w.into_bytes();
+    assert_eq!(bytes.as_slice(), b"{\n\t10\n\t20\n\t30\n}");
+
+    let mut sc = fx.sc();
+    let alloc2: emcore::emRec::emRecAllocator = Box::new(|c: &mut SchedCtx<'_>| {
+        Box::new(emIntRec::new(c, 0, i64::MIN, i64::MAX)) as Box<dyn emRecNode>
+    });
+    let mut arr2 = emArrayRec::new(&mut sc, alloc2, 0, 100);
+    let mut r = emRecMemReader::new(&bytes);
+    arr2.TryRead(&mut r, &mut sc).unwrap();
+    drop(sc);
+    assert_eq!(arr2.GetCount(), 3);
+
+    let mut w2 = emRecMemWriter::new();
+    arr2.TryWrite(&mut w2).unwrap();
+    assert_eq!(w2.into_bytes(), bytes);
+
+    std::mem::forget(arr);
+    std::mem::forget(arr2);
+    std::mem::forget(fx);
+}
+
+#[test]
+fn tarray_rec_roundtrip_persons() {
+    let mut fx = Fixture::new();
+
+    let mut sc = fx.sc();
+    let alloc: emTRecAllocator<Person> = Box::new(|c: &mut SchedCtx<'_>| Person::new(c));
+    let mut arr = emTArrayRec::<Person>::new(&mut sc, alloc, 0, 100);
+    arr.SetCount(2, &mut sc);
+
+    arr.GetMut(0)
+        .unwrap()
+        .name
+        .SetValue("alice".to_string(), &mut sc);
+    arr.GetMut(0).unwrap().age.SetValue(30, &mut sc);
+    arr.GetMut(0).unwrap().male.SetValue(false, &mut sc);
+    arr.GetMut(1)
+        .unwrap()
+        .name
+        .SetValue("bob".to_string(), &mut sc);
+    arr.GetMut(1).unwrap().age.SetValue(40, &mut sc);
+    arr.GetMut(1).unwrap().male.SetValue(true, &mut sc);
+    drop(sc);
+
+    let mut w = emRecMemWriter::new();
+    arr.TryWrite(&mut w).unwrap();
+    let bytes = w.into_bytes();
+
+    // Read into fresh typed array.
+    let mut sc = fx.sc();
+    let alloc2: emTRecAllocator<Person> = Box::new(|c: &mut SchedCtx<'_>| Person::new(c));
+    let mut arr2 = emTArrayRec::<Person>::new(&mut sc, alloc2, 0, 100);
+    let mut r = emRecMemReader::new(&bytes);
+    arr2.TryRead(&mut r, &mut sc).unwrap();
+    drop(sc);
+
+    assert_eq!(arr2.GetCount(), 2);
+    assert_eq!(arr2.Get(0).unwrap().name.GetValue(), &"alice".to_string());
+    assert_eq!(*arr2.Get(0).unwrap().age.GetValue(), 30);
+    assert!(!*arr2.Get(0).unwrap().male.GetValue());
+    assert_eq!(arr2.Get(1).unwrap().name.GetValue(), &"bob".to_string());
+    assert_eq!(*arr2.Get(1).unwrap().age.GetValue(), 40);
+    assert!(*arr2.Get(1).unwrap().male.GetValue());
+
+    let mut w2 = emRecMemWriter::new();
+    arr2.TryWrite(&mut w2).unwrap();
+    assert_eq!(w2.into_bytes(), bytes);
+
+    std::mem::forget(arr);
+    std::mem::forget(arr2);
+    std::mem::forget(fx);
+}
+
+#[test]
+fn struct_rec_roundtrip_person() {
+    let mut fx = Fixture::new();
+
+    let mut sc = fx.sc();
+    let mut p = Person::new(&mut sc);
+    p.name.SetValue("alice".to_string(), &mut sc);
+    p.age.SetValue(42, &mut sc);
+    p.male.SetValue(false, &mut sc);
+    drop(sc);
+
+    let mut w = emRecMemWriter::new();
+    p.TryWrite(&mut w).unwrap();
+    let bytes = w.into_bytes();
+    assert_eq!(
+        std::str::from_utf8(&bytes).unwrap(),
+        "{\n\tname = \"alice\"\n\tage = 42\n\tmale = no\n}"
+    );
+
+    let mut sc = fx.sc();
+    let mut p2 = Person::new(&mut sc);
+    let mut r = emRecMemReader::new(&bytes);
+    p2.TryRead(&mut r, &mut sc).unwrap();
+    drop(sc);
+    assert_eq!(p2.name.GetValue(), &"alice".to_string());
+    assert_eq!(*p2.age.GetValue(), 42);
+    assert!(!*p2.male.GetValue());
+
+    let mut w2 = emRecMemWriter::new();
+    p2.TryWrite(&mut w2).unwrap();
+    assert_eq!(w2.into_bytes(), bytes);
+
+    let mut sc = fx.sc();
+    let a1 = p.inner.GetAggregateSignal();
+    let a2 = p2.inner.GetAggregateSignal();
+    sc.scheduler.abort(a1);
+    sc.scheduler.abort(a2);
+    sc.remove_signal(a1);
+    sc.remove_signal(a2);
+    for s in [
+        p.name.GetValueSignal(),
+        p.age.GetValueSignal(),
+        p.male.GetValueSignal(),
+        p2.name.GetValueSignal(),
+        p2.age.GetValueSignal(),
+        p2.male.GetValueSignal(),
+    ] {
+        sc.scheduler.abort(s);
+        sc.remove_signal(s);
+    }
 }

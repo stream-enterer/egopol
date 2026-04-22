@@ -164,6 +164,18 @@ impl emRecNode for emFlagsRec {
     fn listened_signal(&self) -> SignalId {
         self.signal
     }
+
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        emFlagsRec::TryRead(self, reader, ctx)
+    }
+
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        emFlagsRec::TryWrite(self, writer)
+    }
 }
 
 impl emRec<i32> for emFlagsRec {

@@ -123,6 +123,38 @@ impl emRecNode for Person {
     fn listened_signal(&self) -> SignalId {
         self.inner.listened_signal()
     }
+
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emcore::emRecReader::emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), emcore::emRecReader::RecIoError> {
+        let members = self.inner.member_identifiers();
+        emStructRec::try_read_body(&members, reader, |idx, r| match idx {
+            0 => self.name.TryRead(r, ctx),
+            1 => self.age.TryRead(r, ctx),
+            2 => self.male.TryRead(r, ctx),
+            _ => unreachable!(),
+        })
+    }
+
+    fn TryWrite(
+        &self,
+        writer: &mut dyn emcore::emRecWriter::emRecWriter,
+    ) -> Result<(), emcore::emRecReader::RecIoError> {
+        let members = self.inner.member_identifiers();
+        emStructRec::try_write_body(
+            &members,
+            writer,
+            |_| true,
+            |idx, w| match idx {
+                0 => self.name.TryWrite(w),
+                1 => self.age.TryWrite(w),
+                2 => self.male.TryWrite(w),
+                _ => unreachable!(),
+            },
+        )
+    }
 }
 
 fn person_allocator() -> emTRecAllocator<Person> {

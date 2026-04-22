@@ -119,6 +119,18 @@ impl emRecNode for emEnumRec {
     fn listened_signal(&self) -> SignalId {
         self.signal
     }
+
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        emEnumRec::TryRead(self, reader, ctx)
+    }
+
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        emEnumRec::TryWrite(self, writer)
+    }
 }
 
 impl emRec<u32> for emEnumRec {

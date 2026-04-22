@@ -105,6 +105,18 @@ impl emRecNode for emBoolRec {
     fn listened_signal(&self) -> SignalId {
         self.signal
     }
+
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        emBoolRec::TryRead(self, reader, ctx)
+    }
+
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        emBoolRec::TryWrite(self, writer)
+    }
 }
 
 impl emRec<bool> for emBoolRec {

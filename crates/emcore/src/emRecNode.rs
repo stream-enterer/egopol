@@ -2,12 +2,16 @@
 //!
 //! C++ reference: `include/emCore/emRec.h:36` (`class emRecNode : public emUncopyable`).
 //!
-//! Phase 4a ports only the parent accessor. Deferred to Phase 4b+:
-//! - `IsListener()` (emRec.h:42 pure virtual)
-//! - `ChildChanged()` (emRec.h:43 pure virtual)
+//! Phase 4d Task 3 widens the trait with TryRead/TryWrite so compound
+//! containers (`emUnionRec`, `emArrayRec`, `emTArrayRec`, and user-derived
+//! structs) can dispatch persistence through `dyn emRecNode`.
 //!
-//! The `emUncopyable` supertrait is elided: Rust types are move-only by default.
+//! The `emUncopyable` supertrait is elided: Rust types are move-only by
+//! default.
 
+use crate::emEngineCtx::SchedCtx;
+use crate::emRecReader::{emRecReader, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 pub trait emRecNode {
@@ -38,15 +42,67 @@ pub trait emRecNode {
     /// `emRecListener::SetListenedRec(Option<&dyn emRecNode>)` stays
     /// non-generic over the primitive's value type `T`.
     fn listened_signal(&self) -> SignalId;
-    // TODO(phase-4b): IsListener, ChildChanged, tree-walk helpers.
+
+    /// Atomic read of this record's serialised body from `reader`. Fires
+    /// value signals via `ctx` on successful assignment. Mirrors C++
+    /// `emRec::TryStartReading` + `TryContinueReading` fused into one call
+    /// (DIVERGED — see individual concrete types for the rationale; the
+    /// scheduler is cooperative at a coarser granularity than the C++
+    /// per-element yield).
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError>;
+
+    /// Atomic write of this record's serialised body to `writer`. Mirrors
+    /// C++ `emRec::TryStartWriting` + `TryContinueWriting` fused into one
+    /// call — see `TryRead` for the DIVERGED rationale.
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError>;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::emRecReader::PeekResult;
+
+    /// Minimal `emRecReader` stub for compile-time dyn-safety checks —
+    /// `TryRead` impls in test-doubles need a concrete reader to typecheck
+    /// `&mut dyn emRecReader`, so a trait-covering stub keeps the check
+    /// honest without dragging the full mem-reader into the test.
+    struct StubReader;
+    impl emRecReader for StubReader {
+        fn TryPeekNext(&mut self) -> Result<PeekResult, RecIoError> {
+            Ok(PeekResult::End)
+        }
+        fn TryReadDelimiter(&mut self) -> Result<char, RecIoError> {
+            Err(self.ThrowSyntaxError())
+        }
+        fn TryReadCertainDelimiter(&mut self, _d: char) -> Result<(), RecIoError> {
+            Err(self.ThrowSyntaxError())
+        }
+        fn TryReadIdentifier(&mut self) -> Result<String, RecIoError> {
+            Err(self.ThrowSyntaxError())
+        }
+        fn TryReadInt(&mut self) -> Result<i32, RecIoError> {
+            Err(self.ThrowSyntaxError())
+        }
+        fn TryReadDouble(&mut self) -> Result<f64, RecIoError> {
+            Err(self.ThrowSyntaxError())
+        }
+        fn TryReadQuoted(&mut self) -> Result<String, RecIoError> {
+            Err(self.ThrowSyntaxError())
+        }
+        fn ThrowElemError(&self, text: &str) -> RecIoError {
+            RecIoError::with_location(None, None, text)
+        }
+        fn ThrowSyntaxError(&self) -> RecIoError {
+            self.ThrowElemError("syntax error")
+        }
+    }
+
     #[test]
     fn rec_node_has_parent_accessor() {
-        // A trait-object holder satisfies the trait shape.
         struct Fake;
         impl emRecNode for Fake {
             fn parent(&self) -> Option<&dyn emRecNode> {
@@ -56,11 +112,56 @@ mod tests {
             fn listened_signal(&self) -> SignalId {
                 SignalId::default()
             }
+            fn TryRead(
+                &mut self,
+                reader: &mut dyn emRecReader,
+                _ctx: &mut SchedCtx<'_>,
+            ) -> Result<(), RecIoError> {
+                Err(reader.ThrowSyntaxError())
+            }
+            fn TryWrite(&self, _writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+                Ok(())
+            }
         }
         let f = Fake;
         assert!(f.parent().is_none());
         // dyn-compat smoke test: coerce to &mut dyn emRecNode.
         let mut fake = Fake;
-        let _n: &mut dyn emRecNode = &mut fake;
+        let n: &mut dyn emRecNode = &mut fake;
+        let mut r = StubReader;
+        // TryWrite via dyn is safe (just asserts dyn-compat of the trait).
+        struct NullWriter;
+        impl emRecWriter for NullWriter {
+            fn TryWriteDelimiter(&mut self, _c: char) -> Result<(), RecIoError> {
+                Ok(())
+            }
+            fn TryWriteIdentifier(&mut self, _: &str) -> Result<(), RecIoError> {
+                Ok(())
+            }
+            fn TryWriteInt(&mut self, _: i32) -> Result<(), RecIoError> {
+                Ok(())
+            }
+            fn TryWriteDouble(&mut self, _: f64) -> Result<(), RecIoError> {
+                Ok(())
+            }
+            fn TryWriteQuoted(&mut self, _: &str) -> Result<(), RecIoError> {
+                Ok(())
+            }
+            fn TryWriteSpace(&mut self) -> Result<(), RecIoError> {
+                Ok(())
+            }
+            fn TryWriteNewLine(&mut self) -> Result<(), RecIoError> {
+                Ok(())
+            }
+            fn TryWriteIndent(&mut self) -> Result<(), RecIoError> {
+                Ok(())
+            }
+            fn IncIndent(&mut self) {}
+            fn DecIndent(&mut self) {}
+        }
+        let mut w = NullWriter;
+        n.TryWrite(&mut w).unwrap();
+        // Poke the stub reader to silence dead-code.
+        let _ = r.TryPeekNext();
     }
 }
