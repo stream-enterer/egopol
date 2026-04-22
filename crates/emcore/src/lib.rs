@@ -100,6 +100,7 @@ pub mod emStd2;
 pub mod emStringRec;
 pub mod emStroke;
 pub mod emStrokeEnd;
+pub mod emStructRec;
 pub mod emSubViewPanel;
 pub mod emTextField;
 pub mod emTexture;
