@@ -173,6 +173,23 @@ fn person_array_listener_fires_on_nested_mutation() {
         "array-level listener must fire exactly once on nested Person.name change",
     );
 
+    // Mutate `male` — proves the third primitive type (emBoolRec) is
+    // reachable through the same chain. Exercises all three C++ Person
+    // field types (emStringRec, emIntRec, emBoolRec) rather than only two.
+    let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+    persons
+        .GetMut(0)
+        .expect("slot 0 exists")
+        .male
+        .SetValue(true, &mut sc);
+    let _ = sc;
+    run_slice(&mut sched);
+    assert_eq!(
+        hits.get(),
+        2,
+        "array-level listener must fire again on nested Person.male change",
+    );
+
     // Teardown — collect every signal created by this test (array agg,
     // per-Person inner agg, per-leaf value signals) and remove each.
     let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
