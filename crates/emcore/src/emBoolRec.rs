@@ -15,6 +15,8 @@ pub struct emBoolRec {
     value: bool,
     default: bool,
     signal: SignalId,
+    /// Reified aggregate-signal chain; see ADR 2026-04-21-phase-4b-listener-tree-adr.md.
+    aggregate_signals: Vec<SignalId>,
     // TODO(phase-4b+): SetToDefault, IsSetToDefault, TryStartReading, serialization hooks per emRec.h.
 }
 
@@ -25,6 +27,7 @@ impl emBoolRec {
             value: default,
             default,
             signal: ctx.create_signal(),
+            aggregate_signals: Vec::new(),
         }
     }
 }
@@ -32,6 +35,10 @@ impl emBoolRec {
 impl emRecNode for emBoolRec {
     fn parent(&self) -> Option<&dyn emRecNode> {
         None
+    }
+
+    fn register_aggregate(&mut self, sig: SignalId) {
+        self.aggregate_signals.push(sig);
     }
 }
 
@@ -45,6 +52,12 @@ impl emRec<bool> for emBoolRec {
         if value != self.value {
             self.value = value;
             ctx.fire(self.signal);
+            // DIVERGED: C++ emRec::Changed() (emRec.cpp:245) walks UpperNode
+            // per-fire; Rust fires the reified aggregate chain. See ADR
+            // 2026-04-21-phase-4b-listener-tree-adr.md.
+            for sig in &self.aggregate_signals {
+                ctx.fire(*sig);
+            }
         }
     }
 
@@ -107,6 +120,52 @@ mod tests {
 
         // Clean up: remove pending signal so EngineScheduler doesn't panic on drop.
         sc.remove_signal(sig);
+    }
+
+    #[test]
+    fn aggregate_signal_fires_on_change() {
+        let mut sched = EngineScheduler::new();
+        let mut actions: Vec<DeferredAction> = Vec::new();
+        let ctx_root = crate::emContext::emContext::NewRoot();
+        let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+        let mut rec = emBoolRec::new(&mut sc, false);
+        let sig = rec.GetValueSignal();
+        let agg = sc.create_signal();
+        rec.register_aggregate(agg);
+
+        rec.SetValue(true, &mut sc);
+
+        assert!(sc.is_signaled(sig), "own value signal must fire");
+        assert!(sc.is_signaled(agg), "aggregate signal must fire");
+
+        sc.remove_signal(sig);
+        sc.remove_signal(agg);
+    }
+
+    #[test]
+    fn aggregate_signal_does_not_fire_on_no_op() {
+        let mut sched = EngineScheduler::new();
+        let mut actions: Vec<DeferredAction> = Vec::new();
+        let ctx_root = crate::emContext::emContext::NewRoot();
+        let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+        let mut rec = emBoolRec::new(&mut sc, true);
+        let sig = rec.GetValueSignal();
+        let agg = sc.create_signal();
+        rec.register_aggregate(agg);
+
+        rec.SetValue(true, &mut sc);
+
+        assert!(!sc.is_signaled(sig));
+        assert!(
+            !sc.is_signaled(agg),
+            "aggregate must NOT fire on no-op SetValue"
+        );
     }
 
     #[test]

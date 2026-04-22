@@ -8,12 +8,25 @@
 //!
 //! The `emUncopyable` supertrait is elided: Rust types are move-only by default.
 
+use crate::emSignal::SignalId;
+
 pub trait emRecNode {
     /// DIVERGED: C++ `emRecNode::UpperNode` is a private field accessed via
     /// friend `emRec`. Rust traits cannot express friend scope, so we expose
     /// a trait accessor instead. C++ has no public `GetParent` on `emRecNode`
     /// (only on the derived `emRec`, emRec.h:140).
     fn parent(&self) -> Option<&dyn emRecNode>;
+
+    /// DIVERGED: C++ `emRec::Changed()` (emRec.h:243-246) walks the parent
+    /// chain per-fire via `UpperNode->ChildChanged()`. Rust reifies that chain
+    /// as a `Vec<SignalId>` per primitive (see ADR
+    /// 2026-04-21-phase-4b-listener-tree-adr.md — R5 reified signal chain).
+    /// Compounds will call `register_aggregate` at `add_field`/`SetVariant`/
+    /// `SetCount` time to splice their aggregate signal into every descendant
+    /// leaf. Lives on `emRecNode` (not `emRec<T>`) so compounds can forward
+    /// through `&mut dyn emRecNode` without the value-type parameter bleeding
+    /// into object-safety.
+    fn register_aggregate(&mut self, sig: SignalId);
     // TODO(phase-4b): IsListener, ChildChanged, tree-walk helpers.
 }
 
@@ -28,8 +41,12 @@ mod tests {
             fn parent(&self) -> Option<&dyn emRecNode> {
                 None
             }
+            fn register_aggregate(&mut self, _sig: SignalId) {}
         }
         let f = Fake;
         assert!(f.parent().is_none());
+        // dyn-compat smoke test: coerce to &mut dyn emRecNode.
+        let mut fake = Fake;
+        let _n: &mut dyn emRecNode = &mut fake;
     }
 }
