@@ -266,15 +266,18 @@ fn license_vcitem_loads_from_cpp_fixture() {
     }
 }
 
-/// Phase 4d Task 5 (secondary): field-value round-trip through the writer.
-/// After loading from the fixture, re-serialize via emRecMemWriter, parse
-/// the resulting bytes back into a fresh `VcItem`, and assert every field
-/// matches. Byte-level equality with the C++ fixture is NOT asserted —
-/// C++ uses `.10434` (no leading zero in emDoubleRec::TryWrite output) and
-/// integer-triplet color emission `{153 153 136}` where the source file
-/// used short-hex `"#998"`. Those format-level re-serialization differences
-/// are a known follow-up (TODO(phase-4d-followup): byte-stable emit that
-/// preserves the input's numeric and color spelling).
+/// After loading the fixture, re-serialize via `emRecMemWriter` and assert
+/// the emitted bytes match the expected normalized form.
+///
+/// Both C++ (`%.9G` / `TryStartWriting` integers) and Rust (`format_g_9` /
+/// `TryWrite` integers) normalize identically:
+/// - doubles: leading zero preserved (`0.10434`; glibc `%.9G` behaviour)
+/// - colors: integer-triplet form `{153 153 136}`, not the short-hex `"#998"`
+///   used in the hand-authored fixture
+///
+/// The fixture's original spellings are valid emRec input but are not
+/// preserved on re-write by either C++ or Rust (verified 2026-04-22 against
+/// C++ `emRec.cpp:2595-2603` and `emColorRec::TryStartWriting:1238-1251`).
 #[test]
 fn license_vcitem_round_trips_field_values_through_writer() {
     let path = "tests/data/License.emVcItem";
@@ -304,6 +307,12 @@ fn license_vcitem_round_trips_field_values_through_writer() {
     let mut w = emRecMemWriter::new();
     item.TryWrite(&mut w).unwrap();
     let out_bytes = w.into_bytes();
+
+    assert_eq!(
+        out_bytes.as_slice(),
+        b"{\n\tTitle = \"License\"\n\tPosX = 0.10434\n\tPosY = 0.1\n\tWidth = 0.01\n\tContentTallness = 0.5\n\tBackgroundColor = {153 153 136}\n\tBorderColor = {102 102 102}\n\tTitleColor = {238 238 255}\n\tFileName = \"License.emFileLink\"\n\tCopyToUser = no\n}",
+        "re-emitted bytes must match C++-normalized form"
+    );
 
     // Parse back into a fresh VcItem.
     let mut item2 = VcItem::new(&mut sc);

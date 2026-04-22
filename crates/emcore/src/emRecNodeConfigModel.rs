@@ -215,12 +215,13 @@ impl<T: emRecNode> emRecNodeConfigModel<T> {
         }
     }
 
-    /// Disconnect the listener engine and remove it from the scheduler.
-    /// Must be called before drop to avoid leaking the engine. Mirrors C++
-    /// `~emConfigModel` / `~emRecListener` teardown.
+    /// DIVERGED: no C++ counterpart. C++ `emConfigModel` destroys the
+    /// `RecLink` (its embedded listener) in `~emConfigModel`; in Rust the
+    /// lifetime of `emRecListener` is managed explicitly. Call before drop
+    /// to remove the listener engine from the scheduler.
     ///
     /// Non-consuming: record fields remain accessible after `detach` for
-    /// signal teardown (abort + remove_signal on each field's SignalId).
+    /// signal teardown (abort + remove_signal on each record field's SignalId).
     pub fn detach(&mut self, ctx: &mut SchedCtx<'_>) {
         self.listener.detach_mut(ctx);
     }
