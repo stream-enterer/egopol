@@ -8,10 +8,14 @@
 //! emFlagsRec, emAlignmentRec does NOT mask undefined bits in Set; the raw
 //! `emAlignment` byte is stored verbatim.
 
-use crate::emAlignment::emAlignment;
+use crate::emAlignment::{
+    emAlignment, EM_ALIGN_BOTTOM, EM_ALIGN_CENTER, EM_ALIGN_LEFT, EM_ALIGN_RIGHT, EM_ALIGN_TOP,
+};
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRec::emRec;
 use crate::emRecNode::emRecNode;
+use crate::emRecReader::{emRecReader, PeekResult, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 pub struct emAlignmentRec {
@@ -32,6 +36,77 @@ impl emAlignmentRec {
             signal: ctx.create_signal(),
             aggregate_signals: Vec::new(),
         }
+    }
+
+    /// Port of C++ `emAlignmentRec::TryStartWriting` (emRec.cpp:1001-1026).
+    ///
+    // DIVERGED: atomic fusion; see `emBoolRec::TryWrite` for rationale.
+    // Format: one or more of {top, bottom, left, right} joined by `-`, or the
+    // single identifier `center` when no bits are set.
+    pub fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        let mut some_written = false;
+        if self.value & EM_ALIGN_TOP != 0 {
+            writer.TryWriteIdentifier("top")?;
+            some_written = true;
+        }
+        if self.value & EM_ALIGN_BOTTOM != 0 {
+            if some_written {
+                writer.TryWriteDelimiter('-')?;
+            }
+            writer.TryWriteIdentifier("bottom")?;
+            some_written = true;
+        }
+        if self.value & EM_ALIGN_LEFT != 0 {
+            if some_written {
+                writer.TryWriteDelimiter('-')?;
+            }
+            writer.TryWriteIdentifier("left")?;
+            some_written = true;
+        }
+        if self.value & EM_ALIGN_RIGHT != 0 {
+            if some_written {
+                writer.TryWriteDelimiter('-')?;
+            }
+            writer.TryWriteIdentifier("right")?;
+            some_written = true;
+        }
+        if !some_written {
+            writer.TryWriteIdentifier("center")?;
+        }
+        Ok(())
+    }
+
+    /// Port of C++ `emAlignmentRec::TryStartReading` (emRec.cpp:967-987).
+    pub fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        let mut val: emAlignment = 0;
+        loop {
+            let idf = reader.TryReadIdentifier()?;
+            if idf.eq_ignore_ascii_case("top") {
+                val |= EM_ALIGN_TOP;
+            } else if idf.eq_ignore_ascii_case("bottom") {
+                val |= EM_ALIGN_BOTTOM;
+            } else if idf.eq_ignore_ascii_case("left") {
+                val |= EM_ALIGN_LEFT;
+            } else if idf.eq_ignore_ascii_case("right") {
+                val |= EM_ALIGN_RIGHT;
+            } else if idf.eq_ignore_ascii_case("center") {
+                val |= EM_ALIGN_CENTER;
+            } else {
+                return Err(reader.ThrowElemError("Unknown alignment identifier."));
+            }
+            match reader.TryPeekNext()? {
+                PeekResult::Delimiter('-') => {
+                    reader.TryReadCertainDelimiter('-')?;
+                }
+                _ => break,
+            }
+        }
+        self.SetValue(val, ctx);
+        Ok(())
     }
 }
 

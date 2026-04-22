@@ -24,14 +24,17 @@
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRec::emRec;
 use crate::emRecNode::emRecNode;
+use crate::emRecReader::{emRecReader, ElementType, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 pub struct emEnumRec {
     value: u32,
     default: u32,
-    // Stored for future GetIdentifier/GetIdentifierOf/GetValueOf accessors
-    // (phase-4b+). Unused by current API paths — prefix suppresses dead-code lint.
-    _identifiers: Vec<String>,
+    /// Identifier table — C++ `Identifiers` (emRec.h:583, emRec.cpp:741-743).
+    /// Consumed by `TryRead` / `TryWrite` (Phase 4d Task 3) and by future
+    /// GetIdentifier* accessors.
+    identifiers: Vec<String>,
     /// Cached `identifiers.len() - 1` for O(1) GetMaxValue; set at construction.
     max_index: u32,
     signal: SignalId,
@@ -54,11 +57,53 @@ impl emEnumRec {
         Self {
             value: default,
             default,
-            _identifiers: identifiers,
+            identifiers,
             max_index,
             signal: ctx.create_signal(),
             aggregate_signals: Vec::new(),
         }
+    }
+
+    /// Port of C++ `emEnumRec::GetValueOf` (emRec.cpp:650-658): case-insensitive
+    /// backwards scan. Returns `-1` when not found, matching C++.
+    fn GetValueOf(&self, identifier: &str) -> i32 {
+        for val in (0..self.identifiers.len()).rev() {
+            if self.identifiers[val].eq_ignore_ascii_case(identifier) {
+                return val as i32;
+            }
+        }
+        -1
+    }
+
+    /// Port of C++ `emEnumRec::TryStartWriting` (emRec.cpp:704-707).
+    ///
+    // DIVERGED: atomic fusion; see `emBoolRec::TryWrite` for rationale.
+    pub fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        writer.TryWriteIdentifier(&self.identifiers[self.value as usize])
+    }
+
+    /// Port of C++ `emEnumRec::TryStartReading` (emRec.cpp:673-690).
+    pub fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        let val = if reader.TryPeekNext()?.element_type() == ElementType::Int {
+            let v = reader.TryReadInt()?;
+            if v < 0 || v as usize >= self.identifiers.len() {
+                return Err(reader.ThrowElemError("Value out of range."));
+            }
+            v as u32
+        } else {
+            let idf = reader.TryReadIdentifier()?;
+            let v = self.GetValueOf(&idf);
+            if v < 0 {
+                return Err(reader.ThrowElemError("Unknown identifier."));
+            }
+            v as u32
+        };
+        self.SetValue(val, ctx);
+        Ok(())
     }
 }
 

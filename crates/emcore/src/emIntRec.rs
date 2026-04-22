@@ -20,6 +20,8 @@
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRec::emRec;
 use crate::emRecNode::emRecNode;
+use crate::emRecReader::{emRecReader, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 pub struct emIntRec {
@@ -47,6 +49,43 @@ impl emIntRec {
             signal: ctx.create_signal(),
             aggregate_signals: Vec::new(),
         }
+    }
+
+    /// Port of C++ `emIntRec::TryStartWriting` (emRec.cpp:469-472).
+    ///
+    // DIVERGED: C++ splits persistence into the protected virtual pair
+    // `TryStartWriting` + `TryContinueWriting`. Rust collapses into one
+    // atomic call — same rationale as `emBoolRec::TryWrite`.
+    // DIVERGED: Rust stores `i64` while C++ stores `int` (32-bit) and the
+    // emRecWriter primitive writes `i32`. Values outside `i32` are clamped
+    // to `i32::MIN..=i32::MAX` on write. In the current tree no emIntRec is
+    // constructed with bounds outside the i32 range, so this clamp is
+    // observable only for pathological callers.
+    pub fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        let v = self.value.clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+        writer.TryWriteInt(v)
+    }
+
+    /// Port of C++ `emIntRec::TryStartReading` (emRec.cpp:447-455).
+    ///
+    // DIVERGED: name + fusion with TryContinueReading; see `TryWrite` above
+    // for rationale. C++ bounds-checks the read value against `[MinValue,
+    // MaxValue]` and calls `ThrowElemError("Number too small.")` /
+    // `"Number too large."`; Rust mirrors those two error paths.
+    pub fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        let i = reader.TryReadInt()? as i64;
+        if i < self.min {
+            return Err(reader.ThrowElemError("Number too small."));
+        }
+        if i > self.max {
+            return Err(reader.ThrowElemError("Number too large."));
+        }
+        self.SetValue(i, ctx);
+        Ok(())
     }
 }
 
