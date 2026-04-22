@@ -52,7 +52,7 @@ Rust equivalents found:
     - emScreen.rs:165: Rc<RefCell<emScreen>> for LookupInherited return
     - emScreen.rs:188: Rc<RefCell<emScreen>> for Install parameter
     - emFpPlugin.rs:445: Rc<RefCell<Self>> for Acquire return
-    - emCoreConfig.rs:215: Rc<RefCell<emConfigModel<Self>>> for Acquire return
+    - emCoreConfig.rs:215: Rc<RefCell<emRecNodeConfigModel<Self>>> for Acquire return
     - emContext.rs:40: Weak<emContext> for parent reference (Weak = non-owning Rc)
     - emFontCache.rs:30: DIVERGED comment: "Rust uses a global OnceLock instead of emModel/emRef"
   - emRef::Set/Reset/Get/operator-> -> Rc::clone, Option methods, direct deref via Deref trait
@@ -105,10 +105,19 @@ C++ provides:
     and Free on destruction/rebind.
 
 Rust equivalent (verified):
-  emRef<T>       -> Rc<T> or Rc<RefCell<T>>
+  emRef<T>       -> Rc<T> by default (shared-read post-init).
+
+  Chartered exceptions requiring Rc<RefCell<T>>, per
+  docs/superpowers/specs/2026-04-19-port-ownership-rewrite-design.md §3.6:
+    (a) cross-closure reference held by winit/wgpu callbacks
+    (b) context-registry typed singleton (emContext children/models,
+        emRecNodeConfigModel instances via emContext::acquire)
+    (c) shared mutable widget state across siblings (radio groups)
+
+  Concrete instances:
     emScreen.rs:165       — Rc<RefCell<emScreen>>
     emFpPlugin.rs:445     — Rc<RefCell<Self>>
-    emCoreConfig.rs:215   — Rc<RefCell<emConfigModel<Self>>>
+    emCoreConfig.rs       — Rc<RefCell<emRecNodeConfigModel<Self>>>
     emContext.rs:40        — Weak<emContext> (non-owning ref)
   emRefTarget    -> no explicit base class. Rc handles refcounting
     internally.
