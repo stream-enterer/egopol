@@ -108,6 +108,7 @@ pub mod emTiling;
 pub mod emTimer;
 pub mod emTmpFile;
 pub mod emTunnel;
+pub mod emUnionRec;
 pub mod emVarModel;
 pub mod emVarSigModel;
 pub mod emView;
