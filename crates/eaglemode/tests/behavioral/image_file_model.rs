@@ -227,7 +227,7 @@ fn make_test_tga() -> Vec<u8> {
     data[14] = 1; // height low byte
     data[15] = 0; // height high byte
     data[16] = 32; // bits per pixel
-    // RLE packet: 1 pixel (header 0x80 = RLE, count=1)
+                   // RLE packet: 1 pixel (header 0x80 = RLE, count=1)
     data.push(0x80);
     // BGRA pixel
     data.extend_from_slice(&[0x10, 0x20, 0x30, 0xFF]);

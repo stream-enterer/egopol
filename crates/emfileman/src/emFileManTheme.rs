@@ -734,7 +734,7 @@ impl ImageFileRec {
             let image = if self.path.is_empty() {
                 None
             } else {
-                std::fs::read(&self.theme_dir.join(&self.path))
+                std::fs::read(self.theme_dir.join(&self.path))
                     .ok()
                     .and_then(|d| emcore::emResTga::load_tga(&d).ok())
             };

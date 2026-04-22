@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 
-use crate::emEngine::{Priority, emEngine};
+use crate::emEngine::{emEngine, Priority};
 use crate::emEngineCtx::{ConstructCtx, EngineCtx};
 use crate::emFileModel::{emFileModel, FileState};
 use crate::emImage::emImage;
