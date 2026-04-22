@@ -35,7 +35,7 @@ fn scan(tag: &str, valid_categories: &[&str]) -> Vec<String> {
         .into_iter()
         .filter_entry(|e| !e.path().starts_with("crates/xtask"))
         .filter_map(Result::ok)
-        .filter(|e| e.path().extension().map_or(false, |x| x == "rs"));
+        .filter(|e| e.path().extension().is_some_and(|x| x == "rs"));
     for entry in walker {
         let text = std::fs::read_to_string(entry.path()).unwrap_or_default();
         let lines: Vec<_> = text.lines().collect();
