@@ -33,6 +33,7 @@ fn scan(tag: &str, valid_categories: &[&str]) -> Vec<String> {
     let mut failures = Vec::new();
     let walker = walkdir::WalkDir::new("crates")
         .into_iter()
+        .filter_entry(|e| !e.path().starts_with("crates/xtask"))
         .filter_map(Result::ok)
         .filter(|e| e.path().extension().map_or(false, |x| x == "rs"));
     for entry in walker {
