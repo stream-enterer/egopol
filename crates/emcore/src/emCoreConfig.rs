@@ -375,4 +375,28 @@ mod tests {
         assert_eq!(config.inner.GetIdentifierOf(0), Some("StickMouseWhenNavigating"));
         assert_eq!(config.inner.GetIdentifierOf(17), Some("UpscaleQuality"));
     }
+
+    #[test]
+    fn visit_speed_set_fires_signal() {
+        let mut sched = EngineScheduler::new();
+        let mut actions: Vec<DeferredAction> = Vec::new();
+        let ctx_root = emContext::NewRoot();
+        let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+        let mut config = emCoreConfig::new(&mut sc);
+        let sig = config.VisitSpeed.GetValueSignal();
+        let agg = config.inner.GetAggregateSignal();
+
+        assert!(!sc.is_signaled(sig));
+        config.VisitSpeed.SetValue(0.5, &mut sc);
+        assert!(sc.is_signaled(sig), "VisitSpeed::SetValue must fire the field signal");
+        assert_eq!(*config.VisitSpeed.GetValue(), 0.5);
+
+        // Clean up: abort pending then remove all config signals.
+        sc.scheduler.abort_all_pending();
+        sc.remove_signal(sig);
+        sc.remove_signal(agg);
+    }
 }
