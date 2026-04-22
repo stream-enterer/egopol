@@ -53,6 +53,37 @@ impl emRecFileReader {
     pub fn GetSourceName(&self) -> &str {
         &self.source_name
     }
+
+    /// Open + validate the `#%rec:<expected_format>%` magic header.
+    ///
+    /// Mirrors the header-consumption branch of C++
+    /// `emRecReader::TryStartReading` (emRec.cpp:2004-2042). See
+    /// [`crate::emRecMemReader::with_format_header`] for the exact shape of
+    /// the magic (the trailing `#` that conventionally appears after `%` is
+    /// part of the lexer's comment handling, not the magic proper).
+    pub fn open_with_format(
+        path: impl AsRef<Path>,
+        expected_format: &str,
+    ) -> Result<Self, RecIoError> {
+        let path = path.as_ref();
+        let path_string = path.display().to_string();
+        let bytes = std::fs::read(path).map_err(|e| {
+            RecIoError::with_location(
+                Some(path_string.clone()),
+                None,
+                format!("failed to read file: {}", e),
+            )
+        })?;
+        let mem = emRecMemReader::with_format_header_vec(
+            bytes,
+            expected_format,
+            Some(path_string.clone()),
+        )?;
+        Ok(Self {
+            mem,
+            source_name: path_string,
+        })
+    }
 }
 
 impl emRecReader for emRecFileReader {

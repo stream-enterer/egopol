@@ -460,6 +460,50 @@ impl emRecMemReader {
             lexer: Lexer::new(bytes),
         }
     }
+
+    /// Construct + validate the `#%rec:<expected_format>%` magic header.
+    ///
+    /// Mirrors the header-consumption branch of C++
+    /// `emRecReader::TryStartReading` (emRec.cpp:2004-2042): when
+    /// `root->GetFormatName()` is non-null, the reader reads exactly
+    /// `#%rec:FormatName%` from the front of the stream and errors if the
+    /// bytes mismatch. The trailing `#` that conventionally appears in Eagle
+    /// Mode files (e.g. `#%rec:emVirtualCosmosItem%#`) is NOT part of the
+    /// magic; it lands on the next `TryNextChar` call and is absorbed by the
+    /// lexer's `#`-to-end-of-line comment path (emRec.cpp:2266-2273).
+    pub fn with_format_header(bytes: &[u8], expected_format: &str) -> Result<Self, RecIoError> {
+        Self::with_format_header_vec(bytes.to_vec(), expected_format, None)
+    }
+
+    /// Like [`with_format_header`] but consumes an owned buffer. `source_name`
+    /// is carried into the mismatch error for parity with
+    /// [`crate::emRecFileReader::open_with_format`].
+    pub(crate) fn with_format_header_vec(
+        bytes: Vec<u8>,
+        expected_format: &str,
+        source_name: Option<String>,
+    ) -> Result<Self, RecIoError> {
+        let magic = {
+            let mut m = Vec::with_capacity(7 + expected_format.len());
+            m.extend_from_slice(b"#%rec:");
+            m.extend_from_slice(expected_format.as_bytes());
+            m.push(b'%');
+            m
+        };
+        if bytes.len() < magic.len() || bytes[..magic.len()] != magic[..] {
+            return Err(RecIoError::with_location(
+                source_name,
+                Some(1),
+                format!("File format is not \"rec:{}\".", expected_format),
+            ));
+        }
+        // Skip the magic prefix; the lexer will handle the rest (including
+        // any trailing `#...\n` comment).
+        let rest = bytes[magic.len()..].to_vec();
+        Ok(Self {
+            lexer: Lexer::new(rest),
+        })
+    }
 }
 
 impl emRecReader for emRecMemReader {
@@ -623,6 +667,33 @@ mod tests {
 
         let mut r = emRecMemReader::new(b"=");
         assert!(r.TryReadCertainDelimiter(';').is_err());
+    }
+
+    #[test]
+    fn format_header_consumes_magic_and_trailing_comment() {
+        // Exact Eagle Mode shape: `#%rec:Foo%#<newline><body>`.
+        let mut r = emRecMemReader::with_format_header(b"#%rec:Foo%#\nhello 42", "Foo").unwrap();
+        assert_eq!(r.TryReadIdentifier().unwrap(), "hello");
+        assert_eq!(r.TryReadInt().unwrap(), 42);
+    }
+
+    #[test]
+    fn format_header_rejects_mismatch() {
+        let err = match emRecMemReader::with_format_header(b"#%rec:Bar%#\nfoo", "Foo") {
+            Ok(_) => panic!("expected mismatch error"),
+            Err(e) => e,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("rec:Foo"), "{msg}");
+    }
+
+    #[test]
+    fn format_header_rejects_missing() {
+        let err = match emRecMemReader::with_format_header(b"foo = 1", "Foo") {
+            Ok(_) => panic!("expected missing-header error"),
+            Err(e) => e,
+        };
+        assert!(err.to_string().contains("rec:Foo"));
     }
 
     #[test]
