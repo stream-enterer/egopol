@@ -70,6 +70,10 @@ impl emRecNode for emEnumRec {
     fn register_aggregate(&mut self, sig: SignalId) {
         self.aggregate_signals.push(sig);
     }
+
+    fn listened_signal(&self) -> SignalId {
+        self.signal
+    }
 }
 
 impl emRec<u32> for emEnumRec {

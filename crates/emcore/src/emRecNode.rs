@@ -27,6 +27,17 @@ pub trait emRecNode {
     /// through `&mut dyn emRecNode` without the value-type parameter bleeding
     /// into object-safety.
     fn register_aggregate(&mut self, sig: SignalId);
+
+    /// DIVERGED: C++ has no single accessor — `emRecListener::SetListenedRec`
+    /// (emRec.cpp:242-268) splices itself into `UpperNode` directly, observing
+    /// every `ChildChanged()` walk without identifying a specific signal.
+    /// Rust reifies the observed channel as a single `SignalId`: for a
+    /// primitive this is its value signal; for a compound (Phase 4c Tasks 3-5)
+    /// this will be its aggregate signal. `emRecListener` connects its engine
+    /// to this signal via the scheduler. Trait-level method so
+    /// `emRecListener::SetListenedRec(Option<&dyn emRecNode>)` stays
+    /// non-generic over the primitive's value type `T`.
+    fn listened_signal(&self) -> SignalId;
     // TODO(phase-4b): IsListener, ChildChanged, tree-walk helpers.
 }
 
@@ -42,6 +53,9 @@ mod tests {
                 None
             }
             fn register_aggregate(&mut self, _sig: SignalId) {}
+            fn listened_signal(&self) -> SignalId {
+                SignalId::default()
+            }
         }
         let f = Fake;
         assert!(f.parent().is_none());

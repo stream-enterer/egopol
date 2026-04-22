@@ -42,6 +42,10 @@ impl emRecNode for emStringRec {
     fn register_aggregate(&mut self, sig: SignalId) {
         self.aggregate_signals.push(sig);
     }
+
+    fn listened_signal(&self) -> SignalId {
+        self.signal
+    }
 }
 
 impl emRec<String> for emStringRec {

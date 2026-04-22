@@ -58,6 +58,10 @@ impl emRecNode for emIntRec {
     fn register_aggregate(&mut self, sig: SignalId) {
         self.aggregate_signals.push(sig);
     }
+
+    fn listened_signal(&self) -> SignalId {
+        self.signal
+    }
 }
 
 impl emRec<i64> for emIntRec {

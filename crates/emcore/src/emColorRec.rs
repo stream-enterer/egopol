@@ -51,6 +51,10 @@ impl emRecNode for emColorRec {
     fn register_aggregate(&mut self, sig: SignalId) {
         self.aggregate_signals.push(sig);
     }
+
+    fn listened_signal(&self) -> SignalId {
+        self.signal
+    }
 }
 
 impl emRec<emColor> for emColorRec {
