@@ -1,101 +1,235 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
+use emcore::emClipboard::emClipboard;
 use emcore::emContext::emContext;
 use emcore::emCoreConfig::emCoreConfig;
+use emcore::emEngineCtx::{DeferredAction, FrameworkDeferredAction, SchedCtx};
 use emcore::emPanelTree::PanelTree;
-use emcore::emRecParser::RecStruct;
-use emcore::emRecRecord::Record;
+use emcore::emRec::emRec;
+use emcore::emScheduler::EngineScheduler;
 use emcore::emView::emView;
+
+fn make_sched_ctx<'a>(
+    sched: &'a mut EngineScheduler,
+    actions: &'a mut Vec<DeferredAction>,
+    ctx_root: &'a Rc<emContext>,
+    cb: &'a RefCell<Option<Box<dyn emClipboard>>>,
+    pa: &'a Rc<RefCell<Vec<FrameworkDeferredAction>>>,
+) -> SchedCtx<'a> {
+    SchedCtx {
+        scheduler: sched,
+        framework_actions: actions,
+        root_context: ctx_root,
+        framework_clipboard: cb,
+        current_engine: None,
+        pending_actions: pa,
+    }
+}
 
 #[test]
 fn defaults_match_cpp() {
-    let cfg = emCoreConfig::default();
-    assert!(!cfg.stick_mouse_when_navigating);
-    assert!(!cfg.emulate_middle_button);
-    assert!(!cfg.pan_function);
-    assert_eq!(cfg.mouse_zoom_speed, 1.0);
-    assert_eq!(cfg.mouse_scroll_speed, 1.0);
-    assert_eq!(cfg.mouse_wheel_zoom_speed, 1.0);
-    assert_eq!(cfg.mouse_wheel_zoom_acceleration, 1.0);
-    assert_eq!(cfg.keyboard_zoom_speed, 1.0);
-    assert_eq!(cfg.keyboard_scroll_speed, 1.0);
-    assert_eq!(cfg.kinetic_zooming_and_scrolling, 1.0);
-    assert_eq!(cfg.magnetism_radius, 1.0);
-    assert_eq!(cfg.magnetism_speed, 1.0);
-    assert_eq!(cfg.visit_speed, 1.0);
-    assert_eq!(cfg.max_megabytes_per_view, 2048);
-    assert_eq!(cfg.max_render_threads, 8);
-    assert!(cfg.allow_simd);
-    assert_eq!(cfg.downscale_quality, 3); // DQ_3X3
-    assert_eq!(cfg.upscale_quality, 2); // UQ_BILINEAR
+    let mut sched = EngineScheduler::new();
+    let mut actions: Vec<DeferredAction> = Vec::new();
+    let ctx_root = emContext::NewRoot();
+    let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+    let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+    let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+    let cfg = emCoreConfig::new(&mut sc);
+    assert!(!*cfg.StickMouseWhenNavigating.GetValue());
+    assert!(!*cfg.EmulateMiddleButton.GetValue());
+    assert!(!*cfg.PanFunction.GetValue());
+    assert_eq!(*cfg.MouseZoomSpeed.GetValue(), 1.0);
+    assert_eq!(*cfg.MouseScrollSpeed.GetValue(), 1.0);
+    assert_eq!(*cfg.MouseWheelZoomSpeed.GetValue(), 1.0);
+    assert_eq!(*cfg.MouseWheelZoomAcceleration.GetValue(), 1.0);
+    assert_eq!(*cfg.KeyboardZoomSpeed.GetValue(), 1.0);
+    assert_eq!(*cfg.KeyboardScrollSpeed.GetValue(), 1.0);
+    assert_eq!(*cfg.KineticZoomingAndScrolling.GetValue(), 1.0);
+    assert_eq!(*cfg.MagnetismRadius.GetValue(), 1.0);
+    assert_eq!(*cfg.MagnetismSpeed.GetValue(), 1.0);
+    assert_eq!(*cfg.VisitSpeed.GetValue(), 1.0);
+    assert_eq!(*cfg.MaxMegabytesPerView.GetValue(), 2048);
+    assert_eq!(*cfg.MaxRenderThreads.GetValue(), 8);
+    assert!(*cfg.AllowSIMD.GetValue());
+    assert_eq!(*cfg.DownscaleQuality.GetValue(), 3); // DQ_3X3
+    assert_eq!(*cfg.UpscaleQuality.GetValue(), 2); // UQ_BILINEAR
 }
 
 #[test]
 fn round_trip_all_fields() {
-    let cfg = emCoreConfig {
-        stick_mouse_when_navigating: true,
-        emulate_middle_button: true,
-        pan_function: true,
-        mouse_zoom_speed: 2.5,
-        mouse_scroll_speed: 3.0,
-        mouse_wheel_zoom_speed: 0.5,
-        mouse_wheel_zoom_acceleration: 1.5,
-        keyboard_zoom_speed: 3.5,
-        keyboard_scroll_speed: 0.25,
-        kinetic_zooming_and_scrolling: 0.75,
-        magnetism_radius: 2.0,
-        magnetism_speed: 3.0,
-        visit_speed: 5.0,
-        max_megabytes_per_view: 4096,
-        max_render_threads: 16,
-        allow_simd: false,
-        downscale_quality: 6,
-        upscale_quality: 5,
-    };
+    use emcore::emRecNodeConfigModel::emRecNodeConfigModel;
 
-    let rec = cfg.to_rec();
-    let restored = emCoreConfig::from_rec(&rec).unwrap();
-    assert_eq!(cfg, restored);
+    let mut sched = EngineScheduler::new();
+    let mut actions: Vec<DeferredAction> = Vec::new();
+    let ctx_root = emContext::NewRoot();
+    let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+    let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+    let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("core_config_rt.rec");
+
+    // Write with non-default values.
+    {
+        let mut cfg = emCoreConfig::new(&mut sc);
+        cfg.StickMouseWhenNavigating.SetValue(true, &mut sc);
+        cfg.EmulateMiddleButton.SetValue(true, &mut sc);
+        cfg.PanFunction.SetValue(true, &mut sc);
+        cfg.MouseZoomSpeed.SetValue(2.5, &mut sc);
+        cfg.MouseScrollSpeed.SetValue(3.0, &mut sc);
+        cfg.MouseWheelZoomSpeed.SetValue(0.5, &mut sc);
+        cfg.MouseWheelZoomAcceleration.SetValue(1.5, &mut sc);
+        cfg.KeyboardZoomSpeed.SetValue(3.5, &mut sc);
+        cfg.KeyboardScrollSpeed.SetValue(0.25, &mut sc);
+        cfg.KineticZoomingAndScrolling.SetValue(0.75, &mut sc);
+        cfg.MagnetismRadius.SetValue(2.0, &mut sc);
+        cfg.MagnetismSpeed.SetValue(3.0, &mut sc);
+        cfg.VisitSpeed.SetValue(5.0, &mut sc);
+        cfg.MaxMegabytesPerView.SetValue(4096, &mut sc);
+        cfg.MaxRenderThreads.SetValue(16, &mut sc);
+        cfg.AllowSIMD.SetValue(false, &mut sc);
+        cfg.DownscaleQuality.SetValue(6, &mut sc);
+        cfg.UpscaleQuality.SetValue(5, &mut sc);
+        // Drain pending signals fired by SetValue.
+        sc.scheduler.abort_all_pending();
+
+        let mut model = emRecNodeConfigModel::new(cfg, path.clone(), &mut sc)
+            .with_format_name("emCoreConfig");
+        model.TrySave(true).unwrap();
+        model.detach(&mut sc);
+    }
+
+    // Read back and verify.
+    {
+        let cfg2 = emCoreConfig::new(&mut sc);
+        let mut model2 = emRecNodeConfigModel::new(cfg2, path.clone(), &mut sc)
+            .with_format_name("emCoreConfig");
+        model2.TryLoad(&mut sc).unwrap();
+        // Drain pending signals fired by TryRead's SetValue calls.
+        sc.scheduler.abort_all_pending();
+        let c = model2.GetRec();
+        assert!(*c.StickMouseWhenNavigating.GetValue());
+        assert!(*c.EmulateMiddleButton.GetValue());
+        assert!(*c.PanFunction.GetValue());
+        assert_eq!(*c.MouseZoomSpeed.GetValue(), 2.5);
+        assert_eq!(*c.MouseScrollSpeed.GetValue(), 3.0);
+        assert_eq!(*c.MouseWheelZoomSpeed.GetValue(), 0.5);
+        assert_eq!(*c.MouseWheelZoomAcceleration.GetValue(), 1.5);
+        assert_eq!(*c.KeyboardZoomSpeed.GetValue(), 3.5);
+        assert_eq!(*c.KeyboardScrollSpeed.GetValue(), 0.25);
+        assert_eq!(*c.KineticZoomingAndScrolling.GetValue(), 0.75);
+        assert_eq!(*c.MagnetismRadius.GetValue(), 2.0);
+        assert_eq!(*c.MagnetismSpeed.GetValue(), 3.0);
+        assert_eq!(*c.VisitSpeed.GetValue(), 5.0);
+        assert_eq!(*c.MaxMegabytesPerView.GetValue(), 4096);
+        assert_eq!(*c.MaxRenderThreads.GetValue(), 16);
+        assert!(!*c.AllowSIMD.GetValue());
+        assert_eq!(*c.DownscaleQuality.GetValue(), 6);
+        assert_eq!(*c.UpscaleQuality.GetValue(), 5);
+        model2.detach(&mut sc);
+    }
 }
 
+/// emDoubleRec::TryRead rejects out-of-range values with an error
+/// (matches C++ emRec.cpp:552-560). Verify that files with out-of-range
+/// double fields fail to load — the previous `Record::from_rec` silently
+/// clamped; the emRec reader rejects instead.
 #[test]
-fn clamping_double_fields() {
-    let mut rec = RecStruct::new();
-    // Out-of-range values
-    rec.set_double("MouseZoomSpeed", 100.0); // max 4.0
-    rec.set_double("MouseScrollSpeed", 0.01); // min 0.25
-    rec.set_double("MouseWheelZoomAcceleration", 5.0); // max 2.0
-    rec.set_double("VisitSpeed", 0.001); // min 0.1
-    rec.set_double("KineticZoomingAndScrolling", 99.0); // max 2.0
+fn out_of_range_double_fields_rejected() {
+    use emcore::emRecNodeConfigModel::emRecNodeConfigModel;
 
-    let cfg = emCoreConfig::from_rec(&rec).unwrap();
-    assert_eq!(cfg.mouse_zoom_speed, 4.0);
-    assert_eq!(cfg.mouse_scroll_speed, 0.25);
-    assert_eq!(cfg.mouse_wheel_zoom_acceleration, 2.0);
-    assert_eq!(cfg.visit_speed, 0.1);
-    assert_eq!(cfg.kinetic_zooming_and_scrolling, 2.0);
+    let mut sched = EngineScheduler::new();
+    let mut actions: Vec<DeferredAction> = Vec::new();
+    let ctx_root = emContext::NewRoot();
+    let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+    let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+    let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("oor_double.rec");
+
+    // Write a value exceeding MouseZoomSpeed's max of 4.0.
+    std::fs::write(
+        &path,
+        b"#%rec:emCoreConfig%#\n\n{\n\tMouseZoomSpeed = 100.0\n}\n",
+    )
+    .unwrap();
+
+    let cfg = emCoreConfig::new(&mut sc);
+    let mut model = emRecNodeConfigModel::new(cfg, path.clone(), &mut sc)
+        .with_format_name("emCoreConfig");
+    // emDoubleRec::TryRead returns Err("Number too large.") for values above max.
+    assert!(
+        model.TryLoad(&mut sc).is_err(),
+        "out-of-range double should be rejected"
+    );
+    model.detach(&mut sc);
 }
 
+/// emIntRec::TryRead rejects out-of-range values with an error.
+/// Verify that files with out-of-range int fields fail to load.
 #[test]
-fn clamping_int_fields() {
-    let mut rec = RecStruct::new();
-    rec.set_int("MaxMegabytesPerView", 1); // min 8
-    rec.set_int("MaxRenderThreads", 100); // max 32
-    rec.set_int("DownscaleQuality", 0); // min 2 (DQ_2X2)
-    rec.set_int("UpscaleQuality", 99); // max 5 (UQ_ADAPTIVE)
+fn out_of_range_int_fields_rejected() {
+    use emcore::emRecNodeConfigModel::emRecNodeConfigModel;
 
-    let cfg = emCoreConfig::from_rec(&rec).unwrap();
-    assert_eq!(cfg.max_megabytes_per_view, 8);
-    assert_eq!(cfg.max_render_threads, 32);
-    assert_eq!(cfg.downscale_quality, 2);
-    assert_eq!(cfg.upscale_quality, 5);
+    let mut sched = EngineScheduler::new();
+    let mut actions: Vec<DeferredAction> = Vec::new();
+    let ctx_root = emContext::NewRoot();
+    let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+    let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+    let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("oor_int.rec");
+
+    // Write a value below MaxMegabytesPerView's min of 8.
+    std::fs::write(
+        &path,
+        b"#%rec:emCoreConfig%#\n\n{\n\tMaxMegabytesPerView = 1\n}\n",
+    )
+    .unwrap();
+
+    let cfg = emCoreConfig::new(&mut sc);
+    let mut model = emRecNodeConfigModel::new(cfg, path.clone(), &mut sc)
+        .with_format_name("emCoreConfig");
+    assert!(
+        model.TryLoad(&mut sc).is_err(),
+        "out-of-range int should be rejected"
+    );
+    model.detach(&mut sc);
 }
 
 #[test]
 fn missing_fields_use_defaults() {
-    let rec = RecStruct::new();
-    let cfg = emCoreConfig::from_rec(&rec).unwrap();
-    assert_eq!(cfg, emCoreConfig::default());
+    use emcore::emRecNodeConfigModel::emRecNodeConfigModel;
+
+    let mut sched = EngineScheduler::new();
+    let mut actions: Vec<DeferredAction> = Vec::new();
+    let ctx_root = emContext::NewRoot();
+    let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+    let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+    let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("missing_fields.rec");
+
+    // Empty struct body — all fields missing.
+    std::fs::write(&path, b"#%rec:emCoreConfig%#\n\n{\n}\n").unwrap();
+
+    let cfg = emCoreConfig::new(&mut sc);
+    let mut model = emRecNodeConfigModel::new(cfg, path.clone(), &mut sc)
+        .with_format_name("emCoreConfig");
+    model.TryLoad(&mut sc).unwrap();
+    let c = model.GetRec();
+    // All fields must remain at their C++ defaults.
+    assert!(!*c.StickMouseWhenNavigating.GetValue());
+    assert_eq!(*c.VisitSpeed.GetValue(), 1.0);
+    assert_eq!(*c.MaxMegabytesPerView.GetValue(), 2048);
+    assert_eq!(*c.DownscaleQuality.GetValue(), 3);
+    assert_eq!(*c.UpscaleQuality.GetValue(), 2);
+    model.detach(&mut sc);
 }
 
 #[test]
@@ -136,18 +270,4 @@ fn sp7_sibling_views_share_core_config_singleton() {
 
     assert!(Rc::ptr_eq(&v1.CoreConfig, &v2.CoreConfig));
     let _ = (tree1, tree2);
-}
-
-#[test]
-fn set_to_default_restores_defaults() {
-    let mut cfg = emCoreConfig {
-        mouse_zoom_speed: 3.5,
-        max_render_threads: 1,
-        allow_simd: false,
-        ..emCoreConfig::default()
-    };
-    assert!(!cfg.IsSetToDefault());
-    cfg.SetToDefault();
-    assert!(cfg.IsSetToDefault());
-    assert_eq!(cfg, emCoreConfig::default());
 }

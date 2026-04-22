@@ -590,7 +590,7 @@ pub struct emView {
     /// Port of C++ `emView.h:664` — `emRef<emCoreConfig> CoreConfig`.
     /// Acquired at construction (`emView.cpp:35`).
     pub CoreConfig:
-        Rc<RefCell<crate::emConfigModel::emConfigModel<crate::emCoreConfig::emCoreConfig>>>,
+        Rc<RefCell<crate::emRecNodeConfigModel::emRecNodeConfigModel<crate::emCoreConfig::emCoreConfig>>>,
 
     // === C++ emView::NoticeList (emView.h:707) ===
     /// Head of the notice-delivery ring.
@@ -5333,6 +5333,7 @@ fn paint_highlight_arrows_on_bow(
 mod tests {
     use super::*;
     use crate::emPanelTree::PanelTree;
+    use crate::emRec::emRec;
     use crate::emScheduler::EngineScheduler;
     use crate::emViewAnimator::emViewAnimator as _;
 
@@ -7603,8 +7604,13 @@ mod tests {
         let cfg = crate::emCoreConfig::emCoreConfig::Acquire(&ctx);
         assert!(Rc::ptr_eq(&view.CoreConfig, &cfg));
 
-        cfg.borrow_mut().modify(|c| c.visit_speed = 7.5);
-        assert_eq!(view.CoreConfig.borrow().GetRec().visit_speed, 7.5);
+        let mut h = crate::test_view_harness::TestViewHarness::new();
+        cfg.borrow_mut()
+            .modify(|c, sc| c.VisitSpeed.SetValue(7.5, sc), &mut h.sched_ctx());
+        assert_eq!(
+            *view.CoreConfig.borrow().GetRec().VisitSpeed.GetValue(),
+            7.5
+        );
     }
 
     #[test]
@@ -7616,15 +7622,17 @@ mod tests {
         let ctx = crate::emContext::emContext::NewRoot();
         let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
 
-        // Mutate the shared singleton's visit_speed to 10.0 before visiting.
+        // Mutate the shared singleton's VisitSpeed to 10.0 before visiting.
         let cfg = crate::emCoreConfig::emCoreConfig::Acquire(&ctx);
-        cfg.borrow_mut().modify(|c| c.visit_speed = 10.0);
+        let mut h = crate::test_view_harness::TestViewHarness::new();
+        cfg.borrow_mut()
+            .modify(|c, sc| c.VisitSpeed.SetValue(10.0, sc), &mut h.sched_ctx());
 
         view.VisitByIdentityBare(":", false, "");
 
         assert!(
             !view.VisitingVA.borrow().IsAnimated(),
-            "visit_speed=10.0 must deactivate animation via f < fMax*0.99999"
+            "VisitSpeed=10.0 must deactivate animation via f < fMax*0.99999"
         );
     }
 

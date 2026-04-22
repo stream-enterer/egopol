@@ -12,6 +12,7 @@ use super::emTexture::{emTexture, ImageExtension, ImageQuality};
 use crate::emColor::{blend_hash_lookup, emColor};
 use crate::emImage::emImage;
 use crate::emPainterDrawList::{DrawOp, RecordedOp, RecordedState};
+use crate::emRec::emRec;
 
 /// Base multiplier for decoration size.
 const ARROW_BASE_SIZE: f64 = 10.0;
@@ -399,9 +400,9 @@ impl PainterModel {
     /// Load model settings from `emCoreConfig`, matching C++ `SharedModel::Acquire`.
     pub fn from_core_config(config: &crate::emCoreConfig::emCoreConfig) -> Self {
         Self {
-            allow_simd: config.allow_simd,
-            downscale_quality: config.downscale_quality,
-            upscale_quality: config.upscale_quality,
+            allow_simd: *config.AllowSIMD.GetValue(),
+            downscale_quality: *config.DownscaleQuality.GetValue() as i32,
+            upscale_quality: *config.UpscaleQuality.GetValue() as i32,
             opf_index: OPFIndex::OPFI_8888_0BGR,
             blend_hash: Some(BlendHashTables::compute_rgba()),
         }
@@ -410,9 +411,14 @@ impl PainterModel {
     /// Load from the golden-test config file, matching C++ gen_golden behavior.
     /// Falls back to defaults if the config file is not found.
     pub fn load_from_config() -> Self {
-        use crate::emConfigModel::emConfigModel;
+        use crate::emClipboard::emClipboard;
+        use crate::emContext::emContext;
         use crate::emCoreConfig::emCoreConfig;
-        use crate::emSignal::SignalId;
+        use crate::emEngineCtx::{DeferredAction, FrameworkDeferredAction, SchedCtx};
+        use crate::emRecNodeConfigModel::emRecNodeConfigModel;
+        use crate::emScheduler::EngineScheduler;
+        use std::cell::RefCell;
+        use std::rc::Rc;
 
         // Match C++ gen_golden: EM_USER_CONFIG_DIR=$TMPDIR/em_golden_config
         let config_path = std::env::var("EM_USER_CONFIG_DIR")
@@ -429,17 +435,35 @@ impl PainterModel {
                     .join("config.rec")
             });
 
-        let signal_id = slotmap::KeyData::from_ffi(slotmap::KeyData::from_ffi(0).as_ffi());
-        let mut model_cfg = emConfigModel::new(
-            emCoreConfig::default(),
-            config_path,
-            SignalId::from(signal_id),
-        );
-        if model_cfg.TryLoadOrInstall().is_ok() {
+        // DIVERGED: no SchedCtx available in this static method; use a private
+        // scheduler for signal allocation (orphaned — not ticked by framework).
+        let mut priv_sched = EngineScheduler::new();
+        let root_ctx = emContext::NewRoot();
+        let mut actions: Vec<DeferredAction> = Vec::new();
+        let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut sc = SchedCtx {
+            scheduler: &mut priv_sched,
+            framework_actions: &mut actions,
+            root_context: &root_ctx,
+            framework_clipboard: &cb,
+            current_engine: None,
+            pending_actions: &pa,
+        };
+
+        let mut model_cfg = emRecNodeConfigModel::new(emCoreConfig::new(&mut sc), config_path, &mut sc)
+            .with_format_name("emCoreConfig");
+        let result = if model_cfg.TryLoadOrInstall(&mut sc).is_ok() {
             Self::from_core_config(model_cfg.GetRec())
         } else {
             Self::default()
-        }
+        };
+        // Detach the listener engine and abort pending signals before the
+        // private scheduler is dropped. See the DIVERGED note in
+        // emCoreConfig::Acquire.
+        model_cfg.detach(&mut sc);
+        sc.scheduler.abort_all_pending();
+        result
     }
 }
 

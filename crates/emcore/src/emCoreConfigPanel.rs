@@ -1,8 +1,9 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use crate::emConfigModel::emConfigModel;
 use crate::emCoreConfig::emCoreConfig;
+use crate::emRec::emRec;
+use crate::emRecNodeConfigModel::emRecNodeConfigModel;
 use crate::emEngineCtx::PanelCtx;
 use crate::emLinearLayout::emLinearLayout;
 use crate::emPainter::emPainter;
@@ -152,7 +153,7 @@ fn make_factor_field(
 
 /// Keyboard control group — 2 factor fields.
 struct KBGroup {
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
@@ -162,7 +163,7 @@ struct KBGroup {
 
 impl KBGroup {
     fn new(
-        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
         look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
@@ -198,16 +199,16 @@ impl KBGroup {
             self.look.clone(),
             0.25,
             4.0,
-            c.keyboard_zoom_speed,
+            *c.KeyboardZoomSpeed.GetValue(),
             false,
         );
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         zoom.scalar_field.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.keyboard_zoom_speed = cfg_val);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.KeyboardZoomSpeed.SetValue(cfg_val, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("zoom", Box::new(zoom));
@@ -219,16 +220,16 @@ impl KBGroup {
             self.look.clone(),
             0.25,
             4.0,
-            c.keyboard_scroll_speed,
+            *c.KeyboardScrollSpeed.GetValue(),
             false,
         );
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         scroll.scalar_field.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.keyboard_scroll_speed = cfg_val);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.KeyboardScrollSpeed.SetValue(cfg_val, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("scroll", Box::new(scroll));
@@ -282,7 +283,7 @@ impl PanelBehavior for KBGroup {
 
 /// Miscellaneous mouse settings group — 3 checkboxes.
 struct MouseMiscGroup {
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
@@ -293,7 +294,7 @@ struct MouseMiscGroup {
 
 impl MouseMiscGroup {
     fn new(
-        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
         look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
         stick_possible: bool,
@@ -326,13 +327,13 @@ impl MouseMiscGroup {
                 self.look.clone(),
             )
         };
-        stick.SetChecked(c.stick_mouse_when_navigating, ctx);
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        stick.SetChecked(*c.StickMouseWhenNavigating.GetValue(), ctx);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         stick.on_check = Some(Box::new(
-            move |checked, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |checked, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.stick_mouse_when_navigating = checked);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.StickMouseWhenNavigating.SetValue(checked, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         let stick_id = ctx.create_child_with("stick", Box::new(CheckBoxPanel { check_box: stick }));
@@ -345,13 +346,13 @@ impl MouseMiscGroup {
             let mut sched = ctx.as_sched_ctx().expect("sched");
             emCheckBox::new(&mut sched, "Emulate\nmiddle button", self.look.clone())
         };
-        emu.SetChecked(c.emulate_middle_button, ctx);
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        emu.SetChecked(*c.EmulateMiddleButton.GetValue(), ctx);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         emu.on_check = Some(Box::new(
-            move |checked, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |checked, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.emulate_middle_button = checked);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.EmulateMiddleButton.SetValue(checked, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("emu", Box::new(CheckBoxPanel { check_box: emu }));
@@ -360,13 +361,13 @@ impl MouseMiscGroup {
             let mut sched = ctx.as_sched_ctx().expect("sched");
             emCheckBox::new(&mut sched, "Pan\nfunction", self.look.clone())
         };
-        pan.SetChecked(c.pan_function, ctx);
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        pan.SetChecked(*c.PanFunction.GetValue(), ctx);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         pan.on_check = Some(Box::new(
-            move |checked, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |checked, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.pan_function = checked);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.PanFunction.SetValue(checked, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("pan", Box::new(CheckBoxPanel { check_box: pan }));
@@ -420,7 +421,7 @@ impl PanelBehavior for MouseMiscGroup {
 
 /// Kinetic effects group — 4 factor fields.
 struct KineticGroup {
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
@@ -430,7 +431,7 @@ struct KineticGroup {
 
 impl KineticGroup {
     fn new(
-        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
         look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
@@ -467,16 +468,16 @@ impl KineticGroup {
             self.look.clone(),
             0.25,
             2.0,
-            c.kinetic_zooming_and_scrolling,
+            *c.KineticZoomingAndScrolling.GetValue(),
             true,
         );
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         kinetic.scalar_field.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let cfg_val = factor_val_to_cfg(val, 0.25, 2.0);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.kinetic_zooming_and_scrolling = cfg_val);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.KineticZoomingAndScrolling.SetValue(cfg_val, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("KineticZoomingAndScrolling", Box::new(kinetic));
@@ -489,16 +490,16 @@ impl KineticGroup {
             self.look.clone(),
             0.25,
             4.0,
-            c.magnetism_radius,
+            *c.MagnetismRadius.GetValue(),
             true,
         );
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         mag_radius.scalar_field.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.magnetism_radius = cfg_val);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.MagnetismRadius.SetValue(cfg_val, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("MagnetismRadius", Box::new(mag_radius));
@@ -511,16 +512,16 @@ impl KineticGroup {
             self.look.clone(),
             0.25,
             4.0,
-            c.magnetism_speed,
+            *c.MagnetismSpeed.GetValue(),
             false,
         );
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         mag_speed.scalar_field.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.magnetism_speed = cfg_val);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.MagnetismSpeed.SetValue(cfg_val, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("MagnetismSpeed", Box::new(mag_speed));
@@ -533,16 +534,16 @@ impl KineticGroup {
             self.look.clone(),
             0.1,
             10.0,
-            c.visit_speed,
+            *c.VisitSpeed.GetValue(),
             false,
         );
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         visit.scalar_field.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let cfg_val = factor_val_to_cfg(val, 0.1, 10.0);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.visit_speed = cfg_val);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.VisitSpeed.SetValue(cfg_val, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("VisitSpeed", Box::new(visit));
@@ -596,7 +597,7 @@ impl PanelBehavior for KineticGroup {
 
 /// Max megabytes per view group — label + scalar field.
 struct MaxMemGroup {
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
@@ -606,7 +607,7 @@ struct MaxMemGroup {
 
 impl MaxMemGroup {
     fn new(
-        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
         look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
@@ -720,13 +721,13 @@ impl PanelBehavior for MaxMemGroup {
 
 /// Bare emLinearLayout wrapping the memory emScalarField.
 struct MemFieldLayoutPanel {
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     layout: emLinearLayout,
 }
 
 impl MemFieldLayoutPanel {
-    fn new(config: Rc<RefCell<emConfigModel<emCoreConfig>>>, look: Rc<emLook>) -> Self {
+    fn new(config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>, look: Rc<emLook>) -> Self {
         Self {
             config,
             look,
@@ -752,18 +753,18 @@ impl MemFieldLayoutPanel {
             emScalarField::new(&mut sched, min_val, max_val, self.look.clone())
         };
         sf.SetCaption("Max megabytes per view");
-        sf.set_initial_value(mem_cfg_to_val(c.max_megabytes_per_view));
+        sf.set_initial_value(mem_cfg_to_val(*c.MaxMegabytesPerView.GetValue() as i32));
         sf.SetScaleMarkIntervals(&[100, 10]);
         sf.SetTextBoxTallness(0.3);
         sf.border_mut().SetBorderScaling(1.5);
         sf.SetTextOfValueFunc(Box::new(mem_text_of_value));
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         sf.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
-                let mb = mem_val_to_cfg(val);
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let mb = mem_val_to_cfg(val).clamp(8, 16384) as i64;
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.max_megabytes_per_view = mb.clamp(8, 16384));
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.MaxMegabytesPerView.SetValue(mb, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("mem", Box::new(ScalarFieldPanel { scalar_field: sf }));
@@ -797,14 +798,14 @@ impl PanelBehavior for MemFieldLayoutPanel {
 /// Inner tunnel wrapping MaxMemGroup (child_tallness=0.7).
 struct MaxMemInnerTunnelPanel {
     tunnel: emTunnel,
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
 }
 
 impl MaxMemInnerTunnelPanel {
     fn new(
-        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
         look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
@@ -861,14 +862,14 @@ impl PanelBehavior for MaxMemInnerTunnelPanel {
 /// Outer tunnel wrapping MaxMemInnerTunnelPanel (child_tallness=0.3, border_scaling=1.5).
 struct MaxMemTunnelPanel {
     tunnel: emTunnel,
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
 }
 
 impl MaxMemTunnelPanel {
     fn new(
-        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
         look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
@@ -924,7 +925,7 @@ impl PanelBehavior for MaxMemTunnelPanel {
 
 /// CPU group — MaxRenderThreads scalar field + AllowSIMD checkbox.
 struct CpuGroup {
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
@@ -934,7 +935,7 @@ struct CpuGroup {
 
 impl CpuGroup {
     fn new(
-        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
         look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
@@ -966,18 +967,18 @@ impl CpuGroup {
             emScalarField::new(&mut sched, 1.0, 32.0, self.look.clone())
         };
         sf.SetCaption("Max render threads");
-        sf.set_initial_value(c.max_render_threads as f64);
+        sf.set_initial_value(*c.MaxRenderThreads.GetValue() as f64);
         sf.SetScaleMarkIntervals(&[1]);
         sf.border_mut().outer = OuterBorderType::None;
         sf.border_mut().inner = InnerBorderType::InputField;
         sf.border_mut().SetBorderScaling(1.5);
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         sf.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
-                let threads = (val + 0.5) as i32;
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let threads = ((val + 0.5) as i64).clamp(1, 32);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.max_render_threads = threads.clamp(1, 32));
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.MaxRenderThreads.SetValue(threads, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         let threads_id = ctx.create_child_with(
@@ -997,13 +998,13 @@ impl CpuGroup {
             let mut sched = ctx.as_sched_ctx().expect("sched");
             emCheckBox::new(&mut sched, "Allow SIMD", self.look.clone())
         };
-        cb.SetChecked(c.allow_simd, ctx);
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        cb.SetChecked(*c.AllowSIMD.GetValue(), ctx);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         cb.on_check = Some(Box::new(
-            move |checked, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |checked, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.allow_simd = checked);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.AllowSIMD.SetValue(checked, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("allowSIMD", Box::new(CheckBoxPanel { check_box: cb }));
@@ -1057,7 +1058,7 @@ impl PanelBehavior for CpuGroup {
 
 /// Performance group — tunnel, CPU group, 2 quality scalar fields.
 struct PerformanceGroup {
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
@@ -1067,7 +1068,7 @@ struct PerformanceGroup {
 
 impl PerformanceGroup {
     fn new(
-        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
         look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
@@ -1124,18 +1125,18 @@ impl PerformanceGroup {
         ds_sf.SetCaption("Downscale quality");
         ds_sf.border_mut().description =
             "Quality of image downscaling (antialiasing filter size)".to_string();
-        ds_sf.set_initial_value(c.downscale_quality as f64);
+        ds_sf.set_initial_value(*c.DownscaleQuality.GetValue() as f64);
         ds_sf.SetScaleMarkIntervals(&[1]);
         ds_sf.SetTextBoxTallness(0.3);
         ds_sf.border_mut().SetBorderScaling(1.5);
         ds_sf.SetTextOfValueFunc(Box::new(downscale_text));
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         ds_sf.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
-                let q = (val + 0.5) as i32;
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let q = ((val + 0.5) as i64).clamp(2, 6);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.downscale_quality = q.clamp(2, 6));
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.DownscaleQuality.SetValue(q, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with(
@@ -1152,18 +1153,18 @@ impl PerformanceGroup {
         };
         us_sf.SetCaption("Upscale quality");
         us_sf.border_mut().description = "Quality of image upscaling (interpolation)".to_string();
-        us_sf.set_initial_value(c.upscale_quality as f64);
+        us_sf.set_initial_value(*c.UpscaleQuality.GetValue() as f64);
         us_sf.SetScaleMarkIntervals(&[1]);
         us_sf.SetTextBoxTallness(0.3);
         us_sf.border_mut().SetBorderScaling(1.5);
         us_sf.SetTextOfValueFunc(Box::new(upscale_text));
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         us_sf.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
-                let q = (val + 0.5) as i32;
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let q = ((val + 0.5) as i64).clamp(0, 5);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.upscale_quality = q.clamp(0, 5));
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.UpscaleQuality.SetValue(q, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with(
@@ -1222,7 +1223,7 @@ impl PanelBehavior for PerformanceGroup {
 
 /// Mouse control group — 4 factor fields + MouseMiscGroup.
 struct MouseGroup {
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     last_generation: u64,
@@ -1233,7 +1234,7 @@ struct MouseGroup {
 
 impl MouseGroup {
     fn new(
-        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
         look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
         stick_possible: bool,
@@ -1272,16 +1273,16 @@ impl MouseGroup {
             self.look.clone(),
             0.25,
             4.0,
-            c.mouse_wheel_zoom_speed,
+            *c.MouseWheelZoomSpeed.GetValue(),
             false,
         );
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         wz.scalar_field.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.mouse_wheel_zoom_speed = cfg_val);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.MouseWheelZoomSpeed.SetValue(cfg_val, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("wheelzoom", Box::new(wz));
@@ -1294,16 +1295,16 @@ impl MouseGroup {
             self.look.clone(),
             0.25,
             2.0,
-            c.mouse_wheel_zoom_acceleration,
+            *c.MouseWheelZoomAcceleration.GetValue(),
             true,
         );
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         wa.scalar_field.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let cfg_val = factor_val_to_cfg(val, 0.25, 2.0);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.mouse_wheel_zoom_acceleration = cfg_val);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.MouseWheelZoomAcceleration.SetValue(cfg_val, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("wheelaccel", Box::new(wa));
@@ -1316,16 +1317,16 @@ impl MouseGroup {
             self.look.clone(),
             0.25,
             4.0,
-            c.mouse_zoom_speed,
+            *c.MouseZoomSpeed.GetValue(),
             false,
         );
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         zoom.scalar_field.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.mouse_zoom_speed = cfg_val);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.MouseZoomSpeed.SetValue(cfg_val, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("zoom", Box::new(zoom));
@@ -1338,16 +1339,16 @@ impl MouseGroup {
             self.look.clone(),
             0.25,
             4.0,
-            c.mouse_scroll_speed,
+            *c.MouseScrollSpeed.GetValue(),
             false,
         );
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         scroll.scalar_field.on_value = Some(Box::new(
-            move |val, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let cfg_val = factor_val_to_cfg(val, 0.25, 4.0);
                 let mut cm = config.borrow_mut();
-                cm.modify(|c| c.mouse_scroll_speed = cfg_val);
-                let _ = cm.Save();
+                cm.modify(|c, sc| c.MouseScrollSpeed.SetValue(cfg_val, sc), sched);
+                let _ = cm.TrySave(false);
             },
         ));
         ctx.create_child_with("scroll", Box::new(scroll));
@@ -1416,7 +1417,7 @@ impl PanelBehavior for MouseGroup {
 
 /// Buttons panel — Reset To Defaults button.
 struct ButtonsPanel {
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     layout: emLinearLayout,
@@ -1424,7 +1425,7 @@ struct ButtonsPanel {
 
 impl ButtonsPanel {
     fn new(
-        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
         look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
     ) -> Self {
@@ -1443,13 +1444,35 @@ impl ButtonsPanel {
             let mut sched = ctx.as_sched_ctx().expect("sched");
             emButton::new(&mut sched, "Reset To Defaults", self.look.clone())
         };
-        let config: Rc<RefCell<emConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
+        let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         let generation = Rc::clone(&self.generation);
         btn.on_click = Some(Box::new(
-            move |(), _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+            move |(), sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
                 let mut cm = config.borrow_mut();
-                cm.SetToDefault();
-                let _ = cm.Save();
+                cm.modify(
+                    |c, sc| {
+                        c.StickMouseWhenNavigating.SetValue(false, sc);
+                        c.EmulateMiddleButton.SetValue(false, sc);
+                        c.PanFunction.SetValue(false, sc);
+                        c.MouseZoomSpeed.SetValue(1.0, sc);
+                        c.MouseScrollSpeed.SetValue(1.0, sc);
+                        c.MouseWheelZoomSpeed.SetValue(1.0, sc);
+                        c.MouseWheelZoomAcceleration.SetValue(1.0, sc);
+                        c.KeyboardZoomSpeed.SetValue(1.0, sc);
+                        c.KeyboardScrollSpeed.SetValue(1.0, sc);
+                        c.KineticZoomingAndScrolling.SetValue(1.0, sc);
+                        c.MagnetismRadius.SetValue(1.0, sc);
+                        c.MagnetismSpeed.SetValue(1.0, sc);
+                        c.VisitSpeed.SetValue(1.0, sc);
+                        c.MaxMegabytesPerView.SetValue(2048, sc);
+                        c.MaxRenderThreads.SetValue(8, sc);
+                        c.AllowSIMD.SetValue(true, sc);
+                        c.DownscaleQuality.SetValue(3, sc);
+                        c.UpscaleQuality.SetValue(2, sc);
+                    },
+                    sched,
+                );
+                let _ = cm.TrySave(false);
                 generation.set(generation.get() + 1);
             },
         ));
@@ -1479,7 +1502,7 @@ impl PanelBehavior for ButtonsPanel {
 
 /// Content panel — 4 groups in a raster layout.
 struct ContentPanel {
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     stick_possible: bool,
@@ -1488,7 +1511,7 @@ struct ContentPanel {
 
 impl ContentPanel {
     fn new(
-        config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+        config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
         look: Rc<emLook>,
         generation: Rc<Cell<u64>>,
         stick_possible: bool,
@@ -1577,7 +1600,7 @@ impl PanelBehavior for ContentPanel {
 /// Port of C++ `emCoreConfigPanel`. Provides bidirectional binding between
 /// UI controls and `emCoreConfig` settings via `emConfigModel`.
 pub struct emCoreConfigPanel {
-    config: Rc<RefCell<emConfigModel<emCoreConfig>>>,
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
     generation: Rc<Cell<u64>>,
     /// Whether the screen can move the mouse pointer (C++ StickPossible).
@@ -1588,7 +1611,7 @@ pub struct emCoreConfigPanel {
 }
 
 impl emCoreConfigPanel {
-    pub fn new(config: Rc<RefCell<emConfigModel<emCoreConfig>>>, look: Rc<emLook>) -> Self {
+    pub fn new(config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>, look: Rc<emLook>) -> Self {
         let mut border = emBorder::new(OuterBorderType::Group)
             .with_inner(InnerBorderType::Group)
             .with_caption("General Preferences");

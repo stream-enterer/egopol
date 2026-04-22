@@ -4,6 +4,7 @@ use super::emView::{emView, ViewFlags};
 use crate::emColor::emColor;
 use crate::emPanel::Rect;
 use crate::emPanelTree::PanelTree;
+use crate::emRec::emRec;
 
 /// Trait for view animation strategies.
 pub trait emViewAnimator {
@@ -765,8 +766,8 @@ impl emVisitingViewAnimator {
     /// predicate `f < fMax*0.99999`, and derives acceleration / speed
     /// bounds as linear multiples of `f`.
     pub fn SetAnimParamsByCoreConfig(&mut self, core_config: &crate::emCoreConfig::emCoreConfig) {
-        let f = core_config.visit_speed;
-        let f_max = core_config.VisitSpeed_GetMaxValue();
+        let f = *core_config.VisitSpeed.GetValue();
+        let f_max = *core_config.VisitSpeed.GetMaxValue().unwrap();
         self.animated = f < f_max * 0.99999;
         self.acceleration = 35.0 * f;
         self.max_absolute_speed = 35.0 * f;
@@ -3018,25 +3019,30 @@ mod tests {
     #[test]
     fn visiting_set_anim_params_from_core_config() {
         use crate::emCoreConfig::emCoreConfig;
+        let mut ts = TestSched::new();
         let mut anim = emVisitingViewAnimator::new(0.0, 0.0, 1.0, 5.0);
 
-        // Below max: animated. visit_speed=2.0, max=10.0.
-        let cfg = emCoreConfig {
-            visit_speed: 2.0,
-            ..Default::default()
-        };
-        anim.SetAnimParamsByCoreConfig(&cfg);
+        // Below max: animated. VisitSpeed=2.0, max=10.0.
+        ts.with(|sc| {
+            let mut cfg = emCoreConfig::new(sc);
+            cfg.VisitSpeed.SetValue(2.0, sc);
+            anim.SetAnimParamsByCoreConfig(&cfg);
+            // Drain pending signals fired by SetValue so the TestSched's
+            // scheduler satisfies its drop invariant.
+            sc.scheduler.abort_all_pending();
+        });
         assert!(anim.animated);
         assert!((anim.acceleration - 70.0).abs() < 0.01);
         assert!((anim.max_absolute_speed - 70.0).abs() < 0.01);
         assert!((anim.max_cusp_speed - 35.0).abs() < 0.01);
 
-        // At max: not animated (instant). visit_speed == max == 10.0.
-        let cfg_max = emCoreConfig {
-            visit_speed: 10.0,
-            ..Default::default()
-        };
-        anim.SetAnimParamsByCoreConfig(&cfg_max);
+        // At max: not animated (instant). VisitSpeed == max == 10.0.
+        ts.with(|sc| {
+            let mut cfg = emCoreConfig::new(sc);
+            cfg.VisitSpeed.SetValue(10.0, sc);
+            anim.SetAnimParamsByCoreConfig(&cfg);
+            sc.scheduler.abort_all_pending();
+        });
         assert!(!anim.animated);
     }
 
