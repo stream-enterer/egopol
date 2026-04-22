@@ -711,6 +711,8 @@ fn tarray_rec_roundtrip_persons() {
     arr2.TryWrite(&mut w2).unwrap();
     assert_eq!(w2.into_bytes(), bytes);
 
+    // TODO(phase-4d-followup): see union_rec_roundtrip above for the
+    // `SchedCtx::drain_pending()` replacement rationale.
     std::mem::forget(arr);
     std::mem::forget(arr2);
     std::mem::forget(fx);
