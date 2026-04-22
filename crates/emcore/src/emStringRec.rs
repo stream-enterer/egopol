@@ -11,6 +11,8 @@
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRec::emRec;
 use crate::emRecNode::emRecNode;
+use crate::emRecReader::{emRecReader, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 pub struct emStringRec {
@@ -32,6 +34,25 @@ impl emStringRec {
             aggregate_signals: Vec::new(),
         }
     }
+
+    /// Port of C++ `emStringRec::TryStartWriting` (emRec.cpp:1113-1116).
+    ///
+    // DIVERGED: atomic fusion of TryStartWriting + TryContinueWriting; see
+    // `emBoolRec::TryWrite` for rationale.
+    pub fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        writer.TryWriteQuoted(&self.value)
+    }
+
+    /// Port of C++ `emStringRec::TryStartReading` (emRec.cpp:1093-1099).
+    pub fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        let val = reader.TryReadQuoted()?;
+        self.SetValue(val, ctx);
+        Ok(())
+    }
 }
 
 impl emRecNode for emStringRec {
@@ -45,6 +66,18 @@ impl emRecNode for emStringRec {
 
     fn listened_signal(&self) -> SignalId {
         self.signal
+    }
+
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        emStringRec::TryRead(self, reader, ctx)
+    }
+
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        emStringRec::TryWrite(self, writer)
     }
 }
 

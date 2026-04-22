@@ -10,6 +10,8 @@
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRec::emRec;
 use crate::emRecNode::emRecNode;
+use crate::emRecReader::{emRecReader, ElementType, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 pub struct emFlagsRec {
@@ -76,6 +78,60 @@ impl emFlagsRec {
         }
         None
     }
+
+    /// Port of C++ `emFlagsRec::TryStartWriting` (emRec.cpp:862-877).
+    ///
+    // DIVERGED: atomic fusion; see `emBoolRec::TryWrite` for rationale.
+    // Format: `{` then set-bit identifiers separated by a single space, then
+    // `}`. Empty (no bits set) yields `{}`.
+    pub fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        writer.TryWriteDelimiter('{')?;
+        let mut space_before_next = false;
+        for bit in 0..self.identifiers.len() {
+            if self.value & (1i32 << bit) != 0 {
+                if space_before_next {
+                    writer.TryWriteSpace()?;
+                }
+                writer.TryWriteIdentifier(&self.identifiers[bit])?;
+                space_before_next = true;
+            }
+        }
+        writer.TryWriteDelimiter('}')
+    }
+
+    /// Port of C++ `emFlagsRec::TryStartReading` (emRec.cpp:825-848).
+    pub fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        let val = if reader.TryPeekNext()?.element_type() == ElementType::Int {
+            let v = reader.TryReadInt()?;
+            let mask = if self.identifiers.len() >= 32 {
+                -1i32
+            } else {
+                (1i32 << self.identifiers.len()) - 1
+            };
+            if v & !mask != 0 {
+                return Err(reader.ThrowElemError("Value out of range."));
+            }
+            v
+        } else {
+            reader.TryReadCertainDelimiter('{')?;
+            let mut v = 0i32;
+            while reader.TryPeekNext()?.element_type() == ElementType::Identifier {
+                let idf = reader.TryReadIdentifier()?;
+                match self.GetBitOf(&idf) {
+                    Some(bit) => v |= 1i32 << bit,
+                    None => return Err(reader.ThrowElemError("Unknown identifier.")),
+                }
+            }
+            reader.TryReadCertainDelimiter('}')?;
+            v
+        };
+        self.SetValue(val, ctx);
+        Ok(())
+    }
 }
 
 // TODO(phase-4b+): Centralize on `emRec::CheckIdentifier` once additional emRec types
@@ -107,6 +163,18 @@ impl emRecNode for emFlagsRec {
 
     fn listened_signal(&self) -> SignalId {
         self.signal
+    }
+
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        emFlagsRec::TryRead(self, reader, ctx)
+    }
+
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        emFlagsRec::TryWrite(self, writer)
     }
 }
 

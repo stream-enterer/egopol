@@ -44,6 +44,8 @@
 
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRecNode::emRecNode;
+use crate::emRecReader::{emRecReader, ElementType, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 /// Typed allocator closure — produces a fresh `T` on each call. Parallels
@@ -177,6 +179,58 @@ impl<T: emRecNode + 'static> emRecNode for emTArrayRec<T> {
 
     fn listened_signal(&self) -> SignalId {
         self.aggregate_signal
+    }
+
+    // MIRROR: emArrayRec::TryRead / TryWrite — same wire format, same body,
+    // typed storage (see module docs for the duplication rationale).
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        self.SetCount(self.min_count, ctx);
+        reader.TryReadCertainDelimiter('{')?;
+
+        let mut pos: i32 = 0;
+        loop {
+            let peek = reader.TryPeekNext()?;
+            if let crate::emRecReader::PeekResult::Delimiter(c) = peek {
+                if c == '}' {
+                    reader.TryReadCertainDelimiter('}')?;
+                    if pos < self.min_count {
+                        return Err(reader.ThrowElemError("Too few elements."));
+                    }
+                    return Ok(());
+                }
+            }
+            if peek.element_type() == ElementType::End {
+                return Err(reader.ThrowSyntaxError());
+            }
+            if pos >= self.max_count {
+                return Err(reader.ThrowElemError("Too many elements."));
+            }
+            if pos >= self.items.len() as i32 {
+                self.SetCount(pos + 1, ctx);
+            }
+            self.items[pos as usize].TryRead(reader, ctx)?;
+            pos += 1;
+        }
+    }
+
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        writer.TryWriteDelimiter('{')?;
+        writer.IncIndent();
+        for item in self.items.iter() {
+            writer.TryWriteNewLine()?;
+            writer.TryWriteIndent()?;
+            item.TryWrite(writer)?;
+        }
+        writer.DecIndent();
+        if !self.items.is_empty() {
+            writer.TryWriteNewLine()?;
+            writer.TryWriteIndent()?;
+        }
+        writer.TryWriteDelimiter('}')
     }
 }
 

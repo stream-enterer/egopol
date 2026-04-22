@@ -22,6 +22,8 @@
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRec::emRec;
 use crate::emRecNode::emRecNode;
+use crate::emRecReader::{emRecReader, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 pub struct emDoubleRec {
@@ -56,6 +58,34 @@ impl emDoubleRec {
             aggregate_signals: Vec::new(),
         }
     }
+
+    /// Port of C++ `emDoubleRec::TryStartWriting` (emRec.cpp:574-577).
+    ///
+    // DIVERGED: atomic fusion of TryStartWriting + TryContinueWriting; see
+    // `emBoolRec::TryWrite` for rationale.
+    pub fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        writer.TryWriteDouble(self.value)
+    }
+
+    /// Port of C++ `emDoubleRec::TryStartReading` (emRec.cpp:552-560).
+    ///
+    // DIVERGED: atomic fusion; bounds-checks `[min, max]` with C++'s error
+    // strings preserved verbatim.
+    pub fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        let d = reader.TryReadDouble()?;
+        if d < self.min {
+            return Err(reader.ThrowElemError("Number too small."));
+        }
+        if d > self.max {
+            return Err(reader.ThrowElemError("Number too large."));
+        }
+        self.SetValue(d, ctx);
+        Ok(())
+    }
 }
 
 impl emRecNode for emDoubleRec {
@@ -69,6 +99,18 @@ impl emRecNode for emDoubleRec {
 
     fn listened_signal(&self) -> SignalId {
         self.signal
+    }
+
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        emDoubleRec::TryRead(self, reader, ctx)
+    }
+
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        emDoubleRec::TryWrite(self, writer)
     }
 }
 

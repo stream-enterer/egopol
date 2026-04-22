@@ -12,6 +12,8 @@ use crate::emColor::emColor;
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRec::emRec;
 use crate::emRecNode::emRecNode;
+use crate::emRecReader::{emRecReader, ElementType, PeekResult, RecIoError};
+use crate::emRecWriter::emRecWriter;
 use crate::emSignal::SignalId;
 
 pub struct emColorRec {
@@ -41,6 +43,61 @@ impl emColorRec {
             aggregate_signals: Vec::new(),
         }
     }
+
+    /// Port of C++ `emColorRec::TryStartWriting` (emRec.cpp:1238-1251).
+    ///
+    // DIVERGED: atomic fusion; see `emBoolRec::TryWrite` for rationale.
+    // Format: `{` R ` ` G ` ` B (` ` A when have_alpha) `}`.
+    pub fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        writer.TryWriteDelimiter('{')?;
+        writer.TryWriteInt(self.value.GetRed() as i32)?;
+        writer.TryWriteSpace()?;
+        writer.TryWriteInt(self.value.GetGreen() as i32)?;
+        writer.TryWriteSpace()?;
+        writer.TryWriteInt(self.value.GetBlue() as i32)?;
+        if self.have_alpha {
+            writer.TryWriteSpace()?;
+            writer.TryWriteInt(self.value.GetAlpha() as i32)?;
+        }
+        writer.TryWriteDelimiter('}')
+    }
+
+    /// Port of C++ `emColorRec::TryStartReading` (emRec.cpp:1184-1223).
+    pub fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        let val = if reader.TryPeekNext()?.element_type() == ElementType::Quoted {
+            let s = reader.TryReadQuoted()?;
+            emColor::TryParse(&s).ok_or_else(|| reader.ThrowElemError("Invalid color string."))?
+        } else {
+            reader.TryReadCertainDelimiter('{')?;
+            let r = read_channel(reader)?;
+            let g = read_channel(reader)?;
+            let b = read_channel(reader)?;
+            let a = if self.have_alpha {
+                match reader.TryPeekNext()? {
+                    PeekResult::Delimiter('}') => 255u8,
+                    _ => read_channel(reader)?,
+                }
+            } else {
+                255u8
+            };
+            reader.TryReadCertainDelimiter('}')?;
+            emColor::rgba(r, g, b, a)
+        };
+        self.SetValue(val, ctx);
+        Ok(())
+    }
+}
+
+fn read_channel(reader: &mut dyn emRecReader) -> Result<u8, RecIoError> {
+    let i = reader.TryReadInt()?;
+    if !(0..=255).contains(&i) {
+        return Err(reader.ThrowElemError("Value out of range."));
+    }
+    Ok(i as u8)
 }
 
 impl emRecNode for emColorRec {
@@ -54,6 +111,18 @@ impl emRecNode for emColorRec {
 
     fn listened_signal(&self) -> SignalId {
         self.signal
+    }
+
+    fn TryRead(
+        &mut self,
+        reader: &mut dyn emRecReader,
+        ctx: &mut SchedCtx<'_>,
+    ) -> Result<(), RecIoError> {
+        emColorRec::TryRead(self, reader, ctx)
+    }
+
+    fn TryWrite(&self, writer: &mut dyn emRecWriter) -> Result<(), RecIoError> {
+        emColorRec::TryWrite(self, writer)
     }
 }
 
