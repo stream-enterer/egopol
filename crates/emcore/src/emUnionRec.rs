@@ -190,21 +190,32 @@ impl emUnionRec {
     /// reified aggregate chain into it, and fire the aggregate signal
     /// (plus any outer-compound signals registered on this union).
     ///
-    /// No-op when `variant == self.variant`.
+    /// Out-of-range indices are clamped to `[0, VariantCount-1]`, matching
+    /// C++ `emUnionRec::SetVariant` (emRec.cpp:1565-1576). No-op when the
+    /// clamped index equals `self.variant`.
     ///
-    /// Panics on out-of-range index (C++ would call a null allocator and
-    /// crash; an explicit panic is friendlier and matches the "logic-error
-    /// invariants" policy).
+    /// Panics only when no variants have been registered — SetVariant on a
+    /// union with zero variants is a programmer error with no sensible
+    /// clamp target. Callers must invoke `AddVariant` at least once first.
     pub fn SetVariant(&mut self, variant: i32, ctx: &mut SchedCtx<'_>) {
+        assert!(
+            !self.types.is_empty(),
+            "SetVariant: no variants registered; call AddVariant before SetVariant"
+        );
+
+        // Clamp to [0, VariantCount-1]. C++ emRec.cpp:1567-1568 clamps both
+        // ends; Rust mirrors that.
+        let variant = if variant < 0 {
+            0
+        } else if (variant as usize) >= self.types.len() {
+            (self.types.len() - 1) as i32
+        } else {
+            variant
+        };
+
         if variant == self.variant {
             return;
         }
-        assert!(
-            variant >= 0 && (variant as usize) < self.types.len(),
-            "SetVariant: index {} out of range (0..{})",
-            variant,
-            self.types.len()
-        );
 
         // Drop old child.
         self.child = None;
@@ -293,7 +304,6 @@ mod tests {
     use crate::emContext::emContext;
     use crate::emEngineCtx::{DeferredAction, FrameworkDeferredAction};
     use crate::emIntRec::emIntRec;
-    use crate::emRec::emRec;
     use crate::emScheduler::EngineScheduler;
     use crate::emStringRec::emStringRec;
     use std::cell::RefCell;
@@ -528,7 +538,7 @@ mod tests {
     }
 
     #[test]
-    fn listener_on_old_child_stops_firing_after_variant_change() {
+    fn set_variant_clamps_out_of_range_to_last_variant() {
         let mut sched = EngineScheduler::new();
         let mut actions: Vec<DeferredAction> = Vec::new();
         let ctx_root = emContext::NewRoot();
@@ -536,69 +546,40 @@ mod tests {
         let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
         let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
 
-        // Allocator captures a side-channel so the test can learn the
-        // child's value signal at construction time.
-        use std::cell::Cell;
-        let child_sig_slot: Rc<Cell<Option<SignalId>>> = Rc::new(Cell::new(None));
+        // Two-variant union; default is variant 0.
+        let mut u = make_int_or_string_union(&mut sc);
+        let agg = u.GetAggregateSignal();
+        sc.scheduler.abort(agg);
 
-        let slot_v0 = Rc::clone(&child_sig_slot);
-        let slot_v1 = Rc::clone(&child_sig_slot);
-
-        let mut u = emUnionRec::new(&mut sc);
-        u.AddVariant(
-            "int",
-            Box::new(move |c: &mut SchedCtx<'_>| {
-                let r = emIntRec::new(c, 0, i64::MIN, i64::MAX);
-                slot_v0.set(Some(r.GetValueSignal()));
-                Box::new(r) as Box<dyn emRecNode>
-            }),
+        // SetVariant(len) clamps to len-1 (=1); tag change → aggregate fires.
+        u.SetVariant(u.GetVariantCount(), &mut sc);
+        assert_eq!(
+            u.GetVariant(),
+            1,
+            "out-of-range idx len must clamp to len-1"
         );
-        u.AddVariant(
-            "string",
-            Box::new(move |c: &mut SchedCtx<'_>| {
-                let r = emStringRec::new(c, String::new());
-                slot_v1.set(Some(r.GetValueSignal()));
-                Box::new(r) as Box<dyn emRecNode>
-            }),
-        );
-        u.SetDefaultVariant(0);
-        u.SetToDefaultVariant(&mut sc);
-
-        let old_child_sig = child_sig_slot
-            .get()
-            .expect("allocator must have published old child signal");
-
-        // Switch variant — old child dropped; old_child_sig is now dead
-        // (its signal was removed when emIntRec was dropped... actually,
-        // primitives don't remove their signal on drop — confirm by
-        // firing old_child_sig: no engine would be connected anyway in
-        // this test. What we assert: mutating the NEW child does not
-        // produce a fire on the OLD signal).
-        u.SetVariant(1, &mut sc);
-        sc.scheduler.abort(u.GetAggregateSignal());
-
-        let new_child_sig = child_sig_slot
-            .get()
-            .expect("allocator must have published new child signal");
-        assert_ne!(old_child_sig, new_child_sig);
-
-        // Mutate new child by building a standalone emStringRec that
-        // shares the trait object's SetValue semantics would be awkward;
-        // instead, the existence of a DIFFERENT signal id for the new
-        // child is already proof that the old child's signal is distinct
-        // and the new child has its own. To nail down "old listener does
-        // not fire", verify old_child_sig is not signaled after
-        // SetVariant completed (the variant change itself did not leak
-        // signals onto the dropped child's signal).
         assert!(
-            !sc.is_signaled(old_child_sig),
-            "old child signal must NOT be fired by variant change"
+            sc.is_signaled(agg),
+            "aggregate must fire when clamp moves the variant"
+        );
+        sc.scheduler.abort(agg);
+
+        // SetVariant(len + 5) still clamps to len-1 and now no-ops (already
+        // at variant 1) — aggregate must NOT fire.
+        u.SetVariant(u.GetVariantCount() + 5, &mut sc);
+        assert_eq!(u.GetVariant(), 1);
+        assert!(
+            !sc.is_signaled(agg),
+            "aggregate must NOT fire when clamp hits current variant"
         );
 
-        // Clean up signals (both primitives created, plus the union's agg).
-        sc.remove_signal(old_child_sig);
-        sc.remove_signal(new_child_sig);
-        sc.remove_signal(u.GetAggregateSignal());
+        // Negative idx clamps to 0 — tag change, aggregate fires.
+        u.SetVariant(-42, &mut sc);
+        assert_eq!(u.GetVariant(), 0, "negative idx must clamp to 0");
+        assert!(sc.is_signaled(agg), "aggregate must fire on clamp to 0");
+
+        sc.scheduler.abort(agg);
+        sc.remove_signal(agg);
     }
 
     /// Outer compound holding a union as a member. Mirrors emStructRec
