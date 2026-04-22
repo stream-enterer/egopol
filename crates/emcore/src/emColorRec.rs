@@ -19,6 +19,8 @@ pub struct emColorRec {
     default: emColor,
     have_alpha: bool,
     signal: SignalId,
+    /// Reified aggregate-signal chain; see ADR 2026-04-21-phase-4b-listener-tree-adr.md.
+    aggregate_signals: Vec<SignalId>,
     // TODO(phase-4b+): SetToDefault, IsSetToDefault, TryStartReading, serialization hooks per emRec.h.
 }
 
@@ -36,6 +38,7 @@ impl emColorRec {
             default,
             have_alpha,
             signal: ctx.create_signal(),
+            aggregate_signals: Vec::new(),
         }
     }
 }
@@ -43,6 +46,14 @@ impl emColorRec {
 impl emRecNode for emColorRec {
     fn parent(&self) -> Option<&dyn emRecNode> {
         None
+    }
+
+    fn register_aggregate(&mut self, sig: SignalId) {
+        self.aggregate_signals.push(sig);
+    }
+
+    fn listened_signal(&self) -> SignalId {
+        self.signal
     }
 }
 
@@ -62,6 +73,15 @@ impl emRec<emColor> for emColorRec {
         if value != self.value {
             self.value = value;
             ctx.fire(self.signal);
+            // DIVERGED: C++ emRec::Changed() (emRec.h:243 inline, delegates to emRec::ChildChanged at emRec.cpp:217) walks UpperNode
+            // per-fire; Rust fires the reified aggregate chain. Lives INSIDE
+            // the change-check branch, AFTER the own-signal fire, so that the
+            // alpha-normalized no-op path (alpha forced to 255 matches current
+            // value) does NOT fire aggregates. See ADR
+            // 2026-04-21-phase-4b-listener-tree-adr.md.
+            for sig in &self.aggregate_signals {
+                ctx.fire(*sig);
+            }
         }
     }
 
@@ -120,6 +140,65 @@ mod tests {
         assert_eq!(*rec.GetValue(), emColor::RED);
 
         sc.remove_signal(sig);
+    }
+
+    #[test]
+    fn aggregate_signal_fires_on_change() {
+        let mut sched = EngineScheduler::new();
+        let mut actions: Vec<DeferredAction> = Vec::new();
+        let ctx_root = crate::emContext::emContext::NewRoot();
+        let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+        let mut rec = emColorRec::new(&mut sc, emColor::BLACK, true);
+        let sig = rec.GetValueSignal();
+        let agg = sc.create_signal();
+        rec.register_aggregate(agg);
+
+        rec.SetValue(emColor::RED, &mut sc);
+
+        assert!(sc.is_signaled(sig));
+        assert!(sc.is_signaled(agg), "aggregate signal must fire");
+
+        sc.remove_signal(sig);
+        sc.remove_signal(agg);
+    }
+
+    #[test]
+    fn aggregate_signal_does_not_fire_on_alpha_only_noop() {
+        // have_alpha=false → alpha-only diff normalizes to same value → no fire
+        // (neither own nor aggregate).
+        let mut sched = EngineScheduler::new();
+        let mut actions: Vec<DeferredAction> = Vec::new();
+        let ctx_root = crate::emContext::emContext::NewRoot();
+        let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+        let mut rec = emColorRec::new(&mut sc, emColor::BLACK, false);
+        let sig = rec.GetValueSignal();
+
+        // Prime: first change fires (and own signal clears the pending bit for us).
+        rec.SetValue(emColor::rgba(10, 20, 30, 0x80), &mut sc);
+        assert!(sc.is_signaled(sig));
+        sc.remove_signal(sig);
+
+        let agg = sc.create_signal();
+        rec.register_aggregate(agg);
+
+        // Alpha-only diff: same RGB, different alpha → normalizes to alpha=255
+        // which matches current stored value → no fire.
+        rec.SetValue(emColor::rgba(10, 20, 30, 0x40), &mut sc);
+
+        assert!(
+            !sc.is_signaled(sig),
+            "own signal must NOT fire on alpha no-op"
+        );
+        assert!(
+            !sc.is_signaled(agg),
+            "aggregate must NOT fire on alpha-only no-op"
+        );
     }
 
     #[test]
