@@ -47,6 +47,14 @@ pub enum ResolvedOrientation {
 ///
 /// Used by emRasterLayout for block-level alignment. emLinearLayout uses
 /// per-axis `AlignmentH`/`AlignmentV` instead.
+///
+/// DIVERGED: C++ `emAlignment` (emStd1.h:478) is a u8 bitmask combining
+/// `EM_ALIGN_TOP | EM_ALIGN_BOTTOM | EM_ALIGN_LEFT | EM_ALIGN_RIGHT` bits.
+/// This Rust enum is a single-axis simplification (Start|Center|End|Stretch)
+/// used by `emFileManTheme` and layout widgets. The persistence boundary
+/// uses lossy stopgap helpers (`em_alignment_to_rec_value` /
+/// `em_alignment_from_rec_value` in `emRecRecTypes.rs`) until all consumers
+/// migrate to the C++-faithful `emAlignment` u8 type.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum Alignment {
     Start,
