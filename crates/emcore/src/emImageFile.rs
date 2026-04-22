@@ -7,7 +7,7 @@ use crate::emSignal::SignalId;
 /// Load an image from a file path synchronously.
 /// Supports TGA format. Returns None on any error (missing file, bad format).
 ///
-/// DIVERGED: C++ uses the async emImageFileModel plugin system with format
+/// DIVERGED: (language-forced) C++ uses the async emImageFileModel plugin system with format
 /// dispatching to emTga/emBmp/emGif/etc. This synchronous loader handles TGA
 /// only and serves small theme border images. Full async image loading will be
 /// ported with the image app modules.
