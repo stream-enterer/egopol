@@ -32,10 +32,21 @@ Phase 4b rescoped to ship the listener-tree machinery + emRecListener + retrofit
 
 Plan rewritten in this commit. Bootstrap remains valid (commit `2b2bae56`); Task 1 stays shipped.
 
+## Scope amendment #3 (2026-04-21, post-precedent-survey)
+
+A precedent survey of the codebase (Explore-agent report; see ADR `docs/superpowers/notes/2026-04-21-phase-4b-listener-tree-adr.md` §"Precedents surveyed") found that the listener-tree machinery, when implemented per the ADR's chosen rep (R5: reified `Vec<SignalId>` chain), collapses to a few fields per primitive plus one trait method. That's small enough that bundling the listener-tree retrofit with its consumers (the Phase 4c structural compounds) is cleaner than shipping it as standalone Phase 4b infrastructure.
+
+Phase 4b therefore ships only `emFlagsRec` (already complete) and proceeds straight to Closeout. Tasks 0a (ADR brainstorm), 0b (skeleton), 2 (emRecListener), 3 (parent-aware ctor retrofit), 4 (e2e tests), and 5 (gate) from the rewritten plan are removed; Phase 4c absorbs them.
+
+ADR committed in this scope amendment. Phase 4b plan rewritten to reflect the collapse. Phase 4c plan rewritten to inherit the ADR and absorb the listener-tree work.
+
 ## Task log
 
 - **Task 1 (emFlagsRec):** COMPLETE.
   - `280a23b3` — initial impl: i32 value, ≤32 dense identifiers, mask-then-compare SetValue, case-insensitive backwards GetBitOf. Mirrors `emBoolRec` structurally. 8 tests; nextest 2535 → 2543.
-  - `7223846c` — code review fix: added full `check_identifier` predicate (`[A-Za-z_][A-Za-z0-9_]*`) per `emRec.cpp:173-194`. 7 grammar tests; nextest 2543 → 2550. CheckIdentifier centralization deferred to phase-4b+ when emEnumRec/emStructRec varIdentifiers need it.
-- **Tasks 2-3:** REMOVED per scope amendment (deferred to Phase 4b').
+  - `7223846c` — code review fix: added full `check_identifier` predicate (`[A-Za-z_][A-Za-z0-9_]*`) per `emRec.cpp:173-194`. 7 grammar tests; nextest 2543 → 2550. CheckIdentifier centralization deferred to phase-4c when emEnumRec/emStructRec varIdentifiers need it.
+- **Tasks 2-3:** REMOVED per scope amendment #1 (deferred to Phase 4b.1).
+- **Tasks 0a, 0b, 2 (emRecListener), 3, 4, 5:** REMOVED per scope amendment #3 (absorbed into Phase 4c per ADR).
+
+Next: Phase 4b Closeout (C1–C11).
 
