@@ -27,6 +27,15 @@
 //!
 //! Persistence methods (SetToDefault, IsSetToDefault, serialization) are
 //! deferred to Phase 4d alongside emArrayRec's equivalents.
+//!
+//! TODO(phase-4d): C++ exposes an STL-style iterator surface on this
+//! template (emRec.h:1289-1326):
+//!   - `class ConstIterator` — immutable forward iterator over elements.
+//!   - `class Iterator` — mutable forward iterator.
+//!   - `begin() / end()` (const + mutable overloads) — range accessors.
+//!
+//! All deferred. Current Rust consumers use indexed `Get`/`GetMut`;
+//! iterator support will arrive when Phase 4d needs it.
 
 use crate::emEngineCtx::{ConstructCtx, SchedCtx};
 use crate::emRecNode::emRecNode;

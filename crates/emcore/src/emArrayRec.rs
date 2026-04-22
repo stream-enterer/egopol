@@ -161,6 +161,10 @@ impl emArrayRec {
     /// Rust returns `Option` to stay safe without `unsafe`; callers that
     /// preserve the C++ precondition (`0 <= i < GetCount()`) see `Some(_)`
     /// deterministically.
+    ///
+    /// TODO(phase-4d): C++ also exposes a no-arg `Get()` form (emRec.h:1192-
+    /// 1194) returning the internal array (`emRec * const *`) for bulk
+    /// inspection. Deferred — current consumers access by index.
     pub fn Get(&self, i: i32) -> Option<&dyn emRecNode> {
         if i < 0 {
             return None;
@@ -561,6 +565,146 @@ mod tests {
         sc.scheduler.abort(arr_agg);
         sc.remove_signal(outer_agg);
         sc.remove_signal(arr_agg);
+    }
+
+    /// Shared signal bundle for `MutableSpyRec` — own signal + every
+    /// aggregate signal spliced onto the rec. The test keeps an `Rc`
+    /// handle so it can drive a leaf mutation without downcasting the
+    /// `Box<dyn emRecNode>` returned by the allocator.
+    #[derive(Default)]
+    struct SpySignals {
+        own_signal: Option<SignalId>,
+        aggregate_signals: Vec<SignalId>,
+    }
+
+    /// SpyRec variant whose signal set is shared with the test harness so
+    /// the test can call `trigger` to simulate a leaf mutation (mirrors the
+    /// body of a primitive `SetValue`: fire own_signal + every aggregate
+    /// signal in order).
+    struct MutableSpyRec {
+        signals: Rc<RefCell<SpySignals>>,
+    }
+
+    impl emRecNode for MutableSpyRec {
+        fn parent(&self) -> Option<&dyn emRecNode> {
+            None
+        }
+        fn register_aggregate(&mut self, sig: SignalId) {
+            self.signals.borrow_mut().aggregate_signals.push(sig);
+        }
+        fn listened_signal(&self) -> SignalId {
+            self.signals
+                .borrow()
+                .own_signal
+                .expect("own_signal set at construction")
+        }
+    }
+
+    /// Fire the rec's own signal + its aggregate chain, mirroring the
+    /// primitive `SetValue` body.
+    fn spy_trigger(signals: &Rc<RefCell<SpySignals>>, sc: &mut SchedCtx<'_>) {
+        let s = signals.borrow();
+        if let Some(own) = s.own_signal {
+            sc.fire(own);
+        }
+        for sig in &s.aggregate_signals {
+            sc.fire(*sig);
+        }
+    }
+
+    /// Allocator builder shared by the leaf-mutation tests. The returned
+    /// allocator pushes each fresh `MutableSpyRec`'s signal bundle into
+    /// `handles` in construction order, so the test can trigger item N
+    /// via `handles[N]`.
+    fn spy_allocator(handles: Rc<RefCell<Vec<Rc<RefCell<SpySignals>>>>>) -> emRecAllocator {
+        Box::new(move |c: &mut SchedCtx<'_>| {
+            let signals = Rc::new(RefCell::new(SpySignals {
+                own_signal: Some(c.create_signal()),
+                aggregate_signals: Vec::new(),
+            }));
+            handles.borrow_mut().push(Rc::clone(&signals));
+            Box::new(MutableSpyRec { signals }) as Box<dyn emRecNode>
+        })
+    }
+
+    fn cleanup_spy_signals(
+        handles: &Rc<RefCell<Vec<Rc<RefCell<SpySignals>>>>>,
+        sc: &mut SchedCtx<'_>,
+    ) {
+        for s in handles.borrow().iter() {
+            if let Some(own) = s.borrow().own_signal {
+                sc.scheduler.abort(own);
+                sc.remove_signal(own);
+            }
+        }
+    }
+
+    /// Spec item 2 — direct end-to-end leaf-mutation proof on
+    /// `emArrayRec`. Driving a mutation on item 0 must fire the array's
+    /// aggregate signal, exactly as a primitive `SetValue` would through
+    /// the reified aggregate chain spliced by `SetCount`.
+    #[test]
+    fn mutate_item_0_fires_aggregate() {
+        let mut sched = EngineScheduler::new();
+        let mut actions: Vec<DeferredAction> = Vec::new();
+        let ctx_root = emContext::NewRoot();
+        let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+        let handles: Rc<RefCell<Vec<Rc<RefCell<SpySignals>>>>> = Rc::new(RefCell::new(Vec::new()));
+
+        let mut arr = emArrayRec::new(&mut sc, spy_allocator(Rc::clone(&handles)), 0, 100);
+        let agg = arr.GetAggregateSignal();
+        arr.SetCount(2, &mut sc);
+        // Drain the SetCount fire so the leaf-mutation fire is observable
+        // on its own.
+        sc.scheduler.abort(agg);
+        assert!(!sc.is_signaled(agg));
+
+        let h = Rc::clone(&handles.borrow()[0]);
+        spy_trigger(&h, &mut sc);
+
+        assert!(
+            sc.is_signaled(agg),
+            "leaf mutation on item 0 must fire the array aggregate"
+        );
+
+        sc.scheduler.abort(agg);
+        sc.remove_signal(agg);
+        cleanup_spy_signals(&handles, &mut sc);
+    }
+
+    /// Spec item 3 — same as item 2 but driving a mutation on item 1.
+    /// Confirms per-item splice coverage, not just item 0.
+    #[test]
+    fn mutate_item_1_fires_aggregate() {
+        let mut sched = EngineScheduler::new();
+        let mut actions: Vec<DeferredAction> = Vec::new();
+        let ctx_root = emContext::NewRoot();
+        let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+        let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+        let handles: Rc<RefCell<Vec<Rc<RefCell<SpySignals>>>>> = Rc::new(RefCell::new(Vec::new()));
+
+        let mut arr = emArrayRec::new(&mut sc, spy_allocator(Rc::clone(&handles)), 0, 100);
+        let agg = arr.GetAggregateSignal();
+        arr.SetCount(2, &mut sc);
+        sc.scheduler.abort(agg);
+        assert!(!sc.is_signaled(agg));
+
+        let h = Rc::clone(&handles.borrow()[1]);
+        spy_trigger(&h, &mut sc);
+
+        assert!(
+            sc.is_signaled(agg),
+            "leaf mutation on item 1 must fire the array aggregate"
+        );
+
+        sc.scheduler.abort(agg);
+        sc.remove_signal(agg);
+        cleanup_spy_signals(&handles, &mut sc);
     }
 
     #[test]
