@@ -66,6 +66,16 @@ fn bool_rec_roundtrip() {
     rec2.TryRead(&mut r, &mut sc).unwrap();
     assert_eq!(rec2.GetValue(), rec.GetValue());
 
+    // Write→read→write byte-stability: writing the round-tripped rec must
+    // produce the exact same bytes the first write produced.
+    let mut w2 = emRecMemWriter::new();
+    rec2.TryWrite(&mut w2).unwrap();
+    assert_eq!(
+        w2.into_bytes(),
+        bytes,
+        "second write must match first write byte-for-byte",
+    );
+
     // Teardown — signals created by both recs must be removed.
     let sig1 = rec.GetValueSignal();
     let sig2 = rec2.GetValueSignal();
@@ -73,6 +83,50 @@ fn bool_rec_roundtrip() {
     sc.scheduler.abort(sig2);
     sc.remove_signal(sig1);
     sc.remove_signal(sig2);
+}
+
+#[test]
+fn bool_rec_rejects_unknown_identifier() {
+    let mut sched = EngineScheduler::new();
+    let mut actions: Vec<DeferredAction> = Vec::new();
+    let ctx_root = emContext::NewRoot();
+    let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+    let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+    let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+    let mut r = emRecMemReader::new(b"maybe");
+    let mut rec = emBoolRec::new(&mut sc, false);
+    let err = rec.TryRead(&mut r, &mut sc).unwrap_err();
+    // Error carries the source name + line. `Display` format is
+    // `rec memory buffer:<line>: <msg>` (see RecIoError tests).
+    let msg = err.to_string();
+    assert!(
+        msg.contains(":1:"),
+        "error should carry line-1 location, got: {msg}",
+    );
+
+    let sig = rec.GetValueSignal();
+    sc.scheduler.abort(sig);
+    sc.remove_signal(sig);
+}
+
+#[test]
+fn bool_rec_rejects_out_of_range_int() {
+    // emBoolRec accepts only 0 or 1 as ET_INT (emRec.cpp:350-353).
+    let mut sched = EngineScheduler::new();
+    let mut actions: Vec<DeferredAction> = Vec::new();
+    let ctx_root = emContext::NewRoot();
+    let cb: RefCell<Option<Box<dyn emClipboard>>> = RefCell::new(None);
+    let pa: Rc<RefCell<Vec<FrameworkDeferredAction>>> = Rc::new(RefCell::new(Vec::new()));
+    let mut sc = make_sched_ctx(&mut sched, &mut actions, &ctx_root, &cb, &pa);
+
+    let mut r = emRecMemReader::new(b"2");
+    let mut rec = emBoolRec::new(&mut sc, false);
+    assert!(rec.TryRead(&mut r, &mut sc).is_err());
+
+    let sig = rec.GetValueSignal();
+    sc.scheduler.abort(sig);
+    sc.remove_signal(sig);
 }
 
 #[test]

@@ -1,28 +1,11 @@
 //! emRecMemReader — concrete `emRecReader` that consumes bytes from an
 //! owned slice.
 //!
-//! C++ reference: `emRec.h:1763-1806` (class decl) and
-//! `src/emCore/emRec.cpp:2862-2901` (implementation). In C++ this is a thin
-//! source/sink adapter over the `emRecReader` base class, which holds the
-//! lexer state (`Line`, `NextEaten`, `NextLine`, `NextType`, `NextDelimiter`,
-//! `NextBuf`, `NextInt`, `NextDouble`, `NextChar`) and the two private
-//! helpers `TryNextChar` / `TryParseNext`. In Rust the `emRecReader` trait
-//! (Task 1) is interface-only, so the lexer state lives in a private
-//! [`Lexer`] struct embedded in `emRecMemReader` — this mirrors the C++
-//! base-class field layout, just owned by the concrete reader instead of
-//! inherited.
-//!
-//! Format fidelity — see C++ `emRecReader` body (emRec.cpp:2205-2480):
-//!   * Whitespace: skip 0x09/0x0A/0x0D/0x20 and lone control bytes <0x20;
-//!     `#` introduces a line comment up to LF/CR/EOF.
-//!   * Line counting: LF and bare CR each advance `NextLine` by one; CRLF
-//!     counts once.
-//!   * Identifier: `[A-Za-z_][A-Za-z0-9_]*`.
-//!   * Quoted: `" … "` with `\`-escapes resolved in a second pass (see
-//!     `resolve_escapes`).
-//!   * Numeric: optional sign, digits, optional `.digits`, optional
-//!     `[eE][+-]?digits`. Lone `+`/`-`/`.` falls back to `ET_DELIMITER`.
-//!   * Anything else: single-byte delimiter.
+//! C++ reference: `src/emCore/emRec.cpp:2205-2480` (lexer) and
+//! `emRec.cpp:2862-2901` (Mem adapter).
+//! State-carrying impl of the stateless `emRecReader` trait: lexer state
+//! (position, lookahead element, line counter) lives on this concrete type.
+//! `#%rec:…%` magic-header handling is deferred to Task 6 (emConfigModel).
 
 use crate::emRecReader::{emRecReader, ElementType, PeekResult, RecIoError};
 
@@ -342,8 +325,10 @@ fn resolve_escapes(raw: &[u8]) -> Vec<u8> {
         }
         i += 1;
         if i >= n {
-            // Lone trailing backslash — treat as literal. (C++ would
-            // overread `NextBuf[n]` which is `0`; harmless here.)
+            // Unreachable in practice: the lexer rejects an unterminated
+            // string earlier ("Unterminated string"), so a body ending in a
+            // lone backslash never reaches `resolve_escapes`. Emit the
+            // backslash literally as a defensive fallback.
             out.push(b'\\');
             break;
         }

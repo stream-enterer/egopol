@@ -1,32 +1,16 @@
 //! emRecMemWriter — concrete `emRecWriter` that appends bytes to an owned
 //! buffer.
 //!
-//! C++ reference: `emRec.h:1869-1913` (class decl) and
-//! `src/emCore/emRec.cpp:2908-2936` (implementation). In C++ this is a thin
-//! source/sink adapter over the `emRecWriter` base class, which holds the
-//! formatting state (`Indent`, the write helpers). In Rust the `emRecWriter`
-//! trait (Task 1) is interface-only, so the formatting state lives in a
-//! private [`Emitter`] struct embedded in `emRecMemWriter` — this mirrors
-//! the C++ base class fields, just owned by the concrete writer instead of
-//! inherited.
-//!
-//! Format fidelity — see C++ `emRecWriter` body (emRec.cpp:2574-2669):
-//!   * Integer: `sprintf("%d", i)`.
-//!   * Double:  `sprintf("%.9G", d)`, then append ".0" if the result
-//!     contains neither '.' nor 'E' nor 'e'.
-//!   * Quoted:  surround with `"`, emit `\n \r \t \a \b \f \v \\ \"`
-//!     backslash escapes for the common controls, `\NNN` octal triplet for
-//!     any other 0x00-0x1F or 0x7F-0x9F byte, pass 0x20-0x7E (except `"` /
-//!     `\`) and 0xA0+ through verbatim (the latter preserves UTF-8
-//!     continuation bytes).
-//!   * Indent: Tab character per current indent level.
+//! C++ reference: `src/emCore/emRec.cpp:2574-2669` (base-class formatting
+//! helpers) and `emRec.cpp:2908-2936` (Mem adapter).
+//! State-carrying impl of the stateless `emRecWriter` trait: formatting
+//! state (`Indent`, buffer) lives on this concrete type, not the trait.
 
 use crate::emRecReader::RecIoError;
 use crate::emRecWriter::emRecWriter;
 
-/// Mirrors the mutable formatting state C++ keeps on the `emRecWriter` base
-/// class (emRec.cpp:2487-2493 — `Indent` field plus the `TryWriteChar` /
-/// `TryWriteString` helpers). Private: only [`emRecMemWriter`] exposes it.
+/// Mutable formatting state. C++ keeps these on the `emRecWriter` base
+/// class (emRec.cpp:2487-2493); here they live on the concrete type.
 struct Emitter {
     buf: Vec<u8>,
     indent: i32,
@@ -40,12 +24,10 @@ impl Emitter {
         }
     }
 
-    /// Mirrors `emRecWriter::TryWriteChar` (emRec.cpp:2660-2663).
     fn TryWriteChar(&mut self, c: u8) {
         self.buf.push(c);
     }
 
-    /// Mirrors `emRecWriter::TryWriteString` (emRec.cpp:2666-2669).
     fn TryWriteString(&mut self, s: &str) {
         self.buf.extend_from_slice(s.as_bytes());
     }
@@ -86,7 +68,6 @@ impl Default for emRecMemWriter {
 }
 
 impl emRecWriter for emRecMemWriter {
-    /// `emRecWriter::TryWriteDelimiter` (emRec.cpp:2574-2577).
     fn TryWriteDelimiter(&mut self, c: char) -> Result<(), RecIoError> {
         // C++ stores the delimiter as a single `char` (byte). ASCII-only by
         // the lexer contract (documented on `PeekResult::Delimiter`).
@@ -94,22 +75,24 @@ impl emRecWriter for emRecMemWriter {
         Ok(())
     }
 
-    /// `emRecWriter::TryWriteIdentifier` (emRec.cpp:2580-2583).
     fn TryWriteIdentifier(&mut self, idf: &str) -> Result<(), RecIoError> {
         self.emitter.TryWriteString(idf);
         Ok(())
     }
 
-    /// `emRecWriter::TryWriteInt` (emRec.cpp:2586-2592) — `sprintf("%d", i)`.
     fn TryWriteInt(&mut self, i: i32) -> Result<(), RecIoError> {
         self.emitter.TryWriteString(&i.to_string());
         Ok(())
     }
 
-    /// `emRecWriter::TryWriteDouble` (emRec.cpp:2595-2604) —
-    /// `sprintf("%.9G", d)` + `.0` tail if the formatted text has neither
-    /// `.` nor `E` nor `e`.
     fn TryWriteDouble(&mut self, d: f64) -> Result<(), RecIoError> {
+        if !d.is_finite() {
+            return Err(RecIoError::with_location(
+                None,
+                None,
+                "emRec format cannot encode non-finite double",
+            ));
+        }
         let mut s = format_g_9(d);
         if !s
             .as_bytes()
@@ -122,9 +105,12 @@ impl emRecWriter for emRecMemWriter {
         Ok(())
     }
 
-    /// `emRecWriter::TryWriteQuoted` (emRec.cpp:2607-2637). Passes bytes
-    /// 0x20-0x7E (except `"` / `\`) and 0xA0-0xFF through unchanged;
-    /// escapes the common controls by letter and the rest via `\NNN` octal.
+    // DIVERGED: C++ `TryWriteQuoted(const char*)` truncates at the first NUL
+    // (C-string convention). Rust `&str` is UTF-8 and may legitimately carry
+    // embedded NUL bytes, so we preserve them by emitting `\000` — the same
+    // octal escape path that handles any other 0x00-0x1F control byte.
+    // Information-preserving and symmetric with the reader (which decodes
+    // `\000` back to a NUL). See emRec.cpp:2607-2637 for the C++ loop.
     fn TryWriteQuoted(&mut self, q: &str) -> Result<(), RecIoError> {
         self.emitter.TryWriteChar(b'"');
         for &c in q.as_bytes() {
@@ -159,19 +145,16 @@ impl emRecWriter for emRecMemWriter {
         Ok(())
     }
 
-    /// `emRecWriter::TryWriteSpace` (emRec.cpp:2640-2643).
     fn TryWriteSpace(&mut self) -> Result<(), RecIoError> {
         self.emitter.TryWriteChar(b' ');
         Ok(())
     }
 
-    /// `emRecWriter::TryWriteNewLine` (emRec.cpp:2646-2649).
     fn TryWriteNewLine(&mut self) -> Result<(), RecIoError> {
         self.emitter.TryWriteChar(b'\n');
         Ok(())
     }
 
-    /// `emRecWriter::TryWriteIndent` (emRec.cpp:2652-2657).
     fn TryWriteIndent(&mut self) -> Result<(), RecIoError> {
         for _ in 0..self.emitter.indent {
             self.emitter.TryWriteChar(b'\t');
@@ -192,41 +175,45 @@ impl emRecWriter for emRecMemWriter {
 ///
 /// `%G` = `%E` when the exponent is <-4 or >= precision; `%F` otherwise.
 /// Trailing zeros are stripped (unlike `%g` / `%e`), and the exponent
-/// always has at least two digits (`E+01`, not `E+1`).
+/// always has at least two digits (`E+01`, not `E+1`). Non-finite inputs
+/// are rejected upstream by `TryWriteDouble`.
+///
+/// Approach: format once with Rust `{:.8e}` (9 significant digits rounded by
+/// the stdlib, matching C's round-half-to-even on IEEE doubles), then parse
+/// back the exponent to classify fixed vs scientific. This routes boundary
+/// cases like `9.9999999995e9 → 1.0e10` through the same rounding the C
+/// library does, so the exponent classification sees the post-round value.
 fn format_g_9(d: f64) -> String {
-    if d.is_nan() {
-        return "NAN".to_string();
-    }
-    if d.is_infinite() {
-        return if d.is_sign_negative() {
-            "-INF".to_string()
-        } else {
-            "INF".to_string()
-        };
-    }
+    debug_assert!(d.is_finite(), "non-finite caught by TryWriteDouble");
+    // Signed-zero path. C `%.9G` on `-0.0` (glibc) emits `"-0"`; on `+0.0`
+    // it emits `"0"`. We preserve the sign here; the caller appends `.0`.
     if d == 0.0 {
-        // C sprintf("%.9G", 0.0) → "0"; the caller appends ".0".
-        return "0".to_string();
+        return if d.is_sign_negative() {
+            "-0".to_string()
+        } else {
+            "0".to_string()
+        };
     }
 
     let precision: i32 = 9;
-    let abs = d.abs();
-    let exp_floor = abs.log10().floor() as i32;
-    // %G spec: use %E when exp < -4 or exp >= precision; else %F.
-    if exp_floor < -4 || exp_floor >= precision {
-        // Scientific. Normalise mantissa to [1, 10).
-        let mantissa = d / 10f64.powi(exp_floor);
-        // Render with (precision-1) digits after the decimal, then strip
-        // trailing zeros (C's `%G` behaviour).
-        let digits = (precision - 1) as usize;
-        let m_str = format!("{:.*}", digits, mantissa);
-        let m_stripped = strip_trailing_zeros(&m_str);
-        let sign = if exp_floor < 0 { '-' } else { '+' };
-        format!("{}E{}{:02}", m_stripped, sign, exp_floor.abs())
+    // `{:.8e}` → 9 sig digits, post-rounding. E.g. `9.9999999995e9` →
+    // `"1.00000000e10"` (mantissa carried into next exponent).
+    let sci = format!("{:.*e}", (precision - 1) as usize, d);
+    // Split into mantissa and exponent on Rust's lowercase `e`.
+    let (mantissa, exp_str) = sci.split_once('e').expect("{:e} always emits an 'e'");
+    let exp: i32 = exp_str.parse().expect("{:e} exponent is a signed int");
+
+    if exp < -4 || exp >= precision {
+        // Scientific. Strip trailing zeros from the mantissa, reformat with
+        // uppercase `E` and a two-digit signed exponent (C `%G` style).
+        let m_stripped = strip_trailing_zeros(mantissa);
+        let sign = if exp < 0 { '-' } else { '+' };
+        format!("{}E{}{:02}", m_stripped, sign, exp.abs())
     } else {
-        // Fixed. Precision in %G is total significant digits, so decimals
-        // = precision - 1 - exp_floor (floor to zero).
-        let decimals = (precision - 1 - exp_floor).max(0) as usize;
+        // Fixed. Decimals = precision - 1 - exp (clamped to 0). Refomat
+        // straight from `d` with that many decimals — uses Rust's own
+        // rounding, which matches IEEE round-half-to-even like glibc.
+        let decimals = (precision - 1 - exp).max(0) as usize;
         let s = format!("{:.*}", decimals, d);
         strip_trailing_zeros(&s).to_string()
     }
@@ -308,6 +295,60 @@ mod tests {
         w.IncIndent();
         w.TryWriteIndent().unwrap();
         assert_eq!(w.into_bytes(), b"\t\t");
+    }
+
+    #[test]
+    fn format_g_9_matches_c_reference() {
+        // Reference values from `printf "%.9G" <v>` on glibc — load-bearing
+        // fixtures. The writer suffixes `.0` on tokens lacking both `.` and
+        // `E`/`e` so they re-lex as ET_DOUBLE; we mirror that here.
+        let cases: &[(f64, &str)] = &[
+            (0.0, "0"),
+            (1.0, "1"),
+            (-1.0, "-1"),
+            (0.5, "0.5"),
+            (1e-9, "1E-09"),
+            (1e9, "1E+09"),
+            (1e-4, "0.0001"),
+            (1e-5, "1E-05"),
+            (9.99999999, "9.99999999"),
+            (1234567890.0, "1.23456789E+09"),
+        ];
+        for (input, expected) in cases {
+            let got = format_g_9(*input);
+            assert_eq!(&got, expected, "format_g_9({input})");
+        }
+    }
+
+    #[test]
+    fn format_g_9_preserves_negative_zero() {
+        // Raw token preserves sign; TryWriteDouble appends `.0`.
+        assert_eq!(format_g_9(-0.0), "-0");
+        assert_eq!(format_g_9(0.0), "0");
+
+        let mut w = emRecMemWriter::new();
+        w.TryWriteDouble(-0.0).unwrap();
+        assert_eq!(w.into_bytes(), b"-0.0");
+
+        let mut w = emRecMemWriter::new();
+        w.TryWriteDouble(0.0).unwrap();
+        assert_eq!(w.into_bytes(), b"0.0");
+    }
+
+    #[test]
+    fn format_g_9_refuses_non_finite() {
+        let mut w = emRecMemWriter::new();
+        assert!(w.TryWriteDouble(f64::NAN).is_err());
+        assert!(w.TryWriteDouble(f64::INFINITY).is_err());
+        assert!(w.TryWriteDouble(f64::NEG_INFINITY).is_err());
+    }
+
+    #[test]
+    fn quoted_preserves_embedded_nul_via_octal() {
+        // DIVERGED from C++ (truncates at NUL). See TryWriteQuoted comment.
+        let mut w = emRecMemWriter::new();
+        w.TryWriteQuoted("foo\0bar").unwrap();
+        assert_eq!(w.into_bytes(), b"\"foo\\000bar\"");
     }
 
     #[test]
