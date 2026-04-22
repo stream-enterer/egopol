@@ -111,6 +111,10 @@ impl emArrayRec {
     /// (emRec.h:243 inline, delegates to `emRec::ChildChanged` at
     /// emRec.cpp:217) walks `UpperNode`. Rust fires the reified aggregate
     /// chain. See ADR 2026-04-21-phase-4b-listener-tree-adr.md.
+    //
+    // MIRROR: `emTArrayRec::SetCount` duplicates this body against typed `Vec<T>`
+    // storage; keep the two in lockstep (no Any supertrait — see emTArrayRec.rs
+    // module docs for the tradeoff).
     pub fn SetCount(&mut self, count: i32, ctx: &mut SchedCtx<'_>) {
         // Clip to [min_count, max_count]. C++ `Insert`/`Remove` clip with
         // `MaxCount-Count` / `Count-MinCount` arithmetic; mirroring the
@@ -175,7 +179,9 @@ impl emArrayRec {
     /// DIVERGED: no C++ counterpart. C++ `Get(int)` returns `emRec&` which
     /// callers freely mutate through virtual methods. Rust's borrow checker
     /// needs a distinct `&mut` accessor. Kept minimal for tests and typed
-    /// access through user-derived arrays.
+    /// access through user-derived arrays. Callers that need typed mutation
+    /// of a concrete child should use `emTArrayRec<T>`; this accessor only
+    /// exposes the `emRecNode` surface (parent walks, register_aggregate).
     pub fn GetMut(&mut self, i: i32) -> Option<&mut (dyn emRecNode + 'static)> {
         if i < 0 {
             return None;

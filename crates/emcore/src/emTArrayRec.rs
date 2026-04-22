@@ -25,6 +25,11 @@
 //! ~30-line duplication here. Observable behaviour (SetCount semantics,
 //! aggregate firing, chain forwarding) is identical to `emArrayRec`.
 //!
+//! TODO(revisit): if a future caller needs to recover `&mut dyn emArrayRec`
+//! from an erased `&mut dyn emRecNode` (e.g., polymorphic compound walks),
+//! migrate to an `Any` supertrait on `emRecNode` + `as_any_mut` impls and
+//! collapse `emTArrayRec<T>` onto a wrapped `emArrayRec`.
+//!
 //! Persistence methods (SetToDefault, IsSetToDefault, serialization) are
 //! deferred to Phase 4d alongside emArrayRec's equivalents.
 //!
@@ -103,6 +108,9 @@ impl<T: emRecNode + 'static> emTArrayRec<T> {
     /// DIVERGED (register_aggregate loop): C++ `emRec::Changed()` walks
     /// `UpperNode`; Rust fires the reified chain. See ADR
     /// 2026-04-21-phase-4b-listener-tree-adr.md.
+    //
+    // MIRROR: `emArrayRec::SetCount` holds the erased-Box counterpart of this
+    // body; keep the two in lockstep.
     pub fn SetCount(&mut self, count: i32, ctx: &mut SchedCtx<'_>) {
         let target = count.clamp(self.min_count, self.max_count);
         let current = self.items.len() as i32;
