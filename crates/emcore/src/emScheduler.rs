@@ -1453,7 +1453,6 @@ mod tests {
         let s2 = sched.create_signal();
         sched.fire(s1);
         sched.fire(s2);
-        // abort_all_pending does not exist yet — test will fail to compile.
         sched.abort_all_pending();
         sched.remove_signal(s1);
         sched.remove_signal(s2);
