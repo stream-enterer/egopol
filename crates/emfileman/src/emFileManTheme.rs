@@ -711,7 +711,7 @@ impl Record for emFileManThemeData {
 }
 
 /// Lazy-loading image record. Stores a path and caches the loaded image.
-/// DIVERGED: C++ ImageFileRec extends emStringRec + emRecListener with async
+/// DIVERGED: (language-forced) C++ ImageFileRec extends emStringRec + emRecListener with async
 /// emImageFileModel loading. This loads synchronously via load_image_from_file.
 pub struct ImageFileRec {
     path: String,
