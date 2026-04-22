@@ -9,7 +9,10 @@ use emcore::emImage::emImage;
 use emcore::emImageFile::load_image_from_file;
 use emcore::emInstallInfo::{emGetInstallPath, InstallDirType, InstallInfoError};
 use emcore::emRecParser::{RecError, RecStruct, RecValue};
-use emcore::emRecRecTypes::{emAlignmentRec, emColorRec};
+use emcore::emRecRecTypes::{
+    em_alignment_from_rec_value, em_alignment_to_rec_value, em_color_from_rec_struct,
+    em_color_to_rec_struct,
+};
 use emcore::emRecRecord::Record;
 use emcore::emSignal::SignalId;
 use emcore::emTiling::Alignment;
@@ -25,7 +28,7 @@ fn read_alignment(rec: &RecStruct, name: &str) -> Alignment {
     match rec.get_ident(name) {
         Some(s) => {
             let val = RecValue::Ident(s.to_string());
-            emAlignmentRec::FromRecValue(&val).unwrap_or(Alignment::Center)
+            em_alignment_from_rec_value(&val).unwrap_or(Alignment::Center)
         }
         None => Alignment::Center,
     }
@@ -36,7 +39,7 @@ fn read_color(rec: &RecStruct, name: &str) -> Result<u32, RecError> {
     let sub = rec
         .get_struct(name)
         .ok_or_else(|| RecError::MissingField(name.into()))?;
-    let c = emColorRec::FromRecStruct(sub, true)?;
+    let c = em_color_from_rec_struct(sub, true)?;
     Ok(c.GetPacked())
 }
 
@@ -47,13 +50,13 @@ fn write_color(rec: &mut RecStruct, name: &str, packed: u32) {
     let b = ((packed >> 8) & 0xFF) as u8;
     let a = (packed & 0xFF) as u8;
     let c = emColor::rgba(r, g, b, a);
-    let sub = emColorRec::ToRecStruct(c, true);
+    let sub = em_color_to_rec_struct(c, true);
     rec.SetValue(name, RecValue::Struct(sub));
 }
 
 /// Helper: write an alignment field into a RecStruct.
 fn write_alignment(rec: &mut RecStruct, name: &str, alignment: Alignment) {
-    let val = emAlignmentRec::ToRecValue(alignment);
+    let val = em_alignment_to_rec_value(alignment);
     rec.SetValue(name, val);
 }
 

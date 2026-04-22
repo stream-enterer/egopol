@@ -745,75 +745,11 @@ fn kani_emProcess_StartFlags_contains() {
     let _result = self_val.contains(p_other);
 }
 
-#[cfg(kani)]
-#[kani::proof]
-fn kani_emRecRecTypes_emColorRec_new() {
-    let mut p_default_value =
-        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
-    let mut p_have_alpha: bool = kani::any::<bool>();
-    let _result = emcore::emRecRecTypes::emColorRec::new(p_default_value, p_have_alpha);
-}
-
-#[cfg(kani)]
-#[kani::proof]
-fn kani_emRecRecTypes_emColorRec_GetRec() {
-    let mut self_val = emcore::emRecRecTypes::emColorRec::new(
-        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()),
-        kani::any(),
-    );
-    let _result = self_val.GetRec();
-}
-
-#[cfg(kani)]
-#[kani::proof]
-fn kani_emRecRecTypes_emColorRec_Set() {
-    let mut self_val = emcore::emRecRecTypes::emColorRec::new(
-        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()),
-        kani::any(),
-    );
-    let mut p_value =
-        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
-    let _result = self_val.Set(p_value);
-}
-
-#[cfg(kani)]
-#[kani::proof]
-fn kani_emRecRecTypes_emColorRec_SetToDefault() {
-    let mut self_val = emcore::emRecRecTypes::emColorRec::new(
-        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()),
-        kani::any(),
-    );
-    let _result = self_val.SetToDefault();
-}
-
-#[cfg(kani)]
-#[kani::proof]
-fn kani_emRecRecTypes_emColorRec_IsSetToDefault() {
-    let mut self_val = emcore::emRecRecTypes::emColorRec::new(
-        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()),
-        kani::any(),
-    );
-    let _result = self_val.IsSetToDefault();
-}
-
-#[cfg(kani)]
-#[kani::proof]
-fn kani_emRecRecTypes_emColorRec_HaveAlpha() {
-    let mut self_val = emcore::emRecRecTypes::emColorRec::new(
-        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any()),
-        kani::any(),
-    );
-    let _result = self_val.HaveAlpha();
-}
-
-#[cfg(kani)]
-#[kani::proof]
-fn kani_emRecRecTypes_emColorRec_ToRecStruct() {
-    let mut p_color =
-        emcore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
-    let mut p_have_alpha: bool = kani::any::<bool>();
-    let _result = emcore::emRecRecTypes::emColorRec::ToRecStruct(p_color, p_have_alpha);
-}
+// TODO(phase-4e): regenerate kani proofs for new emColorRec (ctx-constructed) and
+// emAlignmentRec once a ConstructCtx mock pattern for Kani is established.
+// 7 harnesses for the legacy value-type emColorRec (new/GetRec/Set/SetToDefault/
+// IsSetToDefault/HaveAlpha/ToRecStruct) were deleted in Phase 4b.1 along with
+// the legacy type. See docs/superpowers/notes/2026-04-19-phase-4b-1-ledger.md.
 
 #[cfg(kani)]
 #[kani::proof]

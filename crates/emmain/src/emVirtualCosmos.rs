@@ -12,7 +12,7 @@ use emcore::emPainter::{TextAlignment, VAlign, emPainter};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelTree::{AutoplayHandlingFlags, PanelId};
 use emcore::emRecParser::{RecError, RecStruct, RecValue};
-use emcore::emRecRecTypes::emColorRec;
+use emcore::emRecRecTypes::{em_color_from_rec_struct, em_color_to_rec_struct};
 use emcore::emRecRecord::Record;
 use emcore::emResTga::load_tga;
 
@@ -151,15 +151,15 @@ impl Record for emVirtualCosmosItemRec {
         s.set_double("borderscaling", self.BorderScaling);
         s.SetValue(
             "backgroundcolor",
-            RecValue::Struct(emColorRec::ToRecStruct(self.BackgroundColor, true)),
+            RecValue::Struct(em_color_to_rec_struct(self.BackgroundColor, true)),
         );
         s.SetValue(
             "bordercolor",
-            RecValue::Struct(emColorRec::ToRecStruct(self.BorderColor, true)),
+            RecValue::Struct(em_color_to_rec_struct(self.BorderColor, true)),
         );
         s.SetValue(
             "titlecolor",
-            RecValue::Struct(emColorRec::ToRecStruct(self.TitleColor, true)),
+            RecValue::Struct(em_color_to_rec_struct(self.TitleColor, true)),
         );
         s.set_bool("focusable", self.Focusable);
         s.set_str("filename", &self.FileName);
@@ -191,7 +191,7 @@ fn parse_color_field(rec: &RecStruct, field: &str, default: emColor) -> emColor 
     }
     // Fall back to struct format {R G B A}
     if let Some(s) = rec.get_struct(field)
-        && let Ok(c) = emColorRec::FromRecStruct(s, true)
+        && let Ok(c) = em_color_from_rec_struct(s, true)
     {
         return c;
     }

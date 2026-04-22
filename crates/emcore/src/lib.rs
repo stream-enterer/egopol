@@ -2,6 +2,8 @@
 #![allow(non_camel_case_types)]
 
 pub mod emATMatrix;
+pub mod emAlignment;
+pub mod emAlignmentRec;
 pub mod emArray;
 pub mod emAvlTreeMap;
 pub mod emAvlTreeSet;
@@ -16,6 +18,7 @@ pub mod emClipboard;
 pub mod emColor;
 pub mod emColorField;
 pub mod emColorFieldFieldPanel;
+pub mod emColorRec;
 pub mod emColorX11Colors;
 pub mod emConfigModel;
 pub mod emContext;

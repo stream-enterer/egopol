@@ -9,7 +9,7 @@ use emcore::emInstallInfo::{InstallDirType, emGetInstallPath};
 use emcore::emPainter::{TextAlignment, VAlign, emPainter};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emRecParser::{RecError, RecStruct, RecValue};
-use emcore::emRecRecTypes::emColorRec;
+use emcore::emRecRecTypes::{em_color_from_rec_struct, em_color_to_rec_struct};
 use emcore::emRecRecord::Record;
 use emcore::emSignal::SignalId;
 use slotmap::Key as _;
@@ -60,11 +60,11 @@ impl emBookmarkEntryBase {
     fn from_rec_with_defaults(rec: &RecStruct, bg_default: emColor, fg_default: emColor) -> Self {
         let bg = rec
             .get_struct("bgcolor")
-            .and_then(|s| emColorRec::FromRecStruct(s, true).ok())
+            .and_then(|s| em_color_from_rec_struct(s, true).ok())
             .unwrap_or(bg_default);
         let fg = rec
             .get_struct("fgcolor")
-            .and_then(|s| emColorRec::FromRecStruct(s, true).ok())
+            .and_then(|s| em_color_from_rec_struct(s, true).ok())
             .unwrap_or(fg_default);
         Self {
             Name: rec.get_str("name").unwrap_or("").to_string(),
@@ -81,11 +81,11 @@ impl emBookmarkEntryBase {
         s.set_str("icon", &self.Icon);
         s.SetValue(
             "bgcolor",
-            RecValue::Struct(emColorRec::ToRecStruct(self.BgColor, true)),
+            RecValue::Struct(em_color_to_rec_struct(self.BgColor, true)),
         );
         s.SetValue(
             "fgcolor",
-            RecValue::Struct(emColorRec::ToRecStruct(self.FgColor, true)),
+            RecValue::Struct(em_color_to_rec_struct(self.FgColor, true)),
         );
     }
 }
