@@ -88,7 +88,7 @@ fn int_rec_roundtrip() {
     let mut sc = fx.sc();
     let mut rec = emIntRec::new(&mut sc, 0, -100, 100);
     rec.SetValue(42, &mut sc);
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     rec.TryWrite(&mut w).unwrap();
@@ -99,7 +99,7 @@ fn int_rec_roundtrip() {
     let mut rec2 = emIntRec::new(&mut sc, 0, -100, 100);
     let mut r = emRecMemReader::new(&bytes);
     rec2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
     assert_eq!(rec2.GetValue(), rec.GetValue());
 
     let mut w2 = emRecMemWriter::new();
@@ -139,8 +139,11 @@ fn double_rec_roundtrip() {
 
     let mut sc = fx.sc();
     let mut rec = emDoubleRec::new(&mut sc, 0.0, -1e6, 1e6);
-    rec.SetValue(3.14159, &mut sc);
-    drop(sc);
+    // Arbitrary non-integer double — exercises the %.9G formatter on a
+    // fractional value. Not a mathematical constant; the test cares only
+    // about byte-stability of the round-trip, not the specific value.
+    rec.SetValue(1234.5678_f64, &mut sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     rec.TryWrite(&mut w).unwrap();
@@ -150,7 +153,7 @@ fn double_rec_roundtrip() {
     let mut rec2 = emDoubleRec::new(&mut sc, 0.0, -1e6, 1e6);
     let mut r = emRecMemReader::new(&bytes);
     rec2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
     assert_eq!(rec2.GetValue(), rec.GetValue());
 
     let mut w2 = emRecMemWriter::new();
@@ -173,7 +176,7 @@ fn string_rec_roundtrip() {
     let mut sc = fx.sc();
     let mut rec = emStringRec::new(&mut sc, String::new());
     rec.SetValue("hello \"world\"\n".to_string(), &mut sc);
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     rec.TryWrite(&mut w).unwrap();
@@ -183,7 +186,7 @@ fn string_rec_roundtrip() {
     let mut rec2 = emStringRec::new(&mut sc, String::new());
     let mut r = emRecMemReader::new(&bytes);
     rec2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
     assert_eq!(rec2.GetValue(), rec.GetValue());
 
     let mut w2 = emRecMemWriter::new();
@@ -207,7 +210,7 @@ fn enum_rec_roundtrip() {
     let mut sc = fx.sc();
     let mut rec = emEnumRec::new(&mut sc, 0, ids());
     rec.SetValue(2, &mut sc); // "gamma"
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     rec.TryWrite(&mut w).unwrap();
@@ -218,7 +221,7 @@ fn enum_rec_roundtrip() {
     let mut rec2 = emEnumRec::new(&mut sc, 0, ids());
     let mut r = emRecMemReader::new(&bytes);
     rec2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
     assert_eq!(rec2.GetValue(), rec.GetValue());
 
     let mut w2 = emRecMemWriter::new();
@@ -231,7 +234,7 @@ fn enum_rec_roundtrip() {
     let mut r = emRecMemReader::new(b"1");
     rec3.TryRead(&mut r, &mut sc).unwrap();
     assert_eq!(*rec3.GetValue(), 1);
-    drop(sc);
+    let _ = sc;
 
     let mut sc = fx.sc();
     for s in [
@@ -265,7 +268,7 @@ fn flags_rec_roundtrip_multiple_bits() {
     let mut sc = fx.sc();
     let mut rec = emFlagsRec::new(&mut sc, 0, &["read", "write", "exec"]);
     rec.SetValue(0b101, &mut sc); // read + exec
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     rec.TryWrite(&mut w).unwrap();
@@ -276,7 +279,7 @@ fn flags_rec_roundtrip_multiple_bits() {
     let mut rec2 = emFlagsRec::new(&mut sc, 0, &["read", "write", "exec"]);
     let mut r = emRecMemReader::new(&bytes);
     rec2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
     assert_eq!(rec2.GetValue(), rec.GetValue());
 
     let mut w2 = emRecMemWriter::new();
@@ -295,7 +298,7 @@ fn flags_rec_empty_set_roundtrip() {
     let mut fx = Fixture::new();
     let mut sc = fx.sc();
     let rec = emFlagsRec::new(&mut sc, 0, &["a", "b"]);
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     rec.TryWrite(&mut w).unwrap();
@@ -307,7 +310,7 @@ fn flags_rec_empty_set_roundtrip() {
     let mut r = emRecMemReader::new(&bytes);
     rec2.TryRead(&mut r, &mut sc).unwrap();
     assert_eq!(*rec2.GetValue(), 0);
-    drop(sc);
+    let _ = sc;
 
     let mut sc = fx.sc();
     for s in [rec.GetValueSignal(), rec2.GetValueSignal()] {
@@ -323,7 +326,7 @@ fn alignment_rec_roundtrip_combo() {
     let mut sc = fx.sc();
     let mut rec = emAlignmentRec::new(&mut sc, 0);
     rec.SetValue(EM_ALIGN_TOP_LEFT, &mut sc);
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     rec.TryWrite(&mut w).unwrap();
@@ -335,7 +338,7 @@ fn alignment_rec_roundtrip_combo() {
     let mut rec2 = emAlignmentRec::new(&mut sc, 0);
     let mut r = emRecMemReader::new(&bytes);
     rec2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
     assert_eq!(rec2.GetValue(), rec.GetValue());
 
     let mut w2 = emRecMemWriter::new();
@@ -354,7 +357,7 @@ fn alignment_rec_center_when_no_bits_set() {
     let mut fx = Fixture::new();
     let mut sc = fx.sc();
     let rec = emAlignmentRec::new(&mut sc, 0);
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     rec.TryWrite(&mut w).unwrap();
@@ -365,7 +368,7 @@ fn alignment_rec_center_when_no_bits_set() {
     let mut r = emRecMemReader::new(b"center");
     rec2.TryRead(&mut r, &mut sc).unwrap();
     assert_eq!(*rec2.GetValue(), 0);
-    drop(sc);
+    let _ = sc;
 
     let mut sc = fx.sc();
     for s in [rec.GetValueSignal(), rec2.GetValueSignal()] {
@@ -380,7 +383,7 @@ fn color_rec_roundtrip_rgb() {
     let mut sc = fx.sc();
     let mut rec = emColorRec::new(&mut sc, emColor::BLACK, false);
     rec.SetValue(emColor::rgba(0x11, 0x22, 0x33, 255), &mut sc);
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     rec.TryWrite(&mut w).unwrap();
@@ -391,7 +394,7 @@ fn color_rec_roundtrip_rgb() {
     let mut rec2 = emColorRec::new(&mut sc, emColor::BLACK, false);
     let mut r = emRecMemReader::new(&bytes);
     rec2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
     assert_eq!(rec2.GetValue(), rec.GetValue());
 
     let mut w2 = emRecMemWriter::new();
@@ -411,7 +414,7 @@ fn color_rec_roundtrip_rgba() {
     let mut sc = fx.sc();
     let mut rec = emColorRec::new(&mut sc, emColor::BLACK, true);
     rec.SetValue(emColor::rgba(10, 20, 30, 128), &mut sc);
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     rec.TryWrite(&mut w).unwrap();
@@ -422,7 +425,7 @@ fn color_rec_roundtrip_rgba() {
     let mut rec2 = emColorRec::new(&mut sc, emColor::BLACK, true);
     let mut r = emRecMemReader::new(&bytes);
     rec2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
     assert_eq!(rec2.GetValue(), rec.GetValue());
 
     let mut w2 = emRecMemWriter::new();
@@ -569,7 +572,7 @@ fn union_rec_roundtrip() {
         let mut r = emRecMemReader::new(b"\"hello\"");
         child.TryRead(&mut r, &mut sc).unwrap();
     }
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     u.TryWrite(&mut w).unwrap();
@@ -596,7 +599,7 @@ fn union_rec_roundtrip() {
 
     let mut r = emRecMemReader::new(&bytes);
     u2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
     assert_eq!(u2.GetVariant(), 1);
 
     let mut w2 = emRecMemWriter::new();
@@ -628,7 +631,7 @@ fn array_rec_roundtrip() {
         let mut r = emRecMemReader::new(raw.as_bytes());
         child.TryRead(&mut r, &mut sc).unwrap();
     }
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     arr.TryWrite(&mut w).unwrap();
@@ -642,7 +645,7 @@ fn array_rec_roundtrip() {
     let mut arr2 = emArrayRec::new(&mut sc, alloc2, 0, 100);
     let mut r = emRecMemReader::new(&bytes);
     arr2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
     assert_eq!(arr2.GetCount(), 3);
 
     let mut w2 = emRecMemWriter::new();
@@ -675,7 +678,7 @@ fn tarray_rec_roundtrip_persons() {
         .SetValue("bob".to_string(), &mut sc);
     arr.GetMut(1).unwrap().age.SetValue(40, &mut sc);
     arr.GetMut(1).unwrap().male.SetValue(true, &mut sc);
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     arr.TryWrite(&mut w).unwrap();
@@ -687,7 +690,7 @@ fn tarray_rec_roundtrip_persons() {
     let mut arr2 = emTArrayRec::<Person>::new(&mut sc, alloc2, 0, 100);
     let mut r = emRecMemReader::new(&bytes);
     arr2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
 
     assert_eq!(arr2.GetCount(), 2);
     assert_eq!(arr2.Get(0).unwrap().name.GetValue(), &"alice".to_string());
@@ -715,7 +718,7 @@ fn struct_rec_roundtrip_person() {
     p.name.SetValue("alice".to_string(), &mut sc);
     p.age.SetValue(42, &mut sc);
     p.male.SetValue(false, &mut sc);
-    drop(sc);
+    let _ = sc;
 
     let mut w = emRecMemWriter::new();
     p.TryWrite(&mut w).unwrap();
@@ -729,7 +732,7 @@ fn struct_rec_roundtrip_person() {
     let mut p2 = Person::new(&mut sc);
     let mut r = emRecMemReader::new(&bytes);
     p2.TryRead(&mut r, &mut sc).unwrap();
-    drop(sc);
+    let _ = sc;
     assert_eq!(p2.name.GetValue(), &"alice".to_string());
     assert_eq!(*p2.age.GetValue(), 42);
     assert!(!*p2.male.GetValue());

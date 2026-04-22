@@ -11,8 +11,14 @@ use crate::emRecReader::{emRecReader, ElementType, PeekResult, RecIoError};
 
 /// Mirrors the lexer state C++ keeps on the `emRecReader` base class
 /// (emRec.cpp:1974-1988). One `Lexer` per reader instance; private.
-struct Lexer<'a> {
-    src: &'a [u8],
+///
+/// Owns its byte buffer by value. C++ keeps a `FILE*` / `const char*` plus a
+/// length and scans in-place; the Rust port folds the byte buffer into the
+/// lexer so the concrete `emRecMemReader` is `'static` and composable by
+/// file-backed wrappers (see `emRecFileReader`). The buffer is accessed by
+/// index (`pos`), never by borrowing a subslice across `&mut self` calls.
+struct Lexer {
+    src: Vec<u8>,
     pos: usize,
 
     /// Line associated with the most recently *consumed* element —
@@ -34,8 +40,8 @@ struct Lexer<'a> {
     next_char: i32,
 }
 
-impl<'a> Lexer<'a> {
-    fn new(src: &'a [u8]) -> Self {
+impl Lexer {
+    fn new(src: Vec<u8>) -> Self {
         let mut l = Self {
             src,
             pos: 0,
@@ -432,19 +438,31 @@ fn hex_digit(b: Option<u8>) -> Option<u8> {
 /// defers the magic-header handling to a later task (see the Task 1 doc
 /// comment and the Phase 4d plan) — atomic-type reads such as `emBoolRec`
 /// never carry a format name.
-pub struct emRecMemReader<'a> {
-    lexer: Lexer<'a>,
+pub struct emRecMemReader {
+    lexer: Lexer,
 }
 
-impl<'a> emRecMemReader<'a> {
-    pub fn new(buf: &'a [u8]) -> Self {
+impl emRecMemReader {
+    /// Construct from a byte slice; the buffer is copied into the reader.
+    /// Kept as the 1:1 C++ constructor name for File and Name Correspondence
+    /// (C++ `emRecMemReader::emRecMemReader(...)` stores a borrowed pointer,
+    /// but Rust's single-threaded owned-buffer model is cleaner here and
+    /// matches how Phase 4d composes the file reader — see
+    /// [`from_vec`](Self::from_vec)).
+    pub fn new(buf: &[u8]) -> Self {
+        Self::from_vec(buf.to_vec())
+    }
+
+    /// Construct from an owned byte vector without copying. Used by
+    /// [`crate::emRecFileReader`] to hand off the file contents directly.
+    pub fn from_vec(bytes: Vec<u8>) -> Self {
         Self {
-            lexer: Lexer::new(buf),
+            lexer: Lexer::new(bytes),
         }
     }
 }
 
-impl<'a> emRecReader for emRecMemReader<'a> {
+impl emRecReader for emRecMemReader {
     fn TryPeekNext(&mut self) -> Result<PeekResult, RecIoError> {
         if self.lexer.next_eaten {
             self.lexer.TryParseNext()?;

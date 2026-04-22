@@ -82,6 +82,8 @@ pub mod emRasterGroup;
 pub mod emRasterLayout;
 pub mod emRec;
 pub mod emRecFileModel;
+pub mod emRecFileReader;
+pub mod emRecFileWriter;
 pub mod emRecListener;
 pub mod emRecMemReader;
 pub mod emRecMemWriter;
