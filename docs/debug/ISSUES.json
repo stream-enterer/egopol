@@ -266,6 +266,25 @@
       "repro": "Launch app. Navigate into cosmos. Observe file manager panels (FS, Home) — they show a small dark-red box before zooming in. Once zoomed in enough for AutoExpand, the red disappears and the panel renders normally."
     },
     {
+      "id": "F010",
+      "kind": "fix",
+      "status": "open",
+      "priority": "high",
+      "title": "Directory listing never loads inside emDirEntryPanel — stays black indefinitely",
+      "description": "When zooming into a cosmos file-manager panel (FS, Home), the content area renders as a black rectangle and never populates with a directory listing, regardless of zoom level. Expected: zooming in past MinContentVW triggers emDirEntryPanel::update_content_panel which creates an emDirPanel child showing the directory contents. Observed: the content area stays black all the way to maximum zoom — no file entries appear. Suspected cause: the should_create condition in update_content_panel is never satisfied, or the emDirPanel child is created but does not paint its content.",
+      "location": "crates/emfileman/src/emDirEntryPanel.rs — update_content_panel",
+      "caused_by": null,
+      "introduced_commit": null,
+      "introduced_date": "2026-04-23",
+      "fix_note": null,
+      "investigation_file": null,
+      "root_cause_file": null,
+      "blocked_question": null,
+      "fixed_in_commit": null,
+      "fixed_date": null,
+      "repro": "Launch app. Navigate into cosmos. Zoom into the File System or Home panel all the way. The interior stays black — no directory listing appears at any zoom level."
+    },
+    {
       "id": "P001",
       "kind": "perf",
       "status": "open",
