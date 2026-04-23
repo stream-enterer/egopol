@@ -506,7 +506,21 @@ impl PanelBehavior for emSubViewPanel {
             active
         };
 
-        animator_active || vif_active
+        let keep_awake = animator_active || vif_active;
+
+        // After VIF/animator ran, drive HandleNotice + Update on the sub-view so
+        // viewing-state changes (zoom/pan spring steps) propagate into panel records
+        // before the next paint.  In C++ the sub-view's UpdateEngine does this each
+        // frame; in Rust that engine's PanelScope is SubView{window_id: dummy} and
+        // DoTimeSlice finds no matching window → engine sleeps every frame.
+        if keep_awake {
+            self.sub_view
+                .HandleNotice(&mut self.sub_tree, ectx.scheduler);
+            let mut sc = ectx.as_sched_ctx();
+            self.sub_view.Update(&mut self.sub_tree, &mut sc);
+        }
+
+        keep_awake
     }
 
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState, ctx: &mut PanelCtx) {
