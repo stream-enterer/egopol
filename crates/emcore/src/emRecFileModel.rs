@@ -4,8 +4,9 @@ use std::time::SystemTime;
 
 use crate::emRecParser::{parse_rec, write_rec};
 
-use crate::emFileModel::FileState;
+use crate::emFileModel::{FileModelState, FileState};
 use crate::emRecRecord::Record;
+use crate::emSignal::SignalId;
 
 /// A file-backed model that loads and saves a `Record`-typed value as emRec.
 ///
@@ -263,5 +264,32 @@ impl<T: Record + Default> emRecFileModel<T> {
         self.protect_file_state += 1;
         self.data.SetToDefault();
         self.protect_file_state -= 1;
+    }
+}
+
+impl<T: Record + Default> FileModelState for emRecFileModel<T> {
+    fn GetFileState(&self) -> &FileState {
+        &self.state
+    }
+
+    fn GetFileProgress(&self) -> f64 {
+        match &self.state {
+            FileState::Loading { progress } => *progress,
+            _ => 0.0,
+        }
+    }
+
+    fn GetErrorText(&self) -> &str {
+        &self.error_text
+    }
+
+    fn get_memory_need(&self) -> u64 {
+        self.memory_need
+    }
+
+    // emRecFileModel has no scheduler-backed signal; emFilePanel::SetFileModel
+    // does not use the signal, so SignalId::default() (the null key) is safe here.
+    fn GetFileStateSignal(&self) -> SignalId {
+        SignalId::default()
     }
 }

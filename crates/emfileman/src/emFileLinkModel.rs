@@ -3,11 +3,12 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use emcore::emContext::emContext;
-use emcore::emFileModel::FileState;
+use emcore::emFileModel::{FileModelState, FileState};
 use emcore::emInstallInfo::{emGetInstallPath, InstallDirType};
 use emcore::emRecFileModel::emRecFileModel;
 use emcore::emRecParser::{RecError, RecStruct};
 use emcore::emRecRecord::Record;
+use emcore::emSignal::SignalId;
 
 /// Base path type for emFileLink resolution.
 ///
@@ -241,6 +242,28 @@ impl emFileLinkModel {
             self.rec_model.TryLoad();
         }
         matches!(self.rec_model.GetFileState(), FileState::Loaded)
+    }
+}
+
+impl FileModelState for emFileLinkModel {
+    fn GetFileState(&self) -> &FileState {
+        self.rec_model.GetFileState()
+    }
+
+    fn GetFileProgress(&self) -> f64 {
+        self.rec_model.GetFileProgress()
+    }
+
+    fn GetErrorText(&self) -> &str {
+        self.rec_model.GetErrorText()
+    }
+
+    fn get_memory_need(&self) -> u64 {
+        self.rec_model.GetMemoryNeed()
+    }
+
+    fn GetFileStateSignal(&self) -> SignalId {
+        self.rec_model.GetFileStateSignal()
     }
 }
 

@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
+use emcore::emFileModel::FileModelState;
 use emcore::emFilePanel::emFilePanel;
 
 use emcore::emEngineCtx::PanelCtx;
@@ -85,6 +86,11 @@ impl emFileLinkPanel {
     }
 
     pub fn set_link_model(&mut self, model: Rc<RefCell<emFileLinkModel>>) {
+        // Port of C++ emFilePanel(parent, name, fileModel, true): the model is
+        // connected to file_panel so its load state drives VirtualFileState
+        // (Waiting → Loaded) instead of staying at NoFileModel (dark-red render).
+        self.file_panel
+            .SetFileModel(Some(Rc::clone(&model) as Rc<RefCell<dyn FileModelState>>));
         self.model = Some(model);
     }
 
@@ -334,5 +340,23 @@ mod tests {
         assert!(panel.have_border);
         let panel2 = emFileLinkPanel::new(Rc::clone(&ctx), false);
         assert!(!panel2.have_border);
+    }
+
+    #[test]
+    fn set_link_model_connects_file_panel() {
+        use emcore::emFilePanel::VirtualFileState;
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), true);
+        let model = crate::emFileLinkModel::emFileLinkModel::Acquire(
+            &ctx,
+            "/tmp/nonexistent.emFileLink",
+            false,
+        );
+        panel.set_link_model(model);
+        let vfs = panel.file_panel.GetVirFileState();
+        assert!(
+            !matches!(vfs, VirtualFileState::NoFileModel),
+            "file_panel must not be NoFileModel after set_link_model; got {vfs:?}"
+        );
     }
 }
