@@ -1,4 +1,6 @@
 use crate::emDirEntry::emDirEntry;
+use emcore::emFileModel::{FileModelState, FileState};
+use emcore::emSignal::SignalId;
 use std::path::PathBuf;
 
 enum LoadingPhase {
@@ -212,6 +214,9 @@ impl Default for emDirModelData {
 pub struct emDirModel {
     data: emDirModelData,
     path: String,
+    // Stored state for FileModelState impl. Updated by emDirPanel::Cycle at
+    // each state transition. Mirrors loading_phase for use by emFilePanel.
+    pub(crate) state: FileState,
 }
 
 impl emDirModel {
@@ -222,6 +227,7 @@ impl emDirModel {
         ctx.acquire::<Self>(name, || Self {
             data: emDirModelData::new(),
             path: name.to_string(),
+            state: FileState::Waiting,
         })
     }
 
@@ -287,6 +293,33 @@ impl emDirModel {
             },
             LoadingPhase::Done => emcore::emFileModel::FileState::Loaded,
         }
+    }
+}
+
+// Port of C++ emDirModel extending emFileModel<emDirModelData>:
+// emFilePanel needs a FileModelState to track Waiting→Loading→Loaded.
+// emDirModel::state is updated by emDirPanel::Cycle at each transition.
+// GetFileStateSignal returns the null SignalId (emDirModel has no scheduler
+// signal); emFilePanel::SetFileModel does not use it.
+impl FileModelState for emDirModel {
+    fn GetFileState(&self) -> &FileState {
+        &self.state
+    }
+
+    fn GetFileProgress(&self) -> f64 {
+        self.data.calc_file_progress()
+    }
+
+    fn GetErrorText(&self) -> &str {
+        ""
+    }
+
+    fn get_memory_need(&self) -> u64 {
+        self.data.calc_memory_need()
+    }
+
+    fn GetFileStateSignal(&self) -> SignalId {
+        SignalId::default()
     }
 }
 

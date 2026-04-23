@@ -6,6 +6,7 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emEngineCtx::PanelCtx;
+use emcore::emFileModel::FileModelState;
 use emcore::emFilePanel::emFilePanel;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
@@ -287,7 +288,14 @@ impl PanelBehavior for emDirPanel {
         let mut changed = false;
 
         if self.dir_model.is_none() {
-            self.dir_model = Some(emDirModel::Acquire(&self.ctx, &self.path));
+            // Port of C++ emDirPanel::Notice SetFileModel path (Cycle fallback):
+            // acquire model and connect it to file_panel so VirtualFileState
+            // transitions from NoFileModel → Waiting → Loading → Loaded.
+            let dm_rc = emDirModel::Acquire(&self.ctx, &self.path);
+            self.file_panel.SetFileModel(Some(
+                Rc::clone(&dm_rc) as Rc<RefCell<dyn FileModelState>>,
+            ));
+            self.dir_model = Some(dm_rc);
             self.loading_done = false;
             self.loading_error = None;
             self.child_count = 0;
@@ -309,6 +317,7 @@ impl PanelBehavior for emDirPanel {
                 emcore::emFileModel::FileState::Waiting => {
                     match dm.try_start_loading() {
                         Ok(()) => {
+                            dm.state = emcore::emFileModel::FileState::Loading { progress: 0.0 };
                             self.loading_done = false;
                             self.loading_error = None;
                             self.file_panel.clear_custom_error();
@@ -322,6 +331,7 @@ impl PanelBehavior for emDirPanel {
                 }
                 emcore::emFileModel::FileState::Loading { .. } => match dm.try_continue_loading() {
                     Ok(true) => {
+                        dm.state = emcore::emFileModel::FileState::Loaded;
                         dm.quit_loading();
                         self.loading_done = true;
                         self.file_panel.clear_custom_error();
@@ -330,6 +340,9 @@ impl PanelBehavior for emDirPanel {
                         changed = true;
                     }
                     Ok(false) => {
+                        dm.state = emcore::emFileModel::FileState::Loading {
+                            progress: dm.calc_file_progress(),
+                        };
                         changed = true;
                     }
                     Err(e) => {
@@ -398,7 +411,13 @@ impl PanelBehavior for emDirPanel {
             let keep_model = state.viewed || state.in_active_path;
             if keep_model {
                 if self.dir_model.is_none() {
-                    self.dir_model = Some(emDirModel::Acquire(&self.ctx, &self.path));
+                    // Port of C++ emDirPanel::Notice line:
+                    // if (!GetFileModel()) SetFileModel(emDirModel::Acquire(...))
+                    let dm_rc = emDirModel::Acquire(&self.ctx, &self.path);
+                    self.file_panel.SetFileModel(Some(
+                        Rc::clone(&dm_rc) as Rc<RefCell<dyn FileModelState>>,
+                    ));
+                    self.dir_model = Some(dm_rc);
                     self.loading_done = false;
                     self.loading_error = None;
                     self.child_count = 0;
@@ -545,6 +564,26 @@ mod tests {
         let rects = compute_grid_layout(4, 1.5, 1.5, 0.0, 0.0, 0.0, 0.0);
         assert_eq!(rects.len(), 4);
         assert!((rects[0].x - rects[1].x).abs() < 1e-9);
+    }
+
+    #[test]
+    fn model_acquired_connects_file_panel() {
+        // Regression: emDirPanel::notice acquired dir_model but never called
+        // file_panel.SetFileModel(Some(...)), leaving file_panel in NoFileModel
+        // state and causing "No file model" to render during directory loading.
+        use emcore::emFileModel::FileModelState;
+        use emcore::emFilePanel::VirtualFileState;
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let dm_rc = emDirModel::Acquire(&ctx, "/tmp");
+        let mut panel = emDirPanel::new(Rc::clone(&ctx), "/tmp".to_string());
+        panel.file_panel.SetFileModel(Some(
+            Rc::clone(&dm_rc) as Rc<std::cell::RefCell<dyn FileModelState>>,
+        ));
+        assert_ne!(
+            panel.file_panel.GetVirFileState(),
+            VirtualFileState::NoFileModel,
+            "file_panel must be Waiting after model acquired, not NoFileModel"
+        );
     }
 
     #[test]
