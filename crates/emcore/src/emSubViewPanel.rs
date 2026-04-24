@@ -58,16 +58,15 @@ impl emSubViewPanel {
     pub fn new(
         parent_context: Rc<crate::emContext::emContext>,
         outer_panel_id: PanelId,
+        outer_window_id: winit::window::WindowId,
         ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
     ) -> Self {
         // Tag the sub_tree's scope so `register_engine_for` tags every
         // sub-tree `PanelCycleEngine` adapter with
-        // `PanelScope::SubView { window_id: dummy, outer_panel_id }` for
-        // dispatch through the outer scheduler's SubView arm. Task 7
-        // backfills the real WindowId when window/tree construction
-        // carries it.
+        // `PanelScope::SubView { window_id, outer_panel_id }` for
+        // dispatch through the outer scheduler's SubView arm.
         let sub_scope = crate::emPanelScope::PanelScope::SubView {
-            window_id: winit::window::WindowId::dummy(),
+            window_id: outer_window_id,
             outer_panel_id,
         };
         let mut sub_tree = PanelTree::new_with_scope(sub_scope);
@@ -510,9 +509,8 @@ impl PanelBehavior for emSubViewPanel {
 
         // After VIF/animator ran, drive HandleNotice + Update on the sub-view so
         // viewing-state changes (zoom/pan spring steps) propagate into panel records
-        // before the next paint.  In C++ the sub-view's UpdateEngine does this each
-        // frame; in Rust that engine's PanelScope is SubView{window_id: dummy} and
-        // DoTimeSlice finds no matching window → engine sleeps every frame.
+        // before the next paint. In C++ the sub-view's UpdateEngine handles this
+        // each frame via the outer scheduler; Rust mirrors the same path.
         if keep_awake {
             self.sub_view
                 .HandleNotice(&mut self.sub_tree, ectx.scheduler);
@@ -675,7 +673,12 @@ mod sp8_tests {
                     current_engine: None,
                     pending_actions: &__pa,
                 };
-                emSubViewPanel::new(root_ctx.clone(), owner_id, &mut sc)
+                emSubViewPanel::new(
+                    root_ctx.clone(),
+                    owner_id,
+                    winit::window::WindowId::dummy(),
+                    &mut sc,
+                )
             };
             Self {
                 outer_tree,

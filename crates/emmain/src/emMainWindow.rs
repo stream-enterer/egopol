@@ -840,49 +840,11 @@ pub fn create_main_window(
     // children immediately at construction time. C++ has these as emView
     // members instantiated inline; in Rust the creator has tree access here.
     //
-    // Phase 1.75 Task 3: `emSubViewPanel::new` needs `outer_panel_id` + a
-    // SchedCtx on the outer scheduler to register the sub-view's engines on
-    // the outer scheduler with `SubView` location. So: create the outer child
-    // slot first, then build a SchedCtx, then construct the emSubViewPanel,
-    // then install it.
+    // Create outer child slots first so ids are available for emMainPanel
+    // configuration. emSubViewPanel::new is called after window creation so
+    // the real WindowId can be passed to PanelScope::SubView.
     let ctrl_id = home_tree.create_child(root_id, "control view", None);
     let content_id = home_tree.create_child(root_id, "content view", None);
-    let ctrl_svp = {
-        let root_ctx = app.context.GetRootContext();
-        let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
-        let mut sc = emcore::emEngineCtx::SchedCtx {
-            scheduler: &mut app.scheduler,
-            framework_actions: &mut fw,
-            root_context: &root_ctx,
-            framework_clipboard: &app.clipboard,
-            current_engine: None,
-            pending_actions: &app.pending_actions,
-        };
-        let mut svp = emSubViewPanel::new(Rc::clone(&app.context), ctrl_id, &mut sc);
-        svp.set_sub_view_flags(
-            ViewFlags::POPUP_ZOOM | ViewFlags::ROOT_SAME_TALLNESS | ViewFlags::NO_ACTIVE_HIGHLIGHT,
-        );
-        svp
-    };
-    home_tree.set_behavior(ctrl_id, Box::new(ctrl_svp));
-
-    let content_svp = {
-        let root_ctx = app.context.GetRootContext();
-        let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
-        let mut sc = emcore::emEngineCtx::SchedCtx {
-            scheduler: &mut app.scheduler,
-            framework_actions: &mut fw,
-            root_context: &root_ctx,
-            framework_clipboard: &app.clipboard,
-            current_engine: None,
-            pending_actions: &app.pending_actions,
-        };
-        let mut svp = emSubViewPanel::new(Rc::clone(&app.context), content_id, &mut sc);
-        svp.set_sub_view_flags(ViewFlags::ROOT_SAME_TALLNESS);
-        svp
-    };
-    home_tree.set_behavior(content_id, Box::new(content_svp));
-
     let slider_id = home_tree.create_child(root_id, "slider", None);
     home_tree.set_behavior(slider_id, Box::new(SliderPanel::new()));
 
@@ -917,6 +879,47 @@ pub fn create_main_window(
         geometry_signal,
     );
     let window_id = window.winit_window().id();
+
+    // Construct emSubViewPanels now that window_id is known. Each
+    // sub-view engine is registered at PanelScope::SubView{window_id, …}
+    // so the outer scheduler dispatches them through the correct window
+    // tree rather than re-sleeping every frame against WindowId::dummy().
+    let ctrl_svp = {
+        let root_ctx = app.context.GetRootContext();
+        let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut sc = emcore::emEngineCtx::SchedCtx {
+            scheduler: &mut app.scheduler,
+            framework_actions: &mut fw,
+            root_context: &root_ctx,
+            framework_clipboard: &app.clipboard,
+            current_engine: None,
+            pending_actions: &app.pending_actions,
+        };
+        let mut svp = emSubViewPanel::new(Rc::clone(&app.context), ctrl_id, window_id, &mut sc);
+        svp.set_sub_view_flags(
+            ViewFlags::POPUP_ZOOM | ViewFlags::ROOT_SAME_TALLNESS | ViewFlags::NO_ACTIVE_HIGHLIGHT,
+        );
+        svp
+    };
+    home_tree.set_behavior(ctrl_id, Box::new(ctrl_svp));
+
+    let content_svp = {
+        let root_ctx = app.context.GetRootContext();
+        let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut sc = emcore::emEngineCtx::SchedCtx {
+            scheduler: &mut app.scheduler,
+            framework_actions: &mut fw,
+            root_context: &root_ctx,
+            framework_clipboard: &app.clipboard,
+            current_engine: None,
+            pending_actions: &app.pending_actions,
+        };
+        let mut svp =
+            emSubViewPanel::new(Rc::clone(&app.context), content_id, window_id, &mut sc);
+        svp.set_sub_view_flags(ViewFlags::ROOT_SAME_TALLNESS);
+        svp
+    };
+    home_tree.set_behavior(content_id, Box::new(content_svp));
 
     // Phase 3.5.A Task 7: mark the root panel as view-owned and hand the
     // tree to the window (it owns it from here on). Formerly this ran as

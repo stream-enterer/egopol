@@ -285,14 +285,6 @@ impl PanelBehavior for emDirPanel {
         _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
         ctx: &mut PanelCtx,
     ) -> bool {
-        if std::env::var("DEBUG_F011").is_ok() {
-            eprintln!(
-                "[F011] Cycle path={} dir_model={} loading_done={}",
-                self.path,
-                self.dir_model.is_some(),
-                self.loading_done
-            );
-        }
         let mut changed = false;
 
         if self.dir_model.is_none() {
