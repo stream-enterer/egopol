@@ -1515,4 +1515,174 @@ mod tests {
         }
         let _ = std::fs::remove_dir_all(&tmpdir);
     }
+
+    /// F010 scaled-up test (step 2a from investigation): many entries (≥100).
+    ///
+    /// Mirrors the runtime failure scenario (directory with many entries that
+    /// takes a long time to load then appears blank). The small 4-entry test
+    /// passes; this exercises whether one-entry-per-Cycle loading interacts
+    /// with child layout when the load completes after many slices.
+    ///
+    /// Asserts every child ends up with a non-zero, in-bounds layout_rect so
+    /// an overflow or grid-compute failure at scale would surface here.
+    #[test]
+    fn real_stack_dir_panel_many_entries_all_have_nonzero_rects_after_load() {
+        use emcore::emPanel::NoticeFlags;
+        use emcore::emPanelTree::PanelTree;
+        use emcore::emScheduler::EngineScheduler;
+        use std::cell::RefCell;
+        use std::collections::HashMap;
+        use std::rc::Rc;
+
+        use crate::emDirEntry::emDirEntry;
+        use crate::emDirEntryPanel::emDirEntryPanel;
+        use crate::emDirEntryPanel::CONTENT_NAME;
+
+        let tmpdir = std::env::temp_dir().join("emfileman_f010_many_entries");
+        let _ = std::fs::remove_dir_all(&tmpdir);
+        std::fs::create_dir_all(&tmpdir).unwrap();
+        let expected_entries: usize = 120;
+        for i in 0..expected_entries {
+            std::fs::write(tmpdir.join(format!("entry_{i:03}.txt")), b"x").unwrap();
+        }
+        let path = tmpdir.to_string_lossy().to_string();
+
+        let emctx = emcore::emContext::emContext::NewRoot();
+        {
+            use emcore::emFpPlugin::{emFpPlugin, emFpPluginList};
+            let dir_plugin = emFpPlugin::for_test_directory_handler(
+                "emDir",
+                crate::emDirFpPlugin::emDirFpPluginFunc,
+            );
+            emctx.acquire::<emFpPluginList>("", || {
+                emFpPluginList::from_plugins(vec![dir_plugin])
+            });
+        }
+
+        let entry = emDirEntry::from_parent_and_name("", &path);
+        let dep = emDirEntryPanel::new(Rc::clone(&emctx), entry);
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("dep_root", false);
+        tree.init_panel_view(root, None);
+        tree.set_behavior(root, Box::new(dep));
+        tree.set_seek_pos_pub(root, CONTENT_NAME);
+
+        let mut sched = EngineScheduler::new();
+        let (wid, win) =
+            emcore::test_view_harness::headless_emwindow_with_tree(&emctx, &mut sched, tree);
+        let mut windows = HashMap::new();
+        windows.insert(wid, win);
+
+        let scope = emcore::emPanelScope::PanelScope::Toplevel(wid);
+        let view_engine_ids: Vec<emcore::emEngine::EngineId> = {
+            let win = windows.get_mut(&wid).unwrap();
+            let mut tree = win.take_tree();
+            let mut ids = Vec::new();
+            {
+                let mut fw = Vec::new();
+                let cb = RefCell::new(None::<Box<dyn emcore::emClipboard::emClipboard>>);
+                let pa = Rc::new(RefCell::new(
+                    Vec::<emcore::emGUIFramework::DeferredAction>::new(),
+                ));
+                let mut sc = emcore::emEngineCtx::SchedCtx {
+                    scheduler: &mut sched,
+                    framework_actions: &mut fw,
+                    root_context: &emctx,
+                    framework_clipboard: &cb,
+                    current_engine: None,
+                    pending_actions: &pa,
+                };
+                win.view_mut().RegisterEngines(&mut sc, &mut tree, scope);
+                if let Some(eid) = win.view().update_engine_id {
+                    ids.push(eid);
+                }
+                if let Some(eid) = win.view().visiting_va_engine_id {
+                    ids.push(eid);
+                }
+                tree.queue_notice(
+                    root,
+                    NoticeFlags::SOUGHT_NAME_CHANGED,
+                    Some(&mut sched),
+                );
+            }
+            win.put_tree(tree);
+            ids
+        };
+
+        let mut fw = Vec::new();
+        let mut pending_inputs = Vec::new();
+        let mut input_state = emcore::emInputState::emInputState::new();
+        let cb = RefCell::new(None::<Box<dyn emcore::emClipboard::emClipboard>>);
+        let pa = Rc::new(RefCell::new(
+            Vec::<emcore::emGUIFramework::DeferredAction>::new(),
+        ));
+
+        // ReadingNames + Sorting + LoadingEntries is O(N) slices; budget generously.
+        for _ in 0..(expected_entries * 10 + 200) {
+            sched.DoTimeSlice(
+                &mut windows,
+                &emctx,
+                &mut fw,
+                &mut pending_inputs,
+                &mut input_state,
+                &cb,
+                &pa,
+            );
+            if !sched.has_awake_engines() {
+                break;
+            }
+        }
+
+        let mut win = windows.remove(&wid).unwrap();
+        let mut tree = win.take_tree();
+
+        let dir_panel_id = tree
+            .find_child_by_name(root, CONTENT_NAME)
+            .expect("emDirPanel content child must exist after loading");
+
+        let entry_children: Vec<_> = tree.children(dir_panel_id).collect();
+        assert_eq!(
+            entry_children.len(),
+            expected_entries,
+            "emDirPanel must have {expected_entries} entry children; got {}. \
+             At scale, loading did not complete or children were not created.",
+            entry_children.len(),
+        );
+
+        let mut zero_rect_count = 0usize;
+        let mut out_of_bounds_count = 0usize;
+        for cid in &entry_children {
+            let rect = tree.layout_rect(*cid).expect("child layout rect");
+            if rect.w <= 0.0 || rect.h <= 0.0 {
+                zero_rect_count += 1;
+            }
+            // Entries live within the emDirPanel's 1x(panel_tallness) canvas.
+            // rect.x, rect.y are panel-local; they must be finite and entries
+            // shouldn't collapse onto (0,0) or extend beyond a plausible grid.
+            if !rect.x.is_finite()
+                || !rect.y.is_finite()
+                || rect.x < -0.001
+                || rect.y < -0.001
+                || rect.x + rect.w > 2.0
+            {
+                out_of_bounds_count += 1;
+            }
+        }
+        assert_eq!(
+            zero_rect_count, 0,
+            "{zero_rect_count}/{} entries have zero-sized layout_rect at scale",
+            entry_children.len(),
+        );
+        assert_eq!(
+            out_of_bounds_count, 0,
+            "{out_of_bounds_count}/{} entries have non-finite or out-of-bounds layout_rect at scale",
+            entry_children.len(),
+        );
+
+        tree.remove(root, Some(&mut sched));
+        for eid in view_engine_ids {
+            sched.remove_engine(eid);
+        }
+        let _ = std::fs::remove_dir_all(&tmpdir);
+    }
 }
