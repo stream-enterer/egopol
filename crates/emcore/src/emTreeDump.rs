@@ -140,6 +140,12 @@ pub fn set_children(rec: &mut RecStruct, children: Vec<RecValue>) {
 /// consumer (the `td!` cheat / `emCtrlSocket` `dump`). Downgrading now
 /// trips `dead_code` under `-D warnings` because all current callers are
 /// `#[cfg(test)]`.
+///
+/// Note: C++ emTreeDumpFromObject emits `Engine Priority` in the
+/// emEngine branch which applies to every emPanel via inheritance.
+/// The Rust port does not unify panels with engines, so this field is
+/// omitted rather than rendered as a misleading placeholder. If a
+/// future task wires panel-as-engine, add the line back here.
 #[allow(clippy::too_many_arguments)]
 pub fn dump_panel(
     tree: &mut PanelTree,
@@ -213,16 +219,6 @@ pub fn dump_panel(
     // --- Build the Text body (C++ emTreeDumpUtil.cpp:256-307 order) ---
 
     let mut text = String::new();
-
-    // Engine Priority — C++ emEngine branch (always appended first because
-    // emPanel inherits emEngine; see emTreeDumpUtil.cpp:98-107).
-    //
-    // DIVERGED: (upstream-gap-forced) per-panel engine priority is not
-    // accessible from PanelTree in Rust; C++ emits
-    // asEngine->GetEnginePriority() at emTreeDumpUtil.cpp:103. Placeholder
-    // 0 preserves the field presence; future panel-as-engine wiring should
-    // fill this in.
-    text.push_str("\nEngine Priority: 0");
 
     // Name, Title, Layout/Height/Essence, Viewed flags, Clip, Enable, etc.
     text.push_str(&format!("\nName: {}", name));
@@ -458,8 +454,9 @@ mod tests {
         assert!(title.starts_with("Panel:\n"), "Title: {}", title);
         assert!(title.contains("\"root\""), "Title: {}", title);
 
+        assert!(!text.contains("Engine Priority"));
+
         for label in [
-            "Engine Priority",
             "Name:",
             "Title:",
             "Layout XYWH",
