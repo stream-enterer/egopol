@@ -805,6 +805,8 @@ dependencies = [
  "nix",
  "pollster",
  "rand",
+ "serde",
+ "serde_json",
  "slotmap",
  "tempfile",
  "wgpu",

@@ -22,6 +22,8 @@ libloading = { workspace = true }
 log = { workspace = true }
 nix = { workspace = true }
 pollster = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 slotmap = { workspace = true }
 wgpu = { workspace = true }
 winit = { workspace = true }
