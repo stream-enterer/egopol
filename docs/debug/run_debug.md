@@ -40,13 +40,24 @@ Run `git status` and `git branch --show-current`.
 
 ### Step 2 — Select the target issue
 
-Check the user message that invoked this harness for a phrase matching `for issue [A-Z]\d{3}` (e.g. "for issue F001"). If found, use that ID.
+Check the user message that invoked this harness for a phrase matching `for issue [A-Z]\d{3}` (e.g. "for issue F001"). If found, use that ID — but still apply the branch-guard check below before proceeding.
 
-Otherwise, select from `docs/debug/ISSUES.json` using this priority order:
+Otherwise, select from `docs/debug/ISSUES.json` using this priority order, skipping any issue that fails the branch-guard check:
 1. Among issues with status `investigating` or `root-cause-found` and kind `fix`, pick the highest priority one (`high` before `medium` before `low`). These resume in-progress work first.
 2. Among `open` issues of kind `fix`, pick the highest priority one.
 
 Issues of kind `design` or `perf` are out of scope for this harness. Skip them.
+
+**Branch-guard check:** For each candidate issue with ID `F###`, run:
+```
+git branch --list "fix/F###"
+```
+If this returns a non-empty result, a prior run already completed the code work for this issue and the fix branch is waiting for human review. Skip this issue and move to the next candidate.
+
+An issue is eligible if and only if:
+- Kind is `fix`
+- Status is `open`, `investigating`, or `root-cause-found`
+- No `fix/F###` branch exists
 
 If no eligible issue exists, output the completion promise and stop:
 
