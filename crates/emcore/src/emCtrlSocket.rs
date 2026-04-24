@@ -153,10 +153,96 @@ pub struct CtrlMsg {
 }
 
 /// Main-thread handler for incoming `CtrlMsg` via `EventLoopProxy`.
-/// Filled out in Task 3.5 — for now, replies "not yet implemented" so
-/// the protocol shape (UserEvent -> reply on `reply_tx`) is correct.
-pub fn handle_main_thread(_app: &mut App, _event_loop: &ActiveEventLoop, msg: CtrlMsg) {
-    let _ = msg.reply_tx.send(CtrlReply::err("not yet implemented"));
+/// Dispatches the three minimal commands (Dump/Quit/GetState); other
+/// commands return a documented placeholder until Tasks 4.x/5.x wire
+/// them in.
+pub fn handle_main_thread(app: &mut App, event_loop: &ActiveEventLoop, msg: CtrlMsg) {
+    let reply = match msg.cmd {
+        CtrlCmd::Dump => handle_dump(app),
+        CtrlCmd::Quit => handle_quit(event_loop),
+        CtrlCmd::GetState => handle_get_state(app),
+        CtrlCmd::Visit { .. }
+        | CtrlCmd::VisitFullsized { .. }
+        | CtrlCmd::SetFocus { .. }
+        | CtrlCmd::SeekTo { .. }
+        | CtrlCmd::WaitIdle { .. }
+        | CtrlCmd::Input { .. }
+        | CtrlCmd::InputBatch { .. } => CtrlReply::err("not implemented in phase 3 skeleton"),
+    };
+    let _ = msg.reply_tx.send(reply);
+}
+
+fn handle_dump(app: &mut App) -> CtrlReply {
+    let home_id = match app.home_window_id {
+        Some(id) => id,
+        None => return CtrlReply::err("home window not initialized"),
+    };
+    let win = match app.windows.get_mut(&home_id) {
+        Some(w) => w,
+        None => return CtrlReply::err("home window missing from App::windows"),
+    };
+    // emWindow keeps `view: emView` (pub) and `tree: PanelTree`
+    // (pub(crate)) as sibling fields. Take a split borrow at field level
+    // so we can hand `&emView` and `&mut PanelTree` to dump_tree
+    // simultaneously.
+    let path = {
+        let view_ref = &win.view;
+        let tree_ref = &mut win.tree;
+        view_ref.dump_tree(tree_ref)
+    };
+    CtrlReply {
+        ok: true,
+        path: Some(path.to_string_lossy().into_owned()),
+        ..CtrlReply::default()
+    }
+}
+
+fn handle_quit(event_loop: &ActiveEventLoop) -> CtrlReply {
+    event_loop.exit();
+    CtrlReply::ok()
+}
+
+fn handle_get_state(app: &App) -> CtrlReply {
+    let home_id = match app.home_window_id {
+        Some(id) => id,
+        None => return CtrlReply::err("home window not initialized"),
+    };
+    let win = match app.windows.get(&home_id) {
+        Some(w) => w,
+        None => return CtrlReply::err("home window missing"),
+    };
+    let view = win.view();
+    let tree = win.tree();
+    let view_rect = [
+        view.CurrentX,
+        view.CurrentY,
+        view.CurrentWidth,
+        view.CurrentHeight,
+    ];
+    let focused_path = focused_panel_path(view, tree);
+    CtrlReply {
+        ok: true,
+        focused_path,
+        view_rect: Some(view_rect),
+        loading: Vec::new(),
+        ..CtrlReply::default()
+    }
+}
+
+fn focused_panel_path(
+    view: &crate::emView::emView,
+    tree: &crate::emPanelTree::PanelTree,
+) -> Option<String> {
+    let mut id = view.GetFocusedPanel()?;
+    let mut segments: Vec<String> = Vec::new();
+    // Walk parent chain; the root's name is dropped so the result starts
+    // with `/<child>/...`.
+    while let Some(parent) = tree.GetParentContext(id) {
+        segments.push(tree.name(id)?.to_string());
+        id = parent;
+    }
+    segments.reverse();
+    Some(format!("/{}", segments.join("/")))
 }
 
 use std::io::{BufRead, BufReader, Write};
@@ -516,6 +602,15 @@ mod tests {
         assert_eq!(mode, 0o600, "socket perms should be 0600, got 0o{:o}", mode);
         cleanup_on_exit();
         assert!(!path.exists(), "cleanup_on_exit did not unlink socket");
+    }
+
+    #[test]
+    fn unimplemented_commands_return_phase_3_skeleton_error() {
+        let r = CtrlReply::err("not implemented in phase 3 skeleton");
+        assert_eq!(
+            r.error.as_deref(),
+            Some("not implemented in phase 3 skeleton")
+        );
     }
 
     #[test]
