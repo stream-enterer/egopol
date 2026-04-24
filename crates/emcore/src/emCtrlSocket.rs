@@ -16,6 +16,10 @@
 use serde::{Deserialize, Serialize};
 use std::sync::mpsc::SyncSender;
 
+use winit::event_loop::ActiveEventLoop;
+
+use crate::emGUIFramework::App;
+
 /// Top-level command tag — wire format `{"cmd":"<name>", ...}`.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "cmd", rename_all = "snake_case")]
@@ -146,6 +150,13 @@ pub struct LoadingEntry {
 pub struct CtrlMsg {
     pub cmd: CtrlCmd,
     pub reply_tx: SyncSender<CtrlReply>,
+}
+
+/// Main-thread handler for incoming `CtrlMsg` via `EventLoopProxy`.
+/// Filled out in Task 3.5 — for now, replies "not yet implemented" so
+/// the protocol shape (UserEvent -> reply on `reply_tx`) is correct.
+pub fn handle_main_thread(_app: &mut App, _event_loop: &ActiveEventLoop, msg: CtrlMsg) {
+    let _ = msg.reply_tx.send(CtrlReply::err("not yet implemented"));
 }
 
 #[cfg(test)]

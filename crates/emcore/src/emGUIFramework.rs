@@ -2,12 +2,22 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::time::Instant;
 
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::ActiveEventLoop;
+use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 use winit::window::WindowId;
+
+use crate::emCtrlSocket::CtrlMsg;
+
+/// RUST_ONLY: (language-forced-utility)
+/// Stores the winit `EventLoopProxy` for `CtrlMsg` so background acceptor
+/// / worker threads (Tasks 3.4-3.5) can post messages onto the main
+/// thread. Set once in `App::run`. C++ has no analogue — the debug
+/// control socket is Rust-only (see `emCtrlSocket.rs` module docs).
+pub(crate) static EVENT_LOOP_PROXY: OnceLock<EventLoopProxy<CtrlMsg>> = OnceLock::new();
 
 use crate::emClipboard::emClipboard;
 use crate::emContext::emContext;
@@ -273,8 +283,12 @@ impl App {
 
     /// Run the application. This blocks until all windows are closed.
     pub fn run(self) {
-        let event_loop = winit::event_loop::EventLoop::new().expect("failed to create event loop");
+        let event_loop = winit::event_loop::EventLoop::<CtrlMsg>::with_user_event()
+            .build()
+            .expect("failed to create event loop");
         event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
+        let proxy = event_loop.create_proxy();
+        let _ = EVENT_LOOP_PROXY.set(proxy);
         let mut app = self;
         event_loop.run_app(&mut app).expect("event loop error");
         // Work around wgpu segfault on shutdown: dropping Instance/Device
@@ -885,7 +899,11 @@ impl Drop for App {
     }
 }
 
-impl ApplicationHandler for App {
+impl ApplicationHandler<CtrlMsg> for App {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: CtrlMsg) {
+        crate::emCtrlSocket::handle_main_thread(self, event_loop, event);
+    }
+
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.initialized {
             return;
