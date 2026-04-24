@@ -592,6 +592,157 @@ pub fn dump_file_model(
     empty_rec(title, text, VisualStyle::file_model())
 }
 
+/// Top-level entry point — port of C++ `emTreeDumpFromRootContext` at
+/// src/emTreeDump/emTreeDumpUtil.cpp:360-414. Builds the General Info
+/// rec, attaches the root context as Children[0]. The view + panel tree
+/// are walked when the caller iterates the root context's child views.
+///
+/// Note: this entry point does NOT walk views directly. The Rust port's
+/// emContext doesn't enumerate child views or contexts in a unified way
+/// (Task 1.6 documented this gap). Callers that need a full
+/// view+panel-tree dump should also call `dump_view` and append it to
+/// the rec's Children. The shim in `emView::dump_tree` (Task 1.9) does
+/// exactly that.
+pub fn dump_from_root_context(root_ctx: &emContext) -> RecStruct {
+    let title =
+        "Tree Dump\nof the top-level objects\nof a running emCore-based program".to_string();
+    let text = general_info_text();
+    let style = VisualStyle {
+        frame: Frame::Rectangle,
+        bg: 0x444466,
+        fg: 0xBBBBEE,
+    };
+    let mut rec = empty_rec(title, text, style);
+
+    // Children[0] = the root context's own dump rec.
+    let ctx_rec = dump_context(root_ctx, /* is_root */ true);
+    set_children(&mut rec, vec![RecValue::Struct(ctx_rec)]);
+    rec
+}
+
+fn general_info_text() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let now_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let time_str = format_unix_time(now_secs);
+    let host = hostname_best_effort();
+    let user = std::env::var("USER").unwrap_or_else(|_| "-".to_string());
+    let pid = std::process::id();
+    let cwd = std::env::current_dir()
+        .ok()
+        .and_then(|p| p.into_os_string().into_string().ok())
+        .unwrap_or_else(|| "-".to_string());
+    let utf8 = "yes"; // Rust strings are always UTF-8.
+    let byte_order = if cfg!(target_endian = "little") {
+        "1234"
+    } else {
+        "4321"
+    };
+    let ptr_size = std::mem::size_of::<*const ()>();
+    let long_size = std::mem::size_of::<i64>();
+    // C++ `char` signedness — Rust's `i8` is always signed; `c_char`
+    // is platform-dependent. Report based on c_char.
+    let char_signed = if (std::os::raw::c_char::MIN as i32) < 0 {
+        "signed"
+    } else {
+        "unsigned"
+    };
+
+    let mut s = String::new();
+    s.push_str("General Info");
+    s.push_str("\n~~~~~~~~~~~~");
+    s.push_str(&format!("\n\nTime       : {}", time_str));
+    s.push_str(&format!("\nHost Name  : {}", host));
+    s.push_str(&format!("\nUser Name  : {}", user));
+    s.push_str(&format!("\nProcess Id : {}", pid));
+    s.push_str(&format!("\nCurrent Dir: {}", cwd));
+    s.push_str(&format!("\nUTF8       : {}", utf8));
+    s.push_str(&format!("\nByte Order : {}", byte_order));
+    s.push_str(&format!("\nsizeof(ptr): {}", ptr_size));
+    s.push_str(&format!("\nsizeof(lng): {}", long_size));
+    s.push_str(&format!("\nchar       : {}", char_signed));
+    // DIVERGED: (upstream-gap-forced) Rust port does not expose CPU TSC;
+    // no portable Rust RDTSC equivalent. Emit `-` to keep field stable.
+    s.push_str("\nCPU-TSC    : -");
+    s.push_str("\n\nPaths of emCore:");
+    s.push_str(&install_paths_block());
+    s
+}
+
+fn format_unix_time(secs: u64) -> String {
+    let days = secs / 86400;
+    let tod = secs % 86400;
+    let hour = tod / 3600;
+    let minute = (tod % 3600) / 60;
+    let second = tod % 60;
+    let (y, m, d) = days_to_ymd(days as i64);
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02} UTC",
+        y, m, d, hour, minute, second
+    )
+}
+
+fn days_to_ymd(days: i64) -> (i32, u32, u32) {
+    // Howard Hinnant date algorithm.
+    let z = days + 719468;
+    let era = if z >= 0 {
+        z / 146097
+    } else {
+        (z - 146096) / 146097
+    };
+    let doe = (z - era * 146097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = (if mp < 10 { mp + 3 } else { mp - 9 }) as u32;
+    let y = (y + if m <= 2 { 1 } else { 0 }) as i32;
+    (y, m, d)
+}
+
+fn hostname_best_effort() -> String {
+    std::env::var("HOSTNAME")
+        .ok()
+        .or_else(|| std::env::var("COMPUTERNAME").ok())
+        .or_else(|| {
+            std::fs::read_to_string("/etc/hostname")
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        })
+        .unwrap_or_else(|| "-".to_string())
+}
+
+fn install_paths_block() -> String {
+    use crate::emInstallInfo::{emGetInstallPath, InstallDirType};
+    let kinds: &[(&str, InstallDirType)] = &[
+        ("Bin        ", InstallDirType::Bin),
+        ("Include    ", InstallDirType::Include),
+        ("Lib        ", InstallDirType::Lib),
+        ("Html Doc   ", InstallDirType::HtmlDoc),
+        ("Pdf Doc    ", InstallDirType::PdfDoc),
+        ("Ps Doc     ", InstallDirType::PsDoc),
+        ("User Config", InstallDirType::UserConfig),
+        ("Host Config", InstallDirType::HostConfig),
+        ("Tmp        ", InstallDirType::Tmp),
+        ("Res        ", InstallDirType::Res),
+        ("Home       ", InstallDirType::Home),
+    ];
+    let mut s = String::new();
+    for (label, kind) in kinds {
+        let path = match emGetInstallPath(*kind, "emCore", None) {
+            Ok(p) => p.display().to_string(),
+            Err(_) => "-".to_string(),
+        };
+        s.push_str(&format!("\n{}: {}", label, path));
+    }
+    s
+}
+
 fn yes_no(b: bool) -> &'static str {
     if b {
         "yes"
@@ -1127,6 +1278,74 @@ mod tests {
         for (label, expected) in cases {
             assert_eq!(label.as_str(), expected, "label {:?}", label);
         }
+    }
+
+    #[test]
+    fn general_info_text_has_all_labels() {
+        let s = general_info_text();
+        for label in [
+            "General Info",
+            "Time",
+            "Host Name",
+            "User Name",
+            "Process Id",
+            "Current Dir",
+            "UTF8",
+            "Byte Order",
+            "sizeof(ptr)",
+            "sizeof(lng)",
+            "char",
+            "CPU-TSC",
+            "Paths of emCore:",
+            "Bin",
+            "Include",
+            "Lib",
+            "Html Doc",
+            "Pdf Doc",
+            "Ps Doc",
+            "User Config",
+            "Host Config",
+            "Tmp",
+            "Res",
+            "Home",
+        ] {
+            assert!(s.contains(label), "general info missing `{}`:\n{}", label, s);
+        }
+    }
+
+    #[test]
+    fn days_to_ymd_known_dates() {
+        assert_eq!(days_to_ymd(0), (1970, 1, 1));
+        assert_eq!(days_to_ymd(20089), (2025, 1, 1));
+        // 2000-01-01 = 10957 days since epoch
+        assert_eq!(days_to_ymd(10957), (2000, 1, 1));
+        // 1970-12-31
+        assert_eq!(days_to_ymd(364), (1970, 12, 31));
+    }
+
+    #[test]
+    fn dump_from_root_context_has_general_info_and_root_ctx_child() {
+        let root = crate::emContext::emContext::NewRoot();
+        let rec = dump_from_root_context(&root);
+
+        let title = rec.get_str("Title").expect("Title").to_string();
+        assert!(title.starts_with("Tree Dump\n"), "Title: {}", title);
+
+        let text = rec.get_str("Text").expect("Text").to_string();
+        assert!(text.contains("General Info"), "Text missing General Info:\n{}", text);
+
+        let children = rec.get_array("Children").expect("Children");
+        assert_eq!(children.len(), 1);
+        let child = match &children[0] {
+            RecValue::Struct(s) => s,
+            other => panic!("child[0] not Struct: {:?}", other),
+        };
+        let child_title = child.get_str("Title").expect("child Title");
+        assert!(
+            child_title.contains("Root Context"),
+            "child title missing `Root Context`: {}",
+            child_title
+        );
     }
 
     #[test]
