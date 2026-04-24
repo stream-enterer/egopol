@@ -501,6 +501,97 @@ pub fn dump_context(ctx: &emContext, is_root: bool) -> RecStruct {
     rec
 }
 
+/// File-state enum mirroring C++ `emFileModel::FileState` constants exactly.
+///
+/// The Rust port's `emFileModel::FileState` carries `Loading { progress: f64 }`
+/// and `LoadError(String)` / `SaveError(String)`, but the dump output uses
+/// only the discriminant names — extract here as a label-only enum so the
+/// walker doesn't depend on the concrete carrier types.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum FileStateLabel {
+    Waiting,
+    Loading,
+    Loaded,
+    Unsaved,
+    Saving,
+    TooCostly,
+    LoadError,
+    SaveError,
+}
+
+impl FileStateLabel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Waiting => "FS_WAITING",
+            Self::Loading => "FS_LOADING",
+            Self::Loaded => "FS_LOADED",
+            Self::Unsaved => "FS_UNSAVED",
+            Self::Saving => "FS_SAVING",
+            Self::TooCostly => "FS_TOO_COSTLY",
+            Self::LoadError => "FS_LOAD_ERROR",
+            Self::SaveError => "FS_SAVE_ERROR",
+        }
+    }
+}
+
+/// Convert from the Rust port's `crate::emFileModel::FileState`.
+impl From<&crate::emFileModel::FileState> for FileStateLabel {
+    fn from(s: &crate::emFileModel::FileState) -> Self {
+        use crate::emFileModel::FileState;
+        match s {
+            FileState::Waiting => Self::Waiting,
+            FileState::Loading { .. } => Self::Loading,
+            FileState::Loaded => Self::Loaded,
+            FileState::Unsaved => Self::Unsaved,
+            FileState::Saving => Self::Saving,
+            FileState::TooCostly => Self::TooCostly,
+            FileState::LoadError(_) => Self::LoadError,
+            FileState::SaveError(_) => Self::SaveError,
+        }
+    }
+}
+
+/// emModel branch — mirrors C++ `emTreeDumpUtil.cpp:317-329`.
+///
+/// DIVERGED: (language-forced) takes primitive arguments because the Rust
+/// port's emModel is not a unified trait with virtual dispatch — models are
+/// stored as `Rc<RefCell<T>>` keyed by `TypeId`, with no `dyn emModel`
+/// equivalent to C++'s `emModel*`. The caller extracts
+/// `name` / `type_name` / `min_common_lifetime` from the concrete type and
+/// passes them in. Validated by the round-trip tests
+/// `dump_model_emits_name_and_lifetime` below.
+///
+/// Visibility is `pub` pending real consumers (Task 1.9 downgrade).
+pub fn dump_model(name: &str, type_name: &str, min_common_lifetime: u32) -> RecStruct {
+    let mut text = String::new();
+    text.push_str(&format!("\nName: {}", name));
+    text.push_str(&format!("\nMin Common Lifetime: {}", min_common_lifetime));
+    let title = format!("Common Model:\n{}\n\"{}\"", type_name, name);
+    empty_rec(title, text, VisualStyle::model())
+}
+
+/// emFileModel branch — mirrors C++ `emTreeDumpUtil.cpp:331-353`.
+///
+/// Same primitive-argument shape as [`dump_model`] (see DIVERGED note there
+/// — language-forced because emFileModel in the Rust port is a generic
+/// `emFileModel<T>`, not a virtual-dispatch class hierarchy).
+///
+/// Visibility is `pub` pending real consumers (Task 1.9 downgrade).
+pub fn dump_file_model(
+    name: &str,
+    type_name: &str,
+    file_path: &str,
+    file_state: FileStateLabel,
+    memory_need: u64,
+) -> RecStruct {
+    let mut text = String::new();
+    text.push_str(&format!("\nFile Path: {}", file_path));
+    text.push_str(&format!("\nFile State: {}", file_state.as_str()));
+    text.push_str(&format!("\nMemory Need: {}", memory_need));
+    let title = format!("Common File Model:\n{}\n\"{}\"", type_name, name);
+    empty_rec(title, text, VisualStyle::file_model())
+}
+
 fn yes_no(b: bool) -> &'static str {
     if b {
         "yes"
@@ -958,5 +1049,104 @@ mod tests {
             idx_pct,
             idx_done
         );
+    }
+
+    #[test]
+    fn dump_model_emits_name_and_lifetime() {
+        let rec = dump_model("foo", "MyModel", 42);
+        assert_eq!(
+            rec.get_str("Title"),
+            Some("Common Model:\nMyModel\n\"foo\"")
+        );
+        let text = rec.get_str("Text").expect("Text present");
+        assert!(text.contains("\nName: foo"), "Text missing Name:\n{}", text);
+        assert!(
+            text.contains("\nMin Common Lifetime: 42"),
+            "Text missing Min Common Lifetime:\n{}",
+            text
+        );
+        // Visual style: model.
+        assert_eq!(rec.get_ident("Frame"), Some("frame_hexagon"));
+        assert_eq!(rec.get_int("BgColor"), Some(0x440000));
+        assert_eq!(rec.get_int("FgColor"), Some(0xBBBBBB));
+        // Children: empty (no sub-records).
+        let children = rec.get_array("Children");
+        assert!(
+            children.is_none() || children.expect("checked").is_empty(),
+            "Children must be empty for model dump"
+        );
+    }
+
+    #[test]
+    fn dump_file_model_emits_file_state() {
+        let rec = dump_file_model(
+            "doc",
+            "TextModel",
+            "/tmp/doc.txt",
+            FileStateLabel::Loaded,
+            1024,
+        );
+        assert_eq!(
+            rec.get_str("Title"),
+            Some("Common File Model:\nTextModel\n\"doc\"")
+        );
+        let text = rec.get_str("Text").expect("Text present");
+        assert!(
+            text.contains("\nFile Path: /tmp/doc.txt"),
+            "Text missing File Path:\n{}",
+            text
+        );
+        assert!(
+            text.contains("\nFile State: FS_LOADED"),
+            "Text missing File State:\n{}",
+            text
+        );
+        assert!(
+            text.contains("\nMemory Need: 1024"),
+            "Text missing Memory Need:\n{}",
+            text
+        );
+        // Visual style: file_model.
+        assert_eq!(rec.get_ident("Frame"), Some("frame_hexagon"));
+        assert_eq!(rec.get_int("BgColor"), Some(0x440033));
+        assert_eq!(rec.get_int("FgColor"), Some(0xBBBBBB));
+    }
+
+    #[test]
+    fn file_state_label_strings_match_cpp() {
+        let cases = [
+            (FileStateLabel::Waiting, "FS_WAITING"),
+            (FileStateLabel::Loading, "FS_LOADING"),
+            (FileStateLabel::Loaded, "FS_LOADED"),
+            (FileStateLabel::Unsaved, "FS_UNSAVED"),
+            (FileStateLabel::Saving, "FS_SAVING"),
+            (FileStateLabel::TooCostly, "FS_TOO_COSTLY"),
+            (FileStateLabel::LoadError, "FS_LOAD_ERROR"),
+            (FileStateLabel::SaveError, "FS_SAVE_ERROR"),
+        ];
+        for (label, expected) in cases {
+            assert_eq!(label.as_str(), expected, "label {:?}", label);
+        }
+    }
+
+    #[test]
+    fn file_state_label_from_runtime_state() {
+        use crate::emFileModel::FileState;
+        let cases: [(FileState, FileStateLabel); 8] = [
+            (FileState::Waiting, FileStateLabel::Waiting),
+            (
+                FileState::Loading { progress: 0.0 },
+                FileStateLabel::Loading,
+            ),
+            (FileState::Loaded, FileStateLabel::Loaded),
+            (FileState::Unsaved, FileStateLabel::Unsaved),
+            (FileState::Saving, FileStateLabel::Saving),
+            (FileState::TooCostly, FileStateLabel::TooCostly),
+            (FileState::LoadError("x".into()), FileStateLabel::LoadError),
+            (FileState::SaveError("y".into()), FileStateLabel::SaveError),
+        ];
+        for (state, expected) in &cases {
+            assert_eq!(FileStateLabel::from(state), *expected, "state {:?}", state);
+        }
     }
 }
