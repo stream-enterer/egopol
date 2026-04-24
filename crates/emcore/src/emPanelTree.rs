@@ -197,7 +197,7 @@ pub(crate) struct PanelData {
     pub(crate) in_viewed_path: bool,
     pub(crate) in_active_path: bool,
     pub(crate) is_active: bool,
-    // RUST_ONLY: (language-forced utility)
+    // RUST_ONLY: (language-forced-utility)
     // C++ relies on gdb for per-panel paint inspection; the Rust port
     // lacks an equivalent live-inspection path, so paint attribution is
     // baked into the data model. Bumped by the paint driver at

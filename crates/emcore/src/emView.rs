@@ -403,7 +403,7 @@ pub struct emView {
     background_color: emColor,
     SVPUpdCount: u32,
     window_focused: bool,
-    /// RUST_ONLY: (language-forced utility)
+    /// RUST_ONLY: (language-forced-utility)
     /// Monotonic frame counter incremented once per completed paint pass.
     /// Paired with PanelData::last_paint_frame for the tree dump.
     pub(crate) current_frame: u64,
