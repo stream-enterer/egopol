@@ -647,6 +647,12 @@ impl EngineScheduler {
                     // sub_view. If the window is gone, the engine sleeps
                     // this slice: put the behavior back and continue.
                     let Some(win) = windows.get_mut(&window_id) else {
+                        if std::env::var("DEBUG_F011").is_ok() {
+                            eprintln!(
+                                "[F011] scheduler: SubView engine {engine_id:?} skipped — \
+                                 window {window_id:?} not in windows map (engine re-sleeps)"
+                            );
+                        }
                         if let Some(eng) = self.inner.engines.get_mut(engine_id) {
                             eng.behavior = Some(behavior);
                             eng.clock = self.inner.clock;
