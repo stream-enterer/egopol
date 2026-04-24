@@ -159,6 +159,111 @@ pub fn handle_main_thread(_app: &mut App, _event_loop: &ActiveEventLoop, msg: Ct
     let _ = msg.reply_tx.send(CtrlReply::err("not yet implemented"));
 }
 
+use std::io::{BufRead, BufReader, Write};
+use std::os::unix::fs::PermissionsExt;
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::PathBuf;
+use std::thread;
+
+/// Returns the socket path this process uses. PID-namespaced so multiple
+/// instances don't collide.
+pub fn socket_path() -> PathBuf {
+    std::env::temp_dir().join(format!("eaglemode-rs.{}.sock", std::process::id()))
+}
+
+/// Spawn the acceptor thread. Call once at framework init, behind the
+/// EMCORE_DEBUG_CONTROL gate (Task 3.6 wires the gate). The thread runs
+/// until the process exits.
+pub fn spawn_acceptor() -> std::io::Result<()> {
+    let path = socket_path();
+    // Cleanup any stale socket from a prior crashed run at the same PID
+    // (extremely unlikely, but cheap insurance).
+    let _ = std::fs::remove_file(&path);
+    let listener = UnixListener::bind(&path)?;
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+    eprintln!("[emCtrlSocket] listening on {}", path.display());
+
+    thread::Builder::new()
+        .name("emCtrlSocket-acceptor".into())
+        .spawn(move || {
+            for stream in listener.incoming() {
+                match stream {
+                    Ok(s) => {
+                        let _ = thread::Builder::new()
+                            .name("emCtrlSocket-worker".into())
+                            .spawn(move || worker_loop(s));
+                    }
+                    Err(e) => {
+                        eprintln!("[emCtrlSocket] accept error: {e}");
+                    }
+                }
+            }
+        })?;
+    Ok(())
+}
+
+fn worker_loop(stream: UnixStream) {
+    let reader_stream = match stream.try_clone() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[emCtrlSocket] clone failed: {e}");
+            return;
+        }
+    };
+    let mut reader = BufReader::new(reader_stream);
+    let mut writer = stream;
+
+    loop {
+        let mut line = String::new();
+        match reader.read_line(&mut line) {
+            Ok(0) => return, // EOF — client closed
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("[emCtrlSocket] read error: {e}");
+                return;
+            }
+        }
+        let trimmed = line.trim_end();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let reply = match serde_json::from_str::<CtrlCmd>(trimmed) {
+            Ok(cmd) => dispatch(cmd),
+            Err(e) => CtrlReply::err(format!("parse: {e}")),
+        };
+        let json = match serde_json::to_string(&reply) {
+            Ok(j) => j,
+            Err(e) => format!(r#"{{"ok":false,"error":"serialize: {}"}}"#, e),
+        };
+        if let Err(e) = writeln!(writer, "{}", json) {
+            eprintln!("[emCtrlSocket] write error: {e}");
+            return;
+        }
+    }
+}
+
+fn dispatch(cmd: CtrlCmd) -> CtrlReply {
+    let proxy = match crate::emGUIFramework::EVENT_LOOP_PROXY.get() {
+        Some(p) => p,
+        None => return CtrlReply::err("event loop not initialized"),
+    };
+    let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel::<CtrlReply>(1);
+    let msg = CtrlMsg { cmd, reply_tx };
+    if proxy.send_event(msg).is_err() {
+        return CtrlReply::err("event loop closed");
+    }
+    match reply_rx.recv() {
+        Ok(r) => r,
+        Err(_) => CtrlReply::err("main thread aborted"),
+    }
+}
+
+/// Call on process shutdown to unlink the socket file. Idempotent.
+pub fn cleanup_on_exit() {
+    let _ = std::fs::remove_file(socket_path());
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -396,5 +501,34 @@ mod tests {
             reply_tx: tx,
         };
         assert!(matches!(msg.cmd, CtrlCmd::Dump));
+    }
+
+    #[test]
+    fn acceptor_creates_socket_file_with_0600_perms() {
+        // Hermetic: spawn the acceptor, assert the file exists with
+        // user-only perms, clean up. Doesn't need an event loop because
+        // we never send a command — just verify socket creation.
+        let result = spawn_acceptor();
+        assert!(result.is_ok(), "spawn_acceptor failed: {:?}", result.err());
+        let path = socket_path();
+        assert!(path.exists(), "socket file not created at {}", path.display());
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "socket perms should be 0600, got 0o{:o}", mode);
+        cleanup_on_exit();
+        assert!(!path.exists(), "cleanup_on_exit did not unlink socket");
+    }
+
+    #[test]
+    fn dispatch_without_proxy_returns_event_loop_not_initialized() {
+        // Tests run before any EventLoop is created — proxy OnceLock is
+        // empty. dispatch should return the documented error string
+        // instead of panicking or hanging.
+        let reply = dispatch(CtrlCmd::Dump);
+        assert!(!reply.ok);
+        let err = reply.error.as_deref().unwrap_or("");
+        assert!(
+            err.contains("not initialized") || err.contains("event loop"),
+            "unexpected error: {}", err
+        );
     }
 }
