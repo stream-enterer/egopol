@@ -1,24 +1,8 @@
 # Debug Harness
 
-This file is the prompt for a ralph-loop debugging pass. It is read and executed by an LLM agent. It is not documentation for humans.
+This file is the prompt for a debugging pass. It is read and executed by an LLM agent. It is not documentation for humans.
 
 **Skill usage:** The only skill invoked in this harness is `superpowers:systematic-debugging` at Step 4. Do not invoke any other skill at any point.
-
----
-
-## How to Start a Debug Run
-
-```
-/ralph-loop "Read and execute the protocol in docs/debug/run_debug.md" --completion-promise "DEBUG_PASS_COMPLETE" --max-iterations 20
-```
-
-To target a specific issue by ID:
-
-```
-/ralph-loop "Read and execute the protocol in docs/debug/run_debug.md for issue F001" --completion-promise "DEBUG_PASS_COMPLETE" --max-iterations 20
-```
-
-Without an explicit ID, the harness selects the highest-priority open or resumable issue automatically.
 
 ---
 
@@ -26,11 +10,11 @@ Without an explicit ID, the harness selects the highest-priority open or resumab
 
 **Scope constraint: this harness processes exactly one issue per invocation. Once a terminal state is reached for the selected issue, no further work is performed — not even reading the next issue. Stop immediately.**
 
-Execute the steps below in order every iteration. Do not skip steps. Do not reorder them.
+Steps 1–3 run once at the start of the invocation. Steps 4–8 drive the phase work: proceed through Phases 1–4, invoking Step 5 (ISSUES.json update) and Step 7 (commit) at each phase boundary, and checking Step 8 after every commit. Stop when Step 8 observes a terminal state or Step 6 routes to a blocked exit. Do not skip steps. Do not reorder them.
 
 ### Step 1 — Check for dirty working tree
 
-Run `git status`. If there are uncommitted changes of any kind (scratchpad, source files, ISSUES.json, or any combination), stage everything currently modified and commit with message `debug: recover uncommitted work from interrupted iteration`. Then continue to Step 2.
+Run `git status`. If there are uncommitted changes of any kind (scratchpad, source files, ISSUES.json, or any combination), stage everything currently modified and commit with message `debug: recover uncommitted work from interrupted prior run`. Then continue to Step 2.
 
 ### Step 2 — Select the target issue
 
@@ -42,11 +26,7 @@ Otherwise, select from `docs/debug/ISSUES.json` using this priority order:
 
 Issues of kind `design` or `perf` are out of scope for this harness. Skip them.
 
-If no eligible issue exists, output the completion promise and stop:
-
-```
-<promise>DEBUG_PASS_COMPLETE</promise>
-```
+If no eligible issue exists, stop immediately.
 
 ### Step 3 — Load investigation state
 
@@ -54,7 +34,7 @@ Check whether `investigation_file` is set on the selected issue in ISSUES.json, 
 
 **If a scratchpad exists (resuming):**
 - Read the scratchpad fully.
-- Before executing anything, verify internal consistency: all phases prior to `current_phase` must have `complete: true`. If any prior phase has `complete: false`, the scratchpad is inconsistent from a crashed iteration — resume from the last phase that has `complete: true` rather than from `current_phase`.
+- Before executing anything, verify internal consistency: all phases prior to `current_phase` must have `complete: true`. If any prior phase has `complete: false`, the scratchpad is inconsistent from a crashed prior run — resume from the last phase that has `complete: true` rather than from `current_phase`.
 - Check `head_sha` in the scratchpad against current HEAD (`git rev-parse HEAD`). If they differ, run `git diff <scratchpad_head_sha>..HEAD -- <files listed in next_steps>`. For each file that changed: re-read it, verify the intended action in `next_steps` is still feasible. If the target symbol or structure still exists at a new line, update the line reference. If the structure has fundamentally changed, mark the step `STALE: <reason>` and regenerate it from the current phase goals before executing.
 - Execute the first unchecked item in `next_steps`.
 
@@ -72,7 +52,7 @@ Invoke the `superpowers:systematic-debugging` skill now using the Skill tool bef
 - **Phase gates:** after each phase completes, set `complete: true` in the scratchpad frontmatter, update `current_phase`, and commit (see Step 7) before beginning the next phase.
 - **Blocked trigger:** treat 3+ *distinct* ruled-out hypotheses (each with concrete evidence cited from Phase 1 or Phase 2) as the blocked condition. Route to Step 6.
 - **Failing test case override:** the skill's Phase 4 mandates creating a failing test case first. For issues whose `repro` involves launching the app or visual/runtime observation (i.e. not coverable by `cargo-nextest`), skip the failing-test step and proceed directly to the fix. The `needs-manual-verification` terminal state handles final validation.
-- **Failed fix handling:** if a fix is committed and tests break, do not revert. Commit the broken state as a WIP commit. The next iteration inherits the broken tests and either fixes them or rules out the hypothesis and tries another approach.
+- **Failed fix handling:** if a fix is committed and tests break, do not revert. Commit the broken state as a WIP commit. Subsequent phase work inherits the broken tests and either fixes them or rules out the hypothesis and tries another approach.
 
 Record all evidence, hypotheses, and outcomes in the scratchpad under the appropriate phase headings. Every `RULED OUT` entry must cite a specific evidence entry from Phase 1 or Phase 2 in the scratchpad.
 
@@ -94,15 +74,11 @@ If 3+ distinct hypotheses have been ruled out with concrete evidence and you can
 2. Update ISSUES.json: set `status` to `blocked`, set `blocked_question` to the precise question that must be answered.
 3. Update `fix_note` with a summary of what was tried.
 4. Commit (Step 7).
-5. Output the completion promise. This must be the absolute last line of your output — nothing after it:
-
-```
-<promise>DEBUG_PASS_COMPLETE</promise>
-```
+5. Stop immediately after the commit. Do not summarise, do not plan next steps.
 
 ### Step 7 — Commit
 
-Commit once at the end of each iteration. The commit message summarises all transitions that occurred during the iteration.
+Commit at each phase boundary, at any WIP save point, and at terminal exits. The commit message summarises the transitions that occurred since the previous commit.
 
 Format: `debug(<ID>): <summary of what happened>`
 
@@ -129,13 +105,9 @@ After committing, check if a terminal state has been reached:
 - `needs-design` — investigation confirmed the fix requires human architectural or planning decisions; kind reclassified to design
 - `blocked` — investigation stalled, human input required
 
-In all five cases, output the completion promise **after** the commit. This must be the absolute last line of your output — output nothing after it, do not summarise, do not plan next steps:
+In all five cases, stop immediately after the commit. Do not summarise, do not plan next steps.
 
-```
-<promise>DEBUG_PASS_COMPLETE</promise>
-```
-
-If no terminal state has been reached, do not output the promise. The ralph-loop stop hook will re-feed this prompt and the next iteration will continue from Step 1.
+If no terminal state has been reached, return to Step 4 and continue the phase work.
 
 ---
 
@@ -191,7 +163,7 @@ phases:
 
 **Phase gate discipline:** Before advancing from one phase to the next, verify the gate condition is met. Set `complete: true` in the frontmatter and commit before starting the next phase. Do not begin Phase 2 with Phase 1's gate unmet. If a gate cannot be met because investigation is stalled, go to Step 6 (Blocked). If a gate cannot be met because the fix requires a human decision, follow the `needs-design` path in Step 5.
 
-**next_steps discipline:** Each item must be specific enough to execute without interpretation. Not "check the VIF chain" — instead "read `crates/emcore/src/emVIF.rs:100-150` to verify input forwarding on WindowEvent::Focused". Check off completed items with `[x]`. Add new items as they are discovered. The first unchecked item is always what the next iteration executes first.
+**next_steps discipline:** Each item must be specific enough to execute without interpretation. Not "check the VIF chain" — instead "read `crates/emcore/src/emVIF.rs:100-150` to verify input forwarding on WindowEvent::Focused". Check off completed items with `[x]`. Add new items as they are discovered. The first unchecked item is always the next action to execute, whether within this invocation or on resume after a crash.
 
 ---
 
