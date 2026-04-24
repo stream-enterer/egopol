@@ -290,7 +290,19 @@ impl App {
         let proxy = event_loop.create_proxy();
         let _ = EVENT_LOOP_PROXY.set(proxy);
         let mut app = self;
-        event_loop.run_app(&mut app).expect("event loop error");
+
+        // Spawn the agent control-channel acceptor if gated on. Zero cost
+        // when EMCORE_DEBUG_CONTROL is unset — neither the socket file nor
+        // the acceptor thread is created.
+        if std::env::var("EMCORE_DEBUG_CONTROL").as_deref() == Ok("1") {
+            if let Err(e) = crate::emCtrlSocket::spawn_acceptor() {
+                eprintln!("[emCtrlSocket] spawn_acceptor failed: {e}");
+            }
+        }
+
+        let result = event_loop.run_app(&mut app);
+        crate::emCtrlSocket::cleanup_on_exit();
+        result.expect("event loop error");
         // Work around wgpu segfault on shutdown: dropping Instance/Device
         // after Surface is already destroyed crashes in the Vulkan driver.
         // https://github.com/gfx-rs/wgpu/issues/5781
