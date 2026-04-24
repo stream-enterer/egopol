@@ -280,6 +280,24 @@ impl emDirPanel {
 }
 
 impl PanelBehavior for emDirPanel {
+    fn dump_state(&self) -> Vec<(&'static str, String)> {
+        vec![
+            ("path", self.path.clone()),
+            ("loading_done", self.loading_done.to_string()),
+            (
+                "loading_error",
+                self.loading_error.as_deref().unwrap_or("").to_string(),
+            ),
+            ("content_complete", self.content_complete.to_string()),
+            ("child_count", self.child_count.to_string()),
+            ("has_dir_model", self.dir_model.is_some().to_string()),
+            (
+                "scroll_target",
+                self.scroll_target.as_deref().unwrap_or("").to_string(),
+            ),
+        ]
+    }
+
     fn Cycle(
         &mut self,
         _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
@@ -651,6 +669,24 @@ mod tests {
         let ctx = emcore::emContext::emContext::NewRoot();
         let panel = emDirPanel::new(Rc::clone(&ctx), "/tmp".to_string());
         let _: Box<dyn PanelBehavior> = Box::new(panel);
+    }
+
+    #[test]
+    fn dump_state_reports_initial_loading_state() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let panel = emDirPanel::new(Rc::clone(&ctx), "/tmp/example".to_string());
+        let pairs = PanelBehavior::dump_state(&panel);
+        let map: std::collections::HashMap<&'static str, String> = pairs.into_iter().collect();
+        assert_eq!(map.get("path").map(String::as_str), Some("/tmp/example"));
+        assert_eq!(map.get("loading_done").map(String::as_str), Some("false"));
+        assert_eq!(map.get("loading_error").map(String::as_str), Some(""));
+        assert_eq!(
+            map.get("content_complete").map(String::as_str),
+            Some("false")
+        );
+        assert_eq!(map.get("child_count").map(String::as_str), Some("0"));
+        assert_eq!(map.get("has_dir_model").map(String::as_str), Some("false"));
+        assert_eq!(map.get("scroll_target").map(String::as_str), Some(""));
     }
 
     #[test]
