@@ -203,6 +203,8 @@ pub(crate) struct PanelData {
     // baked into the data model. Bumped by the paint driver at
     // emView::paint_one_panel, never by behaviors.
     pub(crate) paint_count: u64,
+    // Meaningful only when `paint_count > 0`. The literal value 0 is
+    // ambiguous with never-painted.
     pub(crate) last_paint_frame: u64,
     pub(crate) viewed_x: f64,
     pub(crate) viewed_y: f64,

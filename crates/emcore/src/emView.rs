@@ -410,6 +410,12 @@ pub struct emView {
     /// conceptually a `mutable` member. Preserving `&self` on `Paint` avoids
     /// cascading a signature change through every caller (emWindow,
     /// emViewRenderer, emSubViewPanel, benches, tests).
+    ///
+    /// Incremented at the end of `Paint` only when panels were actually
+    /// painted (the no-SVP early-return skips the increment). Callers
+    /// comparing `current_frame` vs `PanelData::last_paint_frame` are
+    /// comparing within the same frame-counting discipline, so the skip is
+    /// not observable to dump consumers.
     pub(crate) current_frame: Cell<u64>,
     /// Panel targeted by the visiting animator's seek operation.
     seek_pos_panel: Option<PanelId>,
