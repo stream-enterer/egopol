@@ -299,8 +299,8 @@
       "investigation_file": "docs/debug/investigations/F011.md",
       "root_cause_file": "crates/emcore/src/emSubViewPanel.rs",
       "blocked_question": null,
-      "fixed_in_commit": null,
-      "fixed_date": null,
+      "fixed_in_commit": "0dbdcc87",
+      "fixed_date": "2026-04-24",
       "repro": "Launch app. Navigate into cosmos. Zoom into the File System panel. emDirPanel shows 'Wait...' in yellow text indefinitely \u2014 no directory listing appears."
     },
     {
