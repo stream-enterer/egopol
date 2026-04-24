@@ -14,7 +14,7 @@ use crate::emColor::emColor;
 use crate::emCursor::emCursor;
 use crate::emPainter::{emPainter, TextAlignment, VAlign};
 use crate::emPanel::Rect;
-use crate::emRecParser::{write_rec_with_format, RecStruct, RecValue};
+use crate::emRecParser::{write_rec_with_format, RecValue};
 
 bitflags! {
     /// Flags controlling view behavior.
@@ -5007,79 +5007,31 @@ impl emView {
     pub fn dump_tree(&self, tree: &mut PanelTree) -> std::path::PathBuf {
         let path = std::env::temp_dir().join("debug.emTreeDump");
 
-        // emView-level data: flags, title, focused, home_rect
-        let mut view_rec = RecStruct::new();
-        view_rec.set_str("title", &self.title);
-        view_rec.set_str("flags", &format!("{:?}", self.flags));
-        view_rec.set_bool("focused", self.window_focused);
-        view_rec.set_str(
-            "home_rect",
-            &format!(
-                "({:.3}, {:.3}, {:.3}, {:.3})",
-                0.0, 0.0, self.HomeWidth, self.HomeHeight
-            ),
-        );
+        // Build the top-level rec with General Info + root context.
+        let root_ctx = self.GetRootContext();
+        let mut rec = crate::emTreeDump::dump_from_root_context(&root_ctx);
 
-        // Panel tree
-        let panels_rec = self.dump_panel_recursive(tree, self.root);
+        // Append the view's own dump as an additional child of the root rec
+        // (the root context's first child in C++'s walk). The Rust port
+        // doesn't yet enumerate sibling views via emContext, so we attach
+        // this view explicitly. Future work: when emContext exposes a view
+        // iterator, fold this into dump_from_root_context.
+        let view_rec = crate::emTreeDump::dump_view(self, tree, self.window_focused);
+        // Read existing Children, append, replace.
+        let mut children: Vec<RecValue> = rec
+            .get_array("Children")
+            .cloned()
+            .unwrap_or_default();
+        children.push(RecValue::Struct(view_rec));
+        crate::emTreeDump::set_children(&mut rec, children);
 
-        let mut root_rec = RecStruct::new();
-        root_rec.SetValue("view", RecValue::Struct(view_rec));
-        root_rec.SetValue("panels", panels_rec);
-
-        let text = write_rec_with_format(&root_rec, "emTreeDump");
+        let text = write_rec_with_format(&rec, "emTreeDump");
         if let Err(e) = std::fs::write(&path, &text) {
             eprintln!("[TreeDump] write failed: {e}");
         } else {
             eprintln!("[TreeDump] wrote {}", path.display());
         }
         path
-    }
-
-    fn dump_panel_recursive(&self, tree: &mut PanelTree, id: PanelId) -> RecValue {
-        let mut rec = RecStruct::new();
-
-        // Type name from behavior
-        let type_name = if let Some(behavior) = tree.take_behavior(id) {
-            let name = behavior.type_name().to_string();
-            tree.put_behavior(id, behavior);
-            name
-        } else {
-            "(no behavior)".to_string()
-        };
-        rec.set_str("title", &type_name);
-
-        // Panel fields
-        let height = tree.get_height(id);
-        let is_focused = self.focused == Some(id);
-        if let Some(p) = tree.GetRec(id) {
-            let mut text = String::new();
-            text.push_str(&format!("name = {}\n", p.name));
-            text.push_str(&format!(
-                "layout_rect = ({:.3}, {:.3}, {:.3}, {:.3})\n",
-                p.layout_rect.x, p.layout_rect.y, p.layout_rect.w, p.layout_rect.h
-            ));
-            text.push_str(&format!("height = {:.6}\n", height));
-            text.push_str(&format!("viewed = {}\n", p.viewed));
-            text.push_str(&format!("enabled = {}\n", p.enabled));
-            text.push_str(&format!("focusable = {}\n", p.focusable));
-            text.push_str(&format!("is_active = {}\n", p.is_active));
-            text.push_str(&format!("in_active_path = {}\n", p.in_active_path));
-            text.push_str(&format!("focused = {}\n", is_focused));
-            rec.set_str("text", &text);
-        }
-
-        // Children (recursive)
-        let children: Vec<PanelId> = tree.children(id).collect();
-        if !children.is_empty() {
-            let child_recs: Vec<RecValue> = children
-                .into_iter()
-                .map(|child| self.dump_panel_recursive(tree, child))
-                .collect();
-            rec.SetValue("children", RecValue::Array(child_recs));
-        }
-
-        RecValue::Struct(rec)
     }
 
     /// Handle a custom cheat code. Override in subclasses for app-specific cheats.
@@ -6098,15 +6050,39 @@ mod tests {
         // File should exist
         assert!(path.exists(), "dump file should exist at {:?}", path);
 
-        // Read and parse as emRec
+        // Read and parse as emRec (new C++-faithful schema).
         let content = std::fs::read_to_string(&path).expect("read dump file");
         let rec = parse_rec_with_format(&content, "emTreeDump")
             .expect("dump should be valid emRec format");
 
-        // Should contain view-level data
-        assert!(rec.get_str("view.title").is_some() || rec.get_struct("view").is_some());
+        // Top-level rec carries the emTreeDumpRec schema.
+        assert!(rec.get_ident("Frame").is_some(), "missing Frame ident");
+        assert!(rec.get_int("BgColor").is_some(), "missing BgColor");
+        assert!(rec.get_int("FgColor").is_some(), "missing FgColor");
+        let title = rec.get_str("Title").expect("Title present");
+        assert!(
+            title.contains("Tree Dump"),
+            "top-level Title should contain `Tree Dump`, got: {}",
+            title
+        );
+        assert!(rec.get_str("Text").is_some(), "missing Text");
+        let children = rec.get_array("Children").expect("Children present");
 
-        // Should contain panel names from the test tree
+        // Children must include the root-context branch.
+        let has_root_ctx = children.iter().any(|c| match c {
+            crate::emRecParser::RecValue::Struct(s) => s
+                .get_str("Title")
+                .map(|t| t.contains("Root Context"))
+                .unwrap_or(false),
+            _ => false,
+        });
+        assert!(
+            has_root_ctx,
+            "Children should include a `Root Context` branch"
+        );
+
+        // Should contain panel names from the test tree (view branch walks
+        // the root panel recursively).
         assert!(
             content.contains("root"),
             "dump should contain root panel name"

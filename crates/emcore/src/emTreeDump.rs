@@ -28,7 +28,7 @@ pub enum Frame {
 }
 
 impl Frame {
-    pub fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             Frame::None => "FRAME_NONE",
             Frame::Rectangle => "FRAME_RECTANGLE",
@@ -53,12 +53,12 @@ impl VisualStyle {
     pub fn engine() -> Self {
         Self { frame: Frame::Rectangle, bg: 0x000000, fg: 0xEEEEEE }
     }
-    pub fn context(_is_root: bool) -> Self {
+    pub(crate) fn context(_is_root: bool) -> Self {
         // C++ uses the same color for root and child context; is_root
         // affects only the Title string (handled at call site).
         Self { frame: Frame::Ellipse, bg: 0x777777, fg: 0xEEEEEE }
     }
-    pub fn view(focused: bool) -> Self {
+    pub(crate) fn view(focused: bool) -> Self {
         let fg = if focused { 0xEEEE44 } else { 0xEEEEEE };
         Self { frame: Frame::RoundRect, bg: 0x448888, fg }
     }
@@ -67,7 +67,7 @@ impl VisualStyle {
         // ROUND_RECT (from view), only Bg is overridden.
         Self { frame: Frame::RoundRect, bg: 0x222288, fg: 0xEEEEEE }
     }
-    pub fn panel(
+    pub(crate) fn panel(
         viewed: bool,
         in_viewed_path: bool,
         in_focused_path: bool,
@@ -105,7 +105,7 @@ impl VisualStyle {
 /// Commands and Files are always empty in this port (see spec §(A)
 /// Schema — keep in mind for future emTreeDumpFilePanel port); Children
 /// must be added by the caller via `set_children`.
-pub fn empty_rec(title: String, text: String, style: VisualStyle) -> RecStruct {
+pub(crate) fn empty_rec(title: String, text: String, style: VisualStyle) -> RecStruct {
     let mut rec = RecStruct::new();
     rec.set_ident("Frame", style.frame.as_str());
     rec.set_int("BgColor", style.bg);
@@ -121,7 +121,7 @@ pub fn empty_rec(title: String, text: String, style: VisualStyle) -> RecStruct {
 /// Sets the Children field of `rec`. Must be called exactly once per rec;
 /// `empty_rec` does not pre-populate Children. Callers that have no
 /// children should still call with an empty Vec for schema completeness.
-pub fn set_children(rec: &mut RecStruct, children: Vec<RecValue>) {
+pub(crate) fn set_children(rec: &mut RecStruct, children: Vec<RecValue>) {
     rec.SetValue("Children", RecValue::Array(children));
 }
 
@@ -150,7 +150,7 @@ pub fn set_children(rec: &mut RecStruct, children: Vec<RecValue>) {
 /// omitted rather than rendered as a misleading placeholder. If a
 /// future task wires panel-as-engine, add the line back here.
 #[allow(clippy::too_many_arguments)]
-pub fn dump_panel(
+pub(crate) fn dump_panel(
     tree: &mut PanelTree,
     id: PanelId,
     current_frame: u64,
@@ -307,7 +307,7 @@ pub fn dump_panel(
 ///
 /// Visibility is `pub` pending wiring to real consumers (the `td!`
 /// cheat / `emCtrlSocket` `dump`) — see `dump_panel` for rationale.
-pub fn dump_view(view: &emView, tree: &mut PanelTree, window_focused: bool) -> RecStruct {
+pub(crate) fn dump_view(view: &emView, tree: &mut PanelTree, window_focused: bool) -> RecStruct {
     // --- Context-branch fields (C++ emView IS-A emContext). ---
     // The C++ cascade for a View first runs the Context branch (lines
     // 109-142) which emits Common/Private Models, *then* the View branch.
@@ -485,7 +485,7 @@ fn fmt_window_flags(flags: WindowFlags) -> String {
 ///   accessors land.
 ///
 /// Visibility is `pub` pending real consumers.
-pub fn dump_context(ctx: &emContext, is_root: bool) -> RecStruct {
+pub(crate) fn dump_context(ctx: &emContext, is_root: bool) -> RecStruct {
     let mut text = String::new();
     text.push_str(&format!("\nCommon Models: {}", ctx.common_model_count()));
     text.push_str("\nPrivate Models: 0 (not listed)");
@@ -603,7 +603,7 @@ pub fn dump_file_model(
 /// view+panel-tree dump should also call `dump_view` and append it to
 /// the rec's Children. The shim in `emView::dump_tree` (Task 1.9) does
 /// exactly that.
-pub fn dump_from_root_context(root_ctx: &emContext) -> RecStruct {
+pub(crate) fn dump_from_root_context(root_ctx: &emContext) -> RecStruct {
     let title =
         "Tree Dump\nof the top-level objects\nof a running emCore-based program".to_string();
     let text = general_info_text();
