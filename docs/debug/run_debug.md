@@ -65,6 +65,18 @@ If no eligible issue exists, output the completion promise and stop:
 <promise>DEBUG_PASS_COMPLETE</promise>
 ```
 
+### Step 2.5 — Create fix branch
+
+Now that an eligible issue is selected (ID = `F###`), create the fix branch off current `main` HEAD:
+
+```
+git checkout -b fix/F###
+```
+
+All code changes (source files, test files) for this issue will be committed to this branch. ISSUES.json and investigation scratchpad files are committed to `main`, not to this branch — that separation is enforced in Step 7.
+
+Do not create the branch if it already exists (the branch-guard in Step 2 prevents reaching this step in that case).
+
 ### Step 3 — Load investigation state
 
 Check whether `investigation_file` is set on the selected issue in ISSUES.json, and whether that file exists on disk.
