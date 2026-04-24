@@ -135,7 +135,7 @@
     {
       "id": "F008",
       "kind": "fix",
-      "status": "needs-manual-verification",
+      "status": "closed",
       "priority": "high",
       "title": "All app panels fail to load: dlopen error on libemFileMan.so",
       "description": "Every app panel inside the cosmos (File System, Home, emStocks) fails to load with the error: \"failed to load library 'libemFileMan.so': dlopen failed\". Root cause: plugin crates were [dev-dependencies] only, so cargo never built their cdylibs for release; RUNPATH also only covered target/release/ not target/release/deps/ where cargo places cdylib deps. Secondary: Home.emFileLink used Path='~' (shell tilde, not expanded by OS) resolving to nonexistent VcItemFiles/~ \u2014 fixed to use BasePathType='home'.",
@@ -147,8 +147,8 @@
       "investigation_file": "docs/debug/investigations/F008.md",
       "root_cause_file": null,
       "blocked_question": null,
-      "fixed_in_commit": null,
-      "fixed_date": null,
+      "fixed_in_commit": "f9c14415",
+      "fixed_date": "2026-04-23",
       "repro": "Launch app (release profile). Navigate into the cosmos. Click any app panel (File System, Home, emStocks). Observe error: \"failed to load library 'libemFileMan.so': dlopen failed\"."
     },
     {
