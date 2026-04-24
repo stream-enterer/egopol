@@ -427,6 +427,26 @@ impl PanelBehavior for emFilePanel {
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
         self.paint_status(painter, w, h);
     }
+
+    fn dump_state(&self) -> Vec<(&'static str, String)> {
+        vec![
+            ("has_file_model", self.model.is_some().to_string()),
+            (
+                "custom_error",
+                self.custom_error.as_deref().unwrap_or("").to_string(),
+            ),
+            (
+                "last_vir_file_state",
+                format!("{:?}", self.last_vir_file_state),
+            ),
+            ("cached_memory_limit", self.cached_memory_limit.to_string()),
+            ("cached_priority", format!("{:.6}", self.cached_priority)),
+            (
+                "cached_in_active_path",
+                self.cached_in_active_path.to_string(),
+            ),
+        ]
+    }
 }
 
 #[cfg(test)]
@@ -701,6 +721,23 @@ mod tests {
     fn is_hope_for_seeking_delegates() {
         let (panel, _model) = make_panel_with_model();
         assert!(panel.IsHopeForSeeking());
+    }
+
+    #[test]
+    fn dump_state_reports_initial_state() {
+        let panel = emFilePanel::new();
+        let pairs = PanelBehavior::dump_state(&panel);
+        let map: std::collections::HashMap<&'static str, String> = pairs.into_iter().collect();
+        assert_eq!(map.get("has_file_model").map(String::as_str), Some("false"));
+        assert_eq!(map.get("custom_error").map(String::as_str), Some(""));
+        assert_eq!(
+            map.get("last_vir_file_state").map(String::as_str),
+            Some("NoFileModel")
+        );
+        assert_eq!(
+            map.get("cached_in_active_path").map(String::as_str),
+            Some("false")
+        );
     }
 
     #[test]
