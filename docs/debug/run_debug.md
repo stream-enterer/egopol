@@ -95,6 +95,8 @@ Skip this restore if `investigation_file` is not set in ISSUES.json (fresh start
 
 All code changes (source files, test files) for this issue will be committed to this branch. ISSUES.json and investigation scratchpad files are committed to `main`, not to this branch — that separation is enforced in Step 7.
 
+Note: during Phases 1–3 (investigation), no source files are modified. The harness operates on the fix branch but every iteration's scratchpad and ISSUES.json writes land on `main` via Step 7b. The fix branch accumulates no commits until Phase 4 produces a code change.
+
 ### Step 3 — Load investigation state
 
 Check whether `investigation_file` is set on the selected issue in ISSUES.json, and whether that file exists on disk.
@@ -102,6 +104,7 @@ Check whether `investigation_file` is set on the selected issue in ISSUES.json, 
 **If a scratchpad exists (resuming):**
 - Read the scratchpad fully.
 - Before executing anything, verify internal consistency: all phases prior to `current_phase` must have `complete: true`. If any prior phase has `complete: false`, the scratchpad is inconsistent from a crashed iteration — resume from the last phase that has `complete: true` rather than from `current_phase`.
+- **Rollback detection:** If all four phases have `complete: true` but the current status in ISSUES.json is `investigating`, this means a runtime-verified fix was rejected by the human and rolled back. Do not re-execute Phase 4. Instead, re-enter Phase 3: form a new hypothesis based on the runtime failure, add it to the Phase 3 section of the scratchpad (with the failure as evidence), and proceed to a new implementation attempt. Update `current_phase` to `3` in the scratchpad frontmatter and set Phase 4's `complete` back to `false`.
 - Check `head_sha` in the scratchpad against current HEAD (`git rev-parse HEAD`). If they differ, run `git diff <scratchpad_head_sha>..HEAD -- <files listed in next_steps>`. For each file that changed: re-read it, verify the intended action in `next_steps` is still feasible. If the target symbol or structure still exists at a new line, update the line reference. If the structure has fundamentally changed, mark the step `STALE: <reason>` and regenerate it from the current phase goals before executing.
 - Execute the first unchecked item in `next_steps`.
 
