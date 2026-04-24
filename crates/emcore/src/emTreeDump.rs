@@ -301,13 +301,71 @@ fn yes_no(b: bool) -> &'static str {
     }
 }
 
-/// Format a single f64 in C++ `%.9G` style. Rust's `{:.9}` is the closest
-/// built-in — it uses fixed precision, which can diverge from C++ `%G`'s
-/// smart choice between `%E` and `%F`, but for the dump's purpose
-/// (human-readable snapshot) this is acceptable. If full byte-fidelity
-/// with C++ dumps becomes required, reimplement as a `%G` clone.
+/// Format a single f64 in C++ `%.9G` style: 9 significant digits, with
+/// scientific notation when the exponent is `< -4` or `>= 9`, trailing
+/// zeros stripped, and a trailing `.` stripped when the mantissa is
+/// integer. Matches `printf("%.9G", v)` for the contracts required by
+/// the tree dump; exponent field uses `E[+-]dd` (2-digit minimum) as
+/// printf does on glibc.
 fn fmt_g(v: f64) -> String {
-    format!("{:.9}", v)
+    const PRECISION: i32 = 9;
+
+    if v == 0.0 {
+        // Handles +0.0 and -0.0 uniformly; C's %G prints "0" here.
+        return "0".to_string();
+    }
+    if v.is_nan() {
+        return "nan".to_string();
+    }
+    if v.is_infinite() {
+        return if v < 0.0 { "-inf".to_string() } else { "inf".to_string() };
+    }
+
+    let exp = v.abs().log10().floor() as i32;
+
+    if !(-4..PRECISION).contains(&exp) {
+        // Scientific. Rust `{:E}` precision = digits after decimal; %G
+        // precision = total significant digits, so subtract 1.
+        let raw = format!("{:.*E}", (PRECISION - 1) as usize, v);
+        // raw looks like "1.230000000E2" or "-1.23E-5".
+        let (mantissa, exp_str) = raw.split_once('E').expect("format!E always contains E");
+        // Strip trailing zeros from the mantissa; then strip a trailing
+        // '.' if the mantissa collapses to an integer.
+        let mut m = mantissa.trim_end_matches('0').trim_end_matches('.').to_string();
+        if m.is_empty() || m == "-" {
+            m.push('0');
+        }
+        // Normalize exponent: C printf emits E[+-]dd with at least 2
+        // digits. Rust's {:E} emits e.g. "E2" or "E-5" (no sign for
+        // non-negative, no zero-pad).
+        let (sign, digits) = if let Some(rest) = exp_str.strip_prefix('-') {
+            ('-', rest)
+        } else if let Some(rest) = exp_str.strip_prefix('+') {
+            ('+', rest)
+        } else {
+            ('+', exp_str)
+        };
+        let padded = if digits.len() < 2 {
+            format!("0{}", digits)
+        } else {
+            digits.to_string()
+        };
+        format!("{}E{}{}", m, sign, padded)
+    } else {
+        // Fixed. digits-after-decimal = precision - 1 - exp (clamped ≥ 0).
+        let digits_after = (PRECISION - 1 - exp).max(0) as usize;
+        let raw = format!("{:.*}", digits_after, v);
+        if raw.contains('.') {
+            let trimmed = raw.trim_end_matches('0').trim_end_matches('.');
+            if trimmed.is_empty() || trimmed == "-" {
+                "0".to_string()
+            } else {
+                trimmed.to_string()
+            }
+        } else {
+            raw
+        }
+    }
 }
 
 fn fmt_xywh(x: f64, y: f64, w: f64, h: f64) -> String {
@@ -431,6 +489,24 @@ mod tests {
         assert!(matches!(arr[0], RecValue::Int(7)));
     }
 
+    #[test]
+    fn fmt_g_matches_c_percent_g() {
+        // Expected values verified against `printf("%.9G", x)` on glibc.
+        assert_eq!(fmt_g(0.0), "0");
+        assert_eq!(fmt_g(1.0), "1");
+        assert_eq!(fmt_g(1.5), "1.5");
+        assert_eq!(fmt_g(123456789.0), "123456789");
+        assert_eq!(fmt_g(0.5), "0.5");
+        assert_eq!(fmt_g(-1.5), "-1.5");
+        assert_eq!(fmt_g(0.0001), "0.0001");
+        // < 1e-4 → scientific
+        assert_eq!(fmt_g(0.00001), "1E-05");
+        // >= 1e9 → scientific
+        assert_eq!(fmt_g(1e9), "1E+09");
+        // 9 significant digits (C printf rounds half-to-even here).
+        assert_eq!(fmt_g(1.2345678901), "1.23456789");
+    }
+
     // --- dump_panel tests ---
 
     use crate::emPanel::PanelBehavior;
@@ -517,5 +593,45 @@ mod tests {
         }
         names.sort();
         assert_eq!(names, vec!["alpha".to_string(), "beta".to_string()]);
+    }
+
+    #[test]
+    fn dump_panel_appends_subtype_dump_state_pairs() {
+        struct LoadingBehavior;
+        impl PanelBehavior for LoadingBehavior {
+            fn dump_state(&self) -> Vec<(&'static str, String)> {
+                vec![
+                    ("loading_pct", "42".to_string()),
+                    ("loading_done", "false".to_string()),
+                ]
+            }
+        }
+
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        tree.put_behavior(root, Box::new(LoadingBehavior));
+
+        let rec = dump_panel(&mut tree, root, 0, None, 1.0, 1.0, false);
+
+        let text = rec.get_str("Text").expect("Text exists").to_string();
+        assert!(
+            text.contains("\nloading_pct: 42"),
+            "Text missing loading_pct pair:\n{}",
+            text
+        );
+        assert!(
+            text.contains("\nloading_done: false"),
+            "Text missing loading_done pair:\n{}",
+            text
+        );
+        // Insertion order: loading_pct must come before loading_done.
+        let idx_pct = text.find("\nloading_pct:").expect("loading_pct present");
+        let idx_done = text.find("\nloading_done:").expect("loading_done present");
+        assert!(
+            idx_pct < idx_done,
+            "dump_state Vec order not preserved: pct@{} done@{}",
+            idx_pct,
+            idx_done
+        );
     }
 }
