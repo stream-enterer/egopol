@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -406,7 +406,11 @@ pub struct emView {
     /// RUST_ONLY: (language-forced-utility)
     /// Monotonic frame counter incremented once per completed paint pass.
     /// Paired with PanelData::last_paint_frame for the tree dump.
-    pub(crate) current_frame: u64,
+    /// `Cell` because C++ `emView::Paint` is a `const` method; the counter is
+    /// conceptually a `mutable` member. Preserving `&self` on `Paint` avoids
+    /// cascading a signature change through every caller (emWindow,
+    /// emViewRenderer, emSubViewPanel, benches, tests).
+    pub(crate) current_frame: Cell<u64>,
     /// Panel targeted by the visiting animator's seek operation.
     seek_pos_panel: Option<PanelId>,
     /// Child name being sought within `seek_pos_panel`.
@@ -646,7 +650,7 @@ impl emView {
             background_color: emColor::rgba(0x80, 0x80, 0x80, 0xFF),
             SVPUpdCount: 0,
             window_focused: true,
-            current_frame: 0,
+            current_frame: Cell::new(0),
             seek_pos_panel: None,
             seek_pos_child_name: String::new(),
             dirty_rects: Vec::new(),
@@ -4794,6 +4798,11 @@ impl emView {
         if let Some(st) = &self.stress_test {
             st.paint_info(painter, self.HomeWidth, self.HomeHeight);
         }
+
+        // Tree-dump telemetry: advance the frame counter at the end of a
+        // completed paint pass. Paired with PanelData::last_paint_frame.
+        self.current_frame
+            .set(self.current_frame.get().wrapping_add(1));
     }
 
     /// Paint a single panel's behavior. Extracted to avoid duplicating the
@@ -4823,6 +4832,14 @@ impl emView {
             } else {
                 1.0
             };
+            // Tree-dump telemetry: record this paint on the PanelData before
+            // the behavior paints. Mirrors the single `behavior.Paint()` choke
+            // point so every painted panel is counted exactly once per frame.
+            {
+                let data = &mut tree.panels[id];
+                data.paint_count = data.paint_count.wrapping_add(1);
+                data.last_paint_frame = self.current_frame.get();
+            }
             behavior.Paint(painter, 1.0, tallness, &state);
             tree.put_behavior(id, behavior);
         }
@@ -7775,6 +7792,69 @@ mod tests {
             pv.CurrentPixelTallness, 1.5,
             "popup CurrentPixelTallness must come from parent's port (1.5)"
         );
+    }
+
+    mod paint_counter_integration_tests {
+        use super::*;
+        use crate::emImage::emImage;
+        use crate::emPanel::PanelBehavior;
+
+        /// No-op behavior — relies on the default `PanelBehavior::Paint` impl.
+        /// Installed so `take_behavior` returns `Some`, which is the condition
+        /// that gates the paint-counter bump in `paint_one_panel`.
+        struct NoopBehavior;
+        impl PanelBehavior for NoopBehavior {}
+
+        #[test]
+        fn paint_bumps_counter_and_records_frame() {
+            let mut ts = TestSched::new();
+            let (mut tree, root, child1, child2) = setup_tree();
+            tree.set_behavior(root, Box::new(NoopBehavior));
+            tree.set_behavior(child1, Box::new(NoopBehavior));
+            tree.set_behavior(child2, Box::new(NoopBehavior));
+
+            let mut view = emView::new(
+                crate::emContext::emContext::NewRoot(),
+                root,
+                800.0,
+                600.0,
+            );
+            // Layout + SVP selection so paint_one_panel is actually reached.
+            ts.with(|sc| view.Update(&mut tree, sc));
+
+            let mut img = emImage::new(800, 600, 4);
+            let mut painter = emPainter::new(&mut img);
+            view.Paint(&mut tree, &mut painter, emColor::TRANSPARENT);
+
+            // SVP (whichever panel the view selected) always paints; viewed
+            // children recurse through paint_one_panel too. We assert the
+            // counter is nonzero on root rather than picking a specific
+            // panel — the test's purpose is "bump wired" and "first frame
+            // recorded as 0", not the SVP selection policy.
+            let root_data = &tree.panels[root];
+            assert!(
+                root_data.paint_count >= 1,
+                "root paint_count must bump at least once"
+            );
+            assert_eq!(
+                root_data.last_paint_frame, 0,
+                "first paint pass records frame 0 (increment happens at end)"
+            );
+
+            // Frame counter advances once per Paint invocation regardless.
+            assert_eq!(
+                view.current_frame.get(),
+                1,
+                "current_frame incremented once at end of Paint"
+            );
+
+            // Second Paint: counter bumps again, last_paint_frame records 1.
+            view.Paint(&mut tree, &mut painter, emColor::TRANSPARENT);
+            let root_data = &tree.panels[root];
+            assert!(root_data.paint_count >= 2, "root paint_count after 2nd paint");
+            assert_eq!(root_data.last_paint_frame, 1, "2nd paint records frame 1");
+            assert_eq!(view.current_frame.get(), 2, "current_frame after 2nd paint");
+        }
     }
 }
 
