@@ -22,7 +22,7 @@ The dump alone is not sufficient for an autonomous agent. The agent must also be
 - Rust tree dump matches the C++ `emTreeDumpRec` schema byte-for-byte (Frame / BgColor / FgColor / Title / Text / Commands / Files / Children) so a future port of `emTreeDumpFilePanel` can consume the same file.
 - Rust dump covers every field emitted by C++'s `emTreeDumpFromObject` cascade: General Info root header, emEngine, emContext, emView, emWindow, emPanel, emModel, emFileModel.
 - `PanelBehavior` gains a `dump_state` extension point so subtype-specific state (e.g., `emDirPanel` loading state) is visible in the dump without centralizing knowledge of concrete behaviors in `emcore`.
-- Each `PanelRec` carries a `paint_count` and `last_paint_frame`, bumped by the paint driver — correct-by-construction, invisible to behaviors, cheap at runtime.
+- Each `PanelData` carries a `paint_count` and `last_paint_frame`, bumped by the paint driver — correct-by-construction, invisible to behaviors, cheap at runtime.
 - An opt-in Unix-domain control channel exposes: tree dump on demand, high-level navigation (`visit`, `visit_fullsized`, `set_focus`, `seek_to`), low-level synthetic input (`input`, `input_batch`), idle detection (`wait_idle`), lightweight state probe (`get_state`), and clean shutdown (`quit`).
 - Control-channel input injection uses the same entry point winit uses (`App::window_event`), so synthetic input is indistinguishable from real input to everything downstream of that function.
 - Existing `td!` cheat continues to work, writes to the same path, now carries the richer content.
@@ -44,7 +44,7 @@ The dump alone is not sufficient for an autonomous agent. The agent must also be
 Four coupled pieces, one gate:
 
 - **(A) Tree dump extension** — new `crates/emcore/src/emTreeDump.rs` mirroring the C++ `emTreeDumpUtil.cpp` walker, emitting the `emTreeDumpRec` schema. Adds `PanelBehavior::dump_state`.
-- **(B) Paint counter** — two `u64` fields on `PanelRec`, bumped in the paint driver's single `behavior.Paint()` call site.
+- **(B) Paint counter** — two `u64` fields on `PanelData`, bumped in the paint driver's single `behavior.Paint()` call site.
 - **(C) Control channel** — new `crates/emcore/src/emCtrlSocket.rs`. Unix-domain socket, JSON-lines, acceptor thread + per-connection worker threads, main-thread dispatch via `winit::EventLoopProxy` + custom `UserEvent`.
 - **(D) Input injection** — synthetic `WindowEvent` construction, dispatched by direct call into `App::window_event` on the main thread.
 
@@ -93,7 +93,7 @@ fn dump_object_engine(e: &dyn emEngineLike) -> (FieldAppend, VisualStyle) { ... 
 fn dump_context(c: &emContext) -> RecStruct { ... }
 fn dump_view(v: &emView, tree: &mut PanelTree) -> RecStruct { ... }
 fn dump_window(w: &emWindow) -> RecStruct { ... }
-fn dump_panel(p: &PanelRec, b: &dyn PanelBehavior, tree: &mut PanelTree, current_frame: u64) -> RecStruct { ... }
+fn dump_panel(p: &PanelData, b: &dyn PanelBehavior, tree: &mut PanelTree, current_frame: u64) -> RecStruct { ... }
 fn dump_model(m: &emModel) -> RecStruct { ... }
 fn dump_file_model(fm: &emFileModel) -> RecStruct { ... }
 ```
@@ -145,7 +145,7 @@ Each pair `(label, value)` appends to the panel's Text as `"\n<label>: <value>"`
 ### File layout
 
 - **New:** `crates/emcore/src/emTreeDump.rs` — walker, entry points, visual-style constants.
-- **Modified:** `crates/emcore/src/emPanel.rs` — add `dump_state` to `PanelBehavior`, add `paint_count` / `last_paint_frame` to `PanelRec`.
+- **Modified:** `crates/emcore/src/emPanel.rs` — add `dump_state` to `PanelBehavior`, add `paint_count` / `last_paint_frame` to `PanelData`.
 - **Modified:** `crates/emcore/src/emView.rs` — `dump_tree` becomes a thin shim: resolves `root_context`, calls `emTreeDump::dump_from_root_context`, writes to `$TMPDIR/debug.emTreeDump`. No walker logic in this file.
 - **Modified:** `crates/emfileman/src/emDirPanel.rs`, `crates/emfileman/src/emFilePanel.rs`, etc. — override `dump_state` per the list above.
 - **Marker files** (`.no_rs`): `emTreeDumpRec.no_rs`, `emTreeDumpFileModel.no_rs`, `emTreeDumpFilePanel.no_rs`, `emTreeDumpRecPanel.no_rs`, `emTreeDumpControlPanel.no_rs`, `emTreeDumpFpPlugin.no_rs` — document that the in-app renderer is not ported and why (future work; schema is faithful so the port is mechanical).
@@ -154,7 +154,7 @@ Each pair `(label, value)` appends to the panel's Text as `"\n<label>: <value>"`
 
 ## (B) Paint counter
 
-### Fields on `PanelRec`
+### Fields on `PanelData`
 
 ```rust
 // RUST_ONLY: (language-forced utility)
@@ -363,7 +363,7 @@ This verification happens as the first implementation milestone of piece (C) —
 ## Annotation summary
 
 - `crates/emcore/src/emTreeDump.rs` — new file; name correspondence to `src/emTreeDump/emTreeDumpUtil.cpp`; no `RUST_ONLY:` needed (1:1 with C++). If any field is rendered as `"-"` due to upstream gaps in the Rust port, tag the site `DIVERGED: (upstream-gap-forced) <field> — not yet ported in Rust emCore; C++ emits via <source>`.
-- `crates/emcore/src/emPanel.rs::PanelRec::paint_count` / `last_paint_frame` — `RUST_ONLY:` category **language-forced utility**.
+- `crates/emcore/src/emPanel.rs::PanelData::paint_count` / `last_paint_frame` — `RUST_ONLY:` category **language-forced utility**.
 - `crates/emcore/src/emPanel.rs::PanelBehavior::dump_state` — no annotation needed; it is the Rust analog of the C++ dynamic_cast cascade and preserves observable output, so it qualifies as idiom adaptation (unannotated per Annotation Vocabulary).
 - `crates/emcore/src/emCtrlSocket.rs` — `RUST_ONLY:` at top of file, category **language-forced utility** with the reason noted in §(C) file layout.
 - Marker files per §(A) file layout.
