@@ -131,22 +131,53 @@ If 3+ distinct hypotheses have been ruled out with concrete evidence and you can
 
 ### Step 7 — Commit
 
-Commit once at the end of each iteration. The commit message summarises all transitions that occurred during the iteration.
+Commits are split between the fix branch (code) and `main` (state). Execute in this order:
 
-Format: `debug(<ID>): <summary of what happened>`
+**Step 7a — Commit code to fix branch (if any source files changed):**
 
-If the commit contains only scratchpad and ISSUES.json changes (no source files), append `(scratchpad only)` to the message.
+You should currently be on `fix/F###`. Stage and commit only source and test files:
+
+```
+git add <source files> <test files>
+git commit -m "fix(F###): <summary of what the fix does>"
+```
+
+Do not stage ISSUES.json or `docs/debug/investigations/` here. If no source files changed this iteration (investigation-only work), skip 7a.
+
+**Step 7b — Switch to main and commit state:**
+
+```
+git checkout main
+git add docs/debug/ISSUES.json docs/debug/investigations/F###.md
+git commit -m "debug(F###): <summary of what happened>"
+```
+
+Format for the state commit message: `debug(<ID>): <summary of what happened>`
+
+Append `(scratchpad only)` if no code was committed in 7a.
 
 Examples:
 - `debug(F001): phase 1 complete — root cause in emGUIFramework Focused handler (scratchpad only)`
 - `debug(F001): hypothesis 1 ruled out — input_state not the cause (scratchpad only)`
-- `debug(F001): root cause confirmed, fix committed — emGUIFramework Focused resets VIF state`
 - `debug(F001): fix committed, needs manual verification`
 - `debug(F001): wip — gathering phase 2 evidence (scratchpad only)`
 
-Always stage: the scratchpad file, ISSUES.json, and any modified source files.
+**Step 7c — Update head_sha:**
 
-Update `head_sha` in the scratchpad frontmatter to the new HEAD SHA immediately after committing (`git rev-parse HEAD`).
+After the `main` commit, update `head_sha` in the scratchpad frontmatter to the new HEAD SHA:
+
+```
+git rev-parse HEAD
+```
+
+Write that SHA into `docs/debug/investigations/F###.md` frontmatter and commit:
+
+```
+git add docs/debug/investigations/F###.md
+git commit -m "debug(F###): update head_sha (scratchpad only)"
+```
+
+The iteration always ends on `main`.
 
 ### Step 8 — Terminal state check
 
