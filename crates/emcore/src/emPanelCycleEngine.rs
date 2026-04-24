@@ -132,6 +132,12 @@ impl emEngine for PanelCycleEngine {
                 ctx.framework_clipboard,
                 ctx.pending_actions,
             );
+            if std::env::var("DEBUG_F011").is_ok() {
+                eprintln!(
+                    "[F011] PanelCycleEngine: dispatching Cycle for panel={:?}",
+                    self.panel_id
+                );
+            }
             behavior.Cycle(&mut ectx, &mut pctx)
         };
         // Re-borrow ctx.tree (lifetime reset after the `ctx_tree` borrow ended
