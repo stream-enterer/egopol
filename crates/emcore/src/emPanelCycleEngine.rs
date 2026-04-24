@@ -57,6 +57,20 @@ impl emEngine for PanelCycleEngine {
         // Phase 3.5.A Task 6.2: `ctx.tree` is `Option<&mut PanelTree>`;
         // a PanelCycleEngine is always registered with a window-scoped
         // `PanelScope` (Toplevel or SubView), so `ctx.tree` is Some.
+        // Gather identity for debug logging before any mutable borrows.
+        let (debug_name, debug_parent_name) = if std::env::var("DEBUG_F011").is_ok() {
+            let t = ctx.tree.as_deref().expect("tree is Some");
+            let name = t.name(self.panel_id).unwrap_or("?").to_string();
+            let parent_name = t.panels.get(self.panel_id)
+                .and_then(|p| p.parent)
+                .and_then(|pid| t.name(pid))
+                .unwrap_or("?")
+                .to_string();
+            (name, parent_name)
+        } else {
+            (String::new(), String::new())
+        };
+
         let (tallness, behavior) = {
             let ctx_tree = ctx
                 .tree
@@ -134,8 +148,8 @@ impl emEngine for PanelCycleEngine {
             );
             if std::env::var("DEBUG_F011").is_ok() {
                 eprintln!(
-                    "[F011] PanelCycleEngine: dispatching Cycle for panel={:?}",
-                    self.panel_id
+                    "[F011] PanelCycleEngine: dispatching Cycle panel={:?} name='{}' parent='{}'",
+                    self.panel_id, debug_name, debug_parent_name
                 );
             }
             behavior.Cycle(&mut ectx, &mut pctx)
