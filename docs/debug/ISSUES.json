@@ -97,7 +97,7 @@
     {
       "id": "F001",
       "kind": "fix",
-      "status": "needs-manual-verification",
+      "status": "closed",
       "priority": "medium",
       "title": "Tabbing out and back in disables zoom",
       "description": "After losing and regaining window focus (Alt+Tab), scroll-wheel zoom stops working. Root cause: emGUIFramework does not clear emInputState.pressed on WindowEvent::Focused(false). Alt key gets stuck, causing emMouseZoomScrollVIF to reject wheel events (requires IsNoMod()).",
@@ -105,11 +105,11 @@
       "caused_by": null,
       "introduced_commit": null,
       "introduced_date": "2026-04-23",
-      "fix_note": "Fixed in ce4e4681: add emInputState::clear_keys() and call on Focused(false). Requires runtime verification: Alt+Tab out \u2192 Alt+Tab back \u2192 scroll-wheel zoom must work.",
+      "fix_note": "Fixed in 6769a990: add emInputState::clear_keys() and call on Focused(false). Runtime-verified by user on 2026-04-24.",
       "investigation_file": "docs/debug/investigations/F001.md",
       "root_cause_file": null,
       "blocked_question": null,
-      "fixed_in_commit": "ce4e4681",
+      "fixed_in_commit": "6769a990",
       "fixed_date": "2026-04-24",
       "repro": "Launch app. Scroll-wheel zoom in/out to confirm it works. Alt+Tab away. Alt+Tab back. Attempt scroll-wheel zoom \u2014 broken."
     },
