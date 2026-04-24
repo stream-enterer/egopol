@@ -36,6 +36,15 @@ impl emInputState {
         self.pressed.remove(&key);
     }
 
+    /// Clear all pressed keys. Mouse position is preserved.
+    ///
+    /// Called on focus loss (WindowEvent::Focused(false)) to prevent modifier
+    /// keys (e.g. Alt from Alt+Tab) from getting stuck when the OS does not
+    /// deliver release events to a window that loses focus.
+    pub fn clear_keys(&mut self) {
+        self.pressed.clear();
+    }
+
     /// Check if a key is currently pressed.
     pub fn Get(&self, key: InputKey) -> bool {
         self.pressed.contains(&key)

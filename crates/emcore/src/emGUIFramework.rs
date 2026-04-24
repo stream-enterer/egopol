@@ -989,6 +989,14 @@ impl ApplicationHandler for App {
                     win.invalidate();
                     win.request_redraw();
                 }
+                // Clear stuck modifier keys on focus loss. The OS (e.g. X11
+                // via Alt+Tab) may not deliver key-release events to a window
+                // that loses focus, leaving modifiers like Alt stuck in
+                // input_state. C++ fixes this via XQueryKeymap on FocusIn;
+                // Rust clears all pressed keys on FocusOut instead.
+                if !focused {
+                    self.input_state.clear_keys();
+                }
             }
             WindowEvent::Touch(ref touch) => {
                 let forward_events = {
