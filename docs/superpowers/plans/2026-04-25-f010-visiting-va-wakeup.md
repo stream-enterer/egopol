@@ -4,7 +4,7 @@
 
 **Goal:** Make `emView::Visit*` actually drive the visiting view animator by waking the registered `VisitingVAEngineClass` after `va.Activate()`, so programmatic visits (StartupEngine `VisitFullsized(":")`, control-channel `visit`/`visit-fullsized`/`seek-to`, focus-follow zoom) advance the inner view's framing rectangle. Closes the F010 root cause (see `docs/debug/investigations/F010-root-cause.md`).
 
-**Architecture:** C++ `emViewAnimator::Activate` (emViewAnimator.cpp:81) calls `WakeUp()` because in C++ the animator IS-A engine. The Rust port splits the animator (`emVisitingViewAnimator` in `crates/emcore/src/emViewAnimator.rs`) from the wrapper engine (`VisitingVAEngineClass` in `crates/emcore/src/emView.rs:267-353`) for ownership reasons, so `Activate()` cannot reach the scheduler from within the animator. The fix plumbs `&mut SchedCtx<'_>` through the seven Visit-family methods and eleven navigation helpers on `emView`, and adds a new helper `wake_visiting_va_engine(&self, &mut SchedCtx<'_>)` (mirror of the existing `WakeUpUpdateEngine`) that the Visit-family methods call after `va.Activate()`.
+**Architecture:** C++ `emViewAnimator::Activate` (emViewAnimator.cpp:81) calls `WakeUp()` because in C++ the animator IS-A engine. The Rust port splits the animator (`emVisitingViewAnimator` in `crates/emcore/src/emViewAnimator.rs`) from the wrapper engine (`VisitingVAEngineClass` in `crates/emcore/src/emView.rs:267-353`) for ownership reasons, so `Activate()` cannot reach the scheduler from within the animator. The fix plumbs `&mut SchedCtx<'_>` through the **six** Visit-family methods (`Visit`, `VisitByIdentity`, `VisitFullsized`, `VisitFullsizedByIdentity`, `VisitPanel`, `VisitByIdentityBare`) and **eleven** navigation helpers on `emView`, and adds a new helper `wake_visiting_va_engine(&mut self, &mut SchedCtx<'_>)` (mirror of the existing `WakeUpUpdateEngine`, which uses `&mut self`) that the Visit-family methods call after `va.Activate()`.
 
 **Tech Stack:** Rust 2021, single-crate `emcore`, `cargo-nextest` for tests, `cargo clippy -D warnings` lint gate. Pre-commit hook runs `cargo fmt`, `clippy`, `cargo-nextest ntr`. C++ reference at `~/Projects/eaglemode-0.96.4/`.
 
@@ -19,13 +19,14 @@
 
 **Modified:**
 
-- `crates/emcore/src/emView.rs` — add `wake_visiting_va_engine`; thread `&mut SchedCtx<'_>` through the 7 Visit-family methods (`Visit`, `VisitByIdentity`, `VisitFullsized`, `VisitFullsizedByIdentity`, `VisitPanel`, `VisitByIdentityBare`) and the 11 navigation helpers (`VisitNext`, `VisitPrev`, `VisitFirst`, `VisitLast`, `VisitLeft`, `VisitRight`, `VisitUp`, `VisitDown`, `VisitIn`, `VisitOut`, `VisitNeighbour`); update internal nav-request drain in `Update`; update tests.
+- `crates/emcore/src/emView.rs` — add `wake_visiting_va_engine`; thread `&mut SchedCtx<'_>` through the 6 Visit-family methods (`Visit`, `VisitByIdentity`, `VisitFullsized`, `VisitFullsizedByIdentity`, `VisitPanel`, `VisitByIdentityBare`) and the 11 navigation helpers (`VisitNext`, `VisitPrev`, `VisitFirst`, `VisitLast`, `VisitLeft`, `VisitRight`, `VisitUp`, `VisitDown`, `VisitIn`, `VisitOut`, `VisitNeighbour`); update internal nav-request drain in `Update` (line 2660) and ensure the trailing `self.VisitPanel(tree, current, true)` at line 2936 *inside* `VisitNeighbour` is updated alongside the helper itself; update tests.
 - `crates/emcore/src/emWindow.rs` — pass `ctx` through `HandleInput` keyboard navigation block (lines 1111, 1113, 1235-1258).
-- `crates/emcore/src/emCtrlSocket.rs` — change `resolve_target` closure type to accept `&mut SchedCtx<'_>` and construct it from `app` fields with split borrows; update `handle_visit`, `handle_visit_fullsized`, `handle_seek_to`.
-- `crates/emcore/src/emViewInputFilter.rs` — pass `ctx` through the two `VisitFullsized` call sites (lines 1656, 1679).
-- `crates/emcore/src/emSubViewPanel.rs` — pass `ctx` through `VisitByIdentity` delegation (line 165) and update its callers.
-- `crates/eaglemode/tests/support/pipeline.rs` — pipeline test harness already has a `SchedCtx` in scope; thread it through.
-- `crates/eaglemode/tests/golden/interaction.rs` — update ~15 call sites to construct/borrow a `SchedCtx`.
+- `crates/emcore/src/emCtrlSocket.rs` — change `resolve_target` closure type to accept `&mut SchedCtx<'_>` and construct it from `app` fields with split borrows; update `handle_visit` (488), `handle_visit_fullsized` (497), `handle_seek_to` (518), and add an `_ctx` placeholder to `handle_set_focus` (509) since the closure type changed.
+- `crates/emcore/src/emViewInputFilter.rs` — pass `ctx` through the two `VisitFullsized` call sites (lines 1656, 1679). Enclosing `do_gesture` already takes `ctx: &mut SchedCtx<'_>`.
+- `crates/emcore/src/emSubViewPanel.rs` — `visit_by_identity` (line 155, call at line 165, snake_case) gains a trailing `ctx: &mut SchedCtx<'_>` parameter.
+- `crates/emmain/src/emMainWindow.rs` — caller of `emSubViewPanel::visit_by_identity` at line 1339 (in `RecreateContentPanels`); thread `ctx` through.
+- `crates/eaglemode/tests/support/pipeline.rs` — pipeline test harness already has the SchedCtx fields (`scheduler`, `framework_actions`, `root_context`, `framework_clipboard`, `pending_actions`); construct a local `SchedCtx` in each Visit-call branch.
+- `crates/eaglemode/tests/golden/interaction.rs` — update ~15 call sites; the file already imports `TestSched` from `crates/eaglemode/tests/golden/common.rs:9`, which exposes a `with(|sc| ...)` helper — wrap each `Visit*` call accordingly. No new helper needed.
 - `crates/emcore/src/emView.rs` (test module) — update existing test `visiting_va_cycles_when_activated` to remove the manual `wake_up(visiting_id)` workaround and validate the new `Activate→WakeUp` path via the public `Visit*` API.
 
 **No new files.**
@@ -57,7 +58,7 @@ This test must fail at HEAD. It exercises the public `VisitByIdentityBare` API (
 
 - [ ] **Step 1.1: Append the failing test to `crates/emcore/src/emView.rs`**
 
-  Insert immediately after the closing brace of `visiting_va_cycles_when_activated` (currently around line 7474, before the next `#[test]`):
+  Insert immediately after the closing brace of `visiting_va_cycles_when_activated` (closing brace around line 7494, before the next `#[test]`). NOTE: `use crate::emViewAnimator::emViewAnimator as _;` is already imported at the top of `mod tests` (line 5246) — do NOT re-import. The pattern below mirrors the construction style in the existing `visiting_va_cycles_when_activated` test (which uses `Rc<RefCell<EngineScheduler>>` so the scheduler can be re-borrowed for assertions after the visit). The local `TestSched::with` helper at line 5263 is *not* reusable here because we need to inspect `sched.has_awake_engines()` *after* the closure returns.
 
   ```rust
   /// F010: `VisitByIdentityBare` must wake the wrapper engine so the
@@ -67,8 +68,6 @@ This test must fail at HEAD. It exercises the public `VisitByIdentityBare` API (
   /// because `Activate()` only flips a flag.
   #[test]
   fn visit_by_identity_bare_wakes_wrapper_engine() {
-      use crate::emViewAnimator::emViewAnimator as _;
-
       let mut tree = PanelTree::new();
       let root = tree.create_root_deferred_view("root");
       let view_rc = Rc::new(RefCell::new(emView::new(
@@ -146,6 +145,23 @@ This test must fail at HEAD. It exercises the public `VisitByIdentityBare` API (
           "scheduler::is_idle() must be false: visiting engine {:?} should be queued",
           visiting_id,
       );
+
+      // Cleanup: tear down registered engines so the EngineScheduler's
+      // Drop assertions don't trip. Mirrors cleanup in
+      // `visiting_va_cycles_when_activated`.
+      let mut v = view_rc.borrow_mut();
+      if let Some(id) = v.update_engine_id.take() {
+          sched.borrow_mut().remove_engine(id);
+      }
+      if let Some(id) = v.eoi_engine_id.take() {
+          sched.borrow_mut().remove_engine(id);
+      }
+      if let Some(id) = v.visiting_va_engine_id.take() {
+          sched.borrow_mut().remove_engine(id);
+      }
+      if let Some(sig) = v.EOISignal.take() {
+          sched.borrow_mut().remove_signal(sig);
+      }
   }
   ```
 
@@ -182,7 +198,7 @@ This test must fail at HEAD. It exercises the public `VisitByIdentityBare` API (
   }
   ```
 
-  Insert immediately after its closing brace:
+  Insert immediately after its closing brace. Use `&mut self` to mirror `WakeUpUpdateEngine` exactly (callers already have `&mut self` available in every Visit-family method, so this costs nothing and preserves File and Name Correspondence with the C++ shape):
   ```rust
   /// Wake the scheduler-registered `VisitingVAEngineClass` so its
   /// `Cycle` runs in the current/next time slice and observes
@@ -192,7 +208,7 @@ This test must fail at HEAD. It exercises the public `VisitByIdentityBare` API (
   /// (emViewAnimator.cpp:81). The Rust port splits the animator from
   /// its engine, so the wake cannot live inside `Activate()` itself —
   /// the Visit-family methods (`emView::Visit*`) own the wake.
-  pub fn wake_visiting_va_engine(&self, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) {
+  pub fn wake_visiting_va_engine(&mut self, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) {
       if let Some(id) = self.visiting_va_engine_id {
           ctx.wake_up(id);
       }
@@ -503,7 +519,7 @@ These are the methods that actually call `va.Activate()`. Each grows one paramet
   - `VisitOut` — adds `ctx`, forwards to `VisitPanel(...., ctx)` and `Visit(tree, root, 0.0, 0.0, rel_a, true, ctx)`
   - `VisitNeighbour` — signature becomes `(&mut self, tree: &mut PanelTree, direction: i32, ctx: &mut crate::emEngineCtx::SchedCtx<'_>)`; the inner `self.VisitPanel(...)` and `self.VisitFullsized(...)` calls (search for them within the function body) gain `, ctx` as the last argument.
 
-- [ ] **Step 5.2: Internal `Update` nav-request drain (around line 2660)**
+- [ ] **Step 5.2: Internal `Update` nav-request drain (line 2660)**
 
   Find:
   ```rust
@@ -521,7 +537,9 @@ These are the methods that actually call `va.Activate()`. Each grows one paramet
   }
   ```
 
-  (`Update` already takes `ctx: &mut SchedCtx<'_>` per `emView.rs:2543`.)
+  (`Update` already takes `ctx: &mut SchedCtx<'_>`.)
+
+  Note: `VisitNeighbour` (the function spanning ~lines 2781-2937) contains *two* internal `self.VisitPanel`/`self.VisitFullsized` calls — the trailing `self.VisitPanel(tree, current, true)` at line 2936 is the second one and must also be updated to forward `ctx`. Step 5.1's "search for them within the function body" instruction covers it; flagged here so the executing agent does not stop at the first occurrence.
 
 - [ ] **Step 5.3: Verify the file compiles in isolation**
 
@@ -649,34 +667,62 @@ The enclosing function already has `ctx: &mut SchedCtx<'_>` in scope (verify wit
 
 ---
 
-### Task 8 — Update `emSubViewPanel.rs` caller
+### Task 8 — Update `emSubViewPanel.rs` caller and propagate to `emmain`
 
 **Files:**
-- Modify: `crates/emcore/src/emSubViewPanel.rs` line 165
+- Modify: `crates/emcore/src/emSubViewPanel.rs` lines 155-166 (method `visit_by_identity`)
+- Modify: `crates/emmain/src/emMainWindow.rs` line 1339 (only external caller of `visit_by_identity`)
 
-- [ ] **Step 8.1: Inspect the enclosing method**
+The enclosing method is named **`visit_by_identity`** (snake_case `RUST_ONLY:` API on `emSubViewPanel`, *not* the C++-named `VisitByIdentity`). Its signature does not currently accept `ctx`; we must add the parameter and propagate to its sole external caller in `emmain/src/emMainWindow.rs:1339`.
 
-  Run: `awk 'NR==150,NR==180' crates/emcore/src/emSubViewPanel.rs`
+- [ ] **Step 8.1: Add `ctx` parameter to `visit_by_identity` and forward**
 
-  Determine the method name and whether it has a `SchedCtx` in scope.
-
-- [ ] **Step 8.2: Add `ctx` to the call**
-
-  Replace the call at line 165:
+  Replace (lines 155-166):
   ```rust
-  .VisitByIdentity(identity, rel_x, rel_y, rel_a, adherent, subject);
+  pub fn visit_by_identity(
+      &mut self,
+      identity: &str,
+      rel_x: f64,
+      rel_y: f64,
+      rel_a: f64,
+      adherent: bool,
+      subject: &str,
+  ) {
+      self.sub_view
+          .VisitByIdentity(identity, rel_x, rel_y, rel_a, adherent, subject);
+  }
   ```
 
   With:
   ```rust
-  .VisitByIdentity(identity, rel_x, rel_y, rel_a, adherent, subject, ctx);
+  pub fn visit_by_identity(
+      &mut self,
+      identity: &str,
+      rel_x: f64,
+      rel_y: f64,
+      rel_a: f64,
+      adherent: bool,
+      subject: &str,
+      ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+  ) {
+      self.sub_view
+          .VisitByIdentity(identity, rel_x, rel_y, rel_a, adherent, subject, ctx);
+  }
   ```
 
-  If the enclosing method lacks `ctx`, add a trailing `ctx: &mut crate::emEngineCtx::SchedCtx<'_>` parameter and propagate to all callers. Update `emSubViewPanel.rs:VisitByIdentity`'s callers similarly.
+- [ ] **Step 8.2: Update the `emmain` caller at `emMainWindow.rs:1339`**
+
+  The call lives inside a `with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| { ... })` closure inside `RecreateContentPanels`. Inspect the enclosing function — search backwards from line 1339 for the `fn ` keyword. If the enclosing function takes `ctx: &mut SchedCtx<'_>`, pass it through; otherwise propagate the parameter up the call chain (likely one or two levels) until you reach a frame that already has `SchedCtx` in scope.
+
+  Run: `awk 'NR>=1280 && NR<=1345' crates/emmain/src/emMainWindow.rs` to inspect.
+
+  Replace `svp.visit_by_identity(&identity, rel_x, rel_y, rel_a, adherent, &title);` with `svp.visit_by_identity(&identity, rel_x, rel_y, rel_a, adherent, &title, ctx);` (substitute the actual binding name if it differs).
 
 - [ ] **Step 8.3: Verify**
 
-  Run: `cargo check -p emcore 2>&1 | tail -20`
+  Run: `cargo check --workspace 2>&1 | tail -30`
+
+  Expected: errors confined to `emCtrlSocket.rs` and tests. If `emmain` still has errors, propagation up the call chain is incomplete — extend `RecreateContentPanels` (and any intermediates) to take `ctx`.
 
 ---
 
@@ -691,7 +737,18 @@ The `resolve_target` closure type does not currently include `&mut SchedCtx<'_>`
 
   Run: `grep -n "pub.*scheduler\|pub.*framework_actions\|pub.*context\|pub.*clipboard\|pub.*pending_actions\|pub.*windows\|pub.*home_window_id" crates/emcore/src/emGUIFramework.rs | head -15`
 
-  Confirm these fields exist on `App`: `scheduler`, `framework_actions`, `context` (root context), `clipboard`, `pending_actions`, `windows`, `home_window_id`. If any field has a different name, substitute the actual name in steps below.
+  Confirm these fields exist on `App`: `scheduler`, `framework_actions`, `context` (root context), `clipboard`, `pending_actions`, `windows`, `home_window_id` (verified at audit time: lines 158, 159, 166, 172, 196, 214, 224 in `emGUIFramework.rs`). The exact pattern to mirror is already used in `emGUIFramework.rs:482-511`:
+  ```rust
+  let App {
+      scheduler,
+      framework_actions,
+      windows,
+      clipboard,
+      pending_actions,
+      ..
+  } = self;
+  ```
+  Note: type `framework_actions: Vec<FrameworkDeferredAction>` in `emGUIFramework.rs` is `pub use crate::emEngineCtx::DeferredAction as FrameworkDeferredAction` (the engine-level enum). It matches `SchedCtx::framework_actions: &mut Vec<DeferredAction>` exactly. `pending_actions: Rc<RefCell<Vec<DeferredAction>>>` (the boxed-closure type) matches `SchedCtx::pending_actions: &Rc<RefCell<Vec<FrameworkDeferredAction>>>` (where SchedCtx's `FrameworkDeferredAction` is the boxed closure). The naming is confusing but the types compose correctly.
 
 - [ ] **Step 9.2: Modify `resolve_target` signature and body**
 
@@ -977,9 +1034,15 @@ These are unit-style tests that build a view and call `view.Visit*(...)` in sequ
 
   Determine the standing pattern (single shared scheduler? per-test scheduler? helper function?).
 
-- [ ] **Step 12.2: Add a helper, if not already present, that yields a `SchedCtx`**
+- [ ] **Step 12.2: Reuse the existing `TestSched` helper**
 
-  If the test file has a function-call-style helper (e.g. `with_sched(|sc| { ... })`), use it. If not, add a top-of-file helper:
+  At audit time, `interaction.rs` already imports `TestSched` from `crates/eaglemode/tests/golden/common.rs:9` (via `use super::common::*;` at line 4) and calls `ts.with(|sc| view.Update(&mut tree, sc));`. Reuse that helper for every `Visit*` call: each test that calls `Visit*` either already constructs `let mut ts = TestSched::new();` (e.g. `three_panel_tree`) or trivially can. **Do not** add a duplicate helper. Pattern:
+
+  ```rust
+  ts.with(|sc| view.VisitNext(&mut tree, sc));
+  ```
+
+  Skip the rest of this Step. The fallback helper definition below is kept only as a contingency if `TestSched`'s API is found insufficient (e.g. needs a different `EngineScheduler` lifetime):
 
   ```rust
   /// Build a throwaway SchedCtx for unit-test sequences that drive
@@ -1010,13 +1073,13 @@ These are unit-style tests that build a view and call `view.Visit*(...)` in sequ
 
   (Adjust crate path prefix to match how `emcore` is imported in this file — likely `eaglemode::...` or similar; check the existing imports.)
 
-- [ ] **Step 12.3: Wrap each `view.Visit*(...)` call**
+- [ ] **Step 12.3: Wrap each `view.Visit*(...)` call with `ts.with(...)`**
 
-  Pattern: replace `view.VisitNext(&mut tree);` with `with_sched_ctx(&mut scheduler, |sc| view.VisitNext(&mut tree, sc));`.
+  Pattern: replace `view.VisitNext(&mut tree);` with `ts.with(|sc| view.VisitNext(&mut tree, sc));` (using the existing `TestSched` binding `ts` already constructed in each test).
 
   Apply to all 15 call sites at lines 199, 225, 265, 305, 345, 372, 411, 451, 491, 531, 571, 611, 750, 791, 818.
 
-  Note: each test must have a `scheduler` binding accessible. Most golden tests will have one already (search for `scheduler` in the file). If a test lacks one, construct `let mut scheduler = emcore::emScheduler::EngineScheduler::new();` near the existing tree/view setup.
+  Each test currently must have (or trivially construct) a `let mut ts = TestSched::new();` binding — the file's existing tests already follow this pattern. If a particular test does not have a `ts` in scope, add one at its top.
 
 - [ ] **Step 12.4: Verify**
 
@@ -1027,21 +1090,23 @@ These are unit-style tests that build a view and call `view.Visit*(...)` in sequ
 ### Task 13 — Update `emView.rs` unit tests
 
 **Files:**
-- Modify: `crates/emcore/src/emView.rs` lines 5400, 5404, 5422, 5426, 5456, 5460, 6351, 6356, 6403, 7569
+- Modify: `crates/emcore/src/emView.rs` lines 5400, 5404, 5422, 5426, 5456, 5460, 6351, 6356, **6379**, 6403, 7569
 
-These are inline tests inside emView.rs's `#[cfg(test)] mod tests`. Most already construct a local `SchedCtx` via the `with` helper (at line 5263) or similar. Each `view.Visit*` call needs the matching `ctx`.
+These are inline tests inside emView.rs's `#[cfg(test)] mod tests`. Most already construct a local `SchedCtx` via the `with` helper (at line 5263 — `TestSched::with(|sc| ...)`) or similar. Each `view.Visit*` call needs the matching `ctx`.
+
+NOTE on the audit: line **6379** (`view.Visit(&tree, child, 0.25, 0.5, 2.0, false);`) is the *six-arg* base `Visit` method and was missing from the original line list. Eleven call sites total in emView.rs tests, not ten. Also confirm whether call sites at 5400/5404 etc. use `ts.with(|sc| ...)` wrapping or have a free `sc`/`ctx` already in scope — some tests use `TestSched::new()` and call `.with(|sc| view.Update(...))`; for `Visit*` calls outside such a closure the call must be wrapped.
 
 - [ ] **Step 13.1: Locate each call and confirm a `sc` / `ctx` is already in scope**
 
-  Run: `for ln in 5400 5404 5422 5426 5456 5460 6351 6356 6403 7569; do echo "=== line $ln ==="; awk -v ln=$ln 'NR>=ln-15 && NR<=ln+2' crates/emcore/src/emView.rs; done`
+  Run: `for ln in 5400 5404 5422 5426 5456 5460 6351 6356 6379 6403 7569; do echo "=== line $ln ==="; awk -v ln=$ln 'NR>=ln-15 && NR<=ln+2' crates/emcore/src/emView.rs; done`
 
-  For each: identify the locally-available `SchedCtx` binding (likely `sc` or `ctx`).
+  For each: identify the locally-available `SchedCtx` binding (likely `sc` or `ctx`). If absent, wrap in `ts.with(|sc| view.Visit*(...., sc))`.
 
 - [ ] **Step 13.2: Append the binding to each call**
 
-  Apply: `view.VisitNext(&mut tree)` → `view.VisitNext(&mut tree, &mut sc)` (or whatever the binding name is).
+  Apply: `view.VisitNext(&mut tree)` → `view.VisitNext(&mut tree, &mut sc)` (or whatever the binding name is) — or wrap in `ts.with(|sc| ...)` if no SchedCtx is currently in scope.
 
-  Repeat for all ten call sites.
+  Repeat for all eleven call sites.
 
 - [ ] **Step 13.3: Verify**
 
@@ -1062,7 +1127,7 @@ These are inline tests inside emView.rs's `#[cfg(test)] mod tests`. Most already
 
 - [ ] **Step 14.2: Update the existing test `visiting_va_cycles_when_activated`**
 
-  Find (around lines 7437-7454):
+  Find (lines 7437-7454):
   ```rust
       // Activate the animator — SetGoal + Activate, matching the
       // delegation shape Visit-family methods will use in Phase 3.
@@ -1083,7 +1148,7 @@ These are inline tests inside emView.rs's `#[cfg(test)] mod tests`. Most already
       sched.borrow_mut().wake_up(visiting_id);
   ```
 
-  Replace with:
+  Replace with (NOTE the audit finding: at HEAD, the outer `__cb` declared at line 7419 dies at the closing brace of the `RegisterEngines` block at line 7430. The new block must declare its own `__cb`. `__pa` *is* still alive at outer scope — declared at line 7411 — so `&__pa` works):
   ```rust
       // Drive the animator through the public `Visit*` API — F010
       // moved the wake from raw `va.Activate()` to
@@ -1094,11 +1159,13 @@ These are inline tests inside emView.rs's `#[cfg(test)] mod tests`. Most already
           let root_ctx = v.Context.GetRootContext();
           let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
           let mut s = sched.borrow_mut();
+          let __cb_visit: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+              std::cell::RefCell::new(None);
           let mut sc = crate::emEngineCtx::SchedCtx {
               scheduler: &mut s,
               framework_actions: &mut fw,
               root_context: &root_ctx,
-              framework_clipboard: &__cb,
+              framework_clipboard: &__cb_visit,
               current_engine: None,
               pending_actions: &__pa,
           };
@@ -1109,9 +1176,12 @@ These are inline tests inside emView.rs's `#[cfg(test)] mod tests`. Most already
           "animator should be active after VisitByIdentityBare"
       );
       // Engine should already be queued — no manual wake_up needed.
+      // Drop the unused visiting_id binding (was used only for the
+      // removed manual wake_up); silence the warning by prefixing:
+      let _ = visiting_id;
   ```
 
-  (Note: `__cb` and `__pa` are the existing local bindings inside this test; if the binding names differ, substitute.)
+  After the replacement, the existing trailing block (lines 7455-7494) that calls `DoTimeSlice` and cleans up engines is untouched — it still references `__pa`, `__cb` (re-declared at 7461 inside that block), `sched`, etc. as before.
 
 - [ ] **Step 14.3: Run the existing test**
 
@@ -1210,11 +1280,11 @@ This task confirms the user-visible symptom resolves. It is *not* automatable fr
 
 ## Self-Review Checklist (executed by plan author at write time)
 
-**Spec coverage:** Each Visit-family method (7) + each navigation helper (11) is touched in Tasks 3-5. Each production caller (emWindow ×2 sites, emCtrlSocket ×3, emViewInputFilter ×2, emSubViewPanel ×1) is touched in Tasks 6-9. Each test caller location (interaction.rs ×15, pipeline.rs ~10, emView.rs unit tests ×10) is touched in Tasks 11-13. The TDD failing test is Task 1, the passing assertion is Task 14. The manual repro is Task 16. ✓
+**Spec coverage:** Each Visit-family method (6) + each navigation helper (11) is touched in Tasks 3-5. Each production caller (emWindow ×2 sites, emCtrlSocket ×3+1 closure-shape, emViewInputFilter ×2, emSubViewPanel ×1, emmain ×1) is touched in Tasks 6-9. Each test caller location (interaction.rs ×15, pipeline.rs ~10, emView.rs unit tests ×11 — including the previously-missed line 6379) is touched in Tasks 11-13. The TDD failing test is Task 1, the passing assertion is Task 14. The manual repro is Task 16. ✓
 
 **Placeholder scan:** No "TBD"/"add appropriate handling"/"similar to Task N" without code. The Task 5 navigation-helper transformation lists each method with its exact forwarding call. The Task 11 pipeline.rs section relies on inspecting the file (Step 11.1) — flagged because the harness has historically diverged in field names; the agent will read the file and adapt rather than blindly editing. ✓
 
-**Type consistency:** New helper signature `wake_visiting_va_engine(&self, &mut SchedCtx<'_>)` — used in Task 3 with the same name. The new parameter `ctx: &mut crate::emEngineCtx::SchedCtx<'_>` is identical across Tasks 3-9. The closure type in `resolve_target` (`FnOnce(&mut emView, &mut PanelTree, PanelId, &mut SchedCtx) -> R`) is consistent across the three handlers + `handle_set_focus`. ✓
+**Type consistency:** New helper signature `wake_visiting_va_engine(&mut self, &mut SchedCtx<'_>)` — mirrors `WakeUpUpdateEngine`'s `&mut self` shape; used in Task 3 with the same name. The new parameter `ctx: &mut crate::emEngineCtx::SchedCtx<'_>` is identical across Tasks 3-9. The closure type in `resolve_target` (`FnOnce(&mut emView, &mut PanelTree, PanelId, &mut SchedCtx) -> R`) is consistent across the three handlers + `handle_set_focus`. ✓
 
 ---
 
