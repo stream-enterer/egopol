@@ -104,26 +104,19 @@ pub fn EncodeIdentity(names: &[&str]) -> String {
 ///
 /// Corresponds to `emPanel::DecodeIdentity`.
 pub fn DecodeIdentity(identity: &str) -> Vec<String> {
+    // Mirror C++ emPanel::DecodeIdentity: the outer loop pushes one
+    // (possibly empty) name per iteration, advancing past one ':' per
+    // step; the loop terminates on end-of-string. A trailing ':' (or a
+    // bare ":") therefore yields an additional trailing empty segment.
     let mut names = Vec::new();
     let bytes = identity.as_bytes();
     let mut pos = 0;
 
     loop {
-        if pos >= bytes.len() {
-            break;
-        }
-        // Collect one name
         let mut name = String::new();
-        loop {
-            if pos >= bytes.len() {
-                break;
-            }
+        // Collect one name up to the next ':' or end-of-string.
+        while pos < bytes.len() && bytes[pos] != b':' {
             let ch = bytes[pos] as char;
-            if ch == ':' {
-                // End of this name segment; skip the ':'
-                pos += 1;
-                break;
-            }
             if ch == '\\' {
                 pos += 1; // skip escape
                 if pos >= bytes.len() {
@@ -137,6 +130,11 @@ pub fn DecodeIdentity(identity: &str) -> Vec<String> {
             }
         }
         names.push(name);
+        if pos >= bytes.len() {
+            break;
+        }
+        // Skip the ':' and continue with the next segment.
+        pos += 1;
     }
     names
 }

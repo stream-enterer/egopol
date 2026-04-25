@@ -21,6 +21,68 @@ use winit::event_loop::ActiveEventLoop;
 use crate::emGUIFramework::App;
 use crate::emPanelTree::{PanelId, PanelTree};
 
+/// Resolve an emCore-native identity string to a `PanelId` within
+/// `tree`, starting at `root`. `GetIdentity(tree, root)` includes the
+/// root's name as the first segment; the decoder consumes `names[0]` as
+/// the expected root-name (erroring on mismatch) and descends from
+/// `names[1..]`. An empty identity string means "the root itself".
+///
+/// This is the emCore-native replacement for `resolve_panel_path` which
+/// used `/`-separator paths. Identity strings handle empty-named panels
+/// and special characters via the existing `EncodeIdentity` /
+/// `DecodeIdentity` machinery in `emPanelTree.rs`.
+pub fn resolve_identity(
+    tree: &PanelTree,
+    root: PanelId,
+    identity: &str,
+) -> Result<PanelId, String> {
+    use crate::emPanelTree::DecodeIdentity;
+    // Empty identity string means "the root itself" — short-circuit
+    // before decoding (C++ DecodeIdentity("") yields a single empty
+    // segment, which would otherwise be matched against the root name).
+    if identity.is_empty() {
+        return Ok(root);
+    }
+    let names = DecodeIdentity(identity);
+    if names.is_empty() {
+        return Ok(root);
+    }
+    let root_name = tree.name(root).unwrap_or("");
+    if names[0] != root_name {
+        return Err(format!(
+            "identity root mismatch: {:?} does not match root panel name {:?}",
+            names[0], root_name
+        ));
+    }
+    let mut cur = root;
+    for (i, name) in names[1..].iter().enumerate() {
+        let depth = i + 1;
+        let matched: Vec<PanelId> = tree
+            .children(cur)
+            .filter(|&c| tree.name(c) == Some(name.as_str()))
+            .collect();
+        match matched.len() {
+            0 => {
+                return Err(format!(
+                    "no such panel: {} (segment {} = {:?} not found under {:?})",
+                    identity,
+                    depth,
+                    name,
+                    tree.name(cur).unwrap_or("<unnamed>")
+                ));
+            }
+            1 => cur = matched[0],
+            n => {
+                return Err(format!(
+                    "ambiguous identity: {} (segment {} = {:?} matches {} siblings)",
+                    identity, depth, name, n
+                ));
+            }
+        }
+    }
+    Ok(cur)
+}
+
 /// Resolve a `/`-separated panel path to a PanelId, starting from `root`.
 /// `"/"` returns `root`. `"/a/b"` walks root → child("a") → child("b").
 /// Returns Err with a human-readable message for missing segments.
@@ -1171,5 +1233,122 @@ mod tests {
             err.contains("not initialized") || err.contains("event loop"),
             "unexpected error: {}", err
         );
+    }
+}
+
+#[cfg(test)]
+mod resolve_identity_tests {
+    use super::*;
+    use crate::emPanelTree::PanelTree;
+
+    /// Build an outer-view-shaped tree: root named "root" with three
+    /// children named "control view", "content view", "slider".
+    fn outer_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root", false);
+        tree.create_child(root, "control view", None);
+        tree.create_child(root, "content view", None);
+        tree.create_child(root, "slider", None);
+        (tree, root)
+    }
+
+    /// Build a cosmos-shaped inner tree: root named "" with one empty-
+    /// named child (cosmos), which has a child named "home".
+    fn cosmos_tree() -> (PanelTree, PanelId) {
+        let mut tree = PanelTree::new();
+        let sub_root = tree.create_root("", true);
+        let cosmos = tree.create_child(sub_root, "", None);
+        tree.create_child(cosmos, "home", None);
+        (tree, sub_root)
+    }
+
+    #[test]
+    fn empty_identity_addresses_root() {
+        let (tree, root) = outer_tree();
+        assert_eq!(resolve_identity(&tree, root, "").unwrap(), root);
+    }
+
+    #[test]
+    fn root_name_addresses_root() {
+        let (tree, root) = outer_tree();
+        assert_eq!(resolve_identity(&tree, root, "root").unwrap(), root);
+    }
+
+    #[test]
+    fn multi_segment_outer_tree() {
+        let (tree, root) = outer_tree();
+        let target = resolve_identity(&tree, root, "root:content view").unwrap();
+        assert_eq!(tree.name(target), Some("content view"));
+    }
+
+    #[test]
+    fn empty_name_inner_root() {
+        let (tree, sub_root) = cosmos_tree();
+        assert_eq!(resolve_identity(&tree, sub_root, "").unwrap(), sub_root);
+    }
+
+    #[test]
+    fn single_empty_segment_inner_tree_finds_cosmos() {
+        // Sub-root name is ""; cosmos name is "".
+        // DecodeIdentity(":") == ["", ""] — first "" matches sub_root,
+        // then descend by "" to cosmos.
+        let (tree, sub_root) = cosmos_tree();
+        let cosmos = resolve_identity(&tree, sub_root, ":").unwrap();
+        assert_ne!(cosmos, sub_root);
+        assert_eq!(tree.name(cosmos), Some(""));
+    }
+
+    #[test]
+    fn double_empty_segment_plus_home_finds_home() {
+        let (tree, sub_root) = cosmos_tree();
+        let home = resolve_identity(&tree, sub_root, "::home").unwrap();
+        assert_eq!(tree.name(home), Some("home"));
+    }
+
+    #[test]
+    fn root_name_mismatch_errors() {
+        let (tree, root) = outer_tree();
+        let err = resolve_identity(&tree, root, "wrong:anything").unwrap_err();
+        assert!(err.contains("identity root mismatch"), "got: {}", err);
+    }
+
+    #[test]
+    fn missing_segment_errors_with_depth_and_name() {
+        let (tree, root) = outer_tree();
+        let err = resolve_identity(&tree, root, "root:nonexistent").unwrap_err();
+        assert!(err.contains("no such panel"), "got: {}", err);
+        assert!(err.contains("nonexistent"), "got: {}", err);
+    }
+
+    #[test]
+    fn ambiguous_siblings_error() {
+        // Manually build a tree with two identically-named siblings.
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("r", false);
+        tree.create_child(root, "dup", None);
+        tree.create_child(root, "dup", None);
+        let err = resolve_identity(&tree, root, "r:dup").unwrap_err();
+        assert!(err.contains("ambiguous identity"), "got: {}", err);
+    }
+
+    /// Parametric round-trip: for every panel in a tree,
+    /// resolve_identity(tree, root, GetIdentity(tree, p)) must yield p.
+    #[test]
+    fn round_trip_over_all_panels() {
+        for (tree, root) in [outer_tree(), cosmos_tree()] {
+            for pid in tree.panel_ids() {
+                let id_str = tree.GetIdentity(pid);
+                let round_trip = resolve_identity(&tree, root, &id_str)
+                    .unwrap_or_else(|e| panic!(
+                        "round-trip failed for panel {:?} (identity {:?}): {}",
+                        pid, id_str, e
+                    ));
+                assert_eq!(
+                    round_trip, pid,
+                    "round-trip mismatch: identity {:?} resolved to wrong panel",
+                    id_str
+                );
+            }
+        }
     }
 }
