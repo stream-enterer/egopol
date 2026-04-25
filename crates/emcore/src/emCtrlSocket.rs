@@ -249,7 +249,9 @@ pub struct CtrlReply {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub idle_frame: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub focused_path: Option<String>,
+    pub focused_view: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub focused_identity: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub view_rect: Option<[f64; 4]>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -277,7 +279,8 @@ impl CtrlReply {
 
 #[derive(Debug, Serialize)]
 pub struct LoadingEntry {
-    pub panel_path: String,
+    pub view: String,
+    pub identity: String,
     pub pct: u32,
 }
 
@@ -375,30 +378,100 @@ fn handle_quit(event_loop: &ActiveEventLoop) -> CtrlReply {
 }
 
 fn handle_get_state(app: &App) -> CtrlReply {
-    let home_id = match app.home_window_id {
-        Some(id) => id,
-        None => return CtrlReply::err("home window not initialized"),
+    let Some(home_id) = app.home_window_id else {
+        return CtrlReply::err("home window not initialized");
     };
-    let win = match app.windows.get(&home_id) {
-        Some(w) => w,
-        None => return CtrlReply::err("home window missing"),
+    let Some(win) = app.windows.get(&home_id) else {
+        return CtrlReply::err("home window missing");
     };
-    let view = win.view();
-    let tree = win.tree();
-    let view_rect = [
-        view.CurrentX,
-        view.CurrentY,
-        view.CurrentWidth,
-        view.CurrentHeight,
-    ];
-    let focused_path = focused_panel_path(view, tree);
+    let outer_view = win.view();
+    let outer_tree = win.tree();
+
+    let (focused_view, focused_identity) = focused_pair(app);
+
+    // Pick the rect of whichever view currently has focus; fall back
+    // to the outer view if no view is focused. emView semantics keep
+    // focus mutually exclusive across the hierarchy, so the first
+    // matching view in HashMap-iteration order is unambiguous.
+    let view_rect = {
+        let view_map = crate::emTreeDump::collect_views(outer_view, outer_tree);
+        let mut picked = outer_view;
+        for (_, (v, _)) in view_map.iter() {
+            if v.GetFocusedPanel().is_some() {
+                picked = v;
+                break;
+            }
+        }
+        [
+            picked.CurrentX,
+            picked.CurrentY,
+            picked.CurrentWidth,
+            picked.CurrentHeight,
+        ]
+    };
+
     CtrlReply {
         ok: true,
-        focused_path,
+        focused_view,
+        focused_identity,
         view_rect: Some(view_rect),
         loading: Vec::new(),
         ..CtrlReply::default()
     }
+}
+
+/// Compute `(focused_view, focused_identity)` for the currently-focused
+/// panel. Walks the ViewMap to find which view's `GetFocusedPanel()` is
+/// `Some`. If outer view, returns `(Some(""), Some(GetIdentity(focused)))`.
+/// If inner view, finds the containing emSubViewPanel in the outer tree
+/// and returns `(Some(GetIdentity(svp)), Some(GetIdentity(focused_in_inner)))`.
+fn focused_pair(app: &App) -> (Option<String>, Option<String>) {
+    let Some(home_id) = app.home_window_id else {
+        return (None, None);
+    };
+    let Some(win) = app.windows.get(&home_id) else {
+        return (None, None);
+    };
+    let outer_view = win.view();
+    let outer_tree = win.tree();
+
+    let view_map = crate::emTreeDump::collect_views(outer_view, outer_tree);
+
+    for (_ptr, (view, tree)) in view_map.iter() {
+        if let Some(pid) = view.GetFocusedPanel() {
+            let view_sel = if std::rc::Rc::ptr_eq(view.GetContext(), outer_view.GetContext()) {
+                String::new()
+            } else {
+                let Some(svp_id) = find_svp_by_inner_view(outer_tree, view) else {
+                    continue;
+                };
+                outer_tree.GetIdentity(svp_id)
+            };
+            let identity = tree.GetIdentity(pid);
+            return (Some(view_sel), Some(identity));
+        }
+    }
+    (None, None)
+}
+
+/// Scan the outer tree for an emSubViewPanel whose inner view's context
+/// matches `target_view`'s context. Returns the SVP's PanelId.
+fn find_svp_by_inner_view(
+    outer_tree: &crate::emPanelTree::PanelTree,
+    target_view: &crate::emView::emView,
+) -> Option<PanelId> {
+    for pid in outer_tree.panel_ids() {
+        let Some(b) = outer_tree.behavior(pid) else {
+            continue;
+        };
+        let Some(svp) = b.as_sub_view_panel() else {
+            continue;
+        };
+        if std::rc::Rc::ptr_eq(svp.sub_view.GetContext(), target_view.GetContext()) {
+            return Some(pid);
+        }
+    }
+    None
 }
 
 fn handle_visit(app: &mut App, view_sel: &str, identity: &str, adherent: bool) -> CtrlReply {
@@ -443,22 +516,6 @@ fn handle_seek_to(app: &mut App, view_sel: &str, identity: &str) -> CtrlReply {
         Ok(()) => CtrlReply::ok(),
         Err(e) => CtrlReply::err(e),
     }
-}
-
-fn focused_panel_path(
-    view: &crate::emView::emView,
-    tree: &crate::emPanelTree::PanelTree,
-) -> Option<String> {
-    let mut id = view.GetFocusedPanel()?;
-    let mut segments: Vec<String> = Vec::new();
-    // Walk parent chain; the root's name is dropped so the result starts
-    // with `/<child>/...`.
-    while let Some(parent) = tree.GetParentContext(id) {
-        segments.push(tree.name(id)?.to_string());
-        id = parent;
-    }
-    segments.reverse();
-    Some(format!("/{}", segments.join("/")))
 }
 
 use std::io::{BufRead, BufReader, Write};
@@ -1009,18 +1066,74 @@ mod tests {
             error: None,
             path: None,
             idle_frame: Some(42),
-            focused_path: Some("/foo".to_string()),
+            focused_view: Some("".to_string()),
+            focused_identity: Some("/foo".to_string()),
             view_rect: Some([0.0, 0.0, 100.0, 100.0]),
             loading: vec![LoadingEntry {
-                panel_path: "/bar".to_string(),
+                view: "".to_string(),
+                identity: "/bar".to_string(),
                 pct: 50,
             }],
         };
         let j = serde_json::to_string(&r).unwrap();
         assert!(j.contains(r#""idle_frame":42"#));
-        assert!(j.contains(r#""focused_path":"/foo""#));
+        assert!(j.contains(r#""focused_view":"""#));
+        assert!(j.contains(r#""focused_identity":"/foo""#));
         assert!(j.contains(r#""view_rect":[0.0,0.0,100.0,100.0]"#));
-        assert!(j.contains(r#""loading":[{"panel_path":"/bar","pct":50}]"#));
+        assert!(j.contains(r#""loading":[{"view":"","identity":"/bar","pct":50}]"#));
+    }
+
+    #[test]
+    fn get_state_reply_serializes_new_fields() {
+        let reply = CtrlReply {
+            ok: true,
+            focused_view: Some("root:content view".to_string()),
+            focused_identity: Some("::home".to_string()),
+            view_rect: Some([0.0, 0.0, 1920.0, 1080.0]),
+            loading: vec![LoadingEntry {
+                view: "root:content view".to_string(),
+                identity: "::home".to_string(),
+                pct: 42,
+            }],
+            ..CtrlReply::default()
+        };
+        let json = serde_json::to_string(&reply).unwrap();
+        assert!(
+            json.contains("\"focused_view\":\"root:content view\""),
+            "json: {}",
+            json
+        );
+        assert!(
+            json.contains("\"focused_identity\":\"::home\""),
+            "json: {}",
+            json
+        );
+        assert!(
+            json.contains("\"view\":\"root:content view\""),
+            "json: {}",
+            json
+        );
+        assert!(!json.contains("focused_path"), "old field present: {}", json);
+        assert!(!json.contains("panel_path"), "old field present: {}", json);
+    }
+
+    #[test]
+    fn get_state_reply_omits_focus_fields_when_none() {
+        let reply = CtrlReply {
+            ok: true,
+            focused_view: None,
+            focused_identity: None,
+            view_rect: Some([0.0, 0.0, 1.0, 1.0]),
+            loading: Vec::new(),
+            ..CtrlReply::default()
+        };
+        let json = serde_json::to_string(&reply).unwrap();
+        assert!(!json.contains("focused_view"), "should be omitted: {}", json);
+        assert!(
+            !json.contains("focused_identity"),
+            "should be omitted: {}",
+            json
+        );
     }
 
     #[test]
