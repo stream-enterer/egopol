@@ -1,4 +1,11 @@
 fn main() {
+    // Enable dlog! tracing if EMCORE_DLOG=1 is set in the environment.
+    // Mirrors Eagle Mode C++ `emEnableDLog` toggled by `--dlog` CLI flag;
+    // env var chosen here so debug-instrumented runs need no flag plumbing.
+    if std::env::var("EMCORE_DLOG").is_ok_and(|v| v == "1") {
+        emcore::emStd1::emEnableDLog(true);
+    }
+
     // 1. Parse CLI args (simplified)
     let args: Vec<String> = std::env::args().collect();
     let mut fullscreen = false;
