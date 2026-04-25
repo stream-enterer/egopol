@@ -384,6 +384,25 @@
         "target": null,
         "benchmark": null
       }
+    },
+    {
+      "id": "F015",
+      "kind": "fix",
+      "status": "open",
+      "priority": "low",
+      "title": "f010_subview_dump_nests_under_home_view_context asserts state the command sequence cannot reach",
+      "description": "The integration test at crates/eaglemode/tests/subview_dump_integration.rs:46 asserts dump.contains(\"emDirPanel\") after sending `visit view=\"root:content view\" identity=\"::home\"`, but the sequence cannot produce an emDirPanel record. (1) `home` is not a child of cosmos at the time the visit is sent \u2014 emVirtualCosmosPanel auto-expands children only after cosmos becomes Viewed, and the test does not wait for that. (2) resolve_identity(\"::home\") therefore errors and the visit is a no-op. (3) Even if it succeeded, `home` resolves to an emVirtualCosmosPanel child (a directory entry view), not an emDirPanel \u2014 reaching emDirPanel requires zooming further into the home directory and waiting for the dir model to load. The test fails for reasons unrelated to whether F010's user-visible blank-listing symptom is fixed.",
+      "location": "crates/eaglemode/tests/subview_dump_integration.rs:46-92",
+      "caused_by": "F010",
+      "introduced_commit": null,
+      "introduced_date": "2026-04-25",
+      "fix_note": "Rewrite the test as a real e2e flow with wait-for-condition steps: zoom outer\u2192content view, wait for cosmos Viewed, wait for emVirtualCosmosPanel to auto-expand `home`, visit `::home`, wait for that to be Viewed, wait for the dir model to load, then assert on emDirPanel. May need new control-channel commands (e.g. wait_for_panel by identity, or wait_for_viewed) or a poll-dump loop with a deadline. Alternatively split into smaller tests covering each transition.",
+      "investigation_file": null,
+      "root_cause_file": null,
+      "blocked_question": null,
+      "fixed_in_commit": null,
+      "fixed_date": null,
+      "repro": "cargo test --test subview_dump_integration -- --ignored --nocapture f010_subview_dump_nests_under_home_view_context \u2014 panics on `dump must contain emDirPanel rec` even after the F010 fix lands and the inner content view's StartupEngine zoom to cosmos works (verified via dlog traces in /tmp/F010_dlog_after_wake.stderr)."
     }
   ]
 }
