@@ -410,6 +410,454 @@ impl emDirEntryPanel {
         fm.ClearTargetSelection();
         fm.SelectAsTarget(&path);
     }
+
+    /// Port of C++ `emDirEntryPanel::PaintInfo`
+    /// (emDirEntryPanel.cpp:484-725). Linux-only port: the Windows attribute
+    /// branch (cpp:642-648) and the Windows `IsDrive`/`IsDirectory` guards
+    /// around the Size and Time fields are intentionally omitted.
+    ///
+    /// DIVERGED: (upstream-gap-forced) Linux-only port; Windows attribute
+    /// branch (emDirEntryPanel.cpp:642-648), the Windows
+    /// `IsDrive`/`IsDirectory` guards around the Size and Time fields
+    /// (cpp:686-688, 707-709, 711-713, 722-724), and the Windows drive-type
+    /// extension of the Type field (cpp:611-626) are intentionally omitted.
+    /// The C++ source gates these on `#if defined(_WIN32)`, which is never
+    /// defined for our Linux-only target build, so the corresponding code
+    /// path is an upstream no-op for this configuration.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn paint_info(
+        &self,
+        painter: &mut emPainter,
+        info_x_in: f64,
+        info_y_in: f64,
+        info_w_in: f64,
+        info_h_in: f64,
+        canvas_color: emColor,
+        state: &PanelState,
+    ) {
+        // C++ label[6] (cpp:489-500). Linux-only: the second entry is the
+        // POSIX permissions label (the Windows alternative
+        // "File Attributes" is omitted; see DIVERGED note).
+        let label: [&str; 6] = [
+            "Type",
+            "Permissions of Owner, Group and Others",
+            "Owner",
+            "Group",
+            "Size in Bytes",
+            "Time of Last Modification",
+        ];
+
+        let cfg = self.config.borrow();
+        let theme = cfg.GetTheme();
+        let theme_rec = theme.GetRec();
+        let label_color = emColor::from_packed(theme_rec.LabelColor);
+        let info_color = emColor::from_packed(theme_rec.InfoColor);
+        let symlink_color = emColor::from_packed(theme_rec.SymLinkColor);
+
+        // GetViewedWidth() in C++ returns the panel's viewed-width.
+        // PanelState exposes this as `state.viewed_rect.w`.
+        let viewed_width = state.viewed_rect.w;
+
+        let mut info_x = info_x_in;
+        let mut info_y = info_y_in;
+        let mut info_w = info_w_in;
+        let mut info_h = info_h_in;
+
+        let mut bx = [0.0f64; 6];
+        let mut by = [0.0f64; 6];
+        let mut bw = [0.0f64; 6];
+        let mut bh = [0.0f64; 6];
+        let lh: f64;
+
+        // C++: t = infoH / infoW; then three layout branches.
+        let t = info_h / info_w;
+        // C++ emDirEntryPanel.cpp:512 (tall threshold)
+        if t > 0.9 {
+            // Tall layout: cpp:512-529.
+            // C++ emDirEntryPanel.cpp:513
+            let mut th = info_w * 1.4;
+            if info_h > th {
+                // No alignment flags propagate here — emPanel paints at the
+                // panel's own coordinates and the C++ alignment argument is
+                // EM_ALIGN_CENTER by default. Match C++ "else if" branch
+                // (vertical center) since neither TOP nor BOTTOM is set.
+                //
+                // C++ takes an `alignment` parameter (emDirEntryPanel.cpp:514-516)
+                // and switches between top/bottom/center positioning based on
+                // EM_ALIGN_TOP / EM_ALIGN_BOTTOM bits. This Rust port is
+                // hardcoded to the center branch because the only caller
+                // (`Paint`, see self.paint_info call near rs:1028) passes the
+                // C++ default `EM_ALIGN_CENTER`. If a non-center caller is
+                // ever added, thread an `alignment: emAlignment` parameter
+                // through paint_info and restore the three-way switch here
+                // and in the wide branch below.
+                info_y += (info_h - th) * 0.5;
+                info_h = th;
+            }
+            // C++ emDirEntryPanel.cpp:519: th = infoH/(7+(7-2)*0.087)
+            th = info_h / (7.0 + (7.0 - 2.0) * 0.087);
+            if th * viewed_width <= 1.15 {
+                return;
+            }
+            // C++ emDirEntryPanel.cpp:521: spy = (infoH-7*th)/(7-2)
+            let spy = (info_h - 7.0 * th) / (7.0 - 2.0);
+            for i in 0..6 {
+                bx[i] = info_x;
+                by[i] = info_y + (i as f64) * (th + spy);
+                bw[i] = info_w;
+                bh[i] = th;
+            }
+            // C++ emDirEntryPanel.cpp:528: bh[5] *= 2  (Time row doubled)
+            bh[5] *= 2.0;
+            // C++ emDirEntryPanel.cpp:529: lh = th/7.6666
+            lh = th / 7.6666;
+        } else if t > 0.04 {
+            // Medium layout: cpp:531-544.
+            // C++ emDirEntryPanel.cpp:532: infoH *= 1.03 (timestamp adjust)
+            info_h *= 1.03;
+            // C++ emDirEntryPanel.cpp:533: th = infoH/(4+(4-1)*0.087)
+            let th = info_h / (4.0 + (4.0 - 1.0) * 0.087);
+            if th * viewed_width <= 1.15 {
+                return;
+            }
+            let spy = (info_h - 4.0 * th) / (4.0 - 1.0);
+            // C++ emDirEntryPanel.cpp:536: spx = th*0.483
+            let spx = th * 0.483;
+            let tw = (info_w - spx) / 2.0;
+            // C++ emDirEntryPanel.cpp:538-543
+            bx[0] = info_x;
+            by[0] = info_y;
+            bw[0] = info_w;
+            bh[0] = th;
+            bx[1] = info_x;
+            by[1] = info_y + th + spy;
+            bw[1] = tw;
+            bh[1] = th;
+            bx[2] = info_x;
+            by[2] = info_y + 2.0 * (th + spy);
+            bw[2] = tw;
+            bh[2] = th;
+            bx[3] = info_x + tw + spx;
+            by[3] = info_y + 2.0 * (th + spy);
+            bw[3] = tw;
+            bh[3] = th;
+            bx[4] = info_x + tw + spx;
+            by[4] = info_y + th + spy;
+            bw[4] = tw;
+            bh[4] = th;
+            bx[5] = info_x;
+            by[5] = info_y + 3.0 * (th + spy);
+            bw[5] = info_w;
+            bh[5] = th;
+            lh = th / 7.6666;
+        } else {
+            // Wide layout: cpp:546-562.
+            if info_h * viewed_width <= 1.15 {
+                return;
+            }
+            // C++ emDirEntryPanel.cpp:548: tw = infoH/0.025
+            let mut tw = info_h / 0.025;
+            if info_w > tw {
+                // Same alignment fallback as tall branch (default center).
+                //
+                // C++ takes an `alignment` parameter (emDirEntryPanel.cpp:549-551)
+                // and switches between left/right/center positioning based on
+                // EM_ALIGN_LEFT / EM_ALIGN_RIGHT bits. This Rust port is
+                // hardcoded to the center branch because the only caller
+                // (`Paint`, see self.paint_info call near rs:1028) passes the
+                // C++ default `EM_ALIGN_CENTER`. If a non-center caller is
+                // ever added, thread an `alignment: emAlignment` parameter
+                // through paint_info and restore the three-way switch.
+                info_x += (info_w - tw) * 0.5;
+                info_w = tw;
+            }
+            // C++ emDirEntryPanel.cpp:554: tw = infoW/(6+(6-1)*0.087)
+            tw = info_w / (6.0 + (6.0 - 1.0) * 0.087);
+            let spx = (info_w - 6.0 * tw) / (6.0 - 1.0);
+            for i in 0..6 {
+                bx[i] = info_x + (i as f64) * (tw + spx);
+                by[i] = info_y;
+                bw[i] = tw;
+                bh[i] = info_h;
+            }
+            lh = info_h / 7.6666;
+        }
+
+        // C++ emDirEntryPanel.cpp:565-574: paint all six labels if visible.
+        if lh * viewed_width > 1.0 {
+            for i in 0..6 {
+                painter.PaintTextBoxed(
+                    bx[i],
+                    by[i],
+                    bw[i],
+                    bh[i],
+                    label[i],
+                    lh,
+                    label_color,
+                    canvas_color,
+                    TextAlignment::Left,
+                    VAlign::Top,
+                    TextAlignment::Left,
+                    0.5,
+                    true,
+                    0.0,
+                );
+            }
+        }
+
+        // C++ emDirEntryPanel.cpp:576: shift fields below labels.
+        for i in 0..6 {
+            by[i] += lh;
+            bh[i] -= lh;
+        }
+
+        // C++ emDirEntryPanel.cpp:578-586: select Type string.
+        let stat = self.dir_entry.GetStat();
+        let mode = stat.st_mode & libc::S_IFMT;
+        let p: &str = if self.dir_entry.IsRegularFile() {
+            "File"
+        } else if self.dir_entry.IsDirectory() {
+            "Directory"
+        } else if mode == libc::S_IFIFO {
+            "FIFO"
+        } else if mode == libc::S_IFBLK {
+            "Block Device"
+        } else if mode == libc::S_IFCHR {
+            "Char Device"
+        } else if mode == libc::S_IFSOCK {
+            "Socket"
+        } else {
+            "Unknown Type"
+        };
+
+        // C++ emDirEntryPanel.cpp:587-634: Type field paint (with symlink
+        // sub-branch).
+        if self.dir_entry.IsSymbolicLink() {
+            // C++ emDirEntryPanel.cpp:588: "Symbolic Link to %s:"
+            let header = format!("Symbolic Link to {}:", p);
+            painter.PaintTextBoxed(
+                bx[0],
+                by[0],
+                bw[0],
+                bh[0] / 2.0,
+                &header,
+                bh[0] / 2.0,
+                symlink_color,
+                canvas_color,
+                TextAlignment::Left,
+                VAlign::Center,
+                TextAlignment::Left,
+                0.5,
+                false,
+                0.0,
+            );
+            // C++ emDirEntryPanel.cpp:596-601: target text or error string.
+            let errno = self.dir_entry.GetTargetPathErrNo();
+            let target_str: String = if errno != 0 {
+                std::io::Error::from_raw_os_error(errno).to_string()
+            } else {
+                self.dir_entry.GetTargetPath().to_string()
+            };
+            painter.PaintTextBoxed(
+                bx[0],
+                by[0] + bh[0] / 2.0,
+                bw[0],
+                bh[0] / 2.0,
+                &target_str,
+                bh[0] / 2.0,
+                symlink_color,
+                canvas_color,
+                TextAlignment::Left,
+                VAlign::Center,
+                TextAlignment::Left,
+                0.5,
+                false,
+                0.0,
+            );
+        } else {
+            painter.PaintTextBoxed(
+                bx[0],
+                by[0],
+                bw[0],
+                bh[0],
+                p,
+                bh[0],
+                info_color,
+                canvas_color,
+                TextAlignment::Left,
+                VAlign::Center,
+                TextAlignment::Left,
+                0.5,
+                false,
+                0.0,
+            );
+        }
+
+        // C++ emDirEntryPanel.cpp:650-668: Permissions field — Unix branch.
+        // (Windows branch cpp:642-648 omitted; see DIVERGED note above.)
+        let cw1 = emPainter::GetTextSize("X", bh[1], false, 0.0).0;
+        let mut ws = bw[1] / (cw1 * 10.0);
+        if ws > 1.0 {
+            ws = 1.0;
+        }
+        let st_mode = stat.st_mode;
+        let perm_group = |r_bit, w_bit, x_bit| -> String {
+            let mut s = String::with_capacity(3);
+            s.push(if st_mode & r_bit != 0 { 'r' } else { '-' });
+            s.push(if st_mode & w_bit != 0 { 'w' } else { '-' });
+            s.push(if st_mode & x_bit != 0 { 'x' } else { '-' });
+            s
+        };
+        let owner_perm = perm_group(libc::S_IRUSR, libc::S_IWUSR, libc::S_IXUSR);
+        painter.PaintText(
+            bx[1],
+            by[1],
+            &owner_perm,
+            bh[1],
+            ws,
+            info_color,
+            canvas_color,
+        );
+        let group_perm = perm_group(libc::S_IRGRP, libc::S_IWGRP, libc::S_IXGRP);
+        painter.PaintText(
+            bx[1] + cw1 * 3.5 * ws,
+            by[1],
+            &group_perm,
+            bh[1],
+            ws,
+            info_color,
+            canvas_color,
+        );
+        let other_perm = perm_group(libc::S_IROTH, libc::S_IWOTH, libc::S_IXOTH);
+        painter.PaintText(
+            bx[1] + cw1 * 7.0 * ws,
+            by[1],
+            &other_perm,
+            bh[1],
+            ws,
+            info_color,
+            canvas_color,
+        );
+
+        // C++ emDirEntryPanel.cpp:670-676: Owner.
+        painter.PaintTextBoxed(
+            bx[2],
+            by[2],
+            bw[2],
+            bh[2],
+            self.dir_entry.GetOwner(),
+            bh[2],
+            info_color,
+            canvas_color,
+            TextAlignment::Left,
+            VAlign::Center,
+            TextAlignment::Left,
+            0.5,
+            false,
+            0.0,
+        );
+
+        // C++ emDirEntryPanel.cpp:678-684: Group.
+        painter.PaintTextBoxed(
+            bx[3],
+            by[3],
+            bw[3],
+            bh[3],
+            self.dir_entry.GetGroup(),
+            bh[3],
+            info_color,
+            canvas_color,
+            TextAlignment::Left,
+            VAlign::Center,
+            TextAlignment::Left,
+            0.5,
+            false,
+            0.0,
+        );
+
+        // C++ emDirEntryPanel.cpp:689-706: Size with thousands separator and
+        // magnitude suffix (k/M/G/T/P/E/Z/Y).
+        let size_str = em_uint64_to_str(stat.st_size as u64);
+        let size_bytes = size_str.as_bytes();
+        let len = size_bytes.len() as i32;
+        let cw4 = emPainter::GetTextSize("X", bh[4], false, 0.0).0;
+        // C++ emDirEntryPanel.cpp:691: ws = bw[4]/(cw*len*16/15)
+        let mut ws4 = bw[4] / (cw4 * (len as f64) * 16.0 / 15.0);
+        if ws4 > 1.0 {
+            ws4 = 1.0;
+        }
+        let mag = b"kMGTPEZY";
+        let mut x = bx[4];
+        let mut i: i32 = 0;
+        while i < len {
+            // C++ emDirEntryPanel.cpp:695: j = (len-i) - (len-i-1)/3*3
+            let j = (len - i) - (len - i - 1) / 3 * 3;
+            let chunk = std::str::from_utf8(&size_bytes[i as usize..(i + j) as usize])
+                .expect("digits are ASCII");
+            painter.PaintText(x, by[4], chunk, bh[4], ws4, info_color, canvas_color);
+            x += cw4 * (j as f64) * ws4;
+            // C++ emDirEntryPanel.cpp:698: k = (len-i-j)/3 - 1
+            let k = (len - i - j) / 3 - 1;
+            if k >= 0 {
+                let suffix_byte = mag[k as usize];
+                let suffix = std::str::from_utf8(std::slice::from_ref(&suffix_byte))
+                    .expect("magnitude letters are ASCII");
+                // C++ emDirEntryPanel.cpp:700-703: PaintText at
+                // (x, by[4]+bh[4]*0.75) with charHeight bh[4]/5.
+                painter.PaintText(
+                    x,
+                    by[4] + bh[4] * 0.75,
+                    suffix,
+                    bh[4] / 5.0,
+                    ws4,
+                    info_color,
+                    canvas_color,
+                );
+            }
+            // C++ emDirEntryPanel.cpp:705: x += cw/5*ws
+            x += cw4 / 5.0 * ws4;
+            i += j;
+        }
+
+        // C++ emDirEntryPanel.cpp:714-721: Time field.
+        let nl = bw[5] / bh[5] < 6.0;
+        let time_str = FormatTime(stat.st_mtime, nl);
+        painter.PaintTextBoxed(
+            bx[5],
+            by[5],
+            bw[5],
+            bh[5],
+            &time_str,
+            bh[5],
+            info_color,
+            canvas_color,
+            TextAlignment::Left,
+            VAlign::Center,
+            TextAlignment::Left,
+            0.5,
+            true,
+            0.0,
+        );
+    }
+}
+
+/// Port of C++ `emUInt64ToStr` (emStd1.cpp:200-214).
+/// Returns a decimal-digit string (no thousands separators).
+fn em_uint64_to_str(val: u64) -> String {
+    if val == 0 {
+        return "0".to_string();
+    }
+    let mut tmp = [0u8; 32];
+    let mut l = 0usize;
+    let mut v = val;
+    while v != 0 {
+        tmp[31 - l] = b'0' + ((v % 10) as u8);
+        v /= 10;
+        l += 1;
+    }
+    std::str::from_utf8(&tmp[32 - l..32])
+        .expect("digits are ASCII")
+        .to_string()
 }
 
 impl PanelBehavior for emDirEntryPanel {
@@ -593,25 +1041,17 @@ impl PanelBehavior for emDirEntryPanel {
             1.0,
         );
 
-        // C++ lines 377-385: PaintInfo. Rust has only the time-stamp slice
-        // ported so far; emit it in C++ position (between Name and Path).
-        let info_color = emColor::from_packed(theme_rec.InfoColor);
-        let time_str = FormatTime(self.dir_entry.GetStat().st_mtime, false);
-        painter.PaintTextBoxed(
+        // C++ lines 377-385: PaintInfo(InfoX, InfoY, InfoW, InfoH, ...).
+        // Inlined call to the body of emDirEntryPanel::PaintInfo
+        // (emDirEntryPanel.cpp:484-725).
+        self.paint_info(
+            painter,
             theme_rec.InfoX,
             theme_rec.InfoY,
             theme_rec.InfoW,
             theme_rec.InfoH,
-            &time_str,
-            theme_rec.InfoH,
-            info_color,
             canvas_color,
-            TextAlignment::Left,
-            VAlign::Center,
-            TextAlignment::Left,
-            0.5,
-            false,
-            1.0,
+            state,
         );
 
         // C++ lines 387-466: path text, inner border (Dir or File), and
@@ -1004,5 +1444,251 @@ mod tests {
         // (Model for /tmp needs to be loaded for full range; fallback selects entry)
         panel2.select(true, false);
         assert!(panel2.file_man.borrow().IsSelectedAsTarget("/tmp/c.txt"));
+    }
+
+    /// Helper: create a real regular file under /tmp and return an
+    /// emDirEntry for it. The caller's test fixture path is unique per
+    /// test so concurrent runs don't collide.
+    fn make_regular_file_entry(fixture: &str) -> crate::emDirEntry::emDirEntry {
+        let path = std::env::temp_dir().join(fixture);
+        // Ignore errors — the previous test run may have left no file.
+        let _ = std::fs::remove_file(&path);
+        std::fs::write(&path, b"hello world content").expect("write fixture");
+        let s = path.to_string_lossy().to_string();
+        let entry = crate::emDirEntry::emDirEntry::from_path(&s);
+        // Sanity: the fixture should have loaded as a regular file.
+        assert!(
+            entry.IsRegularFile(),
+            "fixture at {s} is not a regular file (got stat_errno={})",
+            entry.GetStatErrNo()
+        );
+        entry
+    }
+
+    /// Helper: build a recording emPainter, install an op-log that pushes
+    /// each DrawOp variant tag onto a Vec, and run `f` against the painter.
+    /// Returns the recorded variant tags so callers can count by `kind`.
+    fn collect_paint_info_ops<F>(panel: &emDirEntryPanel, info: (f64, f64, f64, f64), f: F) -> Vec<&'static str>
+    where
+        F: FnOnce(&emDirEntryPanel, &mut emcore::emPainter::emPainter, (f64, f64, f64, f64)),
+    {
+        use emcore::emImage::emImage;
+        use emcore::emPainter::emPainter;
+        use emcore::emPainterDrawList::DrawOp;
+
+        let mut img = emImage::new(64, 64, 4);
+        img.fill(emColor::BLACK);
+
+        let kinds: Rc<RefCell<Vec<&'static str>>> = Rc::new(RefCell::new(Vec::new()));
+        {
+            let kinds_cb = Rc::clone(&kinds);
+            let mut p = emPainter::new(&mut img);
+            p.SetCanvasColor(emColor::TRANSPARENT);
+            p.set_op_log(move |op, _depth, _state| {
+                let tag: &'static str = match op {
+                    DrawOp::PaintTextBoxed { .. } => "PaintTextBoxed",
+                    DrawOp::PaintText { .. } => "PaintText",
+                    _ => "Other",
+                };
+                kinds_cb.borrow_mut().push(tag);
+            });
+            f(panel, &mut p, info);
+        }
+        let v = kinds.borrow().clone();
+        v
+    }
+
+    /// F010 Phase 3 verification item 3a: tall layout regime
+    /// (t = info_h / info_w > 0.9). C++ ref: emDirEntryPanel.cpp:512-529.
+    /// Asserts paint_info emits at least 12 text-class ops:
+    ///   6 labels (PaintTextBoxed) when lh*viewed_width > 1.0,
+    ///   plus Type (1 PaintTextBoxed), Permissions (3 PaintText),
+    ///   Owner (1 PaintTextBoxed), Group (1 PaintTextBoxed),
+    ///   Size loop (>=1 PaintText), Time (1 PaintTextBoxed).
+    #[test]
+    fn paint_info_tall_layout_emits_text_ops() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = make_regular_file_entry("emfileman_paint_info_tall.txt");
+        let panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+
+        // info_h/info_w = 200/100 = 2.0 → tall branch.
+        let info = (0.0f64, 0.0f64, 100.0f64, 200.0f64);
+        let kinds = collect_paint_info_ops(&panel, info, |panel, p, (x, y, w, h)| {
+            let state = PanelState::default_for_test();
+            // viewed_rect default = (0,0,200,100); width=200 keeps
+            // lh*viewed_width well above the 1.0 label gate.
+            panel.paint_info(p, x, y, w, h, emColor::TRANSPARENT, &state);
+        });
+
+        let text_boxed = kinds.iter().filter(|&&k| k == "PaintTextBoxed").count();
+        let text = kinds.iter().filter(|&&k| k == "PaintText").count();
+        let total_text = text_boxed + text;
+        assert!(
+            total_text >= 12,
+            "tall layout: expected >=12 text ops (6 labels + Type + 3 perm + Owner + Group + Size + Time), got {total_text} (PaintTextBoxed={text_boxed}, PaintText={text})"
+        );
+        // Labels (6) + Type/Owner/Group/Time (4) → at least 10 PaintTextBoxed
+        // for a non-symlink regular file.
+        assert!(
+            text_boxed >= 10,
+            "tall layout: expected >=10 PaintTextBoxed (6 labels + 4 boxed fields), got {text_boxed}"
+        );
+        // Permissions emit 3 PaintText, plus >=1 from the Size loop.
+        assert!(
+            text >= 4,
+            "tall layout: expected >=4 PaintText (3 perm + Size), got {text}"
+        );
+    }
+
+    /// F010 Phase 3 verification item 3b: medium layout regime
+    /// (0.04 < t ≤ 0.9). C++ ref: emDirEntryPanel.cpp:531-544.
+    #[test]
+    fn paint_info_medium_layout_emits_text_ops() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = make_regular_file_entry("emfileman_paint_info_medium.txt");
+        let panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+
+        // info_h/info_w = 100/200 = 0.5 → medium branch.
+        let info = (0.0f64, 0.0f64, 200.0f64, 100.0f64);
+        let kinds = collect_paint_info_ops(&panel, info, |panel, p, (x, y, w, h)| {
+            let state = PanelState::default_for_test();
+            panel.paint_info(p, x, y, w, h, emColor::TRANSPARENT, &state);
+        });
+
+        let text_boxed = kinds.iter().filter(|&&k| k == "PaintTextBoxed").count();
+        let text = kinds.iter().filter(|&&k| k == "PaintText").count();
+        let total_text = text_boxed + text;
+        assert!(
+            total_text >= 12,
+            "medium layout: expected >=12 text ops, got {total_text} (PaintTextBoxed={text_boxed}, PaintText={text})"
+        );
+        assert!(
+            text_boxed >= 10,
+            "medium layout: expected >=10 PaintTextBoxed, got {text_boxed}"
+        );
+        assert!(
+            text >= 4,
+            "medium layout: expected >=4 PaintText, got {text}"
+        );
+    }
+
+    /// F010 Phase 3 verification item 3c: wide layout regime
+    /// (t ≤ 0.04). C++ ref: emDirEntryPanel.cpp:546-562.
+    #[test]
+    fn paint_info_wide_layout_emits_text_ops() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = make_regular_file_entry("emfileman_paint_info_wide.txt");
+        let panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+
+        // info_h/info_w = 20/1000 = 0.02 → wide branch.
+        let info = (0.0f64, 0.0f64, 1000.0f64, 20.0f64);
+        let kinds = collect_paint_info_ops(&panel, info, |panel, p, (x, y, w, h)| {
+            // Need a viewed_rect.w large enough to satisfy info_h*viewed_width > 1.15
+            // (20 * 200 = 4000, fine) and lh*viewed_width > 1.0
+            // (lh = 20/7.6666 ≈ 2.6; 2.6 * 200 = 520, fine).
+            let state = PanelState::default_for_test();
+            panel.paint_info(p, x, y, w, h, emColor::TRANSPARENT, &state);
+        });
+
+        let text_boxed = kinds.iter().filter(|&&k| k == "PaintTextBoxed").count();
+        let text = kinds.iter().filter(|&&k| k == "PaintText").count();
+        let total_text = text_boxed + text;
+        assert!(
+            total_text >= 12,
+            "wide layout: expected >=12 text ops, got {total_text} (PaintTextBoxed={text_boxed}, PaintText={text})"
+        );
+        assert!(
+            text_boxed >= 10,
+            "wide layout: expected >=10 PaintTextBoxed, got {text_boxed}"
+        );
+        assert!(
+            text >= 4,
+            "wide layout: expected >=4 PaintText, got {text}"
+        );
+    }
+
+    /// F010 Phase 3 verification item 4: field content matches expected
+    /// strings for Type / Owner / Group / Size / Time. Permissions
+    /// rendering is verified by the cross-language diff tool, not here
+    /// (the plan defers that). C++ refs: emDirEntryPanel.cpp:582 (Type),
+    /// 670-684 (Owner/Group), 689-706 (Size), 714-721 (Time).
+    #[test]
+    fn paint_info_field_content() {
+        use emcore::emImage::emImage;
+        use emcore::emPainter::emPainter;
+        use emcore::emPainterDrawList::DrawOp;
+
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = make_regular_file_entry("emfileman_paint_info_content.txt");
+        // Capture stat for assertion comparisons.
+        let owner_expected = entry.GetOwner().to_string();
+        let group_expected = entry.GetGroup().to_string();
+        let stat = *entry.GetStat();
+        let panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+
+        let mut img = emImage::new(64, 64, 4);
+        img.fill(emColor::BLACK);
+        let texts: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+        {
+            let texts_cb = Rc::clone(&texts);
+            let mut p = emPainter::new(&mut img);
+            p.SetCanvasColor(emColor::TRANSPARENT);
+            p.set_op_log(move |op, _depth, _state| match op {
+                DrawOp::PaintText { text, .. } => texts_cb.borrow_mut().push(text.clone()),
+                DrawOp::PaintTextBoxed { text, .. } => texts_cb.borrow_mut().push(text.clone()),
+                _ => {}
+            });
+            // Use the medium layout: largest set of guaranteed labels and
+            // values without timestamp-row doubling complications.
+            let state = PanelState::default_for_test();
+            panel.paint_info(&mut p, 0.0, 0.0, 200.0, 100.0, emColor::TRANSPARENT, &state);
+        }
+        let texts = texts.borrow().clone();
+
+        // Type label (cpp:489) and Type value "File" (cpp:579-583,
+        // non-symlink branch cpp:660-674).
+        assert!(
+            texts.iter().any(|t| t == "Type"),
+            "missing 'Type' label, got: {texts:?}"
+        );
+        assert!(
+            texts.iter().any(|t| t == "File"),
+            "missing 'File' Type value, got: {texts:?}"
+        );
+
+        // Owner / Group: must match what emDirEntry loaded from the OS.
+        // Owner string is paint at cpp:670-676.
+        if !owner_expected.is_empty() {
+            assert!(
+                texts.iter().any(|t| t == &owner_expected),
+                "missing owner '{owner_expected}', got: {texts:?}"
+            );
+        }
+        if !group_expected.is_empty() {
+            assert!(
+                texts.iter().any(|t| t == &group_expected),
+                "missing group '{group_expected}', got: {texts:?}"
+            );
+        }
+
+        // Size: digits-only chunk(s) (no thousands separator inserted by
+        // em_uint64_to_str — chunking is a paint-time visual layout, not a
+        // string transform). For a "hello world content" file (19 bytes),
+        // the entire size string is "19".
+        let size_str = format!("{}", stat.st_size);
+        assert!(
+            texts.iter().any(|t| t == &size_str),
+            "missing size '{size_str}', got: {texts:?}"
+        );
+
+        // Time: FormatTime of stat.st_mtime. The medium layout's Time row
+        // has bw[5]/bh[5] = info_w/th — inspect the painted Time string and
+        // verify it matches one of the two FormatTime variants.
+        let time_no_nl = FormatTime(stat.st_mtime, false);
+        let time_nl = FormatTime(stat.st_mtime, true);
+        assert!(
+            texts.iter().any(|t| t == &time_no_nl || t == &time_nl),
+            "missing Time field; expected one of '{time_no_nl}' or '{time_nl}', got: {texts:?}"
+        );
     }
 }
