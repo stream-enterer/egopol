@@ -5444,11 +5444,11 @@ mod tests {
         ts.with(|sc| view.Update(&mut tree, sc));
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
 
-        view.VisitNext(&mut tree);
+        ts.with(|sc| view.VisitNext(&mut tree, sc));
         view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(child2));
 
-        view.VisitPrev(&mut tree);
+        ts.with(|sc| view.VisitPrev(&mut tree, sc));
         view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(child1));
     }
@@ -5466,11 +5466,11 @@ mod tests {
         ts.with(|sc| view.Update(&mut tree, sc));
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
 
-        view.VisitIn(&mut tree);
+        ts.with(|sc| view.VisitIn(&mut tree, sc));
         view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(grandchild));
 
-        view.VisitOut(&mut tree);
+        ts.with(|sc| view.VisitOut(&mut tree, sc));
         view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(child1));
     }
@@ -5500,11 +5500,11 @@ mod tests {
         view.set_active_panel(&mut tree, child1, false, &mut h.sched_ctx());
 
         // child2 is to the right of child1
-        view.VisitRight(&mut tree);
+        ts.with(|sc| view.VisitRight(&mut tree, sc));
         view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(child2));
 
-        view.VisitLeft(&mut tree);
+        ts.with(|sc| view.VisitLeft(&mut tree, sc));
         view.pump_visiting_va(&mut tree);
         assert_eq!(view.GetActivePanel(), Some(child1));
     }
@@ -6395,12 +6395,52 @@ mod tests {
         assert!(sched.borrow().is_pending(cp_sig));
 
         // VisitByIdentity routes through VisitingVA per W4 Phase 3.
-        view.VisitByIdentity("root:child", 0.5, 0.5, 1.0, false, "child-title");
+        {
+            let mut sched_guard = sched.borrow_mut();
+            let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+                std::cell::RefCell::new(None);
+            let __pa: std::rc::Rc<
+                std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>,
+            > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut sched_guard,
+                framework_actions: &mut fw,
+                root_context: &root_ctx,
+                framework_clipboard: &__cb,
+                current_engine: None,
+                pending_actions: &__pa,
+            };
+            view.VisitByIdentity(
+                "root:child",
+                0.5,
+                0.5,
+                1.0,
+                false,
+                "child-title",
+                &mut sc,
+            );
+        }
         assert!(view.VisitingVA.borrow().is_active());
         assert_eq!(view.VisitingVA.borrow().identity(), "root:child");
         // Non-existent identity no longer requires tree lookup — the animator
         // just sets the goal; resolution happens later during Cycle.
-        view.VisitByIdentity("no_such_panel", 0.0, 0.0, 1.0, false, "");
+        {
+            let mut sched_guard = sched.borrow_mut();
+            let __cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+                std::cell::RefCell::new(None);
+            let __pa: std::rc::Rc<
+                std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>,
+            > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut sched_guard,
+                framework_actions: &mut fw,
+                root_context: &root_ctx,
+                framework_clipboard: &__cb,
+                current_engine: None,
+                pending_actions: &__pa,
+            };
+            view.VisitByIdentity("no_such_panel", 0.0, 0.0, 1.0, false, "", &mut sc);
+        }
 
         // Clean up signals so EngineScheduler's debug_assert on drop is satisfied.
         sched.borrow_mut().remove_signal(cp_sig);
@@ -6423,7 +6463,8 @@ mod tests {
             "inactive before Visit"
         );
 
-        view.Visit(&tree, child, 0.25, 0.5, 2.0, false);
+        let mut ts = TestSched::new();
+        ts.with(|sc| view.Visit(&tree, child, 0.25, 0.5, 2.0, false, sc));
 
         let va = view.VisitingVA.borrow();
         assert!(va.is_active(), "active after Visit");
@@ -6447,7 +6488,8 @@ mod tests {
             "inactive before VisitPanel"
         );
 
-        view.VisitPanel(&tree, root, true);
+        let mut ts = TestSched::new();
+        ts.with(|sc| view.VisitPanel(&tree, root, true, sc));
 
         let va = view.VisitingVA.borrow();
         assert!(va.is_active(), "active after VisitPanel");
@@ -7720,7 +7762,8 @@ mod tests {
         cfg.borrow_mut()
             .modify(|c, sc| c.VisitSpeed.SetValue(10.0, sc), &mut h.sched_ctx());
 
-        view.VisitByIdentityBare(":", false, "");
+        let mut ts = TestSched::new();
+        ts.with(|sc| view.VisitByIdentityBare(":", false, "", sc));
 
         assert!(
             !view.VisitingVA.borrow().IsAnimated(),

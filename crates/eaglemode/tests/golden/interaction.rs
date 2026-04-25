@@ -193,10 +193,11 @@ fn interaction_focus_tab_forward() {
     require_golden!();
     let expected = load_behavioral_golden("focus_tab_forward");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
+    let mut ts = TestSched::new();
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
-    view.VisitNext(&mut tree);
+    ts.with(|sc| view.VisitNext(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -219,10 +220,11 @@ fn interaction_focus_tab_backward() {
     require_golden!();
     let expected = load_behavioral_golden("focus_tab_backward");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
+    let mut ts = TestSched::new();
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child2, true);
-    view.VisitPrev(&mut tree);
+    ts.with(|sc| view.VisitPrev(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -262,7 +264,7 @@ fn interaction_focus_unfocusable_skip() {
     tree.set_focusable(child2, false);
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
-    view.VisitNext(&mut tree);
+    ts.with(|sc| view.VisitNext(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -302,7 +304,7 @@ fn interaction_focus_nested() {
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
-    view.VisitIn(&mut tree);
+    ts.with(|sc| view.VisitIn(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -342,7 +344,7 @@ fn interaction_focus_visit_out() {
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, gc, true);
-    view.VisitOut(&mut tree);
+    ts.with(|sc| view.VisitOut(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -366,10 +368,11 @@ fn interaction_focus_tab_wrap() {
     require_golden!();
     let expected = load_behavioral_golden("focus_tab_wrap");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
+    let mut ts = TestSched::new();
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child2, true);
-    view.VisitNext(&mut tree);
+    ts.with(|sc| view.VisitNext(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -408,7 +411,7 @@ fn interaction_focus_visit_first() {
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child2, true);
-    view.VisitFirst(&mut tree);
+    ts.with(|sc| view.VisitFirst(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -448,7 +451,7 @@ fn interaction_focus_visit_last() {
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
-    view.VisitLast(&mut tree);
+    ts.with(|sc| view.VisitLast(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -488,7 +491,7 @@ fn interaction_focus_visit_left() {
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child3, true);
-    view.VisitLeft(&mut tree);
+    ts.with(|sc| view.VisitLeft(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -528,7 +531,7 @@ fn interaction_focus_visit_right() {
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
-    view.VisitRight(&mut tree);
+    ts.with(|sc| view.VisitRight(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -568,7 +571,7 @@ fn interaction_focus_visit_down() {
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
-    view.VisitDown(&mut tree);
+    ts.with(|sc| view.VisitDown(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -608,7 +611,7 @@ fn interaction_focus_visit_up() {
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child3, true);
-    view.VisitUp(&mut tree);
+    ts.with(|sc| view.VisitUp(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -747,7 +750,7 @@ fn interaction_focus_tab_deep() {
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, gc1, true);
-    view.VisitNext(&mut tree);
+    ts.with(|sc| view.VisitNext(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -788,7 +791,7 @@ fn interaction_focus_tab_ascend() {
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, gc2, true);
-    view.VisitNext(&mut tree);
+    ts.with(|sc| view.VisitNext(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![
@@ -812,10 +815,11 @@ fn interaction_focus_visit_out_to_root() {
     require_golden!();
     let expected = load_behavioral_golden("focus_visit_out_to_root");
     let (mut tree, mut view, root, child1, child2) = three_panel_tree();
+    let mut ts = TestSched::new();
 
     view.SetFocused(&mut tree, true);
     sap(&mut view, &mut tree, child1, true);
-    view.VisitOut(&mut tree);
+    ts.with(|sc| view.VisitOut(&mut tree, sc));
     view.pump_visiting_va(&mut tree);
 
     let actual = vec![

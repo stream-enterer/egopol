@@ -344,10 +344,18 @@ impl PipelineTestHarness {
                 .flags
                 .contains(emcore::emView::ViewFlags::NO_USER_NAVIGATION)
             {
+                let mut sc = SchedCtx {
+                    scheduler: &mut self.scheduler,
+                    framework_actions: &mut self.framework_actions,
+                    root_context: &self.root_context,
+                    framework_clipboard: &self.framework_clipboard,
+                    current_engine: None,
+                    pending_actions: &self.pending_actions,
+                };
                 if self.input_state.GetShift() {
-                    self.view.VisitPrev(&mut self.tree);
+                    self.view.VisitPrev(&mut self.tree, &mut sc);
                 } else {
-                    self.view.VisitNext(&mut self.tree);
+                    self.view.VisitNext(&mut self.tree, &mut sc);
                 }
             }
             return;
@@ -439,31 +447,47 @@ impl PipelineTestHarness {
             .contains(emcore::emView::ViewFlags::NO_USER_NAVIGATION);
         if !consumed && !user_nav_blocked && event.variant == InputVariant::Press {
             let st = &self.input_state;
+            let mut sc = SchedCtx {
+                scheduler: &mut self.scheduler,
+                framework_actions: &mut self.framework_actions,
+                root_context: &self.root_context,
+                framework_clipboard: &self.framework_clipboard,
+                current_engine: None,
+                pending_actions: &self.pending_actions,
+            };
             match event.key {
-                InputKey::ArrowLeft if st.IsNoMod() => self.view.VisitLeft(&mut self.tree),
-                InputKey::ArrowRight if st.IsNoMod() => self.view.VisitRight(&mut self.tree),
-                InputKey::ArrowUp if st.IsNoMod() => self.view.VisitUp(&mut self.tree),
-                InputKey::ArrowDown if st.IsNoMod() => self.view.VisitDown(&mut self.tree),
+                InputKey::ArrowLeft if st.IsNoMod() => {
+                    self.view.VisitLeft(&mut self.tree, &mut sc)
+                }
+                InputKey::ArrowRight if st.IsNoMod() => {
+                    self.view.VisitRight(&mut self.tree, &mut sc)
+                }
+                InputKey::ArrowUp if st.IsNoMod() => self.view.VisitUp(&mut self.tree, &mut sc),
+                InputKey::ArrowDown if st.IsNoMod() => {
+                    self.view.VisitDown(&mut self.tree, &mut sc)
+                }
 
                 // C++ emPanel.cpp:1168-1180: Home with modifier variants.
-                InputKey::Home if st.IsNoMod() => self.view.VisitFirst(&mut self.tree),
+                InputKey::Home if st.IsNoMod() => self.view.VisitFirst(&mut self.tree, &mut sc),
                 InputKey::Home if st.IsAltMod() => {
                     if let Some(p) = self.view.GetActivePanel() {
                         let adherent = self.view.IsActivationAdherent();
-                        self.view.VisitFullsized(&self.tree, p, adherent, false);
+                        self.view
+                            .VisitFullsized(&self.tree, p, adherent, false, &mut sc);
                     }
                 }
                 InputKey::Home if st.IsShiftAltMod() => {
                     if let Some(p) = self.view.GetActivePanel() {
                         let adherent = self.view.IsActivationAdherent();
-                        self.view.VisitFullsized(&self.tree, p, adherent, true);
+                        self.view
+                            .VisitFullsized(&self.tree, p, adherent, true, &mut sc);
                     }
                 }
 
                 // C++ emPanel.cpp:1182-1198
-                InputKey::End if st.IsNoMod() => self.view.VisitLast(&mut self.tree),
-                InputKey::PageUp if st.IsNoMod() => self.view.VisitOut(&mut self.tree),
-                InputKey::PageDown if st.IsNoMod() => self.view.VisitIn(&mut self.tree),
+                InputKey::End if st.IsNoMod() => self.view.VisitLast(&mut self.tree, &mut sc),
+                InputKey::PageUp if st.IsNoMod() => self.view.VisitOut(&mut self.tree, &mut sc),
+                InputKey::PageDown if st.IsNoMod() => self.view.VisitIn(&mut self.tree, &mut sc),
 
                 _ => {}
             }
