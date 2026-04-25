@@ -82,13 +82,18 @@ impl emContext {
         cur
     }
 
-    /// Borrow the raw children list (weak refs to live + dead child contexts).
-    /// Callers iterate and `Weak::upgrade` to filter live entries.
-    ///
-    /// Used by the tree-dump cascade (`emTreeDump::dump_context_with_cascade`)
-    /// which needs to walk the full child set, not just count.
-    pub(crate) fn children(&self) -> std::cell::Ref<'_, Vec<Weak<emContext>>> {
-        self.children.borrow()
+    /// Snapshot of currently-live child contexts. Upgrades each `Weak` to
+    /// `Rc`, drops dead entries. Returns an owned `Vec` so the caller is
+    /// not holding a `RefCell::Ref` borrow during downstream work — this
+    /// matters for `emTreeDump::dump_context_with_cascade`, which calls
+    /// arbitrary `PanelBehavior::dump_state` impls that may construct
+    /// new emContexts (which would `borrow_mut` the same children list).
+    pub(crate) fn live_children(&self) -> Vec<Rc<emContext>> {
+        self.children
+            .borrow()
+            .iter()
+            .filter_map(|w| w.upgrade())
+            .collect()
     }
 
     /// Number of live children (expired weak references are not counted).

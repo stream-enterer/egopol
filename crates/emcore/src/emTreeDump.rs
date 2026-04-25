@@ -149,6 +149,11 @@ pub(crate) fn empty_rec(title: String, text: String, style: VisualStyle) -> RecS
 /// Sets the Children field of `rec`. Must be called exactly once per rec;
 /// `empty_rec` does not pre-populate Children. Callers that have no
 /// children should still call with an empty Vec for schema completeness.
+// Cost is O(n) in the rec's field count due to the remove-then-push,
+// not the prior O(1) push-only. Field count per rec is small (~5–10
+// in this codebase), so the linear cost is negligible. Stated here to
+// preempt a "this is quadratic" cleanup that would reintroduce the
+// stale-Children bug.
 pub(crate) fn set_children(rec: &mut RecStruct, children: Vec<RecValue>) {
     // Replace any existing "Children" entry rather than appending.
     // RecStruct::SetValue is push-based; without a remove-prior step,
@@ -198,11 +203,7 @@ pub(crate) fn set_children(rec: &mut RecStruct, children: Vec<RecValue>) {
 ///
 /// Keys are raw pointer addresses (`Rc::as_ptr`) — used only for
 /// equality comparison, never dereferenced.
-// TEMP: `pub` (not `pub(crate)`) — no non-test callers land until Phase
-// 3's `dump_context_with_cascade`. The plan tightens visibility back to
-// `pub(crate)` at that point. `pub(crate)` trips `dead_code` because
-// `#[cfg(test)]`-only uses don't count for the lib build.
-pub type ViewMap<'a> = std::collections::HashMap<
+pub(crate) type ViewMap<'a> = std::collections::HashMap<
     *const crate::emContext::emContext,
     (&'a crate::emView::emView, &'a crate::emPanelTree::PanelTree),
 >;
@@ -210,8 +211,7 @@ pub type ViewMap<'a> = std::collections::HashMap<
 /// Recursively walk `view`'s panel tree; for every `emSubViewPanel`
 /// found, descend into its sub-view/sub-tree. Keys the resulting map by
 /// each view's context pointer.
-// TEMP: `pub` for the same reason as `ViewMap`. Tightened in Phase 3.
-pub fn collect_views<'a>(
+pub(crate) fn collect_views<'a>(
     view: &'a crate::emView::emView,
     tree: &'a crate::emPanelTree::PanelTree,
 ) -> ViewMap<'a> {
@@ -603,11 +603,7 @@ pub(crate) fn dump_context(ctx: &emContext, is_root: bool) -> RecStruct {
 ///
 /// Mirrors C++ `emTreeDumpFromObject`'s emContext cascade with view
 /// dispatch (the `dynamic_cast<emView*>(ctx)` branch in C++).
-// TEMP: `pub` — non-test caller (`dump_from_root_context_with_home`)
-// lands in the next commit. `pub(crate)` here would trip `dead_code`
-// because tests don't count for the lib build. Tightened once the
-// home-context entry point is wired.
-pub fn dump_context_with_cascade(
+pub(crate) fn dump_context_with_cascade(
     ctx: &crate::emContext::emContext,
     is_root: bool,
     view_map: &ViewMap<'_>,
@@ -615,10 +611,7 @@ pub fn dump_context_with_cascade(
     let mut rec = dump_context(ctx, is_root);
 
     let mut children: Vec<RecValue> = Vec::new();
-    for weak in ctx.children().iter() {
-        let Some(child_ctx) = weak.upgrade() else {
-            continue; // dead weak — skip
-        };
+    for child_ctx in ctx.live_children() {
         let ptr = std::rc::Rc::as_ptr(&child_ctx);
         if let Some(&(view, tree)) = view_map.get(&ptr) {
             // Known view: emit the view branch. Use the view's own
