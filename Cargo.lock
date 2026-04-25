@@ -822,6 +822,8 @@ dependencies = [
  "libc",
  "log",
  "slotmap",
+ "tempfile",
+ "winit",
 ]
 
 [[package]]

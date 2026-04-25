@@ -473,6 +473,75 @@ impl<T> emFileModel<T> {
         }
     }
 
+    /// Port of C++ `emFileModel::Cycle` (`emFileModel.cpp:243-272`).
+    /// Owns the loading loop: drains as many `step_loading` calls as fit
+    /// in the scheduler's 50 ms time slice. Returns `true` if the engine
+    /// should stay awake (state is still `Loading`).
+    ///
+    /// Saving is not driven from here; it is panel-driven elsewhere in
+    /// the Rust port (`step_saving` callers).
+    pub fn Cycle<O: FileModelOps>(
+        &mut self,
+        ctx: &mut crate::emEngineCtx::EngineCtx<'_>,
+        ops: &mut O,
+    ) -> bool {
+        let mut state_changed = false;
+
+        // DIVERGED: (upstream-gap-forced) C++ Cycle calls StartPSAgent and
+        // UpdateMemoryLimit before the loop. PSAgent integration is
+        // deferred from F017 scope (Rust PriSchedModel callback signature
+        // is incompatible with C++ GotAccess→WakeUp; tracked separately).
+        // UpdateMemoryLimit signals memory pressure that no panel
+        // currently reads in the Rust port.
+
+        // C++ do-while: body runs at least once if state is Waiting or
+        // Loading (Waiting → step_loading transitions to Loading and
+        // calls try_start_loading; subsequent iterations advance loading).
+        if matches!(self.state, FileState::Loading { .. } | FileState::Waiting) {
+            loop {
+                if self.step_loading(ops) {
+                    state_changed = true;
+                }
+                if !matches!(self.state, FileState::Loading { .. }) {
+                    break;
+                }
+                if ctx.IsTimeSliceAtEnd() {
+                    break;
+                }
+            }
+        }
+
+        if self.UpdateFileProgress(ops) {
+            state_changed = true;
+        }
+        if state_changed {
+            ctx.fire(self.change_signal);
+        }
+
+        matches!(self.state, FileState::Loading { .. })
+    }
+
+    /// Port of C++ `emFileModel::UpdateFileProgress` (`emFileModel.cpp:462-490`).
+    /// 250 ms throttle; returns `true` if the cached progress changed
+    /// (caller fires `change_signal`).
+    pub fn UpdateFileProgress<O: FileModelOps>(&mut self, ops: &O) -> bool {
+        let new_progress = match &self.state {
+            FileState::Loading { .. } | FileState::Saving => ops.calc_file_progress(),
+            FileState::Loaded | FileState::Unsaved => 100.0,
+            _ => 0.0,
+        };
+        if (new_progress - self.file_progress).abs() < f64::EPSILON {
+            return false;
+        }
+        self.file_progress = new_progress;
+        if let FileState::Loading { .. } = self.state {
+            self.state = FileState::Loading {
+                progress: new_progress,
+            };
+        }
+        true
+    }
+
     /// Port of C++ `Save(bool immediately)`.
     pub fn save<O: FileModelOps>(&mut self, ops: &mut O, immediately: bool) {
         if matches!(self.state, FileState::Unsaved | FileState::Saving) {

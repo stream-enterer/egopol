@@ -15,3 +15,5 @@ slotmap = { workspace = true }
 
 [dev-dependencies]
 emcore = { path = "../emcore", features = ["test-support"] }
+tempfile = { workspace = true }
+winit = { workspace = true }

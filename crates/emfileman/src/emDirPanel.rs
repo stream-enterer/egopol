@@ -6,7 +6,7 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emEngineCtx::PanelCtx;
-use emcore::emFileModel::FileModelState;
+use emcore::emFileModel::{FileModelState, FileState};
 use emcore::emFilePanel::{emFilePanel, VirtualFileState};
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
@@ -128,8 +128,6 @@ pub struct emDirPanel {
     dir_model: Option<Rc<RefCell<emDirModel>>>,
     pub(crate) content_complete: bool,
     child_count: usize,
-    loading_done: bool,
-    loading_error: Option<String>,
     key_walk_state: Option<KeyWalkState>,
     scroll_target: Option<String>,
     last_config_gen: u64,
@@ -149,8 +147,6 @@ impl emDirPanel {
             dir_model: None,
             content_complete: false,
             child_count: 0,
-            loading_done: false,
-            loading_error: None,
             key_walk_state: None,
             scroll_target: None,
             last_config_gen,
@@ -220,8 +216,14 @@ impl emDirPanel {
         }
     }
 
+    fn is_model_loaded(&self) -> bool {
+        self.dir_model
+            .as_ref()
+            .is_some_and(|dm| matches!(dm.borrow().get_file_state(), FileState::Loaded))
+    }
+
     fn update_children(&mut self, ctx: &mut PanelCtx) {
-        if !self.loading_done {
+        if !self.is_model_loaded() {
             self.content_complete = false;
             return;
         }
@@ -287,13 +289,19 @@ impl PanelBehavior for emDirPanel {
     }
 
     fn dump_state(&self) -> Vec<(&'static str, String)> {
+        let (loading_done, loading_error) = match self
+            .dir_model
+            .as_ref()
+            .map(|dm| dm.borrow().get_file_state())
+        {
+            Some(FileState::Loaded) => ("true".to_string(), String::new()),
+            Some(FileState::LoadError(e)) => ("false".to_string(), e),
+            _ => ("false".to_string(), String::new()),
+        };
         vec![
             ("path", self.path.clone()),
-            ("loading_done", self.loading_done.to_string()),
-            (
-                "loading_error",
-                self.loading_error.as_deref().unwrap_or("").to_string(),
-            ),
+            ("loading_done", loading_done),
+            ("loading_error", loading_error),
             ("content_complete", self.content_complete.to_string()),
             ("child_count", self.child_count.to_string()),
             ("has_dir_model", self.dir_model.is_some().to_string()),
@@ -306,100 +314,60 @@ impl PanelBehavior for emDirPanel {
 
     fn Cycle(
         &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
         ctx: &mut PanelCtx,
     ) -> bool {
-        let mut changed = false;
-
+        // Port of C++ emFilePanel::Cycle (emFilePanel.cpp:151-161): observe
+        // the file model's state and refresh the painted view; never drive
+        // loading from the panel. Loading is owned by emDirModelEngine,
+        // registered lazily here.
         if self.dir_model.is_none() {
-            // Port of C++ emDirPanel::Notice SetFileModel path (Cycle fallback):
-            // acquire model and connect it to file_panel so VirtualFileState
-            // transitions from NoFileModel → Waiting → Loading → Loaded.
             let dm_rc = emDirModel::Acquire(&self.ctx, &self.path);
+            emDirModel::ensure_engine_registered(&dm_rc, ectx.scheduler);
             self.file_panel.SetFileModel(Some(
                 Rc::clone(&dm_rc) as Rc<RefCell<dyn FileModelState>>,
             ));
             self.dir_model = Some(dm_rc);
-            self.loading_done = false;
-            self.loading_error = None;
             self.child_count = 0;
             self.content_complete = false;
-            changed = true;
         }
 
-        // Detect config changes (sort/filter) and force child re-creation
+        // Detect config changes (sort/filter) and force child re-creation.
         let cfg_gen = self.config.borrow().GetChangeSignal();
         if cfg_gen != self.last_config_gen {
             self.last_config_gen = cfg_gen;
             self.child_count = 0;
-            changed = true;
         }
 
-        if let Some(ref dm_rc) = self.dir_model {
-            let mut dm = dm_rc.borrow_mut();
-            match dm.get_file_state() {
-                emcore::emFileModel::FileState::Waiting => {
-                    match dm.try_start_loading() {
-                        Ok(()) => {
-                            dm.state = emcore::emFileModel::FileState::Loading { progress: 0.0 };
-                            // drop dm before accessing file_panel: both share the same
-                            // RefCell<emDirModel>, so holding borrow_mut() while
-                            // clear_custom_error() calls borrow() would panic.
-                            drop(dm);
-                            self.loading_done = false;
-                            self.loading_error = None;
-                            self.file_panel.clear_custom_error();
-                        }
-                        Err(e) => {
-                            drop(dm);
-                            self.loading_error = Some(e.clone());
-                            self.file_panel.set_custom_error(&e);
-                        }
-                    }
-                    changed = true;
-                }
-                emcore::emFileModel::FileState::Loading { .. } => match dm.try_continue_loading() {
-                    Ok(true) => {
-                        dm.state = emcore::emFileModel::FileState::Loaded;
-                        dm.quit_loading();
-                        self.loading_done = true;
-                        drop(dm);
-                        self.file_panel.clear_custom_error();
-                        self.update_children(ctx);
-                        changed = true;
-                    }
-                    Ok(false) => {
-                        dm.state = emcore::emFileModel::FileState::Loading {
-                            progress: dm.calc_file_progress(),
-                        };
-                        changed = true;
-                    }
-                    Err(e) => {
-                        drop(dm);
-                        self.loading_error = Some(e.clone());
-                        self.file_panel.set_custom_error(&e);
-                        changed = true;
-                    }
-                },
-                emcore::emFileModel::FileState::Loaded => {
-                    drop(dm);
-                    // Model was loaded previously (possibly by another
-                    // panel instance). Reflect in loading_done so
-                    // update_children creates entries.
-                    self.loading_done = true;
+        // Observe the model. On Loaded, materialize children if not yet
+        // built (child_count == 0 doubles as the "haven't built children
+        // yet" predicate). On error, surface the message via file_panel.
+        // While Loading or Waiting, return true to stay awake — the
+        // panel's signal connection to the model's FileStateSignal is
+        // handled by file_panel.SetFileModel; returning true defends
+        // against the case where the connection is not auto-wired.
+        let observed_state = self
+            .dir_model
+            .as_ref()
+            .map(|dm| dm.borrow().get_file_state());
+        let stay_awake = match &observed_state {
+            Some(FileState::Loaded) => {
+                if self.child_count == 0 {
+                    self.file_panel.clear_custom_error();
                     self.update_children(ctx);
                 }
-                _ => {}
+                false
             }
-        }
+            Some(FileState::LoadError(e)) => {
+                self.file_panel.set_custom_error(e);
+                false
+            }
+            Some(FileState::Loading { .. }) | Some(FileState::Waiting) => true,
+            _ => false,
+        };
 
         self.file_panel.refresh_vir_file_state();
-        // C++ returns emFilePanel::Cycle() busy state. Return true (busy) while
-        // the model is loading, so the engine keeps cycling us.
-        if !self.loading_done && self.dir_model.is_some() {
-            return true;
-        }
-        changed
+        stay_awake
     }
 
     fn Input(
@@ -428,7 +396,7 @@ impl PanelBehavior for emDirPanel {
         false
     }
 
-    fn notice(&mut self, flags: NoticeFlags, state: &PanelState, _ctx: &mut PanelCtx) {
+    fn notice(&mut self, flags: NoticeFlags, state: &PanelState, ctx: &mut PanelCtx) {
         if flags.contains(NoticeFlags::VIEWING_CHANGED)
             || flags.contains(NoticeFlags::SOUGHT_NAME_CHANGED)
         {
@@ -436,35 +404,32 @@ impl PanelBehavior for emDirPanel {
             //   if (IsViewed() || GetSoughtName()) {
             //     if (!GetFileModel()) SetFileModel(emDirModel::Acquire(...))
             //   } else if (GetFileModel()) SetFileModel(NULL)
-            // We use in_active_path as proxy for "being viewed or sought"
-            // since PanelState doesn't expose sought_name.
             let keep_model = state.viewed || state.in_active_path;
             if keep_model {
                 if self.dir_model.is_none() {
-                    // Port of C++ emDirPanel::Notice line:
-                    // if (!GetFileModel()) SetFileModel(emDirModel::Acquire(...))
                     let dm_rc = emDirModel::Acquire(&self.ctx, &self.path);
+                    if let Some(sched) = ctx.scheduler.as_deref_mut() {
+                        emDirModel::ensure_engine_registered(&dm_rc, sched);
+                    }
                     self.file_panel.SetFileModel(Some(
                         Rc::clone(&dm_rc) as Rc<RefCell<dyn FileModelState>>,
                     ));
                     self.dir_model = Some(dm_rc);
-                    self.loading_done = false;
-                    self.loading_error = None;
                     self.child_count = 0;
                     self.content_complete = false;
                 }
-            } else if self.dir_model.is_some() {
-                self.dir_model = None;
+            } else if let Some(dm_rc) = self.dir_model.take() {
+                if let Some(sched) = ctx.scheduler.as_deref_mut() {
+                    emDirModel::release_engine(&dm_rc, sched);
+                }
                 self.file_panel.SetFileModel(None);
-                self.loading_done = false;
-                self.loading_error = None;
                 self.scroll_target = None;
             }
         }
     }
 
     fn IsOpaque(&self) -> bool {
-        if self.loading_done {
+        if self.is_model_loaded() {
             let cfg = self.config.borrow();
             let theme = cfg.GetTheme();
             let dc = theme.GetRec().DirContentColor;
@@ -510,7 +475,7 @@ impl PanelBehavior for emDirPanel {
         let theme_rec = theme.GetRec();
         let rect = ctx.layout_rect();
 
-        let canvas_color = if self.loading_done {
+        let canvas_color = if self.is_model_loaded() {
             emColor::from_packed(theme_rec.DirContentColor)
         } else {
             emColor::TRANSPARENT
@@ -654,10 +619,8 @@ mod tests {
                 "model must start in Waiting state"
             );
             dm.try_start_loading().expect("/tmp must be readable");
-            dm.state = FileState::Loading { progress: 0.0 };
+            assert!(matches!(dm.get_file_state(), FileState::Loading { .. }));
         } // dm dropped here — borrow_mut released
-        panel.loading_done = false;
-        panel.loading_error = None;
         panel.file_panel.clear_custom_error(); // would panic before fix
         panel.file_panel.refresh_vir_file_state();
 
@@ -885,6 +848,8 @@ mod tests {
         let mut win = windows.remove(&wid).unwrap();
         let mut reclaimed = win.take_tree();
         reclaimed.remove(root, Some(&mut sched));
+        let dm = emDirModel::Acquire(&emctx, "/tmp");
+        emDirModel::release_engine(&dm, &mut sched);
     }
 
     /// Reproduces the full production path:
@@ -1057,6 +1022,8 @@ mod tests {
         for eid in update_engine_ids {
             sched.remove_engine(eid);
         }
+        let dm = emDirModel::Acquire(&emctx, "/tmp");
+        emDirModel::release_engine(&dm, &mut sched);
     }
 
     /// Probe-based version of `production_path_child_engine_fires_after_update_engine_notice`.
@@ -1229,6 +1196,8 @@ mod tests {
         for eid in view_engine_ids {
             sched.remove_engine(eid);
         }
+        let dm = emDirModel::Acquire(&emctx, "/tmp");
+        emDirModel::release_engine(&dm, &mut sched);
     }
 
     /// End-to-end test using the real `emDirEntryPanel` hierarchy.
@@ -1400,6 +1369,11 @@ mod tests {
         for eid in view_engine_ids {
             sched.remove_engine(eid);
         }
+        // Inner emDirPanel was created via emDirFpPlugin with the entry's
+        // path: emDirEntry::from_parent_and_name("", "/tmp") yields
+        // GetPath() == "//tmp" (get_child_path joins "" + "/" + name).
+        let dm = emDirModel::Acquire(&emctx, "//tmp");
+        emDirModel::release_engine(&dm, &mut sched);
     }
 
     /// Hypothesis B test (F010): after loading completes, does the inner emDirPanel
@@ -1563,6 +1537,10 @@ mod tests {
         for eid in view_engine_ids {
             sched.remove_engine(eid);
         }
+        // Inner emDirPanel uses entry.GetPath() == "/" + path.
+        let inner_path = format!("/{}", &path);
+        let dm = emDirModel::Acquire(&emctx, &inner_path);
+        emDirModel::release_engine(&dm, &mut sched);
         let _ = std::fs::remove_dir_all(&tmpdir);
     }
 
@@ -1733,6 +1711,9 @@ mod tests {
         for eid in view_engine_ids {
             sched.remove_engine(eid);
         }
+        let inner_path = format!("/{}", &path);
+        let dm = emDirModel::Acquire(&emctx, &inner_path);
+        emDirModel::release_engine(&dm, &mut sched);
         let _ = std::fs::remove_dir_all(&tmpdir);
     }
 

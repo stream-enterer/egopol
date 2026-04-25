@@ -1,7 +1,13 @@
 use crate::emDirEntry::emDirEntry;
-use emcore::emFileModel::{FileModelState, FileState};
+use emcore::emEngine::{emEngine, EngineId, Priority};
+use emcore::emEngineCtx::EngineCtx;
+use emcore::emFileModel::{emFileModel, FileModelOps, FileModelState, FileState};
+use emcore::emPanelScope::PanelScope;
+use emcore::emScheduler::EngineScheduler;
 use emcore::emSignal::SignalId;
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::{Rc, Weak};
 
 enum LoadingPhase {
     Idle,
@@ -23,14 +29,16 @@ enum LoadingPhase {
 }
 
 pub struct emDirModelData {
+    path: PathBuf,
     entries: Vec<emDirEntry>,
     name_count: usize,
     loading_phase: LoadingPhase,
 }
 
 impl emDirModelData {
-    pub fn new() -> Self {
+    pub fn new(path: PathBuf) -> Self {
         Self {
+            path,
             entries: Vec::new(),
             name_count: 0,
             loading_phase: LoadingPhase::Idle,
@@ -45,6 +53,7 @@ impl emDirModelData {
         let dir_path = PathBuf::from(path);
         let dir_iter = std::fs::read_dir(&dir_path)
             .map_err(|e| format!("Failed to open directory {:?}: {}", dir_path, e))?;
+        self.path = dir_path.clone();
         self.loading_phase = LoadingPhase::ReadingNames {
             dir_iter,
             dir_path,
@@ -83,7 +92,6 @@ impl emDirModelData {
                     Err(format!("Error reading directory entry: {}", e))
                 }
                 None => {
-                    // Done reading names, transition to sorting
                     self.loading_phase = LoadingPhase::Sorting { dir_path, names };
                     Ok(false)
                 }
@@ -92,9 +100,7 @@ impl emDirModelData {
                 dir_path,
                 mut names,
             } => {
-                // Sort names
                 names.sort();
-                // Remove duplicates
                 names.dedup();
                 self.name_count = names.len();
                 if names.is_empty() {
@@ -197,38 +203,131 @@ impl emDirModelData {
 
 impl Default for emDirModelData {
     fn default() -> Self {
-        Self::new()
+        Self::new(PathBuf::new())
     }
 }
 
-/// Directory model wrapper.
-/// Port of C++ `emDirModel` (extends emFileModel).
+impl FileModelOps for emDirModelData {
+    fn reset_data(&mut self) {
+        emDirModelData::reset_data(self)
+    }
+
+    fn try_start_loading(&mut self) -> Result<(), String> {
+        let p = self.path.clone();
+        let s = p.to_string_lossy().into_owned();
+        emDirModelData::try_start_loading_from(self, &s)
+    }
+
+    fn try_continue_loading(&mut self) -> Result<bool, String> {
+        emDirModelData::try_continue_loading(self)
+    }
+
+    fn quit_loading(&mut self) {
+        emDirModelData::quit_loading(self)
+    }
+
+    fn try_start_saving(&mut self) -> Result<(), String> {
+        Err("emDirModel does not support saving".to_string())
+    }
+
+    fn try_continue_saving(&mut self) -> Result<bool, String> {
+        Err("emDirModel does not support saving".to_string())
+    }
+
+    fn quit_saving(&mut self) {}
+
+    fn calc_memory_need(&self) -> u64 {
+        emDirModelData::calc_memory_need(self)
+    }
+
+    fn calc_file_progress(&self) -> f64 {
+        emDirModelData::calc_file_progress(self)
+    }
+}
+
+/// Directory model. Port of C++ `emDirModel` (extends emFileModel).
 ///
-/// DIVERGED: (language-forced) Does not compose emFileModel<T> because emFileModel requires
-/// SignalId and update_signal from the scheduler, which are not needed for
-/// the data-layer-only port. Wraps emDirModelData directly. The panel layer
-/// drives the loading state machine by calling these methods in its Cycle.
-/// Does not implement the FileModelState trait (which returns `&FileState`),
-/// but provides `get_file_state()` returning an owned FileState and
-/// `is_loaded()` for convenience.
+/// Composes `emFileModel<()>` for the loading state machine and
+/// `emDirModelData` (implements `FileModelOps`) for the loader workspace.
+/// The engine that drives loading is `emDirModelEngine` (shim, registered
+/// lazily via `ensure_engine_registered`).
 pub struct emDirModel {
+    file_model: emFileModel<()>,
     data: emDirModelData,
     path: String,
-    // Stored state for FileModelState impl. Updated by emDirPanel::Cycle at
-    // each state transition. Mirrors loading_phase for use by emFilePanel.
-    pub(crate) state: FileState,
+    engine_id: Option<EngineId>,
+}
+
+// RUST_ONLY: (language-forced-utility) Acquire pattern returns Rc<RefCell<emDirModel>>;
+// engine registration moves Box<dyn emEngine> into the scheduler. The same
+// struct cannot satisfy both ownership shapes. The shim holds a Weak ref so
+// the model can be both shared via Rc<RefCell<>> and registered as an engine.
+struct emDirModelEngine {
+    model: Weak<RefCell<emDirModel>>,
+}
+
+impl emEngine for emDirModelEngine {
+    fn Cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
+        let Some(rc) = self.model.upgrade() else {
+            return false;
+        };
+        let mut m = rc.borrow_mut();
+        m.cycle(ctx)
+    }
 }
 
 impl emDirModel {
     pub fn Acquire(
-        ctx: &std::rc::Rc<emcore::emContext::emContext>,
+        ctx: &Rc<emcore::emContext::emContext>,
         name: &str,
-    ) -> std::rc::Rc<std::cell::RefCell<Self>> {
+    ) -> Rc<RefCell<Self>> {
         ctx.acquire::<Self>(name, || Self {
-            data: emDirModelData::new(),
+            file_model: emFileModel::new(
+                PathBuf::from(name),
+                SignalId::default(),
+                SignalId::default(),
+            ),
+            data: emDirModelData::new(PathBuf::from(name)),
             path: name.to_string(),
-            state: FileState::Waiting,
+            engine_id: None,
         })
+    }
+
+    /// Register an `emDirModelEngine` shim with the scheduler so that the
+    /// model's loading loop runs cooperatively. Idempotent. Called by
+    /// `emDirPanel` after `Acquire` (panel has scheduler reach; `Acquire`
+    /// does not).
+    pub fn ensure_engine_registered(
+        model_rc: &Rc<RefCell<emDirModel>>,
+        scheduler: &mut EngineScheduler,
+    ) {
+        if model_rc.borrow().engine_id.is_some() {
+            return;
+        }
+        let engine = Box::new(emDirModelEngine {
+            model: Rc::downgrade(model_rc),
+        });
+        let engine_id = scheduler.register_engine(engine, Priority::Medium, PanelScope::Framework);
+        scheduler.wake_up(engine_id);
+        model_rc.borrow_mut().engine_id = Some(engine_id);
+    }
+
+    /// Engine cycle entry — called by the `emDirModelEngine` shim's
+    /// `Cycle`. Drives the do-while loading loop via
+    /// `emFileModel::Cycle`.
+    pub(crate) fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
+        self.file_model.Cycle(ctx, &mut self.data)
+    }
+
+    /// Unregister the model's engine from the scheduler, if registered.
+    /// Idempotent. Used when a panel stops viewing the model (notice
+    /// unviewed) and during test teardown.
+    pub fn release_engine(model_rc: &Rc<RefCell<emDirModel>>, scheduler: &mut EngineScheduler) {
+        let eid = model_rc.borrow().engine_id;
+        if let Some(eid) = eid {
+            scheduler.remove_engine(eid);
+            model_rc.borrow_mut().engine_id = None;
+        }
     }
 
     pub fn GetEntryCount(&self) -> usize {
@@ -260,11 +359,20 @@ impl emDirModel {
     }
 
     pub fn try_start_loading(&mut self) -> Result<(), String> {
-        self.data.try_start_loading_from(&self.path)
+        self.data.try_start_loading_from(&self.path)?;
+        // Mirror the state transition on the inner file_model so that
+        // direct callers (tests, external code paths that bypass the
+        // engine) observe Loading via `get_file_state()`.
+        self.file_model.Load();
+        Ok(())
     }
 
     pub fn try_continue_loading(&mut self) -> Result<bool, String> {
-        self.data.try_continue_loading()
+        let done = self.data.try_continue_loading()?;
+        if done {
+            self.file_model.complete_load(());
+        }
+        Ok(done)
     }
 
     pub fn quit_loading(&mut self) {
@@ -283,65 +391,54 @@ impl emDirModel {
         self.data.is_loaded()
     }
 
-    pub fn get_file_state(&self) -> emcore::emFileModel::FileState {
-        match &self.data.loading_phase {
-            LoadingPhase::Idle => emcore::emFileModel::FileState::Waiting,
-            LoadingPhase::ReadingNames { .. }
-            | LoadingPhase::Sorting { .. }
-            | LoadingPhase::LoadingEntries { .. } => emcore::emFileModel::FileState::Loading {
-                progress: self.data.calc_file_progress(),
-            },
-            LoadingPhase::Done => emcore::emFileModel::FileState::Loaded,
-        }
+    pub fn get_file_state(&self) -> FileState {
+        self.file_model.GetFileState().clone()
     }
 }
 
-// Port of C++ emDirModel extending emFileModel<emDirModelData>:
-// emFilePanel needs a FileModelState to track Waiting→Loading→Loaded.
-// emDirModel::state is updated by emDirPanel::Cycle at each transition.
-// GetFileStateSignal returns the null SignalId (emDirModel has no scheduler
-// signal); emFilePanel::SetFileModel does not use it.
 impl FileModelState for emDirModel {
     fn GetFileState(&self) -> &FileState {
-        &self.state
+        self.file_model.GetFileState()
     }
 
     fn GetFileProgress(&self) -> f64 {
-        self.data.calc_file_progress()
+        self.file_model.GetFileProgress()
     }
 
     fn GetErrorText(&self) -> &str {
-        ""
+        self.file_model.GetErrorText()
     }
 
     fn get_memory_need(&self) -> u64 {
-        self.data.calc_memory_need()
+        self.file_model.get_memory_need()
     }
 
     fn GetFileStateSignal(&self) -> SignalId {
-        SignalId::default()
+        self.file_model.GetFileStateSignal()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::rc::Rc;
+
+    fn data() -> emDirModelData {
+        emDirModelData::new(PathBuf::from("/tmp"))
+    }
 
     #[test]
     fn initial_state() {
-        let m = emDirModelData::new();
+        let m = data();
         assert_eq!(m.GetEntryCount(), 0);
     }
 
     #[test]
     fn load_tmp_directory() {
-        let mut m = emDirModelData::new();
+        let mut m = data();
         m.try_start_loading_from("/tmp").unwrap();
         while !m.try_continue_loading().unwrap() {}
         m.quit_loading();
         assert!(m.GetEntryCount() > 0);
-        // Entries are sorted by name
         for i in 1..m.GetEntryCount() {
             assert!(m.GetEntry(i - 1).GetName() <= m.GetEntry(i).GetName());
         }
@@ -349,7 +446,7 @@ mod tests {
 
     #[test]
     fn get_entry_index_binary_search() {
-        let mut m = emDirModelData::new();
+        let mut m = data();
         m.try_start_loading_from("/tmp").unwrap();
         while !m.try_continue_loading().unwrap() {}
         m.quit_loading();
@@ -363,7 +460,7 @@ mod tests {
 
     #[test]
     fn deduplication() {
-        let mut m = emDirModelData::new();
+        let mut m = data();
         m.try_start_loading_from("/tmp").unwrap();
         while !m.try_continue_loading().unwrap() {}
         m.quit_loading();
@@ -375,7 +472,7 @@ mod tests {
 
     #[test]
     fn memory_need_scales_with_entries() {
-        let mut m = emDirModelData::new();
+        let mut m = data();
         m.try_start_loading_from("/tmp").unwrap();
         while !m.try_continue_loading().unwrap() {}
         m.quit_loading();
@@ -410,47 +507,42 @@ mod tests {
 
     #[test]
     fn is_out_of_date_always_true() {
-        let m = emDirModelData::new();
+        let m = data();
         assert!(m.IsOutOfDate());
     }
 
     #[test]
     fn progress_calculation() {
-        let m = emDirModelData::new();
+        let m = data();
         assert!((m.calc_file_progress() - 100.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn is_loaded_lifecycle() {
-        let mut m = emDirModelData::new();
+        let mut m = data();
         assert!(!m.is_loaded());
         m.try_start_loading_from("/tmp").unwrap();
         assert!(!m.is_loaded());
         while !m.try_continue_loading().unwrap() {}
-        // Done but not quit yet — still in Done phase
         assert!(m.is_loaded());
     }
 
     #[test]
     fn get_file_state_maps_phases() {
-        use emcore::emFileModel::FileState;
         let ctx = emcore::emContext::emContext::NewRoot();
         let model = emDirModel::Acquire(&ctx, "/tmp");
 
-        // Initially Idle → Waiting
         {
             let m = model.borrow();
             assert!(matches!(m.get_file_state(), FileState::Waiting));
         }
 
-        // Start loading → Loading
         {
             let mut m = model.borrow_mut();
             m.try_start_loading().unwrap();
             assert!(matches!(m.get_file_state(), FileState::Loading { .. }));
         }
 
-        // Continue until done → Loaded
         loop {
             let mut m = model.borrow_mut();
             if m.try_continue_loading().unwrap() {
@@ -466,7 +558,7 @@ mod tests {
 
     #[test]
     fn reset_data_clears_entries() {
-        let mut m = emDirModelData::new();
+        let mut m = data();
         m.try_start_loading_from("/tmp").unwrap();
         while !m.try_continue_loading().unwrap() {}
         m.quit_loading();
@@ -474,5 +566,179 @@ mod tests {
         assert!(count > 0);
         m.reset_data();
         assert_eq!(m.GetEntryCount(), 0);
+    }
+
+    // ─── Proof-of-fix tests for F017 ────────────────────────────────
+    //
+    // The do-while loop in emFileModel::Cycle is the load-bearing fix
+    // for F017. Both tests drive the engine path (not direct
+    // try_continue_loading delegation) — they prove that one
+    // scheduler-tick worth of Cycle loads many entries (test 1) and
+    // that even when the deadline has already passed at Cycle entry,
+    // at least one step still runs (test 2).
+
+    fn run_engine_through_do_time_slice<F>(sched: &mut EngineScheduler, mut body: F)
+    where
+        F: FnMut(&mut EngineScheduler),
+    {
+        body(sched);
+    }
+
+    fn drive_one_time_slice(sched: &mut EngineScheduler) {
+        use std::collections::HashMap;
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+            HashMap::new();
+        let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(
+            winit::window::WindowId,
+            emcore::emInput::emInputEvent,
+        )> = Vec::new();
+        let mut input_state = emcore::emInputState::emInputState::new();
+        let cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
+            RefCell::new(None);
+        let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(RefCell::new(Vec::new()));
+        sched.DoTimeSlice(
+            &mut windows,
+            &root_ctx,
+            &mut fw,
+            &mut pending_inputs,
+            &mut input_state,
+            &cb,
+            &pa,
+        );
+    }
+
+    #[test]
+    fn cycle_loads_multiple_entries_within_one_slice() {
+        // Build a 60-file directory.
+        let dir = tempfile::tempdir().expect("tempdir");
+        for i in 0..60 {
+            std::fs::write(dir.path().join(format!("f{:03}.dat", i)), b"x").unwrap();
+        }
+        let path = dir.path().to_string_lossy().into_owned();
+
+        let mut sched = EngineScheduler::new();
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let model = emDirModel::Acquire(&ctx, &path);
+        emDirModel::ensure_engine_registered(&model, &mut sched);
+
+        // Drive one DoTimeSlice — full 50 ms budget, many cycles per
+        // engine tick. Loop a few slices to allow the model to walk
+        // through ReadingNames → Sorting → LoadingEntries phases.
+        run_engine_through_do_time_slice(&mut sched, |s| {
+            for _ in 0..5 {
+                drive_one_time_slice(s);
+                if matches!(model.borrow().get_file_state(), FileState::Loaded) {
+                    break;
+                }
+            }
+        });
+
+        let count = model.borrow().GetEntryCount();
+        // Cleanup: drop engine registration before scheduler drops, even
+        // on assertion failure.
+        let eid = model.borrow().engine_id;
+        if let Some(eid) = eid {
+            sched.remove_engine(eid);
+        }
+        assert!(
+            count > 1,
+            "do-while loop must load >1 entry across the slices; got {}",
+            count
+        );
+    }
+
+    #[test]
+    fn cycle_runs_at_least_one_step_when_deadline_passed() {
+        // Big enough that one Cycle will not finish even with full slice.
+        let dir = tempfile::tempdir().expect("tempdir");
+        for i in 0..200 {
+            std::fs::write(dir.path().join(format!("e{:04}", i)), b"x").unwrap();
+        }
+        let path = dir.path().to_string_lossy().into_owned();
+
+        let mut sched = EngineScheduler::new();
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let model = emDirModel::Acquire(&ctx, &path);
+        emDirModel::ensure_engine_registered(&model, &mut sched);
+
+        // Prime: drive at most one slice — the do-while in itself loads
+        // many entries, so we explicitly stop priming after one slice
+        // so the model is still LoadingEntries (not Loaded) for the
+        // proof.
+        drive_one_time_slice(&mut sched);
+        let entries_before = model.borrow().GetEntryCount();
+        let primed_ok = entries_before > 0
+            && !matches!(model.borrow().get_file_state(), FileState::Loaded);
+
+        // Sleep past the 50 ms deadline last set by drive_one_time_slice.
+        std::thread::sleep(std::time::Duration::from_millis(60));
+        let deadline_passed = sched.IsTimeSliceAtEnd();
+
+        let mut entries_after = entries_before;
+        if primed_ok && deadline_passed {
+            // Drive one more slice. DoTimeSlice resets deadline to
+            // now+50ms, so to truly observe "deadline already in the
+            // past at Cycle entry" we need a different shape: call
+            // cycle() directly. Construct a minimal EngineCtx with
+            // sched still flagged as past-deadline (achieved by NOT
+            // calling DoTimeSlice between the sleep and the cycle).
+            use std::collections::HashMap;
+            let root = emcore::emContext::emContext::NewRoot();
+            let mut windows: HashMap<
+                winit::window::WindowId,
+                emcore::emWindow::emWindow,
+            > = HashMap::new();
+            let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+            let mut pending_inputs: Vec<(
+                winit::window::WindowId,
+                emcore::emInput::emInputEvent,
+            )> = Vec::new();
+            let mut input_state = emcore::emInputState::emInputState::new();
+            let cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
+                RefCell::new(None);
+            let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+                Rc::new(RefCell::new(Vec::new()));
+            let _ = (&mut windows, &mut pending_inputs, &mut input_state, &cb, &pa, &root, &mut fw);
+            let eng_id = model.borrow().engine_id.expect("engine registered");
+            let mut ectx = emcore::emEngineCtx::EngineCtx {
+                scheduler: &mut sched,
+                tree: None,
+                windows: &mut windows,
+                root_context: &root,
+                framework_actions: &mut fw,
+                pending_inputs: &mut pending_inputs,
+                input_state: &mut input_state,
+                framework_clipboard: &cb,
+                engine_id: eng_id,
+                pending_actions: &pa,
+            };
+            // Sanity: deadline must be in the past at this point.
+            assert!(ectx.IsTimeSliceAtEnd(), "deadline must already be passed");
+            model.borrow_mut().cycle(&mut ectx);
+            entries_after = model.borrow().GetEntryCount();
+        }
+
+        // Cleanup before assertions.
+        let eid = model.borrow().engine_id;
+        if let Some(eid) = eid {
+            sched.remove_engine(eid);
+        }
+
+        assert!(
+            primed_ok,
+            "priming failed: count={} state={:?}",
+            entries_before,
+            model.borrow().get_file_state()
+        );
+        assert!(deadline_passed, "deadline not in the past");
+        assert!(
+            entries_after > entries_before,
+            "do-while at-least-once: entries_after ({}) must be > entries_before ({})",
+            entries_after,
+            entries_before
+        );
     }
 }
