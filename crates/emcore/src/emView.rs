@@ -3315,6 +3315,20 @@ impl emView {
         }
     }
 
+    /// Wake the scheduler-registered `VisitingVAEngineClass` so its
+    /// `Cycle` runs in the current/next time slice and observes
+    /// `VisitingVA.is_active()`. Mirror of `WakeUpUpdateEngine`.
+    ///
+    /// Port of the `WakeUp()` call inside C++ `emViewAnimator::Activate`
+    /// (emViewAnimator.cpp:81). The Rust port splits the animator from
+    /// its engine, so the wake cannot live inside `Activate()` itself —
+    /// the Visit-family methods (`emView::Visit*`) own the wake.
+    pub fn wake_visiting_va_engine(&mut self, ctx: &mut crate::emEngineCtx::SchedCtx<'_>) {
+        if let Some(id) = self.visiting_va_engine_id {
+            ctx.wake_up(id);
+        }
+    }
+
     /// Borrow the visiting view animator for inspection.
     /// Exposes `VisitingVA` to cross-crate callers (e.g. integration tests)
     /// without making the field itself `pub`. C++ field is private; this
