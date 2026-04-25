@@ -7488,6 +7488,103 @@ mod tests {
         }
     }
 
+    /// F010: `VisitByIdentityBare` must wake the wrapper engine so the
+    /// animator advances on the next time slice without a manual
+    /// `scheduler.wake_up` call. Mirrors C++ `emViewAnimator::Activate →
+    /// WakeUp()` (emViewAnimator.cpp:81). At baseline this test FAILS
+    /// because `Activate()` only flips a flag.
+    #[test]
+    fn visit_by_identity_bare_wakes_wrapper_engine() {
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        let view_rc = Rc::new(RefCell::new(emView::new(
+            crate::emContext::emContext::NewRoot(),
+            root,
+            800.0,
+            600.0,
+        )));
+        let sched = Rc::new(RefCell::new(EngineScheduler::new()));
+        let scope = crate::emPanelScope::PanelScope::Toplevel(winit::window::WindowId::dummy());
+        let pa: std::rc::Rc<
+            std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>,
+        > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+
+        // Register engines (sleeps the visiting engine).
+        {
+            let mut v = view_rc.borrow_mut();
+            let root_ctx = v.Context.GetRootContext();
+            let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+            let mut s = sched.borrow_mut();
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: &mut s,
+                framework_actions: &mut fw,
+                root_context: &root_ctx,
+                framework_clipboard: &cb,
+                current_engine: None,
+                pending_actions: &pa,
+            };
+            v.RegisterEngines(&mut sc, &mut tree, scope);
+        }
+
+        // Drive a programmatic visit through the public API. NO manual
+        // wake_up — Activate must take care of it.
+        // Note: 3-arg form here; Task 3 will add &mut sc as the 4th arg
+        // when VisitByIdentityBare's signature gains it.
+        view_rc
+            .borrow_mut()
+            .VisitByIdentityBare("root", false, "test-subject");
+
+        // Capture observable state BEFORE asserting, so cleanup can run
+        // even on assertion failure (avoids panic-in-destructor SIGABRT
+        // from EngineScheduler::drop when the bug is present).
+        let animator_active = view_rc.borrow().VisitingVA.borrow().is_active();
+        let visiting_id = view_rc
+            .borrow()
+            .visiting_va_engine_id
+            .expect("RegisterEngines must register VisitingVAEngineClass");
+        let engine_awake = sched.borrow().is_engine_awake(visiting_id);
+
+        // Cleanup: tear down registered engines so the EngineScheduler's
+        // Drop assertions don't trip. Mirrors cleanup in
+        // `visiting_va_cycles_when_activated`. Done before the asserts
+        // below so a failing assert produces a clean test failure.
+        {
+            let mut v = view_rc.borrow_mut();
+            if let Some(id) = v.update_engine_id.take() {
+                sched.borrow_mut().remove_engine(id);
+            }
+            if let Some(id) = v.eoi_engine_id.take() {
+                sched.borrow_mut().remove_engine(id);
+            }
+            if let Some(id) = v.visiting_va_engine_id.take() {
+                sched.borrow_mut().remove_engine(id);
+            }
+            if let Some(sig) = v.EOISignal.take() {
+                sched.borrow_mut().remove_signal(sig);
+            }
+        }
+
+        // Animator must be active and queued for the next slice.
+        assert!(
+            animator_active,
+            "animator should be active after VisitByIdentityBare",
+        );
+
+        // Critical: the wrapper engine specifically must be in the
+        // scheduler's wake queue. The bug at HEAD is precisely that it is
+        // NOT — RegisterEngines wakes the UpdateEngine, so generic
+        // "is_idle / has_awake_engines" checks pass trivially. We must
+        // assert specifically about visiting_va_engine_id.
+        assert!(
+            engine_awake,
+            "F010: VisitingVAEngineClass (id={:?}) must be queued after VisitByIdentityBare; \
+             Activate failed to wake it",
+            visiting_id,
+        );
+    }
+
     #[test]
     fn visiting_va_owned_by_view() {
         // W4 Phase 1: emView holds VisitingVA matching C++ emView.h:675

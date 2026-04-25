@@ -785,6 +785,17 @@ impl EngineScheduler {
         }
     }
 
+    /// Test helper: returns true iff the given engine is currently queued
+    /// to run in some wake queue. Used by F010 regression tests to assert
+    /// that a specific engine — not just *some* engine — was woken.
+    pub fn is_engine_awake(&self, id: EngineId) -> bool {
+        self.inner
+            .engines
+            .get(id)
+            .map(|eng| eng.awake_state >= 0)
+            .unwrap_or(false)
+    }
+
     /// Attach a first-cycle slice probe to a registered `PanelCycleEngine`.
     /// Used by SP4.5-FIX-1 timing fixtures (Tasks 5-7).
     pub fn attach_first_cycle_probe(
