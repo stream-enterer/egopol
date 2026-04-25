@@ -13,6 +13,7 @@ fn spawn_and_connect() -> (Child, UnixStream) {
     let mut child = Command::new("cargo")
         .args(["run", "--bin", "eaglemode", "--quiet"])
         .env("EMCORE_DEBUG_CONTROL", "1")
+        .env("EMCORE_DLOG", "1")
         .spawn()
         .expect("spawn eaglemode");
     let pid = child.id();

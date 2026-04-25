@@ -595,6 +595,22 @@ impl PanelTree {
         self.panel_engine_id(id)
     }
 
+    /// Wake the `PanelCycleEngine` adapter registered for `id`, if any.
+    /// Production-callable counterpart to the test-only
+    /// `panel_engine_id_pub`. Used by callers that mutate panel-owned
+    /// state (e.g. installing an `active_animator` on an `emSubViewPanel`)
+    /// outside of a `Cycle` callback and need the panel's cycle to fire
+    /// next slice.
+    pub fn wake_panel_cycle_engine(
+        &self,
+        id: PanelId,
+        scheduler: &mut crate::emScheduler::EngineScheduler,
+    ) {
+        if let Some(eid) = self.panel_engine_id(id) {
+            scheduler.wake_up(eid);
+        }
+    }
+
     /// Set the seek-position state (panel + child name) directly.
     /// Test-support only — bypasses `emView::VisitPath` so headless tests can
     /// set `is_seek_target()` without a live view animator.

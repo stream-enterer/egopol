@@ -50,3 +50,102 @@ The implementation pass should:
    - Capture new tree dump.
 
    Expect: inner content view's `Current XYWH` ≠ `Home XYWH`, cosmos panel `Viewed: yes` and `PaintCount > 0`. Then zooming further should walk into a directory listing without the long "Loading NN%" / blank end-state — because animator-driven zoom adjustments (focus follow, fullsized snap) will now actually run.
+
+---
+
+## Phase 5 addendum (2026-04-25) — Second root cause
+
+The Phase 4 wake fix (Visit* methods now call `wake_visiting_va_engine`)
+landed and was necessary, but did NOT resolve F010's user-visible
+symptom. A second, distinct cause was found and fixed.
+
+### Second root-cause chain
+
+7. **Symptom (E5.1, runtime):** Post-Phase-4 e2e
+   `f010_subview_dump_nests_under_home_view_context` still failed —
+   `dump.contains("emDirPanel")` assertion. Cosmos still `Viewed: no,
+   PaintCount: 0`. Inner content view never zoomed to cosmos.
+
+8. **Direct cause (code, `crates/emmain/src/emMainWindow.rs:611-628`):**
+   `StartupEngine` state 7 — the framework-startup zoom-to-cosmos —
+   constructs an `emVisitingViewAnimator`, calls `SetAnimated(false)`
+   and `SetGoalFullsized(":", false, false, "")`, then stuffs the
+   animator into `svp.active_animator`. **It does NOT call
+   `animator.Activate()`.** `SetGoalFullsized` only sets
+   `state = Curve` via `activate_goal`; it does NOT set
+   `self.active = true` (that is `Activate()`'s job —
+   `emViewAnimator.rs:493` for the trait base, `:896` for the
+   visiting variant).
+
+9. **Effect:** When `SVP::Cycle` (`emSubViewPanel.rs:464-528`)
+   eventually runs, `anim.animate(...)` early-returns at
+   `if !self.active { return false; }` (`emViewAnimator.rs:2117`).
+   The animator is dropped (not put back), `animator_active = false`,
+   `SVP::Cycle` returns `keep_awake = false`, the engine sleeps.
+   Cosmos never zooms. emVirtualCosmosPanel auto-expand never fires
+   (it only triggers when cosmos is viewed). No "home"/"work" panels.
+   No emDirPanel. Blank.
+
+10. **Wake gap:** Even if `Activate()` flips `self.active = true`,
+    `SVP::Cycle` itself must run for the animator to tick. The
+    SVP's `PanelCycleEngine` adapter is registered with the outer
+    scheduler, but installing `svp.active_animator = Some(...)` does
+    NOT wake it. C++ collapses these two roles (animator IS engine,
+    so `Activate → WakeUp` wakes the cycle); Rust splits them, so
+    the wake must be issued explicitly.
+
+11. **C++ reference (`emMainWindow.cpp:423-432`):**
+    ```cpp
+    case 7:
+        VisitingVA=new emVisitingViewAnimator(MainWin.MainPanel->GetContentView());
+        VisitingVA->SetAnimated(false);
+        VisitingVA->SetGoalFullsized(":",false);
+        VisitingVA->Activate();   // <-- omitted in Rust port
+        ...
+    ```
+    State 9 (`-visit` CLI arg) had the same omission
+    (`emMainWindow.cpp:439-454`).
+
+### Fix
+
+Two-part change in `crates/emmain/src/emMainWindow.rs`:
+
+1. After `SetGoalFullsized(":")` (state 7) and after `SetGoalCoords(...)`
+   (state 9), call `animator.Activate()` to mirror the C++ flow.
+
+2. After installing the animator on `svp.active_animator`, call
+   `tree.wake_panel_cycle_engine(svp_id, ctx.scheduler)` to schedule
+   `SVP::Cycle` for the next slice. C++ does not need this because
+   `Activate` wakes the animator's own engine; Rust splits them, so
+   the host engine wake is explicit.
+
+A small new public helper `PanelTree::wake_panel_cycle_engine`
+(production counterpart to the test-only `panel_engine_id_pub`)
+exposes the wake without leaking `EngineId` internals.
+
+### Verification
+
+- `cargo check`, `cargo clippy -- -D warnings`, `cargo-nextest ntr` —
+  all green (2791/2791).
+- Instrumented e2e capture (`/tmp/F010_dlog_after_wake.stderr`) shows
+  the inner sub-view animator now activates and `animate` runs:
+  `VisitingVA::animate id=: state=Curve nep.depth=1 ...` and
+  `active panel changed to PanelId(2v1)` (cosmos). Pre-fix this
+  trace was absent.
+- Manual GUI verification still required (issue `repro = launch app,
+  navigate into cosmos`). Status set to `needs-manual-verification`.
+
+### What this does NOT address
+
+- The e2e test `f010_subview_dump_nests_under_home_view_context`
+  asserts that `dump` contains `emDirPanel` after sending
+  `visit view="root:content view" identity="::home"`. That visit's
+  `resolve_identity` fails today because `home` is not a child of
+  cosmos at the time of the visit — emVirtualCosmosPanel only
+  auto-expands its children once cosmos becomes Viewed, which the
+  test does not wait for. Updating the test to wait for cosmos
+  auto-expansion (or to send a follow-up visit after a delay) is
+  out of scope for F010 itself. The blank-listing user symptom is
+  addressed by the StartupEngine fix because the user's mouse-zoom
+  flow (which works through `RawVisit`) reaches cosmos, which then
+  auto-expands normally.

@@ -614,12 +614,28 @@ impl emEngine for StartupEngine {
                     let mut animator = emVisitingViewAnimator::new(0.0, 0.0, 0.0, 1.0);
                     animator.SetAnimated(false);
                     animator.SetGoalFullsized(":", false, false, "");
-                    ctx.tree
+                    // C++ emMainWindow.cpp:429: VisitingVA->Activate(); —
+                    // F010 root cause: the Rust port previously omitted this,
+                    // so anim.active stayed false and SVP::Cycle's
+                    // anim.animate() early-returned at `if !self.active`,
+                    // dropping the animator without ever zooming the inner
+                    // view to ":". Cosmos never became Viewed → no children
+                    // → blank directory listing.
+                    animator.Activate();
+                    let tree = ctx
+                        .tree
                         .as_deref_mut()
-                        .expect("StartupEngine: Toplevel scope")
-                        .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
-                            svp.active_animator = Some(Box::new(animator));
-                        });
+                        .expect("StartupEngine: Toplevel scope");
+                    tree.with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
+                        svp.active_animator = Some(Box::new(animator));
+                    });
+                    // C++ animator-IS-engine: Activate() implicitly wakes
+                    // the engine that drives Cycle. Rust splits these — the
+                    // animator lives on svp.active_animator, but the engine
+                    // that ticks it is the SVP's PanelCycleEngine in the
+                    // outer scheduler. Wake it explicitly so SVP::Cycle
+                    // runs next slice and dispatches anim.animate().
+                    tree.wake_panel_cycle_engine(svp_id, ctx.scheduler);
                 }
                 self.clock = std::time::Instant::now();
                 self.state += 1;
@@ -653,10 +669,12 @@ impl emEngine for StartupEngine {
             // (C++ emMainWindow.cpp:439-454).
             9 => {
                 if let Some(svp_id) = self.content_svp_id {
-                    ctx.tree
+                    let mut installed = false;
+                    let tree = ctx
+                        .tree
                         .as_deref_mut()
-                        .expect("StartupEngine: Toplevel scope")
-                        .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
+                        .expect("StartupEngine: Toplevel scope");
+                    tree.with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
                             if let Some(ref mut anim) = svp.active_animator {
                                 anim.stop();
                             }
@@ -671,9 +689,17 @@ impl emEngine for StartupEngine {
                                     self.visit_adherent,
                                     &self.visit_subject,
                                 );
+                                // C++ emMainWindow.cpp:450: VisitingVA->Activate();
+                                // — same omission as state 7. Required for the
+                                // -visit CLI arg path to actually visit.
+                                animator.Activate();
                                 svp.active_animator = Some(Box::new(animator));
+                                installed = true;
                             }
                         });
+                    if installed {
+                        tree.wake_panel_cycle_engine(svp_id, ctx.scheduler);
+                    }
                 }
                 self.clock = std::time::Instant::now();
                 self.state += 1;

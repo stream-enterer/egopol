@@ -268,7 +268,7 @@
     {
       "id": "F010",
       "kind": "fix",
-      "status": "investigating",
+      "status": "needs-manual-verification",
       "priority": "high",
       "title": "Directory listing loads slowly and renders blank after long 'Loading NN%' phase",
       "description": "Prior fix (theme-name validation in emFileManConfig::Acquire) changed the symptom from 'always black' to 'loads eventually, badly'. Current runtime behaviour (verified 2026-04-24): (1) zooming into a directory shows a 'Loading NN%' progress indicator for a very long time for each directory, then the interior comes up blank rather than populated with entries; (2) /root shows a red 'Failed to open directory /root' box (permission-denied \u2014 may be expected for a normal-user run, but the red error style and sizing bear checking against C++); (3) many other directories show 'This file type cannot be shown' red boxes inside entries (also likely expected emCore behaviour for unrenderable file types, but worth confirming against the C++ reference). The core remaining bug is (1): loading takes long and lands on blank instead of the expected directory listing.",
@@ -276,12 +276,12 @@
       "caused_by": null,
       "introduced_commit": null,
       "introduced_date": "2026-04-23",
-      "fix_note": "Phase 4 (animator wake) shipped 2026-04-25 on branch f010-visiting-va-wakeup (HEAD a0764de2). Plumbed SchedCtx through emView::Visit* and 11 nav helpers; emView::wake_visiting_va_engine now mirrors C++ emViewAnimator::Activate's WakeUp(). Unit test visit_by_identity_bare_wakes_wrapper_engine confirms VisitingVAEngineClass is queued after Activate. **Symptom NOT resolved by this fix alone**: ignored e2e test f010_subview_dump_nests_under_home_view_context (crates/eaglemode/tests/subview_dump_integration.rs:46) still fails after the visit sequence \u2014 binary spins at ~98% CPU during the second wait_idle, post-visit dump contains no emDirPanel rec. Remaining blocker is downstream of Activate-wakes-engine; candidates: (a) sub-view-routed VisitFullsized via emCtrlSocket::handle_visit hits the inner view but its scheduler isn't reached by the wake call (the resolve_target SchedCtx is built from outer App\u2014may be wrong scope for sub-view animator); (b) the wake enters a livelock where VisitingVAEngineClass::Cycle wakes itself indefinitely without progress (consistent with 8-min 98% CPU); (c) emDirPanel auto-expansion still doesn't trigger after the visit completes. Phase 5 needs to instrument the post-Phase-4 binary. Earlier debug capture in this branch (commit d65be996, scratchpad) showed VisitPanel on a sub-view appearing to be a no-op even before this fix \u2014 worth re-verifying now. Phase 3 root-cause analysis: emVisitingViewAnimator::Activate (emViewAnimator.rs:896-898) only sets self.active=true and does NOT wake VisitingVAEngineClass. C++ emViewAnimator::Activate (emViewAnimator.cpp:81) calls WakeUp(). Phase 4 fixed this. See investigations/F010.md.",
+      "fix_note": "Two-part fix: Phase 4 wired SchedCtx through Visit* methods to wake the wrapper animator engine on Activate. Phase 5 (root cause): emMainWindow StartupEngine state 7 (and state 9) was missing animator.Activate() after SetGoalFullsized/SetGoalCoords, plus needs explicit wake of the SVP PanelCycleEngine since Rust splits animator from engine (C++ collapses them via WakeUp). See F010-root-cause.md Phase 5 addendum.",
       "investigation_file": "docs/debug/investigations/F010.md",
       "root_cause_file": "docs/debug/investigations/F010-root-cause.md",
       "blocked_question": null,
-      "fixed_in_commit": null,
-      "fixed_date": null,
+      "fixed_in_commit": "PENDING",
+      "fixed_date": "2026-04-25",
       "repro": "Launch app. Navigate into cosmos. Zoom into the File System or Home panel. Observe 'Loading NN%' for each directory taking a very long time; when it completes, the interior renders blank. Navigating into /root yields a red 'Failed to open directory /root: Permission denied' box; several directories show 'This file type cannot be shown' red boxes for entries."
     },
     {
