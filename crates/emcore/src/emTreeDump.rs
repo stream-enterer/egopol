@@ -149,6 +149,54 @@ pub(crate) fn set_children(rec: &mut RecStruct, children: Vec<RecValue>) {
 /// The Rust port does not unify panels with engines, so this field is
 /// omitted rather than rendered as a misleading placeholder. If a
 /// future task wires panel-as-engine, add the line back here.
+/// RUST_ONLY: (language-forced-utility)
+///
+/// Map of `Rc::as_ptr(emContext) → (&emView, &PanelTree)` built by a
+/// single panel-tree walk. C++ uses `dynamic_cast<emView*>(ctx)` inside
+/// the context cascade to discover which contexts belong to views; Rust
+/// composition has no equivalent cast, and the Rust port's `emView` is
+/// not `Rc`'d (it's owned directly by `Window` / `emSubViewPanel`), so
+/// a back-pointer on `emContext` is not feasible. Panel-side discovery
+/// substitutes: walk each view's panel tree, and wherever an
+/// `emSubViewPanel` appears, recurse into its inner view/tree.
+///
+/// Keys are raw pointer addresses (`Rc::as_ptr`) — used only for
+/// equality comparison, never dereferenced.
+// TEMP: `pub` (not `pub(crate)`) — no non-test callers land until Phase
+// 3's `dump_context_with_cascade`. The plan tightens visibility back to
+// `pub(crate)` at that point. `pub(crate)` trips `dead_code` because
+// `#[cfg(test)]`-only uses don't count for the lib build.
+pub type ViewMap<'a> = std::collections::HashMap<
+    *const crate::emContext::emContext,
+    (&'a crate::emView::emView, &'a crate::emPanelTree::PanelTree),
+>;
+
+/// Recursively walk `view`'s panel tree; for every `emSubViewPanel`
+/// found, descend into its sub-view/sub-tree. Keys the resulting map by
+/// each view's context pointer.
+// TEMP: `pub` for the same reason as `ViewMap`. Tightened in Phase 3.
+pub fn collect_views<'a>(
+    view: &'a crate::emView::emView,
+    tree: &'a crate::emPanelTree::PanelTree,
+) -> ViewMap<'a> {
+    let mut map = ViewMap::new();
+    collect_into(view, tree, &mut map);
+    map
+}
+
+fn collect_into<'a>(
+    view: &'a crate::emView::emView,
+    tree: &'a crate::emPanelTree::PanelTree,
+    out: &mut ViewMap<'a>,
+) {
+    out.insert(std::rc::Rc::as_ptr(view.GetContext()), (view, tree));
+    for pid in tree.panel_ids() {
+        if let Some(svp) = tree.behavior(pid).and_then(|b| b.as_sub_view_panel()) {
+            collect_into(&svp.sub_view, svp.sub_tree(), out);
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn dump_panel(
     tree: &mut PanelTree,
@@ -1367,5 +1415,223 @@ mod tests {
         for (state, expected) in &cases {
             assert_eq!(FileStateLabel::from(state), *expected, "state {:?}", state);
         }
+    }
+}
+
+#[cfg(test)]
+mod collect_views_tests {
+    use super::*;
+    use crate::emContext::emContext;
+    use crate::emPanelTree::PanelTree;
+    use crate::emSubViewPanel::emSubViewPanel;
+    use crate::emView::emView;
+    use std::rc::Rc;
+
+    /// Shared scaffolding: context, scheduler, window id.
+    fn fixture_base() -> (
+        Rc<emContext>,
+        Rc<emContext>,
+        crate::emScheduler::EngineScheduler,
+        winit::window::WindowId,
+    ) {
+        let root_ctx = emContext::NewRoot();
+        let home_ctx = emContext::NewChild(&root_ctx);
+        let sched = crate::emScheduler::EngineScheduler::new();
+        let wid = winit::window::WindowId::dummy();
+        (root_ctx, home_ctx, sched, wid)
+    }
+
+    /// Recursively tear down a tree: for every emSubViewPanel, drain its
+    /// sub_view's scheduler-registered engines/signals, recursively tear
+    /// down its sub_tree, then remove the slot. Finally remove the root.
+    /// Mirrors `SvpTestHarness::teardown` from emSubViewPanel.rs.
+    fn teardown_tree(
+        mut tree: PanelTree,
+        sched: &mut crate::emScheduler::EngineScheduler,
+    ) {
+        let Some(root) = tree.GetRootPanel() else { return };
+        // Collect all SVP slot ids by walking.
+        fn collect_svp_ids(tree: &PanelTree, out: &mut Vec<crate::emPanelTree::PanelId>) {
+            for pid in tree.panel_ids() {
+                if let Some(svp) = tree.behavior(pid).and_then(|b| b.as_sub_view_panel()) {
+                    out.push(pid);
+                    collect_svp_ids(svp.sub_tree(), out);
+                }
+            }
+        }
+        let mut svp_ids = Vec::new();
+        collect_svp_ids(&tree, &mut svp_ids);
+
+        // Tear down each SVP (deepest first not required since we extract
+        // and re-set behavior individually).
+        for pid in svp_ids {
+            tree.with_behavior_as::<emSubViewPanel, _>(pid, |svp| {
+                // Recursively clean nested sub_tree's SVPs first.
+                let sub_root = svp.sub_tree().GetRootPanel();
+                if let Some(sr) = sub_root {
+                    // Collect nested SVP ids in the sub_tree and tear them
+                    // down. We can't recurse into teardown_tree because we
+                    // hold &mut svp here — inline minimal cleanup.
+                    let mut nested = Vec::new();
+                    collect_svp_ids(svp.sub_tree(), &mut nested);
+                    for npid in nested {
+                        svp.sub_tree_mut()
+                            .with_behavior_as::<emSubViewPanel, _>(npid, |nsvp| {
+                                if let Some(eid) = nsvp.sub_view.update_engine_id.take() {
+                                    sched.remove_engine(eid);
+                                }
+                                if let Some(eid) = nsvp.sub_view.visiting_va_engine_id.take() {
+                                    sched.remove_engine(eid);
+                                }
+                                if let Some(sig) = nsvp.sub_view.EOISignal.take() {
+                                    sched.remove_signal(sig);
+                                }
+                                let nsr = nsvp.sub_root();
+                                nsvp.sub_tree_mut().remove(nsr, Some(sched));
+                            });
+                    }
+                    svp.sub_tree_mut().remove(sr, Some(sched));
+                }
+                if let Some(eid) = svp.sub_view.update_engine_id.take() {
+                    sched.remove_engine(eid);
+                }
+                if let Some(eid) = svp.sub_view.visiting_va_engine_id.take() {
+                    sched.remove_engine(eid);
+                }
+                if let Some(sig) = svp.sub_view.EOISignal.take() {
+                    sched.remove_signal(sig);
+                }
+            });
+        }
+
+        tree.remove(root, Some(sched));
+    }
+
+    /// Install a fresh emSubViewPanel as behavior at `slot_id`, parenting
+    /// its emContext to `parent_ctx`.
+    fn install_svp(
+        tree: &mut PanelTree,
+        slot_id: crate::emPanelTree::PanelId,
+        parent_ctx: &Rc<emContext>,
+        root_ctx: &Rc<emContext>,
+        sched: &mut crate::emScheduler::EngineScheduler,
+        wid: winit::window::WindowId,
+    ) {
+        use std::cell::RefCell;
+        let svp = {
+            let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+            let cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+                RefCell::new(None);
+            let pa: Rc<RefCell<Vec<crate::emGUIFramework::DeferredAction>>> =
+                Rc::new(RefCell::new(Vec::new()));
+            let mut sc = crate::emEngineCtx::SchedCtx {
+                scheduler: sched,
+                framework_actions: &mut fw,
+                root_context: root_ctx,
+                framework_clipboard: &cb,
+                current_engine: None,
+                pending_actions: &pa,
+            };
+            emSubViewPanel::new(Rc::clone(parent_ctx), slot_id, wid, &mut sc)
+        };
+        tree.set_behavior(slot_id, Box::new(svp));
+    }
+
+    fn build_outer_with_one_subview()
+    -> (emView, PanelTree, crate::emScheduler::EngineScheduler) {
+        let (root_ctx, home_ctx, mut sched, wid) = fixture_base();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("outer_root", true);
+        tree.init_panel_view(root, None);
+        let svp_id = tree.create_child(root, "svp_slot", None);
+        install_svp(&mut tree, svp_id, &home_ctx, &root_ctx, &mut sched, wid);
+        let view = emView::new(home_ctx, root, 1.0, 1.0);
+        (view, tree, sched)
+    }
+
+    fn build_outer_with_two_subviews()
+    -> (emView, PanelTree, crate::emScheduler::EngineScheduler) {
+        let (root_ctx, home_ctx, mut sched, wid) = fixture_base();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("outer_root", true);
+        tree.init_panel_view(root, None);
+        let svp1 = tree.create_child(root, "svp1", None);
+        let svp2 = tree.create_child(root, "svp2", None);
+        install_svp(&mut tree, svp1, &home_ctx, &root_ctx, &mut sched, wid);
+        install_svp(&mut tree, svp2, &home_ctx, &root_ctx, &mut sched, wid);
+        let view = emView::new(home_ctx, root, 1.0, 1.0);
+        (view, tree, sched)
+    }
+
+    fn build_nested_subview_fixture()
+    -> (emView, PanelTree, crate::emScheduler::EngineScheduler) {
+        let (root_ctx, home_ctx, mut sched, wid) = fixture_base();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("outer_root", true);
+        tree.init_panel_view(root, None);
+        let outer_svp_id = tree.create_child(root, "outer_svp", None);
+        install_svp(&mut tree, outer_svp_id, &home_ctx, &root_ctx, &mut sched, wid);
+
+        // Drill into outer_svp's sub_tree; install a grandchild SVP there.
+        tree.with_behavior_as::<emSubViewPanel, _>(outer_svp_id, |outer_svp| {
+            let inner_ctx = Rc::clone(outer_svp.sub_view.GetContext());
+            let sub_tree = outer_svp.sub_tree_mut();
+            let sub_root = sub_tree
+                .GetRootPanel()
+                .expect("sub_tree has a root from emSubViewPanel::new");
+            let grand_svp_id = sub_tree.create_child(sub_root, "inner_svp", None);
+            install_svp(sub_tree, grand_svp_id, &inner_ctx, &root_ctx, &mut sched, wid);
+        });
+
+        let view = emView::new(home_ctx, root, 1.0, 1.0);
+        (view, tree, sched)
+    }
+
+    #[test]
+    fn no_subviews_produces_single_entry() {
+        let root_ctx = emContext::NewRoot();
+        let home_ctx = emContext::NewChild(&root_ctx);
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root", true);
+        let view = emView::new(Rc::clone(&home_ctx), root, 1.0, 1.0);
+
+        let map = collect_views(&view, &tree);
+        assert_eq!(map.len(), 1);
+        assert!(map.contains_key(&Rc::as_ptr(view.GetContext())));
+    }
+
+    #[test]
+    fn one_subview_produces_two_entries() {
+        let (view, tree, mut sched) = build_outer_with_one_subview();
+        let map = collect_views(&view, &tree);
+        let len = map.len();
+        let has_outer = map.contains_key(&Rc::as_ptr(view.GetContext()));
+        drop(map);
+        drop(view);
+        teardown_tree(tree, &mut sched);
+        assert_eq!(len, 2, "expected outer view + one inner view");
+        assert!(has_outer);
+    }
+
+    #[test]
+    fn multiple_subviews_all_mapped() {
+        let (view, tree, mut sched) = build_outer_with_two_subviews();
+        let map = collect_views(&view, &tree);
+        let len = map.len();
+        drop(map);
+        drop(view);
+        teardown_tree(tree, &mut sched);
+        assert_eq!(len, 3);
+    }
+
+    #[test]
+    fn nested_subview_recursion() {
+        let (view, tree, mut sched) = build_nested_subview_fixture();
+        let map = collect_views(&view, &tree);
+        let len = map.len();
+        drop(map);
+        drop(view);
+        teardown_tree(tree, &mut sched);
+        assert_eq!(len, 3, "outer + two levels of nested subviews");
     }
 }
