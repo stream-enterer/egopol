@@ -403,7 +403,12 @@ pub(crate) fn dump_panel(
 ///
 /// Visibility is `pub` pending wiring to real consumers (the `td!`
 /// cheat / `emCtrlSocket` `dump`) — see `dump_panel` for rationale.
-pub(crate) fn dump_view(view: &emView, tree: &PanelTree, window_focused: bool) -> RecStruct {
+pub(crate) fn dump_view(
+    view: &emView,
+    tree: &PanelTree,
+    window_focused: bool,
+    view_map: Option<&ViewMap<'_>>,
+) -> RecStruct {
     // --- Context-branch fields (C++ emView IS-A emContext). ---
     // The C++ cascade for a View first runs the Context branch (lines
     // 109-142) which emits Common/Private Models, *then* the View branch.
@@ -479,7 +484,36 @@ pub(crate) fn dump_view(view: &emView, tree: &PanelTree, window_focused: bool) -
         view_home_h,
         window_focused,
     );
-    set_children(&mut rec, vec![RecValue::Struct(panel_rec)]);
+    let mut children: Vec<RecValue> = Vec::new();
+    children.push(RecValue::Struct(panel_rec));
+
+    // Cascade into the view's emContext children when a ViewMap is
+    // available (mirrors C++ `emTreeDumpFromObject`'s emView branch
+    // appending child-context recs after the panel-tree root). View-bearing
+    // children dispatch back to dump_view; plain contexts go through
+    // dump_context_with_cascade. When view_map is None (test callers that
+    // exercise dump_view in isolation), preserve the leaf-only behavior.
+    if let Some(map) = view_map {
+        for child_ctx in view.GetContext().live_children() {
+            let ptr = std::rc::Rc::as_ptr(&child_ctx);
+            if let Some(&(child_view, child_tree)) = map.get(&ptr) {
+                children.push(RecValue::Struct(dump_view(
+                    child_view,
+                    child_tree,
+                    window_focused,
+                    Some(map),
+                )));
+            } else {
+                children.push(RecValue::Struct(dump_context_with_cascade(
+                    &child_ctx,
+                    /* is_root */ false,
+                    map,
+                )));
+            }
+        }
+    }
+
+    set_children(&mut rec, children);
     rec
 }
 
@@ -617,7 +651,7 @@ pub(crate) fn dump_context_with_cascade(
             // Known view: emit the view branch. Use the view's own
             // IsFocused() for window_focused (matches the existing
             // dump_tree shim's `self.window_focused` access pattern).
-            let view_rec = dump_view(view, tree, view.IsFocused());
+            let view_rec = dump_view(view, tree, view.IsFocused(), Some(view_map));
             children.push(RecValue::Struct(view_rec));
         } else {
             // Plain context: recurse with the same view_map.
@@ -1231,7 +1265,7 @@ mod tests {
         let ctx = crate::emContext::emContext::NewRoot();
         let view = emView::new(ctx, root, 800.0, 600.0);
 
-        let rec = dump_view(&view, &tree, false);
+        let rec = dump_view(&view, &tree, false, None);
 
         let title = rec.get_str("Title").expect("Title exists").to_string();
         assert_eq!(title, "View (Context):\nemView");
@@ -1270,7 +1304,7 @@ mod tests {
         let ctx = crate::emContext::emContext::NewRoot();
         let view = emView::new(ctx, root, 100.0, 100.0);
 
-        let rec = dump_view(&view, &tree, false);
+        let rec = dump_view(&view, &tree, false, None);
         let text = rec.get_str("Text").expect("Text").to_string();
         assert!(
             text.contains("View Flags: 0"),
@@ -1878,6 +1912,47 @@ mod collect_views_tests {
             pass_inner,
             "inner view current_frame must appear in dump:\n{}",
             text
+        );
+    }
+
+    #[test]
+    fn dump_from_root_context_with_home_cascades_into_subview_contexts() {
+        // Build outer view + one SVP. The SVP's emContext is a child of
+        // the outer view's emContext (per Phase 0). After
+        // dump_from_root_context_with_home, the outer view rec's Children
+        // must contain BOTH the panel-tree root rec AND the inner view
+        // rec — i.e. the dump text must contain ≥ 2 "View (Context):"
+        // matches.
+        //
+        // Inline the fixture like dump_shows_per_view_current_frame_for_subview
+        // so root_ctx stays alive across the dump call.
+        let root_ctx = emContext::NewRoot();
+        let home_ctx = emContext::NewChild(&root_ctx);
+        let mut sched = crate::emScheduler::EngineScheduler::new();
+        let wid = winit::window::WindowId::dummy();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("outer_root", true);
+        tree.init_panel_view(root, None);
+        let svp_id = tree.create_child(root, "svp_slot", None);
+        // Parent the inner SVP's context under the home view's context
+        // (this is the Phase 0 nesting that Phase 3's cascade must
+        // descend into via dump_view).
+        install_svp(&mut tree, svp_id, &home_ctx, &root_ctx, &mut sched, wid);
+        let view = emView::new(Rc::clone(&home_ctx), root, 1.0, 1.0);
+
+        let rec = dump_from_root_context_with_home(&root_ctx, &view, &tree);
+        let text = crate::emRecParser::write_rec_with_format(&rec, "emTreeDump");
+
+        let view_count = text.matches("View (Context):").count();
+
+        drop(view);
+        teardown_tree(tree, &mut sched);
+
+        assert!(
+            view_count >= 2,
+            "expected outer + inner view recs, got {} View (Context) matches\n---\n{}\n---",
+            view_count,
+            &text[..text.len().min(2000)]
         );
     }
 }
