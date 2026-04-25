@@ -123,8 +123,13 @@ pub(crate) fn resolve_target<R>(
             .ok_or_else(|| "no root panel".to_string())?;
         resolve_identity(&win.tree, outer_root, view_sel)?
     };
+    let svp_name = win
+        .tree
+        .name(svp_id)
+        .unwrap_or("<unnamed>")
+        .to_string();
 
-    // SAFETY-via-typing: the closure runs while the SVP behavior is taken
+    // Borrow rationale: the closure runs while the SVP behavior is taken
     // out of the tree. Its `sub_view` and `sub_tree` are owned by the
     // behavior, so the references handed to `f` are valid for the
     // closure's lifetime.
@@ -140,8 +145,8 @@ pub(crate) fn resolve_target<R>(
         })
         .ok_or_else(|| {
             format!(
-                "view selector does not refer to a sub-view panel: {}",
-                view_sel
+                "view selector '{}' resolved to panel '{}' which is not a sub-view panel",
+                view_sel, svp_name
             )
         })?;
     result
@@ -427,9 +432,11 @@ fn handle_set_focus(app: &mut App, view_sel: &str, identity: &str) -> CtrlReply 
 }
 
 fn handle_seek_to(app: &mut App, view_sel: &str, identity: &str) -> CtrlReply {
-    // TODO: seek_to currently delegates to VisitPanel for already-loaded
-    // targets. True seek semantics (lazy-load target panels via the seek
-    // engine) land as a Phase-4 follow-up.
+    // TODO: true seek semantics (lazy-loading targets via the seek
+    // engine) need `emView::VisitByIdentityBare(identity)` once the
+    // seek engine is wired to the control surface. Today this falls
+    // back to VisitPanel, which only works on already-materialized
+    // sub-trees. Same wire format; behavioral upgrade later.
     match resolve_target(app, view_sel, identity, |view, tree, target| {
         view.VisitPanel(tree, target, false);
     }) {
@@ -1316,5 +1323,40 @@ mod resolve_identity_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod resolve_target_tests {
+    /// Direct unit tests for `resolve_target` need a fully-constructed
+    /// `App` with a populated home window and at least one
+    /// `emSubViewPanel`. That fixture is heavy (winit `EventLoop`,
+    /// scheduler, full panel tree). Coverage is provided instead by:
+    ///   - JSON round-trip tests in this file, which exercise CtrlCmd
+    ///     parsing.
+    ///   - The Phase 7 integration test
+    ///     `F010_subview_dump_nests_under_home_view_context`, which
+    ///     exercises `resolve_target` end-to-end via the control
+    ///     socket.
+    /// The stubs below mark the un-covered surface explicitly so
+    /// future test additions land in the right module.
+
+    #[test]
+    #[ignore = "needs App fixture; covered by Phase 7 integration test"]
+    fn resolve_target_outer_view_default() {
+        unreachable!("see Phase 7 F010_subview_dump_nests_under_home_view_context")
+    }
+
+    #[test]
+    #[ignore = "needs App fixture; covered by Phase 7 integration test"]
+    fn resolve_target_inner_subview_returns_inner_tree() {
+        unreachable!("see Phase 7 F010_subview_dump_nests_under_home_view_context")
+    }
+
+    #[test]
+    #[ignore = "needs App fixture; covered by Phase 7 integration test"]
+    fn resolve_target_non_svp_selector_errors_with_panel_name() {
+        // Should verify Fix 1's error message shape.
+        unreachable!("see Phase 7 F010_subview_dump_nests_under_home_view_context")
     }
 }
