@@ -1376,3 +1376,83 @@ mod tests {
         assert!(mw.to_close);
     }
 }
+
+#[cfg(test)]
+mod port_topology_tests {
+    /// After `create_main_window`, every sub-view's emContext must be a
+    /// child of the home view's emContext — not a sibling under the root
+    /// context. Matches C++ `emSubViewPanel.cpp:114` and SP7 spec §3.1.
+    #[test]
+    fn sub_view_contexts_nest_under_home_view_context() {
+        use emcore::emContext::emContext;
+        use emcore::emPanelTree::PanelTree;
+        use emcore::emScheduler::EngineScheduler;
+        use emcore::emSubViewPanel::emSubViewPanel;
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        let root = emContext::NewRoot();
+        let home_view_ctx = emContext::NewChild(&root);
+
+        let mut outer_tree = PanelTree::new();
+        let outer_root = outer_tree.create_root("root", false);
+        let outer_id = outer_tree.create_child(outer_root, "slot", None);
+        let mut sched = EngineScheduler::new();
+        let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(RefCell::new(Vec::new()));
+        let wid = winit::window::WindowId::dummy();
+
+        let mut svp = {
+            let mut sc = emcore::emEngineCtx::SchedCtx {
+                scheduler: &mut sched,
+                framework_actions: &mut fw,
+                root_context: &root,
+                framework_clipboard: &cb,
+                current_engine: None,
+                pending_actions: &pa,
+            };
+            emSubViewPanel::new(Rc::clone(&home_view_ctx), outer_id, wid, &mut sc)
+        };
+
+        let sub_parent = svp
+            .sub_view
+            .GetContext()
+            .GetParentContext()
+            .expect("sub-view context must have a parent");
+        let parent_is_home = Rc::ptr_eq(&sub_parent, &home_view_ctx);
+        let parent_is_root = Rc::ptr_eq(&sub_parent, &root);
+
+        // Teardown engines/panels before scheduler Drop to avoid the
+        // "no dangling engines" debug_assert. Mirrors the harness in
+        // crates/emcore/src/emSubViewPanel.rs `SvpTestHarness::teardown`.
+        let sub_root = svp.sub_root();
+        svp.sub_tree_mut().remove(sub_root, Some(&mut sched));
+        if let Some(eid) = svp.sub_view.update_engine_id.take() {
+            sched.remove_engine(eid);
+        }
+        if let Some(eid) = svp.sub_view.visiting_va_engine_id.take() {
+            sched.remove_engine(eid);
+        }
+        if let Some(sig) = svp.sub_view.EOISignal.take() {
+            sched.remove_signal(sig);
+        }
+        drop(svp);
+
+        assert!(
+            parent_is_home,
+            "sub-view's context parent should be home_view_ctx, not root or anything else"
+        );
+        assert!(
+            !parent_is_root,
+            "sub-view's context parent must not be the root context"
+        );
+    }
+
+    #[test]
+    #[ignore = "requires winit event loop; real check lives in Phase 7 integration test"]
+    fn create_main_window_produces_nested_subview_contexts() {
+        unreachable!("see F010_subview_dump_nests_under_home_view_context in Phase 7");
+    }
+}
