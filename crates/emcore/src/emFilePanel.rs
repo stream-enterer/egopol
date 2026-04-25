@@ -5,7 +5,7 @@ use crate::emColor::emColor;
 use crate::emEngineCtx::PanelCtx;
 use crate::emFileModel::{FileModelState, FileState};
 use crate::emPainter::{emPainter, TextAlignment, VAlign};
-use crate::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use crate::emPanel::{FileLoadStatus, NoticeFlags, PanelBehavior, PanelState};
 
 /// Extended file state for a file panel, adding custom error and no-model states.
 ///
@@ -420,6 +420,10 @@ impl PanelBehavior for emFilePanel {
         }
     }
 
+    fn file_load_status(&self) -> Option<FileLoadStatus> {
+        Some(map_vir_state(&self.GetVirFileState()))
+    }
+
     fn IsHopeForSeeking(&self) -> bool {
         self.GetVirFileState().IsHopeForSeeking()
     }
@@ -446,6 +450,32 @@ impl PanelBehavior for emFilePanel {
                 self.cached_in_active_path.to_string(),
             ),
         ]
+    }
+}
+
+/// Translate `emFilePanel`'s rich `VirtualFileState` to the coarse
+/// `FileLoadStatus` exposed by `PanelBehavior::file_load_status`.
+///
+/// `NoFileModel` and `Waiting` both map to `Waiting` — callers want to keep
+/// waiting until the model attaches and starts loading. Loading errors
+/// (LoadError, SaveError, CustomError) map to `Error` to fail the wait fast.
+/// Loaded/Unsaved/Saving all map to `Loaded`: the file is materialized.
+/// `TooCostly` maps to `Error` so a `wait_for { file_loaded }` does not hang
+/// forever on a panel the runtime has refused to load.
+pub fn map_vir_state(state: &VirtualFileState) -> FileLoadStatus {
+    match state {
+        VirtualFileState::Waiting | VirtualFileState::NoFileModel => FileLoadStatus::Waiting,
+        VirtualFileState::Loading { progress } => FileLoadStatus::Loading(*progress),
+        VirtualFileState::Loaded | VirtualFileState::Unsaved | VirtualFileState::Saving => {
+            FileLoadStatus::Loaded
+        }
+        VirtualFileState::TooCostly => {
+            FileLoadStatus::Error("file too costly to load".to_string())
+        }
+        VirtualFileState::LoadError(e) | VirtualFileState::SaveError(e) => {
+            FileLoadStatus::Error(e.clone())
+        }
+        VirtualFileState::CustomError(e) => FileLoadStatus::Error(e.clone()),
     }
 }
 

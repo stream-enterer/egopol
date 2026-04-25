@@ -10,7 +10,7 @@ use emcore::emFilePanel::emFilePanel;
 
 use emcore::emEngineCtx::PanelCtx;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
-use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use emcore::emPanel::{FileLoadStatus, NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelId;
 
 use crate::emDirEntry::emDirEntry;
@@ -166,6 +166,12 @@ impl emFileLinkPanel {
 }
 
 impl PanelBehavior for emFileLinkPanel {
+    fn file_load_status(&self) -> Option<FileLoadStatus> {
+        Some(emcore::emFilePanel::map_vir_state(
+            &self.file_panel.GetVirFileState(),
+        ))
+    }
+
     fn Cycle(
         &mut self,
         _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,

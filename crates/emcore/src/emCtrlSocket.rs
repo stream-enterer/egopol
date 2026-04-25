@@ -206,11 +206,60 @@ pub enum CtrlCmd {
         #[serde(default)]
         timeout_ms: Option<u64>,
     },
+    /// Wait until a named condition holds, or until the deadline expires.
+    /// The condition is re-evaluated each event-loop tick. Replies `ok` on
+    /// success, `error="timeout"` on deadline expiry, or a permanent error
+    /// for conditions that fail in a non-recoverable way (e.g. file load
+    /// error). Missing-panel conditions are treated as "not yet" rather
+    /// than errors so a test can wait for auto-expansion to materialize a
+    /// child panel.
+    WaitFor {
+        condition: WaitForCondition,
+        #[serde(default)]
+        timeout_ms: Option<u64>,
+    },
     Input {
         event: InputPayload,
     },
     InputBatch {
         events: Vec<InputPayload>,
+    },
+}
+
+/// Condition payload for `wait_for` — wire format
+/// `{"kind":"<name>","view":"...","identity":"..."}`. `view` defaults to
+/// `""` (the home window's outer view); otherwise it is a panel-identity
+/// path resolving (in the outer tree) to an `emSubViewPanel` whose inner
+/// view+tree is used to resolve `identity`.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WaitForCondition {
+    /// Resolves once `resolve_identity(view, identity)` succeeds — i.e.
+    /// the panel exists in the tree.
+    PanelExists {
+        #[serde(default)]
+        view: String,
+        identity: String,
+    },
+    /// Resolves once the panel exists *and* `PanelTree::IsViewed` returns
+    /// true for it.
+    PanelViewed {
+        #[serde(default)]
+        view: String,
+        identity: String,
+    },
+    /// Resolves once the panel exists, hosts a file model, and the file
+    /// model reports `FileLoadStatus::Loaded`. Replies a permanent error
+    /// if the panel does not host a file model, or if loading fails.
+    /// `VirtualFileState::TooCostly` is also treated as a terminal error
+    /// here — a `wait_for { file_loaded }` against a too-costly panel
+    /// would otherwise hang until timeout. Tests that need to wait
+    /// through a `TooCostly → Loading` transition should use
+    /// `panel_viewed` instead.
+    FileLoaded {
+        #[serde(default)]
+        view: String,
+        identity: String,
     },
 }
 
@@ -321,9 +370,19 @@ pub struct CtrlMsg {
 /// commands return a documented placeholder until Tasks 4.x/5.x wire
 /// them in.
 pub fn handle_main_thread(app: &mut App, event_loop: &ActiveEventLoop, msg: CtrlMsg) {
-    // wait_idle is special — the reply is parked, not sent inline.
+    // wait_idle / wait_for are special — the reply is parked, not sent
+    // inline. They drain in `App::about_to_wait` once the condition holds
+    // (or the deadline expires).
     if let CtrlCmd::WaitIdle { timeout_ms } = msg.cmd {
         handle_wait_idle(msg.reply_tx, timeout_ms);
+        return;
+    }
+    if let CtrlCmd::WaitFor {
+        condition,
+        timeout_ms,
+    } = msg.cmd
+    {
+        handle_wait_for(msg.reply_tx, condition, timeout_ms);
         return;
     }
     let reply = match msg.cmd {
@@ -348,6 +407,7 @@ pub fn handle_main_thread(app: &mut App, event_loop: &ActiveEventLoop, msg: Ctrl
             ref identity,
         } => handle_seek_to(app, view, identity),
         CtrlCmd::WaitIdle { .. } => unreachable!(), // handled above
+        CtrlCmd::WaitFor { .. } => unreachable!(),  // handled above
         CtrlCmd::Input { event } => match synthesize_and_dispatch(app, event_loop, event) {
             Ok(()) => CtrlReply::ok(),
             Err(e) => CtrlReply::err(e),
@@ -860,6 +920,125 @@ pub fn check_pending_wait_idle(app: &App) {
     }
 }
 
+/// One pending wait_for request — a worker is parked, waiting for a named
+/// condition to hold (or a timeout).
+struct PendingWaitFor {
+    reply_tx: SyncSender<CtrlReply>,
+    condition: WaitForCondition,
+    deadline: Option<Instant>,
+}
+
+/// Main-thread-owned queue of pending wait_for requests. Pushed by
+/// `handle_wait_for` (from the user-event handler running on the main
+/// thread); drained by `check_pending_wait_for` invoked from
+/// `App::about_to_wait`.
+static PENDING_WAIT_FOR: Mutex<Vec<PendingWaitFor>> = Mutex::new(Vec::new());
+
+/// Park a wait_for request. Reply is NOT sent here — drained in
+/// `check_pending_wait_for` (called from about_to_wait) once the
+/// condition holds, fails permanently, or the deadline expires.
+fn handle_wait_for(
+    reply_tx: SyncSender<CtrlReply>,
+    condition: WaitForCondition,
+    timeout_ms: Option<u64>,
+) {
+    let deadline = timeout_ms.map(|ms| Instant::now() + Duration::from_millis(ms));
+    PENDING_WAIT_FOR
+        .lock()
+        .expect("PENDING_WAIT_FOR poisoned")
+        .push(PendingWaitFor {
+            reply_tx,
+            condition,
+            deadline,
+        });
+}
+
+/// Per-tick resolution of one pending wait_for entry.
+enum WaitForResolution {
+    /// Condition holds — reply ok and remove from queue.
+    Ready,
+    /// Condition does not hold yet — leave parked unless the deadline expired.
+    NotYet,
+    /// Permanent failure (e.g. file load error, panel does not host a
+    /// file model) — reply error and remove from queue.
+    Error(String),
+}
+
+/// Evaluate a single condition against current app state. `&mut App` is
+/// required because `resolve_target` uses `with_behavior_as` (which
+/// take/put-borrows the SVP behavior); the borrow is read-only in effect.
+fn evaluate_wait_for(app: &mut App, condition: &WaitForCondition) -> WaitForResolution {
+    match condition {
+        WaitForCondition::PanelExists { view, identity } => {
+            match resolve_target(app, view, identity, |_view, _tree, _id, _ctx| ()) {
+                Ok(()) => WaitForResolution::Ready,
+                // Missing panels are not errors — auto-expansion may
+                // create them on a later tick.
+                Err(_) => WaitForResolution::NotYet,
+            }
+        }
+        WaitForCondition::PanelViewed { view, identity } => {
+            match resolve_target(app, view, identity, |_view, tree, id, _ctx| tree.IsViewed(id)) {
+                Ok(true) => WaitForResolution::Ready,
+                Ok(false) => WaitForResolution::NotYet,
+                Err(_) => WaitForResolution::NotYet,
+            }
+        }
+        WaitForCondition::FileLoaded { view, identity } => {
+            // Read the file-load status via the PanelBehavior trait method.
+            // `behavior(id)` returns an immutable borrow without taking the
+            // behavior out of the tree.
+            let result = resolve_target(app, view, identity, |_view, tree, id, _ctx| {
+                tree.behavior(id).and_then(|b| b.file_load_status())
+            });
+            match result {
+                Ok(Some(crate::emPanel::FileLoadStatus::Loaded)) => WaitForResolution::Ready,
+                Ok(Some(crate::emPanel::FileLoadStatus::Error(e))) => {
+                    WaitForResolution::Error(format!("file load error: {}", e))
+                }
+                Ok(Some(_)) => WaitForResolution::NotYet,
+                Ok(None) => WaitForResolution::Error(format!(
+                    "panel '{}' (view '{}') does not host a file model",
+                    identity, view
+                )),
+                Err(_) => WaitForResolution::NotYet,
+            }
+        }
+    }
+}
+
+/// Drain the pending wait_for queue. Called from `App::about_to_wait`
+/// once per event-loop tick alongside `check_pending_wait_idle`.
+pub fn check_pending_wait_for(app: &mut App) {
+    let mut pending = match PENDING_WAIT_FOR.try_lock() {
+        Ok(p) => p,
+        Err(_) => return, // contention; try again next tick
+    };
+    if pending.is_empty() {
+        return;
+    }
+    let now = Instant::now();
+    let mut i = 0;
+    while i < pending.len() {
+        let resolution = evaluate_wait_for(app, &pending[i].condition);
+        let reply = match resolution {
+            WaitForResolution::Ready => Some(CtrlReply::ok()),
+            WaitForResolution::Error(e) => Some(CtrlReply::err(e)),
+            WaitForResolution::NotYet => match pending[i].deadline {
+                Some(dl) if now > dl => Some(CtrlReply::err("timeout")),
+                _ => None,
+            },
+        };
+        if let Some(r) = reply {
+            let entry = pending.swap_remove(i);
+            let _ = entry.reply_tx.send(r);
+            // i unchanged — swap_remove moved a different entry into i
+        } else {
+            i += 1;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -979,6 +1158,63 @@ mod tests {
             CtrlCmd::WaitIdle { timeout_ms } => assert_eq!(timeout_ms, Some(5000)),
             _ => panic!("wrong variant"),
         }
+    }
+
+    #[test]
+    fn wait_for_panel_exists_roundtrip() {
+        let json = r#"{"cmd":"wait_for","condition":{"kind":"panel_exists","view":"root:content view","identity":"::home"},"timeout_ms":60000}"#;
+        let parsed: CtrlCmd = serde_json::from_str(json).unwrap();
+        match parsed {
+            CtrlCmd::WaitFor {
+                condition: WaitForCondition::PanelExists { view, identity },
+                timeout_ms,
+            } => {
+                assert_eq!(view, "root:content view");
+                assert_eq!(identity, "::home");
+                assert_eq!(timeout_ms, Some(60000));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn wait_for_panel_viewed_view_defaults_to_empty() {
+        let json = r#"{"cmd":"wait_for","condition":{"kind":"panel_viewed","identity":"root:content view"}}"#;
+        let parsed: CtrlCmd = serde_json::from_str(json).unwrap();
+        match parsed {
+            CtrlCmd::WaitFor {
+                condition: WaitForCondition::PanelViewed { view, identity },
+                timeout_ms,
+            } => {
+                assert_eq!(view, "");
+                assert_eq!(identity, "root:content view");
+                assert_eq!(timeout_ms, None);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn wait_for_file_loaded_roundtrip() {
+        let json = r#"{"cmd":"wait_for","condition":{"kind":"file_loaded","view":"root:content view","identity":"::fs"},"timeout_ms":30000}"#;
+        let parsed: CtrlCmd = serde_json::from_str(json).unwrap();
+        match parsed {
+            CtrlCmd::WaitFor {
+                condition: WaitForCondition::FileLoaded { view, identity },
+                timeout_ms,
+            } => {
+                assert_eq!(view, "root:content view");
+                assert_eq!(identity, "::fs");
+                assert_eq!(timeout_ms, Some(30000));
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn wait_for_unknown_kind_fails_to_parse() {
+        let json = r#"{"cmd":"wait_for","condition":{"kind":"bogus","identity":"x"}}"#;
+        assert!(serde_json::from_str::<CtrlCmd>(json).is_err());
     }
 
     #[test]

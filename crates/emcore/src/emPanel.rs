@@ -16,6 +16,24 @@ use crate::emEngineCtx::PanelCtx;
 // doubles (GetLayoutX/Y/Width/Height in emPanel.h) into a typed struct.
 // C++ has no dedicated layout rect type.
 
+/// RUST_ONLY: (language-forced-utility) Coarse file-load status, returned by
+/// `PanelBehavior::file_load_status` for the debug control channel's
+/// `wait_for { file_loaded }`. Lives in `emPanel` rather than `emFilePanel` to
+/// avoid the trait method pulling `emFilePanel::VirtualFileState` (which would
+/// invert the existing emPanel ← emFilePanel module dependency). Concrete
+/// file-hosting panels translate their richer `VirtualFileState` to this enum.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FileLoadStatus {
+    /// Model not yet attached or not yet started loading.
+    Waiting,
+    /// Loading in progress (progress fraction 0.0..=1.0).
+    Loading(f64),
+    /// Content fully loaded (or loaded-and-modified).
+    Loaded,
+    /// Permanent error — caller should fail rather than keep waiting.
+    Error(String),
+}
+
 /// Logical rectangle (f64) — layout coordinates.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Rect {
@@ -298,6 +316,15 @@ pub trait PanelBehavior: AsAny {
     /// supported: false }`.
     fn GetPlaybackState(&self) -> PlaybackState {
         PlaybackState::default()
+    }
+
+    /// RUST_ONLY: (language-forced-utility) Used by the debug control channel's
+    /// `wait_for { file_loaded }` to poll a panel's file-load progress without
+    /// downcasting to a concrete behavior type. Default `None` means the panel
+    /// type does not host a file model. C++ achieves the same via direct casts
+    /// in cheat-code paths; the Rust port routes through a virtual method.
+    fn file_load_status(&self) -> Option<FileLoadStatus> {
+        None
     }
 
     /// Attempt to set the playback state. Returns `true` if the panel

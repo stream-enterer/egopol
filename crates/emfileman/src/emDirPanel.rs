@@ -11,7 +11,7 @@ use emcore::emFilePanel::emFilePanel;
 use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
 use emcore::emPainter::emPainter;
-use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use emcore::emPanel::{FileLoadStatus, NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelId;
 
 use crate::emDirEntry::emDirEntry;
@@ -280,6 +280,12 @@ impl emDirPanel {
 }
 
 impl PanelBehavior for emDirPanel {
+    fn file_load_status(&self) -> Option<FileLoadStatus> {
+        Some(emcore::emFilePanel::map_vir_state(
+            &self.file_panel.GetVirFileState(),
+        ))
+    }
+
     fn dump_state(&self) -> Vec<(&'static str, String)> {
         vec![
             ("path", self.path.clone()),
