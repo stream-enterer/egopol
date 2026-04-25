@@ -152,6 +152,7 @@ impl emSubViewPanel {
     /// This method borrows `sub_view` and `sub_tree` simultaneously, which
     /// requires access to `self` rather than separate `sub_view_mut()` and
     /// `sub_tree_mut()` calls (which would conflict on `&mut self`).
+    #[allow(clippy::too_many_arguments)]
     pub fn visit_by_identity(
         &mut self,
         identity: &str,

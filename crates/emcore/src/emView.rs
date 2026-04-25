@@ -1056,6 +1056,7 @@ impl emView {
     /// Port of C++ `emView::Visit(panel, relX, relY, relA, adherent)` at
     /// emView.cpp:492-497. Three-line delegation: look up identity+title on
     /// the tree, then forward to the identity-keyed overload.
+    #[allow(clippy::too_many_arguments)]
     pub fn Visit(
         &mut self,
         tree: &PanelTree,
@@ -1076,6 +1077,7 @@ impl emView {
     /// `SetAnimParamsByCoreConfig` → `SetGoalCoords` → `Activate`. The
     /// animator engine (`VisitingVAEngineClass::Cycle`) observes `is_active()`
     /// and drives the curve each scheduler tick.
+    #[allow(clippy::too_many_arguments)]
     pub fn VisitByIdentity(
         &mut self,
         identity: &str,

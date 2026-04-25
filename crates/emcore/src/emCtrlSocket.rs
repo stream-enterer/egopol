@@ -1483,6 +1483,7 @@ mod resolve_target_tests {
     ///     `F010_subview_dump_nests_under_home_view_context`, which
     ///     exercises `resolve_target` end-to-end via the control
     ///     socket.
+    ///
     /// The stubs below mark the un-covered surface explicitly so
     /// future test additions land in the right module.
 
