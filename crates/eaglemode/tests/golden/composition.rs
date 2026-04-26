@@ -392,9 +392,9 @@ struct ListBoxPanel {
     widget: emListBox,
 }
 impl PanelBehavior for ListBoxPanel {
-    fn Paint(&mut self, p: &mut emPainter, _canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.Paint(p, w, h, pixel_scale);
+        self.widget.Paint(p, canvas_color, w, h, pixel_scale);
     }
     fn Input(
         &mut self,

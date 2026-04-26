@@ -1102,12 +1102,22 @@ impl emListBox {
 
     // ── Paint ───────────────────────────────────────────────────────
 
-    pub fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, pixel_scale: f64) {
+    pub fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        pixel_scale: f64,
+    ) {
         self.last_w = w;
         self.last_h = h;
         self.border.how_to_text = self.GetHowTo(true, true);
         self.border
             .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
+        let canvas_color = self
+            .border
+            .content_canvas_color(canvas_color, &self.look, true);
 
         // When expanded with child panels, items are painted by their own
         // panel behaviors — skip inline painting (border only).
@@ -1218,7 +1228,7 @@ impl emListBox {
                     r,
                     r,
                     hl,
-                    painter.GetCanvasColor(),
+                    canvas_color,
                 );
                 item_canvas = hl;
             }
