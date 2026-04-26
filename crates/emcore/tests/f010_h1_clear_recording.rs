@@ -1,46 +1,46 @@
-//! F010 H1 falsification: emPainter::Clear silently dropped in recording mode.
+//! F010 H1 inversion test: post-fix, emPainter::Clear records exactly one
+//! DrawOp::Clear in recording mode.
 //!
-//! Per `docs/debug/investigations/F010-investigation/hypotheses/H1.yaml`.
+//! Pre-fix this test would FAIL (Clear records nothing). Post-fix it PASSES.
+//! Inversion is the regression marker for the H1 dispatch-hole fix.
 //!
-//! Falsification criterion: if recording painter's ops vec contains any op
-//! contributed by a Clear call, H1 is falsified.
+//! Per `docs/debug/investigations/F010-investigation/hypotheses/H1.yaml` and
+//! the fix spec at `docs/superpowers/specs/2026-04-26-F010-h1-fix-design.md`.
 
 use emcore::emColor::emColor;
 use emcore::emPainter::emPainter;
-use emcore::emPainterDrawList::RecordedOp;
+use emcore::emPainterDrawList::{DrawOp, RecordedOp};
 
 #[test]
-fn f010_h1_clear_records_no_op() {
-    // len_before: ops vec is empty at construction time — new_recording pushes
-    // no ops during initialization.
+fn f010_h1_clear_records_one_op() {
     let mut ops: Vec<RecordedOp> = Vec::new();
-    let len_before = ops.len(); // 0 — captured before painter borrows ops
-
+    let target_color = emColor::rgba(255, 0, 0, 255);
     {
         let mut painter = emPainter::new_recording(800, 600, &mut ops);
-        painter.Clear(emColor::rgba(255, 0, 0, 255));
-        // painter dropped here, releasing the &mut borrow on ops
+        painter.Clear(target_color);
     }
-
     let len_after = ops.len();
-    let ops_added_by_clear = len_after - len_before;
 
     let observation_artifact = serde_json::json!({
-        "test": "f010_h1_clear_records_no_op",
-        "len_before": len_before,
+        "test": "f010_h1_clear_records_one_op",
         "len_after": len_after,
-        "ops_added_by_clear": ops_added_by_clear,
+        "ops_added_by_clear": len_after,
+        "fix_landed": true,
     });
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../docs/debug/investigations/F010-investigation/artifacts/H1-ops.json");
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, observation_artifact.to_string()).unwrap();
 
-    // Test PASSES under the hypothesis (ops_added_by_clear == 0). Test FAILS
-    // (and H1 is falsified) if any op is added.
     assert_eq!(
-        ops_added_by_clear, 0,
-        "H1 hypothesis predicts Clear records nothing; observed {} ops added",
-        ops_added_by_clear
+        len_after, 1,
+        "post-fix: Clear must record exactly one op, got {}",
+        len_after
     );
+    match &ops[0].op {
+        DrawOp::Clear { color } => {
+            assert_eq!(*color, target_color, "recorded color mismatches caller's");
+        }
+        other => panic!("expected DrawOp::Clear, got {:?}", other),
+    }
 }
