@@ -85,15 +85,22 @@ If the trait-impl caller isn't in the same file, locate it with `grep -rn 'self\
 
 ### Task 1: emButton — migrate `Paint` method
 
+> **Plan amendment 2026-04-26:** Layer 1 tasks must update **all** callers of the widget's `Paint`, not just an in-file trait impl. Widgets are embedded as fields in higher-level panels — each has multiple callers across the workspace. All callers are in trait impls that already have `canvas_color` from F018 Phase 1+2.
+
 **Files:**
 - Modify: `crates/emcore/src/emButton.rs:177-191` (signature + body)
-- Modify: `crates/emcore/src/emButton.rs` (trait-impl caller of `self.button.Paint(...)` or similar — find via grep)
+- Modify: every external caller of `<receiver>.button.Paint(...)`. Confirmed at amendment time:
+  - `crates/emcore/src/emColorFieldFieldPanel.rs:230`
+  - `crates/emmain/src/emAutoplayControlPanel.rs:140`
+  - `crates/emcore/src/emDialog.rs:806`
+  - `crates/emmain/src/emMainControlPanel.rs:66`
+  - `crates/eaglemode/tests/golden/widget.rs:158` (test)
+- Re-grep at implementation time in case more callers landed.
 
-- [ ] **Step 1: Confirm caller count**
+- [ ] **Step 1: Confirm caller list**
 
-Run: `grep -rn 'emButton::Paint\b\|\.Paint(' crates/emcore/src/emButton.rs | grep -v "fn Paint"`
-Expected: trait-impl callers identified. Also check external callers:
-Run: `grep -rn '\.button\.Paint\b' crates/ --include="*.rs"`
+Run: `grep -rn '\.button\.Paint\b\|emButton::Paint\b' crates/ --include="*.rs"`
+Expected: the 5 sites above plus the in-file trait impl. If new callers appear, add them to the cascade.
 
 - [ ] **Step 2: Update `Paint` signature at `emButton.rs:177`**
 
@@ -152,21 +159,16 @@ let canvas_color = self
 >
 > This builds because `content_canvas_color` is painter-free. The `paint_border` call still mutates the painter's tracked canvas color internally, but we no longer read it. Layer 2 will add the `canvas_color` argument to `paint_border` once we migrate that helper.
 
-- [ ] **Step 4: Update trait-impl caller**
+- [ ] **Step 4: Update every caller**
 
-Find the call site (likely in `impl PanelBehavior for emButton` or similar in this file). The caller already has `canvas_color: emColor` from the trait. Pass it as the second argument:
+For each caller from Step 1, insert `canvas_color` as the **second** argument after `painter`:
 
-Before:
-```rust
-self.button.Paint(painter, w, h, enabled, pixel_scale);
-```
+Before: `self.button.Paint(painter, w, h, state.enabled, pixel_scale)`
+After:  `self.button.Paint(painter, canvas_color, w, h, state.enabled, pixel_scale)`
 
-After:
-```rust
-self.button.Paint(painter, canvas_color, w, h, enabled, pixel_scale);
-```
+Each caller is in a `PanelBehavior::Paint` trait impl that already has `canvas_color: emColor` (or `_canvas_color` — un-underscore it) in scope from F018 Phase 1+2. **If a caller doesn't have canvas_color in scope, STOP and report BLOCKED — never invent a value, never fall back to painter.GetCanvasColor().**
 
-If `self.button` is the wrong field name, use whatever field this struct uses (e.g. `self.body`, or the type's own `Paint` is called via `impl PanelBehavior::Paint`).
+For test callers (e.g. `tests/golden/widget.rs:158`): the test harness has its own context. Read its enclosing function. If `canvas_color` is in scope, pass it; if not, pass `emColor::TRANSPARENT` documenting the test's intent.
 
 - [ ] **Step 5: Verify**
 
@@ -179,7 +181,7 @@ Expected: `Finished` with no warnings.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/emcore/src/emButton.rs
+git add crates/emcore/src/emButton.rs crates/emcore/src/emColorFieldFieldPanel.rs crates/emmain/src/emAutoplayControlPanel.rs crates/emcore/src/emDialog.rs crates/emmain/src/emMainControlPanel.rs crates/eaglemode/tests/golden/widget.rs
 git commit -m "$(cat <<'EOF'
 refactor(F018): migrate emButton::Paint to use content_canvas_color
 
