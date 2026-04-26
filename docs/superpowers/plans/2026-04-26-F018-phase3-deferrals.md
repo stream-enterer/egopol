@@ -12,6 +12,74 @@
 
 ---
 
+## Resume from clean context — read this first
+
+This section captures lessons from Task 1's execution and corrects assumptions that were wrong elsewhere in the plan. **A fresh agent reading this plan must read this section before touching any widget task.**
+
+### Progress so far
+
+- **Task 0**: baseline verified.
+- **Task 1**: COMPLETE at commit **`d6091a8a`**. The combined commit migrated `emButton`, `emCheckBox`, `emCheckButton`, `emRadioButton` atomically (forced by the `paint_widget!` macro in `emFileManControlPanel.rs` — see Lesson 1 below). Tasks 2, 3, 7 were absorbed into Task 1; **skip them**, they're done. Two pre-existing clippy violations (`field_reassign_with_default` in `emFpPlugin.rs`, `zombie_processes` in `subview_dump_integration.rs`) were also fixed in `d6091a8a` to unblock the pre-commit hook.
+- **Tasks 4, 5, 6, 8, 9, 10**: pending (see widget caller inventory below).
+- **Tasks 11–18**: pending.
+
+### Working tree state
+
+The worktree contains 8 pre-existing modifications unrelated to F018 that **must not be modified** by any task:
+- `crates/eaglemode/tests/support/pipeline.rs`
+- `crates/emcore/src/emCtrlSocket.rs`
+- `crates/emcore/src/emPanelTree.rs`
+- `crates/emcore/src/emScheduler.rs`
+- `crates/emcore/src/emTreeDump.rs`
+- `crates/emcore/src/emViewAnimator.rs`
+- `crates/emfileman/src/emDirModel.rs`
+- `crates/emmain/src/emMainWindow.rs`
+
+(Two more — `emFpPlugin.rs` and `subview_dump_integration.rs` — were committed as part of `d6091a8a`'s clippy fix and are no longer in the working tree.)
+
+### Lesson 1: every widget `Paint` has multiple external callers, not one
+
+The plan's original "exactly one caller (the in-file trait impl)" assumption was **wrong**. Each widget is a building block embedded as a field in higher-level panels (dialogs, control panels, test wrappers). Each Layer 1 widget task is structurally similar to Layer 2: signature change + caller cascade.
+
+Per-widget caller inventories (run `grep -rn '\.<field>\.Paint\b\|<TypeName>::Paint\b'` to confirm at implementation time — these were correct as of `d6091a8a`):
+
+- **emColorField (Task 4)** — 3 test sites: `tests/pipeline/colorfield.rs:53`, `tests/golden/widget.rs:686`, `tests/pipeline/calibration.rs:165`. **No production callers.** All test wrappers live in trait `Paint` impls with `_canvas_color: emColor` to un-underscore.
+- **emListBox (Task 5)** — 1 production + 2 test: `crates/emcore/src/emColorFieldFieldPanel.rs:171`, `tests/golden/widget.rs:516, :768`. The emColorFieldFieldPanel ListBoxPanel impl has `_canvas_color` to un-underscore.
+- **emRadioBox (Task 6)** — wrappers in `tests/golden/composition.rs:279`, `tests/golden/test_panel.rs:224`, `tests/pipeline/radiobox.rs:31`, plus call sites within those wrappers. No direct production callers other than test wrappers and the existing `RadioBoxPanel`/`emFileSelectionBox` integrations.
+- **emScalarField (Task 8)** — 2 test sites: `tests/pipeline/scalarfield.rs:49`, `tests/pipeline/calibration.rs:49`. Plus `composition.rs`/`test_panel.rs` wrappers. The trait impls already exist; un-underscore `_canvas_color`.
+- **emSplitter (Task 9)** — note this uses `PaintContent`, not `Paint`. Sites: `tests/golden/parallel.rs:156`, `tests/golden/composition.rs:431`, `tests/golden/widget_interaction.rs:612`, `tests/golden/widget.rs:139, :534, :2097`, `tests/pipeline/splitter.rs:43`, `tests/golden/test_panel.rs:375, :469`. Multi-arity (some 4-arg, some 5-arg) — read each site.
+- **emTextField (Task 10)** — wrappers in `tests/golden/composition.rs:303` (`TextFieldPanel`), `tests/golden/widget.rs:184` (`TextFieldBehavior`), plus the in-emColorFieldFieldPanel TextFieldPanel impl and any `composition.rs`/`test_panel.rs` wrappers. Multiple call sites in `widget.rs` (lines 433, 453, etc.) — re-grep.
+
+For each remaining widget task: **expand the task scope to include all callers found by grep**. Update the widget's `Paint` signature, replace its `painter.GetCanvasColor()` read with `border.content_canvas_color(canvas_color, &self.look, enabled)`, and pass `canvas_color` from each caller's enclosing `Paint` trait scope. If a caller doesn't have `canvas_color` in scope, **stop and re-design** — the previous subagent failure mode was inventing values when scope ran out.
+
+### Lesson 2: subagents cannot keep scope on signature-cascade tasks
+
+Three subagent attempts at Task 1 each blew through scope (paint_border, multiple unrelated widgets) despite increasingly strict scope guards. **Switch to inline execution for every remaining widget task.** The work is mechanical but scope-sensitive: each error message tempts the agent to "fix" surrounding helpers, which spirals.
+
+### Lesson 3: never `replace_all` on test-wrapper files
+
+`crates/eaglemode/tests/golden/composition.rs` and `crates/eaglemode/tests/golden/test_panel.rs` contain `PanelBehavior` wrappers for **all** widgets — including ones not yet migrated. The wrapper bodies look nearly identical (`fn Paint(&mut self, p: &mut emPainter, _canvas_color: emColor, w: f64, h: f64, s: &PanelState) { ... self.widget.Paint(p, w, h, s.enabled, pixel_scale); }`). A `replace_all` matches all of them, so it migrates wrappers for unmigrated widgets too, breaking the build.
+
+When editing these test files, edit each `impl PanelBehavior for <X>Panel` block individually, scoped by the surrounding `impl` block, so only the target widget's wrapper changes.
+
+### Lesson 4: rust-analyzer diagnostics lag
+
+Rust-analyzer's incremental diagnostics show stale errors after edits. Trust `cargo check --workspace --tests` output as the source of truth, not the rust-analyzer flags surfaced in tool-result reminders. Many "expected 8, found 7" warnings during Task 1 were stale.
+
+### Per-task scope template (apply to remaining widget tasks)
+
+For each remaining widget task (4, 5, 6, 8, 9, 10):
+
+1. **Inventory callers**: `grep -rn '\.<field>\.Paint\b\|<TypeName>::Paint\b' crates/ --include="*.rs"`
+2. **Migrate the widget's `Paint` method**: add `canvas_color: emColor` after `painter`, replace `let canvas_color = painter.GetCanvasColor();` (or inline `painter.GetCanvasColor()` arguments) with `let canvas_color = self.border.content_canvas_color(canvas_color, &self.look, enabled);` — preserve `mut` if present.
+3. **Update each caller** found in step 1: insert `canvas_color` as the second argument (after `painter`). Un-underscore `_canvas_color: emColor` parameters in trait impls. For standalone test painters with no canvas_color in scope, pass `emColor::TRANSPARENT`.
+4. **Verify**: `cargo check --workspace --tests && cargo clippy --workspace --tests -- -D warnings` clean.
+5. **Commit** with message starting `refactor(F018): migrate <widget>::Paint to use content_canvas_color` plus the standard footer.
+
+If a widget has helpers it calls that ALSO read `painter.GetCanvasColor()` (likely `paint_border`-style), DO NOT migrate those helpers in this task — leave the helper's read intact (it's overwritten internally and our caller no longer reads it). Layer 2 (Tasks 11–12) migrates `emBorder` helpers.
+
+---
+
 ## Conventions used in this plan
 
 - **Worktree:** `/home/alex/Projects/eaglemode-rs/.claude/worktrees/f018-remediation`. All commands run from there.
