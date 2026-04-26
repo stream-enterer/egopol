@@ -34,7 +34,7 @@ impl PanelBehavior for SharedTextFieldPanel {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         state: &PanelState,
@@ -42,7 +42,7 @@ impl PanelBehavior for SharedTextFieldPanel {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.inner
             .borrow_mut()
-            .Paint(painter, w, h, state.enabled, pixel_scale);
+            .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
     }
 
     fn Input(
