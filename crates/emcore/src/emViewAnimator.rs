@@ -2119,14 +2119,21 @@ impl emViewAnimator for emVisitingViewAnimator {
         }
         match self.state {
             VisitingState::NoGoal | VisitingState::GivenUp | VisitingState::GoalReached => {
-                dlog!("VisitingVA::animate id={} terminal state={:?} -> false", self.identity, self.state);
+                dlog!(
+                    "VisitingVA::animate id={} terminal state={:?} -> false",
+                    self.identity,
+                    self.state
+                );
                 return false;
             }
             VisitingState::GivingUp => {
                 self.give_up_clock += dt;
                 if self.give_up_clock > 1.5 {
                     self.state = VisitingState::GivenUp;
-                    dlog!("VisitingVA::animate id={} GivingUp expired -> GivenUp false", self.identity);
+                    dlog!(
+                        "VisitingVA::animate id={} GivingUp expired -> GivenUp false",
+                        self.identity
+                    );
                     return false;
                 }
                 return true;
@@ -2140,7 +2147,10 @@ impl emViewAnimator for emVisitingViewAnimator {
             None => {
                 self.state = VisitingState::GivingUp;
                 self.give_up_clock = 0.0;
-                dlog!("VisitingVA::animate id={} nep=None -> GivingUp", self.identity);
+                dlog!(
+                    "VisitingVA::animate id={} nep=None -> GivingUp",
+                    self.identity
+                );
                 return true;
             }
         };

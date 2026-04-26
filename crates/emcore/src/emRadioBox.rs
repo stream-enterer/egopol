@@ -123,8 +123,16 @@ impl emRadioBox {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
-        self.border
-            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
+        self.border.paint_border(
+            painter,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            false,
+            true,
+            pixel_scale,
+        );
         let canvas_color = self
             .border
             .content_canvas_color(canvas_color, &self.look, enabled);

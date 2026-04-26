@@ -2156,9 +2156,7 @@ impl PanelTree {
         scheduler: &mut crate::emScheduler::EngineScheduler,
         framework_actions: &mut Vec<crate::emEngineCtx::DeferredAction>,
         root_context: &std::rc::Rc<crate::emContext::emContext>,
-        framework_clipboard: &std::cell::RefCell<
-            Option<Box<dyn crate::emClipboard::emClipboard>>,
-        >,
+        framework_clipboard: &std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>>,
         pending_actions: &std::rc::Rc<
             std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>,
         >,
@@ -3139,11 +3137,7 @@ mod tests {
 
         struct SchedReachProbe(Rc<Cell<bool>>);
         impl PanelBehavior for SchedReachProbe {
-            fn CreateControlPanel(
-                &mut self,
-                ctx: &mut PanelCtx,
-                name: &str,
-            ) -> Option<PanelId> {
+            fn CreateControlPanel(&mut self, ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
                 // Record whether sched reach was plumbed through.
                 self.0.set(ctx.as_sched_ctx().is_some());
                 Some(ctx.create_child(name))
@@ -3162,22 +3156,13 @@ mod tests {
         let mut sched = crate::emScheduler::EngineScheduler::new();
         let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
         let root_ctx = crate::emContext::emContext::NewRoot();
-        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
-            RefCell::new(None);
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
         let pa: Rc<RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>> =
             Rc::new(RefCell::new(Vec::new()));
 
         let ctrl_id = content
             .create_control_panel_in(
-                active,
-                &mut ctrl,
-                ctrl_root,
-                "ctrl",
-                1.0,
-                &mut sched,
-                &mut fw,
-                &root_ctx,
-                &fw_cb,
+                active, &mut ctrl, ctrl_root, "ctrl", 1.0, &mut sched, &mut fw, &root_ctx, &fw_cb,
                 &pa,
             )
             .expect("create_control_panel_in should succeed");

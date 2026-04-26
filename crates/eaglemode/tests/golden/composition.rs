@@ -429,9 +429,10 @@ struct LabelPanel {
     widget: emLabel,
 }
 impl PanelBehavior for LabelPanel {
-    fn Paint(&mut self, p: &mut emPainter, _canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.PaintContent(p, w, h, s.enabled, pixel_scale);
+        self.widget
+            .PaintContent(p, canvas_color, w, h, s.enabled, pixel_scale);
     }
 }
 
@@ -1129,9 +1130,17 @@ impl PanelBehavior for TkTestPanel {
         true
     }
 
-    fn Paint(&mut self, p: &mut emPainter, _canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
-        self.border
-            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
+        self.border.paint_border(
+            p,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            s.is_focused(),
+            s.enabled,
+            1.0,
+        );
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {

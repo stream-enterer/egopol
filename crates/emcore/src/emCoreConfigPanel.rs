@@ -241,13 +241,14 @@ impl PanelBehavior for KBGroup {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         state: &PanelState,
     ) {
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,
@@ -389,13 +390,14 @@ impl PanelBehavior for MouseMiscGroup {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         state: &PanelState,
     ) {
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,
@@ -575,13 +577,14 @@ impl PanelBehavior for KineticGroup {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         state: &PanelState,
     ) {
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,
@@ -706,13 +709,14 @@ impl PanelBehavior for MaxMemGroup {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         state: &PanelState,
     ) {
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,
@@ -1074,13 +1078,14 @@ impl PanelBehavior for CpuGroup {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         state: &PanelState,
     ) {
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,
@@ -1246,13 +1251,14 @@ impl PanelBehavior for PerformanceGroup {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         state: &PanelState,
     ) {
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,
@@ -1446,13 +1452,14 @@ impl PanelBehavior for MouseGroup {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         state: &PanelState,
     ) {
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,
@@ -1781,13 +1788,14 @@ impl PanelBehavior for emCoreConfigPanel {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         state: &PanelState,
     ) {
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,

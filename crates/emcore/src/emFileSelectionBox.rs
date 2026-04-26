@@ -1379,13 +1379,14 @@ impl PanelBehavior for emFileSelectionBox {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         state: &PanelState,
     ) {
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,

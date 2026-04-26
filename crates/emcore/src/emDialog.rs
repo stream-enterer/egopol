@@ -643,14 +643,22 @@ impl PanelBehavior for DlgPanel {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         _state: &PanelState,
     ) {
         let pixel_scale = 1.0; // DlgPanel is the view root; no enclosing scaling
-        self.border
-            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
+        self.border.paint_border(
+            painter,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            false,
+            true,
+            pixel_scale,
+        );
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {

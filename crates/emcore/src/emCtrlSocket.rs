@@ -70,7 +70,11 @@ pub(crate) fn resolve_identity(
             n => {
                 return Err(format!(
                     "ambiguous identity: {} (segment {} = {:?} matches {} siblings under {:?})",
-                    identity, depth, name, n, tree.name(cur).unwrap_or("<unnamed>")
+                    identity,
+                    depth,
+                    name,
+                    n,
+                    tree.name(cur).unwrap_or("<unnamed>")
                 ));
             }
         }
@@ -93,7 +97,12 @@ pub(crate) fn resolve_target<R>(
     app: &mut App,
     view_sel: &str,
     identity: &str,
-    f: impl FnOnce(&mut crate::emView::emView, &mut PanelTree, PanelId, &mut crate::emEngineCtx::SchedCtx<'_>) -> R,
+    f: impl FnOnce(
+        &mut crate::emView::emView,
+        &mut PanelTree,
+        PanelId,
+        &mut crate::emEngineCtx::SchedCtx<'_>,
+    ) -> R,
 ) -> Result<R, String> {
     let home_id = app
         .home_window_id
@@ -144,11 +153,7 @@ pub(crate) fn resolve_target<R>(
             .ok_or_else(|| "no root panel".to_string())?;
         resolve_identity(&win.tree, outer_root, view_sel)?
     };
-    let svp_name = win
-        .tree
-        .name(svp_id)
-        .unwrap_or("<unnamed>")
-        .to_string();
+    let svp_name = win.tree.name(svp_id).unwrap_or("<unnamed>").to_string();
 
     // Borrow rationale: the closure runs while the SVP behavior is taken
     // out of the tree. Its `sub_view` and `sub_tree` are owned by the
@@ -813,7 +818,11 @@ pub(crate) fn synthesize_and_dispatch(
 /// payloads and call into `emWindow`/`emView` input methods directly.
 fn build_window_event(payload: InputPayload) -> Result<WindowEvent, String> {
     Ok(match payload {
-        InputPayload::Key { key, press: _, mods: _ } => {
+        InputPayload::Key {
+            key,
+            press: _,
+            mods: _,
+        } => {
             // Map the name eagerly so the agent gets immediate feedback
             // on bogus key names; the dependency-forced limitation
             // below means we can't yet construct a KeyEvent to deliver.
@@ -856,7 +865,6 @@ fn build_window_event(payload: InputPayload) -> Result<WindowEvent, String> {
 fn synthetic_device_id() -> winit::event::DeviceId {
     winit::event::DeviceId::dummy()
 }
-
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -993,7 +1001,9 @@ fn evaluate_wait_for(app: &mut App, condition: &WaitForCondition) -> WaitForReso
             }
         }
         WaitForCondition::PanelViewed { view, identity } => {
-            match resolve_target(app, view, identity, |_view, tree, id, _ctx| tree.IsViewed(id)) {
+            match resolve_target(app, view, identity, |_view, tree, id, _ctx| {
+                tree.IsViewed(id)
+            }) {
                 Ok(true) => WaitForResolution::Ready,
                 Ok(false) => WaitForResolution::NotYet,
                 Err(_) => WaitForResolution::NotYet,
@@ -1115,7 +1125,11 @@ mod tests {
         let json = r#"{"cmd":"visit","view":"root:content view","identity":"::home"}"#;
         let cmd: CtrlCmd = serde_json::from_str(json).unwrap();
         match cmd {
-            CtrlCmd::Visit { view, identity, adherent } => {
+            CtrlCmd::Visit {
+                view,
+                identity,
+                adherent,
+            } => {
                 assert_eq!(view, "root:content view");
                 assert_eq!(identity, "::home");
                 assert!(!adherent);
@@ -1285,7 +1299,9 @@ mod tests {
         let json = r#"{"cmd":"input","event":{"kind":"key","key":"Return","press":true}}"#;
         let parsed: CtrlCmd = serde_json::from_str(json).unwrap();
         match parsed {
-            CtrlCmd::Input { event: InputPayload::Key { key, press, mods } } => {
+            CtrlCmd::Input {
+                event: InputPayload::Key { key, press, mods },
+            } => {
                 assert_eq!(key, "Return");
                 assert!(press);
                 assert!(!mods.shift && !mods.ctrl && !mods.alt && !mods.logo);
@@ -1299,7 +1315,9 @@ mod tests {
         let json = r#"{"cmd":"input","event":{"kind":"key","key":"a","press":true,"mods":{"shift":true,"ctrl":true}}}"#;
         let parsed: CtrlCmd = serde_json::from_str(json).unwrap();
         match parsed {
-            CtrlCmd::Input { event: InputPayload::Key { mods, .. } } => {
+            CtrlCmd::Input {
+                event: InputPayload::Key { mods, .. },
+            } => {
                 assert!(mods.shift && mods.ctrl && !mods.alt && !mods.logo);
             }
             _ => panic!("wrong variant"),
@@ -1311,7 +1329,9 @@ mod tests {
         let json = r#"{"cmd":"input","event":{"kind":"mouse_move","x":1.5,"y":2.5}}"#;
         let parsed: CtrlCmd = serde_json::from_str(json).unwrap();
         match parsed {
-            CtrlCmd::Input { event: InputPayload::MouseMove { x, y } } => {
+            CtrlCmd::Input {
+                event: InputPayload::MouseMove { x, y },
+            } => {
                 assert_eq!(x, 1.5);
                 assert_eq!(y, 2.5);
             }
@@ -1321,10 +1341,13 @@ mod tests {
 
     #[test]
     fn input_mouse_button_roundtrip() {
-        let json = r#"{"cmd":"input","event":{"kind":"mouse_button","button":"left","press":true}}"#;
+        let json =
+            r#"{"cmd":"input","event":{"kind":"mouse_button","button":"left","press":true}}"#;
         let parsed: CtrlCmd = serde_json::from_str(json).unwrap();
         match parsed {
-            CtrlCmd::Input { event: InputPayload::MouseButton { button, press } } => {
+            CtrlCmd::Input {
+                event: InputPayload::MouseButton { button, press },
+            } => {
                 assert!(matches!(button, MouseButtonName::Left));
                 assert!(press);
             }
@@ -1338,8 +1361,20 @@ mod tests {
         let json_r = r#"{"kind":"mouse_button","button":"right","press":true}"#;
         let m: InputPayload = serde_json::from_str(json_m).unwrap();
         let r: InputPayload = serde_json::from_str(json_r).unwrap();
-        assert!(matches!(m, InputPayload::MouseButton { button: MouseButtonName::Middle, press: false }));
-        assert!(matches!(r, InputPayload::MouseButton { button: MouseButtonName::Right, press: true }));
+        assert!(matches!(
+            m,
+            InputPayload::MouseButton {
+                button: MouseButtonName::Middle,
+                press: false
+            }
+        ));
+        assert!(matches!(
+            r,
+            InputPayload::MouseButton {
+                button: MouseButtonName::Right,
+                press: true
+            }
+        ));
     }
 
     #[test]
@@ -1347,7 +1382,9 @@ mod tests {
         let json = r#"{"cmd":"input","event":{"kind":"scroll","dx":0.0,"dy":-3.0}}"#;
         let parsed: CtrlCmd = serde_json::from_str(json).unwrap();
         match parsed {
-            CtrlCmd::Input { event: InputPayload::Scroll { dx, dy } } => {
+            CtrlCmd::Input {
+                event: InputPayload::Scroll { dx, dy },
+            } => {
                 assert_eq!(dx, 0.0);
                 assert_eq!(dy, -3.0);
             }
@@ -1444,7 +1481,11 @@ mod tests {
             "json: {}",
             json
         );
-        assert!(!json.contains("focused_path"), "old field present: {}", json);
+        assert!(
+            !json.contains("focused_path"),
+            "old field present: {}",
+            json
+        );
         assert!(!json.contains("panel_path"), "old field present: {}", json);
     }
 
@@ -1459,7 +1500,11 @@ mod tests {
             ..CtrlReply::default()
         };
         let json = serde_json::to_string(&reply).unwrap();
-        assert!(!json.contains("focused_view"), "should be omitted: {}", json);
+        assert!(
+            !json.contains("focused_view"),
+            "should be omitted: {}",
+            json
+        );
         assert!(
             !json.contains("focused_identity"),
             "should be omitted: {}",
@@ -1485,7 +1530,11 @@ mod tests {
         let result = spawn_acceptor();
         assert!(result.is_ok(), "spawn_acceptor failed: {:?}", result.err());
         let path = socket_path();
-        assert!(path.exists(), "socket file not created at {}", path.display());
+        assert!(
+            path.exists(),
+            "socket file not created at {}",
+            path.display()
+        );
         let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600, "socket perms should be 0600, got 0o{:o}", mode);
         cleanup_on_exit();
@@ -1502,7 +1551,11 @@ mod tests {
         let json = r#"{"cmd":"visit","identity":"root:cosmos"}"#;
         let parsed: CtrlCmd = serde_json::from_str(json).unwrap();
         match parsed {
-            CtrlCmd::Visit { view, identity, adherent } => {
+            CtrlCmd::Visit {
+                view,
+                identity,
+                adherent,
+            } => {
                 assert_eq!(view, "");
                 assert_eq!(identity, "root:cosmos");
                 assert!(!adherent);
@@ -1647,7 +1700,8 @@ mod tests {
         let err = reply.error.as_deref().unwrap_or("");
         assert!(
             err.contains("not initialized") || err.contains("event loop"),
-            "unexpected error: {}", err
+            "unexpected error: {}",
+            err
         );
     }
 }
@@ -1755,11 +1809,12 @@ mod resolve_identity_tests {
         for (tree, root) in [outer_tree(), cosmos_tree()] {
             for pid in tree.panel_ids() {
                 let id_str = tree.GetIdentity(pid);
-                let round_trip = resolve_identity(&tree, root, &id_str)
-                    .unwrap_or_else(|e| panic!(
+                let round_trip = resolve_identity(&tree, root, &id_str).unwrap_or_else(|e| {
+                    panic!(
                         "round-trip failed for panel {:?} (identity {:?}): {}",
                         pid, id_str, e
-                    ));
+                    )
+                });
                 assert_eq!(
                     round_trip, pid,
                     "round-trip mismatch: identity {:?} resolved to wrong panel",

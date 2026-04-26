@@ -38,7 +38,7 @@ impl PanelBehavior for emLinearGroup {
     fn Paint(
         &mut self,
         painter: &mut emPainter,
-        _canvas_color: emColor,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         state: &PanelState,
@@ -46,6 +46,7 @@ impl PanelBehavior for emLinearGroup {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,

@@ -456,16 +456,12 @@ impl PipelineTestHarness {
                 pending_actions: &self.pending_actions,
             };
             match event.key {
-                InputKey::ArrowLeft if st.IsNoMod() => {
-                    self.view.VisitLeft(&mut self.tree, &mut sc)
-                }
+                InputKey::ArrowLeft if st.IsNoMod() => self.view.VisitLeft(&mut self.tree, &mut sc),
                 InputKey::ArrowRight if st.IsNoMod() => {
                     self.view.VisitRight(&mut self.tree, &mut sc)
                 }
                 InputKey::ArrowUp if st.IsNoMod() => self.view.VisitUp(&mut self.tree, &mut sc),
-                InputKey::ArrowDown if st.IsNoMod() => {
-                    self.view.VisitDown(&mut self.tree, &mut sc)
-                }
+                InputKey::ArrowDown if st.IsNoMod() => self.view.VisitDown(&mut self.tree, &mut sc),
 
                 // C++ emPanel.cpp:1168-1180: Home with modifier variants.
                 InputKey::Home if st.IsNoMod() => self.view.VisitFirst(&mut self.tree, &mut sc),

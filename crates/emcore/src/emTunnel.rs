@@ -136,8 +136,16 @@ impl emTunnel {
         pixel_scale: f64,
     ) {
         // Paint the border chrome first.
-        self.border
-            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
+        self.border.paint_border(
+            painter,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            false,
+            true,
+            pixel_scale,
+        );
 
         // The polygon paints below render inside the border's content rect, so
         // their canvas is the border's *content* canvas, not the panel's outer

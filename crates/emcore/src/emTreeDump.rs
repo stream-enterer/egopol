@@ -505,9 +505,7 @@ pub(crate) fn dump_view(
                 )));
             } else {
                 children.push(RecValue::Struct(dump_context_with_cascade(
-                    &child_ctx,
-                    /* is_root */ false,
-                    map,
+                    &child_ctx, /* is_root */ false, map,
                 )));
             }
         }

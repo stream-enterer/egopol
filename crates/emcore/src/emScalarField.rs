@@ -340,8 +340,16 @@ impl emScalarField {
             }
             self.border.how_to_text = text;
         }
-        self.border
-            .paint_border(painter, w, h, &self.look, false, enabled, pixel_scale);
+        self.border.paint_border(
+            painter,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            false,
+            enabled,
+            pixel_scale,
+        );
         let mut canvas_color = self
             .border
             .content_canvas_color(canvas_color, &self.look, enabled);

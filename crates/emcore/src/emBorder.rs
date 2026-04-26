@@ -1654,6 +1654,7 @@ How to move or set the focus:\n\
     pub fn paint_border(
         &self,
         painter: &mut emPainter,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         look: &emLook,
@@ -1665,7 +1666,7 @@ How to move or set the focus:\n\
         // C++ uses normalized width=1.0; Rust uses actual w. So C++ "1.0" → Rust "w".
 
         // C++ line 576
-        let mut canvas_color = painter.GetCanvasColor();
+        let mut canvas_color = canvas_color;
         // C++ line 578: h = GetHeight(); — in Rust, h is the parameter.
 
         // C++ line 573-575
@@ -3452,7 +3453,7 @@ mod tests {
         img.fill(canvas);
         let mut painter = emPainter::new(&mut img);
 
-        border.paint_border(&mut painter, 100.0, 100.0, &look, false, true, 1.0);
+        border.paint_border(&mut painter, canvas, 100.0, 100.0, &look, false, true, 1.0);
         drop(painter);
 
         // Corner pixels must be bg_color, not canvas color.
@@ -3575,7 +3576,16 @@ mod tests {
         img_large.fill(emColor::rgba(0, 0, 0, 0));
         {
             let mut painter = emPainter::new(&mut img_large);
-            border.paint_border(&mut painter, w, h, &look, false, true, 100.0);
+            border.paint_border(
+                &mut painter,
+                emColor::TRANSPARENT,
+                w,
+                h,
+                &look,
+                false,
+                true,
+                100.0,
+            );
         }
 
         // Render with tiny pixel_scale (HowTo text should be hidden).
@@ -3583,7 +3593,16 @@ mod tests {
         img_small.fill(emColor::rgba(0, 0, 0, 0));
         {
             let mut painter = emPainter::new(&mut img_small);
-            border.paint_border(&mut painter, w, h, &look, false, true, 0.01);
+            border.paint_border(
+                &mut painter,
+                emColor::TRANSPARENT,
+                w,
+                h,
+                &look,
+                false,
+                true,
+                0.01,
+            );
         }
 
         // The two buffers must differ — the large-scale render includes text

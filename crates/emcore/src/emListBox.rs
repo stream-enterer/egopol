@@ -1113,8 +1113,16 @@ impl emListBox {
         self.last_w = w;
         self.last_h = h;
         self.border.how_to_text = self.GetHowTo(true, true);
-        self.border
-            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
+        self.border.paint_border(
+            painter,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            false,
+            true,
+            pixel_scale,
+        );
         let canvas_color = self
             .border
             .content_canvas_color(canvas_color, &self.look, true);
