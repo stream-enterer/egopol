@@ -114,6 +114,7 @@ impl emRadioBox {
     pub fn Paint(
         &mut self,
         painter: &mut emPainter,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         enabled: bool,
@@ -124,6 +125,9 @@ impl emRadioBox {
         self.enabled = enabled;
         self.border
             .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
+        let canvas_color = self
+            .border
+            .content_canvas_color(canvas_color, &self.look, enabled);
 
         let cr = self.border.GetContentRect(w, h, &self.look);
         let (bx0, by0, bw0, mut lx, mut ly, mut lw, mut lh) = self.box_label_geometry(&cr);
@@ -162,7 +166,7 @@ impl emRadioBox {
 
         // Paint face (InputBgColor) — circular for radio.
         let face_color = self.look.input_bg_color;
-        painter.PaintRoundRect(fx, fy, fw, fh, fr, fr, face_color, painter.GetCanvasColor());
+        painter.PaintRoundRect(fx, fy, fw, fh, fr, fr, face_color, canvas_color);
         painter.SetCanvasColor(face_color);
 
         // Paint radio dot if selected (C++ PaintBoxSymbol, lines 161-167).
