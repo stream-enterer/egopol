@@ -4,10 +4,10 @@
 //! Spec: docs/superpowers/specs/2026-04-25-F018-compositor-integration-contract-design.md §IV.3
 //! Audit: docs/debug/F018-audit.md §IV.3
 //!
-//! These tests are `#[ignore]`'d so the pre-commit hook (which runs
-//! `cargo nextest run --no-fail-fast` and exits non-zero on any failure) stays
-//! green for the TDD red commit. Task 7 lands the two-line fix in `emView.rs`
-//! and removes the `#[ignore]` markers.
+//! Build note: requires the `test-support` feature. The workspace-wide
+//! `cargo nextest run` enables it transitively via sibling crates;
+//! direct `cargo test -p emcore --test f018_iv3_svpchoice_invalidation`
+//! invocations need `--features test-support`.
 
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -21,7 +21,6 @@ use emcore::emView::emView;
 use emcore::test_view_harness::TestSched;
 
 #[test]
-#[ignore = "IV.3: un-ignore in Task 7's commit"]
 fn invalidate_painting_sets_svp_choice_by_opacity_invalid() {
     let (mut tree, panel_id) = build_minimal_tree();
     let mut view = build_view_with_svp(&mut tree, panel_id);
@@ -43,7 +42,6 @@ fn invalidate_painting_sets_svp_choice_by_opacity_invalid() {
 }
 
 #[test]
-#[ignore = "IV.3: un-ignore in Task 7's commit"]
 fn invalidate_painting_rect_sets_svp_choice_by_opacity_invalid() {
     let (mut tree, panel_id) = build_minimal_tree();
     let mut view = build_view_with_svp(&mut tree, panel_id);

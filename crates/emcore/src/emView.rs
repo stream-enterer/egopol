@@ -298,14 +298,20 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
         match scope {
             crate::emPanelScope::PanelScope::Toplevel(wid) => {
                 let Some(window) = ctx.windows.get_mut(&wid) else {
-                    dlog!("VisitingVAEngineClass::Cycle Toplevel({:?}) — window missing, sleep", wid);
+                    dlog!(
+                        "VisitingVAEngineClass::Cycle Toplevel({:?}) — window missing, sleep",
+                        wid
+                    );
                     return false;
                 };
                 let view = &mut window.view;
                 let va_rc = Rc::clone(&view.VisitingVA);
                 let mut va = va_rc.borrow_mut();
                 if !va.is_active() {
-                    dlog!("VisitingVAEngineClass::Cycle Toplevel({:?}) — !is_active, sleep", wid);
+                    dlog!(
+                        "VisitingVAEngineClass::Cycle Toplevel({:?}) — !is_active, sleep",
+                        wid
+                    );
                     return false;
                 }
                 let mut sc = crate::emEngineCtx::SchedCtx {
@@ -317,7 +323,12 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
                     pending_actions: ctx.pending_actions,
                 };
                 let r = va.animate(view, tree, dt, &mut sc);
-                dlog!("VisitingVAEngineClass::Cycle Toplevel({:?}) dt={:.4} animate->{}", wid, dt, r);
+                dlog!(
+                    "VisitingVAEngineClass::Cycle Toplevel({:?}) dt={:.4} animate->{}",
+                    wid,
+                    dt,
+                    r
+                );
                 r
             }
             crate::emPanelScope::PanelScope::SubView {
@@ -330,14 +341,20 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
                     .and_then(|p| p.behavior.as_mut())
                     .and_then(|b| b.as_sub_view_panel_mut())
                 else {
-                    dlog!("VisitingVAEngineClass::Cycle SubView(pid={:?}) — SVP missing, sleep", pid);
+                    dlog!(
+                        "VisitingVAEngineClass::Cycle SubView(pid={:?}) — SVP missing, sleep",
+                        pid
+                    );
                     return false;
                 };
                 let (sub_view, sub_tree) = svp.sub_view_and_tree_mut();
                 let va_rc = Rc::clone(&sub_view.VisitingVA);
                 let mut va = va_rc.borrow_mut();
                 if !va.is_active() {
-                    dlog!("VisitingVAEngineClass::Cycle SubView(pid={:?}) — !is_active, sleep", pid);
+                    dlog!(
+                        "VisitingVAEngineClass::Cycle SubView(pid={:?}) — !is_active, sleep",
+                        pid
+                    );
                     return false;
                 }
                 let mut sc = crate::emEngineCtx::SchedCtx {
@@ -349,7 +366,12 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
                     pending_actions: ctx.pending_actions,
                 };
                 let r = va.animate(sub_view, sub_tree, dt, &mut sc);
-                dlog!("VisitingVAEngineClass::Cycle SubView(pid={:?}) dt={:.4} animate->{}", pid, dt, r);
+                dlog!(
+                    "VisitingVAEngineClass::Cycle SubView(pid={:?}) dt={:.4} animate->{}",
+                    pid,
+                    dt,
+                    r
+                );
                 r
             }
             crate::emPanelScope::PanelScope::Framework => {
@@ -3163,6 +3185,7 @@ impl emView {
         };
         self.dirty_rects
             .push(Rect::new(p.clip_x, p.clip_y, p.clip_w, p.clip_h));
+        self.SVPChoiceByOpacityInvalid = true;
     }
 
     /// Mark a sub-rectangle of the panel as needing repaint. The rectangle
@@ -3211,6 +3234,7 @@ impl emView {
 
         if vw > 0.0 && vh > 0.0 {
             self.dirty_rects.push(Rect::new(vx, vy, vw, vh));
+            self.SVPChoiceByOpacityInvalid = true;
         }
     }
 
@@ -6420,15 +6444,7 @@ mod tests {
                 current_engine: None,
                 pending_actions: &__pa,
             };
-            view.VisitByIdentity(
-                "root:child",
-                0.5,
-                0.5,
-                1.0,
-                false,
-                "child-title",
-                &mut sc,
-            );
+            view.VisitByIdentity("root:child", 0.5, 0.5, 1.0, false, "child-title", &mut sc);
         }
         assert!(view.VisitingVA.borrow().is_active());
         assert_eq!(view.VisitingVA.borrow().identity(), "root:child");
@@ -7617,9 +7633,8 @@ mod tests {
         )));
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
         let scope = crate::emPanelScope::PanelScope::Toplevel(winit::window::WindowId::dummy());
-        let pa: std::rc::Rc<
-            std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>,
-        > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let pa: std::rc::Rc<std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         let cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
 
