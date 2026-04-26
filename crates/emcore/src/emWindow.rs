@@ -612,6 +612,14 @@ impl emWindow {
             }
         }
 
+        // F018 contract rules I.1/I.4/I.5: capture view.background_color once
+        // per frame and push it into the compositor (so wgpu LoadOp::Clear
+        // reflects runtime SetBackgroundColor changes) and into every CPU
+        // pre-fill site below (so panels-not-yet-painted regions observe
+        // background_color, not BLACK).
+        let background_color = view.GetBackgroundColor();
+        compositor.set_background_color(background_color);
+
         let (cols, rows) = tile_cache.grid_size();
         let tile_size = crate::emViewRendererTileCache::TILE_SIZE;
 
@@ -629,7 +637,7 @@ impl emWindow {
             // Many dirty tiles (e.g. panning): paint into viewport-sized buffer
             // once, then copy tile-sized chunks. Avoids redundant tree walks and
             // re-rasterization of primitives across tiles.
-            viewport_buffer.fill(crate::emColor::emColor::BLACK);
+            viewport_buffer.fill(background_color);
             {
                 let mut painter = emPainter::new(viewport_buffer);
                 view.Paint(tree, &mut painter, crate::emColor::emColor::TRANSPARENT);
@@ -664,6 +672,7 @@ impl emWindow {
                 cols,
                 rows,
                 tile_size,
+                background_color,
             );
         } else {
             // Few dirty tiles, single-threaded: paint per-tile.
@@ -671,7 +680,7 @@ impl emWindow {
                 for col in 0..cols {
                     let tile = tile_cache.get_or_create(col, row);
                     if tile.dirty {
-                        tile.image.fill(crate::emColor::emColor::BLACK);
+                        tile.image.fill(background_color);
                         {
                             let mut painter = emPainter::new(&mut tile.image);
                             let ts = tile_size as f64;
@@ -721,6 +730,7 @@ impl emWindow {
         cols: u32,
         rows: u32,
         tile_size: u32,
+        background_color: crate::emColor::emColor,
     ) {
         use crate::emColor::emColor;
         use crate::emPainter::emPainter;
@@ -764,7 +774,7 @@ impl emWindow {
             |idx| {
                 let (col, row) = dirty_ref[idx];
                 let mut buffer = crate::emImage::emImage::new(tile_size, tile_size, 4);
-                buffer.fill(emColor::BLACK);
+                buffer.fill(background_color);
                 {
                     let mut painter = emPainter::new(&mut buffer);
                     let tile_offset = (col as f64 * ts, row as f64 * ts);
