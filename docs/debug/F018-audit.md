@@ -355,33 +355,45 @@ plan.
 
 ### V.1 — F018 repro: `VFS_WAITING`/`VFS_LOADING` background is grey
 
-**Status:**
+**Status:** VIOLATION
+
 **Evidence:**
-**Notes:**
+- F018 repro (spec V.1, ISSUES.json F018 repro field): zooming into a directory panel during VFS_LOADING shows BLACK in Rust where C++ Eagle Mode 0.96.4 shows 0x808080 grey.
+- Root causes per cluster I audits: I.1 (Rust-only BLACK pre-fill at four sites) + I.4 (compositor load-clear hardcoded BLACK with alpha-blend through). emFilePanel paints non-opaquely during loading, so the conditional I.3 clear writes `view.background_color` (grey) into the painter clip — but tile alpha and load-clear together leak BLACK through.
+
+**Notes:** Acceptance criterion. Remediation plan must verify this passes (visual check or golden test) after I.1 + I.4 fixes land.
 
 ### V.2 — Background-color change visibly propagates
 
-**Status:**
-**Evidence:**
-**Notes:**
+**Status:** INCONCLUSIVE
+
+**Evidence:** No existing automated test exercises `SetBackgroundColor` at runtime and verifies presented framebuffer color in non-opaque-panel regions. The dirty-region layer is COMPLIANT (per I.5 correction); the compositor load-clear layer fails (per I.4) — but visual confirmation requires a harness.
+
+**Notes:** Remediation plan must build a behavioral or golden test that drives `SetBackgroundColor` mid-frame and inspects the next-frame composited output. Compliance status will be derived from I.4 fix.
 
 ### V.3 — Strategy parity
 
-**Status:**
-**Evidence:**
-**Notes:**
+**Status:** INCONCLUSIVE
+
+**Evidence:** No existing test selects each of the three render strategies (single-buffer fallback, parallel-record-replay, per-tile single-threaded) for the same panel-tree state and compares pixel output. Strategy choice is driven internally by `dirty_count` and `render_pool.GetThreadCount()` (`emWindow.rs:628, 653`); no harness manipulates these to force-select.
+
+**Notes:** Remediation plan must add a strategy-parity test (force each strategy, compare outputs within `tests/golden/common.rs` tolerances). IV.4 audit reasons logically about parity but cannot establish it.
 
 ### V.4 — Painted-region shrink shows no ghost
 
-**Status:**
-**Evidence:**
-**Notes:**
+**Status:** INCONCLUSIVE
+
+**Evidence:** No existing test exercises a two-frame painted-region-shrink scenario (panel paints region R₁ then R₂ ⊊ R₁) with framebuffer inspection.
+
+**Notes:** Remediation plan must build a test panel that drives a paint-region shrink across frames and asserts the difference (R₁ \ R₂) is repainted to the panel's canvas color, not left stale. Compliance gated on IV.2 audit and on whether shape-changing transitions use the no-arg `InvalidatePainting` overload.
 
 ### V.5 — Opacity transition rebuilds framebuffer
 
-**Status:**
-**Evidence:**
-**Notes:**
+**Status:** INCONCLUSIVE (likely VIOLATION pending test — per IV.3)
+
+**Evidence:** No existing test exercises an opacity transition with framebuffer inspection. emFilePanel naturally has IsOpaque-changing transitions (e.g. VFS_LOADED → VFS_LOAD_ERROR) but no test asserts on the resulting pixels. IV.3 audit found that `SVPChoiceByOpacityInvalid` is never set to true on invalidation — a behavioral test would likely surface a stale-SVP bug.
+
+**Notes:** Remediation plan must build a test that drives an `IsOpaque()` transition and asserts the SVP-choice is re-evaluated and the framebuffer is fully rebuilt. Compliance gated on III.3 + IV.3 fixes.
 
 ---
 
