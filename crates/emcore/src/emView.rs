@@ -4792,7 +4792,7 @@ impl emView {
 
             // C++ line 1098: p->Paint(pnt, canvasColor)
             painter.SetCanvasColor(canvas_color);
-            self.paint_one_panel(tree, painter, svp_id, svp_layout);
+            self.paint_one_panel(tree, painter, svp_id, canvas_color, svp_layout);
 
             // C++ lines 1099-1135: iterative DFS over children.
             // C++ does LeaveUserSpace (line 1099) then reuses `pnt` for all
@@ -4834,7 +4834,7 @@ impl emView {
 
                                 // C++ line 1118: p->Paint(pnt, p->CanvasColor)
                                 painter.SetCanvasColor(p_canvas);
-                                self.paint_one_panel(tree, painter, p, p_layout);
+                                self.paint_one_panel(tree, painter, p, p_canvas, p_layout);
 
                                 // C++ lines 1120-1123
                                 if let Some(fc) = tree.GetFirstChild(p) {
@@ -4897,6 +4897,7 @@ impl emView {
         tree: &mut PanelTree,
         painter: &mut emPainter,
         id: PanelId,
+        canvas_color: emColor,
         layout: Rect,
     ) {
         if let Some(mut behavior) = tree.take_behavior(id) {
@@ -4925,7 +4926,7 @@ impl emView {
                 data.paint_count = data.paint_count.wrapping_add(1);
                 data.last_paint_frame = self.current_frame.get();
             }
-            behavior.Paint(painter, 1.0, tallness, &state);
+            behavior.Paint(painter, canvas_color, 1.0, tallness, &state);
             tree.put_behavior(id, behavior);
         }
     }
