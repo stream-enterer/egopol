@@ -19,9 +19,7 @@ fn white_canvas(w: u32, h: u32) -> emImage {
 /// In C++ emPainter, canvasColor defaults to 0 (non-opaque) per call, which
 /// uses standard alpha blending. Match that behavior here.
 fn white_painter(img: &mut emImage) -> emPainter<'_> {
-    let mut p = emPainter::new(img);
-    p.SetCanvasColor(emColor::TRANSPARENT);
-    p
+    emPainter::new(img)
 }
 
 /// Install direct-mode op logger on a painter if DUMP_DRAW_OPS=1.
@@ -489,7 +487,7 @@ fn painter_outline_round_rect() {
     let mut img = white_canvas(ew, eh);
     {
         let mut p = white_painter(&mut img);
-        let cc = p.GetCanvasColor();
+        let cc = emColor::TRANSPARENT;
         p.PaintRoundRectOutline(
             20.0,
             20.0,
@@ -579,7 +577,6 @@ fn painter_canvas_color() {
     img.fill(emColor::SetGrey(200));
     {
         let mut p = white_painter(&mut img);
-        p.SetCanvasColor(emColor::SetGrey(200));
         p.PaintRect(
             20.0,
             20.0,
@@ -1105,7 +1102,6 @@ fn painter_howto_isolate() {
     img.fill(emColor::rgba(0x51, 0x5e, 0x84, 0xff));
     {
         let mut p = white_painter(&mut img);
-        p.SetCanvasColor(emColor::rgba(0x51, 0x5e, 0x84, 0xff));
         p.PaintRoundRect(
             1.81824,
             1.87168,

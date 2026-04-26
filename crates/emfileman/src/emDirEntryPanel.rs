@@ -1406,7 +1406,6 @@ mod tests {
             let bic = Rc::clone(&border_image_count);
             let tot = Rc::clone(&total_ops);
             let mut p = emPainter::new(&mut img);
-            p.SetCanvasColor(emColor::TRANSPARENT);
             p.set_op_log(move |op, _depth, _state| {
                 tot.set(tot.get() + 1);
                 if matches!(op, DrawOp::PaintBorderImage { .. }) {
@@ -1494,7 +1493,6 @@ mod tests {
         {
             let kinds_cb = Rc::clone(&kinds);
             let mut p = emPainter::new(&mut img);
-            p.SetCanvasColor(emColor::TRANSPARENT);
             p.set_op_log(move |op, _depth, _state| {
                 let tag: &'static str = match op {
                     DrawOp::PaintTextBoxed { .. } => "PaintTextBoxed",
@@ -1640,7 +1638,6 @@ mod tests {
         {
             let texts_cb = Rc::clone(&texts);
             let mut p = emPainter::new(&mut img);
-            p.SetCanvasColor(emColor::TRANSPARENT);
             p.set_op_log(move |op, _depth, _state| match op {
                 DrawOp::PaintText { text, .. } => texts_cb.borrow_mut().push(text.clone()),
                 DrawOp::PaintTextBoxed { text, .. } => texts_cb.borrow_mut().push(text.clone()),

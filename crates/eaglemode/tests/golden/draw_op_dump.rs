@@ -116,7 +116,6 @@ fn is_state_op(op: &DrawOp) -> bool {
             | DrawOp::SetScaling(..)
             | DrawOp::SetTransformation { .. }
             | DrawOp::ClipRect { .. }
-            | DrawOp::SetCanvasColor(..)
             | DrawOp::SetAlpha(..)
     )
 }
@@ -745,7 +744,6 @@ fn variant_name(op: &DrawOp) -> &'static str {
         DrawOp::SetScaling(..) => "SetScaling",
         DrawOp::SetTransformation { .. } => "SetTransformation",
         DrawOp::ClipRect { .. } => "ClipRect",
-        DrawOp::SetCanvasColor(..) => "SetCanvasColor",
         DrawOp::SetAlpha(..) => "SetAlpha",
         DrawOp::PaintRect { .. } => "PaintRect",
         DrawOp::PaintRoundRect { .. } => "PaintRoundRect",

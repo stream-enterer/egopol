@@ -29,7 +29,6 @@ fn render_starfield(depth: i32, seed: u32, w: u32, h: u32, log_name: Option<&str
             install_direct_op_logger(&mut p, name);
         }
         p.scale(w as f64, h as f64);
-        p.SetCanvasColor(emColor::TRANSPARENT);
         let state = PanelState::default_for_test();
         panel.Paint(&mut p, emColor::TRANSPARENT, 1.0, 1.0, &state);
     }

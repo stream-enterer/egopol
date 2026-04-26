@@ -1726,7 +1726,6 @@ mod tests {
         img.fill(dc);
         {
             let mut p = emPainter::new(&mut img);
-            p.SetCanvasColor(dc);
             let state = PanelState::default_for_test();
             panel.Paint(&mut p, dc, 1.0, 1.0, &state);
         }
@@ -1777,7 +1776,6 @@ mod tests {
         img.fill(sentinel);
         {
             let mut p = emPainter::new(&mut img);
-            p.SetCanvasColor(sentinel);
             let state = PanelState::default_for_test();
             panel.Paint(&mut p, sentinel, 1.0, 1.0, &state);
         }

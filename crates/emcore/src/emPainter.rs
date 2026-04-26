@@ -196,7 +196,10 @@ struct PainterState {
     scale_y: f64,
     /// Clip rectangle in pixel coordinates (f64, matching C++ emPainter).
     clip: ClipRect,
-    /// Canvas color for canvas_blend operations.
+    /// Internal save/restore slot for canvas_color during paint operations.
+    /// Not externally visible — F018 threading made the public carrier dead,
+    /// but internal save/restore in paint_polygon_canvas_blend etc. still uses
+    /// this slot as scratch state.
     canvas_color: emColor,
     /// Global alpha multiplier (0–255).
     alpha: u8,
@@ -714,17 +717,6 @@ impl<'a> emPainter<'a> {
     pub fn pop_state(&mut self) {
         self.record_state(DrawOp::PopState);
         self.state = self.state_stack.pop().expect("State stack underflow");
-    }
-
-    /// Get the current canvas color.
-    pub fn GetCanvasColor(&self) -> emColor {
-        self.state.canvas_color
-    }
-
-    /// Set the canvas color used for canvas_blend operations.
-    pub fn SetCanvasColor(&mut self, color: emColor) {
-        self.record_state(DrawOp::SetCanvasColor(color));
-        self.state.canvas_color = color;
     }
 
     /// Set the global alpha multiplier.
@@ -9731,7 +9723,6 @@ mod tests {
 
         // Overlapping rectangles with transparency
         p.push_state();
-        p.SetCanvasColor(canvas);
         p.PaintRect(5.0, 5.0, 30.0, 30.0, red, canvas);
         p.PaintRect(15.0, 15.0, 30.0, 30.0, green, canvas);
 
@@ -10119,7 +10110,6 @@ mod tiny_rect_tests {
 
         {
             let mut p = emPainter::new(&mut img);
-            p.SetCanvasColor(crate::emColor::emColor::TRANSPARENT);
             for &(x, y, w, h) in rects {
                 p.PaintRect(x, y, w, h, text_color, crate::emColor::emColor::TRANSPARENT);
             }

@@ -752,7 +752,6 @@ impl TestPanel {
         );
 
         // Round rects
-        p.SetCanvasColor(bg);
         p.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, 0.001, emColor::WHITE, bg);
         p.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.001, 0.002, emColor::WHITE, bg);
         p.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, 0.002, emColor::WHITE, bg);
@@ -833,7 +832,6 @@ impl TestPanel {
         }
 
         // Round rect outlines
-        p.SetCanvasColor(bg);
         p.PaintRoundRectOutline(
             0.05,
             0.88,
@@ -1257,8 +1255,7 @@ impl PanelBehavior for TestPanel {
         painter.scale(w, w);
         let panel_h = h / w;
 
-        painter.PaintRect(0.0, 0.0, 1.0, panel_h, bg, painter.GetCanvasColor());
-        painter.SetCanvasColor(bg);
+        painter.PaintRect(0.0, 0.0, 1.0, panel_h, bg, emColor::TRANSPARENT);
         painter.PaintRectOutline(
             0.01,
             0.01,

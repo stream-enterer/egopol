@@ -46,7 +46,6 @@ fn eagle_logo() {
         if dump_draw_ops_enabled() {
             install_direct_op_logger(&mut p, "eagle_logo");
         }
-        p.SetCanvasColor(emColor::TRANSPARENT);
         p.scale(800.0, 800.0);
 
         // Paint with panel dimensions w=1.0, h=0.75.
