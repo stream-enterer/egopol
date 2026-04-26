@@ -54,9 +54,17 @@ struct MainButtonPanel {
 }
 
 impl PanelBehavior for MainButtonPanel {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.button.Paint(painter, w, h, state.enabled, pixel_scale);
+        self.button
+            .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
     }
 
     fn Input(
@@ -86,10 +94,17 @@ struct MainCheckButtonPanel {
 }
 
 impl PanelBehavior for MainCheckButtonPanel {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.check_button
-            .Paint(painter, w, h, state.enabled, pixel_scale);
+            .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
     }
 
     fn Input(
@@ -228,10 +243,25 @@ impl PanelBehavior for emMainControlPanel {
         true
     }
 
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.border
-            .paint_border(painter, w, h, &self.look, false, state.enabled, pixel_scale);
+        self.border.paint_border(
+            painter,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            false,
+            state.enabled,
+            pixel_scale,
+        );
     }
 
     fn Input(
@@ -597,7 +627,14 @@ impl PanelBehavior for AboutPanel {
         Some("About Eagle Mode".to_string())
     }
 
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        _canvas_color: emColor,
+        w: f64,
+        h: f64,
+        _state: &PanelState,
+    ) {
         let bg = emColor::from_packed(0x515E84FF);
         let fg = emColor::from_packed(0xEFF0F4FF);
         let canvas = emColor::TRANSPARENT;
@@ -635,7 +672,14 @@ impl PanelBehavior for CoreConfigPlaceholder {
         Some("Core Config".to_string())
     }
 
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        _canvas_color: emColor,
+        w: f64,
+        h: f64,
+        _state: &PanelState,
+    ) {
         let bg = emColor::from_packed(0x515E84FF);
         let fg = emColor::from_packed(0xEFF0F4FF);
         let canvas = emColor::TRANSPARENT;
@@ -839,10 +883,25 @@ impl PanelBehavior for CommandsPanel {
         Some("Main Commands".to_string())
     }
 
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.border
-            .paint_border(painter, w, h, &self.look, false, state.enabled, pixel_scale);
+        self.border.paint_border(
+            painter,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            false,
+            state.enabled,
+            pixel_scale,
+        );
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {

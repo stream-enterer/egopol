@@ -277,10 +277,7 @@ impl emEngine for emDirModelEngine {
 }
 
 impl emDirModel {
-    pub fn Acquire(
-        ctx: &Rc<emcore::emContext::emContext>,
-        name: &str,
-    ) -> Rc<RefCell<Self>> {
+    pub fn Acquire(ctx: &Rc<emcore::emContext::emContext>, name: &str) -> Rc<RefCell<Self>> {
         ctx.acquire::<Self>(name, || Self {
             file_model: emFileModel::new(
                 PathBuf::from(name),
@@ -590,13 +587,10 @@ mod tests {
         let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
             HashMap::new();
         let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
-        let mut pending_inputs: Vec<(
-            winit::window::WindowId,
-            emcore::emInput::emInputEvent,
-        )> = Vec::new();
+        let mut pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+            Vec::new();
         let mut input_state = emcore::emInputState::emInputState::new();
-        let cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
-            RefCell::new(None);
+        let cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
         let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
             Rc::new(RefCell::new(Vec::new()));
         sched.DoTimeSlice(
@@ -670,8 +664,8 @@ mod tests {
         // proof.
         drive_one_time_slice(&mut sched);
         let entries_before = model.borrow().GetEntryCount();
-        let primed_ok = entries_before > 0
-            && !matches!(model.borrow().get_file_state(), FileState::Loaded);
+        let primed_ok =
+            entries_before > 0 && !matches!(model.borrow().get_file_state(), FileState::Loaded);
 
         // Sleep past the 50 ms deadline last set by drive_one_time_slice.
         std::thread::sleep(std::time::Duration::from_millis(60));
@@ -687,21 +681,24 @@ mod tests {
             // calling DoTimeSlice between the sleep and the cycle).
             use std::collections::HashMap;
             let root = emcore::emContext::emContext::NewRoot();
-            let mut windows: HashMap<
-                winit::window::WindowId,
-                emcore::emWindow::emWindow,
-            > = HashMap::new();
+            let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+                HashMap::new();
             let mut fw: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
-            let mut pending_inputs: Vec<(
-                winit::window::WindowId,
-                emcore::emInput::emInputEvent,
-            )> = Vec::new();
+            let mut pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+                Vec::new();
             let mut input_state = emcore::emInputState::emInputState::new();
-            let cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
-                RefCell::new(None);
+            let cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
             let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
                 Rc::new(RefCell::new(Vec::new()));
-            let _ = (&mut windows, &mut pending_inputs, &mut input_state, &cb, &pa, &root, &mut fw);
+            let _ = (
+                &mut windows,
+                &mut pending_inputs,
+                &mut input_state,
+                &cb,
+                &pa,
+                &root,
+                &mut fw,
+            );
             let eng_id = model.borrow().engine_id.expect("engine registered");
             let mut ectx = emcore::emEngineCtx::EngineCtx {
                 scheduler: &mut sched,

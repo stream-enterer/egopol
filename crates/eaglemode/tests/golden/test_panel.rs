@@ -120,9 +120,10 @@ struct ButtonPanel {
     widget: emButton,
 }
 impl PanelBehavior for ButtonPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
+        self.widget
+            .Paint(p, canvas_color, w, h, s.enabled, pixel_scale);
     }
     fn Input(
         &mut self,
@@ -145,9 +146,10 @@ struct CheckButtonPanel {
     widget: emCheckButton,
 }
 impl PanelBehavior for CheckButtonPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
+        self.widget
+            .Paint(p, canvas_color, w, h, s.enabled, pixel_scale);
     }
     fn Input(
         &mut self,
@@ -170,9 +172,10 @@ struct CheckBoxPanel {
     widget: emCheckBox,
 }
 impl PanelBehavior for CheckBoxPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
+        self.widget
+            .Paint(p, canvas_color, w, h, s.enabled, pixel_scale);
     }
     fn Input(
         &mut self,
@@ -195,9 +198,10 @@ struct RadioButtonPanel {
     widget: emRadioButton,
 }
 impl PanelBehavior for RadioButtonPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
+        self.widget
+            .Paint(p, canvas_color, w, h, s.enabled, pixel_scale);
     }
     fn Input(
         &mut self,
@@ -220,9 +224,10 @@ struct RadioBoxPanel {
     widget: emRadioBox,
 }
 impl PanelBehavior for RadioBoxPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
+        self.widget
+            .Paint(p, canvas_color, w, h, s.enabled, pixel_scale);
     }
     fn Input(
         &mut self,
@@ -245,10 +250,11 @@ struct TextFieldPanel {
     widget: emTextField,
 }
 impl PanelBehavior for TextFieldPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.widget.cycle_blink(s.in_focused_path());
-        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
+        self.widget
+            .Paint(p, canvas_color, w, h, s.enabled, pixel_scale);
     }
     fn Input(
         &mut self,
@@ -276,9 +282,10 @@ struct ScalarFieldPanel {
     widget: emScalarField,
 }
 impl PanelBehavior for ScalarFieldPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
+        self.widget
+            .Paint(p, canvas_color, w, h, s.enabled, pixel_scale);
     }
     fn Input(
         &mut self,
@@ -301,9 +308,9 @@ struct ColorFieldPanel {
     widget: emColorField,
 }
 impl PanelBehavior for ColorFieldPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.Paint(p, w, h, pixel_scale);
+        self.widget.Paint(p, canvas_color, w, h, pixel_scale);
     }
     fn Input(
         &mut self,
@@ -333,9 +340,9 @@ struct ListBoxPanel {
     widget: emListBox,
 }
 impl PanelBehavior for ListBoxPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.Paint(p, w, h, pixel_scale);
+        self.widget.Paint(p, canvas_color, w, h, pixel_scale);
     }
     fn Input(
         &mut self,
@@ -366,9 +373,10 @@ struct LabelPanel {
     widget: emLabel,
 }
 impl PanelBehavior for LabelPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.PaintContent(p, w, h, s.enabled, pixel_scale);
+        self.widget
+            .PaintContent(p, canvas_color, w, h, s.enabled, pixel_scale);
     }
 }
 
@@ -405,8 +413,8 @@ impl CustomItemPanelBehavior {
 }
 
 impl PanelBehavior for CustomItemPanelBehavior {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
-        self.group.Paint(p, w, h, s);
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
+        self.group.Paint(p, canvas_color, w, h, s);
     }
 
     fn auto_expand(&self) -> bool {
@@ -454,8 +462,8 @@ struct SplitterPanel {
     widget: emSplitter,
 }
 impl PanelBehavior for SplitterPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _s: &PanelState) {
-        self.widget.PaintContent(p, w, h, _s.enabled);
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, _s: &PanelState) {
+        self.widget.PaintContent(p, canvas_color, w, h, _s.enabled);
     }
     fn Input(
         &mut self,
@@ -510,8 +518,14 @@ impl PanelBehavior for CanvasPanel {
         true
     }
 
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        let canvas_color = p.GetCanvasColor();
+    fn Paint(
+        &mut self,
+        p: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        _state: &PanelState,
+    ) {
         p.PaintRect(0.0, 0.0, w, h, self.fill_color, canvas_color);
 
         let scaled: Vec<(f64, f64)> = self
@@ -738,7 +752,6 @@ impl TestPanel {
         );
 
         // Round rects
-        p.SetCanvasColor(bg);
         p.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, 0.001, emColor::WHITE, bg);
         p.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.001, 0.002, emColor::WHITE, bg);
         p.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, 0.002, emColor::WHITE, bg);
@@ -819,7 +832,6 @@ impl TestPanel {
         }
 
         // Round rect outlines
-        p.SetCanvasColor(bg);
         p.PaintRoundRectOutline(
             0.05,
             0.88,
@@ -1222,7 +1234,14 @@ impl PanelBehavior for TestPanel {
         Some("Test Panel".into())
     }
 
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        _canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let bg = self.bg_color();
         let fg = if state.is_focused() {
             emColor::rgba(255, 136, 136, 255)
@@ -1236,8 +1255,7 @@ impl PanelBehavior for TestPanel {
         painter.scale(w, w);
         let panel_h = h / w;
 
-        painter.PaintRect(0.0, 0.0, 1.0, panel_h, bg, painter.GetCanvasColor());
-        painter.SetCanvasColor(bg);
+        painter.PaintRect(0.0, 0.0, 1.0, panel_h, bg, emColor::TRANSPARENT);
         painter.PaintRectOutline(
             0.01,
             0.01,
@@ -1417,9 +1435,17 @@ impl PanelBehavior for TkTestGrpPanel {
         true
     }
 
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
-        self.border
-            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
+        self.border.paint_border(
+            p,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            s.is_focused(),
+            s.enabled,
+            1.0,
+        );
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
@@ -2144,9 +2170,17 @@ impl PanelBehavior for TkTestPanel {
         true
     }
 
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
-        self.border
-            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
+        self.border.paint_border(
+            p,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            s.is_focused(),
+            s.enabled,
+            1.0,
+        );
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
@@ -2652,9 +2686,17 @@ impl PanelBehavior for PolyDrawPanel {
         true
     }
 
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
-        self.border
-            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
+        self.border.paint_border(
+            p,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            s.is_focused(),
+            s.enabled,
+            1.0,
+        );
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {

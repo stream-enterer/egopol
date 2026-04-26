@@ -128,9 +128,17 @@ struct AutoplayButtonPanel {
 }
 
 impl PanelBehavior for AutoplayButtonPanel {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.button.Paint(painter, w, h, state.enabled, pixel_scale);
+        self.button
+            .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
     }
 
     fn Input(
@@ -161,10 +169,17 @@ struct AutoplayCheckButtonPanel {
 }
 
 impl PanelBehavior for AutoplayCheckButtonPanel {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.check_button
-            .Paint(painter, w, h, state.enabled, pixel_scale);
+            .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
 
         // BLOCKED: C++ AutoplayButton::PaintLabel draws ellipse-arc progress indicator using PaintEllipseArc.
         // Rust uses a simple rectangle overlay — AutoplayButton::PaintLabel has not been ported yet.
@@ -196,10 +211,17 @@ struct AutoplayCheckBoxPanel {
 }
 
 impl PanelBehavior for AutoplayCheckBoxPanel {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.check_box
-            .Paint(painter, w, h, state.enabled, pixel_scale);
+            .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
     }
 
     fn Input(
@@ -223,10 +245,17 @@ struct AutoplayScalarFieldPanel {
 }
 
 impl PanelBehavior for AutoplayScalarFieldPanel {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.scalar_field
-            .Paint(painter, w, h, state.enabled, pixel_scale);
+            .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
     }
 
     fn Input(
@@ -371,10 +400,18 @@ impl PanelBehavior for SettingsPanel {
         Some("Autoplay Settings".to_string())
     }
 
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,
@@ -627,10 +664,18 @@ impl PanelBehavior for emAutoplayControlPanel {
         true
     }
 
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.border.paint_border(
             painter,
+            canvas_color,
             w,
             h,
             &self.look,

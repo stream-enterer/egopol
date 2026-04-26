@@ -213,7 +213,20 @@ bitflags! {
 /// only the methods they need.
 pub trait PanelBehavior: AsAny {
     /// Paint the panel's content.
-    fn Paint(&mut self, _painter: &mut emPainter, _w: f64, _h: f64, _state: &PanelState) {}
+    ///
+    /// `canvas_color` is the canvas color the panel may rely on to be
+    /// already present at every pixel of its target region (per F018
+    /// contract rule II — value of `emPanel::Paint`'s `canvasColor`
+    /// parameter in C++).
+    fn Paint(
+        &mut self,
+        _painter: &mut emPainter,
+        _canvas_color: emColor,
+        _w: f64,
+        _h: f64,
+        _state: &PanelState,
+    ) {
+    }
 
     /// Handle an input event. Returns true if the event was consumed.
     fn Input(
@@ -483,7 +496,10 @@ mod tests {
         struct HasState;
         impl PanelBehavior for HasState {
             fn dump_state(&self) -> Vec<(&'static str, String)> {
-                vec![("loading_pct", "42".to_string()), ("loading_done", "false".to_string())]
+                vec![
+                    ("loading_pct", "42".to_string()),
+                    ("loading_done", "false".to_string()),
+                ]
             }
         }
         let b = HasState;

@@ -7,6 +7,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use emcore::emButton::emButton;
+use emcore::emColor::emColor;
 use emcore::emColorField::emColorField;
 use emcore::emCursor::emCursor;
 use emcore::emEngineCtx::PanelCtx;
@@ -36,9 +37,17 @@ impl ScalarFieldBehavior {
 }
 
 impl PanelBehavior for ScalarFieldBehavior {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.sf.Paint(painter, w, h, state.enabled, pixel_scale);
+        self.sf
+            .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
     }
 
     fn Input(
@@ -145,9 +154,17 @@ impl ColorFieldBehavior {
 }
 
 impl PanelBehavior for ColorFieldBehavior {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.color_field.Paint(painter, w, h, pixel_scale);
+        self.color_field
+            .Paint(painter, canvas_color, w, h, pixel_scale);
     }
 
     fn Input(
@@ -259,7 +276,7 @@ fn button_click_works_after_zoom() {
     {
         let mut img = emImage::new(600, 600, 4);
         let mut p = emPainter::new(&mut img);
-        btn.Paint(&mut p, 600.0, 600.0, true, 1.0);
+        btn.Paint(&mut p, emColor::TRANSPARENT, 600.0, 600.0, true, 1.0);
     }
 
     // Calibration: pixel center (300, 300) passes at 1x.
@@ -298,7 +315,7 @@ fn button_click_works_after_zoom() {
     {
         let mut img = emImage::new(1200, 1200, 4);
         let mut p = emPainter::new(&mut img);
-        btn.Paint(&mut p, 1200.0, 1200.0, true, 1.0);
+        btn.Paint(&mut p, emColor::TRANSPARENT, 1200.0, 1200.0, true, 1.0);
     }
 
     // Calibration: pixel center at 2x (600, 600) passes.
@@ -335,10 +352,18 @@ fn button_click_works_after_zoom() {
         widget: emButton,
     }
     impl PanelBehavior for BtnPanel {
-        fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        fn Paint(
+            &mut self,
+            painter: &mut emPainter,
+            canvas_color: emColor,
+            w: f64,
+            h: f64,
+            state: &PanelState,
+        ) {
             let pixel_scale =
                 state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-            self.widget.Paint(painter, w, h, state.enabled, pixel_scale);
+            self.widget
+                .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
         }
         fn Input(
             &mut self,
@@ -402,9 +427,18 @@ struct SharedListBoxPanel {
 }
 
 impl PanelBehavior for SharedListBoxPanel {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.inner.borrow_mut().Paint(painter, w, h, pixel_scale);
+        self.inner
+            .borrow_mut()
+            .Paint(painter, canvas_color, w, h, pixel_scale);
     }
 
     fn Input(

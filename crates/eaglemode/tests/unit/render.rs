@@ -10,7 +10,6 @@ fn paint_rect_fills_correct_pixels() {
 
     {
         let mut p = emPainter::new(&mut img);
-        p.SetCanvasColor(emColor::BLACK);
         p.PaintRect(2.0, 3.0, 4.0, 2.0, emColor::RED, emColor::TRANSPARENT);
     }
     // Pixel inside the rect
@@ -53,7 +52,6 @@ fn clip_rect_respected() {
 
     {
         let mut p = emPainter::new(&mut img);
-        p.SetCanvasColor(emColor::BLACK);
         p.SetClipping(2.0, 2.0, 4.0, 4.0);
         // Paint a rect that extends beyond the clip
         p.PaintRect(0.0, 0.0, 10.0, 10.0, emColor::GREEN, emColor::TRANSPARENT);
@@ -72,7 +70,6 @@ fn coordinate_transforms() {
 
     {
         let mut p = emPainter::new(&mut img);
-        p.SetCanvasColor(emColor::BLACK);
         p.translate(5.0, 5.0);
         p.PaintRect(0.0, 0.0, 2.0, 2.0, emColor::BLUE, emColor::TRANSPARENT);
     }
@@ -90,7 +87,6 @@ fn push_pop_state() {
 
     {
         let mut p = emPainter::new(&mut img);
-        p.SetCanvasColor(emColor::BLACK);
         p.push_state();
         p.translate(10.0, 10.0);
         p.PaintRect(0.0, 0.0, 2.0, 2.0, emColor::RED, emColor::TRANSPARENT);
@@ -111,7 +107,6 @@ fn paint_ellipse_basic() {
 
     {
         let mut p = emPainter::new(&mut img);
-        p.SetCanvasColor(emColor::BLACK);
         // Bounding box (10,10)-(15,15): ellipse center is (12.5, 12.5).
         p.PaintEllipse(10.0, 10.0, 5.0, 5.0, emColor::RED, emColor::TRANSPARENT);
     }
@@ -129,7 +124,6 @@ fn paint_line_basic() {
 
     {
         let mut p = emPainter::new(&mut img);
-        p.SetCanvasColor(emColor::BLACK);
         p.PaintLine(0.0, 0.0, 9.0, 0.0, emColor::WHITE, emColor::TRANSPARENT);
     }
     // Horizontal line at y=0
@@ -146,7 +140,6 @@ fn paint_rect_outline() {
 
     {
         let mut p = emPainter::new(&mut img);
-        p.SetCanvasColor(emColor::BLACK);
         let stroke = emStroke::new(emColor::WHITE, 2.0);
         p.PaintRectOutline(5.0, 5.0, 10.0, 10.0, &stroke, emColor::TRANSPARENT);
     }
@@ -172,7 +165,6 @@ fn paint_image_colored_basic() {
 
     {
         let mut p = emPainter::new(&mut target);
-        p.SetCanvasColor(emColor::BLACK);
         p.PaintImageColored(
             0.0,
             0.0,

@@ -10,6 +10,7 @@ use crate::emRenderThreadPool::emRenderThreadPool;
 pub struct SoftwareCompositor {
     framebuffer: emImage,
     model: PainterModel,
+    background_color: emColor,
 }
 
 impl SoftwareCompositor {
@@ -17,11 +18,21 @@ impl SoftwareCompositor {
         Self {
             framebuffer: emImage::new(width, height, 4),
             model: PainterModel::load_from_config(),
+            background_color: emColor::BLACK,
         }
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
         self.framebuffer = emImage::new(width, height, 4);
+    }
+
+    /// Set the background color used to pre-fill the framebuffer (and per-tile
+    /// buffers in `render_parallel`) before the view paints. Must be called
+    /// every frame from the render driver before [`Self::render`] /
+    /// [`Self::render_parallel`], so the pre-fill reflects any runtime change
+    /// to `view.background_color` (per F018 contract rule I.5).
+    pub fn set_background_color(&mut self, color: emColor) {
+        self.background_color = color;
     }
 
     pub fn render(&mut self, tree: &mut PanelTree, view: &emView) {
@@ -34,7 +45,7 @@ impl SoftwareCompositor {
     where
         F: FnOnce(&mut emPainter),
     {
-        self.framebuffer.fill(emColor::BLACK);
+        self.framebuffer.fill(self.background_color);
         let mut painter = emPainter::new(&mut self.framebuffer);
         painter.set_model(self.model.clone());
         setup(&mut painter);
@@ -71,6 +82,7 @@ impl SoftwareCompositor {
         let ts = tile_size as f64;
 
         let model = self.model.clone();
+        let bg = self.background_color;
         let results: Vec<std::sync::Mutex<Option<emImage>>> = (0..tile_count)
             .map(|_| std::sync::Mutex::new(None::<emImage>))
             .collect();
@@ -84,7 +96,7 @@ impl SoftwareCompositor {
                 let tw = tile_size.min(w - col * tile_size);
                 let th = tile_size.min(h - row * tile_size);
                 let mut buf = emImage::new(tw, th, 4);
-                buf.fill(emColor::BLACK);
+                buf.fill(bg);
                 {
                     let mut p = emPainter::new(&mut buf);
                     p.set_model(model.clone());
@@ -96,7 +108,7 @@ impl SoftwareCompositor {
         );
 
         // Phase 3: composite tiles into framebuffer.
-        self.framebuffer.fill(emColor::BLACK);
+        self.framebuffer.fill(self.background_color);
         for (idx, result) in results.iter().enumerate() {
             let col = (idx as u32) % cols;
             let row = (idx as u32) / cols;

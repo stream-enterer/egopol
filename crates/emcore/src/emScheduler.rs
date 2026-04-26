@@ -732,8 +732,7 @@ impl EngineScheduler {
     /// scheduler. Callers (e.g., emCtrlSocket's `wait_idle`) compose
     /// this check with view-side predicates.
     pub fn is_idle(&self) -> bool {
-        self.inner.pending_signals.is_empty()
-            && self.inner.wake_queues.iter().all(|q| q.is_empty())
+        self.inner.pending_signals.is_empty() && self.inner.wake_queues.iter().all(|q| q.is_empty())
     }
 
     /// Signal the scheduler to stop after the current time slice.

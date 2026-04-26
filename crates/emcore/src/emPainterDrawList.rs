@@ -29,7 +29,6 @@ pub enum DrawOp {
         w: f64,
         h: f64,
     },
-    SetCanvasColor(emColor),
     SetAlpha(u8),
 
     // Shapes
@@ -456,7 +455,6 @@ impl DrawList {
                     painter.SetTransformation(ox - tile_offset.0, oy - tile_offset.1, *sx, *sy);
                 }
                 DrawOp::ClipRect { x, y, w, h } => painter.SetClipping(*x, *y, *w, *h),
-                DrawOp::SetCanvasColor(c) => painter.SetCanvasColor(*c),
                 DrawOp::SetAlpha(a) => painter.SetAlpha(*a),
 
                 DrawOp::PaintRect {
@@ -1001,7 +999,6 @@ mod tests {
         img_a.fill(emColor::WHITE);
         {
             let mut p = emPainter::new(&mut img_a);
-            p.SetCanvasColor(emColor::WHITE);
             p.PaintRect(10.0, 10.0, 40.0, 30.0, emColor::RED, emColor::WHITE);
         }
 
@@ -1010,7 +1007,6 @@ mod tests {
         {
             let mut ops = Vec::new();
             let mut p = emPainter::new_recording(64, 64, &mut ops);
-            p.SetCanvasColor(emColor::WHITE);
             p.PaintRect(10.0, 10.0, 40.0, 30.0, emColor::RED, emColor::WHITE);
             *draw_list.ops_mut() = ops;
         }
@@ -1034,7 +1030,6 @@ mod tests {
         img_a.fill(emColor::WHITE);
         {
             let mut p = emPainter::new(&mut img_a);
-            p.SetCanvasColor(emColor::WHITE);
             p.PaintEllipse(12.0, 17.0, 40.0, 30.0, emColor::RED, emColor::WHITE);
         }
 
@@ -1043,7 +1038,6 @@ mod tests {
         {
             let mut ops = Vec::new();
             let mut p = emPainter::new_recording(64, 64, &mut ops);
-            p.SetCanvasColor(emColor::WHITE);
             p.PaintEllipse(12.0, 17.0, 40.0, 30.0, emColor::RED, emColor::WHITE);
             *draw_list.ops_mut() = ops;
         }
@@ -1066,9 +1060,7 @@ mod tests {
         {
             let mut ops = Vec::new();
             let mut p = emPainter::new_recording(64, 32, &mut ops);
-            p.SetCanvasColor(emColor::WHITE);
             p.push_state();
-            p.SetCanvasColor(emColor::RED);
             p.PaintRect(0.0, 0.0, 32.0, 32.0, emColor::BLUE, emColor::RED);
             p.pop_state();
             p.PaintRect(32.0, 0.0, 32.0, 32.0, emColor::GREEN, emColor::WHITE);
@@ -1096,7 +1088,6 @@ mod tests {
         {
             let mut ops = Vec::new();
             let mut p = emPainter::new_recording(64, 64, &mut ops);
-            p.SetCanvasColor(emColor::WHITE);
             p.SetClipping(10.0, 10.0, 20.0, 20.0);
             p.PaintRect(0.0, 0.0, 64.0, 64.0, emColor::RED, emColor::WHITE);
             *draw_list.ops_mut() = ops;
@@ -1126,7 +1117,6 @@ mod tests {
         {
             let mut ops = Vec::new();
             let mut p = emPainter::new_recording(64, 64, &mut ops);
-            p.SetCanvasColor(emColor::WHITE);
             p.set_offset(10.0, 10.0);
             p.PaintRect(0.0, 0.0, 20.0, 20.0, emColor::RED, emColor::WHITE);
             *draw_list.ops_mut() = ops;
@@ -1173,7 +1163,6 @@ mod tests {
         img_a.fill(emColor::WHITE);
         {
             let mut p = emPainter::new(&mut img_a);
-            p.SetCanvasColor(emColor::WHITE);
             p.paint_linear_gradient(
                 0.0,
                 0.0,
@@ -1191,7 +1180,6 @@ mod tests {
         {
             let mut ops = Vec::new();
             let mut p = emPainter::new_recording(64, 64, &mut ops);
-            p.SetCanvasColor(emColor::WHITE);
             p.paint_linear_gradient(
                 0.0,
                 0.0,
@@ -1226,7 +1214,6 @@ mod tests {
         img_a.fill(emColor::WHITE);
         {
             let mut p = emPainter::new(&mut img_a);
-            p.SetCanvasColor(emColor::WHITE);
             p.PaintPolygon(&triangle, emColor::GREEN, emColor::WHITE);
         }
 
@@ -1235,7 +1222,6 @@ mod tests {
         {
             let mut ops = Vec::new();
             let mut p = emPainter::new_recording(64, 64, &mut ops);
-            p.SetCanvasColor(emColor::WHITE);
             p.PaintPolygon(&triangle, emColor::GREEN, emColor::WHITE);
             *draw_list.ops_mut() = ops;
         }

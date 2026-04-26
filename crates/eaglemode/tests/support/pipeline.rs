@@ -428,7 +428,15 @@ impl PipelineTestHarness {
                 };
                 self.tree.put_behavior(panel_id, behavior);
                 if consumed {
-                    self.view.InvalidatePainting(&self.tree, panel_id);
+                    let mut sc = SchedCtx {
+                        scheduler: &mut self.scheduler,
+                        framework_actions: &mut self.framework_actions,
+                        root_context: &self.root_context,
+                        framework_clipboard: &self.framework_clipboard,
+                        current_engine: None,
+                        pending_actions: &self.pending_actions,
+                    };
+                    self.view.InvalidatePainting(&mut sc, &self.tree, panel_id);
                     break;
                 }
             }
@@ -456,16 +464,12 @@ impl PipelineTestHarness {
                 pending_actions: &self.pending_actions,
             };
             match event.key {
-                InputKey::ArrowLeft if st.IsNoMod() => {
-                    self.view.VisitLeft(&mut self.tree, &mut sc)
-                }
+                InputKey::ArrowLeft if st.IsNoMod() => self.view.VisitLeft(&mut self.tree, &mut sc),
                 InputKey::ArrowRight if st.IsNoMod() => {
                     self.view.VisitRight(&mut self.tree, &mut sc)
                 }
                 InputKey::ArrowUp if st.IsNoMod() => self.view.VisitUp(&mut self.tree, &mut sc),
-                InputKey::ArrowDown if st.IsNoMod() => {
-                    self.view.VisitDown(&mut self.tree, &mut sc)
-                }
+                InputKey::ArrowDown if st.IsNoMod() => self.view.VisitDown(&mut self.tree, &mut sc),
 
                 // C++ emPanel.cpp:1168-1180: Home with modifier variants.
                 InputKey::Home if st.IsNoMod() => self.view.VisitFirst(&mut self.tree, &mut sc),

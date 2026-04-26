@@ -121,6 +121,7 @@ impl emCheckBox {
     pub fn Paint(
         &mut self,
         painter: &mut emPainter,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         enabled: bool,
@@ -130,9 +131,19 @@ impl emCheckBox {
         self.last_h = h;
         self.enabled = enabled;
         self.border.how_to_text = self.GetHowTo(enabled, true);
-        self.border
-            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
-        let canvas_color = painter.GetCanvasColor();
+        self.border.paint_border(
+            painter,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            false,
+            true,
+            pixel_scale,
+        );
+        let canvas_color = self
+            .border
+            .content_canvas_color(canvas_color, &self.look, enabled);
 
         // C++ DoButton ShownBoxed path — emButton.cpp:233-341
         let cr = self.border.GetContentRect(w, h, &self.look);
@@ -201,6 +212,7 @@ impl emCheckBox {
             }
             self.border.paint_label_colored(
                 painter,
+                canvas_color,
                 Rect::new(lx, ly, lw, lh),
                 &self.look,
                 color,

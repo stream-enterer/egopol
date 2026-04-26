@@ -177,6 +177,7 @@ impl emButton {
     pub fn Paint(
         &mut self,
         painter: &mut emPainter,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         enabled: bool,
@@ -186,9 +187,19 @@ impl emButton {
         self.last_h = h;
         self.enabled = enabled;
         self.border.how_to_text = self.GetHowTo(enabled, true);
-        self.border
-            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
-        let canvas_color = painter.GetCanvasColor();
+        self.border.paint_border(
+            painter,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            false,
+            true,
+            pixel_scale,
+        );
+        let canvas_color = self
+            .border
+            .content_canvas_color(canvas_color, &self.look, enabled);
 
         // C++ DoButton non-boxed path — emButton.cpp:345-422
         let (cr, r) = self.border.GetContentRoundRect(w, h, &self.look);
@@ -207,7 +218,6 @@ impl emButton {
 
         let face_color = self.look.button_bg_color;
         painter.PaintRoundRect(fx, fy, fw, fh, fr, fr, face_color, canvas_color);
-        painter.SetCanvasColor(face_color);
 
         let d = fw.min(fh) * 0.1;
         let dx = (r * 0.7).max(d);
@@ -229,6 +239,7 @@ impl emButton {
         }
         self.border.paint_label_colored(
             painter,
+            face_color,
             Rect::new(lx, ly, lw, lh),
             &self.look,
             color,
@@ -814,7 +825,7 @@ mod tests {
         // Simulate paint to cache dimensions
         let mut img = emImage::new(200, 100, 4);
         let mut painter = emPainter::new(&mut img);
-        btn.Paint(&mut painter, 200.0, 100.0, true, 1.0);
+        btn.Paint(&mut painter, emColor::TRANSPARENT, 200.0, 100.0, true, 1.0);
         // Center of the button should hit
         assert!(btn.CheckMouse(100.0, 50.0));
     }
@@ -827,7 +838,7 @@ mod tests {
         let mut btn = emButton::new(&mut __init.ctx(), "X", look);
         let mut img = emImage::new(200, 100, 4);
         let mut painter = emPainter::new(&mut img);
-        btn.Paint(&mut painter, 200.0, 100.0, true, 1.0);
+        btn.Paint(&mut painter, emColor::TRANSPARENT, 200.0, 100.0, true, 1.0);
         // Well outside the button bounds
         assert!(!btn.CheckMouse(-50.0, -50.0));
         assert!(!btn.CheckMouse(300.0, 200.0));

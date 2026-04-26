@@ -1522,7 +1522,14 @@ How to move or set the focus:\n\
     /// position and dimensions for the label area.
     ///
     /// C++ equivalent: `emBorder::PaintLabel`.
-    pub fn paint_label(&self, painter: &mut emPainter, area: Rect, look: &emLook, enabled: bool) {
+    pub fn paint_label(
+        &self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        area: Rect,
+        look: &emLook,
+        enabled: bool,
+    ) {
         let dim_color = |c: emColor| -> emColor {
             if enabled {
                 c
@@ -1530,13 +1537,14 @@ How to move or set the focus:\n\
                 c.SetAlpha((c.GetAlpha() as f64 * 0.25 + 0.5) as u8)
             }
         };
-        self.paint_label_impl(painter, area, look, &dim_color);
+        self.paint_label_impl(painter, canvas_color, area, look, &dim_color);
     }
 
     /// Paint the label with a custom text color (used by emButton for button_fg_color).
     pub fn paint_label_colored(
         &self,
         painter: &mut emPainter,
+        canvas_color: emColor,
         area: Rect,
         look: &emLook,
         color: emColor,
@@ -1549,7 +1557,7 @@ How to move or set the focus:\n\
                 color.SetAlpha((color.GetAlpha() as f64 * 0.25 + 0.5) as u8)
             }
         };
-        self.paint_label_impl(painter, area, look, &dim_color);
+        self.paint_label_impl(painter, canvas_color, area, look, &dim_color);
     }
 
     /// Internal helper that paints the label components (icon, caption,
@@ -1557,6 +1565,7 @@ How to move or set the focus:\n\
     fn paint_label_impl(
         &self,
         painter: &mut emPainter,
+        canvas_color: emColor,
         area: Rect,
         look: &emLook,
         dim_color: &dyn Fn(emColor) -> emColor,
@@ -1607,7 +1616,7 @@ How to move or set the focus:\n\
         // Caption — C++ DoLabel passes capH (rect height) as maxCharHeight
         // (emBorder.cpp:1384-1396).
         if let Some(ref cr) = label.caption_rect {
-            let label_canvas = painter.GetCanvasColor();
+            let label_canvas = canvas_color;
             painter.PaintTextBoxed(
                 cr.x,
                 cr.y,
@@ -1629,7 +1638,7 @@ How to move or set the focus:\n\
         // Description — C++ DoLabel passes descH (rect height) as maxCharHeight
         // (emBorder.cpp:1398-1412).
         if let Some(ref dr) = label.description_rect {
-            let label_canvas = painter.GetCanvasColor();
+            let label_canvas = canvas_color;
             painter.PaintTextBoxed(
                 dr.x,
                 dr.y,
@@ -1654,6 +1663,7 @@ How to move or set the focus:\n\
     pub fn paint_border(
         &self,
         painter: &mut emPainter,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         look: &emLook,
@@ -1665,7 +1675,7 @@ How to move or set the focus:\n\
         // C++ uses normalized width=1.0; Rust uses actual w. So C++ "1.0" → Rust "w".
 
         // C++ line 576
-        let mut canvas_color = painter.GetCanvasColor();
+        let mut canvas_color = canvas_color;
         // C++ line 578: h = GetHeight(); — in Rust, h is the parameter.
 
         // C++ line 573-575
@@ -2032,11 +2042,6 @@ How to move or set the focus:\n\
             }
         }
 
-        // Sync painter canvas color with local tracking variable so that
-        // downstream code (paint_label_impl, etc.) that reads
-        // painter.GetCanvasColor() sees the correct value.
-        painter.SetCanvasColor(canvas_color);
-
         // C++ line 901-902: s=emMin(rndW,rndH)*BorderScaling; minSpace*=s;
         let s = rnd_w.min(rnd_h) * self.border_scaling;
         let min_space = min_space * s;
@@ -2132,6 +2137,7 @@ How to move or set the focus:\n\
                 // C++ lines 973-981: PaintLabel
                 self.paint_label_impl(
                     painter,
+                    canvas_color,
                     Rect::new(tx, ty, tw, th),
                     look,
                     &|c: emColor| -> emColor {
@@ -2243,7 +2249,6 @@ How to move or set the focus:\n\
                 }
                 // C++ line 1109
                 painter.PaintRoundRect(tx, ty, tw, th, tr, tr, color, canvas_color);
-                painter.SetCanvasColor(color);
                 // Note: C++ then calls PaintContent + PaintBorderImage and returns.
                 // In Rust, content painting is external; paint_inner_overlay handles
                 // the border image overlay.
@@ -3452,7 +3457,7 @@ mod tests {
         img.fill(canvas);
         let mut painter = emPainter::new(&mut img);
 
-        border.paint_border(&mut painter, 100.0, 100.0, &look, false, true, 1.0);
+        border.paint_border(&mut painter, canvas, 100.0, 100.0, &look, false, true, 1.0);
         drop(painter);
 
         // Corner pixels must be bg_color, not canvas color.
@@ -3575,7 +3580,16 @@ mod tests {
         img_large.fill(emColor::rgba(0, 0, 0, 0));
         {
             let mut painter = emPainter::new(&mut img_large);
-            border.paint_border(&mut painter, w, h, &look, false, true, 100.0);
+            border.paint_border(
+                &mut painter,
+                emColor::TRANSPARENT,
+                w,
+                h,
+                &look,
+                false,
+                true,
+                100.0,
+            );
         }
 
         // Render with tiny pixel_scale (HowTo text should be hidden).
@@ -3583,7 +3597,16 @@ mod tests {
         img_small.fill(emColor::rgba(0, 0, 0, 0));
         {
             let mut painter = emPainter::new(&mut img_small);
-            border.paint_border(&mut painter, w, h, &look, false, true, 0.01);
+            border.paint_border(
+                &mut painter,
+                emColor::TRANSPARENT,
+                w,
+                h,
+                &look,
+                false,
+                true,
+                0.01,
+            );
         }
 
         // The two buffers must differ — the large-scale render includes text

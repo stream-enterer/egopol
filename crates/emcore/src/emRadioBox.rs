@@ -114,6 +114,7 @@ impl emRadioBox {
     pub fn Paint(
         &mut self,
         painter: &mut emPainter,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         enabled: bool,
@@ -122,8 +123,19 @@ impl emRadioBox {
         self.last_w = w;
         self.last_h = h;
         self.enabled = enabled;
-        self.border
-            .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
+        self.border.paint_border(
+            painter,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            false,
+            true,
+            pixel_scale,
+        );
+        let canvas_color = self
+            .border
+            .content_canvas_color(canvas_color, &self.look, enabled);
 
         let cr = self.border.GetContentRect(w, h, &self.look);
         let (bx0, by0, bw0, mut lx, mut ly, mut lw, mut lh) = self.box_label_geometry(&cr);
@@ -156,14 +168,18 @@ impl emRadioBox {
 
         // Paint label to the right of the box.
         if self.border.HasLabel() {
-            self.border
-                .paint_label(painter, Rect::new(lx, ly, lw, lh), &self.look, enabled);
+            self.border.paint_label(
+                painter,
+                canvas_color,
+                Rect::new(lx, ly, lw, lh),
+                &self.look,
+                enabled,
+            );
         }
 
         // Paint face (InputBgColor) — circular for radio.
         let face_color = self.look.input_bg_color;
-        painter.PaintRoundRect(fx, fy, fw, fh, fr, fr, face_color, painter.GetCanvasColor());
-        painter.SetCanvasColor(face_color);
+        painter.PaintRoundRect(fx, fy, fw, fh, fr, fr, face_color, canvas_color);
 
         // Paint radio dot if selected (C++ PaintBoxSymbol, lines 161-167).
         // C++ PaintEllipse takes bounding rect (x, y, w, h).

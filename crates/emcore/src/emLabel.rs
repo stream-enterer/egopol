@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use crate::emColor::emColor;
 use crate::emImage::emImage;
 use crate::emPainter::{emPainter, TextAlignment};
 
@@ -96,13 +97,22 @@ impl emLabel {
     pub fn PaintContent(
         &self,
         painter: &mut emPainter,
+        canvas_color: emColor,
         w: f64,
         h: f64,
         enabled: bool,
         pixel_scale: f64,
     ) {
-        self.border
-            .paint_border(painter, w, h, &self.look, false, enabled, pixel_scale);
+        self.border.paint_border(
+            painter,
+            canvas_color,
+            w,
+            h,
+            &self.look,
+            false,
+            enabled,
+            pixel_scale,
+        );
 
         let cr = self.border.GetContentRect(w, h, &self.look);
         if cr.w <= 0.0 || cr.h <= 0.0 {
@@ -112,7 +122,8 @@ impl emLabel {
         // C++ emLabel::PaintContent delegates to PaintLabel → DoLabel.
         // border.paint_label handles the full layout (icon + caption +
         // description) with alignment and disabled dimming.
-        self.border.paint_label(painter, cr, &self.look, enabled);
+        self.border
+            .paint_label(painter, canvas_color, cr, &self.look, enabled);
     }
 
     // DIVERGED: (language-forced) no C++ equivalent — Rust-only layout helper

@@ -2,6 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use emcore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use emcore::emColor::emColor;
 use emcore::emCursor::emCursor;
 use emcore::emEngineCtx::PanelCtx;
 use emcore::emInput::{emInputEvent, InputKey, InputVariant};
@@ -600,8 +601,16 @@ struct SplitterLayoutBehavior {
 }
 
 impl PanelBehavior for SplitterLayoutBehavior {
-    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
-        self.splitter.PaintContent(painter, w, h, state.enabled);
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
+        self.splitter
+            .PaintContent(painter, canvas_color, w, h, state.enabled);
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
@@ -747,9 +756,10 @@ struct ClickableButtonPanel {
 }
 
 impl PanelBehavior for ClickableButtonPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.widget.Paint(p, w, h, s.enabled, pixel_scale);
+        self.widget
+            .Paint(p, canvas_color, w, h, s.enabled, pixel_scale);
     }
     fn Input(
         &mut self,
@@ -818,7 +828,7 @@ fn dispatch_event(
             };
             tree.put_behavior(panel_id, behavior);
             if consumed {
-                view.InvalidatePainting(tree, panel_id);
+                view.InvalidatePainting(&mut tvh.sched_ctx(), tree, panel_id);
                 break;
             }
         }

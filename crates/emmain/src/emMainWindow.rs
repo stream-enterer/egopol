@@ -675,28 +675,28 @@ impl emEngine for StartupEngine {
                         .as_deref_mut()
                         .expect("StartupEngine: Toplevel scope");
                     tree.with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| {
-                            if let Some(ref mut anim) = svp.active_animator {
-                                anim.stop();
-                            }
-                            if self.visit_valid {
-                                use emcore::emViewAnimator::emVisitingViewAnimator;
-                                let mut animator = emVisitingViewAnimator::new(0.0, 0.0, 0.0, 1.0);
-                                animator.SetGoalCoords(
-                                    &self.visit_identity,
-                                    self.visit_rel_x,
-                                    self.visit_rel_y,
-                                    self.visit_rel_a,
-                                    self.visit_adherent,
-                                    &self.visit_subject,
-                                );
-                                // C++ emMainWindow.cpp:450: VisitingVA->Activate();
-                                // — same omission as state 7. Required for the
-                                // -visit CLI arg path to actually visit.
-                                animator.Activate();
-                                svp.active_animator = Some(Box::new(animator));
-                                installed = true;
-                            }
-                        });
+                        if let Some(ref mut anim) = svp.active_animator {
+                            anim.stop();
+                        }
+                        if self.visit_valid {
+                            use emcore::emViewAnimator::emVisitingViewAnimator;
+                            let mut animator = emVisitingViewAnimator::new(0.0, 0.0, 0.0, 1.0);
+                            animator.SetGoalCoords(
+                                &self.visit_identity,
+                                self.visit_rel_x,
+                                self.visit_rel_y,
+                                self.visit_rel_a,
+                                self.visit_adherent,
+                                &self.visit_subject,
+                            );
+                            // C++ emMainWindow.cpp:450: VisitingVA->Activate();
+                            // — same omission as state 7. Required for the
+                            // -visit CLI arg path to actually visit.
+                            animator.Activate();
+                            svp.active_animator = Some(Box::new(animator));
+                            installed = true;
+                        }
+                    });
                     if installed {
                         tree.wake_panel_cycle_engine(svp_id, ctx.scheduler);
                     }
@@ -1024,8 +1024,7 @@ pub fn create_main_window(
             pending_actions: &app.pending_actions,
         };
         let home_view_ctx = window.view.GetContext().clone();
-        let mut svp =
-            emSubViewPanel::new(home_view_ctx, content_id, window_id, &mut sc);
+        let mut svp = emSubViewPanel::new(home_view_ctx, content_id, window_id, &mut sc);
         svp.set_sub_view_flags(ViewFlags::ROOT_SAME_TALLNESS);
         svp
     };

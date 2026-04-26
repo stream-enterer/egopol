@@ -298,14 +298,20 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
         match scope {
             crate::emPanelScope::PanelScope::Toplevel(wid) => {
                 let Some(window) = ctx.windows.get_mut(&wid) else {
-                    dlog!("VisitingVAEngineClass::Cycle Toplevel({:?}) — window missing, sleep", wid);
+                    dlog!(
+                        "VisitingVAEngineClass::Cycle Toplevel({:?}) — window missing, sleep",
+                        wid
+                    );
                     return false;
                 };
                 let view = &mut window.view;
                 let va_rc = Rc::clone(&view.VisitingVA);
                 let mut va = va_rc.borrow_mut();
                 if !va.is_active() {
-                    dlog!("VisitingVAEngineClass::Cycle Toplevel({:?}) — !is_active, sleep", wid);
+                    dlog!(
+                        "VisitingVAEngineClass::Cycle Toplevel({:?}) — !is_active, sleep",
+                        wid
+                    );
                     return false;
                 }
                 let mut sc = crate::emEngineCtx::SchedCtx {
@@ -317,7 +323,12 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
                     pending_actions: ctx.pending_actions,
                 };
                 let r = va.animate(view, tree, dt, &mut sc);
-                dlog!("VisitingVAEngineClass::Cycle Toplevel({:?}) dt={:.4} animate->{}", wid, dt, r);
+                dlog!(
+                    "VisitingVAEngineClass::Cycle Toplevel({:?}) dt={:.4} animate->{}",
+                    wid,
+                    dt,
+                    r
+                );
                 r
             }
             crate::emPanelScope::PanelScope::SubView {
@@ -330,14 +341,20 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
                     .and_then(|p| p.behavior.as_mut())
                     .and_then(|b| b.as_sub_view_panel_mut())
                 else {
-                    dlog!("VisitingVAEngineClass::Cycle SubView(pid={:?}) — SVP missing, sleep", pid);
+                    dlog!(
+                        "VisitingVAEngineClass::Cycle SubView(pid={:?}) — SVP missing, sleep",
+                        pid
+                    );
                     return false;
                 };
                 let (sub_view, sub_tree) = svp.sub_view_and_tree_mut();
                 let va_rc = Rc::clone(&sub_view.VisitingVA);
                 let mut va = va_rc.borrow_mut();
                 if !va.is_active() {
-                    dlog!("VisitingVAEngineClass::Cycle SubView(pid={:?}) — !is_active, sleep", pid);
+                    dlog!(
+                        "VisitingVAEngineClass::Cycle SubView(pid={:?}) — !is_active, sleep",
+                        pid
+                    );
                     return false;
                 }
                 let mut sc = crate::emEngineCtx::SchedCtx {
@@ -349,7 +366,12 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
                     pending_actions: ctx.pending_actions,
                 };
                 let r = va.animate(sub_view, sub_tree, dt, &mut sc);
-                dlog!("VisitingVAEngineClass::Cycle SubView(pid={:?}) dt={:.4} animate->{}", pid, dt, r);
+                dlog!(
+                    "VisitingVAEngineClass::Cycle SubView(pid={:?}) dt={:.4} animate->{}",
+                    pid,
+                    dt,
+                    r
+                );
                 r
             }
             crate::emPanelScope::PanelScope::Framework => {
@@ -3156,13 +3178,20 @@ impl emView {
     /// Mark the entire panel clip rect as needing repaint.
     ///
     /// Corresponds to `emPanel::InvalidatePainting()` (no-arg overload).
-    pub fn InvalidatePainting(&mut self, tree: &PanelTree, panel: PanelId) {
+    pub fn InvalidatePainting(
+        &mut self,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
+        tree: &PanelTree,
+        panel: PanelId,
+    ) {
         let p = match tree.GetRec(panel) {
             Some(p) if p.viewed => p,
             _ => return,
         };
         self.dirty_rects
             .push(Rect::new(p.clip_x, p.clip_y, p.clip_w, p.clip_h));
+        self.SVPChoiceByOpacityInvalid = true;
+        self.WakeUpUpdateEngine(ctx);
     }
 
     /// Mark a sub-rectangle of the panel as needing repaint. The rectangle
@@ -3170,8 +3199,10 @@ impl emView {
     /// coordinates, then clipped against the panel's clip rect.
     ///
     /// Corresponds to `emPanel::InvalidatePainting(x, y, w, h)`.
+    #[allow(clippy::too_many_arguments)]
     pub fn invalidate_painting_rect(
         &mut self,
+        ctx: &mut crate::emEngineCtx::SchedCtx<'_>,
         tree: &PanelTree,
         panel: PanelId,
         x: f64,
@@ -3211,6 +3242,8 @@ impl emView {
 
         if vw > 0.0 && vh > 0.0 {
             self.dirty_rects.push(Rect::new(vx, vy, vw, vh));
+            self.SVPChoiceByOpacityInvalid = true;
+            self.WakeUpUpdateEngine(ctx);
         }
     }
 
@@ -4767,8 +4800,7 @@ impl emView {
             painter.SetTransformation(svp_vx + ox, svp_vy + oy, svp_vw, svp_vw);
 
             // C++ line 1098: p->Paint(pnt, canvasColor)
-            painter.SetCanvasColor(canvas_color);
-            self.paint_one_panel(tree, painter, svp_id, svp_layout);
+            self.paint_one_panel(tree, painter, svp_id, canvas_color, svp_layout);
 
             // C++ lines 1099-1135: iterative DFS over children.
             // C++ does LeaveUserSpace (line 1099) then reuses `pnt` for all
@@ -4809,8 +4841,7 @@ impl emView {
                                 painter.SetTransformation(p_vx + ox, p_vy + oy, p_vw, p_vw);
 
                                 // C++ line 1118: p->Paint(pnt, p->CanvasColor)
-                                painter.SetCanvasColor(p_canvas);
-                                self.paint_one_panel(tree, painter, p, p_layout);
+                                self.paint_one_panel(tree, painter, p, p_canvas, p_layout);
 
                                 // C++ lines 1120-1123
                                 if let Some(fc) = tree.GetFirstChild(p) {
@@ -4873,6 +4904,7 @@ impl emView {
         tree: &mut PanelTree,
         painter: &mut emPainter,
         id: PanelId,
+        canvas_color: emColor,
         layout: Rect,
     ) {
         if let Some(mut behavior) = tree.take_behavior(id) {
@@ -4901,7 +4933,7 @@ impl emView {
                 data.paint_count = data.paint_count.wrapping_add(1);
                 data.last_paint_frame = self.current_frame.get();
             }
-            behavior.Paint(painter, 1.0, tallness, &state);
+            behavior.Paint(painter, canvas_color, 1.0, tallness, &state);
             tree.put_behavior(id, behavior);
         }
     }
@@ -5584,7 +5616,7 @@ mod tests {
         view.take_dirty_rects(); // drain change-block invalidation
 
         // child1 should be viewed after update_viewing
-        view.InvalidatePainting(&tree, child1);
+        ts.with(|sc| view.InvalidatePainting(sc, &tree, child1));
         let rects = view.take_dirty_rects();
         assert_eq!(rects.len(), 1);
         // The dirty rect should be the child's clip rect
@@ -5602,7 +5634,7 @@ mod tests {
         view.take_dirty_rects(); // drain change-block invalidation
 
         // Invalidate a sub-rect of child1 in panel coordinates
-        view.invalidate_painting_rect(&tree, child1, 0.0, 0.0, 0.5, 0.5);
+        ts.with(|sc| view.invalidate_painting_rect(sc, &tree, child1, 0.0, 0.0, 0.5, 0.5));
         let rects = view.take_dirty_rects();
         assert_eq!(rects.len(), 1);
         assert!(rects[0].w > 0.0);
@@ -5610,7 +5642,7 @@ mod tests {
 
         // Not viewed => no dirty rect
         tree.get_mut(child1).unwrap().viewed = false;
-        view.invalidate_painting_rect(&tree, child1, 0.0, 0.0, 1.0, 1.0);
+        ts.with(|sc| view.invalidate_painting_rect(sc, &tree, child1, 0.0, 0.0, 1.0, 1.0));
         let rects = view.take_dirty_rects();
         assert!(rects.is_empty());
     }
@@ -6420,15 +6452,7 @@ mod tests {
                 current_engine: None,
                 pending_actions: &__pa,
             };
-            view.VisitByIdentity(
-                "root:child",
-                0.5,
-                0.5,
-                1.0,
-                false,
-                "child-title",
-                &mut sc,
-            );
+            view.VisitByIdentity("root:child", 0.5, 0.5, 1.0, false, "child-title", &mut sc);
         }
         assert!(view.VisitingVA.borrow().is_active());
         assert_eq!(view.VisitingVA.borrow().identity(), "root:child");
@@ -7617,9 +7641,8 @@ mod tests {
         )));
         let sched = Rc::new(RefCell::new(EngineScheduler::new()));
         let scope = crate::emPanelScope::PanelScope::Toplevel(winit::window::WindowId::dummy());
-        let pa: std::rc::Rc<
-            std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>,
-        > = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let pa: std::rc::Rc<std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
         let cb: std::cell::RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
             std::cell::RefCell::new(None);
 
