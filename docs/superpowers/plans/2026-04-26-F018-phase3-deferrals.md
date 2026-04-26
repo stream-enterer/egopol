@@ -1,6 +1,6 @@
 # F018 Phase 3 Deferrals Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task INLINE (in the same session). Subagent-driven execution was attempted for Task 1 and failed three times due to scope-cascade issues — see "Resume from clean context" §Lesson 2 below. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Remove the three deferrals from F018 Phase 1+2 remediation: cascade `canvas_color` through widget paint helpers (Phase A), retire the painter canvas-color carrier (Phase B), and pair `WakeUpUpdateEngine` with `SVPChoiceByOpacityInvalid` writes (Phase C).
 
@@ -41,14 +41,48 @@ The worktree contains 8 pre-existing modifications unrelated to F018 that **must
 
 The plan's original "exactly one caller (the in-file trait impl)" assumption was **wrong**. Each widget is a building block embedded as a field in higher-level panels (dialogs, control panels, test wrappers). Each Layer 1 widget task is structurally similar to Layer 2: signature change + caller cascade.
 
-Per-widget caller inventories (run `grep -rn '\.<field>\.Paint\b\|<TypeName>::Paint\b'` to confirm at implementation time — these were correct as of `d6091a8a`):
+Per-widget caller inventories. Line numbers shift between edits, so always re-run grep at implementation time — patterns shown are the canonical query for each widget.
 
-- **emColorField (Task 4)** — 3 test sites: `tests/pipeline/colorfield.rs:53`, `tests/golden/widget.rs:686`, `tests/pipeline/calibration.rs:165`. **No production callers.** All test wrappers live in trait `Paint` impls with `_canvas_color: emColor` to un-underscore.
-- **emListBox (Task 5)** — 1 production + 2 test: `crates/emcore/src/emColorFieldFieldPanel.rs:171`, `tests/golden/widget.rs:516, :768`. The emColorFieldFieldPanel ListBoxPanel impl has `_canvas_color` to un-underscore.
-- **emRadioBox (Task 6)** — wrappers in `tests/golden/composition.rs:279`, `tests/golden/test_panel.rs:224`, `tests/pipeline/radiobox.rs:31`, plus call sites within those wrappers. No direct production callers other than test wrappers and the existing `RadioBoxPanel`/`emFileSelectionBox` integrations.
-- **emScalarField (Task 8)** — 2 test sites: `tests/pipeline/scalarfield.rs:49`, `tests/pipeline/calibration.rs:49`. Plus `composition.rs`/`test_panel.rs` wrappers. The trait impls already exist; un-underscore `_canvas_color`.
-- **emSplitter (Task 9)** — note this uses `PaintContent`, not `Paint`. Sites: `tests/golden/parallel.rs:156`, `tests/golden/composition.rs:431`, `tests/golden/widget_interaction.rs:612`, `tests/golden/widget.rs:139, :534, :2097`, `tests/pipeline/splitter.rs:43`, `tests/golden/test_panel.rs:375, :469`. Multi-arity (some 4-arg, some 5-arg) — read each site.
-- **emTextField (Task 10)** — wrappers in `tests/golden/composition.rs:303` (`TextFieldPanel`), `tests/golden/widget.rs:184` (`TextFieldBehavior`), plus the in-emColorFieldFieldPanel TextFieldPanel impl and any `composition.rs`/`test_panel.rs` wrappers. Multiple call sites in `widget.rs` (lines 433, 453, etc.) — re-grep.
+**Important note about test wrappers**: `composition.rs` and `test_panel.rs` define one `<X>Panel` wrapper struct per widget. The struct uses `widget: emFoo` as the field, so the inner `self.widget.Paint(...)` call site is the same SHAPE for every widget — distinguish them by the surrounding `impl PanelBehavior for <X>Panel` block, not by the call site text. Edit each block with surrounding-context that includes `<X>Panel` so only the target widget's wrapper changes.
+
+- **emColorField (Task 4)** — find with `grep -rn '\.color_field\.Paint\b\|emColorField::Paint\b\|ColorFieldPanel\b' crates/`. Confirmed sites at `d6091a8a`:
+  - `crates/eaglemode/tests/pipeline/colorfield.rs` (one impl PanelBehavior block, `self.color_field.Paint(...)`)
+  - `crates/eaglemode/tests/pipeline/calibration.rs` (one trait impl using `self.color_field.Paint(...)`)
+  - `crates/eaglemode/tests/golden/widget.rs` (one wrapper, `self.color_field.Paint(...)`)
+  - `crates/eaglemode/tests/golden/composition.rs` `impl PanelBehavior for ColorFieldPanel` (call shape `self.widget.Paint(p, w, h, pixel_scale)` — note: 4-arg form, no `enabled`)
+  - `crates/eaglemode/tests/golden/test_panel.rs` `impl PanelBehavior for ColorFieldPanel` (same 4-arg form)
+  - **No production callers.**
+- **emListBox (Task 5)** — find with `grep -rn '\.list_box\.Paint\b\|emListBox::Paint\b\|ListBoxPanel\b\|ListBoxBehavior\b' crates/`. Confirmed sites:
+  - `crates/emcore/src/emColorFieldFieldPanel.rs` (the in-file `impl PanelBehavior for ColorFieldFieldPanel`'s `self.list_box.Paint(...)`) — **production**
+  - `crates/eaglemode/tests/golden/widget.rs` (`ListBoxBehavior` impl) — also `tests/golden/widget.rs` has a second `self.list_box.Paint(...)` site
+  - `crates/eaglemode/tests/golden/composition.rs` `impl PanelBehavior for ListBoxPanel`
+  - `crates/eaglemode/tests/golden/test_panel.rs` `impl PanelBehavior for ListBoxPanel`
+  - emListBox.Paint is 4-arg (no enabled) — `self.list_box.Paint(painter, w, h, pixel_scale)` — re-read each site to confirm arity.
+- **emRadioBox (Task 6)** — find with `grep -rn '\.radio_box\.Paint\b\|emRadioBox::Paint\b\|RadioBoxPanel\b' crates/`. Confirmed sites in test wrappers only — no direct production callers found. Sites:
+  - `crates/eaglemode/tests/pipeline/radiobox.rs` `impl PanelBehavior for ...` (uses `self.widget.Paint(painter, w, h, state.enabled, pixel_scale)` — 5-arg)
+  - `crates/eaglemode/tests/golden/composition.rs` `impl PanelBehavior for RadioBoxPanel`
+  - `crates/eaglemode/tests/golden/test_panel.rs` `impl PanelBehavior for RadioBoxPanel`
+  - Verify: `emFileSelectionBox`, `emCoreConfigPanel`, `emFileManControlPanel` may also embed `emRadioBox` — re-grep at implementation time.
+- **emScalarField (Task 8)** — find with `grep -rn '\.scalar_field\.Paint\b\|\.sf\.Paint\b\|emScalarField::Paint\b\|ScalarFieldPanel\b' crates/`. Sites:
+  - `crates/emcore/src/emColorFieldFieldPanel.rs` (production — `self.scalar_field.Paint(...)`)
+  - `crates/eaglemode/tests/pipeline/scalarfield.rs`
+  - `crates/eaglemode/tests/pipeline/calibration.rs` (uses `self.sf` aliased)
+  - `crates/eaglemode/tests/golden/composition.rs` `impl PanelBehavior for ScalarFieldPanel`
+  - `crates/eaglemode/tests/golden/test_panel.rs` `impl PanelBehavior for ScalarFieldPanel`
+- **emSplitter (Task 9)** — uses `PaintContent`, not `Paint`. find with `grep -rn '\.splitter\.PaintContent\|\.PaintContent\b' crates/`. Sites:
+  - `crates/eaglemode/tests/pipeline/splitter.rs`
+  - `crates/eaglemode/tests/golden/parallel.rs` (`self.<field>.PaintContent(painter, w, h, state.enabled, pixel_scale)`)
+  - `crates/eaglemode/tests/golden/composition.rs` `impl PanelBehavior for SplitterPanel` (`self.widget.PaintContent(p, w, h, s.enabled, pixel_scale)`)
+  - `crates/eaglemode/tests/golden/widget.rs` (3 sites — multi-arity: some 4-arg, some 5-arg)
+  - `crates/eaglemode/tests/golden/widget_interaction.rs` (`self.splitter.PaintContent(painter, w, h, state.enabled)` — 4-arg form)
+  - `crates/eaglemode/tests/golden/test_panel.rs` (2 sites — split between 4-arg and 5-arg)
+  - Read each site to determine arity before editing.
+- **emTextField (Task 10)** — find with `grep -rn '\.text_field\.Paint\b\|emTextField::Paint\b\|TextFieldPanel\b\|TextFieldBehavior\b' crates/`. Sites:
+  - `crates/emcore/src/emColorFieldFieldPanel.rs` `impl PanelBehavior for TextFieldFieldPanel` (production — calls `self.text_field.Paint(...)`)
+  - `crates/eaglemode/tests/golden/widget.rs` `TextFieldBehavior` impl
+  - `crates/eaglemode/tests/golden/composition.rs` `impl PanelBehavior for TextFieldPanel` (note: this calls `self.widget.cycle_blink(...)` then `self.widget.Paint(...)` — preserve cycle_blink)
+  - `crates/eaglemode/tests/golden/test_panel.rs` `impl PanelBehavior for TextFieldPanel` (similar)
+  - Multiple call sites in `widget.rs` (around lines 433, 453 in earlier grep — re-verify, may have shifted).
 
 For each remaining widget task: **expand the task scope to include all callers found by grep**. Update the widget's `Paint` signature, replace its `painter.GetCanvasColor()` read with `border.content_canvas_color(canvas_color, &self.look, enabled)`, and pass `canvas_color` from each caller's enclosing `Paint` trait scope. If a caller doesn't have `canvas_color` in scope, **stop and re-design** — the previous subagent failure mode was inventing values when scope ran out.
 
@@ -85,38 +119,23 @@ If a widget has helpers it calls that ALSO read `painter.GetCanvasColor()` (like
 - **Worktree:** `/home/alex/Projects/eaglemode-rs/.claude/worktrees/f018-remediation`. All commands run from there.
 - **Verification command (per commit):** `cargo check --workspace --tests && cargo clippy --workspace --tests -- -D warnings`. The pre-commit hook also runs `cargo fmt` and `cargo-nextest ntr`.
 - **Commit footer:** `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
-- **Pre-commit invariant for Layer 1 tasks:** before each commit, run `grep -rn '\.<helper>\b' crates/ --include="*.rs"` to confirm exactly one production caller. If more, **stop** and re-design that helper as Layer 2.
+- **Caller inventory invariant for Layer 1 tasks:** before each commit, run `grep -rn '\.<field>\.Paint\b\|<TypeName>::Paint\b' crates/ --include="*.rs"` to enumerate all callers and verify each has `canvas_color: emColor` (or `_canvas_color: emColor` to un-underscore) in scope. **Each widget has multiple callers** — see "Resume from clean context" §Lesson 1. If a caller doesn't have canvas_color in scope, **stop and re-design** — never invent a value, never fall back to `painter.GetCanvasColor()`.
 
 ---
 
-## Task 0: Baseline check
+## Task 0: Baseline check — ✅ DONE (originally) / re-verify on resume
 
-**Files:** none (verification only)
+> **Plan amendment 2026-04-26 (post-execution):** When resuming after Task 1, the baseline reference shifts. Use the baseline check below adapted to the current HEAD. The critical invariants (build green, 8 stale files unmodified) still apply.
 
-- [ ] **Step 1: Verify clean tree at spec commit**
+- [ ] **Step 1: Verify HEAD and tree state**
 
 ```bash
 git rev-parse HEAD
-# Expected to be on or descended from 7600a9ed (spec commit)
+# Expected: descended from d6091a8a (Task 1 commit) or aed8b316 (latest plan amendment).
 git status --short
-# 10 unstaged files from prior session work are acceptable (unrelated to F018)
-# but must NOT touch any file this plan modifies. List of files this plan modifies:
-#   crates/emcore/src/emButton.rs
-#   crates/emcore/src/emCheckBox.rs
-#   crates/emcore/src/emCheckButton.rs
-#   crates/emcore/src/emColorField.rs
-#   crates/emcore/src/emListBox.rs
-#   crates/emcore/src/emRadioBox.rs
-#   crates/emcore/src/emRadioButton.rs
-#   crates/emcore/src/emScalarField.rs
-#   crates/emcore/src/emSplitter.rs
-#   crates/emcore/src/emTextField.rs
-#   crates/emcore/src/emBorder.rs
-#   crates/emcore/src/emPainter.rs
-#   crates/emcore/src/emView.rs
-#   crates/emcore/src/render/software_compositor.rs
-#   crates/emcore/src/render/wgpu_compositor.rs
-#   plus DrawOp definition file (TBD — find via grep)
+# Expected: 8 unstaged files from prior unrelated work (see "Working tree state"
+# section above). NOT 10 — emFpPlugin.rs and subview_dump_integration.rs were
+# committed as part of d6091a8a's clippy fix.
 ```
 
 - [ ] **Step 2: Verify baseline build is green**
@@ -151,7 +170,11 @@ If the trait-impl caller isn't in the same file, locate it with `grep -rn 'self\
 
 ---
 
-### Task 1: emButton — migrate `Paint` method
+### Task 1: emButton — migrate `Paint` method — ✅ DONE at `d6091a8a`
+
+> **Plan amendment 2026-04-26 (post-execution):** Task 1 was actually executed as a combined migration of `emButton`, `emCheckBox`, `emCheckButton`, `emRadioButton` — Tasks 2, 3, and 7 were absorbed because the `paint_widget!` macro in `emFileManControlPanel.rs` dispatches `Paint` to all four widget types and forced atomic migration. Skip Tasks 2, 3, 7 below — they're done. The original Task 1 description is preserved for historical reference.
+
+
 
 > **Plan amendment 2026-04-26:** Layer 1 tasks must update **all** callers of the widget's `Paint`, not just an in-file trait impl. Widgets are embedded as fields in higher-level panels — each has multiple callers across the workspace. All callers are in trait impls that already have `canvas_color` from F018 Phase 1+2.
 
@@ -264,7 +287,7 @@ EOF
 
 ---
 
-### Task 2: emCheckBox + emRadioButton — co-migrate `Paint` (macro-shared dispatch)
+### Task 2: emCheckBox + emRadioButton — co-migrate `Paint` (macro-shared dispatch) — ✅ DONE at `d6091a8a` (absorbed into Task 1)
 
 > **Plan amendment 2026-04-26:** Tasks 2 and 7 are merged. `emFileManControlPanel.rs:333-340` defines a `paint_widget!` macro that dispatches `Paint` to both `emCheckBox` (`dirs_first_check`, `show_hidden_check`, `autosave_check`) and `emRadioButton` (`sort_radios`, `nss_radios`, `theme_style_radios`, `theme_ar_radios`) at one call site. They must share `Paint` signature at all times, so the migration must be atomic.
 
@@ -337,7 +360,7 @@ EOF
 
 ---
 
-### Task 3: emCheckButton — migrate `Paint` method
+### Task 3: emCheckButton — migrate `Paint` method — ✅ DONE at `d6091a8a` (absorbed into Task 1)
 
 **Files:**
 - Modify: `crates/emcore/src/emCheckButton.rs:83-97`
