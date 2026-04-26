@@ -399,4 +399,38 @@ plan.
 
 ## Summary
 
-(Filled in by Task 36: total compliant / violation / partial / inconclusive counts, ordered list of violations to address, and any newly-discovered acceptance criteria.)
+### Status tally
+
+- **COMPLIANT:** 7 rules — I.3, II.1, II.2, II.3, II.4, IV.1, IV.5.
+- **VIOLATION:** 7 rules — I.1, I.2, I.4, II.5, III.1, IV.3, V.1.
+- **PARTIAL:** 4 rules — I.5, III.2, III.3, IV.2.
+- **INCONCLUSIVE:** 5 rules — IV.4, V.2, V.3, V.4, V.5.
+
+(Total: 23 rules audited — 5 in cluster I, 5 in cluster II, 3 in cluster III, 5 in cluster IV, 5 in cluster V.)
+
+### Root-cause violations (priority for remediation)
+
+1. **I.1 — Framebuffer pre-state observable.** Four production sites pre-fill BLACK (`emWindow.rs:632, 674, 767`, `emViewRendererCompositor.rs:261`). Transitively closes I.2, III.2, III.3 when fixed.
+2. **I.4 — Compositor load-clear hardcoded BLACK.** `emViewRendererCompositor.rs:261` clears to opaque black; alpha-blends through any non-opaque tile pixel. Transitively closes III.1 when combined with I.1 fix. Also unblocks I.5's compositor layer and V.2.
+3. **IV.3 — `SVPChoiceByOpacityInvalid` never set to true.** Independent latent bug; `emView::InvalidatePainting` and `invalidate_painting_rect` must mirror C++ `emPanel.cpp:1284-1290, 1296-1302`. Closes V.5 prerequisite.
+4. **II.5 — Painter as canvas-color carrier (structural).** Not a F018 symptom. Decision-only: accept the divergence (annotate) or remove the carrier and thread canvas color as parameter. Defer to remediation brainstorm.
+
+### Test harness gaps
+
+The following acceptance criteria are INCONCLUSIVE because no automated test exists; the remediation plan must build:
+
+- **V.2** — runtime background-color change verification. Drive `SetBackgroundColor` mid-frame, inspect next-frame composited output.
+- **V.3** — three-strategy parity comparison. Force-select each render strategy, compare pixel output for the same panel-tree state.
+- **V.4** — painted-region shrink (two-frame test). Panel paints R₁ then R₂ ⊊ R₁; assert R₁ \ R₂ is repainted.
+- **V.5** — opacity transition (two-frame test). Drive `IsOpaque()` change between frames; assert SVP-choice re-evaluated and framebuffer rebuilt.
+
+### Newly-discovered concerns
+
+- **emPanel has no `InvalidatePainting` method** (IV.2 evidence). Invalidation lives entirely on `emView`, requiring panels to call `view.InvalidatePainting(tree, self_id)` rather than `self.InvalidatePainting()`. This is a structural divergence from C++ `emPanel.cpp:1282-1311`. Whether every C++ call site has a Rust mirror is NOT exhaustively verified by this audit; remediation should sweep.
+- **I.5 audit was corrected mid-phase** from full VIOLATION to PARTIAL: `viewport_changed` IS consumed at `emGUIFramework.rs:1419-1421`, the dirty-region layer works. Only the compositor load-clear (I.4) is broken for runtime background-color change. Failure mode of the audit: too narrow a grep scope (initially searched only `emWindow.rs`).
+
+### Handoff to remediation
+
+The remediation brainstorm should start by reading this Summary plus the per-rule sections for the four root-cause violations (I.1, I.4, IV.3, II.5). Each root-cause fix becomes a remediation phase; transitive violations close automatically.
+
+The F018 user-visible symptom is closed by I.1 + I.4 (with cluster III collateral). IV.3 is a latent bug surfaced by this audit and may be split into a separate issue if remediation scope dictates. II.5 is a design-decision deliverable, not a code change — it can be resolved in a brainstorm and recorded as an annotation policy without touching code.
