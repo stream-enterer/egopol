@@ -194,77 +194,75 @@ EOF
 
 ---
 
-### Task 2: emCheckBox — migrate `Paint` method
+### Task 2: emCheckBox + emRadioButton — co-migrate `Paint` (macro-shared dispatch)
+
+> **Plan amendment 2026-04-26:** Tasks 2 and 7 are merged. `emFileManControlPanel.rs:333-340` defines a `paint_widget!` macro that dispatches `Paint` to both `emCheckBox` (`dirs_first_check`, `show_hidden_check`, `autosave_check`) and `emRadioButton` (`sort_radios`, `nss_radios`, `theme_style_radios`, `theme_ar_radios`) at one call site. They must share `Paint` signature at all times, so the migration must be atomic.
 
 **Files:**
-- Modify: `crates/emcore/src/emCheckBox.rs:121-135`
-- Modify: same file's trait-impl caller
+- Modify: `crates/emcore/src/emCheckBox.rs:121-135` (signature + body)
+- Modify: `crates/emcore/src/emRadioButton.rs:323` (signature) and `:352` (read site)
+- Modify: their respective same-file trait-impl callers
+- Modify: `crates/emfileman/src/emFileManControlPanel.rs:336` (macro body — pass `canvas_color`)
+- Modify: `crates/emfileman/src/emFileManControlPanel.rs:318` — un-underscore `_canvas_color: emColor` to `canvas_color: emColor` since it now gets used
 
-- [ ] **Step 1: Confirm caller count**
+- [ ] **Step 1: Confirm caller count for both widgets**
 
-Run: `grep -rn '\.check_box\.Paint\b\|emCheckBox::Paint\b' crates/ --include="*.rs"`
+Run: `grep -rn '\.check_box\.Paint\b\|\.\(dirs_first_check\|show_hidden_check\|autosave_check\)\.Paint\b\|emCheckBox::Paint\b' crates/ --include="*.rs"`
+Run: `grep -rn '\.radio_button\.Paint\b\|emRadioButton::Paint\b' crates/ --include="*.rs"`
+Run: `grep -rn 'paint_widget!' crates/ --include="*.rs"`
 
-- [ ] **Step 2: Update `Paint` signature at `emCheckBox.rs:121`**
+Confirm the only shared dispatch is `paint_widget!` in `emFileManControlPanel.rs`. If a different shared site appears, **stop and report**.
 
-Current:
+- [ ] **Step 2: Update both Paint signatures**
+
+`emCheckBox.rs:121` — add `canvas_color: emColor` after `painter`.
+`emRadioButton.rs:323` — add `canvas_color: emColor` after `painter`.
+
+- [ ] **Step 3: Replace the painter reads**
+
+`emCheckBox.rs:135` — replace `let canvas_color = painter.GetCanvasColor();` with `let canvas_color = self.border.content_canvas_color(canvas_color, &self.look, enabled);` (after `paint_border`).
+
+`emRadioButton.rs:352` — the read is inline (`painter.PaintRoundRect(..., painter.GetCanvasColor())`). After `paint_border` at `:336`, introduce a local: `let canvas_color = self.border.content_canvas_color(canvas_color, &self.look, /* enabled — match paint_border arg */);` and replace `painter.GetCanvasColor()` at `:352` with `canvas_color`.
+
+- [ ] **Step 4: Update trait-impl callers in the widget files**
+
+In `emCheckBox.rs` and `emRadioButton.rs`, find the trait-impl `Paint` method that calls `self.<field>.Paint(...)` (likely on a `BoxedBehavior` or similar struct). Pass `canvas_color` from the trait scope as the second argument.
+
+- [ ] **Step 5: Update the macro and its enclosing trait impl**
+
+Edit `crates/emfileman/src/emFileManControlPanel.rs`:
+
+At `:318`, change `_canvas_color: emColor` to `canvas_color: emColor` (un-underscore — now used).
+
+At `:336`, change:
 ```rust
-pub fn Paint(
-    &mut self,
-    painter: &mut emPainter,
-    w: f64,
-    h: f64,
-    enabled: bool,
-    pixel_scale: f64,
-) {
+$widget.Paint(painter, widget_w, widget_h, true, pixel_scale);
+```
+to:
+```rust
+$widget.Paint(painter, canvas_color, widget_w, widget_h, true, pixel_scale);
 ```
 
-New:
-```rust
-pub fn Paint(
-    &mut self,
-    painter: &mut emPainter,
-    canvas_color: emColor,
-    w: f64,
-    h: f64,
-    enabled: bool,
-    pixel_scale: f64,
-) {
-```
-
-- [ ] **Step 3: Replace the painter read at `emCheckBox.rs:135`**
-
-Current:
-```rust
-self.border
-    .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
-let canvas_color = painter.GetCanvasColor();
-```
-
-New:
-```rust
-self.border
-    .paint_border(painter, w, h, &self.look, false, true, pixel_scale);
-let canvas_color = self
-    .border
-    .content_canvas_color(canvas_color, &self.look, enabled);
-```
-
-- [ ] **Step 4: Update trait-impl caller**
-
-Find caller in same file, add `canvas_color` as second argument.
-
-- [ ] **Step 5: Verify**
+- [ ] **Step 6: Verify**
 
 Run: `cargo check --workspace --tests && cargo clippy --workspace --tests -- -D warnings`
 Expected: clean.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add crates/emcore/src/emCheckBox.rs
-git commit -m "refactor(F018): migrate emCheckBox::Paint to use content_canvas_color
+git add crates/emcore/src/emCheckBox.rs crates/emcore/src/emRadioButton.rs crates/emfileman/src/emFileManControlPanel.rs
+git commit -m "$(cat <<'EOF'
+refactor(F018): co-migrate emCheckBox + emRadioButton::Paint
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
+Both widgets are dispatched through the paint_widget! macro in
+emFileManControlPanel.rs and must share Paint signature, so they
+migrate atomically. Also wires canvas_color through the macro and
+un-underscores its caller's parameter.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
 ```
 
 ---
@@ -493,7 +491,14 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 7: emRadioButton — migrate `Paint` method
+### Task 7: emRadioButton — MERGED INTO TASK 2
+
+> **Plan amendment 2026-04-26:** Task 7 was merged into Task 2 because both widgets are dispatched through the same `paint_widget!` macro in `emFileManControlPanel.rs:336` and must share `Paint` signature. See Task 2 for the combined migration.
+
+Skip this task — it has no remaining work.
+
+<details>
+<summary>Original Task 7 description (kept for reference)</summary>
 
 **Files:**
 - Modify: `crates/emcore/src/emRadioButton.rs:323` (signature) and `:352` (read site)
@@ -530,14 +535,9 @@ Then replace `painter.GetCanvasColor()` at `:352` with `canvas_color`.
 
 - [ ] **Step 5: Verify** — clean.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit** (n/a — see Task 2)
 
-```bash
-git add crates/emcore/src/emRadioButton.rs
-git commit -m "refactor(F018): migrate emRadioButton::Paint to use content_canvas_color
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
-```
+</details>
 
 ---
 
