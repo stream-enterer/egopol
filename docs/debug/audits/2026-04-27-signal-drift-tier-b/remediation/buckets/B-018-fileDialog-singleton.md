@@ -1,15 +1,22 @@
-# B-018-fileDialog-singleton — P-008 — emFileDialog connect-with-poll-fallback singleton
+# B-018-fileDialog-singleton — P-008 (RETIRED) — emFileDialog false-positive
 
-**Pattern:** P-008-connect-with-poll-fallback
+**Pattern:** P-008-connect-with-poll-fallback (**RETIRED 2026-04-27** — category error in audit classification scheme; see `pattern-catalog.md`)
 **Scope:** emcore
-**Row count:** 1
-**Mechanical-vs-judgement:** judgement-heavy
-**Cited decisions:** none (packet ships no decisions; bucket-design brainstorm must originate or cite-forward the relevant ADRs)
-**Prereq buckets:** none
+**Row count:** 1 (verified observable equivalence to C++; reclassified to `faithful`)
+**Mechanical-vs-judgement:** judgement-heavy → no work needed
+**Cited decisions:** none.
+**Prereq buckets:** none.
 
-## Pattern description
+**Reconciliation amendments (2026-04-27, post-design 04059bac):**
+- **B-018 closes as a false positive.** Verified diagnosis: `AddWakeUpSignal + IsSignaled-in-Cycle` is the canonical emEngine subscription pattern (subscription arming + wakeup-cause check inside Cycle), not "hybrid drift." Rust rs:169/516/733 mirror C++ cpp:90/196 exactly; rs:516/733 split is idiom adaptation for Rust's outer-engine lifecycle (mutually exclusive per dialog spawn).
+- **emFileDialog-196 reclassified `drifted → faithful`** in `inventory-enriched.json`.
+- **P-008 pattern retired** in `pattern-catalog.md` with retirement-reason note. Audit trail preserved.
+- **No code changes. No prereq edges. No new D-### entries.** B-018 closes as designed and immediately mergeable.
+- **Latent gap noted (out of B-018 scope):** `CheckFinish` post-show else branch at `rs:532-543` parks OD via `pending_actions` but does not call `scheduler.connect(od.finish_signal, outer_engine_id)`. All current callers (rs:806/815/1129/1228/1332) are `#[cfg(test)]`; production post-show goes through `run_file_dialog_check_finish`. If a future non-test caller invokes `CheckFinish` post-show, this becomes drift. Recommend separate audit follow-up.
 
-P-008 covers sites where a `scheduler.connect(...)` call coexists with a nearby `IsSignaled(...)` poll on the same signal — a hybrid wiring shape that is neither pure event-driven nor pure polling. Either the connect is redundant (poll will catch it) or the poll is redundant (connect will wake the engine), and the audit cannot tell which without reading C++ intent. In this bucket the singleton instance is `emFileDialog`'s `od_finish_sig` / `od_sig` wiring, where a poll at line 169 sits alongside a post-show `connect` at line 733 and the audited `connect_call` at line 516.
+## Pattern description (historical, preserved for audit trail)
+
+P-008 covered sites where a `scheduler.connect(...)` call coexists with a nearby `IsSignaled(...)` poll on the same signal — a hybrid wiring shape the audit categorized as "neither pure event-driven nor pure polling." The categorization was a misread: `IsSignaled` in emCore is a wakeup-cause probe (engine-state check), not an independent state poll, so connect + IsSignaled-in-Cycle are complementary, not redundant. The singleton instance was `emFileDialog`'s `od_finish_sig` / `od_sig` wiring across rs:169 / 516 / 733 — all three sites verified canonical.
 
 ## Rows
 

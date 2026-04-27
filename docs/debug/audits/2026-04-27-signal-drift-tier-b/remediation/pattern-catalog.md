@@ -87,13 +87,15 @@ Total = 178 actionable + 9 cleanup = 187 rows.
 **Row count:** 6.
 **Cited decision:** D-005-poll-replacement-shape.
 
-## P-008-connect-with-poll-fallback
+## P-008-connect-with-poll-fallback **— RETIRED 2026-04-27**
 
 **Shape:** Outlier. emFileDialog-196 has a `scheduler.connect(...)` call but a nearby `IsSignaled(...)` poll site causes the verdict to flip to drifted.
 **Evidence-kind:** connect_call
 **Accessor-status:** present
 **Mechanical-vs-judgement:** judgement-heavy — single-row diagnosis.
-**Row count:** 1.
+**Row count:** 0 (was 1; B-018 brainstorm `04059bac` reclassified emFileDialog-196 drifted → faithful as verified observable equivalence to C++).
+
+**Retirement reason:** P-008 was a category error in the audit's classification scheme. `AddWakeUpSignal + IsSignaled-in-Cycle` is the canonical emEngine subscription pattern (subscription arming + wakeup-cause check inside Cycle), not "hybrid drift." The audit's framing — "either the connect is redundant or the poll is redundant" — assumed `IsSignaled` was a polling-style "is this signal currently set" check, when it's actually a wakeup-cause probe that depends on the connect having woken the engine. The Rust rs:169/516/733 trio mirrors C++ cpp:90/196 exactly (rs:516/733 split is idiom adaptation for Rust's outer-engine lifecycle, mutually exclusive per dialog spawn). Pattern retired; entry preserved for audit trail.
 
 ## P-009-stale-annotation
 

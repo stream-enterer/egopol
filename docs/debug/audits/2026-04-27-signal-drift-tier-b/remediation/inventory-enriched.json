@@ -517,7 +517,7 @@
       "signal_expression": "OverwriteDialog->GetFinishSignal()",
       "signal_kind": "finish",
       "rust_file": "crates/emcore/src/emFileDialog.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "connect_call",
         "file": "crates/emcore/src/emFileDialog.rs",
@@ -541,6 +541,11 @@
         "decision_ids": [],
         "scope_key": "emcore",
         "prereq_ids": []
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-018 brainstorm 04059bac",
+        "change": "drifted -> faithful (verified observable equivalence to C++). P-008 was a category error: AddWakeUpSignal + IsSignaled-in-Cycle is canonical emEngine pattern, not drift. rs:169/516/733 mirror cpp:90/196."
       }
     },
     {

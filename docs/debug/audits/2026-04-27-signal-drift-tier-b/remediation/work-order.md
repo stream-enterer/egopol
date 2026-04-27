@@ -28,7 +28,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 16 | B-012-rc-shim-mainctrl | 0 | judgement-heavy | 7 | pending | — |
 | 17 | B-013-dialog-cells-emstocks | 0 | judgement-heavy | 4 | designed | [ec317565](../../../../superpowers/specs/2026-04-27-B-013-dialog-cells-emstocks-design.md) |
 | 18 | B-014-rc-shim-no-acc-misc | 0 | judgement-heavy | 2 | designed | [d7d964d4](../../../../superpowers/specs/2026-04-27-B-014-rc-shim-no-acc-misc-design.md) |
-| 19 | B-018-fileDialog-singleton | 0 | judgement-heavy | 1 | pending | — |
+| 19 | B-018-fileDialog-singleton | 0 | judgement-heavy | 1 | designed (false positive — no work) | [04059bac](../../../../superpowers/specs/2026-04-27-B-018-fileDialog-singleton-design.md) |
 
 Total rows: 187 (178 actionable + 9 cleanup).
 
@@ -195,3 +195,13 @@ Total rows: 187 (178 actionable + 9 cleanup).
 - **"Accessor present" disambiguation:** audit tag is widget-side accessors, not model-side. Correct as-is; flagged for future audit-heuristic tightening.
 - **No new D-### entries.** R-A precedent covers all 7 rows.
 - **B-011 status:** pending → designed.
+
+### 2026-04-27 — B-018 design returned (04059bac) — false positive
+
+- **B-018 closes as a verified false positive.** No code changes. emFileDialog-196 reclassified `drifted → faithful` (verified observable equivalence to C++).
+- **P-008 pattern retired** in pattern-catalog.md with category-error retirement note (audit trail preserved). The audit's "connect-with-poll-fallback" framing assumed `IsSignaled` was an independent state poll; in emCore it's a wakeup-cause probe that depends on the connect having woken the engine. Connect + IsSignaled-in-Cycle is the canonical pattern, not hybrid drift.
+- **Counts updated:** drifted 165 → 164; faithful (in actionable enrichment) 0 → 1; total actionable rows still 178 by audit definition (the reclassified row stays in inventory-enriched.json with verdict `faithful` for traceability, distinct from the 8 originally-faithful rows excluded from enrichment).
+- **No new D-### entries. No prereq edges.**
+- **Latent gap noted for separate audit follow-up:** `CheckFinish`'s post-show else branch (`rs:532-543`) parks OD via `pending_actions` without calling `scheduler.connect(od.finish_signal, outer_engine_id)`. All current callers are `#[cfg(test)]`; production goes through `run_file_dialog_check_finish`. If a non-test caller appears, this becomes drift. Captured in B-018 sketch's reconciliation block.
+- **Pattern retirement is a meta-event for the audit framework:** future re-runs should drop P-008 from the heuristic catalog and treat connect + IsSignaled-in-Cycle as faithful.
+- **B-018 status:** pending → designed (false positive — no implementation work; immediately mergeable).
