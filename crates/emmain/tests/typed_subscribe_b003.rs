@@ -1,4 +1,5 @@
 use emMain::emAutoplay::emAutoplayViewModel;
+use emMain::emMainControlPanel::emMainControlPanel;
 /// B-003-no-wire-autoplay behavioral tests.
 ///
 /// Covers the 3 rows per the design doc §Verification pattern:
@@ -209,4 +210,54 @@ fn change_signal_fired_by_all_mutators() {
         },
         "ContinueLastAutoplay must fire ChangeSignal"
     );
+}
+
+/// C1 regression — model-instance unification.
+///
+/// Verifies that `emMainControlPanel::new` accepts and retains the caller's
+/// `Rc<RefCell<emAutoplayViewModel>>` instead of constructing its own.  A
+/// mutation made through the *caller's* Rc must be visible when the panel reads
+/// the model later through its own clone.
+///
+/// The test would FAIL if `emMainControlPanel::new` reverted to constructing
+/// its own `Rc::new(RefCell::new(emAutoplayViewModel::new()))` because the
+/// mutation on `shared_model` would not be reflected in the panel's internal
+/// clone (they would be two independent allocations).
+#[test]
+fn main_control_panel_uses_caller_model_instance() {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    let ctx = emcore::emContext::emContext::NewRoot();
+
+    // Build the shared Rc — this is the instance emMainWindow would own.
+    let shared_model: Rc<RefCell<emAutoplayViewModel>> =
+        Rc::new(RefCell::new(emAutoplayViewModel::new()));
+
+    // Pass a clone into emMainControlPanel::new (mirroring emMainWindow state 5
+    // / create_control_window calling `emMainControlPanel::new(ctx, avm_rc)`).
+    let panel = emMainControlPanel::new(Rc::clone(&ctx), Some(Rc::clone(&shared_model)));
+
+    // Mutate the model through the *caller's* Rc (mirrors F12 handler borrow_mut
+    // in emMainWindow::Input).
+    let mut sched = emcore::emScheduler::EngineScheduler::new();
+    {
+        let mut sc = TestSignalCtx::new(&mut sched);
+        shared_model.borrow_mut().SetAutoplaying(&mut sc, true);
+    }
+
+    // The panel must hold the same Rc allocation as the caller — verify by:
+    // (a) Rc::ptr_eq: same heap pointer
+    // (b) reading IsAutoplaying through the panel's clone returns the mutated value.
+    let panel_model = panel.autoplay_model_for_test();
+    assert!(
+        Rc::ptr_eq(&shared_model, &panel_model),
+        "Panel's autoplay_model Rc points to a different allocation — C1 regression"
+    );
+    assert!(
+        panel_model.borrow().IsAutoplaying(),
+        "Panel's autoplay_model does not reflect mutation through caller's Rc — C1 regression"
+    );
+
+    sched.clear_pending_for_tests();
 }

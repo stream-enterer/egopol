@@ -803,6 +803,7 @@ impl EngineScheduler {
     /// Used by `emAutoplayControlPanel::tests::bt_autoplay_check_drives_set_autoplaying`
     /// (B-003 click-through test) to make `IsSignaled` return true for a fired
     /// signal without running a complete time slice.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn flush_signals_for_test(&mut self) {
         self.inner.clock += 1;
         self.process_pending_signals();

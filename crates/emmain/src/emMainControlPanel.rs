@@ -146,7 +146,14 @@ pub struct emMainControlPanel {
 
 impl emMainControlPanel {
     /// Port of C++ `emMainControlPanel` constructor.
-    pub fn new(ctx: Rc<emContext>) -> Self {
+    ///
+    /// `autoplay_model`: the `Rc<RefCell<emAutoplayViewModel>>` owned by
+    /// `emMainWindow`. Pass `None` only in tests that construct a panel without
+    /// a parent window (a fresh model will be created as fallback).
+    pub fn new(
+        ctx: Rc<emContext>,
+        autoplay_model: Option<Rc<RefCell<emAutoplayViewModel>>>,
+    ) -> Self {
         let config = emMainConfig::Acquire(&ctx);
 
         // C++ emMainControlPanel constructor:
@@ -173,6 +180,10 @@ impl emMainControlPanel {
             ..emLinearLayout::horizontal()
         };
 
+        // Accept the window's shared model or create a standalone one (test path).
+        let autoplay_model =
+            autoplay_model.unwrap_or_else(|| Rc::new(RefCell::new(emAutoplayViewModel::new())));
+
         Self {
             ctx,
             _config: config,
@@ -180,11 +191,21 @@ impl emMainControlPanel {
             look: emLook::default(),
             layout_main,
             click_flags: Rc::new(ClickFlags::default()),
-            autoplay_model: Rc::new(RefCell::new(emAutoplayViewModel::new())),
+            autoplay_model,
             lmain_panel: None,
             content_ctrl_panel: None,
             children_created: false,
         }
+    }
+
+    /// Test helper: return a clone of the shared ViewModel Rc so integration
+    /// tests can verify instance identity (C1 regression check) without making
+    /// the field pub. Named `_for_test` to signal test-only intent; compiled
+    /// unconditionally because integration tests link the library in non-test
+    /// mode and `#[cfg(test)]` would not gate it correctly across the crate
+    /// boundary.
+    pub fn autoplay_model_for_test(&self) -> Rc<RefCell<emAutoplayViewModel>> {
+        Rc::clone(&self.autoplay_model)
     }
 
     /// Called by ControlPanelBridge after cross-tree CreateControlPanel.
@@ -926,21 +947,21 @@ mod tests {
     #[test]
     fn test_control_panel_new() {
         let ctx = emcore::emContext::emContext::NewRoot();
-        let panel = emMainControlPanel::new(Rc::clone(&ctx));
+        let panel = emMainControlPanel::new(Rc::clone(&ctx), None);
         assert_eq!(panel.get_title(), Some("emMainControl".to_string()));
     }
 
     #[test]
     fn test_control_panel_opaque() {
         let ctx = emcore::emContext::emContext::NewRoot();
-        let panel = emMainControlPanel::new(Rc::clone(&ctx));
+        let panel = emMainControlPanel::new(Rc::clone(&ctx), None);
         assert!(panel.IsOpaque());
     }
 
     #[test]
     fn test_control_panel_behavior() {
         let ctx = emcore::emContext::emContext::NewRoot();
-        let panel = emMainControlPanel::new(Rc::clone(&ctx));
+        let panel = emMainControlPanel::new(Rc::clone(&ctx), None);
         let _: Box<dyn PanelBehavior> = Box::new(panel);
     }
 
@@ -966,7 +987,7 @@ mod tests {
     fn test_title_matches_cpp() {
         // C++ GetTitle returns "emMainControl"
         let ctx = emcore::emContext::emContext::NewRoot();
-        let panel = emMainControlPanel::new(ctx);
+        let panel = emMainControlPanel::new(ctx, None);
         assert_eq!(panel.get_title(), Some("emMainControl".to_string()));
     }
 }

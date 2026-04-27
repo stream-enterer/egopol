@@ -85,7 +85,10 @@ pub struct emMainWindow {
     pub(crate) _visit_subject: String,
     pub(crate) _visit_valid: bool,
     pub(crate) config: emMainWindowConfig,
-    pub(crate) autoplay_view_model: Option<crate::emAutoplay::emAutoplayViewModel>,
+    /// Rc<RefCell<>> per CLAUDE.md §Ownership (a): cross-Cycle reference — the
+    /// emAutoplayControlPanel (inside emMainControlPanel) holds a clone of this Rc
+    /// to read/write model state across separate Cycle invocations.
+    pub(crate) autoplay_view_model: Option<Rc<RefCell<crate::emAutoplay::emAutoplayViewModel>>>,
     pub(crate) bookmarks_model: Option<Rc<RefCell<emBookmarksModel>>>,
 }
 
@@ -293,8 +296,9 @@ impl emMainWindow {
         // Delegate to autoplay view model (handles F12 toggle).
         // Thread a SchedCtx so SetAutoplaying/ContinueLastAutoplay can fire
         // ChangeSignal per D-007 (synchronous fire at mutation site).
-        if let Some(ref mut avm) = self.autoplay_view_model {
-            let handled = app.with_sched_ctx(|sc| avm.Input(sc, event, input_state));
+        if let Some(ref avm_rc) = self.autoplay_view_model {
+            let handled =
+                app.with_sched_ctx(|sc| avm_rc.borrow_mut().Input(sc, event, input_state));
             if handled {
                 return true;
             }
@@ -531,6 +535,7 @@ impl emEngine for StartupEngine {
                     .flatten();
                 if let Some(ctrl_id) = ctrl_view_id {
                     let ctrl_ctx = Rc::clone(&self.context);
+                    let avm_rc = with_main_window(|mw| mw.autoplay_view_model.clone()).flatten();
                     ctx.tree
                         .as_deref_mut()
                         .expect("StartupEngine: Toplevel scope")
@@ -544,7 +549,7 @@ impl emEngine for StartupEngine {
                             // height to ControlTallness via SetGeometry.
                             sub_tree.set_behavior(
                                 sub_root,
-                                Box::new(emMainControlPanel::new(ctrl_ctx)),
+                                Box::new(emMainControlPanel::new(ctrl_ctx, avm_rc)),
                             );
                             sub_tree.fire_init_notices(sub_root, None);
                         });
@@ -1212,7 +1217,9 @@ pub fn create_main_window(
         app.scheduler.connect(geometry_signal, saver_id);
     }
 
-    mw.autoplay_view_model = Some(crate::emAutoplay::emAutoplayViewModel::new());
+    mw.autoplay_view_model = Some(Rc::new(RefCell::new(
+        crate::emAutoplay::emAutoplayViewModel::new(),
+    )));
 
     mw
 }
@@ -1245,7 +1252,8 @@ pub fn create_control_window(
     // C++ emMainWindow.cpp:315-326: Create new control window if MainPanel exists.
     with_main_window(|mw| mw.main_panel_id).flatten()?;
 
-    let ctrl_panel = emMainControlPanel::new(Rc::clone(&app.context));
+    let avm_rc = with_main_window(|mw| mw.autoplay_view_model.clone()).flatten();
+    let ctrl_panel = emMainControlPanel::new(Rc::clone(&app.context), avm_rc);
 
     // Phase 3.5.A Task 7: the control window owns its own tree (detached peer
     // of the home window — follows the same per-window pattern). Build locally,

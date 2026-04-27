@@ -274,7 +274,7 @@ struct SettingsPanel {
 }
 
 impl SettingsPanel {
-    fn new(look: Rc<emLook>, _model: Rc<RefCell<emAutoplayViewModel>>) -> Self {
+    fn new(look: Rc<emLook>) -> Self {
         Self {
             layout: emPackLayout::new(),
             border: emBorder::new(OuterBorderType::Group)
@@ -447,7 +447,7 @@ struct PrevNextPanel {
 }
 
 impl PrevNextPanel {
-    fn new(look: Rc<emLook>, _model: Rc<RefCell<emAutoplayViewModel>>) -> Self {
+    fn new(look: Rc<emLook>) -> Self {
         // C++ SetOrientationThresholdTallness(0.7)
         Self {
             layout: emLinearLayout::adaptive(0.7),
@@ -616,7 +616,7 @@ impl emAutoplayControlPanel {
 
         // ── child 1: lPrevNext (emLinearLayout) ──
         // C++ SetChildWeight(1, 0.64), SetPrefChildTallness(1, 0.4)
-        let prev_next = Box::new(PrevNextPanel::new(Rc::clone(&look), Rc::clone(&self.model)));
+        let prev_next = Box::new(PrevNextPanel::new(Rc::clone(&look)));
         let prev_next_id = ctx.create_child_with("prev_next", prev_next);
         self.layout.set_child_constraint(
             prev_next_id,
@@ -653,7 +653,7 @@ impl emAutoplayControlPanel {
 
         // ── child 3: lSettings (emPackGroup "Autoplay Settings") ──
         // C++ SetChildWeight(3, 0.28), SetPrefChildTallness(3, 0.4)
-        let settings = Box::new(SettingsPanel::new(Rc::clone(&look), Rc::clone(&self.model)));
+        let settings = Box::new(SettingsPanel::new(Rc::clone(&look)));
         let settings_id = ctx.create_child_with("settings", settings);
         self.layout.set_child_constraint(
             settings_id,
@@ -876,8 +876,8 @@ impl PanelBehavior for emAutoplayControlPanel {
 
         // ── React to model signals ──
         // emAutoplay.cpp:1219-1222
-        let change_sig = self.model.borrow().change_signal.get();
-        let progress_sig = self.model.borrow().progress_signal.get();
+        let change_sig = self.model.borrow().GetChangeSignal(ectx);
+        let progress_sig = self.model.borrow().GetProgressSignal(ectx);
         if ectx.IsSignaled(change_sig) {
             self.update_controls();
         }
