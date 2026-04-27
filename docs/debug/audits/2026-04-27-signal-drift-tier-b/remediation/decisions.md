@@ -31,7 +31,7 @@ Stable IDs (`D-###`) are referenced from `inventory-enriched.json` and from `buc
 
 **Question:** For consumers using `Rc<RefCell<>>` / `Rc<Cell<>>` shared state in click-handler closures instead of subscribing to a signal, is conversion to signal-subscribe always correct, or are there load-bearing cases that justify keeping the shim?
 
-**Affects:** P-004 (33 rows: emcore=15, emmain=14, emstocks=4) + P-005 (2 rows). Cited by every bucket containing rc-shim rows. (Was P-004=29 + P-005=6 originally; B-013 reconciliation moved 4 emstocks dialog-result rows from P-005 → P-004 after verifying `emDialog.finish_signal` is present.)
+**Affects:** P-004 (33 rows: emcore=15, emmain=14, emstocks=4) + P-005 (1 row: emAutoplay-1172 only). Cited by every bucket containing rc-shim rows. (Was P-004=29 + P-005=6 originally; B-013 moved 4 emstocks dialog-result rows P-005 → P-004; B-014 reclassified emVirtualCosmos-575 P-005 → P-001 after verifying its `Rc<RefCell<Model>>` is just a routine model handle, not a click-handler shim.)
 
 **Options considered:**
 - **A. Always convert.** Treat every rc-shim consumer as drift; replace with signal-subscribe.
@@ -163,6 +163,8 @@ Stable IDs (`D-###`) are referenced from `inventory-enriched.json` and from `buc
 
 **Open questions deferred to per-bucket design:**
 - Whether to introduce a typed wrapper (e.g., `Bumper<T>`) to enforce the ectx-threading discipline at the type level. Currently no — individual `&mut self` + `&mut EngineCtx<'_>` signatures are explicit enough.
+
+**Composition note (post-B-014):** D-007 + D-008 compose to handle bootstrap-only callsites benignly. Example from B-014: `emVirtualCosmosModel::Reload` is called only from inside `Acquire`'s bootstrap closure where ectx is unavailable; at that point no panel has subscribed, so `change_signal == SignalId::null()` and `ectx.fire(...)` would be a no-op. The mutator can keep its no-ectx signature with a `// CALLSITE-NOTE:` indicating future post-Acquire callers must thread ectx. First benign hybrid recorded.
 
 ---
 

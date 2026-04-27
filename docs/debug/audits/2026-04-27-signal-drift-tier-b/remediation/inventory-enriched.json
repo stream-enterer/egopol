@@ -2822,7 +2822,7 @@
       "rust_file": "crates/emmain/src/emVirtualCosmos.rs",
       "rust_status": "drifted",
       "rust_evidence": {
-        "kind": "rc_cell_shim",
+        "kind": "absent",
         "file": "crates/emmain/src/emVirtualCosmos.rs",
         "line": 821,
         "snippet": "fn Cycle: 'if self.needs_update { self.needs_update = false; self.update_children(ctx); }' \u2014 needs_update set by notice() on NF_VIEWING_CHANGED, not by model change signal. update_children re-reads model.GetItemRecs() each call but no signal subscription wires the model to the panel."
@@ -2835,12 +2835,17 @@
       "consumers": null,
       "notes": "emVirtualCosmosModel exposes no GetChangeSignal accessor and never fires one (it has no signal at all). Panel reacts to viewport changes (NF_VIEWING_CHANGED), not to model changes \u2014 observably equivalent for static cosmos but breaks if the model ever reloads while the panel is viewed.",
       "enrichment": {
-        "pattern_id": "P-005-rc-shim-no-accessor",
+        "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
           "D-002-rc-shim-policy"
         ],
         "scope_key": "emmain:emVirtualCosmos",
         "prereq_ids": []
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-014 brainstorm d7d964d4",
+        "change": "pattern_id P-005 -> P-001, evidence_kind rc_cell_shim -> absent. Audit misread model: Rc<RefCell<Model>> as click-handler shim; it is the routine model handle (analogous to C++ emRef<>). Actual mechanism is \"wrong trigger\" (NF_VIEWING_CHANGED instead of ChangeSignal)."
       }
     },
     {

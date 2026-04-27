@@ -1,11 +1,19 @@
-# B-014-rc-shim-no-acc-misc — P-005 — rc-shim with missing accessor (misc)
+# B-014-rc-shim-no-acc-misc — mixed P-005/P-001 misc (R-A drop + rule-1 convert)
 
-**Pattern:** P-005-rc-shim-no-accessor
+**Pattern:** mixed — P-005-rc-shim-no-accessor (emAutoplay-1172) + P-001-no-subscribe-no-accessor (emVirtualCosmos-575, reclassified by B-014 brainstorm). Bucket title retained for stability; row set unchanged.
 **Scope:** misc (emAutoplay, emVirtualCosmos)
 **Row count:** 2
 **Mechanical-vs-judgement:** judgement-heavy
-**Cited decisions:** D-002-rc-shim-policy — governs whether each rc-shim consumer converts to signal-subscribe or stays as a load-bearing shim, and flags emAutoplay flags-passing as needing escalation.
-**Prereq buckets:** none
+**Cited decisions:** D-002-rc-shim-policy §1 R-A (emAutoplay-1172 — drop AutoplayFlags, ratified during B-003), D-002 rule 1 (emVirtualCosmos-575 — convert), D-006-subscribe-shape (emVirtualCosmos panel wiring), D-007-mutator-fire-shape + D-008-signal-allocation-shape (emVirtualCosmos accessor + Reload fire).
+**Prereq buckets:** none.
+
+**Reconciliation amendments (2026-04-27, post-design d7d964d4):**
+- **emVirtualCosmos-575 reclassified:** `pattern_id P-005 → P-001`, `evidence_kind rc_cell_shim → absent`. Audit misread `model: Rc<RefCell<emVirtualCosmosModel>>` (routine model handle, analogous to C++ `emRef<>`) as a click-handler shim. Actual mechanism is "wrong trigger" (`NF_VIEWING_CHANGED` notice instead of `ChangeSignal`). Fix shape unchanged; audit truth cleaner. Row stays in B-014; boundaries frozen.
+- **emAutoplay-1172 disposition:** apply D-002 §1 R-A by precedent (already ratified during B-003). Drop `AutoplayFlags` shim; give `AutoplayCheckButtonPanel` `Rc<RefCell<emAutoplayViewModel>>`; read `GetItemProgress()` in `Paint`. No accessor added, no subscribe added.
+- **emVirtualCosmos-575 disposition:** rule-1 convert. Add `GetChangeSignal` + `EnsureChangeSignal` (D-008 A1 lazy alloc); fire from `Reload()` (D-007 — but see benign-hybrid note); subscribe via D-006 first-Cycle init in panel; existing `NF_VIEWING_CHANGED → update_children` path preserved (mirrors C++ `Notice`).
+- **D-007 benign hybrid recorded.** Single production callsite of `Reload` is inside `Acquire`'s bootstrap closure and lacks ectx. At Acquire-time no panel has subscribed → `change_signal == SignalId::null()` → fire would be a no-op per D-008. Mutator keeps no-ectx signature with a `// CALLSITE-NOTE:` for future post-Acquire callers. D-007 amended in place to record this composition.
+- **Accessor-status heuristic check:** held up — both rows' missing-accessor tags verified correct. No 5th sighting of the heuristic gap; pattern frequency stable at 4.
+- **D-002 affects amended:** P-005 −1 (now =1, just emAutoplay-1172). pattern-catalog.md: P-001 row count 82 → 83; P-005 2 → 1.
 
 ## Pattern description
 

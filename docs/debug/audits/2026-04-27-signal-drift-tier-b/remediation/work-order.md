@@ -27,7 +27,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 15 | B-011-rc-shim-autoplay | 0 | judgement-heavy | 7 | pending | — |
 | 16 | B-012-rc-shim-mainctrl | 0 | judgement-heavy | 7 | pending | — |
 | 17 | B-013-dialog-cells-emstocks | 0 | judgement-heavy | 4 | designed | [ec317565](../../../../superpowers/specs/2026-04-27-B-013-dialog-cells-emstocks-design.md) |
-| 18 | B-014-rc-shim-no-acc-misc | 0 | judgement-heavy | 2 | pending | — |
+| 18 | B-014-rc-shim-no-acc-misc | 0 | judgement-heavy | 2 | designed | [d7d964d4](../../../../superpowers/specs/2026-04-27-B-014-rc-shim-no-acc-misc-design.md) |
 | 19 | B-018-fileDialog-singleton | 0 | judgement-heavy | 1 | pending | — |
 
 Total rows: 187 (178 actionable + 9 cleanup).
@@ -175,3 +175,14 @@ Total rows: 187 (178 actionable + 9 cleanup).
 - **No new D-### entries. No prereq edges.**
 - **Pattern: third occurrence of audit's accessor-status heuristic missing inherited/composed accessors.** B-006 (`GetWindowFlagsSignal`), B-007 (`FileModelsUpdateSignal` via `App::file_update_signal`), B-008 (`GetWindowFlagsSignal` again), B-013 (`emDialog.finish_signal`). Now four occurrences. Pattern is established but not promoted to a decision — it's an audit-data-quality issue, not a design choice. Future buckets should explicitly verify accessor existence in their first step.
 - **B-013 status:** pending → designed.
+
+### 2026-04-27 — B-014 design returned (d7d964d4)
+
+- **No new D-### entries.**
+- **emVirtualCosmos-575 reclassified P-005 → P-001** (and `evidence_kind` rc_cell_shim → absent). Audit's rc_cell_shim heuristic misread the routine `model: Rc<RefCell<>>` handle as a click-handler shim. Same precedent as B-013's reclassification. Fix shape unchanged.
+- **B-014 becomes a mixed-pattern bucket** (1 P-005 + 1 P-001). Title retained for stability; row set unchanged. Two distinct dispositions: R-A drop for emAutoplay-1172 (per B-003 precedent), rule-1 convert for emVirtualCosmos-575 (D-006 + D-007 + D-008).
+- **D-007 benign hybrid composition documented.** B-014's `emVirtualCosmosModel::Reload` callsite is inside `Acquire` bootstrap and lacks ectx. The D-008 lazy-allocation null-fire-noop semantics make this benign: at Acquire no subscriber exists, so `change_signal == SignalId::null()` and the omitted fire would be a no-op anyway. Mutator keeps no-ectx signature with a `// CALLSITE-NOTE:` for future post-Acquire callers. **D-007 amended in place** with a "Composition note (post-B-014)" capturing this as the first benign hybrid.
+- **D-002 affects amended:** P-005 6 → 1 (now just emAutoplay-1172). pattern-catalog.md: P-001 82 → 83; P-005 2 → 1.
+- **Accessor-status heuristic check:** held up at 4 sightings; B-014 verified both rows' tags correct.
+- **No prereq edges.** Soft note on B-003 precedent for R-A; already ratified.
+- **B-014 status:** pending → designed.

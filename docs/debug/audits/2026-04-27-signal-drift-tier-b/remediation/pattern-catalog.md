@@ -32,7 +32,7 @@ Total = 178 actionable + 9 cleanup = 187 rows.
 **Accessor-status:** missing
 **Sample rows:** see `inventory-enriched.json` filter.
 **Mechanical-vs-judgement:** balanced — wiring is mechanical once the accessor shape is decided; the accessor shape is a per-scope judgement call.
-**Row count:** 82 (72 drifted + 10 gap-blocked).
+**Row count:** 83 (73 drifted + 10 gap-blocked). +1 from B-014 reclassification of emVirtualCosmos-575.
 
 ## P-002-no-subscribe-accessor-present
 
@@ -66,7 +66,7 @@ Total = 178 actionable + 9 cleanup = 187 rows.
 **Evidence-kind:** rc_cell_shim
 **Accessor-status:** missing
 **Mechanical-vs-judgement:** judgement-heavy — needs accessor design plus shim removal.
-**Row count:** 6.
+**Row count:** 1 (was 6 originally; B-013 moved 4 emstocks rows P-005 → P-004; B-014 moved emVirtualCosmos-575 P-005 → P-001).
 **Cited decision:** D-002-rc-shim-policy.
 
 ## P-006-polling-accessor-present
