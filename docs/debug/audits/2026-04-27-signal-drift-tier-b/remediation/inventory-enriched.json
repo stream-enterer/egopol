@@ -2714,7 +2714,14 @@
           "D-005-poll-replacement-shape"
         ],
         "scope_key": "emmain:emMainPanel",
-        "prereq_ids": []
+        "prereq_ids": [
+          "emMainPanel-67"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-015 brainstorm b521b3f6",
+        "note": "shares emMainPanel::Cycle body and subscribed_init field with B-008 rows -67/-69; must coordinate"
       }
     },
     {

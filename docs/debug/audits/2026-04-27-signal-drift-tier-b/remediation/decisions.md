@@ -110,7 +110,7 @@ Stable IDs (`D-###`) are referenced from `inventory-enriched.json` and from `buc
 **Why:** C++ `Cycle()` semantics are: "scheduler invokes `Cycle()` when any subscribed signal fires; `Cycle()` re-reads relevant state." The Rust port already has `Cycle()` shaped this way. So "direct subscribe" in Rust = "subscribe to the signal so the engine schedules `Cycle()`," which then re-reads and reacts. Option B is what the polling consumers currently do *minus the subscribe* — adopting B would just preserve the drift with a trigger. Option C invites bikeshedding.
 
 **Open questions deferred to bucket design:**
-- For consumers that currently poll multiple sources (e.g., `emColorField::Cycle` polls four child ScalarFields), the subscribe call is N-fold. Bucket sketcher confirms whether the C++ original subscribes individually (likely) or to an aggregated signal. Default: mirror C++.
+- ~~For consumers that currently poll multiple sources (e.g., `emColorField::Cycle` polls four child ScalarFields), the subscribe call is N-fold. Bucket sketcher confirms whether the C++ original subscribes individually (likely) or to an aggregated signal. Default: mirror C++.~~ **Resolved by B-015 brainstorm (b521b3f6):** C++ `emColorField::AutoExpand` subscribes individually to each child (8 separate `AddWakeUpSignal` calls at cpp:245/255/265/277/288/298/308/320, not aggregated). Default holds: mirror C++.
 
 **See also D-006-subscribe-shape** — D-005 picks the *reaction model* (direct subscribe, react in Cycle); D-006 picks the *wiring shape* (first-Cycle init block + IsSignaled checks at top of Cycle). Complementary, not competing. Any P-006/P-007 bucket implementing the D-005 direct-subscribe choice does so via the D-006 shape.
 

@@ -14,7 +14,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 2 | B-006-typed-subscribe-mainctrl | 0 | mechanical-heavy | 3 | designed | [a13880c7](../../../../superpowers/specs/2026-04-27-B-006-typed-subscribe-mainctrl-design.md) |
 | 3 | B-007-typed-subscribe-emcore | 0 | mechanical-heavy | 3 | designed | [8b220ebb](../../../../superpowers/specs/2026-04-27-B-007-typed-subscribe-emcore-design.md) |
 | 4 | B-008-typed-subscribe-misc | 0 | mechanical-heavy | 3 | designed | [4c4141f1](../../../../superpowers/specs/2026-04-27-B-008-typed-subscribe-misc-design.md) |
-| 5 | B-015-polling-emcore-plus | 0 | mechanical-heavy | 10 | pending | — |
+| 5 | B-015-polling-emcore-plus | 0 | mechanical-heavy | 10 | designed | [b521b3f6](../../../../superpowers/specs/2026-04-27-B-015-polling-emcore-plus-design.md) |
 | 6 | B-019-stale-annotations | 0 | mechanical-heavy | 9 | pending | — |
 | 7 | B-001-no-wire-emstocks | 0 | balanced | 71 | pending | — |
 | 8 | B-002-no-wire-emfileman | 0 | balanced | 4 | pending | — |
@@ -75,3 +75,12 @@ Total rows: 187 (178 actionable + 9 cleanup).
 - **First hard cross-bucket prereq edge in inventory-enriched.json:** `emVirtualCosmos-104` (B-008) → `emFileModel-103` (B-007). B-008's `Prereq buckets:` line records the bucket-level edge.
 - **Designer noted minor adjacency:** C++ `emMainPanel.cpp:68` also subscribes to `SliderTimer.GetSignal()` which Rust polls — not in B-008's row set, separate P-006/P-007 concern, untouched.
 - **B-008 status:** pending → designed.
+
+### 2026-04-27 — B-015 design returned (b521b3f6)
+
+- **No new D-### entries.** D-005 + D-006 covered everything. D-006's per-bucket override clause already accommodated the `emFilePanel::SetFileModel` subscribe-at-SetFileModel-time variant (signal identity changes on model swap).
+- **D-005 open question struck:** individual subscribes per child for `emColorField::Cycle` confirmed against C++ source (8 separate `AddWakeUpSignal` calls in `emColorField::AutoExpand`).
+- **No audit-data corrections.** All 10 rows had accurate accessor-present tags.
+- **Cross-bucket prereq:** soft edge `emMainPanel-68` → `emMainPanel-67` (B-008) — shared `emMainPanel::Cycle` body and `subscribed_init` field. Encoded in `inventory-enriched.json`. B-015's `Prereq buckets:` line records bucket-level edge to B-008.
+- **Implementer-facing structural change:** `emFilePanel::SetFileModel` signature gains `&mut SchedCtx + EngineId`. Caller migration is bounded; flagged as open question in design doc.
+- **B-015 status:** pending → designed.

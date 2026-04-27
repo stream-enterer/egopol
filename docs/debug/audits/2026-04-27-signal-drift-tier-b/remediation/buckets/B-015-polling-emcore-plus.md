@@ -4,8 +4,14 @@
 **Scope:** emcore + emMainPanel singleton
 **Row count:** 10
 **Mechanical-vs-judgement:** mechanical-heavy
-**Cited decisions:** D-005-poll-replacement-shape — direct subscribe collapses each polled comparison into a callback that schedules `Cycle()`, mirroring C++ scheduler semantics.
-**Prereq buckets:** none
+**Cited decisions:** D-005-poll-replacement-shape (reaction model: direct subscribe), D-006-subscribe-shape (wiring shape: first-Cycle init + IsSignaled top-of-Cycle).
+**Prereq buckets:** B-008-typed-subscribe-misc (soft, for `emMainPanel-68` only — shares `emMainPanel::Cycle` body and `subscribed_init` field with B-008's rows -67/-69; coordinate or sequence).
+
+**Reconciliation amendments (2026-04-27, post-design b521b3f6):**
+- All 10 rows verified accessor-present against actual Rust source; no stale tags.
+- D-005's `emColorField::Cycle` open question (individual vs aggregated subscribes) resolved: individual, mirroring C++.
+- `emFilePanel::SetFileModel` row uses D-006's per-bucket override clause (subscribe-at-SetFileModel-time, not first-Cycle init) because signal identity changes on every model swap. Local override; does not generalize.
+- `emMainPanel-68` carries soft prereq on `emMainPanel-67` (B-008 row), encoded in `inventory-enriched.json` `prereq_ids`.
 
 ## Pattern description
 
