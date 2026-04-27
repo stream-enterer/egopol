@@ -13,7 +13,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 1 | B-005-typed-subscribe-emfileman | 0 | mechanical-heavy | 21 | designed | [d95d55a7](../../../../superpowers/specs/2026-04-27-B-005-typed-subscribe-emfileman-design.md) |
 | 2 | B-006-typed-subscribe-mainctrl | 0 | mechanical-heavy | 3 | designed | [a13880c7](../../../../superpowers/specs/2026-04-27-B-006-typed-subscribe-mainctrl-design.md) |
 | 3 | B-007-typed-subscribe-emcore | 0 | mechanical-heavy | 3 | designed | [8b220ebb](../../../../superpowers/specs/2026-04-27-B-007-typed-subscribe-emcore-design.md) |
-| 4 | B-008-typed-subscribe-misc | 0 | mechanical-heavy | 3 | pending | — |
+| 4 | B-008-typed-subscribe-misc | 0 | mechanical-heavy | 3 | designed | [4c4141f1](../../../../superpowers/specs/2026-04-27-B-008-typed-subscribe-misc-design.md) |
 | 5 | B-015-polling-emcore-plus | 0 | mechanical-heavy | 10 | pending | — |
 | 6 | B-019-stale-annotations | 0 | mechanical-heavy | 9 | pending | — |
 | 7 | B-001-no-wire-emstocks | 0 | balanced | 71 | pending | — |
@@ -66,3 +66,12 @@ Total rows: 187 (178 actionable + 9 cleanup).
 - **Anchor-vs-implementation site mismatch:** `emImageFile-139`'s actual fix site is the SPLIT panel file `emImageFileImageFilePanel.rs`, not the audit anchor `emImageFile.rs:85`. Per-row design doc has the right site; bookkeeping note only.
 - **No cross-bucket prereqs.** Designer noted `LoaderEngine` persistent-after-load in step 2 is a precedent that future `emFileModel`-derived ports (e.g., `emRecFileModel`) will reuse — track as a downstream pattern, not a prereq edge.
 - **B-007 status:** pending → designed.
+
+### 2026-04-27 — B-008 design returned (4c4141f1)
+
+- **No new D-### entries.**
+- **Audit-data correction:** `emMainPanel-69` reclassified `gap-blocked → drifted`; `D-003` dropped. Same `GetWindowFlagsSignal` stale tag pattern as B-006/`emMainControlPanel-218`. D-003 affects count: 14 → 13 (now 0 P-002 gap-blocked remaining).
+- **Pattern observation:** every gap-blocked → drifted reclassification across B-006/B-007/B-008 has been a P-002 row whose accessor existed at audit time but was tagged missing. Now zero P-002 rows remain gap-blocked. Remaining 13 gap-blocked rows are all P-001/P-003. Worth noting in case the reclassification pattern continues into P-001 buckets (B-001..B-004) and the D-003 affects count keeps shrinking.
+- **First hard cross-bucket prereq edge in inventory-enriched.json:** `emVirtualCosmos-104` (B-008) → `emFileModel-103` (B-007). B-008's `Prereq buckets:` line records the bucket-level edge.
+- **Designer noted minor adjacency:** C++ `emMainPanel.cpp:68` also subscribes to `SliderTimer.GetSignal()` which Rust polls — not in B-008's row set, separate P-006/P-007 concern, untouched.
+- **B-008 status:** pending → designed.

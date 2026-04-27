@@ -2724,7 +2724,7 @@
       "signal_expression": "GetWindow()->GetWindowFlagsSignal()",
       "signal_kind": "model-state",
       "rust_file": "crates/emmain/src/emMainPanel.rs",
-      "rust_status": "gap-blocked",
+      "rust_status": "drifted",
       "rust_evidence": {
         "kind": "absent",
         "file": "crates/emmain/src/emMainPanel.rs",
@@ -2740,11 +2740,14 @@
       "notes": "emWindow has WindowFlags bitflags but no SignalId accessor for flag changes. Same gap as emMainControlPanel-218.",
       "enrichment": {
         "pattern_id": "P-002-no-subscribe-accessor-present",
-        "decision_ids": [
-          "D-003-gap-blocked-fill-vs-stub"
-        ],
+        "decision_ids": [],
         "scope_key": "emmain:emMainPanel",
         "prereq_ids": []
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-008 brainstorm 4c4141f1",
+        "change": "gap-blocked -> drifted; GetWindowFlagsSignal exists at crates/emcore/src/emWindow.rs:1279 (same audit-time stale tag as emMainControlPanel-218)"
       }
     },
     {
@@ -2772,7 +2775,14 @@
         "pattern_id": "P-002-no-subscribe-accessor-present",
         "decision_ids": [],
         "scope_key": "emmain:emVirtualCosmos",
-        "prereq_ids": []
+        "prereq_ids": [
+          "emFileModel-103"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-008 brainstorm 4c4141f1",
+        "note": "cross-bucket prereq: depends on B-007 step 1 re-pointing emFileModel::AcquireUpdateSignalModel to App::file_update_signal"
       }
     },
     {

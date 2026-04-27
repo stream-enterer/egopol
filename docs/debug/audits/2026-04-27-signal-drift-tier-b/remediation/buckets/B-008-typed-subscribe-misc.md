@@ -4,8 +4,13 @@
 **Scope:** misc (emMainPanel, emVirtualCosmos)
 **Row count:** 3
 **Mechanical-vs-judgement:** mechanical-heavy
-**Cited decisions:** D-003-gap-blocked-fill-vs-stub — these 3 rows are the P-002 gap-blocked subset; per-bucket sketcher must distinguish missing-accessor-on-ported-model (fill in scope) from missing-model-entirely (escalate).
-**Prereq buckets:** none
+**Cited decisions:** D-006-subscribe-shape (canonical wiring shape).
+**Prereq buckets:** B-007-typed-subscribe-emcore (hard, for `emVirtualCosmos-104` only — depends on B-007 step 1 re-pointing `emFileModel::AcquireUpdateSignalModel` to `App::file_update_signal`).
+
+**Reconciliation amendments (2026-04-27, post-design 4c4141f1):**
+- `emMainPanel-69` reclassified `gap-blocked → drifted`; `D-003` citation removed. `GetWindowFlagsSignal` exists at `crates/emcore/src/emWindow.rs:1279` (same stale tag as `emMainControlPanel-218`).
+- `emMainPanel-67` and `emVirtualCosmos-104` were already `drifted` in the spine — designer's intuition that all three were stale-gap-blocked was partially correct, but only -69 actually had the stale tag.
+- `emVirtualCosmos-104` carries a hard cross-bucket prereq on `emFileModel-103` (B-007 row), encoded in `inventory-enriched.json` `prereq_ids`.
 
 ## Pattern description
 
