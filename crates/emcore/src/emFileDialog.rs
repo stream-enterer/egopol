@@ -64,12 +64,13 @@ pub struct emFileDialog {
     /// PanelId of the emFileSelectionBox installed under content panel.
     fsb_panel_id: PanelId,
     /// Cached `fsb.file_trigger_signal` — `SignalId` is `Copy`, stable
-    /// across fsb lifetime. Used by the `file_trigger_signal()` test
-    /// accessor. DIVERGED: (language-forced) C++ `emFileDialog` does not expose a
-    /// `GetFileTriggerSignal` accessor; this cache exists solely because
-    /// Rust tests need to fire the signal externally without walking the
-    /// tree. The closure in `on_cycle_ext` captures the same SignalId via
-    /// move-capture at construction and does NOT read this field.
+    /// across fsb lifetime. Test-only cache: backs the
+    /// `file_trigger_signal()` accessor used by Rust unit tests to fire the
+    /// signal externally without walking the tree. The closure in
+    /// `on_cycle_ext` captures the same SignalId via move-capture at
+    /// construction and does NOT read this field; production code paths
+    /// never touch it. C++ `emFileDialog` has no equivalent accessor
+    /// because C++ tests reach the signal through different mechanics.
     fsb_trigger_sig: SignalId,
     mode: FileDialogMode,
     dir_allowed: bool,
@@ -137,16 +138,14 @@ impl emFileDialog {
                 // the widened `on_check_finish` closure via base cycle
                 // step 3 — single funnel, matches C++.
 
-                // DIVERGED: (language-forced) Rust-specific re-wake. The base
-                // `DialogPrivateEngine::Cycle` body runs BEFORE on_cycle_ext
-                // (Phase-3.6 Task 2 ordering). State mutations this closure
-                // makes — setting `dlg.pending_result`, pushing
-                // `pending_actions` — are not visible to the base body this
-                // Cycle. We return `true` on any mutation to keep the engine
-                // awake so the next Cycle's base body observes them. C++
-                // doesn't need this: `Finish(POSITIVE)` in
-                // emFileDialog::Cycle finalizes via same-call-stack re-entry
-                // into emDialog::Cycle's finalize path.
+                // Re-wake protocol: the base `DialogPrivateEngine::Cycle` body
+                // runs BEFORE on_cycle_ext (Phase-3.6 Task 2 ordering), so
+                // state mutations this closure makes (`dlg.pending_result`,
+                // `pending_actions`) are not visible to the base body this
+                // Cycle. Return `true` on any mutation to keep the engine
+                // awake so the next Cycle's base body observes them. C++'s
+                // same-call-stack `Finish(POSITIVE)` re-entry achieves the
+                // same finalize ordering directly.
                 let mut stay = false;
                 if ctx.IsSignaled(closure_fsb_sig) && dlg.pending_result.is_none() {
                     dlg.pending_result = Some(DialogResult::Ok);

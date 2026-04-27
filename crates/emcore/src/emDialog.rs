@@ -32,12 +32,10 @@ pub enum DialogResult {
 }
 
 type DialogFinishCb = crate::emEngineCtx::WidgetCallbackRef<DialogResult>;
-/// DIVERGED: (language-forced) C++ `emDialog::CheckFinish` is a virtual method with no
-/// extra args — subclasses reach into self's fields directly. Rust uses
-/// a callback slot on `DlgPanel`; the closure needs `&mut DlgPanel` +
-/// `&mut EngineCtx<'_>` to read tree state (e.g. emFileDialog's fsb
-/// child panel) and spawn transient sub-dialogs. Matches `DialogCycleExt`
-/// (Phase 3.6 Task 2).
+/// Callback slot used in place of C++'s virtual `emDialog::CheckFinish`.
+/// Closure receives `&mut DlgPanel + &mut EngineCtx` so it can read tree
+/// state and spawn transient sub-dialogs (e.g. emFileDialog's overwrite
+/// confirmation). Matches `DialogCycleExt` (Phase 3.6 Task 2).
 pub(crate) type DialogCheckFinishCb =
     Box<dyn FnMut(&DialogResult, &mut DlgPanel, &mut crate::emEngineCtx::EngineCtx<'_>) -> bool>;
 
@@ -520,13 +518,13 @@ pub struct DlgPanel {
     /// observe button clicks, mirroring C++ `emDialog::PrivateEngineClass`
     /// observing button signals via `AddWakeUpSignal` (emDialog.cpp:38).
     pub(crate) button_signals: Vec<(SignalId, DialogResult)>,
-    /// DIVERGED: (language-forced) Rust mechanism for the C++ "emFileDialog::Cycle calls
-    /// emDialog::Cycle() first then runs its own logic" inheritance pattern
-    /// (emFileDialog.cpp:82). In C++, `emFileDialog` is a subclass and its
-    /// `Cycle()` override calls `emDialog::Cycle()` then continues. In Rust
-    /// there is a single engine type (`DialogPrivateEngine`) with no
-    /// inheritance; this callback slot lets emFileDialog inject post-base
-    /// Cycle logic without needing a separate engine or vtable dispatch.
+    /// Post-base-Cycle extension hook. `DialogPrivateEngine::Cycle` runs the
+    /// base body (close-signal observation, pending_result resolution,
+    /// auto-delete countdown), then invokes this callback. Used by
+    /// emFileDialog (Phase 3.6 Task 2) to layer file-dialog-specific Cycle
+    /// logic over the base — the Rust analogue of C++'s
+    /// `emFileDialog::Cycle()` calling `emDialog::Cycle()` first then
+    /// continuing (emFileDialog.cpp:82).
     ///
     /// `DialogPrivateEngine::Cycle` calls this AFTER the base cycle body
     /// (close-signal observation, pending_result resolution, auto-delete

@@ -113,12 +113,6 @@ struct KeyWalkState {
 ///
 /// Displays directory entries in a grid layout. Lazily acquires emDirModel
 /// when viewed. Creates/updates emDirEntryPanel children from model entries.
-///
-/// DIVERGED: (language-forced) C++ emDirPanel connects emDirModel as a FileModelState via
-/// SetFileModel. Rust drives loading directly in Cycle using
-/// `get_file_state()` to query the model's phase, because emDirModel does
-/// not implement FileModelState — it wraps emDirModelData directly without
-/// scheduler integration.
 pub struct emDirPanel {
     pub(crate) file_panel: emFilePanel,
     ctx: Rc<emContext>,

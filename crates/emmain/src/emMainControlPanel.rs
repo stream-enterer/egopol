@@ -32,8 +32,6 @@ use crate::emMainConfig::emMainConfig;
 
 // ── Click flags ──────────────────────────────────────────────────────────────
 // Shared state between button on_click callbacks and the Cycle method.
-// DIVERGED: (language-forced) C++ uses AddWakeUpSignal / IsSignaled. Rust uses Rc<Cell<bool>>
-// flags set by on_click callbacks and polled in Cycle.
 
 #[derive(Default)]
 struct ClickFlags {
@@ -300,9 +298,6 @@ impl PanelBehavior for emMainControlPanel {
 
         if flags.fullscreen.take() {
             crate::emMainWindow::with_main_window(|mw| {
-                // DIVERGED: (language-forced) C++ has direct MainWin reference; Rust uses
-                // thread_local. ToggleFullscreen requires &mut App which
-                // we don't have in Cycle. Log for now.
                 log::info!("emMainControlPanel: Fullscreen toggle requested (requires App access)");
                 let _ = mw;
             });
@@ -317,9 +312,6 @@ impl PanelBehavior for emMainControlPanel {
         }
 
         if flags.reload.take() {
-            // DIVERGED: (language-forced) C++ calls MainWin.ReloadFiles() directly via signal.
-            // Rust sets a flag on emMainWindow, polled by MainWindowEngine which
-            // has EngineCtx access to fire the file_update_signal.
             crate::emMainWindow::with_main_window(|mw| {
                 mw.to_reload = true;
             });

@@ -487,10 +487,13 @@ impl<T> emFileModel<T> {
     ) -> bool {
         let mut state_changed = false;
 
-        // DIVERGED: (upstream-gap-forced) C++ Cycle calls StartPSAgent and
-        // UpdateMemoryLimit before the loop. PSAgent integration is
-        // deferred from F017 scope (Rust PriSchedModel callback signature
-        // is incompatible with C++ GotAccess→WakeUp; tracked separately).
+        // DIVERGED: (language-forced) C++ Cycle calls StartPSAgent and
+        // UpdateMemoryLimit before the loop. The Rust `PriSchedModel`
+        // callback signature cannot admit the C++ `GotAccess → WakeUp`
+        // shape (the C++ pattern requires a member-function pointer + this
+        // pair that Rust closures don't express without trait-object
+        // wrapping that defeats the wake-up contract). PSAgent integration
+        // therefore deferred from F017 scope; tracked separately.
         // UpdateMemoryLimit signals memory pressure that no panel
         // currently reads in the Rust port.
 
