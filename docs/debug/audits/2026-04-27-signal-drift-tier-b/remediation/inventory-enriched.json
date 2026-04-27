@@ -3981,7 +3981,14 @@
           "D-005-poll-replacement-shape"
         ],
         "scope_key": "emstocks",
-        "prereq_ids": []
+        "prereq_ids": [
+          "emStocksPricesFetcher-accessor-model-change"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-017 brainstorm a27d2faa",
+        "note": "hard prereq on B-001 G3; resolves B-001 G3 reconciliation flag (in-bucket consumer found)"
       }
     },
     {
@@ -4012,7 +4019,14 @@
           "D-005-poll-replacement-shape"
         ],
         "scope_key": "emstocks",
-        "prereq_ids": []
+        "prereq_ids": [
+          "emFilePanel-accessor-vir-file-state"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-017 brainstorm a27d2faa",
+        "note": "hard prereq on B-004 G1 (emFilePanel::GetVirFileStateSignal)"
       }
     },
     {
@@ -5517,6 +5531,11 @@
         ],
         "scope_key": "emstocks",
         "prereq_ids": []
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-017 brainstorm a27d2faa",
+        "note": "audit note about emTimer::TimerCentral being unported is stale; TimerCentral is ported in crates/emcore/src/emTimer.rs and exposed via Scheduler::create_timer. Row 3 uses Scheduler-allocated timer signal locally; no external accessor."
       }
     }
   ],

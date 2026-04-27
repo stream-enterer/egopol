@@ -4,9 +4,18 @@
 **Scope:** emstocks
 **Row count:** 3
 **Mechanical-vs-judgement:** balanced
-**Cited decisions:** D-004-stocks-application-strategy (confirms design-once / apply-mechanically across the in-bucket emstocks rows), D-005-poll-replacement-shape (direct-subscribe shape governs the polling-to-subscribe rewrite for each row)
+**Cited decisions:** D-004-stocks-application-strategy, D-005-poll-replacement-shape, D-006-subscribe-shape.
 
-**Prereq buckets:** none
+**Prereq buckets:** B-004-no-wire-misc (hard, row 2 only — `emFilePanel::GetVirFileStateSignal` from G1), B-001-no-wire-emstocks (hard, row 1 only — `emStocksPricesFetcher::GetChangeSignal` from G3).
+
+**Reconciliation amendments (2026-04-27, post-design a27d2faa):**
+- **Bucket sketch's "emTimer::TimerCentral unported" claim is stale.** TimerCentral IS ported at `crates/emcore/src/emTimer.rs` and exposed via `Scheduler::create_timer/start_timer/is_running`. Active consumers in `emMiniIpc.rs` and integration tests. Strike from bucket framing.
+- **2 hard cross-bucket prereqs encoded** in `inventory-enriched.json`:
+  - row 2 (`emStocksFilePanel-34`) → `emFilePanel-accessor-vir-file-state` (B-004 G1)
+  - row 1 (`emStocksFetchPricesDialog-62`) → `emStocksPricesFetcher-accessor-model-change` (B-001 G3)
+- **B-001 G3 reconciliation flag resolved.** B-001's open question — "G3 ported but no in-bucket consumer; B-001 amendment candidate" — answered by B-017 row 1. The accessor port stays in B-001 (no row reassignment); the consumer wiring stays in B-017. Edge encoded.
+- **3 accessor groups:** G-ext1 (B-004's `GetVirFileStateSignal`, consumed by row 2), G-ext2 (B-001's `emStocksPricesFetcher::GetChangeSignal`, consumed by row 1), G-int1 (in-row `save_timer_signal` on `emStocksFileModel` allocated via `Scheduler::create_timer`; row 3, no external accessor).
+- **Recommended PR staging:** B-004 G1 + B-001 G3 land first; B-017 lands as one PR after both. Row 3 is natural pilot if review pressure forces staging (first emstocks model engine registration).
 
 ## Pattern description
 

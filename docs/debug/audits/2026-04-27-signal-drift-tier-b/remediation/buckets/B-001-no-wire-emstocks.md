@@ -13,7 +13,7 @@
   - `emStocksListBox-53` (`GetItemTriggerSignal`): accessor inherited and present on `emListBox.item_trigger_signal` — shape-equivalent to P-002 but stays in B-001 (design-once unaffected).
   - 20 `emStocksControlPanel` rows + `-626`: drift includes "missing widget instance"; widget-add absorbed into bucket scope.
   - `emStocksFileModel-accessor-model-change`: delegating one-line accessor on composed `emRecFileModel<emStocksRec>`, not new SignalId allocation.
-- **Coverage flag (G3 `PricesFetcher.GetChangeSignal`):** accessor ported per D-003 but no in-bucket consumer. If C++ has a missed `AddWakeUpSignal(...PricesFetcher.GetChangeSignal())` site, surface as a B-001 amendment.
+- **Coverage flag (G3 `PricesFetcher.GetChangeSignal`):** ~~accessor ported per D-003 but no in-bucket consumer. If C++ has a missed `AddWakeUpSignal(...PricesFetcher.GetChangeSignal())` site, surface as a B-001 amendment.~~ **Resolved 2026-04-27 by B-017 brainstorm (a27d2faa):** in-bucket consumer is `emStocksFetchPricesDialog-62` in B-017 (P-007, polling-no-accessor). Accessor port stays in B-001; consumer wiring lands in B-017. Edge encoded in `inventory-enriched.json`.
 - **Two-tier init pattern (local, not D-### worthy yet):** lazy-attached widgets and ListBox break the single `subscribed_init: bool` from D-006. Design uses `subscribed_init` for model signals + `subscribed_widgets` for AutoExpand-gated widget signals (reset on AutoShrink). If a second bucket rediscovers, promote to D-###.
 
 ## Pattern description

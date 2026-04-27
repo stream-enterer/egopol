@@ -21,7 +21,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 9 | B-003-no-wire-autoplay | 0 | balanced | 3 | designed | [703fa462](../../../../superpowers/specs/2026-04-27-B-003-no-wire-autoplay-design.md) |
 | 10 | B-004-no-wire-misc | 0 | balanced | 4 | designed | [3497069d](../../../../superpowers/specs/2026-04-27-B-004-no-wire-misc-design.md) |
 | 11 | B-016-polling-no-acc-emfileman | 0 | balanced | 3 | designed | [d837346b](../../../../superpowers/specs/2026-04-27-B-016-polling-no-acc-emfileman-design.md) |
-| 12 | B-017-polling-no-acc-emstocks | 0 | balanced | 3 | pending | — |
+| 12 | B-017-polling-no-acc-emstocks | 0 | balanced | 3 | designed | [a27d2faa](../../../../superpowers/specs/2026-04-27-B-017-polling-no-acc-emstocks-design.md) |
 | 13 | B-009-typemismatch-emfileman | 0 | judgement-heavy | 14 | pending | — |
 | 14 | B-010-rc-shim-emcore | 0 | judgement-heavy | 15 | pending | — |
 | 15 | B-011-rc-shim-autoplay | 0 | judgement-heavy | 7 | pending | — |
@@ -142,3 +142,12 @@ Total rows: 187 (178 actionable + 9 cleanup).
 - **No row reclassifications.** All 3 rows correctly tagged `accessor missing`; B-004 G1 fills the gap.
 - **Out-of-scope subscribe sites noted** in the design — C++ ctors subscribe to additional signals not in B-016's row set; design's Cycle init block is shaped to absorb them in a future bucket.
 - **B-016 status:** pending → designed.
+
+### 2026-04-27 — B-017 design returned (a27d2faa)
+
+- **No new D-### entries.**
+- **2 hard cross-bucket prereqs encoded:** row 2 → B-004 G1 (`emFilePanel::GetVirFileStateSignal`), row 1 → B-001 G3 (`emStocksPricesFetcher::GetChangeSignal`). Row 3 stands alone (uses already-ported `Scheduler::create_timer`).
+- **B-001 G3 reconciliation flag resolved.** Consumer found in B-017 row 1 — accessor port stays in B-001, consumer wiring stays in B-017. B-001 sketch updated.
+- **Audit-data correction:** bucket sketch's "emTimer::TimerCentral unported" framing is stale; TimerCentral is ported at `crates/emcore/src/emTimer.rs` with active consumers. Strike from B-017 framing.
+- **Recommended PR staging:** B-004 G1 + B-001 G3 first, B-017 follows. Row 3 is natural pilot if review pressure forces staging.
+- **B-017 status:** pending → designed.
