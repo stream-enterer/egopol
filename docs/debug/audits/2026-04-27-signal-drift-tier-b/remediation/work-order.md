@@ -17,7 +17,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 5 | B-015-polling-emcore-plus | 0 | mechanical-heavy | 10 | designed | [b521b3f6](../../../../superpowers/specs/2026-04-27-B-015-polling-emcore-plus-design.md) |
 | 6 | B-019-stale-annotations | 0 | mechanical-heavy | 9 | designed | [e7129430](../../../../superpowers/specs/2026-04-27-B-019-stale-annotations-design.md) |
 | 7 | B-001-no-wire-emstocks | 0 | balanced | 71 | designed | [456fa5f7](../../../../superpowers/specs/2026-04-27-B-001-no-wire-emstocks-design.md) |
-| 8 | B-002-no-wire-emfileman | 0 | balanced | 4 | pending | — |
+| 8 | B-002-no-wire-emfileman | 0 | balanced | 4 | designed | [7fb3decd](../../../../superpowers/specs/2026-04-27-B-002-no-wire-emfileman-design.md) |
 | 9 | B-003-no-wire-autoplay | 0 | balanced | 3 | pending | — |
 | 10 | B-004-no-wire-misc | 0 | balanced | 4 | pending | — |
 | 11 | B-016-polling-no-acc-emfileman | 0 | balanced | 3 | pending | — |
@@ -106,3 +106,12 @@ Total rows: 187 (178 actionable + 9 cleanup).
 - **Coverage flag for working-memory:** G3 (`PricesFetcher.GetChangeSignal`) accessor ported per D-003 but has no in-bucket consumer. If C++ has an `AddWakeUpSignal(...PricesFetcher.GetChangeSignal())` site the audit missed, it's a B-001 amendment candidate. No action taken now.
 - **Two-tier init pattern recorded** in B-001's reconciliation notes. Local-only; promotion candidate if rediscovered.
 - **B-001 status:** pending → designed.
+
+### 2026-04-27 — B-002 design returned (7fb3decd)
+
+- **No new D-### entries.** `set_link_model`-driven re-subscribe (row -72) is a within-D-006 local variant; not promoted on single occurrence.
+- **emRec-hierarchy concern disproved.** Standalone `emRecFileModel<T>` (does not wrap `emFileModel<T>`) — fix is local, no cross-bucket prereq.
+- **2 accessor groups:** G1 emTimer (1 row), G2 emRecFileModel change-signal infra (3 rows). G2 has a mechanical ripple: every `emRecFileModel::new` caller takes one extra `SignalId` arg.
+- **Outbound opportunity (downstream simplification, not prereq):** once B-002 lands G2, B-001's G1 (emStocksFileModel delegating accessor) can simplify to inherit through `emRecFileModel<T>`. Same potential for emAutoplay/emVirtualCosmos. Tracked here for forward reference; no spine edit until those buckets are designed.
+- **Possible audit gap flagged:** emFileLinkPanel's C++ subscribes to `UpdateSignalModel->Sig`, `GetVirFileStateSignal()`, `Config->GetChangeSignal()` — not in B-002's row set. Verify whether B-005 covers them; if not, audit-coverage amendment needed.
+- **B-002 status:** pending → designed.

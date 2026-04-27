@@ -4,8 +4,15 @@
 **Scope:** emfileman
 **Row count:** 4
 **Mechanical-vs-judgement:** balanced
-**Cited decisions:** D-003-gap-blocked-fill-vs-stub — governs whether each missing accessor is filled in scope or escalated when the underlying model itself is unported.
-**Prereq buckets:** none
+**Cited decisions:** D-003-gap-blocked-fill-vs-stub (gap-fill in scope), D-006-subscribe-shape (canonical wiring shape; row -72 uses the per-bucket override clause for re-subscribe-on-model-swap).
+**Prereq buckets:** none.
+
+**Reconciliation amendments (2026-04-27, post-design 7fb3decd):**
+- **emRec-hierarchy concern disproved.** Original sketch's "emRec hierarchy cross-bucket dependency" was a misattribution. The Rust port's standalone `emRecFileModel<T>` (`emcore/src/emRecFileModel.rs:13-26`) does not wrap `emFileModel<T>`; the fix adds a new `SignalId` field + accessor + mutator to `emRecFileModel<T>` plus a one-line delegating accessor on `emFileLinkModel`. Local, no inter-bucket dependency.
+- **2 accessor groups (G1, G2):** G1 emTimer wakeup on emDirPanel (1 row), G2 `emRecFileModel<T>::GetChangeSignal()` infrastructure + delegating (3 rows). G2 ripple: every `emRecFileModel::new` caller takes one extra `SignalId` arg (mechanical sweep across crates).
+- **Outbound opportunity (downstream simplification, not prereq):** once G2 lands, B-001's G1 (`emStocksFileModel::GetChangeSignal` delegating accessor) can simplify to inherit through `emRecFileModel<T>`. Same for any future emAutoplay/emVirtualCosmos delegations. Tracked in this reconciliation for forward reference; no spine edit yet.
+- **Possible audit gap (flagged for follow-up):** emFileLinkPanel's C++ also subscribes to `UpdateSignalModel->Sig`, `GetVirFileStateSignal()`, `Config->GetChangeSignal()`. Verify whether B-005 covers them or surface as audit-coverage amendment.
+- **Row notes:** `emFileLinkPanel-72` is a `set_link_model`-driven local D-006 option-B variant. `emDirPanel-432` may be cleanup-only (below-surface) — implementer verifies; default is to port the timer.
 
 ## Pattern description
 
