@@ -4,8 +4,15 @@
 **Scope:** emmain:emMainControlPanel
 **Row count:** 7
 **Mechanical-vs-judgement:** judgement-heavy
-**Cited decisions:** D-002-rc-shim-policy — applies the per-row triage rule (default convert; keep only for dialog-result/post-cycle handoff) to each of the 7 click-handler shims here.
-**Prereq buckets:** none.
+**Cited decisions:** D-002-rc-shim-policy (rule 1 convert across all 7 rows; no rule-2 candidates), D-006-subscribe-shape (canonical first-Cycle init, shared block with B-006), D-007-mutator-fire-shape (`ReloadFiles` restructure for row 224).
+**Prereq buckets:** B-019-stale-annotations (hard, all 7 rows — camouflage removal), B-006-typed-subscribe-mainctrl (soft, all 7 rows — shared first-Cycle init block; second-to-land merges connect calls into the first's block).
+
+**Reconciliation amendments (2026-04-27, post-design bf6e9bd5):**
+- **All 7 rows are uniform rule-1 convert.** Audit's accessor-status verdict held — `emButton.click_signal` exists at `emButton.rs:40`. No reclassifications.
+- **Two-hop relay design (row 224, mw.to_reload):** unwound via `mw.ReloadFiles(&self, ectx)` synchronous fire of `file_update_signal`. Deletes `mw.to_reload` field and `MainWindowEngine::Cycle` polling block (rs:382-390). F5 hotkey at rs:269 inlines to direct `app.scheduler.fire(app.file_update_signal)` (input-path bifurcation: ectx unavailable in input handler; resolved by inlining the 1-line branch rather than carrying a parallel `ReloadFilesFromInput(app)` shim). `MainWindowEngine` survives — still handles close/title/startup_done/to_close.
+- **Hard prereq edges encoded** in `inventory-enriched.json`: all 7 rows depend on `cleanup-emMainControlPanel-35` (ClickFlags shim removal); rows 221 and 224 also depend on their specific cleanup items.
+- **Residual drift note (out of scope):** rows 221 (fullscreen) and 226 (quit) keep stubbed log-only reaction bodies — App access from Cycle is a separate axis not captured by B-012's row scope. Subscription drift fixed; reaction-body drift remains for follow-up audit pass.
+- **Watch-list note (no decision yet):** `mw.to_reload` is the **2nd sighting** of "Rust interposed a polling intermediary where C++ fires directly" (1st: `AutoplayFlags.progress`, addressed by D-002 §1 R-A). Promote to D-### on 3rd sighting; sibling to D-007.
 
 **Inbound notes from prior reconciliations:**
 - B-019 (`e7129430`) maps three cleanup items here: `cleanup-emMainControlPanel-35` (ClickFlags shim), `cleanup-emMainControlPanel-303` (row `emMainControlPanel-221`, rs:301), `cleanup-emMainControlPanel-320` (row `emMainControlPanel-224`, rs:319). B-019 lands first to remove camouflage; this bucket's design should not preserve any framing from those removed annotations.

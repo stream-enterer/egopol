@@ -25,7 +25,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 13 | B-009-typemismatch-emfileman | 0 | judgement-heavy | 14 | designed | [0a7d7fd3](../../../../superpowers/specs/2026-04-27-B-009-typemismatch-emfileman-design.md) |
 | 14 | B-010-rc-shim-emcore | 0 | judgement-heavy | 15 | pending | — |
 | 15 | B-011-rc-shim-autoplay | 0 | judgement-heavy | 7 | designed | [cf9e1cc4](../../../../superpowers/specs/2026-04-27-B-011-rc-shim-autoplay-design.md) |
-| 16 | B-012-rc-shim-mainctrl | 0 | judgement-heavy | 7 | pending | — |
+| 16 | B-012-rc-shim-mainctrl | 0 | judgement-heavy | 7 | designed | [bf6e9bd5](../../../../superpowers/specs/2026-04-27-B-012-rc-shim-mainctrl-design.md) |
 | 17 | B-013-dialog-cells-emstocks | 0 | judgement-heavy | 4 | designed | [ec317565](../../../../superpowers/specs/2026-04-27-B-013-dialog-cells-emstocks-design.md) |
 | 18 | B-014-rc-shim-no-acc-misc | 0 | judgement-heavy | 2 | designed | [d7d964d4](../../../../superpowers/specs/2026-04-27-B-014-rc-shim-no-acc-misc-design.md) |
 | 19 | B-018-fileDialog-singleton | 0 | judgement-heavy | 1 | designed (false positive — no work) | [04059bac](../../../../superpowers/specs/2026-04-27-B-018-fileDialog-singleton-design.md) |
@@ -205,3 +205,14 @@ Total rows: 187 (178 actionable + 9 cleanup).
 - **Latent gap noted for separate audit follow-up:** `CheckFinish`'s post-show else branch (`rs:532-543`) parks OD via `pending_actions` without calling `scheduler.connect(od.finish_signal, outer_engine_id)`. All current callers are `#[cfg(test)]`; production goes through `run_file_dialog_check_finish`. If a non-test caller appears, this becomes drift. Captured in B-018 sketch's reconciliation block.
 - **Pattern retirement is a meta-event for the audit framework:** future re-runs should drop P-008 from the heuristic catalog and treat connect + IsSignaled-in-Cycle as faithful.
 - **B-018 status:** pending → designed (false positive — no implementation work; immediately mergeable).
+
+### 2026-04-27 — B-012 design returned (bf6e9bd5)
+
+- **All 7 rows uniform rule-1 convert** (D-002). No rule-2 candidates; no reclassifications. Accessor verification held.
+- **Two-hop relay unwound (row 224):** `mw.ReloadFiles(&self, ectx)` fires `file_update_signal` synchronously per D-007. Deletes `mw.to_reload` field + `MainWindowEngine::Cycle` polling block. F5 hotkey input-path bifurcation handled by inlining the 1-line direct-fire branch (input lacks ectx; per-callsite resolution rather than a parallel API shim).
+- **Hard prereq edges encoded:** all 7 rows → `cleanup-emMainControlPanel-35` (ClickFlags removal); rows 221 and 224 also → their specific cleanup items. B-019 must land first.
+- **Soft prereq B-006 ↔ B-012:** shared first-Cycle init block in `emMainControlPanel`. Second-to-land merges its connect calls into the first's block. Already noted in B-012 inbound section.
+- **Watch-list candidate added to D-007:** "Rust interposed a polling intermediary where C++ fires directly" — 2 sightings now (AutoplayFlags.progress + mw.to_reload). Promote on 3rd sighting. Pattern + resolution recipe captured in D-007's watch-list block.
+- **Residual drift note (out of scope, follow-up audit):** rows 221 (fullscreen) and 226 (quit) keep stubbed log-only reaction bodies. Subscription drift fixed by B-012; reaction-body drift remains.
+- **No new D-### entries promoted.**
+- **B-012 status:** pending → designed.

@@ -166,6 +166,8 @@ Stable IDs (`D-###`) are referenced from `inventory-enriched.json` and from `buc
 
 **Composition note (post-B-014):** D-007 + D-008 compose to handle bootstrap-only callsites benignly. Example from B-014: `emVirtualCosmosModel::Reload` is called only from inside `Acquire`'s bootstrap closure where ectx is unavailable; at that point no panel has subscribed, so `change_signal == SignalId::null()` and `ectx.fire(...)` would be a no-op. The mutator can keep its no-ectx signature with a `// CALLSITE-NOTE:` indicating future post-Acquire callers must thread ectx. First benign hybrid recorded.
 
+**Watch-list candidate (sibling to D-007, not yet promoted):** "Rust interposed a polling intermediary where C++ fires directly." 2 sightings as of 2026-04-27: (1) `AutoplayFlags.progress` (B-003, addressed by D-002 §1 R-A); (2) `mw.to_reload` chain through `MainWindowEngine` (B-012, addressed by routing reload through `mw.ReloadFiles(&self, ectx)` per D-007). Promote to standalone D-### on 3rd sighting. Pattern: a Rust mutator sets a `Cell<bool>` / similar and a separate engine's Cycle polls it to fire a signal — equivalent to (and observably different from) C++'s direct fire. Resolution recipe: thread ectx into the mutator (or a typed wrapper method) and fire synchronously per D-007.
+
 ---
 
 ## D-008-signal-allocation-shape

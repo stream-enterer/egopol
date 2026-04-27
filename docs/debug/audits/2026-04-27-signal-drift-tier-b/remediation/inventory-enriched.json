@@ -2521,7 +2521,14 @@
           "D-002-rc-shim-policy"
         ],
         "scope_key": "emmain:emMainControlPanel",
-        "prereq_ids": []
+        "prereq_ids": [
+          "cleanup-emMainControlPanel-35"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-012 brainstorm bf6e9bd5",
+        "note": "hard prereq on B-019 cleanup item(s); design fix delivered alongside ReloadFiles restructure for row 224"
       }
     },
     {
@@ -2556,7 +2563,15 @@
           "D-002-rc-shim-policy"
         ],
         "scope_key": "emmain:emMainControlPanel",
-        "prereq_ids": []
+        "prereq_ids": [
+          "cleanup-emMainControlPanel-303",
+          "cleanup-emMainControlPanel-35"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-012 brainstorm bf6e9bd5",
+        "note": "hard prereq on B-019 cleanup item(s); design fix delivered alongside ReloadFiles restructure for row 224"
       }
     },
     {
@@ -2591,7 +2606,14 @@
           "D-002-rc-shim-policy"
         ],
         "scope_key": "emmain:emMainControlPanel",
-        "prereq_ids": []
+        "prereq_ids": [
+          "cleanup-emMainControlPanel-35"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-012 brainstorm bf6e9bd5",
+        "note": "hard prereq on B-019 cleanup item(s); design fix delivered alongside ReloadFiles restructure for row 224"
       }
     },
     {
@@ -2626,7 +2648,14 @@
           "D-002-rc-shim-policy"
         ],
         "scope_key": "emmain:emMainControlPanel",
-        "prereq_ids": []
+        "prereq_ids": [
+          "cleanup-emMainControlPanel-35"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-012 brainstorm bf6e9bd5",
+        "note": "hard prereq on B-019 cleanup item(s); design fix delivered alongside ReloadFiles restructure for row 224"
       }
     },
     {
@@ -2661,7 +2690,15 @@
           "D-002-rc-shim-policy"
         ],
         "scope_key": "emmain:emMainControlPanel",
-        "prereq_ids": []
+        "prereq_ids": [
+          "cleanup-emMainControlPanel-320",
+          "cleanup-emMainControlPanel-35"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-012 brainstorm bf6e9bd5",
+        "note": "hard prereq on B-019 cleanup item(s); design fix delivered alongside ReloadFiles restructure for row 224"
       }
     },
     {
@@ -2696,7 +2733,14 @@
           "D-002-rc-shim-policy"
         ],
         "scope_key": "emmain:emMainControlPanel",
-        "prereq_ids": []
+        "prereq_ids": [
+          "cleanup-emMainControlPanel-35"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-012 brainstorm bf6e9bd5",
+        "note": "hard prereq on B-019 cleanup item(s); design fix delivered alongside ReloadFiles restructure for row 224"
       }
     },
     {
@@ -2731,7 +2775,14 @@
           "D-002-rc-shim-policy"
         ],
         "scope_key": "emmain:emMainControlPanel",
-        "prereq_ids": []
+        "prereq_ids": [
+          "cleanup-emMainControlPanel-35"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-012 brainstorm bf6e9bd5",
+        "note": "hard prereq on B-019 cleanup item(s); design fix delivered alongside ReloadFiles restructure for row 224"
       }
     },
     {
