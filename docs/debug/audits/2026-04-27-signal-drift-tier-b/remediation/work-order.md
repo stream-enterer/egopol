@@ -24,7 +24,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 12 | B-017-polling-no-acc-emstocks | 0 | balanced | 3 | designed | [a27d2faa](../../../../superpowers/specs/2026-04-27-B-017-polling-no-acc-emstocks-design.md) |
 | 13 | B-009-typemismatch-emfileman | 0 | judgement-heavy | 14 | designed | [0a7d7fd3](../../../../superpowers/specs/2026-04-27-B-009-typemismatch-emfileman-design.md) |
 | 14 | B-010-rc-shim-emcore | 0 | judgement-heavy | 15 | designed | [09f08710](../../../../superpowers/specs/2026-04-27-B-010-rc-shim-emcore-design.md) |
-| 15 | B-011-rc-shim-autoplay | 0 | judgement-heavy | 7 | designed | [cf9e1cc4](../../../../superpowers/specs/2026-04-27-B-011-rc-shim-autoplay-design.md) |
+| 15 | B-011-rc-shim-autoplay | 0 | judgement-heavy | 7 | merged at eb9427db (absorbed into B-003) | [cf9e1cc4](../../../../superpowers/specs/2026-04-27-B-011-rc-shim-autoplay-design.md) |
 | 16 | B-012-rc-shim-mainctrl | 0 | judgement-heavy | 7 | designed | [bf6e9bd5](../../../../superpowers/specs/2026-04-27-B-012-rc-shim-mainctrl-design.md) |
 | 17 | B-013-dialog-cells-emstocks | 0 | judgement-heavy | 4 | designed | [ec317565](../../../../superpowers/specs/2026-04-27-B-013-dialog-cells-emstocks-design.md) |
 | 18 | B-014-rc-shim-no-acc-misc | 0 | judgement-heavy | 2 | designed | [d7d964d4](../../../../superpowers/specs/2026-04-27-B-014-rc-shim-no-acc-misc-design.md) |
@@ -263,3 +263,7 @@ Phase 5 reconciliation continues as implementation merges land. Status column tr
 4. **B-003 cosmetic minors skipped per design call:** redundant inner `#[cfg(any(test, feature = "test-support"))]` on `flush_signals_for_test`; top-of-file comment in `emAutoplayControlPanel.rs` lost some architectural context after `DIVERGED:` removal; `ContinueLastAutoplay` comment could cite `emAutoplay.cpp:710` explicitly. Not blocking; revisit if a reader hits friction.
 
 **Status:** 3 of 19 buckets merged. 16 remain `designed` and ready for implementation per the prereq DAG.
+
+### 2026-04-27 — B-011 status reconciled (no code; absorbed into B-003)
+
+B-011's design called out that all 7 rows are removed by B-003's R-A construction (no separate implementation). B-003 merged at `eb9427db`. Flipping B-011 status `designed → merged` to reflect reality. **4 of 19 buckets merged.**
