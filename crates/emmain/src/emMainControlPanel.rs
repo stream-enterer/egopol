@@ -16,7 +16,7 @@ use emcore::emCheckButton::emCheckButton;
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emCursor::emCursor;
-use emcore::emEngineCtx::PanelCtx;
+use emcore::emEngineCtx::{EngineCtx, PanelCtx};
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
 use emcore::emLinearLayout::emLinearLayout;
@@ -25,6 +25,7 @@ use emcore::emPainter::emPainter;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelId;
 use emcore::emTiling::{ChildConstraint, Orientation, Spacing};
+use emcore::emWindow::WindowFlags;
 
 use crate::emAutoplay::emAutoplayViewModel;
 use crate::emAutoplayControlPanel::emAutoplayControlPanel;
@@ -87,9 +88,14 @@ impl PanelBehavior for MainButtonPanel {
 
 // ── CheckButtonPanel ─────────────────────────────────────────────────────────
 // PanelBehavior wrapper for emCheckButton.
+//
+// The inner emCheckButton is held behind Rc<RefCell<>> so that
+// emMainControlPanel::Cycle can read/write check state via its own
+// bt_fullscreen field (Rc<RefCell<>> justification (b): context-registry-style
+// shared widget handle per CLAUDE.md §Ownership).
 
 struct MainCheckButtonPanel {
-    check_button: emCheckButton,
+    check_button: Rc<RefCell<emCheckButton>>,
 }
 
 impl PanelBehavior for MainCheckButtonPanel {
@@ -102,8 +108,14 @@ impl PanelBehavior for MainCheckButtonPanel {
         state: &PanelState,
     ) {
         let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
-        self.check_button
-            .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
+        self.check_button.borrow_mut().Paint(
+            painter,
+            canvas_color,
+            w,
+            h,
+            state.enabled,
+            pixel_scale,
+        );
     }
 
     fn Input(
@@ -111,13 +123,15 @@ impl PanelBehavior for MainCheckButtonPanel {
         event: &emInputEvent,
         state: &PanelState,
         input_state: &emInputState,
-        _ctx: &mut PanelCtx,
+        ctx: &mut PanelCtx,
     ) -> bool {
-        self.check_button.Input(event, state, input_state, _ctx)
+        self.check_button
+            .borrow_mut()
+            .Input(event, state, input_state, ctx)
     }
 
     fn GetCursor(&self) -> emCursor {
-        self.check_button.GetCursor()
+        self.check_button.borrow().GetCursor()
     }
 }
 
@@ -130,7 +144,10 @@ impl PanelBehavior for MainCheckButtonPanel {
 /// matching C++ emLinearGroup's inheritance chain.
 pub struct emMainControlPanel {
     ctx: Rc<emContext>,
-    _config: Rc<RefCell<emMainConfig>>,
+    /// Renamed from `_config` (removing underscore that suppressed unused warning
+    /// now that Cycle actively reads config state for row-219 reaction).
+    /// Matches C++ member name `MainConfig`.
+    config: Rc<RefCell<emMainConfig>>,
     border: emBorder,
     look: emLook,
     /// Top-level linear layout: 2 children (lMain, contentControlPanel).
@@ -142,6 +159,25 @@ pub struct emMainControlPanel {
     lmain_panel: Option<PanelId>,
     content_ctrl_panel: Option<PanelId>,
     children_created: bool,
+    /// D-006 first-Cycle init guard. Set to true after signal connections are
+    /// established. Mirrors C++ constructor's AddWakeUpSignal calls (rows 218-219).
+    subscribed_init: bool,
+    /// Port of C++ `emMainControlPanel::BtFullscreen` (emMainControlPanel.h).
+    /// Rc<RefCell<>> justification (b): context-registry-style shared widget
+    /// handle — emMainControlPanel::Cycle reads/writes check state; the panel
+    /// tree's MainCheckButtonPanel holds the same Rc for paint/input dispatch.
+    /// Populated by create_children; None until first LayoutChildren.
+    pub(crate) bt_fullscreen: Option<Rc<RefCell<emCheckButton>>>,
+    /// Port of C++ `emMainControlPanel::BtAutoHideControlView`.
+    /// UPSTREAM-GAP: C++ places this widget inside BtFullscreen->HaveAux() in
+    /// an emRasterGroup. Rust has no HaveAux/emRasterGroup port yet, so the
+    /// button is created as a detached emCheckButton (not in the panel tree).
+    /// Populated by create_children; paint/input wiring deferred until aux-panel
+    /// infrastructure is ported.
+    pub(crate) bt_auto_hide_control_view: Option<Rc<RefCell<emCheckButton>>>,
+    /// Port of C++ `emMainControlPanel::BtAutoHideSlider`. Same upstream-gap
+    /// as bt_auto_hide_control_view — detached until HaveAux infrastructure ports.
+    pub(crate) bt_auto_hide_slider: Option<Rc<RefCell<emCheckButton>>>,
 }
 
 impl emMainControlPanel {
@@ -186,7 +222,7 @@ impl emMainControlPanel {
 
         Self {
             ctx,
-            _config: config,
+            config,
             border,
             look: emLook::default(),
             layout_main,
@@ -195,6 +231,10 @@ impl emMainControlPanel {
             lmain_panel: None,
             content_ctrl_panel: None,
             children_created: false,
+            subscribed_init: false,
+            bt_fullscreen: None,
+            bt_auto_hide_control_view: None,
+            bt_auto_hide_slider: None,
         }
     }
 
@@ -230,12 +270,59 @@ impl emMainControlPanel {
         let look = Rc::new(self.look.clone());
         let flags = Rc::clone(&self.click_flags);
 
+        // ── Allocate shared button handles ────────────────────────────────
+        // These Rc<RefCell<emCheckButton>> are shared between emMainControlPanel
+        // (for Cycle reactions) and CommandsPanel (for paint/input dispatch of
+        // bt_fullscreen). The auto_hide buttons are detached — see field doc.
+        //
+        // emCheckButton::new requires a scheduler-backed ConstructCtx to allocate
+        // check_signal. Use as_sched_ctx() so layout-only test contexts (no
+        // scheduler) degrade gracefully: buttons remain None and Cycle reactions
+        // are skipped until a real scheduler is present. In production the panel
+        // always has a scheduler by first LayoutChildren.
+        let bt_fullscreen_opt: Option<Rc<RefCell<emCheckButton>>> =
+            ctx.as_sched_ctx().map(|mut sched| {
+                let mut btn_fs = emCheckButton::new(&mut sched, "Fullscreen", Rc::clone(&look));
+                btn_fs.SetDescription(
+                    "Switch between fullscreen mode and normal window mode.\n\nHotkey: F11",
+                );
+                Rc::new(RefCell::new(btn_fs))
+            });
+        self.bt_fullscreen = bt_fullscreen_opt.clone();
+
+        // UPSTREAM-GAP: BtAutoHideControlView and BtAutoHideSlider live inside
+        // BtFullscreen->HaveAux() in an emRasterGroup in C++. Rust has no HaveAux /
+        // emRasterGroup port yet. The buttons are created here as detached
+        // emCheckButton instances (not in the panel tree). Their check state is
+        // updated by the row-219 Cycle reaction and tested by typed_subscribe_b006;
+        // paint/input wiring is deferred until aux-panel infrastructure is ported.
+        let bt_auto_hide_control_view_opt: Option<Rc<RefCell<emCheckButton>>> =
+            ctx.as_sched_ctx().map(|mut sched| {
+                Rc::new(RefCell::new(emCheckButton::new(
+                    &mut sched,
+                    "Auto-Hide Control View",
+                    Rc::clone(&look),
+                )))
+            });
+        self.bt_auto_hide_control_view = bt_auto_hide_control_view_opt.clone();
+
+        let bt_auto_hide_slider_opt: Option<Rc<RefCell<emCheckButton>>> =
+            ctx.as_sched_ctx().map(|mut sched| {
+                Rc::new(RefCell::new(emCheckButton::new(
+                    &mut sched,
+                    "Auto-Hide Slider",
+                    Rc::clone(&look),
+                )))
+            });
+        self.bt_auto_hide_slider = bt_auto_hide_slider_opt.clone();
+
         // ── lMain: wraps general + bookmarks (child 0 of top-level) ──────
         let lmain = Box::new(LMainPanel::new(
             Rc::clone(&self.ctx),
             Rc::clone(&look),
             Rc::clone(&flags),
             Rc::clone(&self.autoplay_model),
+            bt_fullscreen_opt,
         ));
         let lmain_id = ctx.create_child_with("lMain", lmain);
         self.lmain_panel = Some(lmain_id);
@@ -304,11 +391,70 @@ impl PanelBehavior for emMainControlPanel {
         false
     }
 
-    fn Cycle(
-        &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
-        _ctx: &mut PanelCtx,
-    ) -> bool {
+    fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
+        // ── D-006 first-Cycle init: subscribe to model signals ────────────
+        // Mirrors C++ constructor rows 218-219 (emMainControlPanel.cpp:218-219):
+        //   AddWakeUpSignal(MainWin.GetWindowFlagsSignal())  [row 218]
+        //   AddWakeUpSignal(MainConfig->GetChangeSignal())   [row 219]
+        // Row 217 (ContentView.GetControlPanelSignal) is handled by
+        // ControlPanelBridge — see DIVERGED block in emMainWindow.rs:819-824.
+        if !self.subscribed_init {
+            let eid = ectx.id();
+            // Row 218: window flags signal. Access path: thread-local emMainWindow
+            // → window_id → ectx.windows[wid].GetWindowFlagsSignal().
+            // (emMainWindow does not expose GetWindowFlagsSignal directly;
+            // the signal lives on emWindow which is keyed in ectx.windows.)
+            if let Some(wid) = crate::emMainWindow::with_main_window(|mw| mw.window_id).flatten()
+                && let Some(sig) = ectx.windows.get(&wid).map(|w| w.GetWindowFlagsSignal())
+            {
+                ectx.connect(sig, eid);
+            }
+            // Row 219: config change signal.
+            let cfg_sig = self.config.borrow().GetChangeSignal();
+            ectx.connect(cfg_sig, eid);
+            self.subscribed_init = true;
+        }
+
+        // ── Row 218 reaction: update bt_fullscreen check state ────────────
+        // Mirrors C++ Cycle 253-255:
+        //   if (IsSignaled(MainWin.GetWindowFlagsSignal()))
+        //     BtFullscreen->SetChecked((MainWin.GetWindowFlags()&WF_FULLSCREEN)!=0);
+        let flags_signal_opt = crate::emMainWindow::with_main_window(|mw| mw.window_id)
+            .flatten()
+            .and_then(|wid| ectx.windows.get(&wid).map(|w| w.GetWindowFlagsSignal()));
+        if let Some(flags_signal) = flags_signal_opt
+            && ectx.IsSignaled(flags_signal)
+        {
+            let is_fs = crate::emMainWindow::with_main_window(|mw| mw.window_id)
+                .flatten()
+                .and_then(|wid| {
+                    ectx.windows
+                        .get(&wid)
+                        .map(|w| w.flags.contains(WindowFlags::FULLSCREEN))
+                })
+                .unwrap_or(false);
+            if let Some(bt) = &self.bt_fullscreen {
+                bt.borrow_mut().SetChecked(is_fs, ctx);
+            }
+        }
+
+        // ── Row 219 reaction: update auto-hide check buttons from config ──
+        // Mirrors C++ Cycle 257-260:
+        //   if (IsSignaled(MainConfig->GetChangeSignal()))
+        //     BtAutoHideControlView->SetChecked(MainConfig->AutoHideControlView);
+        //     BtAutoHideSlider->SetChecked(MainConfig->AutoHideSlider);
+        let cfg_sig = self.config.borrow().GetChangeSignal();
+        if ectx.IsSignaled(cfg_sig) {
+            let auto_hide_cv = self.config.borrow().GetAutoHideControlView();
+            let auto_hide_sl = self.config.borrow().GetAutoHideSlider();
+            if let Some(bt) = &self.bt_auto_hide_control_view {
+                bt.borrow_mut().SetChecked(auto_hide_cv, ctx);
+            }
+            if let Some(bt) = &self.bt_auto_hide_slider {
+                bt.borrow_mut().SetChecked(auto_hide_sl, ctx);
+            }
+        }
+
         // Poll click flags and dispatch to main window.
         // Port of C++ Cycle() signal handling.
         let flags = &self.click_flags;
@@ -385,6 +531,9 @@ struct LMainPanel {
     layout: emLinearLayout,
     click_flags: Rc<ClickFlags>,
     autoplay_model: Rc<RefCell<emAutoplayViewModel>>,
+    /// Shared fullscreen button handle threaded from emMainControlPanel.
+    /// None in layout-only test contexts (no scheduler).
+    bt_fullscreen: Option<Rc<RefCell<emCheckButton>>>,
     general_panel: Option<PanelId>,
     bookmarks_panel: Option<PanelId>,
     children_created: bool,
@@ -396,6 +545,7 @@ impl LMainPanel {
         look: Rc<emLook>,
         click_flags: Rc<ClickFlags>,
         autoplay_model: Rc<RefCell<emAutoplayViewModel>>,
+        bt_fullscreen: Option<Rc<RefCell<emCheckButton>>>,
     ) -> Self {
         Self {
             ctx,
@@ -413,6 +563,7 @@ impl LMainPanel {
             },
             click_flags,
             autoplay_model,
+            bt_fullscreen,
             general_panel: None,
             bookmarks_panel: None,
             children_created: false,
@@ -426,6 +577,7 @@ impl LMainPanel {
             Rc::clone(&self.look),
             Rc::clone(&self.click_flags),
             Rc::clone(&self.autoplay_model),
+            self.bt_fullscreen.clone(),
         ));
         let general_id = ctx.create_child_with("general", general);
         self.general_panel = Some(general_id);
@@ -479,6 +631,9 @@ struct GeneralPanel {
     layout: emLinearLayout,
     click_flags: Rc<ClickFlags>,
     autoplay_model: Rc<RefCell<emAutoplayViewModel>>,
+    /// Shared fullscreen button handle threaded from emMainControlPanel.
+    /// None in layout-only test contexts.
+    bt_fullscreen: Option<Rc<RefCell<emCheckButton>>>,
     about_cfg_panel: Option<PanelId>,
     commands_panel: Option<PanelId>,
     children_created: bool,
@@ -490,6 +645,7 @@ impl GeneralPanel {
         look: Rc<emLook>,
         click_flags: Rc<ClickFlags>,
         autoplay_model: Rc<RefCell<emAutoplayViewModel>>,
+        bt_fullscreen: Option<Rc<RefCell<emCheckButton>>>,
     ) -> Self {
         Self {
             ctx,
@@ -507,6 +663,7 @@ impl GeneralPanel {
             },
             click_flags,
             autoplay_model,
+            bt_fullscreen,
             about_cfg_panel: None,
             commands_panel: None,
             children_created: false,
@@ -524,6 +681,7 @@ impl GeneralPanel {
             Rc::clone(&self.look),
             Rc::clone(&self.click_flags),
             Rc::clone(&self.autoplay_model),
+            self.bt_fullscreen.clone(),
         ));
         let commands_id = ctx.create_child_with("commands", commands);
         self.commands_panel = Some(commands_id);
@@ -723,6 +881,12 @@ struct CommandsPanel {
     layout: emLinearLayout,
     click_flags: Rc<ClickFlags>,
     autoplay_model: Rc<RefCell<emAutoplayViewModel>>,
+    /// Shared fullscreen button handle from emMainControlPanel.
+    /// Rc<RefCell<>> justification (b): context-registry-style shared widget
+    /// handle per CLAUDE.md §Ownership. Placed in MainCheckButtonPanel for
+    /// paint/input dispatch; emMainControlPanel::Cycle reads/writes check state.
+    /// None in layout-only test contexts (no scheduler at create_children time).
+    bt_fullscreen: Option<Rc<RefCell<emCheckButton>>>,
     children_created: bool,
 }
 
@@ -731,6 +895,7 @@ impl CommandsPanel {
         look: Rc<emLook>,
         click_flags: Rc<ClickFlags>,
         autoplay_model: Rc<RefCell<emAutoplayViewModel>>,
+        bt_fullscreen: Option<Rc<RefCell<emCheckButton>>>,
     ) -> Self {
         Self {
             look,
@@ -743,6 +908,7 @@ impl CommandsPanel {
             layout: emLinearLayout::vertical(),
             click_flags,
             autoplay_model,
+            bt_fullscreen,
             children_created: false,
         }
     }
@@ -767,20 +933,34 @@ impl CommandsPanel {
             ctx.create_child_with("new window", Box::new(MainButtonPanel { button: btn_nw }));
 
         // ── BtFullscreen ──
-        let flag = Rc::clone(&flags);
-        let mut btn_fs = {
-            let mut sched = ctx.as_sched_ctx().expect("sched");
-            emCheckButton::new(&mut sched, "Fullscreen", Rc::clone(&look))
+        // Use the shared Rc<RefCell<emCheckButton>> threaded from emMainControlPanel.
+        // The on_check callback sets click_flags.fullscreen; the D-006 row-218
+        // reaction in emMainControlPanel::Cycle sets check state from window flags.
+        // If no button was allocated (layout-only test context), fall back to
+        // creating a standalone button for the panel tree only (click-through wire
+        // is not available in that context; row-218 reaction requires a scheduler).
+        let bt_fs = if let Some(ref bt) = self.bt_fullscreen {
+            Rc::clone(bt)
+        } else {
+            let mut sched = ctx.as_sched_ctx().expect("sched for fallback BtFullscreen");
+            Rc::new(RefCell::new(emCheckButton::new(
+                &mut sched,
+                "Fullscreen",
+                Rc::clone(&look),
+            )))
         };
-        btn_fs.on_check = Some(Box::new(
-            move |_checked, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
-                flag.fullscreen.set(true);
-            },
-        ));
+        {
+            let flag = Rc::clone(&flags);
+            bt_fs.borrow_mut().on_check = Some(Box::new(
+                move |_checked, _sched: &mut emcore::emEngineCtx::SchedCtx<'_>| {
+                    flag.fullscreen.set(true);
+                },
+            ));
+        }
         let fs_id = ctx.create_child_with(
             "fullscreen",
             Box::new(MainCheckButtonPanel {
-                check_button: btn_fs,
+                check_button: bt_fs,
             }),
         );
 
@@ -989,5 +1169,309 @@ mod tests {
         let ctx = emcore::emContext::emContext::NewRoot();
         let panel = emMainControlPanel::new(ctx, None);
         assert_eq!(panel.get_title(), Some("emMainControl".to_string()));
+    }
+
+    // ── B-006 click-through tests ─────────────────────────────────────────
+    // Verify D-006 row-218 and row-219 signal wiring end-to-end.
+    //
+    // Lives here (not in typed_subscribe_b006.rs) because the test requires
+    // access to private types (the emMainWindow thread-local) and uses the
+    // `unsafe` scheduler-alias pattern common to B-003's click-through test.
+    // Mirrors the B-003 precedent for click-through tests in
+    // emAutoplayControlPanel::tests::bt_autoplay_check_drives_set_autoplaying.
+
+    /// B-006 §Row 218 click-through.
+    ///
+    /// Fires the window-flags signal and verifies that Cycle sets
+    /// `bt_fullscreen.IsChecked()` to match the FULLSCREEN flag.
+    /// Mirrors C++ Cycle 253-255:
+    ///   if (IsSignaled(MainWin.GetWindowFlagsSignal()))
+    ///     BtFullscreen->SetChecked((MainWin.GetWindowFlags()&WF_FULLSCREEN)!=0)
+    #[test]
+    fn row_218_flags_signal_sets_bt_fullscreen() {
+        use emcore::emEngineCtx::{EngineCtx, PanelCtx};
+        use emcore::emScheduler::EngineScheduler;
+        use emcore::emWindow::{WindowFlags, emWindow};
+        use std::collections::HashMap;
+
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut sched = EngineScheduler::new();
+
+        // ── Allocate signals for the fake emWindow ──
+        let close_sig = sched.create_signal();
+        let flags_sig = sched.create_signal();
+        let focus_sig = sched.create_signal();
+        let geom_sig = sched.create_signal();
+        let win_id = winit::window::WindowId::dummy();
+
+        // Build a fake emWindow with FULLSCREEN flag set. The flags_signal
+        // matches what the Cycle init block will look up via GetWindowFlagsSignal.
+        let mut win = emWindow::new_popup_pending(
+            Rc::clone(&root_ctx),
+            WindowFlags::empty(),
+            "test_fs".to_string(),
+            close_sig,
+            flags_sig,
+            focus_sig,
+            geom_sig,
+            emcore::emColor::emColor::TRANSPARENT,
+        );
+        win.flags = WindowFlags::FULLSCREEN;
+        let mut windows: HashMap<winit::window::WindowId, emWindow> = HashMap::new();
+        windows.insert(win_id, win);
+
+        // Register emMainWindow so with_main_window succeeds.
+        let mut mw = crate::emMainWindow::emMainWindow::new(
+            Rc::clone(&root_ctx),
+            crate::emMainWindow::emMainWindowConfig::default(),
+        );
+        mw.window_id = Some(win_id);
+        crate::emMainWindow::set_main_window(mw);
+
+        // Build panel and tree.
+        let mut panel = emMainControlPanel::new(Rc::clone(&root_ctx), None);
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let root_id = tree.create_root_deferred_view("cp_218");
+        tree.set_panel_view(root_id);
+        tree.register_engine_for_public(root_id, Some(&mut sched));
+        let engine_id = tree.panel_engine_id_pub(root_id).expect("engine");
+
+        let fw_cb: std::cell::RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        let pa: Rc<std::cell::RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(std::cell::RefCell::new(Vec::new()));
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+
+        // Run create_children so bt_fullscreen is allocated.
+        {
+            let mut pctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                root_id,
+                1.0,
+                &mut sched,
+                &mut fw_actions,
+                &root_ctx,
+                &fw_cb,
+                &pa,
+            );
+            panel.create_children(&mut pctx);
+        }
+        assert!(panel.bt_fullscreen.is_some(), "bt_fullscreen allocated");
+
+        // Connect engine to flags_signal and fire it. The subscribed_init=false
+        // means the Cycle init block will re-connect (idempotent).
+        sched.connect(flags_sig, engine_id);
+        sched.fire(flags_sig);
+        sched.flush_signals_for_test();
+
+        // Drive Cycle manually with a hand-built EngineCtx + PanelCtx.
+        let mut pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+            Vec::new();
+        let mut input_state = emcore::emInputState::emInputState::new();
+
+        // SAFETY: ectx.scheduler and pctx.scheduler alias the same EngineScheduler.
+        // Single-threaded; mirrors PanelCycleEngine's identical unsafe split.
+        let sched_ptr: *mut EngineScheduler = &mut sched;
+        let mut pctx =
+            PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+        let mut ectx = EngineCtx {
+            scheduler: &mut sched,
+            tree: None,
+            windows: &mut windows,
+            root_context: &root_ctx,
+            framework_actions: &mut fw_actions,
+            pending_inputs: &mut pending_inputs,
+            input_state: &mut input_state,
+            framework_clipboard: &fw_cb,
+            engine_id,
+            pending_actions: &pa,
+        };
+        panel.Cycle(&mut ectx, &mut pctx);
+
+        assert!(
+            panel
+                .bt_fullscreen
+                .as_ref()
+                .expect("bt_fullscreen present")
+                .borrow()
+                .IsChecked(),
+            "bt_fullscreen must be checked when flags_signal fires with FULLSCREEN set"
+        );
+
+        // Cleanup: remove all engines and signals so EngineScheduler drops cleanly.
+        let all_ids = tree.panel_ids();
+        for pid in all_ids {
+            if let Some(eid) = tree.panel_engine_id_pub(pid) {
+                sched.remove_engine(eid);
+            }
+        }
+        sched.disconnect(flags_sig, engine_id);
+        sched.remove_signal(close_sig);
+        sched.remove_signal(flags_sig);
+        sched.remove_signal(focus_sig);
+        sched.remove_signal(geom_sig);
+        sched.abort_all_pending();
+    }
+
+    /// B-006 §Row 219 click-through.
+    ///
+    /// Fires the config-change signal and verifies that Cycle sets
+    /// `bt_auto_hide_control_view` and `bt_auto_hide_slider` check states.
+    /// Mirrors C++ Cycle 257-260:
+    ///   if (IsSignaled(MainConfig->GetChangeSignal()))
+    ///     BtAutoHideControlView->SetChecked(MainConfig->AutoHideControlView);
+    ///     BtAutoHideSlider->SetChecked(MainConfig->AutoHideSlider);
+    #[test]
+    fn row_219_config_signal_sets_auto_hide_buttons() {
+        use emcore::emEngineCtx::{EngineCtx, PanelCtx};
+        use emcore::emScheduler::EngineScheduler;
+        use std::collections::HashMap;
+
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut sched = EngineScheduler::new();
+
+        // ── Allocate a real change signal for the config singleton ──
+        // emMainConfig::Acquire creates the config with SignalId::null() because
+        // no scheduler is available at registration time. Override it with a
+        // real signal so the Cycle's IsSignaled check works.
+        let cfg_change_sig = sched.create_signal();
+        let win_id = winit::window::WindowId::dummy();
+
+        // Register emMainWindow (row-218 subscribe path also runs; provide a
+        // real flags_signal so the init block can connect it too).
+        let flags_sig = sched.create_signal();
+        let close_sig = sched.create_signal();
+        let focus_sig = sched.create_signal();
+        let geom_sig = sched.create_signal();
+        let win = emcore::emWindow::emWindow::new_popup_pending(
+            Rc::clone(&root_ctx),
+            emcore::emWindow::WindowFlags::empty(),
+            "test_cfg".to_string(),
+            close_sig,
+            flags_sig,
+            focus_sig,
+            geom_sig,
+            emcore::emColor::emColor::TRANSPARENT,
+        );
+        let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+            HashMap::new();
+        windows.insert(win_id, win);
+
+        let mut mw = crate::emMainWindow::emMainWindow::new(
+            Rc::clone(&root_ctx),
+            crate::emMainWindow::emMainWindowConfig::default(),
+        );
+        mw.window_id = Some(win_id);
+        crate::emMainWindow::set_main_window(mw);
+
+        // Build panel with scheduler-backed config signal.
+        let mut panel = emMainControlPanel::new(Rc::clone(&root_ctx), None);
+
+        // Override the config's null signal with the real test signal.
+        panel
+            .config
+            .borrow_mut()
+            .set_change_signal_for_test(cfg_change_sig);
+
+        // Mutate config so the reaction reads the updated values.
+        panel.config.borrow_mut().SetAutoHideControlView(true);
+        panel.config.borrow_mut().SetAutoHideSlider(true);
+
+        // Build panel tree and engine.
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let root_id = tree.create_root_deferred_view("cp_219");
+        tree.set_panel_view(root_id);
+        tree.register_engine_for_public(root_id, Some(&mut sched));
+        let engine_id = tree.panel_engine_id_pub(root_id).expect("engine");
+
+        let fw_cb: std::cell::RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        let pa: Rc<std::cell::RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(std::cell::RefCell::new(Vec::new()));
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+
+        {
+            let mut pctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                root_id,
+                1.0,
+                &mut sched,
+                &mut fw_actions,
+                &root_ctx,
+                &fw_cb,
+                &pa,
+            );
+            panel.create_children(&mut pctx);
+        }
+        assert!(
+            panel.bt_auto_hide_control_view.is_some(),
+            "bt_auto_hide_control_view allocated"
+        );
+        assert!(
+            panel.bt_auto_hide_slider.is_some(),
+            "bt_auto_hide_slider allocated"
+        );
+
+        // Connect engine and fire the config change signal.
+        sched.connect(cfg_change_sig, engine_id);
+        sched.fire(cfg_change_sig);
+        sched.flush_signals_for_test();
+
+        let mut pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+            Vec::new();
+        let mut input_state = emcore::emInputState::emInputState::new();
+
+        let sched_ptr: *mut EngineScheduler = &mut sched;
+        let mut pctx =
+            PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+        let mut ectx = EngineCtx {
+            scheduler: &mut sched,
+            tree: None,
+            windows: &mut windows,
+            root_context: &root_ctx,
+            framework_actions: &mut fw_actions,
+            pending_inputs: &mut pending_inputs,
+            input_state: &mut input_state,
+            framework_clipboard: &fw_cb,
+            engine_id,
+            pending_actions: &pa,
+        };
+        // subscribed_init=true: skip the init block (we connected manually above).
+        panel.subscribed_init = true;
+        panel.Cycle(&mut ectx, &mut pctx);
+
+        assert!(
+            panel
+                .bt_auto_hide_control_view
+                .as_ref()
+                .expect("present")
+                .borrow()
+                .IsChecked(),
+            "bt_auto_hide_control_view must be checked when cfg fires with AutoHideControlView=true"
+        );
+        assert!(
+            panel
+                .bt_auto_hide_slider
+                .as_ref()
+                .expect("present")
+                .borrow()
+                .IsChecked(),
+            "bt_auto_hide_slider must be checked when cfg fires with AutoHideSlider=true"
+        );
+
+        // Cleanup.
+        let all_ids = tree.panel_ids();
+        for pid in all_ids {
+            if let Some(eid) = tree.panel_engine_id_pub(pid) {
+                sched.remove_engine(eid);
+            }
+        }
+        sched.disconnect(cfg_change_sig, engine_id);
+        sched.remove_signal(cfg_change_sig);
+        sched.remove_signal(close_sig);
+        sched.remove_signal(flags_sig);
+        sched.remove_signal(focus_sig);
+        sched.remove_signal(geom_sig);
+        sched.abort_all_pending();
     }
 }
