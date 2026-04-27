@@ -23,7 +23,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 11 | B-016-polling-no-acc-emfileman | 0 | balanced | 3 | designed | [d837346b](../../../../superpowers/specs/2026-04-27-B-016-polling-no-acc-emfileman-design.md) |
 | 12 | B-017-polling-no-acc-emstocks | 0 | balanced | 3 | designed | [a27d2faa](../../../../superpowers/specs/2026-04-27-B-017-polling-no-acc-emstocks-design.md) |
 | 13 | B-009-typemismatch-emfileman | 0 | judgement-heavy | 14 | designed | [0a7d7fd3](../../../../superpowers/specs/2026-04-27-B-009-typemismatch-emfileman-design.md) |
-| 14 | B-010-rc-shim-emcore | 0 | judgement-heavy | 15 | pending | — |
+| 14 | B-010-rc-shim-emcore | 0 | judgement-heavy | 15 | designed | [09f08710](../../../../superpowers/specs/2026-04-27-B-010-rc-shim-emcore-design.md) |
 | 15 | B-011-rc-shim-autoplay | 0 | judgement-heavy | 7 | designed | [cf9e1cc4](../../../../superpowers/specs/2026-04-27-B-011-rc-shim-autoplay-design.md) |
 | 16 | B-012-rc-shim-mainctrl | 0 | judgement-heavy | 7 | designed | [bf6e9bd5](../../../../superpowers/specs/2026-04-27-B-012-rc-shim-mainctrl-design.md) |
 | 17 | B-013-dialog-cells-emstocks | 0 | judgement-heavy | 4 | designed | [ec317565](../../../../superpowers/specs/2026-04-27-B-013-dialog-cells-emstocks-design.md) |
@@ -216,3 +216,27 @@ Total rows: 187 (178 actionable + 9 cleanup).
 - **Residual drift note (out of scope, follow-up audit):** rows 221 (fullscreen) and 226 (quit) keep stubbed log-only reaction bodies. Subscription drift fixed by B-012; reaction-body drift remains.
 - **No new D-### entries promoted.**
 - **B-012 status:** pending → designed.
+
+### 2026-04-27 — B-010 design returned (09f08710) — final bucket; Phase 5 closes design phase
+
+- **All 15 rows uniform rule-1 convert (D-002).** No rule-2 candidates; no reclassifications. Accessor verification held across all 15.
+- **D-009-polling-intermediary-replacement promoted** by this brainstorm. Sighting 3 (`FsbEvents`) and sighting 4 (`generation` counter on emCoreConfigPanel) pushed past the 3-sighting threshold. D-007's watch-list paragraph shrunk to a back-pointer to D-009. B-003 and B-012 sketches updated with "now formalised as D-009" notes.
+- **FsbEvents dropped** per rule-1 convert; widgets read directly via `with_behavior_as::<T>(panel_id, |p| ...)` typed downcast (precedent emPanelTree.rs:1714).
+- **Generation counter (sighting 4) deferred:** out of B-010 row scope; row 80's reset reaction body keeps the bump verbatim. Likely future fix shape: config-changed signal on `emRecNodeConfigModel` + per-group subscribe + `UpdateOutput` handler mirroring C++ `emRecListener::OnRecChanged()`.
+- **Bucket open questions §2/§3/§4 all resolved.** Bucket sketch's "no Cycle override exists" note disambiguated (Rust-side only; C++ has 4 Cycle overrides).
+- **No new D-### entries beyond D-009; no prereq edges; no row reassignments; no accessor-status revisions.**
+- **B-010 status:** pending → designed.
+
+---
+
+### Phase 5 design phase complete
+
+All 19 buckets are now `designed`. Spine state at completion:
+- **Decisions ratified:** D-001 through D-009 (9 global decisions).
+- **Patterns retired:** P-008 (false positive; B-018).
+- **Pattern reclassifications:** P-005 → P-004 (4 rows, B-013), P-005 → P-001 (1 row, B-014); accessor-status corrections on 4 rows (B-006/B-007/B-008/B-013).
+- **Audit verdict shifts:** drifted 162 → 164 (gap-blocked rows reclassified up + B-018 reclassified down); gap-blocked 16 → 13; faithful (in actionable enrichment) 0 → 1.
+- **Cross-bucket prereq DAG:** non-trivial after design — B-005 → B-009; B-008 → B-007; B-015 → B-008; B-016 → B-004; B-017 → B-001 + B-004; B-011 → B-003; B-012 → B-019.
+- **Watch-list items deferred:** A3 (scheduler in emContext); generation counter on emCoreConfigPanel; emDialog post-show sync GetResult; mutator-fire ectx-threading benign-hybrid composition (recorded as D-007 composition note); audit accessor-status heuristic gap (4 sightings, established but not promoted — methodology issue, not design).
+
+Phase 5 reconciliation continues as implementation merges land. Status column transitions designed → merged per implementation PR.

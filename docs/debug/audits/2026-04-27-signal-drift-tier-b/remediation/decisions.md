@@ -166,7 +166,7 @@ Stable IDs (`D-###`) are referenced from `inventory-enriched.json` and from `buc
 
 **Composition note (post-B-014):** D-007 + D-008 compose to handle bootstrap-only callsites benignly. Example from B-014: `emVirtualCosmosModel::Reload` is called only from inside `Acquire`'s bootstrap closure where ectx is unavailable; at that point no panel has subscribed, so `change_signal == SignalId::null()` and `ectx.fire(...)` would be a no-op. The mutator can keep its no-ectx signature with a `// CALLSITE-NOTE:` indicating future post-Acquire callers must thread ectx. First benign hybrid recorded.
 
-**Watch-list candidate (sibling to D-007, not yet promoted):** "Rust interposed a polling intermediary where C++ fires directly." 2 sightings as of 2026-04-27: (1) `AutoplayFlags.progress` (B-003, addressed by D-002 §1 R-A); (2) `mw.to_reload` chain through `MainWindowEngine` (B-012, addressed by routing reload through `mw.ReloadFiles(&self, ectx)` per D-007). Promote to standalone D-### on 3rd sighting. Pattern: a Rust mutator sets a `Cell<bool>` / similar and a separate engine's Cycle polls it to fire a signal — equivalent to (and observably different from) C++'s direct fire. Resolution recipe: thread ectx into the mutator (or a typed wrapper method) and fire synchronously per D-007.
+**Watch-list back-pointer:** the "Rust interposed a polling intermediary where C++ fires directly" pattern is now formalised as **D-009-polling-intermediary-replacement** (promoted by B-010 brainstorm `09f08710` after 4 sightings). See D-009 below for the canonical fix recipe.
 
 ---
 
@@ -193,3 +193,35 @@ Stable IDs (`D-###`) are referenced from `inventory-enriched.json` and from `buc
 
 **Open questions deferred to per-bucket design:**
 - Whether `Ensure*Signal` should sit on `&self` (with interior `Cell` mutation) or `&mut self`. Currently `&self` per A1 description; revisit if borrow-checker friction surfaces.
+
+---
+
+## D-009-polling-intermediary-replacement
+
+**Question:** When the Rust port has a polling intermediary — a `Cell` / `RefCell` / similar field set in one site, polled by another engine's `Cycle` to fire a signal or trigger a reaction — where C++ fires/calls directly, what is the canonical fix?
+
+**Affects:** any drift instance with the polling-intermediary topology. Sightings as of promotion (2026-04-27):
+1. `AutoplayFlags.progress` (B-003 brainstorm `703fa462`) — addressed by D-002 §1 R-A: drop the entire shim.
+2. `mw.to_reload` chain through `MainWindowEngine` (B-012 brainstorm `bf6e9bd5`) — addressed by routing reload through `mw.ReloadFiles(&self, ectx)` per D-007.
+3. `FsbEvents` closure-buffer drained by `emFileSelectionBox::Cycle` (B-010 brainstorm `09f08710`) — addressed by direct widget-state read in `IsSignaled` branches per D-006.
+4. `generation: Rc<Cell<u64>>` counter on `emCoreConfigPanel` (B-010, out of B-010 row scope) — TBD when its owning bucket reaches it; likely shape is a config-changed signal on `emRecNodeConfigModel` plus per-group subscribe + `UpdateOutput` handler mirroring C++ `emRecListener::OnRecChanged()`.
+
+**Origin:** Promoted by B-010 brainstorm after the 3-sighting threshold was reached (4 actual sightings at promotion time). Replaces the earlier watch-list paragraph in D-007.
+
+**Options considered:**
+- **A. Remove the intermediary; thread ectx into the original mutation site (or a typed method on the owning type) and fire synchronously per D-007.** Matches C++ structure; no observable timing drift.
+- **B. Keep the intermediary; document as DIVERGED with a `preserved-design-intent` claim.** Rejected: the timing drift (one-tick defer) is observable; no forced category survives the four-question test for any of the 4 sightings.
+- **C. Per-instance triage between A and B.** Rejected: every sighting so far has converged on A; no defensible B-instance has surfaced. Per-instance framing would invite bikeshedding without payoff.
+
+**Chosen direction:** **A. Remove the intermediary.**
+
+**Why:** Every sighting so far is observable drift (one-tick defer relative to C++'s synchronous fire/call). Per Port Ideology, observable drift without forced-category justification is fidelity bug. The fix recipe is deterministic: thread ectx into the original mutation site (or expose a typed method on the owning type that takes ectx), call `ectx.fire(...)` or invoke the typed method synchronously per D-007, delete the intermediate field and any polling block that drains it. Composes with D-006 (subscribe shape) and D-007 (mutator-fire shape).
+
+**Operational rule:**
+1. Identify the polling intermediary: a Cell/RefCell field set in site A, polled in site B's `Cycle` to fire/react.
+2. Find the C++ analogue. Confirm C++ fires/calls synchronously without an analogous intermediary.
+3. Remove the intermediary; fire/invoke synchronously from site A per D-007.
+4. Delete the intermediate field and the polling block.
+
+**Open questions deferred to per-bucket design:**
+- Whether to introduce a typed wrapper (e.g., `PollingIntermediary<T>`) to flag this drift shape at the type level. Currently no — pattern is recognizable enough by code review.

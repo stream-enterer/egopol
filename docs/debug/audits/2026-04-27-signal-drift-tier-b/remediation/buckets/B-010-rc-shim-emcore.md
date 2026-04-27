@@ -4,8 +4,19 @@
 **Scope:** emcore
 **Row count:** 15
 **Mechanical-vs-judgement:** judgement-heavy
-**Cited decisions:** D-002-rc-shim-policy — per-row triage (default convert; keep only for post-finish/post-cycle dialog-result contracts), governs every row in this bucket.
-**Prereq buckets:** none
+**Cited decisions:** D-002-rc-shim-policy (rule 1 convert across all 15 rows; no rule-2 candidates), D-006-subscribe-shape (canonical first-Cycle init wiring), D-009-polling-intermediary-replacement (origin: B-010 surfaced sightings 3 and 4 of the polling-intermediary pattern, triggering D-009's promotion).
+**Prereq buckets:** none.
+
+**Reconciliation amendments (2026-04-27, post-design 09f08710):**
+- **All 15 rows uniform rule-1 convert.** Verified directly against C++: every site is widget-signal subscribe + `IsSignaled` in host `Cycle`, not post-finish/post-cycle member-field assignment. No rule-2 candidates; no reclassifications.
+- **D-009-polling-intermediary-replacement promoted** by this brainstorm. Sighting 3 (`FsbEvents`, in scope) addressed by direct widget-state read in `IsSignaled` branches per D-006. Sighting 4 (`generation: Rc<Cell<u64>>` on emCoreConfigPanel, out of B-010 row scope) tracked for downstream resolution; row 80's reset reaction body keeps `generation.set(generation.get() + 1)` verbatim in this bucket.
+- **FsbEvents disposition:** dropped per rule-1 convert. Each widget signal subscribed in FSB's first-Cycle init; Cycle reads widget state via `with_behavior_as::<T>(panel_id, |p| ...)` typed downcast (precedent: `emPanelTree.rs:1714`).
+- **Open questions resolved:**
+  - §2 (events-aggregator topology): no aggregator in C++; `emFileSelectionBox::Cycle` (cpp:385) is a flat list of `IsSignaled` branches in source order. Rule-1 convert applies.
+  - §3 (generation-counter topology): C++ uses `emRecListener::OnRecChanged()` per group, no shared signal nor per-control generation counter. Rust generation counter is Rust-only divergence — D-009 sighting #4. Out of B-010 scope.
+  - §4 (AutoplayFlags shape cross-check): not relevant to any B-010 row.
+- **Bucket sketch row note "no Cycle override exists" disambiguation:** refers to Rust today (correct: zero `fn Cycle` impls in `emCoreConfigPanel.rs`). C++ has Cycle overrides on `emCoreConfigPanel`, `MouseMiscGroup`, `MaxMemGroup`, `PerformanceGroup`. Future audit re-runs should distinguish the two.
+- **No new D-### entries beyond D-009.** No prereq edges. No row reassignments. No accessor-status revisions.
 
 ## Pattern description
 

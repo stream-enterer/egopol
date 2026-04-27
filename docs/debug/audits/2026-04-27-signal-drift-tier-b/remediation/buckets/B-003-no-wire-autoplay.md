@@ -4,6 +4,7 @@
 
 **Reconciliation amendments (2026-04-27, post-design 703fa462):**
 - **D-002 §1 deferred question resolved here.** Working-memory ratified R-A (drop AutoplayFlags entirely) per B-003 designer's recommendation. AutoplayFlags inbound `Cell`s are dead code; existing `DIVERGED` annotation at `emAutoplayControlPanel.rs:84` is factually wrong. R-A matches C++; outbound `progress: Rc<Cell<f64>>` replaced with `Rc<RefCell<emAutoplayViewModel>>` reading `GetItemProgress()` in `Paint`. See `decisions.md` D-002 entry.
+- **AutoplayFlags.progress was sighting #1 of the polling-intermediary pattern**, now formalised as **D-009-polling-intermediary-replacement** (promoted by B-010 brainstorm `09f08710` after the 3-sighting threshold was reached). R-A's drop is the canonical fix recipe under D-009 for this row.
 - **Row renamed:** `emAutoplayViewModel-accessor-model-state` → `emAutoplayViewModel-accessor-progress` (C++ second signal is `ProgressSignal`, not state). Updated in `inventory-enriched.json` and the row table above.
 - **2 accessor groups (G1, G2):** G1 `emAutoplayViewModel.GetChangeSignal()` (1 row, 6 emit sites in mutator methods), G2 `emAutoplayViewModel.GetProgressSignal()` (1 row, emit at `SetItemProgress` only).
 - **Wire scope:** `emAutoplay-1171` expands to a Cycle fan-out: 2 model subscribes + 7 widget subscribes. `emAutoplayControlPanel` has no `Cycle` method today; adding it is in-scope. Audit's row count of 1 is correct (single C++ site) but implementer scope is larger.
