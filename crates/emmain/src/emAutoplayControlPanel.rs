@@ -547,6 +547,11 @@ pub struct emAutoplayControlPanel {
     bt_autoplay_check_signal: Option<SignalId>,
     bt_continue_last_click_signal: Option<SignalId>,
     // Child panel IDs for reading widget state and collecting sub-panel signals.
+    // Widgets are referenced by PanelId and accessed via panel-tree typed-behavior lookup
+    // at Cycle time. The B-003 design doc's path-(a) "direct widget refs" was implementable
+    // but the PanelId+lookup shape aligns with the panel-tree's existing typed-behavior
+    // accessor pattern and is observably equivalent (same SignalId capture at create_children,
+    // same state reads in Cycle, same wire ordering). Below-surface idiom adaptation; not annotated.
     autoplay_panel_id: Option<PanelId>,
     prev_next_panel_id: Option<PanelId>,
     settings_panel_id: Option<PanelId>,
@@ -907,6 +912,226 @@ impl PanelBehavior for emAutoplayControlPanel {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// B-003 spec §Verification — click-through wire test.
+    ///
+    /// Exercises the full `widget click → Cycle IsSignaled → ViewModel mutator`
+    /// integration path for R-A's wire. Verifies that firing the BtAutoplay
+    /// check-button signal while the panel is in a running scheduler causes
+    /// `emAutoplayControlPanel::Cycle` to detect `IsSignaled(bt_autoplay_check)`,
+    /// read `IsChecked() == true`, and call `SetAutoplaying(true)` on the ViewModel.
+    ///
+    /// Without this test a closure-vs-mutator-side break would slip past CI.
+    ///
+    /// Lives in the impl-file test module rather than `typed_subscribe_b003.rs`
+    /// because `bt_autoplay_check_signal`, `widget_signals`, and the `PrevNextPanel`/
+    /// `SettingsPanel` sub-panel types are private.
+    #[test]
+    fn bt_autoplay_check_drives_set_autoplaying() {
+        use emcore::emPanelTree::PanelTree;
+        use emcore::emScheduler::EngineScheduler;
+        use std::cell::RefCell;
+        use std::collections::HashMap;
+        use std::rc::Rc;
+
+        let look = Rc::new(emLook::default());
+        let model = Rc::new(RefCell::new(emAutoplayViewModel::new()));
+        let mut sched = EngineScheduler::new();
+        let mut tree = PanelTree::new();
+
+        // Sched-reach handles shared across all PanelCtx constructions in this test.
+        // Required because create_children on sub-panels calls ctx.as_sched_ctx()
+        // which needs all five handles (scheduler, framework_actions, root_context,
+        // framework_clipboard, pending_actions).
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let fc: std::cell::RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        let pa: Rc<std::cell::RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(std::cell::RefCell::new(Vec::new()));
+
+        // ── Step 1: create root panel with emAutoplayControlPanel behavior ──
+        let root_id = tree.create_root_deferred_view("autoplay_cp");
+        tree.set_behavior(
+            root_id,
+            Box::new(emAutoplayControlPanel::new(
+                Rc::clone(&look),
+                Rc::clone(&model),
+            )),
+        );
+        // set_panel_view marks the panel as having a live view (has_view=true), which
+        // register_engine_for_public requires before it will create a PanelCycleEngine.
+        tree.set_panel_view(root_id);
+        tree.register_engine_for_public(root_id, Some(&mut sched));
+        let engine_id = tree
+            .panel_engine_id_pub(root_id)
+            .expect("engine registered");
+
+        // Helper macro: build a PanelCtx with full sched-reach for panel `$id`.
+        // All five handles (scheduler, fw_actions, root_ctx, fc, pa) must be in scope.
+        macro_rules! sched_pctx {
+            ($id:expr) => {
+                PanelCtx::with_sched_reach(
+                    &mut tree,
+                    $id,
+                    1.0,
+                    &mut sched,
+                    &mut fw_actions,
+                    &root_ctx,
+                    &fc,
+                    &pa,
+                )
+            };
+        }
+
+        // ── Step 2: create top-level children (bypasses AutoExpand/LayoutChildren) ──
+        // Direct create_children call is required because LayoutChildren is driven
+        // by emView::update, which is not available in this unit-test context.
+        let (prev_next_id, settings_id, bt_check_signal, autoplay_panel_id) = {
+            let mut behavior = tree.take_behavior(root_id).expect("behavior present");
+            let panel = behavior
+                .as_any_mut()
+                .downcast_mut::<emAutoplayControlPanel>()
+                .expect("is emAutoplayControlPanel");
+            {
+                let mut pctx = sched_pctx!(root_id);
+                panel.create_children(&mut pctx);
+            }
+            let pn_id = panel.prev_next_panel_id.expect("prev_next created");
+            let s_id = panel.settings_panel_id.expect("settings created");
+            let sig = panel
+                .bt_autoplay_check_signal
+                .expect("bt_check signal created");
+            let ap_id = panel.autoplay_panel_id.expect("autoplay panel created");
+            tree.put_behavior(root_id, behavior);
+            (pn_id, s_id, sig, ap_id)
+        };
+
+        // ── Step 3: create PrevNextPanel children ──
+        {
+            let mut behavior = tree.take_behavior(prev_next_id).expect("PrevNext behavior");
+            let pn = behavior
+                .as_any_mut()
+                .downcast_mut::<PrevNextPanel>()
+                .expect("is PrevNextPanel");
+            let mut pctx = sched_pctx!(prev_next_id);
+            pn.create_children(&mut pctx);
+            tree.put_behavior(prev_next_id, behavior);
+        }
+
+        // ── Step 4: create SettingsPanel children ──
+        {
+            let mut behavior = tree.take_behavior(settings_id).expect("Settings behavior");
+            let sp = behavior
+                .as_any_mut()
+                .downcast_mut::<SettingsPanel>()
+                .expect("is SettingsPanel");
+            let mut pctx = sched_pctx!(settings_id);
+            sp.create_children(&mut pctx);
+            tree.put_behavior(settings_id, behavior);
+        }
+
+        // ── Step 5: collect widget_signals and connect engine to bt_autoplay_check ──
+        // Sets subscribed_widgets=true and subscribed_init=true so Cycle skips Phase 1/2
+        // subscribe and goes straight to the IsSignaled fan-out.
+        {
+            let mut behavior = tree.take_behavior(root_id).expect("behavior");
+            let panel = behavior
+                .as_any_mut()
+                .downcast_mut::<emAutoplayControlPanel>()
+                .expect("is emAutoplayControlPanel");
+            let sigs = {
+                let mut pctx = sched_pctx!(root_id);
+                panel
+                    .try_collect_widget_signals(&mut pctx)
+                    .expect("all widget signals available after create_children")
+            };
+            sched.connect(sigs.bt_autoplay_check, engine_id);
+            panel.widget_signals = Some(sigs);
+            panel.subscribed_widgets = true;
+            panel.subscribed_init = true;
+            tree.put_behavior(root_id, behavior);
+        }
+
+        // ── Step 6: set IsChecked=true on the AutoplayCheckButtonPanel ──
+        // SetChecked fires bt_check_signal and marks the button as checked so that
+        // Cycle's IsChecked() read returns true and calls SetAutoplaying(true).
+        {
+            let mut behavior = tree
+                .take_behavior(autoplay_panel_id)
+                .expect("autoplay behavior");
+            let ap = behavior
+                .as_any_mut()
+                .downcast_mut::<AutoplayCheckButtonPanel>()
+                .expect("is AutoplayCheckButtonPanel");
+            let mut pctx = sched_pctx!(autoplay_panel_id);
+            ap.check_button.SetChecked(true, &mut pctx);
+            tree.put_behavior(autoplay_panel_id, behavior);
+        }
+        // bt_check_signal is now pending (fired by SetChecked above).
+        assert!(
+            sched.is_pending(bt_check_signal),
+            "bt_autoplay_check_signal must be pending after SetChecked"
+        );
+
+        // ── Step 7: process pending signal, then drive Cycle manually ──
+        // flush_signals_for_test() advances the scheduler clock and processes the
+        // pending bt_check_signal (stamps sig.clock > eng.clock). Afterward,
+        // IsSignaled(bt_autoplay_check) returns true inside Cycle.
+        //
+        // We drive Cycle directly (not via DoTimeSlice) because the panel's engine
+        // is registered under Toplevel(WindowId::dummy()) scope but we have no
+        // window in the map. DoTimeSlice would sleep the engine. Instead we take
+        // the behavior and invoke Cycle with a hand-built EngineCtx + PanelCtx,
+        // mirroring PanelCycleEngine's take/dispatch/put pattern.
+        sched.flush_signals_for_test();
+
+        let mut pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+            Vec::new();
+        let mut input_state = emcore::emInputState::emInputState::new();
+        let mut empty_windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+            HashMap::new();
+
+        let mut behavior = tree.take_behavior(root_id).expect("behavior for Cycle");
+        {
+            let mut ectx = EngineCtx {
+                scheduler: &mut sched,
+                tree: None,
+                windows: &mut empty_windows,
+                root_context: &root_ctx,
+                framework_actions: &mut fw_actions,
+                pending_inputs: &mut pending_inputs,
+                input_state: &mut input_state,
+                framework_clipboard: &fc,
+                engine_id,
+                pending_actions: &pa,
+            };
+            // SAFETY: ectx.scheduler and pctx.scheduler alias the same EngineScheduler.
+            // Single-threaded; mirrors PanelCycleEngine's identical unsafe split.
+            let sched_ptr: *mut emcore::emScheduler::EngineScheduler = &mut *ectx.scheduler;
+            let mut pctx =
+                PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+            behavior.Cycle(&mut ectx, &mut pctx);
+        }
+        tree.put_behavior(root_id, behavior);
+
+        // ── Step 8: assert the ViewModel mutation fired ──
+        assert!(
+            model.borrow().IsAutoplaying(),
+            "Cycle must call SetAutoplaying(true) when bt_autoplay_check IsSignaled and IsChecked"
+        );
+
+        // Cleanup: remove all panel cycle engines and drain pending signals so the
+        // EngineScheduler Drop assert does not fire. Panel creation (via create_child_with
+        // passing a scheduler) may register PanelCycleEngines for child panels too.
+        let all_ids = tree.panel_ids();
+        for pid in all_ids {
+            if let Some(eid) = tree.panel_engine_id_pub(pid) {
+                sched.remove_engine(eid);
+            }
+        }
+        sched.abort_all_pending();
+    }
 
     #[test]
     fn test_control_panel_new() {

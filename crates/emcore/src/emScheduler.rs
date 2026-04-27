@@ -795,6 +795,19 @@ impl EngineScheduler {
             .unwrap_or(false)
     }
 
+    /// Test helper: advance the scheduler clock by one and process all pending
+    /// signals (bump their `clock` field, wake connected engines). Mirrors the
+    /// signal-processing step at the top of `DoTimeSlice`'s inner loop without
+    /// requiring a full window/input/clipboard harness.
+    ///
+    /// Used by `emAutoplayControlPanel::tests::bt_autoplay_check_drives_set_autoplaying`
+    /// (B-003 click-through test) to make `IsSignaled` return true for a fired
+    /// signal without running a complete time slice.
+    pub fn flush_signals_for_test(&mut self) {
+        self.inner.clock += 1;
+        self.process_pending_signals();
+    }
+
     /// Attach a first-cycle slice probe to a registered `PanelCycleEngine`.
     /// Used by SP4.5-FIX-1 timing fixtures (Tasks 5-7).
     pub fn attach_first_cycle_probe(
