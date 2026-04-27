@@ -20,7 +20,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 8 | B-002-no-wire-emfileman | 0 | balanced | 4 | designed | [7fb3decd](../../../../superpowers/specs/2026-04-27-B-002-no-wire-emfileman-design.md) |
 | 9 | B-003-no-wire-autoplay | 0 | balanced | 3 | designed | [703fa462](../../../../superpowers/specs/2026-04-27-B-003-no-wire-autoplay-design.md) |
 | 10 | B-004-no-wire-misc | 0 | balanced | 4 | designed | [3497069d](../../../../superpowers/specs/2026-04-27-B-004-no-wire-misc-design.md) |
-| 11 | B-016-polling-no-acc-emfileman | 0 | balanced | 3 | pending | — |
+| 11 | B-016-polling-no-acc-emfileman | 0 | balanced | 3 | designed | [d837346b](../../../../superpowers/specs/2026-04-27-B-016-polling-no-acc-emfileman-design.md) |
 | 12 | B-017-polling-no-acc-emstocks | 0 | balanced | 3 | pending | — |
 | 13 | B-009-typemismatch-emfileman | 0 | judgement-heavy | 14 | pending | — |
 | 14 | B-010-rc-shim-emcore | 0 | judgement-heavy | 15 | pending | — |
@@ -133,3 +133,12 @@ Total rows: 187 (178 actionable + 9 cleanup).
 - **3 accessor groups** (G1 emFilePanel.GetVirFileStateSignal, G2 emBookmarkButton.GetClickSignal, G3 emVirtualCosmosModel.GetChangeSignal).
 - **No inventory-enriched.json patches needed.**
 - **B-004 status:** pending → designed.
+
+### 2026-04-27 — B-016 design returned (d837346b)
+
+- **No new D-### entries.**
+- **Hard cross-bucket prereq encoded** in `inventory-enriched.json`: all 3 B-016 rows now point at `emFilePanel-accessor-vir-file-state` (B-004's G1 accessor row). PR staging: B-004 G1 first, B-016 as follow-up.
+- **B-019 framing strike refined:** original "emDirModel doesn't impl FileModelState" framing was false on its own merits (it does, at `emDirModel.rs:413`). Drift is plain missing-accessor, not structural.
+- **No row reclassifications.** All 3 rows correctly tagged `accessor missing`; B-004 G1 fills the gap.
+- **Out-of-scope subscribe sites noted** in the design — C++ ctors subscribe to additional signals not in B-016's row set; design's Cycle init block is shaped to absorb them in a future bucket.
+- **B-016 status:** pending → designed.

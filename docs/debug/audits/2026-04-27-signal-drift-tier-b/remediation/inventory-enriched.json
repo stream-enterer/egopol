@@ -1008,7 +1008,14 @@
           "D-005-poll-replacement-shape"
         ],
         "scope_key": "emfileman",
-        "prereq_ids": []
+        "prereq_ids": [
+          "emFilePanel-accessor-vir-file-state"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-016 brainstorm d837346b",
+        "note": "soft prereq on B-004 G1 (emFilePanel::GetVirFileStateSignal accessor port at emFilePanel-accessor-vir-file-state)"
       }
     },
     {
@@ -1099,7 +1106,14 @@
           "D-005-poll-replacement-shape"
         ],
         "scope_key": "emfileman",
-        "prereq_ids": []
+        "prereq_ids": [
+          "emFilePanel-accessor-vir-file-state"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-016 brainstorm d837346b",
+        "note": "soft prereq on B-004 G1 (emFilePanel::GetVirFileStateSignal accessor port at emFilePanel-accessor-vir-file-state)"
       }
     },
     {
@@ -1189,7 +1203,14 @@
           "D-005-poll-replacement-shape"
         ],
         "scope_key": "emfileman",
-        "prereq_ids": []
+        "prereq_ids": [
+          "emFilePanel-accessor-vir-file-state"
+        ]
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-016 brainstorm d837346b",
+        "note": "soft prereq on B-004 G1 (emFilePanel::GetVirFileStateSignal accessor port at emFilePanel-accessor-vir-file-state)"
       }
     },
     {

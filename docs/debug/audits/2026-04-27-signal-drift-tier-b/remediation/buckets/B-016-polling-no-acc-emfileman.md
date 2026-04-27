@@ -5,7 +5,14 @@
 **Row count:** 3
 **Mechanical-vs-judgement:** balanced
 **Cited decisions:** D-005-poll-replacement-shape (reaction model: direct subscribe), D-006-subscribe-shape (wiring shape: first-Cycle init + IsSignaled top-of-Cycle).
-**Prereq buckets:** none.
+**Prereq buckets:** B-004-no-wire-misc (hard, all 3 rows — depend on B-004 G1 porting `emFilePanel::GetVirFileStateSignal`).
+
+**Reconciliation amendments (2026-04-27, post-design d837346b):**
+- **B-019 framing strike refined:** the false framing wasn't just stale, it was wrong on its own merits — `emDirModel` does impl `FileModelState` at `emDirModel.rs:413`. The drift is plain (missing accessor), not a structural choice.
+- **1 accessor group (G1):** all 3 rows wait on `emFilePanel::GetVirFileStateSignal`, owned by B-004 G1.
+- **Hard cross-bucket prereq encoded:** all 3 rows have `prereq_ids: ['emFilePanel-accessor-vir-file-state']` (B-004's accessor row). PR staging: B-004 G1 lands first as standalone PR; B-016 lands as separate follow-up wiring the three sibling consumers.
+- **Out-of-scope subscribe sites noted:** C++ ctors for these panels also subscribe to `UpdateSignalModel->Sig`, `Config->GetChangeSignal`, `Model->GetChangeSignal`. Not in B-016's row set; design's first-Cycle init block is shaped to absorb them in a future bucket without rewrite.
+- **No row reclassifications.**
 
 **Inbound notes from prior reconciliations:**
 - B-019 (`e7129430`) maps `cleanup-emDirPanel-117` here (underlying drift owner: row `emDirPanel-37`, rs:344). B-019 lands first to remove the stale "we keep polling because emDirModel doesn't implement FileModelState" framing. B-016's design should not preserve that framing — the underlying P-007 fix is to port the missing accessor and replace the polling.
