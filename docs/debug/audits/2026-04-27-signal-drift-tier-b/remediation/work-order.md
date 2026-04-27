@@ -26,7 +26,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 14 | B-010-rc-shim-emcore | 0 | judgement-heavy | 15 | pending | — |
 | 15 | B-011-rc-shim-autoplay | 0 | judgement-heavy | 7 | pending | — |
 | 16 | B-012-rc-shim-mainctrl | 0 | judgement-heavy | 7 | pending | — |
-| 17 | B-013-dialog-cells-emstocks | 0 | judgement-heavy | 4 | pending | — |
+| 17 | B-013-dialog-cells-emstocks | 0 | judgement-heavy | 4 | designed | [ec317565](../../../../superpowers/specs/2026-04-27-B-013-dialog-cells-emstocks-design.md) |
 | 18 | B-014-rc-shim-no-acc-misc | 0 | judgement-heavy | 2 | pending | — |
 | 19 | B-018-fileDialog-singleton | 0 | judgement-heavy | 1 | pending | — |
 
@@ -164,3 +164,14 @@ Total rows: 187 (178 actionable + 9 cleanup).
 - **Audit-data correction:** `emFileManControlPanel-522`'s "sub-engine" routing claim is a misread — direct `AddWakeUpSignal` on the panel's own engine. B-009 sketch updated.
 - **Watch-list note on D-008:** A3 (scheduler in emContext) candidate when placeholder-occupant count grows. Current occupants tracked in D-008 entry: `emFileLinkModel`, `emFileManTheme`, `emFileManConfig`, `emFileModel`.
 - **B-009 status:** pending → designed.
+
+### 2026-04-27 — B-013 design returned (ec317565)
+
+- **Bucket sketch was prejudged wrong.** Original framing assumed D-002 rule-2 keep-shim; brainstorm verified all 4 C++ sites use canonical `AddWakeUpSignal(GetFinishSignal()) + IsSignaled + GetResult`. Rule 1 (convert), trigger side.
+- **Audit-data correction (third accessor-status heuristic gap, after B-006/B-007/B-008):** all 4 rows reclassified `pattern_id P-005 → P-004` and `accessor_status missing → present`. `emDialog.finish_signal` exists as a public field; audit heuristic missed it.
+- **D-002 affects count amended:** P-004 +4 (29→33), P-005 −4 (6→2).
+- **Half-convert design (no DIVERGED on the residual cell):** subscribe via per-dialog first-Cycle init; `IsSignaled` is the trigger; the `Rc<Cell<Option<DialogResult>>>` + `set_on_finish` callback stay as a result-delivery buffer. Per Port Ideology, that's idiom adaptation, not divergence — cell is `pub(crate)` internal state below the user-visible surface and observable behavior matches C++.
+- **Watch-list note (no decision):** emDialog's lack of sync post-show `GetResult` is an architectural gap that affects every dialog consumer (emfileman, emmain, emFileDialog). Future bucket may close via `App::inspect_dialog_by_id` + `emDialog::GetResult`; B-013 explicitly does not. Same shape as D-008's A3 watch-list.
+- **No new D-### entries. No prereq edges.**
+- **Pattern: third occurrence of audit's accessor-status heuristic missing inherited/composed accessors.** B-006 (`GetWindowFlagsSignal`), B-007 (`FileModelsUpdateSignal` via `App::file_update_signal`), B-008 (`GetWindowFlagsSignal` again), B-013 (`emDialog.finish_signal`). Now four occurrences. Pattern is established but not promoted to a decision — it's an audit-data-quality issue, not a design choice. Future buckets should explicitly verify accessor existence in their first step.
+- **B-013 status:** pending → designed.

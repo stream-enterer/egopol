@@ -1,15 +1,22 @@
-# B-013-dialog-cells-emstocks — P-005 — emstocks dialog-result Cells (D-002 keep-shim case)
+# B-013-dialog-cells-emstocks — P-004 — emstocks dialog-result trigger conversion (rule-1 half-convert)
 
-**Pattern:** P-005-rc-shim-no-accessor
+**Pattern:** P-004-rc-shim-instead-of-signal (reclassified from P-005 by B-013 brainstorm — `emDialog.finish_signal` is present; audit accessor-status heuristic missed it)
 **Scope:** emstocks
 **Row count:** 4
-**Mechanical-vs-judgement:** judgement-heavy — per pattern catalog P-005, needs accessor design plus shim removal; here the judgement collapses to "confirm keep-shim" per D-002 rule 2.
-**Cited decisions:** D-002-rc-shim-policy (governs convert-vs-keep triage; rule 2 puts these dialog-result Cells in the keep-shim column), D-004-stocks-application-strategy (confirms one-bucket-per-pattern emstocks slice; mechanical application across the 4 rows is the intent)
-**Prereq buckets:** none
+**Mechanical-vs-judgement:** judgement-heavy — was prejudged as D-002 rule-2 keep-shim; brainstorm verified all 4 rows are rule-1 convert (trigger side). Implementation is mechanical once design is settled.
+**Cited decisions:** D-002-rc-shim-policy (rule 1, trigger side — convert from `cell.take()` polling to `IsSignaled` subscribe), D-006-subscribe-shape (canonical wiring, applied per-dialog with first-Cycle init), D-004-stocks-application-strategy (mechanical application across 4 rows).
+**Prereq buckets:** none.
+
+**Reconciliation amendments (2026-04-27, post-design ec317565):**
+- **Audit-data correction (third accessor-status heuristic gap, after B-006/B-007/B-008):** all 4 rows reclassified `pattern_id P-005 → P-004` and `accessor_status missing → present`. `emDialog.finish_signal` is a public field on `emDialog`; the audit's automated accessor-status heuristic missed it. Captured in each row's `reconciliation` field.
+- **Rule applied: D-002 rule 1 (convert), trigger side only.** All 4 C++ sites use `AddWakeUpSignal(GetFinishSignal()) + IsSignaled + GetResult` — canonical signal-subscribe shape, not post-finish member-field assignment. Bucket sketch's original "rule-2 keep-shim" framing was prejudged wrong.
+- **Half-convert design:** subscribe via per-dialog first-Cycle init (D-006); `IsSignaled(dialog.finish_signal)` replaces `cell.take().is_some()` as the trigger; the `Rc<Cell<Option<DialogResult>>>` and `set_on_finish` callback **stay** as the result-delivery buffer (idiom adaptation, NOT DIVERGED — observable behavior matches C++; cell is `pub(crate)` internal state below the user-visible surface).
+- **Watch-list (not a decision):** emDialog's lack of sync post-show `GetResult` is an architectural gap that affects every dialog consumer in the codebase (emfileman, emmain, emFileDialog). A future bucket may close it via `App::inspect_dialog_by_id` + `emDialog::GetResult`; B-013 explicitly does not. Same shape as D-008's A3 watch-list note.
+- **D-002 affects count amended:** P-004 +4 (29→33), P-005 −4 (6→2).
 
 ## Pattern description
 
-Consumer routes around the upstream signal via `Rc<Cell<Option<DialogResult>>>` shared state populated by a one-shot dialog `set_on_finish` closure and observed in `Cycle()`; the upstream signal accessor is also missing on the dialog type. Per D-002, the dialog-result Cells in emstocks (`cut_stocks_result`, `paste_stocks_result`, `delete_stocks_result`, and the interest-change variant) match rule 2 — the C++ original uses a member field assigned post-finish after `IsFinished()`, so the shim *is* the contract rather than a signal-shim. Expected outcome for this bucket is therefore "annotate as DIVERGED with a load-bearing-shim rationale and keep the code," not a conversion to signal-subscribe.
+Consumer polls `Rc<Cell<Option<DialogResult>>>` (filled by a `set_on_finish` callback) instead of subscribing to the dialog's `finish_signal` accessor that already exists on `emDialog`. C++ uses canonical `AddWakeUpSignal(GetFinishSignal()) + IsSignaled + GetResult` for all 4 sites — rule-1 convert (trigger side). The fix wires per-dialog first-Cycle subscribe to `dialog.finish_signal` and gates result-read on `IsSignaled`; the cell+callback stay as a delivery buffer (idiom adaptation, not divergence — observable behavior matches C++).
 
 ## Rows
 

@@ -31,7 +31,7 @@ Stable IDs (`D-###`) are referenced from `inventory-enriched.json` and from `buc
 
 **Question:** For consumers using `Rc<RefCell<>>` / `Rc<Cell<>>` shared state in click-handler closures instead of subscribing to a signal, is conversion to signal-subscribe always correct, or are there load-bearing cases that justify keeping the shim?
 
-**Affects:** P-004 (29 rows: emcore=15, emmain=10, emstocks=4) + P-005 (6 rows). Cited by every bucket containing rc-shim rows.
+**Affects:** P-004 (33 rows: emcore=15, emmain=14, emstocks=4) + P-005 (2 rows). Cited by every bucket containing rc-shim rows. (Was P-004=29 + P-005=6 originally; B-013 reconciliation moved 4 emstocks dialog-result rows from P-005 → P-004 after verifying `emDialog.finish_signal` is present.)
 
 **Options considered:**
 - **A. Always convert.** Treat every rc-shim consumer as drift; replace with signal-subscribe.

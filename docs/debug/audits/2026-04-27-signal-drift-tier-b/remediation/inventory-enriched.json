@@ -4974,20 +4974,25 @@
         "snippet": "pub(crate) cut_stocks_result: Rc<Cell<Option<DialogResult>>>; // dialog set_on_finish callback writes into the Cell, Cycle (line 753) polls it via .take()."
       },
       "rust_signal_accessor": "emDialog::GetFinishSignal",
-      "rust_signal_accessor_status": "missing",
+      "rust_signal_accessor_status": "present",
       "forced_category": null,
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
       "notes": "Cut-confirmation dialog finish handled via Rc<Cell<Option<DialogResult>>> shim populated by set_on_finish (line 566) and observed in Cycle (line 753). No connect on the dialog's finish SignalId. Pattern is rc_cell_shim.",
       "enrichment": {
-        "pattern_id": "P-005-rc-shim-no-accessor",
+        "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
           "D-002-rc-shim-policy",
           "D-004-stocks-application-strategy"
         ],
         "scope_key": "emstocks",
         "prereq_ids": []
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-013 brainstorm ec317565",
+        "change": "pattern_id P-005 -> P-004; accessor_status missing -> present (emDialog.finish_signal exists; audit heuristic missed it)"
       }
     },
     {
@@ -5005,20 +5010,25 @@
         "snippet": "pub(crate) paste_stocks_result: Rc<Cell<Option<DialogResult>>>; // set_on_finish callback (line 611) writes; Cycle (line 764) polls via .take()."
       },
       "rust_signal_accessor": "emDialog::GetFinishSignal",
-      "rust_signal_accessor_status": "missing",
+      "rust_signal_accessor_status": "present",
       "forced_category": null,
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
       "notes": "Paste-confirmation dialog finish: rc_cell_shim. Same pattern as Cut/Delete/Interest.",
       "enrichment": {
-        "pattern_id": "P-005-rc-shim-no-accessor",
+        "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
           "D-002-rc-shim-policy",
           "D-004-stocks-application-strategy"
         ],
         "scope_key": "emstocks",
         "prereq_ids": []
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-013 brainstorm ec317565",
+        "change": "pattern_id P-005 -> P-004; accessor_status missing -> present (emDialog.finish_signal exists; audit heuristic missed it)"
       }
     },
     {
@@ -5036,20 +5046,25 @@
         "snippet": "pub(crate) delete_stocks_result: Rc<Cell<Option<DialogResult>>>; // set_on_finish (line 512) writes; Cycle (line 742) polls via .take()."
       },
       "rust_signal_accessor": "emDialog::GetFinishSignal",
-      "rust_signal_accessor_status": "missing",
+      "rust_signal_accessor_status": "present",
       "forced_category": null,
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
       "notes": "Delete-confirmation dialog finish: rc_cell_shim.",
       "enrichment": {
-        "pattern_id": "P-005-rc-shim-no-accessor",
+        "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
           "D-002-rc-shim-policy",
           "D-004-stocks-application-strategy"
         ],
         "scope_key": "emstocks",
         "prereq_ids": []
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-013 brainstorm ec317565",
+        "change": "pattern_id P-005 -> P-004; accessor_status missing -> present (emDialog.finish_signal exists; audit heuristic missed it)"
       }
     },
     {
@@ -5067,20 +5082,25 @@
         "snippet": "pub(crate) interest_result: Rc<Cell<Option<DialogResult>>>; // set_on_finish (line 710) writes; Cycle (line 775) polls via .take()."
       },
       "rust_signal_accessor": "emDialog::GetFinishSignal",
-      "rust_signal_accessor_status": "missing",
+      "rust_signal_accessor_status": "present",
       "forced_category": null,
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
       "notes": "Interest-change confirmation dialog finish: rc_cell_shim.",
       "enrichment": {
-        "pattern_id": "P-005-rc-shim-no-accessor",
+        "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
           "D-002-rc-shim-policy",
           "D-004-stocks-application-strategy"
         ],
         "scope_key": "emstocks",
         "prereq_ids": []
+      },
+      "reconciliation": {
+        "date": "2026-04-27",
+        "source": "B-013 brainstorm ec317565",
+        "change": "pattern_id P-005 -> P-004; accessor_status missing -> present (emDialog.finish_signal exists; audit heuristic missed it)"
       }
     },
     {
