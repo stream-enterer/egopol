@@ -5,7 +5,11 @@
 **Row count:** 7
 **Mechanical-vs-judgement:** judgement-heavy
 **Cited decisions:** D-002-rc-shim-policy — applies the per-row triage rule (default convert; keep only for dialog-result/post-cycle handoff) to each of the 7 click-handler shims here.
-**Prereq buckets:** none
+**Prereq buckets:** none.
+
+**Inbound notes from prior reconciliations:**
+- B-019 (`e7129430`) maps three cleanup items here: `cleanup-emMainControlPanel-35` (ClickFlags shim), `cleanup-emMainControlPanel-303` (row `emMainControlPanel-221`, rs:301), `cleanup-emMainControlPanel-320` (row `emMainControlPanel-224`, rs:319). B-019 lands first to remove camouflage; this bucket's design should not preserve any framing from those removed annotations.
+- **Two-hop relay flagged for design:** the `cleanup-emMainControlPanel-320` site involves a `mw.to_reload` chain through `emMainWindow` → `MainWindowEngine` → `file_update_signal`. B-012's design needs to address this second hop, not just the immediate click-handler shim.
 
 ## Pattern description
 

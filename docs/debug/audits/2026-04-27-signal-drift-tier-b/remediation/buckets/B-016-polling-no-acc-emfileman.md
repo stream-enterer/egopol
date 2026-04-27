@@ -4,8 +4,11 @@
 **Scope:** emfileman
 **Row count:** 3
 **Mechanical-vs-judgement:** balanced
-**Cited decisions:** D-005-poll-replacement-shape (governs subscribe-shape — direct subscribe collapsing the polling code into the callback, mirroring C++ Cycle()-driven re-read)
-**Prereq buckets:** none
+**Cited decisions:** D-005-poll-replacement-shape (reaction model: direct subscribe), D-006-subscribe-shape (wiring shape: first-Cycle init + IsSignaled top-of-Cycle).
+**Prereq buckets:** none.
+
+**Inbound notes from prior reconciliations:**
+- B-019 (`e7129430`) maps `cleanup-emDirPanel-117` here (underlying drift owner: row `emDirPanel-37`, rs:344). B-019 lands first to remove the stale "we keep polling because emDirModel doesn't implement FileModelState" framing. B-016's design should not preserve that framing — the underlying P-007 fix is to port the missing accessor and replace the polling.
 
 ## Pattern description
 

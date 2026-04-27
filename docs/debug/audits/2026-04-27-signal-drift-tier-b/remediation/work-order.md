@@ -15,7 +15,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 3 | B-007-typed-subscribe-emcore | 0 | mechanical-heavy | 3 | designed | [8b220ebb](../../../../superpowers/specs/2026-04-27-B-007-typed-subscribe-emcore-design.md) |
 | 4 | B-008-typed-subscribe-misc | 0 | mechanical-heavy | 3 | designed | [4c4141f1](../../../../superpowers/specs/2026-04-27-B-008-typed-subscribe-misc-design.md) |
 | 5 | B-015-polling-emcore-plus | 0 | mechanical-heavy | 10 | designed | [b521b3f6](../../../../superpowers/specs/2026-04-27-B-015-polling-emcore-plus-design.md) |
-| 6 | B-019-stale-annotations | 0 | mechanical-heavy | 9 | pending | — |
+| 6 | B-019-stale-annotations | 0 | mechanical-heavy | 9 | designed | [e7129430](../../../../superpowers/specs/2026-04-27-B-019-stale-annotations-design.md) |
 | 7 | B-001-no-wire-emstocks | 0 | balanced | 71 | pending | — |
 | 8 | B-002-no-wire-emfileman | 0 | balanced | 4 | pending | — |
 | 9 | B-003-no-wire-autoplay | 0 | balanced | 3 | pending | — |
@@ -84,3 +84,12 @@ Total rows: 187 (178 actionable + 9 cleanup).
 - **Cross-bucket prereq:** soft edge `emMainPanel-68` → `emMainPanel-67` (B-008) — shared `emMainPanel::Cycle` body and `subscribed_init` field. Encoded in `inventory-enriched.json`. B-015's `Prereq buckets:` line records bucket-level edge to B-008.
 - **Implementer-facing structural change:** `emFilePanel::SetFileModel` signature gains `&mut SchedCtx + EngineId`. Caller migration is bounded; flagged as open question in design doc.
 - **B-015 status:** pending → designed.
+
+### 2026-04-27 — B-019 design returned (e7129430)
+
+- **No new D-### entries.** Designer found D-001 does not govern `cleanup-emFileModel-490` (PSAgent callback-signature divergence, unrelated to the `u64`/`SignalId` accessor flip). Citation dropped from B-019 sketch.
+- **Mask-drift mapping captured:** four cleanup items have downstream non-blocking edges to other buckets (3 → B-012, 1 → B-016). Mapping recorded in B-019's "Reconciliation amendments" block; forward-pointer notes added to B-012 and B-016 sketches so their future fan-outs see the context.
+- **Two-hop relay surfaced for B-012's design:** `cleanup-emMainControlPanel-320` involves a `mw.to_reload` chain through `emMainWindow` → `MainWindowEngine` → `file_update_signal`. B-012's design must address the second hop, not just the click-handler shim. Captured in B-012's inbound notes.
+- **Sequencing recommendation from designer:** land B-019 single-PR before B-012/B-016 to remove camouflage. Non-blocking either direction; preference only.
+- **No coverage gaps** — every mask-drift item maps to an existing bucket.
+- **B-019 status:** pending → designed.
