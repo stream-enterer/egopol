@@ -91,6 +91,7 @@ impl emImageFilePanel {
 
     /// Test accessor: returns a reference to the current_image Option.
     /// Used by tests to verify signal-driven cache invalidation.
+    #[doc(hidden)]
     pub fn current_image_for_test(&self) -> &Option<emImage> {
         &self.current_image
     }

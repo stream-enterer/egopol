@@ -262,6 +262,8 @@ fn image_model_loads_asynchronously_via_engine() {
     std::fs::write(&path, make_test_tga()).expect("write tga");
 
     let mut sched = EngineScheduler::new();
+    let file_update_signal = sched.create_signal();
+    sched.file_update_signal = file_update_signal;
     let model = {
         // InitCtx borrows &mut sched, so it must be dropped before do_slice.
         let root_ctx = emcore::emContext::emContext::NewRoot();
@@ -294,11 +296,18 @@ fn image_model_loads_asynchronously_via_engine() {
         model.borrow().GetImage().is_some(),
         "GetImage() should be Some after load"
     );
+
+    // Cleanup: drop model and wake engine so it detects dead model_weak and removes itself.
+    drop(model);
+    sched.fire(file_update_signal);
+    do_slice(&mut sched);
 }
 
 #[test]
 fn image_model_fails_for_nonexistent_path() {
     let mut sched = EngineScheduler::new();
+    let file_update_signal = sched.create_signal();
+    sched.file_update_signal = file_update_signal;
     let model = {
         let root_ctx = emcore::emContext::emContext::NewRoot();
         let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
@@ -325,4 +334,9 @@ fn image_model_fails_for_nonexistent_path() {
         "expected LoadError after slice for nonexistent path, got {:?}",
         model.borrow().state()
     );
+
+    // Cleanup: drop model and wake engine so it detects dead model_weak and removes itself.
+    drop(model);
+    sched.fire(file_update_signal);
+    do_slice(&mut sched);
 }

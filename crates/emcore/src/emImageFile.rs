@@ -256,17 +256,14 @@ impl emEngine for LoaderEngine {
 
         // B-007 row -103: first-Cycle init — subscribe to the shared broadcast.
         // Mirrors C++ emFileModel::SetIgnoreUpdateSignal(false) → AddWakeUpSignal.
-        // Only connect if file_update_signal is real (non-null); in test contexts
-        // without App, the signal is null and we fall back to one-shot semantics.
         let upd = ctx.scheduler.file_update_signal;
-        let has_broadcast = !upd.is_null();
-        if !self.initial_load_done && has_broadcast {
+        if !self.initial_load_done && !upd.is_null() {
             ctx.connect(upd, engine_id);
         }
 
         // B-007 row -103: broadcast-wake reaction.
         // Mirrors C++ emFileModel::Cycle lines 233-235.
-        if has_broadcast && ctx.IsSignaled(upd) {
+        if !upd.is_null() && ctx.IsSignaled(upd) {
             let ignore = model_rc.borrow().file_model().GetIgnoreUpdateSignal();
             if !ignore {
                 model_rc.borrow_mut().file_model_mut().update();
@@ -305,16 +302,9 @@ impl emEngine for LoaderEngine {
 
         self.initial_load_done = true;
 
-        if has_broadcast {
-            // Stay registered — the broadcast may wake us again for a reload.
-            // Removal only happens above when model_weak fails to upgrade.
-            false
-        } else {
-            // No broadcast (test context without App). Preserve one-shot semantics:
-            // remove after first run so the scheduler doesn't keep a stale engine.
-            ctx.remove_engine(engine_id);
-            false
-        }
+        // Stay registered — the broadcast may wake us again for a reload.
+        // Removal only happens above when model_weak fails to upgrade.
+        false
     }
 }
 
