@@ -8,6 +8,7 @@ use emcore::emContext::emContext;
 use emcore::emEngineCtx::PanelCtx;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use slotmap::Key as _;
 
 use crate::emDirEntry::emDirEntry;
 use crate::emFileManModel::emFileManModel;
@@ -116,7 +117,8 @@ pub struct emFileManSelInfoPanel {
     file_man: Rc<RefCell<emFileManModel>>,
     pub(crate) state: SelInfoState,
     pub(crate) allow_business: bool,
-    pub(crate) last_selection_gen: u64,
+    /// First-Cycle init guard for D-006 subscribe shape.
+    pub(crate) subscribed_init: bool,
     dir_stack: Vec<String>,
     initial_dir_stack: Vec<String>,
     sel_list: Vec<String>,
@@ -141,12 +143,11 @@ pub struct emFileManSelInfoPanel {
 impl emFileManSelInfoPanel {
     pub fn new(ctx: Rc<emContext>) -> Self {
         let file_man = emFileManModel::Acquire(&ctx);
-        let last_selection_gen = file_man.borrow().GetSelectionSignal();
         let mut panel = Self {
             file_man,
             state: SelInfoState::new(),
             allow_business: false,
-            last_selection_gen,
+            subscribed_init: false,
             dir_stack: Vec::new(),
             initial_dir_stack: Vec::new(),
             sel_list: Vec::new(),
@@ -644,12 +645,21 @@ impl emFileManSelInfoPanel {
 impl PanelBehavior for emFileManSelInfoPanel {
     fn Cycle(
         &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        let gen = self.file_man.borrow().GetSelectionSignal();
-        if gen != self.last_selection_gen {
-            self.last_selection_gen = gen;
+        // D-006 first-Cycle init: lazy-allocate SelectionSignal and connect.
+        // Mirrors C++ emFileManSelInfoPanel ctor `AddWakeUpSignal(...)` (row 37).
+        if !self.subscribed_init {
+            let eid = ectx.engine_id;
+            let sel_sig = self.file_man.borrow().GetSelectionSignal(ectx);
+            ectx.connect(sel_sig, eid);
+            self.subscribed_init = true;
+        }
+
+        // Mirrors C++ emFileManSelInfoPanel.cpp:54 — selection-driven reset.
+        let sel_sig = self.file_man.borrow().selection_signal.get();
+        if !sel_sig.is_null() && ectx.IsSignaled(sel_sig) {
             self.reset_details();
         }
         self.work_on_details()
@@ -877,16 +887,19 @@ mod tests {
     }
 
     #[test]
-    fn generation_tracking_detects_selection_change() {
-        let ctx = emcore::emContext::emContext::NewRoot();
-        let panel = emFileManSelInfoPanel::new(Rc::clone(&ctx));
-        let initial_gen = panel.last_selection_gen;
+    fn selection_signal_initial_subscribe_state() {
+        // After construction (before first Cycle) subscribed_init is false
+        // and the panel's view of the signal id is null. After a mutator,
+        // selection state is updated; signal-fire is observed only after
+        // a real Cycle (covered by tests/typemismatch_b009.rs).
+        let mut h = emcore::test_view_harness::TestSched::new();
+        let ctx = h.with(|sc| Rc::clone(sc.root_context));
+        let panel = emFileManSelInfoPanel::new(ctx);
+        assert!(!panel.subscribed_init);
+        assert!(panel.file_man.borrow().selection_signal.get().is_null());
 
-        // Change selection
-        panel.file_man.borrow_mut().SelectAsTarget("/tmp");
-
-        // Generation should have changed
-        let new_gen = panel.file_man.borrow().GetSelectionSignal();
-        assert_ne!(new_gen, initial_gen);
+        // Mutator before any subscriber: clean no-op fire (D-008 A1).
+        h.with(|sc| panel.file_man.borrow_mut().SelectAsTarget(sc, "/tmp"));
+        assert!(panel.file_man.borrow().IsSelectedAsTarget("/tmp"));
     }
 }

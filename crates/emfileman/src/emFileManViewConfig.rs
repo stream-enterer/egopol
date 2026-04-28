@@ -2,6 +2,10 @@ use std::cell::{Cell, RefCell};
 use std::ffi::CString;
 use std::rc::Rc;
 
+use emcore::emEngineCtx::SignalCtx;
+use emcore::emSignal::SignalId;
+use slotmap::Key as _;
+
 use crate::emDirEntry::emDirEntry;
 use crate::emFileManConfig::emFileManConfig;
 use crate::emFileManConfig::{NameSortingStyle, SortCriterion};
@@ -356,7 +360,9 @@ pub struct emFileManViewConfig {
     show_hidden_files: bool,
     theme_name: String,
     autosave: bool,
-    change_generation: Rc<Cell<u64>>,
+    /// Port of C++ `emFileManViewConfig::ChangeSignal`. Lazy-alloc D-008 A1
+    /// combined-form (B-014 precedent).
+    pub(crate) change_signal: Cell<SignalId>,
     // Track initial values for IsUnsaved
     initial_sort_criterion: SortCriterion,
     initial_name_sorting_style: NameSortingStyle,
@@ -398,7 +404,7 @@ impl emFileManViewConfig {
                 show_hidden_files: shf,
                 theme_name: tn.clone(),
                 autosave: auto,
-                change_generation: Rc::new(Cell::new(0)),
+                change_signal: Cell::new(SignalId::null()),
                 initial_sort_criterion: sc,
                 initial_name_sorting_style: nss,
                 initial_sort_directories_first: sdf,
@@ -409,8 +415,12 @@ impl emFileManViewConfig {
         })
     }
 
-    fn bump_generation(&self) {
-        self.change_generation.set(self.change_generation.get() + 1);
+    /// Fire ChangeSignal (no-op when null per D-008 A1).
+    fn fire_change_signal(&self, ectx: &mut impl SignalCtx) {
+        let s = self.change_signal.get();
+        if !s.is_null() {
+            ectx.fire(s);
+        }
     }
 
     fn write_back_if_autosave(&self) {
@@ -425,8 +435,17 @@ impl emFileManViewConfig {
         }
     }
 
-    pub fn GetChangeSignal(&self) -> u64 {
-        self.change_generation.get()
+    /// Port of C++ `emFileManViewConfig::GetChangeSignal()`.
+    /// Combined-form lazy-alloc accessor (D-008 A1 + B-014 precedent).
+    pub fn GetChangeSignal(&self, ectx: &mut impl SignalCtx) -> SignalId {
+        let s = self.change_signal.get();
+        if s.is_null() {
+            let new_id = ectx.create_signal();
+            self.change_signal.set(new_id);
+            new_id
+        } else {
+            s
+        }
     }
 
     pub fn GetSortCriterion(&self) -> SortCriterion {
@@ -457,51 +476,51 @@ impl emFileManViewConfig {
         self.theme.borrow()
     }
 
-    pub fn SetSortCriterion(&mut self, sc: SortCriterion) {
+    pub fn SetSortCriterion(&mut self, ectx: &mut impl SignalCtx, sc: SortCriterion) {
         if self.sort_criterion != sc {
             self.sort_criterion = sc;
-            self.bump_generation();
+            self.fire_change_signal(ectx);
             self.write_back_if_autosave();
         }
     }
 
-    pub fn SetNameSortingStyle(&mut self, nss: NameSortingStyle) {
+    pub fn SetNameSortingStyle(&mut self, ectx: &mut impl SignalCtx, nss: NameSortingStyle) {
         if self.name_sorting_style != nss {
             self.name_sorting_style = nss;
-            self.bump_generation();
+            self.fire_change_signal(ectx);
             self.write_back_if_autosave();
         }
     }
 
-    pub fn SetSortDirectoriesFirst(&mut self, b: bool) {
+    pub fn SetSortDirectoriesFirst(&mut self, ectx: &mut impl SignalCtx, b: bool) {
         if self.sort_directories_first != b {
             self.sort_directories_first = b;
-            self.bump_generation();
+            self.fire_change_signal(ectx);
             self.write_back_if_autosave();
         }
     }
 
-    pub fn SetShowHiddenFiles(&mut self, b: bool) {
+    pub fn SetShowHiddenFiles(&mut self, ectx: &mut impl SignalCtx, b: bool) {
         if self.show_hidden_files != b {
             self.show_hidden_files = b;
-            self.bump_generation();
+            self.fire_change_signal(ectx);
             self.write_back_if_autosave();
         }
     }
 
-    pub fn SetThemeName(&mut self, name: &str) {
+    pub fn SetThemeName(&mut self, ectx: &mut impl SignalCtx, name: &str) {
         if self.theme_name != name {
             self.theme_name = name.to_string();
             self.theme = emFileManTheme::Acquire(&self.ctx, name);
-            self.bump_generation();
+            self.fire_change_signal(ectx);
             self.write_back_if_autosave();
         }
     }
 
-    pub fn SetAutosave(&mut self, b: bool) {
+    pub fn SetAutosave(&mut self, ectx: &mut impl SignalCtx, b: bool) {
         if self.autosave != b {
             self.autosave = b;
-            self.bump_generation();
+            self.fire_change_signal(ectx);
             self.write_back_if_autosave();
         }
     }
@@ -710,21 +729,29 @@ mod tests {
     }
 
     #[test]
-    fn view_config_setters_bump_generation() {
-        let ctx = emcore::emContext::emContext::NewRoot();
-        let vc = emFileManViewConfig::Acquire(&ctx);
-        let gen0 = vc.borrow().GetChangeSignal();
-        vc.borrow_mut().SetSortCriterion(SortCriterion::BySize);
-        let gen1 = vc.borrow().GetChangeSignal();
-        assert!(gen1 > gen0);
+    fn view_config_setter_fires_change_signal() {
+        // D-008 A1 combined-form: GetChangeSignal lazy-allocates; mutator
+        // is no-op-on-null (composes with C++ zero-subscriber emSignal).
+        let mut h = emcore::test_view_harness::TestSched::new();
+        let vc = h.with(|sc| emFileManViewConfig::Acquire(sc.root_context));
+        // No subscriber yet: mutator must not panic and must update value.
+        h.with(|sc| {
+            vc.borrow_mut().SetSortCriterion(sc, SortCriterion::BySize);
+        });
+        assert_eq!(vc.borrow().GetSortCriterion(), SortCriterion::BySize);
+        // Allocate signal id, confirm idempotent.
+        let sig = h.with(|sc| vc.borrow().GetChangeSignal(sc));
+        assert!(!sig.is_null());
+        let sig2 = h.with(|sc| vc.borrow().GetChangeSignal(sc));
+        assert_eq!(sig, sig2);
     }
 
     #[test]
     fn view_config_is_unsaved_after_change() {
-        let ctx = emcore::emContext::emContext::NewRoot();
-        let vc = emFileManViewConfig::Acquire(&ctx);
+        let mut h = emcore::test_view_harness::TestSched::new();
+        let vc = h.with(|sc| emFileManViewConfig::Acquire(sc.root_context));
         assert!(!vc.borrow().IsUnsaved());
-        vc.borrow_mut().SetShowHiddenFiles(true);
+        h.with(|sc| vc.borrow_mut().SetShowHiddenFiles(sc, true));
         assert!(vc.borrow().IsUnsaved());
     }
 

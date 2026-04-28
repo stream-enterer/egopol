@@ -7,6 +7,7 @@ use emcore::emEngineCtx::PanelCtx;
 use emcore::emFilePanel::{emFilePanel, VirtualFileState};
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{PanelBehavior, PanelState};
+use slotmap::Key as _;
 
 use crate::emDirEntry::emDirEntry;
 use crate::emFileManViewConfig::emFileManViewConfig;
@@ -69,6 +70,8 @@ pub struct emDirStatPanel {
     pub(crate) file_panel: emFilePanel,
     config: Rc<RefCell<emFileManViewConfig>>,
     stats: DirStatistics,
+    /// First-Cycle init guard for D-006 subscribe shape.
+    subscribed_init: bool,
 }
 
 impl emDirStatPanel {
@@ -84,6 +87,7 @@ impl emDirStatPanel {
                 other_type_count: -1,
                 hidden_count: -1,
             },
+            subscribed_init: false,
         }
     }
 
@@ -108,9 +112,32 @@ impl emDirStatPanel {
 impl PanelBehavior for emDirStatPanel {
     fn Cycle(
         &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
         _ctx: &mut PanelCtx,
     ) -> bool {
+        // D-006 first-Cycle init: lazy-allocate ChangeSignal and connect.
+        // Mirrors C++ emDirStatPanel ctor `AddWakeUpSignal(...)` (row 39).
+        if !self.subscribed_init {
+            let eid = ectx.engine_id;
+            let chg_sig = self.config.borrow().GetChangeSignal(ectx);
+            ectx.connect(chg_sig, eid);
+            self.subscribed_init = true;
+        }
+
+        // Mirrors C++ emDirStatPanel.cpp:61 — config-driven invalidation.
+        let chg_sig = self.config.borrow().change_signal.get();
+        if !chg_sig.is_null() && ectx.IsSignaled(chg_sig) {
+            // C++ invalidates and repaints; Rust reset stats so update_statistics
+            // re-derives from a fresh entries snapshot on next set_entries.
+            self.stats = DirStatistics {
+                total_count: -1,
+                file_count: -1,
+                sub_dir_count: -1,
+                other_type_count: -1,
+                hidden_count: -1,
+            };
+        }
+
         self.file_panel.refresh_vir_file_state();
         self.update_statistics();
         false

@@ -9,6 +9,7 @@ use emcore::emInputState::emInputState;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelId;
+use slotmap::Key as _;
 
 use crate::emDirEntry::emDirEntry;
 use crate::emFileManModel::emFileManModel;
@@ -81,6 +82,8 @@ pub struct emDirEntryPanel {
     pub(crate) bg_color: u32,
     content_panel: Option<PanelId>,
     alt_panel: Option<PanelId>,
+    /// First-Cycle init guard for D-006 subscribe shape.
+    subscribed_init: bool,
 }
 
 impl emDirEntryPanel {
@@ -110,6 +113,7 @@ impl emDirEntryPanel {
             bg_color,
             content_panel: None,
             alt_panel: None,
+            subscribed_init: false,
         }
     }
 
@@ -314,16 +318,16 @@ impl emDirEntryPanel {
     /// DIVERGED: (language-forced) C++ walks sibling panels via parent panel tree traversal.
     /// Rust accesses the emDirModel directly to enumerate entries in display
     /// order, since panel tree parent traversal is not available.
-    fn select(&mut self, shift: bool, ctrl: bool) {
+    fn select(&mut self, ectx: &mut impl emcore::emEngineCtx::SignalCtx, shift: bool, ctrl: bool) {
         let path = self.dir_entry.GetPath().to_string();
         let mut fm = self.file_man.borrow_mut();
 
         if ctrl {
             // Toggle target selection
             if fm.IsSelectedAsTarget(&path) {
-                fm.DeselectAsTarget(&path);
+                fm.DeselectAsTarget(ectx, &path);
             } else {
-                fm.SelectAsTarget(&path);
+                fm.SelectAsTarget(ectx, &path);
             }
             fm.SetShiftTgtSelPath(&path);
         } else if shift {
@@ -376,39 +380,39 @@ impl emDirEntryPanel {
                         let max = a.max(t);
                         let mut fm = self.file_man.borrow_mut();
                         for entry in &visible[min..=max] {
-                            fm.SelectAsTarget(entry.GetPath());
+                            fm.SelectAsTarget(ectx, entry.GetPath());
                         }
                     } else {
                         // Fallback: just select this entry
                         let mut fm = self.file_man.borrow_mut();
-                        fm.SelectAsTarget(&path);
+                        fm.SelectAsTarget(ectx, &path);
                     }
                 } else {
                     let mut fm = self.file_man.borrow_mut();
-                    fm.SelectAsTarget(&path);
+                    fm.SelectAsTarget(ectx, &path);
                 }
             } else {
                 // No anchor — just select this entry and set anchor
                 let mut fm = self.file_man.borrow_mut();
-                fm.SelectAsTarget(&path);
+                fm.SelectAsTarget(ectx, &path);
                 fm.SetShiftTgtSelPath(&path);
             }
         } else {
             // Plain click: old targets become sources, select this as target
-            fm.ClearSourceSelection();
-            fm.SwapSelection();
-            fm.SelectAsTarget(&path);
+            fm.ClearSourceSelection(ectx);
+            fm.SwapSelection(ectx);
+            fm.SelectAsTarget(ectx, &path);
             fm.SetShiftTgtSelPath(&path);
         }
     }
 
     /// Port of C++ emDirEntryPanel::SelectSolely
-    fn select_solely(&mut self) {
+    fn select_solely(&mut self, ectx: &mut impl emcore::emEngineCtx::SignalCtx) {
         let path = self.dir_entry.GetPath().to_string();
         let mut fm = self.file_man.borrow_mut();
-        fm.ClearSourceSelection();
-        fm.ClearTargetSelection();
-        fm.SelectAsTarget(&path);
+        fm.ClearSourceSelection(ectx);
+        fm.ClearTargetSelection(ectx);
+        fm.SelectAsTarget(ectx, &path);
     }
 
     /// Port of C++ `emDirEntryPanel::PaintInfo`
@@ -875,19 +879,29 @@ impl PanelBehavior for emDirEntryPanel {
         }
     }
 
-    fn Cycle(
-        &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
-        ctx: &mut PanelCtx,
-    ) -> bool {
-        // C++ Cycle: update bg on selection signal; update panels on config change.
-        // Rust models don't have IsSignaled() yet — always update bg (conservative).
-        self.update_bg_color();
+    fn Cycle(&mut self, ectx: &mut emcore::emEngineCtx::EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
+        // D-006 first-Cycle init: lazy-allocate signals and connect this engine.
+        // Mirrors C++ emDirEntryPanel ctor `AddWakeUpSignal(...)`
+        // (rows 55 SelectionSignal, 56 ChangeSignal).
+        if !self.subscribed_init {
+            let eid = ectx.engine_id;
+            let sel_sig = self.file_man.borrow().GetSelectionSignal(ectx);
+            let chg_sig = self.config.borrow().GetChangeSignal(ectx);
+            ectx.connect(sel_sig, eid);
+            ectx.connect(chg_sig, eid);
+            self.subscribed_init = true;
+        }
 
-        // C++ Cycle calls UpdateContentPanel(false,true)/UpdateAltPanel(false,true)
-        // on config change. Build state from tree for forceRelayout pass.
+        let sel_sig = self.file_man.borrow().selection_signal.get();
+        let chg_sig = self.config.borrow().change_signal.get();
+        // Mirrors C++ emDirEntryPanel.cpp:152 — selection-driven bg update.
+        if !sel_sig.is_null() && ectx.IsSignaled(sel_sig) {
+            self.update_bg_color();
+        }
+
+        // Mirrors C++ emDirEntryPanel.cpp:155 — config-driven force-relayout.
         let pt = ctx.current_pixel_tallness;
-        if ctx.tree.contains(ctx.id) {
+        if !chg_sig.is_null() && ectx.IsSignaled(chg_sig) && ctx.tree.contains(ctx.id) {
             let state = ctx.tree.build_panel_state(ctx.id, false, pt);
             self.update_content_panel(ctx, &state, false, true);
             self.update_alt_panel(ctx, &state, false, true);
@@ -900,25 +914,31 @@ impl PanelBehavior for emDirEntryPanel {
         event: &emInputEvent,
         _state: &PanelState,
         input_state: &emInputState,
-        _ctx: &mut PanelCtx,
+        ctx: &mut PanelCtx,
     ) -> bool {
+        // D-007 mutator-fire-shape: SelectAs* / Clear* / Swap* now thread
+        // SignalCtx to fire SelectionSignal synchronously. PanelBehavior::Input
+        // runs inside InputDispatchEngine's slice (full reach available).
+        let mut sc = ctx
+            .as_sched_ctx()
+            .expect("emDirEntryPanel::Input requires full PanelCtx reach (scheduler+actions+root+clipboard+pending_actions)");
         match event.key {
             InputKey::MouseLeft => {
                 if event.repeat >= 2 {
                     // Double-click: select solely (RunDefaultCommand out of scope)
-                    self.select_solely();
+                    self.select_solely(&mut sc);
                     true
                 } else {
-                    self.select(input_state.GetShift(), input_state.GetCtrl());
+                    self.select(&mut sc, input_state.GetShift(), input_state.GetCtrl());
                     true
                 }
             }
             InputKey::Enter => {
-                self.select_solely();
+                self.select_solely(&mut sc);
                 true
             }
             InputKey::Space => {
-                self.select(input_state.GetShift(), input_state.GetCtrl());
+                self.select(&mut sc, input_state.GetShift(), input_state.GetCtrl());
                 true
             }
             _ => false,
@@ -1330,11 +1350,12 @@ mod tests {
 
     #[test]
     fn select_solely_clears_and_selects() {
-        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut h = emcore::test_view_harness::TestSched::new();
+        let ctx = h.with(|sc| Rc::clone(sc.root_context));
         let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
-        let mut panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+        let mut panel = emDirEntryPanel::new(ctx, entry);
 
-        panel.select_solely();
+        h.with(|sc| panel.select_solely(sc));
 
         let fm = panel.file_man.borrow();
         assert!(fm.IsSelectedAsTarget("/tmp"));
@@ -1344,12 +1365,13 @@ mod tests {
 
     #[test]
     fn select_plain_swaps_selection() {
-        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut h = emcore::test_view_harness::TestSched::new();
+        let ctx = h.with(|sc| Rc::clone(sc.root_context));
         let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
         let mut panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
 
         // First click: selects as target
-        panel.select(false, false);
+        h.with(|sc| panel.select(sc, false, false));
         {
             let fm = panel.file_man.borrow();
             assert!(fm.IsSelectedAsTarget("/tmp"));
@@ -1358,7 +1380,7 @@ mod tests {
         // Create another panel and click it
         let entry2 = crate::emDirEntry::emDirEntry::from_path("/var");
         let mut panel2 = emDirEntryPanel::new(Rc::clone(&ctx), entry2);
-        panel2.select(false, false);
+        h.with(|sc| panel2.select(sc, false, false));
 
         let fm = panel2.file_man.borrow();
         assert!(fm.IsSelectedAsTarget("/var"));
@@ -1368,14 +1390,15 @@ mod tests {
 
     #[test]
     fn select_ctrl_toggles() {
-        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut h = emcore::test_view_harness::TestSched::new();
+        let ctx = h.with(|sc| Rc::clone(sc.root_context));
         let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
-        let mut panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+        let mut panel = emDirEntryPanel::new(ctx, entry);
 
-        panel.select(false, true); // ctrl-click: select
+        h.with(|sc| panel.select(sc, false, true)); // ctrl-click: select
         assert!(panel.file_man.borrow().IsSelectedAsTarget("/tmp"));
 
-        panel.select(false, true); // ctrl-click: deselect
+        h.with(|sc| panel.select(sc, false, true)); // ctrl-click: deselect
         assert!(!panel.file_man.borrow().IsSelectedAsTarget("/tmp"));
     }
 
@@ -1435,20 +1458,21 @@ mod tests {
         // Tests the selection model behavior for shift-range selection.
         // When the emDirModel for /tmp is not loaded, the fallback path
         // should at minimum select the clicked entry.
-        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut h = emcore::test_view_harness::TestSched::new();
+        let ctx = h.with(|sc| Rc::clone(sc.root_context));
         let entry1 = crate::emDirEntry::emDirEntry::from_path("/tmp/a.txt");
         let entry2 = crate::emDirEntry::emDirEntry::from_path("/tmp/c.txt");
         let mut panel1 = emDirEntryPanel::new(Rc::clone(&ctx), entry1);
         let mut panel2 = emDirEntryPanel::new(Rc::clone(&ctx), entry2);
 
         // Plain click on entry1 — sets anchor
-        panel1.select(false, false);
+        h.with(|sc| panel1.select(sc, false, false));
         assert!(panel1.file_man.borrow().IsSelectedAsTarget("/tmp/a.txt"));
         assert_eq!(panel1.file_man.borrow().GetShiftTgtSelPath(), "/tmp/a.txt");
 
         // Shift click on entry2 — should attempt range selection
         // (Model for /tmp needs to be loaded for full range; fallback selects entry)
-        panel2.select(true, false);
+        h.with(|sc| panel2.select(sc, true, false));
         assert!(panel2.file_man.borrow().IsSelectedAsTarget("/tmp/c.txt"));
     }
 

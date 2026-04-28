@@ -18,6 +18,7 @@ use emcore::emLook::emLook;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emRadioButton::{emRadioButton, RadioGroup};
+use slotmap::Key as _;
 
 use crate::emFileManConfig::{NameSortingStyle, SortCriterion};
 use crate::emFileManModel::emFileManModel;
@@ -80,8 +81,8 @@ pub struct emFileManControlPanel {
     paths_clip_button: emButton,
     names_clip_button: emButton,
 
-    /// Tracks config generation to detect external changes.
-    last_config_gen: u64,
+    /// First-Cycle init guard for D-006 subscribe shape.
+    subscribed_init: bool,
 
     /// Path of the directory panel that created this control panel.
     /// Used by SelectAll to enumerate entries.
@@ -155,8 +156,6 @@ impl emFileManControlPanel {
         let paths_clip_button = emButton::new(cc, "Paths to Clipboard", Rc::clone(&look));
         let names_clip_button = emButton::new(cc, "Names to Clipboard", Rc::clone(&look));
 
-        let last_config_gen = config.borrow().GetChangeSignal();
-
         let mut panel = Self {
             ctx,
             config,
@@ -180,7 +179,7 @@ impl emFileManControlPanel {
             swap_sel_button,
             paths_clip_button,
             names_clip_button,
-            last_config_gen,
+            subscribed_init: false,
             dir_path: None,
         };
 
@@ -245,7 +244,7 @@ impl emFileManControlPanel {
     /// DIVERGED: (language-forced) C++ SelectAll finds active DirPanel by walking from
     /// content_view's focused panel. Rust receives the dir_path from the
     /// creating DirPanel and accesses the emDirModel directly.
-    fn select_all(&self) {
+    fn select_all(&self, ectx: &mut impl emcore::emEngineCtx::SignalCtx) {
         let Some(ref dir_path) = self.dir_path else {
             return;
         };
@@ -257,7 +256,7 @@ impl emFileManControlPanel {
         for i in 0..dm.GetEntryCount() {
             let entry = dm.GetEntry(i);
             if !entry.IsHidden() || show_hidden {
-                fm.SelectAsTarget(entry.GetPath());
+                fm.SelectAsTarget(ectx, entry.GetPath());
             }
         }
     }
@@ -299,17 +298,49 @@ impl PanelBehavior for emFileManControlPanel {
 
     fn Cycle(
         &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
-        _ctx: &mut emcore::emEngineCtx::PanelCtx,
+        ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        ctx: &mut emcore::emEngineCtx::PanelCtx,
     ) -> bool {
-        let gen = self.config.borrow().GetChangeSignal();
-        if gen != self.last_config_gen {
-            self.last_config_gen = gen;
-            self.sync_from_config(_ctx);
-            true
-        } else {
-            false
+        // D-006 first-Cycle init: lazy-allocate signals and connect this engine.
+        // Mirrors C++ emFileManControlPanel ctor `AddWakeUpSignal(...)` calls
+        // (rows 326 SelectionSignal, 327 ChangeSignal, 522 CommandsSignal).
+        if !self.subscribed_init {
+            let eid = ectx.engine_id;
+            let sel_sig = self.file_man.borrow().GetSelectionSignal(ectx);
+            let cmd_sig = self.file_man.borrow().GetCommandsSignal(ectx);
+            let chg_sig = self.config.borrow().GetChangeSignal(ectx);
+            ectx.connect(sel_sig, eid);
+            ectx.connect(cmd_sig, eid);
+            ectx.connect(chg_sig, eid);
+            self.subscribed_init = true;
         }
+
+        // C++ source order: cpp:366 selection, cpp:367 change, cpp:533 commands.
+        let sel_sig = self.file_man.borrow().selection_signal.get();
+        let chg_sig = self.config.borrow().change_signal.get();
+        let cmd_sig = self.file_man.borrow().commands_signal.get();
+        let mut changed = false;
+
+        if !sel_sig.is_null() && ectx.IsSignaled(sel_sig) {
+            // Mirrors C++ emFileManControlPanel.cpp:366 — selection-driven
+            // button-state refresh. The Rust port currently has no
+            // UpdateButtonStates implementation; mark a state change so
+            // a future port slots in cleanly. (No regression: prior code
+            // did not react to selection here either.)
+            changed = true;
+        }
+        if !chg_sig.is_null() && ectx.IsSignaled(chg_sig) {
+            // Mirrors C++ emFileManControlPanel.cpp:367 — config-driven sync.
+            self.sync_from_config(ctx);
+            changed = true;
+        }
+        if !cmd_sig.is_null() && ectx.IsSignaled(cmd_sig) {
+            // Mirrors C++ emFileManControlPanel.cpp:533 — commands-tree
+            // changed. Direct same-engine subscribe (no sub-engine —
+            // audit-data correction noted in B-009 design doc).
+            changed = true;
+        }
+        changed
     }
 
     fn Paint(
@@ -405,11 +436,14 @@ impl PanelBehavior for emFileManControlPanel {
         input_state: &emInputState,
         _ctx: &mut emcore::emEngineCtx::PanelCtx,
     ) -> bool {
+        // D-007 mutator-fire-shape: setters now thread SignalCtx. Delegate
+        // input to widgets first, then if any setter needs to fire, build a
+        // SchedCtx via _ctx.as_sched_ctx().
         // Delegate to sort criterion radios
         for radio in &mut self.sort_radios {
             if radio.Input(event, state, input_state, _ctx) {
                 if let Some(idx) = self.sort_group.borrow().GetChecked() {
-                    let sc = match idx {
+                    let sc_val = match idx {
                         0 => SortCriterion::ByName,
                         1 => SortCriterion::ByEnding,
                         2 => SortCriterion::ByClass,
@@ -418,7 +452,10 @@ impl PanelBehavior for emFileManControlPanel {
                         5 => SortCriterion::BySize,
                         _ => return true,
                     };
-                    self.config.borrow_mut().SetSortCriterion(sc);
+                    let mut sc = _ctx
+                        .as_sched_ctx()
+                        .expect("emFileManControlPanel::Input requires full PanelCtx reach");
+                    self.config.borrow_mut().SetSortCriterion(&mut sc, sc_val);
                 }
                 return true;
             }
@@ -434,7 +471,10 @@ impl PanelBehavior for emFileManControlPanel {
                         2 => NameSortingStyle::CaseInsensitive,
                         _ => return true,
                     };
-                    self.config.borrow_mut().SetNameSortingStyle(nss);
+                    let mut sc = _ctx
+                        .as_sched_ctx()
+                        .expect("emFileManControlPanel::Input requires full PanelCtx reach");
+                    self.config.borrow_mut().SetNameSortingStyle(&mut sc, nss);
                 }
                 return true;
             }
@@ -453,7 +493,12 @@ impl PanelBehavior for emFileManControlPanel {
                     let name = tn.GetThemeName(style_idx, clamped_ar);
                     drop(tn);
                     if let Some(name) = name {
-                        self.config.borrow_mut().SetThemeName(&name);
+                        {
+                            let mut sc = _ctx.as_sched_ctx().expect(
+                                "emFileManControlPanel::Input requires full PanelCtx reach",
+                            );
+                            self.config.borrow_mut().SetThemeName(&mut sc, &name);
+                        }
                         self.sync_from_config(_ctx);
                     }
                 }
@@ -469,7 +514,10 @@ impl PanelBehavior for emFileManControlPanel {
                     let tn = self.theme_names.borrow();
                     if let Some(name) = tn.GetThemeName(style_idx, ar_idx) {
                         drop(tn);
-                        self.config.borrow_mut().SetThemeName(&name);
+                        let mut sc = _ctx
+                            .as_sched_ctx()
+                            .expect("emFileManControlPanel::Input requires full PanelCtx reach");
+                        self.config.borrow_mut().SetThemeName(&mut sc, &name);
                     }
                 }
                 return true;
@@ -478,24 +526,30 @@ impl PanelBehavior for emFileManControlPanel {
 
         // Delegate to checkboxes
         if self.dirs_first_check.Input(event, state, input_state, _ctx) {
-            self.config
-                .borrow_mut()
-                .SetSortDirectoriesFirst(self.dirs_first_check.IsChecked());
+            let v = self.dirs_first_check.IsChecked();
+            let mut sc = _ctx
+                .as_sched_ctx()
+                .expect("emFileManControlPanel::Input requires full PanelCtx reach");
+            self.config.borrow_mut().SetSortDirectoriesFirst(&mut sc, v);
             return true;
         }
         if self
             .show_hidden_check
             .Input(event, state, input_state, _ctx)
         {
-            self.config
-                .borrow_mut()
-                .SetShowHiddenFiles(self.show_hidden_check.IsChecked());
+            let v = self.show_hidden_check.IsChecked();
+            let mut sc = _ctx
+                .as_sched_ctx()
+                .expect("emFileManControlPanel::Input requires full PanelCtx reach");
+            self.config.borrow_mut().SetShowHiddenFiles(&mut sc, v);
             return true;
         }
         if self.autosave_check.Input(event, state, input_state, _ctx) {
-            self.config
-                .borrow_mut()
-                .SetAutosave(self.autosave_check.IsChecked());
+            let v = self.autosave_check.IsChecked();
+            let mut sc = _ctx
+                .as_sched_ctx()
+                .expect("emFileManControlPanel::Input requires full PanelCtx reach");
+            self.config.borrow_mut().SetAutosave(&mut sc, v);
             return true;
         }
 
@@ -512,15 +566,24 @@ impl PanelBehavior for emFileManControlPanel {
             .select_all_button
             .Input(event, state, input_state, _ctx)
         {
-            self.select_all();
+            let mut sc = _ctx
+                .as_sched_ctx()
+                .expect("emFileManControlPanel::Input requires full PanelCtx reach");
+            self.select_all(&mut sc);
             return true;
         }
         if self.clear_sel_button.Input(event, state, input_state, _ctx) {
-            self.file_man.borrow_mut().ClearTargetSelection();
+            let mut sc = _ctx
+                .as_sched_ctx()
+                .expect("emFileManControlPanel::Input requires full PanelCtx reach");
+            self.file_man.borrow_mut().ClearTargetSelection(&mut sc);
             return true;
         }
         if self.swap_sel_button.Input(event, state, input_state, _ctx) {
-            self.file_man.borrow_mut().SwapSelection();
+            let mut sc = _ctx
+                .as_sched_ctx()
+                .expect("emFileManControlPanel::Input requires full PanelCtx reach");
+            self.file_man.borrow_mut().SwapSelection(&mut sc);
             return true;
         }
         if self
@@ -604,20 +667,26 @@ mod tests {
 
     #[test]
     fn cycle_detects_config_change() {
+        // D-006/D-007/D-008 A1 combined: first Cycle subscribes; then a
+        // setter call fires; then a second Cycle observes IsSignaled and
+        // re-syncs widgets.
         use emcore::emEngineCtx::PanelCtx;
         use emcore::emPanelTree::{PanelId, PanelTree};
         use slotmap::Key as _;
 
-        let mut __init = TestInit::new();
-        let ctx = Rc::clone(&__init.root);
-        let mut panel = emFileManControlPanel::new(&mut __init.ctx(), Rc::clone(&ctx));
+        let mut h = emcore::test_view_harness::TestViewHarness::new();
+        let mut panel = {
+            let mut ic = h.init_ctx();
+            let ctx = Rc::clone(ic.root_context);
+            emFileManControlPanel::new(&mut ic, ctx)
+        };
+        let dummy_eid = h.scheduler.register_engine(
+            Box::new(NoopEngineForTest),
+            emcore::emEngine::Priority::Medium,
+            emcore::emPanelScope::PanelScope::Framework,
+        );
 
-        // Mutate config externally
-        panel
-            .config
-            .borrow_mut()
-            .SetSortCriterion(SortCriterion::BySize);
-
+        // First Cycle: subscribe + allocate signals.
         let mut tree = PanelTree::new();
         let mut pctx = PanelCtx {
             tree: &mut tree,
@@ -629,20 +698,35 @@ mod tests {
             root_context: None,
             pending_actions: None,
         };
-        let mut h = emcore::test_view_harness::TestViewHarness::new();
-        let dummy_eid = h.scheduler.register_engine(
-            Box::new(NoopEngineForTest),
-            emcore::emEngine::Priority::Medium,
-            emcore::emPanelScope::PanelScope::Framework,
-        );
+        {
+            let mut ectx = h.engine_ctx(dummy_eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+        assert!(panel.subscribed_init);
+
+        // Mutate config; the setter fires ChangeSignal via the SchedCtx.
+        {
+            let mut sc = h.sched_ctx_for(dummy_eid);
+            panel
+                .config
+                .borrow_mut()
+                .SetSortCriterion(&mut sc, SortCriterion::BySize);
+        }
+
+        // Process pending signals so IsSignaled returns true on the next Cycle.
+        h.scheduler.flush_signals_for_test();
+
+        // Second Cycle: observe IsSignaled → sync.
         let changed = {
             let mut ectx = h.engine_ctx(dummy_eid);
             panel.Cycle(&mut ectx, &mut pctx)
         };
-        assert!(changed);
+        assert!(changed, "Cycle must observe ChangeSignal and re-sync");
         // Widget should now reflect BySize
         assert_eq!(panel.sort_group.borrow().GetChecked(), Some(5));
         h.scheduler.remove_engine(dummy_eid);
+        // Drain any pending signals so the scheduler's Drop assertion passes.
+        h.scheduler.flush_signals_for_test();
     }
 
     #[test]
@@ -656,9 +740,12 @@ mod tests {
 
     #[test]
     fn sort_group_change_updates_config() {
-        let mut __init = TestInit::new();
-        let root = Rc::clone(&__init.root);
-        let panel = emFileManControlPanel::new(&mut __init.ctx(), Rc::clone(&root));
+        let mut h = emcore::test_view_harness::TestViewHarness::new();
+        let panel = {
+            let mut ic = h.init_ctx();
+            let ctx = Rc::clone(ic.root_context);
+            emFileManControlPanel::new(&mut ic, ctx)
+        };
 
         let mut tree = emcore::emPanelTree::PanelTree::new();
         let tid = tree.create_root("t", false);
@@ -667,10 +754,13 @@ mod tests {
         panel.sort_group.borrow_mut().SetChecked(4, &mut ctx);
         // Apply via sync logic — normally this happens in Input handler,
         // but we test the config update path directly
-        panel
-            .config
-            .borrow_mut()
-            .SetSortCriterion(SortCriterion::ByDate);
+        {
+            let mut sc = h.sched_ctx();
+            panel
+                .config
+                .borrow_mut()
+                .SetSortCriterion(&mut sc, SortCriterion::ByDate);
+        }
 
         let cfg = panel.config.borrow();
         assert_eq!(cfg.GetSortCriterion(), SortCriterion::ByDate);

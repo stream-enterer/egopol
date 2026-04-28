@@ -12,6 +12,7 @@ use emcore::emEngineCtx::PanelCtx;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{FileLoadStatus, NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelId;
+use slotmap::Key as _;
 
 use crate::emDirEntry::emDirEntry;
 use crate::emDirEntryPanel::emDirEntryPanel;
@@ -66,6 +67,8 @@ pub struct emFileLinkPanel {
     child_panel: Option<PanelId>,
     needs_update: bool,
     last_viewed: bool,
+    /// First-Cycle init guard for D-006 subscribe shape.
+    subscribed_init: bool,
 }
 
 impl emFileLinkPanel {
@@ -82,6 +85,7 @@ impl emFileLinkPanel {
             child_panel: None,
             needs_update: true,
             last_viewed: false,
+            subscribed_init: false,
         }
     }
 
@@ -174,9 +178,24 @@ impl PanelBehavior for emFileLinkPanel {
 
     fn Cycle(
         &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
         _ctx: &mut PanelCtx,
     ) -> bool {
+        // D-006 first-Cycle init: lazy-allocate ChangeSignal and connect.
+        // Mirrors C++ emFileLinkPanel ctor `AddWakeUpSignal(...)` (row 55).
+        if !self.subscribed_init {
+            let eid = ectx.engine_id;
+            let chg_sig = self.config.borrow().GetChangeSignal(ectx);
+            ectx.connect(chg_sig, eid);
+            self.subscribed_init = true;
+        }
+
+        // Mirrors C++ emFileLinkPanel.cpp:95 — config-driven invalidation/repaint.
+        let chg_sig = self.config.borrow().change_signal.get();
+        if !chg_sig.is_null() && ectx.IsSignaled(chg_sig) {
+            self.needs_update = true;
+        }
+
         self.file_panel.refresh_vir_file_state();
         false
     }

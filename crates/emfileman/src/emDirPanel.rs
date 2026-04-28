@@ -13,6 +13,7 @@ use emcore::emInputState::emInputState;
 use emcore::emPainter::emPainter;
 use emcore::emPanel::{FileLoadStatus, NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelId;
+use slotmap::Key as _;
 
 use crate::emDirEntry::emDirEntry;
 use crate::emDirEntryPanel::emDirEntryPanel;
@@ -124,14 +125,14 @@ pub struct emDirPanel {
     child_count: usize,
     key_walk_state: Option<KeyWalkState>,
     scroll_target: Option<String>,
-    last_config_gen: u64,
+    /// First-Cycle init guard for D-006 subscribe shape.
+    subscribed_init: bool,
 }
 
 impl emDirPanel {
     pub fn new(ctx: Rc<emContext>, path: String) -> Self {
         let config = emFileManViewConfig::Acquire(&ctx);
         let file_man = emFileManModel::Acquire(&ctx);
-        let last_config_gen = config.borrow().GetChangeSignal();
         Self {
             file_panel: emFilePanel::new(),
             ctx,
@@ -143,7 +144,7 @@ impl emDirPanel {
             child_count: 0,
             key_walk_state: None,
             scroll_target: None,
-            last_config_gen,
+            subscribed_init: false,
         }
     }
 
@@ -155,7 +156,7 @@ impl emDirPanel {
         &self.path
     }
 
-    pub(crate) fn SelectAll(&self) {
+    pub(crate) fn SelectAll(&self, ectx: &mut impl emcore::emEngineCtx::SignalCtx) {
         if let Some(ref dm_rc) = self.dir_model {
             let show_hidden = self.config.borrow().GetShowHiddenFiles();
             let dm = dm_rc.borrow();
@@ -163,7 +164,7 @@ impl emDirPanel {
             for i in 0..dm.GetEntryCount() {
                 let entry = dm.GetEntry(i);
                 if !entry.IsHidden() || show_hidden {
-                    fm.SelectAsTarget(entry.GetPath());
+                    fm.SelectAsTarget(ectx, entry.GetPath());
                 }
             }
         }
@@ -321,10 +322,18 @@ impl PanelBehavior for emDirPanel {
             self.content_complete = false;
         }
 
-        // Detect config changes (sort/filter) and force child re-creation.
-        let cfg_gen = self.config.borrow().GetChangeSignal();
-        if cfg_gen != self.last_config_gen {
-            self.last_config_gen = cfg_gen;
+        // D-006 first-Cycle init: lazy-allocate ChangeSignal and connect.
+        // Mirrors C++ emDirPanel ctor `AddWakeUpSignal(...)` (row 38).
+        if !self.subscribed_init {
+            let eid = ectx.engine_id;
+            let chg_sig = self.config.borrow().GetChangeSignal(ectx);
+            ectx.connect(chg_sig, eid);
+            self.subscribed_init = true;
+        }
+
+        // Mirrors C++ emDirPanel.cpp:78 — config-driven force-rebuild.
+        let chg_sig = self.config.borrow().change_signal.get();
+        if !chg_sig.is_null() && ectx.IsSignaled(chg_sig) {
             self.child_count = 0;
         }
 
@@ -364,11 +373,14 @@ impl PanelBehavior for emDirPanel {
         event: &emInputEvent,
         _state: &PanelState,
         input_state: &emInputState,
-        _ctx: &mut PanelCtx,
+        ctx: &mut PanelCtx,
     ) -> bool {
         // Alt+A: SelectAll
         if event.is_key(InputKey::Key('a')) && input_state.IsAltMod() {
-            self.SelectAll();
+            let mut sc = ctx
+                .as_sched_ctx()
+                .expect("emDirPanel::Input requires full PanelCtx reach for SelectAll");
+            self.SelectAll(&mut sc);
             return true;
         }
 

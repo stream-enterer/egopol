@@ -8,10 +8,13 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
+use emcore::emEngineCtx::SignalCtx;
 use emcore::emImage::emImage;
 use emcore::emLook::emLook;
 use emcore::emProcess;
+use emcore::emSignal::SignalId;
 use emcore::emStd2::emCalcHashCode;
+use slotmap::Key as _;
 
 // ---------------------------------------------------------------------------
 // Command tree
@@ -510,8 +513,12 @@ pub struct emFileManModel {
     command_root: Option<CommandNode>,
     shift_tgt_sel_path: String,
     command_run_id: u64,
-    selection_generation: Rc<Cell<u64>>,
-    commands_generation: Rc<Cell<u64>>,
+    /// Port of C++ `emFileManModel::SelectionSignal` (emFileMan/emFileManModel.h).
+    /// Lazily allocated on first subscribe per D-008-signal-allocation-shape (A1
+    /// combined form, B-014 precedent on `emVirtualCosmosModel::GetChangeSignal`).
+    pub(crate) selection_signal: Cell<SignalId>,
+    /// Port of C++ `emFileManModel::CommandsSignal`. Lazy-alloc D-008 A1.
+    pub(crate) commands_signal: Cell<SignalId>,
     ipc_server_name: String,
 }
 
@@ -524,27 +531,58 @@ impl emFileManModel {
                 command_root: None,
                 shift_tgt_sel_path: String::new(),
                 command_run_id: 0,
-                selection_generation: Rc::new(Cell::new(0)),
-                commands_generation: Rc::new(Cell::new(0)),
+                selection_signal: Cell::new(SignalId::null()),
+                commands_signal: Cell::new(SignalId::null()),
                 ipc_server_name,
             }
         })
     }
 
-    fn bump_selection_generation(&self) {
-        self.selection_generation
-            .set(self.selection_generation.get() + 1);
+    /// Fire the SelectionSignal (no-op when null per D-008 A1; mirrors C++
+    /// `emSignal::Signal()` with zero subscribers).
+    fn fire_selection_signal(&self, ectx: &mut impl SignalCtx) {
+        let s = self.selection_signal.get();
+        if !s.is_null() {
+            ectx.fire(s);
+        }
+    }
+
+    /// Fire the CommandsSignal (no-op when null per D-008 A1).
+    fn fire_commands_signal(&self, ectx: &mut impl SignalCtx) {
+        let s = self.commands_signal.get();
+        if !s.is_null() {
+            ectx.fire(s);
+        }
     }
 
     // --- Signals ---
-    pub fn GetSelectionSignal(&self) -> u64 {
-        self.selection_generation.get()
-    }
-    pub fn GetCommandsSignal(&self) -> u64 {
-        self.commands_generation.get()
+    /// Port of C++ `emFileManModel::GetSelectionSignal()`.
+    /// Combined-form lazy-alloc accessor (D-008 A1 + B-014 precedent).
+    pub fn GetSelectionSignal(&self, ectx: &mut impl SignalCtx) -> SignalId {
+        let s = self.selection_signal.get();
+        if s.is_null() {
+            let new_id = ectx.create_signal();
+            self.selection_signal.set(new_id);
+            new_id
+        } else {
+            s
+        }
     }
 
-    // --- Selection delegation (each bumps generation) ---
+    /// Port of C++ `emFileManModel::GetCommandsSignal()`.
+    /// Combined-form lazy-alloc accessor (D-008 A1).
+    pub fn GetCommandsSignal(&self, ectx: &mut impl SignalCtx) -> SignalId {
+        let s = self.commands_signal.get();
+        if s.is_null() {
+            let new_id = ectx.create_signal();
+            self.commands_signal.set(new_id);
+            new_id
+        } else {
+            s
+        }
+    }
+
+    // --- Selection delegation (each fires SelectionSignal) ---
     pub fn GetSourceSelectionCount(&self) -> usize {
         self.selection.GetSourceSelectionCount()
     }
@@ -554,17 +592,17 @@ impl emFileManModel {
     pub fn IsSelectedAsSource(&self, path: &str) -> bool {
         self.selection.IsSelectedAsSource(path)
     }
-    pub fn SelectAsSource(&mut self, path: &str) {
+    pub fn SelectAsSource(&mut self, ectx: &mut impl SignalCtx, path: &str) {
         self.selection.SelectAsSource(path);
-        self.bump_selection_generation();
+        self.fire_selection_signal(ectx);
     }
-    pub fn DeselectAsSource(&mut self, path: &str) {
+    pub fn DeselectAsSource(&mut self, ectx: &mut impl SignalCtx, path: &str) {
         self.selection.DeselectAsSource(path);
-        self.bump_selection_generation();
+        self.fire_selection_signal(ectx);
     }
-    pub fn ClearSourceSelection(&mut self) {
+    pub fn ClearSourceSelection(&mut self, ectx: &mut impl SignalCtx) {
         self.selection.ClearSourceSelection();
-        self.bump_selection_generation();
+        self.fire_selection_signal(ectx);
     }
 
     pub fn GetTargetSelectionCount(&self) -> usize {
@@ -576,35 +614,35 @@ impl emFileManModel {
     pub fn IsSelectedAsTarget(&self, path: &str) -> bool {
         self.selection.IsSelectedAsTarget(path)
     }
-    pub fn SelectAsTarget(&mut self, path: &str) {
+    pub fn SelectAsTarget(&mut self, ectx: &mut impl SignalCtx, path: &str) {
         self.selection.SelectAsTarget(path);
-        self.bump_selection_generation();
+        self.fire_selection_signal(ectx);
     }
-    pub fn DeselectAsTarget(&mut self, path: &str) {
+    pub fn DeselectAsTarget(&mut self, ectx: &mut impl SignalCtx, path: &str) {
         self.selection.DeselectAsTarget(path);
-        self.bump_selection_generation();
+        self.fire_selection_signal(ectx);
     }
-    pub fn ClearTargetSelection(&mut self) {
+    pub fn ClearTargetSelection(&mut self, ectx: &mut impl SignalCtx) {
         self.selection.ClearTargetSelection();
-        self.bump_selection_generation();
+        self.fire_selection_signal(ectx);
     }
 
-    pub fn SwapSelection(&mut self) {
+    pub fn SwapSelection(&mut self, ectx: &mut impl SignalCtx) {
         self.selection.SwapSelection();
-        self.bump_selection_generation();
+        self.fire_selection_signal(ectx);
     }
     pub fn IsAnySelectionInDirTree(&self, dir_path: &str) -> bool {
         self.selection.IsAnySelectionInDirTree(dir_path)
     }
 
-    pub fn UpdateSelection(&mut self) {
+    pub fn UpdateSelection(&mut self, ectx: &mut impl SignalCtx) {
         let src_before = self.selection.GetSourceSelectionCount();
         let tgt_before = self.selection.GetTargetSelectionCount();
         self.selection.UpdateSelection();
         if self.selection.GetSourceSelectionCount() != src_before
             || self.selection.GetTargetSelectionCount() != tgt_before
         {
-            self.bump_selection_generation();
+            self.fire_selection_signal(ectx);
         }
     }
 
@@ -624,9 +662,9 @@ impl emFileManModel {
         self.selection.GetCommandRunId()
     }
 
-    pub fn HandleIpcMessage(&mut self, args: &[&str]) {
+    pub fn HandleIpcMessage(&mut self, ectx: &mut impl SignalCtx, args: &[&str]) {
         self.selection.handle_ipc_message(args);
-        self.bump_selection_generation();
+        self.fire_selection_signal(ectx);
     }
 
     // --- Clipboard ---
@@ -680,10 +718,9 @@ impl emFileManModel {
             .and_then(|root| find_command_by_hotkey(root, hotkey))
     }
 
-    pub fn set_command_root(&mut self, root: CommandNode) {
+    pub fn set_command_root(&mut self, ectx: &mut impl SignalCtx, root: CommandNode) {
         self.command_root = Some(root);
-        self.commands_generation
-            .set(self.commands_generation.get() + 1);
+        self.fire_commands_signal(ectx);
     }
 
     pub fn RunCommand(
@@ -1131,12 +1168,36 @@ mod model_tests {
     }
 
     #[test]
-    fn model_selection_bumps_generation() {
+    fn model_selection_signal_lazy_alloc_and_idempotent() {
+        // D-008 A1 combined-form: GetSelectionSignal(ectx) allocates lazily.
+        // Pre-allocation: cell is null until first GetSelectionSignal.
+        let mut h = emcore::test_view_harness::TestSched::new();
+        let model = h.with(|sc| {
+            let ctx = sc.root_context.clone();
+            emFileManModel::Acquire(&ctx)
+        });
+        assert!(model.borrow().selection_signal.get().is_null());
+        let sig = h.with(|sc| model.borrow().GetSelectionSignal(sc));
+        assert!(!sig.is_null());
+        // Idempotent: returns same id.
+        let sig2 = h.with(|sc| model.borrow().GetSelectionSignal(sc));
+        assert_eq!(sig, sig2);
+    }
+
+    #[test]
+    fn model_mutator_no_subscriber_is_clean_noop() {
+        // D-008 A1: mutator fired before any subscriber wires up must be a
+        // clean no-op (matches C++ emSignal::Signal()-with-zero-subscribers).
         let ctx = emcore::emContext::emContext::NewRoot();
         let model = emFileManModel::Acquire(&ctx);
-        let gen0 = model.borrow().GetSelectionSignal();
-        model.borrow_mut().SelectAsSource("/tmp/a");
-        assert!(model.borrow().GetSelectionSignal() > gen0);
+        // No GetSelectionSignal called yet → selection_signal is null.
+        assert!(model.borrow().selection_signal.get().is_null());
+        // Build a one-shot harness, mutate, and drop. The harness's scheduler
+        // never sees a fire because fire_selection_signal short-circuits on null.
+        let mut h = emcore::test_view_harness::TestSched::new();
+        h.with(|sc| model.borrow_mut().SelectAsSource(sc, "/tmp/a"));
+        assert!(model.borrow().IsSelectedAsSource("/tmp/a"));
+        // Crucially: dropping `h` here must not panic (no pending signals).
     }
 
     #[test]
@@ -1157,9 +1218,8 @@ mod model_tests {
 
     #[test]
     fn model_get_command_by_path() {
-        let ctx = emcore::emContext::emContext::NewRoot();
-        let model = emFileManModel::Acquire(&ctx);
-        let mut model = model.borrow_mut();
+        let mut h = emcore::test_view_harness::TestSched::new();
+        let model = h.with(|sc| emFileManModel::Acquire(sc.root_context));
         let child = CommandNode {
             cmd_path: "/cmds/test.sh".to_string(),
             command_type: CommandType::Command,
@@ -1170,20 +1230,21 @@ mod model_tests {
             children: vec![child],
             ..CommandNode::default()
         };
-        model.set_command_root(root);
+        h.with(|sc| model.borrow_mut().set_command_root(sc, root));
+        let model = model.borrow();
         assert!(model.GetCommand("/cmds/test.sh").is_some());
         assert!(model.GetCommand("/cmds/nonexistent.sh").is_none());
     }
 
     #[test]
     fn model_selection_to_clipboard() {
-        let ctx = emcore::emContext::emContext::NewRoot();
-        let model = emFileManModel::Acquire(&ctx);
-        {
+        let mut h = emcore::test_view_harness::TestSched::new();
+        let model = h.with(|sc| emFileManModel::Acquire(sc.root_context));
+        h.with(|sc| {
             let mut m = model.borrow_mut();
-            m.SelectAsSource("/home/user/a.txt");
-            m.SelectAsSource("/home/user/b.txt");
-        }
+            m.SelectAsSource(sc, "/home/user/a.txt");
+            m.SelectAsSource(sc, "/home/user/b.txt");
+        });
         let m = model.borrow();
         let clip = m.SelectionToClipboard(true, false);
         assert!(clip.contains("/home/user/a.txt"));
@@ -1195,9 +1256,8 @@ mod model_tests {
 
     #[test]
     fn model_search_hotkey_command() {
-        let ctx = emcore::emContext::emContext::NewRoot();
-        let model = emFileManModel::Acquire(&ctx);
-        let mut model = model.borrow_mut();
+        let mut h = emcore::test_view_harness::TestSched::new();
+        let model = h.with(|sc| emFileManModel::Acquire(sc.root_context));
         let child = CommandNode {
             cmd_path: "/cmds/open.sh".to_string(),
             command_type: CommandType::Command,
@@ -1209,7 +1269,8 @@ mod model_tests {
             children: vec![child],
             ..CommandNode::default()
         };
-        model.set_command_root(root);
+        h.with(|sc| model.borrow_mut().set_command_root(sc, root));
+        let model = model.borrow();
         assert!(model.SearchHotkeyCommand("Ctrl+O").is_some());
         assert!(model.SearchHotkeyCommand("Ctrl+X").is_none());
     }

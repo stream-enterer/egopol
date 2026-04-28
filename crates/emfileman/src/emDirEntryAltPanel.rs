@@ -10,6 +10,9 @@ use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emEngineCtx::PanelCtx;
 use emcore::emInput::emInputEvent;
+use slotmap::Key as _;
+
+use crate::emFileManModel::emFileManModel;
 use emcore::emInputState::emInputState;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
@@ -39,30 +42,33 @@ pub struct emDirEntryAltPanel {
     pub(crate) data: emDirEntryAltPanelData,
     ctx: Rc<emContext>,
     config: Rc<RefCell<emFileManViewConfig>>,
+    file_man: Rc<RefCell<emFileManModel>>,
     content_panel: Option<PanelId>,
     alt_panel: Option<PanelId>,
     content_dirty: bool,
     alt_dirty: bool,
     last_viewed: bool,
     last_in_active_path: bool,
-    last_config_gen: u64,
+    /// First-Cycle init guard for D-006 subscribe shape.
+    subscribed_init: bool,
 }
 
 impl emDirEntryAltPanel {
     pub fn new(ctx: Rc<emContext>, dir_entry: emDirEntry, alternative: i32) -> Self {
         let config = emFileManViewConfig::Acquire(&ctx);
-        let last_config_gen = config.borrow().GetChangeSignal();
+        let file_man = emFileManModel::Acquire(&ctx);
         Self {
             data: emDirEntryAltPanelData::new(dir_entry, alternative),
             ctx,
             config,
+            file_man,
             content_panel: None,
             alt_panel: None,
             content_dirty: true,
             alt_dirty: true,
             last_viewed: false,
             last_in_active_path: false,
-            last_config_gen,
+            subscribed_init: false,
         }
     }
 
@@ -153,19 +159,36 @@ impl PanelBehavior for emDirEntryAltPanel {
 
     fn Cycle(
         &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
         _ctx: &mut PanelCtx,
     ) -> bool {
-        let cfg = self.config.borrow();
-        let gen = cfg.GetChangeSignal();
-        drop(cfg);
-        if gen != self.last_config_gen {
-            self.last_config_gen = gen;
+        // D-006 first-Cycle init: lazy-allocate signals and connect this engine.
+        // Mirrors C++ emDirEntryAltPanel ctor `AddWakeUpSignal(...)` calls
+        // (rows 35 SelectionSignal, 36 ChangeSignal).
+        if !self.subscribed_init {
+            let eid = ectx.engine_id;
+            let sel_sig = self.file_man.borrow().GetSelectionSignal(ectx);
+            let chg_sig = self.config.borrow().GetChangeSignal(ectx);
+            ectx.connect(sel_sig, eid);
+            ectx.connect(chg_sig, eid);
+            self.subscribed_init = true;
+        }
+
+        let sel_sig = self.file_man.borrow().selection_signal.get();
+        let chg_sig = self.config.borrow().change_signal.get();
+        let mut stay_awake = false;
+        if !sel_sig.is_null() && ectx.IsSignaled(sel_sig) {
+            // Mirrors C++ emDirEntryAltPanel.cpp:85 — selection-driven repaint.
+            self.content_dirty = true;
+            stay_awake = true;
+        }
+        if !chg_sig.is_null() && ectx.IsSignaled(chg_sig) {
+            // Mirrors C++ emDirEntryAltPanel.cpp:88 — config-driven relayout.
             self.content_dirty = true;
             self.alt_dirty = true;
-            return true;
+            stay_awake = true;
         }
-        false
+        stay_awake
     }
 
     fn IsOpaque(&self) -> bool {
