@@ -183,11 +183,10 @@ fn assert_sort_radio_drives(idx: usize, expected: SortCriterion) {
     let (mut panel, eid) = make_control_panel(&mut h);
     let _ = cycle_panel(&mut h, eid, &mut panel);
 
-    // Drive the group's selection (this fires the group check_signal).
-    // Set the group selection via with_scheduler PanelCtx (the fire is a
-    // no-op without full scheduler-reach), then fire the group's check_signal
-    // directly via SchedCtx so Cycle observes IsSignaled.
-    let sig = panel.sort_group_for_test().borrow().check_signal;
+    // Per-radio click_signal subscribe (post-review): each Cycle branch
+    // dispatches on the specific radio's click_signal, so the test fires
+    // the matching radio's signal and updates the group selection.
+    let sig = panel.sort_radio_click_signal_for_test(idx);
     {
         let mut tree = PanelTree::new();
         let tid = tree.create_root("t", false);
@@ -328,7 +327,7 @@ fn assert_nss_radio_drives(idx: usize, expected: NameSortingStyle) {
     let (mut panel, eid) = make_control_panel(&mut h);
     let _ = cycle_panel(&mut h, eid, &mut panel);
 
-    let sig = panel.nss_group_for_test().borrow().check_signal;
+    let sig = panel.nss_radio_click_signal_for_test(idx);
     {
         let mut tree = PanelTree::new();
         let tid = tree.create_root("t", false);
@@ -357,15 +356,13 @@ fn assert_nss_radio_drives(idx: usize, expected: NameSortingStyle) {
 fn nss_radio_per_locale_row_338() {
     // Default is PerLocale (idx 0); pre-set the underlying group to idx 1
     // (suppressing the fire) so that a SetChecked(0) is observably the
-    // selection-back-to-PerLocale transition firing the group check_signal.
+    // selection-back-to-PerLocale transition firing the per-radio click_signal.
     let mut h = TestViewHarness::new();
     let (mut panel, eid) = make_control_panel(&mut h);
     let _ = cycle_panel(&mut h, eid, &mut panel);
 
-    // Seed: pre-flip selection to idx 1 (CaseSensitive) and clear the
-    // associated config-side state so the test only observes the 1→0
-    // transition.
-    let sig = panel.nss_group_for_test().borrow().check_signal;
+    // Seed: pre-flip selection to idx 1 (CaseSensitive) so the test
+    // observes the 1→0 transition.
     {
         let mut tree = PanelTree::new();
         let tid = tree.create_root("t", false);
@@ -379,7 +376,9 @@ fn nss_radio_per_locale_row_338() {
     // Drop any pending signals from the seed step.
     h.scheduler.flush_signals_for_test();
 
-    // Now flip back to PerLocale (idx 0) and fire the group sig manually.
+    // Now flip back to PerLocale (idx 0) and fire the per-radio
+    // click_signal so Cycle observes IsSignaled.
+    let sig = panel.nss_radio_click_signal_for_test(0);
     {
         let mut tree = PanelTree::new();
         let tid = tree.create_root("t", false);

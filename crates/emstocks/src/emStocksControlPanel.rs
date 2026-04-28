@@ -228,7 +228,9 @@ impl ControlWidgets {
         let interest_buttons: Vec<emRadioButton> = ["High", "Medium", "Low"]
             .iter()
             .enumerate()
-            .map(|(i, label)| emRadioButton::new(label, look.clone(), interest_group.clone(), i))
+            .map(|(i, label)| {
+                emRadioButton::new(cc, label, look.clone(), interest_group.clone(), i)
+            })
             .collect();
 
         // Build sorting radio-button group (11 variants)
@@ -249,7 +251,7 @@ impl ControlWidgets {
         let sorting_buttons: Vec<emRadioButton> = sorting_captions
             .iter()
             .enumerate()
-            .map(|(i, label)| emRadioButton::new(label, look.clone(), sorting_group.clone(), i))
+            .map(|(i, label)| emRadioButton::new(cc, label, look.clone(), sorting_group.clone(), i))
             .collect();
 
         // Chart period scalar field: integer steps 0..9, default to Year1 (index 5)

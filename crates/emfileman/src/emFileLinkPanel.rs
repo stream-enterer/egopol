@@ -207,6 +207,13 @@ impl PanelBehavior for emFileLinkPanel {
         // mark `needs_update`, which `LayoutChildren` consumes by re-running
         // `update_data_and_child_panel` (re-resolves the link target and
         // recreates the child panel if the target has changed).
+        //
+        // No explicit InvalidatePainting is required here. C++ at this site
+        // (cpp:90-93) likewise does not call InvalidatePainting; that call
+        // lives in the adjacent VirFileState (cpp:85-88) and ChangeSignal
+        // (cpp:95-98) branches. Recreating the child panel from
+        // update_data_and_child_panel naturally triggers a downstream paint
+        // invalidation when the new child is laid out.
         let update_sig = emcore::emFileModel::emFileModel::<()>::AcquireUpdateSignalModel(ectx);
         if ectx.IsSignaled(update_sig) {
             self.needs_update = true;

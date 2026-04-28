@@ -102,7 +102,7 @@ impl emFileManControlPanel {
             .iter()
             .enumerate()
             .map(|(i, label)| {
-                emRadioButton::new(label, Rc::clone(&look), Rc::clone(&sort_group), i)
+                emRadioButton::new(cc, label, Rc::clone(&look), Rc::clone(&sort_group), i)
             })
             .collect();
 
@@ -111,7 +111,9 @@ impl emFileManControlPanel {
         let nss_radios: Vec<emRadioButton> = NSS_LABELS
             .iter()
             .enumerate()
-            .map(|(i, label)| emRadioButton::new(label, Rc::clone(&look), Rc::clone(&nss_group), i))
+            .map(|(i, label)| {
+                emRadioButton::new(cc, label, Rc::clone(&look), Rc::clone(&nss_group), i)
+            })
             .collect();
 
         // Build theme style radio group
@@ -121,7 +123,13 @@ impl emFileManControlPanel {
             (0..tn.GetThemeStyleCount())
                 .map(|i| {
                     let label = tn.GetThemeStyleDisplayName(i).unwrap_or("?");
-                    emRadioButton::new(label, Rc::clone(&look), Rc::clone(&theme_style_group), i)
+                    emRadioButton::new(
+                        cc,
+                        label,
+                        Rc::clone(&look),
+                        Rc::clone(&theme_style_group),
+                        i,
+                    )
                 })
                 .collect()
         };
@@ -138,7 +146,7 @@ impl emFileManControlPanel {
             (0..ar_count)
                 .map(|i| {
                     let label = tn.GetThemeAspectRatio(0, i).unwrap_or("?");
-                    emRadioButton::new(label, Rc::clone(&look), Rc::clone(&theme_ar_group), i)
+                    emRadioButton::new(cc, label, Rc::clone(&look), Rc::clone(&theme_ar_group), i)
                 })
                 .collect()
         };
@@ -183,16 +191,64 @@ impl emFileManControlPanel {
             dir_path: None,
         };
 
-        // Initial sync at construction time with a scratch PanelCtx (no
-        // scheduler reach). State is updated; callbacks silently don't fire,
-        // which is exactly what we want during construction.
+        // Initial sync at construction time. Use a scratch PanelCtx with no
+        // scheduler reach for SetChecked side-effects (signals are silently
+        // skipped, which is what we want pre-Cycle), while routing radio
+        // *construction* through the live `cc` so per-radio click_signals are
+        // allocated against the real scheduler.
         {
             let mut tree = emcore::emPanelTree::PanelTree::new();
             let id = tree.create_root("init", false);
             let mut ctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
-            panel.sync_from_config(&mut ctx);
+            panel.sync_from_config_with_construct(&mut ctx, cc);
         }
         panel
+    }
+
+    /// Variant of `sync_from_config` that takes a separate `ConstructCtx` for
+    /// allocating fresh signal IDs when rebuilding radio groups. Used during
+    /// construction (no live scheduler-reach via PanelCtx is yet available).
+    fn sync_from_config_with_construct<C: emcore::emEngineCtx::ConstructCtx>(
+        &mut self,
+        ctx: &mut emcore::emEngineCtx::PanelCtx<'_>,
+        cc: &mut C,
+    ) {
+        let cfg = self.config.borrow();
+        self.sort_group
+            .borrow_mut()
+            .SetChecked(cfg.GetSortCriterion() as usize, ctx);
+        self.nss_group
+            .borrow_mut()
+            .SetChecked(cfg.GetNameSortingStyle() as usize, ctx);
+        self.dirs_first_check
+            .SetChecked(cfg.GetSortDirectoriesFirst(), ctx);
+        self.show_hidden_check
+            .SetChecked(cfg.GetShowHiddenFiles(), ctx);
+        self.autosave_check.SetChecked(cfg.GetAutosave(), ctx);
+
+        let theme_name = cfg.GetThemeName().to_string();
+        drop(cfg);
+        let tn = self.theme_names.borrow();
+        if let Some(style_idx) = tn.GetThemeStyleIndex(&theme_name) {
+            self.theme_style_group
+                .borrow_mut()
+                .SetChecked(style_idx, ctx);
+            let ar_count = tn.GetThemeAspectRatioCount(style_idx);
+            self.theme_ar_radios.clear();
+            for i in 0..ar_count {
+                let label = tn.GetThemeAspectRatio(style_idx, i).unwrap_or("?");
+                self.theme_ar_radios.push(emRadioButton::new(
+                    cc,
+                    label,
+                    Rc::clone(&self._look),
+                    Rc::clone(&self.theme_ar_group),
+                    i,
+                ));
+            }
+            if let Some(ar_idx) = tn.GetThemeAspectRatioIndex(&theme_name) {
+                self.theme_ar_group.borrow_mut().SetChecked(ar_idx, ctx);
+            }
+        }
     }
 
     /// Read current config state into widget state.
@@ -218,17 +274,24 @@ impl emFileManControlPanel {
             self.theme_style_group
                 .borrow_mut()
                 .SetChecked(style_idx, ctx);
-            // Rebuild AR radios for the selected style
-            let ar_count = tn.GetThemeAspectRatioCount(style_idx);
-            self.theme_ar_radios.clear();
-            for i in 0..ar_count {
-                let label = tn.GetThemeAspectRatio(style_idx, i).unwrap_or("?");
-                self.theme_ar_radios.push(emRadioButton::new(
-                    label,
-                    Rc::clone(&self._look),
-                    Rc::clone(&self.theme_ar_group),
-                    i,
-                ));
+            // Rebuild AR radios for the selected style. Each new emRadioButton
+            // allocates a click_signal, which requires scheduler reach.
+            // Tests that drive Cycle with a no-scheduler PanelCtx won't
+            // exercise the chg_sig path with theme-name changes; skip the
+            // rebuild silently in that case to keep the test surface clean.
+            if ctx.scheduler.is_some() {
+                let ar_count = tn.GetThemeAspectRatioCount(style_idx);
+                self.theme_ar_radios.clear();
+                for i in 0..ar_count {
+                    let label = tn.GetThemeAspectRatio(style_idx, i).unwrap_or("?");
+                    self.theme_ar_radios.push(emRadioButton::new(
+                        ctx,
+                        label,
+                        Rc::clone(&self._look),
+                        Rc::clone(&self.theme_ar_group),
+                        i,
+                    ));
+                }
             }
             if let Some(ar_idx) = tn.GetThemeAspectRatioIndex(&theme_name) {
                 self.theme_ar_group.borrow_mut().SetChecked(ar_idx, ctx);
@@ -255,6 +318,14 @@ impl emFileManControlPanel {
     #[doc(hidden)]
     pub fn nss_group_for_test(&self) -> &Rc<RefCell<RadioGroup>> {
         &self.nss_group
+    }
+    #[doc(hidden)]
+    pub fn sort_radio_click_signal_for_test(&self, idx: usize) -> emcore::emSignal::SignalId {
+        self.sort_radios[idx].click_signal
+    }
+    #[doc(hidden)]
+    pub fn nss_radio_click_signal_for_test(&self, idx: usize) -> emcore::emSignal::SignalId {
+        self.nss_radios[idx].click_signal
     }
     #[doc(hidden)]
     pub fn theme_style_group_check_signal_for_test(&self) -> emcore::emSignal::SignalId {
@@ -379,23 +450,36 @@ impl PanelBehavior for emFileManControlPanel {
             ectx.connect(sel_sig, eid);
             ectx.connect(cmd_sig, eid);
             ectx.connect(chg_sig, eid);
-            // B-005 row -328 (theme aspect ratio group), -329 (theme style group).
-            //
-            // DIVERGED: (language-forced) C++ has both per-radio click_signals
-            // and group check_signals; Rust emRadioButton does not expose a
-            // per-button click_signal — only the group-level check_signal is
-            // wired. Per the audit, this collapses C++'s 6 sort-radio IsSignaled
-            // checks (cpp:381-398) into one group-level check at the same
-            // observable contract: a click flips the group selection and
-            // fires the group check_signal exactly once. Same for the 3
-            // nss radios (cpp:405-413). The Cycle reaction then reads
-            // `group.GetChecked()` to dispatch on the new index.
+            // B-005 row -328 (theme aspect ratio group), -329 (theme style
+            // group). Theme groups stay subscribed at the group level: the C++
+            // Cycle branches (cpp:371-380) react to *either* group changing
+            // by recomputing the (style, ar) pair, so a single check_signal
+            // wake-up per group is sufficient (and matches what C++ also
+            // observes — both are AddWakeUpSignal'd per-group).
             ectx.connect(self.theme_ar_group.borrow().check_signal, eid);
             ectx.connect(self.theme_style_group.borrow().check_signal, eid);
-            // B-005 rows -330..-335 (sort criterion radios) — group signal.
-            ectx.connect(self.sort_group.borrow().check_signal, eid);
-            // B-005 rows -338..-340 (name sorting style radios) — group signal.
-            ectx.connect(self.nss_group.borrow().check_signal, eid);
+            // Theme group children are also radio buttons: subscribe per-radio
+            // so that a click on any individual style/ar radio also wakes up
+            // the panel (mirrors C++ AddWakeUpSignal on each radio's
+            // click_signal). Under exclusive selection at most one fires per
+            // group transition, identical to the group-level signal.
+            for rb in &self.theme_style_radios {
+                ectx.connect(rb.click_signal, eid);
+            }
+            for rb in &self.theme_ar_radios {
+                ectx.connect(rb.click_signal, eid);
+            }
+            // B-005 rows -330..-335 (sort criterion radios) — per-radio
+            // click_signal subscribes mirroring C++ cpp:381-398
+            // (six AddWakeUpSignal'd ClickSignals, one per radio).
+            for rb in &self.sort_radios {
+                ectx.connect(rb.click_signal, eid);
+            }
+            // B-005 rows -338..-340 (name sorting style radios) —
+            // per-radio click_signal subscribes mirroring C++ cpp:405-413.
+            for rb in &self.nss_radios {
+                ectx.connect(rb.click_signal, eid);
+            }
             // B-005 rows -336, -337, -341 (checkboxes).
             ectx.connect(self.dirs_first_check.check_signal, eid);
             ectx.connect(self.show_hidden_check.check_signal, eid);
@@ -416,8 +500,12 @@ impl PanelBehavior for emFileManControlPanel {
         let cmd_sig = self.file_man.borrow().GetCommandsSignal(ectx);
         let theme_ar_sig = self.theme_ar_group.borrow().check_signal;
         let theme_style_sig = self.theme_style_group.borrow().check_signal;
-        let sort_sig = self.sort_group.borrow().check_signal;
-        let nss_sig = self.nss_group.borrow().check_signal;
+        // Per-radio click_signal snapshots — Cycle branches dispatch on the
+        // specific radio that was clicked (mirrors C++ cpp:381-398, 405-413).
+        let sort_radio_sigs: Vec<emcore::emSignal::SignalId> =
+            self.sort_radios.iter().map(|r| r.click_signal).collect();
+        let nss_radio_sigs: Vec<emcore::emSignal::SignalId> =
+            self.nss_radios.iter().map(|r| r.click_signal).collect();
         let dirs_first_sig = self.dirs_first_check.check_signal;
         let show_hidden_sig = self.show_hidden_check.check_signal;
         let autosave_sig = self.autosave_check.check_signal;
@@ -471,29 +559,22 @@ impl PanelBehavior for emFileManControlPanel {
         }
 
         // cpp:381-398 — sort criterion radio click (rows -330..-335).
-        // DIVERGED: (language-forced) see init-block comment — single group
-        // check_signal in place of C++'s 6 per-radio click_signals. Rust SortCriterion enum
-        // order matches SORT_LABELS: 0 ByName, 1 ByEnding, 2 ByClass,
-        // 3 ByVersion, 4 ByDate, 5 BySize. (C++ branch order in the source
-        // is ByName, ByDate, BySize, ByEnding, ByClass, ByVersion — but
-        // since at most one branch can fire per cycle in C++ as well,
-        // ordering is observably equivalent under exclusive selection.)
-        if ectx.IsSignaled(sort_sig) {
-            if let Some(idx) = self.sort_group.borrow().GetChecked() {
-                let sc_val = match idx {
-                    0 => Some(SortCriterion::ByName),
-                    1 => Some(SortCriterion::ByEnding),
-                    2 => Some(SortCriterion::ByClass),
-                    3 => Some(SortCriterion::ByVersion),
-                    4 => Some(SortCriterion::ByDate),
-                    5 => Some(SortCriterion::BySize),
-                    _ => None,
-                };
-                if let Some(sc_val) = sc_val {
-                    self.config.borrow_mut().SetSortCriterion(ectx, sc_val);
-                }
+        // Per-radio dispatch in C++ branch order: ByName, ByDate, BySize,
+        // ByEnding, ByClass, ByVersion. SORT_LABELS index ↔ SortCriterion:
+        // 0 ByName, 1 ByEnding, 2 ByClass, 3 ByVersion, 4 ByDate, 5 BySize.
+        let sort_branches: [(usize, SortCriterion); 6] = [
+            (0, SortCriterion::ByName),
+            (4, SortCriterion::ByDate),
+            (5, SortCriterion::BySize),
+            (1, SortCriterion::ByEnding),
+            (2, SortCriterion::ByClass),
+            (3, SortCriterion::ByVersion),
+        ];
+        for (i, sc_val) in sort_branches {
+            if ectx.IsSignaled(sort_radio_sigs[i]) {
+                self.config.borrow_mut().SetSortCriterion(ectx, sc_val);
+                changed = true;
             }
-            changed = true;
         }
 
         // cpp:399-401 — sort directories first.
@@ -511,20 +592,18 @@ impl PanelBehavior for emFileManControlPanel {
         }
 
         // cpp:405-413 — name sorting style radios (rows -338..-340).
-        // Same per-group collapse as the sort_group.
-        if ectx.IsSignaled(nss_sig) {
-            if let Some(idx) = self.nss_group.borrow().GetChecked() {
-                let nss = match idx {
-                    0 => Some(NameSortingStyle::PerLocale),
-                    1 => Some(NameSortingStyle::CaseSensitive),
-                    2 => Some(NameSortingStyle::CaseInsensitive),
-                    _ => None,
-                };
-                if let Some(nss) = nss {
-                    self.config.borrow_mut().SetNameSortingStyle(ectx, nss);
-                }
+        // Per-radio dispatch in C++ branch order: PerLocale, CaseSensitive,
+        // CaseInsensitive (NSS_LABELS index matches NameSortingStyle).
+        let nss_branches: [(usize, NameSortingStyle); 3] = [
+            (0, NameSortingStyle::PerLocale),
+            (1, NameSortingStyle::CaseSensitive),
+            (2, NameSortingStyle::CaseInsensitive),
+        ];
+        for (i, nss_val) in nss_branches {
+            if ectx.IsSignaled(nss_radio_sigs[i]) {
+                self.config.borrow_mut().SetNameSortingStyle(ectx, nss_val);
+                changed = true;
             }
-            changed = true;
         }
 
         // cpp:414-416 — autosave.

@@ -255,10 +255,16 @@ pub struct emRadioButton {
     enabled: bool,
     last_w: f64,
     last_h: f64,
+    /// Allocated at construction per C++ `emButton::GetClickSignal()`
+    /// (inherited by emRadioButton via emCheckButton/emButton). Fires from
+    /// `Input` whenever this radio is clicked (mouse release on hit, or
+    /// Enter press), mirroring C++ `emButton::Click()` (emButton.cpp:54-58).
+    pub click_signal: SignalId,
 }
 
 impl emRadioButton {
-    pub fn new(
+    pub fn new<C: ConstructCtx>(
+        cc: &mut C,
         caption: &str,
         look: Rc<emLook>,
         group: Rc<RefCell<RadioGroup>>,
@@ -280,6 +286,7 @@ impl emRadioButton {
             enabled: true,
             last_w: 0.0,
             last_h: 0.0,
+            click_signal: cc.create_signal(),
         }
     }
 
@@ -534,6 +541,13 @@ impl emRadioButton {
                     }
                     self.pressed = false;
                     if hit {
+                        // C++ emButton::Click (emButton.cpp:54-58):
+                        // Signal(ClickSignal) → Clicked(); emRadioButton::Clicked
+                        // (emRadioButton.cpp:235-238) then calls
+                        // Mech->SetChecked(this).
+                        if let Some(mut sched) = ctx.as_sched_ctx() {
+                            sched.fire(self.click_signal);
+                        }
                         self.group
                             .borrow_mut()
                             .SetChecked(self.index_cell.get(), ctx);
@@ -551,6 +565,10 @@ impl emRadioButton {
                     && !event.ctrl
                     && state.viewed_rect.w.min(state.viewed_rect.h) >= 8.0 =>
             {
+                // C++ emButton::Click via Enter: Signal(ClickSignal) → Clicked.
+                if let Some(mut sched) = ctx.as_sched_ctx() {
+                    sched.fire(self.click_signal);
+                }
                 self.group
                     .borrow_mut()
                     .SetChecked(self.index_cell.get(), ctx);
@@ -736,9 +754,9 @@ mod tests {
         let look = emLook::new();
         let group = RadioGroup::new(&mut __init.ctx());
 
-        let mut r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
-        let mut r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
-        let mut r2 = emRadioButton::new("C", look, group.clone(), 2);
+        let mut r0 = emRadioButton::new(&mut __init.ctx(), "A", look.clone(), group.clone(), 0);
+        let mut r1 = emRadioButton::new(&mut __init.ctx(), "B", look.clone(), group.clone(), 1);
+        let mut r2 = emRadioButton::new(&mut __init.ctx(), "C", look, group.clone(), 2);
         let ps = default_panel_state();
         let is = default_input_state();
 
@@ -769,7 +787,7 @@ mod tests {
         // Enter is instant -- no visual press state. Verify pressed stays false.
         let look = emLook::new();
         let group = RadioGroup::new(&mut __init.ctx());
-        let mut r0 = emRadioButton::new("A", look, group.clone(), 0);
+        let mut r0 = emRadioButton::new(&mut __init.ctx(), "A", look, group.clone(), 0);
         let ps = default_panel_state();
         let is = default_input_state();
         assert!(!r0.pressed);
@@ -792,8 +810,8 @@ mod tests {
         ));
 
         let look = emLook::new();
-        let mut r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
-        let mut r1 = emRadioButton::new("B", look, group.clone(), 1);
+        let mut r0 = emRadioButton::new(&mut __init.ctx(), "A", look.clone(), group.clone(), 0);
+        let mut r1 = emRadioButton::new(&mut __init.ctx(), "B", look, group.clone(), 1);
         let ps = default_panel_state();
         let is = default_input_state();
 
@@ -823,7 +841,7 @@ mod tests {
         let group = RadioGroup::new(&mut __init.ctx());
         let sig = group.borrow().check_signal;
         let look = emLook::new();
-        let mut r0 = emRadioButton::new("A", look, group.clone(), 0);
+        let mut r0 = emRadioButton::new(&mut __init.ctx(), "A", look, group.clone(), 0);
         let ps = default_panel_state();
         let is = default_input_state();
         let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
@@ -850,10 +868,10 @@ mod tests {
         let group = RadioGroup::new(&mut __init.ctx());
         assert_eq!(group.borrow().GetCount(), 0);
 
-        let r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
+        let r0 = emRadioButton::new(&mut __init.ctx(), "A", look.clone(), group.clone(), 0);
         assert_eq!(group.borrow().GetCount(), 1);
 
-        let r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
+        let r1 = emRadioButton::new(&mut __init.ctx(), "B", look.clone(), group.clone(), 1);
         assert_eq!(group.borrow().GetCount(), 2);
 
         drop(r0);
@@ -868,8 +886,8 @@ mod tests {
         let mut __init = TestInit::new();
         let look = emLook::new();
         let group = RadioGroup::new(&mut __init.ctx());
-        let r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
-        let r1 = emRadioButton::new("B", look, group.clone(), 1);
+        let r0 = emRadioButton::new(&mut __init.ctx(), "A", look.clone(), group.clone(), 0);
+        let r1 = emRadioButton::new(&mut __init.ctx(), "B", look, group.clone(), 1);
         assert_eq!(r0.index(), 0);
         assert_eq!(r1.index(), 1);
     }
@@ -883,8 +901,8 @@ mod tests {
         let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let group = RadioGroup::new(&mut __init.ctx());
-        let mut r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
-        let mut r1 = emRadioButton::new("B", look, group.clone(), 1);
+        let mut r0 = emRadioButton::new(&mut __init.ctx(), "A", look.clone(), group.clone(), 0);
+        let mut r1 = emRadioButton::new(&mut __init.ctx(), "B", look, group.clone(), 1);
 
         // set_checked(true) selects this button
         r0.set_checked(true, &mut ctx);
@@ -912,8 +930,8 @@ mod tests {
         let mut ctx = PanelCtx::new(&mut tree, tid, 1.0);
         let look = emLook::new();
         let group = RadioGroup::new(&mut __init.ctx());
-        let mut r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
-        let mut r1 = emRadioButton::new("B", look, group.clone(), 1);
+        let mut r0 = emRadioButton::new(&mut __init.ctx(), "A", look.clone(), group.clone(), 0);
+        let mut r1 = emRadioButton::new(&mut __init.ctx(), "B", look, group.clone(), 1);
 
         r0.set_checked(true, &mut ctx);
         assert_eq!(group.borrow().GetChecked(), Some(0));
@@ -1137,9 +1155,9 @@ mod tests {
         let look = emLook::new();
         let group = RadioGroup::new(&mut __init.ctx());
 
-        let r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
-        let r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
-        let r2 = emRadioButton::new("C", look, group.clone(), 2);
+        let r0 = emRadioButton::new(&mut __init.ctx(), "A", look.clone(), group.clone(), 0);
+        let r1 = emRadioButton::new(&mut __init.ctx(), "B", look.clone(), group.clone(), 1);
+        let r2 = emRadioButton::new(&mut __init.ctx(), "C", look, group.clone(), 2);
 
         // Select the last button
         group.borrow_mut().SetChecked(2, &mut ctx);
@@ -1166,9 +1184,9 @@ mod tests {
         let look = emLook::new();
         let group = RadioGroup::new(&mut __init.ctx());
 
-        let r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
-        let r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
-        let r2 = emRadioButton::new("C", look, group.clone(), 2);
+        let r0 = emRadioButton::new(&mut __init.ctx(), "A", look.clone(), group.clone(), 0);
+        let r1 = emRadioButton::new(&mut __init.ctx(), "B", look.clone(), group.clone(), 1);
+        let r2 = emRadioButton::new(&mut __init.ctx(), "C", look, group.clone(), 2);
 
         group.borrow_mut().SetChecked(1, &mut ctx);
         assert!(r1.IsSelected());

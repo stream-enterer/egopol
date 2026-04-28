@@ -1668,12 +1668,15 @@ impl TkTestPanel {
             let rg = RadioGroup::new(&mut ctx.as_sched_ctx().expect("sched"));
             for i in 1..=3 {
                 let id = ctx.tree.create_child(gid, &format!("r{i}"), None);
-                ctx.tree.set_behavior(
-                    id,
-                    Box::new(RadioButtonPanel {
-                        widget: emRadioButton::new("Radio Button", look.clone(), rg.clone(), i - 1),
-                    }),
+                let widget = emRadioButton::new(
+                    &mut ctx.as_sched_ctx().expect("sched"),
+                    "Radio Button",
+                    look.clone(),
+                    rg.clone(),
+                    i - 1,
                 );
+                ctx.tree
+                    .set_behavior(id, Box::new(RadioButtonPanel { widget }));
             }
             let rg2 = RadioGroup::new(&mut ctx.as_sched_ctx().expect("sched"));
             for i in 4..=6 {

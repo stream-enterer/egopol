@@ -26,7 +26,7 @@ fn add_all_preserves_existing_buttons() {
     let mut h = TestHarness::new();
     let look = emLook::new();
     let group = RadioGroup::new(&mut h.sched_ctx());
-    let _r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
+    let _r0 = emRadioButton::new(&mut h.sched_ctx(), "A", look.clone(), group.clone(), 0);
     assert_eq!(group.borrow().GetCount(), 1);
 
     // AddAll adds 3 more slots
@@ -86,8 +86,8 @@ fn get_button_with_real_buttons() {
     let mut h = TestHarness::new();
     let look = emLook::new();
     let group = RadioGroup::new(&mut h.sched_ctx());
-    let _r0 = emRadioButton::new("A", look.clone(), group.clone(), 0);
-    let _r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
+    let _r0 = emRadioButton::new(&mut h.sched_ctx(), "A", look.clone(), group.clone(), 0);
+    let _r1 = emRadioButton::new(&mut h.sched_ctx(), "B", look.clone(), group.clone(), 1);
 
     assert_eq!(group.borrow().GetButton(0), Some(0));
     assert_eq!(group.borrow().GetButton(1), Some(1));

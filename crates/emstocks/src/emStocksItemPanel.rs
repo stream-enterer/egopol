@@ -129,7 +129,9 @@ impl ItemWidgets {
         let interest_buttons: Vec<emRadioButton> = ["High", "Medium", "Low"]
             .iter()
             .enumerate()
-            .map(|(i, label)| emRadioButton::new(label, look.clone(), interest_group.clone(), i))
+            .map(|(i, label)| {
+                emRadioButton::new(cc, label, look.clone(), interest_group.clone(), i)
+            })
             .collect();
 
         Self {

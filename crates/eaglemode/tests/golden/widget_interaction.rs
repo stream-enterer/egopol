@@ -186,9 +186,9 @@ fn widget_radiobutton_switch() {
 
     let look = emLook::new();
     let group = RadioGroup::new(&mut ts.cc());
-    let _rb_a = emRadioButton::new("Option A", look.clone(), group.clone(), 0);
-    let mut rb_b = emRadioButton::new("Option B", look.clone(), group.clone(), 1);
-    let _rb_c = emRadioButton::new("Option C", look, group.clone(), 2);
+    let _rb_a = emRadioButton::new(&mut ts.cc(), "Option A", look.clone(), group.clone(), 0);
+    let mut rb_b = emRadioButton::new(&mut ts.cc(), "Option B", look.clone(), group.clone(), 1);
+    let _rb_c = emRadioButton::new(&mut ts.cc(), "Option C", look, group.clone(), 2);
 
     group.borrow_mut().SetChecked(0, &mut ctx);
     let initial = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;

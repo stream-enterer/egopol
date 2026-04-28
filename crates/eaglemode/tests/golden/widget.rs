@@ -600,7 +600,7 @@ fn widget_radiobutton() {
     require_golden!();
     let look = emLook::new();
     let group = RadioGroup::new(&mut ts.cc());
-    let mut rb = emRadioButton::new("Radio Option", look, group, 0);
+    let mut rb = emRadioButton::new(&mut ts.cc(), "Radio Option", look, group, 0);
     {
         let mut tree = emcore::emPanelTree::PanelTree::new();
         let tid = tree.create_root("t", false);

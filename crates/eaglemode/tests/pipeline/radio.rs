@@ -79,9 +79,27 @@ fn radiobutton_select_1x_and_2x() {
     let group: Rc<RefCell<RadioGroup>> = RadioGroup::new(&mut h.sched_ctx());
 
     // Create 3 RadioButtons sharing the same group.
-    let rb0 = emRadioButton::new("Option A", look.clone(), group.clone(), 0);
-    let rb1 = emRadioButton::new("Option B", look.clone(), group.clone(), 1);
-    let rb2 = emRadioButton::new("Option C", look.clone(), group.clone(), 2);
+    let rb0 = emRadioButton::new(
+        &mut h.sched_ctx(),
+        "Option A",
+        look.clone(),
+        group.clone(),
+        0,
+    );
+    let rb1 = emRadioButton::new(
+        &mut h.sched_ctx(),
+        "Option B",
+        look.clone(),
+        group.clone(),
+        1,
+    );
+    let rb2 = emRadioButton::new(
+        &mut h.sched_ctx(),
+        "Option C",
+        look.clone(),
+        group.clone(),
+        2,
+    );
 
     assert_eq!(group.borrow().GetCount(), 3);
     assert_eq!(group.borrow().GetChecked(), None);
@@ -203,9 +221,27 @@ impl RadioButtonHarness {
         let look = emLook::new();
         let group: Rc<RefCell<RadioGroup>> = RadioGroup::new(&mut h.sched_ctx());
 
-        let rb0 = emRadioButton::new("Option A", look.clone(), group.clone(), 0);
-        let rb1 = emRadioButton::new("Option B", look.clone(), group.clone(), 1);
-        let rb2 = emRadioButton::new("Option C", look.clone(), group.clone(), 2);
+        let rb0 = emRadioButton::new(
+            &mut h.sched_ctx(),
+            "Option A",
+            look.clone(),
+            group.clone(),
+            0,
+        );
+        let rb1 = emRadioButton::new(
+            &mut h.sched_ctx(),
+            "Option B",
+            look.clone(),
+            group.clone(),
+            1,
+        );
+        let rb2 = emRadioButton::new(
+            &mut h.sched_ctx(),
+            "Option C",
+            look.clone(),
+            group.clone(),
+            2,
+        );
 
         assert_eq!(group.borrow().GetCount(), 3);
         assert_eq!(group.borrow().GetChecked(), None);
