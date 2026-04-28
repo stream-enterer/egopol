@@ -324,3 +324,19 @@ B-011's design called out that all 7 rows are removed by B-003's R-A constructio
   5. **D5 (new from B-005):** `emRadioButton::new` signature changed (cross-crate API change documented above).
 - **Process note:** PM session declined a second spec-review pass after fixup and skipped a separate code-review subagent dispatch. Combined-reviewer template (`COMBINED-REVIEWER-TEMPLATE.md`, committed `dbb54bad`) is now the recommended replacement for the legacy two-subagent flow on subsequent buckets.
 - **9 of 19 buckets merged. 10 remain.**
+
+### 2026-04-28 — B-005 retroactive combined review (post-merge)
+
+Combined-reviewer template dispatched against `d15bbca0..91433733`. Result: **APPROVED FOR MERGE** (retroactive). All hard gates green: fmt + clippy -D warnings + nextest 2860/2860 + xtask annotations. Spec-compliance and code-quality both APPROVED.
+
+- **Deviations (cluster-convention disposition, reviewer-approved):** per-radio `click_signal` panel-side subscribes (4 groups) widened beyond design's group-only shape — mirrors C++ `AddWakeUpSignal` per-radio at cpp:381-413. `emRadioButton::new` cross-crate API change is forced (port-completeness for the missing `click_signal` field).
+- **Promotion candidates (watch for next sighting):**
+  - **Per-radio `click_signal` subscribe pattern** at panel — 4 sightings *inside* B-005 (sort_radios, nss_radios, theme_style_radios, theme_ar_radios). Promotion candidate for a D-### "per-button widget signal subscribe" canonical pattern if it recurs in B-008/B-012/B-016/B-017.
+  - **`#[doc(hidden)] pub *_for_test()` test-surface idiom** — 16 accessors in `emFileManControlPanel.rs:264-374`. Watch for B-006/B-007/B-008 sightings; promote to a feature-gated module or `expose_for_test!` macro if it recurs.
+- **New debt items (D6–D9, accept-as-known-debt; not blocking subsequent buckets):**
+  - **D6.** `crates/emfileman/tests/typed_subscribe_b005.rs` (569 lines) — repeated `make_control_panel` + `with_scheduler` PanelCtx + `sched_ctx_for(eid).fire(sig)` + `flush_signals_for_test` + `cycle_panel` + `cleanup` boilerplate across ~14 tests. Far exceeds the 30-line repeated-stub-engine threshold. Extract a `B005Harness` helper that wraps fire+flush+cycle into one call.
+  - **D7.** `crates/emfileman/src/emFileManControlPanel.rs:251-296` — `sync_from_config` vs `sync_from_config_with_construct` body duplication; drift risk. Folds with D4. Fold construct path into a single helper (closure or `&mut dyn ConstructCtx`) for radio rebuild.
+  - **D8.** `emFileManControlPanel.rs:439` — `Cycle` is ~325 lines; consider extracting branch helpers (`react_theme()`, `react_sort_radios()`, etc.) for readability without changing semantics.
+  - **D9.** Q3 (mutator effect) coverage gap on save_button (-342) / select_all (-343) / paths_clip (-346) / names_clip (-347) tests — currently smoke-only `does_not_panic`, verify Q1+Q2 (subscribed + Cycle observes) but not Q3 (actual side-effect: file write, clipboard contents). Test-coverage debt.
+  - **D10.** `emFileManControlPanel.rs:765-826` — `Input()` is 14 `if widget.Input(...) { return true; }` blocks; collapse via slice/loop helper. Pre-existing-style but worth folding.
+- **No fix-forward action.** All findings disposition is accept-as-known-debt. No follow-up commit.
