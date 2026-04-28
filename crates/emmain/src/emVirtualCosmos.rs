@@ -724,6 +724,10 @@ pub struct emVirtualCosmosPanel {
     /// subscribed to the model's `ChangeSignal` (mirrors C++ ctor's
     /// `AddWakeUpSignal(Model->GetChangeSignal())`).
     subscribed_init: bool,
+    /// B-008 row -104: cached `App::file_update_signal` from the scheduler.
+    /// Allocated by `App::new`; null in test contexts that never set it.
+    /// Subscribed-to in the first-Cycle init alongside `ChangeSignal`.
+    file_update_signal: SignalId,
 }
 
 impl emVirtualCosmosPanel {
@@ -739,6 +743,7 @@ impl emVirtualCosmosPanel {
             item_panels: Vec::new(),
             needs_update: true,
             subscribed_init: false,
+            file_update_signal: SignalId::null(),
         }
     }
 
@@ -862,10 +867,47 @@ impl PanelBehavior for emVirtualCosmosPanel {
         // B-014 row -575: D-006 first-Cycle init — subscribe to model's
         // ChangeSignal. Mirrors C++ ctor `AddWakeUpSignal(Model->GetChangeSignal())`
         // (emVirtualCosmos.cpp:575). Lazy alloc per D-008 A1.
+        //
+        // B-008 row -104: also subscribe to the shared file-update broadcast
+        // (`App::file_update_signal`, returned by `emFileModel::AcquireUpdateSignalModel`
+        // post-B-007). Mirrors C++ `emVirtualCosmosModel` ctor at
+        // emVirtualCosmosPanel.cpp:104, which adds the broadcast to the
+        // model's wake-up set so any file write triggers a `Reload()`.
+        //
+        // The C++ subscribe lives on the model itself (`emVirtualCosmosModel : emEngine`).
+        // In Rust the model is not an emEngine, so we host the subscribe on
+        // its sole consumer panel — open-question 4 of the B-008 design doc
+        // explicitly leaves this implementer's pick (driving engine vs. panel
+        // first-Cycle subscribe); panel-side preserves the observable
+        // contract (broadcast wake → `Reload`) without threading a
+        // ConstructCtx through `emVirtualCosmosModel::Acquire`.
         if !self.subscribed_init {
+            let eid = ectx.id();
             let sig = self.model.borrow().GetChangeSignal(ectx);
-            ectx.connect(sig, ectx.id());
+            ectx.connect(sig, eid);
+            let upd = emcore::emFileModel::emFileModel::<()>::AcquireUpdateSignalModel(ectx);
+            if !upd.is_null() {
+                ectx.connect(upd, eid);
+                self.file_update_signal = upd;
+            }
             self.subscribed_init = true;
+        }
+
+        // B-008 row -104: file-update broadcast reaction — mirrors C++
+        // `emVirtualCosmosModel::Cycle` reacting to `FileUpdateSignalModel->Sig`
+        // by calling `Reload()`. The reload mutates the model's item list,
+        // which fires `ChangeSignal` (post-B-014); the panel's existing
+        // ChangeSignal branch below then runs `update_children`.
+        if !self.file_update_signal.is_null() && ectx.IsSignaled(self.file_update_signal) {
+            // Borrow the model mutably for Reload, then fire ChangeSignal so
+            // the panel's existing reaction path picks up the new items in a
+            // single Cycle (matches C++ where Reload's `Signal(ChangeSignal)`
+            // is observed in the same time slice).
+            self.model.borrow_mut().Reload();
+            let chg = self.model.borrow().GetChangeSignal(ectx);
+            if !chg.is_null() {
+                ectx.fire(chg);
+            }
         }
 
         // B-014 row -575: ChangeSignal reaction — mirrors C++ Cycle's
@@ -1451,6 +1493,105 @@ mod tests {
                 sched.remove_engine(eid);
             }
         }
+        sched.abort_all_pending();
+    }
+
+    /// B-008 row -104 click-through.
+    ///
+    /// File-update broadcast arrival drives `emVirtualCosmosModel::Reload()`
+    /// and re-fires `ChangeSignal`, mirroring C++
+    /// `emVirtualCosmosModel::Cycle` reacting to `FileUpdateSignalModel->Sig`.
+    /// Four-question audit trail:
+    ///   (1) connected — first-Cycle init connects file_update_signal to engine.
+    ///   (2) observes  — IsSignaled(file_update_signal) branch in panel Cycle.
+    ///   (3) reaction  — model.Reload() runs and ChangeSignal becomes pending.
+    ///   (4) C++ order — Reload precedes the ChangeSignal-driven update_children
+    ///                   (matches C++ where Signal(ChangeSignal) inside Reload
+    ///                   is observed in the same time slice).
+    #[test]
+    fn b008_row_104_file_update_broadcast_reloads_model() {
+        use emcore::emEngineCtx::{EngineCtx, PanelCtx};
+        use emcore::emScheduler::EngineScheduler;
+        use std::collections::HashMap;
+
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut sched = EngineScheduler::new();
+
+        // Simulate App::new — allocate the shared broadcast and store it.
+        let file_update_signal = sched.create_signal();
+        sched.file_update_signal = file_update_signal;
+
+        // Allocate a real ChangeSignal so the post-Reload fire is observable.
+        let change_sig = sched.create_signal();
+
+        let mut panel = emVirtualCosmosPanel::new(Rc::clone(&root_ctx));
+        panel.model.borrow().change_signal.set(change_sig);
+
+        // Bypass the first-Cycle init wiring (which would also subscribe
+        // ChangeSignal and run AutoExpand/update_children paths that need a
+        // full sub-tree). The reaction branch under test only needs
+        // `subscribed_init = true` and `file_update_signal` populated.
+        panel.subscribed_init = true;
+        panel.file_update_signal = file_update_signal;
+
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let root_id = tree.create_root_deferred_view("vc_104");
+        tree.set_panel_view(root_id);
+        tree.register_engine_for_public(root_id, Some(&mut sched));
+        let engine_id = tree.panel_engine_id_pub(root_id).expect("engine");
+
+        sched.connect(file_update_signal, engine_id);
+        sched.connect(change_sig, engine_id);
+        sched.fire(file_update_signal);
+        sched.flush_signals_for_test();
+
+        let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+            HashMap::new();
+        let fw_cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(RefCell::new(Vec::new()));
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+            Vec::new();
+        let mut input_state = emcore::emInputState::emInputState::new();
+
+        let sched_ptr: *mut EngineScheduler = &mut sched;
+        // SAFETY: ectx.scheduler and pctx.scheduler alias the same scheduler;
+        // single-threaded, mirrors B-006 row_218 click-through pattern.
+        let mut pctx =
+            PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+        let mut ectx = EngineCtx {
+            scheduler: &mut sched,
+            tree: None,
+            windows: &mut windows,
+            root_context: &root_ctx,
+            framework_actions: &mut fw_actions,
+            pending_inputs: &mut pending_inputs,
+            input_state: &mut input_state,
+            framework_clipboard: &fw_cb,
+            engine_id,
+            pending_actions: &pa,
+        };
+        panel.Cycle(&mut ectx, &mut pctx);
+
+        // After Cycle: the file-update reaction must have called Reload() and
+        // fired ChangeSignal. ChangeSignal is observable via is_pending.
+        assert!(
+            sched.is_pending(change_sig),
+            "Reload() must fire ChangeSignal so consumers re-render"
+        );
+
+        // Cleanup.
+        let all_ids = tree.panel_ids();
+        for pid in all_ids {
+            if let Some(eid) = tree.panel_engine_id_pub(pid) {
+                sched.remove_engine(eid);
+            }
+        }
+        sched.disconnect(file_update_signal, engine_id);
+        sched.disconnect(change_sig, engine_id);
+        sched.remove_signal(file_update_signal);
+        sched.remove_signal(change_sig);
         sched.abort_all_pending();
     }
 

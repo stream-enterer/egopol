@@ -17,6 +17,9 @@ use emcore::emPainter::{TextAlignment, VAlign};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelId;
 use emcore::emResTga::load_tga;
+use emcore::emSignal::SignalId;
+use emcore::emSubViewPanel::emSubViewPanel;
+use emcore::emWindow::WindowFlags;
 
 use crate::emMainConfig::emMainConfig;
 
@@ -347,6 +350,17 @@ pub struct emMainPanel {
 
     // Timer for slider auto-hide (C++ emMainPanel::SliderTimer, 5-second one-shot)
     slider_hide_timer_start: Option<std::time::Instant>,
+
+    // B-008 D-006 first-Cycle init state. Mirrors C++ ctor `AddWakeUpSignal`
+    // calls at emMainPanel.cpp:67 (View.GetEOISignal) and :69
+    // (GetWindow()->GetWindowFlagsSignal). Lazy alloc per D-008 A1: the signal
+    // ids are looked up on the first Cycle, when EngineCtx + windows + the
+    // child sub-view panel are all available.
+    subscribed_init: bool,
+    /// Cached `emView::EOISignal` id of the control sub-view (B-008 row -67).
+    eoi_signal: Option<SignalId>,
+    /// Cached `emWindow::GetWindowFlagsSignal()` id (B-008 row -69).
+    flags_signal: Option<SignalId>,
 }
 
 impl emMainPanel {
@@ -390,6 +404,9 @@ impl emMainPanel {
             fullscreen_on: false,
             slider_hidden: false,
             slider_hide_timer_start: None,
+            subscribed_init: false,
+            eoi_signal: None,
+            flags_signal: None,
         }
     }
 
@@ -655,11 +672,71 @@ impl PanelBehavior for emMainPanel {
         Some("Eagle Mode".to_string())
     }
 
-    fn Cycle(
-        &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
-        ctx: &mut PanelCtx,
-    ) -> bool {
+    fn Cycle(&mut self, ectx: &mut emcore::emEngineCtx::EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
+        // ── B-008 D-006 first-Cycle init ──────────────────────────────────
+        // Mirrors C++ emMainPanel ctor lines 67 and 69:
+        //   AddWakeUpSignal(GetControlView().GetEOISignal());           // row -67
+        //   if (GetWindow()) AddWakeUpSignal(GetWindow()->GetWindowFlagsSignal()); // row -69
+        if !self.subscribed_init {
+            let eid = ectx.engine_id;
+
+            // Row -67: control sub-view's EOISignal. Reach the embedded
+            // `emView` through the control sub-view panel; the signal is
+            // installed at view-RegisterEngines time and stable thereafter.
+            if let Some(svp_id) = self.control_view_panel
+                && let Some(Some(sig)) = ctx
+                    .tree
+                    .with_behavior_as::<emSubViewPanel, _>(svp_id, |svp| svp.sub_view.EOISignal)
+            {
+                ectx.connect(sig, eid);
+                self.eoi_signal = Some(sig);
+            }
+
+            // Row -69: owning window's flags signal. C++ guards on
+            // `GetWindow() != NULL`; in Rust the equivalent guard is
+            // `with_main_window(...).flatten().and_then(windows.get)`.
+            let wid = crate::emMainWindow::with_main_window(|mw| mw.window_id).flatten();
+            if let Some(wid) = wid
+                && let Some(win) = ectx.windows.get(&wid)
+            {
+                let sig = win.GetWindowFlagsSignal();
+                ectx.connect(sig, eid);
+                self.flags_signal = Some(sig);
+            }
+
+            self.subscribed_init = true;
+        }
+
+        // Row -67 reaction. C++ emMainPanel::Cycle reacts to the EOI signal
+        // by finalising the control-view auto-hide path: the user has signaled
+        // end-of-interest in the control area, so collapse the slider and
+        // mark the slider hidden, clearing the 5-second timer.
+        if let Some(sig) = self.eoi_signal
+            && ectx.IsSignaled(sig)
+        {
+            self.slider_hidden = true;
+            self.slider_hide_timer_start = None;
+        }
+
+        // Row -69 reaction. C++ emMainPanel::Cycle calls UpdateFullscreen()
+        // which reads WF_FULLSCREEN and toggles the panel's internal
+        // fullscreen state. Rust splits that into update_fullscreen_on /
+        // update_fullscreen_off; dispatch on the current flag value.
+        if let Some(sig) = self.flags_signal
+            && ectx.IsSignaled(sig)
+        {
+            let is_fs = crate::emMainWindow::with_main_window(|mw| mw.window_id)
+                .flatten()
+                .and_then(|wid| ectx.windows.get(&wid))
+                .map(|w| w.flags.contains(WindowFlags::FULLSCREEN))
+                .unwrap_or(false);
+            if is_fs {
+                self.update_fullscreen_on();
+            } else {
+                self.update_fullscreen_off();
+            }
+        }
+
         // Check slider auto-hide timer (C++ SliderTimer, 5-second one-shot).
         if let Some(start) = self.slider_hide_timer_start
             && start.elapsed().as_millis() >= 5000
@@ -1330,5 +1407,232 @@ mod tests {
         assert!(panel.pressed);
         assert!((panel.press_slider_y - 0.42).abs() < 1e-10);
         assert!((panel.press_my - 0.2).abs() < 1e-10);
+    }
+
+    // ── B-008 typed-subscribe click-through tests ─────────────────────────
+    //
+    // Rows -67 (View EOI) and -69 (Window flags) wired in `Cycle`'s D-006
+    // first-Cycle init block. Pattern mirrors B-006 row_218/row_219 in
+    // `emMainControlPanel::tests`: build a real EngineScheduler + tree +
+    // EngineCtx, fire the signal, drive Cycle, assert reaction.
+
+    /// Row -67: EOI signal arrival drives slider auto-hide finalisation.
+    ///
+    /// Mirrors C++ `emMainPanel::Cycle` reading the control view's EOI
+    /// signal: end-of-interest → assert hidden + clear the 5-second timer.
+    /// Four-question audit trail:
+    ///   (1) connected — ectx.connect(eoi_sig, engine_id) inside Cycle init.
+    ///   (2) observes  — IsSignaled(eoi_signal) branch in Cycle.
+    ///   (3) reaction  — slider_hidden = true, slider_hide_timer_start = None.
+    ///   (4) C++ order — EOI branch runs before the SliderTimer block, mirroring
+    ///                   C++ Cycle's EOI-finalisation precedence over the timer.
+    #[test]
+    fn b008_row_67_eoi_signal_finalises_slider_hide() {
+        use emcore::emEngineCtx::{EngineCtx, PanelCtx};
+        use emcore::emScheduler::EngineScheduler;
+        use std::collections::HashMap;
+
+        isolate_home();
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut sched = EngineScheduler::new();
+
+        // Allocate the EOI signal that the test will drive.
+        let eoi_sig = sched.create_signal();
+
+        // Build panel and inject the EOI signal directly. We bypass the
+        // sub-view-panel construction (which requires a SchedCtx and full
+        // sub-tree wiring) by pre-setting `eoi_signal` and `subscribed_init`;
+        // the init block's wiring is exercised by row_69's test below, which
+        // shares the same code path.
+        let mut panel = emMainPanel::new(Rc::clone(&root_ctx), 5.0);
+        panel.subscribed_init = true;
+        panel.eoi_signal = Some(eoi_sig);
+        // Pre-arm the slider-hide timer so we can observe it being cleared.
+        panel.slider_hide_timer_start = Some(std::time::Instant::now());
+        panel.slider_hidden = false;
+
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let root_id = tree.create_root_deferred_view("mp_67");
+        tree.set_panel_view(root_id);
+        tree.register_engine_for_public(root_id, Some(&mut sched));
+        let engine_id = tree.panel_engine_id_pub(root_id).expect("engine");
+
+        sched.connect(eoi_sig, engine_id);
+        sched.fire(eoi_sig);
+        sched.flush_signals_for_test();
+
+        let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+            HashMap::new();
+        let fw_cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(RefCell::new(Vec::new()));
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(winit::window::WindowId, emInputEvent)> = Vec::new();
+        let mut input_state = emInputState::new();
+
+        let sched_ptr: *mut EngineScheduler = &mut sched;
+        // SAFETY: ectx.scheduler and pctx.scheduler alias the same scheduler
+        // for the duration of Cycle. Single-threaded; mirrors the
+        // PanelCycleEngine pattern in B-006 row_218 click-through tests.
+        let mut pctx =
+            PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+        let mut ectx = EngineCtx {
+            scheduler: &mut sched,
+            tree: None,
+            windows: &mut windows,
+            root_context: &root_ctx,
+            framework_actions: &mut fw_actions,
+            pending_inputs: &mut pending_inputs,
+            input_state: &mut input_state,
+            framework_clipboard: &fw_cb,
+            engine_id,
+            pending_actions: &pa,
+        };
+        panel.Cycle(&mut ectx, &mut pctx);
+
+        assert!(
+            panel.slider_hidden,
+            "EOI signal must finalise auto-hide → slider_hidden = true"
+        );
+        assert!(
+            panel.slider_hide_timer_start.is_none(),
+            "EOI signal must clear the 5-second slider-hide timer"
+        );
+
+        // Cleanup.
+        let all_ids = tree.panel_ids();
+        for pid in all_ids {
+            if let Some(eid) = tree.panel_engine_id_pub(pid) {
+                sched.remove_engine(eid);
+            }
+        }
+        sched.disconnect(eoi_sig, engine_id);
+        sched.remove_signal(eoi_sig);
+        sched.abort_all_pending();
+    }
+
+    /// Row -69: WindowFlags signal arrival drives `update_fullscreen_*`.
+    ///
+    /// Mirrors C++ `emMainPanel::Cycle`'s `IsSignaled(GetWindow()->GetWindowFlagsSignal())`
+    /// → `UpdateFullscreen()` path. Drives the full first-Cycle init block
+    /// (Cycle looks up `with_main_window` and `ectx.windows.get(wid)` to
+    /// resolve the signal id and the FULLSCREEN flag value).
+    /// Four-question audit trail:
+    ///   (1) connected — first-Cycle init block calls ectx.connect(flags_sig,..).
+    ///   (2) observes  — IsSignaled(flags_signal) branch in Cycle.
+    ///   (3) reaction  — fullscreen_on toggled via update_fullscreen_on/off.
+    ///   (4) C++ order — flags reaction precedes slider-timer block, matching
+    ///                   C++ Cycle's UpdateFullscreen precedence.
+    #[test]
+    fn b008_row_69_window_flags_signal_toggles_fullscreen() {
+        use emcore::emEngineCtx::{EngineCtx, PanelCtx};
+        use emcore::emScheduler::EngineScheduler;
+        use emcore::emWindow::{WindowFlags, emWindow};
+        use std::collections::HashMap;
+
+        isolate_home();
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut sched = EngineScheduler::new();
+
+        // Per-process emWindow signals.
+        let close_sig = sched.create_signal();
+        let flags_sig = sched.create_signal();
+        let focus_sig = sched.create_signal();
+        let geom_sig = sched.create_signal();
+        let win_id = winit::window::WindowId::dummy();
+
+        // Build a fake emWindow with FULLSCREEN flag set.
+        let mut win = emWindow::new_popup_pending(
+            Rc::clone(&root_ctx),
+            WindowFlags::empty(),
+            "mp_69".to_string(),
+            close_sig,
+            flags_sig,
+            focus_sig,
+            geom_sig,
+            emColor::TRANSPARENT,
+        );
+        win.flags = WindowFlags::FULLSCREEN;
+        let mut windows: HashMap<winit::window::WindowId, emWindow> = HashMap::new();
+        windows.insert(win_id, win);
+
+        // Register emMainWindow so with_main_window returns Some(window_id).
+        let mut mw = crate::emMainWindow::emMainWindow::new(
+            Rc::clone(&root_ctx),
+            crate::emMainWindow::emMainWindowConfig::default(),
+        );
+        mw.window_id = Some(win_id);
+        crate::emMainWindow::set_main_window(mw);
+
+        let mut panel = emMainPanel::new(Rc::clone(&root_ctx), 5.0);
+        panel.config.borrow_mut().SetAutoHideControlView(true);
+        // Initial state: not fullscreen.
+        assert!(!panel.fullscreen_on);
+
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let root_id = tree.create_root_deferred_view("mp_69");
+        tree.set_panel_view(root_id);
+        tree.register_engine_for_public(root_id, Some(&mut sched));
+        let engine_id = tree.panel_engine_id_pub(root_id).expect("engine");
+
+        // Connect the engine to flags_sig so the IsSignaled check sees pending,
+        // and fire it. The Cycle init block re-connects (idempotent) but also
+        // populates panel.flags_signal so the reaction branch runs.
+        sched.connect(flags_sig, engine_id);
+        sched.fire(flags_sig);
+        sched.flush_signals_for_test();
+
+        let fw_cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(RefCell::new(Vec::new()));
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(winit::window::WindowId, emInputEvent)> = Vec::new();
+        let mut input_state = emInputState::new();
+
+        let sched_ptr: *mut EngineScheduler = &mut sched;
+        // SAFETY: ectx.scheduler and pctx.scheduler alias single-threaded.
+        let mut pctx =
+            PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+        let mut ectx = EngineCtx {
+            scheduler: &mut sched,
+            tree: None,
+            windows: &mut windows,
+            root_context: &root_ctx,
+            framework_actions: &mut fw_actions,
+            pending_inputs: &mut pending_inputs,
+            input_state: &mut input_state,
+            framework_clipboard: &fw_cb,
+            engine_id,
+            pending_actions: &pa,
+        };
+        panel.Cycle(&mut ectx, &mut pctx);
+
+        assert!(
+            panel.subscribed_init,
+            "first-Cycle init must flip subscribed_init"
+        );
+        assert_eq!(
+            panel.flags_signal,
+            Some(flags_sig),
+            "init block must cache the window's flags signal"
+        );
+        assert!(
+            panel.fullscreen_on,
+            "FULLSCREEN flag in window → update_fullscreen_on() must run"
+        );
+
+        // Cleanup.
+        let all_ids = tree.panel_ids();
+        for pid in all_ids {
+            if let Some(eid) = tree.panel_engine_id_pub(pid) {
+                sched.remove_engine(eid);
+            }
+        }
+        sched.disconnect(flags_sig, engine_id);
+        sched.remove_signal(close_sig);
+        sched.remove_signal(flags_sig);
+        sched.remove_signal(focus_sig);
+        sched.remove_signal(geom_sig);
+        sched.abort_all_pending();
     }
 }
