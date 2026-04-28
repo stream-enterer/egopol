@@ -1,10 +1,10 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
-use emcore::emEngineCtx::PanelCtx;
+use emcore::emEngineCtx::{EngineCtx, PanelCtx};
 use emcore::emFpPlugin::{FileStatMode, PanelParentArg, emFpPluginList};
 use emcore::emImage::emImage;
 use emcore::emInstallInfo::{InstallDirType, emGetConfigDirOverloadable, emGetInstallPath};
@@ -15,6 +15,8 @@ use emcore::emRecParser::{RecError, RecStruct, RecValue};
 use emcore::emRecRecTypes::{em_color_from_rec_struct, em_color_to_rec_struct};
 use emcore::emRecRecord::Record;
 use emcore::emResTga::load_tga;
+use emcore::emSignal::SignalId;
+use slotmap::Key as _;
 
 // ── emVirtualCosmosItemRec ────────────────────────────────────────────────────
 
@@ -216,6 +218,10 @@ pub struct emVirtualCosmosModel {
     items: Vec<LoadedItem>,
     /// Indices into `items`, sorted by position (PosY then PosX).
     item_recs: Vec<usize>,
+    /// Port of C++ emVirtualCosmosModel::ChangeSignal (emVirtualCosmos.h).
+    /// Lazily allocated on first subscribe per D-008-signal-allocation-shape (A1).
+    /// Fired by `Reload` post-Acquire (see CALLSITE-NOTE on `Reload`).
+    change_signal: Cell<SignalId>,
 }
 
 impl emVirtualCosmosModel {
@@ -229,6 +235,7 @@ impl emVirtualCosmosModel {
                 item_files_dir: String::new(),
                 items: Vec::new(),
                 item_recs: Vec::new(),
+                change_signal: Cell::new(SignalId::null()),
             };
             model.Reload();
             model
@@ -242,14 +249,47 @@ impl emVirtualCosmosModel {
             item_files_dir: String::new(),
             items,
             item_recs: Vec::new(),
+            change_signal: Cell::new(SignalId::null()),
         };
         model.sort_item_recs();
         model
     }
 
+    /// Port of C++ `emVirtualCosmosModel::GetChangeSignal()`.
+    ///
+    /// Returns the current `ChangeSignal` id, or `SignalId::null()` if no
+    /// subscriber has yet caused lazy allocation. Pair with `EnsureChangeSignal`
+    /// at first-Cycle init time. Per D-008 A1.
+    pub fn GetChangeSignal(&self) -> SignalId {
+        self.change_signal.get()
+    }
+
+    /// Lazily allocate `ChangeSignal` on first call; return its id thereafter.
+    /// Per D-008-signal-allocation-shape (A1).
+    pub fn EnsureChangeSignal(&self, ectx: &mut EngineCtx<'_>) -> SignalId {
+        let sig = self.change_signal.get();
+        if sig.is_null() {
+            let new_sig = ectx.create_signal();
+            self.change_signal.set(new_sig);
+            new_sig
+        } else {
+            sig
+        }
+    }
+
     /// Reload items from disk.
     ///
     /// Port of C++ `emVirtualCosmosModel::Reload`.
+    ///
+    /// CALLSITE-NOTE: The single existing callsite is the Acquire-bootstrap
+    /// closure (see `Acquire`), which has no `EngineCtx` and runs before any
+    /// panel has subscribed. Per D-008 A1 lazy allocation, `change_signal ==
+    /// SignalId::null()` at that moment, so a missing fire is benign-by-
+    /// construction (the composition of D-007/D-008 absorbs it). Future
+    /// post-Acquire callers (e.g., a future port of `emVirtualCosmosModel::
+    /// Cycle` reacting to `FileUpdateSignalModel`) MUST thread `&mut
+    /// EngineCtx<'_>` and call `ectx.fire(self.change_signal.get())` after a
+    /// successful reload (skipping the fire if `change_signal.is_null()`).
     pub fn Reload(&mut self) {
         let items_dir = emGetConfigDirOverloadable("emMain", Some("VcItems"))
             .map(|p| p.to_string_lossy().into_owned())
@@ -685,6 +725,10 @@ pub struct emVirtualCosmosPanel {
     /// (item name, panel_id) — one entry per item from the model.
     item_panels: Vec<(String, PanelId)>,
     needs_update: bool,
+    /// B-014 row -575: D-006 first-Cycle init gate. True after Cycle has
+    /// subscribed to the model's `ChangeSignal` (mirrors C++ ctor's
+    /// `AddWakeUpSignal(Model->GetChangeSignal())`).
+    subscribed_init: bool,
 }
 
 impl emVirtualCosmosPanel {
@@ -699,6 +743,7 @@ impl emVirtualCosmosPanel {
             background_panel: None,
             item_panels: Vec::new(),
             needs_update: true,
+            subscribed_init: false,
         }
     }
 
@@ -818,13 +863,25 @@ impl PanelBehavior for emVirtualCosmosPanel {
         Some("Virtual Cosmos".to_string())
     }
 
-    fn Cycle(
-        &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
-        ctx: &mut PanelCtx,
-    ) -> bool {
-        // C++ emVirtualCosmosPanel::Cycle polls model change signal and
-        // calls UpdateChildren on change. We drain the notice flag here.
+    fn Cycle(&mut self, ectx: &mut emcore::emEngineCtx::EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
+        // B-014 row -575: D-006 first-Cycle init — subscribe to model's
+        // ChangeSignal. Mirrors C++ ctor `AddWakeUpSignal(Model->GetChangeSignal())`
+        // (emVirtualCosmos.cpp:575). Lazy alloc per D-008 A1.
+        if !self.subscribed_init {
+            let sig = self.model.borrow().EnsureChangeSignal(ectx);
+            ectx.connect(sig, ectx.id());
+            self.subscribed_init = true;
+        }
+
+        // B-014 row -575: ChangeSignal reaction — mirrors C++ Cycle's
+        // `IsSignaled(Model->GetChangeSignal()) → UpdateChildren()`
+        // (emVirtualCosmos.cpp:606).
+        if ectx.IsSignaled(self.model.borrow().GetChangeSignal()) {
+            self.update_children(ctx);
+        }
+
+        // C++ Notice(NF_VIEWING_CHANGED) → UpdateChildren (cpp:613). Independent
+        // of the ChangeSignal path; both converge on update_children.
         if self.needs_update {
             self.needs_update = false;
             self.update_children(ctx);
@@ -1154,6 +1211,252 @@ mod tests {
         assert_eq!(item.TitleColor.GetRed(), 238);
         assert_eq!(item.TitleColor.GetGreen(), 238);
         assert_eq!(item.TitleColor.GetBlue(), 255);
+    }
+
+    /// B-014 row -575: signal-mechanism test. Verify EnsureChangeSignal
+    /// allocates lazily, GetChangeSignal returns a stable id, and a manual
+    /// fire is observable to a connected engine.
+    ///
+    /// Mirrors C++ emVirtualCosmos.cpp:226 `Signal(ChangeSignal)` semantics:
+    /// the model exposes a fire-able signal that subscribers can observe.
+    #[test]
+    fn b014_row_575_change_signal_lazy_alloc_and_fire() {
+        use emcore::emEngineCtx::EngineCtx;
+        use emcore::emScheduler::EngineScheduler;
+        use slotmap::Key as _;
+        use std::collections::HashMap;
+
+        let model = emVirtualCosmosModel::from_items(vec![]);
+        // Pre-Ensure: GetChangeSignal returns null.
+        assert!(
+            model.GetChangeSignal().is_null(),
+            "before EnsureChangeSignal, GetChangeSignal must be null"
+        );
+
+        let mut sched = EngineScheduler::new();
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let fw_cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(RefCell::new(Vec::new()));
+        let mut pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+            Vec::new();
+        let mut input_state = emcore::emInputState::emInputState::new();
+        let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+            HashMap::new();
+
+        // Register a stub engine so we have a valid EngineId for connect+IsSignaled.
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let stub_id = tree.create_root_deferred_view("b014_stub");
+        tree.set_panel_view(stub_id);
+        tree.register_engine_for_public(stub_id, Some(&mut sched));
+        let engine_id = tree.panel_engine_id_pub(stub_id).expect("engine");
+
+        // Allocate the signal lazily and connect.
+        let sig = {
+            let mut ectx = EngineCtx {
+                scheduler: &mut sched,
+                tree: None,
+                windows: &mut windows,
+                root_context: &root_ctx,
+                framework_actions: &mut fw_actions,
+                pending_inputs: &mut pending_inputs,
+                input_state: &mut input_state,
+                framework_clipboard: &fw_cb,
+                engine_id,
+                pending_actions: &pa,
+            };
+            model.EnsureChangeSignal(&mut ectx)
+        };
+        assert!(
+            !sig.is_null(),
+            "EnsureChangeSignal must return a non-null id"
+        );
+        assert_eq!(
+            sig,
+            model.GetChangeSignal(),
+            "GetChangeSignal must equal the just-Ensured id"
+        );
+        // Idempotent: a second EnsureChangeSignal returns the same id.
+        let sig2 = {
+            let mut ectx = EngineCtx {
+                scheduler: &mut sched,
+                tree: None,
+                windows: &mut windows,
+                root_context: &root_ctx,
+                framework_actions: &mut fw_actions,
+                pending_inputs: &mut pending_inputs,
+                input_state: &mut input_state,
+                framework_clipboard: &fw_cb,
+                engine_id,
+                pending_actions: &pa,
+            };
+            model.EnsureChangeSignal(&mut ectx)
+        };
+        assert_eq!(sig2, sig, "EnsureChangeSignal must be idempotent");
+
+        // Fire the signal and verify it is observable.
+        sched.connect(sig, engine_id);
+        sched.fire(sig);
+        assert!(
+            sched.is_pending(sig),
+            "ChangeSignal must be pending after fire"
+        );
+
+        // Cleanup.
+        sched.disconnect(sig, engine_id);
+        let all_ids = tree.panel_ids();
+        for pid in all_ids {
+            if let Some(eid) = tree.panel_engine_id_pub(pid) {
+                sched.remove_engine(eid);
+            }
+        }
+        sched.abort_all_pending();
+        sched.remove_signal(sig);
+    }
+
+    /// B-014 row -575 click-through: emVirtualCosmosPanel::Cycle subscribes to
+    /// the model's ChangeSignal via first-Cycle init, and on a subsequent fire
+    /// calls `update_children` (observable via `background_panel.is_some()`).
+    ///
+    /// Mirrors C++ emVirtualCosmos.cpp:575 (ctor `AddWakeUpSignal`) + cpp:606
+    /// (Cycle's `IsSignaled → UpdateChildren`).
+    #[test]
+    fn b014_row_575_change_signal_drives_update_children() {
+        use emcore::emEngineCtx::{EngineCtx, PanelCtx};
+        use emcore::emScheduler::EngineScheduler;
+        use std::collections::HashMap;
+
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut sched = EngineScheduler::new();
+
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let root_id = tree.create_root_deferred_view("vc_575");
+        tree.set_behavior(
+            root_id,
+            Box::new(emVirtualCosmosPanel::new(Rc::clone(&root_ctx))),
+        );
+        tree.set_panel_view(root_id);
+        tree.register_engine_for_public(root_id, Some(&mut sched));
+        let engine_id = tree.panel_engine_id_pub(root_id).expect("engine");
+
+        let fw_cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(RefCell::new(Vec::new()));
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+            Vec::new();
+        let mut input_state = emcore::emInputState::emInputState::new();
+        let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+            HashMap::new();
+
+        // Reset needs_update=false so we can observe ChangeSignal-driven updates
+        // independently of the notice-driven path.
+        let model_handle: Rc<RefCell<emVirtualCosmosModel>> = {
+            let mut behavior = tree.take_behavior(root_id).expect("behavior");
+            let panel = behavior
+                .as_any_mut()
+                .downcast_mut::<emVirtualCosmosPanel>()
+                .expect("emVirtualCosmosPanel");
+            panel.needs_update = false;
+            let m = Rc::clone(&panel.model);
+            tree.put_behavior(root_id, behavior);
+            m
+        };
+
+        // Drive Cycle once to run first-Cycle init (subscribe to ChangeSignal).
+        // No fire pending → update_children should not be called.
+        let mut behavior_slot = tree.take_behavior(root_id).expect("behavior");
+        {
+            let sched_ptr: *mut EngineScheduler = &mut sched;
+            let mut pctx =
+                PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+            let mut ectx = EngineCtx {
+                scheduler: &mut sched,
+                tree: None,
+                windows: &mut windows,
+                root_context: &root_ctx,
+                framework_actions: &mut fw_actions,
+                pending_inputs: &mut pending_inputs,
+                input_state: &mut input_state,
+                framework_clipboard: &fw_cb,
+                engine_id,
+                pending_actions: &pa,
+            };
+            behavior_slot.Cycle(&mut ectx, &mut pctx);
+        }
+        tree.put_behavior(root_id, behavior_slot);
+
+        // Verify subscribe happened and update_children did not run.
+        let change_sig = model_handle.borrow().GetChangeSignal();
+        assert!(
+            !change_sig.is_null(),
+            "after first-Cycle init, ChangeSignal must be allocated"
+        );
+        {
+            let mut behavior = tree.take_behavior(root_id).expect("behavior");
+            let panel = behavior
+                .as_any_mut()
+                .downcast_mut::<emVirtualCosmosPanel>()
+                .expect("emVirtualCosmosPanel");
+            assert!(
+                panel.subscribed_init,
+                "subscribed_init must be true after first Cycle"
+            );
+            assert!(
+                panel.background_panel.is_none(),
+                "background_panel must still be None: no signal fired yet"
+            );
+            tree.put_behavior(root_id, behavior);
+        }
+
+        // Fire the ChangeSignal and run another Cycle. update_children must run
+        // (creates the starfield background panel as a side-effect).
+        sched.fire(change_sig);
+        sched.flush_signals_for_test();
+
+        let mut behavior_slot = tree.take_behavior(root_id).expect("behavior");
+        {
+            let sched_ptr: *mut EngineScheduler = &mut sched;
+            let mut pctx =
+                PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+            let mut ectx = EngineCtx {
+                scheduler: &mut sched,
+                tree: None,
+                windows: &mut windows,
+                root_context: &root_ctx,
+                framework_actions: &mut fw_actions,
+                pending_inputs: &mut pending_inputs,
+                input_state: &mut input_state,
+                framework_clipboard: &fw_cb,
+                engine_id,
+                pending_actions: &pa,
+            };
+            behavior_slot.Cycle(&mut ectx, &mut pctx);
+        }
+        tree.put_behavior(root_id, behavior_slot);
+
+        {
+            let mut behavior = tree.take_behavior(root_id).expect("behavior");
+            let panel = behavior
+                .as_any_mut()
+                .downcast_mut::<emVirtualCosmosPanel>()
+                .expect("emVirtualCosmosPanel");
+            assert!(
+                panel.background_panel.is_some(),
+                "background_panel must be Some after ChangeSignal-driven update_children"
+            );
+            tree.put_behavior(root_id, behavior);
+        }
+
+        // Cleanup.
+        let all_ids = tree.panel_ids();
+        for pid in all_ids {
+            if let Some(eid) = tree.panel_engine_id_pub(pid) {
+                sched.remove_engine(eid);
+            }
+        }
+        sched.abort_all_pending();
     }
 
     #[test]
