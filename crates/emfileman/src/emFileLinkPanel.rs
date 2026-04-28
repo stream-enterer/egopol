@@ -182,11 +182,16 @@ impl PanelBehavior for emFileLinkPanel {
         _ctx: &mut PanelCtx,
     ) -> bool {
         // D-006 first-Cycle init: lazy-allocate ChangeSignal and connect.
-        // Mirrors C++ emFileLinkPanel ctor `AddWakeUpSignal(...)` (row 55).
+        // Mirrors C++ emFileLinkPanel ctor `AddWakeUpSignal(...)` (rows 53, 55).
         if !self.subscribed_init {
             let eid = ectx.engine_id;
             let chg_sig = self.config.borrow().GetChangeSignal(ectx);
             ectx.connect(chg_sig, eid);
+            // B-005 row emFileLinkPanel-53: subscribe to the shared
+            // file-update broadcast signal. Mirrors C++
+            // `AddWakeUpSignal(UpdateSignalModel->Sig)`.
+            let update_sig = emcore::emFileModel::emFileModel::<()>::AcquireUpdateSignalModel(ectx);
+            ectx.connect(update_sig, eid);
             self.subscribed_init = true;
         }
 
@@ -194,6 +199,16 @@ impl PanelBehavior for emFileLinkPanel {
         // Re-call combined-form accessor (B-014 precedent): idempotent.
         let chg_sig = self.config.borrow().GetChangeSignal(ectx);
         if !chg_sig.is_null() && ectx.IsSignaled(chg_sig) {
+            self.needs_update = true;
+        }
+        // B-005 row emFileLinkPanel-53: react to the shared file-update
+        // broadcast. Mirrors C++ emFileLinkPanel.cpp:90-93
+        // (`DirEntryUpToDate=false; doUpdate=true;`). The Rust analog is to
+        // mark `needs_update`, which `LayoutChildren` consumes by re-running
+        // `update_data_and_child_panel` (re-resolves the link target and
+        // recreates the child panel if the target has changed).
+        let update_sig = emcore::emFileModel::emFileModel::<()>::AcquireUpdateSignalModel(ectx);
+        if ectx.IsSignaled(update_sig) {
             self.needs_update = true;
         }
 
