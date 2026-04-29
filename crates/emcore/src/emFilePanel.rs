@@ -1,11 +1,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use slotmap::Key as _;
+
 use crate::emColor::emColor;
 use crate::emEngineCtx::PanelCtx;
 use crate::emFileModel::{FileModelState, FileState};
 use crate::emPainter::{emPainter, TextAlignment, VAlign};
 use crate::emPanel::{FileLoadStatus, NoticeFlags, PanelBehavior, PanelState};
+use crate::emSignal::SignalId;
 
 /// Extended file state for a file panel, adding custom error and no-model states.
 ///
@@ -50,6 +53,13 @@ pub struct emFilePanel {
     pub(crate) cached_memory_limit: u64,
     pub(crate) cached_priority: f64,
     pub(crate) cached_in_active_path: bool,
+    /// B-015 row -50: cached `FileStateSignal` id of the bound model. When
+    /// non-null, the panel's engine is connected to this signal. Mirrors
+    /// C++ `emFilePanel::SetFileModel`'s `RemoveWakeUpSignal` /
+    /// `AddWakeUpSignal` pair (emFilePanel.cpp:48,50). Re-evaluated each
+    /// Cycle so a model swap re-binds (Option B per kickoff brief — matches
+    /// emImageFilePanel precedent for model-swap subscribe handling).
+    subscribed_file_state_signal: SignalId,
 }
 
 impl Default for emFilePanel {
@@ -67,6 +77,7 @@ impl emFilePanel {
             cached_memory_limit: u64::MAX,
             cached_priority: 0.0,
             cached_in_active_path: false,
+            subscribed_file_state_signal: SignalId::null(),
         }
     }
 
@@ -105,6 +116,13 @@ impl emFilePanel {
     /// in tests; in production, Cycle() does this.
     pub fn refresh_vir_file_state(&mut self) {
         self.last_vir_file_state = self.compute_vir_file_state();
+    }
+
+    /// Test accessor: cached `FileStateSignal` id of the bound model, or
+    /// null if no model is connected. B-015.
+    #[doc(hidden)]
+    pub fn subscribed_file_state_signal_for_test(&self) -> SignalId {
+        self.subscribed_file_state_signal
     }
 
     fn compute_vir_file_state(&self) -> VirtualFileState {
@@ -399,11 +417,34 @@ impl PanelBehavior for emFilePanel {
         Some("file.tga".to_string())
     }
 
-    fn Cycle(
-        &mut self,
-        _ectx: &mut crate::emEngineCtx::EngineCtx<'_>,
-        _ctx: &mut PanelCtx,
-    ) -> bool {
+    fn Cycle(&mut self, ectx: &mut crate::emEngineCtx::EngineCtx<'_>, _ctx: &mut PanelCtx) -> bool {
+        // B-015 row -50: D-006 override, subscribe at Cycle time.
+        //
+        // DIVERGED: (language-forced) C++ `emFilePanel::SetFileModel` calls
+        // `RemoveWakeUpSignal(old->GetFileStateSignal())` /
+        // `AddWakeUpSignal(new->GetFileStateSignal())` synchronously
+        // (emFilePanel.cpp:48,50) because `emPanel` subclasses inherit
+        // scheduler reach from `emEngine`. Rust's canonical ownership model
+        // requires explicit `EngineCtx`/`SchedCtx` threading; `SetFileModel`
+        // callers include panel constructors and `Notice` handlers that hold
+        // no engine context. Subscribe is therefore deferred to Cycle, with
+        // model-swap detection on each invocation. Matches the precedent set
+        // by `emImageFilePanel` B-007 row -139 for the same reason.
+        let eid = ectx.id();
+        let target_sig = self
+            .model
+            .as_ref()
+            .map(|m| m.borrow().GetFileStateSignal())
+            .unwrap_or_else(SignalId::null);
+        if target_sig != self.subscribed_file_state_signal {
+            if !self.subscribed_file_state_signal.is_null() {
+                ectx.disconnect(self.subscribed_file_state_signal, eid);
+            }
+            if !target_sig.is_null() {
+                ectx.connect(target_sig, eid);
+            }
+            self.subscribed_file_state_signal = target_sig;
+        }
         self.cycle_inner()
     }
 

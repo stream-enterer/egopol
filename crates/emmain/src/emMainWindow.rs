@@ -142,7 +142,7 @@ impl emMainWindow {
         if let Some(main_id) = self.main_panel_id {
             app.home_tree_mut()
                 .with_behavior_as::<emMainPanel, _>(main_id, |mp| {
-                    mp.DoubleClickSlider();
+                    mp.DoubleClickSlider(None);
                 });
             log::debug!("ToggleControlView");
         }

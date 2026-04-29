@@ -17,8 +17,10 @@ use emcore::emPainter::{TextAlignment, VAlign};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelId;
 use emcore::emResTga::load_tga;
+use emcore::emScheduler::EngineScheduler;
 use emcore::emSignal::SignalId;
 use emcore::emSubViewPanel::emSubViewPanel;
+use emcore::emTimer::TimerId;
 use emcore::emWindow::WindowFlags;
 
 use crate::emMainConfig::emMainConfig;
@@ -348,14 +350,24 @@ pub struct emMainPanel {
     fullscreen_on: bool,
     slider_hidden: bool,
 
-    // Timer for slider auto-hide (C++ emMainPanel::SliderTimer, 5-second one-shot)
-    slider_hide_timer_start: Option<std::time::Instant>,
+    // Timer for slider auto-hide (C++ emMainPanel::SliderTimer, 5-second one-shot).
+    // B-015 row -68: replaced wall-clock `Option<Instant>` polling with an
+    // `emTimer` instance whose signal wakes the panel engine. Signal/timer
+    // allocated in the shared B-008 `subscribed_init` block. `update_slider_hiding`
+    // receives `Option<&mut EngineScheduler>` to call arm/cancel synchronously,
+    // mirroring C++'s `SliderTimer.Start/Stop` from `UpdateSliderHiding`.
+    /// Cached signal id allocated for `slider_timer_id`. Connected to the
+    /// panel engine on first Cycle (shared init block with B-008).
+    slider_timer_signal: Option<SignalId>,
+    /// `TimerCentral` handle for the 5-second slider auto-hide one-shot.
+    slider_timer_id: Option<TimerId>,
 
     // B-008 D-006 first-Cycle init state. Mirrors C++ ctor `AddWakeUpSignal`
     // calls at emMainPanel.cpp:67 (View.GetEOISignal) and :69
     // (GetWindow()->GetWindowFlagsSignal). Lazy alloc per D-008 A1: the signal
     // ids are looked up on the first Cycle, when EngineCtx + windows + the
-    // child sub-view panel are all available.
+    // child sub-view panel are all available. B-015 row -68 shares this flag
+    // for the slider-timer signal/timer alloc + connect.
     subscribed_init: bool,
     /// Cached `emView::EOISignal` id of the control sub-view (B-008 row -67).
     eoi_signal: Option<SignalId>,
@@ -403,7 +415,8 @@ impl emMainPanel {
             old_mouse_y: 0.0,
             fullscreen_on: false,
             slider_hidden: false,
-            slider_hide_timer_start: None,
+            slider_timer_signal: None,
+            slider_timer_id: None,
             subscribed_init: false,
             eoi_signal: None,
             flags_signal: None,
@@ -495,50 +508,52 @@ impl emMainPanel {
     }
 
     /// Port of C++ `emMainPanel::UpdateFullscreen` (fullscreen enter path).
-    pub fn update_fullscreen_on(&mut self) {
+    pub fn update_fullscreen_on(&mut self, sched: Option<&mut EngineScheduler>) {
         if !self.fullscreen_on {
             self.fullscreen_on = true;
             if self.config.borrow().GetAutoHideControlView() {
                 self.unified_slider_pos = 0.0;
                 self.update_coordinates(self.last_height);
-                self.update_slider_hiding(false);
+                self.update_slider_hiding(false, sched);
             }
         }
     }
 
     /// Port of C++ `emMainPanel::UpdateFullscreen` (fullscreen exit path).
-    pub fn update_fullscreen_off(&mut self) {
+    pub fn update_fullscreen_off(&mut self, sched: Option<&mut EngineScheduler>) {
         if self.fullscreen_on {
             self.fullscreen_on = false;
             if self.config.borrow().GetAutoHideControlView() {
                 self.unified_slider_pos = self.config.borrow().GetControlViewSize();
                 self.update_coordinates(self.last_height);
-                self.update_slider_hiding(false);
+                self.update_slider_hiding(false, sched);
             }
         }
     }
 
-    /// Port of C++ `emMainPanel::UpdateSliderHiding`.
-    ///
-    /// Hides the slider after 5 seconds in fullscreen when control is collapsed
-    /// and AutoHideSlider is enabled.
     /// Port of C++ `emMainPanel::UpdateSliderHiding` (emMainPanel.cpp:322-339).
     ///
     /// Hides the slider after 5 seconds in fullscreen when control is collapsed
-    /// and AutoHideSlider is enabled. Uses `slider_hide_timer_start` as a
-    /// 5-second one-shot; `Cycle` checks elapsed time and hides when expired.
-    fn update_slider_hiding(&mut self, restart: bool) {
+    /// and AutoHideSlider is enabled. Mirrors C++ `SliderTimer.Stop(true)` /
+    /// `SliderTimer.Start(5000)` directly when `sched` is available.
+    fn update_slider_hiding(&mut self, restart: bool, sched: Option<&mut EngineScheduler>) {
         let to_hide = self.unified_slider_pos < 1e-15
             && self.fullscreen_on
             && self.config.borrow().GetAutoHideSlider();
 
         if !to_hide || restart {
             self.slider_hidden = false;
-            self.slider_hide_timer_start = None;
         }
-        if to_hide && !self.slider_hidden {
-            // Start (or restart) the 5-second timer.
-            self.slider_hide_timer_start = Some(std::time::Instant::now());
+
+        if let (Some(s), Some(tid)) = (sched, self.slider_timer_id) {
+            // Mirrors C++ emMainPanel.cpp:334: `SliderTimer.Stop(true)`.
+            if !to_hide || restart {
+                s.cancel_timer(tid, true);
+            }
+            // Mirrors C++ emMainPanel.cpp:336-338: `if (!IsRunning()) Start(5000)`.
+            if to_hide && !self.slider_hidden && !s.is_timer_running(tid) {
+                s.restart_timer(tid, 5000, false);
+            }
         }
     }
 
@@ -623,7 +638,7 @@ impl emMainPanel {
     /// Apply a slider drag delta in parent coordinate space.
     ///
     /// Port of C++ `emMainPanel::DragSlider` (emMainPanel.cpp:342-357).
-    pub(crate) fn DragSlider(&mut self, delta_y: f64) {
+    pub(crate) fn DragSlider(&mut self, delta_y: f64, sched: Option<&mut EngineScheduler>) {
         let mut y = self.slider_y + delta_y;
         if y <= self.slider_min_y {
             y = self.slider_min_y;
@@ -636,7 +651,7 @@ impl emMainPanel {
             if self.unified_slider_pos != n {
                 self.unified_slider_pos = n;
                 self.update_coordinates(self.last_height);
-                self.update_slider_hiding(false);
+                self.update_slider_hiding(false, sched);
                 self.config
                     .borrow_mut()
                     .SetControlViewSize(self.unified_slider_pos);
@@ -648,7 +663,7 @@ impl emMainPanel {
     /// Toggle the slider between open and closed on double-click.
     ///
     /// Port of C++ `emMainPanel::DoubleClickSlider` (emMainPanel.cpp:360-374).
-    pub(crate) fn DoubleClickSlider(&mut self) {
+    pub(crate) fn DoubleClickSlider(&mut self, sched: Option<&mut EngineScheduler>) {
         if self.unified_slider_pos < 0.01 {
             if self.config.borrow().GetControlViewSize() < 0.01 {
                 self.config.borrow_mut().SetControlViewSize(0.7);
@@ -659,7 +674,7 @@ impl emMainPanel {
             self.unified_slider_pos = 0.0;
         }
         self.update_coordinates(self.last_height);
-        self.update_slider_hiding(false);
+        self.update_slider_hiding(false, sched);
     }
 }
 
@@ -704,6 +719,15 @@ impl PanelBehavior for emMainPanel {
                 self.flags_signal = Some(sig);
             }
 
+            // B-015 row -68: SliderTimer signal + emTimer instance + connect.
+            // Mirrors C++ emMainPanel.cpp:68 `AddWakeUpSignal(SliderTimer.GetSignal())`
+            // and the `SliderTimer` member init.
+            let sig = ectx.scheduler.create_signal();
+            let tid = ectx.scheduler.create_timer(sig);
+            ectx.connect(sig, eid);
+            self.slider_timer_signal = Some(sig);
+            self.slider_timer_id = Some(tid);
+
             self.subscribed_init = true;
         }
 
@@ -715,7 +739,13 @@ impl PanelBehavior for emMainPanel {
             && ectx.IsSignaled(sig)
         {
             self.slider_hidden = true;
-            self.slider_hide_timer_start = None;
+            // Cancel any in-flight slider-hide timer. C++ EOI block
+            // (emMainPanel.cpp:116-119) only calls ZoomOut+Activate, but B-008
+            // pre-existing Rust code also cleared slider_hide_timer_start here;
+            // B-015 preserves that behavior with cancel_timer.
+            if let Some(tid) = self.slider_timer_id {
+                ectx.scheduler.cancel_timer(tid, true);
+            }
         }
 
         // Row -69 reaction. C++ emMainPanel::Cycle calls UpdateFullscreen()
@@ -731,18 +761,20 @@ impl PanelBehavior for emMainPanel {
                 .map(|w| w.flags.contains(WindowFlags::FULLSCREEN))
                 .unwrap_or(false);
             if is_fs {
-                self.update_fullscreen_on();
+                self.update_fullscreen_on(Some(ectx.scheduler));
             } else {
-                self.update_fullscreen_off();
+                self.update_fullscreen_off(Some(ectx.scheduler));
             }
         }
 
-        // Check slider auto-hide timer (C++ SliderTimer, 5-second one-shot).
-        if let Some(start) = self.slider_hide_timer_start
-            && start.elapsed().as_millis() >= 5000
+        // B-015 row -68: SliderTimer fired → hide the slider. Mirrors C++
+        // emMainPanel.cpp:121-123 `if (IsSignaled(SliderTimer.GetSignal()))
+        // Slider->SetHidden(true);`. The signal is connected in the
+        // shared B-008 `subscribed_init` block above.
+        if let Some(sig) = self.slider_timer_signal
+            && ectx.IsSignaled(sig)
         {
             self.slider_hidden = true;
-            self.slider_hide_timer_start = None;
         }
 
         // Propagate hidden state to SliderPanel.
@@ -766,9 +798,9 @@ impl PanelBehavior for emMainPanel {
                 });
             if let Some((double_clicked, drag_delta)) = action {
                 if double_clicked {
-                    self.DoubleClickSlider();
+                    self.DoubleClickSlider(Some(ectx.scheduler));
                 } else if let Some(dy) = drag_delta {
-                    self.DragSlider(dy);
+                    self.DragSlider(dy, Some(ectx.scheduler));
                 }
             }
         }
@@ -913,7 +945,7 @@ impl PanelBehavior for emMainPanel {
         _event: &emInputEvent,
         _state: &PanelState,
         input_state: &emInputState,
-        _ctx: &mut PanelCtx,
+        ctx: &mut PanelCtx,
     ) -> bool {
         // Port of C++ emMainPanel::Input (emMainPanel.cpp:143-158) —
         // detect mouse movement for slider hiding.
@@ -925,7 +957,7 @@ impl PanelBehavior for emMainPanel {
         {
             self.old_mouse_x = input_state.mouse_x;
             self.old_mouse_y = input_state.mouse_y;
-            self.update_slider_hiding(true);
+            self.update_slider_hiding(true, ctx.scheduler.as_deref_mut());
         }
         false
     }
@@ -1213,7 +1245,7 @@ mod tests {
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.update_coordinates(1.0);
-        panel.DragSlider(-999.0);
+        panel.DragSlider(-999.0, None);
         assert!(panel.slider_y >= panel.slider_min_y);
     }
 
@@ -1223,7 +1255,7 @@ mod tests {
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.update_coordinates(1.0);
-        panel.DragSlider(999.0);
+        panel.DragSlider(999.0, None);
         assert!(panel.slider_y <= panel.slider_max_y);
     }
 
@@ -1235,9 +1267,9 @@ mod tests {
         panel.update_coordinates(1.0);
         panel.unified_slider_pos = 0.5;
         panel.update_coordinates(1.0);
-        panel.DoubleClickSlider();
+        panel.DoubleClickSlider(None);
         assert!(panel.unified_slider_pos < 0.01);
-        panel.DoubleClickSlider();
+        panel.DoubleClickSlider(None);
         assert!(panel.unified_slider_pos > 0.01);
     }
 
@@ -1248,7 +1280,7 @@ mod tests {
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.update_coordinates(1.0);
         let old_pos = panel.unified_slider_pos;
-        panel.DragSlider(0.1);
+        panel.DragSlider(0.1, None);
         // If range > 0, position should have changed.
         if panel.slider_max_y > panel.slider_min_y {
             assert!((panel.unified_slider_pos - old_pos).abs() > 1e-10);
@@ -1265,7 +1297,7 @@ mod tests {
         panel.unified_slider_pos = 0.5;
         panel.update_coordinates(1.0);
         panel.config.borrow_mut().SetAutoHideControlView(true);
-        panel.update_fullscreen_on();
+        panel.update_fullscreen_on(None);
         assert!(panel.fullscreen_on);
         // With AutoHideControlView, slider collapses to 0.
         assert!(panel.unified_slider_pos < 0.01);
@@ -1279,7 +1311,7 @@ mod tests {
         panel.unified_slider_pos = 0.5;
         panel.update_coordinates(1.0);
         // AutoHideControlView defaults to false.
-        panel.update_fullscreen_on();
+        panel.update_fullscreen_on(None);
         assert!(panel.fullscreen_on);
         // Without auto-hide, slider position unchanged.
         assert!((panel.unified_slider_pos - 0.5).abs() < 1e-10);
@@ -1292,10 +1324,10 @@ mod tests {
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         panel.config.borrow_mut().SetAutoHideControlView(true);
         panel.config.borrow_mut().SetControlViewSize(0.6);
-        panel.update_fullscreen_on();
+        panel.update_fullscreen_on(None);
         assert!(panel.fullscreen_on);
         assert!(panel.unified_slider_pos < 0.01);
-        panel.update_fullscreen_off();
+        panel.update_fullscreen_off(None);
         assert!(!panel.fullscreen_on);
         // Restores from config.
         assert!((panel.unified_slider_pos - 0.6).abs() < 1e-10);
@@ -1306,11 +1338,11 @@ mod tests {
         isolate_home();
         let ctx = emcore::emContext::emContext::NewRoot();
         let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
-        panel.update_fullscreen_on();
-        panel.update_fullscreen_on(); // second call is no-op
+        panel.update_fullscreen_on(None);
+        panel.update_fullscreen_on(None); // second call is no-op
         assert!(panel.fullscreen_on);
-        panel.update_fullscreen_off();
-        panel.update_fullscreen_off(); // second call is no-op
+        panel.update_fullscreen_off(None);
+        panel.update_fullscreen_off(None); // second call is no-op
         assert!(!panel.fullscreen_on);
     }
 
@@ -1322,7 +1354,7 @@ mod tests {
         panel.unified_slider_pos = 0.0;
         panel.config.borrow_mut().SetAutoHideSlider(true);
         // Not fullscreen, so to_hide is false.
-        panel.update_slider_hiding(false);
+        panel.update_slider_hiding(false, None);
         assert!(!panel.slider_hidden);
     }
 
@@ -1336,7 +1368,7 @@ mod tests {
         panel.config.borrow_mut().SetAutoHideSlider(true);
         // to_hide is true; timer would start but deferred to Phase 3.
         // slider_hidden stays false until timer fires.
-        panel.update_slider_hiding(false);
+        panel.update_slider_hiding(false, None);
         assert!(!panel.slider_hidden);
     }
 
@@ -1350,7 +1382,7 @@ mod tests {
         panel.unified_slider_pos = 0.0;
         panel.config.borrow_mut().SetAutoHideSlider(true);
         // restart=true: unhides even when to_hide is true.
-        panel.update_slider_hiding(true);
+        panel.update_slider_hiding(true, None);
         assert!(!panel.slider_hidden);
     }
 
@@ -1423,7 +1455,8 @@ mod tests {
     /// Four-question audit trail:
     ///   (1) connected — ectx.connect(eoi_sig, engine_id) inside Cycle init.
     ///   (2) observes  — IsSignaled(eoi_signal) branch in Cycle.
-    ///   (3) reaction  — slider_hidden = true, slider_hide_timer_start = None.
+    ///   (3) reaction  — slider_hidden = true, slider-timer cancelled (Rust
+    ///                   extension — C++ EOI block only calls ZoomOut+Activate).
     ///   (4) C++ order — EOI branch runs before the SliderTimer block, mirroring
     ///                   C++ Cycle's EOI-finalisation precedence over the timer.
     #[test]
@@ -1447,8 +1480,14 @@ mod tests {
         let mut panel = emMainPanel::new(Rc::clone(&root_ctx), 5.0);
         panel.subscribed_init = true;
         panel.eoi_signal = Some(eoi_sig);
-        // Pre-arm the slider-hide timer so we can observe it being cleared.
-        panel.slider_hide_timer_start = Some(std::time::Instant::now());
+        // Pre-arm the slider-hide timer so we can observe it being cleared
+        // by the EOI branch. B-015: the timer is an `emTimer` instance; arm
+        // it via the real scheduler API.
+        let slider_timer_sig = sched.create_signal();
+        let slider_timer_id = sched.create_timer(slider_timer_sig);
+        sched.start_timer(slider_timer_id, 5000, false);
+        panel.slider_timer_signal = Some(slider_timer_sig);
+        panel.slider_timer_id = Some(slider_timer_id);
         panel.slider_hidden = false;
 
         let mut tree = emcore::emPanelTree::PanelTree::new();
@@ -1495,8 +1534,8 @@ mod tests {
             "EOI signal must finalise auto-hide → slider_hidden = true"
         );
         assert!(
-            panel.slider_hide_timer_start.is_none(),
-            "EOI signal must clear the 5-second slider-hide timer"
+            !sched.is_timer_running(slider_timer_id),
+            "EOI signal must cancel the 5-second slider-hide timer"
         );
 
         // Cleanup.
@@ -1633,6 +1672,238 @@ mod tests {
         sched.remove_signal(flags_sig);
         sched.remove_signal(focus_sig);
         sched.remove_signal(geom_sig);
+        sched.abort_all_pending();
+    }
+
+    // ── B-015 row -68: SliderTimer subscribe + arm/cancel + reaction ─────
+    //
+    // C++ refs:
+    //   emMainPanel.cpp:68      AddWakeUpSignal(SliderTimer.GetSignal())
+    //   emMainPanel.cpp:121-123 if (IsSignaled(SliderTimer.GetSignal()))
+    //                                Slider->SetHidden(true);
+    //   emMainPanel.cpp:332-334 SliderTimer.Start(5000) (arm in UpdateSliderHiding)
+    //
+    // Four-question audit trail:
+    //   (1) connected — ectx.connect(sig, eid) inside the shared B-008
+    //                   `subscribed_init` block, after timer + signal alloc.
+    //   (2) observes  — IsSignaled(slider_timer_signal) branch in Cycle.
+    //   (3) reaction  — slider_hidden = true.
+    //   (4) C++ order — branch runs after the B-008 EOI/flags branches and
+    //                   after the pending-arm/cancel drain, mirroring C++
+    //                   Cycle's flow: process EOI/flags first, then handle
+    //                   timer fire.
+
+    #[allow(clippy::too_many_arguments)] // CLAUDE.md exemption
+    fn build_b015_ectx<'a>(
+        sched: &'a mut emcore::emScheduler::EngineScheduler,
+        windows: &'a mut std::collections::HashMap<
+            winit::window::WindowId,
+            emcore::emWindow::emWindow,
+        >,
+        root_ctx: &'a Rc<emContext>,
+        fw_actions: &'a mut Vec<emcore::emEngineCtx::DeferredAction>,
+        pending_inputs: &'a mut Vec<(winit::window::WindowId, emInputEvent)>,
+        input_state: &'a mut emInputState,
+        fw_cb: &'a RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>>,
+        pa: &'a Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>>,
+        engine_id: emcore::emEngine::EngineId,
+    ) -> emcore::emEngineCtx::EngineCtx<'a> {
+        emcore::emEngineCtx::EngineCtx {
+            scheduler: sched,
+            tree: None,
+            windows,
+            root_context: root_ctx,
+            framework_actions: fw_actions,
+            pending_inputs,
+            input_state,
+            framework_clipboard: fw_cb,
+            engine_id,
+            pending_actions: pa,
+        }
+    }
+
+    /// Row -68: first-Cycle init allocates the slider-timer signal, creates
+    /// an `emTimer` for it, and connects the signal to the panel engine.
+    #[test]
+    fn b015_row_68_first_cycle_init_creates_timer_and_signal() {
+        use emcore::emEngineCtx::PanelCtx;
+        use emcore::emScheduler::EngineScheduler;
+        use std::collections::HashMap;
+
+        isolate_home();
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut sched = EngineScheduler::new();
+        let mut panel = emMainPanel::new(Rc::clone(&root_ctx), 5.0);
+
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let root_id = tree.create_root_deferred_view("mp_b015_init");
+        tree.set_panel_view(root_id);
+        tree.register_engine_for_public(root_id, Some(&mut sched));
+        let engine_id = tree.panel_engine_id_pub(root_id).expect("engine");
+
+        let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+            HashMap::new();
+        let fw_cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(RefCell::new(Vec::new()));
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(winit::window::WindowId, emInputEvent)> = Vec::new();
+        let mut input_state = emInputState::new();
+
+        let sched_ptr: *mut EngineScheduler = &mut sched;
+        // SAFETY: ectx and pctx alias the same scheduler; single-threaded.
+        let mut pctx =
+            PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+        let mut ectx = build_b015_ectx(
+            &mut sched,
+            &mut windows,
+            &root_ctx,
+            &mut fw_actions,
+            &mut pending_inputs,
+            &mut input_state,
+            &fw_cb,
+            &pa,
+            engine_id,
+        );
+        panel.Cycle(&mut ectx, &mut pctx);
+
+        assert!(
+            panel.subscribed_init,
+            "first-Cycle init must flip subscribed_init"
+        );
+        assert!(
+            panel.slider_timer_signal.is_some(),
+            "init must allocate the slider-timer signal"
+        );
+        assert!(
+            panel.slider_timer_id.is_some(),
+            "init must create the slider-timer instance"
+        );
+
+        // Cleanup.
+        let all_ids = tree.panel_ids();
+        for pid in all_ids {
+            if let Some(eid) = tree.panel_engine_id_pub(pid) {
+                sched.remove_engine(eid);
+            }
+        }
+        sched.abort_all_pending();
+    }
+
+    /// Row -68 reaction: firing the slider-timer signal → slider_hidden flips
+    /// to true. Mirrors C++ emMainPanel.cpp:121-123.
+    #[test]
+    fn b015_row_68_signal_arrival_hides_slider() {
+        use emcore::emEngineCtx::PanelCtx;
+        use emcore::emScheduler::EngineScheduler;
+        use std::collections::HashMap;
+
+        isolate_home();
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut sched = EngineScheduler::new();
+        let mut panel = emMainPanel::new(Rc::clone(&root_ctx), 5.0);
+
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let root_id = tree.create_root_deferred_view("mp_b015_fire");
+        tree.set_panel_view(root_id);
+        tree.register_engine_for_public(root_id, Some(&mut sched));
+        let engine_id = tree.panel_engine_id_pub(root_id).expect("engine");
+
+        // Bypass the init block by injecting a pre-allocated timer + signal.
+        let slider_sig = sched.create_signal();
+        let slider_tid = sched.create_timer(slider_sig);
+        sched.connect(slider_sig, engine_id);
+        panel.subscribed_init = true;
+        panel.slider_timer_signal = Some(slider_sig);
+        panel.slider_timer_id = Some(slider_tid);
+        panel.slider_hidden = false;
+
+        sched.fire(slider_sig);
+        sched.flush_signals_for_test();
+
+        let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+            HashMap::new();
+        let fw_cb: RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(RefCell::new(Vec::new()));
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+        let mut pending_inputs: Vec<(winit::window::WindowId, emInputEvent)> = Vec::new();
+        let mut input_state = emInputState::new();
+
+        let sched_ptr: *mut EngineScheduler = &mut sched;
+        // SAFETY: ectx and pctx alias the same scheduler; single-threaded.
+        let mut pctx =
+            PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+        let mut ectx = build_b015_ectx(
+            &mut sched,
+            &mut windows,
+            &root_ctx,
+            &mut fw_actions,
+            &mut pending_inputs,
+            &mut input_state,
+            &fw_cb,
+            &pa,
+            engine_id,
+        );
+        panel.Cycle(&mut ectx, &mut pctx);
+
+        assert!(
+            panel.slider_hidden,
+            "SliderTimer signal must flip slider_hidden=true"
+        );
+
+        // Cleanup.
+        let all_ids = tree.panel_ids();
+        for pid in all_ids {
+            if let Some(eid) = tree.panel_engine_id_pub(pid) {
+                sched.remove_engine(eid);
+            }
+        }
+        sched.disconnect(slider_sig, engine_id);
+        sched.remove_signal(slider_sig);
+        sched.abort_all_pending();
+    }
+
+    /// Row -68: `update_slider_hiding` arms the slider timer synchronously
+    /// when fullscreen + collapsed + AutoHideSlider. C++ emMainPanel.cpp:336-338.
+    #[test]
+    fn b015_row_68_update_slider_hiding_arms_and_cancels_timer() {
+        use emcore::emScheduler::EngineScheduler;
+
+        isolate_home();
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut sched = EngineScheduler::new();
+        let mut panel = emMainPanel::new(Rc::clone(&root_ctx), 5.0);
+
+        // Pre-allocate timer + signal so update_slider_hiding can arm/cancel.
+        let slider_sig = sched.create_signal();
+        let slider_tid = sched.create_timer(slider_sig);
+        panel.slider_timer_signal = Some(slider_sig);
+        panel.slider_timer_id = Some(slider_tid);
+
+        // Set preconditions so `to_hide = true`: fullscreen + slider collapsed
+        // + AutoHideSlider enabled.
+        panel.fullscreen_on = true;
+        panel.unified_slider_pos = 0.0;
+        panel.config.borrow_mut().SetAutoHideSlider(true);
+        panel.slider_hidden = false;
+
+        // Arm: C++ `SliderTimer.Start(5000)`.
+        panel.update_slider_hiding(false, Some(&mut sched));
+        assert!(
+            sched.is_timer_running(slider_tid),
+            "update_slider_hiding must arm the timer when to_hide && !running"
+        );
+
+        // Cancel: clear to_hide condition, C++ `SliderTimer.Stop(true)`.
+        panel.fullscreen_on = false;
+        panel.update_slider_hiding(false, Some(&mut sched));
+        assert!(
+            !sched.is_timer_running(slider_tid),
+            "update_slider_hiding must cancel the timer when !to_hide"
+        );
+
+        sched.remove_signal(slider_sig);
         sched.abort_all_pending();
     }
 }

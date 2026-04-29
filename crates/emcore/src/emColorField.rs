@@ -89,6 +89,22 @@ pub struct emColorField {
     pub on_color: Option<WidgetCallback<emColor>>,
     /// Allocated per C++ `emColorField::GetColorSignal()`. B3.4b: alloc only.
     pub color_signal: SignalId,
+    // B-015 row -245..-320: D-006 first-Cycle init state for the eight
+    // expansion-child signals. Mirrors C++ `emColorField::AutoExpand`'s eight
+    // `AddWakeUpSignal` calls (emColorField.cpp:245,255,265,277,288,298,308,320).
+    // Cleared on `auto_shrink` so the next AutoExpand re-arms against fresh
+    // child signal ids (children destruct → ids reused for new children).
+    subscribed_to_children: bool,
+    /// Cached value-signal ids for the seven scalar-field children (r,g,b,a,h,s,v).
+    sf_signals: [Option<SignalId>; 7],
+    /// Cached panel ids for the seven scalar-field children (r,g,b,a,h,s,v). Stored
+    /// alongside `sf_signals` so `Cycle` can call `with_behavior_as` without a
+    /// second tree traversal — mirrors C++'s direct `Exp->SfRed` pointer access.
+    sf_panel_ids: [Option<crate::emPanelTree::PanelId>; 7],
+    /// Cached text-signal id for the name/hex text-field child.
+    tf_name_signal: Option<SignalId>,
+    /// Cached panel id for the name/hex text-field child.
+    tf_panel_id: Option<crate::emPanelTree::PanelId>,
 }
 
 const SWATCH_SIZE: f64 = 20.0;
@@ -109,6 +125,11 @@ impl emColorField {
             expansion: None,
             on_color: None,
             color_signal: ctx.create_signal(),
+            subscribed_to_children: false,
+            sf_signals: [None; 7],
+            sf_panel_ids: [None; 7],
+            tf_name_signal: None,
+            tf_panel_id: None,
         }
     }
 
@@ -262,54 +283,308 @@ impl emColorField {
     /// Port of C++ `emColorField::AutoShrink()`.
     fn auto_shrink(&mut self) {
         self.expansion = None;
+        // B-015: child panels destruct → cached signal ids invalidated.
+        // Re-arm on next AutoExpand. Mirrors C++ implicit invalidation when
+        // `AddWakeUpSignal`'d signals' owners destruct.
+        self.subscribed_to_children = false;
+        self.sf_signals = [None; 7];
+        self.sf_panel_ids = [None; 7];
+        self.tf_name_signal = None;
+        self.tf_panel_id = None;
     }
 
-    /// Poll expansion children for value changes and synchronize.
-    /// Port of C++ `emColorField::Cycle()`.
+    /// Signal-driven reaction cycle.
+    ///
+    /// Port of C++ `emColorField::Cycle()` (emColorField.cpp:100-212).
+    ///
+    /// In production (panel engine registered, `panel_engine_id` returns Some):
+    /// runs 8 per-signal `IsSignaled` branches in C++ source order, reading
+    /// each child widget's current value via `with_behavior_as` when its signal
+    /// fired. Mirrors C++ `Exp->SfRed->GetValue()` inside each branch exactly.
+    ///
+    /// In test/headless contexts (no registered engine, `panel_engine_id` returns
+    /// None): falls back to compare-based body that reads `exp.sf_*` directly,
+    /// preserving backward-compat for tests that mutate `expansion.sf_*` without
+    /// a full panel tree.
     ///
     /// Returns `true` if the color changed.
     pub fn Cycle(&mut self, ctx: &mut PanelCtx<'_>) -> bool {
-        let exp = match &mut self.expansion {
-            Some(exp) => exp,
-            None => return false,
-        };
-
-        let rgba_changed = exp.sf_red != exp.red_out
-            || exp.sf_green != exp.green_out
-            || exp.sf_blue != exp.blue_out
-            || exp.sf_alpha != exp.alpha_out;
-
-        let hsv_changed =
-            exp.sf_hue != exp.hue_out || exp.sf_sat != exp.sat_out || exp.sf_val != exp.val_out;
-
-        let text_changed = exp.tf_name != exp.name_out;
-
-        if !rgba_changed && !hsv_changed && !text_changed {
+        if self.expansion.is_none() {
+            // No children → no signals to observe. Reset for next AutoExpand.
+            // (Already done by `auto_shrink`; defensive in case Cycle is called
+            // out of order.)
+            self.subscribed_to_children = false;
+            self.sf_signals = [None; 7];
+            self.sf_panel_ids = [None; 7];
+            self.tf_name_signal = None;
+            self.tf_panel_id = None;
             return false;
         }
 
-        // C++ Cycle() checks each signal independently (not if/else-if).
-        // Each change is applied; last one wins if multiple change simultaneously.
-        if rgba_changed {
-            let r = ((exp.sf_red * 255 + 5000) / 10000).clamp(0, 255) as u8;
-            let g = ((exp.sf_green * 255 + 5000) / 10000).clamp(0, 255) as u8;
-            let b = ((exp.sf_blue * 255 + 5000) / 10000).clamp(0, 255) as u8;
-            let a = ((exp.sf_alpha * 255 + 5000) / 10000).clamp(0, 255) as u8;
-            self.color = emColor::rgba(r, g, b, a);
-        }
-        if hsv_changed {
-            let h = exp.sf_hue as f32 / 100.0;
-            let s = (exp.sf_sat as f32 / 100.0).clamp(0.0, 100.0);
-            let v = (exp.sf_val as f32 / 100.0).clamp(0.0, 100.0);
-            self.color = emColor::SetHSVA(h, s, v).SetAlpha(self.color.GetAlpha());
-        }
-        if text_changed {
-            if let Some(parsed) = emColor::TryParse(&exp.tf_name) {
-                self.color = parsed;
-            }
+        // B-015 row -245..-320: D-006 first-Cycle init. Mirrors C++
+        // `emColorField::AutoExpand` eight `AddWakeUpSignal` calls
+        // (emColorField.cpp:245,255,265,277,288,298,308,320).
+        if !self.subscribed_to_children {
+            self.connect_child_signals(ctx);
+            self.subscribed_to_children = true;
         }
 
-        // Synchronize sibling fields.
+        // Dispatch to production (IsSignaled branches) or test (compare body).
+        match (ctx.tree.panel_engine_id(ctx.id), ctx.scheduler.as_deref()) {
+            (Some(eid), Some(sched)) => {
+                // ── Production path: 8 IsSignaled branches (C++ exact) ──────
+                // Each branch mirrors the corresponding C++ block in emColorField::Cycle.
+                // `sched` is reborrowed via the immutable ref; mutable tree ops follow.
+                let sig0 = self.sf_signals[0];
+                let sig1 = self.sf_signals[1];
+                let sig2 = self.sf_signals[2];
+                let sig3 = self.sf_signals[3];
+                let sig4 = self.sf_signals[4];
+                let sig5 = self.sf_signals[5];
+                let sig6 = self.sf_signals[6];
+                let tf_sig = self.tf_name_signal;
+                let pid0 = self.sf_panel_ids[0];
+                let pid1 = self.sf_panel_ids[1];
+                let pid2 = self.sf_panel_ids[2];
+                let pid3 = self.sf_panel_ids[3];
+                let pid4 = self.sf_panel_ids[4];
+                let pid5 = self.sf_panel_ids[5];
+                let pid6 = self.sf_panel_ids[6];
+                let tf_pid = self.tf_panel_id;
+
+                let r_sig = sig0.is_some_and(|s| sched.is_signaled_for_engine(s, eid));
+                let g_sig = sig1.is_some_and(|s| sched.is_signaled_for_engine(s, eid));
+                let b_sig = sig2.is_some_and(|s| sched.is_signaled_for_engine(s, eid));
+                let a_sig = sig3.is_some_and(|s| sched.is_signaled_for_engine(s, eid));
+                let h_sig = sig4.is_some_and(|s| sched.is_signaled_for_engine(s, eid));
+                let s_sig = sig5.is_some_and(|s| sched.is_signaled_for_engine(s, eid));
+                let v_sig = sig6.is_some_and(|s| sched.is_signaled_for_engine(s, eid));
+                let n_sig = tf_sig.is_some_and(|s| sched.is_signaled_for_engine(s, eid));
+
+                if !r_sig && !g_sig && !b_sig && !a_sig && !h_sig && !s_sig && !v_sig && !n_sig {
+                    return false;
+                }
+
+                let exp = self.expansion.as_mut().unwrap();
+                let mut rgba_changed = false;
+                let mut hsv_changed = false;
+                let mut text_changed = false;
+
+                // SfRed — emColorField.cpp:116-123
+                if r_sig {
+                    let v = pid0
+                        .and_then(|p| {
+                            ctx.tree.with_behavior_as::<ScalarFieldPanel, _>(p, |sfp| {
+                                sfp.scalar_field.GetValue() as i64
+                            })
+                        })
+                        .unwrap_or(exp.red_out);
+                    if exp.red_out != v {
+                        exp.red_out = v;
+                        self.color = self
+                            .color
+                            .SetRed(((v * 255 + 5000) / 10000).clamp(0, 255) as u8);
+                        rgba_changed = true;
+                    }
+                }
+                // SfGreen — emColorField.cpp:124-131
+                if g_sig {
+                    let v = pid1
+                        .and_then(|p| {
+                            ctx.tree.with_behavior_as::<ScalarFieldPanel, _>(p, |sfp| {
+                                sfp.scalar_field.GetValue() as i64
+                            })
+                        })
+                        .unwrap_or(exp.green_out);
+                    if exp.green_out != v {
+                        exp.green_out = v;
+                        self.color = self
+                            .color
+                            .SetGreen(((v * 255 + 5000) / 10000).clamp(0, 255) as u8);
+                        rgba_changed = true;
+                    }
+                }
+                // SfBlue — emColorField.cpp:132-139
+                if b_sig {
+                    let v = pid2
+                        .and_then(|p| {
+                            ctx.tree.with_behavior_as::<ScalarFieldPanel, _>(p, |sfp| {
+                                sfp.scalar_field.GetValue() as i64
+                            })
+                        })
+                        .unwrap_or(exp.blue_out);
+                    if exp.blue_out != v {
+                        exp.blue_out = v;
+                        self.color = self
+                            .color
+                            .SetBlue(((v * 255 + 5000) / 10000).clamp(0, 255) as u8);
+                        rgba_changed = true;
+                    }
+                }
+                // SfAlpha — emColorField.cpp:140-147
+                if a_sig {
+                    let v = pid3
+                        .and_then(|p| {
+                            ctx.tree.with_behavior_as::<ScalarFieldPanel, _>(p, |sfp| {
+                                sfp.scalar_field.GetValue() as i64
+                            })
+                        })
+                        .unwrap_or(exp.alpha_out);
+                    if exp.alpha_out != v {
+                        exp.alpha_out = v;
+                        self.color = self
+                            .color
+                            .SetAlpha(((v * 255 + 5000) / 10000).clamp(0, 255) as u8);
+                        rgba_changed = true;
+                    }
+                }
+                // SfHue — emColorField.cpp:148-160
+                if h_sig {
+                    let v = pid4
+                        .and_then(|p| {
+                            ctx.tree.with_behavior_as::<ScalarFieldPanel, _>(p, |sfp| {
+                                sfp.scalar_field.GetValue() as i64
+                            })
+                        })
+                        .unwrap_or(exp.hue_out);
+                    if exp.hue_out != v {
+                        exp.hue_out = v;
+                        self.color = emColor::SetHSVA(
+                            exp.hue_out as f32 / 100.0,
+                            exp.sat_out as f32 / 100.0,
+                            exp.val_out as f32 / 100.0,
+                        )
+                        .SetAlpha(self.color.GetAlpha());
+                        hsv_changed = true;
+                    }
+                }
+                // SfSat — emColorField.cpp:161-173
+                if s_sig {
+                    let v = pid5
+                        .and_then(|p| {
+                            ctx.tree.with_behavior_as::<ScalarFieldPanel, _>(p, |sfp| {
+                                sfp.scalar_field.GetValue() as i64
+                            })
+                        })
+                        .unwrap_or(exp.sat_out);
+                    if exp.sat_out != v {
+                        exp.sat_out = v;
+                        self.color = emColor::SetHSVA(
+                            exp.hue_out as f32 / 100.0,
+                            exp.sat_out as f32 / 100.0,
+                            exp.val_out as f32 / 100.0,
+                        )
+                        .SetAlpha(self.color.GetAlpha());
+                        hsv_changed = true;
+                    }
+                }
+                // SfVal — emColorField.cpp:174-186
+                if v_sig {
+                    let v = pid6
+                        .and_then(|p| {
+                            ctx.tree.with_behavior_as::<ScalarFieldPanel, _>(p, |sfp| {
+                                sfp.scalar_field.GetValue() as i64
+                            })
+                        })
+                        .unwrap_or(exp.val_out);
+                    if exp.val_out != v {
+                        exp.val_out = v;
+                        self.color = emColor::SetHSVA(
+                            exp.hue_out as f32 / 100.0,
+                            exp.sat_out as f32 / 100.0,
+                            exp.val_out as f32 / 100.0,
+                        )
+                        .SetAlpha(self.color.GetAlpha());
+                        hsv_changed = true;
+                    }
+                }
+                // TfName — emColorField.cpp:187-200
+                if n_sig {
+                    let str_val = tf_pid
+                        .and_then(|p| {
+                            ctx.tree.with_behavior_as::<TextFieldPanel, _>(p, |tfp| {
+                                tfp.text_field.GetText().to_string()
+                            })
+                        })
+                        .unwrap_or_default();
+                    if exp.name_out != str_val {
+                        exp.name_out = str_val.clone();
+                        if let Some(parsed) = emColor::TryParse(&str_val) {
+                            self.color = parsed;
+                        }
+                        // C++ emColorField.cpp:197: `if (!AlphaEnabled) Color.SetAlpha(255)`
+                        if !self.alpha_enabled {
+                            self.color = self.color.SetAlpha(255);
+                        }
+                        text_changed = true;
+                    }
+                }
+
+                // Cascade — emColorField.cpp:202-208 (only when Color changed).
+                self.finish_cycle(ctx, rgba_changed, hsv_changed, text_changed)
+            }
+
+            _ => {
+                // ── Test/headless fallback: compare-based body ──────────────
+                // No engine registered → no signals subscribed → Cycle runs only
+                // when explicitly called (e.g. test mutates exp.sf_* directly).
+                // Preserves backward-compat; does NOT fix the cross-branch feedback
+                // loop (see production path above), but that loop cannot occur here
+                // because there are no child widget panels in the tree to read.
+                let exp = self.expansion.as_mut().unwrap();
+
+                let rgba_changed = exp.sf_red != exp.red_out
+                    || exp.sf_green != exp.green_out
+                    || exp.sf_blue != exp.blue_out
+                    || exp.sf_alpha != exp.alpha_out;
+                let hsv_changed = exp.sf_hue != exp.hue_out
+                    || exp.sf_sat != exp.sat_out
+                    || exp.sf_val != exp.val_out;
+                let text_changed = exp.tf_name != exp.name_out;
+
+                if !rgba_changed && !hsv_changed && !text_changed {
+                    return false;
+                }
+
+                if rgba_changed {
+                    let r = ((exp.sf_red * 255 + 5000) / 10000).clamp(0, 255) as u8;
+                    let g = ((exp.sf_green * 255 + 5000) / 10000).clamp(0, 255) as u8;
+                    let b = ((exp.sf_blue * 255 + 5000) / 10000).clamp(0, 255) as u8;
+                    let a = ((exp.sf_alpha * 255 + 5000) / 10000).clamp(0, 255) as u8;
+                    self.color = emColor::rgba(r, g, b, a);
+                }
+                if hsv_changed {
+                    let h = exp.sf_hue as f32 / 100.0;
+                    let s = (exp.sf_sat as f32 / 100.0).clamp(0.0, 100.0);
+                    let v = (exp.sf_val as f32 / 100.0).clamp(0.0, 100.0);
+                    self.color = emColor::SetHSVA(h, s, v).SetAlpha(self.color.GetAlpha());
+                }
+                if text_changed {
+                    if let Some(parsed) = emColor::TryParse(&exp.tf_name) {
+                        self.color = parsed;
+                    }
+                    if !self.alpha_enabled {
+                        self.color = self.color.SetAlpha(255);
+                    }
+                }
+
+                self.finish_cycle(ctx, rgba_changed, hsv_changed, text_changed)
+            }
+        }
+    }
+
+    /// Shared cascade block called by both Cycle paths after per-branch color
+    /// updates. Mirrors C++ emColorField::Cycle lines 202-208.
+    fn finish_cycle(
+        &mut self,
+        ctx: &mut PanelCtx<'_>,
+        rgba_changed: bool,
+        hsv_changed: bool,
+        text_changed: bool,
+    ) -> bool {
+        if !rgba_changed && !hsv_changed && !text_changed {
+            return false;
+        }
         if hsv_changed || text_changed {
             self.UpdateRGBAOutput();
         }
@@ -319,17 +594,102 @@ impl emColorField {
         if rgba_changed || hsv_changed {
             self.UpdateNameOutput();
         }
-
-        // C++ emColorField::Cycle (emColorField.cpp:205-207):
-        // on any recomputed color change → Signal(ColorSignal) → ColorChanged.
         if let Some(mut sched) = ctx.as_sched_ctx() {
             sched.fire(self.color_signal);
             if let Some(cb) = self.on_color.as_mut() {
                 cb(self.color, &mut sched);
             }
         }
-
         true
+    }
+
+    /// Walk the expansion-child panel tree and capture each child's value /
+    /// text signal id, then connect the panel engine to each. Mirrors C++
+    /// `emColorField::AutoExpand`'s eight `AddWakeUpSignal` calls
+    /// (emColorField.cpp:245,255,265,277,288,298,308,320).
+    fn connect_child_signals(&mut self, ctx: &mut PanelCtx<'_>) {
+        // Tree: self -> emRasterLayout -> {r, g, b, a, h, s, v, n}.
+        let children: Vec<_> = ctx.tree.children(ctx.id).collect();
+        if children.is_empty() {
+            return;
+        }
+        let layout_id = children[0];
+        let grandchildren: Vec<_> = ctx.tree.children(layout_id).collect();
+
+        // First pass: read signal ids and panel ids from each child. Done before
+        // calling into SchedCtx to avoid holding the tree borrow across the call.
+        let mut captured: Vec<(SignalId, crate::emPanelTree::PanelId, usize)> = Vec::new();
+        let mut tf_entry: Option<(SignalId, crate::emPanelTree::PanelId)> = None;
+        for &child_id in &grandchildren {
+            let name = ctx.tree.name(child_id).unwrap_or("").to_string();
+            if let Some(behavior) = ctx.tree.take_behavior(child_id) {
+                if let Some(sfp) = behavior.as_any().downcast_ref::<ScalarFieldPanel>() {
+                    let idx = match name.as_str() {
+                        "r" => Some(0usize),
+                        "g" => Some(1),
+                        "b" => Some(2),
+                        "a" => Some(3),
+                        "h" => Some(4),
+                        "s" => Some(5),
+                        "v" => Some(6),
+                        _ => None,
+                    };
+                    if let Some(idx) = idx {
+                        captured.push((sfp.scalar_field.value_signal, child_id, idx));
+                    }
+                } else if let Some(tfp) = behavior.as_any().downcast_ref::<TextFieldPanel>() {
+                    if name == "n" {
+                        tf_entry = Some((tfp.text_field.text_signal, child_id));
+                    }
+                }
+                ctx.tree.put_behavior(child_id, behavior);
+            }
+        }
+
+        // Cache signal ids and panel ids. Connect signals to the panel engine when
+        // engine context is available (production). In test contexts without a
+        // registered engine_id the signals are cached without connecting (Cycle
+        // falls back to compare-based body in those contexts anyway).
+        let panel_eid = ctx.tree.panel_engine_id(ctx.id);
+        if let (Some(panel_eid), Some(mut sched)) = (panel_eid, ctx.as_sched_ctx()) {
+            for (sig, pid, idx) in &captured {
+                sched.connect(*sig, panel_eid);
+                self.sf_signals[*idx] = Some(*sig);
+                self.sf_panel_ids[*idx] = Some(*pid);
+            }
+            if let Some((sig, pid)) = tf_entry {
+                sched.connect(sig, panel_eid);
+                self.tf_name_signal = Some(sig);
+                self.tf_panel_id = Some(pid);
+            }
+        } else {
+            for (sig, pid, idx) in &captured {
+                self.sf_signals[*idx] = Some(*sig);
+                self.sf_panel_ids[*idx] = Some(*pid);
+            }
+            if let Some((sig, pid)) = tf_entry {
+                self.tf_name_signal = Some(sig);
+                self.tf_panel_id = Some(pid);
+            }
+        }
+    }
+
+    /// Test accessor: cached scalar-field value signals (r,g,b,a,h,s,v).
+    #[doc(hidden)]
+    pub fn sf_signals_for_test(&self) -> &[Option<SignalId>; 7] {
+        &self.sf_signals
+    }
+
+    /// Test accessor: cached name text-field signal.
+    #[doc(hidden)]
+    pub fn tf_name_signal_for_test(&self) -> Option<SignalId> {
+        self.tf_name_signal
+    }
+
+    /// Test accessor: whether first-Cycle init has run since last AutoExpand.
+    #[doc(hidden)]
+    pub fn subscribed_to_children_for_test(&self) -> bool {
+        self.subscribed_to_children
     }
 
     /// Read current values from child emScalarField/emTextField panels in the tree

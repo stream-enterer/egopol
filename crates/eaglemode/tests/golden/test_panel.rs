@@ -334,6 +334,13 @@ impl PanelBehavior for ColorFieldPanel {
         let rect = ctx.layout_rect();
         self.widget.LayoutChildren(ctx, rect.w, rect.h);
     }
+    fn Cycle(
+        &mut self,
+        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        ctx: &mut PanelCtx,
+    ) -> bool {
+        self.widget.Cycle(ctx)
+    }
 }
 
 struct ListBoxPanel {
