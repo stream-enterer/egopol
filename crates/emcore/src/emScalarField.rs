@@ -199,6 +199,16 @@ impl emScalarField {
         self.value = val.clamp(self.min, self.max);
     }
 
+    /// Set value without firing `value_signal` or calling `on_value`. Used by
+    /// `FactorFieldPanel::update_output` to sync display from config without
+    /// triggering the feedback loop that `SetValue` would cause.
+    pub fn set_value_silent(&mut self, val: f64) {
+        let clamped = val.clamp(self.min, self.max);
+        if (clamped - self.value).abs() > f64::EPSILON {
+            self.value = clamped;
+        }
+    }
+
     /// Mirrors C++ `emScalarField::SetValue` (emScalarField.cpp:102-111):
     /// InvalidatePainting → Signal(ValueSignal) → ValueChanged.
     pub fn SetValue(&mut self, val: f64, ctx: &mut PanelCtx<'_>) {

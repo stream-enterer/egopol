@@ -96,6 +96,16 @@ impl<T: emRecNode> emRecNodeConfigModel<T> {
         &self.value
     }
 
+    /// Returns the aggregate signal that fires whenever any field in the
+    /// underlying record mutates. Per D-008: single combined accessor, no
+    /// separate Ensure* form.
+    ///
+    /// C++ analogue: none — C++ `emRecListener` splices into the UpperNode chain
+    /// directly. Rust reifies the observable channel per D-008.
+    pub fn GetChangeSignal(&self) -> crate::emSignal::SignalId {
+        self.value.listened_signal()
+    }
+
     /// Mutable access. Mutations fired through the returned reference
     /// auto-mark dirty after the next scheduler cycle via the listener.
     pub fn GetRecMut(&mut self) -> &mut T {

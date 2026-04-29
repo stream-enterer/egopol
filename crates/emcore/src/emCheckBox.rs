@@ -95,6 +95,13 @@ impl emCheckBox {
         self.checked = checked;
     }
 
+    /// Set checked state without firing `check_signal`. Used by `update_output`
+    /// in panel groups to sync checkbox display from config after Reset without
+    /// causing a feedback loop or requiring `PanelCtx`.
+    pub fn set_checked_silent(&mut self, checked: bool) {
+        self.checked = checked;
+    }
+
     /// Compute the box + label geometry from the content rect (C++ lines 235-260).
     /// Returns (bx0, by0, bw0, lx, ly, lw, lh) where bx0/by0/bw0 are the outer
     /// box dimensions and lx/ly/lw/lh are the label area.
