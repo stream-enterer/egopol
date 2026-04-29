@@ -414,6 +414,8 @@ pub struct MouseMiscGroup {
     layout: emRasterLayout,
     // B-010 rows 299/300/301: D-006 first-Cycle init + IsSignaled subscribe state.
     subscribed_init: bool,
+    subscribed_to_config: bool,
+    config_sig: SignalId,
     stick_sig: SignalId,
     emu_sig: SignalId,
     pan_sig: SignalId,
@@ -433,6 +435,8 @@ pub(crate) struct MouseMiscGroup {
     layout: emRasterLayout,
     // B-010 rows 299/300/301: D-006 first-Cycle init + IsSignaled subscribe state.
     subscribed_init: bool,
+    subscribed_to_config: bool,
+    config_sig: SignalId,
     stick_sig: SignalId,
     emu_sig: SignalId,
     pan_sig: SignalId,
@@ -450,7 +454,9 @@ impl MouseMiscGroup {
         stick_possible: bool,
     ) -> Self {
         let gen = generation.get();
+        let config_sig = config.borrow().GetChangeSignal();
         Self {
+            config_sig,
             config,
             look,
             generation,
@@ -461,6 +467,7 @@ impl MouseMiscGroup {
                 .with_caption("Miscellaneous mouse settings"),
             layout: emRasterLayout::new().with_preferred_tallness(0.04),
             subscribed_init: false,
+            subscribed_to_config: false,
             stick_sig: SignalId::null(),
             emu_sig: SignalId::null(),
             pan_sig: SignalId::null(),
@@ -478,7 +485,9 @@ impl MouseMiscGroup {
         stick_possible: bool,
     ) -> Self {
         let gen = generation.get();
+        let config_sig = config.borrow().GetChangeSignal();
         Self {
+            config_sig,
             config,
             look,
             generation,
@@ -489,6 +498,7 @@ impl MouseMiscGroup {
                 .with_caption("Miscellaneous mouse settings"),
             layout: emRasterLayout::new().with_preferred_tallness(0.04),
             subscribed_init: false,
+            subscribed_to_config: false,
             stick_sig: SignalId::null(),
             emu_sig: SignalId::null(),
             pan_sig: SignalId::null(),
@@ -550,6 +560,37 @@ impl MouseMiscGroup {
         tree.with_behavior_as::<CheckBoxPanel, _>(id, |p| {
             p.check_box.set_checked_for_test(checked);
         });
+    }
+
+    /// D4: propagate current config values back to each checkbox without
+    /// triggering the checkbox's own CheckSignal (uses `set_checked_silent`).
+    /// Called when `config_sig` fires, so the UI reflects external config
+    /// changes (e.g., another panel or process writing to the config file).
+    fn update_output(&self, ctx: &mut PanelCtx) {
+        let (stick_val, emu_val, pan_val) = {
+            let cfg = self.config.borrow();
+            let c = cfg.GetRec();
+            (
+                self.stick_possible && *c.StickMouseWhenNavigating.GetValue(),
+                *c.EmulateMiddleButton.GetValue(),
+                *c.PanFunction.GetValue(),
+            )
+        };
+        if let Some(id) = self.stick_id {
+            ctx.tree.with_behavior_as::<CheckBoxPanel, _>(id, |p| {
+                p.check_box.set_checked_silent(stick_val);
+            });
+        }
+        if let Some(id) = self.emu_id {
+            ctx.tree.with_behavior_as::<CheckBoxPanel, _>(id, |p| {
+                p.check_box.set_checked_silent(emu_val);
+            });
+        }
+        if let Some(id) = self.pan_id {
+            ctx.tree.with_behavior_as::<CheckBoxPanel, _>(id, |p| {
+                p.check_box.set_checked_silent(pan_val);
+            });
+        }
     }
 
     /// Visibility: `pub(crate)` in production; gated up to `pub` under the
@@ -688,6 +729,14 @@ impl PanelBehavior for MouseMiscGroup {
     /// corresponding config field + Save (if changed). Branches in C++ source
     /// order: stick → emu → pan.
     fn Cycle(&mut self, ectx: &mut crate::emEngineCtx::EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
+        if !self.subscribed_to_config {
+            ectx.connect(self.config_sig, ectx.id());
+            self.subscribed_to_config = true;
+        }
+        if ectx.IsSignaled(self.config_sig) {
+            self.update_output(ctx);
+        }
+
         if !self.subscribed_init
             && self.stick_id.is_some()
             && self.emu_id.is_some()
@@ -1534,6 +1583,8 @@ pub struct CpuGroup {
     layout: emLinearLayout,
     // B-010 rows 746/755: D-006 first-Cycle init + IsSignaled subscribe state.
     subscribed_init: bool,
+    subscribed_to_config: bool,
+    config_sig: SignalId,
     threads_sig: SignalId,
     simd_sig: SignalId,
     threads_id: Option<PanelId>,
@@ -1550,6 +1601,8 @@ pub(crate) struct CpuGroup {
     layout: emLinearLayout,
     // B-010 rows 746/755: D-006 first-Cycle init + IsSignaled subscribe state.
     subscribed_init: bool,
+    subscribed_to_config: bool,
+    config_sig: SignalId,
     threads_sig: SignalId,
     simd_sig: SignalId,
     threads_id: Option<PanelId>,
@@ -1564,11 +1617,13 @@ impl CpuGroup {
         generation: Rc<Cell<u64>>,
     ) -> Self {
         let gen = generation.get();
+        let config_sig = config.borrow().GetChangeSignal();
         let mut border = emBorder::new(OuterBorderType::Instrument)
             .with_inner(InnerBorderType::Group)
             .with_caption("CPU");
         border.SetBorderScaling(1.5);
         Self {
+            config_sig,
             config,
             look,
             generation,
@@ -1579,6 +1634,7 @@ impl CpuGroup {
                 ..Default::default()
             }),
             subscribed_init: false,
+            subscribed_to_config: false,
             threads_sig: SignalId::null(),
             simd_sig: SignalId::null(),
             threads_id: None,
@@ -1593,11 +1649,13 @@ impl CpuGroup {
         generation: Rc<Cell<u64>>,
     ) -> Self {
         let gen = generation.get();
+        let config_sig = config.borrow().GetChangeSignal();
         let mut border = emBorder::new(OuterBorderType::Instrument)
             .with_inner(InnerBorderType::Group)
             .with_caption("CPU");
         border.SetBorderScaling(1.5);
         Self {
+            config_sig,
             config,
             look,
             generation,
@@ -1608,6 +1666,7 @@ impl CpuGroup {
                 ..Default::default()
             }),
             subscribed_init: false,
+            subscribed_to_config: false,
             threads_sig: SignalId::null(),
             simd_sig: SignalId::null(),
             threads_id: None,
@@ -1651,6 +1710,18 @@ impl CpuGroup {
         tree.with_behavior_as::<CheckBoxPanel, _>(id, |p| {
             p.check_box.set_checked_for_test(checked);
         });
+    }
+
+    /// D4: propagate current config values back to the SIMD checkbox without
+    /// triggering its own CheckSignal (uses `set_checked_silent`).
+    /// Called when `config_sig` fires, so the UI reflects external config changes.
+    fn update_output(&self, ctx: &mut PanelCtx) {
+        let simd_val = *self.config.borrow().GetRec().AllowSIMD.GetValue();
+        if let Some(id) = self.simd_id {
+            ctx.tree.with_behavior_as::<CheckBoxPanel, _>(id, |p| {
+                p.check_box.set_checked_silent(simd_val);
+            });
+        }
     }
 
     /// Visibility: `pub(crate)` in production; gated up to `pub` under the
@@ -1793,6 +1864,14 @@ impl PanelBehavior for CpuGroup {
     /// propagates to `Config->MaxRenderThreads` / `Config->AllowSIMD` + Save
     /// (if changed). Branches in C++ source order: threads → SIMD.
     fn Cycle(&mut self, ectx: &mut crate::emEngineCtx::EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
+        if !self.subscribed_to_config {
+            ectx.connect(self.config_sig, ectx.id());
+            self.subscribed_to_config = true;
+        }
+        if ectx.IsSignaled(self.config_sig) {
+            self.update_output(ctx);
+        }
+
         if !self.subscribed_init && self.threads_id.is_some() && self.simd_id.is_some() {
             let eid = ectx.id();
             ectx.connect(self.threads_sig, eid);
