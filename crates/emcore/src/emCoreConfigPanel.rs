@@ -40,6 +40,22 @@ fn factor_val_to_cfg(value: f64, cfg_min: f64, cfg_max: f64) -> f64 {
 }
 
 /// Config domain value to emScalarField value (-200..+200), rounded.
+///
+/// Visibility: private in production; gated up to `pub` under the
+/// `test-support` feature / `test` cfg so integration tests can assert
+/// expected scalar values without reimplementing the formula.
+#[cfg(any(test, feature = "test-support"))]
+pub fn factor_cfg_to_val(d: f64, cfg_min: f64, cfg_max: f64) -> f64 {
+    let m = if d >= 1.0 { cfg_max } else { 1.0 / cfg_min };
+    let v = d.ln() / m.sqrt().ln() * 100.0;
+    if v >= 0.0 {
+        (v + 0.5).floor()
+    } else {
+        (v - 0.5).ceil()
+    }
+}
+
+#[cfg(not(any(test, feature = "test-support")))]
 fn factor_cfg_to_val(d: f64, cfg_min: f64, cfg_max: f64) -> f64 {
     let m = if d >= 1.0 { cfg_max } else { 1.0 / cfg_min };
     let v = d.ln() / m.sqrt().ln() * 100.0;
@@ -134,6 +150,22 @@ fn upscale_text(value: i64, _mark_interval: u64) -> String {
 /// `emScalarField + emRecListener`. Subscribes to `config_sig` in its first
 /// Cycle and calls `set_value_silent` on signal — display-only update that
 /// does not trigger the `on_value` feedback loop.
+///
+/// Visibility: private in production; gated up to `pub` under `test-support`
+/// / `test` cfg so integration tests can use `with_behavior_as::<FactorFieldPanel>`
+/// to read `scalar_field.GetValue()` directly.
+#[cfg(any(test, feature = "test-support"))]
+pub struct FactorFieldPanel {
+    pub scalar_field: emScalarField,
+    /// Value signal of the specific `emDoubleRec`/`emIntRec` this panel mirrors.
+    /// `SignalId::null()` = no self-update wiring.
+    config_sig: SignalId,
+    /// Closure returning the current config value in slider units.
+    get_config_val: Option<Box<dyn Fn() -> f64>>,
+    subscribed_to_config: bool,
+}
+
+#[cfg(not(any(test, feature = "test-support")))]
 struct FactorFieldPanel {
     scalar_field: emScalarField,
     /// Value signal of the specific `emDoubleRec`/`emIntRec` this panel mirrors.
@@ -232,6 +264,19 @@ fn make_factor_field(
 // ---------------------------------------------------------------------------
 
 /// Keyboard control group — 2 factor fields.
+///
+/// Visibility: private in production; gated up to `pub` under the
+/// `test-support` feature / `test` cfg so integration tests can construct
+/// and drive it directly without invoking the full `ContentPanel` path.
+#[cfg(any(test, feature = "test-support"))]
+pub struct KBGroup {
+    config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
+    look: Rc<emLook>,
+    border: emBorder,
+    layout: emRasterLayout,
+}
+
+#[cfg(not(any(test, feature = "test-support")))]
 struct KBGroup {
     config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>,
     look: Rc<emLook>,
@@ -240,7 +285,17 @@ struct KBGroup {
 }
 
 impl KBGroup {
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn new(config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>, look: Rc<emLook>) -> Self {
+        Self::new_impl(config, look)
+    }
+
+    #[cfg(not(any(test, feature = "test-support")))]
     fn new(config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>, look: Rc<emLook>) -> Self {
+        Self::new_impl(config, look)
+    }
+
+    fn new_impl(config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>>, look: Rc<emLook>) -> Self {
         Self {
             config,
             look,
@@ -259,7 +314,17 @@ impl KBGroup {
         }
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn create_children(&self, ctx: &mut PanelCtx) {
+        self.create_children_impl(ctx);
+    }
+
+    #[cfg(not(any(test, feature = "test-support")))]
     fn create_children(&self, ctx: &mut PanelCtx) {
+        self.create_children_impl(ctx);
+    }
+
+    fn create_children_impl(&self, ctx: &mut PanelCtx) {
         let (zoom_sig, zoom_init, scroll_sig, scroll_init) = {
             let cfg = self.config.borrow();
             let c = cfg.GetRec();
@@ -537,6 +602,24 @@ impl MouseMiscGroup {
         tree.with_behavior_as::<CheckBoxPanel, _>(id, |p| {
             p.check_box.set_checked_for_test(checked);
         });
+    }
+
+    /// Test-only accessor for the config aggregate signal (fired on any config
+    /// field change). Lets D4 integration tests fire the signal directly to
+    /// exercise `update_output` without writing to the config file.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn config_sig_for_test(&self) -> SignalId {
+        self.config_sig
+    }
+
+    /// Test-only read accessor: read a child checkbox's `IsChecked()` state via
+    /// `with_behavior_as::<CheckBoxPanel, _>`. Used by D4 integration tests to
+    /// assert `update_output` wrote back the correct value.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn get_stick_checked_for_test(&self, tree: &mut crate::emPanelTree::PanelTree) -> bool {
+        let id = self.stick_id.expect("stick_id set in create_children");
+        tree.with_behavior_as::<CheckBoxPanel, _>(id, |p| p.check_box.IsChecked())
+            .unwrap_or(false)
     }
 
     /// D4: propagate current config values back to each checkbox without
