@@ -1278,16 +1278,6 @@ impl MemFieldLayoutPanel {
         sf.border_mut().SetBorderScaling(1.5);
         sf.SetTextOfValueFunc(Box::new(mem_text_of_value));
 
-        let mem_config = Rc::clone(&self.config);
-        sf.on_value = Some(Box::new(
-            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
-                let mb = mem_val_to_cfg(val) as i64;
-                let mut cm = mem_config.borrow_mut();
-                cm.modify(|c, sc| c.MaxMegabytesPerView.SetValue(mb, sc), sched);
-                let _ = cm.TrySave(false);
-            },
-        ));
-
         // B-010 row 563: capture value_signal BEFORE the field moves into the
         // child behavior (SignalId is Copy).
         self.mem_sig = sf.value_signal;
@@ -1698,16 +1688,6 @@ impl CpuGroup {
         sf.border_mut().outer = OuterBorderType::None;
         sf.border_mut().inner = InnerBorderType::InputField;
         sf.border_mut().SetBorderScaling(1.5);
-
-        let on_val_config = Rc::clone(&self.config);
-        sf.on_value = Some(Box::new(
-            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
-                let v = val as i64;
-                let mut cm = on_val_config.borrow_mut();
-                cm.modify(|c, sc| c.MaxRenderThreads.SetValue(v, sc), sched);
-                let _ = cm.TrySave(false);
-            },
-        ));
 
         // B-010 row 746: capture value_signal BEFORE the field moves into
         // the child behavior (SignalId is Copy).
