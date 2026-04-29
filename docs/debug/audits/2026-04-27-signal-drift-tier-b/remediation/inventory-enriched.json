@@ -20,7 +20,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "emColorField::Cycle (Rust line 271) compares cached `sf_*` / `tf_name` fields against current `*_out` values rather than subscribing to each ScalarField's value_signal. `sync_from_children` (line 342) walks child panels via tree to read GetValue() \u2014 pure poll. The accessor exists as `value_signal: SignalId` (emScalarField.rs:115); no `connect(...)` is wired.",
+      "notes": "emColorField::Cycle (Rust line 271) compares cached `sf_*` / `tf_name` fields against current `*_out` values rather than subscribing to each ScalarField's value_signal. `sync_from_children` (line 342) walks child panels via tree to read GetValue() — pure poll. The accessor exists as `value_signal: SignalId` (emScalarField.rs:115); no `connect(...)` is wired.",
       "enrichment": {
         "pattern_id": "P-006-polling-accessor-present",
         "decision_ids": [
@@ -247,7 +247,7 @@
       "signal_expression": "ResetButton->GetClickSignal()",
       "signal_kind": "widget-click",
       "rust_file": "crates/emcore/src/emCoreConfigPanel.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emCoreConfigPanel.rs",
@@ -260,7 +260,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Reset button. No Cycle/IsSignaled \u2014 substitute is a synchronous closure callback (`on_click`) installed directly on the widget. Closure mutates Rc<RefCell<config>> + Rc<Cell<u32>> generation counter rather than firing a panel-side IsSignaled reaction. Closest evidence kind in vocabulary is `rc_cell_shim` (closure observed via shared cell).",
+      "notes": "Reset button. No Cycle/IsSignaled — substitute is a synchronous closure callback (`on_click`) installed directly on the widget. Closure mutates Rc<RefCell<config>> + Rc<Cell<u32>> generation counter rather than firing a panel-side IsSignaled reaction. Closest evidence kind in vocabulary is `rc_cell_shim` (closure observed via shared cell). [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -277,7 +277,7 @@
       "signal_expression": "StickBox->GetCheckSignal()",
       "signal_kind": "widget-check",
       "rust_file": "crates/emcore/src/emCoreConfigPanel.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emCoreConfigPanel.rs",
@@ -290,7 +290,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "StickBox. on_check closure substitutes for AddWakeUpSignal+IsSignaled. No MouseMiscGroup::Cycle override exists.",
+      "notes": "StickBox. on_check closure substitutes for AddWakeUpSignal+IsSignaled. No MouseMiscGroup::Cycle override exists. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -307,7 +307,7 @@
       "signal_expression": "EmuBox->GetCheckSignal()",
       "signal_kind": "widget-check",
       "rust_file": "crates/emcore/src/emCoreConfigPanel.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emCoreConfigPanel.rs",
@@ -320,7 +320,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "EmuBox. Same on_check closure pattern.",
+      "notes": "EmuBox. Same on_check closure pattern. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -337,7 +337,7 @@
       "signal_expression": "PanBox->GetCheckSignal()",
       "signal_kind": "widget-check",
       "rust_file": "crates/emcore/src/emCoreConfigPanel.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emCoreConfigPanel.rs",
@@ -350,7 +350,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "PanBox. Same on_check closure pattern.",
+      "notes": "PanBox. Same on_check closure pattern. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -367,7 +367,7 @@
       "signal_expression": "MemField->GetValueSignal()",
       "signal_kind": "widget-click",
       "rust_file": "crates/emcore/src/emCoreConfigPanel.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emCoreConfigPanel.rs",
@@ -380,7 +380,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "MemField scalar (max megabytes per view). on_value closure pattern.",
+      "notes": "MemField scalar (max megabytes per view). on_value closure pattern. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -397,7 +397,7 @@
       "signal_expression": "MaxRenderThreadsField->GetValueSignal()",
       "signal_kind": "widget-click",
       "rust_file": "crates/emcore/src/emCoreConfigPanel.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emCoreConfigPanel.rs",
@@ -410,7 +410,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "MaxRenderThreads. on_value closure pattern.",
+      "notes": "MaxRenderThreads. on_value closure pattern. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -427,7 +427,7 @@
       "signal_expression": "AllowSIMDBox->GetCheckSignal()",
       "signal_kind": "widget-check",
       "rust_file": "crates/emcore/src/emCoreConfigPanel.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emCoreConfigPanel.rs",
@@ -440,7 +440,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "AllowSIMD. on_check closure pattern.",
+      "notes": "AllowSIMD. on_check closure pattern. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -457,7 +457,7 @@
       "signal_expression": "DownscaleQualityField->GetValueSignal()",
       "signal_kind": "widget-click",
       "rust_file": "crates/emcore/src/emCoreConfigPanel.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emCoreConfigPanel.rs",
@@ -470,7 +470,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "DownscaleQuality. on_value closure pattern.",
+      "notes": "DownscaleQuality. on_value closure pattern. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -487,7 +487,7 @@
       "signal_expression": "UpscaleQualityField->GetValueSignal()",
       "signal_kind": "widget-click",
       "rust_file": "crates/emcore/src/emCoreConfigPanel.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emCoreConfigPanel.rs",
@@ -500,7 +500,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "UpscaleQuality. on_value closure pattern.",
+      "notes": "UpscaleQuality. on_value closure pattern. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -531,7 +531,7 @@
       "preexisting_diverged_annotation": {
         "file": "crates/emcore/src/emFileDialog.rs",
         "line": 140,
-        "claim": "DIVERGED: (language-forced) Rust-specific re-wake. The base `DialogPrivateEngine::Cycle` body runs BEFORE on_cycle_ext (Phase-3.6 Task 2 ordering). State mutations this closure makes \u2014 setting `dlg.pending_result`, pushing `pending_actions` \u2014 are not visible to the base body this Cycle. We return `true` on any mutation to keep the engine awake so the next Cycle's base body observes them. C++ doesn't need this: `Finish(POSITIVE)` in emFileDialog::Cycle finalizes via same-call-stack re-entry into emDialog::Cycle's finalize path.",
+        "claim": "DIVERGED: (language-forced) Rust-specific re-wake. The base `DialogPrivateEngine::Cycle` body runs BEFORE on_cycle_ext (Phase-3.6 Task 2 ordering). State mutations this closure makes — setting `dlg.pending_result`, pushing `pending_actions` — are not visible to the base body this Cycle. We return `true` on any mutation to keep the engine awake so the next Cycle's base body observes them. C++ doesn't need this: `Finish(POSITIVE)` in emFileDialog::Cycle finalizes via same-call-stack re-entry into emDialog::Cycle's finalize path.",
         "revalidation_result": "failed"
       },
       "consumers": null,
@@ -568,7 +568,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "C++ AddWakeUpSignal/RemoveWakeUpSignal pair on (un)set of FileModel (emFilePanel.cpp:48,50). Rust SetFileModel makes no scheduler.connect/disconnect call \u2014 it only stores the model_weak. Cycle polls `compute_vir_file_state()` each tick and compares against `last_vir_file_state`. Accessor present on the model side. This is the same polling-substitute class the F010 investigation flagged in emFileLinkPanel.",
+      "notes": "C++ AddWakeUpSignal/RemoveWakeUpSignal pair on (un)set of FileModel (emFilePanel.cpp:48,50). Rust SetFileModel makes no scheduler.connect/disconnect call — it only stores the model_weak. Cycle polls `compute_vir_file_state()` each tick and compares against `last_vir_file_state`. Accessor present on the model side. This is the same polling-substitute class the F010 investigation flagged in emFileLinkPanel.",
       "enrichment": {
         "pattern_id": "P-006-polling-accessor-present",
         "decision_ids": [
@@ -598,7 +598,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "C++ subscribes to global `FileModelsUpdateSignalModel->Sig` to invalidate listing on cross-process file mtime broadcast. Rust has no `FileModelsUpdateSignalModel` model and no equivalent global broadcast SignalId \u2014 `grep -rn FileModelsUpdate crates/` returns no matches. Panel cannot subscribe without first adding the model accessor; classified gap-blocked rather than drifted per spec \u00a75.2 step 5.",
+      "notes": "C++ subscribes to global `FileModelsUpdateSignalModel->Sig` to invalidate listing on cross-process file mtime broadcast. Rust has no `FileModelsUpdateSignalModel` model and no equivalent global broadcast SignalId — `grep -rn FileModelsUpdate crates/` returns no matches. Panel cannot subscribe without first adding the model accessor; classified gap-blocked rather than drifted per spec §5.2 step 5.",
       "enrichment": {
         "pattern_id": "P-002-no-subscribe-accessor-present",
         "decision_ids": [],
@@ -618,7 +618,7 @@
       "signal_expression": "ParentDirField->GetTextSignal()",
       "signal_kind": "widget-click",
       "rust_file": "crates/emcore/src/emFileSelectionBox.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emFileSelectionBox.rs",
@@ -631,7 +631,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Rust uses an `events: RefCell<Events>` aggregator: widget closures push events; Cycle (line 1494) drains events and reacts. Functionally a Rc<Cell<bool>>-style shim with multi-event payload. Cycle also stay-awakes via `self.files_lb_id.is_some()` (line 1611).",
+      "notes": "Rust uses an `events: RefCell<Events>` aggregator: widget closures push events; Cycle (line 1494) drains events and reacts. Functionally a Rc<Cell<bool>>-style shim with multi-event payload. Cycle also stay-awakes via `self.files_lb_id.is_some()` (line 1611). [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -648,7 +648,7 @@
       "signal_expression": "HiddenCheckBox->GetCheckSignal()",
       "signal_kind": "widget-check",
       "rust_file": "crates/emcore/src/emFileSelectionBox.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emFileSelectionBox.rs",
@@ -661,7 +661,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Same events-aggregator pattern; Cycle reacts at line 1520.",
+      "notes": "Same events-aggregator pattern; Cycle reacts at line 1520. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -678,7 +678,7 @@
       "signal_expression": "FilesLB->GetSelectionSignal()",
       "signal_kind": "selection",
       "rust_file": "crates/emcore/src/emFileSelectionBox.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emFileSelectionBox.rs",
@@ -691,7 +691,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "FilesLB selection_changed flag drained by Cycle at line 1532. Substitute is rc_cell_shim style (events struct) rather than IsSignaled.",
+      "notes": "FilesLB selection_changed flag drained by Cycle at line 1532. Substitute is rc_cell_shim style (events struct) rather than IsSignaled. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -708,7 +708,7 @@
       "signal_expression": "FilesLB->GetItemTriggerSignal()",
       "signal_kind": "widget-click",
       "rust_file": "crates/emcore/src/emFileSelectionBox.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emFileSelectionBox.rs",
@@ -721,7 +721,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "ItemTrigger drained by Cycle. Same events-aggregator pattern.",
+      "notes": "ItemTrigger drained by Cycle. Same events-aggregator pattern. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -738,7 +738,7 @@
       "signal_expression": "NameField->GetTextSignal()",
       "signal_kind": "widget-click",
       "rust_file": "crates/emcore/src/emFileSelectionBox.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emFileSelectionBox.rs",
@@ -751,7 +751,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Cycle drains name_text_changed at line 1576.",
+      "notes": "Cycle drains name_text_changed at line 1576. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -768,7 +768,7 @@
       "signal_expression": "FiltersLB->GetSelectionSignal()",
       "signal_kind": "selection",
       "rust_file": "crates/emcore/src/emFileSelectionBox.rs",
-      "rust_status": "drifted",
+      "rust_status": "faithful",
       "rust_evidence": {
         "kind": "rc_cell_shim",
         "file": "crates/emcore/src/emFileSelectionBox.rs",
@@ -781,7 +781,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "FiltersLB filter_index_changed drained by Cycle. Same events-aggregator pattern.",
+      "notes": "FiltersLB filter_index_changed drained by Cycle. Same events-aggregator pattern. [B-010 a1f882a9: rc-shim closure replaced with D-006 first-Cycle-init + IsSignaled in host panel; widget-state read via with_behavior_as<T,_>.]",
       "enrichment": {
         "pattern_id": "P-004-rc-shim-instead-of-signal",
         "decision_ids": [
@@ -805,13 +805,13 @@
         "line": 85,
         "snippet": "impl PanelBehavior for emImageFilePanel { ... no Cycle override, no IsSignaled, no connect ... only IsOpaque/GetCanvasColor/Paint }"
       },
-      "rust_signal_accessor": "emFilePanel exposes vir_file_state via GetVirFileState() \u2014 VirFileStateSignal accessor itself not exposed",
+      "rust_signal_accessor": "emFilePanel exposes vir_file_state via GetVirFileState() — VirFileStateSignal accessor itself not exposed",
       "rust_signal_accessor_status": "missing",
       "forced_category": null,
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "C++ site is in emImageFilePanel constructor; Rust port lives in SPLIT file `crates/emcore/src/emImageFileImageFilePanel.rs` (per File and Name Correspondence \u2014 first SPLIT name `emImageFile{ImageFilePanel}.rs`). cpp-sites csv lists the original (un-split) emImageFile.rs path. The Rust panel has no Cycle, no connect, no IsSignaled \u2014 pure Paint-time read of `current_image`. No reaction to vir-file-state transitions; image redraw depends on outer emFilePanel's polling Cycle (emFilePanel-50 row) and call-site set_current_image.",
+      "notes": "C++ site is in emImageFilePanel constructor; Rust port lives in SPLIT file `crates/emcore/src/emImageFileImageFilePanel.rs` (per File and Name Correspondence — first SPLIT name `emImageFile{ImageFilePanel}.rs`). cpp-sites csv lists the original (un-split) emImageFile.rs path. The Rust panel has no Cycle, no connect, no IsSignaled — pure Paint-time read of `current_image`. No reaction to vir-file-state transitions; image redraw depends on outer emFilePanel's polling Cycle (emFilePanel-50 row) and call-site set_current_image.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [],
@@ -840,11 +840,11 @@
       "preexisting_diverged_annotation": {
         "file": "crates/emcore/src/emImageFile.rs",
         "line": 69,
-        "claim": "DIVERGED: (language-forced) C++ creates file models via `emModel::Acquire(context, name)`, a context-registered, path-keyed shared-instance pattern backed by virtual inheritance (`emModel : emEngine`, `emFileModel : emModel`). Rust has no virtual base-class inheritance; the `emModel` context-registry infrastructure is not yet ported, so callers receive an explicit `Rc<RefCell<Self>>` and manage sharing themselves. The observable loading contract \u2014 async engine fires on schedule, signals on completion \u2014 is preserved.",
+        "claim": "DIVERGED: (language-forced) C++ creates file models via `emModel::Acquire(context, name)`, a context-registered, path-keyed shared-instance pattern backed by virtual inheritance (`emModel : emEngine`, `emFileModel : emModel`). Rust has no virtual base-class inheritance; the `emModel` context-registry infrastructure is not yet ported, so callers receive an explicit `Rc<RefCell<Self>>` and manage sharing themselves. The observable loading contract — async engine fires on schedule, signals on completion — is preserved.",
         "revalidation_result": "verified"
       },
       "consumers": null,
-      "notes": "Accessor exists (`GetChangeSignal` returns `data_change_signal`) but no panel-side subscription. C++ AddWakeUpSignal/RemoveWakeUpSignal pair around SetFileModel (cpp:130-141) absent in Rust SetFileModel/with_model. The pre-existing DIVERGED at emImageFile.rs:69 concerns the model-creation pattern (Acquire vs Rc<RefCell>), not the panel-side subscription gap; included for cross-reference per spec \u00a75.2 step 7. revalidation_result null \u2014 Task 6 will assess.",
+      "notes": "Accessor exists (`GetChangeSignal` returns `data_change_signal`) but no panel-side subscription. C++ AddWakeUpSignal/RemoveWakeUpSignal pair around SetFileModel (cpp:130-141) absent in Rust SetFileModel/with_model. The pre-existing DIVERGED at emImageFile.rs:69 concerns the model-creation pattern (Acquire vs Rc<RefCell>), not the panel-side subscription gap; included for cross-reference per spec §5.2 step 7. revalidation_result null — Task 6 will assess.",
       "enrichment": {
         "pattern_id": "P-002-no-subscribe-accessor-present",
         "decision_ids": [],
@@ -864,7 +864,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emDirEntryAltPanel.rs",
         "line": 154,
-        "snippet": "fn Cycle(...) { let cfg = self.config.borrow(); let gen = cfg.GetChangeSignal(); ... } \u2014 selection signal not observed in Cycle"
+        "snippet": "fn Cycle(...) { let cfg = self.config.borrow(); let gen = cfg.GetChangeSignal(); ... } — selection signal not observed in Cycle"
       },
       "rust_signal_accessor": "emFileManModel::GetSelectionSignal",
       "rust_signal_accessor_status": "type-mismatch",
@@ -872,7 +872,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Rust panel never connect()s to selection signal nor polls GetSelectionSignal in Cycle; only config-change is polled. SelectionSignal accessor returns u64 generation counter (emFileManModel.rs:540), not SignalId \u2014 type-mismatch. No `connect(` call in file (grep). No IsSignaled call in Cycle. Substitute reaction: absent. Four-question test: Q1 refuted (neighboring panels with SignalId-based config (emFileManConfig) compile with SignalId form); Q2/Q3/Q4 not cited. Verdict drifted.",
+      "notes": "Rust panel never connect()s to selection signal nor polls GetSelectionSignal in Cycle; only config-change is polled. SelectionSignal accessor returns u64 generation counter (emFileManModel.rs:540), not SignalId — type-mismatch. No `connect(` call in file (grep). No IsSignaled call in Cycle. Substitute reaction: absent. Four-question test: Q1 refuted (neighboring panels with SignalId-based config (emFileManConfig) compile with SignalId form); Q2/Q3/Q4 not cited. Verdict drifted.",
       "enrichment": {
         "pattern_id": "P-003-typemismatch-blocks-subscribe",
         "decision_ids": [
@@ -929,7 +929,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emDirEntryPanel.rs",
         "line": 878,
-        "snippet": "fn Cycle(...) { // Rust models don't have IsSignaled() yet \u2014 always update bg (conservative). self.update_bg_color(); ... }"
+        "snippet": "fn Cycle(...) { // Rust models don't have IsSignaled() yet — always update bg (conservative). self.update_bg_color(); ... }"
       },
       "rust_signal_accessor": "emFileManModel::GetSelectionSignal",
       "rust_signal_accessor_status": "type-mismatch",
@@ -961,7 +961,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emDirEntryPanel.rs",
         "line": 878,
-        "snippet": "fn Cycle(...) { ... self.update_content_panel(ctx, &state, false, true); self.update_alt_panel(ctx, &state, false, true); false } \u2014 no GetChangeSignal poll, no IsSignaled, no connect"
+        "snippet": "fn Cycle(...) { ... self.update_content_panel(ctx, &state, false, true); self.update_alt_panel(ctx, &state, false, true); false } — no GetChangeSignal poll, no IsSignaled, no connect"
       },
       "rust_signal_accessor": "emFileManViewConfig::GetChangeSignal",
       "rust_signal_accessor_status": "type-mismatch",
@@ -969,7 +969,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Rust Cycle calls update_content_panel/update_alt_panel with forceRelayout=true unconditionally \u2014 neither connect() nor a polled config gen guards the call. No reaction is keyed off the config signal. Verdict drifted/absent.",
+      "notes": "Rust Cycle calls update_content_panel/update_alt_panel with forceRelayout=true unconditionally — neither connect() nor a polled config gen guards the call. No reaction is keyed off the config signal. Verdict drifted/absent.",
       "enrichment": {
         "pattern_id": "P-003-typemismatch-blocks-subscribe",
         "decision_ids": [
@@ -1002,11 +1002,11 @@
       "preexisting_diverged_annotation": {
         "file": "crates/emfileman/src/emDirPanel.rs",
         "line": 117,
-        "claim": "DIVERGED: (language-forced) C++ emDirPanel connects emDirModel as a FileModelState via SetFileModel. Rust drives loading directly in Cycle using `get_file_state()` to query the model's phase, because emDirModel does not implement FileModelState \u2014 it wraps emDirModelData directly without scheduler integration.",
+        "claim": "DIVERGED: (language-forced) C++ emDirPanel connects emDirModel as a FileModelState via SetFileModel. Rust drives loading directly in Cycle using `get_file_state()` to query the model's phase, because emDirModel does not implement FileModelState — it wraps emDirModelData directly without scheduler integration.",
         "revalidation_result": "failed"
       },
       "consumers": null,
-      "notes": "Cycle polls dir_model.borrow().get_file_state() and returns stay_awake=true while Loading/Waiting. No `connect(` call. emFilePanel does not expose a public GetVirFileStateSignal accessor returning SignalId (grep crates/emcore/src/emFilePanel.rs \u2014 only GetVirFileState() returning the enum). Pre-existing DIVERGED at line 117 claims language-forced; revalidation deferred to Task 6. Verdict drifted (polling).",
+      "notes": "Cycle polls dir_model.borrow().get_file_state() and returns stay_awake=true while Loading/Waiting. No `connect(` call. emFilePanel does not expose a public GetVirFileStateSignal accessor returning SignalId (grep crates/emcore/src/emFilePanel.rs — only GetVirFileState() returning the enum). Pre-existing DIVERGED at line 117 claims language-forced; revalidation deferred to Task 6. Verdict drifted (polling).",
       "enrichment": {
         "pattern_id": "P-007-polling-accessor-missing",
         "decision_ids": [
@@ -1068,7 +1068,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emDirPanel.rs",
         "line": 178,
-        "snippet": "fn key_walk(&mut self, ch: char) { let now = std::time::Instant::now(); let timeout = std::time::Duration::from_secs(1); match &mut self.key_walk_state { Some(state) if now.duration_since(state.last_key_time) < timeout => { ... } _ => { ... } } } \u2014 Instant-based timeout in input handler; no emTimer signal subscription, no Cycle reaction"
+        "snippet": "fn key_walk(&mut self, ch: char) { let now = std::time::Instant::now(); let timeout = std::time::Duration::from_secs(1); match &mut self.key_walk_state { Some(state) if now.duration_since(state.last_key_time) < timeout => { ... } _ => { ... } } } — Instant-based timeout in input handler; no emTimer signal subscription, no Cycle reaction"
       },
       "rust_signal_accessor": null,
       "rust_signal_accessor_status": "missing",
@@ -1076,7 +1076,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Rust replaces emTimer + AddWakeUpSignal with std::time::Instant comparison checked at next Input call. C++ uses a 1000ms Timer.Start with signal subscription so ClearKeyWalkState fires on idle expiry. Rust has no equivalent reset-on-timeout firing \u2014 key_walk_state lingers until next keypress. emTimer port exists but isn't used here. Verdict drifted/absent.",
+      "notes": "Rust replaces emTimer + AddWakeUpSignal with std::time::Instant comparison checked at next Input call. C++ uses a 1000ms Timer.Start with signal subscription so ClearKeyWalkState fires on idle expiry. Rust has no equivalent reset-on-timeout firing — key_walk_state lingers until next keypress. emTimer port exists but isn't used here. Verdict drifted/absent.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [],
@@ -1096,7 +1096,7 @@
         "kind": "polling",
         "file": "crates/emfileman/src/emDirStatPanel.rs",
         "line": 109,
-        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); self.update_statistics(); false } \u2014 refresh_vir_file_state polls model state; update_statistics inspects GetVirFileState()"
+        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); self.update_statistics(); false } — refresh_vir_file_state polls model state; update_statistics inspects GetVirFileState()"
       },
       "rust_signal_accessor": null,
       "rust_signal_accessor_status": "missing",
@@ -1104,7 +1104,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Cycle polls vir-file-state every wake. No connect, no IsSignaled. Returns false (no stay-awake) so depends on external wake. emFilePanel exposes GetVirFileState() (the value) but not a SignalId accessor \u2014 missing. Verdict drifted.",
+      "notes": "Cycle polls vir-file-state every wake. No connect, no IsSignaled. Returns false (no stay-awake) so depends on external wake. emFilePanel exposes GetVirFileState() (the value) but not a SignalId accessor — missing. Verdict drifted.",
       "enrichment": {
         "pattern_id": "P-007-polling-accessor-missing",
         "decision_ids": [
@@ -1133,7 +1133,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emDirStatPanel.rs",
         "line": 109,
-        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); self.update_statistics(); false } \u2014 no config gen poll, no connect"
+        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); self.update_statistics(); false } — no config gen poll, no connect"
       },
       "rust_signal_accessor": "emFileManViewConfig::GetChangeSignal",
       "rust_signal_accessor_status": "type-mismatch",
@@ -1165,7 +1165,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileLinkPanel.rs",
         "line": 175,
-        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); false } \u2014 no UpdateSignalModel observation"
+        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); false } — no UpdateSignalModel observation"
       },
       "rust_signal_accessor": "emFileModel::AcquireUpdateSignalModel",
       "rust_signal_accessor_status": "present",
@@ -1193,7 +1193,7 @@
         "kind": "polling",
         "file": "crates/emfileman/src/emFileLinkPanel.rs",
         "line": 175,
-        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); false } \u2014 vir-file-state refreshed each wake but no signal subscription"
+        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); false } — vir-file-state refreshed each wake but no signal subscription"
       },
       "rust_signal_accessor": null,
       "rust_signal_accessor_status": "missing",
@@ -1230,7 +1230,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileLinkPanel.rs",
         "line": 175,
-        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); false } \u2014 no config GetChangeSignal poll, no connect"
+        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); false } — no config GetChangeSignal poll, no connect"
       },
       "rust_signal_accessor": "emFileManViewConfig::GetChangeSignal",
       "rust_signal_accessor_status": "type-mismatch",
@@ -1262,7 +1262,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileLinkPanel.rs",
         "line": 175,
-        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); false } \u2014 no Model->GetChangeSignal observation"
+        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); false } — no Model->GetChangeSignal observation"
       },
       "rust_signal_accessor": null,
       "rust_signal_accessor_status": "missing",
@@ -1270,7 +1270,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "C++ subscribes to emFileLinkModel's record-change signal (inherited from emRecFileModel::GetChangeSignal). Rust emFileLinkModel exposes GetFileStateSignal (line 265) but no GetChangeSignal accessor \u2014 missing. Panel cannot subscribe without the accessor first being added on the model; this is plumbing absence rather than a justified architectural divergence. Verdict gap-blocked. Note: F010 root-cause investigation (log entry 0011) identified the missing model-change-signal handling here as the visible-bug source.",
+      "notes": "C++ subscribes to emFileLinkModel's record-change signal (inherited from emRecFileModel::GetChangeSignal). Rust emFileLinkModel exposes GetFileStateSignal (line 265) but no GetChangeSignal accessor — missing. Panel cannot subscribe without the accessor first being added on the model; this is plumbing absence rather than a justified architectural divergence. Verdict gap-blocked. Note: F010 root-cause investigation (log entry 0011) identified the missing model-change-signal handling here as the visible-bug source.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -1292,7 +1292,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileLinkPanel.rs",
         "line": 175,
-        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); false } \u2014 Rust has no SetFileModel hook re-adding a signal subscription"
+        "snippet": "fn Cycle(...) { self.file_panel.refresh_vir_file_state(); false } — Rust has no SetFileModel hook re-adding a signal subscription"
       },
       "rust_signal_accessor": null,
       "rust_signal_accessor_status": "missing",
@@ -1300,7 +1300,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "C++ AddWakeUpSignal at line 72 is inside SetFileModel \u2014 re-attaches subscription when the file model is replaced. Rust has no analogous hook because it never subscribed in the first place. emFileLinkModel exposes no GetChangeSignal accessor. Same gap-blocked verdict as line 56. Pre-existing DIVERGED at emFileLinkPanel.rs:299 concerns LayoutChildren timing, not signal subscription, so it is not the directly-relevant annotation; but documented for cross-reference.",
+      "notes": "C++ AddWakeUpSignal at line 72 is inside SetFileModel — re-attaches subscription when the file model is replaced. Rust has no analogous hook because it never subscribed in the first place. emFileLinkModel exposes no GetChangeSignal accessor. Same gap-blocked verdict as line 56. Pre-existing DIVERGED at emFileLinkPanel.rs:299 concerns LayoutChildren timing, not signal subscription, so it is not the directly-relevant annotation; but documented for cross-reference.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -1322,7 +1322,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { let gen = self.config.borrow().GetChangeSignal(); if gen != self.last_config_gen { ...; true } else { false } } \u2014 only config polled; no selection observation"
+        "snippet": "fn Cycle(...) { let gen = self.config.borrow().GetChangeSignal(); if gen != self.last_config_gen { ...; true } else { false } } — only config polled; no selection observation"
       },
       "rust_signal_accessor": "emFileManModel::GetSelectionSignal",
       "rust_signal_accessor_status": "type-mismatch",
@@ -1387,7 +1387,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 radio-group check signal not observed; widget interaction handled inline in Input()"
+        "snippet": "fn Cycle(...) { ... } — radio-group check signal not observed; widget interaction handled inline in Input()"
       },
       "rust_signal_accessor": "emRadioBox::check_signal (via theme_ar_group)",
       "rust_signal_accessor_status": "present",
@@ -1415,7 +1415,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 theme-style radio check signal not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — theme-style radio check signal not observed in Cycle"
       },
       "rust_signal_accessor": "emRadioBox::check_signal (via theme_style_group)",
       "rust_signal_accessor_status": "present",
@@ -1443,7 +1443,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 sort radio click signal not observed in Cycle; sort_group state read inline in Input()"
+        "snippet": "fn Cycle(...) { ... } — sort radio click signal not observed in Cycle; sort_group state read inline in Input()"
       },
       "rust_signal_accessor": "emRadioButton::click_signal (sort_radios[0])",
       "rust_signal_accessor_status": "present",
@@ -1471,7 +1471,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 sort_radios[Date] click not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — sort_radios[Date] click not observed in Cycle"
       },
       "rust_signal_accessor": "emRadioButton::click_signal (sort_radios[1])",
       "rust_signal_accessor_status": "present",
@@ -1499,7 +1499,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 sort_radios[Size] click not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — sort_radios[Size] click not observed in Cycle"
       },
       "rust_signal_accessor": "emRadioButton::click_signal (sort_radios[2])",
       "rust_signal_accessor_status": "present",
@@ -1527,7 +1527,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 sort_radios[Ending] click not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — sort_radios[Ending] click not observed in Cycle"
       },
       "rust_signal_accessor": "emRadioButton::click_signal (sort_radios[3])",
       "rust_signal_accessor_status": "present",
@@ -1555,7 +1555,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 sort_radios[Class] click not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — sort_radios[Class] click not observed in Cycle"
       },
       "rust_signal_accessor": "emRadioButton::click_signal (sort_radios[4])",
       "rust_signal_accessor_status": "present",
@@ -1583,7 +1583,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 sort_radios[Version] click not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — sort_radios[Version] click not observed in Cycle"
       },
       "rust_signal_accessor": "emRadioButton::click_signal (sort_radios[5])",
       "rust_signal_accessor_status": "present",
@@ -1619,7 +1619,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Reaction occurs in Input() handler immediately after dispatching to the widget \u2014 no signal subscription. check_signal is fired by the widget but never connected. Verdict drifted/absent.",
+      "notes": "Reaction occurs in Input() handler immediately after dispatching to the widget — no signal subscription. check_signal is fired by the widget but never connected. Verdict drifted/absent.",
       "enrichment": {
         "pattern_id": "P-002-no-subscribe-accessor-present",
         "decision_ids": [],
@@ -1667,7 +1667,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 nss_radios click not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — nss_radios click not observed in Cycle"
       },
       "rust_signal_accessor": "emRadioButton::click_signal (nss_radios[0])",
       "rust_signal_accessor_status": "present",
@@ -1695,7 +1695,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 nss_radios[1] click not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — nss_radios[1] click not observed in Cycle"
       },
       "rust_signal_accessor": "emRadioButton::click_signal (nss_radios[1])",
       "rust_signal_accessor_status": "present",
@@ -1723,7 +1723,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 nss_radios[2] click not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — nss_radios[2] click not observed in Cycle"
       },
       "rust_signal_accessor": "emRadioButton::click_signal (nss_radios[2])",
       "rust_signal_accessor_status": "present",
@@ -1779,7 +1779,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 503,
-        "snippet": "if self.save_button.Input(...) { ... } \u2014 Input-inline reaction; no connect"
+        "snippet": "if self.save_button.Input(...) { ... } — Input-inline reaction; no connect"
       },
       "rust_signal_accessor": "emButton::click_signal (save_button)",
       "rust_signal_accessor_status": "present",
@@ -1807,7 +1807,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 select_all_button click not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — select_all_button click not observed in Cycle"
       },
       "rust_signal_accessor": "emButton::click_signal (select_all_button)",
       "rust_signal_accessor_status": "present",
@@ -1835,7 +1835,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 518,
-        "snippet": "if self.clear_sel_button.Input(...) { ... } \u2014 Input-inline reaction"
+        "snippet": "if self.clear_sel_button.Input(...) { ... } — Input-inline reaction"
       },
       "rust_signal_accessor": "emButton::click_signal (clear_sel_button)",
       "rust_signal_accessor_status": "present",
@@ -1863,7 +1863,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 522,
-        "snippet": "if self.swap_sel_button.Input(...) { ... } \u2014 Input-inline reaction"
+        "snippet": "if self.swap_sel_button.Input(...) { ... } — Input-inline reaction"
       },
       "rust_signal_accessor": "emButton::click_signal (swap_sel_button)",
       "rust_signal_accessor_status": "present",
@@ -1891,7 +1891,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 paths_clip_button click not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — paths_clip_button click not observed in Cycle"
       },
       "rust_signal_accessor": "emButton::click_signal (paths_clip_button)",
       "rust_signal_accessor_status": "present",
@@ -1919,7 +1919,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 names_clip_button click not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — names_clip_button click not observed in Cycle"
       },
       "rust_signal_accessor": "emButton::click_signal (names_clip_button)",
       "rust_signal_accessor_status": "present",
@@ -1947,7 +1947,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManControlPanel.rs",
         "line": 300,
-        "snippet": "fn Cycle(...) { ... } \u2014 FMModel commands signal not observed in Cycle"
+        "snippet": "fn Cycle(...) { ... } — FMModel commands signal not observed in Cycle"
       },
       "rust_signal_accessor": "emFileManModel::GetCommandsSignal",
       "rust_signal_accessor_status": "type-mismatch",
@@ -2025,7 +2025,7 @@
         "revalidation_result": null
       },
       "consumers": null,
-      "notes": "C++ port of emAutoplayControlPanel was split into crates/emmain/src/emAutoplayControlPanel.rs (CSV rust_file=emAutoplay.rs reflects the C++ basename mapping). emAutoplayViewModel (crates/emmain/src/emAutoplay.rs:802) exposes no GetChangeSignal accessor; only emAutoplayConfig has one. UpdateControls is not ported, so the model\u2192panel reaction half is missing entirely.",
+      "notes": "C++ port of emAutoplayControlPanel was split into crates/emmain/src/emAutoplayControlPanel.rs (CSV rust_file=emAutoplay.rs reflects the C++ basename mapping). emAutoplayViewModel (crates/emmain/src/emAutoplay.rs:802) exposes no GetChangeSignal accessor; only emAutoplayConfig has one. UpdateControls is not ported, so the model→panel reaction half is missing entirely.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [],
@@ -2377,7 +2377,7 @@
         "kind": "absent",
         "file": "crates/emmain/src/emBookmarks.rs",
         "line": 528,
-        "snippet": "pub struct emBookmarkButton { bookmark, icon_load_attempted, icon } \u2014 Rust emBookmarkButton is a plain PanelBehavior with no emButton inheritance and no click handling. Cycle (line 638) is a stub returning false. C++ self-subscribed via AddWakeUpSignal(GetClickSignal()) to navigate on click."
+        "snippet": "pub struct emBookmarkButton { bookmark, icon_load_attempted, icon } — Rust emBookmarkButton is a plain PanelBehavior with no emButton inheritance and no click handling. Cycle (line 638) is a stub returning false. C++ self-subscribed via AddWakeUpSignal(GetClickSignal()) to navigate on click."
       },
       "rust_signal_accessor": "emButton.click_signal",
       "rust_signal_accessor_status": "missing",
@@ -2385,7 +2385,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Bookmark click navigation is unimplemented in Rust. Accessor 'present' on emButton in general but Rust emBookmarkButton does not extend emButton (it is a standalone struct), so the button-side click_signal does not exist for this panel \u2014 recorded as 'missing'.",
+      "notes": "Bookmark click navigation is unimplemented in Rust. Accessor 'present' on emButton in general but Rust emBookmarkButton does not extend emButton (it is a standalone struct), so the button-side click_signal does not exist for this panel — recorded as 'missing'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [],
@@ -2451,7 +2451,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "emWindow.WindowFlags exists (crates/emcore/src/emWindow.rs:27) but no GetWindowFlagsSignal accessor \u2014 emWindow does not expose a SignalId for flag changes. gap-blocked: panel cannot subscribe without first adding the accessor on emWindow.",
+      "notes": "emWindow.WindowFlags exists (crates/emcore/src/emWindow.rs:27) but no GetWindowFlagsSignal accessor — emWindow does not expose a SignalId for flag changes. gap-blocked: panel cannot subscribe without first adding the accessor on emWindow.",
       "enrichment": {
         "pattern_id": "P-002-no-subscribe-accessor-present",
         "decision_ids": [],
@@ -2476,7 +2476,7 @@
         "kind": "absent",
         "file": "crates/emmain/src/emMainControlPanel.rs",
         "line": 287,
-        "snippet": "No connect to MainConfig.GetChangeSignal(). C++ Cycle reflects config (BtAutoHideControlView->SetChecked(MainConfig->AutoHideControlView)) \u2014 Rust just logs 'AutoHideControlView toggled' (line 312)."
+        "snippet": "No connect to MainConfig.GetChangeSignal(). C++ Cycle reflects config (BtAutoHideControlView->SetChecked(MainConfig->AutoHideControlView)) — Rust just logs 'AutoHideControlView toggled' (line 312)."
       },
       "rust_signal_accessor": "emMainConfig.GetChangeSignal (crates/emmain/src/emMainConfig.rs:106)",
       "rust_signal_accessor_status": "present",
@@ -2504,7 +2504,7 @@
         "kind": "rc_cell_shim",
         "file": "crates/emmain/src/emMainControlPanel.rs",
         "line": 296,
-        "snippet": "if flags.new_window.take() { ... } \u2014 polled in Cycle from Rc<ClickFlags> set by on_click closures."
+        "snippet": "if flags.new_window.take() { ... } — polled in Cycle from Rc<ClickFlags> set by on_click closures."
       },
       "rust_signal_accessor": "emButton.click_signal",
       "rust_signal_accessor_status": "present",
@@ -2833,9 +2833,9 @@
         "kind": "polling",
         "file": "crates/emmain/src/emMainPanel.rs",
         "line": 663,
-        "snippet": "if let Some(start) = self.slider_hide_timer_start && start.elapsed().as_millis() >= 5000 { self.slider_hidden = true; ... } \u2014 std::time::Instant polling instead of emTimer SignalId subscription."
+        "snippet": "if let Some(start) = self.slider_hide_timer_start && start.elapsed().as_millis() >= 5000 { self.slider_hidden = true; ... } — std::time::Instant polling instead of emTimer SignalId subscription."
       },
-      "rust_signal_accessor": "emTimer.signal_id (crates/emcore/src/emTimer.rs:13) \u2014 exists but not used here",
+      "rust_signal_accessor": "emTimer.signal_id (crates/emcore/src/emTimer.rs:13) — exists but not used here",
       "rust_signal_accessor_status": "present",
       "forced_category": null,
       "forced_evidence": null,
@@ -2903,7 +2903,7 @@
         "kind": "absent",
         "file": "crates/emmain/src/emVirtualCosmos.rs",
         "line": 213,
-        "snippet": "pub struct emVirtualCosmosModel { items_dir, item_files_dir, items, item_recs } \u2014 no Cycle, no signal field, no connect to FileUpdateSignal. C++ model::Cycle calls Reload() on FileUpdateSignal \u2014 Rust never reloads."
+        "snippet": "pub struct emVirtualCosmosModel { items_dir, item_files_dir, items, item_recs } — no Cycle, no signal field, no connect to FileUpdateSignal. C++ model::Cycle calls Reload() on FileUpdateSignal — Rust never reloads."
       },
       "rust_signal_accessor": "emFileModel::AcquireUpdateSignalModel (crates/emcore/src/emFileModel.rs:343)",
       "rust_signal_accessor_status": "present",
@@ -2911,7 +2911,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Site is in emVirtualCosmosModel constructor (not panel). Same file maps both model and panel; classified as model-side drift in this panel-row file by Task-4 scope. Rust emVirtualCosmosModel has no engine, so cannot subscribe \u2014 this is also a structural divergence (no Cycle/engine on the model).",
+      "notes": "Site is in emVirtualCosmosModel constructor (not panel). Same file maps both model and panel; classified as model-side drift in this panel-row file by Task-4 scope. Rust emVirtualCosmosModel has no engine, so cannot subscribe — this is also a structural divergence (no Cycle/engine on the model).",
       "enrichment": {
         "pattern_id": "P-002-no-subscribe-accessor-present",
         "decision_ids": [],
@@ -2938,7 +2938,7 @@
         "kind": "absent",
         "file": "crates/emmain/src/emVirtualCosmos.rs",
         "line": 821,
-        "snippet": "fn Cycle: 'if self.needs_update { self.needs_update = false; self.update_children(ctx); }' \u2014 needs_update set by notice() on NF_VIEWING_CHANGED, not by model change signal. update_children re-reads model.GetItemRecs() each call but no signal subscription wires the model to the panel."
+        "snippet": "fn Cycle: 'if self.needs_update { self.needs_update = false; self.update_children(ctx); }' — needs_update set by notice() on NF_VIEWING_CHANGED, not by model change signal. update_children re-reads model.GetItemRecs() each call but no signal subscription wires the model to the panel."
       },
       "rust_signal_accessor": null,
       "rust_signal_accessor_status": "missing",
@@ -2946,7 +2946,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "emVirtualCosmosModel exposes no GetChangeSignal accessor and never fires one (it has no signal at all). Panel reacts to viewport changes (NF_VIEWING_CHANGED), not to model changes \u2014 observably equivalent for static cosmos but breaks if the model ever reloads while the panel is viewed.",
+      "notes": "emVirtualCosmosModel exposes no GetChangeSignal accessor and never fires one (it has no signal at all). Panel reacts to viewport changes (NF_VIEWING_CHANGED), not to model changes — observably equivalent for static cosmos but breaks if the model ever reloads while the panel is viewed.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -3071,7 +3071,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Selected-date selection signal \u2014 no subscription, no reaction. signal_kind=selection (per \u00a75.4 spans listbox-tracking signals).",
+      "notes": "Selected-date selection signal — no subscription, no reaction. signal_kind=selection (per §5.4 spans listbox-tracking signals).",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -3101,7 +3101,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget GetTextSignal \u2014 outside \u00a75.4 vocabulary; recorded as 'other' with descriptor 'widget-text'. Pattern: text-field value-changed broadcast.",
+      "notes": "Widget GetTextSignal — outside §5.4 vocabulary; recorded as 'other' with descriptor 'widget-text'. Pattern: text-field value-changed broadcast.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -3191,7 +3191,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Scalar field GetValueSignal \u2014 outside \u00a75.4 vocabulary; recorded as 'other' with descriptor 'widget-value'.",
+      "notes": "Scalar field GetValueSignal — outside §5.4 vocabulary; recorded as 'other' with descriptor 'widget-value'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -3431,7 +3431,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget GetTextSignal \u2014 recorded as 'other' / 'widget-text'.",
+      "notes": "Widget GetTextSignal — recorded as 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -3851,7 +3851,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget GetTextSignal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget GetTextSignal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -3971,7 +3971,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Inner FileFieldPanel TextField text-changed signal \u2014 'other' / 'widget-text'. Rust FileFieldPanel (lines 35-79) contains no signal subscription.",
+      "notes": "Inner FileFieldPanel TextField text-changed signal — 'other' / 'widget-text'. Rust FileFieldPanel (lines 35-79) contains no signal subscription.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4317,7 +4317,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4347,7 +4347,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4377,7 +4377,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4407,7 +4407,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4437,7 +4437,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4467,7 +4467,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Per-WebPage TextField change signal in a loop \u2014 'other' / 'widget-text'.",
+      "notes": "Per-WebPage TextField change signal in a loop — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4527,7 +4527,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "ShowAllWebPages button \u2014 'stored for future signal wiring' (line 112).",
+      "notes": "ShowAllWebPages button — 'stored for future signal wiring' (line 112).",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4557,7 +4557,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Checkbox check signal \u2014 absent.",
+      "notes": "Checkbox check signal — absent.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4587,7 +4587,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4617,7 +4617,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4647,7 +4647,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4737,7 +4737,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Interest radio group \u2014 check signal absent.",
+      "notes": "Interest radio group — check signal absent.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4767,7 +4767,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4797,7 +4797,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4827,7 +4827,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Widget TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Widget TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4947,7 +4947,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Inner CategoryPanel TextField change signal \u2014 'other' / 'widget-text'.",
+      "notes": "Inner CategoryPanel TextField change signal — 'other' / 'widget-text'.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -4977,7 +4977,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Inner CategoryPanel ListBox-selection signal \u2014 absent in Rust.",
+      "notes": "Inner CategoryPanel ListBox-selection signal — absent in Rust.",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -5067,7 +5067,7 @@
       "forced_evidence": null,
       "preexisting_diverged_annotation": null,
       "consumers": null,
-      "notes": "Inherited emListBox item-trigger signal \u2014 outside \u00a75.4 vocabulary; recorded as 'other' with descriptor 'item-trigger' (listbox double-click / Enter trigger broadcast).",
+      "notes": "Inherited emListBox item-trigger signal — outside §5.4 vocabulary; recorded as 'other' with descriptor 'item-trigger' (listbox double-click / Enter trigger broadcast).",
       "enrichment": {
         "pattern_id": "P-001-no-subscribe-no-accessor",
         "decision_ids": [
@@ -5233,7 +5233,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManViewConfig.rs",
         "line": 428,
-        "snippet": "pub fn GetChangeSignal(&self) -> u64 \u2014 returns a generation counter, not a SignalId; consumers cannot subscribe via AddWakeUpSignal/IsSignaled."
+        "snippet": "pub fn GetChangeSignal(&self) -> u64 — returns a generation counter, not a SignalId; consumers cannot subscribe via AddWakeUpSignal/IsSignaled."
       },
       "rust_signal_accessor": "emFileManViewConfig::GetChangeSignal",
       "rust_signal_accessor_status": "type-mismatch",
@@ -5271,7 +5271,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManModel.rs",
         "line": 543,
-        "snippet": "pub fn GetCommandsSignal(&self) -> u64 \u2014 returns generation counter, not a SignalId."
+        "snippet": "pub fn GetCommandsSignal(&self) -> u64 — returns generation counter, not a SignalId."
       },
       "rust_signal_accessor": "emFileManModel::GetCommandsSignal",
       "rust_signal_accessor_status": "type-mismatch",
@@ -5304,7 +5304,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileManModel.rs",
         "line": 540,
-        "snippet": "pub fn GetSelectionSignal(&self) -> u64 \u2014 returns generation counter, not a SignalId."
+        "snippet": "pub fn GetSelectionSignal(&self) -> u64 — returns generation counter, not a SignalId."
       },
       "rust_signal_accessor": "emFileManModel::GetSelectionSignal",
       "rust_signal_accessor_status": "type-mismatch",
@@ -5340,7 +5340,7 @@
         "kind": "absent",
         "file": "crates/emfileman/src/emFileLinkModel.rs",
         "line": 265,
-        "snippet": "No GetChangeSignal accessor exposed. emFileLinkModel only implements GetFileStateSignal (line 265 \u2014 private trait impl). C++ emFileLinkModel inherits emStructRec::GetChangeSignal; Rust port has no equivalent."
+        "snippet": "No GetChangeSignal accessor exposed. emFileLinkModel only implements GetFileStateSignal (line 265 — private trait impl). C++ emFileLinkModel inherits emStructRec::GetChangeSignal; Rust port has no equivalent."
       },
       "rust_signal_accessor": null,
       "rust_signal_accessor_status": "missing",
@@ -5375,7 +5375,7 @@
         "kind": "absent",
         "file": "crates/emmain/src/emAutoplay.rs",
         "line": 800,
-        "snippet": "pub struct emAutoplayViewModel (emAutoplay.rs:800-) defines no GetChangeSignal accessor. Note: emAutoplay.rs:129 has emAutoplayConfig::GetChangeSignal \u2014 that is the config rec, not the view-model. C++ emAutoplayViewModel::GetChangeSignal (emAutoplay.h:221) is missing."
+        "snippet": "pub struct emAutoplayViewModel (emAutoplay.rs:800-) defines no GetChangeSignal accessor. Note: emAutoplay.rs:129 has emAutoplayConfig::GetChangeSignal — that is the config rec, not the view-model. C++ emAutoplayViewModel::GetChangeSignal (emAutoplay.h:221) is missing."
       },
       "rust_signal_accessor": null,
       "rust_signal_accessor_status": "missing",
@@ -5652,7 +5652,7 @@
         "kind": "polling",
         "file": "crates/emstocks/src/emStocksFileModel.rs",
         "line": 62,
-        "snippet": "pub fn CheckSaveTimer(&mut self) -> bool { if let Some(deadline) = self.save_timer_deadline ... } \u2014 uses std::time::Instant deadline plus caller-driven CheckSaveTimer instead of subscribing to a timer signal."
+        "snippet": "pub fn CheckSaveTimer(&mut self) -> bool { if let Some(deadline) = self.save_timer_deadline ... } — uses std::time::Instant deadline plus caller-driven CheckSaveTimer instead of subscribing to a timer signal."
       },
       "rust_signal_accessor": null,
       "rust_signal_accessor_status": "missing",
@@ -5686,7 +5686,7 @@
       "claimed_category": "language-forced",
       "revalidation_result": "failed",
       "corrected_category": "",
-      "full_block": "/// DIVERGED: (language-forced) C++ emDirPanel connects emDirModel as a FileModelState via\n/// SetFileModel. Rust drives loading directly in Cycle using\n/// `get_file_state()` to query the model's phase, because emDirModel does\n/// not implement FileModelState \u2014 it wraps emDirModelData directly without\n/// scheduler integration.",
+      "full_block": "/// DIVERGED: (language-forced) C++ emDirPanel connects emDirModel as a FileModelState via\n/// SetFileModel. Rust drives loading directly in Cycle using\n/// `get_file_state()` to query the model's phase, because emDirModel does\n/// not implement FileModelState — it wraps emDirModelData directly without\n/// scheduler integration.",
       "notes": "",
       "enrichment": {
         "pattern_id": "P-009-stale-annotation",
@@ -5754,7 +5754,7 @@
       "claimed_category": "language-forced",
       "revalidation_result": "failed",
       "corrected_category": "",
-      "full_block": "/// DIVERGED: (language-forced) C++ `emDialog::CheckFinish` is a virtual method with no\n/// extra args \u2014 subclasses reach into self's fields directly. Rust uses\n/// a callback slot on `DlgPanel`; the closure needs `&mut DlgPanel` +\n/// `&mut EngineCtx<'_>` to read tree state (e.g. emFileDialog's fsb\n/// child panel) and spawn transient sub-dialogs. Matches `DialogCycleExt`\n/// (Phase 3.6 Task 2).",
+      "full_block": "/// DIVERGED: (language-forced) C++ `emDialog::CheckFinish` is a virtual method with no\n/// extra args — subclasses reach into self's fields directly. Rust uses\n/// a callback slot on `DlgPanel`; the closure needs `&mut DlgPanel` +\n/// `&mut EngineCtx<'_>` to read tree state (e.g. emFileDialog's fsb\n/// child panel) and spawn transient sub-dialogs. Matches `DialogCycleExt`\n/// (Phase 3.6 Task 2).",
       "notes": "",
       "enrichment": {
         "pattern_id": "P-009-stale-annotation",
@@ -5771,7 +5771,7 @@
       "claimed_category": "language-forced",
       "revalidation_result": "failed",
       "corrected_category": "",
-      "full_block": "    /// DIVERGED: (language-forced) Rust mechanism for the C++ \"emFileDialog::Cycle calls\n    /// emDialog::Cycle() first then runs its own logic\" inheritance pattern\n    /// (emFileDialog.cpp:82). In C++, `emFileDialog` is a subclass and its\n    /// `Cycle()` override calls `emDialog::Cycle()` then continues. In Rust\n    /// there is a single engine type (`DialogPrivateEngine`) with no\n    /// inheritance; this callback slot lets emFileDialog inject post-base\n    /// Cycle logic without needing a separate engine or vtable dispatch.\n    ///\n    /// `DialogPrivateEngine::Cycle` calls this AFTER the base cycle body\n    /// (close-signal observation, pending_result resolution, auto-delete\n    /// countdown). Return value: whether the extension wants to keep the\n    /// engine awake (OR'd with the base Cycle's return).\n    ///\n    /// NOTE: the extension must not call `ctx.tree.take_behavior(root_panel_id)`\n    /// \u2014 that behavior is already taken by the engine's Cycle body. The\n    /// extension CAN take other panels (e.g. overwrite dialog's root).\n    ///\n    /// Populated by emFileDialog::new in Task 3. `None` for plain emDialog.",
+      "full_block": "    /// DIVERGED: (language-forced) Rust mechanism for the C++ \"emFileDialog::Cycle calls\n    /// emDialog::Cycle() first then runs its own logic\" inheritance pattern\n    /// (emFileDialog.cpp:82). In C++, `emFileDialog` is a subclass and its\n    /// `Cycle()` override calls `emDialog::Cycle()` then continues. In Rust\n    /// there is a single engine type (`DialogPrivateEngine`) with no\n    /// inheritance; this callback slot lets emFileDialog inject post-base\n    /// Cycle logic without needing a separate engine or vtable dispatch.\n    ///\n    /// `DialogPrivateEngine::Cycle` calls this AFTER the base cycle body\n    /// (close-signal observation, pending_result resolution, auto-delete\n    /// countdown). Return value: whether the extension wants to keep the\n    /// engine awake (OR'd with the base Cycle's return).\n    ///\n    /// NOTE: the extension must not call `ctx.tree.take_behavior(root_panel_id)`\n    /// — that behavior is already taken by the engine's Cycle body. The\n    /// extension CAN take other panels (e.g. overwrite dialog's root).\n    ///\n    /// Populated by emFileDialog::new in Task 3. `None` for plain emDialog.",
       "notes": "",
       "enrichment": {
         "pattern_id": "P-009-stale-annotation",
@@ -5805,7 +5805,7 @@
       "claimed_category": "language-forced",
       "revalidation_result": "failed",
       "corrected_category": "",
-      "full_block": "                // DIVERGED: (language-forced) Rust-specific re-wake. The base\n                // `DialogPrivateEngine::Cycle` body runs BEFORE on_cycle_ext\n                // (Phase-3.6 Task 2 ordering). State mutations this closure\n                // makes \u2014 setting `dlg.pending_result`, pushing\n                // `pending_actions` \u2014 are not visible to the base body this\n                // Cycle. We return `true` on any mutation to keep the engine\n                // awake so the next Cycle's base body observes them. C++\n                // doesn't need this: `Finish(POSITIVE)` in\n                // emFileDialog::Cycle finalizes via same-call-stack re-entry\n                // into emDialog::Cycle's finalize path.",
+      "full_block": "                // DIVERGED: (language-forced) Rust-specific re-wake. The base\n                // `DialogPrivateEngine::Cycle` body runs BEFORE on_cycle_ext\n                // (Phase-3.6 Task 2 ordering). State mutations this closure\n                // makes — setting `dlg.pending_result`, pushing\n                // `pending_actions` — are not visible to the base body this\n                // Cycle. We return `true` on any mutation to keep the engine\n                // awake so the next Cycle's base body observes them. C++\n                // doesn't need this: `Finish(POSITIVE)` in\n                // emFileDialog::Cycle finalizes via same-call-stack re-entry\n                // into emDialog::Cycle's finalize path.",
       "notes": "",
       "enrichment": {
         "pattern_id": "P-009-stale-annotation",
@@ -5822,7 +5822,7 @@
       "claimed_category": "upstream-gap-forced",
       "revalidation_result": "wrong_category",
       "corrected_category": "language-forced",
-      "full_block": "        // DIVERGED: (upstream-gap-forced) C++ Cycle calls StartPSAgent and\n        // UpdateMemoryLimit before the loop. PSAgent integration is\n        // deferred from F017 scope (Rust PriSchedModel callback signature\n        // is incompatible with C++ GotAccess\u2192WakeUp; tracked separately).\n        // UpdateMemoryLimit signals memory pressure that no panel\n        // currently reads in the Rust port.",
+      "full_block": "        // DIVERGED: (upstream-gap-forced) C++ Cycle calls StartPSAgent and\n        // UpdateMemoryLimit before the loop. PSAgent integration is\n        // deferred from F017 scope (Rust PriSchedModel callback signature\n        // is incompatible with C++ GotAccess→WakeUp; tracked separately).\n        // UpdateMemoryLimit signals memory pressure that no panel\n        // currently reads in the Rust port.",
       "notes": "",
       "enrichment": {
         "pattern_id": "P-009-stale-annotation",

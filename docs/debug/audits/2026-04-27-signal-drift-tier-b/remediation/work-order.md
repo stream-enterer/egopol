@@ -23,7 +23,7 @@ Buckets are ordered by topological layer over the prereq DAG (lower layer = no u
 | 11 | B-016-polling-no-acc-emfileman | 0 | balanced | 3 | designed | [d837346b](../../../../superpowers/specs/2026-04-27-B-016-polling-no-acc-emfileman-design.md) |
 | 12 | B-017-polling-no-acc-emstocks | 0 | balanced | 3 | designed | [a27d2faa](../../../../superpowers/specs/2026-04-27-B-017-polling-no-acc-emstocks-design.md) |
 | 13 | B-009-typemismatch-emfileman | 0 | judgement-heavy | 14 | merged at 50994e26 (3b56e00b..50994e26) | [0a7d7fd3](../../../../superpowers/specs/2026-04-27-B-009-typemismatch-emfileman-design.md) |
-| 14 | B-010-rc-shim-emcore | 0 | judgement-heavy | 15 | designed | [09f08710](../../../../superpowers/specs/2026-04-27-B-010-rc-shim-emcore-design.md) |
+| 14 | B-010-rc-shim-emcore | 0 | judgement-heavy | 15 | merged at a1f882a9 (46652a56..a1f882a9) | [09f08710](../../../../superpowers/specs/2026-04-27-B-010-rc-shim-emcore-design.md) |
 | 15 | B-011-rc-shim-autoplay | 0 | judgement-heavy | 7 | merged at eb9427db (absorbed into B-003) | [cf9e1cc4](../../../../superpowers/specs/2026-04-27-B-011-rc-shim-autoplay-design.md) |
 | 16 | B-012-rc-shim-mainctrl | 0 | judgement-heavy | 7 | designed | [bf6e9bd5](../../../../superpowers/specs/2026-04-27-B-012-rc-shim-mainctrl-design.md) |
 | 17 | B-013-dialog-cells-emstocks | 0 | judgement-heavy | 4 | designed | [ec317565](../../../../superpowers/specs/2026-04-27-B-013-dialog-cells-emstocks-design.md) |
@@ -359,3 +359,17 @@ Combined-reviewer template dispatched against `d15bbca0..91433733`. Result: **AP
   - **D13.** Out-of-scope cross-edge confirmed: `emMainPanel-68` (`SliderTimer.GetSignal()`) is still polled — B-015's territory. B-008 left the polling code untouched per design.
 - **Process note:** Combined-reviewer template ran end-of-bucket and approved cleanly with the deviations above. No fixup commit needed.
 - **10 of 19 buckets merged. 9 remain.**
+
+### 2026-04-29 — B-010 merged (rc-shim emcore)
+
+- **B-010 → merged at a1f882a9** (squash-merge of f010-B-010 onto 46652a56). 15 P-004 rows converted from rc-shim closures to D-006 first-Cycle-init + IsSignaled.
+  - emCoreConfigPanel: ButtonsPanel-80, MouseMiscGroup-299/300/301, MemFieldLayoutPanel-563, CpuGroup-746/755, PerformanceGroup-773/791 (9).
+  - emFileSelectionBox: rows 514/521/531/532/540/550 (6) — `FsbEvents` aggregator + `events: Rc<RefCell<FsbEvents>>` field + 7 closure setters + event-drain Cycle body deleted.
+- **D-009-polling-intermediary-replacement promoted** (4-sighting threshold met inside this bucket: B-003 AutoplayFlags, B-012 mw.to_reload, B-010 FsbEvents, B-010 generation counter). Decision entry already in `decisions.md`. D-007 watch-list paragraph shrunk to a one-line D-009 back-pointer. B-003 + B-012 design docs each got a "now formalised as D-009 (sighting #N)" back-citation line.
+- **C++-deviation note (correctly resolved per CLAUDE.md authority order):** design doc §1 row 9 only mentioned `InvalidatePaintingOfAllWindows` on the upscale branch, but C++ `emCoreConfigPanel.cpp:698 + cpp:710` calls it on BOTH downscale and upscale. Implementation matched C++ ground truth. Surface here for the audit-data correction record.
+- **Out-of-scope framework touches (small).** Diff includes `emCheckBox.rs (+9)`, `emListBox.rs (+35)`, `emScalarField.rs (+9)`, `emTextField.rs (+13)` — likely test-surface accessors needed by `rc_shim_b010.rs`. Not flagged by combined-reviewer; recorded for future audit.
+- **Test suite:** 2865 → 2881 (+16 tests in `crates/emcore/tests/rc_shim_b010.rs` covering all 15 rows + multi-event ordering test). Pre-commit hook (fmt + clippy -D warnings + nextest) green.
+- **Acknowledged residual debt (D-009 sighting #4; out of B-010 row scope):** `emCoreConfigPanel.generation: Rc<Cell<u64>>` counter is still touched verbatim by ButtonsPanel row 80's reset reaction body. Load-bearing for visible Reset until a future bucket replaces it with `emRecListener::OnRecChanged()`-equivalent infrastructure (config-changed signal on `emRecNodeConfigModel` + per-group subscribe + `UpdateOutput`-style handler). Counter removal is its own bucket.
+- **Audit-data corrections applied (per design §7).** B-010 bucket sketch row notes for emCoreConfigPanel rows 299/300/301 disambiguate "no Cycle in Rust today" vs "no Cycle in C++" (C++ DOES have Cycle overrides on emCoreConfigPanel/MouseMiscGroup/MaxMemGroup/PerformanceGroup using IsSignaled). FSB open questions §2 (aggregator-vs-flat-list) and §3 (generation-counter origin) resolved as written. No row reclassifications.
+- **Process note:** Combined-reviewer template approved cleanly. SDD execution; standard reconciliation flow.
+- **11 of 19 buckets merged. 8 remain** (B-001, B-002, B-004, B-012, B-013, B-015, B-016, B-017).
