@@ -28,6 +28,7 @@ eaglemode-rs is an **observational port** of emCore. From a user's seat — visi
 - Treating Rust convenience as a reason to diverge (observably or structurally). Convenience is never a reason.
 - Speculating about author intent instead of reading C++ to confirm.
 - Preserving Rust out of inertia when it diverges from C++. Rust is defective by default; C++ is the reference.
+- **Polling intermediaries** — a `Cell` or `RefCell` field set at one site and drained by another's `Cycle` is a one-tick timing drift from C++. Remove it; thread `ectx` into the mutation site and fire synchronously.
 
 **When unsure whether a difference is forced or design intent:** assume design intent, match C++ exactly, and mark the point of departure explicitly. Silent drift is worse than verbose preservation.
 
