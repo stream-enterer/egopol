@@ -5,19 +5,21 @@ use slotmap::Key as _;
 
 use crate::emColor::emColor;
 use crate::emCoreConfig::emCoreConfig;
-use crate::emEngineCtx::PanelCtx;
+use crate::emCursor::emCursor;
+use crate::emEngineCtx::{EngineCtx, PanelCtx};
 use crate::emLinearLayout::emLinearLayout;
 use crate::emPainter::emPainter;
 use crate::emPanel::{PanelBehavior, PanelState};
 use crate::emPanelTree::PanelId;
 use crate::emRasterLayout::emRasterLayout;
 use crate::emRec::emRec;
+use crate::emRecNode::emRecNode;
 use crate::emRecNodeConfigModel::emRecNodeConfigModel;
 use crate::emSignal::SignalId;
 use crate::emTiling::{AlignmentH, AlignmentV, ChildConstraint, Spacing};
 
 use super::emBorder::{emBorder, InnerBorderType, OuterBorderType};
-use super::emColorFieldFieldPanel::{ButtonPanel, CheckBoxPanel, LabelPanel, ScalarFieldPanel};
+use super::emColorFieldFieldPanel::{ButtonPanel, CheckBoxPanel, LabelPanel};
 use crate::emButton::emButton;
 use crate::emCheckBox::emCheckBox;
 use crate::emLabel::emLabel;
@@ -121,8 +123,72 @@ fn upscale_text(value: i64, _mark_interval: u64) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Factory helper: build a ScalarFieldPanel with factor-field config
+// Factory helper: build a FactorFieldPanel with factor-field config.
+// Replaces the previous ScalarFieldPanel { scalar_field } literal construction
+// for config-bound scalar fields in emCoreConfigPanel.
 // ---------------------------------------------------------------------------
+
+/// Config-bound scalar field panel. Equivalent to C++ `FactorField`:
+/// `emScalarField + emRecListener`. Subscribes to `config_sig` in its first
+/// Cycle and calls `set_value_silent` on signal — display-only update that
+/// does not trigger the `on_value` feedback loop.
+struct FactorFieldPanel {
+    scalar_field: emScalarField,
+    /// Value signal of the specific `emDoubleRec`/`emIntRec` this panel mirrors.
+    /// `SignalId::null()` = no self-update wiring.
+    config_sig: SignalId,
+    /// Closure returning the current config value in slider units.
+    get_config_val: Option<Box<dyn Fn() -> f64>>,
+    subscribed_to_config: bool,
+}
+
+impl PanelBehavior for FactorFieldPanel {
+    fn Paint(
+        &mut self,
+        painter: &mut emPainter,
+        canvas_color: emColor,
+        w: f64,
+        h: f64,
+        state: &PanelState,
+    ) {
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.scalar_field
+            .Paint(painter, canvas_color, w, h, state.enabled, pixel_scale);
+    }
+
+    /// D-006 first-Cycle init: subscribe to config_sig, react by calling
+    /// set_value_silent (no on_value feedback, no value_signal fire).
+    ///
+    /// DIVERGED: (language-forced) 1-cycle delay vs C++ emRecListener::OnRecChanged
+    /// which fires synchronously inside emRec::Changed().
+    fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, _ctx: &mut PanelCtx) -> bool {
+        if !self.subscribed_to_config && !self.config_sig.is_null() {
+            let eid = ectx.id();
+            ectx.connect(self.config_sig, eid);
+            self.subscribed_to_config = true;
+        }
+        if !self.config_sig.is_null() && ectx.IsSignaled(self.config_sig) {
+            if let Some(ref get_val) = self.get_config_val {
+                self.scalar_field.set_value_silent(get_val());
+            }
+        }
+        false
+    }
+
+    fn Input(
+        &mut self,
+        event: &crate::emInput::emInputEvent,
+        state: &PanelState,
+        input_state: &crate::emInputState::emInputState,
+        ctx: &mut PanelCtx,
+    ) -> bool {
+        self.scalar_field.Input(event, state, input_state, ctx)
+    }
+
+    fn GetCursor(&self) -> emCursor {
+        self.scalar_field.GetCursor()
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 fn make_factor_field(
@@ -134,7 +200,9 @@ fn make_factor_field(
     cfg_max: f64,
     cfg_value: f64,
     minimum_means_disabled: bool,
-) -> ScalarFieldPanel {
+    field_sig: SignalId,
+    get_val: Box<dyn Fn() -> f64>,
+) -> FactorFieldPanel {
     let mut sched = ctx
         .as_sched_ctx()
         .expect("make_factor_field requires scheduler-reach PanelCtx");
@@ -149,7 +217,12 @@ fn make_factor_field(
     sf.SetTextOfValueFunc(Box::new(move |v, mi| {
         factor_text_of_value(v, mi, dis, min, max)
     }));
-    ScalarFieldPanel { scalar_field: sf }
+    FactorFieldPanel {
+        scalar_field: sf,
+        config_sig: field_sig,
+        get_config_val: Some(get_val),
+        subscribed_to_config: false,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -194,9 +267,18 @@ impl KBGroup {
     }
 
     fn create_children(&self, ctx: &mut PanelCtx) {
-        let cfg = self.config.borrow();
-        let c = cfg.GetRec();
+        let (zoom_sig, zoom_init, scroll_sig, scroll_init) = {
+            let cfg = self.config.borrow();
+            let c = cfg.GetRec();
+            (
+                c.KeyboardZoomSpeed.listened_signal(),
+                *c.KeyboardZoomSpeed.GetValue(),
+                c.KeyboardScrollSpeed.listened_signal(),
+                *c.KeyboardScrollSpeed.GetValue(),
+            )
+        };
 
+        let zoom_config = Rc::clone(&self.config);
         let mut zoom = make_factor_field(
             ctx,
             "Keyboard zoom speed",
@@ -204,8 +286,16 @@ impl KBGroup {
             self.look.clone(),
             0.25,
             4.0,
-            *c.KeyboardZoomSpeed.GetValue(),
+            zoom_init,
             false,
+            zoom_sig,
+            Box::new(move || {
+                factor_cfg_to_val(
+                    *zoom_config.borrow().GetRec().KeyboardZoomSpeed.GetValue(),
+                    0.25,
+                    4.0,
+                )
+            }),
         );
         let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         zoom.scalar_field.on_value = Some(Box::new(
@@ -218,6 +308,7 @@ impl KBGroup {
         ));
         ctx.create_child_with("zoom", Box::new(zoom));
 
+        let scroll_config = Rc::clone(&self.config);
         let mut scroll = make_factor_field(
             ctx,
             "Keyboard scroll speed",
@@ -225,8 +316,20 @@ impl KBGroup {
             self.look.clone(),
             0.25,
             4.0,
-            *c.KeyboardScrollSpeed.GetValue(),
+            scroll_init,
             false,
+            scroll_sig,
+            Box::new(move || {
+                factor_cfg_to_val(
+                    *scroll_config
+                        .borrow()
+                        .GetRec()
+                        .KeyboardScrollSpeed
+                        .GetValue(),
+                    0.25,
+                    4.0,
+                )
+            }),
         );
         let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         scroll.scalar_field.on_value = Some(Box::new(
@@ -704,10 +807,32 @@ impl KineticGroup {
     }
 
     fn create_children(&self, ctx: &mut PanelCtx) {
-        let cfg = self.config.borrow();
-        let c = cfg.GetRec();
+        let (
+            kinetic_sig,
+            kinetic_init,
+            mag_radius_sig,
+            mag_radius_init,
+            mag_speed_sig,
+            mag_speed_init,
+            visit_sig,
+            visit_init,
+        ) = {
+            let cfg = self.config.borrow();
+            let c = cfg.GetRec();
+            (
+                c.KineticZoomingAndScrolling.listened_signal(),
+                *c.KineticZoomingAndScrolling.GetValue(),
+                c.MagnetismRadius.listened_signal(),
+                *c.MagnetismRadius.GetValue(),
+                c.MagnetismSpeed.listened_signal(),
+                *c.MagnetismSpeed.GetValue(),
+                c.VisitSpeed.listened_signal(),
+                *c.VisitSpeed.GetValue(),
+            )
+        };
 
         // KineticZoomingAndScrolling
+        let kinetic_config = Rc::clone(&self.config);
         let mut kinetic = make_factor_field(
             ctx,
             "Kinetic zooming and scrolling",
@@ -715,8 +840,20 @@ impl KineticGroup {
             self.look.clone(),
             0.25,
             2.0,
-            *c.KineticZoomingAndScrolling.GetValue(),
+            kinetic_init,
             true,
+            kinetic_sig,
+            Box::new(move || {
+                factor_cfg_to_val(
+                    *kinetic_config
+                        .borrow()
+                        .GetRec()
+                        .KineticZoomingAndScrolling
+                        .GetValue(),
+                    0.25,
+                    2.0,
+                )
+            }),
         );
         let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         kinetic.scalar_field.on_value = Some(Box::new(
@@ -733,6 +870,7 @@ impl KineticGroup {
         ctx.create_child_with("KineticZoomingAndScrolling", Box::new(kinetic));
 
         // MagnetismRadius
+        let mag_radius_config = Rc::clone(&self.config);
         let mut mag_radius = make_factor_field(
             ctx,
             "Magnetism radius",
@@ -740,8 +878,20 @@ impl KineticGroup {
             self.look.clone(),
             0.25,
             4.0,
-            *c.MagnetismRadius.GetValue(),
+            mag_radius_init,
             true,
+            mag_radius_sig,
+            Box::new(move || {
+                factor_cfg_to_val(
+                    *mag_radius_config
+                        .borrow()
+                        .GetRec()
+                        .MagnetismRadius
+                        .GetValue(),
+                    0.25,
+                    4.0,
+                )
+            }),
         );
         let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         mag_radius.scalar_field.on_value = Some(Box::new(
@@ -755,6 +905,7 @@ impl KineticGroup {
         ctx.create_child_with("MagnetismRadius", Box::new(mag_radius));
 
         // MagnetismSpeed
+        let mag_speed_config = Rc::clone(&self.config);
         let mut mag_speed = make_factor_field(
             ctx,
             "Magnetism speed",
@@ -762,8 +913,16 @@ impl KineticGroup {
             self.look.clone(),
             0.25,
             4.0,
-            *c.MagnetismSpeed.GetValue(),
+            mag_speed_init,
             false,
+            mag_speed_sig,
+            Box::new(move || {
+                factor_cfg_to_val(
+                    *mag_speed_config.borrow().GetRec().MagnetismSpeed.GetValue(),
+                    0.25,
+                    4.0,
+                )
+            }),
         );
         let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         mag_speed.scalar_field.on_value = Some(Box::new(
@@ -777,6 +936,7 @@ impl KineticGroup {
         ctx.create_child_with("MagnetismSpeed", Box::new(mag_speed));
 
         // VisitSpeed
+        let visit_config = Rc::clone(&self.config);
         let mut visit = make_factor_field(
             ctx,
             "Visit speed",
@@ -784,8 +944,16 @@ impl KineticGroup {
             self.look.clone(),
             0.1,
             10.0,
-            *c.VisitSpeed.GetValue(),
+            visit_init,
             false,
+            visit_sig,
+            Box::new(move || {
+                factor_cfg_to_val(
+                    *visit_config.borrow().GetRec().VisitSpeed.GetValue(),
+                    0.1,
+                    10.0,
+                )
+            }),
         );
         let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         visit.scalar_field.on_value = Some(Box::new(
@@ -1062,13 +1230,13 @@ impl MemFieldLayoutPanel {
     }
 
     /// Test-only helper: pre-stage the child scalar field's `GetValue()` via
-    /// the typed downcast `with_behavior_as::<ScalarFieldPanel, _>`. Bypasses
+    /// the typed downcast `with_behavior_as::<FactorFieldPanel, _>`. Bypasses
     /// signal firing — the test fires the captured signal explicitly via
     /// `sched.fire(mem_sig_for_test())` after staging.
     #[cfg(any(test, feature = "test-support"))]
     pub fn set_mem_value_for_test(&self, tree: &mut crate::emPanelTree::PanelTree, value: f64) {
         let id = self.mem_id.expect("mem_id set in create_children");
-        tree.with_behavior_as::<ScalarFieldPanel, _>(id, |p| {
+        tree.with_behavior_as::<FactorFieldPanel, _>(id, |p| {
             p.scalar_field.set_value_for_test(value);
         });
     }
@@ -1087,10 +1255,13 @@ impl MemFieldLayoutPanel {
     }
 
     fn create_children_impl(&mut self, ctx: &mut PanelCtx) {
-        let init_mb = {
+        let (mem_sig, init_mb) = {
             let cfg = self.config.borrow();
             let c = cfg.GetRec();
-            *c.MaxMegabytesPerView.GetValue() as i32
+            (
+                c.MaxMegabytesPerView.listened_signal(),
+                *c.MaxMegabytesPerView.GetValue() as i32,
+            )
         };
 
         // Memory field: log2 space, range 8..16384 → ~300..1400 in val space
@@ -1106,10 +1277,38 @@ impl MemFieldLayoutPanel {
         sf.SetTextBoxTallness(0.3);
         sf.border_mut().SetBorderScaling(1.5);
         sf.SetTextOfValueFunc(Box::new(mem_text_of_value));
+
+        let mem_config = Rc::clone(&self.config);
+        sf.on_value = Some(Box::new(
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let mb = mem_val_to_cfg(val) as i64;
+                let mut cm = mem_config.borrow_mut();
+                cm.modify(|c, sc| c.MaxMegabytesPerView.SetValue(mb, sc), sched);
+                let _ = cm.TrySave(false);
+            },
+        ));
+
         // B-010 row 563: capture value_signal BEFORE the field moves into the
         // child behavior (SignalId is Copy).
         self.mem_sig = sf.value_signal;
-        let mem_id = ctx.create_child_with("mem", Box::new(ScalarFieldPanel { scalar_field: sf }));
+        let update_config = Rc::clone(&self.config);
+        let mem_id = ctx.create_child_with(
+            "mem",
+            Box::new(FactorFieldPanel {
+                scalar_field: sf,
+                config_sig: mem_sig,
+                get_config_val: Some(Box::new(move || {
+                    mem_cfg_to_val(
+                        *update_config
+                            .borrow()
+                            .GetRec()
+                            .MaxMegabytesPerView
+                            .GetValue() as i32,
+                    )
+                })),
+                subscribed_to_config: false,
+            }),
+        );
         self.mem_id = Some(mem_id);
     }
 }
@@ -1158,7 +1357,7 @@ impl PanelBehavior for MemFieldLayoutPanel {
         if !self.mem_sig.is_null() && ectx.IsSignaled(self.mem_sig) {
             let val = ctx
                 .tree
-                .with_behavior_as::<ScalarFieldPanel, _>(
+                .with_behavior_as::<FactorFieldPanel, _>(
                     self.mem_id.expect("mem_id set in create_children"),
                     |p| p.scalar_field.GetValue(),
                 )
@@ -1445,7 +1644,7 @@ impl CpuGroup {
     #[cfg(any(test, feature = "test-support"))]
     pub fn set_threads_value_for_test(&self, tree: &mut crate::emPanelTree::PanelTree, value: f64) {
         let id = self.threads_id.expect("threads_id set in create_children");
-        tree.with_behavior_as::<ScalarFieldPanel, _>(id, |p| {
+        tree.with_behavior_as::<FactorFieldPanel, _>(id, |p| {
             p.scalar_field.set_value_for_test(value);
         });
     }
@@ -1478,10 +1677,14 @@ impl CpuGroup {
     }
 
     fn create_children_impl(&mut self, ctx: &mut PanelCtx) {
-        let (threads_init, simd_init) = {
+        let (threads_sig, threads_init, simd_init) = {
             let cfg = self.config.borrow();
             let c = cfg.GetRec();
-            (*c.MaxRenderThreads.GetValue(), *c.AllowSIMD.GetValue())
+            (
+                c.MaxRenderThreads.listened_signal(),
+                *c.MaxRenderThreads.GetValue() as f64,
+                *c.AllowSIMD.GetValue(),
+            )
         };
 
         // MaxRenderThreads: range 1-32
@@ -1490,17 +1693,36 @@ impl CpuGroup {
             emScalarField::new(&mut sched, 1.0, 32.0, self.look.clone())
         };
         sf.SetCaption("Max render threads");
-        sf.set_initial_value(threads_init as f64);
+        sf.set_initial_value(threads_init);
         sf.SetScaleMarkIntervals(&[1]);
         sf.border_mut().outer = OuterBorderType::None;
         sf.border_mut().inner = InnerBorderType::InputField;
         sf.border_mut().SetBorderScaling(1.5);
+
+        let on_val_config = Rc::clone(&self.config);
+        sf.on_value = Some(Box::new(
+            move |val, sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                let v = val as i64;
+                let mut cm = on_val_config.borrow_mut();
+                cm.modify(|c, sc| c.MaxRenderThreads.SetValue(v, sc), sched);
+                let _ = cm.TrySave(false);
+            },
+        ));
+
         // B-010 row 746: capture value_signal BEFORE the field moves into
         // the child behavior (SignalId is Copy).
         self.threads_sig = sf.value_signal;
+        let update_config = Rc::clone(&self.config);
         let threads_id = ctx.create_child_with(
             "MaxRenderThreads",
-            Box::new(ScalarFieldPanel { scalar_field: sf }),
+            Box::new(FactorFieldPanel {
+                scalar_field: sf,
+                config_sig: threads_sig,
+                get_config_val: Some(Box::new(move || {
+                    *update_config.borrow().GetRec().MaxRenderThreads.GetValue() as f64
+                })),
+                subscribed_to_config: false,
+            }),
         );
         self.threads_id = Some(threads_id);
         self.layout.set_child_constraint(
@@ -1602,7 +1824,7 @@ impl PanelBehavior for CpuGroup {
         if !self.threads_sig.is_null() && ectx.IsSignaled(self.threads_sig) {
             let val = ctx
                 .tree
-                .with_behavior_as::<ScalarFieldPanel, _>(
+                .with_behavior_as::<FactorFieldPanel, _>(
                     self.threads_id.expect("threads_id set in create_children"),
                     |p| p.scalar_field.GetValue(),
                 )
@@ -1793,7 +2015,7 @@ impl PerformanceGroup {
         let id = self
             .downscale_id
             .expect("downscale_id set in create_children");
-        tree.with_behavior_as::<ScalarFieldPanel, _>(id, |p| {
+        tree.with_behavior_as::<FactorFieldPanel, _>(id, |p| {
             p.scalar_field.set_value_for_test(value);
         });
     }
@@ -1802,7 +2024,7 @@ impl PerformanceGroup {
     #[cfg(any(test, feature = "test-support"))]
     pub fn set_upscale_value_for_test(&self, tree: &mut crate::emPanelTree::PanelTree, value: f64) {
         let id = self.upscale_id.expect("upscale_id set in create_children");
-        tree.with_behavior_as::<ScalarFieldPanel, _>(id, |p| {
+        tree.with_behavior_as::<FactorFieldPanel, _>(id, |p| {
             p.scalar_field.set_value_for_test(value);
         });
     }
@@ -1818,8 +2040,16 @@ impl PerformanceGroup {
     }
 
     fn create_children_impl(&mut self, ctx: &mut PanelCtx) {
-        let cfg = self.config.borrow();
-        let c = cfg.GetRec();
+        let (ds_sig, ds_init, us_sig, us_init) = {
+            let cfg = self.config.borrow();
+            let c = cfg.GetRec();
+            (
+                c.DownscaleQuality.listened_signal(),
+                *c.DownscaleQuality.GetValue() as f64,
+                c.UpscaleQuality.listened_signal(),
+                *c.UpscaleQuality.GetValue() as f64,
+            )
+        };
 
         // MaxMem tunnel
         ctx.create_child_with(
@@ -1849,7 +2079,7 @@ impl PerformanceGroup {
         ds_sf.SetCaption("Downscale quality");
         ds_sf.border_mut().description =
             "Quality of image downscaling (antialiasing filter size)".to_string();
-        ds_sf.set_initial_value(*c.DownscaleQuality.GetValue() as f64);
+        ds_sf.set_initial_value(ds_init);
         ds_sf.SetScaleMarkIntervals(&[1]);
         ds_sf.SetTextBoxTallness(0.3);
         ds_sf.border_mut().SetBorderScaling(1.5);
@@ -1857,10 +2087,20 @@ impl PerformanceGroup {
         // B-010 row 773: capture value_signal BEFORE the field moves into
         // the child behavior (SignalId is Copy).
         self.downscale_sig = ds_sf.value_signal;
+        let ds_update_config = Rc::clone(&self.config);
         let downscale_id = ctx.create_child_with(
             "downscaleQuality",
-            Box::new(ScalarFieldPanel {
+            Box::new(FactorFieldPanel {
                 scalar_field: ds_sf,
+                config_sig: ds_sig,
+                get_config_val: Some(Box::new(move || {
+                    *ds_update_config
+                        .borrow()
+                        .GetRec()
+                        .DownscaleQuality
+                        .GetValue() as f64
+                })),
+                subscribed_to_config: false,
             }),
         );
         self.downscale_id = Some(downscale_id);
@@ -1872,17 +2112,23 @@ impl PerformanceGroup {
         };
         us_sf.SetCaption("Upscale quality");
         us_sf.border_mut().description = "Quality of image upscaling (interpolation)".to_string();
-        us_sf.set_initial_value(*c.UpscaleQuality.GetValue() as f64);
+        us_sf.set_initial_value(us_init);
         us_sf.SetScaleMarkIntervals(&[1]);
         us_sf.SetTextBoxTallness(0.3);
         us_sf.border_mut().SetBorderScaling(1.5);
         us_sf.SetTextOfValueFunc(Box::new(upscale_text));
         // B-010 row 791: capture value_signal BEFORE child move.
         self.upscale_sig = us_sf.value_signal;
+        let us_update_config = Rc::clone(&self.config);
         let upscale_id = ctx.create_child_with(
             "upscaleQuality",
-            Box::new(ScalarFieldPanel {
+            Box::new(FactorFieldPanel {
                 scalar_field: us_sf,
+                config_sig: us_sig,
+                get_config_val: Some(Box::new(move || {
+                    *us_update_config.borrow().GetRec().UpscaleQuality.GetValue() as f64
+                })),
+                subscribed_to_config: false,
             }),
         );
         self.upscale_id = Some(upscale_id);
@@ -1969,7 +2215,7 @@ impl PanelBehavior for PerformanceGroup {
         if !self.downscale_sig.is_null() && ectx.IsSignaled(self.downscale_sig) {
             let val = ctx
                 .tree
-                .with_behavior_as::<ScalarFieldPanel, _>(
+                .with_behavior_as::<FactorFieldPanel, _>(
                     self.downscale_id
                         .expect("downscale_id set in create_children"),
                     |p| p.scalar_field.GetValue(),
@@ -1999,7 +2245,7 @@ impl PanelBehavior for PerformanceGroup {
         if !self.upscale_sig.is_null() && ectx.IsSignaled(self.upscale_sig) {
             let val = ctx
                 .tree
-                .with_behavior_as::<ScalarFieldPanel, _>(
+                .with_behavior_as::<FactorFieldPanel, _>(
                     self.upscale_id.expect("upscale_id set in create_children"),
                     |p| p.scalar_field.GetValue(),
                 )
@@ -2070,10 +2316,23 @@ impl MouseGroup {
     }
 
     fn create_children(&self, ctx: &mut PanelCtx) {
-        let cfg = self.config.borrow();
-        let c = cfg.GetRec();
+        let (wz_sig, wz_init, wa_sig, wa_init, zoom_sig, zoom_init, scroll_sig, scroll_init) = {
+            let cfg = self.config.borrow();
+            let c = cfg.GetRec();
+            (
+                c.MouseWheelZoomSpeed.listened_signal(),
+                *c.MouseWheelZoomSpeed.GetValue(),
+                c.MouseWheelZoomAcceleration.listened_signal(),
+                *c.MouseWheelZoomAcceleration.GetValue(),
+                c.MouseZoomSpeed.listened_signal(),
+                *c.MouseZoomSpeed.GetValue(),
+                c.MouseScrollSpeed.listened_signal(),
+                *c.MouseScrollSpeed.GetValue(),
+            )
+        };
 
         // wheelzoom
+        let wz_config = Rc::clone(&self.config);
         let mut wz = make_factor_field(
             ctx,
             "Mouse wheel zoom speed",
@@ -2081,8 +2340,16 @@ impl MouseGroup {
             self.look.clone(),
             0.25,
             4.0,
-            *c.MouseWheelZoomSpeed.GetValue(),
+            wz_init,
             false,
+            wz_sig,
+            Box::new(move || {
+                factor_cfg_to_val(
+                    *wz_config.borrow().GetRec().MouseWheelZoomSpeed.GetValue(),
+                    0.25,
+                    4.0,
+                )
+            }),
         );
         let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         wz.scalar_field.on_value = Some(Box::new(
@@ -2096,6 +2363,7 @@ impl MouseGroup {
         ctx.create_child_with("wheelzoom", Box::new(wz));
 
         // wheelaccel
+        let wa_config = Rc::clone(&self.config);
         let mut wa = make_factor_field(
             ctx,
             "Mouse wheel zoom acceleration",
@@ -2103,8 +2371,20 @@ impl MouseGroup {
             self.look.clone(),
             0.25,
             2.0,
-            *c.MouseWheelZoomAcceleration.GetValue(),
+            wa_init,
             true,
+            wa_sig,
+            Box::new(move || {
+                factor_cfg_to_val(
+                    *wa_config
+                        .borrow()
+                        .GetRec()
+                        .MouseWheelZoomAcceleration
+                        .GetValue(),
+                    0.25,
+                    2.0,
+                )
+            }),
         );
         let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         wa.scalar_field.on_value = Some(Box::new(
@@ -2121,6 +2401,7 @@ impl MouseGroup {
         ctx.create_child_with("wheelaccel", Box::new(wa));
 
         // zoom
+        let zoom_config = Rc::clone(&self.config);
         let mut zoom = make_factor_field(
             ctx,
             "Mouse zoom speed",
@@ -2128,8 +2409,16 @@ impl MouseGroup {
             self.look.clone(),
             0.25,
             4.0,
-            *c.MouseZoomSpeed.GetValue(),
+            zoom_init,
             false,
+            zoom_sig,
+            Box::new(move || {
+                factor_cfg_to_val(
+                    *zoom_config.borrow().GetRec().MouseZoomSpeed.GetValue(),
+                    0.25,
+                    4.0,
+                )
+            }),
         );
         let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         zoom.scalar_field.on_value = Some(Box::new(
@@ -2143,6 +2432,7 @@ impl MouseGroup {
         ctx.create_child_with("zoom", Box::new(zoom));
 
         // scroll
+        let scroll_config = Rc::clone(&self.config);
         let mut scroll = make_factor_field(
             ctx,
             "Mouse scroll speed",
@@ -2150,8 +2440,16 @@ impl MouseGroup {
             self.look.clone(),
             0.25,
             4.0,
-            *c.MouseScrollSpeed.GetValue(),
+            scroll_init,
             false,
+            scroll_sig,
+            Box::new(move || {
+                factor_cfg_to_val(
+                    *scroll_config.borrow().GetRec().MouseScrollSpeed.GetValue(),
+                    0.25,
+                    4.0,
+                )
+            }),
         );
         let config: Rc<RefCell<emRecNodeConfigModel<emCoreConfig>>> = Rc::clone(&self.config);
         scroll.scalar_field.on_value = Some(Box::new(
