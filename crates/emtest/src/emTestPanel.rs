@@ -51,7 +51,6 @@ use emcore::emWindow::WindowFlags;
 
 // ─── constants ──────────────────────────────────────────────────────
 
-const MAX_DEPTH: u32 = 10;
 const MAX_LOG_ENTRIES: usize = 20;
 const DEFAULT_BG: emColor = emColor::rgba(0x00, 0x1C, 0x38, 0xFF);
 
@@ -469,11 +468,10 @@ impl PanelBehavior for CustomItemBehavior {
 type BgShared = Rc<Cell<emColor>>;
 
 pub(crate) struct TestPanel {
-    depth: u32,
     /// Root-context handle for VarModel lookups in Drop.
     root_ctx: Rc<emContext>,
     /// `"emTestPanel - BgColor of " + identity` — populated lazily on first
-    /// `LayoutChildren` once the tree assigns this panel its identity path.
+    /// `AutoExpand` once the tree assigns this panel its identity path.
     /// Empty until then; Drop checks for empty before persisting.
     identity_key: String,
     bg_shared: BgShared,
@@ -482,10 +480,9 @@ pub(crate) struct TestPanel {
 }
 
 impl TestPanel {
-    pub(crate) fn new(depth: u32, root_ctx: Rc<emContext>, initial_bg: emColor) -> Self {
+    pub(crate) fn new(root_ctx: Rc<emContext>, initial_bg: emColor) -> Self {
         let test_image = emGetInsResImage("emTest", "icons/teddy.tga");
         Self {
-            depth,
             root_ctx,
             identity_key: String::new(),
             bg_shared: Rc::new(Cell::new(initial_bg)),
@@ -1160,12 +1157,23 @@ impl PanelBehavior for TestPanel {
         false
     }
 
-    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
-        // Lazy identity-key init: the tree assigns identity at insertion time.
+    fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
+        // C++ emTestPanel constructor (cpp:39): SetAutoExpansionThreshold(900.0).
+        // Rust: set here because panels lack tree access during construction.
+        // First expansion fires at default 150.0 (view area >> 150 in any real view);
+        // subsequent shrink/re-expand decisions use 900.0.
+        ctx.tree.SetAutoExpansionThreshold(
+            ctx.id,
+            900.0,
+            ViewConditionType::Area,
+            ctx.scheduler.as_deref_mut(),
+        );
+
+        // C++ emTestPanel constructor: BgColor = emVarModel<emColor>::GetAndRemove(GetView(), ...).
+        // Identity is available here (panel is in the tree before AutoExpand fires).
         if self.identity_key.is_empty() {
             let identity = ctx.tree.GetIdentity(ctx.id);
-            // Mirror C++ key: emVarModel<emColor>::GetAndRemove key is
-            // "emTestPanel - BgColor of " + GetIdentity().
+            // Mirror C++ key: "emTestPanel - BgColor of " + GetIdentity().
             let key = format!("emTestPanel - BgColor of {identity}");
             // Restore persisted bg if present.
             let bg = emVarModel::GetAndRemove(&self.root_ctx, &key, self.bg_shared.get());
@@ -1173,21 +1181,11 @@ impl PanelBehavior for TestPanel {
             self.identity_key = key;
         }
 
-        let bg = self.bg_color();
-
-        if !ctx.children().is_empty() {
-            for &(name, x, y, cw, ch) in &CHILD_LAYOUT {
-                if let Some(child) = ctx.find_child_by_name(name) {
-                    ctx.layout_child_canvas(child, x, y, cw, ch, bg);
-                }
-            }
-            return;
-        }
-
-        let bg_shared = self.bg_shared.clone();
         let root_ctx = self.root_ctx.clone();
+        let bg_shared = self.bg_shared.clone();
 
-        // TkTestGrp — C++ AutoExpand creates child named "TkTestGrp".
+        // C++ AutoExpand (emTestPanel.cpp:480–497): creates TkTestGrp, TP1–TP4,
+        // BgColorField, PolyDraw; calls AddWakeUpSignal on BgColorField's color signal.
         let tktest_id = ctx.create_child_with("TkTestGrp", Box::new(TkTestGrpPanel::new()));
         ctx.tree.SetAutoExpansionThreshold(
             tktest_id,
@@ -1197,19 +1195,17 @@ impl PanelBehavior for TestPanel {
         );
 
         // Recursive child TestPanels — C++ names are "1", "2", "3", "4".
-        if self.depth < MAX_DEPTH {
-            for i in 1..=4u32 {
-                let tp_id = ctx.create_child_with(
-                    &format!("{i}"),
-                    Box::new(TestPanel::new(self.depth + 1, root_ctx.clone(), DEFAULT_BG)),
-                );
-                ctx.tree.SetAutoExpansionThreshold(
-                    tp_id,
-                    900.0,
-                    ViewConditionType::Area,
-                    ctx.scheduler.as_deref_mut(),
-                );
-            }
+        for i in 1..=4u32 {
+            let tp_id = ctx.create_child_with(
+                &format!("{i}"),
+                Box::new(TestPanel::new(root_ctx.clone(), DEFAULT_BG)),
+            );
+            ctx.tree.SetAutoExpansionThreshold(
+                tp_id,
+                900.0,
+                ViewConditionType::Area,
+                ctx.scheduler.as_deref_mut(),
+            );
         }
 
         // Background ColorField — C++ name "BgColorField".
@@ -1226,7 +1222,11 @@ impl PanelBehavior for TestPanel {
 
         // PolyDraw — C++ name "PolyDraw" (flat placeholder; Task 11 restructures).
         ctx.create_child_with("PolyDraw", Box::new(PolyDrawPanel::new()));
+    }
 
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        // C++ LayoutChildren (emTestPanel.cpp:499–510): positions existing children.
+        let bg = self.bg_color();
         for &(name, x, y, cw, ch) in &CHILD_LAYOUT {
             if let Some(child) = ctx.find_child_by_name(name) {
                 ctx.layout_child_canvas(child, x, y, cw, ch, bg);
@@ -2446,5 +2446,86 @@ fn make_star(cx: f64, cy: f64, rx: f64, ry: f64, points: usize) -> Vec<(f64, f64
 
 pub(crate) fn new_root_panel(ctx: &mut dyn ConstructCtx) -> Box<dyn PanelBehavior> {
     let root_ctx = ctx.root_context().clone();
-    Box::new(TestPanel::new(0, root_ctx, DEFAULT_BG))
+    Box::new(TestPanel::new(root_ctx, DEFAULT_BG))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use emcore::emContext::emContext;
+    use emcore::emPanelTree::PanelTree;
+    use emcore::emView::emView;
+    use emcore::test_view_harness::TestSched;
+    use std::rc::Rc;
+
+    /// Drive 5 HandleNotice + Update rounds.
+    fn settle(tree: &mut PanelTree, view: &mut emView, ctx: &Rc<emContext>) {
+        let mut ts = TestSched::new();
+        for _ in 0..5 {
+            ts.with(|sc| view.HandleNotice(tree, sc.scheduler, Some(ctx)));
+            ts.with(|sc| view.Update(tree, sc));
+        }
+    }
+
+    #[test]
+    fn test_panel_auto_expands_children() {
+        let ctx = emContext::NewRoot();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        tree.set_behavior(root, Box::new(TestPanel::new(ctx.clone(), DEFAULT_BG)));
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
+
+        let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
+        settle(&mut tree, &mut view, &ctx);
+
+        assert!(
+            tree.GetFirstChild(root).is_some(),
+            "TestPanel should have children after AutoExpand fires"
+        );
+        assert!(
+            tree.find_by_name("TkTestGrp").is_some(),
+            "TkTestGrp missing"
+        );
+        assert!(
+            tree.find_by_name("BgColorField").is_some(),
+            "BgColorField missing"
+        );
+        assert!(tree.find_by_name("PolyDraw").is_some(), "PolyDraw missing");
+        assert!(tree.find_by_name("1").is_some(), "TP1 missing");
+        assert!(tree.find_by_name("4").is_some(), "TP4 missing");
+    }
+
+    #[test]
+    fn tktestgrp_auto_expands_children() {
+        let ctx = emContext::NewRoot();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        tree.set_behavior(root, Box::new(TkTestGrpPanel::new()));
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
+
+        let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
+        settle(&mut tree, &mut view, &ctx);
+
+        assert!(tree.find_by_name("t1a").is_some(), "t1a missing");
+        assert!(tree.find_by_name("t1b").is_some(), "t1b missing");
+        assert!(tree.find_by_name("t2a").is_some(), "t2a missing");
+        assert!(tree.find_by_name("t2b").is_some(), "t2b missing");
+    }
+
+    #[test]
+    fn polydrawpanel_auto_expands_canvas() {
+        let ctx = emContext::NewRoot();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        tree.set_behavior(root, Box::new(PolyDrawPanel::new()));
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
+
+        let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
+        settle(&mut tree, &mut view, &ctx);
+
+        assert!(
+            tree.find_by_name("CanvasPanel").is_some(),
+            "CanvasPanel missing"
+        );
+    }
 }

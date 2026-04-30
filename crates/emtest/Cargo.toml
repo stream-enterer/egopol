@@ -12,3 +12,6 @@ workspace = true
 
 [dependencies]
 emcore = { path = "../emcore" }
+
+[dev-dependencies]
+emcore = { path = "../emcore", features = ["test-support"] }
