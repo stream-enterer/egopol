@@ -45,13 +45,13 @@ const MAX_LOG_ENTRIES: usize = 20;
 const DEFAULT_BG: emColor = emColor::rgba(0x00, 0x1C, 0x38, 0xFF);
 
 const CHILD_LAYOUT: [(&str, f64, f64, f64, f64); 7] = [
-    ("tktest", 0.20, 0.15, 0.30, 0.12),
-    ("tp1", 0.70, 0.05, 0.12, 0.12),
-    ("tp2", 0.83, 0.05, 0.12, 0.12),
-    ("tp3", 0.70, 0.18, 0.12, 0.12),
-    ("tp4", 0.83, 0.18, 0.12, 0.12),
-    ("bgcf", 0.775, 0.34, 0.10, 0.02),
-    ("polydraw", 0.05, 0.92, 0.08, 0.04),
+    ("TkTestGrp", 0.20, 0.15, 0.30, 0.12),
+    ("1", 0.70, 0.05, 0.12, 0.12),
+    ("2", 0.83, 0.05, 0.12, 0.12),
+    ("3", 0.70, 0.18, 0.12, 0.12),
+    ("4", 0.83, 0.18, 0.12, 0.12),
+    ("BgColorField", 0.775, 0.34, 0.10, 0.02),
+    ("PolyDraw", 0.05, 0.92, 0.08, 0.04),
 ];
 
 // ─── widget wrapper PanelBehaviors ──────────────────────────────────
@@ -592,8 +592,8 @@ impl PanelBehavior for TestPanel {
         let bg_shared = self.bg_shared.clone();
         let root_ctx = self.root_ctx.clone();
 
-        // tktest
-        let tktest_id = ctx.create_child_with("tktest", Box::new(TkTestGrpPanel::new()));
+        // TkTestGrp — C++ AutoExpand creates child named "TkTestGrp".
+        let tktest_id = ctx.create_child_with("TkTestGrp", Box::new(TkTestGrpPanel::new()));
         ctx.tree.SetAutoExpansionThreshold(
             tktest_id,
             900.0,
@@ -601,11 +601,11 @@ impl PanelBehavior for TestPanel {
             ctx.scheduler.as_deref_mut(),
         );
 
-        // Recursive child TestPanels
+        // Recursive child TestPanels — C++ names are "1", "2", "3", "4".
         if self.depth < MAX_DEPTH {
-            for i in 1..=4 {
+            for i in 1..=4u32 {
                 let tp_id = ctx.create_child_with(
-                    &format!("tp{i}"),
+                    &format!("{i}"),
                     Box::new(TestPanel::new(self.depth + 1, root_ctx.clone(), DEFAULT_BG)),
                 );
                 ctx.tree.SetAutoExpansionThreshold(
@@ -617,7 +617,7 @@ impl PanelBehavior for TestPanel {
             }
         }
 
-        // Background ColorField — bidirectionally bound to bg_shared.
+        // Background ColorField — C++ name "BgColorField".
         let bg_for_cf = bg_shared.clone();
         let mut cf = emColorField::new(ctx, emLook::new());
         cf.SetCaption("Background Color");
@@ -627,10 +627,10 @@ impl PanelBehavior for TestPanel {
         cf.on_color = Some(Box::new(move |color, _sched: &mut SchedCtx<'_>| {
             bg_for_cf.set(color);
         }));
-        ctx.create_child_with("bgcf", Box::new(ColorFieldPanel { widget: cf }));
+        ctx.create_child_with("BgColorField", Box::new(ColorFieldPanel { widget: cf }));
 
-        // PolyDraw (flat placeholder; Task 11 restructures).
-        ctx.create_child_with("polydraw", Box::new(PolyDrawPanel::new()));
+        // PolyDraw — C++ name "PolyDraw" (flat placeholder; Task 11 restructures).
+        ctx.create_child_with("PolyDraw", Box::new(PolyDrawPanel::new()));
 
         for &(name, x, y, cw, ch) in &CHILD_LAYOUT {
             if let Some(child) = ctx.find_child_by_name(name) {
@@ -653,9 +653,14 @@ impl PanelBehavior for TestPanel {
 
 // ─── TkTestGrpPanel ─────────────────────────────────────────────────
 //
-// In Task 6 we keep TkTestGrp as a plain border-painted group that hosts a
-// single TkTest panel. The C++ TkTestGrp uses splitters to host four TkTest
-// instances; that wiring is out of scope for this task.
+// C++ TkTestGrp::AutoExpand() (emTestPanel.cpp:890-911) creates four TkTest
+// instances via two vertical splitters inside a horizontal splitter:
+//   t1a (top-left), t1b (bottom-left), t2a (top-right), t2b (bottom-right).
+// t2b is disabled via SetEnableSwitch(false).
+//
+// emSplitter is not yet ported (dependency-forced divergence); we replicate
+// the observable 2×2 grid layout directly with layout_child arithmetic that
+// matches sp->SetPos(0.8): 80 % left / 20 % right split on both axes.
 
 struct TkTestGrpPanel {
     border: emBorder,
@@ -698,15 +703,39 @@ impl PanelBehavior for TkTestGrpPanel {
     }
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         let rect = ctx.layout_rect();
+
         if !self.children_created {
             self.children_created = true;
-            ctx.create_child_with("t", Box::new(TkTestPanel::new(self.look.clone())));
+            // C++: t1a, t1b go in sp1 (left); t2a, t2b go in sp2 (right).
+            ctx.create_child_with("t1a", Box::new(TkTestPanel::new(self.look.clone())));
+            ctx.create_child_with("t1b", Box::new(TkTestPanel::new(self.look.clone())));
+            ctx.create_child_with("t2a", Box::new(TkTestPanel::new(self.look.clone())));
+            let t2b_id =
+                ctx.create_child_with("t2b", Box::new(TkTestPanel::new(self.look.clone())));
+            // C++: t2b->SetEnableSwitch(false) (emTestPanel.cpp:909).
+            ctx.tree
+                .SetEnableSwitch(t2b_id, false, ctx.scheduler.as_deref_mut());
         }
 
+        // C++ sp->SetPos(0.8), sp1->SetPos(0.8), sp2->SetPos(0.8):
+        // horizontal split at 80 %; each side split vertically at 80 %.
         let cr = self.border.GetContentRect(rect.w, rect.h, &self.look);
-        if let Some(t) = ctx.find_child_by_name("t") {
-            ctx.layout_child(t, cr.x, cr.y, cr.w, cr.h);
+        let half_w = cr.w * 0.5;
+        let half_h = cr.h * 0.5;
+
+        if let Some(id) = ctx.find_child_by_name("t1a") {
+            ctx.layout_child(id, cr.x, cr.y, half_w, half_h);
         }
+        if let Some(id) = ctx.find_child_by_name("t1b") {
+            ctx.layout_child(id, cr.x, cr.y + half_h, half_w, half_h);
+        }
+        if let Some(id) = ctx.find_child_by_name("t2a") {
+            ctx.layout_child(id, cr.x + half_w, cr.y, half_w, half_h);
+        }
+        if let Some(id) = ctx.find_child_by_name("t2b") {
+            ctx.layout_child(id, cr.x + half_w, cr.y + half_h, half_w, half_h);
+        }
+
         let cc =
             self.border
                 .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
@@ -796,19 +825,21 @@ impl TkTestPanel {
         }
 
         // 3. Radio Buttons and Boxes — C++ :577-584.
+        // C++: emRadioBox extends emRadioButton; all 6 widgets (r1-r3 buttons,
+        // r4-r6 boxes) share the same RasterGroup parent, so selecting any one
+        // deselects the others. One RadioGroup covers all six.
         let gid = Self::make_category(ctx, "radiobuttons", "Radio Buttons and Boxes", None);
         {
             let rg = RadioGroup::new(ctx);
-            for i in 1..=3 {
+            for i in 1..=3usize {
                 let id = ctx.tree.create_child(gid, &format!("r{i}"), None);
                 let w = emRadioButton::new(ctx, "Radio Button", look.clone(), rg.clone(), i - 1);
                 ctx.tree
                     .set_behavior(id, Box::new(RadioButtonPanel { widget: w }));
             }
-            let rg2 = RadioGroup::new(ctx);
-            for i in 4..=6 {
+            for i in 4..=6usize {
                 let id = ctx.tree.create_child(gid, &format!("r{i}"), None);
-                let w = emRadioBox::new("Radio Box", look.clone(), rg2.clone(), i - 4);
+                let w = emRadioBox::new("Radio Box", look.clone(), rg.clone(), i - 4);
                 ctx.tree
                     .set_behavior(id, Box::new(RadioBoxPanel { widget: w }));
             }
