@@ -257,14 +257,16 @@ impl PanelBehavior for ScalarFieldPanel {
 /// sf6 "Play Position" wrapper. Mirrors C++ `TkTest::Cycle` behavior at
 /// emTestPanel.cpp:786 —
 ///   `if (IsSignaled(SFLen->GetValueSignal())) SFPos->SetMaxValue(SFLen->GetValue());`
-/// — but relocated from `TkTest::Cycle` to sf6's own `Cycle` because Rust's
-/// `TkTestPanel::Cycle` cannot reach the sf6 child panel's widget directly.
+/// — but relocated from `TkTest::Cycle` to sf6's own `Cycle`.
 ///
-/// DIVERGED: (language-forced) C++ has direct pointer access from `TkTest`
-/// to the sf6 widget (`SFPos->SetMaxValue(...)`); under our canonical ownership
-/// model child widgets are owned by the panel tree and not reachable from a
-/// sibling's `Cycle`. When the sf5_len_signal fires, we walk up to the parent
-/// and look up "sf5" by name to read `GetValue()` directly — no Cell intermediary.
+/// DIVERGED: (language-forced) C++ calls `SFPos->SetMaxValue(SFLen->GetValue())` from
+/// `TkTest::Cycle`. In Rust, `SetMaxValue` requires `&mut PanelCtx`. Moving this logic
+/// to `TkTestPanel::Cycle` would require threading `&mut PanelCtx` through a
+/// `with_behavior_as` closure that already holds `&mut PanelTree` — a borrow conflict
+/// the compiler rejects. Placing the logic in sf6's own `Cycle` resolves this: `Cycle`
+/// receives both `&mut EngineCtx` and `&mut PanelCtx` directly, so `SetMaxValue` can
+/// be called without aliasing the tree borrow. The sf5 value is read via a parent-walk
+/// tree lookup — no Cell intermediary.
 struct ScalarFieldWithDynamicMax {
     widget: emScalarField,
     sf5_len_signal: SignalId,
@@ -303,6 +305,10 @@ impl PanelBehavior for ScalarFieldWithDynamicMax {
             // Read sf5's current value directly — walk to parent, find "sf5" by name.
             // C++: SFPos->SetMaxValue(SFLen->GetValue()) — direct pointer; Rust uses
             // panel-tree lookup because sibling widgets are tree-owned.
+            //
+            // sf5 is a sibling created in the same AutoExpand — None only if tree is
+            // partially constructed. This None path is unreachable in normal operation
+            // since sf6 cannot exist without sf5.
             let sf5_val = pctx
                 .GetParentContext()
                 .and_then(|parent| pctx.tree.find_child_by_name(parent, "sf5"))
@@ -1718,14 +1724,16 @@ impl TkTestPanel {
             sf5.SetTextOfValueFunc(Box::new(text_of_time_value));
             let sf5_len_signal = sf5.value_signal;
             self.sf5_len_signal = Some(sf5_len_signal);
+            // C++: SFPos->SetMinMaxValues(0, SFLen->GetValue()) — read sf5's initial
+            // value before moving sf5 into the tree.
+            let sf6_initial_max = sf5.GetValue();
             let id = ctx.tree.create_child(gid, "sf5", None);
             ctx.tree
                 .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf5 }));
 
             // sf6 — Play Position — C++ :640-644. Dynamic max tracks sf5's value
             // via the wrapper's signal-driven Cycle (mirrors C++ TkTest::Cycle :786).
-            // Initial max equals sf5's initial value (4h in ms); no Cell needed.
-            let sf6_initial_max = 4.0 * 3_600_000.0_f64;
+            // Initial max read from sf5.GetValue() above (matches C++ :642).
             let mut sf6 = emScalarField::new(ctx, 0.0, sf6_initial_max, look.clone());
             sf6.SetCaption("Play Position");
             sf6.SetEditable(true);
@@ -2566,6 +2574,41 @@ mod tests {
         assert!(
             tree.find_by_name("CanvasPanel").is_some(),
             "CanvasPanel missing"
+        );
+    }
+
+    /// Structural test for sf5↔sf6 wiring — no Cell intermediary.
+    ///
+    /// Verifies that `TkTestPanel` expands and settles without panic and that
+    /// both sf5 ("Play Length") and sf6 ("Play Position") are present in the
+    /// tree. The `ScalarFieldWithDynamicMax` wrapper, which replaced the removed
+    /// `Cell` polling intermediary, must initialize and run through at least one
+    /// `Cycle` without error.
+    ///
+    /// This is a smoke + structural test; golden tests verify pixel-level
+    /// correctness. A regression to the Cell pattern would require adding fields
+    /// and wiring that cause compilation errors (Cell<f64> removed; this test
+    /// confirms the happy path compiles and runs).
+    #[test]
+    fn tktestpanel_expands_sf5_and_sf6() {
+        let ctx = emContext::NewRoot();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        tree.set_behavior(root, Box::new(TkTestGrpPanel::new()));
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
+
+        let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
+        settle(&mut tree, &mut view, &ctx);
+
+        // After AutoExpand + settle, the first TkTestPanel child (t1a) should have
+        // expanded its scalar-fields group, which contains sf5 and sf6.
+        assert!(
+            tree.find_by_name("sf5").is_some(),
+            "sf5 (Play Length ScalarField) must exist after TkTestPanel AutoExpand"
+        );
+        assert!(
+            tree.find_by_name("sf6").is_some(),
+            "sf6 (Play Position ScalarFieldWithDynamicMax) must exist after TkTestPanel AutoExpand"
         );
     }
 
