@@ -3499,15 +3499,40 @@ impl PanelBehavior for CanvasPanel {
             _ => {}
         }
 
-        // C++ Paint: draw vertex handles when ShowHandles.
+        // C++ Paint: draw vertex handles when ShowHandles (cpp:1463–1483).
         if self.show_handles {
             let r = (0.05f64).min(12.0 / w.max(1.0));
+            let n = scaled.len();
+            // Compute active vertex count m based on render_type (cpp:1471–1478).
+            let m = if self.render_type >= 3 && self.render_type <= 4 {
+                n - n % 3
+            } else if self.render_type == 5 {
+                n - (n + 2) % 3
+            } else if self.render_type >= 11 && self.render_type <= 13 {
+                4
+            } else if self.render_type >= 6 {
+                2
+            } else {
+                n
+            };
             for (i, &(vx, vy)) in scaled.iter().enumerate() {
-                let c = if self.drag_idx == Some(i) {
-                    emColor::rgba(255, 255, 255, 200)
+                // C++ cpp:1467–1470: yellow for non-anchor bezier control points or extra
+                // vertices on fixed-count types, green for anchor points.
+                let mut c = if (self.render_type >= 3 && self.render_type <= 5 && i % 3 != 0)
+                    || (self.render_type >= 6 && i > 1)
+                {
+                    emColor::rgba(255, 255, 0, 128) // yellow: non-anchor control points
                 } else {
-                    emColor::rgba(0, 255, 0, 128)
+                    emColor::rgba(0, 255, 0, 128) // green: anchor points
                 };
+                // C++ cpp:1479: gray for unused vertices beyond active count m.
+                if i >= m {
+                    c = emColor::rgba(128, 128, 128, 128);
+                }
+                // C++ cpp:1480: blend with white when dragging this vertex.
+                if self.drag_idx == Some(i) {
+                    c = c.GetBlended(emColor::rgba(255, 255, 255, 128), 75.0);
+                }
                 p.PaintEllipse(vx - r, vy - r, 2.0 * r, 2.0 * r, c, emColor::TRANSPARENT);
                 let outline = emStroke::new(emColor::rgba(0, 0, 0, 128), r * 0.15);
                 p.PaintEllipseOutline(
