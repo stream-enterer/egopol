@@ -2168,57 +2168,59 @@ impl PanelBehavior for TkTestPanel {
 
 struct PolyDrawPanel {
     group: emLinearGroup,
+    // True after the first Cycle has connected all 18 wake-up signals.
+    // C++ calls AddWakeUpSignal inline in the constructor; Rust defers to first
+    // Cycle because EngineCtx is required for `connect` and the constructor
+    // only has InitCtx.
+    signals_connected: bool,
     // RadioGroup handles — read selected index in Cycle via group.borrow().GetChecked().
     // Rc<RefCell<RadioGroup>> — the type is already Rc<RefCell<>> by emcore design
     // (RadioGroup::new returns Rc<RefCell<Self>>). Stored here so Cycle can read the
     // selected index after AutoExpand has built the radio button tree. Closest to (a):
     // the handle bridges two separate method invocations (AutoExpand and Cycle) that
     // cannot share stack state.
-    // Prefixed `_` until AutoExpand (Task 2) wires the controls sub-tree.
-    _type_group: Option<Rc<RefCell<RadioGroup>>>,
-    _stroke_dash_type_group: Option<Rc<RefCell<RadioGroup>>>,
-    _stroke_start_type_group: Option<Rc<RefCell<RadioGroup>>>,
-    _stroke_end_type_group: Option<Rc<RefCell<RadioGroup>>>,
+    type_group: Option<Rc<RefCell<RadioGroup>>>,
+    stroke_dash_type_group: Option<Rc<RefCell<RadioGroup>>>,
+    stroke_start_type_group: Option<Rc<RefCell<RadioGroup>>>,
+    stroke_end_type_group: Option<Rc<RefCell<RadioGroup>>>,
     // Signal IDs — None until AutoExpand wires them. 18 signals total.
-    // Prefixed `_` until Cycle (Task 3) reads them.
-    _type_signal: Option<SignalId>,
-    _vertex_count_signal: Option<SignalId>,
-    _with_canvas_color_signal: Option<SignalId>,
-    _fill_color_signal: Option<SignalId>,
-    _stroke_width_signal: Option<SignalId>,
-    _stroke_color_signal: Option<SignalId>,
-    _stroke_rounded_signal: Option<SignalId>,
-    _stroke_dash_type_signal: Option<SignalId>,
-    _dash_length_factor_signal: Option<SignalId>,
-    _gap_length_factor_signal: Option<SignalId>,
-    _stroke_start_type_signal: Option<SignalId>,
-    _stroke_start_inner_color_signal: Option<SignalId>,
-    _stroke_start_width_factor_signal: Option<SignalId>,
-    _stroke_start_length_factor_signal: Option<SignalId>,
-    _stroke_end_type_signal: Option<SignalId>,
-    _stroke_end_inner_color_signal: Option<SignalId>,
-    _stroke_end_width_factor_signal: Option<SignalId>,
-    _stroke_end_length_factor_signal: Option<SignalId>,
+    type_signal: Option<SignalId>,
+    vertex_count_signal: Option<SignalId>,
+    with_canvas_color_signal: Option<SignalId>,
+    fill_color_signal: Option<SignalId>,
+    stroke_width_signal: Option<SignalId>,
+    stroke_color_signal: Option<SignalId>,
+    stroke_rounded_signal: Option<SignalId>,
+    stroke_dash_type_signal: Option<SignalId>,
+    dash_length_factor_signal: Option<SignalId>,
+    gap_length_factor_signal: Option<SignalId>,
+    stroke_start_type_signal: Option<SignalId>,
+    stroke_start_inner_color_signal: Option<SignalId>,
+    stroke_start_width_factor_signal: Option<SignalId>,
+    stroke_start_length_factor_signal: Option<SignalId>,
+    stroke_end_type_signal: Option<SignalId>,
+    stroke_end_inner_color_signal: Option<SignalId>,
+    stroke_end_width_factor_signal: Option<SignalId>,
+    stroke_end_length_factor_signal: Option<SignalId>,
     // Panel IDs for reading widget values in Cycle via downcast.
-    // Prefixed `_` until Cycle (Task 3) reads them.
-    _canvas_id: Option<PanelId>,
-    _vertex_count_id: Option<PanelId>,
-    _with_canvas_color_id: Option<PanelId>,
-    _fill_color_id: Option<PanelId>,
-    _stroke_width_id: Option<PanelId>,
-    _stroke_color_id: Option<PanelId>,
-    _stroke_rounded_id: Option<PanelId>,
-    _stroke_dash_type_id: Option<PanelId>,
-    _dash_length_factor_id: Option<PanelId>,
-    _gap_length_factor_id: Option<PanelId>,
-    _stroke_start_type_id: Option<PanelId>,
-    _stroke_start_inner_color_id: Option<PanelId>,
-    _stroke_start_width_factor_id: Option<PanelId>,
-    _stroke_start_length_factor_id: Option<PanelId>,
-    _stroke_end_type_id: Option<PanelId>,
-    _stroke_end_inner_color_id: Option<PanelId>,
-    _stroke_end_width_factor_id: Option<PanelId>,
-    _stroke_end_length_factor_id: Option<PanelId>,
+    canvas_id: Option<PanelId>,
+    vertex_count_id: Option<PanelId>,
+    with_canvas_color_id: Option<PanelId>,
+    fill_color_id: Option<PanelId>,
+    stroke_width_id: Option<PanelId>,
+    stroke_color_id: Option<PanelId>,
+    stroke_rounded_id: Option<PanelId>,
+    stroke_dash_type_id: Option<PanelId>,
+    dash_length_factor_id: Option<PanelId>,
+    gap_length_factor_id: Option<PanelId>,
+    stroke_start_type_id: Option<PanelId>,
+    stroke_start_inner_color_id: Option<PanelId>,
+    stroke_start_width_factor_id: Option<PanelId>,
+    stroke_start_length_factor_id: Option<PanelId>,
+    stroke_end_type_id: Option<PanelId>,
+    stroke_end_inner_color_id: Option<PanelId>,
+    stroke_end_width_factor_id: Option<PanelId>,
+    stroke_end_length_factor_id: Option<PanelId>,
 }
 
 impl PolyDrawPanel {
@@ -2238,46 +2240,47 @@ impl PolyDrawPanel {
         // the controls sub-tree is added.
         Self {
             group,
-            _type_group: None,
-            _stroke_dash_type_group: None,
-            _stroke_start_type_group: None,
-            _stroke_end_type_group: None,
-            _type_signal: None,
-            _vertex_count_signal: None,
-            _with_canvas_color_signal: None,
-            _fill_color_signal: None,
-            _stroke_width_signal: None,
-            _stroke_color_signal: None,
-            _stroke_rounded_signal: None,
-            _stroke_dash_type_signal: None,
-            _dash_length_factor_signal: None,
-            _gap_length_factor_signal: None,
-            _stroke_start_type_signal: None,
-            _stroke_start_inner_color_signal: None,
-            _stroke_start_width_factor_signal: None,
-            _stroke_start_length_factor_signal: None,
-            _stroke_end_type_signal: None,
-            _stroke_end_inner_color_signal: None,
-            _stroke_end_width_factor_signal: None,
-            _stroke_end_length_factor_signal: None,
-            _canvas_id: None,
-            _vertex_count_id: None,
-            _with_canvas_color_id: None,
-            _fill_color_id: None,
-            _stroke_width_id: None,
-            _stroke_color_id: None,
-            _stroke_rounded_id: None,
-            _stroke_dash_type_id: None,
-            _dash_length_factor_id: None,
-            _gap_length_factor_id: None,
-            _stroke_start_type_id: None,
-            _stroke_start_inner_color_id: None,
-            _stroke_start_width_factor_id: None,
-            _stroke_start_length_factor_id: None,
-            _stroke_end_type_id: None,
-            _stroke_end_inner_color_id: None,
-            _stroke_end_width_factor_id: None,
-            _stroke_end_length_factor_id: None,
+            signals_connected: false,
+            type_group: None,
+            stroke_dash_type_group: None,
+            stroke_start_type_group: None,
+            stroke_end_type_group: None,
+            type_signal: None,
+            vertex_count_signal: None,
+            with_canvas_color_signal: None,
+            fill_color_signal: None,
+            stroke_width_signal: None,
+            stroke_color_signal: None,
+            stroke_rounded_signal: None,
+            stroke_dash_type_signal: None,
+            dash_length_factor_signal: None,
+            gap_length_factor_signal: None,
+            stroke_start_type_signal: None,
+            stroke_start_inner_color_signal: None,
+            stroke_start_width_factor_signal: None,
+            stroke_start_length_factor_signal: None,
+            stroke_end_type_signal: None,
+            stroke_end_inner_color_signal: None,
+            stroke_end_width_factor_signal: None,
+            stroke_end_length_factor_signal: None,
+            canvas_id: None,
+            vertex_count_id: None,
+            with_canvas_color_id: None,
+            fill_color_id: None,
+            stroke_width_id: None,
+            stroke_color_id: None,
+            stroke_rounded_id: None,
+            stroke_dash_type_id: None,
+            dash_length_factor_id: None,
+            gap_length_factor_id: None,
+            stroke_start_type_id: None,
+            stroke_start_inner_color_id: None,
+            stroke_start_width_factor_id: None,
+            stroke_start_length_factor_id: None,
+            stroke_end_type_id: None,
+            stroke_end_inner_color_id: None,
+            stroke_end_width_factor_id: None,
+            stroke_end_length_factor_id: None,
         }
     }
 }
@@ -2521,7 +2524,7 @@ impl PanelBehavior for PolyDrawPanel {
                     .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
             }
             stroke_dash_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
-            self._stroke_dash_type_id = Some(dash_type_id);
+            self.stroke_dash_type_id = Some(dash_type_id);
         }
 
         // ll (DashLengthFactor + GapLengthFactor row)
@@ -2613,7 +2616,7 @@ impl PanelBehavior for PolyDrawPanel {
                     .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
             }
             stroke_start_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
-            self._stroke_start_type_id = Some(start_type_id);
+            self.stroke_start_type_id = Some(start_type_id);
         }
 
         // StrokeStartInnerColor
@@ -2717,7 +2720,7 @@ impl PanelBehavior for PolyDrawPanel {
                     .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
             }
             stroke_end_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
-            self._stroke_end_type_id = Some(end_type_id);
+            self.stroke_end_type_id = Some(end_type_id);
         }
 
         // StrokeEndInnerColor
@@ -2771,50 +2774,55 @@ impl PanelBehavior for PolyDrawPanel {
         // ── CanvasPanel ──────────────────────────────────────────────────────
         // C++: Canvas = new CanvasPanel(this,"CanvasPanel")
         let canvas_id = ctx.create_child_with("CanvasPanel", Box::new(CanvasPanel::new()));
-        self._canvas_id = Some(canvas_id);
+        self.canvas_id = Some(canvas_id);
 
         // ── Wire signal fields and RadioGroup handles ────────────────────────
         // C++: AddWakeUpSignal on each widget's signal (called inline above in C++).
-        // In Rust we store signal IDs here; Cycle (Task 3) will connect them via
-        // ectx.connect(sig, eid) on first Cycle.
-        self._type_group = Some(type_rg);
-        self._stroke_dash_type_group = Some(stroke_dash_rg);
-        self._stroke_start_type_group = Some(stroke_start_rg);
-        self._stroke_end_type_group = Some(stroke_end_rg);
+        // In Rust we store signal IDs here; Cycle connects them via
+        // ectx.connect(sig, eid) on first Cycle after AutoExpand.
+        self.type_group = Some(type_rg);
+        self.stroke_dash_type_group = Some(stroke_dash_rg);
+        self.stroke_start_type_group = Some(stroke_start_rg);
+        self.stroke_end_type_group = Some(stroke_end_rg);
 
-        self._type_signal = Some(type_signal);
-        self._vertex_count_signal = Some(vertex_count_signal);
-        self._fill_color_signal = Some(fill_color_signal);
-        self._stroke_width_signal = Some(stroke_width_signal);
-        self._with_canvas_color_signal = Some(with_canvas_color_signal);
-        self._stroke_color_signal = Some(stroke_color_signal);
-        self._stroke_rounded_signal = Some(stroke_rounded_signal);
-        self._stroke_dash_type_signal = Some(stroke_dash_type_signal);
-        self._dash_length_factor_signal = Some(dash_length_factor_signal);
-        self._gap_length_factor_signal = Some(gap_length_factor_signal);
-        self._stroke_start_type_signal = Some(stroke_start_type_signal);
-        self._stroke_start_inner_color_signal = Some(stroke_start_inner_color_signal);
-        self._stroke_start_width_factor_signal = Some(stroke_start_width_factor_signal);
-        self._stroke_start_length_factor_signal = Some(stroke_start_length_factor_signal);
-        self._stroke_end_type_signal = Some(stroke_end_type_signal);
-        self._stroke_end_inner_color_signal = Some(stroke_end_inner_color_signal);
-        self._stroke_end_width_factor_signal = Some(stroke_end_width_factor_signal);
-        self._stroke_end_length_factor_signal = Some(stroke_end_length_factor_signal);
+        self.type_signal = Some(type_signal);
+        self.vertex_count_signal = Some(vertex_count_signal);
+        self.fill_color_signal = Some(fill_color_signal);
+        self.stroke_width_signal = Some(stroke_width_signal);
+        self.with_canvas_color_signal = Some(with_canvas_color_signal);
+        self.stroke_color_signal = Some(stroke_color_signal);
+        self.stroke_rounded_signal = Some(stroke_rounded_signal);
+        self.stroke_dash_type_signal = Some(stroke_dash_type_signal);
+        self.dash_length_factor_signal = Some(dash_length_factor_signal);
+        self.gap_length_factor_signal = Some(gap_length_factor_signal);
+        self.stroke_start_type_signal = Some(stroke_start_type_signal);
+        self.stroke_start_inner_color_signal = Some(stroke_start_inner_color_signal);
+        self.stroke_start_width_factor_signal = Some(stroke_start_width_factor_signal);
+        self.stroke_start_length_factor_signal = Some(stroke_start_length_factor_signal);
+        self.stroke_end_type_signal = Some(stroke_end_type_signal);
+        self.stroke_end_inner_color_signal = Some(stroke_end_inner_color_signal);
+        self.stroke_end_width_factor_signal = Some(stroke_end_width_factor_signal);
+        self.stroke_end_length_factor_signal = Some(stroke_end_length_factor_signal);
 
-        self._vertex_count_id = Some(vertex_count_id);
-        self._with_canvas_color_id = Some(with_canvas_color_id);
-        self._fill_color_id = Some(fill_color_id);
-        self._stroke_width_id = Some(stroke_width_id);
-        self._stroke_color_id = Some(stroke_color_id);
-        self._stroke_rounded_id = Some(stroke_rounded_id);
-        self._dash_length_factor_id = Some(dash_length_factor_id);
-        self._gap_length_factor_id = Some(gap_length_factor_id);
-        self._stroke_start_inner_color_id = Some(stroke_start_inner_color_id);
-        self._stroke_start_width_factor_id = Some(stroke_start_width_factor_id);
-        self._stroke_start_length_factor_id = Some(stroke_start_length_factor_id);
-        self._stroke_end_inner_color_id = Some(stroke_end_inner_color_id);
-        self._stroke_end_width_factor_id = Some(stroke_end_width_factor_id);
-        self._stroke_end_length_factor_id = Some(stroke_end_length_factor_id);
+        self.vertex_count_id = Some(vertex_count_id);
+        self.with_canvas_color_id = Some(with_canvas_color_id);
+        self.fill_color_id = Some(fill_color_id);
+        self.stroke_width_id = Some(stroke_width_id);
+        self.stroke_color_id = Some(stroke_color_id);
+        self.stroke_rounded_id = Some(stroke_rounded_id);
+        self.dash_length_factor_id = Some(dash_length_factor_id);
+        self.gap_length_factor_id = Some(gap_length_factor_id);
+        self.stroke_start_inner_color_id = Some(stroke_start_inner_color_id);
+        self.stroke_start_width_factor_id = Some(stroke_start_width_factor_id);
+        self.stroke_start_length_factor_id = Some(stroke_start_length_factor_id);
+        self.stroke_end_inner_color_id = Some(stroke_end_inner_color_id);
+        self.stroke_end_width_factor_id = Some(stroke_end_width_factor_id);
+        self.stroke_end_length_factor_id = Some(stroke_end_length_factor_id);
+
+        // Wake engine so Cycle runs to connect signals on the first frame after expansion.
+        // Mirrors C++ pattern: C++ AddWakeUpSignal fires on the next scheduler cycle;
+        // here we guarantee Cycle runs immediately after AutoExpand.
+        ctx.wake_up();
     }
 
     fn Paint(
@@ -2830,6 +2838,320 @@ impl PanelBehavior for PolyDrawPanel {
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         self.group.LayoutChildren(ctx);
+    }
+
+    fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, pctx: &mut PanelCtx) -> bool {
+        // C++ PolyDrawPanel::Cycle (emTestPanel.cpp:1015–1068).
+        // Connect all 18 wake-up signals on first Cycle after AutoExpand.
+        // C++ calls AddWakeUpSignal inline in constructor; Rust defers to first
+        // Cycle because EngineCtx::connect requires EngineCtx (not available in AutoExpand).
+        if !self.signals_connected {
+            let eid = ectx.engine_id;
+            for sig in [
+                self.type_signal,
+                self.vertex_count_signal,
+                self.with_canvas_color_signal,
+                self.fill_color_signal,
+                self.stroke_width_signal,
+                self.stroke_color_signal,
+                self.stroke_rounded_signal,
+                self.stroke_dash_type_signal,
+                self.dash_length_factor_signal,
+                self.gap_length_factor_signal,
+                self.stroke_start_type_signal,
+                self.stroke_start_inner_color_signal,
+                self.stroke_start_width_factor_signal,
+                self.stroke_start_length_factor_signal,
+                self.stroke_end_type_signal,
+                self.stroke_end_inner_color_signal,
+                self.stroke_end_width_factor_signal,
+                self.stroke_end_length_factor_signal,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                ectx.connect(sig, eid);
+            }
+            self.signals_connected = true;
+        }
+
+        // C++ `if (Canvas && (IsSignaled(...) || ...)) { Canvas->Setup(...); }`
+        let canvas_id = match self.canvas_id {
+            Some(id) => id,
+            None => return false,
+        };
+
+        let any_signaled = [
+            self.type_signal,
+            self.vertex_count_signal,
+            self.with_canvas_color_signal,
+            self.fill_color_signal,
+            self.stroke_width_signal,
+            self.stroke_color_signal,
+            self.stroke_rounded_signal,
+            self.stroke_dash_type_signal,
+            self.dash_length_factor_signal,
+            self.gap_length_factor_signal,
+            self.stroke_start_type_signal,
+            self.stroke_start_inner_color_signal,
+            self.stroke_start_width_factor_signal,
+            self.stroke_start_length_factor_signal,
+            self.stroke_end_type_signal,
+            self.stroke_end_inner_color_signal,
+            self.stroke_end_width_factor_signal,
+            self.stroke_end_length_factor_signal,
+        ]
+        .into_iter()
+        .flatten()
+        .any(|sig| ectx.IsSignaled(sig));
+
+        if !any_signaled {
+            return false;
+        }
+
+        // Read Type from RadioGroup (C++ `Type->GetCheckIndex()`).
+        let render_type = self
+            .type_group
+            .as_ref()
+            .and_then(|g| g.borrow().GetChecked())
+            .unwrap_or(0) as u8;
+
+        // Read VertexCount (C++ `atoi(VertexCount->GetText())`).
+        let vertex_count = self
+            .vertex_count_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<usize>().unwrap_or(9)
+                })
+            })
+            .unwrap_or(9);
+
+        // Read WithCanvasColor (C++ `WithCanvasColor->IsChecked()`).
+        let with_canvas_color = self
+            .with_canvas_color_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<CheckBoxPanel, _>(id, |b| b.widget.IsChecked())
+            })
+            .unwrap_or(false);
+
+        // Read FillColor (C++ `emTexture(FillColor->GetColor())`).
+        // DIVERGED: (language-forced) C++ uses emTexture wrapping emColor for gradient/image
+        // support; Rust CanvasPanel::_Setup takes emColor directly (full emTexture integration
+        // deferred — no observable pixel difference for solid fills).
+        let fill_color = self
+            .fill_color_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<ColorFieldPanel, _>(id, |b| b.widget.GetColor())
+            })
+            .unwrap_or(emColor::WHITE);
+
+        // Read StrokeWidth (C++ `atof(StrokeWidth->GetText())`).
+        let stroke_width = self
+            .stroke_width_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(0.01)
+                })
+            })
+            .unwrap_or(0.01);
+
+        // Read StrokeColor (C++ `StrokeColor->GetColor()`).
+        let stroke_color = self
+            .stroke_color_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<ColorFieldPanel, _>(id, |b| b.widget.GetColor())
+            })
+            .unwrap_or(emColor::BLACK);
+
+        // Read StrokeRounded (C++ `StrokeRounded->IsChecked()`).
+        // C++ emStroke has a Rounded field that sets joins and caps to Round.
+        // Rust emStroke has separate join and cap fields — we translate by setting
+        // both to Round when checked (same observable behavior as C++ emStroke::Rounded).
+        let stroke_rounded = self
+            .stroke_rounded_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<CheckBoxPanel, _>(id, |b| b.widget.IsChecked())
+            })
+            .unwrap_or(false);
+
+        // Read StrokeDashType from RadioGroup (C++ `(emStroke::DashTypeEnum)StrokeDashType->GetCheckIndex()`).
+        let dash_type_idx = self
+            .stroke_dash_type_group
+            .as_ref()
+            .and_then(|g| g.borrow().GetChecked())
+            .unwrap_or(0);
+        let dash_type = match dash_type_idx {
+            0 => DashType::Solid,
+            1 => DashType::Dashed,
+            2 => DashType::Dotted,
+            _ => DashType::DashDotted,
+        };
+
+        // Read DashLengthFactor (C++ `atof(DashLengthFactor->GetText())`).
+        let dash_length_factor = self
+            .dash_length_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Read GapLengthFactor (C++ `atof(GapLengthFactor->GetText())`).
+        let gap_length_factor = self
+            .gap_length_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Build emStroke (C++ `emStroke(StrokeColor, StrokeRounded, DashType, DashLengthFactor, GapLengthFactor)`).
+        let mut stroke = emStroke::new(stroke_color, stroke_width);
+        if stroke_rounded {
+            stroke.join = LineJoin::Round;
+            stroke.cap = LineCap::Round;
+        }
+        stroke.dash_type = dash_type;
+        stroke.dash_length_factor = dash_length_factor;
+        stroke.gap_length_factor = gap_length_factor;
+
+        // Read StrokeStartType from RadioGroup (C++ `(emStrokeEnd::TypeEnum)StrokeStartType->GetCheckIndex()`).
+        let stroke_start_type_idx = self
+            .stroke_start_type_group
+            .as_ref()
+            .and_then(|g| g.borrow().GetChecked())
+            .unwrap_or(0);
+        let stroke_start_type = idx_to_stroke_end_type(stroke_start_type_idx);
+
+        // Read StrokeStartInnerColor (C++ `StrokeStartInnerColor->GetColor()`).
+        let stroke_start_inner_color = self
+            .stroke_start_inner_color_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<ColorFieldPanel, _>(id, |b| b.widget.GetColor())
+            })
+            .unwrap_or(emColor::rgba(0xEE, 0xEE, 0xEE, 0xFF));
+
+        // Read StrokeStartWidthFactor (C++ `atof(StrokeStartWidthFactor->GetText())`).
+        let stroke_start_width_factor = self
+            .stroke_start_width_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Read StrokeStartLengthFactor (C++ `atof(StrokeStartLengthFactor->GetText())`).
+        let stroke_start_length_factor = self
+            .stroke_start_length_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Build StrokeStart (C++ `emStrokeEnd(TypeEnum, InnerColor, WidthFactor, LengthFactor)`).
+        let stroke_start = emStrokeEnd {
+            end_type: stroke_start_type,
+            inner_color: stroke_start_inner_color,
+            width_factor: stroke_start_width_factor,
+            length_factor: stroke_start_length_factor,
+        };
+
+        // Read StrokeEndType from RadioGroup (C++ `(emStrokeEnd::TypeEnum)StrokeEndType->GetCheckIndex()`).
+        let stroke_end_type_idx = self
+            .stroke_end_type_group
+            .as_ref()
+            .and_then(|g| g.borrow().GetChecked())
+            .unwrap_or(0);
+        let stroke_end_type = idx_to_stroke_end_type(stroke_end_type_idx);
+
+        // Read StrokeEndInnerColor (C++ `StrokeEndInnerColor->GetColor()`).
+        let stroke_end_inner_color = self
+            .stroke_end_inner_color_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<ColorFieldPanel, _>(id, |b| b.widget.GetColor())
+            })
+            .unwrap_or(emColor::rgba(0xEE, 0xEE, 0xEE, 0xFF));
+
+        // Read StrokeEndWidthFactor (C++ `atof(StrokeEndWidthFactor->GetText())`).
+        let stroke_end_width_factor = self
+            .stroke_end_width_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Read StrokeEndLengthFactor (C++ `atof(StrokeEndLengthFactor->GetText())`).
+        let stroke_end_length_factor = self
+            .stroke_end_length_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Build StrokeEnd (C++ `emStrokeEnd(TypeEnum, InnerColor, WidthFactor, LengthFactor)`).
+        let stroke_end = emStrokeEnd {
+            end_type: stroke_end_type,
+            inner_color: stroke_end_inner_color,
+            width_factor: stroke_end_width_factor,
+            length_factor: stroke_end_length_factor,
+        };
+
+        // Call Canvas->Setup(...) (C++ emTestPanel.cpp:1035–1067).
+        pctx.tree
+            .with_behavior_as::<CanvasPanel, _>(canvas_id, |canvas| {
+                canvas.Setup(
+                    render_type,
+                    vertex_count,
+                    with_canvas_color,
+                    fill_color,
+                    stroke_width,
+                    stroke,
+                    stroke_start,
+                    stroke_end,
+                );
+            });
+
+        false
+    }
+}
+
+/// C++ `(emStrokeEnd::TypeEnum)idx` cast — converts radio button index to
+/// `StrokeEndType`. C++ enumerates 17 values; indices beyond the last map to
+/// the last variant (STROKE) to match C++ undefined-but-silent cast behavior.
+fn idx_to_stroke_end_type(idx: usize) -> StrokeEndType {
+    match idx {
+        0 => StrokeEndType::Butt,
+        1 => StrokeEndType::Cap,
+        2 => StrokeEndType::Arrow,
+        3 => StrokeEndType::ContourArrow,
+        4 => StrokeEndType::LineArrow,
+        5 => StrokeEndType::Triangle,
+        6 => StrokeEndType::ContourTriangle,
+        7 => StrokeEndType::Square,
+        8 => StrokeEndType::ContourSquare,
+        9 => StrokeEndType::HalfSquare,
+        10 => StrokeEndType::Circle,
+        11 => StrokeEndType::ContourCircle,
+        12 => StrokeEndType::HalfCircle,
+        13 => StrokeEndType::Diamond,
+        14 => StrokeEndType::ContourDiamond,
+        15 => StrokeEndType::HalfDiamond,
+        _ => StrokeEndType::emStroke,
     }
 }
 
@@ -2891,9 +3213,8 @@ impl CanvasPanel {
 
     /// C++ `CanvasPanel::Setup` (emTestPanel.cpp:1275–1299).
     /// Called from PolyDrawPanel::Cycle() when controls change.
-    /// Prefixed `_` until Cycle (Task 4) calls it.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn _Setup(
+    pub(super) fn Setup(
         &mut self,
         render_type: u8,
         vertex_count: usize,
@@ -3302,6 +3623,39 @@ mod tests {
             tree.GetAutoExpansionThresholdValue(root),
             900.0,
             "TestPanel AE threshold should be 900.0 after AutoExpand (C++ constructor value)"
+        );
+    }
+
+    #[test]
+    fn polydrawpanel_cycle_wires_canvas() {
+        // Verifies that PolyDrawPanel::Cycle connects signals and calls
+        // CanvasPanel::Setup when any signal fires after AutoExpand.
+        let ctx = emContext::NewRoot();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        tree.set_behavior(root, Box::new(PolyDrawPanel::new()));
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
+
+        let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
+        // Run extra rounds so Cycle fires after AutoExpand and signal connections are made.
+        settle(&mut tree, &mut view, &ctx);
+        settle(&mut tree, &mut view, &ctx);
+
+        // CanvasPanel must exist (tree structure already verified in polydrawpanel_control_tree_exists).
+        assert!(
+            tree.find_by_name("CanvasPanel").is_some(),
+            "CanvasPanel absent after Cycle"
+        );
+        // Smoke-test that Setup ran: CanvasPanel should have 9 vertices (default VertexCount="9").
+        let canvas_id = tree
+            .find_by_name("CanvasPanel")
+            .expect("CanvasPanel must exist");
+        let vertex_count = tree
+            .with_behavior_as::<CanvasPanel, _>(canvas_id, |c| c.vertices.len())
+            .unwrap_or(0);
+        assert_eq!(
+            vertex_count, 9,
+            "CanvasPanel::Setup should have been called with vertex_count=9 (default)"
         );
     }
 }
