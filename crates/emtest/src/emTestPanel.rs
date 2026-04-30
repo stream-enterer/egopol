@@ -263,12 +263,10 @@ impl PanelBehavior for ScalarFieldPanel {
 /// DIVERGED: (language-forced) C++ has direct pointer access from `TkTest`
 /// to the sf6 widget (`SFPos->SetMaxValue(...)`); under our canonical ownership
 /// model child widgets are owned by the panel tree and not reachable from a
-/// sibling's `Cycle`. We use a shared `Rc<Cell<f64>>` written by sf5's
-/// `on_value` callback as the value pipe, and react to the same
-/// `value_signal` here so the timing is signal-driven (not Cycle-polled).
+/// sibling's `Cycle`. When the sf5_len_signal fires, we walk up to the parent
+/// and look up "sf5" by name to read `GetValue()` directly — no Cell intermediary.
 struct ScalarFieldWithDynamicMax {
     widget: emScalarField,
-    max_ref: Rc<Cell<f64>>,
     sf5_len_signal: SignalId,
     signal_connected: bool,
 }
@@ -302,7 +300,19 @@ impl PanelBehavior for ScalarFieldWithDynamicMax {
             ectx.wake_up(ectx.engine_id);
         }
         if ectx.IsSignaled(self.sf5_len_signal) {
-            self.widget.SetMaxValue(self.max_ref.get(), pctx);
+            // Read sf5's current value directly — walk to parent, find "sf5" by name.
+            // C++: SFPos->SetMaxValue(SFLen->GetValue()) — direct pointer; Rust uses
+            // panel-tree lookup because sibling widgets are tree-owned.
+            let sf5_val = pctx
+                .GetParentContext()
+                .and_then(|parent| pctx.tree.find_child_by_name(parent, "sf5"))
+                .and_then(|sf5_id| {
+                    pctx.tree
+                        .with_behavior_as::<ScalarFieldPanel, _>(sf5_id, |p| p.widget.GetValue())
+                });
+            if let Some(max) = sf5_val {
+                self.widget.SetMaxValue(max, pctx);
+            }
         }
         false
     }
@@ -1479,15 +1489,9 @@ struct TkTestPanel {
     look: Rc<emLook>,
     border: emBorder,
     layout: emRasterLayout,
-    /// PlayLength value signal (sf5) — retained for diagnostics; the actual
-    /// signal-driven update lives in `ScalarFieldWithDynamicMax::Cycle`.
+    /// PlayLength value signal (sf5) — stored here, passed to sf6's
+    /// `ScalarFieldWithDynamicMax` wrapper so it can watch sf5's value changes.
     sf5_len_signal: Option<SignalId>,
-    /// Value pipe from sf5's `on_value` callback to sf6's `Cycle`. The Cell
-    /// is written synchronously when sf5 fires its value_signal and read in
-    /// sf6's Cycle on the same fire — never polled. See
-    /// `ScalarFieldWithDynamicMax`'s DIVERGED block for the language-forced
-    /// rationale (no direct child-widget reach from a sibling's Cycle).
-    sf6_max: Rc<Cell<f64>>,
     // ── Dialogs group signals + checkbox state (Task 9) ──────────────
     /// BtCreateDlg click signal — None until LayoutChildren creates the button.
     btn_create_dlg_signal: Option<SignalId>,
@@ -1518,14 +1522,11 @@ impl TkTestPanel {
             .with_caption("Toolkit Test");
         let mut layout = emRasterLayout::new();
         layout.preferred_child_tallness = 0.3;
-        // sf5 initial value is 4h in ms; sf6 max starts equal to sf5's initial value.
-        let sf5_initial = 4.0 * 3_600_000.0_f64;
         Self {
             look,
             border,
             layout,
             sf5_len_signal: None,
-            sf6_max: Rc::new(Cell::new(sf5_initial)),
             btn_create_dlg_signal: None,
             btn_open_file_signal: None,
             btn_open_files_signal: None,
@@ -1705,8 +1706,8 @@ impl TkTestPanel {
             ctx.tree
                 .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf4 }));
 
-            // sf5 — Play Length — C++ :632-638. Captures sf6_max for on_value.
-            let sf6_max = Rc::clone(&self.sf6_max);
+            // sf5 — Play Length — C++ :632-638.
+            // AddWakeUpSignal(SFLen->GetValueSignal()) — signal stored and passed to sf6 wrapper.
             let mut sf5 = emScalarField::new(ctx, 0.0, 24.0 * 3_600_000.0, look.clone());
             sf5.SetCaption("Play Length");
             sf5.SetEditable(true);
@@ -1715,20 +1716,16 @@ impl TkTestPanel {
                 3_600_000, 900_000, 300_000, 60_000, 10_000, 1_000, 100, 10, 1,
             ]);
             sf5.SetTextOfValueFunc(Box::new(text_of_time_value));
-            self.sf5_len_signal = Some(sf5.value_signal);
-            let sf5_value_signal_for_sf6 = sf5.value_signal;
-            sf5.on_value = Some(Box::new(move |val, _sched| {
-                sf6_max.set(val);
-            }));
+            let sf5_len_signal = sf5.value_signal;
+            self.sf5_len_signal = Some(sf5_len_signal);
             let id = ctx.tree.create_child(gid, "sf5", None);
             ctx.tree
                 .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf5 }));
 
             // sf6 — Play Position — C++ :640-644. Dynamic max tracks sf5's value
-            // via the wrapper's signal-driven Cycle (mirrors C++ TkTest::Cycle).
-            let sf6_max_ref = Rc::clone(&self.sf6_max);
-            let sf6_initial_max = self.sf6_max.get();
-            let sf5_len_signal = sf5_value_signal_for_sf6;
+            // via the wrapper's signal-driven Cycle (mirrors C++ TkTest::Cycle :786).
+            // Initial max equals sf5's initial value (4h in ms); no Cell needed.
+            let sf6_initial_max = 4.0 * 3_600_000.0_f64;
             let mut sf6 = emScalarField::new(ctx, 0.0, sf6_initial_max, look.clone());
             sf6.SetCaption("Play Position");
             sf6.SetEditable(true);
@@ -1741,7 +1738,6 @@ impl TkTestPanel {
                 id,
                 Box::new(ScalarFieldWithDynamicMax {
                     widget: sf6,
-                    max_ref: sf6_max_ref,
                     sf5_len_signal,
                     signal_connected: false,
                 }),
