@@ -18,7 +18,7 @@ use emcore::emColor::emColor;
 use emcore::emColorField::emColorField;
 use emcore::emContext::emContext;
 use emcore::emCursor::emCursor;
-use emcore::emEngineCtx::{ConstructCtx, EngineCtx, PanelCtx, SchedCtx};
+use emcore::emEngineCtx::{ConstructCtx, EngineCtx, PanelCtx};
 use emcore::emFileDialog::{
     emFileDialog, get_selected_names_post_show, get_selected_path_post_show, FileDialogMode,
 };
@@ -460,11 +460,8 @@ impl PanelBehavior for CustomItemBehavior {
 
 // ─── TestPanel ──────────────────────────────────────────────────────
 
-/// Shared bg color slot — written by ColorField on_color callback (synchronous,
-/// from `SetColor` via `SchedCtx::fire`), read by TestPanel::Paint and Drop.
-/// The C++ original drives the same data flow via Cycle + IsSignaled; the
-/// Rust callback hop is synchronous within the same input/cycle pass and is
-/// not a Cycle-drained polling intermediary.
+/// Shared bg color slot — written by TestPanel::Cycle via IsSignaled
+/// (C++ emTestPanel.cpp:62–71), read by TestPanel::Paint and Drop.
 type BgShared = Rc<Cell<emColor>>;
 
 pub(crate) struct TestPanel {
@@ -477,6 +474,14 @@ pub(crate) struct TestPanel {
     bg_shared: BgShared,
     input_log: Vec<String>,
     test_image: emImage,
+    /// Signal from BgColorField's color_signal — stored in AutoExpand, connected
+    /// in first Cycle (C++ emTestPanel.cpp:495: AddWakeUpSignal(BgColorField->GetColorSignal())).
+    /// None until AutoExpand runs.
+    bg_color_signal: Option<SignalId>,
+    /// True after the first Cycle has connected bg_color_signal to our engine.
+    /// C++ connects via AddWakeUpSignal in AutoExpand; Rust defers to Cycle
+    /// because EngineCtx::connect is not available from PanelCtx.
+    bg_signal_connected: bool,
 }
 
 impl TestPanel {
@@ -491,6 +496,8 @@ impl TestPanel {
             bg_shared: Rc::new(Cell::new(initial_bg)),
             input_log: Vec::new(),
             test_image,
+            bg_color_signal: None,
+            bg_signal_connected: false,
         }
     }
 
@@ -1241,15 +1248,16 @@ impl PanelBehavior for TestPanel {
         }
 
         // Background ColorField — C++ name "BgColorField".
-        let bg_for_cf = bg_shared.clone();
+        // C++ emTestPanel.cpp:480–492: new emColorField(...); AddWakeUpSignal(BgColorField->GetColorSignal()).
+        // Signal stored here; engine connection deferred to Cycle (EngineCtx::connect not available in PanelCtx).
+        // Reset bg_signal_connected so Cycle reconnects on re-expansion.
+        self.bg_signal_connected = false;
         let mut cf = emColorField::new(ctx, emLook::new());
         cf.SetCaption("Background Color");
         cf.SetEditable(true);
         cf.set_initial_alpha_enabled(true);
         cf.set_initial_color(bg_shared.get());
-        cf.on_color = Some(Box::new(move |color, _sched: &mut SchedCtx<'_>| {
-            bg_for_cf.set(color);
-        }));
+        self.bg_color_signal = Some(cf.color_signal);
         ctx.create_child_with("BgColorField", Box::new(ColorFieldPanel { widget: cf }));
 
         // PolyDraw — C++ name "PolyDraw" (emTestPanel.cpp:494).
@@ -1264,6 +1272,40 @@ impl PanelBehavior for TestPanel {
                 ctx.layout_child_canvas(child, x, y, cw, ch, bg);
             }
         }
+    }
+
+    fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, pctx: &mut PanelCtx) -> bool {
+        // C++ emTestPanel.cpp:62–71: Cycle checks IsSignaled(BgColorField->GetColorSignal()),
+        // then reads BgColor = BgColorField->GetColor(), calls UpdateControlPanel(),
+        // InvalidatePainting(), InvalidateChildrenLayout().
+        //
+        // Signal connection deferred to first Cycle because EngineCtx::connect is not
+        // available in AutoExpand's PanelCtx. C++ uses AddWakeUpSignal in AutoExpand directly.
+        if !self.bg_signal_connected {
+            if let Some(sig) = self.bg_color_signal {
+                ectx.connect(sig, ectx.engine_id);
+            }
+            self.bg_signal_connected = true;
+        }
+
+        if let Some(sig) = self.bg_color_signal {
+            if ectx.IsSignaled(sig) {
+                // Read new color from BgColorField widget via downcast.
+                // C++: BgColor = BgColorField->GetColor().
+                let new_color = pctx.find_child_by_name("BgColorField").and_then(|id| {
+                    pctx.tree
+                        .with_behavior_as::<ColorFieldPanel, _>(id, |cf| cf.widget.GetColor())
+                });
+                if let Some(color) = new_color {
+                    self.bg_shared.set(color);
+                    // C++: InvalidateChildrenLayout() — triggers relayout with new bg color.
+                    pctx.tree
+                        .InvalidateChildrenLayout(pctx.id, pctx.scheduler.as_deref_mut());
+                }
+            }
+        }
+
+        false
     }
 
     fn CreateControlPanel(&mut self, ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
