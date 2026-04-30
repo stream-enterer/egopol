@@ -2423,18 +2423,20 @@ impl PanelBehavior for TkTestPanel {
 
                 // DIVERGED: (language-forced) C++ selects dialog context by checking
                 // CbTopLev->IsChecked(): false → GetView() (attached to this view),
-                // true → GetRootContext() (top-level). In Rust, EngineCtx is the
-                // construction context for both paths; the view/root distinction is
-                // not exposed through our ConstructCtx trait. Both paths produce an
-                // identical top-level dialog window, so the observable difference
-                // (which window the dialog is attached to as a child) is not
-                // testable. Self.cb_toplev is retained for display fidelity.
+                // true → GetRootContext() (top-level). In Rust, emDialog::new always
+                // uses root_context() internally (emDialog.rs:100); the ConstructCtx
+                // trait does not expose a separate view-context construction path.
+                // Both C++ paths produce a top-level dialog window; the observable
+                // difference (which window the dialog is parented to) is not testable.
+                // Self.cb_toplev is retained for display fidelity.
                 let mut dlg = emcore::emDialog::emDialog::new(ectx, "Test Dialog", look.clone());
+                // Apply view/window flags — C++ emDialog(*ctx, vFlags, wFlags) passes
+                // flags to the constructor; set them before AddNegativeButton to mirror
+                // C++ construction order (emTestPanel.cpp:799–803).
+                dlg.set_view_window_flags(vflags, wflags);
                 dlg.AddNegativeButton(ectx, "Close");
                 dlg.EnableAutoDeletion(ectx, true);
                 dlg.SetRootTitle(ectx, "Test Dialog");
-                // Apply view/window flags — C++ emDialog(*ctx, vFlags, wFlags).
-                dlg.set_view_window_flags(vflags, wflags);
                 // C++ :803 `new TkTest(dlg->GetContentPanel(),"test")`.
                 dlg.set_content_behavior(ectx, Box::new(TkTestPanel::new(look)));
                 dlg.show(ectx);
