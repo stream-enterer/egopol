@@ -135,6 +135,34 @@ impl emLabel {
     }
 }
 
+/// `PanelBehavior` wrapper for `emLabel`. Paints the label filling the panel.
+/// Used by `emDialog::ShowMessage` as the content panel behavior.
+///
+/// RUST_ONLY: (language-forced-utility) — C++ `emDialog::ShowMessage` (emDialog.cpp:162-180)
+/// creates an `emLabel` child panel via the normal `emPanel` hierarchy; Rust's
+/// panel tree stores behaviors via `PanelBehavior`, so a thin wrapper is needed
+/// to adapt `emLabel` to the `PanelBehavior` trait.
+pub(crate) struct LabelBehavior {
+    pub(crate) label: emLabel,
+}
+
+impl crate::emPanel::PanelBehavior for LabelBehavior {
+    fn IsOpaque(&self) -> bool {
+        false
+    }
+
+    fn Paint(
+        &mut self,
+        p: &mut crate::emPainter::emPainter,
+        canvas_color: crate::emColor::emColor,
+        w: f64,
+        h: f64,
+        _state: &crate::emPanel::PanelState,
+    ) {
+        self.label.PaintContent(p, canvas_color, w, h, true, 1.0);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

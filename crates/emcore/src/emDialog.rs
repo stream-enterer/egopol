@@ -352,14 +352,34 @@ impl emDialog {
         }));
     }
 
-    /// Static convenience that builds an OK-only message dialog with
+    /// Static convenience that builds a Close-button message dialog with
     /// auto-delete. Port of C++ `emDialog::ShowMessage` (emDialog.cpp:162-180).
     ///
-    /// Phase 3.5: shimmed as `unimplemented!()` because no live caller exists
-    /// in-tree. Phase 3.6 wires a real path: `new + AddOKButton +
-    /// EnableAutoDeletion(true) + content label + show`.
-    pub fn ShowMessage<C: ConstructCtx>(_ctx: &mut C, _title: &str, _message: &str) -> Self {
-        unimplemented!("emDialog::ShowMessage — Phase 3.6 impl; no live caller in 3.5")
+    /// C++ creates an emLabel content panel child and adds a single "Close"
+    /// negative button. Rust mirrors this: creates the dialog, adds the
+    /// "Close" button, sets root title, enables auto-deletion, installs a
+    /// `LabelBehavior` on the content panel, then calls `show`.
+    pub fn ShowMessage<C: ConstructCtx>(ctx: &mut C, title: &str, message: &str) -> Self {
+        let look = crate::emLook::emLook::new();
+        let mut dlg = Self::new(ctx, title, Rc::clone(&look));
+        dlg.AddNegativeButton(ctx, "Close");
+        dlg.SetRootTitle(ctx, title);
+        dlg.EnableAutoDeletion(ctx, true);
+
+        let content_id = dlg.GetContentPanel(ctx);
+        let label = crate::emLabel::emLabel::new(message, Rc::clone(&look));
+        {
+            let pending = dlg
+                .pending
+                .as_mut()
+                .expect("ShowMessage: pre-show only — pending must be Some");
+            pending.window.tree_mut().set_behavior(
+                content_id,
+                Box::new(crate::emLabel::LabelBehavior { label }),
+            );
+        }
+        dlg.show(ctx);
+        dlg
     }
 
     /// Stable PanelId of the DlgPanel root. Always valid (pre-show and
@@ -1911,6 +1931,21 @@ mod tests {
         let mut dlg = emDialog::new(&mut init.ctx(), "Test", look);
         dlg.show(&mut init.ctx());
         dlg.show(&mut init.ctx()); // panics
+    }
+
+    // ─── ShowMessage tests ───────────────────────────────────────────────────
+
+    /// `ShowMessage` must not panic in a headless context, must return a handle
+    /// with `pending = None` (consumed by `show()`), and must push exactly one
+    /// pending_action (the show closure).
+    #[test]
+    fn show_message_does_not_panic() {
+        let mut init = TestInit::new();
+        let dlg = emDialog::ShowMessage(&mut init.ctx(), "Test Title", "Hello, world!");
+        // show() consumed pending.
+        assert!(dlg.pending.is_none());
+        // Exactly one pending_action pushed (the install closure from show()).
+        assert_eq!(init.pa.borrow().len(), 1);
     }
 
     // ─── Phase 3.5 Task 10 test ──────────────────────────────────────────────
