@@ -28,6 +28,7 @@ use emcore::emInput::{emInputEvent, InputKey, InputVariant};
 use emcore::emInputState::emInputState;
 use emcore::emLabel::emLabel;
 use emcore::emLinearGroup::emLinearGroup;
+use emcore::emLinearLayout::emLinearLayout;
 use emcore::emListBox::{emListBox, SelectionMode};
 use emcore::emLook::emLook;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
@@ -44,6 +45,7 @@ use emcore::emStroke::{emStroke, DashType, LineCap, LineJoin};
 use emcore::emStrokeEnd::{emStrokeEnd, StrokeEndType};
 use emcore::emTextField::emTextField;
 use emcore::emTexture::{emTexture, ImageExtension, ImageQuality};
+use emcore::emTiling::ChildConstraint;
 use emcore::emTunnel::emTunnel;
 use emcore::emVarModel;
 use emcore::emView::ViewFlags;
@@ -2156,10 +2158,13 @@ impl PanelBehavior for TkTestPanel {
 // ─── PolyDrawPanel — emLinearGroup container ────────────────────────
 //
 // C++ `PolyDrawPanel : public emLinearGroup` (emTestPanel.h:132).
-// AutoExpand creates a Controls raster and CanvasPanel child. The
-// Controls sub-tree (radio groups, text fields, color fields) is deferred
-// to a later task; here we create only the CanvasPanel child so the
-// structural hierarchy matches C++.
+// AutoExpand creates a Controls raster with four sub-groups (general,
+// stroke, strokeStart, strokeEnd) and their widget children, plus CanvasPanel.
+// All children are created flat from PolyDrawPanel::AutoExpand using
+// ctx.tree.create_child(sub_id, ...) — mirrors TkTestPanel::create_all_categories
+// pattern already established in this file. The created_by_ae flag for
+// grandchildren is false (same as TkTestPanel's grandchildren) since
+// auto-shrink is not yet wired; this is the codebase-established pattern.
 
 struct PolyDrawPanel {
     group: emLinearGroup,
@@ -2281,9 +2286,533 @@ impl PanelBehavior for PolyDrawPanel {
     }
 
     fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
-        // C++ PolyDrawPanel::AutoExpand (emTestPanel.cpp:1260): creates CanvasPanel.
-        // Control widgets (C-1) are deferred to the PolyDrawPanel full-port plan.
+        // C++ PolyDrawPanel::AutoExpand (emTestPanel.cpp:1071–1261).
+        // Creates Controls raster + four sub-groups + all 22 widgets + CanvasPanel.
+        // Flat creation pattern: grandchildren created via ctx.tree.create_child(sub_id, ...)
+        // matching TkTestPanel::create_all_categories precedent.
+
+        // ── Controls raster layout ───────────────────────────────────────────
+        // C++: controls = new emRasterLayout(this,"Controls"); controls->SetPrefChildTallness(0.6)
+        let mut controls_layout = emRasterLayout::new();
+        controls_layout.preferred_child_tallness = 0.6;
+        let controls_id = ctx.create_child_with("Controls", Box::new(controls_layout));
+
+        // ── general sub-group ────────────────────────────────────────────────
+        // C++: general = new emLinearGroup(controls,"general","General");
+        //      general->SetBorderScaling(2.0); general->SetChildWeight(0,2.0)
+        // Note: SetChildWeight(0,2.0) is set after creating child 0 (Method).
+        let mut general_grp = emLinearGroup::vertical();
+        general_grp.border.SetBorderScaling(2.0);
+        general_grp.border.caption = "General".to_string();
+        let general_id = ctx.tree.create_child(controls_id, "general", None);
+        ctx.tree.set_behavior(general_id, Box::new(general_grp));
+
+        // ── stroke sub-group ─────────────────────────────────────────────────
+        // C++: stroke = new emLinearGroup(controls,"stroke","Stroke");
+        //      stroke->SetBorderScaling(2.0); stroke->SetChildWeight(2,2.0)
+        // Note: SetChildWeight(2,2.0) is set after creating child 2 (StrokeDashType).
+        let mut stroke_grp = emLinearGroup::vertical();
+        stroke_grp.border.SetBorderScaling(2.0);
+        stroke_grp.border.caption = "Stroke".to_string();
+        let stroke_id = ctx.tree.create_child(controls_id, "stroke", None);
+        ctx.tree.set_behavior(stroke_id, Box::new(stroke_grp));
+
+        // ── strokeStart sub-group ────────────────────────────────────────────
+        // C++: strokeStart = new emLinearGroup(controls,"strokeStart","Stroke Start");
+        //      strokeStart->SetBorderScaling(2.0); strokeStart->SetChildWeight(0,2.0)
+        let mut stroke_start_grp = emLinearGroup::vertical();
+        stroke_start_grp.border.SetBorderScaling(2.0);
+        stroke_start_grp.border.caption = "Stroke Start".to_string();
+        let stroke_start_id = ctx.tree.create_child(controls_id, "strokeStart", None);
+        ctx.tree
+            .set_behavior(stroke_start_id, Box::new(stroke_start_grp));
+
+        // ── strokeEnd sub-group ──────────────────────────────────────────────
+        // C++: strokeEnd = new emLinearGroup(controls,"strokeEnd","Stroke End");
+        //      strokeEnd->SetBorderScaling(2.0); strokeEnd->SetChildWeight(0,2.0)
+        let mut stroke_end_grp = emLinearGroup::vertical();
+        stroke_end_grp.border.SetBorderScaling(2.0);
+        stroke_end_grp.border.caption = "Stroke End".to_string();
+        let stroke_end_id = ctx.tree.create_child(controls_id, "strokeEnd", None);
+        ctx.tree
+            .set_behavior(stroke_end_id, Box::new(stroke_end_grp));
+
+        // ════════════════════════════════════════════════════════════════════
+        // general children
+        // ════════════════════════════════════════════════════════════════════
+
+        // ── Method (Type) RadioGroup ─────────────────────────────────────────
+        // C++: Type = new emRadioButton::RasterGroup(general,"Method","Method");
+        //      new emRadioBox(*Type,"0",...) × 16
+        //      Type->SetBorderScaling(1.5); Type->SetPrefChildTallness(0.07); Type->SetCheckIndex(0)
+        //      AddWakeUpSignal(Type->GetCheckSignal())
+        let type_rg = RadioGroup::new(ctx);
+        let type_signal = type_rg.borrow().check_signal;
+        {
+            let mut rg_panel = emRasterGroup::new();
+            rg_panel.border.SetBorderScaling(1.5);
+            rg_panel.border.caption = "Method".to_string();
+            rg_panel.layout.preferred_child_tallness = 0.07;
+            let method_id = ctx.tree.create_child(general_id, "Method", None);
+            ctx.tree.set_behavior(method_id, Box::new(rg_panel));
+            // Set child 0 (Method) weight to 2.0 on general — mirrors C++ general->SetChildWeight(0,2.0).
+            // The constraint is set after method_id is known, using with_behavior_as.
+            ctx.tree
+                .with_behavior_as::<emLinearGroup, _>(general_id, |g| {
+                    g.layout.set_child_constraint(
+                        method_id,
+                        ChildConstraint {
+                            weight: 2.0,
+                            ..Default::default()
+                        },
+                    );
+                });
+            // Radio boxes 0–15
+            let labels = [
+                "PaintPolygon",
+                "PaintPolygonOutline",
+                "PaintPolyline",
+                "PaintBezier",
+                "PaintBezierOutline",
+                "PaintBezierLine",
+                "PaintLine",
+                "PaintRect",
+                "PaintRectOutline",
+                "PaintEllipse",
+                "PaintEllipseOutline",
+                "PaintEllipseSector",
+                "PaintEllipseSectorOutline",
+                "PaintEllipseArc",
+                "PaintRoundRect",
+                "PaintRoundRectOutline",
+            ];
+            let look = emLook::new();
+            for (i, label) in labels.iter().enumerate() {
+                let rb_id = ctx.tree.create_child(method_id, &i.to_string(), None);
+                let w = emRadioBox::new(label, look.clone(), type_rg.clone(), i);
+                ctx.tree
+                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+            }
+            // SetCheckIndex(0) — select first option
+            type_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
+        }
+
+        // ── ll (VertexCount + FillColor row) ─────────────────────────────────
+        // C++: ll=new emLinearLayout(general,"ll"); ll->SetHorizontal()
+        //      VertexCount=new emTextField(ll,...); FillColor=new emColorField(ll,...)
+        let ll_id = ctx.tree.create_child(general_id, "ll", None);
+        ctx.tree
+            .set_behavior(ll_id, Box::new(emLinearLayout::horizontal()));
+
+        // VertexCount
+        // C++: VertexCount->SetEditable(); VertexCount->SetText("9")
+        //      AddWakeUpSignal(VertexCount->GetTextSignal())
+        let vertex_count_id = ctx.tree.create_child(ll_id, "VertexCount", None);
+        let look = emLook::new();
+        let mut vc = emTextField::new(ctx, look.clone());
+        vc.SetCaption("Vertex Count");
+        vc.SetEditable(true);
+        vc.SetText("9");
+        let vertex_count_signal = vc.text_signal;
+        ctx.tree
+            .set_behavior(vertex_count_id, Box::new(TextFieldPanel { widget: vc }));
+
+        // FillColor
+        // C++: FillColor->SetEditable(); FillColor->SetAlphaEnabled(); FillColor->SetColor(0xFFFFFFFF)
+        //      AddWakeUpSignal(FillColor->GetColorSignal())
+        let fill_color_id = ctx.tree.create_child(ll_id, "FillColor", None);
+        let mut fc = emColorField::new(ctx, emLook::new());
+        fc.SetCaption("Fill Color");
+        fc.SetEditable(true);
+        fc.set_initial_alpha_enabled(true);
+        fc.set_initial_color(emColor::WHITE);
+        let fill_color_signal = fc.color_signal;
+        ctx.tree
+            .set_behavior(fill_color_id, Box::new(ColorFieldPanel { widget: fc }));
+
+        // ── ll2 (StrokeWidth + WithCanvasColor row) ───────────────────────────
+        // C++: ll=new emLinearLayout(general,"ll2"); ll->SetHorizontal()
+        let ll2_id = ctx.tree.create_child(general_id, "ll2", None);
+        ctx.tree
+            .set_behavior(ll2_id, Box::new(emLinearLayout::horizontal()));
+
+        // StrokeWidth
+        // C++: StrokeWidth->SetEditable(); StrokeWidth->SetText("0.01")
+        //      AddWakeUpSignal(StrokeWidth->GetTextSignal())
+        let stroke_width_id = ctx.tree.create_child(ll2_id, "StrokeWidth", None);
+        let mut sw = emTextField::new(ctx, look.clone());
+        sw.SetCaption("Stroke Width");
+        sw.SetEditable(true);
+        sw.SetText("0.01");
+        let stroke_width_signal = sw.text_signal;
+        ctx.tree
+            .set_behavior(stroke_width_id, Box::new(TextFieldPanel { widget: sw }));
+
+        // WithCanvasColor
+        // C++: WithCanvasColor=new emCheckBox(ll,"WithCanvasColor","With Canvas Color")
+        //      AddWakeUpSignal(WithCanvasColor->GetCheckSignal()); WithCanvasColor->SetChecked(false)
+        let with_canvas_color_id = ctx.tree.create_child(ll2_id, "WithCanvasColor", None);
+        let mut wcc = emCheckBox::new(ctx, "With Canvas Color", look.clone());
+        wcc.SetChecked(false, ctx);
+        let with_canvas_color_signal = wcc.check_signal;
+        ctx.tree.set_behavior(
+            with_canvas_color_id,
+            Box::new(CheckBoxPanel { widget: wcc }),
+        );
+
+        // ════════════════════════════════════════════════════════════════════
+        // stroke children
+        // ════════════════════════════════════════════════════════════════════
+
+        // StrokeColor
+        // C++: StrokeColor=new emColorField(stroke,"StrokeColor","Color")
+        //      SetEditable; SetAlphaEnabled; SetColor(0x000000FF)
+        //      AddWakeUpSignal(StrokeColor->GetColorSignal())
+        let stroke_color_id = ctx.tree.create_child(stroke_id, "StrokeColor", None);
+        let mut sc = emColorField::new(ctx, emLook::new());
+        sc.SetCaption("Color");
+        sc.SetEditable(true);
+        sc.set_initial_alpha_enabled(true);
+        sc.set_initial_color(emColor::BLACK);
+        let stroke_color_signal = sc.color_signal;
+        ctx.tree
+            .set_behavior(stroke_color_id, Box::new(ColorFieldPanel { widget: sc }));
+
+        // StrokeRounded
+        // C++: StrokeRounded=new emCheckBox(stroke,"StrokeRounded","Rounded")
+        //      AddWakeUpSignal(StrokeRounded->GetCheckSignal())
+        let stroke_rounded_id = ctx.tree.create_child(stroke_id, "StrokeRounded", None);
+        let sr = emCheckBox::new(ctx, "Rounded", look.clone());
+        let stroke_rounded_signal = sr.check_signal;
+        ctx.tree
+            .set_behavior(stroke_rounded_id, Box::new(CheckBoxPanel { widget: sr }));
+
+        // StrokeDashType RadioGroup
+        // C++: StrokeDashType=new emRadioButton::RasterGroup(stroke,"StrokeDashType","Dash Type")
+        //      4 radios; SetBorderScaling(1.5); SetPrefChildTallness(0.08); SetCheckIndex(0)
+        //      AddWakeUpSignal(StrokeDashType->GetCheckSignal())
+        let stroke_dash_rg = RadioGroup::new(ctx);
+        let stroke_dash_type_signal = stroke_dash_rg.borrow().check_signal;
+        {
+            let mut rg_panel = emRasterGroup::new();
+            rg_panel.border.SetBorderScaling(1.5);
+            rg_panel.border.caption = "Dash Type".to_string();
+            rg_panel.layout.preferred_child_tallness = 0.08;
+            let dash_type_id = ctx.tree.create_child(stroke_id, "StrokeDashType", None);
+            ctx.tree.set_behavior(dash_type_id, Box::new(rg_panel));
+            // C++ stroke->SetChildWeight(2,2.0) — StrokeDashType is child 2 of stroke.
+            ctx.tree
+                .with_behavior_as::<emLinearGroup, _>(stroke_id, |g| {
+                    g.layout.set_child_constraint(
+                        dash_type_id,
+                        ChildConstraint {
+                            weight: 2.0,
+                            ..Default::default()
+                        },
+                    );
+                });
+            let dash_labels = ["SOLID", "DASHED", "DOTTED", "DASH_DOTTED"];
+            for (i, label) in dash_labels.iter().enumerate() {
+                let rb_id = ctx.tree.create_child(dash_type_id, &i.to_string(), None);
+                let w = emRadioBox::new(label, look.clone(), stroke_dash_rg.clone(), i);
+                ctx.tree
+                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+            }
+            stroke_dash_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
+        }
+
+        // ll (DashLengthFactor + GapLengthFactor row)
+        // C++: ll=new emLinearLayout(stroke,"ll"); ll->SetHorizontal()
+        let stroke_ll_id = ctx.tree.create_child(stroke_id, "ll", None);
+        ctx.tree
+            .set_behavior(stroke_ll_id, Box::new(emLinearLayout::horizontal()));
+
+        // DashLengthFactor
+        let dash_length_factor_id = ctx
+            .tree
+            .create_child(stroke_ll_id, "DashLengthFactor", None);
+        let mut dlf = emTextField::new(ctx, look.clone());
+        dlf.SetCaption("Dash Length Factor");
+        dlf.SetEditable(true);
+        dlf.SetText("1.0");
+        let dash_length_factor_signal = dlf.text_signal;
+        ctx.tree.set_behavior(
+            dash_length_factor_id,
+            Box::new(TextFieldPanel { widget: dlf }),
+        );
+
+        // GapLengthFactor
+        let gap_length_factor_id = ctx.tree.create_child(stroke_ll_id, "GapLengthFactor", None);
+        let mut glf = emTextField::new(ctx, look.clone());
+        glf.SetCaption("Gap Length Factor");
+        glf.SetEditable(true);
+        glf.SetText("1.0");
+        let gap_length_factor_signal = glf.text_signal;
+        ctx.tree.set_behavior(
+            gap_length_factor_id,
+            Box::new(TextFieldPanel { widget: glf }),
+        );
+
+        // ════════════════════════════════════════════════════════════════════
+        // strokeStart children
+        // ════════════════════════════════════════════════════════════════════
+
+        // StrokeStartType RadioGroup (17 radios)
+        // C++: StrokeStartType=new emRadioButton::RasterGroup(strokeStart,"StrokeStartType","Type")
+        //      SetBorderScaling(1.5); SetPrefChildTallness(0.08); SetCheckIndex(0)
+        //      AddWakeUpSignal(StrokeStartType->GetCheckSignal())
+        //      strokeStart->SetChildWeight(0,2.0)
+        let stroke_start_rg = RadioGroup::new(ctx);
+        let stroke_start_type_signal = stroke_start_rg.borrow().check_signal;
+        {
+            let mut rg_panel = emRasterGroup::new();
+            rg_panel.border.SetBorderScaling(1.5);
+            rg_panel.border.caption = "Type".to_string();
+            rg_panel.layout.preferred_child_tallness = 0.08;
+            let start_type_id = ctx
+                .tree
+                .create_child(stroke_start_id, "StrokeStartType", None);
+            ctx.tree.set_behavior(start_type_id, Box::new(rg_panel));
+            // C++ strokeStart->SetChildWeight(0,2.0) — StrokeStartType is child 0.
+            ctx.tree
+                .with_behavior_as::<emLinearGroup, _>(stroke_start_id, |g| {
+                    g.layout.set_child_constraint(
+                        start_type_id,
+                        ChildConstraint {
+                            weight: 2.0,
+                            ..Default::default()
+                        },
+                    );
+                });
+            let end_labels = [
+                "BUTT",
+                "CAP",
+                "ARROW",
+                "CONTOUR_ARROW",
+                "LINE_ARROW",
+                "TRIANGLE",
+                "CONTOUR_TRIANGLE",
+                "SQUARE",
+                "CONTOUR_SQUARE",
+                "HALF_SQUARE",
+                "CIRCLE",
+                "CONTOUR_CIRCLE",
+                "HALF_CIRCLE",
+                "DIAMOND",
+                "CONTOUR_DIAMOND",
+                "HALF_DIAMOND",
+                "STROKE",
+            ];
+            for (i, label) in end_labels.iter().enumerate() {
+                let rb_id = ctx.tree.create_child(start_type_id, &i.to_string(), None);
+                let w = emRadioBox::new(label, look.clone(), stroke_start_rg.clone(), i);
+                ctx.tree
+                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+            }
+            stroke_start_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
+        }
+
+        // StrokeStartInnerColor
+        // C++: SetEditable; SetAlphaEnabled; SetColor(0xEEEEEEFF)
+        let stroke_start_inner_color_id =
+            ctx.tree
+                .create_child(stroke_start_id, "StrokeStartInnerColor", None);
+        let mut ssic = emColorField::new(ctx, emLook::new());
+        ssic.SetCaption("Inner Color");
+        ssic.SetEditable(true);
+        ssic.set_initial_alpha_enabled(true);
+        ssic.set_initial_color(emColor::rgba(0xEE, 0xEE, 0xEE, 0xFF));
+        let stroke_start_inner_color_signal = ssic.color_signal;
+        ctx.tree.set_behavior(
+            stroke_start_inner_color_id,
+            Box::new(ColorFieldPanel { widget: ssic }),
+        );
+
+        // ll (StrokeStartWidthFactor + StrokeStartLengthFactor row)
+        let stroke_start_ll_id = ctx.tree.create_child(stroke_start_id, "ll", None);
+        ctx.tree
+            .set_behavior(stroke_start_ll_id, Box::new(emLinearLayout::horizontal()));
+
+        // StrokeStartWidthFactor
+        let stroke_start_width_factor_id =
+            ctx.tree
+                .create_child(stroke_start_ll_id, "StrokeStartWidthFactor", None);
+        let mut sswf = emTextField::new(ctx, look.clone());
+        sswf.SetCaption("Width Factor");
+        sswf.SetEditable(true);
+        sswf.SetText("1.0");
+        let stroke_start_width_factor_signal = sswf.text_signal;
+        ctx.tree.set_behavior(
+            stroke_start_width_factor_id,
+            Box::new(TextFieldPanel { widget: sswf }),
+        );
+
+        // StrokeStartLengthFactor
+        let stroke_start_length_factor_id =
+            ctx.tree
+                .create_child(stroke_start_ll_id, "StrokeStartLengthFactor", None);
+        let mut sslf = emTextField::new(ctx, look.clone());
+        sslf.SetCaption("Length Factor");
+        sslf.SetEditable(true);
+        sslf.SetText("1.0");
+        let stroke_start_length_factor_signal = sslf.text_signal;
+        ctx.tree.set_behavior(
+            stroke_start_length_factor_id,
+            Box::new(TextFieldPanel { widget: sslf }),
+        );
+
+        // ════════════════════════════════════════════════════════════════════
+        // strokeEnd children
+        // ════════════════════════════════════════════════════════════════════
+
+        // StrokeEndType RadioGroup (17 radios) — same labels as Start
+        // C++: strokeEnd->SetChildWeight(0,2.0)
+        let stroke_end_rg = RadioGroup::new(ctx);
+        let stroke_end_type_signal = stroke_end_rg.borrow().check_signal;
+        {
+            let mut rg_panel = emRasterGroup::new();
+            rg_panel.border.SetBorderScaling(1.5);
+            rg_panel.border.caption = "Type".to_string();
+            rg_panel.layout.preferred_child_tallness = 0.08;
+            let end_type_id = ctx.tree.create_child(stroke_end_id, "StrokeEndType", None);
+            ctx.tree.set_behavior(end_type_id, Box::new(rg_panel));
+            // C++ strokeEnd->SetChildWeight(0,2.0) — StrokeEndType is child 0.
+            ctx.tree
+                .with_behavior_as::<emLinearGroup, _>(stroke_end_id, |g| {
+                    g.layout.set_child_constraint(
+                        end_type_id,
+                        ChildConstraint {
+                            weight: 2.0,
+                            ..Default::default()
+                        },
+                    );
+                });
+            let end_labels = [
+                "BUTT",
+                "CAP",
+                "ARROW",
+                "CONTOUR_ARROW",
+                "LINE_ARROW",
+                "TRIANGLE",
+                "CONTOUR_TRIANGLE",
+                "SQUARE",
+                "CONTOUR_SQUARE",
+                "HALF_SQUARE",
+                "CIRCLE",
+                "CONTOUR_CIRCLE",
+                "HALF_CIRCLE",
+                "DIAMOND",
+                "CONTOUR_DIAMOND",
+                "HALF_DIAMOND",
+                "STROKE",
+            ];
+            for (i, label) in end_labels.iter().enumerate() {
+                let rb_id = ctx.tree.create_child(end_type_id, &i.to_string(), None);
+                let w = emRadioBox::new(label, look.clone(), stroke_end_rg.clone(), i);
+                ctx.tree
+                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+            }
+            stroke_end_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
+        }
+
+        // StrokeEndInnerColor
+        let stroke_end_inner_color_id =
+            ctx.tree
+                .create_child(stroke_end_id, "StrokeEndInnerColor", None);
+        let mut seic = emColorField::new(ctx, emLook::new());
+        seic.SetCaption("Inner Color");
+        seic.SetEditable(true);
+        seic.set_initial_alpha_enabled(true);
+        seic.set_initial_color(emColor::rgba(0xEE, 0xEE, 0xEE, 0xFF));
+        let stroke_end_inner_color_signal = seic.color_signal;
+        ctx.tree.set_behavior(
+            stroke_end_inner_color_id,
+            Box::new(ColorFieldPanel { widget: seic }),
+        );
+
+        // ll (StrokeEndWidthFactor + StrokeEndLengthFactor row)
+        let stroke_end_ll_id = ctx.tree.create_child(stroke_end_id, "ll", None);
+        ctx.tree
+            .set_behavior(stroke_end_ll_id, Box::new(emLinearLayout::horizontal()));
+
+        // StrokeEndWidthFactor
+        let stroke_end_width_factor_id =
+            ctx.tree
+                .create_child(stroke_end_ll_id, "StrokeEndWidthFactor", None);
+        let mut sewf = emTextField::new(ctx, look.clone());
+        sewf.SetCaption("Width Factor");
+        sewf.SetEditable(true);
+        sewf.SetText("1.0");
+        let stroke_end_width_factor_signal = sewf.text_signal;
+        ctx.tree.set_behavior(
+            stroke_end_width_factor_id,
+            Box::new(TextFieldPanel { widget: sewf }),
+        );
+
+        // StrokeEndLengthFactor
+        let stroke_end_length_factor_id =
+            ctx.tree
+                .create_child(stroke_end_ll_id, "StrokeEndLengthFactor", None);
+        let mut self_ = emTextField::new(ctx, look.clone());
+        self_.SetCaption("Length Factor");
+        self_.SetEditable(true);
+        self_.SetText("1.0");
+        let stroke_end_length_factor_signal = self_.text_signal;
+        ctx.tree.set_behavior(
+            stroke_end_length_factor_id,
+            Box::new(TextFieldPanel { widget: self_ }),
+        );
+
+        // ── CanvasPanel ──────────────────────────────────────────────────────
+        // C++: Canvas = new CanvasPanel(this,"CanvasPanel")
         ctx.create_child_with("CanvasPanel", Box::new(CanvasPanel::new()));
+
+        // ── Wire signal fields and RadioGroup handles ────────────────────────
+        // C++: AddWakeUpSignal on each widget's signal (called inline above in C++).
+        // In Rust we store signal IDs here; Cycle (Task 3) will connect them via
+        // ectx.connect(sig, eid) on first Cycle.
+        self._type_group = Some(type_rg);
+        self._stroke_dash_type_group = Some(stroke_dash_rg);
+        self._stroke_start_type_group = Some(stroke_start_rg);
+        self._stroke_end_type_group = Some(stroke_end_rg);
+
+        self._type_signal = Some(type_signal);
+        self._vertex_count_signal = Some(vertex_count_signal);
+        self._fill_color_signal = Some(fill_color_signal);
+        self._stroke_width_signal = Some(stroke_width_signal);
+        self._with_canvas_color_signal = Some(with_canvas_color_signal);
+        self._stroke_color_signal = Some(stroke_color_signal);
+        self._stroke_rounded_signal = Some(stroke_rounded_signal);
+        self._stroke_dash_type_signal = Some(stroke_dash_type_signal);
+        self._dash_length_factor_signal = Some(dash_length_factor_signal);
+        self._gap_length_factor_signal = Some(gap_length_factor_signal);
+        self._stroke_start_type_signal = Some(stroke_start_type_signal);
+        self._stroke_start_inner_color_signal = Some(stroke_start_inner_color_signal);
+        self._stroke_start_width_factor_signal = Some(stroke_start_width_factor_signal);
+        self._stroke_start_length_factor_signal = Some(stroke_start_length_factor_signal);
+        self._stroke_end_type_signal = Some(stroke_end_type_signal);
+        self._stroke_end_inner_color_signal = Some(stroke_end_inner_color_signal);
+        self._stroke_end_width_factor_signal = Some(stroke_end_width_factor_signal);
+        self._stroke_end_length_factor_signal = Some(stroke_end_length_factor_signal);
+
+        self._canvas_id = ctx.tree.find_by_name("CanvasPanel");
+        self._vertex_count_id = Some(vertex_count_id);
+        self._with_canvas_color_id = Some(with_canvas_color_id);
+        self._fill_color_id = Some(fill_color_id);
+        self._stroke_width_id = Some(stroke_width_id);
+        self._stroke_color_id = Some(stroke_color_id);
+        self._stroke_rounded_id = Some(stroke_rounded_id);
+        self._stroke_dash_type_id = ctx.tree.find_by_name("StrokeDashType");
+        self._dash_length_factor_id = Some(dash_length_factor_id);
+        self._gap_length_factor_id = Some(gap_length_factor_id);
+        self._stroke_start_type_id = ctx.tree.find_by_name("StrokeStartType");
+        self._stroke_start_inner_color_id = Some(stroke_start_inner_color_id);
+        self._stroke_start_width_factor_id = Some(stroke_start_width_factor_id);
+        self._stroke_start_length_factor_id = Some(stroke_start_length_factor_id);
+        self._stroke_end_type_id = ctx.tree.find_by_name("StrokeEndType");
+        self._stroke_end_inner_color_id = Some(stroke_end_inner_color_id);
+        self._stroke_end_width_factor_id = Some(stroke_end_width_factor_id);
+        self._stroke_end_length_factor_id = Some(stroke_end_length_factor_id);
     }
 
     fn Paint(
@@ -2601,6 +3130,99 @@ mod tests {
         assert!(
             tree.find_by_name("CanvasPanel").is_some(),
             "CanvasPanel missing"
+        );
+    }
+
+    #[test]
+    fn polydrawpanel_control_tree_exists() {
+        let ctx = emContext::NewRoot();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        tree.set_behavior(root, Box::new(PolyDrawPanel::new()));
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
+
+        let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
+        settle(&mut tree, &mut view, &ctx);
+
+        assert!(
+            tree.find_by_name("Controls").is_some(),
+            "Controls raster missing"
+        );
+        assert!(
+            tree.find_by_name("CanvasPanel").is_some(),
+            "CanvasPanel missing"
+        );
+        assert!(
+            tree.find_by_name("Method").is_some(),
+            "Method RadioGroup missing"
+        );
+        assert!(
+            tree.find_by_name("VertexCount").is_some(),
+            "VertexCount missing"
+        );
+        assert!(
+            tree.find_by_name("FillColor").is_some(),
+            "FillColor missing"
+        );
+        assert!(
+            tree.find_by_name("WithCanvasColor").is_some(),
+            "WithCanvasColor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeWidth").is_some(),
+            "StrokeWidth missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeColor").is_some(),
+            "StrokeColor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeRounded").is_some(),
+            "StrokeRounded missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeDashType").is_some(),
+            "StrokeDashType missing"
+        );
+        assert!(
+            tree.find_by_name("DashLengthFactor").is_some(),
+            "DashLengthFactor missing"
+        );
+        assert!(
+            tree.find_by_name("GapLengthFactor").is_some(),
+            "GapLengthFactor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeStartType").is_some(),
+            "StrokeStartType missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeStartInnerColor").is_some(),
+            "StrokeStartInnerColor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeStartWidthFactor").is_some(),
+            "StrokeStartWidthFactor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeStartLengthFactor").is_some(),
+            "StrokeStartLengthFactor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeEndType").is_some(),
+            "StrokeEndType missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeEndInnerColor").is_some(),
+            "StrokeEndInnerColor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeEndWidthFactor").is_some(),
+            "StrokeEndWidthFactor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeEndLengthFactor").is_some(),
+            "StrokeEndLengthFactor missing"
         );
     }
 
