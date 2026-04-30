@@ -24,6 +24,7 @@ use emcore::emImage::emImage;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
 use emcore::emLabel::emLabel;
+use emcore::emListBox::{emListBox, SelectionMode};
 use emcore::emLook::emLook;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
@@ -326,6 +327,109 @@ impl PanelBehavior for LabelPanel {
         let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.widget
             .PaintContent(p, canvas_color, w, h, s.enabled, pixel_scale);
+    }
+}
+
+// ─── ListBoxPanel ───────────────────────────────────────────────────
+
+/// Wraps emListBox as a PanelBehavior child. Port of C++ emListBox usage
+/// pattern where the list box is a child of an emRasterGroup.
+struct ListBoxPanel {
+    widget: emListBox,
+}
+
+impl PanelBehavior for ListBoxPanel {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        self.widget.Paint(p, canvas_color, w, h, pixel_scale);
+    }
+
+    fn Input(
+        &mut self,
+        e: &emInputEvent,
+        s: &PanelState,
+        is: &emInputState,
+        ctx: &mut PanelCtx,
+    ) -> bool {
+        self.widget.Input(e, s, is, ctx)
+    }
+
+    fn GetCursor(&self) -> emCursor {
+        emCursor::Normal
+    }
+
+    fn IsOpaque(&self) -> bool {
+        true
+    }
+
+    fn auto_expand(&self) -> bool {
+        true
+    }
+
+    fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
+        self.widget.create_item_children(ctx);
+    }
+
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        let rect = ctx.layout_rect();
+        self.widget.layout_item_children(ctx, rect.w, rect.h);
+    }
+
+    fn notice(&mut self, flags: NoticeFlags, state: &PanelState, _ctx: &mut PanelCtx) {
+        if flags.intersects(NoticeFlags::FOCUS_CHANGED) {
+            self.widget.on_focus_changed(state.in_focused_path());
+        }
+        if flags.intersects(NoticeFlags::ENABLE_CHANGED) {
+            self.widget.on_enable_changed(state.enabled);
+        }
+    }
+}
+
+/// Custom item panel behavior for l7's CustomListBox.
+///
+/// Port of C++ emTestPanel::CustomItemPanel::ItemSelectionChanged, which calls
+/// `SetLook` with a tinted bg color (emColor(224,80,128)) when selected, or
+/// restores the list box's default look when deselected. C++ lines 970-981.
+struct CustomItemBehavior {
+    text: String,
+    selected: bool,
+    look: Rc<emLook>,
+}
+
+impl PanelBehavior for CustomItemBehavior {
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+        // When selected, use a rose bg (matching C++ emColor(224,80,128)).
+        // When not selected, use the standard look bg color.
+        let bg = if self.selected {
+            emColor::rgba(224, 80, 128, 0xFF)
+        } else {
+            self.look.input_bg_color
+        };
+        p.PaintRect(0.0, 0.0, w, h, bg, canvas_color);
+        // Paint item text — matches C++ caption (set by ItemTextChanged).
+        let text_h = h * 0.7;
+        p.PaintTextBoxed(
+            0.0,
+            0.0,
+            w,
+            h,
+            &self.text,
+            text_h,
+            self.look.fg_color,
+            emColor::TRANSPARENT,
+            TextAlignment::Left,
+            VAlign::Center,
+            TextAlignment::Left,
+            0.5,
+            true,
+            0.15,
+        );
+        let _ = pixel_scale;
+    }
+
+    fn IsOpaque(&self) -> bool {
+        true
     }
 }
 
@@ -1392,6 +1496,108 @@ impl TkTestPanel {
                 let e_id = ctx.tree.create_child(t4_id, "e", None);
                 ctx.tree.set_behavior(e_id, Box::new(rg));
             }
+        }
+
+        // 8. List Boxes — C++ emTestPanel.cpp:682-731.
+        // grp->SetBorderScaling(2.5) and grp->SetPrefChildTallness(0.4) mirror C++.
+        let gid = Self::make_category(ctx, "listboxes", "List Boxes", Some(0.4));
+        {
+            // l1: Empty — C++ :686.
+            let mut lb1 = emListBox::new(ctx, look.clone());
+            lb1.SetCaption("Empty");
+            let id = ctx.tree.create_child(gid, "l1", None);
+            ctx.tree
+                .set_behavior(id, Box::new(ListBoxPanel { widget: lb1 }));
+
+            // l2: Single-Selection, 7 items, index 0 selected — C++ :688-692.
+            let mut lb2 = emListBox::new(ctx, look.clone());
+            lb2.SetCaption("Single-Selection");
+            for i in 1..=7usize {
+                lb2.AddItem(format!("{i}"), format!("Item {i}"));
+            }
+            lb2.SetSelectedIndex(0);
+            let id = ctx.tree.create_child(gid, "l2", None);
+            ctx.tree
+                .set_behavior(id, Box::new(ListBoxPanel { widget: lb2 }));
+
+            // l3: Read-Only, 7 items, index 2 selected — C++ :694-699.
+            let mut lb3 = emListBox::new(ctx, look.clone());
+            lb3.SetCaption("Read-Only");
+            lb3.SetSelectionType(SelectionMode::ReadOnly);
+            for i in 1..=7usize {
+                lb3.AddItem(format!("{i}"), format!("Item {i}"));
+            }
+            lb3.SetSelectedIndex(2);
+            let id = ctx.tree.create_child(gid, "l3", None);
+            ctx.tree
+                .set_behavior(id, Box::new(ListBoxPanel { widget: lb3 }));
+
+            // l4: Multi-Selection, 7 items, indices 1-4 selected — C++ :701-709.
+            let mut lb4 = emListBox::new(ctx, look.clone());
+            lb4.SetCaption("Multi-Selection");
+            lb4.SetSelectionType(SelectionMode::Multi);
+            for i in 1..=7usize {
+                lb4.AddItem(format!("{i}"), format!("Item {i}"));
+            }
+            lb4.Select(1, false);
+            lb4.Select(2, false);
+            lb4.Select(3, false);
+            lb4.Select(4, false);
+            let id = ctx.tree.create_child(gid, "l4", None);
+            ctx.tree
+                .set_behavior(id, Box::new(ListBoxPanel { widget: lb4 }));
+
+            // l5: Toggle-Selection, 7 items, indices 2,4 selected — C++ :711-717.
+            let mut lb5 = emListBox::new(ctx, look.clone());
+            lb5.SetCaption("Toggle-Selection");
+            lb5.SetSelectionType(SelectionMode::Toggle);
+            for i in 1..=7usize {
+                lb5.AddItem(format!("{i}"), format!("Item {i}"));
+            }
+            lb5.Select(2, false);
+            lb5.Select(4, false);
+            let id = ctx.tree.create_child(gid, "l5", None);
+            ctx.tree
+                .set_behavior(id, Box::new(ListBoxPanel { widget: lb5 }));
+
+            // l6: Single Column, 7 items, index 0 selected — C++ :719-724.
+            let mut lb6 = emListBox::new(ctx, look.clone());
+            lb6.SetCaption("Single Column");
+            lb6.set_fixed_column_count(Some(1));
+            for i in 1..=7usize {
+                lb6.AddItem(format!("{i}"), format!("Item {i}"));
+            }
+            lb6.SetSelectedIndex(0);
+            let id = ctx.tree.create_child(gid, "l6", None);
+            ctx.tree
+                .set_behavior(id, Box::new(ListBoxPanel { widget: lb6 }));
+
+            // l7: Custom List Box — C++ :726-731, 985-1001.
+            // C++ CustomListBox sets child tallness 0.4, top-left alignment, and creates
+            // CustomItemPanel children (emLinearGroup + ItemPanelInterface). The key
+            // observable effect from CustomItemPanel::ItemSelectionChanged (C++ :970-981)
+            // is a rose bg color (emColor(224,80,128)) on selected items.
+            // Implemented via set_item_behavior_factory (the visual layer).
+            let lb7_look = look.clone();
+            let mut lb7 = emListBox::new(ctx, look.clone());
+            lb7.SetCaption("Custom List Box");
+            lb7.SetSelectionType(SelectionMode::Multi);
+            for i in 1..=7usize {
+                lb7.AddItem(format!("{i}"), format!("Item {i}"));
+            }
+            lb7.SetSelectedIndex(0);
+            lb7.set_item_behavior_factory(
+                move |_index, text, selected, _look, _sel_mode, _enabled| {
+                    Box::new(CustomItemBehavior {
+                        text: text.to_string(),
+                        selected,
+                        look: lb7_look.clone(),
+                    })
+                },
+            );
+            let id = ctx.tree.create_child(gid, "l7", None);
+            ctx.tree
+                .set_behavior(id, Box::new(ListBoxPanel { widget: lb7 }));
         }
     }
 }
