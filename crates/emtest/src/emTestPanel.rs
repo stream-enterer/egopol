@@ -20,6 +20,10 @@ use emcore::emColorField::emColorField;
 use emcore::emContext::emContext;
 use emcore::emCursor::emCursor;
 use emcore::emEngineCtx::{ConstructCtx, EngineCtx, PanelCtx, SchedCtx};
+use emcore::emFileDialog::{
+    emFileDialog, get_selected_names_post_show, get_selected_path_post_show, FileDialogMode,
+};
+use emcore::emFileSelectionBox::emFileSelectionBox;
 use emcore::emImage::emImage;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
@@ -1161,6 +1165,53 @@ impl PanelBehavior for TkTestGrpPanel {
     }
 }
 
+// ─── File dialog finish helper ───────────────────────────────────────
+
+/// Install `set_on_finish_ext` on `fd` that mirrors C++ `TkTest::Cycle`
+/// lines 824-839: when the dialog finishes positive, read the selected names
+/// and show a `ShowMessage` result dialog.
+///
+/// Called from `TkTestPanel::Cycle` for each newly created file dialog.
+/// The callback runs from inside `DialogPrivateEngine::Cycle` (the file
+/// dialog's own engine) where `ectx.tree` is the dialog's tree and
+/// `get_selected_names_post_show` / `get_selected_path_post_show` work correctly.
+fn install_file_dialog_finish(fd: &mut emFileDialog, _ectx: &mut EngineCtx<'_>) {
+    fd.dialog_mut()
+        .set_on_finish_ext(Box::new(|result, dlg_panel, ectx| {
+            use emcore::emDialog::{emDialog, DialogResult};
+            if *result == DialogResult::Ok {
+                // C++ emTestPanel.cpp:825-838: read names, build message string.
+                let names = get_selected_names_post_show(dlg_panel, ectx);
+                let str = if names.len() <= 1 {
+                    // Single selection: show full path (joined from parent + name).
+                    // C++ :831: str += FileDlg->GetSelectedPath();
+                    let path = get_selected_path_post_show(dlg_panel, ectx);
+                    format!(
+                        "File dialog finished with positive result. Would load or save:\n{}",
+                        path.display()
+                    )
+                } else {
+                    // Multi-selection: show names indented + "From:" parent dir.
+                    // C++ :833-837.
+                    let mut msg = "File dialog finished with positive result. Would load or save:"
+                        .to_string();
+                    for name in &names {
+                        msg.push_str("\n  ");
+                        msg.push_str(name);
+                    }
+                    // Port of C++ `str += emString("From:\n  ")+FileDlg->GetParentDirectory()`.
+                    // `get_selected_path_post_show` returns the first name; parent dir is
+                    // not directly accessible post-show via the free functions, so we omit
+                    // the "From:" line — observable only when names.len() > 1 with multi-selection.
+                    msg
+                };
+                // C++ :838: emDialog::ShowMessage(GetView(),"Result",str).
+                // ShowMessage calls show() internally; drop the returned handle.
+                let _ = emDialog::ShowMessage(ectx, "Result", &str);
+            }
+        }));
+}
+
 // ─── TkTest helper formatters ────────────────────────────────────────
 
 /// C++ `TextOfTimeValue` (emTestPanel.cpp:844-870).
@@ -1199,10 +1250,13 @@ struct TkTestPanel {
     // ── Dialogs group signals + checkbox state (Task 9) ──────────────
     /// BtCreateDlg click signal — None until LayoutChildren creates the button.
     btn_create_dlg_signal: Option<SignalId>,
-    /// File-dialog button signals — None until a later task creates them.
+    /// File-dialog button signals — None until LayoutChildren creates them.
     btn_open_file_signal: Option<SignalId>,
     btn_open_files_signal: Option<SignalId>,
     btn_save_file_signal: Option<SignalId>,
+    /// Active file dialog — C++ `FileDlg` member (emTestPanel.cpp TkTest::FileDlg).
+    /// Holds the dialog until its finish_signal fires; dropped in Cycle when finished.
+    active_file_dialog: Option<emFileDialog>,
     /// True after the first Cycle has connected all wake-up signals.
     signals_connected: bool,
     // Checkbox state cells — written synchronously by on_check callbacks,
@@ -1236,6 +1290,7 @@ impl TkTestPanel {
             btn_open_file_signal: None,
             btn_open_files_signal: None,
             btn_save_file_signal: None,
+            active_file_dialog: None,
             signals_connected: false,
             cb_toplev: Rc::new(Cell::new(false)),
             cb_pzoom: Rc::new(Cell::new(true)),
@@ -1715,6 +1770,50 @@ impl TkTestPanel {
             ctx.tree
                 .set_behavior(bt_id, Box::new(ButtonPanel { widget: bt }));
         }
+
+        // 10. File choosers — C++ emTestPanel.cpp:750-768.
+        // grp->SetBorderScaling(2.5), grp->SetPrefChildTallness(0.3).
+        // emFileSelectionBox "l8" with three filters; three buttons for
+        // open, open-multi/allow-dir, and save-as file dialogs.
+        {
+            let mut fc_rg = emRasterGroup::new();
+            fc_rg.border.caption = "File Selection".to_string();
+            fc_rg.border.SetBorderScaling(2.5);
+            fc_rg.layout.preferred_child_tallness = 0.3;
+            let fc_id = ctx.tree.create_child(ctx.id, "fileChoosers", None);
+            ctx.tree.set_behavior(fc_id, Box::new(fc_rg));
+
+            // emFileSelectionBox "l8" with filters — C++ :751-756.
+            let mut fsb = emFileSelectionBox::new(ctx, "File Selection Box");
+            fsb.set_filters(&[
+                "All Files (*)".to_string(),
+                "Image Files (*.bmp *.gif *.jpg *.png *.tga)".to_string(),
+                "HTML Files (*.htm *.html)".to_string(),
+            ]);
+            let fsb_id = ctx.tree.create_child(fc_id, "l8", None);
+            ctx.tree.set_behavior(fsb_id, Box::new(fsb));
+
+            // Open button — C++ :757-758.
+            let bt_open = emButton::new(ctx, "Open...", look.clone());
+            self.btn_open_file_signal = Some(bt_open.click_signal);
+            let bt_open_id = ctx.tree.create_child(fc_id, "openFile", None);
+            ctx.tree
+                .set_behavior(bt_open_id, Box::new(ButtonPanel { widget: bt_open }));
+
+            // Open Multi button — C++ :759-760.
+            let bt_opens = emButton::new(ctx, "Open Multi, Allow Dir...", look.clone());
+            self.btn_open_files_signal = Some(bt_opens.click_signal);
+            let bt_opens_id = ctx.tree.create_child(fc_id, "openFiles", None);
+            ctx.tree
+                .set_behavior(bt_opens_id, Box::new(ButtonPanel { widget: bt_opens }));
+
+            // Save As button — C++ :761-762.
+            let bt_save = emButton::new(ctx, "Save As...", look.clone());
+            self.btn_save_file_signal = Some(bt_save.click_signal);
+            let bt_save_id = ctx.tree.create_child(fc_id, "saveFile", None);
+            ctx.tree
+                .set_behavior(bt_save_id, Box::new(ButtonPanel { widget: bt_save }));
+        }
     }
 }
 
@@ -1774,6 +1873,66 @@ impl PanelBehavior for TkTestPanel {
                 ectx.connect(sig, eid);
             }
             self.signals_connected = true;
+        }
+
+        // File dialog finished — C++ emTestPanel.cpp:830-839:
+        //   if (FileDlg && IsSignaled(FileDlg->GetFinishSignal())) { ... delete FileDlg; FileDlg=NULL; }
+        // Result display is handled by the on_finish_ext callback installed at
+        // dialog-creation time (below). Here we only tear down the handle.
+        if let Some(ref fd) = self.active_file_dialog {
+            if ectx.IsSignaled(fd.finish_signal()) {
+                self.active_file_dialog = None;
+            }
+        }
+
+        // Open file — C++ emTestPanel.cpp:808-811.
+        if let Some(sig) = self.btn_open_file_signal {
+            if ectx.IsSignaled(sig) {
+                // Drop any previous active file dialog before creating a new one.
+                // C++ `if (FileDlg) delete FileDlg;` — matches C++ at :808.
+                self.active_file_dialog = None;
+                let look = Rc::clone(&self.look);
+                let mut fd = emFileDialog::new(ectx, FileDialogMode::Open, look);
+                install_file_dialog_finish(&mut fd, ectx);
+                fd.show(ectx);
+                self.active_file_dialog = Some(fd);
+            }
+        }
+
+        // Open multi / allow dir — C++ emTestPanel.cpp:812-817.
+        if let Some(sig) = self.btn_open_files_signal {
+            if ectx.IsSignaled(sig) {
+                self.active_file_dialog = None;
+                let look = Rc::clone(&self.look);
+                let mut fd = emFileDialog::new(ectx, FileDialogMode::Open, look);
+                fd.set_multi_selection_enabled(true);
+                fd.set_directory_result_allowed(true);
+                install_file_dialog_finish(&mut fd, ectx);
+                fd.show(ectx);
+                self.active_file_dialog = Some(fd);
+            }
+        }
+
+        // Save As — C++ emTestPanel.cpp:818-821.
+        if let Some(sig) = self.btn_save_file_signal {
+            if ectx.IsSignaled(sig) {
+                self.active_file_dialog = None;
+                let look = Rc::clone(&self.look);
+                let mut fd = emFileDialog::new(ectx, FileDialogMode::Save, look);
+                install_file_dialog_finish(&mut fd, ectx);
+                fd.show(ectx);
+                self.active_file_dialog = Some(fd);
+            }
+        }
+
+        // Connect new active file dialog's finish_signal to our engine so we
+        // wake up when it finishes. Mirrors C++ AddWakeUpSignal(FileDlg->GetFinishSignal()).
+        // Done after all three button branches so we always subscribe the most
+        // recently created dialog.
+        if let Some(ref fd) = self.active_file_dialog {
+            let finish_sig = fd.finish_signal();
+            let eid = ectx.engine_id;
+            ectx.connect(finish_sig, eid);
         }
 
         // Create Test Dialog — C++ emTestPanel.cpp:788-803.

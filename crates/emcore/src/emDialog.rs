@@ -32,6 +32,15 @@ pub enum DialogResult {
 }
 
 type DialogFinishCb = crate::emEngineCtx::WidgetCallbackRef<DialogResult>;
+/// Wider finish callback that receives `&mut DlgPanel + &mut EngineCtx` so the
+/// handler can read dialog tree state (e.g. `get_selected_names_post_show`) and
+/// construct new dialogs (e.g. `ShowMessage`) using `EngineCtx as ConstructCtx`.
+///
+/// Port of C++ `virtual void emDialog::Finished(int result)` extended with
+/// full context access. Invoked from `DialogPrivateEngine::Cycle` step 4 after
+/// `finish_signal` fires (same order as `on_finish`). Stored in `DlgPanel::on_finished`.
+pub(crate) type DialogFinishExtCb =
+    Box<dyn FnMut(&DialogResult, &mut DlgPanel, &mut crate::emEngineCtx::EngineCtx<'_>)>;
 /// Callback slot used in place of C++'s virtual `emDialog::CheckFinish`.
 /// Closure receives `&mut DlgPanel + &mut EngineCtx` so it can read tree
 /// state and spawn transient sub-dialogs (e.g. emFileDialog's overwrite
@@ -324,6 +333,20 @@ impl emDialog {
         self.with_dlg_panel_mut("set_on_finish", |p| p.on_finish = Some(cb));
     }
 
+    /// Install a wider finish callback that receives `&mut DlgPanel + &mut
+    /// EngineCtx` in addition to the `&DialogResult`. Stored in
+    /// `DlgPanel::on_finished`; invoked after `on_finish` and after
+    /// `finish_signal` has already fired.
+    ///
+    /// Use when the caller needs tree access (e.g. reading selected file names
+    /// from an `emFileSelectionBox` child) or needs to construct new dialogs
+    /// (e.g. `emDialog::ShowMessage`) at finish time.
+    ///
+    /// Pre-show only. Panics if called after `show()`.
+    pub fn set_on_finish_ext(&mut self, cb: DialogFinishExtCb) {
+        self.with_dlg_panel_mut("set_on_finish_ext", |p| p.on_finished = Some(cb));
+    }
+
     /// Set the check-finish veto — invoked from `DialogPrivateEngine::Cycle`
     /// before finalizing the result; returning `false` vetoes finalization.
     ///
@@ -573,7 +596,10 @@ pub struct DlgPanel {
     /// Port of C++ `virtual void emDialog::Finished(int result)` (D1 — callback,
     /// not trait method). Fires from `DialogPrivateEngine::Cycle` after
     /// finish_signal fires. Default `None` matches C++ default (no-op).
-    pub(crate) on_finished: Option<DialogFinishCb>,
+    /// Wider type than `on_finish` — receives `&mut DlgPanel + &mut EngineCtx`
+    /// to support callers that need tree or ConstructCtx access at finish time
+    /// (e.g. `emTestPanel` reading selected names and spawning ShowMessage).
+    pub(crate) on_finished: Option<DialogFinishExtCb>,
     /// PanelId of the emLinearLayout content panel, set by Task 7.
     pub(crate) content_panel_id: Option<crate::emPanelTree::PanelId>,
     /// PanelId of the emLinearLayout button-row panel, set by Task 7.
@@ -1055,13 +1081,20 @@ impl crate::emEngine::emEngine for DialogPrivateEngine {
                 // exactly once per dialog (virtual dispatch, no re-arm).
                 let mut on_finish = dlg.on_finish.take();
                 let mut on_finished = dlg.on_finished.take();
-                let mut sched = ctx.as_sched_ctx();
-                sched.fire(finish_signal);
-                if let Some(cb) = on_finish.as_mut() {
-                    cb(&result, &mut sched);
+                {
+                    let mut sched = ctx.as_sched_ctx();
+                    sched.fire(finish_signal);
+                    if let Some(cb) = on_finish.as_mut() {
+                        cb(&result, &mut sched);
+                    }
                 }
+                // on_finished receives full EngineCtx + DlgPanel so the caller
+                // can read tree state (e.g. get_selected_names_post_show) and
+                // call ConstructCtx methods (e.g. ShowMessage). Re-put on_finish
+                // before calling on_finished in case the caller needs a second
+                // dialog (ShowMessage) which re-enters pending_actions.
                 if let Some(cb) = on_finished.as_mut() {
-                    cb(&result, &mut sched);
+                    cb(&result, dlg, ctx);
                 }
                 true
             } else if !dlg.auto_delete {
