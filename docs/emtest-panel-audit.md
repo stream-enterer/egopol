@@ -37,13 +37,11 @@ Plan 1  ──►  Plan 2   (sequential within Plan 2; annotations batch first)
 
 **Plan 1** (3 tasks): Use `superpowers:subagent-driven-development` on `2026-04-30-autoexpand-restructure.md`. **Must land before Plans 2 or 3 begin** — both depend on the AutoExpand restructure being in place.
 
-**Plan 2 — Annotations batch** (M-1, M-3, M-4, M-5): These four are trivial annotation-only changes. Dispatch a **single subagent** with explicit instructions rather than running full SDD — no two-stage review needed for comment additions. Include `cargo xtask annotations` in the subagent's verification step.
-
-**Plan 2 — Remainder** (all other Plan 2 tasks): Use `superpowers:subagent-driven-development` on `2026-04-30-emtest-compliance-batch.md`, starting at Task 2. Tasks within Plan 2 are sequential (Task 2 `view_context()` gates Tasks 3–10).
+**Plan 2** (all Plan 2 tasks, Tasks 1–10 plus Task 3.5): Use `superpowers:subagent-driven-development` on `2026-04-30-emtest-compliance-batch.md` from Task 1. Tasks within Plan 2 are sequential (Task 2 `view_context()` gates Tasks 3–10; Task 3.5 follows Task 3).
 
 **Plan 3** (8 tasks): Use `superpowers:subagent-driven-development` on `2026-04-30-polydrawpanel-port.md`. Start after Plan 1 lands; **independent of Plan 2** — can run in parallel with Plan 2 if using worktrees.
 
-**Golden verification** (M-2, M-7): After Plans 2 and 3 both land, run as a single subagent:
+**Golden verification** (M-2, M-7): After Plans 2 and 3 both land, run as a single subagent. These items are owned here — not by any plan task.
 ```bash
 DUMP_DRAW_OPS=1 cargo test --test golden -- --test-threads=1
 python3 scripts/diff_draw_ops.py test_panel --no-table
@@ -124,8 +122,6 @@ cargo-nextest ntr
 - [ ] **C-17** Add three extend-mode rects at y=0.907/0.910/0.913: `PaintRect(0.275, y, 0.002, 0.002, emImageTexture(0.2755, y+0.0005, 0.001, 0.001, TestImage, 50, 10, 110, 110, 255, EXTEND_TILED/EDGE/ZERO))`. (cpp:453–478)
 - [ ] **C-21** Fix caption text alignment: inner horizontal `AlignmentH::Center` (not `Left`); `formatTallness` 0.2 (not 0.5). (cpp:134–141)
 - [ ] **C-25** Add annotation at `push_state/SetClipping` block (~line 574): `// DIVERGED: (language-forced) C++ creates sub-painter with restricted origin/scale (cpp:225–231); second &mut emImage borrow forbidden by borrow checker. Workaround clips correctly but does not shift origin — add to golden verification.`
-- [ ] **M-2** Golden verification: confirm Rust `painter.scale(w, w)` coordinate space matches C++ `[0,1]×[0,h]` space. Run `cargo test --test golden test_panel` after paint fixes; compare with C++ baseline using `scripts/diff_draw_ops.py`.
-- [ ] **M-7** Golden verification: confirm `paint_polygon_even_odd` produces the same pixel output as C++ `PaintPolygon` with even-odd winding. Check in the same golden run.
 
 ### CanvasPanel interaction
 - [ ] **C-8** In `CanvasPanel::Input`: on any left-press, call `event.eat()` (lowercase) unconditionally before the vertex search. Omit the C++ `Focus()` call — Rust focus-on-click is handled by the window dispatch loop before `Input` fires. (cpp:1315–1317)
@@ -158,6 +154,14 @@ cargo-nextest ntr
 - [ ] **C-5** `CanvasPanel::Paint`: add `WithCanvasColor` branch — if true: `Clear(emColor(96,128,160), canvas_color)`; if false: `Clear(emLinearGradientTexture(0,0,rgb(80,80,160),0,h,rgb(160,160,80)), canvas_color)` and zero canvas color. (cpp:1372–1386)
 - [ ] **C-3** `CanvasPanel::Paint`: replace unconditional `PaintPolygon` with 16-way switch on `render_type` (0=PaintPolygon … 15=PaintRoundRectOutline). Derive `x1,y1,x2,y2,x,y,w,h,sa,ra` from vertex array per cpp:1388–1403. (cpp:1405–1461)
 - [ ] **C-4** `CanvasPanel::Paint` handles loop: color depends on `render_type` and vertex index — yellow (`rgba(255,255,0,128)`) for non-anchor bezier points (types 3–5, `i % 3 != 0`); gray (`rgba(128,128,128,128)`) for vertices beyond active count `m`; green otherwise. Blend with white at 75% for drag vertex. (cpp:1463–1483)
+
+---
+
+## Golden Verification
+*Run after Plans 2 and 3 both land. Handled by the golden verification subagent (see Execution Guide).*
+
+- [ ] **M-2** Confirm Rust `painter.scale(w, w)` coordinate space matches C++ `[0,1]×[0,h]` space. Run `cargo test --test golden test_panel -- --test-threads=1`; compare with C++ baseline via `scripts/diff_draw_ops.py test_panel --no-table`.
+- [ ] **M-7** Confirm `paint_polygon_even_odd` pixel output matches C++ `PaintPolygon` even-odd winding. Check in the same golden run via `scripts/diff_draw_ops.py`.
 
 ---
 

@@ -336,6 +336,77 @@ git commit -m "fix(emtest): TestPanel — replace on_color callback with Cycle+I
 
 ---
 
+### Task 3.5: Fix sf5↔sf6 Cell polling intermediary (I-5)
+
+**Files:**
+- Modify: `crates/emtest/src/emTestPanel.rs`
+
+C++ reference: `emTestPanel.cpp:638` — `AddWakeUpSignal(SFLen->GetValueSignal())` wired in constructor; `Cycle` checks `IsSignaled` from frame 1.
+
+The Rust `ScalarFieldWithDynamicMax` (~lines 261–269) uses `sf6_max: Rc<Cell<f64>>` written in sf5's `on_value` callback and read by sf6's `Cycle`. CLAUDE.md §"Polling intermediaries" prohibits this — Cell set at one site, drained at another's Cycle is a one-tick drift.
+
+Fix: wire sf5's value signal directly to sf6's engine; read synchronously in sf6's `Cycle` via `IsSignaled`. Mirror C++ constructor signal wiring.
+
+- [ ] **Step 1: Write failing test**
+
+In `ScalarFieldWithDynamicMax`'s test module (or the existing `#[cfg(test)]` block), add a test that:
+1. Creates a `ScalarFieldWithDynamicMax` in a test harness
+2. Fires sf5's value signal synchronously
+3. Asserts sf6's max is updated **within the same cycle** (not one tick later)
+
+Run: `cargo-nextest ntr -E 'package(emtest)'` — expected: fail or confirm the drift exists.
+
+- [ ] **Step 2: Wire sf5 signal to sf6's engine directly**
+
+In `ScalarFieldWithDynamicMax` (or wherever `sf6_max` is used, ~lines 261–269):
+
+```rust
+// OLD: sf6_max Cell written by sf5's on_value callback, read by sf6's Cycle
+let sf6_max = Rc::new(Cell::new(sf5_initial));
+sf5.on_value = Some(Box::new({
+    let sf6_max = sf6_max.clone();
+    move |v, _| { sf6_max.set(v); }
+}));
+// sf6's Cycle reads sf6_max.get()...
+
+// NEW: store sf5's value signal; connect to sf6's engine in Cycle; read via IsSignaled
+// In struct: store sf5_value_signal: Option<SignalId>
+// In AutoExpand: self.sf5_value_signal = Some(sf5.GetValueSignal());
+// In Cycle (sf6's Cycle method): 
+//   if let Some(sig) = self.sf5_value_signal {
+//       if ectx.IsSignaled(sig) {
+//           // read sf5's current value and update sf6's max
+//       }
+//   }
+```
+
+Locate how sf5 and sf6 currently expose their value signals. Check `emScalarField.rs` for `GetValueSignal()`. Adapt the struct to store the signal ID rather than the Cell.
+
+Connect in the first Cycle after AutoExpand: `ectx.connect(sf5_value_signal, ectx.engine_id)`. This is the same pattern used in `TkTestPanel::Cycle` (~line 2058).
+
+- [ ] **Step 3: Remove the `sf6_max` Cell**
+
+Delete `sf6_max: Rc<Cell<f64>>` from the struct and all references. If `sf6_max` is also used to pass an initial value, read sf5's initial value from the widget directly instead.
+
+Remove the `on_value` callback on sf5 that wrote to `sf6_max`.
+
+- [ ] **Step 4: Run tests**
+
+```bash
+cargo-nextest ntr
+```
+
+Expected: all green. No timing drift between sf5 value change and sf6 max update.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add crates/emtest/src/emTestPanel.rs
+git commit -m "fix(emtest): sf5↔sf6 — replace Cell polling intermediary with direct signal wiring (I-5)"
+```
+
+---
+
 ### Task 4: Fix TestPanel Notice and Input (C-12, C-15)
 
 **Files:**
@@ -1038,7 +1109,7 @@ git commit -m "fix(emtest): dialog construction order, un-diverge CbTopLev after
 **Out of scope (covered elsewhere):**
 - I-1 AE threshold on root: Plan 1 Task 6
 - I-2 MAX_DEPTH removal: Plan 1 Task 2
-- I-5 sf5↔sf6 Cell: partially addressed by Task 3 (Cycle restructure); the sf5/sf6 intermediary in `ScalarFieldWithDynamicMax` is a separate signal-pipe pattern — see I-5 in the audit. If not resolved by the Cycle restructure, add a follow-up task targeting `ScalarFieldWithDynamicMax::Cycle` directly.
+- I-5 sf5↔sf6 Cell: explicit Task 3.5.
 - M-2, M-7: golden verification items — run `cargo test --test golden` after paint fixes land; compare with C++ baselines.
 - C-1–C-6, I-14, I-15: PolyDrawPanel full port (Plan 3).
 - I-8, I-16, I-17, I-18: closed as non-bugs (audit decisions, 2026-04-30).
