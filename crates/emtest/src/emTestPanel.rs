@@ -2507,4 +2507,23 @@ mod tests {
             "CanvasPanel missing"
         );
     }
+
+    #[test]
+    fn test_panel_ae_threshold_is_900() {
+        let ctx = emContext::NewRoot();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        tree.set_behavior(root, Box::new(TestPanel::new(ctx.clone(), DEFAULT_BG)));
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
+
+        let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
+        settle(&mut tree, &mut view, &ctx);
+
+        // After AutoExpand fires, the panel should have reset its own threshold to 900.0.
+        assert_eq!(
+            tree.GetAutoExpansionThresholdValue(root),
+            900.0,
+            "TestPanel AE threshold should be 900.0 after AutoExpand (C++ constructor value)"
+        );
+    }
 }
