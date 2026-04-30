@@ -2164,9 +2164,9 @@ impl PanelBehavior for TkTestPanel {
 struct PolyDrawPanel {
     group: emLinearGroup,
     // RadioGroup handles — read selected index in Cycle via group.borrow().GetChecked().
-    // Rc<RefCell<RadioGroup>> is justified by (b): context-registry typed singleton;
-    // the group handle must be shared between AutoExpand (radio buttons) and Cycle
-    // (reads selection), which cannot be expressed with plain ownership.
+    // Rc<RefCell<RadioGroup>> — storing a clone of the handle returned by
+    // RadioGroup::new(ctx), which already returns Rc<RefCell<RadioGroup>> by design.
+    // Retained here so Cycle can read the selection after AutoExpand builds the tree.
     // Prefixed `_` until AutoExpand (Task 2) wires the controls sub-tree.
     _type_group: Option<Rc<RefCell<RadioGroup>>>,
     _stroke_dash_type_group: Option<Rc<RefCell<RadioGroup>>>,
