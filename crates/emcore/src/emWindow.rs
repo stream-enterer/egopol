@@ -2064,6 +2064,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,

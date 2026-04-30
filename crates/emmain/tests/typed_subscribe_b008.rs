@@ -47,6 +47,7 @@ fn with_engine_ctx<R>(
         tree: None,
         windows: &mut windows,
         root_context: &root_ctx,
+        view_context: None,
         framework_actions: &mut fw_actions,
         pending_inputs: &mut pending_inputs,
         input_state: &mut input_state,

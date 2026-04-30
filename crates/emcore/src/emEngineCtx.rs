@@ -60,6 +60,7 @@ pub struct EngineCtx<'a> {
     pub tree: Option<&'a mut PanelTree>,
     pub windows: &'a mut HashMap<winit::window::WindowId, emWindow>,
     pub root_context: &'a Rc<emContext>,
+    pub view_context: Option<&'a Rc<emContext>>,
     pub framework_actions: &'a mut Vec<DeferredAction>,
     /// Input-event queue drained by `InputDispatchEngine` (Phase 3,
     /// spec §3.1 / §4 D4.9). Produced by the winit input callback,
@@ -87,6 +88,7 @@ pub struct SchedCtx<'a> {
     pub scheduler: &'a mut EngineScheduler,
     pub framework_actions: &'a mut Vec<DeferredAction>,
     pub root_context: &'a Rc<emContext>,
+    pub view_context: Option<&'a Rc<emContext>>,
     /// Framework-level clipboard slot (spec §3.1, §3.6(a)). Borrowed from
     /// `emGUIFramework::clipboard`; callers access through `clipboard_mut`.
     /// Phase-3 Task-2 relocation from `emContext::clipboard`.
@@ -104,6 +106,7 @@ pub struct InitCtx<'a> {
     pub scheduler: &'a mut EngineScheduler,
     pub framework_actions: &'a mut Vec<DeferredAction>,
     pub root_context: &'a Rc<emContext>,
+    pub view_context: Option<&'a Rc<emContext>>,
     /// Phase 3.5 Task 2: closure-rail handle. Plumbed from `App::pending_actions`
     /// at setup; lets construction code enqueue `FnOnce(&mut App, &ActiveEventLoop)`
     /// closures without a borrow of App.
@@ -153,6 +156,7 @@ pub trait ConstructCtx {
     // Phase 3.5 Task 2 — closure-rail + identity accessors.
     fn pending_actions(&self) -> &Rc<RefCell<Vec<FrameworkDeferredAction>>>;
     fn root_context(&self) -> &Rc<emContext>;
+    fn view_context(&self) -> Option<&Rc<emContext>>;
     fn allocate_dialog_id(&mut self) -> crate::emGUIFramework::DialogId;
 }
 
@@ -239,6 +243,7 @@ impl EngineCtx<'_> {
             scheduler: self.scheduler,
             framework_actions: self.framework_actions,
             root_context: self.root_context,
+            view_context: self.view_context,
             framework_clipboard: self.framework_clipboard,
             current_engine: Some(self.engine_id),
             pending_actions: self.pending_actions,
@@ -334,6 +339,10 @@ impl ConstructCtx for EngineCtx<'_> {
         self.root_context
     }
 
+    fn view_context(&self) -> Option<&Rc<emContext>> {
+        self.view_context
+    }
+
     fn allocate_dialog_id(&mut self) -> crate::emGUIFramework::DialogId {
         self.scheduler.allocate_dialog_id()
     }
@@ -365,6 +374,10 @@ impl ConstructCtx for SchedCtx<'_> {
         self.root_context
     }
 
+    fn view_context(&self) -> Option<&Rc<emContext>> {
+        self.view_context
+    }
+
     fn allocate_dialog_id(&mut self) -> crate::emGUIFramework::DialogId {
         self.scheduler.allocate_dialog_id()
     }
@@ -394,6 +407,10 @@ impl ConstructCtx for InitCtx<'_> {
 
     fn root_context(&self) -> &Rc<emContext> {
         self.root_context
+    }
+
+    fn view_context(&self) -> Option<&Rc<emContext>> {
+        self.view_context
     }
 
     fn allocate_dialog_id(&mut self) -> crate::emGUIFramework::DialogId {
@@ -443,6 +460,10 @@ impl ConstructCtx for PanelCtx<'_> {
             .expect("PanelCtx: root_context required for ConstructCtx::root_context")
     }
 
+    fn view_context(&self) -> Option<&Rc<emContext>> {
+        self.view_context
+    }
+
     fn allocate_dialog_id(&mut self) -> crate::emGUIFramework::DialogId {
         self.scheduler
             .as_deref_mut()
@@ -489,6 +510,11 @@ pub struct PanelCtx<'a> {
     /// `PanelCycleEngine` and other full-reach call sites so behaviors can
     /// build a `SchedCtx` via `as_sched_ctx()`. Phase-3 B3.1.
     pub root_context: Option<&'a Rc<emContext>>,
+    /// View-specific context (C++ `emView : public emContext` — a view IS a
+    /// context). `None` in layout-only / unit tests. Set by `emView::Update`
+    /// (passing `&self.Context`) so panel behaviors can access the owning
+    /// view's context. I-6 prerequisite.
+    pub view_context: Option<&'a Rc<emContext>>,
     /// Phase 3.5 Task 2: closure-rail handle (spec §7). `None` in
     /// layout-only / unit tests that do not need to enqueue deferred App
     /// actions. Set by full-reach call sites so behaviors can call
@@ -508,6 +534,7 @@ impl<'a> PanelCtx<'a> {
             framework_clipboard: None,
             framework_actions: None,
             root_context: None,
+            view_context: None,
             pending_actions: None,
         }
     }
@@ -527,6 +554,7 @@ impl<'a> PanelCtx<'a> {
             framework_clipboard: None,
             framework_actions: None,
             root_context: None,
+            view_context: None,
             pending_actions: None,
         }
     }
@@ -579,6 +607,7 @@ impl<'a> PanelCtx<'a> {
             framework_clipboard: Some(framework_clipboard),
             framework_actions: Some(framework_actions),
             root_context: Some(root_context),
+            view_context: None,
             pending_actions: Some(pending_actions),
         }
     }
@@ -598,6 +627,7 @@ impl<'a> PanelCtx<'a> {
             scheduler,
             framework_actions,
             root_context,
+            view_context: self.view_context,
             framework_clipboard,
             current_engine: None,
             pending_actions,
@@ -624,6 +654,7 @@ impl<'a> PanelCtx<'a> {
             scheduler: self.scheduler.as_deref_mut(),
             framework_actions: self.framework_actions.as_deref_mut(),
             root_context: self.root_context,
+            view_context: self.view_context,
             framework_clipboard: self.framework_clipboard,
             pending_actions: self.pending_actions,
         }
@@ -991,6 +1022,7 @@ mod tests {
             scheduler: &mut sched,
             framework_actions: &mut actions,
             root_context: &ctx_root,
+            view_context: None,
             framework_clipboard: &cb,
             current_engine: None,
             pending_actions: &pa,
@@ -1025,6 +1057,7 @@ mod tests {
             scheduler: &mut sched,
             framework_actions: &mut actions,
             root_context: &ctx_root,
+            view_context: None,
             framework_clipboard: &cb,
             current_engine: None,
             pending_actions: &pa,
@@ -1054,6 +1087,7 @@ mod tests {
             scheduler: &mut sched,
             framework_actions: &mut actions,
             root_context: &ctx_root,
+            view_context: None,
             pending_actions: &pa,
         };
 
@@ -1085,6 +1119,7 @@ mod tests {
             scheduler: &mut sched,
             framework_actions: &mut actions,
             root_context: &ctx_root,
+            view_context: None,
             framework_clipboard: &cb,
             current_engine: None,
             pending_actions: &pa,
@@ -1112,6 +1147,7 @@ mod tests {
             scheduler: &mut sched,
             framework_actions: &mut actions,
             root_context: &ctx_root,
+            view_context: None,
             framework_clipboard: &cb,
             current_engine: None,
             pending_actions: &pa,
@@ -1159,6 +1195,7 @@ mod tests {
             scheduler: &mut sched,
             framework_actions: &mut fw_actions,
             root_context: &root,
+            view_context: None,
             pending_actions: &pending_actions,
         };
         // Exercise both accessors.

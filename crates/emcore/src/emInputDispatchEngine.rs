@@ -76,6 +76,7 @@ impl emEngine for InputDispatchEngine {
                 scheduler,
                 framework_actions,
                 root_context,
+                view_context: None,
                 framework_clipboard,
                 current_engine: None,
                 pending_actions,

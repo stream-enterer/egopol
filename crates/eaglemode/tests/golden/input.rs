@@ -103,6 +103,7 @@ fn input_key_to_focused() {
             scheduler: &mut h.scheduler,
             framework_actions: &mut h.framework_actions,
             root_context: &h.root_context,
+            view_context: None,
             framework_clipboard: &__cb,
             current_engine: None,
             pending_actions: &h.pending_actions,

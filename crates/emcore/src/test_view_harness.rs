@@ -67,6 +67,7 @@ impl TestViewHarness {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.framework_actions,
             root_context: &self.root_context,
+            view_context: None,
             framework_clipboard: &self.framework_clipboard,
             current_engine: None,
             pending_actions: &self.pending_actions,
@@ -79,6 +80,7 @@ impl TestViewHarness {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.framework_actions,
             root_context: &self.root_context,
+            view_context: None,
             framework_clipboard: &self.framework_clipboard,
             current_engine: Some(engine),
             pending_actions: &self.pending_actions,
@@ -97,6 +99,7 @@ impl TestViewHarness {
             tree: Some(&mut self.tree),
             windows: &mut self.windows,
             root_context: &self.root_context,
+            view_context: None,
             framework_actions: &mut self.framework_actions,
             pending_inputs: &mut self.pending_inputs,
             input_state: &mut self.input_state,
@@ -113,6 +116,7 @@ impl TestViewHarness {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.framework_actions,
             root_context: &self.root_context,
+            view_context: None,
             pending_actions: &self.pending_actions,
         }
     }
@@ -158,6 +162,7 @@ impl InitHarness {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.actions,
             root_context: &self.root,
+            view_context: None,
             pending_actions: &self.pending_actions,
         }
     }
@@ -197,6 +202,7 @@ impl TestSched {
             scheduler: &mut self.sched,
             framework_actions: &mut self.fw,
             root_context: &self.ctx,
+            view_context: None,
             framework_clipboard: &self.cb,
             current_engine: None,
             pending_actions: &self.pa,

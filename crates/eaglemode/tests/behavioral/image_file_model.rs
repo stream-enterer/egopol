@@ -274,6 +274,7 @@ fn image_model_loads_asynchronously_via_engine() {
             scheduler: &mut sched,
             framework_actions: &mut fw_actions,
             root_context: &root_ctx,
+            view_context: None,
             pending_actions: &pa,
         };
         emImageFileModel::register(&mut ctx, path)
@@ -317,6 +318,7 @@ fn image_model_fails_for_nonexistent_path() {
             scheduler: &mut sched,
             framework_actions: &mut fw_actions,
             root_context: &root_ctx,
+            view_context: None,
             pending_actions: &pa,
         };
         emImageFileModel::register(&mut ctx, std::path::PathBuf::from("/nonexistent/no.tga"))

@@ -229,6 +229,7 @@ impl emSubViewPanel {
             scheduler: sched,
             framework_actions: &mut fw,
             root_context: &root_ctx,
+            view_context: None,
             framework_clipboard,
             current_engine: None,
             pending_actions,
@@ -338,6 +339,7 @@ impl PanelBehavior for emSubViewPanel {
                 ),
                 framework_actions: &mut fw_input,
                 root_context: &root_ctx_for_input,
+                view_context: None,
                 framework_clipboard: cb_ref,
                 current_engine: None,
                 pending_actions: pa_ref,
@@ -354,6 +356,7 @@ impl PanelBehavior for emSubViewPanel {
                 ),
                 framework_actions: &mut fw_input,
                 root_context: &root_ctx_for_input,
+                view_context: None,
                 framework_clipboard: cb_ref,
                 current_engine: None,
                 pending_actions: pa_ref,
@@ -382,6 +385,7 @@ impl PanelBehavior for emSubViewPanel {
                     ),
                     framework_actions: &mut fw_input,
                     root_context: &root_ctx_for_input,
+                    view_context: None,
                     framework_clipboard: cb_ref,
                     current_engine: None,
                     pending_actions: pa_ref,
@@ -510,8 +514,13 @@ impl PanelBehavior for emSubViewPanel {
         // before the next paint. In C++ the sub-view's UpdateEngine handles this
         // each frame via the outer scheduler; Rust mirrors the same path.
         if keep_awake {
-            self.sub_view
-                .HandleNotice(&mut self.sub_tree, ectx.scheduler, Some(ectx.root_context));
+            let sub_view_ctx = Rc::clone(&self.sub_view.Context);
+            self.sub_view.HandleNotice(
+                &mut self.sub_tree,
+                ectx.scheduler,
+                Some(ectx.root_context),
+                Some(&sub_view_ctx),
+            );
             let mut sc = ectx.as_sched_ctx();
             self.sub_view.Update(&mut self.sub_tree, &mut sc);
         }
@@ -659,6 +668,7 @@ mod subview_dispatch_tests {
                 scheduler: &mut sched,
                 framework_actions: &mut fw,
                 root_context: &emctx,
+                view_context: None,
                 framework_clipboard: &cb,
                 current_engine: None,
                 pending_actions: &pa,
@@ -814,6 +824,7 @@ mod sp8_tests {
                     scheduler: &mut outer_sched,
                     framework_actions: &mut fw,
                     root_context: &root_ctx,
+                    view_context: None,
                     framework_clipboard: &cb,
                     current_engine: None,
                     pending_actions: &__pa,

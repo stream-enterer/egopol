@@ -128,6 +128,7 @@ fn make_color_field_driver() -> (Rc<RefCell<emColorField>>, ColorFieldDriver) {
             scheduler: &mut sched,
             framework_actions: &mut fw,
             root_context: &root_ctx,
+            view_context: None,
             pending_actions: &pa,
         };
         emColorField::new(&mut ictx, look)
@@ -166,6 +167,7 @@ fn emcolorfield_first_cycle_init_captures_eight_child_signals() {
             scheduler: &mut sched,
             framework_actions: &mut fw,
             root_context: &root_ctx,
+            view_context: None,
             pending_actions: &pa,
         };
         emColorField::new(&mut ictx, look)
@@ -231,6 +233,7 @@ fn emcolorfield_auto_shrink_clears_subscribed_state() {
             scheduler: &mut sched,
             framework_actions: &mut fw,
             root_context: &root_ctx,
+            view_context: None,
             pending_actions: &pa,
         };
         emColorField::new(&mut ictx, look)

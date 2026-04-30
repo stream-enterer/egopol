@@ -838,6 +838,7 @@ mod tests {
                 scheduler: &mut self.sched,
                 framework_actions: &mut self.fw,
                 root_context: &self.root,
+                view_context: None,
                 pending_actions: &self.pa,
             }
         }
@@ -1009,6 +1010,7 @@ mod e024_closure_tests {
                 scheduler: &mut h.app.scheduler,
                 framework_actions: &mut h.app.framework_actions,
                 root_context: &h.app.context,
+                view_context: None,
                 pending_actions: &h.app.pending_actions,
             };
             emFileDialog::new(&mut ctx, mode, look)
@@ -1082,6 +1084,7 @@ mod e024_closure_tests {
                 scheduler: &mut h.app.scheduler,
                 framework_actions: &mut h.app.framework_actions,
                 root_context: &h.app.context,
+                view_context: None,
                 pending_actions: &h.app.pending_actions,
             };
             emFileDialog::new(&mut ctx, FileDialogMode::Open, look)
@@ -1166,6 +1169,7 @@ mod e024_closure_tests {
                 scheduler: &mut h.app.scheduler,
                 framework_actions: &mut h.app.framework_actions,
                 root_context: &h.app.context,
+                view_context: None,
                 pending_actions: &h.app.pending_actions,
             };
             emFileDialog::new(&mut ctx, FileDialogMode::Save, look)
@@ -1180,6 +1184,7 @@ mod e024_closure_tests {
                 scheduler: &mut h.app.scheduler,
                 framework_actions: &mut h.app.framework_actions,
                 root_context: &h.app.context,
+                view_context: None,
                 pending_actions: &h.app.pending_actions,
             };
             fd.CheckFinish(&mut ctx, &DialogResult::Ok)
@@ -1267,6 +1272,7 @@ mod e024_closure_tests {
                 scheduler: &mut h.app.scheduler,
                 framework_actions: &mut h.app.framework_actions,
                 root_context: &h.app.context,
+                view_context: None,
                 pending_actions: &h.app.pending_actions,
             };
             emFileDialog::new(&mut ctx, FileDialogMode::Save, look)
@@ -1279,6 +1285,7 @@ mod e024_closure_tests {
                 scheduler: &mut h.app.scheduler,
                 framework_actions: &mut h.app.framework_actions,
                 root_context: &h.app.context,
+                view_context: None,
                 pending_actions: &h.app.pending_actions,
             };
             fd.CheckFinish(&mut ctx, &DialogResult::Ok)
@@ -1368,6 +1375,7 @@ mod e024_closure_tests {
                 scheduler: &mut h.app.scheduler,
                 framework_actions: &mut h.app.framework_actions,
                 root_context: &h.app.context,
+                view_context: None,
                 pending_actions: &h.app.pending_actions,
             };
             emFileDialog::new(&mut ctx, FileDialogMode::Save, look)
@@ -1383,6 +1391,7 @@ mod e024_closure_tests {
                 scheduler: &mut h.app.scheduler,
                 framework_actions: &mut h.app.framework_actions,
                 root_context: &h.app.context,
+                view_context: None,
                 pending_actions: &h.app.pending_actions,
             };
             fd.CheckFinish(&mut ctx, &DialogResult::Ok)

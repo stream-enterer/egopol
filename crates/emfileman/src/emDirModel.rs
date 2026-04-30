@@ -701,6 +701,7 @@ mod tests {
                 tree: None,
                 windows: &mut windows,
                 root_context: &root,
+                view_context: None,
                 framework_actions: &mut fw,
                 pending_inputs: &mut pending_inputs,
                 input_state: &mut input_state,

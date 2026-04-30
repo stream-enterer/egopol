@@ -1190,6 +1190,7 @@ mod tests {
                 scheduler: &mut self.sched,
                 framework_actions: &mut self.fw,
                 root_context: &self.root,
+                view_context: None,
                 pending_actions: &self.pa,
             }
         }
@@ -1687,6 +1688,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             let look = emLook::new();
@@ -1717,6 +1719,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             handle.SetRootTitle(&mut ctx, "Changed");
@@ -1780,6 +1783,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             let look = emLook::new();
@@ -1811,6 +1815,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             handle.set_button_label_for_result(&mut ctx, &DialogResult::Ok, "Accept");
@@ -1872,6 +1877,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             let look = emLook::new();
@@ -1913,6 +1919,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             handle.EnableAutoDeletion(&mut ctx, true);
@@ -2205,6 +2212,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             let look = emLook::new();
@@ -2287,6 +2295,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             let look = emLook::new();
@@ -2386,6 +2395,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             let look = emLook::new();
@@ -2423,6 +2433,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             handle.finish_post_show(&mut ctx, DialogResult::Ok);
@@ -2484,6 +2495,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             let look = emLook::new();
@@ -2527,6 +2539,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             handle2.finish_post_show(&mut ctx, DialogResult::Cancel);
@@ -2678,6 +2691,7 @@ mod tests {
                 scheduler: &mut app.scheduler,
                 framework_actions: &mut app.framework_actions,
                 root_context: &app.context,
+                view_context: None,
                 pending_actions: &app.pending_actions,
             };
             let look = emLook::new();

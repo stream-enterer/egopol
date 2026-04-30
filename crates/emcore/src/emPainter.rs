@@ -449,6 +449,7 @@ impl PainterModel {
             scheduler: &mut priv_sched,
             framework_actions: &mut actions,
             root_context: &root_ctx,
+            view_context: None,
             framework_clipboard: &cb,
             current_engine: None,
             pending_actions: &pa,

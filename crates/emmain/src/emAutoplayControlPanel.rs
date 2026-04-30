@@ -1099,6 +1099,7 @@ mod tests {
                 tree: None,
                 windows: &mut empty_windows,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_actions: &mut fw_actions,
                 pending_inputs: &mut pending_inputs,
                 input_state: &mut input_state,

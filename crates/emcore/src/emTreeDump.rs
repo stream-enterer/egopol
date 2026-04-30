@@ -1740,6 +1740,7 @@ mod collect_views_tests {
                 scheduler: sched,
                 framework_actions: &mut fw,
                 root_context: root_ctx,
+                view_context: None,
                 framework_clipboard: &cb,
                 current_engine: None,
                 pending_actions: &pa,

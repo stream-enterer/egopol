@@ -124,6 +124,7 @@ pub(crate) fn resolve_target<R>(
         scheduler,
         framework_actions,
         root_context: context,
+        view_context: None,
         framework_clipboard: clipboard,
         current_engine: None,
         pending_actions,

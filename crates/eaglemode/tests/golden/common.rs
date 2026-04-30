@@ -31,6 +31,7 @@ impl TestSched {
             scheduler: &mut self.sched,
             framework_actions: &mut self.fw,
             root_context: &self.ctx,
+            view_context: None,
             pending_actions: &self.pa,
         }
     }
@@ -42,6 +43,7 @@ impl TestSched {
             scheduler: &mut self.sched,
             framework_actions: &mut self.fw,
             root_context: &self.ctx,
+            view_context: None,
             framework_clipboard: &__cb,
             current_engine: None,
             pending_actions: &self.pa,

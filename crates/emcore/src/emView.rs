@@ -213,6 +213,7 @@ impl super::emEngine::emEngine for UpdateEngineClass {
                     scheduler: ctx.scheduler,
                     framework_actions: ctx.framework_actions,
                     root_context: ctx.root_context,
+                    view_context: None,
                     framework_clipboard: ctx.framework_clipboard,
                     current_engine: Some(engine_id),
                     pending_actions: ctx.pending_actions,
@@ -236,6 +237,7 @@ impl super::emEngine::emEngine for UpdateEngineClass {
                     scheduler: ctx.scheduler,
                     framework_actions: ctx.framework_actions,
                     root_context: ctx.root_context,
+                    view_context: None,
                     framework_clipboard: ctx.framework_clipboard,
                     current_engine: Some(engine_id),
                     pending_actions: ctx.pending_actions,
@@ -318,6 +320,7 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
                     scheduler: ctx.scheduler,
                     framework_actions: ctx.framework_actions,
                     root_context: ctx.root_context,
+                    view_context: None,
                     framework_clipboard: ctx.framework_clipboard,
                     current_engine: Some(engine_id),
                     pending_actions: ctx.pending_actions,
@@ -361,6 +364,7 @@ impl super::emEngine::emEngine for VisitingVAEngineClass {
                     scheduler: ctx.scheduler,
                     framework_actions: ctx.framework_actions,
                     root_context: ctx.root_context,
+                    view_context: None,
                     framework_clipboard: ctx.framework_clipboard,
                     current_engine: Some(engine_id),
                     pending_actions: ctx.pending_actions,
@@ -2638,7 +2642,8 @@ impl emView {
 
             // Drain all pending notices (C++ emView.cpp:1303-1314).
             if tree.has_pending_notices() {
-                self.HandleNotice(tree, ctx.scheduler, Some(ctx.root_context));
+                let view_ctx = Rc::clone(&self.Context);
+                self.HandleNotice(tree, ctx.scheduler, Some(ctx.root_context), Some(&view_ctx));
                 continue;
             }
 
@@ -3443,6 +3448,7 @@ impl emView {
                 scheduler: &mut __sched,
                 framework_actions: &mut __fw,
                 root_context: &__ctx,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -3889,6 +3895,7 @@ impl emView {
         tree: &mut PanelTree,
         sched: &mut crate::emScheduler::EngineScheduler,
         root_context: Option<&Rc<crate::emContext::emContext>>,
+        view_context: Option<&Rc<crate::emContext::emContext>>,
     ) -> bool {
         if !tree.has_pending_notices() && self.notice_ring_head_next.is_none() {
             return false;
@@ -3943,7 +3950,7 @@ impl emView {
                 // C++ unlinks BEFORE calling HandleNotice (emView.cpp:1307-1310).
                 self.remove_from_notice_list(id, tree);
                 delivered = true;
-                self.handle_notice_one(tree, id, sched, root_context);
+                self.handle_notice_one(tree, id, sched, root_context, view_context);
             }
             // Re-scan if any tree-internal path set `has_pending_notices`
             // during the drain.
@@ -3993,6 +4000,7 @@ impl emView {
         id: PanelId,
         sched: &mut crate::emScheduler::EngineScheduler,
         root_context: Option<&Rc<crate::emContext::emContext>>,
+        view_context: Option<&Rc<crate::emContext::emContext>>,
     ) {
         let pixel_tallness = self.CurrentPixelTallness;
         let window_focused = self.window_focused;
@@ -4014,6 +4022,7 @@ impl emView {
                 if let Some(mut behavior) = tree.take_behavior(id) {
                     let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     ctx.root_context = root_context;
+                    ctx.view_context = view_context;
                     behavior.AutoShrink(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -4080,6 +4089,7 @@ impl emView {
                 let state = tree.build_panel_state(id, window_focused, pixel_tallness);
                 let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                 ctx.root_context = root_context;
+                ctx.view_context = view_context;
                 behavior.notice(flags, &state, &mut ctx);
                 // "Notice() is allowed to do a 'delete this'" — C++ emPanel.cpp:1421.
                 if tree.panels.contains_key(id) {
@@ -4118,6 +4128,7 @@ impl emView {
                 if let Some(mut behavior) = tree.take_behavior(id) {
                     let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     ctx.root_context = root_context;
+                    ctx.view_context = view_context;
                     behavior.AutoExpand(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -4143,6 +4154,7 @@ impl emView {
                 if let Some(mut behavior) = tree.take_behavior(id) {
                     let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     ctx.root_context = root_context;
+                    ctx.view_context = view_context;
                     behavior.AutoShrink(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -4171,6 +4183,7 @@ impl emView {
                 if let Some(mut behavior) = tree.take_behavior(id) {
                     let mut ctx = PanelCtx::with_scheduler(tree, id, pixel_tallness, sched);
                     ctx.root_context = root_context;
+                    ctx.view_context = view_context;
                     behavior.LayoutChildren(&mut ctx);
                     if tree.panels.contains_key(id) {
                         tree.put_behavior(id, behavior);
@@ -5366,6 +5379,7 @@ mod tests {
                 scheduler: &mut self.sched,
                 framework_actions: &mut self.fw,
                 root_context: &self.ctx,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -6418,6 +6432,7 @@ mod tests {
                 scheduler: &mut sched_guard,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -6435,6 +6450,7 @@ mod tests {
                 scheduler: &mut sched_guard,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -6455,6 +6471,7 @@ mod tests {
                 scheduler: &mut sched_guard,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -6476,6 +6493,7 @@ mod tests {
                 scheduler: &mut sched_guard,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -6818,6 +6836,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -6854,6 +6873,7 @@ mod tests {
                 scheduler: &mut sched_borrow,
                 framework_actions: &mut fw,
                 root_context: &root,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -6932,6 +6952,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -6958,6 +6979,7 @@ mod tests {
                 scheduler: &mut sched_borrow,
                 framework_actions: &mut fw,
                 root_context: &root,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -7095,6 +7117,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -7223,6 +7246,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -7245,6 +7269,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -7415,6 +7440,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -7437,6 +7463,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -7552,6 +7579,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -7580,6 +7608,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &__cb_visit,
                 current_engine: None,
                 pending_actions: &__pa,
@@ -7663,6 +7692,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &cb,
                 current_engine: None,
                 pending_actions: &pa,
@@ -7681,6 +7711,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &cb,
                 current_engine: None,
                 pending_actions: &pa,
@@ -7877,7 +7908,7 @@ mod tests {
         );
 
         // Drive view_a's HandleNotice independently.
-        view_a.HandleNotice(&mut tree_a, &mut h.scheduler, None);
+        view_a.HandleNotice(&mut tree_a, &mut h.scheduler, None, None);
         // tree_a is drained; tree_b still has its notice.
         assert!(
             !tree_a.has_pending_notices(),
@@ -7889,7 +7920,7 @@ mod tests {
         );
 
         // Drive view_b's HandleNotice.
-        view_b.HandleNotice(&mut tree_b, &mut h.scheduler, None);
+        view_b.HandleNotice(&mut tree_b, &mut h.scheduler, None, None);
         assert!(
             !tree_b.has_pending_notices(),
             "tree_b drained after HandleNotice"

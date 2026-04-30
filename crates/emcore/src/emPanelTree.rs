@@ -3057,7 +3057,7 @@ mod tests {
         let mut view =
             crate::emView::emView::new(crate::emContext::emContext::NewRoot(), root, 800.0, 600.0);
         let mut _dummy_sched = EngineScheduler::new();
-        view.HandleNotice(&mut t, &mut _dummy_sched, None);
+        view.HandleNotice(&mut t, &mut _dummy_sched, None, None);
 
         // Build name map
         let names: HashMap<PanelId, String> = t
@@ -3487,6 +3487,7 @@ mod tests {
                 scheduler: &mut s,
                 framework_actions: &mut fw,
                 root_context: &root_ctx,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &__pa,

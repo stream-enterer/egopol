@@ -34,6 +34,7 @@ fn make_sched_ctx<'a>(
         scheduler: sched,
         framework_actions: actions,
         root_context: ctx_root,
+        view_context: None,
         framework_clipboard: cb,
         current_engine: None,
         pending_actions: pa,

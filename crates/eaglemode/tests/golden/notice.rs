@@ -39,7 +39,7 @@ fn hard_reset_file_state(acc: &Rc<RefCell<NoticeFlags>>) {
 fn settle(tree: &mut PanelTree, view: &mut emView) {
     let mut ts = TestSched::new();
     for _ in 0..5 {
-        view.HandleNotice(tree, ts.sched_mut(), None);
+        view.HandleNotice(tree, ts.sched_mut(), None, None);
         ts.with(|sc| view.Update(tree, sc));
     }
 }
@@ -386,6 +386,7 @@ fn notice_window_resize() {
         scheduler: &mut sched,
         framework_actions: &mut fw,
         root_context: &root_ctx,
+        view_context: None,
         framework_clipboard: &__cb,
         current_engine: None,
         pending_actions: &__pa,

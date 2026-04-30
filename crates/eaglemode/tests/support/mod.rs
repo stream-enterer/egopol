@@ -67,6 +67,7 @@ impl TestHarness {
                 scheduler: &mut __sched,
                 framework_actions: &mut __fw,
                 root_context: &root_context,
+                view_context: None,
                 framework_clipboard: &__cb,
                 current_engine: None,
                 pending_actions: &pending_actions,
@@ -109,6 +110,7 @@ impl TestHarness {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.framework_actions,
             root_context: &self.root_context,
+            view_context: None,
             framework_clipboard: &self.framework_clipboard,
             current_engine: None,
             pending_actions: &self.pending_actions,
@@ -148,11 +150,12 @@ impl TestHarness {
             &self.pending_actions,
         );
         self.view
-            .HandleNotice(&mut self.tree, &mut self.scheduler, None);
+            .HandleNotice(&mut self.tree, &mut self.scheduler, None, None);
         let mut sc = SchedCtx {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.framework_actions,
             root_context: &self.root_context,
+            view_context: None,
             framework_clipboard: &self.framework_clipboard,
             current_engine: None,
             pending_actions: &self.pending_actions,
@@ -172,6 +175,7 @@ impl TestHarness {
             scheduler: &mut self.scheduler,
             framework_actions: &mut self.framework_actions,
             root_context: &self.root_context,
+            view_context: None,
             framework_clipboard: &self.framework_clipboard,
             current_engine: None,
             pending_actions: &self.pending_actions,
@@ -210,6 +214,7 @@ impl TestHarness {
                 scheduler: &mut self.scheduler,
                 framework_actions: &mut self.framework_actions,
                 root_context: &self.root_context,
+                view_context: None,
                 framework_clipboard: &self.framework_clipboard,
                 current_engine: None,
                 pending_actions: &self.pending_actions,
@@ -240,6 +245,7 @@ impl TestHarness {
                 scheduler: &mut self.scheduler,
                 framework_actions: &mut self.framework_actions,
                 root_context: &self.root_context,
+                view_context: None,
                 framework_clipboard: &self.framework_clipboard,
                 current_engine: None,
                 pending_actions: &self.pending_actions,

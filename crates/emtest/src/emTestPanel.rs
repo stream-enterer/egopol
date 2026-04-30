@@ -2461,7 +2461,7 @@ mod tests {
     fn settle(tree: &mut PanelTree, view: &mut emView, ctx: &Rc<emContext>) {
         let mut ts = TestSched::new();
         for _ in 0..5 {
-            ts.with(|sc| view.HandleNotice(tree, sc.scheduler, Some(ctx)));
+            ts.with(|sc| view.HandleNotice(tree, sc.scheduler, Some(ctx), None));
             ts.with(|sc| view.Update(tree, sc));
         }
     }

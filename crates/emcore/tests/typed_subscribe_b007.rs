@@ -59,6 +59,7 @@ fn with_init_ctx<R>(
         scheduler: sched,
         framework_actions: &mut fw_actions,
         root_context: &root_ctx,
+        view_context: None,
         pending_actions: &pa,
     };
     f(&mut ctx)

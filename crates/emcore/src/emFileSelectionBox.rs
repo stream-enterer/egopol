@@ -1872,6 +1872,7 @@ mod tests {
                 scheduler: &mut self.sched,
                 framework_actions: &mut self.fw,
                 root_context: &self.root,
+                view_context: None,
                 pending_actions: &self.pa,
             }
         }
@@ -2002,6 +2003,7 @@ mod tests {
             scheduler: &mut sched,
             framework_actions: &mut fw_actions,
             root_context: &root_ctx,
+            view_context: None,
             pending_actions: &pa,
         };
         let fsb = emFileSelectionBox::new(&mut init_ctx, "B007 test");
