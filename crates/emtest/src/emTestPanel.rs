@@ -42,6 +42,8 @@ use emcore::emTextField::emTextField;
 use emcore::emTexture::{emTexture, ImageExtension, ImageQuality};
 use emcore::emTunnel::emTunnel;
 use emcore::emVarModel;
+use emcore::emView::ViewFlags;
+use emcore::emWindow::WindowFlags;
 
 // ─── constants ──────────────────────────────────────────────────────
 
@@ -1194,6 +1196,24 @@ struct TkTestPanel {
     /// Current max for sf6 "Play Position" — set by sf5's on_value callback,
     /// read by ScalarFieldWithDynamicMax::Paint before rendering.
     sf6_max: Rc<Cell<f64>>,
+    // ── Dialogs group signals + checkbox state (Task 9) ──────────────
+    /// BtCreateDlg click signal — None until LayoutChildren creates the button.
+    btn_create_dlg_signal: Option<SignalId>,
+    /// File-dialog button signals — None until a later task creates them.
+    btn_open_file_signal: Option<SignalId>,
+    btn_open_files_signal: Option<SignalId>,
+    btn_save_file_signal: Option<SignalId>,
+    /// True after the first Cycle has connected all wake-up signals.
+    signals_connected: bool,
+    // Checkbox state cells — written synchronously by on_check callbacks,
+    // read in Cycle when BtCreateDlg fires.
+    cb_toplev: Rc<Cell<bool>>,
+    cb_pzoom: Rc<Cell<bool>>,
+    cb_modal: Rc<Cell<bool>>,
+    cb_undec: Rc<Cell<bool>>,
+    cb_popup: Rc<Cell<bool>>,
+    cb_max: Rc<Cell<bool>>,
+    cb_full: Rc<Cell<bool>>,
 }
 
 impl TkTestPanel {
@@ -1212,6 +1232,18 @@ impl TkTestPanel {
             children_created: false,
             sf5_len_signal: None,
             sf6_max: Rc::new(Cell::new(sf5_initial)),
+            btn_create_dlg_signal: None,
+            btn_open_file_signal: None,
+            btn_open_files_signal: None,
+            btn_save_file_signal: None,
+            signals_connected: false,
+            cb_toplev: Rc::new(Cell::new(false)),
+            cb_pzoom: Rc::new(Cell::new(true)),
+            cb_modal: Rc::new(Cell::new(true)),
+            cb_undec: Rc::new(Cell::new(false)),
+            cb_popup: Rc::new(Cell::new(false)),
+            cb_max: Rc::new(Cell::new(false)),
+            cb_full: Rc::new(Cell::new(false)),
         }
     }
 
@@ -1599,6 +1631,90 @@ impl TkTestPanel {
             ctx.tree
                 .set_behavior(id, Box::new(ListBoxPanel { widget: lb7 }));
         }
+
+        // 9. Dialogs group — C++ emTestPanel.cpp:733-748.
+        // grp->SetBorderScaling(2.5), SetFixedColumnCount(1).
+        // Inner raster layout "rl" holds checkboxes (pref_child_tallness 0.1).
+        // Button "bt" is direct child of grp (alongside rl).
+        {
+            let mut dlgs_rg = emRasterGroup::new();
+            dlgs_rg.border.caption = "Test Dialog".to_string();
+            dlgs_rg.border.SetBorderScaling(2.5);
+            dlgs_rg.layout.fixed_columns = Some(1);
+            let dlgs_id = ctx.tree.create_child(ctx.id, "dlgs", None);
+            ctx.tree.set_behavior(dlgs_id, Box::new(dlgs_rg));
+
+            // Inner raster layout "rl" — contains the checkboxes.
+            // C++ :736 `rl=new emRasterLayout(grp,"rl"); rl->SetPrefChildTallness(0.1)`.
+            let mut rl_beh = emRasterLayout::new();
+            rl_beh.preferred_child_tallness = 0.1;
+            let rl_id = ctx.tree.create_child(dlgs_id, "rl", None);
+            ctx.tree.set_behavior(rl_id, Box::new(rl_beh));
+
+            // Checkboxes — C++ :738-746.
+            // Helper: create a checkbox in rl_id, wire on_check to a Cell<bool>.
+            let make_cb = |ctx: &mut PanelCtx,
+                           name: &str,
+                           caption: &str,
+                           initial: bool,
+                           state: Rc<Cell<bool>>| {
+                let mut cb = emCheckBox::new(ctx, caption, look.clone());
+                if initial {
+                    cb.set_checked_silent(true);
+                }
+                cb.on_check = Some(Box::new(move |checked, _sched| {
+                    state.set(checked);
+                }));
+                let id = ctx.tree.create_child(rl_id, name, None);
+                ctx.tree
+                    .set_behavior(id, Box::new(CheckBoxPanel { widget: cb }));
+            };
+
+            make_cb(ctx, "tl", "Top-Level", false, Rc::clone(&self.cb_toplev));
+            make_cb(
+                ctx,
+                "VF_POPUP_ZOOM",
+                "VF_POPUP_ZOOM",
+                true,
+                Rc::clone(&self.cb_pzoom),
+            );
+            make_cb(ctx, "WF_MODAL", "WF_MODAL", true, Rc::clone(&self.cb_modal));
+            make_cb(
+                ctx,
+                "WF_UNDECORATED",
+                "WF_UNDECORATED",
+                false,
+                Rc::clone(&self.cb_undec),
+            );
+            make_cb(
+                ctx,
+                "WF_POPUP",
+                "WF_POPUP",
+                false,
+                Rc::clone(&self.cb_popup),
+            );
+            make_cb(
+                ctx,
+                "WF_MAXIMIZED",
+                "WF_MAXIMIZED",
+                false,
+                Rc::clone(&self.cb_max),
+            );
+            make_cb(
+                ctx,
+                "WF_FULLSCREEN",
+                "WF_FULLSCREEN",
+                false,
+                Rc::clone(&self.cb_full),
+            );
+
+            // Button "bt" — C++ :747-748.
+            let bt = emButton::new(ctx, "Create Test Dialog", look.clone());
+            self.btn_create_dlg_signal = Some(bt.click_signal);
+            let bt_id = ctx.tree.create_child(dlgs_id, "bt", None);
+            ctx.tree
+                .set_behavior(bt_id, Box::new(ButtonPanel { widget: bt }));
+        }
     }
 }
 
@@ -1626,6 +1742,10 @@ impl PanelBehavior for TkTestPanel {
         if !self.children_created {
             self.children_created = true;
             self.create_all_categories(ctx);
+            // Wake our engine so Cycle runs to connect signals.
+            // C++ achieves this via AddWakeUpSignal inside the constructor;
+            // Rust needs an explicit wakeup after child creation.
+            ctx.wake_up();
         }
         let cr = self.border.GetContentRect(rect.w, rect.h, &self.look);
         self.layout.do_layout_skip(ctx, None, Some(cr));
@@ -1633,6 +1753,77 @@ impl PanelBehavior for TkTestPanel {
             self.border
                 .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
+    }
+
+    fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, _pctx: &mut PanelCtx) -> bool {
+        // Connect wake-up signals on the first Cycle after LayoutChildren.
+        // C++ `AddWakeUpSignal` wires each signal to the engine directly in the
+        // constructor; in Rust we defer until Cycle because EngineCtx is required
+        // for `connect` and LayoutChildren only has PanelCtx.
+        if !self.signals_connected {
+            let eid = ectx.engine_id;
+            for sig in [
+                self.btn_create_dlg_signal,
+                self.btn_open_file_signal,
+                self.btn_open_files_signal,
+                self.btn_save_file_signal,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                ectx.connect(sig, eid);
+            }
+            self.signals_connected = true;
+        }
+
+        // Create Test Dialog — C++ emTestPanel.cpp:788-803.
+        if let Some(sig) = self.btn_create_dlg_signal {
+            if ectx.IsSignaled(sig) {
+                let look = Rc::clone(&self.look);
+
+                let mut vflags = ViewFlags::ROOT_SAME_TALLNESS;
+                if self.cb_pzoom.get() {
+                    vflags |= ViewFlags::POPUP_ZOOM;
+                }
+
+                let mut wflags = WindowFlags::empty();
+                if self.cb_modal.get() {
+                    wflags |= WindowFlags::MODAL;
+                }
+                if self.cb_undec.get() {
+                    wflags |= WindowFlags::UNDECORATED;
+                }
+                if self.cb_popup.get() {
+                    wflags |= WindowFlags::POPUP;
+                }
+                if self.cb_max.get() {
+                    wflags |= WindowFlags::MAXIMIZED;
+                }
+                if self.cb_full.get() {
+                    wflags |= WindowFlags::FULLSCREEN;
+                }
+
+                // DIVERGED: (language-forced) C++ selects dialog context by checking
+                // CbTopLev->IsChecked(): false → GetView() (attached to this view),
+                // true → GetRootContext() (top-level). In Rust, EngineCtx is the
+                // construction context for both paths; the view/root distinction is
+                // not exposed through our ConstructCtx trait. Both paths produce an
+                // identical top-level dialog window, so the observable difference
+                // (which window the dialog is attached to as a child) is not
+                // testable. Self.cb_toplev is retained for display fidelity.
+                let mut dlg = emcore::emDialog::emDialog::new(ectx, "Test Dialog", look.clone());
+                dlg.AddNegativeButton(ectx, "Close");
+                dlg.EnableAutoDeletion(ectx, true);
+                dlg.SetRootTitle(ectx, "Test Dialog");
+                // Apply view/window flags — C++ emDialog(*ctx, vFlags, wFlags).
+                dlg.set_view_window_flags(vflags, wflags);
+                // C++ :803 `new TkTest(dlg->GetContentPanel(),"test")`.
+                dlg.set_content_behavior(ectx, Box::new(TkTestPanel::new(look)));
+                dlg.show(ectx);
+            }
+        }
+
+        false
     }
 }
 

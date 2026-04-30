@@ -493,6 +493,52 @@ impl emDialog {
                 });
             }));
     }
+
+    /// Install a `PanelBehavior` on the dialog's content panel.
+    ///
+    /// Port of the C++ pattern `new TkTest(dlg->GetContentPanel(),"name")` where
+    /// a child is constructed directly inside `GetContentPanel()`. In Rust we use
+    /// `GetContentPanel` to obtain the `PanelId`, then set a behavior on it via
+    /// the pending tree.  Pre-show only; panics if called after `show()`.
+    pub fn set_content_behavior<C: ConstructCtx>(
+        &mut self,
+        ctx: &mut C,
+        behavior: Box<dyn crate::emPanel::PanelBehavior>,
+    ) {
+        let content_id = self.GetContentPanel(ctx);
+        let pending = self
+            .pending
+            .as_mut()
+            .expect("set_content_behavior after show");
+        pending.window.tree_mut().set_behavior(content_id, behavior);
+    }
+
+    /// Apply view and window flags to the pending dialog window before `show()`.
+    ///
+    /// Port of C++ `emDialog(*ctx, vFlags, wFlags)` where flags are passed to
+    /// the constructor. In Rust the flags are applied pre-show via this setter
+    /// because `emDialog::new` does not take flag parameters.
+    /// Pre-show only; panics if called after `show()`.
+    pub fn set_view_window_flags(
+        &mut self,
+        view_flags: crate::emView::ViewFlags,
+        window_flags: crate::emWindow::WindowFlags,
+    ) {
+        let pending = self
+            .pending
+            .as_mut()
+            .expect("set_view_window_flags after show");
+        // Set the runtime window flags (read by engine and SetWindowFlags).
+        pending.window.flags = window_flags;
+        // Also update the OsSurface::Pending flags so materialization applies
+        // the correct winit window attributes (decorations, maximize, fullscreen).
+        if let crate::emWindow::OsSurface::Pending(ref mut ps) = pending.window.os_surface {
+            ps.flags = window_flags;
+        }
+        // Set view flags directly on the pending view (pre-materialization;
+        // no side effects needed — the view hasn't been laid out yet).
+        pending.window.view_mut().flags = view_flags;
+    }
 }
 
 /// Root-panel PanelBehavior for an `emDialog`.
