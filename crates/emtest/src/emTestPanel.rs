@@ -2851,11 +2851,9 @@ struct CanvasPanel {
     // (wired in the Cycle task); prefix removed once Paint branches on them.
     _render_type: u8,         // C++ Type (emTestPanel.cpp:1278)
     _with_canvas_color: bool, // C++ WithCanvasColor (emTestPanel.cpp:1293)
-    // DIVERGED: (upstream-gap-forced) C++ uses emTexture (which carries color,
-    // gradient, or image); Rust emTexture is not yet wired into CanvasPanel's
-    // Paint. fill_color stores the flat color used until full texture support
-    // is implemented.
-    fill_color: emColor,        // simplified from C++ Texture
+    // Simplified to emColor (flat fill) — C++ uses emTexture for gradient/image support.
+    // Full emTexture integration deferred; follow up if golden comparison reveals divergence.
+    texture: emColor,
     _stroke_width: f64,         // C++ StrokeWidth (emTestPanel.cpp:1295)
     _stroke: emStroke,          // C++ Stroke (emTestPanel.cpp:1296)
     _stroke_start: emStrokeEnd, // C++ StrokeStart (emTestPanel.cpp:1297)
@@ -2883,7 +2881,7 @@ impl CanvasPanel {
             show_handles: false,
             _render_type: 0,
             _with_canvas_color: false,
-            fill_color: emColor::WHITE,
+            texture: emColor::WHITE,
             _stroke_width: 0.01,
             _stroke: emStroke::new(emColor::BLACK, 0.01),
             _stroke_start: emStrokeEnd::butt(),
@@ -2900,7 +2898,7 @@ impl CanvasPanel {
         render_type: u8,
         vertex_count: usize,
         with_canvas_color: bool,
-        fill_color: emColor,
+        texture: emColor,
         stroke_width: f64,
         stroke: emStroke,
         stroke_start: emStrokeEnd,
@@ -2931,7 +2929,7 @@ impl CanvasPanel {
         }
 
         self._with_canvas_color = with_canvas_color;
-        self.fill_color = fill_color;
+        self.texture = texture;
         self._stroke_width = stroke_width;
         self._stroke = stroke;
         self._stroke_start = stroke_start;
@@ -3050,7 +3048,7 @@ impl PanelBehavior for CanvasPanel {
             .collect();
 
         // C++ Paint type 0: PaintPolygon (default until controls are wired)
-        p.PaintPolygon(&scaled, self.fill_color, emColor::TRANSPARENT);
+        p.PaintPolygon(&scaled, self.texture, emColor::TRANSPARENT);
 
         // C++ Paint: draw vertex handles when ShowHandles
         if self.show_handles {
