@@ -97,6 +97,7 @@ pub mod emRecRecord;
 pub mod emRecWriter;
 pub mod emRenderThreadPool;
 pub mod emRes;
+pub use emRes::emGetInsResImage;
 pub mod emResTga;
 pub mod emScalarField;
 pub mod emScheduler;

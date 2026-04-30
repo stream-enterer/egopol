@@ -1,3 +1,6 @@
+use crate::emImage::emImage;
+use crate::emInstallInfo::{emGetInstallPath, InstallDirType};
+use crate::emResTga::load_tga;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -55,5 +58,57 @@ impl<V> ResourceCache<V> {
 impl<V> Default for ResourceCache<V> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Port of C++ `emGetInsResImage` (emRes.cpp). Loads a TGA from the installed
+/// resource tree (`$EM_DIR/res/<prj>/<sub_path>`). Returns a blank 1×1 RGBA
+/// image on any error — matches C++ graceful degradation.
+pub fn emGetInsResImage(prj: &str, sub_path: &str) -> emImage {
+    let path = match emGetInstallPath(InstallDirType::Res, prj, Some(sub_path)) {
+        Ok(p) => p,
+        Err(_) => return blank_image(),
+    };
+    let data = match std::fs::read(&path) {
+        Ok(d) => d,
+        Err(_) => return blank_image(),
+    };
+    load_tga(&data).unwrap_or_else(|_| blank_image())
+}
+
+fn blank_image() -> emImage {
+    let mut img = emImage::new(1, 1, 4);
+    img.set_pixel_channel(0, 0, 3, 255);
+    img
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn emGetInsResImage_returns_valid_image_when_em_dir_set() {
+        let workspace = std::env::current_dir()
+            .unwrap()
+            .ancestors()
+            .find(|p| p.join("Cargo.toml").exists() && p.join("res").exists())
+            .unwrap()
+            .to_path_buf();
+        std::env::set_var("EM_DIR", &workspace);
+        let img = emGetInsResImage("emTest", "icons/teddy.tga");
+        assert!(
+            img.GetWidth() > 1 && img.GetHeight() > 1,
+            "teddy must load as non-trivial image"
+        );
+        std::env::remove_var("EM_DIR");
+    }
+
+    #[test]
+    fn emGetInsResImage_returns_blank_on_missing_file() {
+        std::env::set_var("EM_DIR", "/nonexistent");
+        let img = emGetInsResImage("emTest", "icons/teddy.tga");
+        assert_eq!(img.GetWidth(), 1);
+        assert_eq!(img.GetHeight(), 1);
+        std::env::remove_var("EM_DIR");
     }
 }
