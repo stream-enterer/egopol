@@ -1402,7 +1402,6 @@ struct TkTestPanel {
     look: Rc<emLook>,
     border: emBorder,
     layout: emRasterLayout,
-    children_created: bool,
     /// PlayLength value signal (sf5) — retained for diagnostics; the actual
     /// signal-driven update lives in `ScalarFieldWithDynamicMax::Cycle`.
     sf5_len_signal: Option<SignalId>,
@@ -1448,7 +1447,6 @@ impl TkTestPanel {
             look,
             border,
             layout,
-            children_created: false,
             sf5_len_signal: None,
             sf6_max: Rc::new(Cell::new(sf5_initial)),
             btn_create_dlg_signal: None,
@@ -2006,16 +2004,15 @@ impl PanelBehavior for TkTestPanel {
             1.0,
         );
     }
+    fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
+        // C++ TkTest::TkTest constructor creates all widget children immediately.
+        // In Rust, AutoExpand is the equivalent since tree access requires ctx.
+        self.create_all_categories(ctx);
+        // Wake engine so Cycle runs to connect signals on the first frame after expansion.
+        ctx.wake_up();
+    }
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         let rect = ctx.layout_rect();
-        if !self.children_created {
-            self.children_created = true;
-            self.create_all_categories(ctx);
-            // Wake our engine so Cycle runs to connect signals.
-            // C++ achieves this via AddWakeUpSignal inside the constructor;
-            // Rust needs an explicit wakeup after child creation.
-            ctx.wake_up();
-        }
         let cr = self.border.GetContentRect(rect.w, rect.h, &self.look);
         self.layout.do_layout_skip(ctx, None, Some(cr));
         let cc =
