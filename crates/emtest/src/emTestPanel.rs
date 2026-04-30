@@ -3192,17 +3192,16 @@ struct CanvasPanel {
     drag_offset: (f64, f64),
     show_handles: bool,
     // Render state — set by Setup(), driven by PolyDrawPanel::Cycle.
-    // C++ emTestPanel.h:152–161. Fields prefixed `_` are not yet read by Paint
-    // (wired in the Cycle task); prefix removed once Paint branches on them.
-    _render_type: u8,         // C++ Type (emTestPanel.cpp:1278)
-    _with_canvas_color: bool, // C++ WithCanvasColor (emTestPanel.cpp:1293)
+    // C++ emTestPanel.h:152–161.
+    render_type: u8,         // C++ Type (emTestPanel.cpp:1278)
+    with_canvas_color: bool, // C++ WithCanvasColor (emTestPanel.cpp:1293)
     // Simplified to emColor (flat fill) — C++ uses emTexture for gradient/image support.
     // Full emTexture integration deferred; follow up if golden comparison reveals divergence.
     texture: emColor,
-    _stroke_width: f64,         // C++ StrokeWidth (emTestPanel.cpp:1295)
-    _stroke: emStroke,          // C++ Stroke (emTestPanel.cpp:1296)
-    _stroke_start: emStrokeEnd, // C++ StrokeStart (emTestPanel.cpp:1297)
-    _stroke_end: emStrokeEnd,   // C++ StrokeEnd (emTestPanel.cpp:1298)
+    // C++ stores Stroke, StrokeStart, StrokeEnd as three separate members.
+    // DIVERGED: (language-forced) emStroke already encodes start_end/finish_end; we fold
+    // the three C++ fields into one to match the Rust paint_line_stroked/PaintPolyline API.
+    stroke: emStroke, // C++ Stroke + StrokeStart + StrokeEnd (emTestPanel.cpp:1296–1298)
 }
 
 impl CanvasPanel {
@@ -3224,13 +3223,10 @@ impl CanvasPanel {
             drag_idx: None,
             drag_offset: (0.0, 0.0),
             show_handles: false,
-            _render_type: 0,
-            _with_canvas_color: false,
+            render_type: 0,
+            with_canvas_color: false,
             texture: emColor::WHITE,
-            _stroke_width: 0.01,
-            _stroke: emStroke::new(emColor::BLACK, 0.01),
-            _stroke_start: emStrokeEnd::butt(),
-            _stroke_end: emStrokeEnd::butt(),
+            stroke: emStroke::new(emColor::BLACK, 0.01),
         }
     }
 
@@ -3248,7 +3244,7 @@ impl CanvasPanel {
         stroke_start: emStrokeEnd,
         stroke_end: emStrokeEnd,
     ) {
-        self._render_type = render_type;
+        self.render_type = render_type;
 
         // C++ cpp:1285–1292: resize XY array (2 coords per vertex).
         // When shrinking, drop trailing vertices and clear drag; when growing,
@@ -3272,12 +3268,16 @@ impl CanvasPanel {
             self.drag_idx = None;
         }
 
-        self._with_canvas_color = with_canvas_color;
+        self.with_canvas_color = with_canvas_color;
         self.texture = texture;
-        self._stroke_width = stroke_width;
-        self._stroke = stroke;
-        self._stroke_start = stroke_start;
-        self._stroke_end = stroke_end;
+        // Fold stroke_start/stroke_end into the stroke struct to match Rust API
+        // (paint_line_stroked/PaintPolyline take &emStroke with start_end/finish_end inline).
+        // C++ cpp:1295–1298: StrokeWidth, Stroke, StrokeStart, StrokeEnd are stored separately.
+        let mut s = stroke;
+        s.width = stroke_width;
+        s.start_end = stroke_start;
+        s.finish_end = stroke_end;
+        self.stroke = s;
         // C++ cpp:1299: InvalidatePainting() — triggers repaint.
         // In Rust, painting is always recomputed from the current frame state;
         // no explicit invalidation is needed.
@@ -3372,29 +3372,139 @@ impl PanelBehavior for CanvasPanel {
         h: f64,
         _state: &PanelState,
     ) {
-        // C++ Paint: gradient background (emLinearGradientTexture)
-        p.paint_linear_gradient(
-            0.0,
-            0.0,
-            w,
-            h,
-            emColor::rgba(80, 80, 160, 255),
-            emColor::rgba(160, 160, 80, 255),
-            false,
-            canvas_color,
-        );
+        // C++ cpp:1372–1386: WithCanvasColor branch for background.
+        let effective_canvas_color = if self.with_canvas_color {
+            let c = emColor::rgb(96, 128, 160);
+            p.ClearWithCanvas(c, canvas_color);
+            c
+        } else {
+            p.paint_linear_gradient(
+                0.0,
+                0.0,
+                w,
+                h,
+                emColor::rgba(80, 80, 160, 255),
+                emColor::rgba(160, 160, 80, 255),
+                false,
+                canvas_color,
+            );
+            emColor::TRANSPARENT
+        };
 
-        // Scale vertices to (w, h) space for painting
+        // C++ cpp:1388–1403: compute bounding box and arc angles from vertices.
+        // Vertices are stored normalized [0..1]; scale to panel (w, h) space.
+        let (x1, y1, x2, y2, bx, by, bw, bh) = if self.vertices.len() >= 2 {
+            let (vx1, vy1) = (self.vertices[0].0 * w, self.vertices[0].1 * h);
+            let (vx2, vy2) = (self.vertices[1].0 * w, self.vertices[1].1 * h);
+            let bx = vx1.min(vx2);
+            let by = vy1.min(vy2);
+            let bw = (vx2 - vx1).abs();
+            let bh = (vy2 - vy1).abs();
+            (vx1, vy1, vx2, vy2, bx, by, bw, bh)
+        } else {
+            (
+                0.1 * w,
+                0.1 * h,
+                0.9 * w,
+                0.9 * h,
+                0.1 * w,
+                0.1 * h,
+                0.8 * w,
+                0.8 * h,
+            )
+        };
+
+        // C++ cpp:1397–1403: arc start/range angles from vertices 2 and 3.
+        let (sa, ra) = if self.vertices.len() >= 4 {
+            let cx = bx + bw * 0.5;
+            let cy = by + bh * 0.5;
+            let (v2x, v2y) = (self.vertices[2].0 * w, self.vertices[2].1 * h);
+            let (v3x, v3y) = (self.vertices[3].0 * w, self.vertices[3].1 * h);
+            let sa = (v2y - cy).atan2(v2x - cx);
+            let mut ra = (v3y - cy).atan2(v3x - cx) - sa;
+            if ra < 0.0 {
+                ra += 2.0 * std::f64::consts::PI;
+            }
+            (
+                sa * 180.0 / std::f64::consts::PI,
+                ra * 180.0 / std::f64::consts::PI,
+            )
+        } else {
+            (0.0, 360.0)
+        };
+
+        // Scale vertices to panel (w, h) space for drawing.
         let scaled: Vec<(f64, f64)> = self
             .vertices
             .iter()
             .map(|&(vx, vy)| (vx * w, vy * h))
             .collect();
 
-        // C++ Paint type 0: PaintPolygon (default until controls are wired)
-        p.PaintPolygon(&scaled, self.texture, emColor::TRANSPARENT);
+        // C++ cpp:1404–1466: 16-way render type switch.
+        // DIVERGED: (language-forced) Several Rust methods differ from C++ signatures:
+        //   - PaintPolygonOutline takes (vertices, stroke_color, thickness, canvas_color)
+        //     vs C++ (xy, n, thickness, stroke, canvas_color); Rust builds emStroke internally.
+        //   - PaintPolyline/PaintBezierLine/PaintBezierOutline take &emStroke (with
+        //     start_end/finish_end inline) vs C++ (xy, n, thickness, stroke, start, end, canvas).
+        //   - paint_line_stroked is the stroked equivalent of C++ PaintLine with thickness/ends;
+        //     plain PaintLine in Rust is 1-pixel only.
+        //   - PaintRectOutline/PaintEllipseOutline/PaintEllipseSectorOutline/PaintEllipseArc/
+        //     PaintRoundRectOutline take &emStroke (which encodes width) vs C++ separate args.
+        match self.render_type {
+            0 => p.PaintPolygon(&scaled, self.texture, effective_canvas_color),
+            1 => p.PaintPolygonOutline(
+                &scaled,
+                self.stroke.color,
+                self.stroke.width,
+                effective_canvas_color,
+            ),
+            2 => p.PaintPolyline(&scaled, &self.stroke, false, effective_canvas_color),
+            3 => p.PaintBezier(&scaled, self.texture, effective_canvas_color),
+            4 => p.PaintBezierOutline(&scaled, &self.stroke, effective_canvas_color),
+            5 => p.PaintBezierLine(&scaled, &self.stroke, effective_canvas_color),
+            6 => p.paint_line_stroked(x1, y1, x2, y2, &self.stroke, effective_canvas_color),
+            7 => p.PaintRect(bx, by, bw, bh, self.texture, effective_canvas_color),
+            8 => p.PaintRectOutline(bx, by, bw, bh, &self.stroke, effective_canvas_color),
+            9 => p.PaintEllipse(bx, by, bw, bh, self.texture, effective_canvas_color),
+            10 => p.PaintEllipseOutline(bx, by, bw, bh, &self.stroke, effective_canvas_color),
+            11 => {
+                p.PaintEllipseSector(bx, by, bw, bh, sa, ra, self.texture, effective_canvas_color)
+            }
+            12 => p.PaintEllipseSectorOutline(
+                bx,
+                by,
+                bw,
+                bh,
+                sa,
+                ra,
+                &self.stroke,
+                effective_canvas_color,
+            ),
+            13 => p.PaintEllipseArc(bx, by, bw, bh, sa, ra, &self.stroke, effective_canvas_color),
+            14 => p.PaintRoundRect(
+                bx,
+                by,
+                bw,
+                bh,
+                bw * 0.2,
+                bh * 0.2,
+                self.texture,
+                effective_canvas_color,
+            ),
+            15 => p.PaintRoundRectOutline(
+                bx,
+                by,
+                bw,
+                bh,
+                bw * 0.2,
+                bh * 0.2,
+                &self.stroke,
+                effective_canvas_color,
+            ),
+            _ => {}
+        }
 
-        // C++ Paint: draw vertex handles when ShowHandles
+        // C++ Paint: draw vertex handles when ShowHandles.
         if self.show_handles {
             let r = (0.05f64).min(12.0 / w.max(1.0));
             for (i, &(vx, vy)) in scaled.iter().enumerate() {
@@ -3416,7 +3526,7 @@ impl PanelBehavior for CanvasPanel {
             }
         }
 
-        // C++ Paint: help text at bottom
+        // C++ Paint: help text at bottom.
         p.PaintTextBoxed(
             0.0,
             h - 0.05 * h,
