@@ -1172,6 +1172,9 @@ impl PanelBehavior for TestPanel {
         if state.in_focused_path() {
             status += " InFocusedPath";
         }
+        // DIVERGED: (language-forced) C++ IsViewFocused() is per-view; Rust PanelState has
+        // window_focused (per-window). Observable only with multiple views per window.
+        // C++ cpp:148.
         if state.window_focused {
             status += " ViewFocused";
         }
