@@ -2169,9 +2169,11 @@ impl PanelBehavior for TkTestPanel {
 struct PolyDrawPanel {
     group: emLinearGroup,
     // RadioGroup handles — read selected index in Cycle via group.borrow().GetChecked().
-    // Rc<RefCell<RadioGroup>> — storing a clone of the handle returned by
-    // RadioGroup::new(ctx), which already returns Rc<RefCell<RadioGroup>> by design.
-    // Retained here so Cycle can read the selection after AutoExpand builds the tree.
+    // Rc<RefCell<RadioGroup>> — the type is already Rc<RefCell<>> by emcore design
+    // (RadioGroup::new returns Rc<RefCell<Self>>). Stored here so Cycle can read the
+    // selected index after AutoExpand has built the radio button tree. Closest to (a):
+    // the handle bridges two separate method invocations (AutoExpand and Cycle) that
+    // cannot share stack state.
     // Prefixed `_` until AutoExpand (Task 2) wires the controls sub-tree.
     _type_group: Option<Rc<RefCell<RadioGroup>>>,
     _stroke_dash_type_group: Option<Rc<RefCell<RadioGroup>>>,
@@ -2519,6 +2521,7 @@ impl PanelBehavior for PolyDrawPanel {
                     .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
             }
             stroke_dash_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
+            self._stroke_dash_type_id = Some(dash_type_id);
         }
 
         // ll (DashLengthFactor + GapLengthFactor row)
@@ -2610,6 +2613,7 @@ impl PanelBehavior for PolyDrawPanel {
                     .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
             }
             stroke_start_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
+            self._stroke_start_type_id = Some(start_type_id);
         }
 
         // StrokeStartInnerColor
@@ -2713,6 +2717,7 @@ impl PanelBehavior for PolyDrawPanel {
                     .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
             }
             stroke_end_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
+            self._stroke_end_type_id = Some(end_type_id);
         }
 
         // StrokeEndInnerColor
@@ -2765,7 +2770,8 @@ impl PanelBehavior for PolyDrawPanel {
 
         // ── CanvasPanel ──────────────────────────────────────────────────────
         // C++: Canvas = new CanvasPanel(this,"CanvasPanel")
-        ctx.create_child_with("CanvasPanel", Box::new(CanvasPanel::new()));
+        let canvas_id = ctx.create_child_with("CanvasPanel", Box::new(CanvasPanel::new()));
+        self._canvas_id = Some(canvas_id);
 
         // ── Wire signal fields and RadioGroup handles ────────────────────────
         // C++: AddWakeUpSignal on each widget's signal (called inline above in C++).
@@ -2795,21 +2801,17 @@ impl PanelBehavior for PolyDrawPanel {
         self._stroke_end_width_factor_signal = Some(stroke_end_width_factor_signal);
         self._stroke_end_length_factor_signal = Some(stroke_end_length_factor_signal);
 
-        self._canvas_id = ctx.tree.find_by_name("CanvasPanel");
         self._vertex_count_id = Some(vertex_count_id);
         self._with_canvas_color_id = Some(with_canvas_color_id);
         self._fill_color_id = Some(fill_color_id);
         self._stroke_width_id = Some(stroke_width_id);
         self._stroke_color_id = Some(stroke_color_id);
         self._stroke_rounded_id = Some(stroke_rounded_id);
-        self._stroke_dash_type_id = ctx.tree.find_by_name("StrokeDashType");
         self._dash_length_factor_id = Some(dash_length_factor_id);
         self._gap_length_factor_id = Some(gap_length_factor_id);
-        self._stroke_start_type_id = ctx.tree.find_by_name("StrokeStartType");
         self._stroke_start_inner_color_id = Some(stroke_start_inner_color_id);
         self._stroke_start_width_factor_id = Some(stroke_start_width_factor_id);
         self._stroke_start_length_factor_id = Some(stroke_start_length_factor_id);
-        self._stroke_end_type_id = ctx.tree.find_by_name("StrokeEndType");
         self._stroke_end_inner_color_id = Some(stroke_end_inner_color_id);
         self._stroke_end_width_factor_id = Some(stroke_end_width_factor_id);
         self._stroke_end_length_factor_id = Some(stroke_end_length_factor_id);
