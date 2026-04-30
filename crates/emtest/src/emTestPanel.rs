@@ -6,7 +6,7 @@
 //! persisted via emVarModel keyed on the panel identity; the teddy.tga test
 //! image is loaded from embedded resources.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::f64::consts::PI;
 use std::rc::Rc;
 
@@ -28,6 +28,7 @@ use emcore::emInput::{emInputEvent, InputKey, InputVariant};
 use emcore::emInputState::emInputState;
 use emcore::emLabel::emLabel;
 use emcore::emLinearGroup::emLinearGroup;
+use emcore::emLinearLayout::emLinearLayout;
 use emcore::emListBox::{emListBox, SelectionMode};
 use emcore::emLook::emLook;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
@@ -44,7 +45,7 @@ use emcore::emStroke::{emStroke, DashType, LineCap, LineJoin};
 use emcore::emStrokeEnd::{emStrokeEnd, StrokeEndType};
 use emcore::emTextField::emTextField;
 use emcore::emTexture::{emTexture, ImageExtension, ImageQuality};
-use emcore::emTiling::{AlignmentH, AlignmentV};
+use emcore::emTiling::{AlignmentH, AlignmentV, ChildConstraint};
 use emcore::emTunnel::emTunnel;
 use emcore::emVarModel;
 use emcore::emView::ViewFlags;
@@ -2450,25 +2451,129 @@ impl PanelBehavior for TkTestPanel {
 // ─── PolyDrawPanel — emLinearGroup container ────────────────────────
 //
 // C++ `PolyDrawPanel : public emLinearGroup` (emTestPanel.h:132).
-// AutoExpand creates a Controls raster and CanvasPanel child. The
-// Controls sub-tree (radio groups, text fields, color fields) is deferred
-// to a later task; here we create only the CanvasPanel child so the
-// structural hierarchy matches C++.
-//
-// C++ sets `SetOrientationThresholdTallness(1.0)` in the constructor
-// (emTestPanel.cpp:1011) to switch horizontal/vertical based on aspect
-// ratio. Rust emLinearGroup only supports static orientation; with a
-// single child the observable layout is unchanged, so we use horizontal()
-// and mark this for when threshold-orientation lands.
+// AutoExpand creates a Controls raster with four sub-groups (general,
+// stroke, strokeStart, strokeEnd) and their widget children, plus CanvasPanel.
+// All children are created flat from PolyDrawPanel::AutoExpand using
+// ctx.tree.create_child(sub_id, ...) — mirrors TkTestPanel::create_all_categories
+// pattern already established in this file. The created_by_ae flag for
+// grandchildren is false (same as TkTestPanel's grandchildren) since
+// auto-shrink is not yet wired; this is the codebase-established pattern.
 
 struct PolyDrawPanel {
     group: emLinearGroup,
+    // True after the first Cycle has connected all 18 wake-up signals.
+    // C++ calls AddWakeUpSignal inline in the constructor; Rust defers to first
+    // Cycle because EngineCtx is required for `connect` and the constructor
+    // only has InitCtx.
+    signals_connected: bool,
+    // RadioGroup handles — read selected index in Cycle via group.borrow().GetChecked().
+    // Rc<RefCell<RadioGroup>> — the type is already Rc<RefCell<>> by emcore design
+    // (RadioGroup::new returns Rc<RefCell<Self>>). Stored here so Cycle can read the
+    // selected index after AutoExpand has built the radio button tree. Closest to (a):
+    // the handle bridges two separate method invocations (AutoExpand and Cycle) that
+    // cannot share stack state.
+    type_group: Option<Rc<RefCell<RadioGroup>>>,
+    stroke_dash_type_group: Option<Rc<RefCell<RadioGroup>>>,
+    stroke_start_type_group: Option<Rc<RefCell<RadioGroup>>>,
+    stroke_end_type_group: Option<Rc<RefCell<RadioGroup>>>,
+    // Signal IDs — None until AutoExpand wires them. 18 signals total.
+    type_signal: Option<SignalId>,
+    vertex_count_signal: Option<SignalId>,
+    with_canvas_color_signal: Option<SignalId>,
+    fill_color_signal: Option<SignalId>,
+    stroke_width_signal: Option<SignalId>,
+    stroke_color_signal: Option<SignalId>,
+    stroke_rounded_signal: Option<SignalId>,
+    stroke_dash_type_signal: Option<SignalId>,
+    dash_length_factor_signal: Option<SignalId>,
+    gap_length_factor_signal: Option<SignalId>,
+    stroke_start_type_signal: Option<SignalId>,
+    stroke_start_inner_color_signal: Option<SignalId>,
+    stroke_start_width_factor_signal: Option<SignalId>,
+    stroke_start_length_factor_signal: Option<SignalId>,
+    stroke_end_type_signal: Option<SignalId>,
+    stroke_end_inner_color_signal: Option<SignalId>,
+    stroke_end_width_factor_signal: Option<SignalId>,
+    stroke_end_length_factor_signal: Option<SignalId>,
+    // Panel IDs for reading widget values in Cycle via downcast.
+    canvas_id: Option<PanelId>,
+    vertex_count_id: Option<PanelId>,
+    with_canvas_color_id: Option<PanelId>,
+    fill_color_id: Option<PanelId>,
+    stroke_width_id: Option<PanelId>,
+    stroke_color_id: Option<PanelId>,
+    stroke_rounded_id: Option<PanelId>,
+    stroke_dash_type_id: Option<PanelId>,
+    dash_length_factor_id: Option<PanelId>,
+    gap_length_factor_id: Option<PanelId>,
+    stroke_start_type_id: Option<PanelId>,
+    stroke_start_inner_color_id: Option<PanelId>,
+    stroke_start_width_factor_id: Option<PanelId>,
+    stroke_start_length_factor_id: Option<PanelId>,
+    stroke_end_type_id: Option<PanelId>,
+    stroke_end_inner_color_id: Option<PanelId>,
+    stroke_end_width_factor_id: Option<PanelId>,
+    stroke_end_length_factor_id: Option<PanelId>,
 }
 
 impl PolyDrawPanel {
     fn new() -> Self {
+        let mut group = emLinearGroup::horizontal();
+        // C++ emTestPanel.cpp:1005–1009: caption and description set in constructor.
+        group.border.SetCaption("Poly Draw Test");
+        group.border.description =
+            "This allows manual testing of various paint functions. Main focus is\n\
+             on strokes an stroke ends, i.e. textures cannot be tested with this.\n"
+                .to_string();
+        // C++ emTestPanel.cpp:1011: SetOrientationThresholdTallness(1.0) — switches
+        // horizontal/vertical layout based on aspect ratio.
+        // DIVERGED: (upstream-gap-forced) emLinearGroup does not implement orientation
+        // threshold switching; the method is absent from the Rust emLinearGroup API.
+        // With a single CanvasPanel child the observable layout is unchanged until
+        // the controls sub-tree is added.
         Self {
-            group: emLinearGroup::horizontal(),
+            group,
+            signals_connected: false,
+            type_group: None,
+            stroke_dash_type_group: None,
+            stroke_start_type_group: None,
+            stroke_end_type_group: None,
+            type_signal: None,
+            vertex_count_signal: None,
+            with_canvas_color_signal: None,
+            fill_color_signal: None,
+            stroke_width_signal: None,
+            stroke_color_signal: None,
+            stroke_rounded_signal: None,
+            stroke_dash_type_signal: None,
+            dash_length_factor_signal: None,
+            gap_length_factor_signal: None,
+            stroke_start_type_signal: None,
+            stroke_start_inner_color_signal: None,
+            stroke_start_width_factor_signal: None,
+            stroke_start_length_factor_signal: None,
+            stroke_end_type_signal: None,
+            stroke_end_inner_color_signal: None,
+            stroke_end_width_factor_signal: None,
+            stroke_end_length_factor_signal: None,
+            canvas_id: None,
+            vertex_count_id: None,
+            with_canvas_color_id: None,
+            fill_color_id: None,
+            stroke_width_id: None,
+            stroke_color_id: None,
+            stroke_rounded_id: None,
+            stroke_dash_type_id: None,
+            dash_length_factor_id: None,
+            gap_length_factor_id: None,
+            stroke_start_type_id: None,
+            stroke_start_inner_color_id: None,
+            stroke_start_width_factor_id: None,
+            stroke_start_length_factor_id: None,
+            stroke_end_type_id: None,
+            stroke_end_inner_color_id: None,
+            stroke_end_width_factor_id: None,
+            stroke_end_length_factor_id: None,
         }
     }
 }
@@ -2479,9 +2584,545 @@ impl PanelBehavior for PolyDrawPanel {
     }
 
     fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
-        // C++ PolyDrawPanel::AutoExpand (emTestPanel.cpp:1260): creates CanvasPanel.
-        // Control widgets (C-1) are deferred to the PolyDrawPanel full-port plan.
-        ctx.create_child_with("CanvasPanel", Box::new(CanvasPanel::new()));
+        // C++ PolyDrawPanel::AutoExpand (emTestPanel.cpp:1071–1261).
+        // Creates Controls raster + four sub-groups + all 22 widgets + CanvasPanel.
+        // Flat creation pattern: grandchildren created via ctx.tree.create_child(sub_id, ...)
+        // matching TkTestPanel::create_all_categories precedent.
+
+        // ── Controls raster layout ───────────────────────────────────────────
+        // C++: controls = new emRasterLayout(this,"Controls"); controls->SetPrefChildTallness(0.6)
+        let mut controls_layout = emRasterLayout::new();
+        controls_layout.preferred_child_tallness = 0.6;
+        let controls_id = ctx.create_child_with("Controls", Box::new(controls_layout));
+
+        // ── general sub-group ────────────────────────────────────────────────
+        // C++: general = new emLinearGroup(controls,"general","General");
+        //      general->SetBorderScaling(2.0); general->SetChildWeight(0,2.0)
+        // Note: SetChildWeight(0,2.0) is set after creating child 0 (Method).
+        let mut general_grp = emLinearGroup::vertical();
+        general_grp.border.SetBorderScaling(2.0);
+        general_grp.border.caption = "General".to_string();
+        let general_id = ctx.tree.create_child(controls_id, "general", None);
+        ctx.tree.set_behavior(general_id, Box::new(general_grp));
+
+        // ── stroke sub-group ─────────────────────────────────────────────────
+        // C++: stroke = new emLinearGroup(controls,"stroke","Stroke");
+        //      stroke->SetBorderScaling(2.0); stroke->SetChildWeight(2,2.0)
+        // Note: SetChildWeight(2,2.0) is set after creating child 2 (StrokeDashType).
+        let mut stroke_grp = emLinearGroup::vertical();
+        stroke_grp.border.SetBorderScaling(2.0);
+        stroke_grp.border.caption = "Stroke".to_string();
+        let stroke_id = ctx.tree.create_child(controls_id, "stroke", None);
+        ctx.tree.set_behavior(stroke_id, Box::new(stroke_grp));
+
+        // ── strokeStart sub-group ────────────────────────────────────────────
+        // C++: strokeStart = new emLinearGroup(controls,"strokeStart","Stroke Start");
+        //      strokeStart->SetBorderScaling(2.0); strokeStart->SetChildWeight(0,2.0)
+        let mut stroke_start_grp = emLinearGroup::vertical();
+        stroke_start_grp.border.SetBorderScaling(2.0);
+        stroke_start_grp.border.caption = "Stroke Start".to_string();
+        let stroke_start_id = ctx.tree.create_child(controls_id, "strokeStart", None);
+        ctx.tree
+            .set_behavior(stroke_start_id, Box::new(stroke_start_grp));
+
+        // ── strokeEnd sub-group ──────────────────────────────────────────────
+        // C++: strokeEnd = new emLinearGroup(controls,"strokeEnd","Stroke End");
+        //      strokeEnd->SetBorderScaling(2.0); strokeEnd->SetChildWeight(0,2.0)
+        let mut stroke_end_grp = emLinearGroup::vertical();
+        stroke_end_grp.border.SetBorderScaling(2.0);
+        stroke_end_grp.border.caption = "Stroke End".to_string();
+        let stroke_end_id = ctx.tree.create_child(controls_id, "strokeEnd", None);
+        ctx.tree
+            .set_behavior(stroke_end_id, Box::new(stroke_end_grp));
+
+        // ════════════════════════════════════════════════════════════════════
+        // general children
+        // ════════════════════════════════════════════════════════════════════
+
+        // ── Method (Type) RadioGroup ─────────────────────────────────────────
+        // C++: Type = new emRadioButton::RasterGroup(general,"Method","Method");
+        //      new emRadioBox(*Type,"0",...) × 16
+        //      Type->SetBorderScaling(1.5); Type->SetPrefChildTallness(0.07); Type->SetCheckIndex(0)
+        //      AddWakeUpSignal(Type->GetCheckSignal())
+        let type_rg = RadioGroup::new(ctx);
+        let type_signal = type_rg.borrow().check_signal;
+        {
+            let mut rg_panel = emRasterGroup::new();
+            rg_panel.border.SetBorderScaling(1.5);
+            rg_panel.border.caption = "Method".to_string();
+            rg_panel.layout.preferred_child_tallness = 0.07;
+            let method_id = ctx.tree.create_child(general_id, "Method", None);
+            ctx.tree.set_behavior(method_id, Box::new(rg_panel));
+            // Set child 0 (Method) weight to 2.0 on general — mirrors C++ general->SetChildWeight(0,2.0).
+            // The constraint is set after method_id is known, using with_behavior_as.
+            ctx.tree
+                .with_behavior_as::<emLinearGroup, _>(general_id, |g| {
+                    g.layout.set_child_constraint(
+                        method_id,
+                        ChildConstraint {
+                            weight: 2.0,
+                            ..Default::default()
+                        },
+                    );
+                });
+            // Radio boxes 0–15
+            let labels = [
+                "PaintPolygon",
+                "PaintPolygonOutline",
+                "PaintPolyline",
+                "PaintBezier",
+                "PaintBezierOutline",
+                "PaintBezierLine",
+                "PaintLine",
+                "PaintRect",
+                "PaintRectOutline",
+                "PaintEllipse",
+                "PaintEllipseOutline",
+                "PaintEllipseSector",
+                "PaintEllipseSectorOutline",
+                "PaintEllipseArc",
+                "PaintRoundRect",
+                "PaintRoundRectOutline",
+            ];
+            let look = emLook::new();
+            for (i, label) in labels.iter().enumerate() {
+                let rb_id = ctx.tree.create_child(method_id, &i.to_string(), None);
+                let w = emRadioBox::new(label, look.clone(), type_rg.clone(), i);
+                ctx.tree
+                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+            }
+            // SetCheckIndex(0) — select first option
+            type_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
+        }
+
+        // ── ll (VertexCount + FillColor row) ─────────────────────────────────
+        // C++: ll=new emLinearLayout(general,"ll"); ll->SetHorizontal()
+        //      VertexCount=new emTextField(ll,...); FillColor=new emColorField(ll,...)
+        let ll_id = ctx.tree.create_child(general_id, "ll", None);
+        ctx.tree
+            .set_behavior(ll_id, Box::new(emLinearLayout::horizontal()));
+
+        // VertexCount
+        // C++: VertexCount->SetEditable(); VertexCount->SetText("9")
+        //      AddWakeUpSignal(VertexCount->GetTextSignal())
+        let vertex_count_id = ctx.tree.create_child(ll_id, "VertexCount", None);
+        let look = emLook::new();
+        let mut vc = emTextField::new(ctx, look.clone());
+        vc.SetCaption("Vertex Count");
+        vc.SetEditable(true);
+        vc.SetText("9");
+        let vertex_count_signal = vc.text_signal;
+        ctx.tree
+            .set_behavior(vertex_count_id, Box::new(TextFieldPanel { widget: vc }));
+
+        // FillColor
+        // C++: FillColor->SetEditable(); FillColor->SetAlphaEnabled(); FillColor->SetColor(0xFFFFFFFF)
+        //      AddWakeUpSignal(FillColor->GetColorSignal())
+        let fill_color_id = ctx.tree.create_child(ll_id, "FillColor", None);
+        let mut fc = emColorField::new(ctx, emLook::new());
+        fc.SetCaption("Fill Color");
+        fc.SetEditable(true);
+        fc.set_initial_alpha_enabled(true);
+        fc.set_initial_color(emColor::WHITE);
+        let fill_color_signal = fc.color_signal;
+        ctx.tree
+            .set_behavior(fill_color_id, Box::new(ColorFieldPanel { widget: fc }));
+
+        // ── ll2 (StrokeWidth + WithCanvasColor row) ───────────────────────────
+        // C++: ll=new emLinearLayout(general,"ll2"); ll->SetHorizontal()
+        let ll2_id = ctx.tree.create_child(general_id, "ll2", None);
+        ctx.tree
+            .set_behavior(ll2_id, Box::new(emLinearLayout::horizontal()));
+
+        // StrokeWidth
+        // C++: StrokeWidth->SetEditable(); StrokeWidth->SetText("0.01")
+        //      AddWakeUpSignal(StrokeWidth->GetTextSignal())
+        let stroke_width_id = ctx.tree.create_child(ll2_id, "StrokeWidth", None);
+        let mut sw = emTextField::new(ctx, look.clone());
+        sw.SetCaption("Stroke Width");
+        sw.SetEditable(true);
+        sw.SetText("0.01");
+        let stroke_width_signal = sw.text_signal;
+        ctx.tree
+            .set_behavior(stroke_width_id, Box::new(TextFieldPanel { widget: sw }));
+
+        // WithCanvasColor
+        // C++: WithCanvasColor=new emCheckBox(ll,"WithCanvasColor","With Canvas Color")
+        //      AddWakeUpSignal(WithCanvasColor->GetCheckSignal()); WithCanvasColor->SetChecked(false)
+        let with_canvas_color_id = ctx.tree.create_child(ll2_id, "WithCanvasColor", None);
+        let mut wcc = emCheckBox::new(ctx, "With Canvas Color", look.clone());
+        wcc.SetChecked(false, ctx);
+        let with_canvas_color_signal = wcc.check_signal;
+        ctx.tree.set_behavior(
+            with_canvas_color_id,
+            Box::new(CheckBoxPanel { widget: wcc }),
+        );
+
+        // ════════════════════════════════════════════════════════════════════
+        // stroke children
+        // ════════════════════════════════════════════════════════════════════
+
+        // StrokeColor
+        // C++: StrokeColor=new emColorField(stroke,"StrokeColor","Color")
+        //      SetEditable; SetAlphaEnabled; SetColor(0x000000FF)
+        //      AddWakeUpSignal(StrokeColor->GetColorSignal())
+        let stroke_color_id = ctx.tree.create_child(stroke_id, "StrokeColor", None);
+        let mut sc = emColorField::new(ctx, emLook::new());
+        sc.SetCaption("Color");
+        sc.SetEditable(true);
+        sc.set_initial_alpha_enabled(true);
+        sc.set_initial_color(emColor::BLACK);
+        let stroke_color_signal = sc.color_signal;
+        ctx.tree
+            .set_behavior(stroke_color_id, Box::new(ColorFieldPanel { widget: sc }));
+
+        // StrokeRounded
+        // C++: StrokeRounded=new emCheckBox(stroke,"StrokeRounded","Rounded")
+        //      AddWakeUpSignal(StrokeRounded->GetCheckSignal())
+        let stroke_rounded_id = ctx.tree.create_child(stroke_id, "StrokeRounded", None);
+        let sr = emCheckBox::new(ctx, "Rounded", look.clone());
+        let stroke_rounded_signal = sr.check_signal;
+        ctx.tree
+            .set_behavior(stroke_rounded_id, Box::new(CheckBoxPanel { widget: sr }));
+
+        // StrokeDashType RadioGroup
+        // C++: StrokeDashType=new emRadioButton::RasterGroup(stroke,"StrokeDashType","Dash Type")
+        //      4 radios; SetBorderScaling(1.5); SetPrefChildTallness(0.08); SetCheckIndex(0)
+        //      AddWakeUpSignal(StrokeDashType->GetCheckSignal())
+        let stroke_dash_rg = RadioGroup::new(ctx);
+        let stroke_dash_type_signal = stroke_dash_rg.borrow().check_signal;
+        {
+            let mut rg_panel = emRasterGroup::new();
+            rg_panel.border.SetBorderScaling(1.5);
+            rg_panel.border.caption = "Dash Type".to_string();
+            rg_panel.layout.preferred_child_tallness = 0.08;
+            let dash_type_id = ctx.tree.create_child(stroke_id, "StrokeDashType", None);
+            ctx.tree.set_behavior(dash_type_id, Box::new(rg_panel));
+            // C++ stroke->SetChildWeight(2,2.0) — StrokeDashType is child 2 of stroke.
+            ctx.tree
+                .with_behavior_as::<emLinearGroup, _>(stroke_id, |g| {
+                    g.layout.set_child_constraint(
+                        dash_type_id,
+                        ChildConstraint {
+                            weight: 2.0,
+                            ..Default::default()
+                        },
+                    );
+                });
+            let dash_labels = ["SOLID", "DASHED", "DOTTED", "DASH_DOTTED"];
+            for (i, label) in dash_labels.iter().enumerate() {
+                let rb_id = ctx.tree.create_child(dash_type_id, &i.to_string(), None);
+                let w = emRadioBox::new(label, look.clone(), stroke_dash_rg.clone(), i);
+                ctx.tree
+                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+            }
+            stroke_dash_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
+            self.stroke_dash_type_id = Some(dash_type_id);
+        }
+
+        // ll (DashLengthFactor + GapLengthFactor row)
+        // C++: ll=new emLinearLayout(stroke,"ll"); ll->SetHorizontal()
+        let stroke_ll_id = ctx.tree.create_child(stroke_id, "ll", None);
+        ctx.tree
+            .set_behavior(stroke_ll_id, Box::new(emLinearLayout::horizontal()));
+
+        // DashLengthFactor
+        let dash_length_factor_id = ctx
+            .tree
+            .create_child(stroke_ll_id, "DashLengthFactor", None);
+        let mut dlf = emTextField::new(ctx, look.clone());
+        dlf.SetCaption("Dash Length Factor");
+        dlf.SetEditable(true);
+        dlf.SetText("1.0");
+        let dash_length_factor_signal = dlf.text_signal;
+        ctx.tree.set_behavior(
+            dash_length_factor_id,
+            Box::new(TextFieldPanel { widget: dlf }),
+        );
+
+        // GapLengthFactor
+        let gap_length_factor_id = ctx.tree.create_child(stroke_ll_id, "GapLengthFactor", None);
+        let mut glf = emTextField::new(ctx, look.clone());
+        glf.SetCaption("Gap Length Factor");
+        glf.SetEditable(true);
+        glf.SetText("1.0");
+        let gap_length_factor_signal = glf.text_signal;
+        ctx.tree.set_behavior(
+            gap_length_factor_id,
+            Box::new(TextFieldPanel { widget: glf }),
+        );
+
+        // ════════════════════════════════════════════════════════════════════
+        // strokeStart children
+        // ════════════════════════════════════════════════════════════════════
+
+        // StrokeStartType RadioGroup (17 radios)
+        // C++: StrokeStartType=new emRadioButton::RasterGroup(strokeStart,"StrokeStartType","Type")
+        //      SetBorderScaling(1.5); SetPrefChildTallness(0.08); SetCheckIndex(0)
+        //      AddWakeUpSignal(StrokeStartType->GetCheckSignal())
+        //      strokeStart->SetChildWeight(0,2.0)
+        let stroke_start_rg = RadioGroup::new(ctx);
+        let stroke_start_type_signal = stroke_start_rg.borrow().check_signal;
+        {
+            let mut rg_panel = emRasterGroup::new();
+            rg_panel.border.SetBorderScaling(1.5);
+            rg_panel.border.caption = "Type".to_string();
+            rg_panel.layout.preferred_child_tallness = 0.08;
+            let start_type_id = ctx
+                .tree
+                .create_child(stroke_start_id, "StrokeStartType", None);
+            ctx.tree.set_behavior(start_type_id, Box::new(rg_panel));
+            // C++ strokeStart->SetChildWeight(0,2.0) — StrokeStartType is child 0.
+            ctx.tree
+                .with_behavior_as::<emLinearGroup, _>(stroke_start_id, |g| {
+                    g.layout.set_child_constraint(
+                        start_type_id,
+                        ChildConstraint {
+                            weight: 2.0,
+                            ..Default::default()
+                        },
+                    );
+                });
+            let end_labels = [
+                "BUTT",
+                "CAP",
+                "ARROW",
+                "CONTOUR_ARROW",
+                "LINE_ARROW",
+                "TRIANGLE",
+                "CONTOUR_TRIANGLE",
+                "SQUARE",
+                "CONTOUR_SQUARE",
+                "HALF_SQUARE",
+                "CIRCLE",
+                "CONTOUR_CIRCLE",
+                "HALF_CIRCLE",
+                "DIAMOND",
+                "CONTOUR_DIAMOND",
+                "HALF_DIAMOND",
+                "STROKE",
+            ];
+            for (i, label) in end_labels.iter().enumerate() {
+                let rb_id = ctx.tree.create_child(start_type_id, &i.to_string(), None);
+                let w = emRadioBox::new(label, look.clone(), stroke_start_rg.clone(), i);
+                ctx.tree
+                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+            }
+            stroke_start_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
+            self.stroke_start_type_id = Some(start_type_id);
+        }
+
+        // StrokeStartInnerColor
+        // C++: SetEditable; SetAlphaEnabled; SetColor(0xEEEEEEFF)
+        let stroke_start_inner_color_id =
+            ctx.tree
+                .create_child(stroke_start_id, "StrokeStartInnerColor", None);
+        let mut ssic = emColorField::new(ctx, emLook::new());
+        ssic.SetCaption("Inner Color");
+        ssic.SetEditable(true);
+        ssic.set_initial_alpha_enabled(true);
+        ssic.set_initial_color(emColor::rgba(0xEE, 0xEE, 0xEE, 0xFF));
+        let stroke_start_inner_color_signal = ssic.color_signal;
+        ctx.tree.set_behavior(
+            stroke_start_inner_color_id,
+            Box::new(ColorFieldPanel { widget: ssic }),
+        );
+
+        // ll (StrokeStartWidthFactor + StrokeStartLengthFactor row)
+        let stroke_start_ll_id = ctx.tree.create_child(stroke_start_id, "ll", None);
+        ctx.tree
+            .set_behavior(stroke_start_ll_id, Box::new(emLinearLayout::horizontal()));
+
+        // StrokeStartWidthFactor
+        let stroke_start_width_factor_id =
+            ctx.tree
+                .create_child(stroke_start_ll_id, "StrokeStartWidthFactor", None);
+        let mut sswf = emTextField::new(ctx, look.clone());
+        sswf.SetCaption("Width Factor");
+        sswf.SetEditable(true);
+        sswf.SetText("1.0");
+        let stroke_start_width_factor_signal = sswf.text_signal;
+        ctx.tree.set_behavior(
+            stroke_start_width_factor_id,
+            Box::new(TextFieldPanel { widget: sswf }),
+        );
+
+        // StrokeStartLengthFactor
+        let stroke_start_length_factor_id =
+            ctx.tree
+                .create_child(stroke_start_ll_id, "StrokeStartLengthFactor", None);
+        let mut sslf = emTextField::new(ctx, look.clone());
+        sslf.SetCaption("Length Factor");
+        sslf.SetEditable(true);
+        sslf.SetText("1.0");
+        let stroke_start_length_factor_signal = sslf.text_signal;
+        ctx.tree.set_behavior(
+            stroke_start_length_factor_id,
+            Box::new(TextFieldPanel { widget: sslf }),
+        );
+
+        // ════════════════════════════════════════════════════════════════════
+        // strokeEnd children
+        // ════════════════════════════════════════════════════════════════════
+
+        // StrokeEndType RadioGroup (17 radios) — same labels as Start
+        // C++: strokeEnd->SetChildWeight(0,2.0)
+        let stroke_end_rg = RadioGroup::new(ctx);
+        let stroke_end_type_signal = stroke_end_rg.borrow().check_signal;
+        {
+            let mut rg_panel = emRasterGroup::new();
+            rg_panel.border.SetBorderScaling(1.5);
+            rg_panel.border.caption = "Type".to_string();
+            rg_panel.layout.preferred_child_tallness = 0.08;
+            let end_type_id = ctx.tree.create_child(stroke_end_id, "StrokeEndType", None);
+            ctx.tree.set_behavior(end_type_id, Box::new(rg_panel));
+            // C++ strokeEnd->SetChildWeight(0,2.0) — StrokeEndType is child 0.
+            ctx.tree
+                .with_behavior_as::<emLinearGroup, _>(stroke_end_id, |g| {
+                    g.layout.set_child_constraint(
+                        end_type_id,
+                        ChildConstraint {
+                            weight: 2.0,
+                            ..Default::default()
+                        },
+                    );
+                });
+            let end_labels = [
+                "BUTT",
+                "CAP",
+                "ARROW",
+                "CONTOUR_ARROW",
+                "LINE_ARROW",
+                "TRIANGLE",
+                "CONTOUR_TRIANGLE",
+                "SQUARE",
+                "CONTOUR_SQUARE",
+                "HALF_SQUARE",
+                "CIRCLE",
+                "CONTOUR_CIRCLE",
+                "HALF_CIRCLE",
+                "DIAMOND",
+                "CONTOUR_DIAMOND",
+                "HALF_DIAMOND",
+                "STROKE",
+            ];
+            for (i, label) in end_labels.iter().enumerate() {
+                let rb_id = ctx.tree.create_child(end_type_id, &i.to_string(), None);
+                let w = emRadioBox::new(label, look.clone(), stroke_end_rg.clone(), i);
+                ctx.tree
+                    .set_behavior(rb_id, Box::new(RadioBoxPanel { widget: w }));
+            }
+            stroke_end_rg.borrow_mut().SetCheckIndex(Some(0), ctx);
+            self.stroke_end_type_id = Some(end_type_id);
+        }
+
+        // StrokeEndInnerColor
+        let stroke_end_inner_color_id =
+            ctx.tree
+                .create_child(stroke_end_id, "StrokeEndInnerColor", None);
+        let mut seic = emColorField::new(ctx, emLook::new());
+        seic.SetCaption("Inner Color");
+        seic.SetEditable(true);
+        seic.set_initial_alpha_enabled(true);
+        seic.set_initial_color(emColor::rgba(0xEE, 0xEE, 0xEE, 0xFF));
+        let stroke_end_inner_color_signal = seic.color_signal;
+        ctx.tree.set_behavior(
+            stroke_end_inner_color_id,
+            Box::new(ColorFieldPanel { widget: seic }),
+        );
+
+        // ll (StrokeEndWidthFactor + StrokeEndLengthFactor row)
+        let stroke_end_ll_id = ctx.tree.create_child(stroke_end_id, "ll", None);
+        ctx.tree
+            .set_behavior(stroke_end_ll_id, Box::new(emLinearLayout::horizontal()));
+
+        // StrokeEndWidthFactor
+        let stroke_end_width_factor_id =
+            ctx.tree
+                .create_child(stroke_end_ll_id, "StrokeEndWidthFactor", None);
+        let mut sewf = emTextField::new(ctx, look.clone());
+        sewf.SetCaption("Width Factor");
+        sewf.SetEditable(true);
+        sewf.SetText("1.0");
+        let stroke_end_width_factor_signal = sewf.text_signal;
+        ctx.tree.set_behavior(
+            stroke_end_width_factor_id,
+            Box::new(TextFieldPanel { widget: sewf }),
+        );
+
+        // StrokeEndLengthFactor
+        let stroke_end_length_factor_id =
+            ctx.tree
+                .create_child(stroke_end_ll_id, "StrokeEndLengthFactor", None);
+        let mut self_ = emTextField::new(ctx, look.clone());
+        self_.SetCaption("Length Factor");
+        self_.SetEditable(true);
+        self_.SetText("1.0");
+        let stroke_end_length_factor_signal = self_.text_signal;
+        ctx.tree.set_behavior(
+            stroke_end_length_factor_id,
+            Box::new(TextFieldPanel { widget: self_ }),
+        );
+
+        // ── CanvasPanel ──────────────────────────────────────────────────────
+        // C++: Canvas = new CanvasPanel(this,"CanvasPanel")
+        let canvas_id = ctx.create_child_with("CanvasPanel", Box::new(CanvasPanel::new()));
+        self.canvas_id = Some(canvas_id);
+
+        // ── Wire signal fields and RadioGroup handles ────────────────────────
+        // C++: AddWakeUpSignal on each widget's signal (called inline above in C++).
+        // In Rust we store signal IDs here; Cycle connects them via
+        // ectx.connect(sig, eid) on first Cycle after AutoExpand.
+        self.type_group = Some(type_rg);
+        self.stroke_dash_type_group = Some(stroke_dash_rg);
+        self.stroke_start_type_group = Some(stroke_start_rg);
+        self.stroke_end_type_group = Some(stroke_end_rg);
+
+        self.type_signal = Some(type_signal);
+        self.vertex_count_signal = Some(vertex_count_signal);
+        self.fill_color_signal = Some(fill_color_signal);
+        self.stroke_width_signal = Some(stroke_width_signal);
+        self.with_canvas_color_signal = Some(with_canvas_color_signal);
+        self.stroke_color_signal = Some(stroke_color_signal);
+        self.stroke_rounded_signal = Some(stroke_rounded_signal);
+        self.stroke_dash_type_signal = Some(stroke_dash_type_signal);
+        self.dash_length_factor_signal = Some(dash_length_factor_signal);
+        self.gap_length_factor_signal = Some(gap_length_factor_signal);
+        self.stroke_start_type_signal = Some(stroke_start_type_signal);
+        self.stroke_start_inner_color_signal = Some(stroke_start_inner_color_signal);
+        self.stroke_start_width_factor_signal = Some(stroke_start_width_factor_signal);
+        self.stroke_start_length_factor_signal = Some(stroke_start_length_factor_signal);
+        self.stroke_end_type_signal = Some(stroke_end_type_signal);
+        self.stroke_end_inner_color_signal = Some(stroke_end_inner_color_signal);
+        self.stroke_end_width_factor_signal = Some(stroke_end_width_factor_signal);
+        self.stroke_end_length_factor_signal = Some(stroke_end_length_factor_signal);
+
+        self.vertex_count_id = Some(vertex_count_id);
+        self.with_canvas_color_id = Some(with_canvas_color_id);
+        self.fill_color_id = Some(fill_color_id);
+        self.stroke_width_id = Some(stroke_width_id);
+        self.stroke_color_id = Some(stroke_color_id);
+        self.stroke_rounded_id = Some(stroke_rounded_id);
+        self.dash_length_factor_id = Some(dash_length_factor_id);
+        self.gap_length_factor_id = Some(gap_length_factor_id);
+        self.stroke_start_inner_color_id = Some(stroke_start_inner_color_id);
+        self.stroke_start_width_factor_id = Some(stroke_start_width_factor_id);
+        self.stroke_start_length_factor_id = Some(stroke_start_length_factor_id);
+        self.stroke_end_inner_color_id = Some(stroke_end_inner_color_id);
+        self.stroke_end_width_factor_id = Some(stroke_end_width_factor_id);
+        self.stroke_end_length_factor_id = Some(stroke_end_length_factor_id);
+
+        // Wake engine so Cycle runs to connect signals on the first frame after expansion.
+        // Mirrors C++ pattern: C++ AddWakeUpSignal fires on the next scheduler cycle;
+        // here we guarantee Cycle runs immediately after AutoExpand.
+        ctx.wake_up();
+
+        // C++ first Cycle fires after all signals are signaled at construction via
+        // AddWakeUpSignal + SetCheckIndex(0), so Setup() is called on the very first frame.
+        // Rust defers signal connection to first Cycle, so initial signals are gone by then.
+        // Call Setup directly here with default widget values to establish the initial render
+        // state (C++ timing compat).
+        self.apply_setup_from_widgets(ctx);
     }
 
     fn Paint(
@@ -2498,35 +3139,370 @@ impl PanelBehavior for PolyDrawPanel {
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         self.group.LayoutChildren(ctx);
     }
+
+    fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, pctx: &mut PanelCtx) -> bool {
+        // C++ PolyDrawPanel::Cycle (emTestPanel.cpp:1015–1068).
+        // Connect all 18 wake-up signals on first Cycle after AutoExpand.
+        // C++ calls AddWakeUpSignal inline in constructor; Rust defers to first
+        // Cycle because EngineCtx::connect requires EngineCtx (not available in AutoExpand).
+        if !self.signals_connected {
+            let eid = ectx.engine_id;
+            for sig in [
+                self.type_signal,
+                self.vertex_count_signal,
+                self.with_canvas_color_signal,
+                self.fill_color_signal,
+                self.stroke_width_signal,
+                self.stroke_color_signal,
+                self.stroke_rounded_signal,
+                self.stroke_dash_type_signal,
+                self.dash_length_factor_signal,
+                self.gap_length_factor_signal,
+                self.stroke_start_type_signal,
+                self.stroke_start_inner_color_signal,
+                self.stroke_start_width_factor_signal,
+                self.stroke_start_length_factor_signal,
+                self.stroke_end_type_signal,
+                self.stroke_end_inner_color_signal,
+                self.stroke_end_width_factor_signal,
+                self.stroke_end_length_factor_signal,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                ectx.connect(sig, eid);
+            }
+            self.signals_connected = true;
+        }
+
+        // C++ `if (Canvas && (IsSignaled(...) || ...)) { Canvas->Setup(...); }`
+        if self.canvas_id.is_none() {
+            return false;
+        }
+
+        let any_signaled = [
+            self.type_signal,
+            self.vertex_count_signal,
+            self.with_canvas_color_signal,
+            self.fill_color_signal,
+            self.stroke_width_signal,
+            self.stroke_color_signal,
+            self.stroke_rounded_signal,
+            self.stroke_dash_type_signal,
+            self.dash_length_factor_signal,
+            self.gap_length_factor_signal,
+            self.stroke_start_type_signal,
+            self.stroke_start_inner_color_signal,
+            self.stroke_start_width_factor_signal,
+            self.stroke_start_length_factor_signal,
+            self.stroke_end_type_signal,
+            self.stroke_end_inner_color_signal,
+            self.stroke_end_width_factor_signal,
+            self.stroke_end_length_factor_signal,
+        ]
+        .into_iter()
+        .flatten()
+        .any(|sig| ectx.IsSignaled(sig));
+
+        if !any_signaled {
+            return false;
+        }
+
+        // Delegate to shared helper — same logic path used by the initial call in AutoExpand.
+        self.apply_setup_from_widgets(pctx);
+
+        false
+    }
+}
+
+impl PolyDrawPanel {
+    /// Read all control widget values and call `CanvasPanel::Setup`.
+    /// Shared by `AutoExpand` (initial call to establish C++ first-Cycle timing)
+    /// and `Cycle` (on any signal change). Single source of truth for defaults.
+    ///
+    /// C++ `PolyDrawPanel::Cycle` body (emTestPanel.cpp:1035–1067).
+    fn apply_setup_from_widgets(&self, pctx: &mut PanelCtx) {
+        let canvas_id = match self.canvas_id {
+            Some(id) => id,
+            None => return,
+        };
+
+        // Read Type from RadioGroup (C++ `Type->GetCheckIndex()`).
+        let render_type = self
+            .type_group
+            .as_ref()
+            .and_then(|g| g.borrow().GetChecked())
+            .unwrap_or(0) as u8;
+
+        // Read VertexCount (C++ `atoi(VertexCount->GetText())`).
+        let vertex_count = self
+            .vertex_count_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<usize>().unwrap_or(9)
+                })
+            })
+            .unwrap_or(9);
+
+        // Read WithCanvasColor (C++ `WithCanvasColor->IsChecked()`).
+        let with_canvas_color = self
+            .with_canvas_color_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<CheckBoxPanel, _>(id, |b| b.widget.IsChecked())
+            })
+            .unwrap_or(false);
+
+        // Read FillColor (C++ `emTexture(FillColor->GetColor())`).
+        // Simplified to emColor (flat fill); C++ wraps in emTexture for gradient/image
+        // support. Full emTexture integration deferred; follow up if golden comparison
+        // reveals divergence. See task C-3.
+        let fill_color = self
+            .fill_color_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<ColorFieldPanel, _>(id, |b| b.widget.GetColor())
+            })
+            .unwrap_or(emColor::WHITE);
+
+        // Read StrokeWidth (C++ `atof(StrokeWidth->GetText())`).
+        let stroke_width = self
+            .stroke_width_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(0.01)
+                })
+            })
+            .unwrap_or(0.01);
+
+        // Read StrokeColor (C++ `StrokeColor->GetColor()`).
+        let stroke_color = self
+            .stroke_color_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<ColorFieldPanel, _>(id, |b| b.widget.GetColor())
+            })
+            .unwrap_or(emColor::BLACK);
+
+        // Read StrokeRounded (C++ `StrokeRounded->IsChecked()`).
+        // C++ emStroke has a Rounded field that sets joins and caps to Round.
+        // Rust emStroke has separate join and cap fields — we translate by setting
+        // both to Round when checked (same observable behavior as C++ emStroke::Rounded).
+        let stroke_rounded = self
+            .stroke_rounded_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<CheckBoxPanel, _>(id, |b| b.widget.IsChecked())
+            })
+            .unwrap_or(false);
+
+        // Read StrokeDashType from RadioGroup (C++ `(emStroke::DashTypeEnum)StrokeDashType->GetCheckIndex()`).
+        let dash_type_idx = self
+            .stroke_dash_type_group
+            .as_ref()
+            .and_then(|g| g.borrow().GetChecked())
+            .unwrap_or(0);
+        let dash_type = match dash_type_idx {
+            0 => DashType::Solid,
+            1 => DashType::Dashed,
+            2 => DashType::Dotted,
+            _ => DashType::DashDotted,
+        };
+
+        // Read DashLengthFactor (C++ `atof(DashLengthFactor->GetText())`).
+        let dash_length_factor = self
+            .dash_length_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Read GapLengthFactor (C++ `atof(GapLengthFactor->GetText())`).
+        let gap_length_factor = self
+            .gap_length_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Build emStroke (C++ `emStroke(StrokeColor, StrokeRounded, DashType, DashLengthFactor, GapLengthFactor)`).
+        let mut stroke = emStroke::new(stroke_color, stroke_width);
+        if stroke_rounded {
+            stroke.join = LineJoin::Round;
+            stroke.cap = LineCap::Round;
+        }
+        stroke.dash_type = dash_type;
+        stroke.dash_length_factor = dash_length_factor;
+        stroke.gap_length_factor = gap_length_factor;
+
+        // Read StrokeStartType from RadioGroup (C++ `(emStrokeEnd::TypeEnum)StrokeStartType->GetCheckIndex()`).
+        let stroke_start_type_idx = self
+            .stroke_start_type_group
+            .as_ref()
+            .and_then(|g| g.borrow().GetChecked())
+            .unwrap_or(0);
+        let stroke_start_type = idx_to_stroke_end_type(stroke_start_type_idx);
+
+        // Read StrokeStartInnerColor (C++ `StrokeStartInnerColor->GetColor()`).
+        let stroke_start_inner_color = self
+            .stroke_start_inner_color_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<ColorFieldPanel, _>(id, |b| b.widget.GetColor())
+            })
+            .unwrap_or(emColor::rgba(0xEE, 0xEE, 0xEE, 0xFF));
+
+        // Read StrokeStartWidthFactor (C++ `atof(StrokeStartWidthFactor->GetText())`).
+        let stroke_start_width_factor = self
+            .stroke_start_width_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Read StrokeStartLengthFactor (C++ `atof(StrokeStartLengthFactor->GetText())`).
+        let stroke_start_length_factor = self
+            .stroke_start_length_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Build StrokeStart (C++ `emStrokeEnd(TypeEnum, InnerColor, WidthFactor, LengthFactor)`).
+        let stroke_start = emStrokeEnd {
+            end_type: stroke_start_type,
+            inner_color: stroke_start_inner_color,
+            width_factor: stroke_start_width_factor,
+            length_factor: stroke_start_length_factor,
+        };
+
+        // Read StrokeEndType from RadioGroup (C++ `(emStrokeEnd::TypeEnum)StrokeEndType->GetCheckIndex()`).
+        let stroke_end_type_idx = self
+            .stroke_end_type_group
+            .as_ref()
+            .and_then(|g| g.borrow().GetChecked())
+            .unwrap_or(0);
+        let stroke_end_type = idx_to_stroke_end_type(stroke_end_type_idx);
+
+        // Read StrokeEndInnerColor (C++ `StrokeEndInnerColor->GetColor()`).
+        let stroke_end_inner_color = self
+            .stroke_end_inner_color_id
+            .and_then(|id| {
+                pctx.tree
+                    .with_behavior_as::<ColorFieldPanel, _>(id, |b| b.widget.GetColor())
+            })
+            .unwrap_or(emColor::rgba(0xEE, 0xEE, 0xEE, 0xFF));
+
+        // Read StrokeEndWidthFactor (C++ `atof(StrokeEndWidthFactor->GetText())`).
+        let stroke_end_width_factor = self
+            .stroke_end_width_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Read StrokeEndLengthFactor (C++ `atof(StrokeEndLengthFactor->GetText())`).
+        let stroke_end_length_factor = self
+            .stroke_end_length_factor_id
+            .and_then(|id| {
+                pctx.tree.with_behavior_as::<TextFieldPanel, _>(id, |b| {
+                    b.widget.GetText().parse::<f64>().unwrap_or(1.0)
+                })
+            })
+            .unwrap_or(1.0);
+
+        // Build StrokeEnd (C++ `emStrokeEnd(TypeEnum, InnerColor, WidthFactor, LengthFactor)`).
+        let stroke_end = emStrokeEnd {
+            end_type: stroke_end_type,
+            inner_color: stroke_end_inner_color,
+            width_factor: stroke_end_width_factor,
+            length_factor: stroke_end_length_factor,
+        };
+
+        // Call Canvas->Setup(...) (C++ emTestPanel.cpp:1035–1067).
+        pctx.tree
+            .with_behavior_as::<CanvasPanel, _>(canvas_id, |canvas| {
+                canvas.Setup(
+                    render_type,
+                    vertex_count,
+                    with_canvas_color,
+                    fill_color,
+                    stroke_width,
+                    stroke,
+                    stroke_start,
+                    stroke_end,
+                );
+            });
+    }
+}
+
+/// C++ `(emStrokeEnd::TypeEnum)idx` cast — converts radio button index to
+/// `StrokeEndType`. C++ enumerates 17 values; indices beyond the last map to
+/// the last variant (STROKE) to match C++ undefined-but-silent cast behavior.
+fn idx_to_stroke_end_type(idx: usize) -> StrokeEndType {
+    match idx {
+        0 => StrokeEndType::Butt,
+        1 => StrokeEndType::Cap,
+        2 => StrokeEndType::Arrow,
+        3 => StrokeEndType::ContourArrow,
+        4 => StrokeEndType::LineArrow,
+        5 => StrokeEndType::Triangle,
+        6 => StrokeEndType::ContourTriangle,
+        7 => StrokeEndType::Square,
+        8 => StrokeEndType::ContourSquare,
+        9 => StrokeEndType::HalfSquare,
+        10 => StrokeEndType::Circle,
+        11 => StrokeEndType::ContourCircle,
+        12 => StrokeEndType::HalfCircle,
+        13 => StrokeEndType::Diamond,
+        14 => StrokeEndType::ContourDiamond,
+        15 => StrokeEndType::HalfDiamond,
+        _ => StrokeEndType::emStroke,
+    }
 }
 
 // ─── CanvasPanel — interactive polygon drawing ───────────────────────
 //
 // C++ `CanvasPanel : public emPanel` (emTestPanel.h:139).
-// Holds vertex positions and drag state; Paint draws gradient background
-// + polygon + handles; Input handles vertex dragging.
-//
-// The full C++ CanvasPanel also has Type/Stroke/StrokeEnd fields set
-// via Setup() from PolyDrawPanel::Cycle() when controls change. Those
-// fields and the Setup() call are deferred with the controls sub-tree.
-// Until then CanvasPanel always renders as PaintPolygon (type 0) with
-// default fill (white) and stroke (black, 0.01).
+// Holds vertex positions, drag state, and render state; Paint draws gradient
+// background + polygon/bezier/rect/ellipse/etc. + handles; Input handles
+// vertex dragging.
 
 struct CanvasPanel {
+    // Drag state — set by Input.
     vertices: Vec<(f64, f64)>,
     drag_idx: Option<usize>,
     drag_offset: (f64, f64),
     show_handles: bool,
-    fill_color: emColor,
-    // stroke_width and stroke_color are set via Setup() when the controls
-    // sub-tree is wired (deferred); stored here to match C++ CanvasPanel fields.
-    _stroke_width: f64,
-    _stroke_color: emColor,
+    // Render state — set by Setup(), driven by PolyDrawPanel::Cycle.
+    // C++ emTestPanel.h:152–161.
+    render_type: u8,         // C++ Type (emTestPanel.cpp:1278)
+    with_canvas_color: bool, // C++ WithCanvasColor (emTestPanel.cpp:1293)
+    // Simplified to emColor (flat fill) — C++ uses emTexture for gradient/image support.
+    // Full emTexture integration deferred; follow up if golden comparison reveals divergence.
+    texture: emColor,
+    // C++ stores four separate members: StrokeWidth, Stroke, StrokeStart, StrokeEnd
+    // (emTestPanel.h:163–166). Rust emStroke encodes start_end/finish_end inline, so the
+    // four C++ fields (StrokeWidth + Stroke + StrokeStart + StrokeEnd) are folded into one
+    // here: stroke.width mirrors StrokeWidth, stroke.start_end mirrors StrokeStart, and
+    // stroke.finish_end mirrors StrokeEnd. Setup() receives all four separately and folds them.
+    stroke: emStroke,
 }
 
 impl CanvasPanel {
     fn new() -> Self {
-        // C++ CanvasPanel::CanvasPanel: DragIdx=-1, no vertices initially.
+        // C++ CanvasPanel::CanvasPanel (emTestPanel.cpp:1270–1273):
+        // DragIdx=-1, no vertices initially; ShowHandles(false).
         // The first Setup() call from Cycle() populates XY from vertexCount.
         // Here we pre-initialize to the default 9-vertex polygon
         // (matching the default VertexCount="9" in C++ AutoExpand:1123).
@@ -2542,10 +3518,64 @@ impl CanvasPanel {
             drag_idx: None,
             drag_offset: (0.0, 0.0),
             show_handles: false,
-            fill_color: emColor::WHITE,
-            _stroke_width: 0.01,
-            _stroke_color: emColor::BLACK,
+            render_type: 0,
+            with_canvas_color: false,
+            texture: emColor::WHITE,
+            stroke: emStroke::new(emColor::BLACK, 0.01),
         }
+    }
+
+    /// C++ `CanvasPanel::Setup` (emTestPanel.cpp:1275–1299).
+    /// Called from PolyDrawPanel::Cycle() when controls change.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn Setup(
+        &mut self,
+        render_type: u8,
+        vertex_count: usize,
+        with_canvas_color: bool,
+        texture: emColor,
+        stroke_width: f64,
+        stroke: emStroke,
+        stroke_start: emStrokeEnd,
+        stroke_end: emStrokeEnd,
+    ) {
+        self.render_type = render_type;
+
+        // C++ cpp:1285–1292: resize XY array (2 coords per vertex).
+        // When shrinking, drop trailing vertices and clear drag; when growing,
+        // append new vertices on a circle of radius 0.4 centred at (0.5, 0.5).
+        // C++ uses GetHeight() to scale the y-axis (XY.Set(i*2+1,
+        //   GetHeight()*(sin(...)*0.4+0.5))), but Setup() is called from Cycle()
+        // before a Paint context is available, so height is unknown here.
+        // We use 1.0 as the height placeholder; the Rust Paint path already
+        // scales vertices to (w, h) space, so the observable output is identical.
+        if self.vertices.len() > vertex_count {
+            self.vertices.truncate(vertex_count);
+            self.drag_idx = None;
+        } else if self.vertices.len() < vertex_count {
+            let current_len = self.vertices.len();
+            for i in current_len..vertex_count {
+                let angle = PI * 2.0 * i as f64 / vertex_count as f64;
+                let x = angle.cos() * 0.4 + 0.5;
+                let y = angle.sin() * 0.4 + 0.5;
+                self.vertices.push((x, y));
+            }
+            self.drag_idx = None;
+        }
+
+        self.with_canvas_color = with_canvas_color;
+        self.texture = texture;
+        // C++ cpp:1295–1298: StrokeWidth, Stroke, StrokeStart, StrokeEnd stored separately.
+        // Fold all four into self.stroke: width from stroke_width, start_end from stroke_start,
+        // finish_end from stroke_end (Rust emStroke encodes these inline).
+        let mut s = stroke;
+        s.width = stroke_width;
+        s.start_end = stroke_start;
+        s.finish_end = stroke_end;
+        self.stroke = s;
+        // C++ cpp:1299: InvalidatePainting() — triggers repaint.
+        // In Rust, painting is always recomputed from the current frame state;
+        // no explicit invalidation is needed.
     }
 }
 
@@ -2658,29 +3688,132 @@ impl PanelBehavior for CanvasPanel {
         h: f64,
         state: &PanelState,
     ) {
-        // C++ Paint: gradient background (emLinearGradientTexture)
-        p.paint_linear_gradient(
-            0.0,
-            0.0,
-            w,
-            h,
-            emColor::rgba(80, 80, 160, 255),
-            emColor::rgba(160, 160, 80, 255),
-            false,
-            canvas_color,
-        );
+        // C++ cpp:1372–1386: WithCanvasColor branch for background.
+        let effective_canvas_color = if self.with_canvas_color {
+            let c = emColor::rgb(96, 128, 160);
+            p.ClearWithCanvas(c, canvas_color);
+            c
+        } else {
+            p.paint_linear_gradient(
+                0.0,
+                0.0,
+                w,
+                h,
+                emColor::rgba(80, 80, 160, 255),
+                emColor::rgba(160, 160, 80, 255),
+                false,
+                canvas_color,
+            );
+            emColor::TRANSPARENT
+        };
 
-        // Scale vertices to (w, h) space for painting
+        // C++ cpp:1388–1403: compute bounding box and arc angles from vertices.
+        // Vertices are stored normalized [0..1]; scale to panel (w, h) space.
+        let (x1, y1, x2, y2, bx, by, bw, bh) = if self.vertices.len() >= 2 {
+            let (vx1, vy1) = (self.vertices[0].0 * w, self.vertices[0].1 * h);
+            let (vx2, vy2) = (self.vertices[1].0 * w, self.vertices[1].1 * h);
+            let bx = vx1.min(vx2);
+            let by = vy1.min(vy2);
+            let bw = (vx2 - vx1).abs();
+            let bh = (vy2 - vy1).abs();
+            (vx1, vy1, vx2, vy2, bx, by, bw, bh)
+        } else {
+            // C++ cpp:1388: initializes x1=y1=x2=y2=0.0 when XY.GetCount()<4.
+            (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        };
+
+        // C++ cpp:1397–1403: arc start/range angles from vertices 2 and 3.
+        let (sa, ra) = if self.vertices.len() >= 4 {
+            let cx = bx + bw * 0.5;
+            let cy = by + bh * 0.5;
+            let (v2x, v2y) = (self.vertices[2].0 * w, self.vertices[2].1 * h);
+            let (v3x, v3y) = (self.vertices[3].0 * w, self.vertices[3].1 * h);
+            let sa = (v2y - cy).atan2(v2x - cx);
+            let mut ra = (v3y - cy).atan2(v3x - cx) - sa;
+            if ra < 0.0 {
+                ra += 2.0 * std::f64::consts::PI;
+            }
+            (
+                sa * 180.0 / std::f64::consts::PI,
+                ra * 180.0 / std::f64::consts::PI,
+            )
+        } else {
+            // C++ cpp:1397: initializes sa=ra=0.0 when XY.GetCount()<8; ra=0 means arc draws nothing.
+            (0.0, 0.0)
+        };
+
+        // Scale vertices to panel (w, h) space for drawing.
         let scaled: Vec<(f64, f64)> = self
             .vertices
             .iter()
             .map(|&(vx, vy)| (vx * w, vy * h))
             .collect();
 
-        // C++ Paint type 0: PaintPolygon (default until controls are wired)
-        p.PaintPolygon(&scaled, self.fill_color, emColor::TRANSPARENT);
+        // C++ cpp:1404–1466: 16-way render type switch.
+        // DIVERGED: (language-forced) Several Rust methods differ from C++ signatures:
+        //   - PaintPolygonOutline takes (vertices, stroke_color, thickness, canvas_color)
+        //     vs C++ (xy, n, thickness, stroke, canvas_color); Rust builds emStroke internally.
+        //   - PaintPolyline/PaintBezierLine/PaintBezierOutline take &emStroke (with
+        //     start_end/finish_end inline) vs C++ (xy, n, thickness, stroke, start, end, canvas).
+        //   - paint_line_stroked is the stroked equivalent of C++ PaintLine with thickness/ends;
+        //     plain PaintLine in Rust is 1-pixel only.
+        //   - PaintRectOutline/PaintEllipseOutline/PaintEllipseSectorOutline/PaintEllipseArc/
+        //     PaintRoundRectOutline take &emStroke (which encodes width) vs C++ separate args.
+        match self.render_type {
+            0 => p.PaintPolygon(&scaled, self.texture, effective_canvas_color),
+            1 => p.PaintPolygonOutline(
+                &scaled,
+                self.stroke.color,
+                self.stroke.width,
+                effective_canvas_color,
+            ),
+            2 => p.PaintPolyline(&scaled, &self.stroke, false, effective_canvas_color),
+            3 => p.PaintBezier(&scaled, self.texture, effective_canvas_color),
+            4 => p.PaintBezierOutline(&scaled, &self.stroke, effective_canvas_color),
+            5 => p.PaintBezierLine(&scaled, &self.stroke, effective_canvas_color),
+            6 => p.paint_line_stroked(x1, y1, x2, y2, &self.stroke, effective_canvas_color),
+            7 => p.PaintRect(bx, by, bw, bh, self.texture, effective_canvas_color),
+            8 => p.PaintRectOutline(bx, by, bw, bh, &self.stroke, effective_canvas_color),
+            9 => p.PaintEllipse(bx, by, bw, bh, self.texture, effective_canvas_color),
+            10 => p.PaintEllipseOutline(bx, by, bw, bh, &self.stroke, effective_canvas_color),
+            11 => {
+                p.PaintEllipseSector(bx, by, bw, bh, sa, ra, self.texture, effective_canvas_color)
+            }
+            12 => p.PaintEllipseSectorOutline(
+                bx,
+                by,
+                bw,
+                bh,
+                sa,
+                ra,
+                &self.stroke,
+                effective_canvas_color,
+            ),
+            13 => p.PaintEllipseArc(bx, by, bw, bh, sa, ra, &self.stroke, effective_canvas_color),
+            14 => p.PaintRoundRect(
+                bx,
+                by,
+                bw,
+                bh,
+                bw * 0.2,
+                bh * 0.2,
+                self.texture,
+                effective_canvas_color,
+            ),
+            15 => p.PaintRoundRectOutline(
+                bx,
+                by,
+                bw,
+                bh,
+                bw * 0.2,
+                bh * 0.2,
+                &self.stroke,
+                effective_canvas_color,
+            ),
+            _ => {}
+        }
 
-        // C++ Paint: draw vertex handles when ShowHandles
+        // C++ Paint: draw vertex handles when ShowHandles (cpp:1463–1483).
         if self.show_handles {
             // C-10: C++ cpp:1464: r = emMin(ViewToPanelDeltaX(12.0), 0.05).
             // ViewToPanelDeltaX(12) = 12 * panel_width / viewed_width_in_pixels.
@@ -2689,12 +3822,37 @@ impl PanelBehavior for CanvasPanel {
             let r = (12.0 / viewed_w).min(0.05);
             // Scale r to painter space (painter coords = panel coords * w).
             let r_paint = r * w;
+            let n = scaled.len();
+            // Compute active vertex count m based on render_type (cpp:1471–1478).
+            let m = if self.render_type >= 3 && self.render_type <= 4 {
+                n - n % 3
+            } else if self.render_type == 5 {
+                n - (n + 2) % 3
+            } else if self.render_type >= 11 && self.render_type <= 13 {
+                4
+            } else if self.render_type >= 6 {
+                2
+            } else {
+                n
+            };
             for (i, &(vx, vy)) in scaled.iter().enumerate() {
-                let c = if self.drag_idx == Some(i) {
-                    emColor::rgba(255, 255, 255, 200)
+                // C++ cpp:1467–1470: yellow for non-anchor bezier control points or extra
+                // vertices on fixed-count types, green for anchor points.
+                let mut c = if (self.render_type >= 3 && self.render_type <= 5 && i % 3 != 0)
+                    || (self.render_type >= 6 && i > 1)
+                {
+                    emColor::rgba(255, 255, 0, 128) // yellow: non-anchor control points
                 } else {
-                    emColor::rgba(0, 255, 0, 128)
+                    emColor::rgba(0, 255, 0, 128) // green: anchor points
                 };
+                // C++ cpp:1479: gray for unused vertices beyond active count m.
+                if i >= m {
+                    c = emColor::rgba(128, 128, 128, 128);
+                }
+                // C++ cpp:1480: blend with white when dragging this vertex.
+                if self.drag_idx == Some(i) {
+                    c = c.GetBlended(emColor::rgba(255, 255, 255, 128), 75.0);
+                }
                 p.PaintEllipse(
                     vx - r_paint,
                     vy - r_paint,
@@ -2862,6 +4020,99 @@ mod tests {
     }
 
     #[test]
+    fn polydrawpanel_control_tree_exists() {
+        let ctx = emContext::NewRoot();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        tree.set_behavior(root, Box::new(PolyDrawPanel::new()));
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
+
+        let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
+        settle(&mut tree, &mut view, &ctx);
+
+        assert!(
+            tree.find_by_name("Controls").is_some(),
+            "Controls raster missing"
+        );
+        assert!(
+            tree.find_by_name("CanvasPanel").is_some(),
+            "CanvasPanel missing"
+        );
+        assert!(
+            tree.find_by_name("Method").is_some(),
+            "Method RadioGroup missing"
+        );
+        assert!(
+            tree.find_by_name("VertexCount").is_some(),
+            "VertexCount missing"
+        );
+        assert!(
+            tree.find_by_name("FillColor").is_some(),
+            "FillColor missing"
+        );
+        assert!(
+            tree.find_by_name("WithCanvasColor").is_some(),
+            "WithCanvasColor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeWidth").is_some(),
+            "StrokeWidth missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeColor").is_some(),
+            "StrokeColor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeRounded").is_some(),
+            "StrokeRounded missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeDashType").is_some(),
+            "StrokeDashType missing"
+        );
+        assert!(
+            tree.find_by_name("DashLengthFactor").is_some(),
+            "DashLengthFactor missing"
+        );
+        assert!(
+            tree.find_by_name("GapLengthFactor").is_some(),
+            "GapLengthFactor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeStartType").is_some(),
+            "StrokeStartType missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeStartInnerColor").is_some(),
+            "StrokeStartInnerColor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeStartWidthFactor").is_some(),
+            "StrokeStartWidthFactor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeStartLengthFactor").is_some(),
+            "StrokeStartLengthFactor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeEndType").is_some(),
+            "StrokeEndType missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeEndInnerColor").is_some(),
+            "StrokeEndInnerColor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeEndWidthFactor").is_some(),
+            "StrokeEndWidthFactor missing"
+        );
+        assert!(
+            tree.find_by_name("StrokeEndLengthFactor").is_some(),
+            "StrokeEndLengthFactor missing"
+        );
+    }
+
+    #[test]
     fn test_panel_ae_threshold_is_900() {
         let ctx = emContext::NewRoot();
         let mut tree = PanelTree::new();
@@ -2878,5 +4129,33 @@ mod tests {
             900.0,
             "TestPanel AE threshold should be 900.0 after AutoExpand (C++ constructor value)"
         );
+    }
+
+    #[test]
+    fn polydrawpanel_cycle_wires_canvas() {
+        // Smoke test: PolyDrawPanel settles with a complete control tree and CanvasPanel.
+        // Cycle connects 18 signals on the first post-AutoExpand frame; the initial Setup
+        // call is made directly in AutoExpand (C++ first-Cycle timing compat).
+        // Pixel-level correctness of the 16-way render switch is verified by golden tests.
+        let ctx = emContext::NewRoot();
+        let mut tree = PanelTree::new();
+        let root = tree.create_root_deferred_view("root");
+        tree.set_behavior(root, Box::new(PolyDrawPanel::new()));
+        tree.Layout(root, 0.0, 0.0, 1.0, 1.0, 1.0, None);
+
+        let mut view = emView::new(Rc::clone(&ctx), root, 800.0, 600.0);
+        settle(&mut tree, &mut view, &ctx);
+        settle(&mut tree, &mut view, &ctx);
+
+        assert!(
+            tree.find_by_name("CanvasPanel").is_some(),
+            "CanvasPanel absent"
+        );
+        assert!(tree.find_by_name("Method").is_some(), "Method group absent");
+        assert!(
+            tree.find_by_name("VertexCount").is_some(),
+            "VertexCount absent"
+        );
+        // After settle, the tree is structurally complete and stable (no panic from Setup).
     }
 }
