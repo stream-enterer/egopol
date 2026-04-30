@@ -1,438 +1,112 @@
-# emTestPanel Spec-Compliance Audit
+# emTestPanel Compliance Task List
 
-C++ ground truth: `~/Projects/eaglemode-0.96.4/src/emTest/emTestPanel.cpp` + `.h`
+C++ ground truth: `~/Projects/eaglemode-0.96.4/src/emTest/emTestPanel.cpp`
 Rust port: `crates/emtest/src/emTestPanel.rs` + `lib.rs`
-Audit conducted: 2026-04-30
-
-**Known issues excluded from this audit (already identified before audit):**
-1. AutoExpand/LayoutChildren mismatch — all four panels (`TestPanel`, `TkTestGrpPanel`,
-   `TkTestPanel`, `PolyDrawPanel`) create first children inside `LayoutChildren`. Rust
-   emCore only calls `LayoutChildren` when `GetFirstChild(id).is_some()`, so no children
-   are ever created. Fix: implement `AutoExpand` for first-time child creation; leave
-   `LayoutChildren` for positioning only.
-2. Missing emSplitter hierarchy in `TkTestGrpPanel` — C++ `TkTestGrp::AutoExpand` builds
-   `sp → sp1 + sp2 → TkTest panels`; Rust lays out t1a/t1b/t2a/t2b in a hardcoded 2×2
-   grid. DIVERGED annotation present; emSplitter not yet ported.
+Plans: `docs/superpowers/plans/2026-04-30-*.md`
 
 ---
 
-## Scope & Policy Decisions (2026-04-30)
+## Plan 1 — AutoExpand/LayoutChildren Restructure
+*Prerequisite for Plans 2 and 3.*
 
-Recorded after verify-then-decide investigation and scoping review.
-
-**Verified not bugs — closed:**
-- **I-8**: `EnableAutoDeletion(true)` is correct — Rust API is explicit-bool, C++ no-arg defaults to true. Equivalent.
-- **I-16 / I-17**: `viewed_rect.w` is view pixels — equivalent to C++ `GetViewCondition(VCT_WIDTH)`. Guard placement verified correct.
-- **I-18**: `memory_limit` is `u64`; formats correctly with `{}`. No divergence.
-
-**Verified language-forced:**
-- **C-25**: Sub-painter requires a second exclusive `&mut emImage` borrow — Rust borrow checker forbids it. DIVERGED annotation needed (language-forced). Current workaround (push_state/SetClipping/pop_state) clips correctly but does **not** shift the coordinate origin; add to golden verification to confirm pixel equivalence.
-- **I-9**: Will be un-DIVERGED when ConstructCtx gains `view_context()` (follows from I-6 decision below); existing DIVERGED block remains until that PR lands.
-
-**Scope decisions:**
-- **PolyDrawPanel full port** (C-1, C-2, C-3–C-6, I-14, I-15): port now; requires its own plan.
-- **CustomListBox recursion** (C-23, C-24, I-11–I-13): port now.
-
-**Policy decisions:**
-- **I-6**: Extend `ConstructCtx` with `view_context()` — restores C++ view-scoped emVarModel storage and un-DIVERGES I-9.
-- **I-2**: Remove `MAX_DEPTH=10` cap — rely on AE threshold like C++.
+- [ ] **[known-1]** `TestPanel`, `TkTestGrpPanel`, `TkTestPanel`, `PolyDrawPanel`: move first-child creation from `LayoutChildren` to `AutoExpand`; leave `LayoutChildren` for positioning only. `handle_notice_one` gates `LayoutChildren` on `GetFirstChild(id).is_some()` — without this fix no children are ever created.
+- [ ] **I-1** `TestPanel::AutoExpand`: call `SetAutoExpansionThreshold(ctx.id, 900.0, Area, ...)` on self. C++ sets it in the constructor (cpp:39); Rust lacks tree access there, so set it in AutoExpand. Currently root panel uses default 150.0 — wrong zoom-level expansion.
+- [ ] **I-2** Remove `MAX_DEPTH = 10` constant and the `if self.depth < MAX_DEPTH` guard from `TestPanel::AutoExpand`. Remove `depth: u32` field and parameter from `TestPanel::new`. Rely on AE threshold like C++.
 
 ---
 
-## CRITICAL — observable behavior differs or feature missing entirely
+## Plan 2 — Compliance Batch
 
-### C-1. PolyDrawPanel control sub-tree entirely missing
-- **C++** (cpp:1071–1261): `PolyDrawPanel::AutoExpand` builds a `Controls` raster layout
-  with four sub-groups (general / stroke / strokeStart / strokeEnd) containing ~22
-  widgets: `Type` radio group (16 method radios), `VertexCount`, `WithCanvasColor`,
-  `FillColor`, `StrokeWidth`, `StrokeColor`, `StrokeRounded`, `StrokeDashType` (4 radios),
-  `DashLengthFactor`, `GapLengthFactor`, `StrokeStartType` (17 radios),
-  `StrokeStartInnerColor`, `StrokeStartWidthFactor`, `StrokeStartLengthFactor`,
-  `StrokeEndType` (17 radios), `StrokeEndInnerColor`, `StrokeEndWidthFactor`,
-  `StrokeEndLengthFactor`. All wired with `AddWakeUpSignal`.
-- **Rust** (emTestPanel.rs:2188–2228): `PolyDrawPanel::LayoutChildren` creates only
-  `CanvasPanel`. No control widgets at all. Comment at lines 2178–2186 calls this
-  "deferred to a later task."
-- **Decision**: Full port planned (scope decision 1a). Requires its own plan.
+### Annotations
+- [ ] **M-1** `make_star` (~line 2433): add `// RUST_ONLY: language-forced utility` comment. C++ inlines these vertices manually (cpp:372–413).
+- [ ] **M-3** `emGetInsResImage("emTest", "icons/teddy.tga")` call (~line 486): add `// DIVERGED: (dependency-forced)` comment. C++ uses `emGetInsResImage(GetRootContext(), "icons", "teddy.tga")` → `res/icons/teddy.tga`; Rust cdylib uses `res/emTest/icons/teddy.tga`.
+- [ ] **M-4** Remove stale "flat placeholder; Task 11 restructures" comment at ~line 1227. Replace with `// C++ name "PolyDraw" (emTestPanel.cpp:490)`.
+- [ ] **M-5** Run `cargo xtask annotations`; fix any DIVERGED blocks missing a category tag (language-forced / dependency-forced / upstream-gap-forced / performance-forced).
 
-### C-2. PolyDrawPanel has no Cycle / CanvasPanel::Setup plumbing
-- **C++** (cpp:1015–1068): `PolyDrawPanel::Cycle` reacts to all 18 control signals and
-  calls `Canvas->Setup(...)` to update Type, vertex count, textures, stroke, stroke ends.
-- **Rust**: `PolyDrawPanel` has no `Cycle`. `CanvasPanel::Setup` does not exist.
-  `CanvasPanel` fields `_stroke_width` and `_stroke_color` are dead (`_`-prefixed). `Type`
-  is hardcoded to `PaintPolygon`.
+### ConstructCtx `view_context()` — prerequisite for I-6 and I-9
+- [ ] **I-6a** Add `view_context: Option<&'a Rc<emContext>>` field to `PanelCtx` and `view_context()` method to `ConstructCtx` trait. Implement for all four implementors (`EngineCtx`, `SchedCtx`, `PanelCtx`, `InitCtx`). `emView::Context` (the per-view child context created in `emView::new`) is the view-scoped context.
+- [ ] **I-6b** Thread `view_context` through `HandleNotice` and `handle_notice_one` alongside the existing `root_context` parameter. Production call sites (`emView::Update`, `emSubViewPanel`) pass `Some(&self.Context)`; test call sites pass `None`.
 
-### C-3. CanvasPanel renders only one of 16 Type cases
-- **C++** (cpp:1405–1461): 16-way switch on `Type` covering PaintPolygon / PolygonOutline
-  / Polyline / Bezier / BezierOutline / BezierLine / Line / Rect / RectOutline / Ellipse /
-  EllipseOutline / EllipseSector / EllipseSectorOutline / EllipseArc / RoundRect /
-  RoundRectOutline.
-- **Rust** (emTestPanel.rs:2387): unconditionally `PaintPolygon`. Comment at line 2240
-  acknowledges as deferred.
+### TestPanel Cycle / signal wiring
+- [ ] **C-13** Add `Cycle` to `TestPanel`. Watch BgColorField color signal via `ectx.IsSignaled`; on signal: read color from `ColorFieldPanel` behavior via `as_any().downcast_ref`, update `bg_shared`. (cpp:62–71)
+- [ ] **C-14** In `TestPanel::AutoExpand`: wire BgColorField's color signal via `ectx.connect(color_signal, ectx.engine_id)` instead of the `on_color` callback. Store signal ID in `TestPanel`. (cpp:495)
+- [ ] **I-3** Remove the `on_color` callback and the `BgShared` polling intermediary pattern from BgColorField creation. `bg_shared` is still needed as the backing store read by `Paint` and `Drop`, but it is now written only by `Cycle` via `IsSignaled` — not by a callback.
+- [ ] **I-4** In `TkTestPanel::Cycle`: remove the `signals_connected` deferred-connect pattern. Wire signals in `AutoExpand` (or immediately after child creation in `AutoExpand`) rather than deferring to the first `Cycle`. (cpp: signals wired at construction)
+- [ ] **I-5** Fix `sf5↔sf6` Cell-based value pipe in `ScalarFieldWithDynamicMax::Cycle` (~lines 261–269). `sf6_max` Cell is written in sf5's `on_value` callback and drained by sf6's `Cycle` — prohibited polling intermediary per CLAUDE.md. Wire sf5's value signal directly to sf6's engine via `ectx.connect` and read the value synchronously in sf6's Cycle via `IsSignaled`. (cpp:638: `AddWakeUpSignal(SFLen->GetValueSignal())`)
 
-### C-4. CanvasPanel handle drawing does not match C++
-- **C++** (cpp:1463–1483): handle color depends on `Type` and vertex index — yellow for
-  non-anchor bezier control points; gray for unused vertices when `m` truncates count;
-  outline alpha 128.
-- **Rust** (emTestPanel.rs:2390–2409): green/white based on drag state only; no Type-aware
-  colorization; no `m`-truncation gray coloring.
+### TestPanel Notice + Input
+- [ ] **C-12** Add `notice()` to `TestPanel::PanelBehavior`. Body: `ctx.UpdateControlPanel()` (no-op in Rust — omit) + repaint is automatic. The C++ impl (cpp:74–78) calls both; in Rust the view repaints every frame, so the impl body can be empty, but the method must exist for correctness. (cpp:74–78)
+- [ ] **C-15** Fix `TestPanel::Input` (~line 1145): (a) add `STATE: pressed=k1,k2,...` by scanning `input_state` over all `InputKey` variants; (b) remove stale `_input_state` discard; (c) add forwarding comment at end matching C++ `emPanel::Input` call. (cpp:88–105)
 
-### C-5. CanvasPanel WithCanvasColor background path missing
-- **C++** (cpp:1372–1386): if `WithCanvasColor`, paints solid `emColor(96,128,160)`
-  background and forwards `canvasColor`; otherwise paints linear gradient and zeros canvas
-  color.
-- **Rust** (emTestPanel.rs:2367–2377): always paints linear gradient; no solid path;
-  canvas color not zeroed.
+### emVarModel scope + count
+- [ ] **I-6c** In `TestPanel::AutoExpand` and `Drop`: switch emVarModel calls from `&self.root_ctx` to `ctx.view_context().unwrap_or(&self.root_ctx)`. Store `view_ctx: Option<Rc<emContext>>` in `TestPanel`, set it in `AutoExpand`. (cpp:32–48)
+- [ ] **I-19** Add `count: usize` parameter to `emVarModel::Set` in `emVarModel.rs`. Pass `10` at the `TestPanel::Drop` call site. (cpp:47)
 
-### C-6. CanvasPanel Setup vertex re-layout missing; y-coordinate formula wrong
-- **C++** (cpp:1284–1295): when vertex count grows, generates points using
-  `cos/sin*0.4+0.5` for x and `GetHeight()*(sin*0.4+0.5)` for y.
-- **Rust** (emTestPanel.rs, constructor): pre-creates 9 vertices as
-  `(cos·0.4+0.5, sin·0.4+0.5)` — drops the `GetHeight()` y-scaling. Never resizes
-  vertex array because `Setup` is never called.
+### TestPanel structural
+- [ ] **I-10** At `TestPanel::Paint` (~line 1091) where `state.window_focused` is used as `IsViewFocused()`: add `// DIVERGED: (language-forced) C++ IsViewFocused() is per-view; Rust PanelState has window_focused (per-window). Observable only with multiple views per window.`
 
-### C-7. CanvasPanel GetHeight() used as y-bound throughout; Rust hardcodes 1.0
-- **C++** uses `GetHeight()` in three places: (a) drag y-clamp (cpp:1341):
-  `y = emMin(emMax(my+DragDY, 0.0), GetHeight())`; (b) ShowHandles bounds check (cpp:1354):
-  `my >= 0.0 && my < GetHeight()`; (c) vertex initial layout (cpp:1292): covered in C-6.
-- **Rust**: drag clamp (emTestPanel.rs:2335) uses `.clamp(0.0, 1.0)`; ShowHandles check
-  uses `(0.0..1.0).contains(&my)`. When the canvas panel has non-unit height, both sites
-  diverge. The snapping path also inherits the wrong y-bound since `raw_y` is already
-  clamped to 1.0 before grid-rounding.
+### TestPanel Paint
+- [ ] **C-18** Fix linear gradient: replace collapsed `paint_linear_gradient` call with `PaintRect(0.2, 0.94, 0.02, 0.01, emLinearGradientTexture(0.207, 0.944, 0x00000080, 0.213, 0.946, 0x80808080))`. (cpp:415–419)
+- [ ] **C-19** Fix radial gradient: replace with `PaintRect(0.221, 0.94, 0.008, 0.01, emRadialGradientTexture(0.223, 0.941, 0.004, 0.008, 0xFF8800FF, 0x005500FF))`. (cpp:420–423)
+- [ ] **C-22** Fix gradient ellipse: replace solid `PaintEllipse` with `PaintEllipse(0.23, 0.94, 0.02, 0.01, emRadialGradientTexture(0.23, 0.94, 0.02, 0.01, 0, 0x00cc88FF))`. (cpp:425–428)
+- [ ] **C-20** Fix image tile: replace `paint_image_scaled` with `PaintRect(0.26, 0.94, 0.02, 0.01, emImageTexture(0.26, 0.94, 0.001, 0.001*ratio, TestImage))` where texture width is 0.001, not 0.02. (cpp:430–435)
+- [ ] **C-16** Add `emImageColoredTexture` rect after image tile: `PaintRect(0.2625, 0.942, 0.02, 0.01, emImageColoredTexture(1.0005, 0.942, 0.001, 0.001*ratio, TestImage, 0x00FFFFFF, 0xFF0000FF))`. (cpp:441–451)
+- [ ] **C-17** Add three extend-mode rects at y=0.907/0.910/0.913: `PaintRect(0.275, y, 0.002, 0.002, emImageTexture(0.2755, y+0.0005, 0.001, 0.001, TestImage, 50, 10, 110, 110, 255, EXTEND_TILED/EDGE/ZERO))`. (cpp:453–478)
+- [ ] **C-21** Fix caption text alignment: inner horizontal `AlignmentH::Center` (not `Left`); `formatTallness` 0.2 (not 0.5). (cpp:134–141)
+- [ ] **C-25** Add annotation at `push_state/SetClipping` block (~line 574): `// DIVERGED: (language-forced) C++ creates sub-painter with restricted origin/scale (cpp:225–231); second &mut emImage borrow forbidden by borrow checker. Workaround clips correctly but does not shift origin — add to golden verification.`
+- [ ] **M-2** Golden verification: confirm Rust `painter.scale(w, w)` coordinate space matches C++ `[0,1]×[0,h]` space. Run `cargo test --test golden test_panel` after paint fixes; compare with C++ baseline using `scripts/diff_draw_ops.py`.
+- [ ] **M-7** Golden verification: confirm `paint_polygon_even_odd` produces the same pixel output as C++ `PaintPolygon` with even-odd winding. Check in the same golden run.
 
-### C-8. CanvasPanel: event.Eat() and Focus() unconditional on left-press; Rust omits both
-- **C++** (cpp:1315–1317): `event.Eat(); Focus();` on ANY left-press regardless of whether
-  a vertex was hit (bestI may be -1). Both calls happen before the vertex search result is
-  tested.
-- **Rust** (emTestPanel.rs:2295–2324): `Focus()` is never called. The event is considered
-  consumed only when a vertex is hit (`return best_i.is_some()`). Clicking the canvas on
-  empty space neither acquires focus nor eats the event.
+### CanvasPanel interaction
+- [ ] **C-8** In `CanvasPanel::Input`: on any left-press, call `event.eat()` (lowercase) unconditionally before the vertex search. Omit the C++ `Focus()` call — Rust focus-on-click is handled by the window dispatch loop before `Input` fires. (cpp:1315–1317)
+- [ ] **C-7** Replace three hardcoded `1.0` y-bounds with `panel_h` (= `state.layout_rect.h`): (a) drag clamp `raw_y.clamp(0.0, 1.0)` → `.clamp(0.0, panel_h)`; (b) ShowHandles check `(0.0..1.0).contains(&my)` → `my >= 0.0 && my < panel_h`. (cpp:1341, 1354)
+- [ ] **C-9** Add change-guard before vertex write: `if self.vertices[idx] != (x, y) { self.vertices[idx] = (x, y); }`. Remove the current unconditional overwrite. (cpp:1344–1347). `InvalidatePainting` calls are no-ops in Rust (view repaints every frame) — omit them.
+- [ ] **C-10** Fix handle radius: `let r = state.ViewToPanelDeltaX(12.0).min(0.05)`. Check `PanelState` for `ViewToPanelDeltaX`; if absent, compute `12.0 / (state.viewed_rect.w / w)`. (cpp:1464)
+- [ ] **C-11** Fix help-text: `p.PaintTextBoxed(0.0, h - 0.03, 1.0, 0.03, ..., 0.03)`. Remove the `* h` multiplications. (cpp:1485–1490)
+- [ ] **C-26** At end of `CanvasPanel::Input`: add `// C++ cpp:1361: emPanel::Input(event,state,mx,my) — base handles cursor; Rust base Input is a no-op; call preserved for fidelity.`
 
-### C-9. CanvasPanel missing InvalidatePainting calls in four places
-- **C++** calls `InvalidatePainting()` when: (a) vertex hit and drag starts (cpp:1332);
-  (b) drag stops (cpp:1338); (c) vertex position actually changed during drag — guarded by
-  `if (XY[DragIdx*2]!=x || XY[DragIdx*2+1]!=y)` (cpp:1344–1347); (d) ShowHandles value
-  changes (cpp:1357–1359).
-- **Rust**: no `InvalidatePainting` calls in `Input`. Also, `self.vertices[idx]` is always
-  overwritten unconditionally (no change-guard equivalent to the C++ check).
+### CustomListBox
+- [ ] **C-23** Add `AutoExpand` to `CustomItemBehavior`: create `LabelPanel { emLabel("This is a custom list\nbox item panel (it is\nrecursive...)") }` with listbox's look, then `ListBoxPanel { emListBox }` with `SelectionMode::Multi`, items "1"–"7", index 0 selected. (cpp:941–956)
+- [ ] **C-24** Add `Input` to `CustomItemBehavior`: call `self.process_item_input(event, state, ctx)` then `self.group.Input(event, state, input_state, ctx)`. (cpp:932–938)
+- [ ] **I-11** Add `item_text_changed` override to `CustomItemBehavior`: `self.group.SetCaption(new_text)`. (cpp:959–962)
+- [ ] **I-12** On the `emListBox` in `TkTestPanel::create_all_categories` (the CustomListBox lb7 ~line 1854): add `lb.SetChildTallness(0.4)`, `lb.SetAlignment(AlignmentH::Left, AlignmentV::Top)`, `lb.SetStrictRaster()`. (cpp:992–994)
+- [ ] **I-13** Fix look capture in `CustomItemBehavior` factory: use the listbox's live look (`lb.GetLook()` after `lb` is constructed) rather than the outer `lb7_look` captured at factory creation. (cpp:980)
 
-### C-10. CanvasPanel handle radius formula wrong
-- **C++** (cpp:1464): `r = emMin(ViewToPanelDeltaX(12.0), 0.05)`.
-- **Rust** (emTestPanel.rs:2391): `r = (0.05).min(12.0 / w.max(1.0))` — uses local panel
-  width `w` instead of a view-pixel-to-panel mapping. Produces different values.
-
-### C-11. CanvasPanel help-text geometry wrong when h ≠ 1
-- **C++** (cpp:1485–1490): `PaintTextBoxed(0.0, GetHeight()-0.03, 1.0, 0.03, ..., 0.03)`
-  — fixed 0.03 in panel coords.
-- **Rust** (emTestPanel.rs:2412–2427): multiplies everything by `h`; produces wrong sizes
-  when h ≠ 1.
-
-### C-12. TestPanel Notice() missing
-- **C++** (cpp:74–78): `Notice(flags)` calls `UpdateControlPanel()` and
-  `InvalidatePainting()` on every notice.
-- **Rust**: no `notice()` impl on `TestPanel`. Control panel will not update on state
-  change; painting will not invalidate.
-
-### C-13. TestPanel Cycle() missing
-- **C++** (cpp:62–71): `Cycle()` watches `BgColorField->GetColorSignal()`; on signal:
-  assigns `BgColor`, `UpdateControlPanel()`, `InvalidatePainting()`,
-  `InvalidateChildrenLayout()`.
-- **Rust**: `TestPanel` has no `Cycle`. Replaced by `on_color` callback that writes to
-  `bg_shared` (lines 1222–1224). Neither `InvalidatePainting()` nor
-  `InvalidateChildrenLayout()` is called. Children's canvas color stays stale until
-  something else triggers relayout. DIVERGED block at lines 467–469 present but the
-  observable consequence (stale canvas color) makes this a fidelity bug.
-
-### C-14. AddWakeUpSignal(BgColorField->GetColorSignal()) not honored
-- **C++** (cpp:495): explicitly added.
-- **Rust**: no `AddWakeUpSignal`/connect on color field signal in `TestPanel`; bypassed
-  with `on_color` callback.
-
-### C-15. TestPanel Input() missing InvalidatePainting and full state log
-- **C++** (cpp:88–105): appends log entry with full `STATE: pressed=k1,k2,... mouse=mx,my`
-  (scans all 256 input keys), calls `InvalidatePainting()`, then forwards to
-  `emPanel::Input`.
-- **Rust** (emTestPanel.rs:1145–1161): omits `STATE: pressed=...` entirely (`_input_state`
-  is discarded); no `InvalidatePainting`; returns false without forwarding to base.
-
-### C-16. TestPanel paint_primitives: emImageColoredTexture polygon missing
-- **C++** (cpp:441–451): `PaintPolygon` with `emImageColoredTexture` — colored-image
-  texture fill on star polygon.
-- **Rust**: no `paint_polygon_textured` call using `emImageColoredTexture`. Only plain
-  `emImage` variant is used.
-
-### C-17. TestPanel paint_primitives: EXTEND_TILED/EDGE/ZERO rect modes missing
-- **C++** (cpp:453–478): three `PaintRect` calls demonstrating `EXTEND_TILED`,
-  `EXTEND_EDGE`, `EXTEND_ZERO` extend modes.
-- **Rust**: missing entirely.
-
-### C-18. TestPanel paint_primitives: linear gradient parameter mismatch
-- **C++** (cpp:415–419): `PaintRect(0.207, 0.944, 0.013, 0.006, emLinearGradientTexture(...))`
-  with explicit gradient-line endpoints separate from rect bounds.
-- **Rust** (emTestPanel.rs:964–973): `paint_linear_gradient(0.2, 0.94, 0.02, 0.01, ...)`
-  with collapsed signature; rect bounds and gradient-line endpoints differ.
-
-### C-19. TestPanel paint_primitives: radial gradient parameter mismatch
-- **C++** (cpp:420–423): rect `(0.221, 0.94, 0.008, 0.01)`, gradient origin/radii
-  `(0.223, 0.941, 0.004, 0.008)` — separate rect and gradient coords.
-- **Rust** (emTestPanel.rs:974–982): `paint_radial_gradient(0.225, 0.946, 0.004, 0.008, ...)`
-  — different numbers; collapsed signature.
-
-### C-20. TestPanel paint: image-texture tile pattern wrong
-- **C++** (cpp:430–439): `PaintRect(0.26, 0.94, 0.02, 0.01, emImageTexture(0.26, 0.94, 0.001, 0.001*ratio, TestImage))`
-  — texture coords use width 0.001, not rect width 0.02.
-- **Rust** (emTestPanel.rs:994–1002): `paint_image_scaled(0.26, 0.94, 0.02, 0.01, ...)` —
-  uses rect dimensions for texture, so tile pattern differs.
-
-### C-21. TestPanel "Test Panel" caption text alignment wrong
-- **C++** (cpp:134–141): inner horizontal alignment is `EM_ALIGN_CENTER` (default);
-  formatTallness is 0.2 (default).
-- **Rust** (emTestPanel.rs:1062–1077): inner align is `Left`; formatTallness is 0.5.
-  Both wrong.
-
-### C-22. TestPanel ellipse demo is solid-fill instead of gradient
-- **C++** (cpp:425–428): `PaintEllipse(...)` with `emRadialGradientTexture(...)`.
-- **Rust** (emTestPanel.rs:984–991): solid `emColor::rgba(0, 0xCC, 0x88, 0xFF)`. Comment
-  at line 983 labels it "solid fallback." Observable difference.
-
-### C-23. CustomItemPanel AutoExpand recursion entirely absent
-- **C++** (cpp:941–956): `CustomItemPanel::AutoExpand` creates `emLabel(this,"t",...)` +
-  `CustomListBox(this,"l",...)` with 7 items, multi-selection — fully recursive.
-- **Rust**: `CustomItemBehavior` has no `AutoExpand`. Items never recurse. Recursive list
-  box is missing entirely.
-- **Decision**: Port now (scope decision 2a).
-
-### C-24. CustomItemPanel Input / ProcessItemInput missing
-- **C++** (cpp:932–938): `Input` calls `ProcessItemInput(this, event, state)` then
-  `emLinearGroup::Input(...)`.
-- **Rust**: `CustomItemBehavior` has no `Input` impl. Per-item input (toggle on click) does
-  not reach `ProcessItemInput`.
-
-### C-25. TestPanel paint: clipping mechanism wrong (sub-painter vs. push_state/SetClipping)
-- **C++** (cpp:225–231): creates a new `emPainter` with restricted origin/scale — both
-  clips AND re-maps coordinate origin.
-- **Rust** (emTestPanel.rs:574–585): `push_state / SetClipping / pop_state` — clips without
-  shifting origin. The polygon coordinates inside would need adjusting to compensate.
-  Observable for golden tests.
-- **Decision**: Language-forced DIVERGED — sub-painter would require a second exclusive
-  `&mut emImage` borrow; Rust borrow checker forbids it. Add `DIVERGED: language-forced`
-  annotation. Add to golden verification to confirm pixel equivalence of current workaround.
-
-### C-26. CanvasPanel emPanel::Input base-class forwarding missing
-- **C++** (cpp:1361): `emPanel::Input(event, state, mx, my)` called at the end of
-  `CanvasPanel::Input`. The base class handles cursor style changes and additional
-  per-panel bookkeeping.
-- **Rust** (emTestPanel.rs:~2345): returns `false` with no equivalent forwarding. If the
-  Rust emCore base Input path handles anything observable (cursor changes, etc.), it is
-  skipped.
+### Dialog + structural
+- [ ] **I-7** Fix dialog construction order in `TkTestPanel`: move `set_view_window_flags` before `AddNegativeButton`, matching C++ flag-before-buttons order. (cpp:799–803)
+- [ ] **I-9** After I-6 lands: un-DIVERGE `CbTopLev` — use `ctx.view_context()` vs `ctx.root_context()` to select dialog parent. If `emDialog::new` doesn't expose parent-context selection, update the existing DIVERGED block to `dependency-forced` and keep it. (cpp:790)
 
 ---
 
-## IMPORTANT — structural gaps that will compound
+## Plan 3 — PolyDrawPanel Full Port
 
-### I-1. SetAutoExpansionThreshold(900.0) not set on root TestPanel itself
-- **C++** (cpp:39): `SetAutoExpansionThreshold(900.0, VCT_AREA)` called in
-  `emTestPanel` constructor — applies to every instance including root.
-- **Rust** (emTestPanel.rs:1192, 1206): threshold is set on `tktest_id` and each TP1–TP4
-  child but NOT on `ctx.id` (the TestPanel itself). Root TestPanel uses default threshold
-  (150.0 area). Observable: root panel expands at a different zoom level than C++.
-  No DIVERGED annotation.
-
-### I-2. MAX_DEPTH = 10 hard cap with no DIVERGED annotation
-- **C++**: no explicit depth limit. Recursive `emTestPanel` children are always created in
-  `AutoExpand`; Eagle Mode relies on the area threshold to stop expansion at deep zoom-out.
-- **Rust** (emTestPanel.rs:54, 1200–1213): hard cap at depth 10. Observable at deep zoom.
-  No DIVERGED annotation — per Port Ideology this is silent drift.
-- **Decision**: Remove cap (policy decision 3a) — rely on AE threshold like C++.
-
-### I-3. TestPanel Cycle/Notice bg_shared Cell is a polling intermediary
-- `bg_shared` is a `Cell` written in `on_color`, read by `Paint` and `Drop`. No
-  `InvalidatePainting()` or `InvalidateChildrenLayout()` after write. CLAUDE.md
-  "Polling intermediaries" rule: remove it; fire synchronously via `ectx`.
-
-### I-4. signals_connected / deferred-connect pattern
-- **C++**: signals wired in constructor; fire from frame 1.
-- **Rust** (emTestPanel.rs:2042–2061 `TkTestPanel::Cycle`; lines 298–303
-  `ScalarFieldWithDynamicMax::Cycle`): defers `ectx.connect` to first Cycle. A signal
-  fired synchronously in tests before the first engine cycle would be missed.
-
-### I-5. sf5↔sf6 Cell-based value pipe is a polling intermediary
-- **C++** (cpp:638): `AddWakeUpSignal(SFLen->GetValueSignal())` wired in constructor;
-  `Cycle` handles from frame 1.
-- **Rust** (emTestPanel.rs:261–269): `sf6_max` `Cell` written in sf5's `on_value`,
-  drained by sf6's `Cycle`. DIVERGED block present but CLAUDE.md explicitly prohibits
-  this pattern. One-tick drift.
-
-### I-6. emVarModel storage context: GetView() vs root_ctx
-- **C++** (cpp:32–48): `emVarModel<emColor>::GetAndRemove(GetView(), ...)` in constructor;
-  `Set(GetView(), ...)` in destructor. Storage is scoped to the emView context.
-- **Rust** (emTestPanel.rs:1171, 1013): `emVarModel::GetAndRemove(&self.root_ctx, ...)` and
-  `Set(&self.root_ctx, ...)`. Storage is scoped to the root context (application-global).
-- emView and root context are different levels in the context hierarchy. Within a pure Rust
-  session this is self-consistent, but: (a) BgColor persistence is app-global in Rust vs
-  view-scoped in C++ — if two views show the same panel path, they share a stored color in
-  Rust but are independent in C++; (b) no DIVERGED annotation explaining the scope change.
-- **Decision**: Extend `ConstructCtx` with `view_context()` (option a) — restores C++
-  view-scoped storage. Also un-DIVERGES I-9 as a side effect.
-
-### I-7. dialog construction order differs
-- **C++** (cpp:799): flags set at `emDialog` construction before content panel created.
-- **Rust** (emTestPanel.rs:2158–2166): `emDialog::new` (no flags), then buttons/title,
-  then `set_view_window_flags`, then `set_content_behavior`, then `show`. Flags applied
-  after layout state built. May affect popup-zoom-aware initial sizing.
-
-### I-8. EnableAutoDeletion called with explicit `true` arg *(CLOSED — not a bug)*
-- **C++** (cpp:801): `EnableAutoDeletion()` — no-arg.
-- **Rust** (emTestPanel.rs:2160): `EnableAutoDeletion(true)`. Rust API takes explicit bool;
-  C++ no-arg defaults to enabled. Call passes `true` — equivalent behavior. No action needed.
-
-### I-9. CbTopLev semantics ignored
-- **C++** (cpp:790): when checked, dialog parented to `GetRootContext()` (top-level);
-  else `GetView()`.
-- **Rust** (emTestPanel.rs:2150–2157): `cb_toplev` read but value ignored; always uses
-  same parent. Existing DIVERGED block is correct — `ConstructCtx` exposes only
-  `root_context()`, no `view_context()` variant.
-- **Decision**: Un-DIVERGE when `ConstructCtx` gains `view_context()` (follows from I-6
-  decision). Until that PR lands, existing DIVERGED annotation stands.
-
-### I-10. IsViewFocused() mapped to state.window_focused
-- **C++** (cpp:148): `IsViewFocused()` — per-view focus.
-- **Rust** (emTestPanel.rs:1091): `state.window_focused` — per-window. Diverges when
-  multiple views share a window.
-
-### I-11. CustomItemPanel ItemTextChanged / caption update missing
-- **C++** (cpp:959–962): `ItemTextChanged` overrides `SetCaption(GetItemText())`.
-- **Rust**: `CustomItemBehavior` stores text once at construction (line 1864); no observer
-  for item-text changes. Renaming an item won't update display.
-
-### I-12. CustomListBox layout properties missing
-- **C++** (cpp:992–994): `SetChildTallness(0.4)`, `SetAlignment(EM_ALIGN_TOP_LEFT)`,
-  `SetStrictRaster()`.
-- **Rust** (emTestPanel.rs:1854): creates a plain `emListBox` with no override. Visual
-  layout will differ.
-
-### I-13. CustomItemBehavior captures outer look at factory creation
-- **C++** (cpp:980): `SetLook(GetListBox().GetLook())` — listbox's live look.
-- **Rust** (emTestPanel.rs:1853–1869): `lb7_look = look.clone()` captured once at factory
-  creation. If look is later changed on the listbox, items don't update.
-
-### I-14. PolyDrawPanel SetOrientationThresholdTallness(1.0) not applied
-- **C++** (cpp:1011): `SetOrientationThresholdTallness(1.0)` — switches between
-  horizontal/vertical layout based on aspect ratio.
-- **Rust** (emTestPanel.rs:2192–2197): acknowledged missing in comment. Always horizontal
-  regardless of aspect.
-
-### I-15. PolyDrawPanel caption and description missing
-- **C++** (cpp:1004–1010): `emLinearGroup(parent, name, "Poly Draw Test",
-  "This allows manual testing...")`.
-- **Rust** (emTestPanel.rs:2192–2197): `emLinearGroup::horizontal()` only — no caption
-  and no description set.
-
-### I-16. TestPanel viewed-rect width threshold *(CLOSED — not a bug)*
-- **C++** (cpp:143): `if (GetViewCondition(VCT_WIDTH) < 25.0) return` — view-pixel width
-  of the panel.
-- **Rust** (emTestPanel.rs:1079): `if state.viewed_rect.w < 25.0` — verified: `viewed_rect`
-  is in absolute view pixels. Semantically equivalent to C++. No action needed.
-
-### I-17. emTestPanel paint: early-return guard placement *(CLOSED — not a bug)*
-- **C++** (cpp:143–145): entire Paint (except outer rect outline) is skipped if view too
-  small.
-- **Rust** (emTestPanel.rs:1079–1081): verified equivalent — same check, same placement.
-  No action needed.
-
-### I-18. TestPanel pri/memlim format *(CLOSED — not a bug)*
-- **C++** (cpp:151–156): `(unsigned long)GetMemoryLimit()` — unsigned.
-- **Rust** (emTestPanel.rs:1111): `memory_limit` is `u64`; prints correctly with `{}`.
-  No action needed.
-
-### I-19. emVarModel::Set count parameter missing
-- **C++** (cpp:47): `Set(GetView(), key, BgColor, 10)` — count=10 controls how many
-  VarModel instances of this key can coexist before eviction.
-- **Rust**: `Set(ctx, key, value)` — no count parameter in the Rust emVarModel::Set
-  signature. Lifetime behavior for deeply-nested panels may differ.
+- [ ] **I-15** `PolyDrawPanel::new`: add caption "Poly Draw Test" and description via `group.SetCaption` / `group.SetDescription`. (cpp:1005–1009)
+- [ ] **I-14** `PolyDrawPanel::new`: call `group.set_orientation_threshold_tallness(1.0)` if `emLinearGroup` supports it; else add `// DIVERGED: upstream-gap-forced` comment. (cpp:1011)
+- [ ] **C-1** `PolyDrawPanel::AutoExpand`: build full 22-widget control tree — Controls raster layout, four sub-groups (general/stroke/strokeStart/strokeEnd), 16-radio Method group, VertexCount, FillColor, WithCanvasColor, StrokeWidth, StrokeColor, StrokeRounded, StrokeDashType (4 radios), DashLengthFactor, GapLengthFactor, StrokeStartType (17 radios), StrokeStartInnerColor, StrokeStartWidthFactor, StrokeStartLengthFactor, StrokeEndType (17 radios), StrokeEndInnerColor, StrokeEndWidthFactor, StrokeEndLengthFactor. Store `Rc<RefCell<RadioGroupData>>` handles for four radio groups; store panel IDs for scalar/color widgets. (cpp:1071–1261)
+- [ ] **C-2** `PolyDrawPanel::Cycle`: watch 18 signals via `ectx.IsSignaled`; on any: read all control values, build `emStroke` and two `emStrokeEnd` values, call `canvas.setup(...)`. Note: `emStroke` has no `rounded` field in the Rust port — add `// DIVERGED: upstream-gap-forced` at that site. (cpp:1015–1068)
+- [ ] **C-6** `CanvasPanel::setup`: resize vertex array; for new vertices use `cos/sin * 0.4 + 0.5` for x and `GetHeight() * (sin * 0.4 + 0.5)` for y (panel height from layout rect). (cpp:1284–1298)
+- [ ] **C-5** `CanvasPanel::Paint`: add `WithCanvasColor` branch — if true: `Clear(emColor(96,128,160), canvas_color)`; if false: `Clear(emLinearGradientTexture(0,0,rgb(80,80,160),0,h,rgb(160,160,80)), canvas_color)` and zero canvas color. (cpp:1372–1386)
+- [ ] **C-3** `CanvasPanel::Paint`: replace unconditional `PaintPolygon` with 16-way switch on `render_type` (0=PaintPolygon … 15=PaintRoundRectOutline). Derive `x1,y1,x2,y2,x,y,w,h,sa,ra` from vertex array per cpp:1388–1403. (cpp:1405–1461)
+- [ ] **C-4** `CanvasPanel::Paint` handles loop: color depends on `render_type` and vertex index — yellow (`rgba(255,255,0,128)`) for non-anchor bezier points (types 3–5, `i % 3 != 0`); gray (`rgba(128,128,128,128)`) for vertices beyond active count `m`; green otherwise. Blend with white at 75% for drag vertex. (cpp:1463–1483)
 
 ---
 
-## MINOR — cosmetic, naming, or non-observable
+## Deferred — DIVERGED (no plan)
 
-### M-1. make_star polygon helper has no RUST_ONLY annotation
-- C++ inlines the textured-polygon vertices manually (cpp:372–413). Rust introduces
-  `make_star` (emTestPanel.rs:2433–2435) with a comment but no `RUST_ONLY:` annotation
-  per CLAUDE.md.
-
-### M-2. emTestPanel.rs paint_primitives: sub-painter coordinate system needs golden verification
-- Rust paints in `[0,1] × [0, h/w]` panel space via `painter.scale(w, w)` (lines
-  1049–1050). C++ uses `[0,1] × [0, h]` with no scale. Verify with goldens that rendered
-  pixel positions match.
-
-### M-3. emGetInsResImage category differs; resource resolves correctly but needs DIVERGED annotation
-- **C++**: `emGetInsResImage(GetRootContext(), "icons", "teddy.tga")` → `$EM_DIR/res/icons/teddy.tga`.
-- **Rust**: `emGetInsResImage("emTest", "icons/teddy.tga")` → `$EM_DIR/res/emTest/icons/teddy.tga`.
-  The Rust resource IS present at `res/emTest/icons/teddy.tga`; it resolves correctly. This
-  is a dependency-forced divergence (cdylib resource layout differs from C++ monolith) but
-  carries no `DIVERGED: dependency-forced` annotation at the call site.
-
-### M-4. Stale task reference in comment
-- `emTestPanel.rs:1227–1228`: "flat placeholder; Task 11 restructures" — leftover
-  task reference; should be removed.
-
-### M-5. DIVERGED annotation categories audit
-- All present DIVERGED blocks should carry one of the four required categories
-  (language-forced / dependency-forced / upstream-gap-forced / performance-forced).
-  Lines 261–269, 1291–1294, 1376–1381, 2150–2157 include categories. Verify none are
-  missing their category tag (annotation lint catches this at pre-commit).
-
-### M-6. AddNegativeButton / EnableAutoDeletion / SetRootTitle order vs C++
-- **C++** (cpp:800–803): `AddNegativeButton("Close")`, `EnableAutoDeletion()`,
-  `SetRootTitle("Test Dialog")`, then content added.
-- **Rust** (emTestPanel.rs:2159–2165): same logical order but with `set_view_window_flags`
-  inserted between title and content. Observable only if flag application timing matters
-  for initial sizing.
-
-### M-7. paint_polygon_even_odd vs C++ built-in even-odd needs golden verification
-- C++ relies on `PaintPolygon`'s built-in even-odd winding. Rust calls
-  `paint_polygon_even_odd`. Verify with goldens that pixel output matches.
-
-### M-8. emColor::rgba(187, 255, 255, 255) — C++ uses 3-arg (alpha=255 default)
-- Equivalent. No action needed.
-
-### M-9. emCrossPtr → name-lookup via find_child_by_name
-- Idiom adaptation, no action needed.
-
-### M-10. TkTest SetBorderScaling / SetPrefChildTallness per-group
-- `make_category` always sets `border_scaling=2.5` and optional pct; matches C++.
-  dlgs/fileChoosers inlined with correct values. No gaps found.
-
-### M-11. RadioGroup shared across r1-r6 confirmed correct
-- All six radio widgets created under one `RadioGroup` per C++ `emRadioButton::RasterGroup`
-  pattern. Confirmed correct.
+- **[known-2]** `TkTestGrpPanel` emSplitter hierarchy — C++ builds `sp → sp1/sp2 → TkTest`; Rust uses hardcoded 2×2 grid. DIVERGED annotation present. Blocked on emSplitter port.
 
 ---
 
-## SUMMARY
+## Closed
 
-**PolyDrawPanel/CanvasPanel** (C-1 through C-11, C-26): largest gap. The entire control
-sub-tree and all 15 non-PaintPolygon render types are missing. CanvasPanel drag (missing
-unconditional Focus/Eat, missing InvalidatePainting in four places, wrong y-bound in two
-places, missing base-Input forwarding), handle radius, background, and help-text all
-diverge. Complete unported subsystem.
-
-**CustomListBox recursion** (C-23, C-24, I-11, I-12, I-13): `CustomItemPanel::AutoExpand`
-(recursive list + label) is absent; per-item input missing; caption update missing; layout
-properties missing.
-
-**TestPanel signal/notice flows** (C-12, C-13, C-14, C-15, I-3, I-4, I-5): `Cycle` and
-`Notice` both absent; `Input` missing `InvalidatePainting` and state log; three Cell-based
-polling-intermediary patterns violate CLAUDE.md.
-
-**TestPanel Paint** (C-16 through C-22, C-25, M-2): seven paint-call-level divergences —
-missing texture modes, wrong alignment params, solid fallback for gradient ellipse, image
-tile formula, gradient parameter shapes, clipping mechanism.
-
-**Structural** (I-1, I-2, I-6, I-7 through I-10, I-14 through I-19): auto-expansion
-threshold not set on root; no-DIVERGED depth cap; emVarModel stored at wrong context scope
-(root vs view) with missing count param; dialog flag ordering; IsViewFocused semantics;
-PolyDrawPanel caption/description/orientation; viewed-rect type ambiguity.
-
-**Annotation gaps** (M-1, M-3, M-5): emGetInsResImage call and make_star helper missing
-DIVERGED/RUST_ONLY annotations; stale task-reference comment.
+| ID | Reason |
+|----|--------|
+| I-8 | `EnableAutoDeletion(true)` ≡ C++ no-arg — not a bug |
+| I-16 | `viewed_rect.w` is view pixels ≡ `GetViewCondition(VCT_WIDTH)` — not a bug |
+| I-17 | Paint guard placement verified correct — not a bug |
+| I-18 | `memory_limit` is `u64`, formats correctly — not a bug |
+| M-6 | Same finding as I-7 (dialog construction order) |
+| M-8 | `emColor::rgba(187,255,255,255)` ≡ 3-arg — equivalent |
+| M-9 | `emCrossPtr` → name-lookup — idiom adaptation, no action |
+| M-10 | `TkTest` border scaling / child tallness — confirmed correct |
+| M-11 | RadioGroup shared across r1–r6 — confirmed correct |
