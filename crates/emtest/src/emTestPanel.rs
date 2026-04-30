@@ -34,8 +34,10 @@ use emcore::emRasterGroup::emRasterGroup;
 use emcore::emRasterLayout::emRasterLayout;
 use emcore::emRes::emGetInsResImage;
 use emcore::emScalarField::emScalarField;
-use emcore::emStroke::emStroke;
+use emcore::emStroke::{emStroke, LineCap, LineJoin};
+use emcore::emStrokeEnd::{emStrokeEnd, StrokeEndType};
 use emcore::emTextField::emTextField;
+use emcore::emTexture::{emTexture, ImageExtension, ImageQuality};
 use emcore::emVarModel;
 
 // ─── constants ──────────────────────────────────────────────────────
@@ -248,8 +250,8 @@ struct ColorFieldPanel {
     widget: emColorField,
 }
 impl PanelBehavior for ColorFieldPanel {
-    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, _s: &PanelState) {
-        let pixel_scale = _s.viewed_rect.w * _s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
+    fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
+        let pixel_scale = s.viewed_rect.w * s.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.widget.Paint(p, canvas_color, w, h, pixel_scale);
     }
     fn Input(
@@ -357,10 +359,44 @@ impl TestPanel {
             emColor::TRANSPARENT,
         );
 
-        // Triangle
         p.PaintPolygon(&[(0.7, 0.6), (0.6, 0.7), (0.8, 0.8)], fg, bg);
 
-        // Circle
+        // Holed polygon (even-odd winding) — C++ PaintPolygon 10-pt outer+inner square.
+        p.paint_polygon_even_odd(
+            &[
+                (0.90, 0.90),
+                (0.94, 0.90),
+                (0.94, 0.94),
+                (0.90, 0.94),
+                (0.90, 0.90),
+                (0.91, 0.91),
+                (0.93, 0.91),
+                (0.93, 0.93),
+                (0.91, 0.93),
+                (0.91, 0.91),
+            ],
+            emColor::rgba(255, 255, 255, 128),
+            bg,
+        );
+
+        // Holed polygon (non-zero winding, reversed inner).
+        p.PaintPolygon(
+            &[
+                (0.80, 0.90),
+                (0.84, 0.90),
+                (0.84, 0.94),
+                (0.80, 0.94),
+                (0.80, 0.90),
+                (0.81, 0.91),
+                (0.81, 0.93),
+                (0.83, 0.93),
+                (0.83, 0.91),
+                (0.81, 0.91),
+            ],
+            emColor::WHITE,
+            bg,
+        );
+
         let circle: Vec<(f64, f64)> = (0..64)
             .map(|i| {
                 let a = PI * i as f64 / 32.0;
@@ -369,44 +405,283 @@ impl TestPanel {
             .collect();
         p.PaintPolygon(&circle, emColor::YELLOW, bg);
 
-        // Ellipses
-        p.PaintEllipse(0.05, 0.80, 0.01, 0.01, emColor::WHITE, bg);
-        p.PaintEllipse(0.06, 0.80, 0.02, 0.01, emColor::WHITE, bg);
+        // Clipped circle — C++ creates sub-painter with restricted clip rect.
+        p.push_state();
+        p.SetClipping(0.51, 0.81, 0.08, 0.08);
+        let circle2: Vec<(f64, f64)> = (0..64)
+            .map(|i| {
+                let a = PI * i as f64 / 32.0;
+                (a.sin() * 0.05 + 0.55, a.cos() * 0.05 + 0.85)
+            })
+            .collect();
+        p.PaintPolygon(&circle2, emColor::GREEN, bg);
+        p.pop_state();
 
-        // Round rects
+        // Ellipse (polygon approximation).
+        let ellipse: Vec<(f64, f64)> = (0..64)
+            .map(|i| {
+                let a = PI * i as f64 / 32.0;
+                (a.sin() * 0.06 + 0.6, a.cos() * 0.04 + 0.86)
+            })
+            .collect();
+        p.PaintPolygon(&ellipse, emColor::rgba(255, 0, 0, 92), bg);
+
+        p.PaintPolygon(
+            &[(0.6, 0.9), (0.5, 0.92), (0.65, 0.95)],
+            emColor::rgba(187, 255, 255, 255),
+            bg,
+        );
+        p.PaintPolygon(&[(0.6, 0.96), (0.5, 0.92), (0.65, 0.95)], emColor::RED, bg);
+        p.PaintPolygon(
+            &[(0.45, 0.9), (0.35, 0.92), (0.5, 0.95)],
+            emColor::rgba(187, 255, 255, 255),
+            bg,
+        );
+        p.PaintPolygon(&[(0.45, 0.96), (0.35, 0.92), (0.5, 0.95)], emColor::RED, bg);
+
+        // Thin triangles.
+        p.PaintPolygon(
+            &[(0.6, 0.6), (0.602, 0.6), (0.502, 0.7)],
+            emColor::rgba(187, 136, 255, 192),
+            bg,
+        );
+        p.PaintPolygon(
+            &[(0.7, 0.55), (0.702, 0.55), (0.802, 0.9), (0.8, 0.9)],
+            emColor::rgba(136, 187, 255, 192),
+            bg,
+        );
+
+        // Bowtie (self-intersecting quad).
+        p.PaintPolygon(
+            &[(0.8, 0.55), (0.9, 0.55), (0.8, 0.8), (0.9, 0.8)],
+            emColor::rgba(136, 187, 255, 192),
+            bg,
+        );
+
+        // Ellipses (cx, cy, rx, ry).
+        p.PaintEllipse(0.055, 0.805, 0.005, 0.005, emColor::WHITE, bg);
+        p.PaintEllipse(0.07, 0.805, 0.01, 0.005, emColor::WHITE, bg);
+        p.PaintEllipse(0.0925, 0.805, 0.0025, 0.005, emColor::WHITE, bg);
+
+        // Ellipse sectors.
+        p.PaintEllipseSector(0.105, 0.805, 0.005, 0.005, 45.0, 305.0, emColor::WHITE, bg);
+        p.PaintEllipseSector(0.12, 0.805, 0.01, 0.005, 45.0, -395.0, emColor::WHITE, bg);
+
+        // Rect outlines.
+        let thin_stroke = emStroke::new(emColor::WHITE, 0.001);
+        p.PaintRectOutline(0.05, 0.82, 0.01, 0.01, &thin_stroke, bg);
+        let thick_stroke = emStroke::new(emColor::WHITE, 0.008);
+        p.PaintRectOutline(0.10, 0.82, 0.01, 0.01, &thick_stroke, bg);
+
+        // Round rects.
         p.PaintRoundRect(0.05, 0.84, 0.01, 0.01, 0.001, 0.001, emColor::WHITE, bg);
+        p.PaintRoundRect(0.07, 0.84, 0.02, 0.01, 0.002, 0.002, emColor::WHITE, bg);
+        p.PaintRoundRect(0.10, 0.84, 0.01, 0.01, 0.003, 0.003, emColor::WHITE, bg);
 
-        // A simple bezier
+        // Ellipse outlines.
+        let outline_stroke = emStroke::new(emColor::WHITE, 0.003);
+        p.PaintEllipseOutline(0.055, 0.865, 0.005, 0.005, &outline_stroke, bg);
+        let thin_outline = emStroke::new(emColor::WHITE, 0.001);
+        p.PaintEllipseOutline(0.075, 0.865, 0.01, 0.005, &thin_outline, bg);
+
+        // Round rect outlines.
+        let rr_stroke = emStroke::new(emColor::WHITE, 0.001);
+        p.PaintRoundRectOutline(0.05, 0.88, 0.01, 0.01, 0.001, 0.001, &rr_stroke, bg);
+        p.PaintRoundRectOutline(0.07, 0.88, 0.02, 0.01, 0.002, 0.002, &rr_stroke, bg);
+
+        // Bezier curves.
         p.PaintBezier(
             &[(0.05, 0.90), (0.06, 0.90), (0.05, 0.91)],
             emColor::WHITE,
             bg,
         );
+        p.PaintBezier(
+            &[
+                (0.065, 0.91),
+                (0.05, 0.902),
+                (0.058, 0.89),
+                (0.065, 0.900),
+                (0.072, 0.89),
+                (0.08, 0.902),
+            ],
+            emColor::WHITE,
+            bg,
+        );
 
-        // Use the test_image so the field isn't merely stored.
+        let bezier_stroke = emStroke::new(emColor::WHITE, 0.0002);
+        p.PaintBezierOutline(
+            &[
+                (0.085, 0.91),
+                (0.07, 0.902),
+                (0.078, 0.89),
+                (0.085, 0.900),
+                (0.092, 0.89),
+                (0.10, 0.902),
+            ],
+            &bezier_stroke,
+            bg,
+        );
+
+        let mut arrow_s = emStroke::new(emColor::WHITE, 0.0002);
+        arrow_s.cap = LineCap::Round;
+        arrow_s.join = LineJoin::Round;
+        arrow_s.start_end =
+            emStrokeEnd::new(StrokeEndType::ContourTriangle).with_inner_color(emColor::RED);
+        arrow_s.finish_end = emStrokeEnd::new(StrokeEndType::Arrow);
+        p.PaintBezierLine(
+            &[(0.105, 0.91), (0.09, 0.902), (0.098, 0.89), (0.105, 0.900)],
+            &arrow_s,
+            bg,
+        );
+
+        // All StrokeEndType variants in radial pattern.
+        let end_types = [
+            StrokeEndType::Butt,
+            StrokeEndType::Cap,
+            StrokeEndType::Arrow,
+            StrokeEndType::ContourArrow,
+            StrokeEndType::LineArrow,
+            StrokeEndType::Triangle,
+            StrokeEndType::ContourTriangle,
+            StrokeEndType::Square,
+            StrokeEndType::ContourSquare,
+            StrokeEndType::HalfSquare,
+            StrokeEndType::Circle,
+            StrokeEndType::ContourCircle,
+            StrokeEndType::HalfCircle,
+            StrokeEndType::Diamond,
+            StrokeEndType::ContourDiamond,
+            StrokeEndType::HalfDiamond,
+            StrokeEndType::emStroke,
+        ];
+        let n = end_types.len();
+        for i in 0..(2 * n) {
+            let a = 2.0 * PI * i as f64 / (2 * n) as f64;
+            let mut s = emStroke::new(emColor::WHITE, 0.0001);
+            if i & 1 != 0 {
+                s.cap = LineCap::Round;
+                s.join = LineJoin::Round;
+            }
+            s.start_end = emStrokeEnd::new(StrokeEndType::Cap);
+            s.finish_end = emStrokeEnd::new(end_types[i / 2])
+                .with_inner_color(emColor::rgba(0xFF, 0xFF, 0xFF, 0x40));
+            p.paint_line_stroked(
+                0.117 + 0.002 * a.cos(),
+                0.903 + 0.002 * a.sin(),
+                0.117 + 0.0075 * a.cos(),
+                0.903 + 0.0075 * a.sin(),
+                &s,
+                bg,
+            );
+        }
+
+        // Polyline with contour arrow.
+        let mut poly_s = emStroke::new(emColor::WHITE, 0.0005);
+        poly_s.cap = LineCap::Round;
+        poly_s.join = LineJoin::Round;
+        poly_s.start_end = emStrokeEnd::new(StrokeEndType::ContourArrow);
+        poly_s.finish_end = emStrokeEnd::new(StrokeEndType::Cap);
+        p.PaintPolyline(
+            &[(0.13, 0.897), (0.14, 0.902), (0.13, 0.906), (0.137, 0.909)],
+            &poly_s,
+            false,
+            bg,
+        );
+
+        // Polygon outline.
+        p.PaintPolygonOutline(
+            &[(0.06, 0.80), (0.10, 0.85), (0.08, 0.91)],
+            emColor::RED,
+            0.0002,
+            bg,
+        );
+
+        // Textured polygons — star shapes (matching C++ emLinearGradientTexture /
+        // emRadialGradientTexture / emImageTexture polygon calls).
+        let star = make_star(0.215, 0.917, 0.015, 0.015, 8);
+        p.paint_polygon_textured(
+            &star,
+            &emTexture::LinearGradient {
+                color_a: emColor::rgba(0, 0xFF, 0, 0x80),
+                color_b: emColor::rgba(0xFF, 0xFF, 0, 0xFF),
+                start: (0.23, 0.9),
+                end: (0.2, 0.93),
+            },
+            bg,
+        );
+
+        let star2 = make_star(0.235, 0.917, 0.015, 0.015, 8);
+        p.paint_polygon_textured(
+            &star2,
+            &emTexture::RadialGradient {
+                color_inner: emColor::rgba(0xCC, 0xCC, 0x33, 0xFF),
+                color_outer: emColor::rgba(0, 0, 0xFF, 0x60),
+                center: (0.21, 0.90),
+                radius_x: 0.05,
+                radius_y: 0.035,
+            },
+            bg,
+        );
+
         let h_ratio = if self.test_image.GetWidth() > 0 {
             0.001 * self.test_image.GetHeight() as f64 / self.test_image.GetWidth() as f64
         } else {
             0.001
         };
-        let iw = self.test_image.GetWidth() as i32;
-        let ih = self.test_image.GetHeight() as i32;
-        p.PaintImageTextured(
+        let star3 = make_star(0.255, 0.917, 0.015, 0.015, 8);
+        p.paint_polygon_textured(
+            &star3,
+            &emTexture::emImage {
+                image: self.test_image.clone(),
+                x: 0.0,
+                y: 0.0,
+                w: 0.002,
+                h: h_ratio,
+                alpha: 255,
+                extension: ImageExtension::Repeat,
+                quality: ImageQuality::Bilinear,
+            },
+            bg,
+        );
+
+        // Gradient rects.
+        p.paint_linear_gradient(
+            0.2,
+            0.94,
+            0.02,
+            0.01,
+            emColor::rgba(0, 0, 0, 0x80),
+            emColor::rgba(0x80, 0x80, 0x80, 0x80),
+            true,
+            bg,
+        );
+        p.paint_radial_gradient(
+            0.225,
+            0.946,
+            0.004,
+            0.008,
+            emColor::rgba(0xFF, 0x88, 0, 0xFF),
+            emColor::rgba(0, 0x55, 0, 0xFF),
+            bg,
+        );
+        p.PaintEllipse(
+            0.24,
+            0.945,
+            0.01,
+            0.005,
+            emColor::rgba(0, 0xCC, 0x88, 0xFF),
+            bg,
+        );
+
+        // emImage scaled.
+        p.paint_image_scaled(
             0.26,
             0.94,
             0.02,
             0.01,
-            0.26,
-            0.94,
-            0.001,
-            h_ratio,
             &self.test_image,
-            0,
-            0,
-            iw,
-            ih,
-            255,
-            emcore::emTexture::ImageExtension::Repeat,
+            ImageQuality::Bilinear,
+            ImageExtension::Repeat,
         );
     }
 }
@@ -652,15 +927,6 @@ impl PanelBehavior for TestPanel {
 }
 
 // ─── TkTestGrpPanel ─────────────────────────────────────────────────
-//
-// C++ TkTestGrp::AutoExpand() (emTestPanel.cpp:890-911) creates four TkTest
-// instances via two vertical splitters inside a horizontal splitter:
-//   t1a (top-left), t1b (bottom-left), t2a (top-right), t2b (bottom-right).
-// t2b is disabled via SetEnableSwitch(false).
-//
-// emSplitter is not yet ported (dependency-forced divergence); we replicate
-// the observable 2×2 grid layout directly with layout_child arithmetic that
-// matches sp->SetPos(0.8): 80 % left / 20 % right split on both axes.
 
 struct TkTestGrpPanel {
     border: emBorder,
@@ -702,38 +968,48 @@ impl PanelBehavior for TkTestGrpPanel {
         );
     }
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        // DIVERGED: (dependency-forced) — emSplitter is not yet ported; 2×2 grid
+        // laid out manually. C++ TkTestGrp::AutoExpand creates nested emSplitter
+        // panels (emTestPanel.cpp:882-908). Observable difference: panel
+        // proportions use fixed 80/20 splits instead of user-draggable splitters.
         let rect = ctx.layout_rect();
 
         if !self.children_created {
             self.children_created = true;
-            // C++: t1a, t1b go in sp1 (left); t2a, t2b go in sp2 (right).
+            // C++: t1a, t1b go in sp1 (vertical, left 80 %);
+            //      t2a, t2b go in sp2 (vertical, right 20 %).
             ctx.create_child_with("t1a", Box::new(TkTestPanel::new(self.look.clone())));
             ctx.create_child_with("t1b", Box::new(TkTestPanel::new(self.look.clone())));
             ctx.create_child_with("t2a", Box::new(TkTestPanel::new(self.look.clone())));
-            let t2b_id =
-                ctx.create_child_with("t2b", Box::new(TkTestPanel::new(self.look.clone())));
-            // C++: t2b->SetEnableSwitch(false) (emTestPanel.cpp:909).
+            let t2b_id = ctx.create_child_with(
+                "t2b",
+                // C++ emTestPanel.cpp:910: t2b->SetCaption("Disabled").
+                Box::new(TkTestPanel::new(self.look.clone()).with_caption("Disabled")),
+            );
+            // C++ emTestPanel.cpp:909: t2b->SetEnableSwitch(false).
             ctx.tree
                 .SetEnableSwitch(t2b_id, false, ctx.scheduler.as_deref_mut());
         }
 
-        // C++ sp->SetPos(0.8), sp1->SetPos(0.8), sp2->SetPos(0.8):
-        // horizontal split at 80 %; each side split vertically at 80 %.
+        // sp->SetPos(0.8): horizontal split — sp1 left 80 %, sp2 right 20 %.
+        // sp1->SetPos(0.8), sp2->SetPos(0.8): vertical split — top 80 %, bottom 20 %.
         let cr = self.border.GetContentRect(rect.w, rect.h, &self.look);
-        let half_w = cr.w * 0.5;
-        let half_h = cr.h * 0.5;
+        let left_w = cr.w * 0.8;
+        let right_w = cr.w * 0.2;
+        let top_h = cr.h * 0.8;
+        let bot_h = cr.h * 0.2;
 
         if let Some(id) = ctx.find_child_by_name("t1a") {
-            ctx.layout_child(id, cr.x, cr.y, half_w, half_h);
+            ctx.layout_child(id, cr.x, cr.y, left_w, top_h);
         }
         if let Some(id) = ctx.find_child_by_name("t1b") {
-            ctx.layout_child(id, cr.x, cr.y + half_h, half_w, half_h);
+            ctx.layout_child(id, cr.x, cr.y + top_h, left_w, bot_h);
         }
         if let Some(id) = ctx.find_child_by_name("t2a") {
-            ctx.layout_child(id, cr.x + half_w, cr.y, half_w, half_h);
+            ctx.layout_child(id, cr.x + left_w, cr.y, right_w, top_h);
         }
         if let Some(id) = ctx.find_child_by_name("t2b") {
-            ctx.layout_child(id, cr.x + half_w, cr.y + half_h, half_w, half_h);
+            ctx.layout_child(id, cr.x + left_w, cr.y + top_h, right_w, bot_h);
         }
 
         let cc =
@@ -765,6 +1041,15 @@ impl TkTestPanel {
             layout,
             children_created: false,
         }
+    }
+
+    /// Override the border caption — used to set "Disabled" on t2b
+    /// (C++ emTestPanel.cpp:910: `t2b->SetCaption("Disabled")`).
+    fn with_caption(mut self, caption: &str) -> Self {
+        self.border = emBorder::new(OuterBorderType::Group)
+            .with_inner(InnerBorderType::Group)
+            .with_caption(caption);
+        self
     }
 
     fn make_category(ctx: &mut PanelCtx, name: &str, caption: &str, pct: Option<f64>) -> PanelId {
@@ -1041,6 +1326,20 @@ impl PanelBehavior for PolyDrawPanel {
             0.15,
         );
     }
+}
+
+// ─── helpers ────────────────────────────────────────────────────────
+
+/// Star polygon helper used in paint_primitives textured-polygon demos.
+/// Alternates outer (r=1.0) and inner (r=0.4) vertices around (cx, cy).
+fn make_star(cx: f64, cy: f64, rx: f64, ry: f64, points: usize) -> Vec<(f64, f64)> {
+    let mut verts = Vec::with_capacity(points * 2);
+    for i in 0..(points * 2) {
+        let a = PI * i as f64 / points as f64 - PI / 2.0;
+        let r = if i % 2 == 0 { 1.0 } else { 0.4 };
+        verts.push((cx + a.cos() * rx * r, cy + a.sin() * ry * r));
+    }
+    verts
 }
 
 // ─── plugin entry ───────────────────────────────────────────────────
