@@ -599,7 +599,11 @@ impl TestPanel {
             .collect();
         p.PaintPolygon(&circle, emColor::YELLOW, bg);
 
-        // Clipped circle — C++ creates sub-painter with restricted clip rect.
+        // DIVERGED: (language-forced) C++ creates a sub-painter with restricted origin/scale
+        // (emTestPanel.cpp:225–231) — both clips AND re-maps coordinate origin. Rust cannot
+        // create a sub-painter (second &mut emImage borrow forbidden by borrow checker).
+        // push_state/SetClipping/pop_state clips correctly but does not shift origin.
+        // Verify in golden test.
         p.push_state();
         p.SetClipping(0.51, 0.81, 0.08, 0.08);
         let circle2: Vec<(f64, f64)> = (0..64)
@@ -1017,45 +1021,145 @@ impl TestPanel {
             bg,
         );
 
-        // Gradient rects.
-        p.paint_linear_gradient(
+        // C-18: linear gradient rect — explicit start/end points matching C++
+        // emTestPanel.cpp:415–419.
+        p.paint_rect_with_texture(
             0.2,
             0.94,
             0.02,
             0.01,
-            emColor::rgba(0, 0, 0, 0x80),
-            emColor::rgba(0x80, 0x80, 0x80, 0x80),
-            true,
-            bg,
-        );
-        p.paint_radial_gradient(
-            0.225,
-            0.946,
-            0.004,
-            0.008,
-            emColor::rgba(0xFF, 0x88, 0, 0xFF),
-            emColor::rgba(0, 0x55, 0, 0xFF),
-            bg,
-        );
-        // C++ :425-428 — solid fallback for radial-gradient ellipse, bounding rect.
-        p.PaintEllipse(
-            0.23,
-            0.94,
-            0.02,
-            0.01,
-            emColor::rgba(0, 0xCC, 0x88, 0xFF),
+            &emTexture::LinearGradient {
+                color_a: emColor::from_packed(0x00000080),
+                color_b: emColor::from_packed(0x80808080),
+                start: (0.207, 0.944),
+                end: (0.213, 0.946),
+            },
             bg,
         );
 
-        // emImage scaled.
-        p.paint_image_scaled(
+        // C-19: radial gradient rect — explicit origin/radii matching C++
+        // emTestPanel.cpp:420–423.
+        p.paint_rect_with_texture(
+            0.221,
+            0.94,
+            0.008,
+            0.01,
+            &emTexture::RadialGradient {
+                color_inner: emColor::from_packed(0xFF8800FF),
+                color_outer: emColor::from_packed(0x005500FF),
+                center: (0.223, 0.941),
+                radius_x: 0.004,
+                radius_y: 0.008,
+            },
+            bg,
+        );
+
+        // C-22: radial-gradient ellipse — matches C++ emTestPanel.cpp:425–428.
+        p.paint_ellipse_with_texture(
+            0.23 + 0.02 * 0.5,
+            0.94 + 0.01 * 0.5,
+            0.02 * 0.5,
+            0.01 * 0.5,
+            &emTexture::RadialGradient {
+                color_inner: emColor::from_packed(0x00000000),
+                color_outer: emColor::from_packed(0x00CC88FF),
+                center: (0.23, 0.94),
+                radius_x: 0.02,
+                radius_y: 0.01,
+            },
+            bg,
+        );
+
+        // C-20: image tile — texture width 0.001 (not rect width 0.02), matching
+        // C++ emTestPanel.cpp:430–435.
+        p.PaintImageTextured(
             0.26,
             0.94,
             0.02,
             0.01,
+            0.26,
+            0.94,
+            0.001,
+            0.001 * self.test_image.GetHeight() as f64 / self.test_image.GetWidth() as f64,
             &self.test_image,
-            ImageQuality::Bilinear,
+            0,
+            0,
+            self.test_image.GetWidth() as i32,
+            self.test_image.GetHeight() as i32,
+            255,
             ImageExtension::Repeat,
+        );
+
+        // C-16: emImageColoredTexture rect — matches C++ emTestPanel.cpp:441–451.
+        p.PaintImageColoredTextured(
+            0.2625,
+            0.942,
+            0.02,
+            0.01,
+            1.0005,
+            0.942,
+            0.001,
+            0.001 * self.test_image.GetHeight() as f64 / self.test_image.GetWidth() as f64,
+            &self.test_image,
+            emColor::from_packed(0x00FFFFFF),
+            emColor::from_packed(0xFF0000FF),
+            bg,
+            ImageExtension::Repeat,
+        );
+
+        // C-17: extend-mode rects — TILED, EDGE, ZERO — matches C++
+        // emTestPanel.cpp:453–478. Rust ImageExtension variants:
+        //   EXTEND_TILED → Repeat, EXTEND_EDGE → Clamp, EXTEND_ZERO → Zero.
+        p.PaintImageTextured(
+            0.275,
+            0.907,
+            0.002,
+            0.002,
+            0.2755,
+            0.9075,
+            0.001,
+            0.001,
+            &self.test_image,
+            50,
+            10,
+            110,
+            110,
+            255,
+            ImageExtension::Repeat,
+        );
+        p.PaintImageTextured(
+            0.275,
+            0.910,
+            0.002,
+            0.002,
+            0.2755,
+            0.9105,
+            0.001,
+            0.001,
+            &self.test_image,
+            50,
+            10,
+            110,
+            110,
+            255,
+            ImageExtension::Clamp,
+        );
+        p.PaintImageTextured(
+            0.275,
+            0.913,
+            0.002,
+            0.002,
+            0.2755,
+            0.9135,
+            0.001,
+            0.001,
+            &self.test_image,
+            50,
+            10,
+            110,
+            110,
+            255,
+            ImageExtension::Zero,
         );
     }
 }
