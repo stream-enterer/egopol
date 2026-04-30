@@ -352,17 +352,17 @@ impl emDialog {
         }));
     }
 
-    /// Static convenience that builds a Close-button message dialog with
+    /// Static convenience that builds an OK-button message dialog with
     /// auto-delete. Port of C++ `emDialog::ShowMessage` (emDialog.cpp:162-180).
     ///
-    /// C++ creates an emLabel content panel child and adds a single "Close"
-    /// negative button. Rust mirrors this: creates the dialog, adds the
-    /// "Close" button, sets root title, enables auto-deletion, installs a
+    /// C++ creates an emLabel content panel child and adds a single "OK"
+    /// positive button. Rust mirrors this: creates the dialog, adds the
+    /// "OK" button, sets root title, enables auto-deletion, installs a
     /// `LabelBehavior` on the content panel, then calls `show`.
     pub fn ShowMessage<C: ConstructCtx>(ctx: &mut C, title: &str, message: &str) -> Self {
         let look = crate::emLook::emLook::new();
         let mut dlg = Self::new(ctx, title, Rc::clone(&look));
-        dlg.AddNegativeButton(ctx, "Close");
+        dlg.AddOKButton(ctx);
         dlg.SetRootTitle(ctx, title);
         dlg.EnableAutoDeletion(ctx, true);
 
