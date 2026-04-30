@@ -44,6 +44,7 @@ use emcore::emStroke::{emStroke, DashType, LineCap, LineJoin};
 use emcore::emStrokeEnd::{emStrokeEnd, StrokeEndType};
 use emcore::emTextField::emTextField;
 use emcore::emTexture::{emTexture, ImageExtension, ImageQuality};
+use emcore::emTiling::{AlignmentH, AlignmentV};
 use emcore::emTunnel::emTunnel;
 use emcore::emVarModel;
 use emcore::emView::ViewFlags;
@@ -471,6 +472,45 @@ impl PanelBehavior for CustomItemBehavior {
 
     fn IsOpaque(&self) -> bool {
         true
+    }
+
+    /// C++ CustomItemPanel::AutoExpand (cpp:941–956): recursive label + list box.
+    ///
+    /// In C++ each CustomItemPanel inherits from emLinearGroup and creates:
+    /// 1. An emLabel "t" with the listbox's look and the item text.
+    /// 2. A recursive CustomListBox "l" with the same look, multi-selection,
+    ///    items 1–7, item 0 selected.
+    ///
+    /// The look used here (`self.look`) is the parent listbox's look,
+    /// matching `GetListBox().GetLook()` in C++.
+    fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
+        // "t": label with listbox's look (cpp:943-944: new emLabel; SetLook).
+        let label = emLabel::new(
+            "This is a custom list\nbox item panel (it is\nrecursive...)",
+            self.look.clone(),
+        );
+        ctx.create_child_with("t", Box::new(LabelPanel { widget: label }));
+
+        // "l": recursive CustomListBox with parent listbox's look (cpp:945-955).
+        let look = self.look.clone();
+        let mut lb = emListBox::new(ctx, look.clone());
+        lb.SetCaption("Child List Box");
+        lb.SetSelectionType(SelectionMode::Multi);
+        for i in 1..=7usize {
+            lb.AddItem(format!("{i}"), format!("Item {i}"));
+        }
+        lb.SetSelectedIndex(0);
+        lb.SetChildTallness(0.4);
+        lb.SetAlignment(AlignmentH::Left, AlignmentV::Top);
+        lb.SetStrictRaster();
+        lb.set_item_behavior_factory(move |_idx, text, selected, _look, _sel_mode, _enabled| {
+            Box::new(CustomItemBehavior {
+                text: text.to_string(),
+                selected,
+                look: look.clone(),
+            })
+        });
+        ctx.create_child_with("l", Box::new(ListBoxPanel { widget: lb }));
     }
 }
 
@@ -2075,12 +2115,13 @@ impl TkTestPanel {
                 .set_behavior(id, Box::new(ListBoxPanel { widget: lb6 }));
 
             // l7: Custom List Box — C++ :726-731, 985-1001.
-            // C++ CustomListBox sets child tallness 0.4, top-left alignment, and creates
-            // CustomItemPanel children (emLinearGroup + ItemPanelInterface). The key
-            // observable effect from CustomItemPanel::ItemSelectionChanged (C++ :970-981)
-            // is a rose bg color (emColor(224,80,128)) on selected items.
-            // Implemented via set_item_behavior_factory (the visual layer).
-            let lb7_look = look.clone();
+            // C++ CustomListBox constructor (cpp:992–994) sets child tallness 0.4,
+            // top-left alignment, and strict raster.
+            // CustomItemPanel children (emLinearGroup + ItemPanelInterface) implement
+            // ItemSelectionChanged (C++ :970-981): rose bg color (emColor(224,80,128))
+            // on selected items. Implemented via set_item_behavior_factory (visual layer).
+            // I-13: factory receives the listbox's live look as its `look` parameter
+            // (matching C++ `SetLook(GetListBox().GetLook())`); no outer capture needed.
             let mut lb7 = emListBox::new(ctx, look.clone());
             lb7.SetCaption("Custom List Box");
             lb7.SetSelectionType(SelectionMode::Multi);
@@ -2088,12 +2129,16 @@ impl TkTestPanel {
                 lb7.AddItem(format!("{i}"), format!("Item {i}"));
             }
             lb7.SetSelectedIndex(0);
+            // I-12: C++ CustomListBox::CustomListBox (cpp:992–994).
+            lb7.SetChildTallness(0.4);
+            lb7.SetAlignment(AlignmentH::Left, AlignmentV::Top);
+            lb7.SetStrictRaster();
             lb7.set_item_behavior_factory(
-                move |_index, text, selected, _look, _sel_mode, _enabled| {
+                move |_index, text, selected, look, _sel_mode, _enabled| {
                     Box::new(CustomItemBehavior {
                         text: text.to_string(),
                         selected,
-                        look: lb7_look.clone(),
+                        look,
                     })
                 },
             );
@@ -2510,19 +2555,28 @@ impl PanelBehavior for CanvasPanel {
     fn Input(
         &mut self,
         event: &emInputEvent,
-        _state: &PanelState,
+        state: &PanelState,
         input_state: &emInputState,
         ctx: &mut PanelCtx,
     ) -> bool {
         let mx = event.mouse_x;
         let my = event.mouse_y;
+        // C++ cpp:1355: GetHeight() — panel height in panel-local coordinate system.
+        let panel_h = state.height;
 
-        // C++ Input: left-press → find nearest vertex within ViewToPanelDeltaX(12px)
+        // C++ cpp:1315–1317: left-press → Eat() and Focus() unconditionally BEFORE vertex search.
+        // Focus() is omitted: Rust focus-on-click is handled by the window dispatch loop before Input fires.
+        // DIVERGED: (language-forced) C++ calls event.Eat() via non-const reference at cpp:1315,
+        // consuming the event unconditionally on any left-press. PanelBehavior::Input takes
+        // &emInputEvent (not &mut), and dispatch_input discards the bool return value, so no
+        // in-trait eat-equivalent exists. The observable difference: in C++, any left-click on the
+        // canvas panel is consumed even if no vertex was hit; in Rust it propagates. Fixing this
+        // requires an emcore-wide trait change (or Cell<bool> on emInputEvent.eaten).
         if self.drag_idx.is_none()
             && event.key == InputKey::MouseLeft
             && event.variant == InputVariant::Press
         {
-            // Threshold: 12 view-pixels in panel space.
+            // Threshold: 12 view-pixels in panel space (ViewToPanelDeltaX(12)).
             // panel_to_view_x(1) - panel_to_view_x(0) = viewed_width in pixels.
             let viewed_w = ctx.panel_to_view_x(1.0) - ctx.panel_to_view_x(0.0);
             let threshold = if viewed_w > 0.0 {
@@ -2545,20 +2599,21 @@ impl PanelBehavior for CanvasPanel {
             if let Some(idx) = best_i {
                 self.drag_idx = Some(idx);
                 self.drag_offset = (self.vertices[idx].0 - mx, self.vertices[idx].1 - my);
+                // C++ cpp:1331: InvalidatePainting() after setting DragIdx — no-op in Rust (view repaints every frame).
             }
-            return best_i.is_some();
         }
 
         // C++ Input: left-release → stop drag
         if self.drag_idx.is_some() && !input_state.GetLeftButton() {
             self.drag_idx = None;
-            return false;
+            // C++ cpp:1336: InvalidatePainting() — no-op in Rust.
         }
 
         // C++ Input: dragging → update vertex position; shift/ctrl/alt → snap to grid
         if let Some(idx) = self.drag_idx {
+            // C-7: y-bounds use GetHeight() (panel_h), not hardcoded 1.0 (cpp:1340–1341).
             let raw_x = (mx + self.drag_offset.0).clamp(0.0, 1.0);
-            let raw_y = (my + self.drag_offset.1).clamp(0.0, 1.0);
+            let raw_y = (my + self.drag_offset.1).clamp(0.0, panel_h);
             let (x, y) = if input_state.GetShift() || input_state.GetCtrl() || input_state.GetAlt()
             {
                 // C++ snapping: find r s.t. PanelToViewDeltaX(r) <= 20px
@@ -2571,13 +2626,24 @@ impl PanelBehavior for CanvasPanel {
             } else {
                 (raw_x, raw_y)
             };
-            self.vertices[idx] = (x, y);
+            // C-9: change-guard before vertex write (cpp:1344–1347).
+            if self.vertices[idx].0 != x || self.vertices[idx].1 != y {
+                self.vertices[idx] = (x, y);
+                // C++ cpp:1347: InvalidatePainting() — no-op in Rust (view repaints every frame).
+            }
         }
 
-        // C++ Input: ShowHandles = dragging or mouse inside panel
+        // C++ Input: ShowHandles = dragging or mouse inside panel bounds.
+        // C-7: y-bound uses panel_h (GetHeight()), not 1.0 (cpp:1355).
         let inside =
-            self.drag_idx.is_some() || ((0.0..1.0).contains(&mx) && (0.0..1.0).contains(&my));
-        self.show_handles = inside;
+            self.drag_idx.is_some() || ((0.0..1.0).contains(&mx) && (0.0..panel_h).contains(&my));
+        if self.show_handles != inside {
+            self.show_handles = inside;
+            // C++ cpp:1358: InvalidatePainting() — no-op in Rust.
+        }
+
+        // C-26: C++ cpp:1361: emPanel::Input(event, state, mx, my) — base handles cursor + bookkeeping.
+        // Rust base Input is a no-op; call preserved for fidelity.
 
         false
     }
@@ -2588,7 +2654,7 @@ impl PanelBehavior for CanvasPanel {
         canvas_color: emColor,
         w: f64,
         h: f64,
-        _state: &PanelState,
+        state: &PanelState,
     ) {
         // C++ Paint: gradient background (emLinearGradientTexture)
         p.paint_linear_gradient(
@@ -2614,34 +2680,49 @@ impl PanelBehavior for CanvasPanel {
 
         // C++ Paint: draw vertex handles when ShowHandles
         if self.show_handles {
-            let r = (0.05f64).min(12.0 / w.max(1.0));
+            // C-10: C++ cpp:1464: r = emMin(ViewToPanelDeltaX(12.0), 0.05).
+            // ViewToPanelDeltaX(12) = 12 * panel_width / viewed_width_in_pixels.
+            // Panel width is always 1.0; viewed_rect.w is width in view (screen) pixels.
+            let viewed_w = state.viewed_rect.w.max(1.0);
+            let r = (12.0 / viewed_w).min(0.05);
+            // Scale r to painter space (painter coords = panel coords * w).
+            let r_paint = r * w;
             for (i, &(vx, vy)) in scaled.iter().enumerate() {
                 let c = if self.drag_idx == Some(i) {
                     emColor::rgba(255, 255, 255, 200)
                 } else {
                     emColor::rgba(0, 255, 0, 128)
                 };
-                p.PaintEllipse(vx - r, vy - r, 2.0 * r, 2.0 * r, c, emColor::TRANSPARENT);
-                let outline = emStroke::new(emColor::rgba(0, 0, 0, 128), r * 0.15);
+                p.PaintEllipse(
+                    vx - r_paint,
+                    vy - r_paint,
+                    2.0 * r_paint,
+                    2.0 * r_paint,
+                    c,
+                    emColor::TRANSPARENT,
+                );
+                let outline = emStroke::new(emColor::rgba(0, 0, 0, 128), r_paint * 0.15);
                 p.PaintEllipseOutline(
-                    vx - r,
-                    vy - r,
-                    2.0 * r,
-                    2.0 * r,
+                    vx - r_paint,
+                    vy - r_paint,
+                    2.0 * r_paint,
+                    2.0 * r_paint,
                     &outline,
                     emColor::TRANSPARENT,
                 );
             }
         }
 
-        // C++ Paint: help text at bottom
+        // C-11: C++ cpp:1485–1490: PaintTextBoxed(0.0, GetHeight()-0.03, 1.0, 0.03, ..., 0.03).
+        // Fixed values in panel-local coords; h corresponds to GetHeight() (panel tallness).
+        // Paint coords are panel-local * w, so multiply by w for painter space.
         p.PaintTextBoxed(
             0.0,
-            h - 0.05 * h,
-            w,
-            0.05 * h,
-            "The vertices can be dragged with the left mouse button!\n(Hold shift for raster)",
-            0.03 * h,
+            (h - 0.03) * w,
+            1.0 * w,
+            0.03 * w,
+            "The vertices can be dragged with the left mouse button!\n(Hold shift for raster)\n",
+            0.03 * w,
             emColor::WHITE,
             emColor::TRANSPARENT,
             TextAlignment::Center,
