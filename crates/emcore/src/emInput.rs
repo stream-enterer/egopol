@@ -249,6 +249,63 @@ impl InputKey {
             _ => None,
         }
     }
+
+    /// Map this key to its C++ emInputKey numeric code (0x00–0xFF).
+    /// Returns None for keys that have no defined C++ numeric code (e.g. Key(char)
+    /// with a non-ASCII-uppercase non-digit character). Used by emTestPanel::Input
+    /// to reproduce the C++ log format: "STATE: pressed=<code>,..." iterating 0..256.
+    pub fn to_em_key_code(self) -> Option<u8> {
+        match self {
+            InputKey::Backspace => Some(0x08),
+            InputKey::Tab => Some(0x09),
+            InputKey::Enter => Some(0x0D),
+            InputKey::Escape => Some(0x1B),
+            InputKey::Space => Some(0x20),
+            InputKey::Key(c) if c.is_ascii_digit() => Some(c as u8), // 0x30–0x39
+            InputKey::Key(c) if c.is_ascii_uppercase() => Some(c as u8), // 0x41–0x5A
+            InputKey::Delete => Some(0x7F),
+            InputKey::Shift => Some(0x81),
+            InputKey::Ctrl => Some(0x82),
+            InputKey::Alt => Some(0x83),
+            InputKey::Meta => Some(0x84),
+            InputKey::AltGr => Some(0x85),
+            InputKey::ArrowUp => Some(0x91),
+            InputKey::ArrowDown => Some(0x92),
+            InputKey::ArrowLeft => Some(0x93),
+            InputKey::ArrowRight => Some(0x94),
+            InputKey::PageUp => Some(0x95),
+            InputKey::PageDown => Some(0x96),
+            InputKey::Home => Some(0x97),
+            InputKey::End => Some(0x98),
+            InputKey::Print => Some(0x99),
+            InputKey::Pause => Some(0x9A),
+            InputKey::Menu => Some(0x9B),
+            InputKey::Insert => Some(0x9F),
+            InputKey::F1 => Some(0xA1),
+            InputKey::F2 => Some(0xA2),
+            InputKey::F3 => Some(0xA3),
+            InputKey::F4 => Some(0xA4),
+            InputKey::F5 => Some(0xA5),
+            InputKey::F6 => Some(0xA6),
+            InputKey::F7 => Some(0xA7),
+            InputKey::F8 => Some(0xA8),
+            InputKey::F9 => Some(0xA9),
+            InputKey::F10 => Some(0xAA),
+            InputKey::F11 => Some(0xAB),
+            InputKey::F12 => Some(0xAC),
+            InputKey::Touch => Some(0xEF),
+            InputKey::MouseLeft => Some(0xF0),
+            InputKey::MouseMiddle => Some(0xF1),
+            InputKey::MouseRight => Some(0xF2),
+            InputKey::WheelUp => Some(0xF3),
+            InputKey::WheelDown => Some(0xF4),
+            InputKey::WheelLeft => Some(0xF5),
+            InputKey::WheelRight => Some(0xF6),
+            InputKey::MouseX1 => Some(0xF7),
+            InputKey::MouseX2 => Some(0xF8),
+            InputKey::Key(_) => None,
+        }
+    }
 }
 
 /// Variant of an input event.

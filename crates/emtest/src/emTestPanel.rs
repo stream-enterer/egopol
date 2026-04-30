@@ -1072,6 +1072,13 @@ impl PanelBehavior for TestPanel {
         self.bg_color().IsOpaque()
     }
 
+    fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState, _ctx: &mut PanelCtx) {
+        // C++ emTestPanel.cpp:74–78.
+        // C++ calls UpdateControlPanel() (no Rust equivalent — child panels rebuild on next
+        // AutoExpand / Paint cycle) and InvalidatePainting() (Rust view repaints every frame).
+        // Both are no-ops in this port; method must exist to mirror C++ override.
+    }
+
     fn auto_expand(&self) -> bool {
         true
     }
@@ -1198,17 +1205,39 @@ impl PanelBehavior for TestPanel {
         &mut self,
         event: &emInputEvent,
         _state: &PanelState,
-        _input_state: &emInputState,
+        input_state: &emInputState,
         _ctx: &mut PanelCtx,
     ) -> bool {
+        // C++ emTestPanel.cpp:88–105. Mirrors C++ log format exactly:
+        // "EVENT: key=%d chars=\"%s\" repeat=%d variant=%d STATE: pressed=k1,k2,... mouse=%g,%g"
+        // C++ iterates i=0..256, printing i for each pressed key (cast from emInputKey).
+        // Rust: iterate all InputKey variants in numeric-code order, collect pressed codes.
+        let key_code = event.key.to_em_key_code().map_or(0i32, |c| c as i32);
+        let mut pressed_parts: Vec<String> = Vec::new();
+        // Collect all pressed keys sorted by C++ numeric code (0..256 scan order).
+        let pressed_keys = input_state.GetKeyStates();
+        let mut codes: Vec<u8> = pressed_keys
+            .iter()
+            .filter_map(|k| k.to_em_key_code())
+            .collect();
+        codes.sort_unstable();
+        for code in codes {
+            pressed_parts.push(format!("{}", code as i32));
+        }
+        let pressed_str = pressed_parts.join(",");
         let log = format!(
-            "key={:?} chars=\"{}\" repeat={} variant={:?} mouse={:.1},{:.1}",
-            event.key, event.chars, event.repeat, event.variant, event.mouse_x, event.mouse_y,
+            "EVENT: key={key_code} chars=\"{}\" repeat={} variant={} STATE: pressed={pressed_str} mouse={},{}",
+            event.chars,
+            event.repeat,
+            event.source_variant,
+            event.mouse_x,
+            event.mouse_y,
         );
         if self.input_log.len() >= MAX_LOG_ENTRIES {
             self.input_log.remove(0);
         }
         self.input_log.push(log);
+        // C++ emPanel::Input forwarding call is a no-op at this level (emPanel::Input is empty).
         false
     }
 
