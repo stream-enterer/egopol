@@ -6,6 +6,76 @@ Plans: `docs/superpowers/plans/2026-04-30-*.md`
 
 ---
 
+## Onboarding Ritual
+
+*Run these steps before touching any task. Do not skip.*
+
+- [ ] Read `CLAUDE.md` — Port Ideology, authority order, code rules, annotation vocabulary.
+- [ ] Read `docs/emtest-panel-audit.md` (this file) fully. Note which tasks are already checked.
+- [ ] Skim the three plan files to understand task granularity before delegating:
+  - `docs/superpowers/plans/2026-04-30-autoexpand-restructure.md`
+  - `docs/superpowers/plans/2026-04-30-emtest-compliance-batch.md`
+  - `docs/superpowers/plans/2026-04-30-polydrawpanel-port.md`
+- [ ] Confirm clean baseline: `cargo-nextest ntr` — must be all green before starting.
+- [ ] Confirm branch: `git status` — should be on `main`, clean working tree.
+
+---
+
+## Execution Guide
+
+**You are the orchestrator.** You delegate work to subagents; you do not implement directly. Check off tasks in this file as subagents complete them. Commit the updated file at the end.
+
+### Dependency order
+
+```
+Plan 1  ──►  Plan 2   (sequential within Plan 2; annotations batch first)
+        └──►  Plan 3   (independent of Plan 2; can run in parallel with Plan 2)
+                   └──►  Golden verification  (after Plans 2 and 3 both land)
+```
+
+### Approach per group
+
+**Plan 1** (3 tasks): Use `superpowers:subagent-driven-development` on `2026-04-30-autoexpand-restructure.md`. **Must land before Plans 2 or 3 begin** — both depend on the AutoExpand restructure being in place.
+
+**Plan 2 — Annotations batch** (M-1, M-3, M-4, M-5): These four are trivial annotation-only changes. Dispatch a **single subagent** with explicit instructions rather than running full SDD — no two-stage review needed for comment additions. Include `cargo xtask annotations` in the subagent's verification step.
+
+**Plan 2 — Remainder** (all other Plan 2 tasks): Use `superpowers:subagent-driven-development` on `2026-04-30-emtest-compliance-batch.md`, starting at Task 2. Tasks within Plan 2 are sequential (Task 2 `view_context()` gates Tasks 3–10).
+
+**Plan 3** (8 tasks): Use `superpowers:subagent-driven-development` on `2026-04-30-polydrawpanel-port.md`. Start after Plan 1 lands; **independent of Plan 2** — can run in parallel with Plan 2 if using worktrees.
+
+**Golden verification** (M-2, M-7): After Plans 2 and 3 both land, run as a single subagent:
+```bash
+DUMP_DRAW_OPS=1 cargo test --test golden -- --test-threads=1
+python3 scripts/diff_draw_ops.py test_panel --no-table
+python3 scripts/diff_draw_ops.py polydrawpanel_default_render --no-table
+```
+Compare output against C++ baseline. If divergences found, file follow-up tasks.
+
+### Test command (all subagents must pass this before committing)
+```bash
+cargo-nextest ntr
+```
+
+---
+
+## Offboarding Ritual
+
+*Run after all tasks are complete (or at a stopping point). Do not skip.*
+
+- [ ] Run `cargo-nextest ntr` — confirm all tests pass.
+- [ ] Run `cargo xtask annotations` — confirm no annotation violations.
+- [ ] Run `cargo test --test golden -- --test-threads=1` — confirm no new pixel divergences.
+- [ ] Check off all completed tasks in this file (the checkboxes below).
+- [ ] Note any tasks not completed and why (blocker, deferred, needs follow-up).
+- [ ] Commit the updated task list:
+  ```bash
+  git add docs/emtest-panel-audit.md
+  git commit -m "docs(emtest-audit): mark completed tasks after implementation run"
+  ```
+- [ ] If any tasks were deferred or blocked, open a follow-up session with the specific blocker described.
+
+---
+
 ## Plan 1 — AutoExpand/LayoutChildren Restructure
 *Prerequisite for Plans 2 and 3.*
 
