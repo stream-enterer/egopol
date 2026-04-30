@@ -283,7 +283,7 @@ self.bg_color_signal = Some(color_signal);
 ctx.create_child_with("BgColorField", Box::new(ColorFieldPanel { widget: cf }));
 ```
 
-Check whether `PanelCtx` exposes `add_wake_up_signal`. If not, use `ctx.connect(color_signal, ctx.engine_id())` — search emEngineCtx.rs for how signal-to-engine connection is done in similar widget panels.
+Signal wiring uses `ectx.connect(signal, ectx.engine_id)` — this is how existing panels wire signals in Cycle (see `TkTestPanel::Cycle` line ~2058: `ectx.connect(sig, eid)`). `ectx` is the `EngineCtx` argument to `Cycle`, not `ctx` (the `PanelCtx`).
 
 - [ ] **Step 3: Add `Cycle` to `TestPanel`**
 
@@ -311,7 +311,7 @@ fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
 }
 ```
 
-Note: `ctx.UpdateControlPanel()`, `ctx.InvalidatePainting()`, `ctx.InvalidateChildrenLayout()` — check PanelCtx API for the correct method names. They may be `ctx.tree.InvalidatePainting(ctx.id, ...)` etc. Search emEngineCtx.rs for how existing panels call these.
+Note: `ctx.UpdateControlPanel()` has no Rust equivalent — omit it. `ctx.InvalidatePainting()` and `ctx.InvalidateChildrenLayout()` do not exist on PanelCtx. In the Rust port, `emView::Update` repaints all viewed panels every frame; explicit invalidation is a no-op. Omit these calls. Children layout is re-triggered by CHILD_LIST_CHANGED/LAYOUT_CHANGED notices which fire automatically when Layout is called.
 
 - [ ] **Step 4: Remove `bg_shared: BgShared` intermediary from `TestPanel`**
 
@@ -355,7 +355,7 @@ fn notice(&mut self, _flags: NoticeFlags, _state: &PanelState, ctx: &mut PanelCt
 }
 ```
 
-Verify `UpdateControlPanel` and `InvalidatePainting` exist on `PanelCtx`. If not, use the tree-level equivalents (search for how other panels in the file call these).
+`ctx.UpdateControlPanel()` has no Rust equivalent — omit it. `ctx.InvalidatePainting()` does not exist on `PanelCtx`; the Rust view repaints all viewed panels every Update frame, so explicit invalidation is unnecessary — omit it.
 
 - [ ] **Step 2: Fix `TestPanel::Input`** (C-15)
 
@@ -523,7 +523,7 @@ Find the Paint method around line 1040:
 // Probably uses state.window_focused somewhere for focused/path coloring.
 ```
 
-Search for `window_focused` in TestPanel::Paint. C++ `cpp:148`: `IsViewFocused()` is per-view focus, not per-window. Check if `PanelState` has an `is_view_focused()` method (check `emPanel.rs`). If yes, use it instead of `state.window_focused`. If `PanelState` only has `window_focused`, this must be fixed in the PanelState construction first — check `build_panel_state` in emPanelTree.rs to see if view focus is separately tracked. Fix whichever layer needs it.
+Search for `window_focused` in TestPanel::Paint. C++ `cpp:148`: `IsViewFocused()` is per-view focus, not per-window. `PanelState` has `window_focused: bool` (set from `emView::IsFocused()` via `build_panel_state`). In the Rust port a single window has one view, so `window_focused` and per-view focus are equivalent in practice. Add a `DIVERGED: language-forced` comment at the usage site noting the mapping; no code change needed unless multi-view support is added.
 
 - [ ] **Step 2: Verify AE threshold annotation from Plan 1**
 
@@ -661,7 +661,7 @@ Check the exact `emImageTexture` constructor name in Rust. Use `ImageExtension` 
 C++ (cpp:134–141): `PaintTextBoxed(... EM_ALIGN_CENTER ... 0.2)` where `EM_ALIGN_CENTER` is the inner horizontal alignment and `0.2` is `formatTallness`.
 
 Find `PaintTextBoxed` for the "Test Panel" caption in `TestPanel::Paint` (around line 1062). Fix:
-- Inner horizontal alignment: change from `Left` to `Center` (or `AlignCenter` — check `emPainter.rs` enum name).
+- Inner horizontal alignment: change from `Left` to `AlignmentH::Center` (confirmed in `emTiling.rs`).
 - `formatTallness`: change from `0.5` to `0.2`.
 
 - [ ] **Step 8: Add DIVERGED annotation for C-25 (sub-painter)**
@@ -706,13 +706,14 @@ Both happen unconditionally before any vertex hit-test. In Rust, find where the 
 
 ```rust
 if event.variant == InputVariant::Press && event.key == InputKey::MouseLeft {
-    event.Eat();          // C++ cpp:1315: event.Eat() unconditional on left-press
-    ctx.Focus();          // C++ cpp:1317: Focus() unconditional on left-press
+    event.eat();   // C++ cpp:1315: event.Eat() — method is lowercase in Rust (emInput.rs:344)
+    // C++ cpp:1317: Focus() — no direct equivalent on PanelCtx. In the Rust port,
+    // focus-on-click is handled by the window dispatch loop (hit-test + set_active_panel)
+    // before Input is dispatched. Omit the Focus() call; the panel is already focused
+    // by the time Input fires on a mouse press.
     // ... vertex hit-test follows
 }
 ```
-
-Check `ctx.Focus()` and `event.Eat()` — verify the Rust method names in `PanelCtx` and `emInputEvent`.
 
 - [ ] **Step 2: Fix y-bound to use GetHeight() in three places** (C-7)
 
@@ -721,7 +722,7 @@ C++ uses `GetHeight()` for the y dimension. In Rust's CanvasPanel, the panel hei
 Replace the three occurrences:
 - Drag y-clamp: `.clamp(0.0, 1.0)` → `.clamp(0.0, panel_h)` where `panel_h = state.layout_rect.h`
 - ShowHandles check: `(0.0..1.0).contains(&my)` → `my >= 0.0 && my < panel_h`
-- Initial vertex y in Setup (if called from PolyDrawPanel — relevant to Plan 3, mark with TODO)
+- Initial vertex y in Setup (covered in Plan 3 Task 3)
 
 In `CanvasPanel::Input`, add `let panel_h = state.layout_rect.h;` near the top, then use it.
 
@@ -733,37 +734,37 @@ C++ (cpp:1332, 1338, 1344–1347, 1357–1359). Find the drag logic in `CanvasPa
 // (a) When drag starts (vertex hit):
 if best_i.is_some() {
     self.drag_idx = best_i;
-    ctx.InvalidatePainting();    // C++ cpp:1332
+    // C++ cpp:1332: InvalidatePainting(). In Rust, emView::Update repaints all
+    // viewed panels every frame — explicit invalidation is a no-op. Omit the call;
+    // the paint change will be visible on the next Update frame automatically.
 }
 
 // (b) When drag stops (button release):
 if event.variant == InputVariant::Release && event.key == InputKey::MouseLeft {
     if self.drag_idx.is_some() {
         self.drag_idx = None;
-        ctx.InvalidatePainting(); // C++ cpp:1338
+        // C++ cpp:1338: InvalidatePainting() — omit, see (a).
     }
 }
 
-// (c) When vertex position changes during drag:
+// (c) When vertex position changes during drag — add change-guard:
 if let Some(idx) = self.drag_idx {
     let x = /* computed new x */;
     let y = /* computed new y */;
     if self.vertices[idx].0 != x || self.vertices[idx].1 != y {  // C++ cpp:1344 change-guard
         self.vertices[idx] = (x, y);
-        ctx.InvalidatePainting(); // C++ cpp:1347
+        // C++ cpp:1347: InvalidatePainting() — omit, see (a).
     }
-    // Remove unconditional overwrite that was here before
+    // Remove unconditional overwrite that was here before.
 }
 
 // (d) When ShowHandles changes:
 let new_show = /* compute from cursor proximity */;
 if new_show != self.show_handles {
     self.show_handles = new_show;
-    ctx.InvalidatePainting(); // C++ cpp:1359
+    // C++ cpp:1359: InvalidatePainting() — omit, see (a).
 }
 ```
-
-Verify `ctx.InvalidatePainting()` is the correct Rust method name.
 
 - [ ] **Step 4: Fix handle radius formula** (C-10)
 
@@ -866,7 +867,7 @@ fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
 }
 ```
 
-Verify `SelectionType::Multi` is the correct enum variant — check `emListBox.rs` for selection type names.
+The correct enum is `SelectionMode::Multi` (confirmed in `emListBox.rs:1984`). Import `emcore::emListBox::SelectionMode`.
 
 - [ ] **Step 2: Add `Input` to `CustomItemBehavior`** (C-24)
 
@@ -921,15 +922,15 @@ SetStrictRaster();
 Find where `CustomListBox` (or its Rust equivalent) is created/configured. Add these calls to the constructor or init method:
 ```rust
 lb.SetChildTallness(0.4);
-lb.SetAlignment(Alignment::TopLeft);  // check enum name in emListBox.rs
-lb.SetStrictRaster(true);             // check method name
+lb.SetAlignment(AlignmentH::Left, AlignmentV::Top);  // emListBox.rs:429 takes two args
+lb.SetStrictRaster();                                  // emListBox.rs:423 — no argument
 ```
 
 - [ ] **Step 5: Fix look capture in `CustomItemBehavior`** (I-13)
 
 C++ (cpp:980): `SetLook(GetListBox().GetLook())` — the listbox's LIVE look.
 
-Find where `CustomItemBehavior` is constructed and check if `lb7_look` is captured at factory time. The fix is to pass the listbox's look at item-creation time (when the listbox's look is already set) rather than at factory creation. Verify the construction sequence to ensure the look is valid when items are created.
+Find where `CustomItemBehavior` is constructed. The fix is to pass the listbox's look at item-creation time (when the listbox's look is already set) rather than at factory creation. The listbox's look is available via `lb.GetLook()` after the listbox is constructed — use that value when creating items, not the captured `lb7_look` from the outer factory closure.
 
 - [ ] **Step 6: Run tests and commit**
 
@@ -975,7 +976,10 @@ Find the `DIVERGED` block for `cb_toplev` (around line 2150). With `view_context
 let use_toplev = self.cb_toplev.get();
 // Both paths use the same emDialog::new call; the distinction is which emContext
 // is used for the window's parent. Thread view_context vs root_context through
-// the dialog constructor — check emDialog::new to see how context affects parenting.
+// the dialog constructor. If emDialog::new always uses root_context() internally
+// (see emDialog.rs:100), two-path parenting requires emDialog to accept an optional
+// view_context override. If that's not plumbed through, keep the existing DIVERGED block
+// and update its category to dependency-forced.
 ```
 
 Remove the DIVERGED block comment and implement the two-path parenting. If `emDialog::new` always uses `root_context()` internally and there's no way to pass the view context as the parent window, update the DIVERGED block to accurately state this as a remaining dependency-forced divergence (do not remove it). Only remove the DIVERGED block if the two-path behavior is actually implemented.

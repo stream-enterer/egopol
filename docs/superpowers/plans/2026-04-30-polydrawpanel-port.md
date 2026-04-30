@@ -46,6 +46,12 @@ struct PolyDrawPanel {
 // NEW
 struct PolyDrawPanel {
     group: emLinearGroup,
+    // RadioGroup handles — stored so Cycle can read selected index directly.
+    // C++ reads Type->GetCheckIndex() etc; Rust reads group.borrow().selected().
+    type_group: Option<Rc<RefCell<RadioGroupData>>>,
+    stroke_dash_type_group: Option<Rc<RefCell<RadioGroupData>>>,
+    stroke_start_type_group: Option<Rc<RefCell<RadioGroupData>>>,
+    stroke_end_type_group: Option<Rc<RefCell<RadioGroupData>>>,
     // Signal IDs — None until AutoExpand wires them.
     // 18 signals matching C++ AddWakeUpSignal calls (emTestPanel.cpp:1097..1244).
     type_signal: Option<SignalId>,
@@ -66,19 +72,17 @@ struct PolyDrawPanel {
     stroke_end_inner_color_signal: Option<SignalId>,
     stroke_end_width_factor_signal: Option<SignalId>,
     stroke_end_length_factor_signal: Option<SignalId>,
-    // Panel IDs for reading widget values in Cycle. None until AutoExpand.
+    // Panel IDs for reading widget values in Cycle via as_any().downcast_ref::<T>().
+    // RadioGroup selection is read directly from the stored Rc handles above.
     canvas_id: Option<PanelId>,
-    type_id: Option<PanelId>,
     vertex_count_id: Option<PanelId>,
     with_canvas_color_id: Option<PanelId>,
     fill_color_id: Option<PanelId>,
     stroke_width_id: Option<PanelId>,
     stroke_color_id: Option<PanelId>,
     stroke_rounded_id: Option<PanelId>,
-    stroke_dash_type_id: Option<PanelId>,
     dash_length_factor_id: Option<PanelId>,
     gap_length_factor_id: Option<PanelId>,
-    stroke_start_type_id: Option<PanelId>,
     stroke_start_inner_color_id: Option<PanelId>,
     stroke_start_width_factor_id: Option<PanelId>,
     stroke_start_length_factor_id: Option<PanelId>,
@@ -248,11 +252,11 @@ Replace the existing `AutoExpand` (which currently just creates CanvasPanel) wit
 
 Key helper: for each widget created inside a group, use `ctx.create_child_with(name, Box::new(WidgetPanel { widget }))` where `WidgetPanel` is the appropriate panel wrapper struct (already defined in the file: `CheckBoxPanel`, `RadioButtonPanel`, `RadioBoxPanel`, `TextFieldPanel`, `ColorFieldPanel`).
 
-For `emRasterLayout` as a panel (Controls): check if `RasterLayoutPanel` exists. If not, create it following the same pattern as `RasterGroupPanel`.
+For `emRasterLayout` as a panel (Controls): check whether `RasterLayoutPanel` exists in `emTestPanel.rs` (grep for it). If not, create it alongside `RasterGroupPanel` following the same wrapper pattern: a struct holding an `emRasterLayout` widget, with `Paint` delegating to the widget and `LayoutChildren` calling `widget.LayoutChildren(ctx, rect.w, rect.h)`.
 
-For `emLinearGroup` as a subgroup panel (`general`, `stroke`, etc.): use `LinearGroupPanel` if it exists, else a plain panel that delegates to `emLinearGroup`. Check existing wrappers in the file.
+For `emLinearGroup` as a subgroup panel (`general`, `stroke`, etc.): check whether `LinearGroupPanel` exists. If not, create it: struct holding `emLinearGroup`, `Paint` delegates, `LayoutChildren` delegates, `auto_expand` returns true, `AutoExpand` calls `widget.create_expansion_children(ctx)`.
 
-For `emLinearLayout` (`ll`, `ll2`): check if a `LinearLayoutPanel` wrapper exists.
+For `emLinearLayout` (`ll`, `ll2`): check whether `LinearLayoutPanel` exists. If not, create it with the same wrapper pattern. `emLinearLayout` is a horizontal/vertical row of children.
 
 ```rust
 fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
@@ -303,11 +307,9 @@ fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
 ```
 
 **Important implementation note:** Creating grandchildren (children of a newly created child panel) requires either:
-- (a) `PanelCtx::for_child(child_id)` — if this API exists, use it to create the sub-tree.
-- (b) Store child IDs and wire them in `LayoutChildren`.
-- (c) Implement the children of Controls via AutoExpand on the Controls panel itself.
+Use the same pattern as `create_all_categories` in `TkTestPanel` — all children (including deeply nested ones) are created in sequence using `ctx.create_child_with`. In C++, child-of-child construction happens because the child is the `ParentArg` for the grandchild's constructor. In Rust, `PanelCtx` is always rooted at the CURRENT panel; you cannot directly create a grandchild via `ctx`.
 
-Check how `create_all_categories` handles nested groups (look at `emRasterGroup` panels inside that function). Use the same pattern for PolyDrawPanel's nested structure.
+The established pattern: implement `AutoExpand` on each sub-group wrapper panel (e.g., `GeneralGroupPanel`, `StrokeGroupPanel`) so that when the sub-group expands, it creates its own children. Store the sub-group panel IDs in `PolyDrawPanel` so `Cycle` can locate the widget panels later.
 
 - [ ] **Step 3: Store all signal IDs and panel IDs in `PolyDrawPanel`**
 
@@ -526,7 +528,10 @@ fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
         if let Some(canvas_id) = self.canvas_id {
             // Read current values from each control widget by looking up panel IDs.
             // For each widget, take its behavior, downcast, read value, put back.
-            let render_type = self.read_check_index(ctx, self.type_id) as u8;
+            // Read radio group selections directly from stored Rc handles.
+            let render_type = self.type_group.as_ref()
+                .and_then(|g| g.borrow().selected())
+                .unwrap_or(0) as u8;
             let vertex_count = self.read_text(ctx, self.vertex_count_id)
                 .and_then(|t| t.parse::<usize>().ok()).unwrap_or(9);
             let with_canvas_color = self.read_checked(ctx, self.with_canvas_color_id);
@@ -537,7 +542,8 @@ fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
             let stroke_color = self.read_color(ctx, self.stroke_color_id)
                 .unwrap_or(emColor::BLACK);
             let stroke_rounded = self.read_checked(ctx, self.stroke_rounded_id);
-            let dash_type = match self.read_check_index(ctx, self.stroke_dash_type_id) {
+            let dash_type = match self.stroke_dash_type_group.as_ref()
+                .and_then(|g| g.borrow().selected()).unwrap_or(0) {
                 1 => DashType::Dashed,
                 2 => DashType::Dotted,
                 3 => DashType::DashDotted,
@@ -548,38 +554,69 @@ fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
             let gap_length = self.read_text(ctx, self.gap_length_factor_id)
                 .and_then(|t| t.parse::<f64>().ok()).unwrap_or(1.0);
 
+            // emStroke fields (emStroke.rs:35–58): color, width, start_end, finish_end,
+            // dash_type, dash_length_factor, gap_length_factor. No `rounded` field in
+            // the Rust port — StrokeRounded is unimplemented; add DIVERGED annotation.
             let stroke = emStroke {
                 color: stroke_color,
-                rounded: stroke_rounded,
+                width: stroke_width,
                 dash_type,
-                // dash_pattern may need separate construction; check emStroke fields.
-                ..emStroke::default()
+                dash_length_factor: dash_length,
+                gap_length_factor: gap_length,
+                start_end: stroke_start.clone(),
+                finish_end: stroke_end.clone(),
             };
-            stroke.width = stroke_width; // check if width is a field or set via builder
+            // DIVERGED note: C++ emStroke takes StrokeRounded — no `rounded` field in
+            // Rust emStroke. Add `// DIVERGED: upstream-gap-forced` comment at this site.
 
-            let start_type_idx = self.read_check_index(ctx, self.stroke_start_type_id);
+            // StrokeEndType variants (emStrokeEnd.rs:5–26): Butt, Cap, Arrow,
+            // ContourArrow, LineArrow, Triangle, ContourTriangle, Square, ContourSquare,
+            // HalfSquare, Circle, ContourCircle, HalfCircle, Diamond, ContourDiamond,
+            // HalfDiamond, Stroke — matches C++ 0–16 indices.
+            let start_type_idx = self.stroke_start_type_group.as_ref()
+                .and_then(|g| g.borrow().selected()).unwrap_or(0);
+            let start_type = [
+                StrokeEndType::Butt, StrokeEndType::Cap, StrokeEndType::Arrow,
+                StrokeEndType::ContourArrow, StrokeEndType::LineArrow,
+                StrokeEndType::Triangle, StrokeEndType::ContourTriangle,
+                StrokeEndType::Square, StrokeEndType::ContourSquare, StrokeEndType::HalfSquare,
+                StrokeEndType::Circle, StrokeEndType::ContourCircle, StrokeEndType::HalfCircle,
+                StrokeEndType::Diamond, StrokeEndType::ContourDiamond, StrokeEndType::HalfDiamond,
+                StrokeEndType::Stroke,
+            ].get(start_type_idx).copied().unwrap_or(StrokeEndType::Butt);
             let start_inner = self.read_color(ctx, self.stroke_start_inner_color_id)
-                .unwrap_or(emColor::from_u32(0xEEEEEEFF));
+                .unwrap_or(emColor(0xEEEEEEFF));
             let start_width = self.read_text(ctx, self.stroke_start_width_factor_id)
                 .and_then(|t| t.parse::<f64>().ok()).unwrap_or(1.0);
             let start_length = self.read_text(ctx, self.stroke_start_length_factor_id)
                 .and_then(|t| t.parse::<f64>().ok()).unwrap_or(1.0);
-            let stroke_start = emStrokeEnd::new(
-                StrokeEndType::from_index(start_type_idx),
-                start_inner, start_width, start_length,
-            );
+            // emStrokeEnd::new(end_type) takes one arg (emStrokeEnd.rs:50); set fields directly.
+            let mut stroke_start = emStrokeEnd::new(start_type);
+            stroke_start.inner_color = start_inner;
+            stroke_start.width_factor = start_width;
+            stroke_start.length_factor = start_length;  // check field name in emStrokeEnd.rs
 
-            let end_type_idx = self.read_check_index(ctx, self.stroke_end_type_id);
+            let end_type_idx = self.stroke_end_type_group.as_ref()
+                .and_then(|g| g.borrow().selected()).unwrap_or(0);
+            let end_type = [
+                StrokeEndType::Butt, StrokeEndType::Cap, StrokeEndType::Arrow,
+                StrokeEndType::ContourArrow, StrokeEndType::LineArrow,
+                StrokeEndType::Triangle, StrokeEndType::ContourTriangle,
+                StrokeEndType::Square, StrokeEndType::ContourSquare, StrokeEndType::HalfSquare,
+                StrokeEndType::Circle, StrokeEndType::ContourCircle, StrokeEndType::HalfCircle,
+                StrokeEndType::Diamond, StrokeEndType::ContourDiamond, StrokeEndType::HalfDiamond,
+                StrokeEndType::Stroke,
+            ].get(end_type_idx).copied().unwrap_or(StrokeEndType::Butt);
             let end_inner = self.read_color(ctx, self.stroke_end_inner_color_id)
-                .unwrap_or(emColor::from_u32(0xEEEEEEFF));
+                .unwrap_or(emColor(0xEEEEEEFF));
             let end_width = self.read_text(ctx, self.stroke_end_width_factor_id)
                 .and_then(|t| t.parse::<f64>().ok()).unwrap_or(1.0);
             let end_length = self.read_text(ctx, self.stroke_end_length_factor_id)
                 .and_then(|t| t.parse::<f64>().ok()).unwrap_or(1.0);
-            let stroke_end = emStrokeEnd::new(
-                StrokeEndType::from_index(end_type_idx),
-                end_inner, end_width, end_length,
-            );
+            let mut stroke_end = emStrokeEnd::new(end_type);
+            stroke_end.inner_color = end_inner;
+            stroke_end.width_factor = end_width;
+            stroke_end.length_factor = end_length;
 
             // Call Setup on CanvasPanel.
             if let Some(mut behavior) = ctx.tree.take_behavior(canvas_id) {
@@ -598,29 +635,31 @@ fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
 
 Add helper methods on `PolyDrawPanel`:
 ```rust
+// Downcast uses PanelBehavior::as_any() (emPanel.rs:106): behavior.as_any().downcast_ref::<T>().
+// PanelTree::get_behavior returns a shared reference; use take_behavior/put_behavior
+// if a mutable reference is needed. For read-only access, a shared ref is sufficient
+// if PanelTree exposes one — check emPanelTree.rs for a non-consuming getter.
+
 fn read_text(&self, ctx: &PanelCtx, id: Option<PanelId>) -> Option<String> {
     let id = id?;
     let behavior = ctx.tree.get_behavior(id)?;
-    behavior.downcast_ref::<TextFieldPanel>().map(|p| p.widget.GetText().to_string())
+    behavior.as_any().downcast_ref::<TextFieldPanel>().map(|p| p.widget.GetText().to_string())
 }
 
 fn read_color(&self, ctx: &PanelCtx, id: Option<PanelId>) -> Option<emColor> {
     let id = id?;
     let behavior = ctx.tree.get_behavior(id)?;
-    behavior.downcast_ref::<ColorFieldPanel>().map(|p| p.widget.GetColor())
+    behavior.as_any().downcast_ref::<ColorFieldPanel>().map(|p| p.widget.GetColor())
 }
 
 fn read_checked(&self, ctx: &PanelCtx, id: Option<PanelId>) -> bool {
     let id = id?;
     let behavior = ctx.tree.get_behavior(id)?;
-    behavior.downcast_ref::<CheckBoxPanel>().map(|p| p.widget.IsChecked()).unwrap_or(false)
+    behavior.as_any().downcast_ref::<CheckBoxPanel>()
+        .map(|p| p.widget.IsChecked()).unwrap_or(false)
 }
-
-fn read_check_index(&self, ctx: &PanelCtx, id: Option<PanelId>) -> usize {
-    // For RadioGroup panels — read current selection index.
-    // Check how radio group selection is read in existing code.
-    todo!("read_check_index")
-}
+// Note: radio group selection is read from stored Rc<RefCell<RadioGroupData>> handles
+// (type_group, stroke_dash_type_group, etc.) — no panel ID lookup needed.
 ```
 
 Verify `ctx.tree.take_behavior` / `put_behavior` exist and are the correct API for temporarily borrowing a behavior. Check emPanelTree.rs. If not available, use a different approach consistent with how TkTestPanel reads widget values.
@@ -742,7 +781,7 @@ match self.render_type {
 }
 ```
 
-Adapt method signatures to match the actual Rust emPainter API — check emPainter.rs for each method. `PaintPolyline` and `PaintBezierLine` in Rust take `&emStroke` which contains start/end caps; verify the stroke struct carries them correctly.
+The Rust emPainter signatures differ from C++ for stroke methods. `PaintPolyline` (emPainter.rs:1885) takes `(vertices, stroke: &emStroke, closed, canvas_color)` where `emStroke.start_end` and `finish_end` carry the caps — no separate start/end arguments. Adapt the match arms accordingly. For `PaintLine` (emPainter.rs:1741), check the actual signature. For `PaintPolygon` with texture (case 0), use `p.PaintPolygon(&verts, fill, effective_canvas_color)` where `fill` is `emColor`.
 
 - [ ] **Step 4: Run tests**
 

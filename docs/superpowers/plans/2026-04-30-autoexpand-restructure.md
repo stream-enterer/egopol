@@ -600,9 +600,15 @@ fn test_panel_ae_threshold_is_900() {
 }
 ```
 
-Note: `tree.get_ae_threshold_value(root)` — check if this method exists in `PanelTree`. If it
-doesn't, use `tree.panels.get(root).map(|p| p.ae_threshold_value)` or add a thin accessor. Look
-for existing `ae_threshold` accessor methods in `emPanelTree.rs` before adding one.
+`PanelTree` does not expose a public `get_ae_threshold_value` accessor. Use
+`tree.GetAEThresholdValue(root)` if it exists, or add a one-line accessor:
+```rust
+// in emPanelTree.rs, near other ae_threshold accessors (line ~1962):
+pub fn get_ae_threshold_value(&self, id: PanelId) -> f64 {
+    self.panels.get(id).map(|p| p.ae_threshold_value).unwrap_or(0.0)
+}
+```
+Then use `tree.get_ae_threshold_value(root)` in the test.
 
 - [ ] **Step 3: Run tests**
 
