@@ -7,6 +7,7 @@ use crate::emEngineCtx::{ConstructCtx, PanelCtx};
 use crate::emInput::{emInputEvent, InputKey, InputVariant};
 use crate::emInputState::emInputState;
 use crate::emPainter::emPainter;
+use crate::emPanel::ItemInputResult;
 use crate::emPanel::Rect;
 use crate::emPanel::{PanelBehavior, PanelState};
 use crate::emRasterLayout::emRasterLayout;
@@ -131,6 +132,7 @@ impl ItemPanelInterface for DefaultItemPanel {
 /// Each item becomes a real child panel in the tree, painting its own
 /// selection highlight and text. Matches C++ `emListBox::DefaultItemPanel`.
 pub(crate) struct DefaultItemPanelBehavior {
+    item_index: usize,
     text: String,
     selected: bool,
     look: Rc<emLook>,
@@ -140,6 +142,7 @@ pub(crate) struct DefaultItemPanelBehavior {
 
 impl DefaultItemPanelBehavior {
     pub fn new(
+        index: usize,
         text: String,
         selected: bool,
         look: Rc<emLook>,
@@ -147,6 +150,7 @@ impl DefaultItemPanelBehavior {
         enabled: bool,
     ) -> Self {
         Self {
+            item_index: index,
             text,
             selected,
             look,
@@ -238,6 +242,27 @@ impl PanelBehavior for DefaultItemPanelBehavior {
             self.look.input_bg_color
         }
     }
+
+    fn Input(
+        &mut self,
+        event: &emInputEvent,
+        state: &PanelState,
+        _is: &emInputState,
+        ctx: &mut crate::emEngineCtx::PanelCtx,
+    ) -> bool {
+        let idx = self.item_index;
+        let result = ctx
+            .with_parent_behavior(|parent, ctx| parent.dispatch_item_input(idx, event, state, ctx))
+            .unwrap_or_default();
+        if result.focus_self {
+            ctx.request_focus();
+        }
+        result.consumed
+    }
+
+    fn on_item_text_changed(&mut self, text: &str) {
+        self.text = text.to_string();
+    }
 }
 
 /// Internal item representation for the list box.
@@ -253,6 +278,10 @@ struct Item {
     /// Item panel interface, created during auto-expand.
     /// Port of C++ Item::Interface.
     interface: Option<Box<dyn ItemPanelInterface>>,
+    /// PanelId of the child panel created by `item_behavior_factory`.
+    /// Set by `create_item_children`; `None` when using `item_panel_factory`
+    /// or before `AutoExpand`.
+    child_panel_id: Option<crate::emPanelTree::PanelId>,
 }
 
 /// Selectable item list widget.
@@ -520,6 +549,7 @@ impl emListBox {
             data,
             selected: false,
             interface: None,
+            child_panel_id: None,
         };
 
         self.items.insert(index, item);
@@ -1091,28 +1121,30 @@ impl emListBox {
         let look = self.look.clone();
         let sel_mode = self.selection_mode;
         let enabled = self.enabled;
-        for (i, item) in self.items.iter().enumerate() {
-            let child = ctx.create_child(&item.name);
+        for i in 0..self.items.len() {
+            let child = ctx.create_child(&self.items[i].name);
             let behavior: Box<dyn PanelBehavior> =
                 if let Some(factory) = &self.item_behavior_factory {
                     factory(
                         i,
-                        &item.text,
-                        item.selected,
+                        &self.items[i].text,
+                        self.items[i].selected,
                         look.clone(),
                         sel_mode,
                         enabled,
                     )
                 } else {
                     Box::new(DefaultItemPanelBehavior::new(
-                        item.text.clone(),
-                        item.selected,
+                        i,
+                        self.items[i].text.clone(),
+                        self.items[i].selected,
                         look.clone(),
                         sel_mode,
                         enabled,
                     ))
                 };
             ctx.tree.set_behavior(child, behavior);
+            self.items[i].child_panel_id = Some(child);
         }
     }
 
@@ -1317,6 +1349,49 @@ impl emListBox {
 
     // ── Input ───────────────────────────────────────────────────────
 
+    /// Dispatch selection/trigger for an item panel's input event.
+    /// Called by item panel behaviors via `dispatch_item_input`.
+    /// Port of C++ `emListBox::ProcessItemInput`.
+    pub fn process_item_input(
+        &mut self,
+        item_index: usize,
+        event: &emInputEvent,
+        _state: &PanelState,
+        ctx: &mut PanelCtx,
+    ) -> ItemInputResult {
+        if !self.enabled {
+            return ItemInputResult::default();
+        }
+        let mut result = ItemInputResult::default();
+        match event.key {
+            InputKey::MouseLeft
+                if event.variant == InputVariant::Press && !event.alt && !event.meta =>
+            {
+                let trigger = event.is_repeat();
+                self.select_by_input(item_index, event.shift, event.ctrl, trigger);
+                result.consumed = true;
+                result.focus_self = true;
+            }
+            InputKey::Space
+                if event.variant == InputVariant::Press && !event.alt && !event.meta =>
+            {
+                self.select_by_input(item_index, event.shift, event.ctrl, false);
+                result.consumed = true;
+            }
+            InputKey::Enter
+                if event.variant == InputVariant::Press && !event.alt && !event.meta =>
+            {
+                self.select_by_input(item_index, event.shift, event.ctrl, true);
+                result.consumed = true;
+            }
+            _ => {}
+        }
+        if result.consumed {
+            self.drain_pending_fires(ctx);
+        }
+        result
+    }
+
     fn hit_test(&self, mx: f64, my: f64, pixel_tallness: f64) -> bool {
         if self.last_w <= 0.0 || self.last_h <= 0.0 {
             return false;
@@ -1336,7 +1411,7 @@ impl emListBox {
         input_state: &emInputState,
         ctx: &mut PanelCtx,
     ) -> bool {
-        let consumed = self.input_impl(event, state, input_state);
+        let consumed = self.input_impl(event, state, input_state, ctx);
         self.drain_pending_fires(ctx);
         consumed
     }
@@ -1346,6 +1421,7 @@ impl emListBox {
         event: &emInputEvent,
         state: &PanelState,
         _input_state: &emInputState,
+        ctx: &mut PanelCtx,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -1414,30 +1490,20 @@ impl emListBox {
                 let clicked_idx = (rel_y / row_h) as usize;
                 if clicked_idx < self.items.len() && !event.alt && !event.meta {
                     self.focus_index = clicked_idx;
-                    let trigger = event.is_repeat(); // double-click
-                    self.select_by_input(clicked_idx, event.shift, event.ctrl, trigger);
+                    // NOTE: drain_pending_fires is called inside process_item_input.
+                    self.process_item_input(clicked_idx, event, state, ctx);
                 }
                 true
             }
             InputKey::Space if event.variant == InputVariant::Press => {
                 if !event.alt && !event.meta {
-                    self.select_by_input(
-                        self.focus_index,
-                        event.shift,
-                        event.ctrl,
-                        false, // space never triggers
-                    );
+                    self.process_item_input(self.focus_index, event, state, ctx);
                 }
                 true
             }
             InputKey::Enter if event.variant == InputVariant::Press => {
                 if !event.alt && !event.meta {
-                    self.select_by_input(
-                        self.focus_index,
-                        event.shift,
-                        event.ctrl,
-                        true, // enter triggers
-                    );
+                    self.process_item_input(self.focus_index, event, state, ctx);
                 }
                 true
             }
@@ -2625,6 +2691,173 @@ mod tests {
         assert!(lb.IsSelected(1));
         assert!(lb.IsSelected(2));
         assert!(lb.IsSelected(3));
+    }
+
+    // ── C-24 dispatch routing tests ─────────────────────────────────
+
+    /// Test-only container: wraps emListBox as a PanelBehavior, implements
+    /// dispatch_item_input so item children can route input to it.
+    struct TestListBoxContainer {
+        widget: emListBox,
+    }
+
+    impl PanelBehavior for TestListBoxContainer {
+        fn Paint(&mut self, _p: &mut emPainter, _cc: emColor, _w: f64, _h: f64, _s: &PanelState) {}
+        fn IsOpaque(&self) -> bool {
+            false
+        }
+
+        fn dispatch_item_input(
+            &mut self,
+            item_index: usize,
+            event: &emInputEvent,
+            state: &PanelState,
+            ctx: &mut PanelCtx,
+        ) -> ItemInputResult {
+            self.widget
+                .process_item_input(item_index, event, state, ctx)
+        }
+    }
+
+    #[test]
+    fn item_mouse_left_selects_via_dispatch() {
+        let mut __init = TestInit::new();
+        let look = emLook::new();
+        let mut lb = emListBox::new(&mut __init.ctx(), look.clone());
+        lb.set_items(make_items(&["A", "B", "C"]));
+        lb.SetSelectionType(SelectionMode::Multi);
+
+        let (mut tree, root_id) = test_tree();
+        let mut container = TestListBoxContainer { widget: lb };
+        {
+            let mut ctx = PanelCtx::new(&mut tree, root_id, 1.0);
+            container.widget.create_item_children(&mut ctx);
+        }
+        tree.set_behavior(root_id, Box::new(container));
+
+        let child_b = tree.children(root_id).nth(1).expect("item B panel missing");
+        let mut behavior = tree.take_behavior(child_b).unwrap();
+        let ps = default_panel_state();
+        let is = default_input_state();
+        {
+            let mut ctx = PanelCtx::new(&mut tree, child_b, 1.0);
+            behavior.Input(
+                &emInputEvent::press(InputKey::MouseLeft),
+                &ps,
+                &is,
+                &mut ctx,
+            );
+        }
+        tree.put_behavior(child_b, behavior);
+
+        tree.with_behavior_as::<TestListBoxContainer, _>(root_id, |c| {
+            assert!(
+                c.widget.IsSelected(1),
+                "item B should be selected after mouse click"
+            );
+        });
+    }
+
+    #[test]
+    fn item_space_selects_via_dispatch() {
+        let mut __init = TestInit::new();
+        let look = emLook::new();
+        let mut lb = emListBox::new(&mut __init.ctx(), look.clone());
+        lb.set_items(make_items(&["A", "B", "C"]));
+        lb.SetSelectionType(SelectionMode::Multi);
+
+        let (mut tree, root_id) = test_tree();
+        let mut container = TestListBoxContainer { widget: lb };
+        {
+            let mut ctx = PanelCtx::new(&mut tree, root_id, 1.0);
+            container.widget.create_item_children(&mut ctx);
+        }
+        tree.set_behavior(root_id, Box::new(container));
+
+        let child_c = tree.children(root_id).nth(2).expect("item C panel missing");
+        let mut behavior = tree.take_behavior(child_c).unwrap();
+        {
+            let mut ctx = PanelCtx::new(&mut tree, child_c, 1.0);
+            behavior.Input(
+                &emInputEvent::press(InputKey::Space),
+                &default_panel_state(),
+                &default_input_state(),
+                &mut ctx,
+            );
+        }
+        tree.put_behavior(child_c, behavior);
+
+        tree.with_behavior_as::<TestListBoxContainer, _>(root_id, |c| {
+            assert!(
+                c.widget.IsSelected(2),
+                "item C should be selected after Space"
+            );
+        });
+    }
+
+    #[test]
+    fn item_enter_triggers_via_dispatch() {
+        let mut __init = TestInit::new();
+        let look = emLook::new();
+        let mut lb = emListBox::new(&mut __init.ctx(), look.clone());
+        lb.set_items(make_items(&["A", "B"]));
+
+        let triggered: Rc<RefCell<Vec<usize>>> = Rc::new(RefCell::new(Vec::new()));
+        let trig_clone = triggered.clone();
+        lb.on_trigger = Some(Box::new(
+            move |idx: usize, _sched: &mut crate::emEngineCtx::SchedCtx<'_>| {
+                trig_clone.borrow_mut().push(idx);
+            },
+        ));
+
+        let (mut tree, root_id) = test_tree();
+        let mut container = TestListBoxContainer { widget: lb };
+        {
+            let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+                RefCell::new(None);
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                root_id,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+                &__init.pa,
+            );
+            container.widget.create_item_children(&mut ctx);
+        }
+        tree.set_behavior(root_id, Box::new(container));
+
+        let child_a = tree.children(root_id).nth(0).expect("item A missing");
+        let mut behavior = tree.take_behavior(child_a).unwrap();
+        {
+            let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> =
+                RefCell::new(None);
+            let mut ctx = PanelCtx::with_sched_reach(
+                &mut tree,
+                child_a,
+                1.0,
+                &mut __init.sched,
+                &mut __init.fw,
+                &__init.root,
+                &fw_cb,
+                &__init.pa,
+            );
+            behavior.Input(
+                &emInputEvent::press(InputKey::Enter),
+                &default_panel_state(),
+                &default_input_state(),
+                &mut ctx,
+            );
+        }
+        tree.put_behavior(child_a, behavior);
+
+        assert_eq!(
+            *triggered.borrow(),
+            vec![0usize],
+            "Enter should trigger item A"
+        );
     }
 
     #[test]
