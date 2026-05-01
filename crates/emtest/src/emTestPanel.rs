@@ -32,7 +32,7 @@ use emcore::emLinearLayout::emLinearLayout;
 use emcore::emListBox::{emListBox, SelectionMode};
 use emcore::emLook::emLook;
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
-use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use emcore::emPanel::{ItemInputResult, NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelTree::{PanelId, ViewConditionType};
 use emcore::emRadioBox::emRadioBox;
 use emcore::emRadioButton::{emRadioButton, RadioGroup};
@@ -418,6 +418,20 @@ impl PanelBehavior for ListBoxPanel {
         self.widget.layout_item_children(ctx, rect.w, rect.h);
     }
 
+    fn dispatch_item_input(
+        &mut self,
+        child_panel_id: PanelId,
+        event: &emInputEvent,
+        state: &PanelState,
+        ctx: &mut PanelCtx,
+    ) -> ItemInputResult {
+        if let Some(idx) = self.widget.item_index_for_child(child_panel_id) {
+            self.widget.process_item_input(idx, event, state, ctx)
+        } else {
+            ItemInputResult::default()
+        }
+    }
+
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState, _ctx: &mut PanelCtx) {
         if flags.intersects(NoticeFlags::FOCUS_CHANGED) {
             self.widget.on_focus_changed(state.in_focused_path());
@@ -473,6 +487,29 @@ impl PanelBehavior for CustomItemBehavior {
 
     fn IsOpaque(&self) -> bool {
         true
+    }
+
+    fn Input(
+        &mut self,
+        event: &emInputEvent,
+        state: &PanelState,
+        _is: &emInputState,
+        ctx: &mut PanelCtx,
+    ) -> bool {
+        let child_id = ctx.id;
+        let result = ctx
+            .with_parent_behavior(|parent, ctx| {
+                parent.dispatch_item_input(child_id, event, state, ctx)
+            })
+            .unwrap_or_default();
+        if result.focus_self {
+            ctx.request_focus();
+        }
+        result.consumed
+    }
+
+    fn on_item_text_changed(&mut self, text: &str) {
+        self.text = text.to_string();
     }
 
     /// C++ CustomItemPanel::AutoExpand (cpp:941–956): recursive label + list box.
@@ -1565,7 +1602,7 @@ impl TkTestGrpPanel {
 
 impl PanelBehavior for TkTestGrpPanel {
     fn IsOpaque(&self) -> bool {
-        true
+        self.border.IsOpaque(&self.look)
     }
     fn Paint(&mut self, p: &mut emPainter, canvas_color: emColor, w: f64, h: f64, s: &PanelState) {
         self.border.paint_border(
@@ -2280,7 +2317,7 @@ impl TkTestPanel {
 
 impl PanelBehavior for TkTestPanel {
     fn IsOpaque(&self) -> bool {
-        true
+        self.border.IsOpaque(&self.look)
     }
     fn auto_expand(&self) -> bool {
         true
@@ -2580,7 +2617,8 @@ impl PolyDrawPanel {
 
 impl PanelBehavior for PolyDrawPanel {
     fn IsOpaque(&self) -> bool {
-        true
+        // C++ emGroup::IsOpaque → emBorder::IsOpaque; OBT_GROUP returns false.
+        self.group.border.IsOpaque(&self.group.look)
     }
 
     fn AutoExpand(&mut self, ctx: &mut PanelCtx) {
@@ -3902,6 +3940,11 @@ impl PanelBehavior for CanvasPanel {
 pub(crate) fn new_root_panel(ctx: &mut dyn ConstructCtx) -> Box<dyn PanelBehavior> {
     let root_ctx = ctx.root_context().clone();
     Box::new(TestPanel::new(root_ctx, DEFAULT_BG))
+}
+
+#[cfg(any(test, feature = "test-support"))]
+pub fn new_poly_draw_panel() -> Box<dyn PanelBehavior> {
+    Box::new(PolyDrawPanel::new())
 }
 
 #[cfg(test)]
