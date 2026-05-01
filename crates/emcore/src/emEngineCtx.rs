@@ -699,6 +699,34 @@ impl<'a> PanelCtx<'a> {
         self.tree.sought_name(self.id).unwrap_or("")
     }
 
+    /// Take the parent panel's behavior out of the tree, call `f` with both
+    /// the parent behavior and this `PanelCtx` (giving `f` full context
+    /// access), then put the parent back. Returns `None` if this panel has
+    /// no parent or the parent has no behavior.
+    ///
+    /// The parent is temporarily absent from the tree during `f`, so
+    /// `ctx.tree` is freely accessible inside `f`.
+    pub fn with_parent_behavior<R>(
+        &mut self,
+        f: impl FnOnce(&mut dyn PanelBehavior, &mut PanelCtx) -> R,
+    ) -> Option<R> {
+        let parent_id = self.tree.GetParentContext(self.id)?;
+        let mut behavior = self.tree.take_behavior(parent_id)?;
+        let result = f(behavior.as_mut(), self);
+        if self.tree.panels.contains_key(parent_id) {
+            self.tree.put_behavior(parent_id, behavior);
+        }
+        Some(result)
+    }
+
+    /// Request that this panel receive keyboard focus.
+    /// Queued in `PanelTree`; drained by `emView` each frame.
+    /// Matches C++ `emPanel::Focus()`.
+    pub fn request_focus(&mut self) {
+        let id = self.id;
+        self.tree.request_focus(id);
+    }
+
     /// Create a child panel under the current panel.
     pub fn create_child(&mut self, name: &str) -> PanelId {
         self.tree

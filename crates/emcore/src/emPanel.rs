@@ -34,6 +34,14 @@ pub enum FileLoadStatus {
     Error(String),
 }
 
+/// Return value of `PanelBehavior::dispatch_item_input`.
+#[derive(Default)]
+pub struct ItemInputResult {
+    pub consumed: bool,
+    /// True on MouseLeft press — the item should request focus (C++ `panel->Focus()`).
+    pub focus_self: bool,
+}
+
 /// Logical rectangle (f64) — layout coordinates.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Rect {
@@ -238,6 +246,22 @@ pub trait PanelBehavior: AsAny {
     ) -> bool {
         false
     }
+
+    /// Called by child item panel behaviors to dispatch selection/trigger logic
+    /// to the owning listbox. Default no-op; override in container behaviors.
+    fn dispatch_item_input(
+        &mut self,
+        _item_index: usize,
+        _event: &emInputEvent,
+        _state: &PanelState,
+        _ctx: &mut PanelCtx,
+    ) -> ItemInputResult {
+        ItemInputResult::default()
+    }
+
+    /// Called by the owning listbox when an item's display text changes.
+    /// Default no-op; override in item panel behaviors.
+    fn on_item_text_changed(&mut self, _text: &str) {}
 
     /// Get the cursor to display when the mouse is over this panel.
     fn GetCursor(&self) -> emCursor {
