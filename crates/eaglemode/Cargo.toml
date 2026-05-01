@@ -17,6 +17,7 @@ winit = { workspace = true }
 # crate, add it here.
 emfileman = { path = "../emfileman" }
 emstocks = { path = "../emstocks" }
+emtest = { path = "../emtest" }
 
 [dev-dependencies]
 emcore = { workspace = true, features = ["test-support"] }

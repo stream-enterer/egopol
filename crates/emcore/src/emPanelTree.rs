@@ -2207,17 +2207,22 @@ impl PanelTree {
                     pending_actions,
                 );
                 let result = behavior.CreateControlPanel(&mut ctx, name, self_is_active);
-                // CCP_PROBE: identify the resident behavior at `cur` without
-                // touching its vtable when CreateControlPanel returns a key
-                // that belongs to neither tree. dladdr does NOT dereference
-                // the pointer; it walks the loader's link map looking for the
-                // .so whose mapped range contains the vtable address. Safe
-                // even if the trait object is corrupt. Remove after panic
-                // is rooted.
+                // Audit: a `CreateControlPanel` impl must return either `None`
+                // or a key in the same tree the inner `PanelCtx` writes to
+                // (target_tree). A key in neither tree historically signaled
+                // an ABI mismatch between the eaglemode binary and a stale
+                // plugin cdylib (see docs/debug/investigations/...). Keep this
+                // as a permanent invariant check.
                 if let Some(rid) = result {
-                    if !target_tree.contains(rid) && !self.contains(rid) {
-                        ccp_probe_dump(cur, rid, &*behavior);
-                    }
+                    debug_assert!(
+                        target_tree.contains(rid) || self.contains(rid),
+                        "CreateControlPanel at cur={:?} returned PanelId={:?} \
+                         that belongs to neither target_tree nor content tree. \
+                         Likely cause: stale plugin cdylib (vtable ABI mismatch). \
+                         Try `cargo build --workspace` then re-run.",
+                        cur,
+                        rid,
+                    );
                 }
                 self.put_behavior(cur, behavior);
                 if result.is_some() {
@@ -2765,68 +2770,6 @@ impl<'a> Iterator for ChildRevIter<'a> {
         self.current = self.tree.panels.get(id).and_then(|p| p.prev_sibling);
         Some(id)
     }
-}
-
-// CCP_PROBE: temporary debug instrumentation for the SlotMap panic
-// (docs/debug/investigations/isactive-panic-facts.md). Identifies the
-// resident behavior at a PanelId by dladdr-ing the trait object's vtable
-// pointer. dladdr walks the loader's link map; it does NOT dereference
-// the pointer, so it is safe even when the trait object is corrupt.
-// Remove this function and its caller in create_control_panel_in once
-// the root cause is named.
-fn ccp_probe_dump(cur: PanelId, rid: PanelId, behavior: &dyn PanelBehavior) {
-    use std::ffi::{c_char, c_int, c_void, CStr};
-
-    #[repr(C)]
-    struct DlInfo {
-        dli_fname: *const c_char,
-        dli_fbase: *const c_void,
-        dli_sname: *const c_char,
-        dli_saddr: *const c_void,
-    }
-
-    extern "C" {
-        fn dladdr(addr: *const c_void, info: *mut DlInfo) -> c_int;
-    }
-
-    // SAFETY: Rust does not guarantee fat-pointer layout via transmute, but
-    // on every supported target a `&dyn Trait` is laid out as
-    // `(data_ptr, vtable_ptr)`. We only read the words; we never call
-    // through them. This is debug-only instrumentation.
-    let fat: [usize; 2] =
-        unsafe { std::mem::transmute::<&dyn PanelBehavior, [usize; 2]>(behavior) };
-    let data_ptr = fat[0];
-    let vtable_ptr = fat[1];
-
-    let mut info = DlInfo {
-        dli_fname: std::ptr::null(),
-        dli_fbase: std::ptr::null(),
-        dli_sname: std::ptr::null(),
-        dli_saddr: std::ptr::null(),
-    };
-    // SAFETY: dladdr does not dereference the address; it only consults
-    // the loader's link map. A wild vtable_ptr is not UB to pass here.
-    let rc = unsafe { dladdr(vtable_ptr as *const c_void, &mut info) };
-
-    let lib = if !info.dli_fname.is_null() {
-        unsafe { CStr::from_ptr(info.dli_fname) }
-            .to_string_lossy()
-            .into_owned()
-    } else {
-        "<null>".to_string()
-    };
-    let sym = if !info.dli_sname.is_null() {
-        unsafe { CStr::from_ptr(info.dli_sname) }
-            .to_string_lossy()
-            .into_owned()
-    } else {
-        "<null>".to_string()
-    };
-
-    eprintln!(
-        "[CCP_PROBE] cur={:?} rid={:?} dladdr_rc={} data_ptr={:#x} vtable_ptr={:#x} lib={:?} sym={:?}",
-        cur, rid, rc, data_ptr, vtable_ptr, lib, sym,
-    );
 }
 
 #[cfg(test)]
