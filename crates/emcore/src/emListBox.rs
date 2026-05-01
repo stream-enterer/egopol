@@ -767,13 +767,19 @@ impl emListBox {
     }
 
     /// Set the display text of the item at `index`. No-op if out of range or
-    /// text unchanged.
-    pub fn SetItemText(&mut self, index: usize, text: String) {
+    /// text unchanged. Pass `Some(ctx)` to notify the item's child panel
+    /// behavior (I-11); pass `None` at construction time before panels exist.
+    pub fn SetItemText(&mut self, index: usize, text: String, ctx: Option<&mut PanelCtx>) {
         if let Some(item) = self.items.get_mut(index) {
             if item.text != text {
                 item.text = text.clone();
                 if let Some(iface) = &mut item.interface {
                     iface.item_text_changed(&text);
+                }
+                if let (Some(child_id), Some(ctx)) = (item.child_panel_id, ctx) {
+                    ctx.tree.with_behavior_dyn(child_id, |child| {
+                        child.on_item_text_changed(&text);
+                    });
                 }
                 self.keywalk_chars.clear();
             }
@@ -2404,7 +2410,7 @@ mod tests {
         lb.AddItem("a".into(), "Alpha".into());
         lb.keywalk_chars = "al".into();
 
-        lb.SetItemText(0, "Altered".into());
+        lb.SetItemText(0, "Altered".into(), None);
         assert!(lb.keywalk_chars.is_empty());
         assert_eq!(lb.GetItemText(0), "Altered");
     }
@@ -2890,5 +2896,54 @@ mod tests {
         assert!(lb.IsSelected(2));
         assert!(lb.IsSelected(3));
         assert!(!lb.IsSelected(0));
+    }
+
+    #[test]
+    fn set_item_text_propagates_to_child_behavior() {
+        let mut __init = TestInit::new();
+        let look = emLook::new();
+        let mut lb = emListBox::new(&mut __init.ctx(), look.clone());
+        lb.set_items(make_items(&["Alpha", "Beta"]));
+
+        let (mut tree, root_id) = test_tree();
+        let mut container = TestListBoxContainer { widget: lb };
+        {
+            let mut ctx = PanelCtx::new(&mut tree, root_id, 1.0);
+            container.widget.create_item_children(&mut ctx);
+        }
+        tree.set_behavior(root_id, Box::new(container));
+
+        // Change item 0's text with ctx — should propagate to child behavior.
+        // Take behavior first so that ctx (which borrows tree) and the behavior
+        // borrow do not overlap.
+        {
+            let mut beh = tree.take_behavior(root_id).unwrap();
+            let c = beh
+                .as_any_mut()
+                .downcast_mut::<TestListBoxContainer>()
+                .unwrap();
+            let mut ctx = PanelCtx::new(&mut tree, root_id, 1.0);
+            c.widget
+                .SetItemText(0, "AlphaNew".to_string(), Some(&mut ctx));
+            drop(ctx);
+            tree.put_behavior(root_id, beh);
+        }
+
+        // Get child 0's behavior and check its text field.
+        let child_a = tree.children(root_id).nth(0).unwrap();
+        tree.with_behavior_as::<DefaultItemPanelBehavior, _>(child_a, |beh| {
+            assert_eq!(beh.text, "AlphaNew");
+        });
+    }
+
+    #[test]
+    fn set_item_text_before_expand_no_panic() {
+        let mut __init = TestInit::new();
+        let look = emLook::new();
+        let mut lb = emListBox::new(&mut __init.ctx(), look);
+        lb.set_items(make_items(&["X"]));
+        // ctx = None: no child panels yet, should not panic.
+        lb.SetItemText(0, "Y".to_string(), None);
+        assert_eq!(lb.GetItemText(0), "Y");
     }
 }

@@ -133,7 +133,7 @@ fn get_item_panel_interface_text_sync() {
     let mut lb = emListBox::new(&mut h.sched_ctx(), look);
     lb.AddItem("x".to_string(), "Original".to_string());
     lb.auto_expand_items();
-    lb.SetItemText(0, "Changed".to_string());
+    lb.SetItemText(0, "Changed".to_string(), None);
     let iface = lb.GetItemPanelInterface(0).unwrap();
     assert_eq!(iface.GetText(), "Changed");
 }
