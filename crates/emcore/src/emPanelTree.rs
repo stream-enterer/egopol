@@ -311,6 +311,9 @@ pub struct PanelTree {
     /// Queue of panels that behaviors have requested the view navigate to.
     /// Drained by emView each frame.
     navigation_requests: Vec<PanelId>,
+    /// Queue of panels that behaviors have requested focus for.
+    /// Drained by emView each frame.
+    focus_requests: Vec<PanelId>,
     /// Mirror of `emView::seek_pos_panel`. Kept here so panel behaviors can
     /// check seek state without needing a view reference. Port of C++
     /// `emPanel::GetSoughtName()` access pattern.
@@ -376,6 +379,7 @@ impl PanelTree {
             name_index: HashMap::new(),
             has_pending_notices: false,
             navigation_requests: Vec::new(),
+            focus_requests: Vec::new(),
             seek_pos_panel: None,
             seek_pos_child_name: String::new(),
             pending_ring_cleanup: Vec::new(),
@@ -1724,6 +1728,21 @@ impl PanelTree {
         result
     }
 
+    /// Extract a panel's behavior, call a closure on `&mut dyn PanelBehavior`,
+    /// then put it back. No downcast required.
+    pub fn with_behavior_dyn<R>(
+        &mut self,
+        id: PanelId,
+        f: impl FnOnce(&mut dyn PanelBehavior) -> R,
+    ) -> Option<R> {
+        let mut behavior = self.take_behavior(id)?;
+        let result = f(behavior.as_mut());
+        if self.panels.contains_key(id) {
+            self.put_behavior(id, behavior);
+        }
+        Some(result)
+    }
+
     /// Check if a panel's behavior reports as opaque.
     /// Corresponds to C++ `emPanel::IsOpaque()`.
     pub fn IsOpaque(&mut self, id: PanelId) -> bool {
@@ -1746,6 +1765,12 @@ impl PanelTree {
     /// Drain pending navigation requests. Called by emView::Update.
     pub(crate) fn drain_navigation_requests(&mut self) -> Vec<PanelId> {
         std::mem::take(&mut self.navigation_requests)
+    }
+
+    /// Request that a panel receive focus.
+    /// Called by panel behaviors; drained by emView each frame.
+    pub(crate) fn request_focus(&mut self, id: PanelId) {
+        self.focus_requests.push(id);
     }
 
     /// Whether the `has_pending_notices` flag is set.
