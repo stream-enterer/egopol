@@ -35,6 +35,8 @@ pub enum FileLoadStatus {
 }
 
 /// Return value of `PanelBehavior::dispatch_item_input`.
+/// Tells the calling item behavior whether the event was consumed and
+/// whether it should request keyboard focus.
 #[derive(Default)]
 pub struct ItemInputResult {
     pub consumed: bool,

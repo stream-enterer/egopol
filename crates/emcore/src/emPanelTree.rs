@@ -1773,6 +1773,12 @@ impl PanelTree {
         self.focus_requests.push(id);
     }
 
+    /// Drain pending focus requests. Called by emView::Update.
+    #[expect(dead_code)]
+    pub(crate) fn drain_focus_requests(&mut self) -> Vec<PanelId> {
+        std::mem::take(&mut self.focus_requests)
+    }
+
     /// Whether the `has_pending_notices` flag is set.
     ///
     /// Phase 2 Task 6 (E006): ring head/tail moved to `emView`; this method
