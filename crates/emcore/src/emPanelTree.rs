@@ -2192,6 +2192,18 @@ impl PanelTree {
             std::cell::RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>,
         >,
     ) -> Option<PanelId> {
+        // DIVERGED: (language-forced) walk semantics differ from C++. C++'s
+        // `emPanel::CreateControlPanel` is a virtual whose default impl
+        // delegates upward via `Parent->CreateControlPanel`, so an override
+        // returning NULL terminates the walk at that override. In Rust the
+        // walk lives in this framework method (the trait method has no access
+        // to the parent chain), and a `None` return continues to the next
+        // ancestor. For the file-manager hierarchy this is observably
+        // equivalent — ancestors above emDirPanel/emDirEntryPanel use the
+        // trait default which also returns `None` — but a future override
+        // that should match C++'s "stop here" semantics would need either a
+        // sentinel return type or per-call walk-control. Revisit if a panel
+        // type ever needs to terminate the walk at an inactive override.
         let mut cur = id;
         loop {
             if let Some(mut behavior) = self.take_behavior(cur) {
@@ -3285,6 +3297,67 @@ mod tests {
             "GuardedCreator should create CCP when self_is_active=true"
         );
         assert_eq!(t.name(result.unwrap()), Some("ctrl2"));
+    }
+
+    #[test]
+    fn test_create_control_panel_in_cross_tree_inactive_ancestor() {
+        // Cross-tree regression: when an inactive ancestor has a behavior
+        // shaped like emDirPanel (active-guarded CreateControlPanel that
+        // would otherwise create a panel in target_tree), the guard must
+        // prevent any panel from being created in target_tree, and the walk
+        // must return None overall. Mirrors the file-manager hierarchy where
+        // the active panel is a descendant of an inactive emDirPanel.
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        struct GuardedCrossCreator;
+        impl PanelBehavior for GuardedCrossCreator {
+            fn CreateControlPanel(
+                &mut self,
+                ctx: &mut PanelCtx,
+                name: &str,
+                self_is_active: bool,
+            ) -> Option<PanelId> {
+                if !self_is_active {
+                    return None;
+                }
+                Some(ctx.create_child(name))
+            }
+        }
+
+        let mut content = PanelTree::new();
+        let content_root = content.create_root_deferred_view("content_root");
+        let mid = content.create_child(content_root, "mid", None);
+        let leaf = content.create_child(mid, "leaf", None);
+        content.set_behavior(mid, Box::new(GuardedCrossCreator));
+        // Active panel is the leaf; mid (the guarded behavior holder) is inactive.
+        content.panels[mid].is_active = false;
+        content.panels[leaf].is_active = true;
+
+        let mut ctrl = PanelTree::new();
+        let ctrl_root = ctrl.create_root_deferred_view("ctrl_root");
+        let ctrl_panels_before = ctrl.panels.len();
+
+        let mut sched = crate::emScheduler::EngineScheduler::new();
+        let mut fw: Vec<crate::emEngineCtx::DeferredAction> = Vec::new();
+        let root_ctx = crate::emContext::emContext::NewRoot();
+        let fw_cb: RefCell<Option<Box<dyn crate::emClipboard::emClipboard>>> = RefCell::new(None);
+        let pa: Rc<RefCell<Vec<crate::emEngineCtx::FrameworkDeferredAction>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
+        let result = content.create_control_panel_in(
+            leaf, &mut ctrl, ctrl_root, "ctrl", 1.0, &mut sched, &mut fw, &root_ctx, &fw_cb, &pa,
+        );
+
+        assert!(
+            result.is_none(),
+            "inactive ancestor with active-guarded behavior must not produce a control panel"
+        );
+        assert_eq!(
+            ctrl.panels.len(),
+            ctrl_panels_before,
+            "guard must prevent any panel from being created in target_tree"
+        );
     }
 
     // ── Auto-expansion tests ─────────────────────────────────────────
