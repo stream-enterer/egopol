@@ -2151,8 +2151,9 @@ impl PanelTree {
         let mut cur = id;
         loop {
             if let Some(mut behavior) = self.take_behavior(cur) {
+                let self_is_active = self.panels.get(cur).map(|p| p.is_active).unwrap_or(false);
                 let mut ctx = PanelCtx::new(self, parent_arg, current_pixel_tallness);
-                let result = behavior.CreateControlPanel(&mut ctx, name);
+                let result = behavior.CreateControlPanel(&mut ctx, name, self_is_active);
                 self.put_behavior(cur, behavior);
                 if result.is_some() {
                     return result;
@@ -2204,7 +2205,8 @@ impl PanelTree {
                     framework_clipboard,
                     pending_actions,
                 );
-                let result = behavior.CreateControlPanel(&mut ctx, name);
+                let self_is_active = self.panels.get(cur).map(|p| p.is_active).unwrap_or(false);
+                let result = behavior.CreateControlPanel(&mut ctx, name, self_is_active);
                 self.put_behavior(cur, behavior);
                 if result.is_some() {
                     return result;
@@ -3135,7 +3137,12 @@ mod tests {
         /// A behavior that creates a control panel child.
         struct ControlCreator;
         impl PanelBehavior for ControlCreator {
-            fn CreateControlPanel(&mut self, ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
+            fn CreateControlPanel(
+                &mut self,
+                ctx: &mut PanelCtx,
+                name: &str,
+                _self_is_active: bool,
+            ) -> Option<PanelId> {
                 Some(ctx.create_child(name))
             }
         }
@@ -3167,7 +3174,12 @@ mod tests {
 
         struct SchedReachProbe(Rc<Cell<bool>>);
         impl PanelBehavior for SchedReachProbe {
-            fn CreateControlPanel(&mut self, ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
+            fn CreateControlPanel(
+                &mut self,
+                ctx: &mut PanelCtx,
+                name: &str,
+                _self_is_active: bool,
+            ) -> Option<PanelId> {
                 // Record whether sched reach was plumbed through.
                 self.0.set(ctx.as_sched_ctx().is_some());
                 Some(ctx.create_child(name))

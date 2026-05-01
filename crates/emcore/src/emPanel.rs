@@ -396,7 +396,12 @@ pub trait PanelBehavior: AsAny {
     ///
     /// Return the new panel's id, or `None` to delegate to the parent
     /// (the tree walks up the parent chain; the root returns `None`).
-    fn CreateControlPanel(&mut self, _parent_ctx: &mut PanelCtx, _name: &str) -> Option<PanelId> {
+    fn CreateControlPanel(
+        &mut self,
+        _parent_ctx: &mut PanelCtx,
+        _name: &str,
+        _self_is_active: bool,
+    ) -> Option<PanelId> {
         None
     }
 

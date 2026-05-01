@@ -1198,7 +1198,15 @@ impl PanelBehavior for emDirEntryPanel {
         Some(self.dir_entry.GetPath().to_string())
     }
 
-    fn CreateControlPanel(&mut self, parent_ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
+    fn CreateControlPanel(
+        &mut self,
+        parent_ctx: &mut PanelCtx,
+        name: &str,
+        self_is_active: bool,
+    ) -> Option<PanelId> {
+        if !self_is_active {
+            return None;
+        } // C++: if (IsActive())
         let parent_dir = std::path::Path::new(self.dir_entry.GetPath())
             .parent()
             .and_then(|p| p.to_str())

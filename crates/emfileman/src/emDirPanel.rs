@@ -527,7 +527,15 @@ impl PanelBehavior for emDirPanel {
         }
     }
 
-    fn CreateControlPanel(&mut self, parent_ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
+    fn CreateControlPanel(
+        &mut self,
+        parent_ctx: &mut PanelCtx,
+        name: &str,
+        self_is_active: bool,
+    ) -> Option<PanelId> {
+        if !self_is_active {
+            return None;
+        } // C++: if (IsActive())
         let panel = {
             let mut sched = parent_ctx
                 .as_sched_ctx()

@@ -1571,7 +1571,12 @@ impl PanelBehavior for TestPanel {
         false
     }
 
-    fn CreateControlPanel(&mut self, ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
+    fn CreateControlPanel(
+        &mut self,
+        ctx: &mut PanelCtx,
+        name: &str,
+        _self_is_active: bool,
+    ) -> Option<PanelId> {
         let identity = ctx.tree.GetIdentity(ctx.id);
         let bg = self.bg_color();
         let text = format!(
