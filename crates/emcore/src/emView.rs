@@ -2724,6 +2724,13 @@ impl emView {
         for target in nav_requests {
             self.VisitFullsized(tree, target, false, false, ctx);
         }
+
+        // DIVERGED: (language-forced) Rust-only focus request drain. C++ calls
+        // panel->Focus() directly; Rust item panels post via PanelCtx::request_focus
+        // and emView grants focus here each frame.
+        for panel_id in tree.drain_focus_requests() {
+            self.set_focus(Some(panel_id));
+        }
     }
 
     // --- Navigation ---

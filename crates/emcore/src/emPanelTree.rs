@@ -1773,8 +1773,7 @@ impl PanelTree {
         self.focus_requests.push(id);
     }
 
-    /// Drain pending focus requests. Called by emView::Update.
-    #[expect(dead_code)]
+    /// Drain pending focus requests. Called by emView each frame.
     pub(crate) fn drain_focus_requests(&mut self) -> Vec<PanelId> {
         std::mem::take(&mut self.focus_requests)
     }
