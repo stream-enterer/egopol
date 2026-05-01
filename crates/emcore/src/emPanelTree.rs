@@ -2195,6 +2195,7 @@ impl PanelTree {
         let mut cur = id;
         loop {
             if let Some(mut behavior) = self.take_behavior(cur) {
+                let self_is_active = self.panels.get(cur).map(|p| p.is_active).unwrap_or(false);
                 let mut ctx = PanelCtx::with_sched_reach(
                     target_tree,
                     parent_arg,
@@ -2205,7 +2206,6 @@ impl PanelTree {
                     framework_clipboard,
                     pending_actions,
                 );
-                let self_is_active = self.panels.get(cur).map(|p| p.is_active).unwrap_or(false);
                 let result = behavior.CreateControlPanel(&mut ctx, name, self_is_active);
                 self.put_behavior(cur, behavior);
                 if result.is_some() {
@@ -3223,6 +3223,51 @@ mod tests {
         // No behaviors at all -- should walk to root and return None
         let result = t.CreateControlPanel(child, root, "ctrl", 1.0);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_create_control_panel_guard_respects_self_is_active() {
+        /// A behavior that mirrors the C++ emDirPanel IsActive() guard.
+        struct GuardedCreator;
+        impl PanelBehavior for GuardedCreator {
+            fn CreateControlPanel(
+                &mut self,
+                ctx: &mut PanelCtx,
+                name: &str,
+                self_is_active: bool,
+            ) -> Option<PanelId> {
+                if !self_is_active {
+                    return None;
+                }
+                Some(ctx.create_child(name))
+            }
+        }
+
+        let mut t = PanelTree::new();
+        let root = t.create_root_deferred_view("root");
+        t.set_behavior(root, Box::new(GuardedCreator));
+
+        let child = t.create_child(root, "child", None);
+        // child has no behavior; root has GuardedCreator.
+
+        // With root NOT active, walking up from child should return None.
+        // Root starts active by default (C++ invariant), so we explicitly
+        // deactivate it to exercise the guard.
+        t.panels[root].is_active = false;
+        let result = t.CreateControlPanel(child, root, "ctrl", 1.0);
+        assert!(
+            result.is_none(),
+            "GuardedCreator should return None when self_is_active=false"
+        );
+
+        // Mark root as active; now CreateControlPanel starting at root should succeed.
+        t.panels[root].is_active = true;
+        let result = t.CreateControlPanel(root, root, "ctrl2", 1.0);
+        assert!(
+            result.is_some(),
+            "GuardedCreator should create CCP when self_is_active=true"
+        );
+        assert_eq!(t.name(result.unwrap()), Some("ctrl2"));
     }
 
     // ── Auto-expansion tests ─────────────────────────────────────────

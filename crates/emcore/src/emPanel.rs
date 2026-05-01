@@ -396,6 +396,11 @@ pub trait PanelBehavior: AsAny {
     ///
     /// Return the new panel's id, or `None` to delegate to the parent
     /// (the tree walks up the parent chain; the root returns `None`).
+    ///
+    /// DIVERGED: (language-forced) — C++ behaviors call `this->IsActive()` (a field on the
+    /// same object). In Rust, behaviors don't hold their own `PanelId` and can't borrow
+    /// the tree while stored inside it, so `is_active` is threaded in as `self_is_active`.
+    /// C++ signature: `virtual emPanel* CreateControlPanel(ParentArg, const emString&)`.
     fn CreateControlPanel(
         &mut self,
         _parent_ctx: &mut PanelCtx,
