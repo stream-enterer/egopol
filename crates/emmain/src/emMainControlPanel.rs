@@ -161,7 +161,19 @@ pub struct emMainControlPanel {
     /// One-shot handoff: CommandsPanel::create_children writes the click_signal
     /// of each of the four commands buttons into this cell; emMainControlPanel::Cycle
     /// reads it at first Cycle to populate `bt_*_sig` fields. Not polled across ticks.
-    /// Rc<Cell<>> justification (a): cross-closure shared with sub-panel constructor.
+    ///
+    /// RUST_ONLY: (language-forced-utility) — C++ achieves the same wiring inline in
+    /// the parent ctor: `AddWakeUpSignal(BtNewWindow->GetClickSignal())` etc.
+    /// at `emMainControlPanel.cpp:220-226`, where parent construction sees the
+    /// child buttons directly because they are owned via raw pointers and
+    /// `new BtNewWindow(...)` returns a pointer the parent immediately
+    /// dereferences. In Rust, sub-panels are constructed via
+    /// `create_child_with`, which takes ownership of the constructor closure
+    /// and the resulting panel — the parent ctor cannot reach into the child
+    /// to read its `click_signal` at the same site. The handoff cell is the
+    /// minimal shim that lets the child publish its signal id back to the
+    /// parent's first-Cycle subscribe block. `Rc<Cell<_>>` (not `RefCell`)
+    /// because `ButtonSignals` is `Copy`.
     button_signals_handoff: Rc<Cell<ButtonSignals>>,
     autoplay_model: Rc<RefCell<emAutoplayViewModel>>,
     // Panel IDs for child widgets (used for layout weight assignment).
@@ -426,6 +438,7 @@ impl PanelBehavior for emMainControlPanel {
     }
 
     fn Cycle(&mut self, ectx: &mut EngineCtx<'_>, ctx: &mut PanelCtx) -> bool {
+        use slotmap::Key as _;
         // ── D-006 first-Cycle init: subscribe to model signals ────────────
         // Mirrors C++ constructor rows 218-219 (emMainControlPanel.cpp:218-219):
         //   AddWakeUpSignal(MainWin.GetWindowFlagsSignal())  [row 218]
@@ -516,7 +529,6 @@ impl PanelBehavior for emMainControlPanel {
             // Connect each non-null signal. Skip nulls so layout-only test
             // contexts (no scheduler at create_children time) degrade gracefully.
             let eid = ectx.id();
-            use slotmap::Key as _;
             for sig in [
                 self.bt_new_window_sig,
                 self.bt_fullscreen_sig,
@@ -544,19 +556,19 @@ impl PanelBehavior for emMainControlPanel {
 
         // ── Reactions for rows 220-226. ──
         // Mirrors C++ emMainControlPanel.cpp:262-290 IsSignaled branches.
-        use slotmap::Key as _;
 
         // Row 220: BtNewWindow click → MainWin.Duplicate()
         if !self.bt_new_window_sig.is_null() && ectx.IsSignaled(self.bt_new_window_sig) {
-            // App-bound stub; reaction body unchanged from pre-B-012 (App access
-            // from Cycle is not yet reachable). Subscription drift fixed; reaction
-            // body residual tracked separately.
+            // TODO(B-012-followup): wire to MainWin.Duplicate() — App-bound
+            // (needs App access from Cycle, not yet reachable). Subscription
+            // drift fixed in B-012; reaction body residual tracked here.
             log::info!("emMainControlPanel: New Window requested (Duplicate not yet implemented)");
         }
 
         // Row 221: BtFullscreen click → MainWin.ToggleFullscreen()
         if !self.bt_fullscreen_sig.is_null() && ectx.IsSignaled(self.bt_fullscreen_sig) {
-            // App-bound stub; same residual as row 220.
+            // TODO(B-012-followup): wire to MainWin.ToggleFullscreen() — same
+            // App-access residual as row 220.
             log::info!("emMainControlPanel: Fullscreen toggle requested (requires App access)");
         }
 
@@ -595,7 +607,8 @@ impl PanelBehavior for emMainControlPanel {
 
         // Row 226: BtQuit click → MainWin.Quit()
         if !self.bt_quit_sig.is_null() && ectx.IsSignaled(self.bt_quit_sig) {
-            // App-bound stub; Quit needs &mut App for scheduler.InitiateTermination.
+            // TODO(B-012-followup): wire to MainWin.Quit() — needs &mut App
+            // for scheduler.InitiateTermination.
             log::info!(
                 "emMainControlPanel: Quit requested (requires App access for InitiateTermination)"
             );
@@ -1541,6 +1554,199 @@ mod tests {
         sched.remove_signal(flags_sig);
         sched.remove_signal(focus_sig);
         sched.remove_signal(geom_sig);
+        sched.abort_all_pending();
+    }
+
+    /// M7 (B-012 review): exercise the click_subscribed_init retry loop.
+    ///
+    /// Construct emMainControlPanel without running CommandsPanel::create_children
+    /// (so handoff cell stays empty and bt_*_sig fields are null). Cycle once
+    /// — `click_subscribed_init` must remain false because not all 7 sigs are
+    /// populated. Populate the handoff and the owned check buttons' click_signals,
+    /// Cycle again — `click_subscribed_init` must now flip to true and the engine
+    /// must be connected to each non-null sig.
+    #[test]
+    fn click_subscribed_init_retries_until_all_sigs_present() {
+        use emcore::emEngineCtx::{EngineCtx, PanelCtx};
+        use emcore::emScheduler::EngineScheduler;
+        use std::collections::HashMap;
+
+        let root_ctx = emcore::emContext::emContext::NewRoot();
+        let mut sched = EngineScheduler::new();
+
+        // Minimal emMainWindow + emWindow so the row-218 init block can run
+        // without panicking (it looks up the window's flags signal).
+        let close_sig = sched.create_signal();
+        let flags_sig = sched.create_signal();
+        let focus_sig = sched.create_signal();
+        let geom_sig = sched.create_signal();
+        let win_id = winit::window::WindowId::dummy();
+        let win = emcore::emWindow::emWindow::new_popup_pending(
+            Rc::clone(&root_ctx),
+            emcore::emWindow::WindowFlags::empty(),
+            "test_retry".to_string(),
+            close_sig,
+            flags_sig,
+            focus_sig,
+            geom_sig,
+            emcore::emColor::emColor::TRANSPARENT,
+        );
+        let mut windows: HashMap<winit::window::WindowId, emcore::emWindow::emWindow> =
+            HashMap::new();
+        windows.insert(win_id, win);
+
+        let mut mw = crate::emMainWindow::emMainWindow::new(
+            Rc::clone(&root_ctx),
+            crate::emMainWindow::emMainWindowConfig::default(),
+        );
+        mw.window_id = Some(win_id);
+        crate::emMainWindow::set_main_window(mw);
+
+        let mut panel = emMainControlPanel::new(Rc::clone(&root_ctx), None);
+        // Override config change signal so the row-219 init can connect it.
+        let cfg_change_sig = sched.create_signal();
+        panel
+            .config
+            .borrow_mut()
+            .set_change_signal_for_test(cfg_change_sig);
+
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let root_id = tree.create_root_deferred_view("cp_m7");
+        tree.set_panel_view(root_id);
+        tree.register_engine_for_public(root_id, Some(&mut sched));
+        let engine_id = tree.panel_engine_id_pub(root_id).expect("engine");
+
+        let fw_cb: std::cell::RefCell<Option<Box<dyn emcore::emClipboard::emClipboard>>> =
+            std::cell::RefCell::new(None);
+        let pa: Rc<std::cell::RefCell<Vec<emcore::emGUIFramework::DeferredAction>>> =
+            Rc::new(std::cell::RefCell::new(Vec::new()));
+        let mut fw_actions: Vec<emcore::emEngineCtx::DeferredAction> = Vec::new();
+
+        // ── Cycle #1: no sigs populated, retry must keep click_subscribed_init=false.
+        let mut pending_inputs: Vec<(winit::window::WindowId, emcore::emInput::emInputEvent)> =
+            Vec::new();
+        let mut input_state = emcore::emInputState::emInputState::new();
+        {
+            let sched_ptr: *mut EngineScheduler = &mut sched;
+            let mut pctx =
+                PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+            let mut ectx = EngineCtx {
+                scheduler: &mut sched,
+                tree: None,
+                windows: &mut windows,
+                root_context: &root_ctx,
+                view_context: None,
+                framework_actions: &mut fw_actions,
+                pending_inputs: &mut pending_inputs,
+                input_state: &mut input_state,
+                framework_clipboard: &fw_cb,
+                engine_id,
+                pending_actions: &pa,
+            };
+            panel.Cycle(&mut ectx, &mut pctx);
+        }
+        assert!(
+            !panel.click_subscribed_init,
+            "click_subscribed_init must remain false when all 7 sigs are null \
+             (CommandsPanel::create_children has not run yet)"
+        );
+
+        // ── Populate handoff + owned check buttons with real click_signals.
+        let nw_sig = sched.create_signal();
+        let reload_sig = sched.create_signal();
+        let cls_sig = sched.create_signal();
+        let quit_sig = sched.create_signal();
+        panel.button_signals_handoff.set(ButtonSignals {
+            new_window: nw_sig,
+            reload: reload_sig,
+            close: cls_sig,
+            quit: quit_sig,
+        });
+        // Build the three owned check buttons so their click_signals are read.
+        let look = Rc::new(panel.look.clone());
+        let mk_check = |sched: &mut EngineScheduler| -> Rc<RefCell<emCheckButton>> {
+            let mut sc = emcore::emEngineCtx::SchedCtx {
+                scheduler: sched,
+                framework_actions: &mut Vec::new(),
+                root_context: &root_ctx,
+                view_context: None,
+                framework_clipboard: &fw_cb,
+                current_engine: None,
+                pending_actions: &pa,
+            };
+            Rc::new(RefCell::new(emCheckButton::new(
+                &mut sc,
+                "x",
+                Rc::clone(&look),
+            )))
+        };
+        let bt_fs = mk_check(&mut sched);
+        let bt_ahcv = mk_check(&mut sched);
+        let bt_ahsl = mk_check(&mut sched);
+        let fs_click = bt_fs.borrow().click_signal;
+        let ahcv_click = bt_ahcv.borrow().click_signal;
+        let ahsl_click = bt_ahsl.borrow().click_signal;
+        panel.bt_fullscreen = Some(bt_fs);
+        panel.bt_auto_hide_control_view = Some(bt_ahcv);
+        panel.bt_auto_hide_slider = Some(bt_ahsl);
+
+        // ── Cycle #2: retry must populate all 7 sigs and flip click_subscribed_init.
+        {
+            let sched_ptr: *mut EngineScheduler = &mut sched;
+            let mut pctx =
+                PanelCtx::with_scheduler(&mut tree, root_id, 1.0, unsafe { &mut *sched_ptr });
+            let mut ectx = EngineCtx {
+                scheduler: &mut sched,
+                tree: None,
+                windows: &mut windows,
+                root_context: &root_ctx,
+                view_context: None,
+                framework_actions: &mut fw_actions,
+                pending_inputs: &mut pending_inputs,
+                input_state: &mut input_state,
+                framework_clipboard: &fw_cb,
+                engine_id,
+                pending_actions: &pa,
+            };
+            panel.Cycle(&mut ectx, &mut pctx);
+        }
+        assert!(
+            panel.click_subscribed_init,
+            "click_subscribed_init must flip to true on second Cycle once \
+             all 7 click signals are present"
+        );
+        // Each sig field must mirror the source.
+        assert_eq!(panel.bt_new_window_sig, nw_sig);
+        assert_eq!(panel.bt_reload_sig, reload_sig);
+        assert_eq!(panel.bt_close_sig, cls_sig);
+        assert_eq!(panel.bt_quit_sig, quit_sig);
+        assert_eq!(panel.bt_fullscreen_sig, fs_click);
+        assert_eq!(panel.bt_auto_hide_control_view_sig, ahcv_click);
+        assert_eq!(panel.bt_auto_hide_slider_sig, ahsl_click);
+
+        // Cleanup.
+        let all_ids = tree.panel_ids();
+        for pid in all_ids {
+            if let Some(eid) = tree.panel_engine_id_pub(pid) {
+                sched.remove_engine(eid);
+            }
+        }
+        for s in [
+            close_sig,
+            flags_sig,
+            focus_sig,
+            geom_sig,
+            cfg_change_sig,
+            nw_sig,
+            reload_sig,
+            cls_sig,
+            quit_sig,
+            fs_click,
+            ahcv_click,
+            ahsl_click,
+        ] {
+            sched.remove_signal(s);
+        }
         sched.abort_all_pending();
     }
 }

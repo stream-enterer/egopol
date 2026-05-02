@@ -138,23 +138,15 @@ impl emMainWindow {
     /// B-012 D-007 + D-009: takes `&mut EngineCtx` and fires synchronously from
     /// the click reaction in `emMainControlPanel::Cycle`. Replaces the pre-B-012
     /// two-hop relay (`mw.to_reload = true` polled by `MainWindowEngine::Cycle`).
-    /// The `file_update_signal` is lazily cached on first call (D-008 A1) since
-    /// `mw::new` does not receive the signal id at construction time.
+    /// The `file_update_signal` is eagerly cached by `create_main_window`
+    /// (D-008 A1) since `mw::new` does not receive the signal id at
+    /// construction time. A cache miss is a wiring bug — fail loudly rather
+    /// than silently allocating an unsubscribed signal.
     pub fn ReloadFiles(&self, ectx: &mut EngineCtx<'_>) {
-        let sig = match self.file_update_signal.get() {
-            Some(s) => s,
-            None => {
-                // Lazy-allocate: create a new signal and memoize it. The
-                // production wiring (`create_main_window`) sets this cell to
-                // `app.file_update_signal` so listeners hear the same signal;
-                // in test contexts where wiring is missing, allocate one so
-                // the call path does not panic. Production code paths through
-                // `create_main_window` populate this before the first click.
-                let s = ectx.create_signal();
-                self.file_update_signal.set(Some(s));
-                s
-            }
-        };
+        let sig = self
+            .file_update_signal
+            .get()
+            .expect("file_update_signal must be cached by create_main_window");
         ectx.fire(sig);
     }
 
