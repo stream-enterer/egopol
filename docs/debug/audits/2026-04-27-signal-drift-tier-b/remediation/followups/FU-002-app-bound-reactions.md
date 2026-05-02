@@ -39,3 +39,26 @@ C++ shape (direct method dispatch) is **language-forced** unavailable. Whichever
 
 - Do not skip the architectural-decision phase. The three-line stub above hides a real ownership question; picking arbitrarily will create the next round of follow-ups.
 - This bucket is **separate from** D-007 ectx-threading. D-007 covers signal-firing sites; FU-002 covers App mutation sites — different axis, possibly different mechanism.
+
+## Resolution
+
+**Resolved 2026-05-02.** Implemented per `docs/superpowers/plans/2026-05-02-FU-002-app-bound-reactions.md`.
+
+The architectural-decision phase was obviated. Option (b) — the App-side
+pending-action queue — was already the established Rust pattern at the time
+FU-002 was scoped: `App.pending_actions` is used by `emMainWindow::Duplicate`
+itself (`emMainWindow.rs:233`) and by `emBookmarks.rs:748`. The actual
+implementation is one helper (`enqueue_main_window_action` in
+`emMainWindow.rs`) plus three one-line reaction wirings in
+`emMainControlPanel.rs`.
+
+Items closed:
+
+- FU-002-1 (Duplicate) — wired via `enqueue_main_window_action(ectx, |mw, app| mw.Duplicate(app))`.
+- FU-002-2 (ToggleFullscreen) — wired analogously.
+- FU-002-3 (Quit) — wired analogously.
+
+**Lesson for future bucket files:** phrase architectural-decision phases as
+"verify whether an existing pattern applies" before assuming a fresh
+decision is needed. In this case the queue already existed and was already
+in production use elsewhere in the same crate.
