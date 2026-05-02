@@ -34,7 +34,7 @@ Four units, one commit per unit:
 - Add `pub click_signal: SignalId` field with `DIVERGED: (language-forced)` annotation citing the established mirror-sibling-port pattern (cite emCheckButton.rs:32-40).
 - Allocate via `ctx.create_signal()` in `new`.
 - Fire from the user-toggle path in `Input` (where `check_signal` is fired today). **Do NOT fire from `SetChecked`** — preserves B-012's feedback-loop guard.
-- Add `pub fn GetClickSignal(&self) -> SignalId` and `pub fn GetCheckSignal(&self) -> SignalId` accessors mirroring C++ surface. (Consistent with the existing accessor pattern; consumers may also use field access.)
+- Add `pub fn GetClickSignal(&self) -> SignalId` accessor mirroring C++ surface. (Consistent with existing accessor pattern; consumers may also use field access.) `GetCheckSignal` accessor: keep existing if present, add only if missing — verify during implementation.
 
 **Tests:** two unit tests in emCheckBox module:
 - User-toggle (Input path): both `click_signal` and `check_signal` fire.

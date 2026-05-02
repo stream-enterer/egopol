@@ -96,7 +96,7 @@ Choose during implementation based on whichever produces less churn at call site
 
 **Files:** `crates/emstocks/src/emStocksFileModel.rs:146-166`, `crates/emstocks/src/emStocksPricesFetcher.rs:71-90,420-435`.
 
-- `emStocksFileModel.rs:149` — replace the UPSTREAM-GAP block (lines 149-162) with a simple delegation doc-comment:
+- `emStocksFileModel.rs:149` — replace the UPSTREAM-GAP block (whose extent is approximately lines 149-162; reverify exact range during implementation since prior edits may have shifted it) with a simple delegation doc-comment:
   ```rust
   /// Port of inherited C++ `emFileModel::GetFileStateSignal`. Delegates
   /// to the composed `emRecFileModel<emStocksRec>`, which delegates to
