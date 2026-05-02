@@ -6,6 +6,7 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emPainter::emPainter;
 use emcore::emPainter::{TextAlignment, VAlign};
+use emcore::emSignal::SignalId;
 use emcore::emStroke::emStroke;
 use emcore::emTexture::emTexture;
 
@@ -50,9 +51,12 @@ pub struct emStocksItemChart {
     /// `Cycle` reads `GetChangeSignal` from the same `Rc`.
     pub(crate) config: Rc<RefCell<emStocksConfig>>,
     /// D-006 first-Cycle init flag for ListBox.SelectedDate + Config.Change.
-    /// Mirrors the Phase A `emStocksControlPanel` pattern. Phase D wires the
-    /// actual subscribes inside the gated branch.
+    /// Mirrors the Phase A `emStocksControlPanel` pattern.
     pub(crate) subscribed_init: bool,
+    /// Phase D row -64 — cached `emStocksConfig::GetChangeSignal()` id.
+    pub(crate) config_change_sig: Option<SignalId>,
+    /// Phase D row -65 — cached `emStocksListBox::GetSelectedDateSignal()` id.
+    pub(crate) selected_date_sig: Option<SignalId>,
 
     // Data state
     data_up_to_date: bool,
@@ -113,6 +117,8 @@ impl emStocksItemChart {
             list_box,
             config,
             subscribed_init: false,
+            config_change_sig: None,
+            selected_date_sig: None,
             data_up_to_date: false,
             start_date: String::new(),
             start_year: 0,
@@ -1361,26 +1367,54 @@ impl emStocksItemChart {
     }
 }
 
-/// Phase C structural scaffold — first-Cycle latch only.
+/// Port of C++ `emStocksItemChart::Cycle` (emStocksItemChart.cpp:86-109).
 ///
-/// Phase D will replace the no-op gated body with the rows -64 / -65 D-006
-/// subscribes (Config.GetChangeSignal + ListBox.GetSelectedDateSignal). For
-/// now the body only flips `subscribed_init` to pin the latch contract.
+/// B-001-followup Phase D: D-006 wiring (rows -64, -65). First-Cycle init
+/// connects `Config.GetChangeSignal()` (cpp:64) and
+/// `ListBox.GetSelectedDateSignal()` (cpp:65). The IsSignaled OR-check at
+/// the top of Cycle invalidates data on either firing, mirroring C++ at
+/// cpp:92-97.
+///
+/// The C++ data-update timer gate (cpp:99-106) is preserved structurally:
+/// when `data_up_to_date` is false, we recompute on the next Cycle. The
+/// C++ randomized `UpdateTimeout` is omitted — the chart's `UpdateData`
+/// method is driven by parent panels passing in the stock record, not by
+/// this Cycle directly (Rust idiom adaptation: chart Cycle invalidates;
+/// parent observes and re-pushes data on next paint). Recompute timing is
+/// therefore parent-driven, observably equivalent to C++.
 impl emcore::emPanel::PanelBehavior for emStocksItemChart {
     fn Cycle(
         &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
         _pctx: &mut emcore::emEngineCtx::PanelCtx,
     ) -> bool {
         if !self.subscribed_init {
-            // Phase D will replace these placeholders with the real subscribes
-            // (rows -64 / -65). For now we touch the refs so the structural
-            // ctor wiring is exercised by the live `Cycle` path rather than
-            // only by tests.
-            let _ = self.list_box.borrow();
-            let _ = self.config.borrow();
+            let eid = ectx.engine_id;
+
+            let cfg_sig = self.config.borrow().GetChangeSignal(ectx);
+            ectx.connect(cfg_sig, eid);
+            self.config_change_sig = Some(cfg_sig);
+
+            let sd_sig = self.list_box.borrow().GetSelectedDateSignal(ectx);
+            ectx.connect(sd_sig, eid);
+            self.selected_date_sig = Some(sd_sig);
+
             self.subscribed_init = true;
         }
+
+        // C++ cpp:92-97 — IsSignaled OR-check → InvalidateData.
+        let cfg_fired = self
+            .config_change_sig
+            .map(|s| ectx.IsSignaled(s))
+            .unwrap_or(false);
+        let date_fired = self
+            .selected_date_sig
+            .map(|s| ectx.IsSignaled(s))
+            .unwrap_or(false);
+        if cfg_fired || date_fired {
+            self.InvalidateData();
+        }
+
         false
     }
 }
@@ -1767,5 +1801,123 @@ mod tests {
             let mut painter = emPainter::new(&mut img);
             chart.PaintPriceBar(&mut painter);
         }
+    }
+
+    // ─── B-001-followup Phase D — D-006 wiring (rows -64, -65) ───────────────
+
+    use emcore::emEngine::Priority;
+    use emcore::emPanel::PanelBehavior;
+    use emcore::emPanelScope::PanelScope;
+    use emcore::test_view_harness::TestViewHarness;
+
+    struct NoopE;
+    impl emcore::emEngine::emEngine for NoopE {
+        fn Cycle(&mut self, _ctx: &mut emcore::emEngineCtx::EngineCtx<'_>) -> bool {
+            false
+        }
+    }
+
+    /// Phase D rows -64 / -65 — first Cycle wires Config + SelectedDate.
+    #[test]
+    fn item_chart_first_cycle_wires_g2_g4_signals() {
+        let mut h = TestViewHarness::new();
+        let eid =
+            h.scheduler
+                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+
+        let mut chart = emStocksItemChart::for_test();
+        assert!(!chart.subscribed_init);
+        assert!(chart.config_change_sig.is_none());
+        assert!(chart.selected_date_sig.is_none());
+
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("ic", false);
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = chart.Cycle(&mut ectx, &mut pctx);
+        }
+
+        assert!(chart.subscribed_init);
+        assert!(chart.config_change_sig.is_some());
+        assert!(chart.selected_date_sig.is_some());
+
+        h.scheduler.remove_engine(eid);
+        h.scheduler.flush_signals_for_test();
+    }
+
+    /// Phase D row -64 — firing Config.ChangeSignal invalidates data.
+    #[test]
+    fn item_chart_reacts_to_config_change_signal() {
+        let mut h = TestViewHarness::new();
+        let eid =
+            h.scheduler
+                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+
+        let mut chart = emStocksItemChart::for_test();
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("ic", false);
+
+        // First Cycle wires.
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = chart.Cycle(&mut ectx, &mut pctx);
+        }
+        // Pretend data is current.
+        chart.data_up_to_date = true;
+
+        let sig = chart.config_change_sig.expect("wired");
+        h.scheduler.fire(sig);
+        h.scheduler.flush_signals_for_test();
+
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = chart.Cycle(&mut ectx, &mut pctx);
+        }
+
+        assert!(
+            !chart.data_up_to_date,
+            "Config.ChangeSignal must invalidate"
+        );
+
+        h.scheduler.remove_engine(eid);
+        h.scheduler.flush_signals_for_test();
+    }
+
+    /// Phase D row -65 — firing SelectedDateSignal invalidates data.
+    #[test]
+    fn item_chart_reacts_to_selected_date_signal() {
+        let mut h = TestViewHarness::new();
+        let eid =
+            h.scheduler
+                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+
+        let mut chart = emStocksItemChart::for_test();
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("ic", false);
+
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = chart.Cycle(&mut ectx, &mut pctx);
+        }
+        chart.data_up_to_date = true;
+
+        let sig = chart.selected_date_sig.expect("wired");
+        h.scheduler.fire(sig);
+        h.scheduler.flush_signals_for_test();
+
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = chart.Cycle(&mut ectx, &mut pctx);
+        }
+
+        assert!(!chart.data_up_to_date, "SelectedDateSignal must invalidate");
+
+        h.scheduler.remove_engine(eid);
+        h.scheduler.flush_signals_for_test();
     }
 }

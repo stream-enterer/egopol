@@ -363,19 +363,37 @@ impl emStocksListBox {
             None => return,
         };
 
-        inner.set_item_panel_factory(move |index, _text, _selected| {
+        inner.set_item_panel_factory(move |index, text, selected| {
             // Try to upgrade the Weak self-ref. If the outer ListBox has
             // been dropped, fall back to DefaultItemPanel — which mirrors
             // the C++ behavior of "no override installed" rather than
             // crashing.
+            //
+            // The factory captures FileModel/Config Rcs (cloned into each
+            // panel) plus the outer-listbox Weak. The C++ post-construction
+            // `SetStockRec(GetStockByItemIndex(itemIndex))` (cpp:696-705)
+            // is wired in `emStocksListBox::CreateItemPanel` *after* the
+            // factory returns, via the `ItemPanelInterface::bind_data`
+            // hook — the factory itself cannot re-borrow the outer
+            // ListBox because the call site already holds `borrow_mut`.
             if let Some(lb_rc) = self_ref.upgrade() {
-                Box::new(crate::emStocksItemPanel::emStocksItemPanel::new(
+                let mut panel = crate::emStocksItemPanel::emStocksItemPanel::new(
                     look.clone(),
                     file_model.clone(),
                     config.clone(),
                     lb_rc,
                     index,
-                ))
+                );
+                // Seed cached text / selected from the inner-listbox-tracked
+                // item state so `ItemPanelInterface::GetText` / `IsSelected`
+                // return the live value before the first paint. C++ achieves
+                // the same via the `emListBox` ctor populating these from
+                // the item's stored `text`/`selected` fields.
+                if !text.is_empty() {
+                    panel.cached_text = text;
+                }
+                panel.cached_selected = selected;
+                Box::new(panel)
             } else {
                 Box::new(emcore::emListBox::DefaultItemPanel::new(
                     index,
@@ -390,11 +408,27 @@ impl emStocksListBox {
     /// cpp:696-705. Delegates to the inner `emListBox::CreateItemPanel`,
     /// which uses the factory installed by `install_item_panel_factory`
     /// above. C++ also calls `SetStockRec(GetStockByItemIndex(index))`
-    /// after construction; that wiring lives in Phase D where the item
-    /// panel's Cycle has access to the stock record.
+    /// after construction; B-001-followup Phase D wires that step inside
+    /// the factory closure above (the closure has access to FileModel +
+    /// the outer listbox's `visible_items` map via Weak<self>).
     pub fn CreateItemPanel(&mut self, _name: &str, item_index: usize) {
+        // Look up the stock-rec index via the visible_items map *before*
+        // we hand the outer ListBox over to the inner factory. The
+        // factory itself cannot do this lookup because the outer is
+        // already mut-borrowed by this call site (BorrowError).
+        let stock_idx = self.visible_items.get(item_index).copied();
+
         if let Some(lb) = self.list_box.as_mut() {
             lb.CreateItemPanel(item_index);
+            // B-001-followup Phase D — C++ `emStocksListBox::CreateItemPanel`
+            // (cpp:696-705) calls `SetStockRec(GetStockByItemIndex(itemIndex))`
+            // after construction. We mirror that here via the
+            // `bind_data` trait hook, which `emStocksItemPanel` overrides
+            // to set its `stock_rec_index` (and cascade to the chart).
+            // Default impl is a no-op for `DefaultItemPanel`.
+            if let Some(iface) = lb.get_item_panel_interface_mut(item_index) {
+                iface.bind_data(stock_idx);
+            }
         }
     }
 

@@ -67,6 +67,15 @@ pub trait ItemPanelInterface {
 
     /// Whether selected.
     fn IsSelected(&self) -> bool;
+
+    /// Application-specific data-binding hook. Mirrors C++
+    /// `emStocksListBox::CreateItemPanel` which calls
+    /// `panel->SetStockRec(GetStockByItemIndex(itemIndex))` immediately
+    /// after construction (cpp:696-705). Default no-op for
+    /// `DefaultItemPanel`; `emStocksItemPanel` overrides it to bind the
+    /// stock-record index. Implementors that don't need a binding can
+    /// leave the default no-op in place.
+    fn bind_data(&mut self, _data_index: Option<usize>) {}
 }
 
 /// Default item panel that displays item text with selection highlight.

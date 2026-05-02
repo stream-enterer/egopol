@@ -12,6 +12,7 @@ use emcore::emCheckBox::emCheckBox;
 use emcore::emLabel::emLabel;
 use emcore::emLook::emLook;
 use emcore::emRadioButton::{emRadioButton, RadioGroup};
+use emcore::emSignal::SignalId;
 use emcore::emTextField::emTextField;
 
 use super::emStocksConfig::emStocksConfig;
@@ -227,7 +228,7 @@ pub struct emStocksItemPanel {
     pub(crate) chart: Option<emStocksItemChart>,
 
     /// D-006 first-Cycle init flag. Mirrors Phase A `subscribed_init` on
-    /// `emStocksControlPanel`. Phase D wires the actual G2/G4 subscribes
+    /// `emStocksControlPanel`. Phase D row -74 / -75 — wires G2/G4 subscribes
     /// (C++ ctor body cpp:74-75 — Config.GetChangeSignal +
     /// ListBox.GetSelectedDateSignal) inside the gated branch.
     pub(crate) subscribed_init: bool,
@@ -236,6 +237,20 @@ pub struct emStocksItemPanel {
     /// expand re-subscribes. Mirrors Phase A `subscribed_widgets` on
     /// `emStocksControlPanel`.
     pub(crate) subscribed_widgets: bool,
+    /// Phase D row -74 — cached `emStocksConfig::GetChangeSignal()` id.
+    pub(crate) config_change_sig: Option<SignalId>,
+    /// Phase D row -75 — cached `emStocksListBox::GetSelectedDateSignal()` id.
+    pub(crate) selected_date_sig: Option<SignalId>,
+
+    /// Cached display text for `ItemPanelInterface::GetText`. C++ stores it
+    /// implicitly through the listbox `GetItemText(itemIndex)`; the Rust
+    /// port caches it on the panel itself so the trait method can return
+    /// `&str` without a `RefCell` borrow. Updated by `SetStockRec` and by
+    /// `item_text_changed`.
+    pub(crate) cached_text: String,
+    /// Cached selection state for `ItemPanelInterface::IsSelected`. Updated
+    /// by `item_selection_changed`.
+    pub(crate) cached_selected: bool,
 
     // Previous values for OwningShares toggle (C++ PrevOwnShares etc.)
     pub prev_own_shares: String,
@@ -274,6 +289,10 @@ impl emStocksItemPanel {
             chart: None,
             subscribed_init: false,
             subscribed_widgets: false,
+            config_change_sig: None,
+            selected_date_sig: None,
+            cached_text: String::new(),
+            cached_selected: false,
             prev_own_shares: String::new(),
             prev_purchase_price: String::new(),
             prev_purchase_date: String::new(),
@@ -290,6 +309,36 @@ impl emStocksItemPanel {
         if self.stock_rec_index != index {
             self.stock_rec_index = index;
             self.update_controls_needed = true;
+        }
+    }
+
+    /// Port of C++ `emStocksItemPanel::SetStockRec` (cpp:85-93).
+    /// C++ shape: `SetStockRec(emStocksRec::StockRec * stockRec)` —
+    /// associates the panel with a stock and cascades to the chart.
+    /// Rust adaptation: pass `(stock_rec_index, Option<&StockRec>)` because
+    /// the rec is owned by `emStocksFileModel` and the panel does not hold
+    /// a borrow across calls. The cached display text is updated from the
+    /// stock record so `ItemPanelInterface::GetText` returns the live value.
+    pub fn SetStockRec(&mut self, stock_rec_index: Option<usize>, stock: Option<&StockRec>) {
+        if self.stock_rec_index != stock_rec_index {
+            self.stock_rec_index = stock_rec_index;
+            self.update_controls_needed = true;
+        }
+        // Cache display text for ItemPanelInterface::GetText. C++
+        // `emStocksItemPanel::GetTitle` (cpp:96-108) returns "<unnamed>" for
+        // empty names; mirror that here so the listbox-displayed string
+        // matches.
+        let new_text = match stock {
+            Some(s) if s.name.is_empty() => "<unnamed>".to_string(),
+            Some(s) => s.name.clone(),
+            None => String::new(),
+        };
+        if self.cached_text != new_text {
+            self.cached_text = new_text;
+        }
+        // Cascade to the chart (C++ cpp:89 `if (Chart) Chart->SetStockRec(stockRec);`).
+        if let Some(chart) = self.chart.as_mut() {
+            chart.SetStockRecIndex(stock_rec_index);
         }
     }
 
@@ -652,28 +701,330 @@ impl emStocksItemPanel {
     }
 }
 
-/// Phase C structural scaffold — first-Cycle latch only.
+/// Port of C++ `emStocksItemPanel::Cycle` (emStocksItemPanel.cpp:111-268).
 ///
-/// Phase D will replace the no-op gated body with the C++ ctor-body
-/// subscribes (Config.GetChangeSignal + ListBox.GetSelectedDateSignal,
-/// cpp:74-75) plus the ~27 widget signals from `ItemWidgets`. For now
-/// the body only flips `subscribed_init` to pin the latch contract.
+/// B-001-followup Phase D: D-006 wiring (29 rows = 2 ctor-shape G2/G4 +
+/// ~27 widget signals). Two-tier subscribed_init pattern:
+///   - `subscribed_init`: G2 (Config.ChangeSignal), G4 (ListBox.SelectedDateSignal).
+///     Always available — parent provides the three Rc<RefCell<>> refs at
+///     construction. Mirrors C++ ctor-body `AddWakeUpSignal` calls (cpp:74-75).
+///   - `subscribed_widgets`: ~27 widget signals subscribed once `widgets`
+///     materialises post-AutoExpand. Mirrors C++ `AddWakeUpSignal` calls
+///     spread across `AutoExpand` (cpp:342, 357, 364, 371, 395, 408, 415,
+///     421, 432, 441, 446, 451, 454, 467, 490, 504, 509, 518, 527).
+///
+/// Reactions mirror C++ `Cycle` body branches at cpp:122-265.
 impl emcore::emPanel::PanelBehavior for emStocksItemPanel {
     fn Cycle(
         &mut self,
-        _ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
+        ectx: &mut emcore::emEngineCtx::EngineCtx<'_>,
         _pctx: &mut emcore::emEngineCtx::PanelCtx,
     ) -> bool {
+        // ── Tier 1: G2 + G4 first-Cycle init ────────────────────────────
         if !self.subscribed_init {
-            // Phase D will replace these placeholders with the real
-            // subscribes. Touching the refs here keeps the structural
-            // ctor wiring exercised by the live `Cycle` path rather
-            // than only by tests.
-            let _ = self.file_model.borrow();
-            let _ = self.config.borrow();
-            let _ = self.list_box.borrow();
+            let eid = ectx.engine_id;
+
+            let cfg_sig = self.config.borrow().GetChangeSignal(ectx);
+            ectx.connect(cfg_sig, eid);
+            self.config_change_sig = Some(cfg_sig);
+
+            let sd_sig = self.list_box.borrow().GetSelectedDateSignal(ectx);
+            ectx.connect(sd_sig, eid);
+            self.selected_date_sig = Some(sd_sig);
+
             self.subscribed_init = true;
         }
+
+        // ── Tier 2: widget subscribes once AutoExpand has materialised ──
+        if !self.subscribed_widgets {
+            if let Some(w) = self.widgets.as_ref() {
+                let eid = ectx.engine_id;
+                // C++ source order — emStocksItemPanel.cpp:342-527.
+                ectx.connect(w.name.text_signal, eid);
+                ectx.connect(w.symbol.text_signal, eid);
+                ectx.connect(w.wkn.text_signal, eid);
+                ectx.connect(w.isin.text_signal, eid);
+                ectx.connect(w.comment.text_signal, eid);
+                for i in 0..NUM_WEB_PAGES {
+                    ectx.connect(w.web_pages[i].text_signal, eid);
+                    ectx.connect(w._show_web_page[i].click_signal, eid);
+                }
+                ectx.connect(w._show_all_web_pages.click_signal, eid);
+                ectx.connect(w.owning_shares.check_signal, eid);
+                ectx.connect(w.own_shares.text_signal, eid);
+                ectx.connect(w.trade_price.text_signal, eid);
+                ectx.connect(w.trade_date.text_signal, eid);
+                ectx.connect(w.update_trade_date.click_signal, eid);
+                ectx.connect(w._fetch_share_price.click_signal, eid);
+                ectx.connect(w.interest_group.borrow().check_signal, eid);
+                ectx.connect(w.expected_dividend.text_signal, eid);
+                ectx.connect(w.desired_price.text_signal, eid);
+                ectx.connect(w.inquiry_date.text_signal, eid);
+                ectx.connect(w._update_inquiry_date.click_signal, eid);
+                self.subscribed_widgets = true;
+            }
+        }
+
+        // ── Reactions, in C++ source order (cpp:122-265) ────────────────
+        // Group 1: G2 / G4 → update_controls_needed (cpp:122-127).
+        let cfg_fired = self
+            .config_change_sig
+            .map(|s| ectx.IsSignaled(s))
+            .unwrap_or(false);
+        let date_fired = self
+            .selected_date_sig
+            .map(|s| ectx.IsSignaled(s))
+            .unwrap_or(false);
+        if cfg_fired || date_fired {
+            self.update_controls_needed = true;
+        }
+
+        // Group 2: widget reactions. C++ writes to `stockRec` directly via
+        // GetStockRec(); the Rust port routes through FileModel's
+        // GetWritableRec(ectx) which fires the model ChangeSignal at end-
+        // of-borrow (D-007). We collect the firing flags first to avoid
+        // borrow conflicts between ectx queries and FileModel mutation.
+        let stock_idx = match self.stock_rec_index {
+            Some(i) => i,
+            None => return false,
+        };
+        let widgets_present = self.widgets.is_some();
+        if !widgets_present {
+            return false;
+        }
+
+        // Phase 1: read fired flags + widget snapshots.
+        let (
+            name_fired,
+            symbol_fired,
+            wkn_fired,
+            isin_fired,
+            comment_fired,
+            owning_fired,
+            own_shares_fired,
+            trade_price_fired,
+            trade_date_fired,
+            update_trade_date_fired,
+            fetch_share_price_fired,
+            interest_fired,
+            expected_div_fired,
+            desired_price_fired,
+            inquiry_date_fired,
+            update_inquiry_date_fired,
+            show_all_fired,
+            web_page_fired,
+            show_web_fired,
+            name_text,
+            symbol_text,
+            wkn_text,
+            isin_text,
+            comment_text,
+            owning_val,
+            own_shares_text,
+            trade_price_text,
+            trade_date_text,
+            interest_idx,
+            expected_div_text,
+            desired_price_text,
+            inquiry_date_text,
+            web_texts,
+        ) = {
+            let w = self.widgets.as_ref().unwrap();
+            let mut web_fired = [false; NUM_WEB_PAGES];
+            let mut show_fired = [false; NUM_WEB_PAGES];
+            let mut web_texts: [String; NUM_WEB_PAGES] = Default::default();
+            for i in 0..NUM_WEB_PAGES {
+                web_fired[i] = ectx.IsSignaled(w.web_pages[i].text_signal);
+                show_fired[i] = ectx.IsSignaled(w._show_web_page[i].click_signal);
+                web_texts[i] = w.web_pages[i].GetText().to_string();
+            }
+            (
+                ectx.IsSignaled(w.name.text_signal),
+                ectx.IsSignaled(w.symbol.text_signal),
+                ectx.IsSignaled(w.wkn.text_signal),
+                ectx.IsSignaled(w.isin.text_signal),
+                ectx.IsSignaled(w.comment.text_signal),
+                ectx.IsSignaled(w.owning_shares.check_signal),
+                ectx.IsSignaled(w.own_shares.text_signal),
+                ectx.IsSignaled(w.trade_price.text_signal),
+                ectx.IsSignaled(w.trade_date.text_signal),
+                ectx.IsSignaled(w.update_trade_date.click_signal),
+                ectx.IsSignaled(w._fetch_share_price.click_signal),
+                ectx.IsSignaled(w.interest_group.borrow().check_signal),
+                ectx.IsSignaled(w.expected_dividend.text_signal),
+                ectx.IsSignaled(w.desired_price.text_signal),
+                ectx.IsSignaled(w.inquiry_date.text_signal),
+                ectx.IsSignaled(w._update_inquiry_date.click_signal),
+                ectx.IsSignaled(w._show_all_web_pages.click_signal),
+                web_fired,
+                show_fired,
+                w.name.GetText().to_string(),
+                w.symbol.GetText().to_string(),
+                w.wkn.GetText().to_string(),
+                w.isin.GetText().to_string(),
+                w.comment.GetText().to_string(),
+                w.owning_shares.IsChecked(),
+                w.own_shares.GetText().to_string(),
+                w.trade_price.GetText().to_string(),
+                w.trade_date.GetText().to_string(),
+                w.interest_group.borrow().GetChecked(),
+                w.expected_dividend.GetText().to_string(),
+                w.desired_price.GetText().to_string(),
+                w.inquiry_date.GetText().to_string(),
+                web_texts,
+            )
+        };
+
+        // Phase 2: snapshot Config.AutoUpdateDates so we can decide whether
+        // to bump InquiryDate/TradeDate without holding a config borrow
+        // across the rec mutation.
+        let auto_update = self.config.borrow().auto_update_dates;
+
+        // Phase 3: apply mutations to the stock record. Any touch goes
+        // through GetWritableRec(ectx), which fires FileModel.ChangeSignal
+        // at end-of-borrow (D-007).
+        let any_widget_fired = name_fired
+            || symbol_fired
+            || wkn_fired
+            || isin_fired
+            || comment_fired
+            || owning_fired
+            || own_shares_fired
+            || trade_price_fired
+            || trade_date_fired
+            || update_trade_date_fired
+            || interest_fired
+            || expected_div_fired
+            || desired_price_fired
+            || inquiry_date_fired
+            || update_inquiry_date_fired
+            || web_page_fired.iter().any(|&b| b);
+
+        if any_widget_fired {
+            // OwningShares toggle requires the swap-helper logic; pull the
+            // pre-image first then mutate via ToggleOwningShares.
+            let mut model = self.file_model.borrow_mut();
+            let rec = model.GetWritableRec(ectx);
+            let stock_opt = rec.stocks.get_mut(stock_idx);
+            if let Some(stock) = stock_opt {
+                if name_fired {
+                    stock.name = name_text;
+                }
+                if symbol_fired && stock.symbol != symbol_text {
+                    stock.symbol = symbol_text;
+                    stock.prices.clear();
+                    stock.last_price_date.clear();
+                }
+                if wkn_fired {
+                    stock.wkn = wkn_text;
+                }
+                if isin_fired {
+                    stock.isin = isin_text;
+                }
+                if owning_fired && stock.owning_shares != owning_val {
+                    // Mirror C++ cpp:149-172 swap behavior. Inlined here
+                    // because ToggleOwningShares takes &mut self and we
+                    // already hold the file_model borrow that owns the
+                    // stock. Behavior is identical to ToggleOwningShares.
+                    stock.owning_shares = owning_val;
+                    if owning_val {
+                        if stock.own_shares.is_empty() {
+                            stock.own_shares = self.prev_own_shares.clone();
+                            self.prev_sale_price = stock.trade_price.clone();
+                            self.prev_sale_date = stock.trade_date.clone();
+                            stock.trade_price = self.prev_purchase_price.clone();
+                            stock.trade_date = self.prev_purchase_date.clone();
+                        }
+                    } else if !stock.own_shares.is_empty() {
+                        self.prev_own_shares = stock.own_shares.clone();
+                        stock.own_shares.clear();
+                        self.prev_purchase_price = stock.trade_price.clone();
+                        self.prev_purchase_date = stock.trade_date.clone();
+                        stock.trade_price = self.prev_sale_price.clone();
+                        stock.trade_date = self.prev_sale_date.clone();
+                    }
+                }
+                if own_shares_fired {
+                    stock.own_shares = own_shares_text;
+                }
+                if trade_price_fired && stock.trade_price != trade_price_text {
+                    stock.trade_price = trade_price_text;
+                    if auto_update {
+                        stock.trade_date = GetCurrentDate();
+                    }
+                }
+                if trade_date_fired {
+                    stock.trade_date = trade_date_text;
+                }
+                if update_trade_date_fired {
+                    stock.trade_date = GetCurrentDate();
+                }
+                if desired_price_fired && stock.desired_price != desired_price_text {
+                    stock.desired_price = desired_price_text;
+                    if auto_update {
+                        stock.inquiry_date = GetCurrentDate();
+                    }
+                }
+                if expected_div_fired && stock.expected_dividend != expected_div_text {
+                    stock.expected_dividend = expected_div_text;
+                    if auto_update {
+                        stock.inquiry_date = GetCurrentDate();
+                    }
+                }
+                if inquiry_date_fired {
+                    stock.inquiry_date = inquiry_date_text;
+                }
+                if update_inquiry_date_fired {
+                    stock.inquiry_date = GetCurrentDate();
+                }
+                if interest_fired {
+                    if let Some(idx) = interest_idx {
+                        stock.interest = match idx {
+                            0 => Interest::High,
+                            1 => Interest::Medium,
+                            _ => Interest::Low,
+                        };
+                    }
+                }
+                // WebPages: mirror C++ cpp:229-249 — extend on first non-
+                // empty entry, write, trim trailing empties.
+                for i in 0..NUM_WEB_PAGES {
+                    if web_page_fired[i] {
+                        let txt = &web_texts[i];
+                        if !txt.is_empty() && stock.web_pages.len() <= i {
+                            stock.web_pages.resize(i + 1, String::new());
+                        }
+                        if stock.web_pages.len() > i {
+                            stock.web_pages[i] = txt.clone();
+                        }
+                        while stock
+                            .web_pages
+                            .last()
+                            .map(|s| s.is_empty())
+                            .unwrap_or(false)
+                        {
+                            stock.web_pages.pop();
+                        }
+                    }
+                }
+                if comment_fired {
+                    stock.comment = comment_text;
+                }
+            }
+        }
+
+        // FetchSharePrice / ShowWebPage / ShowAllWebPages: parent-side
+        // actions (StartToFetchSharePrices / ShowWebPages on the listbox).
+        // C++ calls `ListBox.StartToFetchSharePrices(...)` /
+        // `ListBox.ShowWebPages(...)`. The Rust ListBox port has neither
+        // method yet (B-017 territory); record the firing as a TODO mark
+        // mirroring Phase B's same-shape gap on ControlPanel row -626.
+        let _ = fetch_share_price_fired; // TODO: wire to StartToFetchSharePrices when ListBox exposes it.
+        let _ = show_all_fired; // TODO: wire to ShowWebPages when ListBox exposes it.
+        for &fired in show_web_fired.iter() {
+            let _ = fired; // TODO: wire to ShowWebPages.
+        }
+
         false
     }
 }
@@ -683,10 +1034,12 @@ impl emcore::emPanel::PanelBehavior for emStocksItemPanel {
 /// boxed `dyn ItemPanelInterface` back — `emStocksItemPanel` is the
 /// concrete type behind that box.
 impl emcore::emListBox::ItemPanelInterface for emStocksItemPanel {
-    fn item_text_changed(&mut self, _text: &str) {
-        // C++ override is empty for emStocksItemPanel; data flows in
-        // through SetStockRec instead. Phase D will treat any incoming
-        // text change as a `update_controls_needed` flag bump.
+    fn item_text_changed(&mut self, text: &str) {
+        // C++ override is empty for emStocksItemPanel; the cached text is
+        // updated by `SetStockRec`. The listbox-driven path also pushes
+        // text changes; mirror the C++ default by caching and flagging
+        // for update.
+        self.cached_text = text.to_string();
         self.update_controls_needed = true;
     }
 
@@ -694,7 +1047,8 @@ impl emcore::emListBox::ItemPanelInterface for emStocksItemPanel {
         self.update_controls_needed = true;
     }
 
-    fn item_selection_changed(&mut self, _selected: bool) {
+    fn item_selection_changed(&mut self, selected: bool) {
+        self.cached_selected = selected;
         self.update_controls_needed = true;
     }
 
@@ -707,11 +1061,27 @@ impl emcore::emListBox::ItemPanelInterface for emStocksItemPanel {
     }
 
     fn GetText(&self) -> &str {
-        ""
+        &self.cached_text
     }
 
     fn IsSelected(&self) -> bool {
-        false
+        self.cached_selected
+    }
+
+    /// Carry-over of C++ `emStocksListBox::CreateItemPanel`'s
+    /// `SetStockRec(GetStockByItemIndex(itemIndex))` call (cpp:696-705).
+    /// The outer `emStocksListBox::CreateItemPanel` invokes this after the
+    /// panel is constructed, with the stock-rec index resolved from
+    /// `visible_items[item_index]`. Cached display text is updated by
+    /// `item_text_changed` separately.
+    fn bind_data(&mut self, data_index: Option<usize>) {
+        if self.stock_rec_index != data_index {
+            self.stock_rec_index = data_index;
+            self.update_controls_needed = true;
+        }
+        if let Some(chart) = self.chart.as_mut() {
+            chart.SetStockRecIndex(data_index);
+        }
     }
 }
 
@@ -1480,5 +1850,317 @@ mod tests {
         panel.ReadFromWidgets(&mut stock, &config);
 
         assert!(stock.owning_shares);
+    }
+
+    // ─── B-001-followup Phase D — D-006 wiring ───────────────────────────────
+
+    use emcore::emEngine::Priority;
+    use emcore::emPanel::PanelBehavior;
+    use emcore::emPanelScope::PanelScope;
+    use emcore::test_view_harness::TestViewHarness;
+
+    struct NoopE;
+    impl emcore::emEngine::emEngine for NoopE {
+        fn Cycle(&mut self, _ctx: &mut emcore::emEngineCtx::EngineCtx<'_>) -> bool {
+            false
+        }
+    }
+
+    /// Phase D row -74 / -75 — first Cycle wires Config + SelectedDate signals.
+    #[test]
+    fn item_panel_first_cycle_wires_g2_g4_signals() {
+        let mut h = TestViewHarness::new();
+        let eid =
+            h.scheduler
+                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+
+        let mut panel = emStocksItemPanel::for_test();
+        assert!(!panel.subscribed_init);
+        assert!(panel.config_change_sig.is_none());
+        assert!(panel.selected_date_sig.is_none());
+
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("ip", false);
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+
+        assert!(panel.subscribed_init);
+        assert!(panel.config_change_sig.is_some());
+        assert!(panel.selected_date_sig.is_some());
+
+        h.scheduler.remove_engine(eid);
+        h.scheduler.flush_signals_for_test();
+    }
+
+    /// Phase D row -74 — firing Config.ChangeSignal sets update_controls_needed.
+    #[test]
+    fn item_panel_reacts_to_config_change_signal() {
+        let mut h = TestViewHarness::new();
+        let eid =
+            h.scheduler
+                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+
+        let mut panel = emStocksItemPanel::for_test();
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("ip", false);
+
+        // First Cycle wires.
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+        panel.MarkUpdated();
+        assert!(!panel.NeedsUpdate());
+
+        // Fire Config.ChangeSignal.
+        let sig = panel.config_change_sig.expect("wired");
+        h.scheduler.fire(sig);
+        h.scheduler.flush_signals_for_test();
+
+        // Second Cycle observes IsSignaled.
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+
+        assert!(panel.NeedsUpdate());
+
+        h.scheduler.remove_engine(eid);
+        h.scheduler.flush_signals_for_test();
+    }
+
+    /// Phase D row -75 — firing ListBox.SelectedDateSignal sets update_controls_needed.
+    #[test]
+    fn item_panel_reacts_to_selected_date_signal() {
+        let mut h = TestViewHarness::new();
+        let eid =
+            h.scheduler
+                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+
+        let mut panel = emStocksItemPanel::for_test();
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("ip", false);
+
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+        panel.MarkUpdated();
+
+        let sig = panel.selected_date_sig.expect("wired");
+        h.scheduler.fire(sig);
+        h.scheduler.flush_signals_for_test();
+
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+
+        assert!(panel.NeedsUpdate());
+
+        h.scheduler.remove_engine(eid);
+        h.scheduler.flush_signals_for_test();
+    }
+
+    /// Phase D — widget subscribes wired after AutoExpand on the next Cycle.
+    #[test]
+    fn item_panel_subscribed_widgets_after_auto_expand() {
+        let mut h = TestViewHarness::new();
+        let eid =
+            h.scheduler
+                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+
+        let mut panel = emStocksItemPanel::for_test();
+        assert!(!panel.subscribed_widgets);
+
+        // First Cycle wires G2/G4 only — widgets is None.
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("ip", false);
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+        assert!(!panel.subscribed_widgets);
+
+        // AutoExpand materialises widgets.
+        {
+            let mut sc = h.sched_ctx_for(eid);
+            panel.AutoExpand(&mut sc);
+        }
+
+        // Second Cycle wires widget signals.
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+        assert!(panel.subscribed_widgets);
+
+        h.scheduler.remove_engine(eid);
+        h.scheduler.flush_signals_for_test();
+    }
+
+    /// Phase D — firing a widget text_signal writes the stock record.
+    #[test]
+    fn item_panel_name_text_signal_writes_stock_rec() {
+        let mut h = TestViewHarness::new();
+        let eid =
+            h.scheduler
+                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+
+        // Build with a shared FileModel so we can observe rec writes.
+        let model = Rc::new(RefCell::new(emStocksFileModel::new(
+            std::path::PathBuf::from("/tmp/ip_phase_d_g7.emStocks"),
+        )));
+        // Seed a stock at index 0.
+        {
+            let mut sc = h.sched_ctx_for(eid);
+            let m = &mut *model.borrow_mut();
+            let rec = m.GetWritableRec(&mut sc);
+            rec.stocks.push(StockRec::default());
+        }
+        let config = Rc::new(RefCell::new(emStocksConfig::default()));
+        let list_box = Rc::new(RefCell::new(emStocksListBox::new()));
+        let mut panel = emStocksItemPanel::new(emLook::new(), model.clone(), config, list_box, 0);
+        panel.SetStockRecIndex(Some(0));
+
+        // First Cycle (G2/G4); AutoExpand; Second Cycle (widgets).
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("ip", false);
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+        {
+            let mut sc = h.sched_ctx_for(eid);
+            panel.AutoExpand(&mut sc);
+        }
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+        assert!(panel.subscribed_widgets);
+
+        // Stage widget text via the silent setter then fire.
+        let sig = panel.widgets.as_ref().unwrap().name.text_signal;
+        panel
+            .widgets
+            .as_mut()
+            .unwrap()
+            .name
+            .set_text_for_test("Hello");
+        h.scheduler.fire(sig);
+        h.scheduler.flush_signals_for_test();
+
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+
+        assert_eq!(model.borrow().GetRec().stocks[0].name, "Hello");
+
+        h.scheduler.remove_engine(eid);
+        h.scheduler.flush_signals_for_test();
+    }
+
+    /// Phase D — firing OwningShares.check_signal toggles via swap helper.
+    #[test]
+    fn item_panel_owning_shares_check_signal_invokes_toggle() {
+        let mut h = TestViewHarness::new();
+        let eid =
+            h.scheduler
+                .register_engine(Box::new(NoopE), Priority::Medium, PanelScope::Framework);
+
+        let model = Rc::new(RefCell::new(emStocksFileModel::new(
+            std::path::PathBuf::from("/tmp/ip_phase_d_owning.emStocks"),
+        )));
+        {
+            let mut sc = h.sched_ctx_for(eid);
+            let m = &mut *model.borrow_mut();
+            let rec = m.GetWritableRec(&mut sc);
+            let mut stock = StockRec::default();
+            stock.owning_shares = true;
+            stock.own_shares = "100".to_string();
+            stock.trade_price = "50.00".to_string();
+            stock.trade_date = "2024-01-15".to_string();
+            rec.stocks.push(stock);
+        }
+        let config = Rc::new(RefCell::new(emStocksConfig::default()));
+        let list_box = Rc::new(RefCell::new(emStocksListBox::new()));
+        let mut panel = emStocksItemPanel::new(emLook::new(), model.clone(), config, list_box, 0);
+        panel.SetStockRecIndex(Some(0));
+
+        let mut tree = emcore::emPanelTree::PanelTree::new();
+        let id = tree.create_root("ip", false);
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+        {
+            let mut sc = h.sched_ctx_for(eid);
+            panel.AutoExpand(&mut sc);
+        }
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+
+        // Toggle to not-owning by silently flipping the widget then firing.
+        let sig = panel.widgets.as_ref().unwrap().owning_shares.check_signal;
+        panel
+            .widgets
+            .as_mut()
+            .unwrap()
+            .owning_shares
+            .set_checked_silent(false);
+        h.scheduler.fire(sig);
+        h.scheduler.flush_signals_for_test();
+
+        {
+            let mut pctx = emcore::emEngineCtx::PanelCtx::new(&mut tree, id, 1.0);
+            let mut ectx = h.engine_ctx(eid);
+            let _ = panel.Cycle(&mut ectx, &mut pctx);
+        }
+
+        // After toggle, the rec should be in not-owning state with cleared
+        // OwnShares (mirroring ToggleOwningShares logic).
+        let m = model.borrow();
+        let s = &m.GetRec().stocks[0];
+        assert!(!s.owning_shares);
+        assert!(s.own_shares.is_empty());
+        // PrevOwnShares saved.
+        assert_eq!(panel.prev_own_shares, "100");
+
+        drop(m);
+        h.scheduler.remove_engine(eid);
+        h.scheduler.flush_signals_for_test();
+    }
+
+    /// Phase D — `bind_data` updates stock_rec_index and cascades to chart.
+    #[test]
+    fn item_panel_bind_data_updates_stock_idx_and_chart() {
+        use emcore::emListBox::ItemPanelInterface;
+        let mut __init = TestInit::new();
+        let mut panel = emStocksItemPanel::for_test();
+        panel.AutoExpand(&mut __init.ctx());
+        assert!(panel.GetStockRecIndex().is_none());
+        assert!(panel.chart.as_ref().unwrap().GetStockRecIndex().is_none());
+
+        panel.bind_data(Some(7));
+        assert_eq!(panel.GetStockRecIndex(), Some(7));
+        assert_eq!(panel.chart.as_ref().unwrap().GetStockRecIndex(), Some(7));
     }
 }
