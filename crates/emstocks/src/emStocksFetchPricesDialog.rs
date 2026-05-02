@@ -1,6 +1,7 @@
 use emcore::emColor::emColor;
-use emcore::emEngineCtx::SignalCtx;
+use emcore::emEngineCtx::{EngineCtx, SignalCtx};
 use emcore::emPainter::emPainter;
+use emcore::emSignal::SignalId;
 
 use super::emStocksPricesFetcher::emStocksPricesFetcher;
 
@@ -68,6 +69,13 @@ pub struct emStocksFetchPricesDialog {
     pub(crate) finished: bool,
     /// Error message from the fetcher, if any, after finishing.
     pub(crate) finish_error: String,
+    /// Cached SignalId from `emStocksPricesFetcher::GetChangeSignal`, captured
+    /// at first-Cycle init time. `None` until `subscribed_init` flips true.
+    /// Mirrors C++ ctor `AddWakeUpSignal(Fetcher.GetChangeSignal())` at
+    /// `emStocksFetchPricesDialog.cpp:62`, deferred to first-Cycle per D-006.
+    fetcher_change_sig: Option<SignalId>,
+    /// D-006 first-Cycle init latch for the fetcher subscribe.
+    subscribed_init: bool,
 }
 
 impl emStocksFetchPricesDialog {
@@ -78,6 +86,8 @@ impl emStocksFetchPricesDialog {
             progress_bar: ProgressBarPanel::new(),
             finished: false,
             finish_error: String::new(),
+            fetcher_change_sig: None,
+            subscribed_init: false,
         }
     }
 
@@ -87,25 +97,62 @@ impl emStocksFetchPricesDialog {
         self.fetcher.AddStockIds(ectx, stock_ids);
     }
 
-    /// Port of C++ Cycle.
-    /// Polls the fetcher and updates the dialog controls. Returns `true` if the
-    /// dialog is still active and needs further cycling, `false` if finished.
-    /// Threads `ectx` per D-007: B-001 G3 cascade — `fetcher.Signal(ChangeSignal)`
-    /// fires into ectx from `StartProcess`/`PollProcess`/`SetFailed`. The ectx
-    /// is currently unused at this layer (Rust Dialog::Cycle does not yet drive
-    /// fetcher.Cycle — that wires up in B-017 row 1, the consumer subscribe);
-    /// the parameter is added now to lock in the cascade signature.
-    pub fn Cycle(&mut self, _ectx: &mut impl SignalCtx) -> bool {
-        self.UpdateControls();
-        if self.fetcher.HasFinished() {
-            let error = self.fetcher.GetError();
-            if !error.is_empty() {
-                self.finish_error = error.to_string();
-            }
-            self.finished = true;
-            return false;
+    /// Port of C++ Cycle (`emStocksFetchPricesDialog.cpp:71-87`). Returns
+    /// `true` while the dialog is still active, `false` once finished.
+    ///
+    /// Wiring: B-017 row 1 consumer-side subscribe. C++ ctor at
+    /// `emStocksFetchPricesDialog.cpp:62` calls
+    /// `AddWakeUpSignal(Fetcher.GetChangeSignal())`; the Rust port defers
+    /// this to first-Cycle init per D-006 (the ctor has no `ectx`). The
+    /// reaction body is gated on `IsSignaled(fetcher_change_sig)` to match
+    /// C++ exactly — eliminating the pre-fix per-frame `UpdateControls` poll
+    /// that drifted from C++ semantics.
+    ///
+    /// TODO(B-001-followup): the upstream `emStocksPricesFetcher` does not
+    /// yet subscribe to its `FileModel` signals (C++ ctor
+    /// `emStocksPricesFetcher.cpp:38-39` `AddWakeUpSignal(FileModelClient.
+    /// GetFileStateSignal())` + `AddWakeUpSignal(FileModelClient.
+    /// GetChangeSignal())`). Until that lands, the consumer subscribe wired
+    /// here will only observe fires from the four mutator-side
+    /// `Signal(ChangeSignal)` callsites ported by B-001 G3 (`AddStockIds`,
+    /// post-success `CalculateDate`, `PollProcess` end-of-cycle, `SetFailed`).
+    /// That is sufficient for the dialog's UI loop because the dialog drives
+    /// the fetcher itself; the upstream FileModel cascade only matters once
+    /// the fetcher's `Cycle` is wired to consume FileModel state changes.
+    pub fn Cycle(&mut self, ectx: &mut EngineCtx<'_>) -> bool {
+        // First-Cycle init: subscribe to Fetcher.GetChangeSignal (D-006).
+        // C++ analogue: ctor `AddWakeUpSignal(Fetcher.GetChangeSignal())` at
+        // `emStocksFetchPricesDialog.cpp:62`.
+        if !self.subscribed_init {
+            let sig = self.fetcher.GetChangeSignal(ectx);
+            ectx.connect(sig, ectx.id());
+            self.fetcher_change_sig = Some(sig);
+            self.subscribed_init = true;
         }
-        true
+
+        // IsSignaled-gated reaction. Mirrors C++ `cpp:73-86`:
+        //   if (IsSignaled(Fetcher.GetChangeSignal())) {
+        //       UpdateControls();
+        //       if (Fetcher.HasFinished()) { ...; Finish(0); }
+        //   }
+        let fetcher_fired = self.fetcher_change_sig.is_some_and(|s| ectx.IsSignaled(s));
+
+        if fetcher_fired {
+            self.UpdateControls();
+            if self.fetcher.HasFinished() {
+                let error = self.fetcher.GetError();
+                if !error.is_empty() {
+                    self.finish_error = error.to_string();
+                }
+                self.finished = true;
+                return false;
+            }
+        }
+
+        // Mirror C++ `return emDialog::Cycle();` — the Rust dialog struct does
+        // not embed an emDialog base today, so preserve the prior "active
+        // while not finished" return value.
+        !self.finished
     }
 
     /// Port of C++ UpdateControls.
@@ -256,32 +303,162 @@ mod tests {
         assert_eq!(dialog.progress_bar.progress_in_percent, 25.0);
     }
 
+    // ── Cycle tests under a real EngineCtx (post-B-017 row 1) ──
+    //
+    // The Cycle signature now takes `&mut EngineCtx<'_>` so the dialog can
+    // subscribe to `fetcher.GetChangeSignal()` on the first slice (D-006)
+    // and gate its reaction on `IsSignaled` (matches C++ cpp:73-86).
+    //
+    // Each test below provisions a `TestViewHarness`, registers a no-op
+    // engine, and pre-fires the fetcher's change-signal where needed so the
+    // dialog observes the signal on the slice it subscribes to. (Same-slice
+    // semantics: the signal's clock is bumped by `fire` and read by
+    // `IsSignaled` on the same `EngineCtx`; the engine's clock starts at 0,
+    // so `sig_clock > eng_clock` holds.)
+
+    use emcore::emEngine::Priority;
+    use emcore::emPanelScope::PanelScope;
+    use emcore::test_view_harness::TestViewHarness;
+
+    struct NoopEngine;
+    impl emcore::emEngine::emEngine for NoopEngine {
+        fn Cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
+            false
+        }
+    }
+
+    /// Helper: flush pending signals so `IsSignaled` returns true for what
+    /// has been fired this slice. Mirrors the `process_pending_signals`
+    /// step at the top of `DoTimeSlice`'s inner loop.
+    fn flush(h: &mut TestViewHarness) {
+        h.scheduler.flush_signals_for_test();
+    }
+
+    /// Helper: tear down a registered test engine so the EngineScheduler's
+    /// Drop-time invariant (no engines left) holds.
+    fn cleanup(h: &mut TestViewHarness, eid: emcore::emEngine::EngineId) {
+        h.scheduler.remove_engine(eid);
+    }
+
     #[test]
     fn dialog_cycle_finishes_immediately_when_no_stocks() {
+        let mut h = TestViewHarness::new();
+        let eid = h.scheduler.register_engine(
+            Box::new(NoopEngine),
+            Priority::Medium,
+            PanelScope::Framework,
+        );
+
         let mut dialog = emStocksFetchPricesDialog::new("", "", "");
-        let active = dialog.Cycle(&mut DropOnlySignalCtx);
+        // Pre-allocate the fetcher's change_signal and fire it so the dialog's
+        // first-Cycle subscribe observes a fired signal on the same slice.
+        // (No-stocks fetcher reports `HasFinished()=true` immediately; without
+        // a fired signal the IsSignaled gate would skip the reaction.)
+        {
+            let mut ectx = h.engine_ctx(eid);
+            let sig = dialog.fetcher.GetChangeSignal(&mut ectx);
+            ectx.fire(sig);
+        }
+        flush(&mut h);
+
+        let active = {
+            let mut ectx = h.engine_ctx(eid);
+            dialog.Cycle(&mut ectx)
+        };
         assert!(!active);
         assert!(dialog.finished);
         assert!(dialog.finish_error.is_empty());
         assert_eq!(dialog.label_text, "Done");
+
+        cleanup(&mut h, eid);
     }
 
     #[test]
     fn dialog_cycle_returns_true_when_in_progress() {
+        let mut h = TestViewHarness::new();
+        let eid = h.scheduler.register_engine(
+            Box::new(NoopEngine),
+            Priority::Medium,
+            PanelScope::Framework,
+        );
+
         let mut dialog = emStocksFetchPricesDialog::new("", "", "");
-        dialog.AddStockIds(&mut DropOnlySignalCtx, &["AAPL".to_string()]);
-        let active = dialog.Cycle(&mut DropOnlySignalCtx);
+        {
+            let mut ectx = h.engine_ctx(eid);
+            // Allocate the change-signal so AddStockIds' Signal(ChangeSignal)
+            // actually fires (no-op when the signal slot is null).
+            let _ = dialog.fetcher.GetChangeSignal(&mut ectx);
+            dialog.AddStockIds(&mut ectx, &["AAPL".to_string()]);
+        }
+        flush(&mut h);
+
+        let active = {
+            let mut ectx = h.engine_ctx(eid);
+            dialog.Cycle(&mut ectx)
+        };
         assert!(active);
         assert!(!dialog.finished);
+
+        cleanup(&mut h, eid);
     }
 
     #[test]
     fn dialog_cycle_captures_error_on_finish() {
+        let mut h = TestViewHarness::new();
+        let eid = h.scheduler.register_engine(
+            Box::new(NoopEngine),
+            Priority::Medium,
+            PanelScope::Framework,
+        );
+
         let mut dialog = emStocksFetchPricesDialog::new("", "", "");
-        dialog.fetcher.SetFailed(&mut DropOnlySignalCtx, "timeout");
-        let active = dialog.Cycle(&mut DropOnlySignalCtx);
+        {
+            let mut ectx = h.engine_ctx(eid);
+            let _ = dialog.fetcher.GetChangeSignal(&mut ectx);
+            dialog.fetcher.SetFailed(&mut ectx, "timeout");
+        }
+        flush(&mut h);
+
+        let active = {
+            let mut ectx = h.engine_ctx(eid);
+            dialog.Cycle(&mut ectx)
+        };
         assert!(!active);
         assert!(dialog.finished);
         assert_eq!(dialog.finish_error, "timeout");
+
+        cleanup(&mut h, eid);
+    }
+
+    #[test]
+    fn dialog_cycle_skips_reaction_when_no_signal_fired() {
+        // Post-B-017-row-1 invariant: when the fetcher's change-signal has
+        // not fired, Cycle MUST NOT touch UpdateControls. This is the
+        // observable improvement over the pre-fix per-frame poll and
+        // matches C++ cpp:73-86.
+        let mut h = TestViewHarness::new();
+        let eid = h.scheduler.register_engine(
+            Box::new(NoopEngine),
+            Priority::Medium,
+            PanelScope::Framework,
+        );
+
+        let mut dialog = emStocksFetchPricesDialog::new("", "", "");
+        let active = {
+            let mut ectx = h.engine_ctx(eid);
+            // No fire → IsSignaled is false → reaction skipped.
+            dialog.Cycle(&mut ectx)
+        };
+        // No-stocks fetcher HasFinished=true, but reaction is gated on the
+        // signal so `finished` stays false this slice. Dialog reports active.
+        assert!(active);
+        assert!(!dialog.finished);
+        // UpdateControls was not invoked — label_text still its initial value.
+        assert!(dialog.label_text.is_empty());
+        // Subscribe latch must have flipped on this slice.
+        assert!(dialog.subscribed_init);
+        assert!(dialog.fetcher_change_sig.is_some());
+
+        cleanup(&mut h, eid);
     }
 }
