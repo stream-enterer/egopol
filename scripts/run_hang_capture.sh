@@ -9,4 +9,4 @@ set -euo pipefail
 LOG=/tmp/em_instr.log
 rm -f "$LOG"
 exec 9>>"$LOG"
-EM_INSTR_FD=9 exec ./target/release/eaglemode "$@"
+EM_INSTR_FD=9 exec cargo run -p eaglemode --release -- "$@"
