@@ -69,6 +69,11 @@ pub struct emFileLinkPanel {
     last_viewed: bool,
     /// First-Cycle init guard for D-006 subscribe shape.
     subscribed_init: bool,
+    /// B-002: tracks whether the *current* `model` has been subscribed to its
+    /// `ChangeSignal`. Reset on `set_link_model` so the next Cycle re-runs the
+    /// connect for the new model. Distinct from `subscribed_init`, which
+    /// guards panel-lifetime first-Cycle subscriptions (config + UpdateSignal).
+    model_subscribed: bool,
 }
 
 impl emFileLinkPanel {
@@ -86,9 +91,18 @@ impl emFileLinkPanel {
             needs_update: true,
             last_viewed: false,
             subscribed_init: false,
+            model_subscribed: false,
         }
     }
 
+    // DIVERGED: (language-forced) B-002:. C++ `emFileLinkPanel::SetFileModel`
+    // (`emFileLinkPanel.cpp:69-77`) calls `AddWakeUpSignal(Model->GetChangeSignal())`
+    // synchronously via `this`'s engine handle. The Rust signature
+    // `set_link_model(&mut self, ...)` lacks an `EngineCtx` parameter
+    // (`Acquire` factory closures and panel mutators do not own ectx), so the
+    // connect is deferred to the next Cycle through `model_subscribed: bool`.
+    // D-006 option-B (deferred connect) localized to model-set; B-004 / B-015
+    // `pending_vir_state_fire` precedent at `emFilePanel.rs:73, 104, 155`.
     pub fn set_link_model(&mut self, model: Rc<RefCell<emFileLinkModel>>) {
         // Port of C++ emFilePanel(parent, name, fileModel, true): the model is
         // connected to file_panel so its load state drives VirtualFileState
@@ -96,6 +110,9 @@ impl emFileLinkPanel {
         self.file_panel
             .SetFileModel(Some(Rc::clone(&model) as Rc<RefCell<dyn FileModelState>>));
         self.model = Some(model);
+        // B-002: re-run the model-change subscribe in the next Cycle. Mirrors
+        // C++ `RemoveWakeUpSignal(old)` + `AddWakeUpSignal(new)` semantics.
+        self.model_subscribed = false;
     }
 
     fn update_data_and_child_panel(&mut self, ctx: &mut PanelCtx, viewed: bool) {
@@ -195,6 +212,30 @@ impl PanelBehavior for emFileLinkPanel {
             self.subscribed_init = true;
         }
 
+        // B-002 rows emFileLinkPanel-56 / -72 (single shared callsite): wire
+        // the model's ChangeSignal once per model. C++ does the equivalent in
+        // ctor (`emFileLinkPanel.cpp:55`) and `SetFileModel` (`:72`); the
+        // Rust ctor branch is structurally dead because `model: None` at
+        // construction and `set_link_model` is the only path to a non-null
+        // model. `set_link_model` resets `model_subscribed = false`, this
+        // block re-asserts the connect on the next Cycle.
+        if !self.model_subscribed {
+            if let Some(ref model_rc) = self.model {
+                let eid = ectx.engine_id;
+                let chg_sig = model_rc.borrow().GetChangeSignal(ectx);
+                ectx.connect(chg_sig, eid);
+                self.model_subscribed = true;
+            }
+        }
+        // B-002: drain `pending_change_fire` accumulated by model mutators
+        // (`TryLoad`, `Save`, `update`, `hard_reset`, `clear_save_error`,
+        // `set_unsaved_state_internal` via `GetWritableMap`). One-tick deferred
+        // fire — see `emRecFileModel.rs` mutator annotations for the
+        // language-forced rationale.
+        if let Some(ref model_rc) = self.model {
+            model_rc.borrow().rec_model.fire_pending_change(ectx);
+        }
+
         // Mirrors C++ emFileLinkPanel.cpp:95 — config-driven invalidation/repaint.
         // Re-call combined-form accessor (B-014 precedent): idempotent.
         let chg_sig = self.config.borrow().GetChangeSignal(ectx);
@@ -217,6 +258,20 @@ impl PanelBehavior for emFileLinkPanel {
         let update_sig = emcore::emFileModel::emFileModel::<()>::AcquireUpdateSignalModel(ectx);
         if ectx.IsSignaled(update_sig) {
             self.needs_update = true;
+        }
+
+        // B-002: react to the model's ChangeSignal. Mirrors C++
+        // `emFileLinkPanel.cpp:99-104`:
+        //     if (Model && IsSignaled(Model->GetChangeSignal())) {
+        //         DirEntryUpToDate=false;
+        //         doUpdate=true;
+        //     }
+        // Re-call combined-form accessor (B-014 precedent at line 200): idempotent.
+        if let Some(ref model_rc) = self.model {
+            let chg = model_rc.borrow().GetChangeSignal(ectx);
+            if !chg.is_null() && ectx.IsSignaled(chg) {
+                self.needs_update = true;
+            }
         }
 
         self.file_panel.refresh_vir_file_state();

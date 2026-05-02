@@ -1,9 +1,13 @@
+use std::cell::Cell;
 use std::mem::size_of;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+use slotmap::Key as _;
+
 use crate::emRecParser::{parse_rec, write_rec};
 
+use crate::emEngineCtx::SignalCtx;
 use crate::emFileModel::{FileModelState, FileState};
 use crate::emRecRecord::Record;
 use crate::emSignal::SignalId;
@@ -23,6 +27,21 @@ pub struct emRecFileModel<T: Record + Default> {
     last_size: u64,
     protect_file_state: i32,
     read_buffer: Option<String>,
+    /// Port of C++ inherited `emFileModel::ChangeSignal` (B-002 / D-008 A1).
+    /// Lazy-allocated on first `GetChangeSignal(&self, ectx)` call; null until then.
+    change_signal: Cell<SignalId>,
+    /// DIVERGED: (language-forced). C++ `emRecFileModel`/`emFileModel` mutators
+    /// (`Load`, `Save`, `Update`, `HardResetFileState`, `ClearSaveError`,
+    /// `SetUnsavedState`) call `Signal(ChangeSignal)` synchronously through
+    /// `this`'s scheduler reference (`emFileModel.cpp` Signal sites; rec
+    /// mutation hook at `emRecFileModel.cpp:200`). Rust mutators take
+    /// `&mut self` only — no `EngineCtx` is reachable at the call sites in
+    /// `emFileLinkModel.rs:240-245` (Acquire factory closure) or
+    /// `emStocksFileModel.rs:42-49` (`OnRecChanged`, drop). Mutators set this
+    /// flag; the panel that owns the model drains it via
+    /// `fire_pending_change(ectx)` from its Cycle (one-tick deferral, same
+    /// shape as B-004 `pending_vir_state_fire` at `emFilePanel.rs:73, 155`).
+    pending_change_fire: Cell<bool>,
 }
 
 impl<T: Record + Default> emRecFileModel<T> {
@@ -38,6 +57,49 @@ impl<T: Record + Default> emRecFileModel<T> {
             last_size: 0,
             protect_file_state: 0,
             read_buffer: None,
+            change_signal: Cell::new(SignalId::null()),
+            pending_change_fire: Cell::new(false),
+        }
+    }
+
+    /// Port of inherited C++ `emFileModel::GetChangeSignal()`.
+    /// D-008 A1 combined-form lazy accessor: allocates the SignalId on first
+    /// call, returns the live id thereafter. Mirrors B-009
+    /// `emFileManViewConfig::GetChangeSignal` and B-014 `emVirtualCosmosModel`.
+    pub fn GetChangeSignal(&self, ectx: &mut impl SignalCtx) -> SignalId {
+        let cur = self.change_signal.get();
+        if cur.is_null() {
+            let new_id = ectx.create_signal();
+            self.change_signal.set(new_id);
+            new_id
+        } else {
+            cur
+        }
+    }
+
+    /// Test-only accessor for the raw `change_signal` slot (without allocating).
+    #[doc(hidden)]
+    pub fn change_signal_for_test(&self) -> SignalId {
+        self.change_signal.get()
+    }
+
+    /// Test/integration accessor: read+clear `pending_change_fire`. Panels
+    /// that own the model use this from their Cycle to fire the change signal
+    /// at most once per slice.
+    pub fn take_pending_change_fire(&self) -> bool {
+        self.pending_change_fire.replace(false)
+    }
+
+    /// Drain `pending_change_fire` and fire `change_signal` if both pending and
+    /// allocated. No-op when the signal has not been observed yet (matches C++
+    /// `emSignal::Signal()` with zero subscribers per D-007 + D-008 composition
+    /// in decisions.md).
+    pub fn fire_pending_change(&self, ectx: &mut impl SignalCtx) {
+        if self.pending_change_fire.replace(false) {
+            let s = self.change_signal.get();
+            if !s.is_null() {
+                ectx.fire(s);
+            }
         }
     }
 
@@ -94,6 +156,12 @@ impl<T: Record + Default> emRecFileModel<T> {
         while matches!(self.state, FileState::Waiting | FileState::Loading { .. }) {
             self.do_step_loading();
         }
+        // DIVERGED: (language-forced) B-002 / D-007:. C++
+        // `emFileModel::Load` (and the inherited `Step` driver) calls
+        // `Signal(ChangeSignal)` synchronously when the load completes. Rust
+        // `&mut self` mutator has no EngineCtx; defer per
+        // `pending_change_fire` (B-004 precedent at `emFilePanel.rs:104`).
+        self.pending_change_fire.set(true);
     }
 
     /// Synchronously save the file. Port of C++ `Save(true)`.
@@ -133,10 +201,15 @@ impl<T: Record + Default> emRecFileModel<T> {
             self.protect_file_state -= 1;
             self.state = FileState::TooCostly;
         }
+        // DIVERGED: (language-forced) B-002 / D-007:. C++ `emFileModel::Save`
+        // calls `Signal(ChangeSignal)` synchronously on Loaded/SaveError
+        // transitions. Defer per `pending_change_fire` (B-004 precedent).
+        self.pending_change_fire.set(true);
     }
 
     /// Port of C++ `Update()`. Re-check file freshness; reset stale states.
     pub fn update(&mut self) {
+        let prev = self.state.clone();
         if matches!(self.state, FileState::Loaded) {
             if self.is_out_of_date() {
                 self.hard_reset_data();
@@ -145,6 +218,15 @@ impl<T: Record + Default> emRecFileModel<T> {
         } else if matches!(self.state, FileState::LoadError(_) | FileState::TooCostly) {
             self.state = FileState::Waiting;
             self.error_text.clear();
+        }
+        // DIVERGED: (language-forced) B-002 / D-007:. C++ `emFileModel::Update`
+        // calls `Signal(ChangeSignal)` synchronously when transitioning out of
+        // Loaded (out-of-date) or out of LoadError/TooCostly. Defer per
+        // `pending_change_fire` (B-004 precedent).
+        if !matches!((&prev, &self.state), (FileState::Loaded, FileState::Loaded))
+            && std::mem::discriminant(&prev) != std::mem::discriminant(&self.state)
+        {
+            self.pending_change_fire.set(true);
         }
     }
 
@@ -161,6 +243,10 @@ impl<T: Record + Default> emRecFileModel<T> {
         self.memory_need = 1;
         self.last_mtime = 0;
         self.last_size = 0;
+        // DIVERGED: (language-forced) B-002 / D-007:. C++
+        // `emFileModel::HardResetFileState` calls `Signal(ChangeSignal)`
+        // synchronously. Defer per `pending_change_fire` (B-004 precedent).
+        self.pending_change_fire.set(true);
     }
 
     /// Port of C++ `ClearSaveError()`. Transition SaveError → Unsaved.
@@ -168,6 +254,11 @@ impl<T: Record + Default> emRecFileModel<T> {
         if matches!(self.state, FileState::SaveError(_)) {
             self.state = FileState::Unsaved;
             self.error_text.clear();
+            // DIVERGED: (language-forced) B-002 / D-007:. C++
+            // `emFileModel::ClearSaveError` calls `Signal(ChangeSignal)`
+            // synchronously on the SaveError → Unsaved transition. Defer per
+            // `pending_change_fire` (B-004 precedent).
+            self.pending_change_fire.set(true);
         }
     }
 
@@ -178,6 +269,13 @@ impl<T: Record + Default> emRecFileModel<T> {
             }
             self.state = FileState::Unsaved;
             self.error_text.clear();
+            // DIVERGED: (language-forced) B-002 / D-007:. C++
+            // `emFileModel::SetUnsavedState`/`GetWritableMap` call
+            // `Signal(ChangeSignal)` synchronously on the Loaded/SaveError →
+            // Unsaved transition. Defer per `pending_change_fire` (B-004
+            // precedent at `emFilePanel.rs:104`). `GetWritableMap` is covered
+            // transitively via this site.
+            self.pending_change_fire.set(true);
         }
     }
 
@@ -287,8 +385,14 @@ impl<T: Record + Default> FileModelState for emRecFileModel<T> {
         self.memory_need
     }
 
-    // emRecFileModel has no scheduler-backed signal; emFilePanel::SetFileModel
-    // does not use the signal, so SignalId::default() (the null key) is safe here.
+    // emRecFileModel ports the C++ `emFileModel::ChangeSignal` lazily via
+    // `GetChangeSignal(&self, ectx)` (B-002). The trait-level
+    // `GetFileStateSignal` here is a separate signal (file-state transitions
+    // observed by `emFilePanel`), which the standalone-port emRecFileModel
+    // does not expose; consumers that need it subscribe through the wrapping
+    // `emFileLinkModel`/`emStocksFileModel` if those expose one. Returning
+    // `SignalId::default()` (the null key) is safe — the panel-side `connect`
+    // checks `is_null` and skips the wire.
     fn GetFileStateSignal(&self) -> SignalId {
         SignalId::default()
     }

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use emcore::emContext::emContext;
+use emcore::emEngineCtx::SignalCtx;
 use emcore::emFileModel::{FileModelState, FileState};
 use emcore::emInstallInfo::{emGetInstallPath, InstallDirType};
 use emcore::emRecFileModel::emRecFileModel;
@@ -195,7 +196,7 @@ impl Record for emFileLinkData {
 ///
 /// Port of C++ `emFileLinkModel` (extends `emRecFileModel`).
 pub struct emFileLinkModel {
-    rec_model: emRecFileModel<emFileLinkData>,
+    pub(crate) rec_model: emRecFileModel<emFileLinkData>,
 }
 
 impl emFileLinkModel {
@@ -242,6 +243,26 @@ impl emFileLinkModel {
             self.rec_model.TryLoad();
         }
         matches!(self.rec_model.GetFileState(), FileState::Loaded)
+    }
+
+    /// Port of inherited C++ `emFileModel::GetChangeSignal()` via
+    /// `emRecFileModel`. D-008 A1 combined-form delegating accessor:
+    /// lazy-allocates the underlying SignalId on first call (B-002).
+    pub fn GetChangeSignal(&self, ectx: &mut impl SignalCtx) -> SignalId {
+        self.rec_model.GetChangeSignal(ectx)
+    }
+
+    /// Test-only accessor for the inner `emRecFileModel`. Used by B-002
+    /// integration tests to invoke mutators (e.g. `hard_reset`) and observe
+    /// the `pending_change_fire` deferred-fire flag.
+    #[doc(hidden)]
+    pub fn rec_model_for_test(&self) -> &emRecFileModel<emFileLinkData> {
+        &self.rec_model
+    }
+
+    #[doc(hidden)]
+    pub fn rec_model_mut_for_test(&mut self) -> &mut emRecFileModel<emFileLinkData> {
+        &mut self.rec_model
     }
 }
 
