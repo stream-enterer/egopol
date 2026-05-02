@@ -6,13 +6,6 @@
 //! Asserts that the per-callback `PanelCtx` built inside
 //! `emView::handle_notice_one` carries full scheduler reach
 //! (`as_sched_ctx().is_some()`) for all four behavior dispatch sites.
-//!
-//! Currently `#[ignore]`d because `handle_notice_one` builds PanelCtx via
-//! `PanelCtx::with_scheduler` (only 1 of 5 reach handles set) instead of
-//! `PanelCtx::with_sched_reach` (all 5 set). Task 2 extends the
-//! `HandleNotice` / `handle_notice_one` signatures with the 3 missing
-//! handles and switches all dispatch sites to `with_sched_reach`, which
-//! makes this test green.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -125,11 +118,15 @@ fn notice_dispatch_sites_carry_full_reach_notice_ae_layout() {
     );
 }
 
-/// Drive the Phase-1 `AutoShrink` dispatch path.
+/// Drive the Phase-1 `AutoShrink` dispatch path in isolation.
 ///
-/// Phase-1 path: set ae_invalid=true + ae_expanded=true → Phase 1 clears
-/// ae_invalid, clears ae_expanded, sets ae_decision_invalid, fires
-/// `AutoShrink()`.
+/// Phase-1 path: set ae_invalid=true + ae_expanded=true, flip
+/// `has_pending_notices` (so the safety-net scan enrolls the panel) but
+/// do NOT queue a notice. This isolates Phase 1: `ae_invalid` is checked
+/// before `pending_notices` in `handle_notice_one`, so Phase 1 fires and
+/// returns before Phase 2 is reached. A queued notice would create a
+/// Phase-2 path that could fire `AutoShrink` via Phase 3 anyway, making
+/// the assertion vacuous.
 #[test]
 fn notice_dispatch_sites_carry_full_reach_autoshrink_phase1() {
     use std::cell::RefCell;
@@ -149,13 +146,16 @@ fn notice_dispatch_sites_carry_full_reach_autoshrink_phase1() {
         Rc::new(RefCell::new(Vec::new()));
 
     // Phase-1 AutoShrink path: ae_invalid=true + ae_expanded=true.
+    // Do NOT queue a notice here — that would also set up a Phase-2 path,
+    // making the assertion pass even if Phase 1 never ran (Phase 2 would
+    // eventually fire AutoShrink via the ae_decision_invalid→Phase-3 chain).
+    // Instead, flip has_pending_notices directly so the safety-net scan
+    // enrolls the panel, then handle_notice_one hits Phase 1 exclusively
+    // (ae_invalid is checked before pending_notices, and there is no notice
+    // queue entry to hand control to Phase 2).
     tree.set_ae_invalid_pub(root, true);
     tree.set_ae_expanded_pub(root, true);
-    // Enroll root in the notice ring via a queued notice — the safety-net
-    // scan enrolls panels with `pending_notices` non-empty, then
-    // handle_notice_one hits Phase 1 FIRST (before Phase 2) because
-    // ae_invalid is checked before pending_notices.
-    tree.queue_notice(root, NoticeFlags::SOUGHT_NAME_CHANGED, None);
+    tree.force_pending_notices_flag_pub();
 
     view.HandleNotice(
         &mut tree,
@@ -200,7 +200,7 @@ fn notice_dispatch_sites_carry_full_reach_autoshrink_phase3() {
     // fires AutoShrink.
     tree.set_ae_decision_invalid_pub(root, true);
     tree.set_ae_expanded_pub(root, true);
-    tree.mark_pending_notices_pub();
+    tree.force_pending_notices_flag_pub();
 
     view.HandleNotice(
         &mut tree,

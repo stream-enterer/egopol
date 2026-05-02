@@ -4062,7 +4062,7 @@ impl emView {
     /// The `sched`, `framework_actions`, `framework_clipboard`, `pending_actions`,
     /// `root_context`, and `view_context` parameters enable each of the 5 dispatch
     /// sites (AutoShrink×2, notice, AutoExpand, LayoutChildren) to build a
-    /// full-reach `PanelCtx` via `PanelCtx::with_sched_reach_for_notice`, so
+    /// full-reach `PanelCtx` via `PanelCtx::with_sched_reach_optional_roots`, so
     /// behaviors can call `as_sched_ctx()` and reach the scheduler, clipboard, and
     /// framework rails. `root_context` and `view_context` arrive as `Option` because
     /// golden-test callers legitimately pass `None`; production callers always pass
@@ -4098,7 +4098,7 @@ impl emView {
             }
             if ae_expanded {
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::with_sched_reach_for_notice(
+                    let mut ctx = PanelCtx::with_sched_reach_optional_roots(
                         tree,
                         id,
                         pixel_tallness,
@@ -4173,7 +4173,7 @@ impl emView {
             // No-behavior: treat as base Notice() no-op (C++ base is virtual no-op).
             if let Some(mut behavior) = tree.take_behavior(id) {
                 let state = tree.build_panel_state(id, window_focused, pixel_tallness);
-                let mut ctx = PanelCtx::with_sched_reach_for_notice(
+                let mut ctx = PanelCtx::with_sched_reach_optional_roots(
                     tree,
                     id,
                     pixel_tallness,
@@ -4220,7 +4220,7 @@ impl emView {
                     p.ae_calling = true;
                 }
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::with_sched_reach_for_notice(
+                    let mut ctx = PanelCtx::with_sched_reach_optional_roots(
                         tree,
                         id,
                         pixel_tallness,
@@ -4254,7 +4254,7 @@ impl emView {
                     p.ae_expanded = false;
                 }
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::with_sched_reach_for_notice(
+                    let mut ctx = PanelCtx::with_sched_reach_optional_roots(
                         tree,
                         id,
                         pixel_tallness,
@@ -4291,7 +4291,7 @@ impl emView {
         if children_layout_invalid {
             if tree.GetFirstChild(id).is_some() {
                 if let Some(mut behavior) = tree.take_behavior(id) {
-                    let mut ctx = PanelCtx::with_sched_reach_for_notice(
+                    let mut ctx = PanelCtx::with_sched_reach_optional_roots(
                         tree,
                         id,
                         pixel_tallness,

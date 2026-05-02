@@ -639,7 +639,7 @@ impl<'a> PanelCtx<'a> {
 
     /// Attach the framework-level clipboard slot. Builder-style config per
     /// CLAUDE.md Code Rules (`with_*(self) -> Self`): chain after
-    /// `with_sched_reach` or `with_sched_reach_for_notice` so behaviors can
+    /// `with_sched_reach` or `with_sched_reach_optional_roots` so behaviors can
     /// build `SchedCtx` without losing clipboard access.
     pub fn with_clipboard(
         mut self,
@@ -651,7 +651,7 @@ impl<'a> PanelCtx<'a> {
 
     /// Attach the closure-rail handle. Builder-style config per CLAUDE.md
     /// Code Rules (`with_*(self) -> Self`): chain after `with_sched_reach`
-    /// or `with_sched_reach_for_notice` so behaviors can call
+    /// or `with_sched_reach_optional_roots` so behaviors can call
     /// `ConstructCtx::pending_actions`. Phase 3.5 Task 2.
     pub fn with_pending_actions(
         mut self,
@@ -691,11 +691,10 @@ impl<'a> PanelCtx<'a> {
         }
     }
 
-    /// Build a `PanelCtx` for notice/AE/AS/LayoutChildren dispatch in
-    /// `emView::handle_notice_one`, where `root_context` and `view_context`
-    /// arrive as `Option<&Rc<...>>` (golden-test paths legitimately pass
-    /// `None`). Production callers always pass `Some` for both; tests may
-    /// pass either.
+    /// Like `with_sched_reach` but accepts `Option<&Rc<emContext>>` for both
+    /// `root_context` and `view_context`. Used by notice-dispatch
+    /// (`handle_notice_one`), where test paths legitimately pass `None`.
+    /// Production callers always pass `Some` for both; tests may pass either.
     ///
     /// Distinct from `with_sched_reach` (which requires non-Option roots
     /// and is used by full-reach EngineCtx callers like
@@ -703,7 +702,7 @@ impl<'a> PanelCtx<'a> {
     /// constructors set the same five reach handles required by
     /// `as_sched_ctx()`.
     #[allow(clippy::too_many_arguments)]
-    pub fn with_sched_reach_for_notice(
+    pub fn with_sched_reach_optional_roots(
         tree: &'a mut PanelTree,
         id: PanelId,
         current_pixel_tallness: f64,

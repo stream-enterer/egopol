@@ -659,10 +659,11 @@ impl PanelTree {
         }
     }
 
-    /// Test-support: set `has_pending_notices = true` so that
+    /// Test-support: flip `has_pending_notices = true` so that
     /// `HandleNotice`'s safety-net scan enrolls panels with dirty bits.
+    /// Name signals "flipping the global boolean", not per-panel enrollment.
     #[cfg(any(test, feature = "test-support"))]
-    pub fn mark_pending_notices_pub(&mut self) {
+    pub fn force_pending_notices_flag_pub(&mut self) {
         self.has_pending_notices = true;
     }
 

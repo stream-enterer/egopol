@@ -188,15 +188,26 @@ impl Default for TestSched {
 
 impl Drop for TestSched {
     fn drop(&mut self) {
-        // HandleNotice now delivers full-reach ctx so behaviors can register
-        // engine wakeups. Clear pending signals before the scheduler drops to
-        // avoid the "EngineScheduler dropped with pending signals" assertion
-        // in test contexts that do not drive a full scheduler loop.
-        // Note: this Drop is cleanup only — callers asserting on signal effects
-        // must explicitly drain or settle before the harness drops; signals fired
-        // during HandleNotice and not yet drained will be silently discarded here,
-        // masking test-relevant fires.
-        self.sched.clear_pending_for_tests();
+        // If a behavior fired signals during HandleNotice (now possible since
+        // the notice-dispatch reach loss fix at 218a9921), the test must drain
+        // them via settle()/with()/etc. before the harness drops. A non-empty
+        // queue here means the test silently relied on signals that were never
+        // observed — a likely regression masked by the previous silent discard.
+        //
+        // If a test legitimately wants to discard fires (e.g., testing layout
+        // side-effects only), it must call
+        // `self.scheduler.clear_pending_for_tests()` explicitly before drop.
+        // The implicit-discard ergonomic is intentionally gone.
+        if std::thread::panicking() {
+            // Don't compound a panic — silently absorb during unwind.
+            return;
+        }
+        assert!(
+            !self.sched.has_pending_signals(),
+            "TestSched dropped with pending signals — drain via settle() \
+             or call scheduler.clear_pending_for_tests() explicitly if \
+             discard is intended"
+        );
     }
 }
 
@@ -209,6 +220,15 @@ impl TestSched {
             cb: std::cell::RefCell::new(None),
             pa: Rc::new(RefCell::new(Vec::new())),
         }
+    }
+
+    /// Explicitly discard any pending signals. Call this before drop when a
+    /// test is intentionally testing structural/layout side-effects and does
+    /// not need to observe the signals fired during HandleNotice.
+    /// The implicit-discard in Drop is gone; tests that fire-and-forget must
+    /// call this explicitly so the intent is visible at the call site.
+    pub fn clear_pending_signals_for_test_discard(&mut self) {
+        self.sched.clear_pending_for_tests();
     }
 
     pub fn with<R>(&mut self, f: impl FnOnce(&mut SchedCtx<'_>) -> R) -> R {
