@@ -8,7 +8,7 @@ use emcore::emContext::emContext;
 use emcore::emFileModel::FileModelState;
 use emcore::emFilePanel::emFilePanel;
 
-use emcore::emEngineCtx::PanelCtx;
+use emcore::emEngineCtx::{NullSignalCtx, PanelCtx};
 use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emPanel::{FileLoadStatus, NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelTree::PanelId;
@@ -227,15 +227,6 @@ impl PanelBehavior for emFileLinkPanel {
                 self.model_subscribed = true;
             }
         }
-        // B-002: drain `pending_change_fire` accumulated by model mutators
-        // (`TryLoad`, `Save`, `update`, `hard_reset`, `clear_save_error`,
-        // `set_unsaved_state_internal` via `GetWritableMap`). One-tick deferred
-        // fire — see `emRecFileModel.rs` mutator annotations for the
-        // language-forced rationale.
-        if let Some(ref model_rc) = self.model {
-            model_rc.borrow().rec_model.fire_pending_change(ectx);
-        }
-
         // Mirrors C++ emFileLinkPanel.cpp:95 — config-driven invalidation/repaint.
         // Re-call combined-form accessor (B-014 precedent): idempotent.
         let chg_sig = self.config.borrow().GetChangeSignal(ectx);
@@ -283,7 +274,19 @@ impl PanelBehavior for emFileLinkPanel {
         // synchronously (C++ uses emEngine; Rust loads here) and
         // create the child panel.
         if let Some(ref model_rc) = self.model {
-            let _ = model_rc.borrow_mut().ensure_loaded();
+            // D-007: thread ectx through `ensure_loaded` → `TryLoad` so
+            // ChangeSignal fires synchronously after load completes.
+            // PanelCtx → SchedCtx (full-reach call site under PanelCycleEngine).
+            if let Some(mut sc) = ctx.as_sched_ctx() {
+                let _ = model_rc.borrow_mut().ensure_loaded(&mut sc);
+            } else {
+                // Layout-only / unit-test PanelCtx (no scheduler reach). The
+                // panel was not constructed under a full Cycle, so ChangeSignal
+                // has no observers — fall back to a no-op signal context to
+                // preserve the load.
+                let mut null = NullSignalCtx;
+                let _ = model_rc.borrow_mut().ensure_loaded(&mut null);
+            }
         }
         // Force viewed=true so update_data_and_child_panel creates
         // the child. AutoExpand only runs when the panel is being

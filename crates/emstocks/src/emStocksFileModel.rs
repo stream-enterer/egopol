@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use emcore::emCrossPtr::emCrossPtr;
+use emcore::emEngineCtx::{NullSignalCtx, SignalCtx};
 use emcore::emFileModel::FileState;
 use emcore::emRecFileModel::emRecFileModel;
 
@@ -39,8 +40,8 @@ impl emStocksFileModel {
     }
 
     /// Access the record data mutably. Marks data as changed (starts save timer).
-    pub fn GetWritableRec(&mut self) -> &mut emStocksRec {
-        let rec = self.file_model.GetWritableMap();
+    pub fn GetWritableRec(&mut self, ectx: &mut impl SignalCtx) -> &mut emStocksRec {
+        let rec = self.file_model.GetWritableMap(ectx);
         // GetWritableMap already transitions to Unsaved; start save timer too.
         if self.save_timer_deadline.is_none() {
             self.save_timer_deadline = Some(Instant::now() + AUTOSAVE_DELAY);
@@ -59,11 +60,11 @@ impl emStocksFileModel {
     /// Check if save timer has fired and save if needed.
     /// Port of C++ Cycle (save timer part).
     /// Returns true if a save was performed.
-    pub fn CheckSaveTimer(&mut self) -> bool {
+    pub fn CheckSaveTimer(&mut self, ectx: &mut impl SignalCtx) -> bool {
         if let Some(deadline) = self.save_timer_deadline {
             if Instant::now() >= deadline {
                 self.save_timer_deadline = None;
-                self.file_model.Save();
+                self.file_model.Save(ectx);
                 return true;
             }
         }
@@ -71,22 +72,22 @@ impl emStocksFileModel {
     }
 
     /// Force save if there are unsaved changes.
-    pub fn SaveIfNeeded(&mut self) {
+    pub fn SaveIfNeeded(&mut self, ectx: &mut impl SignalCtx) {
         if self.save_timer_deadline.is_some() {
             self.save_timer_deadline = None;
-            self.file_model.Save();
+            self.file_model.Save(ectx);
         }
     }
 
     /// Delegate to file_model.
-    pub fn TryLoad(&mut self) {
-        self.file_model.TryLoad();
+    pub fn TryLoad(&mut self, ectx: &mut impl SignalCtx) {
+        self.file_model.TryLoad(ectx);
     }
 
     /// Delegate to file_model.
-    pub fn Save(&mut self) {
+    pub fn Save(&mut self, ectx: &mut impl SignalCtx) {
         self.save_timer_deadline = None;
-        self.file_model.Save();
+        self.file_model.Save(ectx);
     }
 
     /// Delegate to file_model.
@@ -101,10 +102,21 @@ impl emStocksFileModel {
 }
 
 impl Drop for emStocksFileModel {
+    // DIVERGED: (language-forced) Rust `Drop::drop(&mut self)` has no
+    // parameters — no `EngineCtx` / `SchedCtx` is reachable by language. C++
+    // `~emStocksFileModel` runs synchronously through `this`'s scheduler
+    // reference (per-instance `emEngine` ownership), so its `Save` call's
+    // `Signal(ChangeSignal)` fires synchronously. The Rust port keeps the
+    // last-chance autosave but uses `NullSignalCtx` to drop the ChangeSignal
+    // fire on the floor: at drop time the model is being destroyed and any
+    // subscriber observers are tearing down with it, so the missed fire has
+    // no observable consequence (D-007 §170 single-callsite escape hatch
+    // applies — Rust `Drop` is the canonical "genuinely lacks ectx" site).
     fn drop(&mut self) {
         if self.save_timer_deadline.is_some() {
             self.save_timer_deadline = None;
-            self.file_model.Save();
+            let mut null = NullSignalCtx;
+            self.file_model.Save(&mut null);
         }
     }
 }
@@ -138,7 +150,8 @@ mod tests {
         let mut model = emStocksFileModel::new(PathBuf::from("/tmp/test.emStocks"));
         model.OnRecChanged();
         // Timer just started, shouldn't fire yet
-        assert!(!model.CheckSaveTimer());
+        let mut null = NullSignalCtx;
+        assert!(!model.CheckSaveTimer(&mut null));
     }
 
     #[test]
@@ -146,7 +159,8 @@ mod tests {
         let mut model = emStocksFileModel::new(PathBuf::from("/tmp/test.emStocks"));
         model.OnRecChanged();
         assert!(model.save_timer_deadline.is_some());
-        model.SaveIfNeeded();
+        let mut null = NullSignalCtx;
+        model.SaveIfNeeded(&mut null);
         assert!(model.save_timer_deadline.is_none());
     }
 
@@ -154,7 +168,8 @@ mod tests {
     fn file_model_get_writable_rec_starts_timer() {
         let mut model = emStocksFileModel::new(PathBuf::from("/tmp/test.emStocks"));
         assert!(model.save_timer_deadline.is_none());
-        let _rec = model.GetWritableRec();
+        let mut null = NullSignalCtx;
+        let _rec = model.GetWritableRec(&mut null);
         assert!(model.save_timer_deadline.is_some());
     }
 }

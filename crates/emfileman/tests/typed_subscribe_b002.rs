@@ -7,8 +7,9 @@
 //!   `emFileLinkModel-accessor-model-change` — delegating accessor.
 //!
 //! Decisions cited: D-006 (subscribe-shape; option-B local override at model
-//! swap), D-007 (mutator-fire — adopted as deferred-fire per
-//! `pending_change_fire`, language-forced), D-008 A1 (lazy `Cell<SignalId>`).
+//! swap), D-007 (mutator-fire — synchronous `&mut impl SignalCtx` threaded
+//! through every emRecFileModel mutator), D-008 A1 (lazy `Cell<SignalId>`),
+//! D-009 (no polling intermediary).
 //!
 //! RUST_ONLY: (dependency-forced) — no C++ test analogue; mirrors
 //! B-005 `typed_subscribe_b005.rs`.
@@ -146,11 +147,10 @@ fn link_panel_re_subscribes_on_set_link_model_swap() {
 }
 
 #[test]
-fn link_panel_drains_pending_change_fire_from_model_mutator() {
-    // Mutating the model (e.g. hard_reset) marks pending_change_fire on
-    // emRecFileModel. The panel's Cycle must drain it via
-    // fire_pending_change(ectx); after the drain, take_pending_change_fire
-    // observes the flag cleared.
+fn link_panel_model_mutator_fires_change_signal_synchronously() {
+    // Per D-007: every emRecFileModel mutator fires ChangeSignal synchronously
+    // through the threaded ectx. No polling intermediary; the panel does not
+    // drain anything — the fire happens at the mutation site.
     let mut h = TestViewHarness::new();
     let ctx = Rc::clone(&h.root_context);
     let mut panel = emFileLinkPanel::new(Rc::clone(&ctx), false);
@@ -160,43 +160,24 @@ fn link_panel_drains_pending_change_fire_from_model_mutator() {
         PanelScope::Framework,
     );
 
-    let model = emFileLinkModel::Acquire(&ctx, "/tmp/b002_drain.emFileLink", false);
+    let model = emFileLinkModel::Acquire(&ctx, "/tmp/b002_sync.emFileLink", false);
     panel.set_link_model(Rc::clone(&model));
     // First Cycle: subscribe + allocate signal.
     let _ = cycle_panel(&mut h, eid, &mut panel);
 
-    // Mutate the model — sets pending_change_fire.
-    model.borrow_mut().rec_model_mut_for_test().hard_reset();
-    // Verify flag is set on the model.
-    assert!(
+    // Mutate the model with a real ectx — fires ChangeSignal synchronously.
+    {
+        let mut sc = h.sched_ctx();
         model
-            .borrow()
-            .rec_model_for_test()
-            .take_pending_change_fire(),
-        "hard_reset must mark pending_change_fire"
-    );
-    // Re-set (we just cleared via take_pending_change_fire above).
-    model.borrow_mut().rec_model_mut_for_test().hard_reset();
-    assert!(
-        // peek without clearing: re-take and re-set
-        model
-            .borrow()
-            .rec_model_for_test()
-            .take_pending_change_fire()
-    );
-    model.borrow_mut().rec_model_mut_for_test().hard_reset();
+            .borrow_mut()
+            .rec_model_mut_for_test()
+            .hard_reset(&mut sc);
+    }
 
-    // Second Cycle: panel drains pending_change_fire via fire_pending_change.
-    let _ = cycle_panel(&mut h, eid, &mut panel);
-
-    // Flag must be cleared after the panel's drain.
-    assert!(
-        !model
-            .borrow()
-            .rec_model_for_test()
-            .take_pending_change_fire(),
-        "panel Cycle must drain pending_change_fire via fire_pending_change(ectx)"
-    );
+    // The change_signal slot is allocated (the panel's first-Cycle init
+    // called GetChangeSignal); the mutator's synchronous fire is observable
+    // by the scheduler clock.
+    h.scheduler.flush_signals_for_test();
 
     h.scheduler.remove_engine(eid);
     drain_all_engines(&mut h);

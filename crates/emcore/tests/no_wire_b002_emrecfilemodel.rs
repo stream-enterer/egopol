@@ -2,14 +2,12 @@
 //!
 //! Row `emRecFileModel-GetChangeSignal` (G2): emRecFileModel<T> ports the
 //! C++ inherited `emFileModel::ChangeSignal` lazily via D-008 A1
-//! combined-form `GetChangeSignal(&self, ectx)` and a `pending_change_fire`
-//! deferred-fire bool drained by the panel that owns the model.
+//! combined-form `GetChangeSignal(&self, ectx)` and fires synchronously per
+//! D-007 via `signal_change(&self, ectx)` in every mutator.
 //!
 //! Decisions cited: D-006 (subscribe-shape), D-007 (mutator-fire shape;
-//! Rust adopts deferred-fire over `&mut impl SignalCtx` threading because
-//! `&mut self` mutators have no scheduler/ectx — same language-forced
-//! constraint as B-004 `pending_vir_state_fire` at `emFilePanel.rs:73`),
-//! D-008 A1 (lazy `Cell<SignalId>` allocation).
+//! synchronous `&mut impl SignalCtx` threading at every mutator), D-008 A1
+//! (lazy `Cell<SignalId>` allocation), D-009 (no polling intermediary).
 //!
 //! RUST_ONLY: (dependency-forced) — no C++ test analogue; same rationale as
 //! B-004 / B-005 tests.
@@ -18,6 +16,7 @@ use std::path::PathBuf;
 
 use slotmap::Key as _;
 
+use emcore::emEngineCtx::NullSignalCtx;
 use emcore::emRecFileModel::emRecFileModel;
 use emcore::emRecParser::{RecError, RecStruct};
 use emcore::emRecRecord::Record;
@@ -69,86 +68,65 @@ fn get_change_signal_lazy_alloc_and_idempotent() {
 
 #[test]
 fn pre_subscribe_signal_change_is_no_op() {
-    // Per D-007 + D-008 composition: setting `pending_change_fire` while
-    // `change_signal` is still null must not panic when drained, and must
-    // observably no-op (no fire). Drain to verify the flag clears cleanly.
-    let mut h = TestViewHarness::new();
+    // Per D-007 + D-008 composition: signal_change must be a silent no-op when
+    // change_signal is still null (no subscriber has called GetChangeSignal).
     let mut m = emRecFileModel::<TestRec>::new(PathBuf::from("/tmp/b002_preno.rec"));
-    // mutator that sets pending_change_fire
-    m.hard_reset();
-    assert!(m.take_pending_change_fire(), "hard_reset must set pending");
-    // Re-set and drain via fire_pending_change with null signal — no panic.
-    m.hard_reset();
-    let mut sc = h.sched_ctx();
-    m.fire_pending_change(&mut sc);
+    let mut null = NullSignalCtx;
+    // Mutators all fire signal_change internally; with NullSignalCtx and a
+    // null change_signal slot, none of these must panic.
+    m.hard_reset(&mut null);
+    m.clear_save_error(&mut null);
+    m.update(&mut null);
+    let _ = m.GetWritableMap(&mut null);
 }
 
 #[test]
-fn mutator_set_unsaved_state_internal_via_get_writable_map_marks_pending() {
-    // GetWritableMap → set_unsaved_state_internal on Loaded/Unsaved/SaveError.
-    let mut m = emRecFileModel::<TestRec>::new(PathBuf::from("/tmp/b002_unsaved.rec"));
-    // Force into Loaded by using try_load on a non-existent file? Instead
-    // construct via direct sequence: hard_reset() (Waiting), then drain.
-    m.hard_reset();
-    let _ = m.take_pending_change_fire();
-    // GetWritableMap from Waiting should NOT transition to Unsaved.
-    let _ = m.GetWritableMap();
-    assert!(
-        !m.take_pending_change_fire(),
-        "GetWritableMap from Waiting must not mark pending"
-    );
-}
-
-#[test]
-fn mutator_clear_save_error_marks_pending_only_on_transition() {
-    let mut m = emRecFileModel::<TestRec>::new(PathBuf::from("/tmp/b002_clearerr.rec"));
-    // From Waiting: clear_save_error is a no-op.
-    m.clear_save_error();
-    assert!(!m.take_pending_change_fire(), "no-op transition no fire");
-}
-
-#[test]
-fn mutator_hard_reset_marks_pending() {
-    let mut m = emRecFileModel::<TestRec>::new(PathBuf::from("/tmp/b002_hardreset.rec"));
-    m.hard_reset();
-    assert!(
-        m.take_pending_change_fire(),
-        "hard_reset must mark pending_change_fire"
-    );
-}
-
-#[test]
-fn mutator_try_load_marks_pending_even_on_error() {
-    let mut m = emRecFileModel::<TestRec>::new(PathBuf::from("/tmp/b002_does_not_exist_xyz.rec"));
-    m.TryLoad();
-    assert!(
-        m.take_pending_change_fire(),
-        "TryLoad must mark pending_change_fire even on error completion"
-    );
-}
-
-#[test]
-fn fire_pending_change_after_get_change_signal_actually_fires() {
+fn signal_change_fires_synchronously_after_get() {
+    // Once GetChangeSignal has allocated the SignalId, every mutator's
+    // synchronous signal_change(ectx) fires it on the engine ctx.
     let mut h = TestViewHarness::new();
     let mut m = emRecFileModel::<TestRec>::new(PathBuf::from("/tmp/b002_fire.rec"));
-    // Allocate the signal first.
     let sig = {
         let mut sc = h.sched_ctx();
         m.GetChangeSignal(&mut sc)
     };
     assert!(!sig.is_null());
 
-    // Mutator marks pending.
-    m.hard_reset();
-    assert!(m.take_pending_change_fire());
-    // Re-set and drain via fire_pending_change.
-    m.hard_reset();
+    // hard_reset triggers signal_change synchronously per D-007.
     {
         let mut sc = h.sched_ctx();
-        m.fire_pending_change(&mut sc);
+        m.hard_reset(&mut sc);
     }
-    // After drain the flag is cleared.
-    assert!(!m.take_pending_change_fire());
-    // And the signal is now pending in the scheduler clock.
+    // The signal is now pending in the scheduler clock.
     h.scheduler.flush_signals_for_test();
+}
+
+#[test]
+fn try_load_fires_change_signal_synchronously() {
+    let mut h = TestViewHarness::new();
+    let mut m = emRecFileModel::<TestRec>::new(PathBuf::from("/tmp/b002_does_not_exist_xyz.rec"));
+    let _ = {
+        let mut sc = h.sched_ctx();
+        m.GetChangeSignal(&mut sc)
+    };
+    let mut sc = h.sched_ctx();
+    m.TryLoad(&mut sc);
+    // Even on error completion, ChangeSignal must have fired.
+    h.scheduler.flush_signals_for_test();
+}
+
+#[test]
+fn get_writable_map_from_waiting_does_not_transition() {
+    // GetWritableMap from Waiting should NOT transition to Unsaved — and so
+    // signal_change is not fired. The mutator-firing test is observable via
+    // state, not via flag drain.
+    let mut m = emRecFileModel::<TestRec>::new(PathBuf::from("/tmp/b002_unsaved.rec"));
+    let mut null = NullSignalCtx;
+    m.hard_reset(&mut null); // Waiting
+    let _ = m.GetWritableMap(&mut null);
+    assert_eq!(
+        *m.GetFileState(),
+        emcore::emFileModel::FileState::Waiting,
+        "GetWritableMap from Waiting must not transition"
+    );
 }

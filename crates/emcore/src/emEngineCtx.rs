@@ -141,6 +141,25 @@ impl SignalCtx for EngineCtx<'_> {
     }
 }
 
+/// DIVERGED: (language-forced) — A `SignalCtx` that returns null IDs and
+/// drops fires on the floor. Required at sites where a mutator threaded with
+/// `&mut impl SignalCtx` per D-007 must run, but no real scheduler is reachable
+/// (Rust `Drop::drop` has no parameters; layout-only test `PanelCtx` instances
+/// without a scheduler reach). At those sites no observer can be subscribed
+/// (the signal is null because nothing has called `GetChangeSignal(ectx)` with
+/// a real ctx), so dropping the fire is observably equivalent to C++'s
+/// "Signal()-with-zero-subscribers is a no-op" semantics. This is the
+/// CALLSITE-NOTE escape hatch in D-007 §170 made into a typed handle so callers
+/// don't fabricate ad-hoc fakes.
+pub struct NullSignalCtx;
+
+impl SignalCtx for NullSignalCtx {
+    fn create_signal(&mut self) -> SignalId {
+        SignalId::default()
+    }
+    fn fire(&mut self, _id: SignalId) {}
+}
+
 impl SignalCtx for SchedCtx<'_> {
     fn create_signal(&mut self) -> SignalId {
         self.scheduler.create_signal()

@@ -7,6 +7,7 @@ use emcore::emFileModel::{emFileModel, FileModelOps, FileState};
 
 use emcore::emRecParser::RecError;
 
+use emcore::emEngineCtx::NullSignalCtx;
 use emcore::emRecFileModel::emRecFileModel;
 
 use emcore::emRecRecord::Record;
@@ -203,7 +204,8 @@ fn rec_file_model_load_roundtrip() {
     write_test_rec(&path, "hello", 42);
 
     let mut m = emRecFileModel::<TestRecord>::new(path);
-    m.TryLoad();
+    let mut sc = NullSignalCtx;
+    m.TryLoad(&mut sc);
 
     assert_eq!(*m.GetFileState(), FileState::Loaded);
     assert_eq!(m.GetMap().name, "hello");
@@ -214,7 +216,8 @@ fn rec_file_model_load_roundtrip() {
 fn rec_file_model_load_error_missing() {
     let path = PathBuf::from("/tmp/eaglemode_rfm_no_such_file_xyz.rec");
     let mut m = emRecFileModel::<TestRecord>::new(path);
-    m.TryLoad();
+    let mut sc = NullSignalCtx;
+    m.TryLoad(&mut sc);
     assert!(matches!(*m.GetFileState(), FileState::LoadError(_)));
 }
 
@@ -226,7 +229,8 @@ fn rec_file_model_load_error_bad_rec() {
     std::fs::write(&path, b"{{not valid rec content!!!").unwrap();
 
     let mut m = emRecFileModel::<TestRecord>::new(path);
-    m.TryLoad();
+    let mut sc = NullSignalCtx;
+    m.TryLoad(&mut sc);
     assert!(matches!(*m.GetFileState(), FileState::LoadError(_)));
 }
 
@@ -237,14 +241,15 @@ fn rec_file_model_save_roundtrip() {
     write_test_rec(&path, "original", 1);
 
     let mut m = emRecFileModel::<TestRecord>::new(path.clone());
-    m.TryLoad();
+    let mut sc = NullSignalCtx;
+    m.TryLoad(&mut sc);
     assert_eq!(*m.GetFileState(), FileState::Loaded);
 
-    m.GetWritableMap().name = "modified".to_string();
-    m.GetWritableMap().count = 99;
+    m.GetWritableMap(&mut sc).name = "modified".to_string();
+    m.GetWritableMap(&mut sc).count = 99;
     assert_eq!(*m.GetFileState(), FileState::Unsaved);
 
-    m.Save();
+    m.Save(&mut sc);
     assert_eq!(*m.GetFileState(), FileState::Loaded);
 
     let content = std::fs::read_to_string(&path).unwrap();
@@ -259,14 +264,15 @@ fn rec_file_model_out_of_date() {
     write_test_rec(&path, "v1", 1);
 
     let mut m = emRecFileModel::<TestRecord>::new(path.clone());
-    m.TryLoad();
+    let mut sc = NullSignalCtx;
+    m.TryLoad(&mut sc);
     assert_eq!(*m.GetFileState(), FileState::Loaded);
 
     // Overwrite with significantly different size to avoid mtime collision
     let big = "x".repeat(4096);
     std::fs::write(&path, big.as_bytes()).unwrap();
 
-    m.update();
+    m.update(&mut sc);
     assert_eq!(*m.GetFileState(), FileState::Waiting);
 }
 
@@ -277,10 +283,11 @@ fn rec_file_model_hard_reset() {
     write_test_rec(&path, "data", 7);
 
     let mut m = emRecFileModel::<TestRecord>::new(path);
-    m.TryLoad();
+    let mut sc = NullSignalCtx;
+    m.TryLoad(&mut sc);
     assert_eq!(*m.GetFileState(), FileState::Loaded);
 
-    m.hard_reset();
+    m.hard_reset(&mut sc);
 
     assert_eq!(*m.GetFileState(), FileState::Waiting);
     assert!(m.GetMap().IsSetToDefault());
@@ -293,11 +300,12 @@ fn rec_file_model_clear_save_error() {
     write_test_rec(&path, "x", 0);
 
     let mut m = emRecFileModel::<TestRecord>::new(path.clone());
-    m.TryLoad();
+    let mut sc = NullSignalCtx;
+    m.TryLoad(&mut sc);
     assert_eq!(*m.GetFileState(), FileState::Loaded);
 
     // Mark unsaved via data_mut()
-    m.GetWritableMap().count = 5;
+    m.GetWritableMap(&mut sc).count = 5;
     assert_eq!(*m.GetFileState(), FileState::Unsaved);
 
     // Redirect to unwritable path (GetParentContext is a regular file)
@@ -306,14 +314,14 @@ fn rec_file_model_clear_save_error() {
     let bad_path = blocker.join("sub.rec");
     m.set_path(bad_path);
 
-    m.Save();
+    m.Save(&mut sc);
     assert!(
         matches!(*m.GetFileState(), FileState::SaveError(_)),
         "expected SaveError, got {:?}",
         m.GetFileState()
     );
 
-    m.clear_save_error();
+    m.clear_save_error(&mut sc);
     assert_eq!(*m.GetFileState(), FileState::Unsaved);
 }
 
@@ -325,7 +333,8 @@ fn rec_file_model_memory_limit() {
 
     let mut m = emRecFileModel::<TestRecord>::new(path);
     m.set_memory_limit(1);
-    m.TryLoad();
+    let mut sc = NullSignalCtx;
+    m.TryLoad(&mut sc);
 
     assert_eq!(*m.GetFileState(), FileState::TooCostly);
 }
@@ -337,7 +346,8 @@ fn rec_file_model_protect_file_state() {
     write_test_rec(&path, "protected", 3);
 
     let mut m = emRecFileModel::<TestRecord>::new(path);
-    m.TryLoad();
+    let mut sc = NullSignalCtx;
+    m.TryLoad(&mut sc);
 
     // Loading internally guards data mutations with protect_file_state,
     // so the state after a clean TryLoad must be Loaded, not Unsaved.

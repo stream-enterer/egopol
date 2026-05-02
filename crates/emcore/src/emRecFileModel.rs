@@ -30,18 +30,6 @@ pub struct emRecFileModel<T: Record + Default> {
     /// Port of C++ inherited `emFileModel::ChangeSignal` (B-002 / D-008 A1).
     /// Lazy-allocated on first `GetChangeSignal(&self, ectx)` call; null until then.
     change_signal: Cell<SignalId>,
-    /// DIVERGED: (language-forced). C++ `emRecFileModel`/`emFileModel` mutators
-    /// (`Load`, `Save`, `Update`, `HardResetFileState`, `ClearSaveError`,
-    /// `SetUnsavedState`) call `Signal(ChangeSignal)` synchronously through
-    /// `this`'s scheduler reference (`emFileModel.cpp` Signal sites; rec
-    /// mutation hook at `emRecFileModel.cpp:200`). Rust mutators take
-    /// `&mut self` only — no `EngineCtx` is reachable at the call sites in
-    /// `emFileLinkModel.rs:240-245` (Acquire factory closure) or
-    /// `emStocksFileModel.rs:42-49` (`OnRecChanged`, drop). Mutators set this
-    /// flag; the panel that owns the model drains it via
-    /// `fire_pending_change(ectx)` from its Cycle (one-tick deferral, same
-    /// shape as B-004 `pending_vir_state_fire` at `emFilePanel.rs:73, 155`).
-    pending_change_fire: Cell<bool>,
 }
 
 impl<T: Record + Default> emRecFileModel<T> {
@@ -58,7 +46,6 @@ impl<T: Record + Default> emRecFileModel<T> {
             protect_file_state: 0,
             read_buffer: None,
             change_signal: Cell::new(SignalId::null()),
-            pending_change_fire: Cell::new(false),
         }
     }
 
@@ -83,23 +70,13 @@ impl<T: Record + Default> emRecFileModel<T> {
         self.change_signal.get()
     }
 
-    /// Test/integration accessor: read+clear `pending_change_fire`. Panels
-    /// that own the model use this from their Cycle to fire the change signal
-    /// at most once per slice.
-    pub fn take_pending_change_fire(&self) -> bool {
-        self.pending_change_fire.replace(false)
-    }
-
-    /// Drain `pending_change_fire` and fire `change_signal` if both pending and
-    /// allocated. No-op when the signal has not been observed yet (matches C++
-    /// `emSignal::Signal()` with zero subscribers per D-007 + D-008 composition
-    /// in decisions.md).
-    pub fn fire_pending_change(&self, ectx: &mut impl SignalCtx) {
-        if self.pending_change_fire.replace(false) {
-            let s = self.change_signal.get();
-            if !s.is_null() {
-                ectx.fire(s);
-            }
+    /// Port of C++ `emSignal::Signal()` on `ChangeSignal`. Synchronous fire per
+    /// D-007. No-op when `change_signal` is null (matches C++ `emSignal::Signal()`
+    /// with zero subscribers per D-007 + D-008 composition in decisions.md).
+    pub fn signal_change(&self, ectx: &mut impl SignalCtx) {
+        let s = self.change_signal.get();
+        if !s.is_null() {
+            ectx.fire(s);
         }
     }
 
@@ -111,14 +88,14 @@ impl<T: Record + Default> emRecFileModel<T> {
         &self.data
     }
 
-    pub fn GetWritableMap(&mut self) -> &mut T {
+    pub fn GetWritableMap(&mut self, ectx: &mut impl SignalCtx) -> &mut T {
         if self.protect_file_state == 0
             && matches!(
                 self.state,
                 FileState::Loaded | FileState::Unsaved | FileState::SaveError(_)
             )
         {
-            self.set_unsaved_state_internal();
+            self.set_unsaved_state_internal(ectx);
         }
         &mut self.data
     }
@@ -148,7 +125,7 @@ impl<T: Record + Default> emRecFileModel<T> {
     }
 
     /// Synchronously load the file. Port of C++ `Load(true)`.
-    pub fn TryLoad(&mut self) {
+    pub fn TryLoad(&mut self, ectx: &mut impl SignalCtx) {
         if matches!(self.state, FileState::LoadError(_) | FileState::TooCostly) {
             self.state = FileState::Waiting;
             self.error_text.clear();
@@ -156,16 +133,13 @@ impl<T: Record + Default> emRecFileModel<T> {
         while matches!(self.state, FileState::Waiting | FileState::Loading { .. }) {
             self.do_step_loading();
         }
-        // DIVERGED: (language-forced) B-002 / D-007:. C++
-        // `emFileModel::Load` (and the inherited `Step` driver) calls
-        // `Signal(ChangeSignal)` synchronously when the load completes. Rust
-        // `&mut self` mutator has no EngineCtx; defer per
-        // `pending_change_fire` (B-004 precedent at `emFilePanel.rs:104`).
-        self.pending_change_fire.set(true);
+        // D-007: C++ `emFileModel::Load` (and the inherited `Step` driver)
+        // calls `Signal(ChangeSignal)` synchronously when the load completes.
+        self.signal_change(ectx);
     }
 
     /// Synchronously save the file. Port of C++ `Save(true)`.
-    pub fn Save(&mut self) {
+    pub fn Save(&mut self, ectx: &mut impl SignalCtx) {
         if !matches!(self.state, FileState::Unsaved) {
             return;
         }
@@ -178,17 +152,21 @@ impl<T: Record + Default> emRecFileModel<T> {
         if let Some(parent) = self.path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
                 self.state = FileState::SaveError(e.to_string());
+                // D-007: C++ fires ChangeSignal on the SaveError transition.
+                self.signal_change(ectx);
                 return;
             }
         }
 
         if let Err(e) = std::fs::write(&self.path, &content) {
             self.state = FileState::SaveError(e.to_string());
+            self.signal_change(ectx);
             return;
         }
 
         if let Err(e) = self.try_fetch_date() {
             self.state = FileState::SaveError(e);
+            self.signal_change(ectx);
             return;
         }
 
@@ -201,14 +179,13 @@ impl<T: Record + Default> emRecFileModel<T> {
             self.protect_file_state -= 1;
             self.state = FileState::TooCostly;
         }
-        // DIVERGED: (language-forced) B-002 / D-007:. C++ `emFileModel::Save`
-        // calls `Signal(ChangeSignal)` synchronously on Loaded/SaveError
-        // transitions. Defer per `pending_change_fire` (B-004 precedent).
-        self.pending_change_fire.set(true);
+        // D-007: C++ `emFileModel::Save` calls `Signal(ChangeSignal)`
+        // synchronously on the Loaded transition.
+        self.signal_change(ectx);
     }
 
     /// Port of C++ `Update()`. Re-check file freshness; reset stale states.
-    pub fn update(&mut self) {
+    pub fn update(&mut self, ectx: &mut impl SignalCtx) {
         let prev = self.state.clone();
         if matches!(self.state, FileState::Loaded) {
             if self.is_out_of_date() {
@@ -219,19 +196,18 @@ impl<T: Record + Default> emRecFileModel<T> {
             self.state = FileState::Waiting;
             self.error_text.clear();
         }
-        // DIVERGED: (language-forced) B-002 / D-007:. C++ `emFileModel::Update`
-        // calls `Signal(ChangeSignal)` synchronously when transitioning out of
-        // Loaded (out-of-date) or out of LoadError/TooCostly. Defer per
-        // `pending_change_fire` (B-004 precedent).
+        // D-007: C++ `emFileModel::Update` calls `Signal(ChangeSignal)`
+        // synchronously when transitioning out of Loaded (out-of-date) or out
+        // of LoadError/TooCostly.
         if !matches!((&prev, &self.state), (FileState::Loaded, FileState::Loaded))
             && std::mem::discriminant(&prev) != std::mem::discriminant(&self.state)
         {
-            self.pending_change_fire.set(true);
+            self.signal_change(ectx);
         }
     }
 
     /// Port of C++ `HardResetFileState()`. Reset data and return to Waiting.
-    pub fn hard_reset(&mut self) {
+    pub fn hard_reset(&mut self, ectx: &mut impl SignalCtx) {
         if matches!(self.state, FileState::Loading { .. }) {
             self.read_buffer = None;
         }
@@ -243,39 +219,33 @@ impl<T: Record + Default> emRecFileModel<T> {
         self.memory_need = 1;
         self.last_mtime = 0;
         self.last_size = 0;
-        // DIVERGED: (language-forced) B-002 / D-007:. C++
-        // `emFileModel::HardResetFileState` calls `Signal(ChangeSignal)`
-        // synchronously. Defer per `pending_change_fire` (B-004 precedent).
-        self.pending_change_fire.set(true);
+        // D-007: C++ `emFileModel::HardResetFileState` calls
+        // `Signal(ChangeSignal)` synchronously.
+        self.signal_change(ectx);
     }
 
     /// Port of C++ `ClearSaveError()`. Transition SaveError → Unsaved.
-    pub fn clear_save_error(&mut self) {
+    pub fn clear_save_error(&mut self, ectx: &mut impl SignalCtx) {
         if matches!(self.state, FileState::SaveError(_)) {
             self.state = FileState::Unsaved;
             self.error_text.clear();
-            // DIVERGED: (language-forced) B-002 / D-007:. C++
-            // `emFileModel::ClearSaveError` calls `Signal(ChangeSignal)`
-            // synchronously on the SaveError → Unsaved transition. Defer per
-            // `pending_change_fire` (B-004 precedent).
-            self.pending_change_fire.set(true);
+            // D-007: C++ `emFileModel::ClearSaveError` calls
+            // `Signal(ChangeSignal)` synchronously on SaveError → Unsaved.
+            self.signal_change(ectx);
         }
     }
 
-    fn set_unsaved_state_internal(&mut self) {
+    fn set_unsaved_state_internal(&mut self, ectx: &mut impl SignalCtx) {
         if !matches!(self.state, FileState::Unsaved) {
             if matches!(self.state, FileState::Loading { .. }) {
                 self.read_buffer = None;
             }
             self.state = FileState::Unsaved;
             self.error_text.clear();
-            // DIVERGED: (language-forced) B-002 / D-007:. C++
-            // `emFileModel::SetUnsavedState`/`GetWritableMap` call
-            // `Signal(ChangeSignal)` synchronously on the Loaded/SaveError →
-            // Unsaved transition. Defer per `pending_change_fire` (B-004
-            // precedent at `emFilePanel.rs:104`). `GetWritableMap` is covered
-            // transitively via this site.
-            self.pending_change_fire.set(true);
+            // D-007: C++ `emFileModel::SetUnsavedState`/`GetWritableMap` call
+            // `Signal(ChangeSignal)` synchronously on Loaded/SaveError →
+            // Unsaved. `GetWritableMap` is covered transitively via this site.
+            self.signal_change(ectx);
         }
     }
 

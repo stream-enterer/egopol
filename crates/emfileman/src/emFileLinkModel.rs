@@ -196,7 +196,7 @@ impl Record for emFileLinkData {
 ///
 /// Port of C++ `emFileLinkModel` (extends `emRecFileModel`).
 pub struct emFileLinkModel {
-    pub(crate) rec_model: emRecFileModel<emFileLinkData>,
+    rec_model: emRecFileModel<emFileLinkData>,
 }
 
 impl emFileLinkModel {
@@ -238,9 +238,9 @@ impl emFileLinkModel {
 
     /// Load the model synchronously if not yet loaded.
     /// Returns true if the model is now in Loaded state.
-    pub fn ensure_loaded(&mut self) -> bool {
+    pub fn ensure_loaded(&mut self, ectx: &mut impl SignalCtx) -> bool {
         if matches!(self.rec_model.GetFileState(), FileState::Waiting) {
-            self.rec_model.TryLoad();
+            self.rec_model.TryLoad(ectx);
         }
         matches!(self.rec_model.GetFileState(), FileState::Loaded)
     }
@@ -254,12 +254,7 @@ impl emFileLinkModel {
 
     /// Test-only accessor for the inner `emRecFileModel`. Used by B-002
     /// integration tests to invoke mutators (e.g. `hard_reset`) and observe
-    /// the `pending_change_fire` deferred-fire flag.
-    #[doc(hidden)]
-    pub fn rec_model_for_test(&self) -> &emRecFileModel<emFileLinkData> {
-        &self.rec_model
-    }
-
+    /// the synchronous ChangeSignal fire.
     #[doc(hidden)]
     pub fn rec_model_mut_for_test(&mut self) -> &mut emRecFileModel<emFileLinkData> {
         &mut self.rec_model

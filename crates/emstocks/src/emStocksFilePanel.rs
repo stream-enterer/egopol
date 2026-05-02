@@ -3,6 +3,8 @@
 use std::path::PathBuf;
 
 use emcore::emColor::emColor;
+#[cfg(test)]
+use emcore::emEngineCtx::NullSignalCtx;
 use emcore::emEngineCtx::PanelCtx;
 use emcore::emFilePanel::emFilePanel;
 use emcore::emInput::{emInputEvent, InputKey, InputVariant};
@@ -14,7 +16,27 @@ use super::emStocksConfig::{emStocksConfig, Sorting};
 use super::emStocksFetchPricesDialog::emStocksFetchPricesDialog;
 use super::emStocksFileModel::emStocksFileModel;
 use super::emStocksListBox::emStocksListBox;
-use super::emStocksRec::Interest;
+use super::emStocksRec::{emStocksRec, Interest};
+
+/// Best-available `&mut emStocksRec` access for `Input` handlers. Production
+/// `PanelCtx` instances under `PanelCycleEngine` carry full scheduler reach
+/// (`as_sched_ctx() -> Some`), so the threaded ctx fires the synchronous
+/// `ChangeSignal` per D-007. Layout-only test contexts construct `PanelCtx`
+/// without scheduler reach (`as_sched_ctx() -> None`); fall back to
+/// `NullSignalCtx` so the mutator runs but the (necessarily null, because no
+/// subscriber has called `GetChangeSignal` in such tests) signal is dropped on
+/// the floor — observably equivalent per D-007/D-008 composition.
+fn writable_rec<'a>(model: &'a mut emStocksFileModel, ctx: &mut PanelCtx) -> &'a mut emStocksRec {
+    if let Some(mut sc) = ctx.as_sched_ctx() {
+        model.GetWritableRec(&mut sc)
+    } else {
+        let mut null = emcore::emEngineCtx::NullSignalCtx;
+        // SAFETY of timing: in this branch, change_signal is necessarily null
+        // (no subscriber has reached GetChangeSignal with a real ctx); the
+        // dropped fire is a no-op per C++ "Signal()-with-zero-subscribers".
+        model.GetWritableRec(&mut null)
+    }
+}
 
 /// Port of C++ emStocksFilePanel.
 pub struct emStocksFilePanel {
@@ -163,7 +185,8 @@ impl PanelBehavior for emStocksFilePanel {
                         ..
                     } = self;
                     if let Some(lb) = list_box.as_mut() {
-                        lb.NewStock(model.GetWritableRec(), config);
+                        let rec = writable_rec(model, ctx);
+                        lb.NewStock(rec, config);
                     }
                     return true;
                 }
@@ -173,7 +196,8 @@ impl PanelBehavior for emStocksFilePanel {
                         list_box, model, ..
                     } = self;
                     if let Some(lb) = list_box.as_mut() {
-                        lb.CutStocks(ctx, model.GetWritableRec(), false);
+                        let rec = writable_rec(model, ctx);
+                        lb.CutStocks(ctx, rec, false);
                     }
                     return true;
                 }
@@ -193,7 +217,8 @@ impl PanelBehavior for emStocksFilePanel {
                         ..
                     } = self;
                     if let Some(lb) = list_box.as_mut() {
-                        let _ = lb.PasteStocks(ctx, model.GetWritableRec(), config, false);
+                        let rec = writable_rec(model, ctx);
+                        let _ = lb.PasteStocks(ctx, rec, config, false);
                     }
                     return true;
                 }
@@ -288,7 +313,8 @@ impl PanelBehavior for emStocksFilePanel {
                 list_box, model, ..
             } = self;
             if let Some(lb) = list_box.as_mut() {
-                lb.DeleteStocks(ctx, model.GetWritableRec(), false);
+                let rec = writable_rec(model, ctx);
+                lb.DeleteStocks(ctx, rec, false);
             }
             return true;
         }
@@ -302,7 +328,8 @@ impl PanelBehavior for emStocksFilePanel {
                         list_box, model, ..
                     } = self;
                     if let Some(lb) = list_box.as_mut() {
-                        lb.SetInterest(ctx, model.GetWritableRec(), Interest::High, false);
+                        let rec = writable_rec(model, ctx);
+                        lb.SetInterest(ctx, rec, Interest::High, false);
                     }
                     return true;
                 }
@@ -312,7 +339,8 @@ impl PanelBehavior for emStocksFilePanel {
                         list_box, model, ..
                     } = self;
                     if let Some(lb) = list_box.as_mut() {
-                        lb.SetInterest(ctx, model.GetWritableRec(), Interest::Medium, false);
+                        let rec = writable_rec(model, ctx);
+                        lb.SetInterest(ctx, rec, Interest::Medium, false);
                     }
                     return true;
                 }
@@ -322,7 +350,8 @@ impl PanelBehavior for emStocksFilePanel {
                         list_box, model, ..
                     } = self;
                     if let Some(lb) = list_box.as_mut() {
-                        lb.SetInterest(ctx, model.GetWritableRec(), Interest::Low, false);
+                        let rec = writable_rec(model, ctx);
+                        lb.SetInterest(ctx, rec, Interest::Low, false);
                     }
                     return true;
                 }
@@ -358,7 +387,7 @@ impl PanelBehavior for emStocksFilePanel {
         if state_changed && new_state.is_good() && self.list_box.is_none() {
             self.list_box = Some(emStocksListBox::new());
         }
-        self.model.CheckSaveTimer();
+        self.model.CheckSaveTimer(ectx);
 
         // Poll fetch dialog
         if let Some(ref mut dialog) = self.fetch_dialog {
@@ -377,7 +406,8 @@ impl PanelBehavior for emStocksFilePanel {
                 ..
             } = self;
             if let Some(lb) = list_box.as_mut() {
-                lb.Cycle(ectx, model.GetWritableRec(), config)
+                let rec = model.GetWritableRec(ectx);
+                lb.Cycle(ectx, rec, config)
             } else {
                 false
             }
@@ -651,7 +681,8 @@ mod tests {
         let mut stock = crate::emStocksRec::StockRec::default();
         stock.AddPrice("2024-06-14", "100");
         stock.AddPrice("2024-06-15", "101");
-        panel.model.GetWritableRec().stocks.push(stock);
+        let mut null = NullSignalCtx;
+        panel.model.GetWritableRec(&mut null).stocks.push(stock);
         panel
             .list_box
             .as_mut()
@@ -681,7 +712,8 @@ mod tests {
         let mut stock = crate::emStocksRec::StockRec::default();
         stock.AddPrice("2024-06-14", "100");
         stock.AddPrice("2024-06-15", "101");
-        panel.model.GetWritableRec().stocks.push(stock);
+        let mut null = NullSignalCtx;
+        panel.model.GetWritableRec(&mut null).stocks.push(stock);
         panel
             .list_box
             .as_mut()
