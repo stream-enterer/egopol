@@ -38,6 +38,10 @@ pub(crate) struct EngineCtxInner {
     /// and `set_engine_priority` bump this upward so higher-priority engines
     /// woken mid-slice are visited in the same slice.
     pub current_awake_idx: Option<usize>,
+    /// RUST_ONLY: (language-forced-utility) Hang-investigation slice
+    /// counters (2026-05-02 plan). Reset at slice entry, dumped at slice
+    /// exit via `crate::emInstr::write_line`. No C++ analogue.
+    pub instr: crate::emInstr::SliceCounters,
 }
 
 impl EngineCtxInner {
@@ -93,6 +97,12 @@ impl EngineCtxInner {
 
         if eng.awake_state == current_parity {
             return;
+        }
+
+        if !crate::emInstr::in_process_pending() {
+            self.instr
+                .direct_wakes
+                .set(self.instr.direct_wakes.get() + 1);
         }
 
         if eng.awake_state >= 0 {
@@ -175,6 +185,7 @@ impl EngineScheduler {
                 deadline: Instant::now(),
                 timer_central: TimerCentral::new(),
                 current_awake_idx: None,
+                instr: crate::emInstr::SliceCounters::new(),
             },
         }
     }
@@ -230,6 +241,10 @@ impl EngineScheduler {
             if !sig.pending {
                 sig.pending = true;
                 self.inner.pending_signals.push(id);
+                self.inner
+                    .instr
+                    .fire_pushes
+                    .set(self.inner.instr.fire_pushes.get() + 1);
             }
         }
     }
@@ -479,6 +494,10 @@ impl EngineScheduler {
         self.inner.deadline = Instant::now() + TIME_SLICE_DURATION;
         let next_parity = self.inner.time_slice ^ 1;
 
+        self.inner.instr.reset();
+        let slice_t0 = std::time::Instant::now();
+        let slice_clock_start = self.inner.clock;
+
         // Drain deferred engine removals queued when remove() was called
         // without a scheduler context (e.g. from test cleanup or non-Cycle
         // paths). Phase 3.5.A Task 6.2: per-window trees live inside their
@@ -498,6 +517,10 @@ impl EngineScheduler {
                 if !s.pending {
                     s.pending = true;
                     self.inner.pending_signals.push(sig);
+                    self.inner
+                        .instr
+                        .timer_pushes
+                        .set(self.inner.instr.timer_pushes.get() + 1);
                 }
             }
         }
@@ -535,6 +558,38 @@ impl EngineScheduler {
                     }
                     self.inner.time_slice = next_parity;
                     self.inner.current_awake_idx = None;
+
+                    let elapsed_us = slice_t0.elapsed().as_micros() as u64;
+                    let mut buf = String::with_capacity(256);
+                    use std::fmt::Write as _;
+                    let _ = writeln!(
+                        buf,
+                        "SLICE|t_us={}|clock_start={}|clock_end={}|cycled={}|drain_pushes={}|fire={}|timer={}|direct={}|max_pending={}|rearms={}",
+                        elapsed_us,
+                        slice_clock_start,
+                        self.inner.clock,
+                        self.inner.instr.cycled.get(),
+                        self.inner.instr.drain_pushes.get(),
+                        self.inner.instr.fire_pushes.get(),
+                        self.inner.instr.timer_pushes.get(),
+                        self.inner.instr.direct_wakes.get(),
+                        self.inner.instr.max_pending_after_drain.get(),
+                        self.inner.instr.stay_awake_rearms.get(),
+                    );
+                    crate::emInstr::write_line(&buf);
+
+                    if self.inner.instr.cycled.get() > 5000 && !self.inner.instr.loud_armed.get() {
+                        self.inner.instr.loud_armed.set(true);
+                        self.inner.instr.loud_disarm_at.set(self.inner.clock + 200);
+                        crate::emInstr::write_line("LOUD_ARM\n");
+                    }
+                    if self.inner.instr.loud_armed.get()
+                        && self.inner.clock >= self.inner.instr.loud_disarm_at.get()
+                    {
+                        self.inner.instr.loud_armed.set(false);
+                        crate::emInstr::write_line("LOUD_DISARM\n");
+                    }
+
                     return;
                 }
                 // Step down by one priority level (skip by 2 because
@@ -678,6 +733,17 @@ impl EngineScheduler {
                 }
             };
 
+            self.inner
+                .instr
+                .cycled
+                .set(self.inner.instr.cycled.get() + 1);
+            if stay_awake {
+                self.inner
+                    .instr
+                    .stay_awake_rearms
+                    .set(self.inner.instr.stay_awake_rearms.get() + 1);
+            }
+
             // Reinsert behavior and update engine state
             if let Some(eng) = self.inner.engines.get_mut(engine_id) {
                 eng.behavior = Some(behavior);
@@ -781,8 +847,14 @@ impl EngineScheduler {
 
     /// Drain pending signals and wake their connected engines.
     fn process_pending_signals(&mut self) {
+        crate::emInstr::enter_process_pending();
         while !self.inner.pending_signals.is_empty() {
             let pending: Vec<SignalId> = std::mem::take(&mut self.inner.pending_signals);
+            let n = pending.len() as u64;
+            self.inner
+                .instr
+                .drain_pushes
+                .set(self.inner.instr.drain_pushes.get() + n);
             for sig_id in pending {
                 if let Some(sig) = self.inner.signals.get_mut(sig_id) {
                     sig.pending = false;
@@ -796,6 +868,12 @@ impl EngineScheduler {
                 }
             }
         }
+        let mp = self.inner.pending_signals.len() as u32;
+        let cur = self.inner.instr.max_pending_after_drain.get();
+        if mp > cur {
+            self.inner.instr.max_pending_after_drain.set(mp);
+        }
+        crate::emInstr::exit_process_pending();
     }
 }
 
